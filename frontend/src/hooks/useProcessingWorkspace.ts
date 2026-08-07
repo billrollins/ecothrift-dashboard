@@ -138,7 +138,7 @@ export async function refreshProcessingDetailData(
   void qc.invalidateQueries({ queryKey: ['products', 'processing-row-editor'] });
   void qc.invalidateQueries({ queryKey: ['products', 'processing-check-in-dialog'] });
   await Promise.all([
-    // type: 'active' — without it, refetchQueries also refires every INACTIVE cache
+    // type: 'active' - without it, refetchQueries also refires every INACTIVE cache
     // variant (one per past search/filter combo) in parallel.
     qc.refetchQueries({ queryKey: ['processing-workspace', orderId], type: 'active' }),
     qc.refetchQueries({ queryKey: ['processing-row-detail', orderId, processingRowId], type: 'active' }),
@@ -274,7 +274,7 @@ export function useProcessingUncollapseRows(orderId: number) {
   });
 }
 
-/** P9 transforms — Break apart / Make set create or rewrite rows, so refetch the list. */
+/** P9 transforms - Break apart / Make set create or rewrite rows, so refetch the list. */
 function applyTransformResult(
   qc: ReturnType<typeof useQueryClient>,
   orderId: number,
@@ -328,7 +328,7 @@ export function useProcessingRestartRow(orderId: number) {
       for (const deletedId of data.deleted_processing_row_ids ?? []) {
         qc.removeQueries({ queryKey: ['processing-row-detail', orderId, deletedId] });
       }
-      // Sub rows were deleted — the merge-only patch can't remove them from the list.
+      // Sub rows were deleted - the merge-only patch can't remove them from the list.
       qc.invalidateQueries({ queryKey: ['processing-workspace', orderId] });
       qc.invalidateQueries({ queryKey: ['purchaseOrders', orderId] });
       qc.invalidateQueries({ queryKey: ['items'] });

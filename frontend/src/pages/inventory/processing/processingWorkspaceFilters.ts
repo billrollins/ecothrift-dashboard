@@ -1,6 +1,6 @@
 /**
  * Pure helpers for Item Processor workspace search and row filtering.
- * Validation matrix: V-07, V-08, V-12 — see PROCESSING_VALIDATION_MATRIX.md
+ * Validation matrix: V-07, V-08, V-12 - see PROCESSING_VALIDATION_MATRIX.md
  */
 
 /** Row shape exposing server-built ``searchString`` (see ProcessingWorkspaceRowDTO). */
@@ -76,7 +76,7 @@ export function queueFiltersToSegmentsParam(state: ProcessingQueueFilterState): 
 }
 
 /**
- * Canonical workspace row search blob — supplied by GET processing-workspace (`search_string` → `searchString`).
+ * Canonical workspace row search blob - supplied by GET processing-workspace (`search_string` → `searchString`).
  * Server lowers and normalizes whitespace; do not reconstruct from listing columns on the client.
  */
 export function processingWorkspaceSearchBlob(row: Pick<ProcessingSearchBlobRow, 'searchString'>): string {
@@ -154,7 +154,7 @@ export function rowPrimaryUpc(row: RowUpcSource): string {
 
 /**
  * Rows whose primary UPC equals the scan token (normalized).
- * Full-PO / scoped rows only — caller supplies already segment/product-filtered rows.
+ * Full-PO / scoped rows only - caller supplies already segment/product-filtered rows.
  */
 export function rowsMatchingExactUpc<T extends RowUpcSource>(rows: T[], scanToken: string): T[] {
   const q = normalizeUpcToken(scanToken);

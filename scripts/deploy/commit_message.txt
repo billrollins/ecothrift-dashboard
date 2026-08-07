@@ -1,7 +1,17 @@
-Release v2.64.0: Microsoft Graph mailbox (dormant)
+release: v2.69.0 Online Sales goes live
 
-- apps/mailbox: Graph send/sync, templates, classification, Admin retail inbox
-- Online Sales Messages template picker; MS_GRAPH_ENABLED=false until Entra
-- Docs: Entra + Exchange RBAC scoped to retail@ (no org-wide Graph grant)
+Release: v2.69.0
 
-Release: v2.64.0
+Ship the Online Sales MVP to production: Customers workspace (Messages
+moved off Holds), verified holds, account portal, Graph mail, and
+migrations through webstore 0015.
+
+Hardening for launch:
+- Remove whole-database wipe commands (reset_business_data,
+  reset_buying_data, create_test_auctions) and seed_categories --clear.
+  Online Sales blank-slate is purge_online_sales only.
+- Document ONLINE_SALES_*, MS_GRAPH_*, and PUBLIC_SITE_* in development.md;
+  sync .envprod with storefront off until post-deploy purge/seed/smoke.
+- Ignore scripts/deploy/temp_* so pull-prod dumps cannot be committed.
+
+Initiative: online_sales_mvp

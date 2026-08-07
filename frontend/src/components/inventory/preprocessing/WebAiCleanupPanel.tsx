@@ -44,7 +44,7 @@ const CONCURRENCY_CHOICES = [1, 2, 4, 8];
  * `ai-cleanup-batch` POSTs (verdict: batch 10, concurrency default 4, cap 8).
  * Pause is client-side (in-flight batches finish and save); resume re-fetches
  * `uncleaned_row_ids` and processes only what's left. A generation bump
- * (undo / Cancel cleanup) stops the pool — the server discards those saves.
+ * (undo / Cancel cleanup) stops the pool - the server discards those saves.
  */
 export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
   const queryClient = useQueryClient();
@@ -104,7 +104,7 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
         const { data: completion } = await aiCleanupComplete(orderId);
         setBanner({
           severity: 'success',
-          message: `All ${completion.total_rows} row(s) already cleaned — match candidates refreshed (${completion.match_candidates.rows_with_candidates} row(s) with candidates).`,
+          message: `All ${completion.total_rows} row(s) already cleaned - match candidates refreshed (${completion.match_candidates.rows_with_candidates} row(s) with candidates).`,
         });
         invalidateAfterRun();
         return;
@@ -134,14 +134,14 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
       if (outcome.stoppedByGeneration) {
         setBanner({
           severity: 'warning',
-          message: 'Cleanup was cancelled or undone while running — stopped. Nothing from in-flight batches was saved.',
+          message: 'Cleanup was cancelled or undone while running - stopped. Nothing from in-flight batches was saved.',
         });
         return;
       }
       if (outcome.stoppedByPause) {
         setBanner({
           severity: 'info',
-          message: `Paused — ${outcome.rowsSaved} row(s) saved this run. Click Run AI Cleanup to resume the remaining rows.`,
+          message: `Paused - ${outcome.rowsSaved} row(s) saved this run. Click Run AI Cleanup to resume the remaining rows.`,
         });
         return;
       }
@@ -184,7 +184,7 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
   const handlePause = () => {
     pausedRef.current = true;
     setRunState('pausing');
-    enqueueSnackbar('Pausing — in-flight batches will finish and save.', { variant: 'info' });
+    enqueueSnackbar('Pausing - in-flight batches will finish and save.', { variant: 'info' });
   };
 
   // Full undo: clears ai_* + final_* + match decisions, resets order flags, bumps the
@@ -193,7 +193,7 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
     if (!window.confirm('Undo AI cleanup? This clears all AI titles, prices, and product match decisions for this order.')) return;
     cancelCleanup.mutate(orderId, {
       onSuccess: (data) => {
-        setBanner({ severity: 'info', message: `Cleanup undone — ${data.rows_cleared} row(s) reset to standardized.` });
+        setBanner({ severity: 'info', message: `Cleanup undone - ${data.rows_cleared} row(s) reset to standardized.` });
         invalidateAfterRun();
       },
       onError: () => setBanner({ severity: 'error', message: 'Failed to undo cleanup.' }),
@@ -210,7 +210,7 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
             Run AI Cleanup
           </Typography>
           <Typography sx={{ fontSize: 13, color: '#666', fontFamily: preprocessingFonts.sans }}>
-            Cleans rows in batches — progress saves as it goes, and you can pause and resume any time.
+            Cleans rows in batches - progress saves as it goes, and you can pause and resume any time.
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
@@ -313,7 +313,7 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
             )}
             {rate && (
               <Typography sx={{ fontSize: 12, color: '#555', fontFamily: preprocessingFonts.mono }}>
-                {rate.rowsPerSec.toFixed(1)} rows/s{rate.etaS != null ? ` — ~${rate.etaS}s left` : ''}
+                {rate.rowsPerSec.toFixed(1)} rows/s{rate.etaS != null ? ` - ~${rate.etaS}s left` : ''}
               </Typography>
             )}
           </Box>

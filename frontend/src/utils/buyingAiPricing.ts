@@ -1,5 +1,5 @@
 /**
- * USD per 1M tokens — must match `ecothrift/settings.py` AI_PRICING.
+ * USD per 1M tokens - must match `ecothrift/settings.py` AI_PRICING.
  * Used if the client ever needs to estimate cost from raw usage; batch API returns estimated_cost_usd.
  */
 export const AI_PRICING_USD_PER_M = {

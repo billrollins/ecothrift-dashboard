@@ -10,14 +10,15 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from apps.webstore.models import Reservation
+from apps.webstore.models import Conversation, Reservation
+from apps.webstore.services.conversations import expire_unverified_inquiries
 from apps.webstore.services.reservations import expire_due_reservations
 
 
 class Command(BaseCommand):
     help = (
-        'Expire confirmed/ready Online Sales holds past expires_at, plus untriaged '
-        'requested holds past ONLINE_SALES_REQUEST_TRIAGE_HOURS; release reserved qty.'
+        'Expire Online Sales holds past expires_at (provisional, verified, ready) '
+        'and delete stale unverified inquiries.'
     )
 
     def add_arguments(self, parser):
@@ -29,29 +30,38 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         now = timezone.now()
-        confirmed_due = Reservation.objects.filter(
-            status__in=('confirmed', 'ready_for_pickup'),
+        active_due = Reservation.objects.filter(
+            status__in=('requested', 'confirmed', 'ready_for_pickup'),
             expires_at__isnull=False,
             expires_at__lte=now,
         ).count()
-        triage_hours = int(getattr(settings, 'ONLINE_SALES_REQUEST_TRIAGE_HOURS', 48))
-        stale_requests = Reservation.objects.filter(
-            status='requested',
-            created_at__lte=now - timedelta(hours=triage_hours),
+        pending_due = Reservation.objects.filter(
+            status='pending_verification',
+            expires_at__isnull=False,
+            expires_at__lte=now,
         ).count()
-        due_count = confirmed_due + stale_requests
+        inquiry_hours = int(getattr(settings, 'ONLINE_SALES_INQUIRY_VERIFY_HOURS', 24))
+        stale_inquiries = Conversation.objects.filter(
+            state='pending_verification',
+            reservation__isnull=True,
+            created_at__lte=now - timedelta(hours=inquiry_hours),
+        ).count()
+        due_count = active_due + pending_due
         if options['dry_run']:
             self.stdout.write(
                 self.style.WARNING(
                     f'Dry run: {due_count} hold(s) would expire '
-                    f'({confirmed_due} confirmed/ready, {stale_requests} untriaged requests).'
+                    f'({active_due} past expires_at, {pending_due} pending verification); '
+                    f'{stale_inquiries} unverified inquir(y/ies) would be deleted.'
                 )
             )
             return
         released = expire_due_reservations(now=now)
+        deleted = expire_unverified_inquiries(now=now)
         self.stdout.write(
             self.style.SUCCESS(
                 f'Expired {released} hold(s) '
-                f'({confirmed_due} confirmed/ready, {stale_requests} untriaged requests).'
+                f'({active_due} past expires_at, {pending_due} pending verification); '
+                f'deleted {deleted} unverified inquir(y/ies).'
             )
         )

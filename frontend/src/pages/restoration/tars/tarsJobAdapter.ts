@@ -88,7 +88,7 @@ export function jobSkuLabel(job: RestorationJobDTO): string {
   return job.items[0]?.sku ?? job.sku ?? `JOB-${job.id}`;
 }
 
-/** Stable row key for TARS lists — one row per physical item when stacks are expanded. */
+/** Stable row key for TARS lists - one row per physical item when stacks are expanded. */
 export function tarsJobRowKey(job: RestorationJobDTO): string {
   const itemId = job.items[0]?.id;
   return itemId != null ? `${job.id}:${itemId}` : String(job.id);
@@ -158,7 +158,7 @@ export function formatElapsed(seconds: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-/** Always HH:MM:SS — for stopwatch display. */
+/** Always HH:MM:SS - for stopwatch display. */
 export function formatStopwatch(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);

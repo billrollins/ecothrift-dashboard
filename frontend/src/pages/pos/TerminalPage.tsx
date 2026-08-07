@@ -285,7 +285,7 @@ export default function TerminalPage() {
     requestAnimationFrame(() => requestAnimationFrame(scroll));
   }, [cart]);
 
-  // Stable date string — only recomputes at midnight
+  // Stable date string - only recomputes at midnight
   const todayLocalISO = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
 
   // Stable params objects to avoid React Query key churn
@@ -1124,7 +1124,7 @@ export default function TerminalPage() {
                 </Button>
               }
             >
-              <strong>Drawer in use</strong> — currently assigned to{' '}
+              <strong>Drawer in use</strong> - currently assigned to{' '}
               <strong>
                 {todayDrawer?.current_cashier_name ?? 'another cashier'}
               </strong>
@@ -1140,7 +1140,7 @@ export default function TerminalPage() {
                     Opened:{' '}
                     {todayDrawer?.opened_at
                       ? format(new Date(todayDrawer.opened_at), 'h:mm a')
-                      : '—'}
+                      : '-'}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Opening total: {formatCurrency(todayDrawer?.opening_total)}
@@ -1179,13 +1179,13 @@ export default function TerminalPage() {
                     Opened:{' '}
                     {todayDrawer?.opened_at
                       ? format(new Date(todayDrawer.opened_at), 'h:mm a')
-                      : '—'}
+                      : '-'}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Closed:{' '}
                     {todayDrawer?.closed_at
                       ? format(new Date(todayDrawer.closed_at), 'h:mm a')
-                      : '—'}
+                      : '-'}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Opening total: {formatCurrency(todayDrawer?.opening_total)}
@@ -1255,7 +1255,7 @@ export default function TerminalPage() {
                     {openDrawersList.map((d: Drawer) => (
                       <MenuItem key={d.id} value={String(d.id)}>
                         {d.register_name} ({d.register_code})
-                        {d.current_cashier_name ? ` — ${d.current_cashier_name}` : ''}
+                        {d.current_cashier_name ? ` - ${d.current_cashier_name}` : ''}
                       </MenuItem>
                     ))}
                   </Select>
@@ -1287,7 +1287,7 @@ export default function TerminalPage() {
             spacing={2}
             sx={{ flex: 1, minHeight: 0, alignItems: 'stretch', height: '100%' }}
           >
-            {/* Cart panel — fills leftover viewport; lines scroll; totals always pinned */}
+            {/* Cart panel - fills leftover viewport; lines scroll; totals always pinned */}
             <Grid size={{ xs: 12, md: 7 }} sx={{ minHeight: 0, display: 'flex', height: { md: '100%' } }}>
               <Paper
                 sx={{
@@ -2127,13 +2127,13 @@ export default function TerminalPage() {
                   disabled={deliverySlotsLoading}
                 >
                   <MenuItem value="later">
-                    Schedule later (no date) — book fee now, date on Deliveries
+                    Schedule later (no date) - book fee now, date on Deliveries
                   </MenuItem>
                   {upcomingDeliverySlots.length === 0 ? (
                     <MenuItem value="" disabled>
                       {deliverySlotsLoading
                         ? 'Loading dates…'
-                        : 'No available dates yet — use Schedule later, or add dates on Deliveries'}
+                        : 'No available dates yet - use Schedule later, or add dates on Deliveries'}
                     </MenuItem>
                   ) : (
                     upcomingDeliverySlots.map((slot) => {
@@ -2143,7 +2143,7 @@ export default function TerminalPage() {
                       const load = `${slot.delivery_count} del / ${slot.items_booked} items`;
                       return (
                         <MenuItem key={slot.id} value={String(slot.id)}>
-                          {slot.date} {start}–{end} ({slot.crew_size}p){who} — {load}
+                          {slot.date} {start}-{end} ({slot.crew_size}p){who} - {load}
                         </MenuItem>
                       );
                     })
@@ -2165,7 +2165,7 @@ export default function TerminalPage() {
                 fullWidth
                 multiline
                 minRows={2}
-                helperText="Optional — gate codes, stairs, preferred Saturday, etc."
+                helperText="Optional - gate codes, stairs, preferred Saturday, etc."
               />
 
               <TextField
@@ -2221,7 +2221,7 @@ export default function TerminalPage() {
                               color={s.too_far ? 'error' : 'text.secondary'}
                             >
                               {s.too_far
-                                ? `${s.distance_miles} mi — too far for delivery`
+                                ? `${s.distance_miles} mi - too far for delivery`
                                 : `${s.distance_miles} mi ${s.distance_mode === 'driving' ? 'driving' : 'straight-line'} → ${s.tier === '5mi' ? '$50' : '$75'}`}
                             </Typography>
                           }
@@ -2237,7 +2237,7 @@ export default function TerminalPage() {
                   {deliveryPicked.distance_miles} miles{' '}
                   {deliveryPicked.distance_mode === 'driving' ? 'driving' : 'straight-line'} from
                   store. Fee set to{' '}
-                  {deliveryPicked.tier === '5mi' ? '$50 (5 mi or less)' : '$75 (5–10 mi)'}.
+                  {deliveryPicked.tier === '5mi' ? '$50 (5 mi or less)' : '$75 (5-10 mi)'}.
                 </Alert>
               )}
 
@@ -2347,7 +2347,7 @@ export default function TerminalPage() {
                 Deliveries run on <strong>Saturdays</strong>.
               </li>
               <li>
-                Someone <strong>must be home</strong> — we call the day of delivery and again when we
+                Someone <strong>must be home</strong> - we call the day of delivery and again when we
                 arrive. No answer = no delivery attempt.
               </li>
               <li>Signature required; drop-off only (end of driveway / apartment lot).</li>
@@ -2406,7 +2406,7 @@ export default function TerminalPage() {
         loading={voidCartMutation.isPending}
       />
 
-      {/* Device setup dialog — always available so users can reconfigure at any time */}
+      {/* Device setup dialog - always available so users can reconfigure at any time */}
       <DeviceSetupDialog
         open={deviceSetupOpen}
         onClose={() => setDeviceSetupOpen(false)}

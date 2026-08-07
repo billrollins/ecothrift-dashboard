@@ -71,7 +71,7 @@ export const GRADE_SUGGEST_BTN_MIN_WIDTH = 112;
 
 export interface TarsGradeValuesCardItem {
   sku?: string;
-  /** Stack display label — e.g. ITM123 or ITM123 +4 */
+  /** Stack display label - e.g. ITM123 or ITM123 +4 */
   skuLabel?: string;
   catalogItemId?: number;
   catalogItemIds?: number[];
@@ -104,7 +104,7 @@ export interface TarsGradeValuesCardProps {
   onScaleChange: (scale: string) => void;
   onGradeValueChange: (grade: string, value: number) => void;
   scales?: Record<string, string[]>;
-  /** Primary action at the bottom of the card (Queue page — Save grade values). */
+  /** Primary action at the bottom of the card (Queue page - Save grade values). */
   sendAction?: {
     disabled?: boolean;
     onSend: () => void;
@@ -152,14 +152,14 @@ export function TarsGradeValuesCard({
   const hierarchyItems = [
     {
       label: 'Order',
-      value: item.orderNumber ? `#${item.orderNumber}` : '—',
+      value: item.orderNumber ? `#${item.orderNumber}` : '-',
       mono: true,
       href: item.orderId ? `/inventory/orders/${item.orderId}` : undefined,
       title: item.orderId ? `Open order ${item.orderNumber}` : undefined,
     },
     {
       label: 'Prod',
-      value: item.productNumber || (item.productId ? `prod=${item.productId}` : '—'),
+      value: item.productNumber || (item.productId ? `prod=${item.productId}` : '-'),
       mono: true,
       href: item.productId ? productCatalogWorkbenchUrl(item.productId, item.productNumber) : undefined,
       openInNewTab: true,
@@ -167,7 +167,7 @@ export function TarsGradeValuesCard({
     },
     {
       label: 'Items',
-      value: item.skuLabel ?? item.sku ?? '—',
+      value: item.skuLabel ?? item.sku ?? '-',
       mono: true,
       href:
         item.catalogItemId && itemSkuLabel ?
@@ -192,7 +192,7 @@ export function TarsGradeValuesCard({
     { label: 'Items in stack', value: String(item.stackQuantity ?? 1) },
     { label: 'Retail', value: formatUsd(item.retail ?? 0) },
     { label: 'Price', value: formatUsd(item.price ?? 0) },
-    { label: 'Values', value: `${completeCount}/${grades.length || '—'}` },
+    { label: 'Values', value: `${completeCount}/${grades.length || '-'}` },
   ];
 
   const [suggestionDims, setSuggestionDims] = useState<GradeSuggestionDims>({
@@ -744,7 +744,7 @@ export function TarsGradeValuesCard({
                         setPctDrafts((prev) => ({ ...prev, [grade]: formatPctInput(pctFromValue(retailBase, next)) }));
                         onGradeValueChange(grade, next);
                       }}
-                      placeholder="—"
+                      placeholder="-"
                       error={!filled}
                       sx={{
                         ...hideNumberSpinnerSx,
@@ -786,7 +786,7 @@ export function TarsGradeValuesCard({
                           onGradeValueChange(grade, 0);
                         }
                       }}
-                      placeholder="—"
+                      placeholder="-"
                       sx={{
                         ...hideNumberSpinnerSx,
                         width: GRADE_PCT_FIELD_WIDTH,

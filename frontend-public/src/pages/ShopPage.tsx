@@ -3,11 +3,11 @@ import { Link, useSearchParams } from 'react-router-dom'
 import {
   fetchCatalog,
   fetchCategories,
-  money,
   type CatalogItem,
   type CategoryCount,
 } from '../api'
 import { useCart } from '../cart'
+import ProductGrid from '../components/ProductGrid'
 import { SHOP_CATEGORIES } from '../data/content'
 import { useSeo } from '../useSeo'
 
@@ -22,7 +22,7 @@ export default function ShopPage() {
   useSeo({
     title: 'Shop',
     description:
-      'Browse Eco-Thrift’s curated online finds — furniture, electronics, tools, home goods and more, with new arrivals every week. Free pickup at our Omaha store.',
+      'Browse Eco-Thrift’s curated online finds - furniture, electronics, tools, home goods and more, with new arrivals every week. Free pickup at our Omaha store.',
     path: '/shop',
   })
   const [params, setParams] = useSearchParams()
@@ -182,49 +182,18 @@ export default function ShopPage() {
             </div>
           </div>
         ) : (
-          <div className="prodgrid">
-            {items.map((it) => (
-              <div className="prodcard" key={it.id}>
-                <Link to={`/shop/${it.slug}`} className="prodthumb">
-                  {it.image ? (
-                    <img src={it.image.url} alt={it.image.alt} loading="lazy" />
-                  ) : (
-                    <span className="ph g3" />
-                  )}
-                  {it.on_sale && it.available > 0 && <span className="badge sale">Sale</span>}
-                  {it.available <= 0 && <span className="badge reserved">Reserved</span>}
-                </Link>
-                <div className="prodbody">
-                  {it.category_name && <div className="prodcat">{it.category_name}</div>}
-                  <Link to={`/shop/${it.slug}`} className="prodtitle">
-                    {it.title}
-                  </Link>
-                  <div className="prodmeta">{it.condition_display}</div>
-                  <div className="prodprice">
-                    {money(it.price)}
-                    {it.on_sale && it.compare_at_price && (
-                      <span className="was">{money(it.compare_at_price)}</span>
-                    )}
-                  </div>
-                  <button
-                    className="btn btn--primary prodadd"
-                    disabled={it.available <= 0}
-                    onClick={() =>
-                      add({
-                        slug: it.slug,
-                        title: it.title,
-                        price: parseFloat(it.price),
-                        image: it.image?.url ?? null,
-                        stock: it.stock,
-                      })
-                    }
-                  >
-                    {it.available > 0 ? 'Add to hold list' : 'Reserved'}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+          <ProductGrid
+            items={items}
+            onAdd={(it) =>
+              add({
+                slug: it.slug,
+                title: it.title,
+                price: parseFloat(it.price),
+                image: it.image?.url ?? null,
+                stock: it.stock,
+              })
+            }
+          />
         )}
       </div>
     </div>

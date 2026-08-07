@@ -33,7 +33,7 @@ import ManifestListCell from '../../components/buying/ManifestListCell';
 const MOBILE_PRESET_VALUES = new Set<string>(MOBILE_SORT_OPTIONS.map((o) => o.value));
 
 function formatNeedScoreRaw(score: string | number | null | undefined): string {
-  if (score == null || score === '') return '—';
+  if (score == null || score === '') return '-';
   const n = Number.parseFloat(String(score));
   if (Number.isNaN(n)) return String(score);
   if (Number.isInteger(n)) return String(n);
@@ -134,7 +134,7 @@ export default function AuctionListMobile({
                             color="primary"
                             sx={{ fontWeight: 600, lineHeight: 1.2 }}
                           >
-                            {row.marketplace?.name ?? '—'}
+                            {row.marketplace?.name ?? '-'}
                           </Typography>
                           <ManifestListCell row={row} />
                           {onWatchToggle && !watchUnknown ? (
@@ -224,7 +224,7 @@ export default function AuctionListMobile({
                       </Typography>
                       <Stack direction="row" spacing={0.75} sx={{ mb: 0.5 }} flexWrap="wrap" useFlexGap>
                         <Typography variant="caption" color="text.secondary">
-                          P{row.priority ?? '—'}
+                          P{row.priority ?? '-'}
                         </Typography>
                         <Typography variant="caption" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>
                           Need {formatNeedScoreRaw(row.need_score)}
@@ -269,7 +269,7 @@ export default function AuctionListMobile({
                           {formatTimeRemainingShort(row.end_time)}
                         </Typography>
                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-                          {row.bid_count != null ? `${row.bid_count} bids` : '—'}
+                          {row.bid_count != null ? `${row.bid_count} bids` : '-'}
                         </Typography>
                       </Stack>
                     </CardContent>

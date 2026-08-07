@@ -223,7 +223,7 @@ export function TarsRestorationTimeline({
               Restoration log
             </Typography>
             <Typography variant="caption" sx={{ color: '#65748a' }}>
-              Valuations, estimates, decisions, actions, and results—in order.
+              Valuations, estimates, decisions, actions, and results-in order.
             </Typography>
           </Box>
           <Button

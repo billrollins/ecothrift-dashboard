@@ -500,7 +500,7 @@ export default function FloorplanCanvas({
           if (rot === 90 || rot === 270) px = dcX;
           else py = dcY;
         } else if (e.shiftKey) {
-          // Shift: resize ONE dimension only — hold the axis the cursor moved less on
+          // Shift: resize ONE dimension only - hold the axis the cursor moved less on
           if (Math.abs(world.x - dcX) >= Math.abs(world.y - dcY)) py = dcY;
           else px = dcX;
         }

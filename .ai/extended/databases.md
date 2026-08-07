@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-06 -->
+<!-- Last updated: 2026-08-04 (env key list lives in development.md) -->
 
 # Databases — Three Generations
 
@@ -28,7 +28,7 @@ Eco-Thrift uses **multiple PostgreSQL databases** locally: frozen archives for V
 | Use case | File / pattern |
 |----------|----------------|
 | **Jupyter / pandas** | `workspace/notebooks/_shared/config_local.py` — aligns with root `.env`; see `config.example.py` |
-| **Django app** | Root `.env` — `DATABASE_*` (see `.env.example` and `.ai/extended/development.md`) |
+| **Django app** | Root `.env` — `DATABASE_*` (edit `.env` directly; key list in `.ai/extended/development.md`) |
 | **psql / multi-DB INI (optional)** | Local file under `workspace/` if you maintain one (e.g. `workspace/database-audits/.config`) — gitignored; never commit secrets |
 
 Do **not** put passwords or production hosts in `.ai/extended/*.md` or in committed notebook files.

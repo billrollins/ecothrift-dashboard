@@ -1,6 +1,6 @@
 import type { SxProps, Theme } from '@mui/material/styles';
 
-/** Typography scoped to preprocessing wizard — aligns with `preprocessing-mockup.jsx` `st`. */
+/** Typography scoped to preprocessing wizard - aligns with `preprocessing-mockup.jsx` `st`. */
 export const preprocessingFonts = {
   sans: '"DM Sans", "Inter", system-ui, sans-serif',
   mono: '"Fira Code", "SF Mono", "Consolas", ui-monospace, monospace',
@@ -44,7 +44,7 @@ export const preprocessingStep1 = {
     mb: 2,
     lineHeight: 1.5,
   } satisfies SxProps<Theme>,
-  /** Section/card interior padding (mock `st.card`: 20px). Use on outer card only — never on `width:100%` scroll containers. */
+  /** Section/card interior padding (mock `st.card`: 20px). Use on outer card only - never on `width:100%` scroll containers. */
   cardPaddingSx: { p: 2.5 } satisfies SxProps<Theme>,
   /** Full Step 1 card shell (mock `st.card`). Includes border-box so padding cannot widen the layout. */
   cardSurfaceSx: {
@@ -63,7 +63,7 @@ export const preprocessingStep1 = {
     maxWidth: '100%',
     overflowX: 'hidden',
   } satisfies SxProps<Theme>,
-  /** Horizontal scroll strip — thin scrollbar, stable gutter to avoid layout shift. */
+  /** Horizontal scroll strip - thin scrollbar, stable gutter to avoid layout shift. */
   tableHorizontalScrollSx: {
     boxSizing: 'border-box',
     width: '100%',

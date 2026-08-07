@@ -214,7 +214,7 @@ export default function LabelDesignerPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, [selectedIndex]);
 
-  // Staff media proxy requires JWT — <img src={proxyUrl}> gets 401. Load via
+  // Staff media proxy requires JWT - <img src={proxyUrl}> gets 401. Load via
   // authenticated fetch → blob URL (same pattern as LabelPrintDialog).
   const [remoteBgUrl, setRemoteBgUrl] = useState<string | null>(null);
   const backgroundFileId = data?.background_file?.id ?? null;

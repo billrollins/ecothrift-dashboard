@@ -229,7 +229,7 @@ function formatShortDate(value: string | null | undefined): string {
 }
 
 function formatCheckInDateTime(value: string | null | undefined): string {
-  if (!value) return '—';
+  if (!value) return '-';
   try {
     return new Date(value).toLocaleString(undefined, {
       month: 'short',
@@ -244,7 +244,7 @@ function formatCheckInDateTime(value: string | null | undefined): string {
 }
 
 function checkInOrderLabel(row: ItemCheckInCatalog): string {
-  return row.purchase_order_number?.trim() || (row.purchase_order ? `PO ${row.purchase_order}` : '—');
+  return row.purchase_order_number?.trim() || (row.purchase_order ? `PO ${row.purchase_order}` : '-');
 }
 
 function productPaneIdentityLabel(state: ProductEditorState): string {
@@ -255,7 +255,7 @@ function productPaneIdentityLabel(state: ProductEditorState): string {
 }
 
 function money(value: string | number | null | undefined): string {
-  if (value == null || value === '') return '—';
+  if (value == null || value === '') return '-';
   const n = typeof value === 'number' ? value : Number.parseFloat(value);
   return Number.isFinite(n)
     ? n.toLocaleString(undefined, { style: 'currency', currency: 'USD' })
@@ -716,7 +716,7 @@ export function ProductManagePanel({
 
       if (result.low_confidence) {
         const msg = categoryNote
-          ? `${categoryNote} — ${result.low_confidence_reason || 'Low confidence suggestions.'}`
+          ? `${categoryNote} - ${result.low_confidence_reason || 'Low confidence suggestions.'}`
           : result.low_confidence_reason || 'Low confidence suggestions.';
         enqueueSnackbar(msg, { variant: 'warning' });
       } else if (categoryNote) {
@@ -1230,7 +1230,7 @@ export function ProductManagePanel({
         }}
       >
         <Tooltip
-          title={state.isActive ? 'Active — open for new item links' : 'Inactive — hidden from new assignments'}
+          title={state.isActive ? 'Active - open for new item links' : 'Inactive - hidden from new assignments'}
           placement="top"
         >
           <FormControlLabel

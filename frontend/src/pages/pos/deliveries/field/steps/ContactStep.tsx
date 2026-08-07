@@ -145,7 +145,7 @@ export function ContactStep({ day, run, mutations, busy, canManage, onContinueLo
         date: run.date,
         eta: etaLabel || undefined,
       })
-    : `Hi ${firstName}! Eco-Thrift here — confirming your delivery today. Reply YES to confirm.`;
+    : `Hi ${firstName}! Eco-Thrift here - confirming your delivery today. Reply YES to confirm.`;
 
   const outcomeSheet = (
     <FieldSheet

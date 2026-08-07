@@ -79,7 +79,7 @@ interface Props {
   onPalletPick: (pallet: number, side: PalletSideId, fileList: FileList | null) => void;
   onDamaged: (palletNumber: number, damaged: boolean) => void;
   onOpenIntakeDisputeForPallet?: (palletNumber: number, subjectPalletId: number | null) => void;
-  /** Open complete dialog (photos may be missing — dialog collects overrides). */
+  /** Open complete dialog (photos may be missing - dialog collects overrides). */
   onRequestComplete: () => void;
   /** After in-viewer replace, refresh receiving detail. */
   onReceivingPhotosChanged?: () => void | Promise<void>;
@@ -1285,7 +1285,7 @@ export default function ReceivingDesktopWorkspace({
                     step={60}
                     disabled={!!m.completed_at || disabled}
                     aria-label="Session start time"
-                    title="Start time — adjust if needed"
+                    title="Start time - adjust if needed"
                     value={startEdit}
                     onChange={(e) => {
                       const next = e.target.value;
@@ -1315,7 +1315,7 @@ export default function ReceivingDesktopWorkspace({
                     step={60}
                     disabled={!!m.completed_at || disabled}
                     aria-label="Session end time"
-                    title="End time — fills when unloading ends or receiving completes"
+                    title="End time - fills when unloading ends or receiving completes"
                     value={endEdit}
                     onChange={(e) => {
                       const next = e.target.value;
@@ -1618,7 +1618,7 @@ export default function ReceivingDesktopWorkspace({
             </Box>
           ) : (
             <>
-              {/* Quick Fill — only when pallets exist */}
+              {/* Quick Fill - only when pallets exist */}
               {!m.completed_at ? (
                 <Box
                   onDragOver={(e) => {

@@ -1,4 +1,4 @@
-/** Eco-Thrift receiving — aligned with theme.palette.primary.main (#2e7d32); warm sage surfaces */
+/** Eco-Thrift receiving - aligned with theme.palette.primary.main (#2e7d32); warm sage surfaces */
 
 export const RCV_BRAND = '#2e7d32' as const;
 /** theme.palette.primary.light */
@@ -23,7 +23,7 @@ export const rcvSurface = {
 } as const;
 
 export const rcvBorder = {
-  /** Cards, neutral dividers — warm sage grey */
+  /** Cards, neutral dividers - warm sage grey */
   hairline: '#e5ebe5',
   input: '#d5e2d8',
   panelHairline: '#dde8de',
@@ -56,7 +56,7 @@ export const rcvAccents = {
   watermark: 'rgba(46, 125, 50, 0.06)',
 } as const;
 
-/** Condition chips — good aligns with brand; mixed/damaged unchanged */
+/** Condition chips - good aligns with brand; mixed/damaged unchanged */
 export const rcvCondition = {
   good: {
     border: RCV_BRAND,

@@ -159,7 +159,7 @@ function ProcessingRowHeader({
   itemCheckInCount: number;
   disputedCount: number;
   productsChipLabel?: string | null;
-  /** P7 collapse: "⊟ Rows 1, 2, 3 as one" — tiles show COMBINED group numbers. */
+  /** P7 collapse: "⊟ Rows 1, 2, 3 as one" - tiles show COMBINED group numbers. */
   groupChipLabel?: string | null;
   onBackToQueue: () => void;
   onRefreshDetail?: () => void;
@@ -549,7 +549,7 @@ function ManifestField({
   const effectiveRaw = currency ? rawValue : (optimisticValue ?? displayValue ?? value);
   const trimmed = effectiveRaw?.trim() ?? '';
   const isEmpty = !trimmed;
-  const shown = currency ? (isEmpty ? '—' : formatCurrency(rawValue)) : (trimmed || '—');
+  const shown = currency ? (isEmpty ? '-' : formatCurrency(rawValue)) : (trimmed || '-');
   const pillPlaceholder = `Add ${label.toLowerCase()}`;
   const resolvedSelectOptions = useMemo(
     () => (selectOptions ? resolveSelectOptions(selectOptions, draft || rawValue, isTaxonomyV1CategoryName) : []),
@@ -744,7 +744,7 @@ function ManifestField({
                 }}
               >
                 <MenuItem value="">
-                  <em>—</em>
+                  <em>-</em>
                 </MenuItem>
                 {resolvedSelectOptions.map((opt) => (
                   <MenuItem key={opt} value={opt} dense>
@@ -1227,7 +1227,7 @@ function AttachedProductCard({
               </Box>
               {product.title}
             </>
-          : titleLine || '—'}
+          : titleLine || '-'}
         </Typography>
         {line2 ?
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.05, fontWeight: 600, fontSize: '0.625rem', lineHeight: 1.2 }} noWrap>
@@ -1430,7 +1430,7 @@ export function ProcessingActiveCard({
         linkConfig: normalizeProductLink(links[String(p.id)]),
       }));
     }
-    // List/patch payloads without detail hydration — fall back to matched product + check-ins.
+    // List/patch payloads without detail hydration - fall back to matched product + check-ins.
     const out = new Map<string, AttachedRowProduct>();
     if (product) {
       out.set(`product:${product.id}`, {
@@ -1676,8 +1676,8 @@ export function ProcessingActiveCard({
       const data = await deleteItemCheckIn.mutateAsync(historyRow.itemCheckInId);
       enqueueSnackbar(
         data.product_deleted ?
-          `Deleted check-in — ${data.items_deleted} item(s) removed; orphaned product deleted.`
-        : `Deleted check-in — ${data.items_deleted} item(s) removed.`,
+          `Deleted check-in - ${data.items_deleted} item(s) removed; orphaned product deleted.`
+        : `Deleted check-in - ${data.items_deleted} item(s) removed.`,
         { variant: 'success' },
       );
       if (activeItem && historyRow.items.some((it) => it.id === activeItem.id)) {
@@ -1700,7 +1700,7 @@ export function ProcessingActiveCard({
       if (data.items_added) parts.push(`${data.items_added} added`);
       if (data.items_removed) parts.push(`${data.items_removed} removed`);
       if (data.items_updated) parts.push(`${data.items_updated} updated`);
-      enqueueSnackbar(`Check-in saved${parts.length ? ` — ${parts.join(', ')}` : ''}.`, { variant: 'success' });
+      enqueueSnackbar(`Check-in saved${parts.length ? ` - ${parts.join(', ')}` : ''}.`, { variant: 'success' });
       if (options.printLabels && data.printed_items_preview?.length) {
         const result = await printProcessingLabelsAndMarkPrinted(
           printedPreviewToLabelInputs(data.printed_items_preview),
@@ -1723,7 +1723,7 @@ export function ProcessingActiveCard({
     }
   }
 
-  /** Inline condition/dispatch edit in the Prior check-ins table — applies to the whole check-in. */
+  /** Inline condition/dispatch edit in the Prior check-ins table - applies to the whole check-in. */
   async function handleSetCheckInField(
     target: CheckedInHistoryRow,
     field: 'condition' | 'dispatch',
@@ -1737,7 +1737,7 @@ export function ProcessingActiveCard({
       }
       enqueueSnackbar(
         `${field === 'dispatch' ? 'Dispatch' : 'Condition'} updated on ${editable.length} item(s)`
-          + (skipped > 0 ? ` — ${skipped} skipped (not on shelf).` : '.'),
+          + (skipped > 0 ? ` - ${skipped} skipped (not on shelf).` : '.'),
         { variant: skipped > 0 ? 'warning' : 'success' },
       );
     } catch (err) {
@@ -1766,7 +1766,7 @@ export function ProcessingActiveCard({
       }
       enqueueSnackbar(
         `Price updated on ${editable.length} item(s)`
-          + (skipped > 0 ? ` — ${skipped} skipped (not on shelf).` : '.'),
+          + (skipped > 0 ? ` - ${skipped} skipped (not on shelf).` : '.'),
         { variant: skipped > 0 ? 'warning' : 'success' },
       );
     } catch (err) {
@@ -1774,7 +1774,7 @@ export function ProcessingActiveCard({
     }
   }
 
-  /** Inline product remap in Prior check-ins — limited to products attached on this row. */
+  /** Inline product remap in Prior check-ins - limited to products attached on this row. */
   async function handleSetCheckInProduct(target: CheckedInHistoryRow, productId: number) {
     if (target.itemCheckInId == null) return;
     const currentId = target.checkInProduct?.id ?? target.item.product;
@@ -1814,7 +1814,7 @@ export function ProcessingActiveCard({
       });
       setRestartSummary(null);
       enqueueSnackbar(
-        `Row ${data.summary.root_row_number} restarted — ${data.summary.item_count} item(s) removed.`,
+        `Row ${data.summary.root_row_number} restarted - ${data.summary.item_count} item(s) removed.`,
         { variant: 'success' },
       );
       // A restarted SUB row no longer exists; return to the queue rather than a dead detail.
@@ -2048,7 +2048,7 @@ export function ProcessingActiveCard({
             : null}
             {row.splitParentId != null ?
               <Alert severity="info" sx={{ mt: 0.75, py: 0.25, '& .MuiAlert-message': { py: 0.4 } }}>
-                Sub row {row.splitParentRowNumber != null && row.splitSeq != null ? `#${row.splitParentRowNumber}.${row.splitSeq}` : ''} —
+                Sub row {row.splitParentRowNumber != null && row.splitSeq != null ? `#${row.splitParentRowNumber}.${row.splitSeq}` : ''} -
                 created by Break apart / Make set on row {row.splitParentRowNumber ?? row.splitFamily?.rootRowNumber}.
               </Alert>
             : null}
@@ -2074,7 +2074,7 @@ export function ProcessingActiveCard({
                 {row.splitFamily.children.length ?
                   `Split into ${row.splitFamily.children
                     .map((c) => `#${row.splitFamily!.rootRowNumber}.${c.splitSeq ?? '?'} (${c.qty.toLocaleString()})`)
-                    .join(', ')} — remainder stays here.`
+                    .join(', ')} - remainder stays here.`
                 : 'This row was converted by Break apart / Make set.'}
               </Alert>
             : null}

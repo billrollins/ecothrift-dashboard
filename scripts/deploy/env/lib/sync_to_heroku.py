@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import subprocess
 import sys
@@ -56,10 +57,46 @@ def run_heroku_config_set(heroku: str, app: str, pairs: dict[str, str]) -> None:
         subprocess.run(args, check=True)
 
 
+def report_drift(heroku: str, app: str, pairs: dict[str, str]) -> None:
+    """Warn about Config Vars that exist on Heroku but not in .envprod.
+
+    This sync only ever sets keys, never unsets them, so a var added straight on
+    Heroku lives on invisibly and quietly breaks the promise that .envprod mirrors
+    production. Key names only — values are never printed.
+    """
+    result = subprocess.run(
+        [heroku, 'config', '-a', app, '--json'],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print('WARN: could not read current Heroku config; skipping drift check')
+        return
+    try:
+        remote = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        print('WARN: could not parse Heroku config JSON; skipping drift check')
+        return
+
+    orphans = sorted(k for k in remote if k not in pairs and k not in SKIP_KEYS)
+    if orphans:
+        print()
+        print('WARN: on Heroku but not in .envprod (this sync leaves them alone):')
+        for key in orphans:
+            print(f'  {key}')
+        print('Add them to .envprod, or remove with: heroku config:unset <KEY> -a ' + app)
+        print()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description='Sync repo-root .envprod → Heroku Config Vars')
     parser.add_argument('--app', default=DEFAULT_APP, help=f'Heroku app (default: {DEFAULT_APP})')
     parser.add_argument('--dry-run', action='store_true', help='Print keys only; do not call Heroku')
+    parser.add_argument(
+        '--check-drift',
+        action='store_true',
+        help='Read Heroku config and report vars missing from .envprod; push nothing',
+    )
     args = parser.parse_args()
 
     env_path = repo_root() / '.envprod'
@@ -103,7 +140,11 @@ def main() -> int:
         print('Nothing to sync.')
         return 0
 
-    print(f'{"Would sync" if args.dry_run else "Syncing"} {len(pairs)} var(s) to {args.app}:')
+    if args.dry_run or args.check_drift:
+        verb = 'Would sync'
+    else:
+        verb = 'Syncing'
+    print(f'{verb} {len(pairs)} var(s) to {args.app}:')
     for key in sorted(pairs):
         print(f'  {key}={mask_value(key, pairs[key])}')
 
@@ -117,6 +158,12 @@ def main() -> int:
     except subprocess.CalledProcessError:
         print('ERROR: Not logged into Heroku CLI. Run: heroku login', file=sys.stderr)
         return 1
+
+    report_drift(heroku, args.app, pairs)
+
+    if args.check_drift:
+        print('Drift check only — no changes made.')
+        return 0
 
     try:
         run_heroku_config_set(heroku, args.app, pairs)

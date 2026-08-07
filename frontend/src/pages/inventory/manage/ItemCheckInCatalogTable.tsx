@@ -42,7 +42,7 @@ const CHECKIN_CATALOG_COLUMN_ORDER = ['created', 'product', 'po', 'qty'] as cons
 const CHECKIN_CATALOG_WIDTHS_KEY = 'inventory.workbench.checkInCatalog.columns.v1';
 
 function formatCheckInDate(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   try {
     return new Date(iso).toLocaleString(undefined, {
       month: 'short',
@@ -57,11 +57,11 @@ function formatCheckInDate(iso: string | null | undefined): string {
 }
 
 function productLabel(row: ItemCheckInCatalog): string {
-  return row.product_title?.trim() || '—';
+  return row.product_title?.trim() || '-';
 }
 
 function poLabel(row: ItemCheckInCatalog): string {
-  return row.purchase_order_number?.trim() || (row.purchase_order ? `PO ${row.purchase_order}` : '—');
+  return row.purchase_order_number?.trim() || (row.purchase_order ? `PO ${row.purchase_order}` : '-');
 }
 
 function readStoredColumnWidths(): CheckInColumnWidths | null {
@@ -171,11 +171,11 @@ const CheckInRow = memo(function CheckInRow({ row, striped, selected, onOpen }: 
         {formatCheckInDate(row.created_at)}
       </TableCell>
       <TableCell align="left" sx={{ minWidth: 0 }}>
-        <Typography noWrap title={title !== '—' ? title : undefined} sx={{ fontSize: '0.72rem', fontWeight: 700, lineHeight: 1.1 }}>
+        <Typography noWrap title={title !== '-' ? title : undefined} sx={{ fontSize: '0.72rem', fontWeight: 700, lineHeight: 1.1 }}>
           {title}
         </Typography>
       </TableCell>
-      <TableCell align="left" sx={{ fontSize: '0.72rem' }} title={po !== '—' ? po : undefined}>
+      <TableCell align="left" sx={{ fontSize: '0.72rem' }} title={po !== '-' ? po : undefined}>
         {po}
       </TableCell>
       <TableCell align="center" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>

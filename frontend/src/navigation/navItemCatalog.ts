@@ -145,13 +145,6 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'tune',
     roles: ['Manager', 'Admin'],
   },
-  onlineSalesQueue: {
-    id: 'onlineSalesQueue',
-    path: '/online-sales',
-    label: 'Work queue',
-    icon: 'assignmentTurnedIn',
-    roles: ['Manager', 'Admin'],
-  },
   onlineSalesListings: {
     id: 'onlineSalesListings',
     path: '/online-sales/listings',
@@ -159,59 +152,25 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'storefront',
     roles: ['Manager', 'Admin'],
   },
-  onlineSalesInbox: {
-    id: 'onlineSalesInbox',
-    path: '/online-sales/inbox',
-    label: 'Inbox & Holds',
+  onlineSalesHolds: {
+    id: 'onlineSalesHolds',
+    path: '/online-sales/holds',
+    label: 'Holds',
     icon: 'receiptLong',
     roles: ['Manager', 'Admin'],
   },
-  /** @deprecated Hidden from nav for now — FB copy stays on Listing Studio. */
-  onlineSalesMarketing: {
-    id: 'onlineSalesMarketing',
-    path: '/online-sales/marketing',
-    label: 'Marketing',
-    icon: 'article',
+  onlineSalesCustomers: {
+    id: 'onlineSalesCustomers',
+    path: '/online-sales/customers',
+    label: 'Customers',
+    icon: 'people',
     roles: ['Manager', 'Admin'],
-    legacy: true,
-  },
-  onlineSalesSales: {
-    id: 'onlineSalesSales',
-    path: '/online-sales/sales',
-    label: 'Sales log',
-    icon: 'accountBalance',
-    roles: ['Manager', 'Admin'],
-  },
-  /** @deprecated Redirect target kept for bookmarks — prefer onlineSalesListings. */
-  webStore: {
-    id: 'webStore',
-    path: '/admin/web-store',
-    label: 'Web store',
-    icon: 'storefront',
-    roles: ['Manager', 'Admin'],
-    legacy: true,
-  },
-  /** @deprecated Redirect target kept for bookmarks — prefer onlineSalesInbox. */
-  webOrders: {
-    id: 'webOrders',
-    path: '/admin/web-orders',
-    label: 'Web orders',
-    icon: 'receiptLong',
-    roles: ['Manager', 'Admin'],
-    legacy: true,
   },
   users: {
     id: 'users',
     path: '/admin/users',
     label: 'Employees',
     icon: 'supervisorAccount',
-    roles: ['Admin'],
-  },
-  customers: {
-    id: 'customers',
-    path: '/admin/customers',
-    label: 'Customers',
-    icon: 'people',
     roles: ['Admin'],
   },
   retailInbox: {
@@ -268,7 +227,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Restorations',
     icon: 'assignmentReturned',
   },
-  /** @deprecated Prefer `restorations` — kept for preference migration. */
+  /** @deprecated Prefer `restorations` - kept for preference migration. */
   restorationReturns: {
     id: 'restorationReturns',
     path: '/inventory/restorations',

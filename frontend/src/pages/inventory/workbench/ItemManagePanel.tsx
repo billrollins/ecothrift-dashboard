@@ -50,7 +50,7 @@ function formatStatusLabel(status: string): string {
 }
 
 function formatCheckedInDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   try {
     return new Date(iso).toLocaleString(undefined, {
       month: 'short',
@@ -224,11 +224,11 @@ export function ItemManagePanel({
   const itemCount = checkIn?.items.length ?? 1;
   const itemStatusSummary = checkIn ? deriveItemStatusSummary(checkIn.items) : formatStatusLabel(item.status);
 
-  const orderNumber = item.purchase_order_number?.trim() || (item.purchase_order ? `PO ${item.purchase_order}` : '—');
+  const orderNumber = item.purchase_order_number?.trim() || (item.purchase_order ? `PO ${item.purchase_order}` : '-');
   const orderDescription = checkIn?.purchase_order_description?.trim() || '';
   const orderVendor = checkIn?.purchase_order_vendor_name?.trim() || '';
   const orderDate = checkIn?.purchase_order_ordered_date;
-  const productTitle = product ? productDisplayLabel(product) : (item.product_title || '—');
+  const productTitle = product ? productDisplayLabel(product) : (item.product_title || '-');
   const productHelper = truncateText(
     [item.product_brand, product?.category_name || ''].filter(Boolean).join(' · '),
     42,
@@ -449,7 +449,7 @@ export function ItemManagePanel({
           onSpecificationsChange={setSpecifications}
           notes={notes}
           onNotesChange={setNotes}
-          specsHelperText="Supplements the product catalog specs — saved on this item only."
+          specsHelperText="Supplements the product catalog specs - saved on this item only."
           disabled={locked}
         />
       </Box>

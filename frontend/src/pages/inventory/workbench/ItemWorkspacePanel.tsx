@@ -123,7 +123,7 @@ export function ItemWorkspacePanel({ itemId, onNavigate, onEditItem }: ItemWorks
         <StatTile label="Status" value={item.status.replace(/_/g, ' ')} />
         <StatTile label="Condition" value={String(item.condition).replace(/_/g, ' ')} />
         <StatTile label="Price" value={formatCurrency(item.price)} />
-        <StatTile label="Location" value={item.location?.trim() || '—'} />
+        <StatTile label="Location" value={item.location?.trim() || '-'} />
       </Stack>
 
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>

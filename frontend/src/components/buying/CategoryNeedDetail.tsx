@@ -19,7 +19,7 @@ function num(s: string | null | undefined): number | null {
 
 function fmt2(s: string | null | undefined): string {
   const n = num(s);
-  return n == null ? '—' : n.toFixed(2);
+  return n == null ? '-' : n.toFixed(2);
 }
 
 type Props = {
@@ -159,7 +159,7 @@ function ExplainerBlock({
             </Box>
             {v.note ? (
               <Box component="span" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                — {v.note}
+                - {v.note}
               </Box>
             ) : null}
           </Box>
@@ -190,7 +190,7 @@ function ExplainerBlock({
 }
 
 function soldWindowSinceLabel(days: number | null | undefined): string {
-  if (days == null || !Number.isFinite(days) || days < 1) return '—';
+  if (days == null || !Number.isFinite(days) || days < 1) return '-';
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() - days);
@@ -340,7 +340,7 @@ export default function CategoryNeedDetail({
                 {
                   name: 'sold_units',
                   value: row.sold_count.toLocaleString(),
-                  note: `sold in past ${windowDays ?? '—'} days`,
+                  note: `sold in past ${windowDays ?? '-'} days`,
                 },
               ]}
               formula="sold_units / shelf_units"
@@ -359,7 +359,7 @@ export default function CategoryNeedDetail({
                 {
                   name: 'sold_retail',
                   value: formatCurrency(row.want_retail),
-                  note: `sold in past ${windowDays ?? '—'} days`,
+                  note: `sold in past ${windowDays ?? '-'} days`,
                 },
               ]}
               formula="sold_retail / shelf_retail"
@@ -407,7 +407,7 @@ export default function CategoryNeedDetail({
         color="text.secondary"
         sx={{ display: 'block', mb: 0.5, letterSpacing: 0.3 }}
       >
-        Last {windowDays ?? '—'} days (since {since})
+        Last {windowDays ?? '-'} days (since {since})
       </Typography>
       <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: 1.25 }}>
         <Tile
@@ -433,7 +433,7 @@ export default function CategoryNeedDetail({
         Profitability
       </Typography>
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-        Good data: all-time sold rows with sale, retail, and cost each $0.01–$9,999 (row count is the
+        Good data: all-time sold rows with sale, retail, and cost each $0.01-$9,999 (row count is the
         n column in the table)
       </Typography>
       <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: 0.75 }}>
@@ -441,7 +441,7 @@ export default function CategoryNeedDetail({
         <Tile label="Avg sale" primary={formatCurrency(row.avg_sale)} />
         <Tile
           label="Recovery rate"
-          primary={`${num(row.recovery_pct)?.toFixed(1) ?? '—'}%`}
+          primary={`${num(row.recovery_pct)?.toFixed(1) ?? '-'}%`}
         />
       </Stack>
       <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: 1.25 }}>
@@ -452,7 +452,7 @@ export default function CategoryNeedDetail({
           primary={
             (() => {
               const m = num(row.profit_margin);
-              return m == null ? '—' : `${(m * 100).toFixed(1)}%`;
+              return m == null ? '-' : `${(m * 100).toFixed(1)}%`;
             })()
           }
         />
@@ -471,11 +471,11 @@ export default function CategoryNeedDetail({
       <Stack direction="row" flexWrap="wrap" gap={0.75}>
         <Tile
           label="Distribution on shelf"
-          primary={`${num(row.shelf_pct)?.toFixed(1) ?? '—'}%`}
+          primary={`${num(row.shelf_pct)?.toFixed(1) ?? '-'}%`}
         />
         <Tile
           label="Distribution of sold"
-          primary={`${num(row.sold_pct)?.toFixed(1) ?? '—'}%`}
+          primary={`${num(row.sold_pct)?.toFixed(1) ?? '-'}%`}
         />
         <Tile
           label="Gap"
@@ -493,7 +493,7 @@ export default function CategoryNeedDetail({
                         : 'text.primary',
               }}
             >
-              {gap != null ? (gap > 0 ? `+${gap.toFixed(1)}` : gap.toFixed(1)) : '—'}
+              {gap != null ? (gap > 0 ? `+${gap.toFixed(1)}` : gap.toFixed(1)) : '-'}
             </Box>
           }
         />

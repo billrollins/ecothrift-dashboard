@@ -209,7 +209,7 @@ export default function ReceivingOrderPage() {
       try {
         await runPhotoPipeline(kind, f);
       } catch {
-        enqueueSnackbar('Photo failed — will retry when online.', { variant: 'warning' });
+        enqueueSnackbar('Photo failed - will retry when online.', { variant: 'warning' });
       }
     },
     [runPhotoPipeline, enqueueSnackbar],
@@ -222,7 +222,7 @@ export default function ReceivingOrderPage() {
       try {
         await runPhotoPipeline('pallet_side', f, { palletNumber: pallet, side });
       } catch {
-        enqueueSnackbar('Photo saved locally — syncing when connection allows.', { variant: 'info' });
+        enqueueSnackbar('Photo saved locally - syncing when connection allows.', { variant: 'info' });
       }
     },
     [runPhotoPipeline, enqueueSnackbar],
@@ -428,7 +428,7 @@ export default function ReceivingOrderPage() {
       )}
       {mobile && !navigator.onLine && (
         <Typography variant="caption" color="warning.main" display="block">
-          Offline — edits queue locally; photos sync when you are back online.
+          Offline - edits queue locally; photos sync when you are back online.
         </Typography>
       )}
       {(patchMut.isPending || completeMut.isPending) && mobile ? (
@@ -518,7 +518,7 @@ export default function ReceivingOrderPage() {
                 )}
                 {!navigator.onLine && (
                   <Typography variant="caption" color="warning.main" sx={{ px: '24px', pt: 0.5 }}>
-                    Offline — edits queue locally; photos sync when you are back online.
+                    Offline - edits queue locally; photos sync when you are back online.
                   </Typography>
                 )}
               </>

@@ -225,7 +225,7 @@ export default function QuickRepricePage() {
         .catch(() => false);
 
       if (!printOk) {
-        enqueueSnackbar('Label printed — but print server may be offline', { variant: 'warning' });
+        enqueueSnackbar('Label printed - but print server may be offline', { variant: 'warning' });
       }
     },
     [discountType, discountValue, minPrice, enqueueSnackbar, rolloverIfNeeded],
@@ -246,7 +246,7 @@ export default function QuickRepricePage() {
       const { data: newItem } = await duplicateItemForResale(blockedItem.id);
       closeSoldDialog();
       setResolvedPreview({ sku: newItem.sku, title: newItem.title, status: newItem.status });
-      enqueueSnackbar(`Created ${newItem.sku} — applying discount…`, { variant: 'info' });
+      enqueueSnackbar(`Created ${newItem.sku} - applying discount…`, { variant: 'info' });
       try {
         await runQuickReprice(newItem);
       } catch (repriceErr: unknown) {
@@ -271,7 +271,7 @@ export default function QuickRepricePage() {
       const { data: item } = await markSoldItemOnShelf(blockedItem.id);
       closeSoldDialog();
       setResolvedPreview({ sku: item.sku, title: item.product_title || item.sku, status: item.status });
-      enqueueSnackbar(`${item.sku} marked on shelf — applying discount…`, { variant: 'info' });
+      enqueueSnackbar(`${item.sku} marked on shelf - applying discount…`, { variant: 'info' });
       try {
         await runQuickReprice(item);
       } catch (repriceErr: unknown) {
@@ -333,7 +333,7 @@ export default function QuickRepricePage() {
 
       if (!QUICK_REPRICE_ALLOWED_STATUSES.has(item.status as ItemStatus)) {
         setError(
-          `Cannot reprice — status is "${formatStatusLabel(item.status)}". ` +
+          `Cannot reprice - status is "${formatStatusLabel(item.status)}". ` +
             'Quick reprice only applies to intake, processing, on shelf, or returned items.',
         );
         setLoading(false);
@@ -364,7 +364,7 @@ export default function QuickRepricePage() {
         <Box>
           <Typography variant="h5" fontWeight={700}>Quick Reprice</Typography>
           <Typography variant="body2" color="text.secondary">
-            Defaults to 10% off the current price — set discount in the panel below, then scan items to reprice and
+            Defaults to 10% off the current price - set discount in the panel below, then scan items to reprice and
             print labels automatically.
           </Typography>
         </Box>
@@ -605,8 +605,8 @@ export default function QuickRepricePage() {
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 Quick reprice cannot change the price on a unit that has already sold. Create a new shelf item
-                copied from this record (same order / product links where applicable), or — if you are a manager
-                and this sale was never completed on the register — mark this unit on shelf again.
+                copied from this record (same order / product links where applicable), or - if you are a manager
+                and this sale was never completed on the register - mark this unit on shelf again.
               </Typography>
               {soldDialogError && (
                 <Alert severity="warning" onClose={() => setSoldDialogError('')}>

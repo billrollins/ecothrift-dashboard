@@ -225,7 +225,7 @@ describe('deliveryMediaClient outbox', () => {
     await deleteQueuedDeliveryPhoto(20, 'same-id');
     expect(await pendingCountForRun(20)).toBe(0);
 
-    // Re-enqueue after direct-upload clear, then drain once — still a single upload.
+    // Re-enqueue after direct-upload clear, then drain once - still a single upload.
     await enqueueDeliveryPhoto({
       runId: 20,
       clientPhotoId: 'same-id',

@@ -487,7 +487,7 @@ export default function PosStoreSetupPage() {
             </Grid>
             <Grid size={{ xs: 12 }}>
               <Typography variant="body2" color="text.secondary" gutterBottom>
-                Starting breakdown — total ${breakdownTotal.toFixed(2)}
+                Starting breakdown - total ${breakdownTotal.toFixed(2)}
               </Typography>
               <DenominationCounter
                 value={regForm.breakdown}

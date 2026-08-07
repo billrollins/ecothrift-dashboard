@@ -53,10 +53,9 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     label: 'Online Sales',
     roles: ['Manager', 'Admin'],
     itemIds: [
-      'onlineSalesQueue',
       'onlineSalesListings',
-      'onlineSalesInbox',
-      'onlineSalesSales',
+      'onlineSalesHolds',
+      'onlineSalesCustomers',
     ],
   },
   {
@@ -66,7 +65,6 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     itemIds: [
       'assumptions',
       'users',
-      'customers',
       'retailInbox',
       'permissions',
       'settings',
@@ -115,7 +113,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     id: 'inventory',
     label: 'Inventory',
     shortLabel: 'Inventory',
-    helper: 'Catalog — products, check-ins, items',
+    helper: 'Catalog - products, check-ins, items',
     icon: 'inventory',
   },
   {

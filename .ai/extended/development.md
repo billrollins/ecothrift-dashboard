@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-30 (Online Sales expire_online_holds scheduler) -->
+<!-- Last updated: 2026-08-07 (v2.69.0 Online Sales env table + go-live flags) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -10,7 +10,7 @@
 | `printserver/` | **Local print server** — FastAPI on `127.0.0.1:8888`; build/installer here. Installed exe lives under `%LOCALAPPDATA%\EcoThrift\PrintServer\` (not source). |
 | `.ai/` | AI steering: `context.md`, `protocols/`, `initiatives/`, **`extended/`** (this file and domain deep-dives). |
 | `workspace/` | Local scratch, notebooks, temp artifacts — almost entirely gitignored; generated CSV/JSON under **`workspace/data/`** is not tracked (only **`.gitkeep`**). Jupyter setup is below. |
-| `scripts/dev/` | Windows helpers — `start_dashboard.bat`, `start_mobile_dashboard.bat`, `start_website.bat`. |
+| `scripts/dev/` | Windows helpers — `start_all.bat` (Django + staff + public), plus `start_dashboard.bat`, `start_mobile_dashboard.bat`, `start_website.bat`. |
 | `scripts/deploy/` | Deploy-related helpers (e.g. commit message staging). |
 | `workspace/notebooks/` | Jupyter — tracked **`.ipynb`**, **`.py`**, **`_shared/config.example.py`**, **`requirements-notebooks.txt`**, category-research **`taxonomy_v1.example.json`**, **`docs/taxonomy_input_schema.md`**, **`discovery_lockin.example.md`**, SQL under **`ai_scripts/sql/`**. |
 
@@ -68,11 +68,18 @@ npm run dev
 
 | Schedule | Command |
 |----------|---------|
-| Hourly (recommended; Scheduler minimum is 10 min) | `python manage.py expire_online_holds` |
+| Every 10–15 minutes | `python manage.py expire_online_holds` |
+| Daily (e.g. 08:00 UTC) | `python manage.py archive_online_sales` |
 
-`expire_online_holds` releases reserved quantity for (1) confirmed/ready holds past `expires_at` and (2) untriaged `requested` holds older than `ONLINE_SALES_REQUEST_TRIAGE_HOURS` (default 48). Use `--dry-run` to count only. Seed hours once with `python manage.py seed_online_sales_hours` (AppSetting key `online_sales.hours`).
+`expire_online_holds` releases reserved quantity for active holds past `expires_at` (`pending_verification` / provisional through today's close, verified `requested`/`confirmed`/`ready_for_pickup` through the 3-open-day window). Staff inaction never expires a verified hold. It also deletes unverified inquiry conversations older than `ONLINE_SALES_INQUIRY_VERIFY_HOURS` (default 24). Use `--dry-run` to count only. Seed hours once with `python manage.py seed_online_sales_hours` (AppSetting key `online_sales.hours`).
 
-**Prod flag:** keep `ONLINE_SALES_ENABLED=false` until the owner tests in dev and says go. Staff Online Sales pages remain available to Manager/Admin regardless. Other flags: `ONLINE_SALES_INQUIRIES_ENABLED`, `ONLINE_SALES_ACCOUNTS_ENABLED`, `ONLINE_SALES_PUBLIC_BASE_URL` (magic-link / hold email links).
+`archive_online_sales` ages finished work out of the staff queues. It stamps `archived_at` on released holds and resolved threads past their window — reversible, invisible to customers, and it never changes a status or touches reserved stock. Windows come from `apps/webstore/services/retention.py`: `ONLINE_SALES_ARCHIVE_RELEASED_DAYS` (30), `ONLINE_SALES_ARCHIVE_RESOLVED_DAYS` (30), `ONLINE_SALES_PURGE_ABANDONED_DAYS` (30), `ONLINE_SALES_CUSTOMER_HISTORY_DAYS` (90, customer-facing view only).
+
+**Deletion is opt-in.** Plain runs never delete; they print how many holds are purge-eligible. `--purge` deletes holds that were abandoned before the customer proved their email — released status, no `verified` event, no confirmed `HoldConfirmation`, no customer message, no POS cart — plus their thread when it holds only system messages. Completed sales are never eligible at any age. **Roll it out as `--dry-run` first**, watch the counts for a week, then drop `--dry-run`, and only add `--purge` once the eligible count looks right.
+
+`ONLINE_SALES_REQUEST_TRIAGE_HOURS` and `ONLINE_SALES_VERIFY_MINUTES` are deprecated; provisional holds use store close + `ONLINE_SALES_PROVISIONAL_GRACE_MINUTES`.
+
+**Prod flags (v2.69.0 go-live):** `ONLINE_SALES_ENABLED=true` and `MS_GRAPH_ENABLED=true` on Heroku after purge/seed/smoke. Staff Online Sales pages remain available to Manager/Admin regardless of the public kill switch. Other flags: `ONLINE_SALES_INQUIRIES_ENABLED`, `ONLINE_SALES_ACCOUNTS_ENABLED`, `ONLINE_SALES_PUBLIC_BASE_URL` (magic-link / hold email links). Whole-DB wipe commands (`reset_business_data`, `reset_buying_data`) were removed - Online Sales blank-slate is `purge_online_sales` only (`--force-production --yes` on prod).
 
 ## Heroku Scheduler (Microsoft Graph mailbox)
 
@@ -80,7 +87,7 @@ npm run dev
 |----------|---------|
 | Every 10 minutes (Scheduler minimum) | `python manage.py sync_ms_mailbox` |
 
-Requires `MS_GRAPH_ENABLED=true` plus tenant/client/secret/mailbox config. Leave disabled until Entra + Exchange RBAC are done (see `.ai/reference/online_sales_mvp/email_setup.md`). Manual refresh: Admin **Retail inbox** → Refresh now, or `POST /api/mailbox/sync/`.
+Requires `MS_GRAPH_ENABLED=true` plus tenant/client/secret/mailbox config (see `.ai/reference/online_sales_mvp/email_setup.md`). Manual refresh: Admin **Retail inbox** → Refresh now, or `POST /api/mailbox/sync/`.
 
 **Inventory / Item Processor:** optional safety net for `ProcessingRow.search_string` (bulk/SQL paths that bypass ORM `save()`): e.g. weekly `python manage.py rebuild_processing_search_string` (defaults to excluding `complete`/`cancelled` POs; add `--dry-run` to count rows only).
 
@@ -97,13 +104,14 @@ Open `http://localhost:5173`. Login: `bill_rollins@ecothrift.us` / `JAckel13`
 
 ## Quick Scripts
 
-If **POS registers** or **supplemental drawer** rows are missing (e.g. after `reset_business_data`), run `python manage.py setup_initial_data` to recreate defaults idempotently, or open **Admin → POS setup** (`/admin/pos-setup`, Manager/Admin) to create registers, locations, or bootstrap a supplemental drawer. **Inventory assumptions** (e.g. default **`po_default_est_shrink`** for new POs): **Admin → Assumptions** (`/admin/assumptions`, Manager/Admin); keys are **`AppSetting`** rows — see **`.ai/extended/backend.md`** (*Item acquisition cost*). You can also use Django **`/db-admin/`** (`contrib.admin`) for `Register`, `SupplementalDrawer`, and `WorkLocation`. (React app routes stay at **`/admin/*`** — e.g. `/admin/pos-setup`, `/admin/settings`, `/admin/assumptions` — and must not collide with Django admin.) After register IDs change, re-pick the register in **POS device config** on each terminal (stored in browser localStorage). Committed scripts (drag-and-drop into a terminal or run from Explorer):
+If **POS registers** or **supplemental drawer** rows are missing, run `python manage.py setup_initial_data` to recreate defaults idempotently, or open **Admin → POS setup** (`/admin/pos-setup`, Manager/Admin) to create registers, locations, or bootstrap a supplemental drawer. **Inventory assumptions** (e.g. default **`po_default_est_shrink`** for new POs): **Admin → Assumptions** (`/admin/assumptions`, Manager/Admin); keys are **`AppSetting`** rows — see **`.ai/extended/backend.md`** (*Item acquisition cost*). You can also use Django **`/db-admin/`** (`contrib.admin`) for `Register`, `SupplementalDrawer`, and `WorkLocation`. (React app routes stay at **`/admin/*`** — e.g. `/admin/pos-setup`, `/admin/settings`, `/admin/assumptions` — and must not collide with Django admin.) After register IDs change, re-pick the register in **POS device config** on each terminal (stored in browser localStorage). Committed scripts (drag-and-drop into a terminal or run from Explorer):
 
 | Script | What it does |
 |--------|-------------|
-| `scripts/dev/start_dashboard.bat` | Desktop staff: Django + Vite on 8000/5173. |
-| `scripts/dev/start_mobile_dashboard.bat` | Same + Vite HTTPS on LAN (`0.0.0.0`) for phone testing. |
-| `scripts/dev/start_website.bat` | Public site: Django + Vite on 8000/5174. |
+| `scripts/dev/start_all.bat` | **Preferred full stack:** Django + staff Vite HTTPS (PC + phone) + public site (8000 / 5173 / 5174). |
+| `scripts/dev/start_dashboard.bat` | Django + staff HTTP + public site (8000 / 5173 / 5174). |
+| `scripts/dev/start_mobile_dashboard.bat` | Django + staff HTTPS on LAN + public site. |
+| `scripts/dev/start_website.bat` | Same as start_dashboard (staff + public); kept as a familiar name. |
 | `python scripts/data/extract_po_descriptions.py` (if present locally) | **Historical sell-through —** reads POs from local **ecothrift_v1** / **ecothrift_v2** / **ecothrift_v3**; writes CSV under **`workspace/data/`** (**`CHANGELOG`** **2.7.1**). Requires **`psycopg2`** and root **`.env`** DB vars. |
 | `printserver/dev_print_label_test.bat` | Prints sample inventory labels **without** starting the print server (defaults to **Rollo Printer**). Pass `--dry-run` to write PNGs under `printserver/output/` instead. Example: `dev_print_label_test.bat --preset 3x2 --row 0` |
 | `printserver/dev_print_receipt_test.bat` | Renders a sample receipt to **PNG** under `printserver/output/` (no printer). Pass `--print` to also send to Windows (uses `receipt_printer` from settings or `--printer`). Optional JSON path (same shape as POST `/print/receipt` `receipt_data`). |
@@ -158,10 +166,33 @@ Defined in `.env` (gitignored):
 | `BUYING_SOCKS5_PROXY_ENABLED` | Route all `*.bstock.com` HTTP through SOCKS5 | `False` |
 | `BUYING_SOCKS5_LOCAL_DNS` | `True` = `socks5://` (recommended for PIA); `False` = `socks5h://` | `True` |
 | `BUYING_SOCKS5_DEV_AUDIT` | Log redacted SOCKS URLs + egress IP probes to `logs/bstock_api.log` | `False` |
+| `PUBLIC_SITE_HOSTS` | Comma-separated hosts that get the public storefront SPA (empty = middleware inactive) | `''` locally; prod `ecothrift.us,www.ecothrift.us` |
+| `PUBLIC_SITE_CANONICAL_HOST` | Apex host for www→apex 301 | `ecothrift.us` |
+| `ONLINE_SALES_ENABLED` | Kill switch for public catalog/holds (staff workspace stays) | `False` |
+| `ONLINE_SALES_INQUIRIES_ENABLED` | Allow "Ask about this item" without a hold | `True` |
+| `ONLINE_SALES_ACCOUNTS_ENABLED` | Magic-link customer accounts | `True` |
+| `ONLINE_SALES_PUBLIC_BASE_URL` | Absolute origin used in emailed magic/hold links | `https://ecothrift.us` |
+| `ONLINE_SALES_EMAIL_FROM` | SMTP/`From` address for transactional mail | `retail@ecothrift.us` |
+| `ONLINE_SALES_EMAIL_DISPLAY_NAME` | Display name on transactional mail | `Eco-Thrift` |
+| `ONLINE_SALES_EMAIL_REPLY_TO` | Reply-To on transactional mail | `retail@ecothrift.us` |
+| `ONLINE_SALES_PROVISIONAL_GRACE_MINUTES` | Minutes to verify a new hold before it expires | `30` |
+| `ONLINE_SALES_INQUIRY_VERIFY_HOURS` | Hours to verify an inquiry thread before cleanup | `24` |
+| `ONLINE_SALES_ARCHIVE_RELEASED_DAYS` | Days before released holds auto-archive from staff queues | `30` |
+| `ONLINE_SALES_ARCHIVE_RESOLVED_DAYS` | Days before resolved threads auto-archive | `30` |
+| `ONLINE_SALES_PURGE_ABANDONED_DAYS` | Days before never-verified abandoned holds are eligible for `--purge` | `30` |
+| `ONLINE_SALES_CUSTOMER_HISTORY_DAYS` | Default customer History window for ended holds | `90` |
+| `MS_GRAPH_ENABLED` | Send mail via Microsoft Graph (else console/fallback backend) | `False` |
+| `MS_GRAPH_TENANT_ID` | Entra tenant id | `''` |
+| `MS_GRAPH_CLIENT_ID` | App registration client id | `''` |
+| `MS_GRAPH_CLIENT_SECRET` | App registration client secret | `''` |
+| `MS_GRAPH_MAILBOX` | Mailbox Graph sends as / syncs from | `retail@ecothrift.us` |
+| `MS_GRAPH_FALLBACK_EMAIL_BACKEND` | Backend used when Graph is off or fails open | Django console |
+| `EMAIL_BACKEND` | Override Django email backend (defaults from `MS_GRAPH_ENABLED`) | auto |
+| `DJANGO_SETTINGS_MODULE` | Settings module (**required on Heroku**) | `ecothrift.settings` locally; prod `ecothrift.settings_production` |
 
 **Full SOCKS5 setup (all `BUYING_SOCKS5_*` vars):** See **[`.ai/extended/vpn-socks5.md`](vpn-socks5.md)**.
 
-**PostgreSQL schemas (local):** `DATABASE_*` points at **one** database (typically `ecothrift_v3`). Django sets `search_path=ecothrift` so models use **`ecothrift.*`**. The **`public`** schema in the same database may hold legacy/V2 data; category-bin exports query **`public.*`** and **`ecothrift.*`** with explicit names. Use **`scripts/deploy/0_pull_prod_to_local.bat`** to load production (including `public` + `ecothrift`) into that local DB. See root **`.env.example`**. Separate local archives **`ecothrift_v1`** (V1) and **`ecothrift_v2`** (V2 **`public`** only) are optional for historical tooling; see **`.ai/extended/databases.md`**.
+**PostgreSQL schemas (local):** `DATABASE_*` points at **one** database (typically `ecothrift_v3`). Django sets `search_path=ecothrift` so models use **`ecothrift.*`**. The **`public`** schema in the same database may hold legacy/V2 data; category-bin exports query **`public.*`** and **`ecothrift.*`** with explicit names. Use **`scripts/deploy/0_pull_prod_to_local.bat`** to load production (including `public` + `ecothrift`) into that local DB. See the **Environment Variables** table above. Separate local archives **`ecothrift_v1`** (V1) and **`ecothrift_v2`** (V2 **`public`** only) are optional for historical tooling; see **`.ai/extended/databases.md`**.
 
 ## Adding a New Feature
 

@@ -65,7 +65,7 @@ function pctDelta(price: string, ideal: string | null | undefined): number | nul
 }
 
 function money(value: string | null | undefined) {
-  return value ? formatCurrency(value) : '—';
+  return value ? formatCurrency(value) : '-';
 }
 
 export function ManualReviewPanel({
@@ -196,7 +196,7 @@ export function ManualReviewPanel({
         <Chip label={`Ideal ${money(summary?.total_ideal_price)}`} />
         <Chip label={`Set ${money(summary?.total_set_prices)}`} color="primary" />
         <Chip
-          label={`${summary?.ideal_delta_pct == null ? '—' : `${summary.ideal_delta_pct.toFixed(1)}%`} vs ideal`}
+          label={`${summary?.ideal_delta_pct == null ? '-' : `${summary.ideal_delta_pct.toFixed(1)}%`} vs ideal`}
           color={(summary?.ideal_delta_pct ?? 0) >= 0 ? 'success' : 'warning'}
         />
         <Chip label={`${summary?.total_units ?? 0} units`} />
@@ -347,19 +347,19 @@ export function ManualReviewPanel({
                     ) : null}
                     <TableCell>{row.row_number}</TableCell>
                     <TableCell>
-                      <Typography variant="body2" fontFamily="monospace">{row.first_item_sku || '—'}</Typography>
+                      <Typography variant="body2" fontFamily="monospace">{row.first_item_sku || '-'}</Typography>
                       <Typography variant="caption" color="text.secondary">{row.item_count ?? 0} item(s)</Typography>
                     </TableCell>
                     <TableCell sx={{ maxWidth: 280 }}>
                       {readOnly ? (
-                        <Typography variant="body2">{s.title || '—'}</Typography>
+                        <Typography variant="body2">{s.title || '-'}</Typography>
                       ) : (
                         <TextField size="small" fullWidth value={s.title} onChange={(e) => setField(row.id, 'title', e.target.value)} />
                       )}
                     </TableCell>
                     <TableCell>
                       {readOnly ? (
-                        <Typography variant="body2">{s.brand || '—'}</Typography>
+                        <Typography variant="body2">{s.brand || '-'}</Typography>
                       ) : (
                         <TextField size="small" value={s.brand} onChange={(e) => setField(row.id, 'brand', e.target.value)} sx={{ width: 120 }} />
                       )}
@@ -367,7 +367,7 @@ export function ManualReviewPanel({
                     <TableCell>
                       {readOnly ? (
                         <Typography variant="body2" noWrap sx={{ maxWidth: 160 }} title={s.category}>
-                          {s.category || '—'}
+                          {s.category || '-'}
                         </Typography>
                       ) : (
                         <TextField size="small" value={s.category} onChange={(e) => setField(row.id, 'category', e.target.value)} sx={{ width: 180 }} />
@@ -411,7 +411,7 @@ export function ManualReviewPanel({
                     <TableCell align="right">
                       <Chip
                         size="small"
-                        label={delta == null ? '—' : `${delta.toFixed(1)}%`}
+                        label={delta == null ? '-' : `${delta.toFixed(1)}%`}
                         color={delta == null ? 'default' : delta >= 0 ? 'success' : 'warning'}
                         variant="outlined"
                       />

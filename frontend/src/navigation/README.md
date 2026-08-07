@@ -4,17 +4,22 @@ Shared route data and hooks live in `frontend/src/navigation/`. The sidebar shel
 
 ## Lifecycle workspaces
 
-Pinned **Essentials:** Dashboard, Employees.
+Pinned **Essentials:** Dashboard, Time clock.
 
 Workspaces (lifecycle order):
 
 1. **Buying** — Auctions, Watchlist, Vendors, Orders, Preprocessing
-2. **Processing** — Receiving, Processing, Finalization, Disputes
-3. **Restoration** — TARS (Send to Restoration → Check-In & Evaluate → TARS verb queues)
+2. **Processing** — Receiving, Processing, Finalization, Disputes, Restorations
+3. **Restoration** — TARS, Parts requests
 4. **Inventory** — Catalog
-5. **Floor Ops** — Quick reprice *(more coming)*
-6. **Cashier** — Terminal, Transactions, Drawers, Cash Management
-7. **Admin** (Manager/Admin) — Assumptions, POS setup, Label Studio, Web store, Web orders, Users, Customers, Permissions, Settings
+5. **Retail Floor** — Quick reprice, Floorplans, Quality audit
+6. **Store Sales** — Terminal, Transactions, Deliveries, Drawers, Cash, Printables, POS setup
+7. **Online Sales** (Manager/Admin) — Listings, Holds, Customers
+8. **Admin** (Manager/Admin) — Assumptions, Employees, Retail inbox, Permissions, Settings, Label Studio, Blog Studio, Payroll hours
+
+Deprecated paths (`/online-sales/inbox`, `/online-sales/sales`, `/admin/web-store`, …) keep
+working as redirects in `App.tsx` and deliberately have no catalog entry — the catalog only
+holds links that appear in the sidebar.
 
 ## Shared data
 
@@ -25,9 +30,13 @@ Workspaces (lifecycle order):
 | `navResolve.ts` | Role-filter a layout into renderable groups/items |
 | `navIcons.tsx` | Icon key → MUI icon component |
 | `useStaffNav.ts` | `isActive`, `navigateToItem` |
-| `NavItemRow.tsx` | Shared nav row styling |
+| `NavItemRow.tsx` | Shared nav row styling + waiting-work badge |
 
 **Adding a page:** one entry in `navItemCatalog.ts`, then assign its id to a workspace in `slotCNavLayout.ts`.
+
+**Adding a badge:** return the count from `hooks/useNavBadgeCounts.ts` keyed by nav item id. The
+sidebar renders whatever ids appear there, so no navigation code changes. Gate the underlying
+query on the workspace being visible so staff who cannot open a page do not poll it.
 
 ## Collapse / workspace behavior
 

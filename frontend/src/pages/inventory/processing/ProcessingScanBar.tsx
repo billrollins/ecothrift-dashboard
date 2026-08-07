@@ -9,7 +9,7 @@ import { processingTokens } from './processingTokens';
 export interface ProcessingScanBarProps {
   search: string;
   onSearchChange: (v: string) => void;
-  /** Enter pressed — caller decides scan-open vs search. */
+  /** Enter pressed - caller decides scan-open vs search. */
   onSearchEnter?: () => void;
   /** Apply a past search from history (falls back to change + enter when omitted). */
   onHistorySelect?: (query: string) => void;
@@ -214,7 +214,7 @@ export function ProcessingScanBar({
               placeholder={
                 placeholderProp ??
                 (inDetail ?
-                  'Scan next item (UPC / SKU / row #) — or type and press Enter to search the queue'
+                  'Scan next item (UPC / SKU / row #) - or type and press Enter to search the queue'
                 : 'Scan or search row #, title, UPC, SKU, brand, model, category, specs, tags...')
               }
               aria-label={ariaLabel}

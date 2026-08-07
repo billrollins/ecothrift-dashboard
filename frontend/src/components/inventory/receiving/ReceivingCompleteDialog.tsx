@@ -29,7 +29,7 @@ function slotKey(s: ReceivingMissingPhotoSlot): string {
 }
 
 /**
- * Complete Receiving confirmation — lists every missing required photo slot
+ * Complete Receiving confirmation - lists every missing required photo slot
  * with its own required override reason when photos are incomplete.
  */
 export function ReceivingCompleteDialog({

@@ -79,7 +79,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Refresh uses cookie — no body needed
+        // Refresh uses cookie - no body needed
         const { data } = await axios.post<{ access: string }>(
           '/api/auth/refresh/',
           {},

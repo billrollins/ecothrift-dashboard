@@ -119,7 +119,7 @@ export function QualityAuditMobileShell({
                 {initials(auditorName)}
               </Avatar>
               <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.85)' }}>
-                {auditorName || '—'} · {formatStartedAt(startedAt)}
+                {auditorName || '-'} · {formatStartedAt(startedAt)}
               </Typography>
               {saveLabel ? (
                 <Typography

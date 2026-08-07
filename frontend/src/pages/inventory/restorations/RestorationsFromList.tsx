@@ -9,9 +9,9 @@ import {
 import type { RestorationJobDTO } from '../../../types/inventory.types';
 
 function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const d = new Date(iso);
-  return Number.isFinite(d.getTime()) ? d.toLocaleString() : '—';
+  return Number.isFinite(d.getTime()) ? d.toLocaleString() : '-';
 }
 
 function unitKindLabel(kind: string | undefined): string {
@@ -47,7 +47,7 @@ export function RestorationsFromList({ jobs, selectedId, onSelect }: Restoration
         const selected = job.id === selectedId;
         const family = job.from_family ?? 'worked';
         const sku =
-          job.items.length > 0 ? job.items.map((it) => it.sku).join(', ') : (job.sku ?? '—');
+          job.items.length > 0 ? job.items.map((it) => it.sku).join(', ') : (job.sku ?? '-');
         const grade = job.final_grade || job.return_grade || '';
         const returnedAt = job.dispositioned_at ?? job.returned_at;
         return (

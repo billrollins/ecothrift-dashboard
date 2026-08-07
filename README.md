@@ -138,7 +138,7 @@ ecothrift-dashboard/
 ├── .ai/                 AI/session context, protocols, extended domain notes (not runtime)
 ├── .version             App semver (single line)
 ├── CHANGELOG.md         Version history
-├── package.json         Heroku heroku-postbuild → frontend build only
+├── package.json         Heroku heroku-postbuild → staff + public Vite builds
 └── workspace/           Local scratch; **`workspace/data/`** holds only **`.gitkeep`** in git; tracked notebooks are **`.ipynb`**, **`.py`**, configs — see **`.ai/extended/development.md`**
 ```
 

@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    */
   const loadUser = useCallback(async () => {
     try {
-      // Attempt a silent refresh — the httpOnly cookie carries the refresh token
+      // Attempt a silent refresh - the httpOnly cookie carries the refresh token
       const refreshRes = await fetch('/api/auth/refresh/', {
         method: 'POST',
         credentials: 'include',

@@ -66,7 +66,7 @@ function canOpenQualityAudit(role: string | null | undefined): boolean {
 }
 
 function formatSubmittedAt(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
   return date.toLocaleString(undefined, {
@@ -168,7 +168,7 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
       kind: 'grade',
       accent: dashboardPalette.blue,
       icon: <WorkspacePremium />,
-      actual: retail.ready && retail.last_grade ? retail.last_grade : '—',
+      actual: retail.ready && retail.last_grade ? retail.last_grade : '-',
       placeholder: !retail.ready,
       goalMet: retail.week_goal_met,
       getValue: retailGridValue,
@@ -280,7 +280,7 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
           ? menuAudits.map((audit) => (
               <MenuItem key={audit.id} onClick={() => openAudit(audit.id)} sx={{ minHeight: 44 }}>
                 <ListItemText
-                  primary={`Grade ${audit.overall_grade || '—'}`}
+                  primary={`Grade ${audit.overall_grade || '-'}`}
                   secondary={formatSubmittedAt(audit.submitted_at)}
                 />
               </MenuItem>

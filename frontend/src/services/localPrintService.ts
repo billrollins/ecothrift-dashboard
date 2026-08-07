@@ -1,5 +1,5 @@
 /**
- * Local Print Service — communicates with the local print server on localhost:8888.
+ * Local Print Service - communicates with the local print server on localhost:8888.
  *
  * Printer assignment is stored on the print server itself (settings.json),
  * not in localStorage. When no printer_name is provided in a request the
@@ -145,7 +145,7 @@ class LocalPrintService {
   }
 
   // ---------------------------------------------------------------------------
-  // Printing — printer_name is optional; server uses its saved setting
+  // Printing - printer_name is optional; server uses its saved setting
   // ---------------------------------------------------------------------------
 
   async printLabel(request: LocalPrintRequest): Promise<LocalPrintResponse> {
@@ -207,17 +207,17 @@ class LocalPrintService {
       if (!response.ok) {
         throw new Error(
           response.status === 404
-            ? 'This print server does not support custom labels yet — update it from Admin → Settings.'
+            ? 'This print server does not support custom labels yet - update it from Admin → Settings.'
             : `Print request failed (${response.status})`,
         );
       }
       return (await response.json()) as T;
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
-        throw new Error('Print timed out — check the printer queue and try fewer copies.');
+        throw new Error('Print timed out - check the printer queue and try fewer copies.');
       }
       if (error instanceof TypeError) {
-        throw new Error('Local print server is unavailable — start it or open Admin Settings.');
+        throw new Error('Local print server is unavailable - start it or open Admin Settings.');
       }
       throw error;
     } finally {
@@ -277,7 +277,7 @@ class LocalPrintService {
     model?: string | null;
     unit_price?: string | number | null;
   }): LocalPrintRequest {
-    let priceText = '$—';
+    let priceText = '$-';
     const p = row.unit_price;
     if (p != null && p !== '') {
       if (typeof p === 'number' && !Number.isNaN(p)) {

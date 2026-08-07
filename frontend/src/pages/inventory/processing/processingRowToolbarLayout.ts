@@ -1,4 +1,4 @@
-/** Full-width toolbar rows — quick check-in may wrap within the card. */
+/** Full-width toolbar rows - quick check-in may wrap within the card. */
 export const processingRowToolbarRowSx = {
   display: 'flex',
   alignItems: 'flex-end',
@@ -9,7 +9,7 @@ export const processingRowToolbarRowSx = {
   minWidth: 0,
 } as const;
 
-/** Processing row defaults — single horizontal line (scroll inside card if needed). */
+/** Processing row defaults - single horizontal line (scroll inside card if needed). */
 export const processingRowManifestToolbarRowSx = {
   display: 'flex',
   alignItems: 'center',

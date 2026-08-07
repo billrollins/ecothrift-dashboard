@@ -110,7 +110,7 @@ function needsScan(item: DeliveryStopItem): boolean {
   return !item.is_verified && !item.verification_skipped;
 }
 
-/** Verified/skipped under older load rules but never marked loaded — stuck without actions. */
+/** Verified/skipped under older load rules but never marked loaded - stuck without actions. */
 function needsLoadHeal(item: DeliveryStopItem): boolean {
   return (
     !item.is_ready &&
@@ -347,7 +347,7 @@ export function LoadStep({
       await mutations.reopenTruck.mutateAsync({ runId: run.id });
       setReopenConfirmOpen(false);
       setSealAfterPhoto(false);
-      enqueueSnackbar('Truck reopened — load more, then reseal to continue', {
+      enqueueSnackbar('Truck reopened - load more, then reseal to continue', {
         variant: 'info',
       });
     } catch (err: unknown) {
@@ -526,7 +526,7 @@ export function LoadStep({
             load?.total_items != null ? ` · ${load.total_items} items` : ''
           }${
             run.truck_reopened_at && !run.truck_closed
-              ? ' · truck open — reseal to continue'
+              ? ' · truck open - reseal to continue'
               : ''
           }`}
           completion={completion}
@@ -759,7 +759,7 @@ export function LoadStep({
                     <Box sx={{ minWidth: 0, pr: 1 }}>
                       <Typography fontWeight={800}>{item.description}</Typography>
                       <Typography variant="caption" color="text.secondary" fontWeight={700}>
-                        SKU {item.sku || '—'} · ×{item.quantity}
+                        SKU {item.sku || '-'} · ×{item.quantity}
                       </Typography>
                     </Box>
                     {item.is_ready && (
@@ -881,7 +881,7 @@ export function LoadStep({
       <FieldSheet
         open={skipItemId != null}
         onClose={() => {
-          // Backing out of skip without choosing a reason — stay in browse mode.
+          // Backing out of skip without choosing a reason - stay in browse mode.
           setSkipItemId(null);
           setAutoScan(false);
         }}

@@ -10,7 +10,11 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 venv/
+# Only .env (local) and .envprod (Heroku mirror) exist, and neither is committed.
+# .env.* catches any stray variant (.env.local, .env.bak, …) so a file holding real
+# secrets can never be added by accident. There is no committed example template.
 .env
+.env.*
 .envprod
 
 # Jupyter (any directory in the repo)
@@ -163,6 +167,8 @@ workspace/notebooks/__pycache__/
 
 # Deploy — local production DB dumps (scripts/deploy/1_backup_prod.bat)
 scripts/deploy/backups/
+# Transient artifacts from 0_pull_prod_to_local.bat (dumps + credential-bearing helper bats)
+scripts/deploy/temp_*
 
 # Reference drops — avoid accidental staging via scripts/deploy/2_push_github.bat (`git add .`)
 .ai/reference/files.zip

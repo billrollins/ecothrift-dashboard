@@ -27,18 +27,31 @@ vi.mock('../../hooks/useWebStore', () => ({
     isLoading: listingsState.isLoading,
     isError: listingsState.isError,
   }),
+  useWorkQueue: () => ({
+    data: { items: [], draft_listings: [] },
+    isLoading: false,
+    isError: false,
+  }),
   useCreateWebListing: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+  useRemoveWorkQueueItem: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+  useDeleteWebListing: () => ({
     mutateAsync: vi.fn(),
     isPending: false,
   }),
 }));
 
-function wrap(ui: React.ReactNode) {
+function wrap(ui: React.ReactNode, initial = '/online-sales/listings') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <SnackbarProvider>
-        <MemoryRouter>{ui}</MemoryRouter>
+        <MemoryRouter initialEntries={[initial]}>{ui}</MemoryRouter>
       </SnackbarProvider>
     </QueryClientProvider>,
   );
@@ -79,7 +92,14 @@ describe('OnlineSalesListingsPage', () => {
     listingsState.data = { count: 0, results: [] };
     wrap(<OnlineSalesListingsPage />);
     expect(screen.getByText('Listings')).toBeInTheDocument();
-    expect(screen.getByText(/Click a row to open Listing Studio/)).toBeInTheDocument();
+    expect(screen.getByText(/open Listing Studio/)).toBeInTheDocument();
+  });
+
+  it('opens the To list tab straight from the URL', () => {
+    listingsState.data = { count: 0, results: [] };
+    wrap(<OnlineSalesListingsPage />, '/online-sales/listings?tab=tolist');
+    expect(screen.getByRole('tab', { name: 'To list' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Waiting at Online Sales')).toBeInTheDocument();
   });
 
   it('renders error state', () => {

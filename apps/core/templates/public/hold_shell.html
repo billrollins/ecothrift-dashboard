@@ -1,0 +1,36 @@
+{# Server-stamped hold shell - paints before the SPA bundle. Inline styles only. #}
+<div class="hold-shell" style="max-width:560px;margin:0 auto;padding:28px 32px 24px;font-family:Manrope,system-ui,sans-serif;color:#1a1f1c;">
+  {% if show_rail %}
+  <div aria-label="Hold progress" style="margin:0 0 22px;position:relative;">
+    <ol style="list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+      {% for s in stages %}
+      <li style="text-align:center;"{% if s.state == 'current' %} aria-current="step"{% endif %}>
+        <span aria-hidden="true" style="display:block;width:14px;height:14px;border-radius:50%;margin:5px auto 8px;background:{% if s.state == 'upcoming' %}#c5cfc8{% else %}#18452d{% endif %};"></span>
+        <span style="display:block;font-size:12px;font-weight:700;color:{% if s.state == 'upcoming' %}#5b635e{% else %}#0f2c1d{% endif %};">
+          {{ s.label }}{% if s.state == 'done' %}<span class="sr-only"> done</span>{% endif %}
+        </span>
+      </li>
+      {% endfor %}
+    </ol>
+  </div>
+  {% endif %}
+  <h1 style="font-family:Spectral,Georgia,serif;font-weight:600;font-size:28px;line-height:1.15;margin:8px 0 10px;">{{ headline }}</h1>
+  {% if customer_status %}
+  <p style="margin:0 0 10px;font-size:15px;font-weight:700;color:#18452d;">{{ customer_status }}</p>
+  {% endif %}
+  {% if expires_label %}
+  <p style="margin:0 0 8px;font-size:16px;font-weight:700;">{{ expires_label }}</p>
+  {% endif %}
+  {% if expires_secondary %}
+  <p style="margin:0 0 14px;font-size:13px;color:#5b635e;">{{ expires_secondary }}</p>
+  {% endif %}
+  {% if pickup_code %}
+  <div style="margin:0 0 18px;text-align:center;background:#fff;border:1px solid #d7dedb;border-radius:12px;padding:18px 14px;">
+    <div style="font-size:13px;color:#5b635e;margin-bottom:8px;font-weight:600;">Show this at the counter</div>
+    <div style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:36px;font-weight:700;letter-spacing:.28em;color:#0f2c1d;">{{ pickup_code }}</div>
+  </div>
+  {% endif %}
+  {% if next_step %}
+  <p style="margin:0;font-size:15px;line-height:1.5;">{{ next_step }}</p>
+  {% endif %}
+</div>

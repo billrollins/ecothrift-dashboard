@@ -52,7 +52,7 @@ function ProductField({ label, value, mono }: { label: string; value: string; mo
           color: processingTokens.textStrong,
           fontFamily: mono ? processingTokens.monoFontFamily : undefined,
         }}
-        title={value !== '—' ? value : undefined}
+        title={value !== '-' ? value : undefined}
       >
         {value}
       </Typography>
@@ -61,10 +61,10 @@ function ProductField({ label, value, mono }: { label: string; value: string; mo
 }
 
 export function ProductSummaryCard({ product }: { product: CheckInProductSummary | null }) {
-  const productNumber = product?.product_number?.trim() || (product?.id ? `#${product.id}` : '—');
-  const title = product?.title?.trim() || '—';
-  const brand = product?.brand?.trim() || '—';
-  const model = product?.model?.trim() || '—';
+  const productNumber = product?.product_number?.trim() || (product?.id ? `#${product.id}` : '-');
+  const title = product?.title?.trim() || '-';
+  const brand = product?.brand?.trim() || '-';
+  const model = product?.model?.trim() || '-';
 
   return (
     <Paper

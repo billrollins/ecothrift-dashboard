@@ -221,7 +221,7 @@ function HistoricalRevenuePanel() {
                           <TableCell key={db} align="right">
                             {row[db]
                               ? `$${row[db].toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                              : '—'}
+                              : '-'}
                           </TableCell>
                         ))}
                         <TableCell align="right">
@@ -317,7 +317,7 @@ export default function TransactionListPage() {
       field: 'receipt_number',
       headerName: 'Receipt #',
       width: 120,
-      valueGetter: (_, row) => row.receipt?.receipt_number ?? row.id ?? '—',
+      valueGetter: (_, row) => row.receipt?.receipt_number ?? row.id ?? '-',
     },
     {
       field: 'status',
@@ -336,7 +336,7 @@ export default function TransactionListPage() {
       width: 160,
       valueFormatter: (value, row) => {
         const dt = (row as Cart).completed_at ?? (row as Cart).created_at;
-        return dt ? format(new Date(dt as string), 'MM/dd/yyyy HH:mm') : '—';
+        return dt ? format(new Date(dt as string), 'MM/dd/yyyy HH:mm') : '-';
       },
     },
     {
@@ -514,7 +514,7 @@ export default function TransactionListPage() {
         fullWidth
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-          Receipt #{selectedCart?.receipt?.receipt_number ?? selectedCart?.id ?? '—'}
+          Receipt #{selectedCart?.receipt?.receipt_number ?? selectedCart?.id ?? '-'}
           {selectedCart?.status === 'voided' && (
             <Chip size="small" label="Voided" color="error" />
           )}
@@ -524,7 +524,7 @@ export default function TransactionListPage() {
             <Box>
               <Typography variant="body2" color="text.secondary">
                 {format(new Date(selectedCart.completed_at ?? selectedCart.created_at), 'PPp')} ·{' '}
-                {selectedCart.cashier_name ?? '—'}
+                {selectedCart.cashier_name ?? '-'}
               </Typography>
               <Box sx={{ mt: 2 }}>
                 {(selectedCart.lines ?? []).map((line: CartLine) => (

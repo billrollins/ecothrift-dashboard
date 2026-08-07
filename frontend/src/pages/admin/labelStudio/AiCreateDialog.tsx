@@ -1,5 +1,5 @@
 /**
- * AI Create for me — propose structure and/or generate a monochrome background.
+ * AI Create for me - propose structure and/or generate a monochrome background.
  * Approval gate: Apply / Use as background only updates local designer state or
  * uploads via the existing background endpoint; never auto-saves the label.
  */
@@ -133,7 +133,7 @@ export default function AiCreateDialog({
   const finishApplyStructure = () => {
     if (!proposed) return;
     onApplyDefinition(proposed);
-    enqueueSnackbar('Structure applied — Save when ready.', { variant: 'success' });
+    enqueueSnackbar('Structure applied - Save when ready.', { variant: 'success' });
     handleClose();
   };
 
@@ -150,7 +150,7 @@ export default function AiCreateDialog({
     if (!imageB64) return;
     const file = b64ToFile(imageB64, imageType, 'ai-background.png');
     onBackgroundApplied(file);
-    enqueueSnackbar('Background added — Save when ready.', { variant: 'success' });
+    enqueueSnackbar('Background added - Save when ready.', { variant: 'success' });
     handleClose();
   };
 

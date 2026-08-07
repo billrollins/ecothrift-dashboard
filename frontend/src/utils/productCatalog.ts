@@ -41,7 +41,7 @@ export function productLikeFromItemFields(
 export const PRODUCT_SEARCH_MIN_CHARS = 2;
 export const PRODUCT_SEARCH_DEFAULT_PAGE_SIZE = 25;
 
-/** Universal display parts — mirror of Product.catalog_display_parts on the backend. */
+/** Universal display parts - mirror of Product.catalog_display_parts on the backend. */
 export function productDisplayParts(product: ProductLike): ProductDisplayParts {
   const productNumber = product.product_number?.trim() || `PRD-${product.id}`;
   return {

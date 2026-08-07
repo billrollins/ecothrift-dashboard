@@ -32,7 +32,7 @@ export type WatchlistListDesktopProps = {
 };
 
 function formatAdded(iso: string | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   try {
     return format(parseISO(iso), 'MMM d, yyyy h:mm a');
   } catch {

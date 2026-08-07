@@ -16,9 +16,9 @@ export type OrderPickerOptionRowProps = {
   /** Optional mono stack for order number (Processing uses JetBrains-style). */
   monoFontFamily?: string;
   mutedColor?: string;
-  /** @deprecated Prefer `badge` — kept for ad-hoc callers. */
+  /** @deprecated Prefer `badge` - kept for ad-hoc callers. */
   iconBg?: string;
-  /** @deprecated Prefer `badge` — kept for ad-hoc callers. */
+  /** @deprecated Prefer `badge` - kept for ad-hoc callers. */
   iconColor?: string;
 };
 
@@ -87,7 +87,7 @@ export function OrderPickerOptionRow({
             whiteSpace: 'nowrap',
           }}
         >
-          {description?.trim() || '—'}
+          {description?.trim() || '-'}
         </Typography>
         <Typography
           sx={{

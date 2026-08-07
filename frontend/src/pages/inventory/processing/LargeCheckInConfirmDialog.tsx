@@ -15,7 +15,7 @@ import { printPhraseMatches, requiredPrintPhrase } from './largeCheckIn';
 export interface LargeCheckInConfirmDialogProps {
   open: boolean;
   quantity: number;
-  /** When true the confirm also prints `quantity` labels — requires typing the phrase. */
+  /** When true the confirm also prints `quantity` labels - requires typing the phrase. */
   printLabels: boolean;
   loading?: boolean;
   onCancel: () => void;

@@ -136,7 +136,7 @@ function buildManifestColumns(manifestExtendedTotal: string | null | undefined):
         if (!label) {
           return (
             <Typography variant="body2" color="text.secondary">
-              —
+              -
             </Typography>
           );
         }
@@ -167,7 +167,7 @@ function buildManifestColumns(manifestExtendedTotal: string | null | undefined):
         if (!title) {
           return (
             <Typography variant="body2" color="text.secondary">
-              —
+              -
             </Typography>
           );
         }
@@ -231,7 +231,7 @@ function buildManifestColumns(manifestExtendedTotal: string | null | undefined):
         if (denom <= 0) {
           return (
             <Typography variant="body2" color="text.secondary">
-              —
+              -
             </Typography>
           );
         }
@@ -782,8 +782,8 @@ export default function AuctionDetailPage() {
         <Tooltip
           title={
             detail.archived_at
-              ? 'Unarchive — show in default auction lists again'
-              : 'Archive — hide from default lists (still in Archived filter)'
+              ? 'Unarchive - show in default auction lists again'
+              : 'Archive - hide from default lists (still in Archived filter)'
           }
         >
           <span>
@@ -1169,11 +1169,11 @@ export default function AuctionDetailPage() {
                         {row.title.trim()}
                       </MuiLink>
                     ) : (
-                      <span>—</span>
+                      <span>-</span>
                     )}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {row.brand || '—'}
+                    {row.brand || '-'}
                     {row.model ? ` · ${row.model}` : ''}
                   </Typography>
                   <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mt: 1 }}>
@@ -1192,7 +1192,7 @@ export default function AuctionDetailPage() {
                     ) : null}
                   </Stack>
                   <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
-                    UPC {row.upc || '—'} · SKU {row.sku || '—'}
+                    UPC {row.upc || '-'} · SKU {row.sku || '-'}
                   </Typography>
                 </CardContent>
               </Card>

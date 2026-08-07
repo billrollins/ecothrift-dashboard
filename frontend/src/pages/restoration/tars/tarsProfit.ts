@@ -45,7 +45,7 @@ export function fmtUsd(n: number): string {
 }
 
 export function fmtProfit(n: number | null): string {
-  if (n === null) return '—';
+  if (n === null) return '-';
   return fmtUsd(n);
 }
 

@@ -1,4 +1,4 @@
-/** TARS Studio — eco-green lifecycle UI, denser than the old bench shell. */
+/** TARS Studio - eco-green lifecycle UI, denser than the old bench shell. */
 import { tarsTokens as eco } from '../tarsTokens';
 
 export const studio = {

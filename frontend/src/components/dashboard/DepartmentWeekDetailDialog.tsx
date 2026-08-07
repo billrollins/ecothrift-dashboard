@@ -127,7 +127,7 @@ export function DepartmentWeekDetailDialog({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth fullScreen={false}>
-      <DialogTitle sx={{ pb: 1 }}>{label} — weekly detail</DialogTitle>
+      <DialogTitle sx={{ pb: 1 }}>{label} - weekly detail</DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minHeight: 0 }}>
           <Box sx={{ display: 'grid', gridTemplateColumns: '48px repeat(7, minmax(0, 1fr))', gap: 0.35 }}>

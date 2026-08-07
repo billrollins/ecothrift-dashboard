@@ -92,9 +92,9 @@ export function RestorationsToSetupPanel({ job, onSaved }: RestorationsToSetupPa
       });
       enqueueSnackbar(
         saved.needs_setup
-          ? 'Saved — finish all grade values to clear the TARS request.'
+          ? 'Saved - finish all grade values to clear the TARS request.'
           : saved.valuation_fulfilled_at
-            ? 'Sent back to TARS — valuations complete.'
+            ? 'Sent back to TARS - valuations complete.'
             : 'Ready for TARS.',
         { variant: saved.needs_setup ? 'warning' : 'success' },
       );
@@ -134,14 +134,14 @@ export function RestorationsToSetupPanel({ job, onSaved }: RestorationsToSetupPa
           {Array.isArray(job.valuation_requested_grades) && job.valuation_requested_grades.length
             ? `: ${job.valuation_requested_grades.join(', ')}`
             : ' grade values'}
-          {job.valuation_request_notes ? ` — ${job.valuation_request_notes}` : ''}.
+          {job.valuation_request_notes ? ` - ${job.valuation_request_notes}` : ''}.
           Fill all grades and save to send back.
         </Alert>
       ) : null}
 
       {job.needs_setup && !job.valuation_pending ? (
         <Alert severity="info" variant="outlined" sx={{ py: 0.5 }}>
-          Incomplete grades — TARS can still open the item; Done stays blocked until values are complete.
+          Incomplete grades - TARS can still open the item; Done stays blocked until values are complete.
         </Alert>
       ) : null}
 

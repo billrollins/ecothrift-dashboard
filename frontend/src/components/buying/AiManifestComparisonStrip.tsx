@@ -49,10 +49,10 @@ export default function AiManifestComparisonStrip({ detail }: Props) {
               {k}
             </Typography>
             <Typography variant="caption" color="text.secondary" noWrap sx={{ flexShrink: 0 }}>
-              AI {typeof ai[k] === 'number' ? `${Math.round(ai[k])}%` : '—'}
+              AI {typeof ai[k] === 'number' ? `${Math.round(ai[k])}%` : '-'}
             </Typography>
             <Typography variant="caption" fontWeight={600} noWrap sx={{ flexShrink: 0 }}>
-              Mf {typeof man[k] === 'number' ? `${Math.round(man[k])}%` : '—'}
+              Mf {typeof man[k] === 'number' ? `${Math.round(man[k])}%` : '-'}
             </Typography>
           </Stack>
         ))}

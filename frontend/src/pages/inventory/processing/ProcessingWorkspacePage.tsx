@@ -164,7 +164,7 @@ export default function ProcessingWorkspacePage() {
     workspaceRef.current = workspace;
   }, [workspace]);
 
-  // Include paid/shipped — staff often finalize prep before the PO is marked delivered.
+  // Include paid/shipped - staff often finalize prep before the PO is marked delivered.
   // Keep in sync with Receiving picker / GET …/for-receiving/ (FLOOR_ORDER_PICKER_PARAMS).
   const processingOrdersParams = useMemo(() => ({ ...FLOOR_ORDER_PICKER_PARAMS }), []);
   const { data: processingOrdersPage } = usePurchaseOrders(processingOrdersParams, orderId != null);
@@ -334,7 +334,7 @@ export default function ProcessingWorkspacePage() {
   );
 
   const openDetail = useCallback((processingRowId: number, options?: { scrollToHistory?: boolean }) => {
-    // P7 collapse: a member is a dead end (check-in rejected) — open its master instead,
+    // P7 collapse: a member is a dead end (check-in rejected) - open its master instead,
     // which covers the whole group. Hits scan-to-open and any filtered view.
     const target = workspaceRef.current?.rows.find((r) => r.processing_row_id === processingRowId);
     const resolvedId = target?.collapseMasterId ?? processingRowId;
@@ -511,7 +511,7 @@ export default function ProcessingWorkspacePage() {
         /* ignore scan helper failures */
       }
     }
-    // No exact scan match — treat as a text search. From detail mode this
+    // No exact scan match - treat as a text search. From detail mode this
     // returns to the queue with results shown (search persists).
     if (inDetail) {
       setDetailProcessingRowId(null);
@@ -612,7 +612,7 @@ export default function ProcessingWorkspacePage() {
       const masterNum = [...selectedQueueRows].sort((a, b) => a.rowNum - b.rowNum)[0]?.rowNum;
       enqueueSnackbar(
         `Collapsed ${1 + data.member_processing_row_ids.length} rows`
-          + (masterNum != null ? ` — row #${masterNum} is the group master.` : '.'),
+          + (masterNum != null ? ` - row #${masterNum} is the group master.` : '.'),
         { variant: 'success' },
       );
       clearRowSelection();
@@ -627,7 +627,7 @@ export default function ProcessingWorkspacePage() {
   const handleUncollapse = useCallback(async (masterId: number) => {
     try {
       await uncollapseRows.mutateAsync({ master_processing_row_id: masterId });
-      enqueueSnackbar('Group uncollapsed — rows are individual again.', { variant: 'success' });
+      enqueueSnackbar('Group uncollapsed - rows are individual again.', { variant: 'success' });
       clearRowSelection();
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
@@ -1086,13 +1086,13 @@ export default function ProcessingWorkspacePage() {
                   <CircularProgress size={28} />
                 </Box>
               }
-              {/* Pagination disabled — full list scrolls inside the table.
+              {/* Pagination disabled - full list scrolls inside the table.
               <ProcessingQueuePagination
                 page={page}
                 totalCount={filteredTotal}
                 pageSize={queuePageSize}
                 onPageChange={setPage}
-                rangeCaption={`Lines ${paginationFrom}–${paginationTo} · ${filteredTotal} match (${poLineCount} on order)`}
+                rangeCaption={`Lines ${paginationFrom}-${paginationTo} · ${filteredTotal} match (${poLineCount} on order)`}
               />
               */}
             </Box>

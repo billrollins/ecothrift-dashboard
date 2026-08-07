@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-31 (online_sales_mvp v2.62.0 shipped parked) -->
+<!-- Last updated: 2026-08-07 (v2.69.0 Online Sales go-live) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,11 +13,11 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 
 ## Active work (compass)
 
-- **Active — Online Sales MVP:** [`online_sales_mvp`](initiatives/online_sales_mvp.md) — **v2.62.0–v2.64.0** staff workspace, Listing Studio, shared TipTap editor, and **M365 Graph mailbox** (`apps/mailbox`, `MS_GRAPH_ENABLED=false` until Entra credentials). Public surface still **parked** (`ONLINE_SALES_ENABLED=false` until owner says go). Narrows parked [`online_sales_workspace`](initiatives/_archived/_pending/online_sales_workspace.md).
+- **Active — Online Sales MVP:** [`online_sales_mvp`](initiatives/online_sales_mvp.md) — **v2.69.0 go-live**: public storefront + Graph mail on Heroku; staff Listings / Holds / **Customers** (Messages moved here); verified holds; account portal; archive/retention. Narrows parked [`online_sales_workspace`](initiatives/_archived/_pending/online_sales_workspace.md).
 - **Retail QA submission reliability (shipped):** archived [`retail_qa_submission_reliability`](initiatives/_archived/_completed/retail_qa_submission_reliability.md) — stranded-draft recovery, autosave/resume, +/- grades, dashboard deep links, 8-week grids. **v2.60.0–v2.61.0**. Photo S3 deferred.
 - **Delivery Mobile Ops (shipped):** archived [`delivery_mobile_operations_completion`](initiatives/_archived/_completed/delivery_mobile_operations_completion.md) — Desk + Field, Routes API, evidence/SMS, add/adjust, route maps, change history. **v2.55.0–v2.59.1**.
 - **POS discount + delivery (shipped):** archived [`pos_discount_and_delivery`](initiatives/_archived/_completed/pos_discount_and_delivery.md) — terminal discount/delivery, printables, **Deliveries board**; **v2.51.0** schedule-later; **v2.52.0** unified Day Board (calls → route → load → drive → return on the same cards).
-- **Parked — Online Sales Workspace:** [`online_sales_workspace`](initiatives/_archived/_pending/online_sales_workspace.md) — code retained; staff workspace + public holds **disabled** (`ONLINE_SALES_ENABLED=false`). Contract: [`.ai/reference/online_sales_workspace/phase_0_contract.md`](reference/online_sales_workspace/phase_0_contract.md).
+- **Parked — Online Sales Workspace:** [`online_sales_workspace`](initiatives/_archived/_pending/online_sales_workspace.md) — long-term vision retained; MVP live via `online_sales_mvp`. Contract: [`.ai/reference/online_sales_workspace/phase_0_contract.md`](reference/online_sales_workspace/phase_0_contract.md).
 - **Parked — TARS decision guardrails:** [`tars_full_instruction_wizard_guidance`](initiatives/_archived/_pending/tars_full_instruction_wizard_guidance.md) — Studio at `/restoration/tars` **kept available**; floor validation + Phase 2/3 deferred. Contract: [`standalone_studio_contract.md`](reference/TARS%20Restoration%20Processing%20App/standalone_studio_contract.md).
 - **Custom Label Studio (shipped):** archived [`custom_label_studio`](initiatives/_archived/_completed/custom_label_studio.md) — Admin **`/admin/label-studio`**: PDF + visual templates, variables/increment, QR/Code128, AI Create, print × N; print-server **1.4.1**. Shipped **v2.48.0**–**v2.48.2**.
 - **Floorplan builder (shipped):** archived [`floorplan_builder`](initiatives/_archived/_completed/floorplan_builder.md) — **`/floor-ops/floorplans`** editor + DB element kinds, walls/cut/print. Shipped **v2.39.0**–**v2.47.0**. Docs: **`apps/floorplan/README.md`**.
@@ -27,7 +27,7 @@ Eco-Thrift Dashboard is a full-stack business management application for a thrif
 - **Product/Item CRUD → Processing (shipped):** archived [`product_item_crud_and_processing`](initiatives/_archived/_completed/product_item_crud_and_processing.md) — **v2.29.0–v2.32.0** (Catalog, processing integration, unmanifested lines). Semantic embedding search on hold.
 - **AI cleanup (shipped):** archived [`preprocessing_ai_cleanup_review`](initiatives/_archived/_completed/preprocessing_ai_cleanup_review.md) — Step 2 **Run AI Cleanup** browser batch pool (`ai-cleanup-batch`/`-status`/`-complete`), chunked offline apply, gthread Procfile, legacy `ai-cleanup-rows` 410. Shipped **v2.28.0**.
 - **Blog Studio (shipped):** archived [`blog_studio`](initiatives/_archived/_completed/blog_studio.md) — Super Admin **Blog Studio** (`/blog-studio`, lazy TipTap, opens in a new window) + DB-backed public blog (`apps.blog` at `/api/blog/`). Shipped **v2.27.0**–**v2.27.2**. One-time prod ops (if not done): `python manage.py seed_initial_blog_posts` (idempotent).
-- **Parked — public site launch:** [`.ai/initiatives/_archived/_pending/public_website.md`](initiatives/_archived/_pending/public_website.md) — storefront **Phases 0–4 shipped** (**v2.26.0**, `frontend-public/` + `apps.webstore`). **Resume when:** deploy to Heroku + prod `seed_shop_categories`; wire **Helcim + email** after vendor conversations. Hostname routing: `ecothrift.us`/`www` → public SPA, `dash.*` → staff.
+- **Parked — public site launch:** [`.ai/initiatives/_archived/_pending/public_website.md`](initiatives/_archived/_pending/public_website.md) — storefront **Phases 0–4 shipped** (**v2.26.0**); Online Sales go-live (**v2.69.0**) covers deploy + seed. Helcim/pay-online still out of scope (pickup-only). Hostname routing: `ecothrift.us`/`www` → public SPA, `dash.*` → staff.
 - **Staff UI (shipped):** [`web_ui_cleanup`](initiatives/_archived/_completed/web_ui_cleanup.md) **v2.25.0**.
 - **Inbound intake (shipped):** archived [order_processing_pipeline_rebuild](initiatives/_archived/_completed/order_processing_pipeline_rebuild.md) (**v2.20.0**–**v2.24.2**); reference [`.ai/reference/order_processing_pipeline_rebuild/`](reference/order_processing_pipeline_rebuild/README.md); behavior in **`.ai/extended/inventory-pipeline.md`**.
 - **Buying / B-Stock:** live API guardrails in workspace rules; detail in [`.ai/extended/bstock.md`](extended/bstock.md).
@@ -106,9 +106,33 @@ ecothrift-dashboard/
 ├── .version                Single-line app semver (vMAJOR.MINOR.PATCH)
 ├── CHANGELOG.md            Version-level changelog (repo root)
 ├── requirements.txt        Python dependencies
-├── .env                    Local environment variables (gitignored)
+├── .env                    Local environment variables (gitignored) — edit directly
+├── .envprod                Heroku config mirror (gitignored) — push via `scripts/deploy/env/sync_to_heroku.bat`
 └── .gitignore
 ```
+
+### Environment files
+
+**Exactly two env files exist, and neither is committed: `.env` and `.envprod`.**
+Edit them directly at the repo root. There is no example/template file, no
+copy-the-template step, and no fragment/compose layer.
+
+| File | Role |
+|------|------|
+| **`.env`** | The real local config. Django (`ecothrift/settings.py` via python-decouple) and Vite (`frontend/vite.config.ts`) both read it. Add or change local keys here. |
+| **`.envprod`** | Production values. Heroku does not read it — `scripts/deploy/env/sync_to_heroku.bat` pushes it to Heroku Config Vars. Keep the shared bottom block identical to `.env`. |
+
+`.gitignore` blocks `.env`, `.env.*`, and `.envprod`, so no env file can be
+committed even by accident.
+
+**The authoritative list of variable names is the "Environment Variables" table in
+[`development.md`](extended/development.md).** That table is the only place a new key
+gets documented; there is no template file to keep in sync.
+
+When you need a value (DB password, API key), read it from the user's `.env` on disk.
+Never invent credentials, and never copy secrets into `.ai/`, committed files, or chat.
+
+Details and the Heroku sync skip-list: [`scripts/deploy/env/lib/README.md`](../scripts/deploy/env/lib/README.md).
 
 ---
 
@@ -219,6 +243,7 @@ Capability summary — detail lives in the extended docs above and initiative fi
 - When you add/change API endpoints or routes, update the relevant `.ai/extended/*.md` file or `context.md` “Current State”.
 - When you change auth or permissions, update `.ai/extended/auth-and-roles.md`.
 - When you add or rename databases / connection patterns, update `.ai/extended/databases.md` (never put secrets in `.ai/`).
+- **When you add a new environment variable:** write it straight into `.env` (and `.envprod` if production needs it), then document it in the **Environment Variables** table in `.ai/extended/development.md`. There is no example/template env file to update.
 - **When you add, rename, or remove a file in `.ai/extended/`:** update the **Extended docs TOC** in this file.
 - **Heroku Scheduler / buying background jobs:** When schedules change, update **`.ai/extended/development.md`** and root **`CHANGELOG.md`** `[Unreleased]` if user-visible.
 - When releasing: bump repo root `.version`, root `package.json` `"version"`, and add a dated section to **`CHANGELOG.md`** only (see `.ai/protocols/session.9.Close.md` Part 2). Link shipped work to initiatives in `_index.md` where applicable.
@@ -233,6 +258,7 @@ Capability summary — detail lives in the extended docs above and initiative fi
 | Need | Where |
 |------|-------|
 | Tech stack and architecture | `.ai/context.md` (this file) |
+| Environment variables | Values: root `.env` (edit directly). Names/defaults: `.ai/extended/development.md`. Heroku sync: `scripts/deploy/env/lib/README.md` |
 | Domain deep-dives | `.ai/extended/` — see **Extended docs TOC** above |
 | Database schema (Django / DB3) | `apps/*/models.py` |
 | Current version | Repo root `.version` |

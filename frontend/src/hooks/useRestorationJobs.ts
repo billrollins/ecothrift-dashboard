@@ -36,7 +36,7 @@ export function usePatchRestorationJob() {
       return data;
     },
     onSuccess: (data) => {
-      // The queue page renders from the merged queued+sent cache — patch it in
+      // The queue page renders from the merged queued+sent cache - patch it in
       // place so debounced edits don't trigger a refetch that clobbers typing.
       queryClient.setQueryData<RestorationJobDTO[]>(
         ['restoration-queue-jobs'],

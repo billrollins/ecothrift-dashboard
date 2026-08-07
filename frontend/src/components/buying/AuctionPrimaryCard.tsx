@@ -26,7 +26,7 @@ const cellSx = {
   boxSizing: 'border-box' as const,
 };
 
-/** Shared row for all metrics — centers values on the same horizontal band */
+/** Shared row for all metrics - centers values on the same horizontal band */
 const valueSlotSx = {
   width: '100%',
   maxWidth: '100%',
@@ -58,7 +58,7 @@ const metricValueFontSx = {
   },
 };
 
-/** Time — larger than metrics but still capped to container */
+/** Time - larger than metrics but still capped to container */
 const timeValueFontSx = {
   fontVariantNumeric: 'tabular-nums' as const,
   lineHeight: 1.15,
@@ -72,7 +72,7 @@ const timeValueFontSx = {
 
 type Props = { detail: BuyingAuctionDetail; isAdmin: boolean };
 
-/** Top-left card: one row — time left, current price, need, priority. */
+/** Top-left card: one row - time left, current price, need, priority. */
 export default function AuctionPrimaryCard({ detail, isAdmin }: Props) {
   const mutation = useBuyingValuationInputsMutation();
   const [priorityDraft, setPriorityDraft] = useState('');
@@ -225,7 +225,7 @@ export default function AuctionPrimaryCard({ detail, isAdmin }: Props) {
             Need
           </Typography>
           <Box sx={valueSlotSx}>
-            <Tooltip title="Inventory demand (1–99). Higher = more needed." placement="top" enterDelay={300}>
+            <Tooltip title="Inventory demand (1-99). Higher = more needed." placement="top" enterDelay={300}>
               <Typography
                 component="p"
                 fontWeight={700}
@@ -236,7 +236,7 @@ export default function AuctionPrimaryCard({ detail, isAdmin }: Props) {
                   textAlign: 'center',
                 }}
               >
-                {needDisplay ?? '—'}
+                {needDisplay ?? '-'}
               </Typography>
             </Tooltip>
           </Box>
@@ -249,7 +249,7 @@ export default function AuctionPrimaryCard({ detail, isAdmin }: Props) {
           {!isAdmin ? (
             <Box sx={valueSlotSx}>
               <Typography component="p" fontWeight={700} sx={{ ...metricValueFontSx, textAlign: 'center' }}>
-                {detail.priority ?? '—'}
+                {detail.priority ?? '-'}
               </Typography>
             </Box>
           ) : (
@@ -358,7 +358,7 @@ export default function AuctionPrimaryCard({ detail, isAdmin }: Props) {
                     textAlign: 'center',
                   }}
                 >
-                  {detail.priority ?? '—'}
+                  {detail.priority ?? '-'}
                 </Typography>
               )}
 

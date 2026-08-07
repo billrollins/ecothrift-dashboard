@@ -15,8 +15,8 @@ from apps.webstore.models import Conversation, Reservation, WebListing, WebListi
 from django.db import transaction
 
 from apps.webstore.services.conversations import post_message
+from apps.webstore.tests.helpers import make_verified_hold
 from apps.webstore.services.reservations import (
-    create_hold,
     expire_due_reservations,
     release_reservation,
 )
@@ -64,7 +64,7 @@ class UnreadSurvivesGetTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.listing = _listing('unread-lamp')
-        self.res = create_hold(
+        self.res = make_verified_hold(
             listing=self.listing,
             quantity=1,
             customer_name='Ada',
@@ -99,7 +99,7 @@ class MyHoldsListPayloadTests(TestCase):
         self.customer = _customer('holder@example.com')
         self.listings = [_listing(f'myhold-{i}', on_hand=2) for i in range(3)]
         for listing in self.listings:
-            create_hold(
+            make_verified_hold(
                 listing=listing,
                 quantity=1,
                 customer_name='Holder',
@@ -167,7 +167,7 @@ class Throttle429Tests(TestCase):
         self.assertEqual(r.status_code, 429)
 
     def test_message_endpoint_returns_429(self):
-        res = create_hold(
+        res = make_verified_hold(
             listing=self.listing,
             quantity=1,
             customer_name='T',
@@ -186,7 +186,7 @@ class IdempotencyAfterDeclineTests(TestCase):
     def test_retry_after_decline_creates_new_active_hold(self):
         listing = _listing('idem-decline', on_hand=2)
         key = 'reuse-after-decline'
-        first = create_hold(
+        first = make_verified_hold(
             listing=listing,
             quantity=1,
             customer_name='A',
@@ -197,7 +197,7 @@ class IdempotencyAfterDeclineTests(TestCase):
         listing.refresh_from_db()
         self.assertEqual(listing.reserved, 0)
 
-        second = create_hold(
+        second = make_verified_hold(
             listing=listing,
             quantity=1,
             customer_name='A',
@@ -212,14 +212,14 @@ class IdempotencyAfterDeclineTests(TestCase):
     def test_idempotency_does_not_return_other_email(self):
         listing = _listing('idem-email', on_hand=2)
         key = 'shared-key'
-        a = create_hold(
+        a = make_verified_hold(
             listing=listing,
             quantity=1,
             customer_name='A',
             email='a@example.com',
             idempotency_key=key,
         )
-        b = create_hold(
+        b = make_verified_hold(
             listing=listing,
             quantity=1,
             customer_name='B',
@@ -231,18 +231,19 @@ class IdempotencyAfterDeclineTests(TestCase):
         self.assertEqual(listing.reserved, 2)
 
 
-@override_settings(ONLINE_SALES_ENABLED=True, ONLINE_SALES_REQUEST_TRIAGE_HOURS=48)
+@override_settings(ONLINE_SALES_ENABLED=True)
 class RequestTriageExpiryTests(TestCase):
     def test_stale_requested_hold_expires_and_releases_qty(self):
         listing = _listing('stale-req', on_hand=1)
-        res = create_hold(
+        res = make_verified_hold(
             listing=listing,
             quantity=1,
             customer_name='Z',
             email='z@example.com',
         )
+        # Expiry is driven by expires_at (store-hours clock), not a 48h triage bucket.
         Reservation.objects.filter(pk=res.pk).update(
-            created_at=timezone.now() - timedelta(hours=49),
+            expires_at=timezone.now() - timedelta(minutes=1),
         )
         listing.refresh_from_db()
         self.assertEqual(listing.reserved, 1)
@@ -256,7 +257,7 @@ class RequestTriageExpiryTests(TestCase):
 
     def test_fresh_requested_hold_is_not_expired(self):
         listing = _listing('fresh-req', on_hand=1)
-        res = create_hold(
+        res = make_verified_hold(
             listing=listing,
             quantity=1,
             customer_name='Y',

@@ -216,7 +216,7 @@ export default function ConsigneeDetailPage() {
       headerName: 'End',
       width: 110,
       valueFormatter: (value) =>
-        value ? format(new Date(value as string), 'MM/dd/yyyy') : '—',
+        value ? format(new Date(value as string), 'MM/dd/yyyy') : '-',
     },
     {
       field: 'actions',
@@ -449,7 +449,7 @@ export default function ConsigneeDetailPage() {
 
       {/* Edit Agreement Dialog */}
       <Dialog open={editOpen} onClose={() => setEditOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Edit Agreement — {editTarget?.agreement_number}</DialogTitle>
+        <DialogTitle>Edit Agreement - {editTarget?.agreement_number}</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 0.5 }}>
             <Grid size={{ xs: 12, md: 6 }}>

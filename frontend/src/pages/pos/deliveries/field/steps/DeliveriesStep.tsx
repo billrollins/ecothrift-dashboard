@@ -246,7 +246,7 @@ export function DeliveriesStep({
   const proofQueued =
     queuedKinds.includes('delivery_proof') || queuedKinds.includes('signature');
   const holdDisabledLabel = proofQueued
-    ? 'Proof uploading — hold to complete when it lands'
+    ? 'Proof uploading - hold to complete when it lands'
     : 'Finish proof first';
   const eta = stop.eta_arrive_at
     ? new Date(stop.eta_arrive_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })

@@ -85,8 +85,8 @@ export function ManifestUploadProgress({
               <Typography variant="body2" color="success.main">
                 ✓{' '}
                 {step1.template_source === 'ai_created'
-                  ? `New template created by AI — mapped columns; ${step1.rows_saved} rows saved`
-                  : `Template matched: ${step1.template_display_name} — ${step1.rows_saved} rows saved`}
+                  ? `New template created by AI - mapped columns; ${step1.rows_saved} rows saved`
+                  : `Template matched: ${step1.template_display_name} - ${step1.rows_saved} rows saved`}
               </Typography>
             </Stack>
           ) : null}
@@ -112,7 +112,7 @@ export function ManifestUploadProgress({
             ) : null}
             {phase === 'cancelled' ? (
               <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                Cancelled — some keys may still show as not yet categorized.
+                Cancelled - some keys may still show as not yet categorized.
               </Typography>
             ) : null}
             {phase === 'complete' && step1!.unmapped_key_count > 0 ? (

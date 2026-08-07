@@ -91,9 +91,9 @@ describe('driverWizardUtils', () => {
     expect(
       interpolateTemplateTokens('Hi {name}, ETA {eta} on {date}', {
         name: 'Sam',
-        eta: '10–10:20',
+        eta: '10-10:20',
         date: 'Saturday',
       }),
-    ).toBe('Hi Sam, ETA 10–10:20 on Saturday');
+    ).toBe('Hi Sam, ETA 10-10:20 on Saturday');
   });
 });

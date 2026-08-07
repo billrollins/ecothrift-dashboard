@@ -256,7 +256,7 @@ export interface RestorationMetrics {
 
 export interface RetailMetrics {
   ready: boolean;
-  /** Legacy alias of ``last_grade`` — not a mean of letter grades. */
+  /** Legacy alias of ``last_grade`` - not a mean of letter grades. */
   average_grade: string | null;
   /** Most recently submitted dashboard-feeding QA grade (overall). */
   last_grade: string | null;
@@ -296,7 +296,7 @@ export interface DepartmentDailyMetric {
 
 export interface DepartmentDailyWeek {
   label: string;
-  /** True for the Mon–Sun week containing today. */
+  /** True for the Mon-Sun week containing today. */
   is_current?: boolean;
   week_start: string;
   week_end: string;

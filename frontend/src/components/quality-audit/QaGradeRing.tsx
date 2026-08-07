@@ -68,7 +68,7 @@ export function QaGradeRing({
           lineHeight: 1,
         }}
       >
-        <Typography sx={{ fontSize: size * 0.32, fontWeight: 800, color }}>{grade || '—'}</Typography>
+        <Typography sx={{ fontSize: size * 0.32, fontWeight: 800, color }}>{grade || '-'}</Typography>
         {label ? (
           <Typography sx={{ fontSize: size * 0.1, fontWeight: 700, color: 'text.secondary', mt: 0.3 }}>
             {label}

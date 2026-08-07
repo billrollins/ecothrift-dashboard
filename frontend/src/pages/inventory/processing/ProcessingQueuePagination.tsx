@@ -15,7 +15,7 @@ export interface ProcessingQueuePaginationProps {
   totalCount: number;
   pageSize: number;
   onPageChange: (page: number) => void;
-  /** e.g. ``Lines 126–150 · 742 match (744 on order)`` */
+  /** e.g. ``Lines 126-150 · 742 match (744 on order)`` */
   rangeCaption: string;
 }
 

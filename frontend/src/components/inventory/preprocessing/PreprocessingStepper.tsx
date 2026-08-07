@@ -124,7 +124,7 @@ export function PreprocessingStepper({
               </Box>
               {!isLast && (
                 <Typography component="span" sx={{ color: 'text.disabled', fontSize: '0.75rem' }}>
-                  —
+                  -
                 </Typography>
               )}
             </Box>

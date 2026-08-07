@@ -137,7 +137,7 @@ export function hasContactOutcome(stop: DeliveryRunStop): boolean {
   return Boolean((stop.contact_disposition || '').trim());
 }
 
-/** Contact step is done once every stop has an outcome — then continue to Load. */
+/** Contact step is done once every stop has an outcome - then continue to Load. */
 export function contactWorkComplete(stops: DeliveryRunStop[]): boolean {
   return stops.length > 0 && stops.every(hasContactOutcome);
 }
@@ -158,7 +158,7 @@ export function isExcludedFromLoad(stop: DeliveryRunStop): boolean {
  * green = YES include on route (and on truck), yellow = pending decision,
  * red = NO NOT TODAY.
  *
- * Confirmed-but-not-loaded stops stay yellow until removed or loaded — seal may
+ * Confirmed-but-not-loaded stops stay yellow until removed or loaded - seal may
  * leave them off the truck, but Start Deliveries cannot.
  */
 export function routeInclusionTone(stop: DeliveryRunStop): DotTone {
@@ -397,7 +397,7 @@ export const SWIPE_AXIS_LOCK_PX = 10;
 
 /**
  * Fraction of card width ignored before visual progress starts.
- * Matches the "10–20% dead zone" feel on phones.
+ * Matches the "10-20% dead zone" feel on phones.
  */
 export const SWIPE_DEAD_ZONE_RATIO = 0.15;
 
@@ -430,7 +430,7 @@ export function swipeDeadZoneDistance(cardWidth: number): number {
 }
 
 /**
- * Map raw horizontal delta to 0–1 swipe progress.
+ * Map raw horizontal delta to 0-1 swipe progress.
  * Dead zone stays at 0; commit distance is 1.0.
  */
 export function swipeProgressFromDelta(dx: number, cardWidth: number): number {

@@ -523,7 +523,7 @@ function ItemCheckInEditPanel({
   const orderDescription = selectedOrder?.description?.trim() || checkIn.purchase_order_description?.trim() || '';
   const orderVendor = selectedOrder?.vendor_name?.trim() || checkIn.purchase_order_vendor_name?.trim() || '';
   const orderDate = selectedOrder?.ordered_date ?? checkIn.purchase_order_ordered_date;
-  const productTitle = product ? productDisplayLabel(product) : (checkIn.product_title || '—');
+  const productTitle = product ? productDisplayLabel(product) : (checkIn.product_title || '-');
   const productHelper = truncateText(
     [checkIn.product_brand, product?.category_name || ''].filter(Boolean).join(' · '),
     42,
@@ -616,7 +616,7 @@ function ItemCheckInEditPanel({
             </Typography>
             <Typography variant="caption" sx={{ display: 'block', mt: 0.35, color: processingTokens.textMute }}>
               {isDuplicateDraft ?
-                'Same product and order — fill in details below.'
+                'Same product and order - fill in details below.'
               : 'Edit the check-in details below.'}
             </Typography>
           </Box>
@@ -768,7 +768,7 @@ function ItemCheckInEditPanel({
           onSpecificationsChange={setSpecifications}
           notes={notes}
           onNotesChange={setNotes}
-          specsHelperText="Supplements the product catalog specs — saved on each item in this check-in."
+          specsHelperText="Supplements the product catalog specs - saved on each item in this check-in."
           highlightRequired={isDuplicateDraft}
         />
       </Box>
@@ -1016,11 +1016,11 @@ function ItemCheckInCreatePanel({
     return <Typography color="text.secondary">Product not found.</Typography>;
   }
 
-  const orderNumber = selectedOrder?.order_number ?? '—';
+  const orderNumber = selectedOrder?.order_number ?? '-';
   const orderDescription = selectedOrder?.description?.trim() ?? '';
   const orderVendor = selectedOrder?.vendor_name?.trim() ?? '';
   const orderDate = selectedOrder?.ordered_date;
-  const productTitle = product ? productDisplayLabel(product) : '—';
+  const productTitle = product ? productDisplayLabel(product) : '-';
   const productHelper = product ?
     truncateText([product.brand, product.category_name || ''].filter(Boolean).join(' · '), 42)
   : 'Choose a catalog product';
@@ -1230,7 +1230,7 @@ function ItemCheckInCreatePanel({
               onSpecificationsChange={setSpecifications}
               notes={notes}
               onNotesChange={setNotes}
-              specsHelperText="Supplements the product catalog specs — saved on each item in this check-in."
+              specsHelperText="Supplements the product catalog specs - saved on each item in this check-in."
               highlightRequired
             />
           </>

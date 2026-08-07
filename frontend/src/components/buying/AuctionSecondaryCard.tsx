@@ -35,7 +35,7 @@ export default function AuctionSecondaryCard({ detail }: Props) {
   const bidAt15 = computeMaxBidAtProfitFactor(detail, 1.5);
   const bidAt2 = computeMaxBidAtProfitFactor(detail, 2);
   const formatMaxBid = (n: number | null) =>
-    n != null && Number.isFinite(n) ? formatCurrencyWhole(String(n)) : '—';
+    n != null && Number.isFinite(n) ? formatCurrencyWhole(String(n)) : '-';
 
   const currentPrice = parseDec(detail.current_price);
   const breakeven = bidAtBreakeven;
@@ -110,7 +110,7 @@ export default function AuctionSecondaryCard({ detail }: Props) {
           className="gauge-tip-amount"
           sx={{ ...tooltipAmountSx, fontSize: '1.0625rem', color: 'common.white' }}
         >
-          {currentPrice != null ? formatCurrencyWhole(String(currentPrice)) : '—'}
+          {currentPrice != null ? formatCurrencyWhole(String(currentPrice)) : '-'}
         </Typography>
       </Box>
       <Divider sx={{ mb: 1, borderColor: 'rgba(255,255,255,0.2)' }} />

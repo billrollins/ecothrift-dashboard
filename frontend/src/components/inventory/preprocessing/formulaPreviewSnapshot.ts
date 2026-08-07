@@ -67,7 +67,7 @@ export function buildBucketPreviewJson(
   return Object.keys(preview).length ? JSON.stringify(preview) : '';
 }
 
-/** Row 1 only — Sample Result card (debounced on formula edits in parent). */
+/** Row 1 only - Sample Result card (debounced on formula edits in parent). */
 export function computeSampleFormulaSnapshot(
   formulas: Record<string, string>,
   columns: StandardColumnDefinition[],

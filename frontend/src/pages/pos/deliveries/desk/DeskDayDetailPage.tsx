@@ -162,7 +162,7 @@ export default function DeskDayDetailPage() {
           )}
         </Stack>
         <Typography variant="body2" sx={{ color: ecoField.muted, mt: 0.75, fontWeight: 600 }}>
-          {day.time_start?.slice(0, 5)}–{day.time_end?.slice(0, 5)} ·{' '}
+          {day.time_start?.slice(0, 5)}-{day.time_end?.slice(0, 5)} ·{' '}
           {day.primary_driver_name || day.assigned_to || 'Unassigned'} · {day.delivery_count}{' '}
           deliveries / {day.items_booked} items
         </Typography>

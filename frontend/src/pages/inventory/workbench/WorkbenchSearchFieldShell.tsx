@@ -53,7 +53,7 @@ export function WorkbenchOrderReadOnlyField({ value, mono }: WorkbenchOrderReadO
           width: '100%',
         }}
       >
-        {value || '—'}
+        {value || '-'}
       </Typography>
     </WorkbenchSearchFieldShell>
   );

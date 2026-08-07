@@ -1,4 +1,4 @@
-/** Grade value suggestion helpers — historical pct lookup is backend-only for scale; per-grade pct is not wired yet. */
+/** Grade value suggestion helpers - historical pct lookup is backend-only for scale; per-grade pct is not wired yet. */
 
 export type GradeSuggestionDims = {
   vendor: boolean;

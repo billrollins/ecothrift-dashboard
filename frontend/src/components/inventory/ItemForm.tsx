@@ -82,7 +82,7 @@ export type ItemFormProps = {
   mode: 'create' | 'edit';
   /** Pre-select PO on create (e.g. in-workspace unmanifested add). */
   defaultPurchaseOrderId?: number;
-  /** Hide Source + PO/Agreement pickers — the PO is fixed by context (workspace add dialog). */
+  /** Hide Source + PO/Agreement pickers - the PO is fixed by context (workspace add dialog). */
   lockPurchaseOrder?: boolean;
   /** Required when mode is edit; when null/undefined while loading, form is empty. */
   item?: Item | null;
@@ -470,7 +470,7 @@ export default function ItemForm({
       page_size: 20,
       ...(debouncedPoSearch.trim() ? { search: debouncedPoSearch.trim() } : {}),
     },
-    // Locked-PO hosts (workspace add dialog) never show the picker — skip the fetch.
+    // Locked-PO hosts (workspace add dialog) never show the picker - skip the fetch.
     { enabled: mode === 'create' && draft.source === 'purchased' && !lockPurchaseOrder },
   );
   const { data: selectedPoDetail } = usePurchaseOrder(lockPurchaseOrder ? null : draft.purchaseOrderId);
@@ -1397,7 +1397,7 @@ export default function ItemForm({
                 inputValue={poSearchInput}
                 onInputChange={(_, v) => setPoSearchInput(v)}
                 isOptionEqualToValue={(a, b) => a.id === b.id}
-                getOptionLabel={(o) => `${o.order_number} — ${o.vendor_name}`}
+                getOptionLabel={(o) => `${o.order_number} - ${o.vendor_name}`}
                 value={purchaseOrders.find((o) => o.id === draft.purchaseOrderId) ?? null}
                 onChange={(_, v) => setDraftField('purchaseOrderId', v?.id ?? null)}
                 renderInput={(params) => <TextField {...params} label="Purchase order (optional)" />}
@@ -1413,7 +1413,7 @@ export default function ItemForm({
                 inputValue={agreementSearchInput}
                 onInputChange={(_, v) => setAgreementSearchInput(v)}
                 isOptionEqualToValue={(a, b) => a.id === b.id}
-                getOptionLabel={(o) => `${o.agreement_number} — ${o.consignee_name}`}
+                getOptionLabel={(o) => `${o.agreement_number} - ${o.consignee_name}`}
                 value={agreements.find((o) => o.id === draft.agreementId) ?? null}
                 onChange={(_, v) => setDraftField('agreementId', v?.id ?? null)}
                 renderInput={(params) => <TextField {...params} label="Agreement (optional)" />}

@@ -101,8 +101,9 @@ class BlogPost(models.Model):
     series = models.ForeignKey(
         BlogSeries, on_delete=models.SET_NULL, null=True, blank=True, related_name='posts',
     )
-    author_name = models.CharField(max_length=120, default='Bill Rollins')
-    author_role = models.CharField(max_length=160, blank=True, default='Founder & CEO, Eco-Thrift')
+    # First name only on public bylines, by owner request.
+    author_name = models.CharField(max_length=120, default='Bill')
+    author_role = models.CharField(max_length=160, blank=True, default='Owner')
 
     # Editorial body
     excerpt = models.TextField(blank=True, default='')

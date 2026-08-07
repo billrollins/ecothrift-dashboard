@@ -227,7 +227,7 @@ export default function FieldDayDetailPage() {
           }}
         >
           <Typography sx={{ color: '#9FB4A8', fontWeight: 650 }}>
-            {day.date} · {day.time_start || 'Today'} – {day.time_end || 'finish'}
+            {day.date} · {day.time_start || 'Today'} - {day.time_end || 'finish'}
           </Typography>
           <Typography sx={{ fontSize: 40, lineHeight: 1.05, fontWeight: 800, mt: 1 }}>
             Here&apos;s your day.
@@ -244,8 +244,8 @@ export default function FieldDayDetailPage() {
         <>
           <Alert severity="info" sx={{ mb: 2 }}>
             {dayIsToday
-              ? 'Review mode — corrections only. Use Desk for manager edits.'
-              : 'Adjustment mode — reschedule, fix details, and items. Active delivery wizard is for Today only.'}
+              ? 'Review mode - corrections only. Use Desk for manager edits.'
+              : 'Adjustment mode - reschedule, fix details, and items. Active delivery wizard is for Today only.'}
           </Alert>
           <InactiveDayPreview day={day} />
         </>

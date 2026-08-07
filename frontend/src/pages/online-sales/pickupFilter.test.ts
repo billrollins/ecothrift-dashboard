@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isTodaysPickupRow } from './pickupFilter';
 
-// Local calendar dates — helper compares via toDateString().
+// Local calendar dates - helper compares via toDateString().
 const today = new Date(2026, 6, 31, 15, 0, 0);
 const todayIso = new Date(2026, 6, 31, 18, 0, 0).toISOString();
 const yesterdayIso = new Date(2026, 6, 30, 18, 0, 0).toISOString();

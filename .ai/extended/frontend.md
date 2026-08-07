@@ -1,6 +1,8 @@
-<!-- Last updated: 2026-07-29 (v2.61.0 orders strip + dashboard polish) -->
+<!-- Last updated: 2026-08-07 (v2.69.0 Online Sales Customers workspace) -->
 
 # Eco-Thrift Dashboard — Frontend Context
+
+**2026-08-07 (v2.69.0) — Online Sales Customers workspace:** Slot C **Online Sales** is Listings / Holds / Customers. **`OnlineSalesCustomersPage`** hosts Directory (CRUD, soft-deactivate/reactivate, send magic-link) and **Messages** (moved off Holds). Holds ↔ Messages deep-link via `?tab=messages&thread=`; sidebar badge on Customers counts `needs_reply`. Shared chrome in **`pages/online-sales/presentation.tsx`**. Public storefront account portal: Account / History / Messages tabs.
 
 **2026-07-29 (v2.61.0) — Orders summary + dashboard polish:** **`ProfitabilitySummary`** seven two-line KPI cards (Trucks in Transit, Items, Cost/Retail/Priced/Sold/Profit with table secondary ratios). Department cards: fixed 2-week scroller + snap-back, uniform metrics band. QA wizard: no `useBlocker` (BrowserRouter). EST/ACT REC recovery colors; tooltips only on Order # / Description.
 

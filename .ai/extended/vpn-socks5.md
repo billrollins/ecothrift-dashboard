@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-30T12:00:00-05:00 (bstock initiative link → archived) -->
+<!-- Last updated: 2026-08-04 (env key list lives in development.md) -->
 # VPN / SOCKS5 proxy — PIA configuration and diagnostics
 
 All outbound B-Stock HTTP (`*.bstock.com`) in `apps/buying/services/scraper.py` can be routed through a SOCKS5 proxy. The current provider is **Private Internet Access (PIA)**. This file documents the setup, known behavior, troubleshooting, and diagnostic tooling.
@@ -53,7 +53,7 @@ Egress IP may differ from the proxy IP you connect to (e.g., connect to `109.201
 
 ## `.env` settings
 
-All settings are in the root `.env` (gitignored). Defaults in `.env.example`.
+All settings are in the root `.env` (gitignored) — edit it directly. Defaults are in the table below and in `ecothrift/settings.py`.
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
@@ -145,7 +145,7 @@ The summary line identifies which step matches the scraper's current `.env` conf
 
 **PySocks** is already in `requirements.txt` — the Heroku **slug** installs it; no extra build step.
 
-**Config vars are not automatic.** Set them on the app (Dashboard → Settings → Config Vars, or CLI). Names match `.env` / `.env.example` (`BUYING_SOCKS5_*`).
+**Config vars are not automatic.** Set them on the app (Dashboard → Settings → Config Vars, or CLI). Names match the `BUYING_SOCKS5_*` keys in your root `.env`.
 
 ### Policy
 
@@ -240,4 +240,4 @@ If the egress IP matches your home/office IP, the proxy is not working.
 
 ---
 
-*See also: [`.ai/extended/bstock.md`](bstock.md) (scraper API surface), [`apps/buying/services/scraper.py`](../../apps/buying/services/scraper.py), [`.env.example`](../../.env.example).*
+*See also: [`.ai/extended/bstock.md`](bstock.md) (scraper API surface), [`apps/buying/services/scraper.py`](../../apps/buying/services/scraper.py), [`development.md`](development.md) (env key list).*

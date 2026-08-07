@@ -45,7 +45,7 @@ import { absoluteUrl, urlDomain } from './tars/tarsUrl';
 import type { TarsGradeDirectionRow } from './tars/tarsWorkTypes';
 
 function fmtUsdSafe(value: string | number | null | undefined): string {
-  if (value == null || value === '') return '—';
+  if (value == null || value === '') return '-';
   const n = typeof value === 'number' ? value : Number.parseFloat(value);
   return Number.isFinite(n) ? fmtUsd(n) : String(value);
 }
@@ -205,7 +205,7 @@ function OrderRecordDialog({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>Approve request — {siteName}</DialogTitle>
+      <DialogTitle>Approve request - {siteName}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 0.5 }}>
           <Autocomplete
@@ -264,7 +264,7 @@ function OrderRecordDialog({
                     <Typography variant="body2" color="text.secondary">{line.qty}</Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
                       <Typography variant="caption" color="text.secondary" noWrap>
-                        {line.url ? urlDomain(line.url) : '—'}
+                        {line.url ? urlDomain(line.url) : '-'}
                       </Typography>
                       {line.url ?
                         <Link href={absoluteUrl(line.url)} target="_blank" rel="noopener noreferrer" sx={{ display: 'flex', lineHeight: 0, flexShrink: 0 }}>
@@ -513,7 +513,7 @@ function RequestDetailPanel({ requestId, onClose }: { requestId: number; onClose
                     <Typography variant="body2" color="text.secondary">{line.qty}</Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
                       <Typography variant="caption" color="text.secondary" noWrap>
-                        {line.url ? urlDomain(line.url) : '—'}
+                        {line.url ? urlDomain(line.url) : '-'}
                       </Typography>
                       {line.url ?
                         <Link href={absoluteUrl(line.url)} target="_blank" rel="noopener noreferrer" sx={{ display: 'flex', lineHeight: 0, flexShrink: 0 }}>
@@ -543,7 +543,7 @@ function RequestDetailPanel({ requestId, onClose }: { requestId: number; onClose
               <CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5}>
                   <Typography variant="subtitle2" fontWeight={900}>
-                    PO {order.po_number || '—'} — {order.supplier_name}
+                    PO {order.po_number || '-'} - {order.supplier_name}
                   </Typography>
                   {order.supplier_url ?
                     <Link href={absoluteUrl(order.supplier_url)} target="_blank" rel="noopener noreferrer" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, fontSize: 12 }}>

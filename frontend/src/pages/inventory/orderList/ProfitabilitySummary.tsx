@@ -52,9 +52,9 @@ function hasMoney(value: string | null | undefined): boolean {
 }
 
 function money(value: string | null | undefined): string {
-  if (value == null || value === '') return '—';
+  if (value == null || value === '') return '-';
   const n = Number.parseFloat(value);
-  if (Number.isNaN(n)) return '—';
+  if (Number.isNaN(n)) return '-';
   return formatCurrencyWhole(value);
 }
 
@@ -269,7 +269,7 @@ export function ProfitabilitySummary({
         <SummaryCard
           label="Items"
           icon={<Inventory2Outlined />}
-          primary={showLoading ? null : items > 0 ? formatNumber(items) : '—'}
+          primary={showLoading ? null : items > 0 ? formatNumber(items) : '-'}
           secondary={
             pallets > 0 ? (
               <>

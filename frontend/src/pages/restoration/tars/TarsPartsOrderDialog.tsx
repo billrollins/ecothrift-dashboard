@@ -24,7 +24,7 @@ import { absoluteUrl, urlDomain } from './tarsUrl';
 export type TarsPartsOrderSavePayload = {
   order: TarsProcurementGroup;
   partUpdates: Array<Pick<TarsPartLine, 'id' | 'description' | 'url' | 'qty' | 'unitPriceEstimate'>>;
-  /** Parts created inline in this dialog — appended to the master parts list. */
+  /** Parts created inline in this dialog - appended to the master parts list. */
   newParts: TarsPartLine[];
 };
 
@@ -54,7 +54,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 function fmtAmountField(raw: string): string {
   const n = Number.parseFloat(raw);
   if (!Number.isFinite(n)) return '';
-  // No thousands separators — commas render as an empty value in
+  // No thousands separators - commas render as an empty value in
   // <input type="number">.
   return n.toFixed(2);
 }
@@ -313,7 +313,7 @@ export function TarsPartsOrderDialog({
     }) !== initialSnapshotRef.current;
 
   const handleDialogClose = (_event: unknown, reason?: string) => {
-    // Guard against accidental data loss on backdrop click / escape — the
+    // Guard against accidental data loss on backdrop click / escape - the
     // explicit Cancel and close buttons still discard immediately.
     if (
       (reason === 'backdropClick' || reason === 'escapeKeyDown') &&
@@ -577,7 +577,7 @@ export function TarsPartsOrderDialog({
                 }}
               >
                 <Typography sx={{ fontSize: 13, color: muted, fontWeight: 600 }}>
-                  No parts yet — use “Add part” to build this order from scratch.
+                  No parts yet - use “Add part” to build this order from scratch.
                 </Typography>
               </Box>
             : <Stack spacing={0.5}>

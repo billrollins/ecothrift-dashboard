@@ -76,7 +76,7 @@ export default function CategoryDistributionBar({ dist, onCategoryClick }: Categ
           const interactive = Boolean(onCategoryClick);
           const filterVal = manifestFilterValueFromDistributionSegmentKey(s.key);
           const tip = interactive
-            ? `${s.label}: ${s.pct}% — click to filter manifest rows`
+            ? `${s.label}: ${s.pct}% - click to filter manifest rows`
             : `${s.label}: ${s.pct}%`;
           return (
             <Tooltip key={s.key} title={tip} placement="top">

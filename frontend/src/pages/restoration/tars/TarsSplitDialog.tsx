@@ -39,8 +39,8 @@ function parseStackSizes(raw: string, maxItems: number): number[] | null {
     sizes.push(n);
   }
   const total = sizes.reduce((sum, n) => sum + n, 0);
-  // Sizes may cover the whole stack — the backend deletes the source job when
-  // no items remain — but may not exceed it.
+  // Sizes may cover the whole stack - the backend deletes the source job when
+  // no items remain - but may not exceed it.
   if (total > maxItems) return null;
   return sizes;
 }

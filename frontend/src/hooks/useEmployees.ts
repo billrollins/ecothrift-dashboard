@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getUsers,
   getUser,
@@ -10,6 +10,8 @@ import {
   createCustomer,
   updateCustomer,
   deleteCustomer,
+  reactivateCustomer,
+  sendCustomerSignInLink,
   lookupCustomer,
 } from '../api/accounts.api';
 import type { UserParams, Customer } from '../api/accounts.api';
@@ -100,6 +102,8 @@ export function useCustomers(params?: Record<string, unknown>) {
       const { data } = await getCustomers(params);
       return data;
     },
+    placeholderData: keepPreviousData,
+    staleTime: 15_000,
   });
 }
 
@@ -145,10 +149,33 @@ export function useDeleteCustomer() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: number) => {
-      await deleteCustomer(id);
+      const { data } = await deleteCustomer(id);
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
+    },
+  });
+}
+
+export function useReactivateCustomer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await reactivateCustomer(id);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+    },
+  });
+}
+
+export function useSendCustomerSignInLink() {
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await sendCustomerSignInLink(id);
+      return data;
     },
   });
 }

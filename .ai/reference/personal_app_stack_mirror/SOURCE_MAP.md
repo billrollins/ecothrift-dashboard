@@ -5,7 +5,7 @@ Where the snapshots and excerpts in this handoff pack came from in the Eco-Thrif
 
 | Pack path | Source in this repo | Notes |
 |-----------|---------------------|-------|
-| `docs/env_and_ai.md` | Root `.env.example` patterns + `apps/ai/` router notes | Keys stay server-side only. |
+| `docs/env_and_ai.md` | Root `.env` key patterns (see `.ai/extended/development.md`) + `apps/ai/` router notes | Keys stay server-side only. |
 | `docs/databases.md` | `ecothrift/settings.py` `DATABASES` + Postgres usage | Personal apps can simplify to one DB. |
 | `docs/frontend_layering.md` | `frontend/src/{types,api,hooks,pages}` | Vite proxies `/api` → Django. |
 | `source_patterns/` | Selected excerpts from `apps/`, `frontend/`, `ecothrift/` | Reference only — not a runnable subtree. |

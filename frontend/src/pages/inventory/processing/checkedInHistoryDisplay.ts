@@ -7,7 +7,7 @@ import {
 } from './processingQueueCellText';
 
 export function formatCheckedInShortDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   try {
     return new Date(iso).toLocaleString(undefined, {
       month: 'numeric',
@@ -30,7 +30,7 @@ export function checkedInProductIdText(
     (checkInProductNumber || item.product_number)
     ?? (item.product != null ? String(item.product) : null)
     ?? (item.product === fallbackProduct?.id ? fallbackProduct.product_number : null)
-    ?? '—'
+    ?? '-'
   );
 }
 
@@ -39,7 +39,7 @@ export function checkedInBrandText(
   fallbackProduct: ProcessingWorkspaceProductDTO | null,
 ): string {
   const { item } = row;
-  return row.checkInProduct?.brand ?? item.product_brand ?? (item.product === fallbackProduct?.id ? fallbackProduct.brand : null) ?? '—';
+  return row.checkInProduct?.brand ?? item.product_brand ?? (item.product === fallbackProduct?.id ? fallbackProduct.brand : null) ?? '-';
 }
 
 export function checkedInTitleText(
@@ -51,7 +51,7 @@ export function checkedInTitleText(
     row.checkInProduct?.title
     ?? item.product_title
     ?? (item.product === fallbackProduct?.id ? fallbackProduct.title : null)
-    ?? '—'
+    ?? '-'
   );
 }
 
@@ -64,7 +64,7 @@ export function checkedInModelText(
     row.checkInProduct?.model
     ?? item.product_model
     ?? (item.product === fallbackProduct?.id ? fallbackProduct.model : null)
-    ?? '—'
+    ?? '-'
   );
 }
 
@@ -80,12 +80,12 @@ export function checkedInCategoryText(
   if (item.product === fallbackProduct?.id && fallbackProduct?.category) {
     return fallbackProduct.category;
   }
-  return '—';
+  return '-';
 }
 
 export function itemLocationLabel(location: string | null | undefined): string {
   const raw = (location || '').trim();
-  if (!raw) return '—';
+  if (!raw) return '-';
   return queueDispatchLabel(raw);
 }
 
@@ -99,8 +99,8 @@ export function formatCheckedInProductSummary(
     checkedInBrandText(row, fallbackProduct),
     checkedInModelText(row, fallbackProduct),
     checkedInCategoryText(row, fallbackProduct),
-  ].filter((part) => part && part !== '—');
-  return parts.length ? parts.join(' · ') : '—';
+  ].filter((part) => part && part !== '-');
+  return parts.length ? parts.join(' · ') : '-';
 }
 
 export function formatCheckedInItemSummary(item: ProcessingWorkspaceItemDTO): string {
@@ -112,7 +112,7 @@ export function formatCheckedInItemSummary(item: ProcessingWorkspaceItemDTO): st
     queueDispatchLabel(item.dispatch),
     itemLocationLabel(item.location ?? item.dispatch),
   ].filter(Boolean);
-  return parts.length ? parts.join(' · ') : '—';
+  return parts.length ? parts.join(' · ') : '-';
 }
 
 export function historyRowIncludesItem(row: CheckedInHistoryRow, itemId: number | null): boolean {

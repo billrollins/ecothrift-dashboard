@@ -218,7 +218,7 @@ export function FieldDeliveryPager({
     const canMove = canSwipeInDirection(idx, list.length, direction);
     const progress = canMove ? swipeProgressFromDelta(dx, width) : 0;
 
-    // Release past ~55% of the commit band still finishes — feels intentional on phones.
+    // Release past ~55% of the commit band still finishes - feels intentional on phones.
     if (canMove && (shouldCommitSwipe(progress) || progress >= 0.55)) {
       committed.current = true;
       swiped.current = true;

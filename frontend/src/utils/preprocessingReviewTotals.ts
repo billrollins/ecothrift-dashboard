@@ -90,7 +90,7 @@ export function factorForTargetTotal(rows: PreprocessingReviewRow[], targetTotal
  * Scale every row's CURRENT effective price so the order total lands exactly on target.
  *
  * Per-row prices floor to cents, then the leftover cents distribute to the rows closest
- * to rounding up (smallest qty first — a 1¢ bump on a row adds `qty` cents to the total).
+ * to rounding up (smallest qty first - a 1¢ bump on a row adds `qty` cents to the total).
  * With any qty-1 rows the achieved total is exact; worst case it lands within
  * (smallest qty − 1) cents under target. Rows with no current price are skipped.
  */

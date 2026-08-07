@@ -7,6 +7,7 @@ import {
   rememberMyRequest,
   type CatalogDetail,
 } from '../api'
+import { useAuth } from '../auth'
 import { useCart } from '../cart'
 import { useOnlineSalesConfig } from '../onlineSalesConfig'
 import { SITE_URL, STORE } from '../data/content'
@@ -25,15 +26,26 @@ export default function ProductDetailPage() {
   const [askSending, setAskSending] = useState(false)
   const [askError, setAskError] = useState<string | null>(null)
   const [askDone, setAskDone] = useState(false)
+  const [askNeedsVerify, setAskNeedsVerify] = useState(false)
   const { config } = useOnlineSalesConfig()
+  const { user, emailVerified } = useAuth()
 
   const { add } = useCart()
+
+  useEffect(() => {
+    if (!user) return
+    setAskForm((f) => ({
+      ...f,
+      name: f.name || user.first_name || '',
+      email: user.email || f.email,
+    }))
+  }, [user])
 
   useSeo({
     title: notFound ? 'Page not found' : listing?.title,
     description: listing
       ? listing.description?.replace(/\s+/g, ' ').trim().slice(0, 155) ||
-        `${listing.title} — ${listing.condition_display} condition at Eco-Thrift, Omaha.`
+        `${listing.title} - ${listing.condition_display} condition at Eco-Thrift, Omaha.`
       : undefined,
     path: `/shop/${slug}`,
     type: 'product',
@@ -221,7 +233,16 @@ export default function ProductDetailPage() {
                 </button>
               )}
               {askDone && (
-                    <div className="pickupnote">Thanks — we got your message. A staff member will reply soon.</div>
+                <div className="pickupnote">
+                  {askNeedsVerify ? (
+                    <>
+                      Confirm your email to send this question to the store. We emailed{' '}
+                      {askForm.email || 'you'} - tap the link, then we&rsquo;ll reply.
+                    </>
+                  ) : (
+                    <>Thanks - we got your message. A staff member will reply soon.</>
+                  )}
+                </div>
               )}
               {askOpen && !askDone && (
                 <form
@@ -243,6 +264,7 @@ export default function ProductDetailPage() {
                         token: thread.public_token,
                         title: listing.title,
                       })
+                      setAskNeedsVerify(Boolean(thread.needs_verification))
                       setAskDone(true)
                       setAskOpen(false)
                     } catch (err) {
@@ -253,6 +275,11 @@ export default function ProductDetailPage() {
                   }}
                 >
                   <h3 style={{ marginTop: 0 }}>Ask about this item</h3>
+                  {!emailVerified && (
+                    <p style={{ marginTop: 0 }}>
+                      We&rsquo;ll email a confirmation link before this reaches the store.
+                    </p>
+                  )}
                   <label className="field">
                     <span>Name *</span>
                     <input
@@ -267,6 +294,7 @@ export default function ProductDetailPage() {
                       type="email"
                       required
                       value={askForm.email}
+                      readOnly={Boolean(user?.email)}
                       onChange={(e) => setAskForm((f) => ({ ...f, email: e.target.value }))}
                     />
                   </label>
@@ -294,7 +322,7 @@ export default function ProductDetailPage() {
           )}
 
           <div className="pickupnote" style={{ marginTop: 22 }}>
-            <b>Request a hold</b> — pay and pick up at {STORE.retail.address}.{' '}
+            <b>Request a hold</b> - pay and pick up at {STORE.retail.address}.{' '}
             {/* POLICY_COPY_OK: negation prose */}
             No shipping, delivery, or online payment. {listing.hold_policy || ''}
           </div>

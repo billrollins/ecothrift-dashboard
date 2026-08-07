@@ -33,9 +33,9 @@ export function formatProductLinkSummary(config: ProcessingProductLinkConfig | u
 
 export function formatProductLinkSummaryLong(config: ProcessingProductLinkConfig | undefined): string {
   const cfg = normalizeProductLink(config);
-  if (!cfg.role) return 'Standard — 1 check-in = 1 row';
-  if (cfg.role === 'set') return `Set — 1 check-in counts as ${cfg.manifestUnits} rows`;
-  return `Part — ${cfg.checkIns} check-ins = 1 row`;
+  if (!cfg.role) return 'Standard - 1 check-in = 1 row';
+  if (cfg.role === 'set') return `Set - 1 check-in counts as ${cfg.manifestUnits} rows`;
+  return `Part - ${cfg.checkIns} check-ins = 1 row`;
 }
 
 /** X check-ins account for Y manifest row units (display only). */

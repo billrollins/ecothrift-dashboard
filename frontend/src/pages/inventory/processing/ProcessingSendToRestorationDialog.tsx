@@ -139,7 +139,7 @@ export function ProcessingSendToRestorationDialog({
               Send to Restoration
             </Typography>
             <Typography variant="caption" sx={{ display: 'block', mt: 0.25, fontWeight: 700, color: studio.subOnDark }}>
-              Set grade values once for this check-in — applies to all {quantity.toLocaleString()} unit
+              Set grade values once for this check-in - applies to all {quantity.toLocaleString()} unit
               {quantity === 1 ? '' : 's'}.
             </Typography>
           </Box>

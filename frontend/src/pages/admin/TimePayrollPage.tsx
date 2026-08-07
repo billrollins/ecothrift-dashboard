@@ -102,7 +102,7 @@ function ThisWeekHoursCell({ value }: { value: string | number | null | undefine
 function fmtWeekRangeMonSun(weekStart: string): string {
   const start = parseISO(weekStart);
   const end = endOfWeek(start, { weekStartsOn: 1 });
-  return `${format(start, 'MMM d')}–${format(end, 'MMM d')}`;
+  return `${format(start, 'MMM d')}-${format(end, 'MMM d')}`;
 }
 
 function PayrollPeriodHoursCell({ weeks }: { weeks: { week_start: string; hours: number }[] }) {
@@ -137,12 +137,12 @@ function fmtMoney(v: string | number | null | undefined): string {
 }
 
 function fmtTime(iso: string | null): string {
-  return iso ? format(parseISO(iso), 'h:mm a') : '—';
+  return iso ? format(parseISO(iso), 'h:mm a') : '-';
 }
 
 /** Show date + time when clock timestamp is not on the roster row date (multi-day span). */
 function fmtClockCell(iso: string | null, rowDate: string): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const dt = parseISO(iso);
   const clockDay = format(dt, 'yyyy-MM-dd');
   if (clockDay !== rowDate) {
@@ -152,18 +152,18 @@ function fmtClockCell(iso: string | null, rowDate: string): string {
 }
 
 function fmtDt(v: string | null): string {
-  return v ? format(parseISO(v), 'MMM d, h:mm a') : '—';
+  return v ? format(parseISO(v), 'MMM d, h:mm a') : '-';
 }
 
 function fmtDay(d: Date): string {
   return format(d, 'yyyy-MM-dd');
 }
 
-/** Date range label for period quick select (MMM dd, yyyy – MMM dd, yyyy). */
+/** Date range label for period quick select (MMM dd, yyyy - MMM dd, yyyy). */
 function fmtRangeLabel(from: string | Date, to: string | Date): string {
   const start = typeof from === 'string' ? parseISO(from) : from;
   const end = typeof to === 'string' ? parseISO(to) : to;
-  return `${format(start, 'MMM dd, yyyy')} – ${format(end, 'MMM dd, yyyy')}`;
+  return `${format(start, 'MMM dd, yyyy')} - ${format(end, 'MMM dd, yyyy')}`;
 }
 
 const DATE_DISPLAY_FORMAT = 'MMM dd, yyyy';
@@ -860,7 +860,7 @@ export default function TimePayrollPage() {
     <Box>
       <PageHeader
         title="Time & payroll"
-        subtitle="Shifts, hours, pay, and change requests — biweekly periods from Jun 8, 2026"
+        subtitle="Shifts, hours, pay, and change requests - biweekly periods from Jun 8, 2026"
       />
 
       {/* Period controls */}
@@ -982,7 +982,7 @@ export default function TimePayrollPage() {
           mb: 3,
         }}
       >
-        <KpiCard label="This week" value={`${weeklyHoursTotal.toFixed(2)} h`} sub="Mon–Sun (current week)" />
+        <KpiCard label="This week" value={`${weeklyHoursTotal.toFixed(2)} h`} sub="Mon-Sun (current week)" />
         <KpiCard label="Payroll hours" value={`${payrollHoursTotal.toFixed(2)} h`} sub="Selected period" />
         <KpiCard label="Payroll total" value={fmtMoney(payrollPayTotal)} sub="Rate × hours" accent="success" />
         <KpiCard
@@ -1141,7 +1141,7 @@ export default function TimePayrollPage() {
                     Employee payroll summary
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Completed shifts only · weeks Mon–Sun · 40h/week before overtime
+                    Completed shifts only · weeks Mon-Sun · 40h/week before overtime
                   </Typography>
                 </Box>
                 <Stack
@@ -1358,7 +1358,7 @@ export default function TimePayrollPage() {
         <DialogContent>
           {reqTarget && (
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              {reqTarget.employee_name} — shift {reqTarget.entry_date}
+              {reqTarget.employee_name} - shift {reqTarget.entry_date}
             </Typography>
           )}
           <Stack spacing={2} sx={{ mt: 1 }}>

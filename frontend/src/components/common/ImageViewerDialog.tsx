@@ -492,7 +492,7 @@ export function ImageViewerDialog({
                 setCompletedCrop(c);
                 setDirty(true);
               }}
-              // Free aspect — no `aspect` prop → corner + edge handles resize freely
+              // Free aspect - no `aspect` prop → corner + edge handles resize freely
               keepSelection
               ruleOfThirds
             >

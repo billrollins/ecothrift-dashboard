@@ -17,7 +17,7 @@ type Mutations = ReturnType<typeof useFieldDeliveryRunMutations>;
 export type FieldPhotoUploadBusy = {
   kind: DeliveryPendingKind;
   label: string;
-  /** 0–1 of bytes sent, or null while the browser withholds a total. */
+  /** 0-1 of bytes sent, or null while the browser withholds a total. */
   progress: number | null;
 } | null;
 
@@ -180,7 +180,7 @@ export function useFieldPhotoUpload(run: DeliveryRun | null | undefined, mutatio
         await refreshPending();
         enqueueSnackbar('Photo uploaded', { variant: 'success' });
       } catch {
-        enqueueSnackbar('Photo queued — will retry when online', { variant: 'warning' });
+        enqueueSnackbar('Photo queued - will retry when online', { variant: 'warning' });
       }
     } finally {
       endUpload();
@@ -243,7 +243,7 @@ export function useFieldPhotoUpload(run: DeliveryRun | null | undefined, mutatio
           variant: 'success',
         });
       } catch {
-        enqueueSnackbar('Queued — will retry when online', { variant: 'warning' });
+        enqueueSnackbar('Queued - will retry when online', { variant: 'warning' });
       }
     } finally {
       endUpload();

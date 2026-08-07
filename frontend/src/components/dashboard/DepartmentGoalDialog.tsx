@@ -52,7 +52,7 @@ const WEEKDAYS = [
 ] as const;
 
 export function formatDepartmentGoalValue(kind: DepartmentGoalKind, value: string): string {
-  if (!value) return '—';
+  if (!value) return '-';
   if (kind === 'currency') {
     const num = Number.parseFloat(value);
     if (!Number.isFinite(num)) return value;
@@ -323,7 +323,7 @@ export function DepartmentGoalDialog({
 
             <Alert severity="info" sx={{ py: 0.25 }}>
               A scheduled day is achieved only when its audit count is met and its last submitted
-              grade meets the minimum grade. Completed days—and the full week once finished—turn gold.
+              grade meets the minimum grade. Completed days-and the full week once finished-turn gold.
             </Alert>
           </>
         ) : null}

@@ -197,6 +197,7 @@ export function getCategoryOptions(): Promise<{ data: CategoriesResponse }> {
 export interface Reservation {
   id: number;
   status_token: string;
+  pickup_code: string;
   listing: number;
   listing_title: string;
   listing_slug: string;
@@ -208,6 +209,7 @@ export interface Reservation {
   quantity: number;
   customer_note: string;
   staff_note: string;
+  release_reason: string;
   status: string;
   status_display: string;
   expires_at: string | null;
@@ -221,16 +223,38 @@ export interface Reservation {
   line_total: string;
   contribution: string;
   pos_cart: number | null;
+  /** Unread customer messages on this hold's thread. */
+  unread: number;
+  /** Conversation id for deep-link into Customers → Messages. */
+  conversation_id: number | null;
+  /** True when the hold thread has at least one message. */
+  has_messages: boolean;
+  /** Action history for the Status hover - who did what, when. */
+  timeline: ReservationTimelineEntry[];
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ReservationTimelineEntry {
+  kind: string;
+  label: string;
+  actor_name: string;
+  created_at: string;
+  note: string;
 }
 
 export interface ReservationParams {
   search?: string;
   status?: string;
+  /** Comma-separated statuses, e.g. cancelled,declined,expired */
+  status__in?: string;
   listing?: number;
   ordering?: string;
   page?: number;
+  page_size?: number;
+  /** '0' hides archived rows, '1' shows only them, omitted returns both. */
+  archived?: '0' | '1';
   [key: string]: unknown;
 }
 
@@ -240,11 +264,31 @@ export function getReservations(
   return api.get('/webstore/reservations/', { params });
 }
 
+export type ReservationActionName =
+  | 'confirm'
+  | 'stage'
+  | 'decline'
+  | 'cancel'
+  | 'expire'
+  | 'complete'
+  | 'extend'
+  | 'reopen'
+  | 'archive'
+  | 'unarchive';
+
 export function reservationAction(
   id: number,
-  action: 'confirm' | 'stage' | 'decline' | 'cancel' | 'expire' | 'complete' | 'extend',
+  action: ReservationActionName,
+  body?: { reason?: string; note?: string },
 ): Promise<{ data: Reservation }> {
-  return api.post(`/webstore/reservations/${id}/${action}/`);
+  return api.post(`/webstore/reservations/${id}/${action}/`, body || {});
+}
+
+export function addReservationNote(
+  id: number,
+  note: string,
+): Promise<{ data: ReservationEvent }> {
+  return api.post(`/webstore/reservations/${id}/notes/`, { note });
 }
 
 export function updateReservation(
@@ -271,8 +315,59 @@ export function getWorkQueue(): Promise<{
   return api.get('/webstore/work-queue/');
 }
 
-export function getSalesLog(): Promise<{ data: { results: Reservation[] } }> {
-  return api.get('/webstore/sales-log/');
+/** Move an inventory item off the Online Sales to-list (location → on_shelf). */
+export function removeWorkQueueItem(
+  itemId: number,
+): Promise<{ data: { id: number; sku: string; location: string; detail: string } }> {
+  return api.post(`/webstore/work-queue/${itemId}/remove/`);
+}
+
+export interface SalesLogParams {
+  days?: number | null;
+  search?: string;
+}
+
+export function getSalesLog(
+  params?: SalesLogParams,
+): Promise<{ data: { results: Reservation[] } }> {
+  const query: Record<string, string | number> = {};
+  if (params?.days != null) query.days = params.days;
+  if (params?.search) query.search = params.search;
+  return api.get('/webstore/sales-log/', { params: query });
+}
+
+export interface ReservationEvent {
+  id: number;
+  kind: string;
+  kind_display: string;
+  from_status: string;
+  to_status: string;
+  actor_name: string | null;
+  note: string;
+  created_at: string;
+}
+
+export interface ReservationDetail extends Reservation {
+  confirmed_by_name?: string | null;
+  staged_by_name?: string | null;
+  completed_by_name?: string | null;
+}
+
+export interface ReservationDetailPayload {
+  reservation: ReservationDetail;
+  events: ReservationEvent[];
+  thread: {
+    id: number;
+    public_token: string;
+    state: string;
+    messages: WebMessage[];
+  } | null;
+}
+
+export function getReservationDetail(
+  id: number,
+): Promise<{ data: ReservationDetailPayload }> {
+  return api.get(`/webstore/reservations/${id}/detail/`);
 }
 
 export interface WebMessage {
@@ -298,6 +393,7 @@ export interface Conversation {
   staff_unread: number;
   customer_unread: number;
   last_message_at: string | null;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
   messages?: WebMessage[];
@@ -310,6 +406,10 @@ export interface ConversationParams {
   listing?: number;
   ordering?: string;
   page?: number;
+  /** '0' hides archived threads, '1' shows only them, omitted returns both. */
+  archived?: '0' | '1';
+  /** '1' = staff_unread > 0, '0' = staff_unread == 0. */
+  unread?: '0' | '1';
   [key: string]: unknown;
 }
 
@@ -341,6 +441,14 @@ export function resolveConversation(id: number): Promise<{ data: Conversation }>
 
 export function reopenConversation(id: number): Promise<{ data: Conversation }> {
   return api.post(`/webstore/conversations/${id}/reopen/`);
+}
+
+export function archiveConversation(id: number): Promise<{ data: Conversation }> {
+  return api.post(`/webstore/conversations/${id}/archive/`);
+}
+
+export function unarchiveConversation(id: number): Promise<{ data: Conversation }> {
+  return api.post(`/webstore/conversations/${id}/unarchive/`);
 }
 
 // Legacy order types kept for any remaining references.

@@ -135,9 +135,9 @@ const ProductCatalogRow = memo(function ProductCatalogRow({
   onOpen,
 }: ProductCatalogRowProps) {
   const open = () => onOpen?.(p);
-  const title = p.title?.trim() || '—';
-  const brand = p.brand?.trim() || '—';
-  const model = p.model?.trim() || '—';
+  const title = p.title?.trim() || '-';
+  const brand = p.brand?.trim() || '-';
+  const model = p.model?.trim() || '-';
 
   return (
     <TableRow
@@ -173,21 +173,21 @@ const ProductCatalogRow = memo(function ProductCatalogRow({
         {productNumberLabel(p)}
       </TableCell>
       <TableCell align="left">
-        <Typography sx={{ fontSize: '0.72rem', fontWeight: 600 }} noWrap title={brand !== '—' ? brand : undefined}>
+        <Typography sx={{ fontSize: '0.72rem', fontWeight: 600 }} noWrap title={brand !== '-' ? brand : undefined}>
           {brand}
         </Typography>
       </TableCell>
       <TableCell align="left" sx={{ minWidth: 0 }}>
         <Typography
           noWrap
-          title={title !== '—' ? title : undefined}
+          title={title !== '-' ? title : undefined}
           sx={{ fontSize: '0.72rem', fontWeight: 700, lineHeight: 1.1 }}
         >
           {title}
         </Typography>
       </TableCell>
       <TableCell align="left">
-        <Typography sx={{ fontSize: '0.72rem' }} noWrap title={model !== '—' ? model : undefined}>
+        <Typography sx={{ fontSize: '0.72rem' }} noWrap title={model !== '-' ? model : undefined}>
           {model}
         </Typography>
       </TableCell>

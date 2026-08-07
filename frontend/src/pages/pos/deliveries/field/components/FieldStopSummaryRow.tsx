@@ -14,13 +14,13 @@ type Props = {
   tone: DotTone;
   /** Primary line right of the name, e.g. "3 items". */
   titleMeta?: string;
-  /** Second line — address or truncated item summary. */
+  /** Second line - address or truncated item summary. */
   subtitle: string;
   statusLabel?: string;
   /** Nested controls (inline status/actions). Clicks should stop propagation. */
   trailing?: React.ReactNode;
   complete?: boolean;
-  /** Full-card activation — opens the stop action card / decision surface. */
+  /** Full-card activation - opens the stop action card / decision surface. */
   onActivate?: () => void;
   /** When set with statusLabel, status chip is clickable (inline edit) and does not activate the card. */
   onStatusClick?: () => void;

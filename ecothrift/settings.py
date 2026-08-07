@@ -46,8 +46,17 @@ ONLINE_SALES_ENABLED = config('ONLINE_SALES_ENABLED', default=False, cast=bool)
 ONLINE_SALES_INQUIRIES_ENABLED = config('ONLINE_SALES_INQUIRIES_ENABLED', default=True, cast=bool)
 # Magic-link customer accounts (G8 guest-first; accounts optional — reversible).
 ONLINE_SALES_ACCOUNTS_ENABLED = config('ONLINE_SALES_ACCOUNTS_ENABLED', default=True, cast=bool)
-# Untriaged `requested` holds auto-expire after this many hours (releases reserved qty).
+# Deprecated: verified holds now expire by expires_at (3 open days) only.
+# Kept for env compatibility; expire_due_reservations no longer uses it.
 ONLINE_SALES_REQUEST_TRIAGE_HOURS = config('ONLINE_SALES_REQUEST_TRIAGE_HOURS', default=48, cast=int)
+# Deprecated: provisional holds now expire at store close (see provisional_expiry).
+ONLINE_SALES_VERIFY_MINUTES = config('ONLINE_SALES_VERIFY_MINUTES', default=30, cast=int)
+# Near close-of-business, provisional holds roll to the next open day's close.
+ONLINE_SALES_PROVISIONAL_GRACE_MINUTES = config(
+    'ONLINE_SALES_PROVISIONAL_GRACE_MINUTES', default=30, cast=int,
+)
+# Unverified inquiry conversations older than this are deleted.
+ONLINE_SALES_INQUIRY_VERIFY_HOURS = config('ONLINE_SALES_INQUIRY_VERIFY_HOURS', default=24, cast=int)
 
 # Microsoft 365 Graph mail. Disabled by default; no credentials are needed locally.
 MS_GRAPH_ENABLED = config('MS_GRAPH_ENABLED', default=False, cast=bool)
@@ -356,7 +365,7 @@ AI_PROVIDER = config('AI_PROVIDER', default='auto').strip().lower()
 AI_MODEL = _normalize_anthropic_model_id(config('AI_MODEL', default='claude-sonnet-4-6'))
 AI_MODEL_FAST = _normalize_anthropic_model_id(config('AI_MODEL_FAST', default='claude-haiku-4-5'))
 
-# --- Purpose-specific models (see .env.example for which feature each drives) ---
+# --- Purpose-specific models (.ai/extended/development.md lists what each drives) ---
 AI_MODEL_INVENTORY_CLEANUP = _ai_model_setting('AI_MODEL_INVENTORY_CLEANUP', 'gemini-2.5-flash')
 AI_MODEL_PREPROCESSING_SUGGEST = _ai_model_setting('AI_MODEL_PREPROCESSING_SUGGEST', AI_MODEL)
 AI_MODEL_SUGGEST_ITEM = _ai_model_setting('AI_MODEL_SUGGEST_ITEM', AI_MODEL_FAST)

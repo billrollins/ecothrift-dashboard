@@ -13,7 +13,7 @@ export interface TarsItem {
   /** Backend restoration job id when loaded from API. */
   jobId?: number;
   sku: string;
-  /** Display label — e.g. ITM123 or ITM123 +2 */
+  /** Display label - e.g. ITM123 or ITM123 +2 */
   skuLabel?: string;
   catalogItemId?: number;
   productId?: number;

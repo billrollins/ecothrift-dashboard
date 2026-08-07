@@ -18,6 +18,15 @@ def _public_status_token() -> str:
     return secrets.token_urlsafe(24)
 
 
+# Unambiguous alphabet — no I, O, L, 0, 1.
+_PICKUP_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+
+
+def generate_pickup_code(length: int = 5) -> str:
+    """Short uppercase code for counter lookup (e.g. K7M4Q)."""
+    return ''.join(secrets.choice(_PICKUP_CODE_ALPHABET) for _ in range(length))
+
+
 class WebListing(models.Model):
     """A single curated product shown on the public storefront."""
 
@@ -196,6 +205,7 @@ class Reservation(models.Model):
     """Customer hold request / confirmed pickup reservation."""
 
     STATUS_CHOICES = [
+        ('pending_verification', 'Pending verification'),
         ('requested', 'Requested'),
         ('confirmed', 'Confirmed'),
         ('ready_for_pickup', 'Ready for pickup'),
@@ -204,7 +214,13 @@ class Reservation(models.Model):
         ('expired', 'Expired'),
         ('cancelled', 'Cancelled'),
     ]
-    ACTIVE_STATUSES = ('requested', 'confirmed', 'ready_for_pickup')
+    # pending_verification keeps stock reserved and POS/listing guards working;
+    # staff querysets hide it until the email is proven.
+    ACTIVE_STATUSES = ('pending_verification', 'requested', 'confirmed', 'ready_for_pickup')
+    STAFF_VISIBLE_STATUSES = ('requested', 'confirmed', 'ready_for_pickup', 'completed', 'declined', 'expired', 'cancelled')
+    # Terminal = the hold is finished either way; only these may be archived.
+    RELEASED_STATUSES = ('declined', 'expired', 'cancelled')
+    TERMINAL_STATUSES = ('completed', 'declined', 'expired', 'cancelled')
 
     listing = models.ForeignKey(
         WebListing, on_delete=models.PROTECT, related_name='reservations',
@@ -216,6 +232,7 @@ class Reservation(models.Model):
     status_token = models.CharField(
         max_length=48, unique=True, default=_public_status_token, db_index=True,
     )
+    pickup_code = models.CharField(max_length=5, unique=True, db_index=True)
     idempotency_key = models.CharField(max_length=128, blank=True, default='', db_index=True)
 
     customer_name = models.CharField(max_length=200)
@@ -224,6 +241,7 @@ class Reservation(models.Model):
     quantity = models.PositiveIntegerField(default=1)
     customer_note = models.TextField(blank=True, default='')
     staff_note = models.TextField(blank=True, default='')
+    release_reason = models.CharField(max_length=200, blank=True, default='')
 
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='requested')
     expires_at = models.DateTimeField(null=True, blank=True)
@@ -253,6 +271,18 @@ class Reservation(models.Model):
     fee_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     direct_expense = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
+    # Archive is presentation-only: it hides a finished hold from the staff
+    # queues. It never changes status, releases stock, or touches the customer's
+    # own view of their hold.
+    archived_at = models.DateTimeField(null=True, blank=True)
+    archived_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='+',
+    )
+    # Customer hide from History — separate from staff archive. Restore from
+    # Account; never changes status or stock.
+    customer_archived_at = models.DateTimeField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -261,6 +291,7 @@ class Reservation(models.Model):
         indexes = [
             models.Index(fields=['status', 'created_at']),
             models.Index(fields=['listing', 'status']),
+            models.Index(fields=['archived_at', 'status']),
         ]
 
     def __str__(self):
@@ -280,14 +311,93 @@ class Reservation(models.Model):
         return self.line_total - cost - self.fee_amount - self.direct_expense
 
 
+class ReservationEvent(models.Model):
+    """Append-only hold history. Never updated, never deleted."""
+
+    KIND_CHOICES = [
+        ('requested', 'Requested'),
+        ('verified', 'Email verified'),
+        ('confirmed', 'Confirmed'),
+        ('staged', 'Staged'),
+        ('extended', 'Extended'),
+        ('completed', 'Completed'),
+        ('declined', 'Declined'),
+        ('expired', 'Expired'),
+        ('cancelled', 'Cancelled'),
+        ('reopened', 'Reopened'),
+        ('note', 'Staff note'),
+    ]
+
+    reservation = models.ForeignKey(
+        Reservation, on_delete=models.CASCADE, related_name='events',
+    )
+    kind = models.CharField(max_length=24, choices=KIND_CHOICES)
+    from_status = models.CharField(max_length=24, blank=True, default='')
+    to_status = models.CharField(max_length=24, blank=True, default='')
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    note = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at', 'id']
+        indexes = [
+            models.Index(fields=['reservation', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f'{self.reservation_id} {self.kind} @ {self.created_at}'
+
+
+class HoldConfirmation(models.Model):
+    """One confirmation attempt for a pending hold — code + link secrets, hashed."""
+
+    VIA_CODE = 'code'
+    VIA_LINK = 'link'
+    VIA_CHOICES = [
+        (VIA_CODE, 'Code'),
+        (VIA_LINK, 'Link'),
+    ]
+
+    reservation = models.ForeignKey(
+        Reservation, on_delete=models.CASCADE, related_name='confirmations',
+    )
+    email = models.EmailField()
+    code_hash = models.CharField(max_length=64)
+    # unique=True creates the index; do not also set db_index=True (Postgres _like trap).
+    token_hash = models.CharField(max_length=64, unique=True)
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    confirmed_via = models.CharField(max_length=8, choices=VIA_CHOICES, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['reservation', 'confirmed_at', 'expires_at']),
+        ]
+
+    def __str__(self):
+        state = 'confirmed' if self.confirmed_at else 'pending'
+        return f'HoldConfirmation {self.pk} ({state}) for {self.reservation_id}'
+
+
 class Conversation(models.Model):
     """Staff ↔ customer message thread (inquiry and/or hold-linked)."""
 
     STATE_CHOICES = [
+        ('pending_verification', 'Pending verification'),
         ('needs_reply', 'Needs reply'),
         ('waiting_on_customer', 'Waiting on customer'),
         ('resolved', 'Resolved'),
     ]
+    STAFF_VISIBLE_STATES = ('needs_reply', 'waiting_on_customer', 'resolved')
 
     listing = models.ForeignKey(
         WebListing, on_delete=models.SET_NULL,
@@ -315,6 +425,15 @@ class Conversation(models.Model):
     )
     staff_unread = models.PositiveIntegerField(default=0)
     customer_unread = models.PositiveIntegerField(default=0)
+    # Hides a resolved thread from the staff inbox; the customer keeps seeing it.
+    archived_at = models.DateTimeField(null=True, blank=True)
+    archived_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='+',
+    )
+    # Customer soft-delete: hidden from their Messages only. Staff and the DB
+    # row stay. A later staff reply clears this so they see the new message.
+    customer_deleted_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -323,6 +442,7 @@ class Conversation(models.Model):
         indexes = [
             models.Index(fields=['state', 'last_message_at']),
             models.Index(fields=['guest_email']),
+            models.Index(fields=['archived_at', 'state']),
         ]
 
     def __str__(self):

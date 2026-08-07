@@ -417,7 +417,7 @@ export function rotateObjects90(doc: PlanDocument, refs: SelectionRef[]): PlanDo
 }
 
 /**
- * On-floor (visual) bounding box of any object — elements account for their
+ * On-floor (visual) bounding box of any object - elements account for their
  * rotation, labels use the same width heuristic as the canvas overlay.
  */
 export function visualBounds(doc: PlanDocument, ref: SelectionRef): Rect | null {
@@ -583,7 +583,7 @@ export function flipObjects(doc: PlanDocument, refs: SelectionRef[], axis: 'h' |
 /**
  * Scale the referenced objects' visual bounds about `origin` by (sx, sy).
  * Wall elements (kind `isWall`, falling back to an aspect-ratio ≥ 3 heuristic
- * when the catalog is unavailable) keep their thickness — scaling a room
+ * when the catalog is unavailable) keep their thickness - scaling a room
  * outline lengthens the walls without fattening them.
  */
 export function scaleObjects(
@@ -655,7 +655,7 @@ export function scaleObjects(
  * id and becomes the first piece; the second piece is a copy with a new id
  * (same kind, thickness, rotation, flip, group). Returns null when the cut
  * would leave a piece shorter than `minPiece`. Wall-ness is the caller's
- * check — this is pure geometry.
+ * check - this is pure geometry.
  */
 export function cutWallAt(
   doc: PlanDocument,

@@ -8,7 +8,7 @@ import {
 } from './dashboardFormatters';
 import { dashboardPalette } from './dashboardCardStyles';
 
-/** Visible week rows in the card scroller — matches the pre-history 2-week layout. */
+/** Visible week rows in the card scroller - matches the pre-history 2-week layout. */
 const VISIBLE_WEEK_ROWS = 2;
 
 const DAY_HEADS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -388,7 +388,7 @@ export function DepartmentCardGrid({
 }
 
 export function buyingGridValue(day: DepartmentDailyMetric): string {
-  return day.is_future ? '—' : formatDashboardCurrencyCompact(day.buying);
+  return day.is_future ? '-' : formatDashboardCurrencyCompact(day.buying);
 }
 
 export function buyingWeekTotal(week: DepartmentDailyWeek): string {
@@ -398,7 +398,7 @@ export function buyingWeekTotal(week: DepartmentDailyWeek): string {
 }
 
 export function processingGridValue(day: DepartmentDailyMetric): string {
-  return day.is_future ? '—' : formatDashboardCurrencyCompact(day.processing);
+  return day.is_future ? '-' : formatDashboardCurrencyCompact(day.processing);
 }
 
 export function processingWeekTotal(week: DepartmentDailyWeek): string {
@@ -408,7 +408,7 @@ export function processingWeekTotal(week: DepartmentDailyWeek): string {
 }
 
 export function restorationGridValue(day: DepartmentDailyMetric): string {
-  return day.is_future ? '—' : String(day.restoration);
+  return day.is_future ? '-' : String(day.restoration);
 }
 
 export function restorationWeekTotal(week: DepartmentDailyWeek): string {
@@ -416,8 +416,8 @@ export function restorationWeekTotal(week: DepartmentDailyWeek): string {
 }
 
 export function retailGridValue(day: DepartmentDailyMetric): string {
-  if (day.is_future) return '—';
-  const grade = day.retail ?? '—';
+  if (day.is_future) return '-';
+  const grade = day.retail ?? '-';
   if (!day.retail_scheduled) return grade;
   const count = day.retail_count ?? 0;
   const required = day.retail_required ?? 0;
@@ -439,7 +439,7 @@ export function retailWeekGoalAchieved(week: DepartmentDailyWeek): boolean {
 
 /**
  * Retail QA week score under the week label.
- * Spec: LAST submitted grade in the week — never average, never highest.
+ * Spec: LAST submitted grade in the week - never average, never highest.
  */
 export function retailWeekTotal(week: DepartmentDailyWeek): string {
   if (week.retail_week_grade) return week.retail_week_grade;
@@ -448,13 +448,13 @@ export function retailWeekTotal(week: DepartmentDailyWeek): string {
     const day = week.days[i];
     if (!day.is_future && day.retail) return day.retail;
   }
-  return '—';
+  return '-';
 }
 
 export function retailCellAriaLabel(day: DepartmentDailyMetric, value: string): string {
   const ids = day.retail_audit_ids ?? [];
   const count = ids.length;
   const dateLabel = shortDate(day.date);
-  if (count === 0) return `${dateLabel} — ${value}`;
-  return `${dateLabel} — grade ${day.retail ?? value}, ${count} audit${count === 1 ? '' : 's'}`;
+  if (count === 0) return `${dateLabel} - ${value}`;
+  return `${dateLabel} - grade ${day.retail ?? value}, ${count} audit${count === 1 ? '' : 's'}`;
 }

@@ -8,7 +8,7 @@ const SAVE_DELAY_MS = 600;
 
 type PersistFn = (jobId: number, session: TarsWorkSession) => Promise<void>;
 
-/** Local work-session edits with debounced API persist — avoids refetch/re-render storms while typing. */
+/** Local work-session edits with debounced API persist - avoids refetch/re-render storms while typing. */
 export function useWorkSessionDraft(
   job: RestorationJobDTO | null | undefined,
   persist: PersistFn,
@@ -39,7 +39,7 @@ export function useWorkSessionDraft(
     try {
       await persistRef.current(jobId, payload);
     } catch (err) {
-      // Persist failed — stay dirty so a refetch can't silently replace local edits.
+      // Persist failed - stay dirty so a refetch can't silently replace local edits.
       dirtyRef.current = true;
       throw err;
     }
@@ -66,7 +66,7 @@ export function useWorkSessionDraft(
             }
           })
           .catch(() => {
-            // Persist failed — stay dirty so a refetch can't silently replace local edits.
+            // Persist failed - stay dirty so a refetch can't silently replace local edits.
             dirtyRef.current = true;
           });
       }, SAVE_DELAY_MS);

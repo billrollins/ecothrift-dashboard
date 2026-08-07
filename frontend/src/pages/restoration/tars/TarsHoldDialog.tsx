@@ -134,7 +134,7 @@ export function TarsHoldDialog({
               {requestParts ?
                 gradeOptions.length === 0 ?
                   <Alert severity="warning" sx={{ py: 0.5 }}>
-                    No priced grades on this item — set grade values before requesting parts.
+                    No priced grades on this item - set grade values before requesting parts.
                   </Alert>
                 : <TextField
                     select

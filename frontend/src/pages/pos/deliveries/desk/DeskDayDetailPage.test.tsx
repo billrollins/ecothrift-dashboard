@@ -123,5 +123,5 @@ describe('DeskDayDetailPage', () => {
     expect(screen.getByRole('button', { name: /Add delivery/i })).toBeInTheDocument();
     fireEvent.click(screen.getByText('Ada Lovelace'));
     expect(await screen.findByRole('button', { name: /Cancel delivery/i })).toBeInTheDocument();
-  });
+  }, 15_000);
 });

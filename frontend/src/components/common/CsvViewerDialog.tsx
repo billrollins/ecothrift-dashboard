@@ -44,7 +44,7 @@ export interface CsvViewerDialogProps {
 }
 
 /**
- * Reusable CSV/TSV preview dialog — sticky header table + authenticated full-file download.
+ * Reusable CSV/TSV preview dialog - sticky header table + authenticated full-file download.
  */
 export function CsvViewerDialog({
   open,

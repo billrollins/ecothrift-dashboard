@@ -46,7 +46,7 @@ const ITEM_CATALOG_COLUMN_ORDER = ['itemNumber', 'product', 'location', 'status'
 const ITEM_CATALOG_WIDTHS_KEY = 'inventory.workbench.itemCatalog.columns.v2';
 
 function formatCheckedInDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   try {
     return new Date(iso).toLocaleString(undefined, {
       month: 'short',
@@ -61,7 +61,7 @@ function formatCheckedInDateTime(iso: string | null | undefined): string {
 }
 
 function printedLabel(item: Item): string {
-  return item.label_printed ? '✓' : '—';
+  return item.label_printed ? '✓' : '-';
 }
 
 function itemNumberLabel(item: Item): string {
@@ -69,7 +69,7 @@ function itemNumberLabel(item: Item): string {
 }
 
 function productLabel(item: Item): string {
-  return item.product_title?.trim() || '—';
+  return item.product_title?.trim() || '-';
 }
 
 function locationLabel(item: Item): string {
@@ -212,11 +212,11 @@ const ItemCatalogRow = memo(function ItemCatalogRow({
         {itemNumberLabel(item)}
       </TableCell>
       <TableCell align="left" sx={{ minWidth: 0 }}>
-        <Typography noWrap title={title !== '—' ? title : undefined} sx={{ fontSize: '0.72rem', fontWeight: 700, lineHeight: 1.1 }}>
+        <Typography noWrap title={title !== '-' ? title : undefined} sx={{ fontSize: '0.72rem', fontWeight: 700, lineHeight: 1.1 }}>
           {title}
         </Typography>
       </TableCell>
-      <TableCell align="left" sx={{ fontSize: '0.72rem' }} title={location !== '—' ? location : undefined}>
+      <TableCell align="left" sx={{ fontSize: '0.72rem' }} title={location !== '-' ? location : undefined}>
         {location}
       </TableCell>
       <TableCell align="center">

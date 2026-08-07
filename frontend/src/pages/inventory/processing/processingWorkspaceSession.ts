@@ -1,4 +1,4 @@
-/** Per-order workspace UI state — survives in-tab navigation away from processing. */
+/** Per-order workspace UI state - survives in-tab navigation away from processing. */
 
 const STORAGE_PREFIX = 'ecothrift.processingWorkspace.v1';
 
@@ -41,6 +41,6 @@ export function writeProcessingWorkspaceSession(
       }),
     );
   } catch {
-    /* quota / private mode — ignore */
+    /* quota / private mode - ignore */
   }
 }

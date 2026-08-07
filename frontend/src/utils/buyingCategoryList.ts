@@ -3,14 +3,14 @@ import type { BuyingAuctionListItem } from '../types/buying.types';
 /** First word-like token of a taxonomy / category label. */
 export function firstWordCategory(name: string): string {
   const t = name.trim();
-  if (!t) return '—';
+  if (!t) return '-';
   const m = t.match(/[\w][\w'-]*/u);
-  return m ? m[0] : t.split(/\s+/)[0] ?? '—';
+  return m ? m[0] : t.split(/\s+/)[0] ?? '-';
 }
 
 /**
  * Retail-weighted mix when present (`manifest_category_distribution`), else AI estimates.
- * Sorted by pct descending — matches `AuctionListSerializer.get_top_categories` source.
+ * Sorted by pct descending - matches `AuctionListSerializer.get_top_categories` source.
  */
 export function getRetailWeightedCategoryEntries(row: BuyingAuctionListItem): { name: string; pct: number }[] {
   const raw = row.manifest_category_distribution ?? row.ai_category_estimates;

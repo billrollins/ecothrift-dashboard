@@ -100,7 +100,7 @@ function computeLayout(
     ndataW = Math.max(ndataW, measureTextWidth(String(row.good_data_sample_size), caption));
     {
       const pm = num(row.profit_margin);
-      const marginLabel = pm == null ? '—' : `${(pm * 100).toFixed(0)}%`;
+      const marginLabel = pm == null ? '-' : `${(pm * 100).toFixed(0)}%`;
       marginW = Math.max(marginW, measureTextWidth(marginLabel, caption));
     }
     recovW = Math.max(recovW, measureTextWidth(`${pct(row.recovery_pct).toFixed(0)}%`, caption));
@@ -303,7 +303,7 @@ export default function CategoryNeedBars({ rows, selectedCategory, onSelect }: P
                 noWrap
                 title={
                   key === 'ndata'
-                    ? 'Good-data row count (all-time sold: sale, retail, cost each in $0.01–$9,999)'
+                    ? 'Good-data row count (all-time sold: sale, retail, cost each in $0.01-$9,999)'
                     : undefined
                 }
                 sx={{
@@ -440,7 +440,7 @@ export default function CategoryNeedBars({ rows, selectedCategory, onSelect }: P
             <Typography variant="caption" textAlign="center">
               {(() => {
                 const pm = num(row.profit_margin);
-                return pm == null ? '—' : `${(pm * 100).toFixed(0)}%`;
+                return pm == null ? '-' : `${(pm * 100).toFixed(0)}%`;
               })()}
             </Typography>
             <Typography variant="caption" textAlign="center">

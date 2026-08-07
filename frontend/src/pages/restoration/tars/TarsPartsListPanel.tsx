@@ -404,7 +404,7 @@ export function TarsPartsListPanel({
 
           {orders.length === 0 ?
             <Typography variant="body2" color="text.secondary">
-              {readOnly ? 'No orders yet.' : 'No orders yet. Create an order and add parts to it — new parts also land in the Parts tab.'}
+              {readOnly ? 'No orders yet.' : 'No orders yet. Create an order and add parts to it - new parts also land in the Parts tab.'}
             </Typography>
           : orders.map((order, index) => (
               <OrderCard
@@ -458,7 +458,7 @@ export function TarsPartsListPanel({
             </Typography>
             {gradeOptions.length === 0 ?
               <Typography variant="body2" color="warning.main" fontWeight={700}>
-                No priced grades on this item — set grade values first.
+                No priced grades on this item - set grade values first.
               </Typography>
             : <TextField
                 select

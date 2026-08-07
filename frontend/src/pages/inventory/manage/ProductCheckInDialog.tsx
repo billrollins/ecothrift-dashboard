@@ -269,7 +269,7 @@ export function ProductCheckInDialog({
                 Check in items
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Product is locked — edit identity from the product modal.
+                Product is locked - edit identity from the product modal.
               </Typography>
             </Box>
           </Stack>
@@ -396,7 +396,7 @@ export function ProductCheckInDialog({
                 label="Retail / cost basis"
                 value={retail}
                 onChange={(e) => setRetail(e.target.value)}
-                helperText="Recommended — you can check in without it"
+                helperText="Recommended - you can check in without it"
                 inputProps={{ inputMode: 'decimal' }}
               />
               <TextField

@@ -47,7 +47,7 @@ export function queueStatusMeta(status: string) {
 }
 
 export function formatQueueMoney(v: string | null | undefined): string {
-  if (v == null || v === '') return '—';
+  if (v == null || v === '') return '-';
   const n = Number.parseFloat(v);
   if (Number.isNaN(n)) return v;
   return formatCurrency(n);
@@ -66,7 +66,7 @@ export function queueExtRetailText(
   row: Pick<ProcessingWorkspaceRowDTO, 'unitRetail' | 'qty'>,
 ): string {
   const total = queueExtRetailValue(row);
-  if (total == null) return '—';
+  if (total == null) return '-';
   return formatCurrency(total);
 }
 
@@ -98,7 +98,7 @@ export function queueTitleText(
   row: Pick<ProcessingWorkspaceRowDTO, 'title' | 'standardizedIdentity'> &
     Partial<Pick<ProcessingWorkspaceRowDTO, 'collapsedGroup' | 'collapseMasterId' | 'splitParentRowNumber'>>,
 ): string {
-  const base = queueRowDetailField(row, 'title') || '—';
+  const base = queueRowDetailField(row, 'title') || '-';
   if (row.collapsedGroup) {
     return `⊟ ${base} (+rows ${row.collapsedGroup.memberRowNumbers.join(', ')})`;
   }
@@ -125,7 +125,7 @@ export function queueRowNumLabel(
 export function queueBrandText(
   row: Pick<ProcessingWorkspaceRowDTO, 'brand' | 'standardizedIdentity'>,
 ): string {
-  return queueRowDetailField(row, 'brand') || '—';
+  return queueRowDetailField(row, 'brand') || '-';
 }
 
 /** Bookmark-only row fields for the row-details editor (never product-coalesced). */
@@ -151,12 +151,12 @@ export function processingIdentityHoverTooltip(
   standardized: string | undefined,
   fieldLabel: string,
 ): string {
-  const disp = displayed.trim() || '—';
+  const disp = displayed.trim() || '-';
   const std = standardized?.trim() ?? '';
   if (!std) {
-    return disp === '—' ? '' : disp;
+    return disp === '-' ? '' : disp;
   }
-  if (!disp || disp === '—' || std === disp) {
+  if (!disp || disp === '-' || std === disp) {
     return `Standardized ${fieldLabel}: ${std}`;
   }
   return `Showing: ${disp}\nStandardized ${fieldLabel}: ${std}`;
@@ -165,7 +165,7 @@ export function processingIdentityHoverTooltip(
 export function queueCategoryText(
   row: Pick<ProcessingWorkspaceRowDTO, 'category' | 'standardizedIdentity'>,
 ): string {
-  return queueRowDetailField(row, 'category') || '—';
+  return queueRowDetailField(row, 'category') || '-';
 }
 
 export function queueQtyText(

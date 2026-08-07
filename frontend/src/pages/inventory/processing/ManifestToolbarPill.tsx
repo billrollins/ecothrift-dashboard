@@ -56,7 +56,7 @@ export function ManifestToolbarPill({
   label,
   value,
   hoverTitle,
-  placeholder = '—',
+  placeholder = '-',
   onClick,
   readOnly = false,
   appearance = 'field',

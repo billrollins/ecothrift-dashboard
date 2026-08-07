@@ -43,7 +43,7 @@ function formatStatusLabel(status: string): string {
 }
 
 function formatShortDate(value: string | null | undefined): string {
-  if (!value) return '—';
+  if (!value) return '-';
   const d = new Date(value.includes('T') ? value : `${value}T12:00:00`);
   if (Number.isNaN(d.getTime())) return value;
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -146,7 +146,7 @@ export function ItemEditDialog({ open, item, onClose }: ItemEditDialogProps) {
             </Stack>
           </Box>
           <Typography variant="body2" color="text.secondary">
-            This edits one physical unit — not the full check-in group. To review or adjust every item checked in together, use the check-in group action below.
+            This edits one physical unit - not the full check-in group. To review or adjust every item checked in together, use the check-in group action below.
           </Typography>
         </Stack>
       </DialogTitle>

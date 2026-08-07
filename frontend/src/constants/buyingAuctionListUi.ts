@@ -1,4 +1,4 @@
-/** Section labels (Inventory need / Search & filters / Active auctions) — shared eyebrow style. */
+/** Section labels (Inventory need / Search & filters / Active auctions) - shared eyebrow style. */
 export const BUYING_SECTION_EYEBROW_SX = {
   fontSize: 11,
   fontWeight: 600,
@@ -8,7 +8,7 @@ export const BUYING_SECTION_EYEBROW_SX = {
   lineHeight: 1.2,
 };
 
-/** Watch / thumbs / archive / expand / manifest — same visual size in auction list grid rows. */
+/** Watch / thumbs / archive / expand / manifest - same visual size in auction list grid rows. */
 export const BUYING_AUCTION_LIST_ROW_ICON_PX = 28;
 /** Taller than default compact grid rows so row icons have room and align cleanly. */
 export const BUYING_AUCTION_LIST_ROW_HEIGHT_PX = 64;

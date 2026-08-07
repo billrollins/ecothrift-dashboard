@@ -42,12 +42,12 @@ type Props = {
 };
 
 function formatEta(value?: string | null) {
-  if (!value) return '—';
+  if (!value) return '-';
   return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
 function formatMinutes(seconds?: number | null) {
-  if (seconds == null) return '—';
+  if (seconds == null) return '-';
   const mins = Math.max(0, Math.round(seconds / 60));
   if (mins < 60) return `${mins} min`;
   const h = Math.floor(mins / 60);
@@ -91,7 +91,7 @@ export function DeskDayLiveMonitor({ day }: Props) {
   if (!day.run && !isActive) {
     return (
       <Alert severity="info" sx={{ mb: 2 }}>
-        No active run — planning/review only.
+        No active run - planning/review only.
       </Alert>
     );
   }
@@ -161,9 +161,9 @@ export function DeskDayLiveMonitor({ day }: Props) {
         <Grid size={{ xs: 12, md: 4 }}>
           <MonitorStat
             label="Current"
-            value={monitor?.current_stop?.customer_name ?? run.next_up?.customer_name ?? '—'}
+            value={monitor?.current_stop?.customer_name ?? run.next_up?.customer_name ?? '-'}
           />
-          <MonitorStat label="Next" value={monitor?.next_stop?.customer_name ?? '—'} />
+          <MonitorStat label="Next" value={monitor?.next_stop?.customer_name ?? '-'} />
           <MonitorStat
             label="Pending media"
             value={String(monitor?.pending_media ?? 0)}
@@ -198,10 +198,10 @@ export function DeskDayLiveMonitor({ day }: Props) {
               <Typography key={ex.id} variant="body2">
                 {ex.customer_name}
                 {ex.hold_reason
-                  ? ` — ${ex.hold_reason}`
+                  ? ` - ${ex.hold_reason}`
                   : ex.contact_disposition
-                    ? ` — ${ex.contact_disposition}`
-                    : ` — ${ex.state}`}
+                    ? ` - ${ex.contact_disposition}`
+                    : ` - ${ex.state}`}
               </Typography>
             ))}
           </Stack>
@@ -266,7 +266,7 @@ function RoutePanel({
         {run.service_minutes_per_stop ??
           (summary?.service_seconds_per_stop != null
             ? Math.round(summary.service_seconds_per_stop / 60)
-            : '—')}{' '}
+            : '-')}{' '}
         min/stop
         {run.last_optimized_at ? ` · last calc ${formatEta(run.last_optimized_at)}` : ''}
       </Typography>
@@ -364,7 +364,7 @@ function CompletedRunReview({ run }: { run: DeliveryRun }) {
               <TableCell>
                 {DISPOSITION_LABELS[stop.contact_disposition || ''] ||
                   stop.contact_disposition ||
-                  '—'}
+                  '-'}
               </TableCell>
               <TableCell>
                 {stop.items_ready_count ?? 0}/{stop.items_total_count ?? 0}
@@ -405,7 +405,7 @@ function CompletedRunReview({ run }: { run: DeliveryRun }) {
                   <Typography variant="caption" display="block">
                     {stop.call_attempts?.length} attempt(s):{' '}
                     {(stop.call_attempts ?? [])
-                      .map((a) => a.action || a.channel || a.result || '—')
+                      .map((a) => a.action || a.channel || a.result || '-')
                       .join(', ')}
                   </Typography>
                 )}
@@ -419,7 +419,7 @@ function CompletedRunReview({ run }: { run: DeliveryRun }) {
                 {(stop.return_issue_code || stop.return_issue_notes) && (
                   <Typography variant="caption" display="block" color="error.main">
                     Return: {stop.return_issue_code || 'issue'}
-                    {stop.return_issue_notes ? ` — ${stop.return_issue_notes}` : ''}
+                    {stop.return_issue_notes ? ` - ${stop.return_issue_notes}` : ''}
                   </Typography>
                 )}
                 {stop.hold_reason && (

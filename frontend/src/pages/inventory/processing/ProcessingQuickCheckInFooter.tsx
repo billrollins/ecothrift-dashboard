@@ -27,7 +27,7 @@ const DISPATCH_OPTIONS: Array<{ value: string; label: string }> = [
 ];
 
 const CONTROL_HEIGHT = PROCESSING_ROW_FIELD_HEIGHT;
-// Owner ruling: no low cap — the parent confirms large runs (type PRINT <qty>) instead.
+// Owner ruling: no low cap - the parent confirms large runs (type PRINT <qty>) instead.
 const MAX_CHECK_IN_QTY = MAX_CHECK_IN_QUANTITY;
 
 function parseCheckInQuantity(raw: string): number {
@@ -154,7 +154,7 @@ export function ProcessingQuickCheckInFooter({
   }, [qtyRemaining]);
 
   const qtyValue = quantity.trim() === '' ? 0 : parseCheckInQuantity(quantity);
-  // Expected is an ESTIMATE — checking in past it is allowed (it shows as Over).
+  // Expected is an ESTIMATE - checking in past it is allowed (it shows as Over).
   const disabled = checkInLoading || qtyValue < 1 || quickCheckInDisabled;
   const leftAfter = Math.max(0, qtyRemaining - qtyValue);
   const isHeader = variant === 'header';
@@ -261,7 +261,7 @@ export function ProcessingQuickCheckInFooter({
         <QuickCheckInField label="Price" sx={{ flex: '0 1 80px', minWidth: 74, maxWidth: 96 }}>
           <TextField
             size="small"
-            placeholder="—"
+            placeholder="-"
             value={price}
             aria-label="Shelf price"
             onChange={(e) => onPriceChange(e.target.value)}

@@ -89,7 +89,7 @@ _Session ID:_ count `### Session` headers below and add 1 for the next session. 
 
 **Goal:** Rename local database references so PO extract and notebook docs agree on DSN naming before running multi-DB scripts.
 
-**Finish line:** `.env.example`, `databases.md`, and this initiative reference the `ecothrift_v*` names consistently.
+**Finish line:** root `.env`, `databases.md`, and this initiative reference the `ecothrift_v*` names consistently.
 
 **Scope:** `.ai/extended/databases.md`, `.ai/context.md`, initiative wording, deploy scripts — no extract logic yet.
 

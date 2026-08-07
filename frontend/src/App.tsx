@@ -10,7 +10,7 @@ import { ConsigneeLayout } from './components/layout/ConsigneeLayout';
 const BlogStudioPage = lazy(() => import('./pages/blog/BlogStudioPage'));
 const RetailInboxPage = lazy(() => import('./pages/mailbox/RetailInboxPage'));
 
-// Full-screen floorplan editor — lazy so the SVG editor bundle stays out of the main chunk.
+// Full-screen floorplan editor - lazy so the SVG editor bundle stays out of the main chunk.
 const FloorplanEditorPage = lazy(() => import('./pages/floorplan/FloorplanEditorPage'));
 // TARS Studio owns its browser tab and stays out of the dashboard bundle/chrome.
 const TarsPage = lazy(() => import('./pages/restoration/tars/TarsPage'));
@@ -60,7 +60,6 @@ import ConsigneeItemsPage from './pages/consignee/MyItemsPage';
 import ConsigneePayoutsPage from './pages/consignee/MyPayoutsPage';
 import ConsigneeSummaryPage from './pages/consignee/SummaryPage';
 import UserListPage from './pages/admin/UserListPage';
-import CustomerListPage from './pages/admin/CustomerListPage';
 import PermissionsPage from './pages/admin/PermissionsPage';
 import SettingsPage from './pages/admin/SettingsPage';
 import LabelStudioPage from './pages/admin/labelStudio/LabelStudioPage';
@@ -75,12 +74,10 @@ import AuctionDetailPage from './pages/buying/AuctionDetailPage';
 import WatchlistPage from './pages/buying/WatchlistPage';
 import TarsPartsRequestsPage from './pages/restoration/TarsPartsRequestsPage';
 import RestorationLayout from './pages/restoration/RestorationLayout';
-import OnlineSalesWorkQueuePage from './pages/online-sales/OnlineSalesWorkQueuePage';
 import OnlineSalesListingsPage from './pages/online-sales/OnlineSalesListingsPage';
 import ListingStudioPage from './pages/online-sales/ListingStudioPage';
-import OnlineSalesInboxPage from './pages/online-sales/OnlineSalesInboxPage';
-import OnlineSalesSalesPage from './pages/online-sales/OnlineSalesSalesPage';
-import OnlineSalesMarketingPage from './pages/online-sales/OnlineSalesMarketingPage';
+import OnlineSalesHoldsPage from './pages/online-sales/OnlineSalesHoldsPage';
+import OnlineSalesCustomersPage from './pages/online-sales/OnlineSalesCustomersPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -169,7 +166,7 @@ export default function App() {
         <Route path="/inventory/workbench" element={<InventoryWorkbenchPage />} />
         <Route path="/inventory/manage-products" element={<LegacyManageProductsRedirect />} />
         <Route path="/inventory/manage-items" element={<LegacyManageItemsRedirect />} />
-        {/* Legacy Search items — kept for code reference until Find item ships */}
+        {/* Legacy Search items - kept for code reference until Find item ships */}
         <Route path="/inventory/items" element={<ItemListPage />} />
         <Route path="/inventory/items/:id" element={<ItemDetailPage />} />
         <Route path="/inventory/inbound" element={<InboundFulfillmentPlaceholderPage />} />
@@ -237,7 +234,7 @@ export default function App() {
         />
         <Route
           path="/admin/customers"
-          element={<AdminRoute><CustomerListPage /></AdminRoute>}
+          element={<Navigate to="/online-sales/customers" replace />}
         />
         <Route
           path="/admin/retail-inbox"
@@ -249,10 +246,7 @@ export default function App() {
             </AdminRoute>
           }
         />
-        <Route
-          path="/online-sales"
-          element={<ManagerRoute><OnlineSalesWorkQueuePage /></ManagerRoute>}
-        />
+        <Route path="/online-sales" element={<Navigate to="/online-sales/listings" replace />} />
         <Route
           path="/online-sales/listings"
           element={<ManagerRoute><OnlineSalesListingsPage /></ManagerRoute>}
@@ -262,19 +256,21 @@ export default function App() {
           element={<ManagerRoute><ListingStudioPage /></ManagerRoute>}
         />
         <Route
-          path="/online-sales/inbox"
-          element={<ManagerRoute><OnlineSalesInboxPage /></ManagerRoute>}
+          path="/online-sales/holds"
+          element={<ManagerRoute><OnlineSalesHoldsPage /></ManagerRoute>}
         />
+        <Route
+          path="/online-sales/customers"
+          element={<ManagerRoute><OnlineSalesCustomersPage /></ManagerRoute>}
+        />
+        <Route path="/online-sales/inbox" element={<Navigate to="/online-sales/customers?tab=messages" replace />} />
         <Route
           path="/online-sales/sales"
-          element={<ManagerRoute><OnlineSalesSalesPage /></ManagerRoute>}
+          element={<Navigate to="/online-sales/holds?tab=completed" replace />}
         />
-        <Route
-          path="/online-sales/marketing"
-          element={<ManagerRoute><OnlineSalesMarketingPage /></ManagerRoute>}
-        />
+        <Route path="/online-sales/marketing" element={<Navigate to="/online-sales/listings" replace />} />
         <Route path="/admin/web-store" element={<Navigate to="/online-sales/listings" replace />} />
-        <Route path="/admin/web-orders" element={<Navigate to="/online-sales/inbox" replace />} />
+        <Route path="/admin/web-orders" element={<Navigate to="/online-sales/holds" replace />} />
         <Route
           path="/admin/permissions"
           element={<AdminRoute><PermissionsPage /></AdminRoute>}
@@ -379,7 +375,7 @@ export default function App() {
         <Route path="/consignee/payouts" element={<ConsigneePayoutsPage />} />
       </Route>
 
-      {/* Blog Studio — standalone full-screen (Super Admin only), outside MainLayout so it
+      {/* Blog Studio - standalone full-screen (Super Admin only), outside MainLayout so it
           owns the whole window with no dashboard chrome (matches the mockup). */}
       <Route
         path="/blog-studio"
@@ -394,7 +390,7 @@ export default function App() {
         }
       />
 
-      {/* Floorplan editor — full-screen (no dashboard chrome) so the canvas owns the window */}
+      {/* Floorplan editor - full-screen (no dashboard chrome) so the canvas owns the window */}
       <Route
         path="/floor-ops/floorplans/:id/edit"
         element={
@@ -408,7 +404,7 @@ export default function App() {
         }
       />
 
-      {/* TARS Studio — full-screen staff work app in its own tab. */}
+      {/* TARS Studio - full-screen staff work app in its own tab. */}
       <Route
         path="/restoration/tars"
         element={

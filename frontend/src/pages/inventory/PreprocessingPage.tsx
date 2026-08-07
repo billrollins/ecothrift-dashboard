@@ -65,7 +65,7 @@ import {
 import { formatCurrency } from '../../utils/format';
 import { stableFormulasFingerprint } from '../../utils/stableFormulasFingerprint';
 
-/** Stable fallbacks — avoid `?? []` literals that allocate new refs each render (breaks useStandardManifest deps). */
+/** Stable fallbacks - avoid `?? []` literals that allocate new refs each render (breaks useStandardManifest deps). */
 const EMPTY_HEADERS: string[] = [];
 const EMPTY_STANDARD_COLUMNS: StandardColumnDefinition[] = [];
 const EMPTY_TEMPLATE_MAPPINGS: ManifestColumnMapping[] = [];
@@ -151,7 +151,7 @@ export default function PreprocessingPage() {
 
   const standardizedRowCount = preprocessingStatus?.counts.standardized_rows ?? 0;
   const cleanedRowCount = preprocessingStatus?.counts.cleaned_rows ?? 0;
-  // Prefer review summary after load/save — fresher than preprocessing-status during invalidate lag.
+  // Prefer review summary after load/save - fresher than preprocessing-status during invalidate lag.
   const missingPriceCount =
     reviewApiSummary?.missing_price ?? preprocessingStatus?.counts.missing_price ?? 0;
   const completedStep = preprocessingStatus?.completed_step ?? -1;
@@ -308,7 +308,7 @@ export default function PreprocessingPage() {
       setCleanupRowNumberById({});
       return;
     }
-    // Only the Step 2 offline-CSV validator needs this id sweep — don't pay for it on
+    // Only the Step 2 offline-CSV validator needs this id sweep - don't pay for it on
     // Standardize or Final Decisions.
     if (activeStep !== 1) return;
     let cancelled = false;
@@ -359,7 +359,7 @@ export default function PreprocessingPage() {
   }, [templateId]);
 
   // ONE whole-order load (page_size 500, minimal fields) feeds the table, the row maps,
-  // and order totals. The table virtualizes + filters client-side — no pagination, no
+  // and order totals. The table virtualizes + filters client-side - no pagination, no
   // server search (mimics the Processing queue strategy). Re-runs on reviewFetchNonce
   // (match PATCHes need server-hydrated matched_product_detail / peer row numbers).
   useEffect(() => {
@@ -712,7 +712,7 @@ export default function PreprocessingPage() {
       return;
     }
     if (!(hasMapping('unit_retail') || hasMapping('retail_value'))) {
-      enqueueSnackbar('Set a formula for unit retail (MSRP) before standardizing — required for pricing', { variant: 'warning' });
+      enqueueSnackbar('Set a formula for unit retail (MSRP) before standardizing - required for pricing', { variant: 'warning' });
       return;
     }
     if (completedStep >= 1) {
@@ -728,7 +728,7 @@ export default function PreprocessingPage() {
   };
 
   // Chunked offline apply (Fable verdict slice 6): 50 rows per partial POST so one bad
-  // row fails its chunk — not all 744 — and a 744-row PO can't H12 the apply. The final
+  // row fails its chunk - not all 744 - and a 744-row PO can't H12 the apply. The final
   // ai-cleanup-complete call owns match candidates + order flags. Re-applying after a
   // failed chunk is safe (same-values merge is idempotent).
   const handleRunCleanupApply = async () => {
@@ -757,7 +757,7 @@ export default function PreprocessingPage() {
       setCleanupApplySoftWarnings(allWarnings.length ? allWarnings : null);
       enqueueSnackbar(
         allWarnings.length
-          ? `Applied cleanup to ${rowsApplied} row(s) in ${chunks.length} chunk(s) — ${allWarnings.length} soft warning(s) (see upload log).`
+          ? `Applied cleanup to ${rowsApplied} row(s) in ${chunks.length} chunk(s) - ${allWarnings.length} soft warning(s) (see upload log).`
           : `Applied cleanup to ${rowsApplied} row(s) in ${chunks.length} chunk(s)`,
         { variant: 'success' },
       );
@@ -767,7 +767,7 @@ export default function PreprocessingPage() {
       const detail = axiosErr?.response?.data?.detail || 'Failed to apply cleanup CSV';
       setCleanupApplySoftWarnings(allWarnings.length ? allWarnings : null);
       enqueueSnackbar(
-        `${detail} (chunk ${chunkIndex + 1}/${chunks.length}; ${rowsApplied} row(s) already applied — fixing the CSV and re-running is safe)`,
+        `${detail} (chunk ${chunkIndex + 1}/${chunks.length}; ${rowsApplied} row(s) already applied - fixing the CSV and re-running is safe)`,
         { variant: 'error' },
       );
     } finally {
@@ -910,7 +910,7 @@ export default function PreprocessingPage() {
   } else if (activeStep === 2 && reviewDirtyCount > 0) {
     stepperActionHint = 'Save changes before finalizing';
   } else if (activeStep === 2 && missingPriceCount > 0) {
-    stepperActionHint = `${missingPriceCount.toLocaleString()} row(s) still need a set price — filter Missing price, price them, then Save`;
+    stepperActionHint = `${missingPriceCount.toLocaleString()} row(s) still need a set price - filter Missing price, price them, then Save`;
   }
 
   let stepperActionSlot: ReactNode = null;
@@ -1062,7 +1062,7 @@ export default function PreprocessingPage() {
             <Box sx={{ maxWidth: '100%', minWidth: 0 }}>
               {completedStep >= 0 && (
                 <Alert severity="success" icon={<CheckCircleOutline />} sx={{ mb: 2 }}>
-                  Standardization complete — {standardizedRowCount} row(s) created.
+                  Standardization complete - {standardizedRowCount} row(s) created.
                 </Alert>
               )}
 

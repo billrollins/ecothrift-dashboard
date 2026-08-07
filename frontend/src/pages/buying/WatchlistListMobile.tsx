@@ -93,7 +93,7 @@ export default function WatchlistListMobile({
                       color="primary"
                       sx={{ fontWeight: 600, lineHeight: 1.2, flex: 1 }}
                     >
-                      {row.marketplace?.name ?? '—'}
+                      {row.marketplace?.name ?? '-'}
                     </Typography>
                     <Chip size="small" label={priorityLabel(row.watchlist_entry?.priority)} variant="outlined" />
                   </Stack>
@@ -168,7 +168,7 @@ export default function WatchlistListMobile({
                           {formatTimeRemaining(row.end_time)}
                         </Typography>
                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-                          {row.bid_count != null ? `${row.bid_count} bids` : '—'}
+                          {row.bid_count != null ? `${row.bid_count} bids` : '-'}
                         </Typography>
                       </Stack>
                     </Box>

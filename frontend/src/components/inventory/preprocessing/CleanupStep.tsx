@@ -38,19 +38,19 @@ export function CleanupStep({
     <Box>
       {cleanupComplete && (
         <Alert severity="success" icon={<CheckCircleOutline />} sx={{ mb: 2 }}>
-          AI Cleanup complete — all {standardizedRowCount} row(s) cleaned.
+          AI Cleanup complete - all {standardizedRowCount} row(s) cleaned.
         </Alert>
       )}
       {!cleanupComplete && validatedPayload && validatedPayload.length > 0 && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          CSV validated — {validatedPayload.length} rows ready. Click <strong>Run Cleanup</strong> in the toolbar to apply changes to preprocessing rows.
+          CSV validated - {validatedPayload.length} rows ready. Click <strong>Run Cleanup</strong> in the toolbar to apply changes to preprocessing rows.
         </Alert>
       )}
       <WebAiCleanupPanel orderId={orderId} />
       <Accordion disableGutters elevation={0} sx={{ border: '1px solid #DDD5C9', borderRadius: '8px', '&::before': { display: 'none' } }}>
         <AccordionSummary expandIcon={<ExpandMore />}>
           <Typography sx={{ fontSize: 14, fontWeight: 600, color: '#1B4332' }}>
-            Advanced — Offline CSV cleanup (Grok fallback)
+            Advanced - Offline CSV cleanup (Grok fallback)
           </Typography>
         </AccordionSummary>
         <AccordionDetails>

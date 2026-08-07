@@ -1,4 +1,4 @@
-/** Visual tokens — aligned with the broader EcoThrift site palette. */
+/** Visual tokens - aligned with the broader EcoThrift site palette. */
 export const processingTokens = {
   monoFontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
   primary: '#2e7d32',
@@ -6,7 +6,7 @@ export const processingTokens = {
   ecoBrown: '#b4531f',
   ecoBrownDark: '#8f421a',
   ecoBrownSoft: '#f3e4d5',
-  /** Kraft/cardboard action palette — used by quick check-in. */
+  /** Kraft/cardboard action palette - used by quick check-in. */
   cardboardBrown: '#6e6a62',
   cardboardBrownDark: '#524e48',
   cardboardBrownSoft: '#f0eeea',
@@ -33,7 +33,7 @@ export const processingTokens = {
   surfaceWarm: '#f8fafc',
   surfaceTint: '#ffffff',
   surfaceRaised: '#ffffff',
-  /** Processing workspace hierarchy — site-aligned white/grey with green and kraft accents. */
+  /** Processing workspace hierarchy - site-aligned white/grey with green and kraft accents. */
   orderHeaderBg: '#ffffff',
   orderHeaderBorder: '#e2e8f0',
   orderHeaderText: '#0f172a',
@@ -69,12 +69,12 @@ export const processingTokens = {
   tableFillerBgDark: 'rgba(255,255,255,0.04)',
   clearSegmentBg: '#f1f5f9',
   clearSegmentBgDark: 'rgba(255,255,255,0.06)',
-  /** Row manifest toolbar — clean white card */
+  /** Row manifest toolbar - clean white card */
   manifestToolbarSurface: '#ffffff',
   /** Compatibility aliases for existing section code. */
   checkInSurface: '#e8f5e9',
   checkInBorder: '#a5d6a7',
-  /** Quick check-in field shells — white on amber header card */
+  /** Quick check-in field shells - white on amber header card */
   checkInShellBg: '#ffffff',
 } as const;
 
@@ -94,5 +94,5 @@ export function processingHeaderGradient(mode: ProcessingPaletteMode): string {
     : `linear-gradient(180deg, ${processingTokens.headerGradientStart} 0%, ${processingTokens.headerGradientEnd} 100%)`;
 }
 
-/** Column count on ProcessingQueueTable — keep in sync with header cells. */
+/** Column count on ProcessingQueueTable - keep in sync with header cells. */
 export const PROCESSING_QUEUE_COLUMN_COUNT = 10;

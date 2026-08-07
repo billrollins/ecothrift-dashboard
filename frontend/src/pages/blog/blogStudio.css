@@ -1,4 +1,4 @@
-/* Blog Studio page chrome — "Refined Minimal".
+/* Blog Studio page chrome - "Refined Minimal".
    Rich-text toolbar and ProseMirror styles live with the reusable RichTextEditor. */
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@400;500;700&display=swap');
 
@@ -612,7 +612,7 @@
   color: var(--ink);
 }
 
-/* Narrow fallback — the studio is a desktop owner tool, but don't break small windows. */
+/* Narrow fallback - the studio is a desktop owner tool, but don't break small windows. */
 @media (max-width: 1080px) {
   .blog-studio .studio {
     grid-template-columns: 1fr;

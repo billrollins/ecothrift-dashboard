@@ -13,7 +13,7 @@ const TONE_SX: Record<StudioFlashTone, { bg: string; border: string; color: stri
 };
 
 /**
- * Overlay toast — never shifts document flow. Mount once; pass message to show.
+ * Overlay toast - never shifts document flow. Mount once; pass message to show.
  * Auto-fades after `durationMs` (default 4s). Empty message hides without layout jump.
  */
 export function StudioFlashToast({
@@ -94,7 +94,7 @@ export function StudioFlashToast({
   );
 }
 
-/** Fixed-height slot for optional secondary fields — keeps layout stable when empty. */
+/** Fixed-height slot for optional secondary fields - keeps layout stable when empty. */
 export function StudioReservedSlot({
   show,
   height,

@@ -95,7 +95,7 @@ export default function DrawerListPage() {
   const registers = registersData?.results ?? [];
   const drawers = drawersData?.results ?? [];
 
-  // Cashiers with no device config fall back to showing nothing — they need to configure
+  // Cashiers with no device config fall back to showing nothing - they need to configure
   // their device from the POS Terminal page first so we know which register they own.
   const cashierUnconfigured = !isManager && myRegisterId == null;
   const registersToShow = isManager
@@ -267,10 +267,10 @@ export default function DrawerListPage() {
                   ) : (
                     <>
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        Cashier: {drawer.current_cashier_name ?? '—'}
+                        Cashier: {drawer.current_cashier_name ?? '-'}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        Opened: {drawer.opened_at ? format(new Date(drawer.opened_at), 'PPp') : '—'}
+                        Opened: {drawer.opened_at ? format(new Date(drawer.opened_at), 'PPp') : '-'}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
                         Opening: {formatCurrency(drawer.opening_total)} · Cash sales: {formatCurrency(drawer.cash_sales_total)}

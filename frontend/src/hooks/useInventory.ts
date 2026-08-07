@@ -1016,7 +1016,7 @@ export function useItems(
   });
 }
 
-/** Fetch all item pages (page_size 200) for a PO or filter — used where the UI needs the full in-memory queue. */
+/** Fetch all item pages (page_size 200) for a PO or filter - used where the UI needs the full in-memory queue. */
 export function useItemsAllPages(
   params: Record<string, unknown> | undefined,
   enabled = true,

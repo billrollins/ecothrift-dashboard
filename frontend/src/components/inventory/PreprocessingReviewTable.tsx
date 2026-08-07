@@ -44,7 +44,7 @@ import {
   roundReviewPrice,
 } from '../../utils/preprocessingReviewTotals';
 
-/** Fixed row height — virtualization contract (mimics ProcessingQueueTable). */
+/** Fixed row height - virtualization contract (mimics ProcessingQueueTable). */
 const REVIEW_ROW_HEIGHT = 34;
 const REVIEW_COLUMN_COUNT = 12;
 
@@ -73,7 +73,7 @@ function sortValue(r: PreprocessingReviewRow, key: SortKey): string | number | n
 }
 
 interface PreprocessingReviewTableProps {
-  /** Full order row set (client-side filtering/virtualization — no pagination). */
+  /** Full order row set (client-side filtering/virtualization - no pagination). */
   rows: PreprocessingReviewRow[];
   summary: PreprocessingReviewSummary | null;
   isLoading?: boolean;
@@ -119,7 +119,7 @@ function layerTooltipText(parts: Array<[label: string, value: string | null | un
 
 const STATIC_CATEGORY_ITEMS = [
   <MenuItem key="__empty" value="" dense>
-    <em>—</em>
+    <em>-</em>
   </MenuItem>,
   ...TAXONOMY_V1_CATEGORY_NAMES.map((name) => (
     <MenuItem key={name} value={name} dense>
@@ -148,7 +148,7 @@ const compactInputSx = {
   '& .MuiOutlinedInput-input': { py: 0.25, px: 0.75 },
 };
 
-/** Final Decisions toolbar — readable height/width (avoid cramped size="small" + tight py). */
+/** Final Decisions toolbar - readable height/width (avoid cramped size="small" + tight py). */
 const reviewToolbarInputSx = {
   '& .MuiOutlinedInput-root': {
     minHeight: 44,
@@ -171,7 +171,7 @@ const PRODUCT_COLUMN_TOOLTIP =
   "A linked product describes the item itself; this row's text describes what's in this order. Clearing the match makes this row a new product at check-in.";
 
 function fmtMoney0(n: number | null): string {
-  if (n == null || !Number.isFinite(n)) return '—';
+  if (n == null || !Number.isFinite(n)) return '-';
   return `$${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
@@ -306,7 +306,7 @@ const ReviewRow = memo(function ReviewRow({
         </Tooltip>
       </TableCell>
       <TableCell align="center" sx={{ textAlign: 'center' }}>
-        <Typography variant="caption">{row.quantity == null ? '—' : Number(row.quantity).toLocaleString()}</Typography>
+        <Typography variant="caption">{row.quantity == null ? '-' : Number(row.quantity).toLocaleString()}</Typography>
       </TableCell>
       <TableCell sx={{ overflow: 'hidden' }}>
         <TextField
@@ -391,10 +391,10 @@ const ReviewRow = memo(function ReviewRow({
           </IconButton>
         </Stack>
       </TableCell>
-      {/* Reference prices — click to apply to this row. AI = row-specific model estimate;
+      {/* Reference prices - click to apply to this row. AI = row-specific model estimate;
           Ideal = retail-ratio formula. (Δ%) = current price vs that reference. */}
       <TableCell align="center" sx={{ textAlign: 'center' }}>
-        <Tooltip title="AI price estimate for this row — click to use it" disableInteractive enterDelay={300}>
+        <Tooltip title="AI price estimate for this row - click to use it" disableInteractive enterDelay={300}>
           <Typography
             variant="caption"
             component="button"
@@ -420,7 +420,7 @@ const ReviewRow = memo(function ReviewRow({
         </Tooltip>
       </TableCell>
       <TableCell align="center" sx={{ textAlign: 'center' }}>
-        <Tooltip title="Ideal price (retail-ratio formula) — click to use it" disableInteractive enterDelay={300}>
+        <Tooltip title="Ideal price (retail-ratio formula) - click to use it" disableInteractive enterDelay={300}>
           <Typography
             variant="caption"
             component="button"
@@ -483,7 +483,7 @@ export function PreprocessingReviewTable({
 
   const getRowByNumber = useCallback((n: number) => rowByNumber.get(n), [rowByNumber]);
 
-  // Client-side search over the full set — instant, no server round-trips.
+  // Client-side search over the full set - instant, no server round-trips.
   const haystacks = useMemo(() => {
     const map = new Map<number, string>();
     for (const r of rows) {
@@ -540,7 +540,7 @@ export function PreprocessingReviewTable({
     });
   }, [filteredRows, sort]);
 
-  // Live order economics — recomputed from the loaded rows + unsaved drafts.
+  // Live order economics - recomputed from the loaded rows + unsaved drafts.
   const stats = useMemo(() => {
     let retail = 0;
     let ai = 0;
@@ -632,7 +632,7 @@ export function PreprocessingReviewTable({
     });
   };
 
-  // Bulk ops target the CURRENT FILTER (no filter = whole order) — synchronously,
+  // Bulk ops target the CURRENT FILTER (no filter = whole order) - synchronously,
   // since the full row set is already client-side.
   const runBulkPriceOp = (label: string, priceRow: (row: PreprocessingReviewRow) => string | null, note: string) => {
     if (!filteredRows.length) {
@@ -652,7 +652,7 @@ export function PreprocessingReviewTable({
       priced += 1;
     }
     mergeIntoDrafts(updates);
-    setApplyMessage(`${label}: priced ${priced} row(s)${skipped ? ` · skipped ${skipped} with no base` : ''} — review then Save Changes`);
+    setApplyMessage(`${label}: priced ${priced} row(s)${skipped ? ` · skipped ${skipped} with no base` : ''} - review then Save Changes`);
   };
 
   const applyAiPrices = () =>
@@ -695,7 +695,7 @@ export function PreprocessingReviewTable({
       }
     }
     mergeIntoDrafts(updates);
-    setApplyMessage(`Set missing: priced ${priced} row(s) · ${alreadyPriced} already priced — review then Save Changes`);
+    setApplyMessage(`Set missing: priced ${priced} row(s) · ${alreadyPriced} already priced - review then Save Changes`);
   };
 
   // Target $ deliberately ignores the filter: scales every row's CURRENT price so the
@@ -720,8 +720,8 @@ export function PreprocessingReviewTable({
     const offBy = Math.round((target - result.achieved) * 100);
     setApplyMessage(
       `Target: priced ${result.priced} row(s) → total $${result.achieved.toLocaleString(undefined, { minimumFractionDigits: 2 })}` +
-      `${offBy === 0 ? ' (exact)' : ` (${offBy}¢ under — no qty-1 rows left to absorb it)`}` +
-      `${result.skipped ? ` · skipped ${result.skipped} with no price` : ''} — review then Save Changes`,
+      `${offBy === 0 ? ' (exact)' : ` (${offBy}¢ under - no qty-1 rows left to absorb it)`}` +
+      `${result.skipped ? ` · skipped ${result.skipped} with no price` : ''} - review then Save Changes`,
     );
   };
 
@@ -737,7 +737,7 @@ export function PreprocessingReviewTable({
     }
     mergeIntoDrafts(updates);
     setApplyMessage(
-      `Condition ${value === '__ai' ? 'reset to AI' : `= ${formatConditionLabel(value)}`} on ${filteredRows.length} row(s) — review then Save Changes`,
+      `Condition ${value === '__ai' ? 'reset to AI' : `= ${formatConditionLabel(value)}`} on ${filteredRows.length} row(s) - review then Save Changes`,
     );
   };
 
@@ -776,7 +776,7 @@ export function PreprocessingReviewTable({
         }}
       >
         <RichStatCard
-          label="Investment — Paid / Retail"
+          label="Investment - Paid / Retail"
           accent="#2D6A4F"
           tint="#EAF4EE"
           main={
@@ -835,13 +835,13 @@ export function PreprocessingReviewTable({
                   color: stats.profit == null ? '#90a4ae' : stats.profit >= 0 ? '#2D6A4F' : '#C62828',
                 }}
               >
-                → {stats.profit == null ? '—' : `${stats.profit >= 0 ? '+' : '−'}${fmtMoney0(Math.abs(stats.profit)).slice(0)}`} profit
+                → {stats.profit == null ? '-' : `${stats.profit >= 0 ? '+' : '−'}${fmtMoney0(Math.abs(stats.profit)).slice(0)}`} profit
               </Typography>
             </>
           }
           sub={
             <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: stats.roi == null ? '#90a4ae' : stats.roi >= 0 ? '#2D6A4F' : '#C62828' }}>
-              {stats.roi == null ? 'ROI —' : `ROI ${stats.roi >= 0 ? '+' : ''}${stats.roi.toFixed(0)}% on cash in`}
+              {stats.roi == null ? 'ROI -' : `ROI ${stats.roi >= 0 ? '+' : ''}${stats.roi.toFixed(0)}% on cash in`}
             </Typography>
           }
         />
@@ -851,7 +851,7 @@ export function PreprocessingReviewTable({
         <Stack spacing={1.25}>
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.25} alignItems={{ xs: 'stretch', md: 'center' }}>
             <TextField
-              placeholder="Search rows — title, brand, model, category, #…"
+              placeholder="Search rows - title, brand, model, category, #…"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               sx={{

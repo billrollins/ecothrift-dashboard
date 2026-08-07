@@ -72,9 +72,9 @@ export async function printProcessingLabelsStaggered(
       succeededItemIds: collectItemIds(items, result.printed),
     };
   } catch {
-    // Older print server exe — per-label fallback below.
+    // Older print server exe - per-label fallback below.
   }
-  // First label doubles as a health probe — if it fails, don't grind through
+  // First label doubles as a health probe - if it fails, don't grind through
   // the rest at 200ms apiece against a dead server.
   const succeededItemIds: number[] = [];
   const firstOk = await printProcessingLabel(items[0], priceOverride);

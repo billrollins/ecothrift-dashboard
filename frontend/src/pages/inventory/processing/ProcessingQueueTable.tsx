@@ -77,7 +77,7 @@ export interface ProcessingQueueTableProps {
   orderStatus: PurchaseOrderStatus;
   detailProcessingRowId: number | null;
   onOpenDetail: (processingRowId: number, options?: { scrollToHistory?: boolean }) => void;
-  /** Peer chip click — filter the queue to this row's matched product. */
+  /** Peer chip click - filter the queue to this row's matched product. */
   onFilterProduct?: (row: ProcessingWorkspaceRowDTO) => void;
   selectedRowIds?: Set<number>;
   onToggleRow?: (processingRowId: number) => void;
@@ -246,7 +246,7 @@ const ProcessingQueueRow = memo(function ProcessingQueueRow({
               variant="outlined"
               title={
                 onFilterProduct && r.productId != null ?
-                  `${peerTitle} — click to filter the queue to this product`
+                  `${peerTitle} - click to filter the queue to this product`
                 : peerTitle
               }
               sx={{
@@ -266,7 +266,7 @@ const ProcessingQueueRow = memo(function ProcessingQueueRow({
         </Box>
       </TableCell>
       <TableCell align="left" onClick={open}>
-        <Typography sx={{ fontSize: '0.72rem' }} noWrap title={categoryShown !== '—' ? categoryShown : undefined}>
+        <Typography sx={{ fontSize: '0.72rem' }} noWrap title={categoryShown !== '-' ? categoryShown : undefined}>
           {categoryShown}
         </Typography>
       </TableCell>
@@ -346,7 +346,7 @@ const ProcessingQueueRow = memo(function ProcessingQueueRow({
             <Chip
               size="small"
               label={productsChip}
-              title="Multiple products checked in on this row — click to review check-in history"
+              title="Multiple products checked in on this row - click to review check-in history"
               sx={{
                 height: 15,
                 fontSize: 8.5,
@@ -500,7 +500,7 @@ export function ProcessingQueueTable({
     [theme.typography.fontFamily],
   );
 
-  // Collapsed member rows stay hidden — the master row represents the group.
+  // Collapsed member rows stay hidden - the master row represents the group.
   const visibleRows = useMemo(() => rows.filter((r) => !r.collapseMasterId), [rows]);
   const showDeleteCol = useMemo(
     () => Boolean(onDeleteAddedRow) && visibleRows.some((r) => r.rowKind === 'added'),
@@ -652,7 +652,7 @@ export function ProcessingQueueTable({
                 </Typography>
               </Alert>
               <Typography variant="body2" color="text.secondary" gutterBottom sx={{ px: 1 }}>
-                Unexpected state because finalize normally creates bookmarks before you navigate here — contact support if this persists.
+                Unexpected state because finalize normally creates bookmarks before you navigate here - contact support if this persists.
               </Typography>
             </>
           : ['processing', 'delivered'].includes(orderStatus) ?
@@ -661,7 +661,7 @@ export function ProcessingQueueTable({
                 No processing lines yet
               </Typography>
               <Typography variant="body2">
-                Status is <strong>{orderStatus}</strong>. After the manifest uploads, finish preprocessing review and finalize — that
+                Status is <strong>{orderStatus}</strong>. After the manifest uploads, finish preprocessing review and finalize - that
                 creates bookmark rows instantly. Then return here and click <strong>Create Processing Data</strong> to generate
                 manifest rows and inventory items.
               </Typography>
@@ -867,7 +867,7 @@ export function ProcessingQueueTable({
           </TableHead>
           <TableBody>
             {paddingTop > 0 ?
-              // Dynamic height goes on `style`, not `sx` — every distinct sx value mints a
+              // Dynamic height goes on `style`, not `sx` - every distinct sx value mints a
               // permanent Emotion CSS rule, which accumulates across a day of scrolling.
               <TableRow aria-hidden style={{ height: paddingTop }} sx={{ pointerEvents: 'none', visibility: 'hidden' }}>
                 <TableCell colSpan={tableColumnCount} style={{ height: paddingTop }} sx={{ p: 0, border: 0 }} />

@@ -11,6 +11,10 @@ the dashboard host are unaffected.
 """
 from __future__ import annotations
 
+import re
+import time
+from decimal import Decimal
+
 from django.conf import settings
 from django.http import HttpResponse, HttpResponsePermanentRedirect
 from django.template.loader import render_to_string
@@ -23,6 +27,17 @@ _PASSTHROUGH_PATHS = ('/robots.txt', '/sitemap.xml')
 
 # Public landing template (Django-rendered; replaced by the public SPA in a later phase).
 _HOLDING_TEMPLATE = 'public/holding.html'
+_HOLD_SHELL_MARKER = '<!--PUBLIC_SHELL-->'
+_HOLD_PATH_RE = re.compile(r'^/hold/(?P<token>[\w-]+)/?$')
+
+# Homepage featured shell — avoid a DB hit on every public request.
+_HOME_SHELL_TTL_SECONDS = 60
+_home_shell_cache: tuple[str, float] | None = None
+
+# Keep in sync with FEATURED_MIN / FEATURED_SHOWN in frontend-public HomePage.tsx.
+HOME_FEATURED_MIN = 1
+# SPA pages through these; the shell stamps the first one for first paint.
+HOME_FEATURED_SHOWN = 8
 
 
 def rewrite_legacy_path(path: str) -> str | None:
@@ -126,9 +141,115 @@ class PublicSiteMiddleware:
             return HttpResponsePermanentRedirect(target)
 
         # Public site: serve the built SPA index.html if present, else the holding page.
-        return self._public_page_response()
+        return self._public_page_response(path)
 
-    def _public_page_response(self):
+    def _shell_html(self, path: str) -> str:
+        if path == '/':
+            return self._home_shell_html()
+        return self._hold_shell_html(path)
+
+    def _hold_shell_html(self, path: str) -> str:
+        """Stamp rail/headline/deadline/code into the SPA shell for /hold/*."""
+        match = _HOLD_PATH_RE.match(path or '')
+        if not match:
+            return ''
+        token = match.group('token')
+        try:
+            from apps.webstore.models import Reservation
+            from apps.webstore.services.hold_status import customer_view
+
+            reservation = (
+                Reservation.objects
+                .select_related('listing')
+                .prefetch_related('events')
+                .filter(status_token=token)
+                .first()
+            )
+            if reservation is None:
+                return ''
+            view = customer_view(reservation)
+            return render_to_string('public/hold_shell.html', {
+                'show_rail': view.get('stage', 0) > 0,
+                'stages': view.get('stages') or [],
+                'headline': view.get('headline') or '',
+                'customer_status': view.get('customer_status') or '',
+                'expires_label': view.get('expires_label') or '',
+                'expires_secondary': view.get('expires_secondary') or '',
+                'pickup_code': view.get('pickup_code') or '',
+                'next_step': view.get('next_step') or '',
+            })
+        except Exception:
+            return ''
+
+    def _home_shell_html(self) -> str:
+        """Stamp hero + arrivals into the SPA shell for `/`."""
+        global _home_shell_cache
+        now = time.monotonic()
+        if _home_shell_cache is not None:
+            html, expires_at = _home_shell_cache
+            if now < expires_at:
+                return html
+        try:
+            html = self._build_home_shell_html()
+        except Exception:
+            html = ''
+        _home_shell_cache = (html, now + _HOME_SHELL_TTL_SECONDS)
+        return html
+
+    def _build_home_shell_html(self) -> str:
+        from django.db.models import Exists, F, OuterRef
+
+        from apps.webstore.models import WebListing, WebListingImage
+        from apps.webstore.services.feature import online_sales_enabled
+
+        online = online_sales_enabled()
+
+        def _intro_only() -> str:
+            return render_to_string('public/home_shell.html', {
+                'show_featured': False,
+                'online_enabled': online,
+                'items': [],
+            })
+
+        if not online:
+            return _intro_only()
+
+        has_image = Exists(
+            WebListingImage.objects.filter(listing_id=OuterRef('pk')),
+        )
+        # Mirrors the client fetch: sort=featured, available only, photos required.
+        listings = list(
+            WebListing.objects
+            .filter(status='published', on_hand__gt=F('reserved'))
+            .annotate(has_image=has_image)
+            .filter(has_image=True)
+            .prefetch_related('images')
+            .order_by('-featured', '-created_at')[:HOME_FEATURED_SHOWN]
+        )
+
+        items = []
+        for listing in listings:
+            images = list(listing.images.all()[:1])
+            if not images:
+                continue
+            image = images[0]
+            items.append({
+                'slug': listing.slug,
+                'title': listing.title,
+                'image_url': f'/api/webstore/images/{image.id}/',
+                'price_label': _format_money(listing.price),
+            })
+
+        if len(items) < HOME_FEATURED_MIN:
+            return _intro_only()
+
+        return render_to_string('public/home_shell.html', {
+            'show_featured': True,
+            'online_enabled': True,
+            'items': items,
+        })
+
+    def _public_page_response(self, path: str = '/'):
         if self.index_path:
             if self._index_html is None:
                 try:
@@ -137,6 +258,21 @@ class PublicSiteMiddleware:
                 except OSError:
                     self._index_html = ''
             if self._index_html:
-                return HttpResponse(self._index_html)
+                html = self._index_html
+                if _HOLD_SHELL_MARKER in html:
+                    shell = self._shell_html(path)
+                    html = html.replace(_HOLD_SHELL_MARKER, shell, 1)
+                return HttpResponse(html)
         # No public build (e.g. local dev): fall back to the holding page.
         return HttpResponse(render_to_string(_HOLDING_TEMPLATE))
+
+
+def _format_money(value) -> str:
+    try:
+        amount = Decimal(value)
+    except Exception:
+        return '$0'
+    quantized = amount.quantize(Decimal('0.01'))
+    if quantized == quantized.to_integral():
+        return f'${int(quantized)}'
+    return f'${quantized:.2f}'

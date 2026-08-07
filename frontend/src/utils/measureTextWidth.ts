@@ -1,6 +1,6 @@
 let canvasEl: HTMLCanvasElement | null = null;
 
-/** Memoized widths keyed by `font + ' ' + text` — called ~10x per row per layout pass. */
+/** Memoized widths keyed by `font + ' ' + text` - called ~10x per row per layout pass. */
 const widthCache = new Map<string, number>();
 const WIDTH_CACHE_MAX_ENTRIES = 20_000;
 

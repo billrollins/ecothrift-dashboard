@@ -1,7 +1,7 @@
 /**
  * Floorplan file export/import.
  *
- * Export format is JSON — the plan document is natively JSON, so JSON gives
+ * Export format is JSON - the plan document is natively JSON, so JSON gives
  * exact round-trip fidelity. Import additionally accepts YAML (handy for
  * hand-written or AI-generated layouts). Imported documents are normalized:
  * missing collections default to empty, missing object ids are generated,

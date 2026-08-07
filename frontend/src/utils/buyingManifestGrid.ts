@@ -1,6 +1,6 @@
 import type { GridSortModel } from '@mui/x-data-grid';
 
-/** Default manifest grid sort — matches backend default (`row_number` ascending). */
+/** Default manifest grid sort - matches backend default (`row_number` ascending). */
 export const MANIFEST_ROWS_DEFAULT_ORDERING = 'row_number';
 
 const MANIFEST_ORDERING_FIELDS = [

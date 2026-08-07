@@ -36,9 +36,9 @@ const ITEM_STATUSES: ItemStatus[] = [
 ];
 
 function formatCurrency(value: string | null): string {
-  if (value == null) return '—';
+  if (value == null) return '-';
   const n = parseFloat(value);
-  return Number.isNaN(n) ? '—' : `$${n.toFixed(2)}`;
+  return Number.isNaN(n) ? '-' : `$${n.toFixed(2)}`;
 }
 
 function isRecentlyAdded(row: Item, recent: Set<number>): boolean {

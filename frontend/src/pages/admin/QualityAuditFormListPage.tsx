@@ -72,7 +72,7 @@ export default function QualityAuditFormListPage() {
       const { data } = await getQualityAuditForm(form.id);
       downloadQaForm(data, format);
     } catch {
-      enqueueSnackbar('Export failed — could not load the form.', { variant: 'error' });
+      enqueueSnackbar('Export failed - could not load the form.', { variant: 'error' });
     }
   }
 
@@ -263,7 +263,7 @@ export default function QualityAuditFormListPage() {
           </Card>
         ))}
         {forms && forms.length === 0 ? (
-          <Alert severity="info">No forms yet — create one or import a JSON/YAML file.</Alert>
+          <Alert severity="info">No forms yet - create one or import a JSON/YAML file.</Alert>
         ) : null}
       </Stack>
 

@@ -239,7 +239,7 @@ export function CompactReadOnlyMetricField({
           fontFamily: mono ? processingTokens.monoFontFamily : undefined,
         }}
       >
-        {value || '—'}
+        {value || '-'}
       </Typography>
     </Box>
   );
@@ -605,7 +605,7 @@ function CheckInMoneyField({
   );
 }
 
-/** Fixed-height row above the bordered form — left/right slots with spacer between. */
+/** Fixed-height row above the bordered form - left/right slots with spacer between. */
 export function CheckInFormActionRow({ left, right }: { left?: ReactNode; right?: ReactNode }) {
   return (
     <Stack
@@ -757,7 +757,7 @@ export interface CheckInDetailFieldsSectionProps {
   onRetailChange: (value: string) => void;
   condition: ItemCondition;
   onConditionChange: (value: ItemCondition) => void;
-  /** Item edit only — hidden on check-in flows (status is system-driven). */
+  /** Item edit only - hidden on check-in flows (status is system-driven). */
   status?: ItemStatus;
   onStatusChange?: (value: ItemStatus) => void;
   dispatch: string;
@@ -768,11 +768,11 @@ export interface CheckInDetailFieldsSectionProps {
   onNotesChange: (value: string) => void;
   specsHelperText?: string | null;
   disabled?: boolean;
-  /** Amber outline on required fields (price) until valid — for new/duplicate check-in. */
+  /** Amber outline on required fields (price) until valid - for new/duplicate check-in. */
   highlightRequired?: boolean;
 }
 
-/** Bordered form section — matches product edit detail layout. */
+/** Bordered form section - matches product edit detail layout. */
 export function CheckInDetailFieldsSection({
   price,
   onPriceChange,

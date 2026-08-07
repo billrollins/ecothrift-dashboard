@@ -179,7 +179,7 @@ export const TARS_TEST_PACKS: TarsTestPackCatalogEntry[] = [
 /**
  * These are decision stop-outs, not a broad safety checklist. A blocked response
  * constrains the paths listed here and cannot be bypassed with an ordinary override.
- * Cockpit UX does not show a Stops step — unanswered is treated as clear.
+ * Cockpit UX does not show a Stops step - unanswered is treated as clear.
  */
 export const TARS_MANDATORY_STOP_OUTS: TarsStopOutCatalogEntry[] = [
   {

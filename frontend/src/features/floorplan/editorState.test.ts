@@ -560,7 +560,7 @@ describe('scaleObjects with a kind catalog', () => {
     doc = addElement(doc, { ...el('shelf', 0, 0), kind: 'binTable', w: 96, h: 6 });
     const next = scaleObjects(doc, [{ kind: 'element', id: 'shelf' }], { x: 0, y: 0 }, 2, 2, 2, wallIndex);
     expect(next.elements[0].w).toBe(192);
-    expect(next.elements[0].h).toBe(12); // scales — catalog overrides the aspect guess
+    expect(next.elements[0].h).toBe(12); // scales - catalog overrides the aspect guess
   });
 });
 

@@ -115,7 +115,7 @@ export function ProcessingTransformDialog({
     const base = (row.title || `Row ${row.rowNum}`).trim();
     if (isBreakApart) return `${base} (single)`;
     const setLabel = setSize && setSize >= 2 ? String(setSize) : (setSizeRaw.trim() || 'N');
-    return `${base} — Set of ${setLabel}`;
+    return `${base} - Set of ${setLabel}`;
   }, [isBreakApart, row.title, row.rowNum, setSize, setSizeRaw]);
 
   useEffect(() => {
@@ -125,7 +125,7 @@ export function ProcessingTransformDialog({
 
   const resolvedNewTitle = newTitle.trim() || suggestedNewTitle.trim();
 
-  // Expected is an ESTIMATE — the user may transform more units than the manifest
+  // Expected is an ESTIMATE - the user may transform more units than the manifest
   // expected (extra received). Over-expected is a warning, never a blocker; the
   // server re-derives Expected from what they actually do.
   const checkedIn = Math.max(0, (row.qty ?? 0) - available);
@@ -182,7 +182,7 @@ export function ProcessingTransformDialog({
 
   return (
     <Dialog open={open} onClose={loading ? undefined : onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{isBreakApart ? 'Break apart' : 'Make set'} — row {row.rowNum}</DialogTitle>
+      <DialogTitle>{isBreakApart ? 'Break apart' : 'Make set'} - row {row.rowNum}</DialogTitle>
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 0.5 }}>
           <Typography variant="body2" color="text.secondary">
@@ -239,7 +239,7 @@ export function ProcessingTransformDialog({
             <Alert severity={math.over > 0 ? 'warning' : 'info'} sx={{ py: 0.25 }}>
               {math.line}
               {math.over > 0
-                ? ` Uses ${math.over.toLocaleString()} more unit(s) than expected — fine if you received extra; Expected will update.`
+                ? ` Uses ${math.over.toLocaleString()} more unit(s) than expected - fine if you received extra; Expected will update.`
                 : ''}
             </Alert>
           ) : null}
@@ -281,7 +281,7 @@ export function ProcessingTransformDialog({
                 setNewTitleTouched(true);
                 setNewTitle(e.target.value);
               }}
-              helperText="Pre-filled from the row — edit or submit as-is."
+              helperText="Pre-filled from the row - edit or submit as-is."
             />
           ) : null}
 
@@ -316,7 +316,7 @@ export interface ProcessingRestartRowDialogProps {
   onConfirm: () => Promise<void>;
 }
 
-/** Coarse v1 undo confirm — the server already vetoed sold/cart-referenced families. */
+/** Coarse v1 undo confirm - the server already vetoed sold/cart-referenced families. */
 export function ProcessingRestartRowDialog({
   open,
   summary,
@@ -337,11 +337,11 @@ export function ProcessingRestartRowDialog({
           <Typography variant="body2">
             • Deletes <b>{summary?.item_count ?? 0}</b> item(s)
             {summary?.disputed_count ? ` (including ${summary.disputed_count} disputed)` : ''} and
-            removes sub row(s) {summary?.sub_row_numbers.length ? summary.sub_row_numbers.join(', ') : '—'}.
+            removes sub row(s) {summary?.sub_row_numbers.length ? summary.sub_row_numbers.join(', ') : '-'}.
           </Typography>
           {summary?.on_shelf_count ? (
             <Typography variant="body2" color="error">
-              • {summary.on_shelf_count} item(s) are ON THE SHELF — pull these tags from the floor:{' '}
+              • {summary.on_shelf_count} item(s) are ON THE SHELF - pull these tags from the floor:{' '}
               {skus.join(', ')}
               {summary.on_shelf_count > skus.length ? ` +${summary.on_shelf_count - skus.length} more` : ''}
             </Typography>

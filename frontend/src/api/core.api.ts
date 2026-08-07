@@ -1,7 +1,7 @@
 import type { PaginatedResponse } from '../types/index';
 import api from './client';
 
-/** Work location (store) — matches `WorkLocation` on the backend */
+/** Work location (store) - matches `WorkLocation` on the backend */
 export interface WorkLocation {
   id: number;
   name: string;
@@ -64,7 +64,7 @@ export function getPrintServerReleases(): Promise<{ data: unknown[] }> {
   return api.get('/core/system/print-server-releases/');
 }
 
-/** DEBUG only — resolved targets from `.ai/debug/log.config` */
+/** DEBUG only - resolved targets from `.ai/debug/log.config` */
 export interface DevLogConfigResponse {
   enabled: boolean;
   areas: Record<string, string[]>;

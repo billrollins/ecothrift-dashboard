@@ -1,9 +1,9 @@
 /**
- * Step 1 preprocessing diagnostics — logs whenever `import.meta.env.DEV` is true.
+ * Step 1 preprocessing diagnostics - logs whenever `import.meta.env.DEV` is true.
  * Filter DevTools console: `[Preprocessing:S1]`
  *
  * Payloads are JSON-stringified into the same log line so copy/paste and narrow
- * consoles show numbers — not a collapsed `Object`.
+ * consoles show numbers - not a collapsed `Object`.
  */
 
 function stringifyPrepPayload(data: unknown): string {

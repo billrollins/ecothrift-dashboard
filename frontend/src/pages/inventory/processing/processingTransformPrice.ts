@@ -39,11 +39,11 @@ export function transformPriceHelperText(
       return 'Enter subitems per unit to calculate price per subitem from the row price.';
     }
     const each = rowPrice / factor;
-    return `${formatCurrency(rowPrice)} ÷ ${factor.toLocaleString()} subitems = ${formatCurrency(each)} per subitem — edit or submit as-is.`;
+    return `${formatCurrency(rowPrice)} ÷ ${factor.toLocaleString()} subitems = ${formatCurrency(each)} per subitem - edit or submit as-is.`;
   }
   if (!setSize || setSize < 2) {
     return 'Enter set size to calculate price per set from the row price.';
   }
   const perSet = rowPrice * setSize;
-  return `${formatCurrency(rowPrice)} × ${setSize.toLocaleString()} units/set = ${formatCurrency(perSet)} per set — edit or submit as-is.`;
+  return `${formatCurrency(rowPrice)} × ${setSize.toLocaleString()} units/set = ${formatCurrency(perSet)} per set - edit or submit as-is.`;
 }

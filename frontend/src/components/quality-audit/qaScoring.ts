@@ -129,7 +129,7 @@ export function formatCheckResult(result: QualityCheckResult): string {
   if (result === 'pass') return 'Pass';
   if (result === 'fail') return 'Fail';
   if (result === 'na') return 'N/A';
-  return '—';
+  return '-';
 }
 
 const RESULT_COLORS: Record<QualityCheckResult, 'success' | 'error' | 'neutral' | 'warning'> = {

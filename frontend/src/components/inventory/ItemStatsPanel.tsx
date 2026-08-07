@@ -4,7 +4,7 @@ import { useItemStats } from '../../hooks/useInventory';
 
 function fmtPct(rate: string): string {
   const n = parseFloat(rate);
-  if (Number.isNaN(n)) return '—';
+  if (Number.isNaN(n)) return '-';
   return `${(n * 100).toFixed(2)}%`;
 }
 

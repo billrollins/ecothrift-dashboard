@@ -210,7 +210,7 @@ export function EcoFieldRunShell({ day, run, canManage }: Props) {
     setUiStep(step);
   };
 
-  /** Step transitions the driver just committed — they ride the live edge again. */
+  /** Step transitions the driver just committed - they ride the live edge again. */
   const advanceToStep = (step: FieldUiStep) => {
     manualStepRef.current = false;
     setUiStep(step);

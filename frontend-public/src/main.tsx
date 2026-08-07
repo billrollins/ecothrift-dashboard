@@ -7,7 +7,7 @@ import { CartProvider } from './cart'
 import { OnlineSalesConfigProvider } from './onlineSalesConfig'
 import './styles.css'
 
-// Optional, privacy-friendly analytics — off unless VITE_PLAUSIBLE_DOMAIN is set
+// Optional, privacy-friendly analytics - off unless VITE_PLAUSIBLE_DOMAIN is set
 // at build time (e.g. `VITE_PLAUSIBLE_DOMAIN=ecothrift.us`). No-op otherwise.
 const plausibleDomain = import.meta.env.VITE_PLAUSIBLE_DOMAIN
 if (plausibleDomain) {

@@ -31,7 +31,7 @@ describe('queueTitleText (P7 collapse)', () => {
   });
 
   it('empty title falls back to em dash', () => {
-    expect(queueTitleText({ title: '' })).toBe('—');
+    expect(queueTitleText({ title: '' })).toBe('-');
   });
 });
 
@@ -70,7 +70,7 @@ describe('effectiveRowQty (P7 collapse)', () => {
     });
   });
 
-  it("master uses COMBINED group totals — the owner's 5/3/7 group reads Expected 15", () => {
+  it("master uses COMBINED group totals - the owner's 5/3/7 group reads Expected 15", () => {
     // Master's own row is 5/5 (filled first), but the group has 10 left.
     expect(effectiveRowQty({ qty: 5, qtyDispositioned: 5, qtyRemaining: 0, collapsedGroup: group })).toEqual({
       qty: 15,

@@ -325,7 +325,7 @@ export function DeliveryDetailsModal({
           <Box>
             <Stack direction="row" spacing={0.75} alignItems="flex-start">
               <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }}>
-                {currentAddress || '—'}
+                {currentAddress || '-'}
                 {pendingAddress ? ' (pending)' : ''}
               </Typography>
               {addressCorrected && (
@@ -654,7 +654,7 @@ export function DeliveryDetailsModal({
                         }
                   }
                 >
-                  {notes.trim() || '—'}
+                  {notes.trim() || '-'}
                 </Typography>
               )}
               {!notesExpanded && notes.trim().length > 120 && (
@@ -680,7 +680,7 @@ export function DeliveryDetailsModal({
               >
                 {daySlots.map((s) => (
                   <MenuItem key={s.id} value={s.id}>
-                    {s.date.slice(5)} · {String(s.time_start).slice(0, 5)}–{String(s.time_end).slice(0, 5)}
+                    {s.date.slice(5)} · {String(s.time_start).slice(0, 5)}-{String(s.time_end).slice(0, 5)}
                   </MenuItem>
                 ))}
               </Select>
@@ -914,5 +914,5 @@ export function DeliveryDetailsModal({
   );
 }
 
-/** @deprecated Use DeliveryDetailsModal — kept as alias during rename. */
+/** @deprecated Use DeliveryDetailsModal - kept as alias during rename. */
 export const DeliveryDetailsDrawer = DeliveryDetailsModal;

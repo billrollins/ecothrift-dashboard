@@ -6,7 +6,7 @@ import type {
   TarsWorkSession,
 } from './tarsWorkTypes';
 
-/** @deprecated Legacy single fees bucket — shown as a normal order if present. */
+/** @deprecated Legacy single fees bucket - shown as a normal order if present. */
 export const PARTS_ORDER_FEES_SUPPLIER = 'Order fees';
 export const PARTS_DRAWER_WIDTH = 740;
 

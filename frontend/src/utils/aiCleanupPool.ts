@@ -2,7 +2,7 @@
  * Browser-side worker pool for web AI cleanup batches.
  *
  * Architecture: workspace/ai-cleanup-grok/FABLE_REVIEW_offline_vs_webui_ai_cleanup.md
- * § Fable 5 verdict — parallelism lives in the browser as many small POSTs
+ * § Fable 5 verdict - parallelism lives in the browser as many small POSTs
  * (concurrency default 4, cap 8), never inside one long Django request.
  * Mirrors runPool() + per-batch retry from the offline Grok harness.
  */
@@ -10,7 +10,7 @@
 // Smaller batches stay under the 25s API timeout for slower models (e.g. gemini-3.5-flash).
 export const AI_CLEANUP_DEFAULT_BATCH_SIZE = 10;
 export const AI_CLEANUP_BATCH_SIZE_OPTIONS = [5, 10, 20] as const;
-/** @deprecated Use AI_CLEANUP_DEFAULT_BATCH_SIZE — kept for tests/imports */
+/** @deprecated Use AI_CLEANUP_DEFAULT_BATCH_SIZE - kept for tests/imports */
 export const AI_CLEANUP_BATCH_SIZE = AI_CLEANUP_DEFAULT_BATCH_SIZE;
 export const AI_CLEANUP_DEFAULT_CONCURRENCY = 4;
 export const AI_CLEANUP_MAX_CONCURRENCY = 8;
@@ -21,7 +21,7 @@ export interface CleanupBatchResult {
   rowsSaved: number;
   /** Server discarded these rows (bad echo / empty title); they stay uncleaned. */
   discarded: number;
-  /** Generation bump (undo/cancel) — pool must stop. */
+  /** Generation bump (undo/cancel) - pool must stop. */
   cancelled: boolean;
   error?: string;
 }
@@ -60,7 +60,7 @@ function sleep(ms: number): Promise<void> {
  *
  * - `runBatch` posts one batch and resolves to its result; it should throw on
  *   network/5xx errors (the pool retries up to AI_CLEANUP_MAX_BATCH_RETRIES with backoff).
- * - `isPaused()` is checked before each batch claim — in-flight batches finish,
+ * - `isPaused()` is checked before each batch claim - in-flight batches finish,
  *   no new ones start (client-side pause; nothing to undo server-side).
  * - A `cancelled: true` result (ai_cleanup_generation bump) stops the whole pool.
  */

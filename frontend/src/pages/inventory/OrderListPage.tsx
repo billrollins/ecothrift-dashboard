@@ -162,7 +162,7 @@ export default function OrderListPage() {
     if (!st) return;
     if (st.openCreatePo) setNewOpen(true);
     if (st.receiveError) {
-      enqueueSnackbar('Could not open receiving — try again from an order.', { variant: 'error' });
+      enqueueSnackbar('Could not open receiving - try again from an order.', { variant: 'error' });
     }
     if (st.receiveEmpty) {
       enqueueSnackbar('No orders are waiting to be received.', { variant: 'info' });
@@ -369,10 +369,10 @@ export default function OrderListPage() {
               variant={isDelivered90to60Active(state) ? 'contained' : 'outlined'}
               onClick={() => setState((s) => applyDelivered90to60(s))}
               sx={isDelivered90to60Active(state) ? QUICK_FILTER_ACTIVE_SX : QUICK_FILTER_IDLE_SX}
-              title="Orders delivered 90–60 days ago"
+              title="Orders delivered 90-60 days ago"
               aria-pressed={isDelivered90to60Active(state)}
             >
-              90–60
+              90-60
             </Button>
             <Button
               size="small"

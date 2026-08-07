@@ -1,4 +1,4 @@
-"""Online Sales system emails — exactly three transactional messages.
+"""Online Sales system emails - exactly three transactional messages.
 
 Send as retail@ecothrift.us / Eco-Thrift. Best-effort: callers must use
 fail_silently paths so mail never rolls back a hold or reply.
@@ -76,18 +76,112 @@ def send_sign_in_link(*, email: str, magic_link: str) -> bool:
         f'Sign in to Eco-Thrift Online Sales:\n\n'
         f'{magic_link}\n\n'
         f'This link is single-use and expires soon. If you did not request it, ignore this email.\n\n'
-        f'— Eco-Thrift\n{PICKUP_ADDRESS} · {PICKUP_PHONE}'
+        f'- Eco-Thrift\n{PICKUP_ADDRESS} · {PICKUP_PHONE}'
     )
     return _send('Your Eco-Thrift sign-in link', body, email)
 
 
-def send_hold_confirmed(reservation: 'Reservation') -> bool:
-    """Customer: hold confirmed — pickup window, address, hours, policy."""
-    if reservation.expires_at:
-        expires = reservation.expires_at.strftime('%a %b %d, %Y %I:%M %p')
-    else:
-        expires = 'store close on the next business day'
+def send_email_verification(*, email: str, magic_link: str) -> bool:
+    """Confirm ownership of an email for a customer account."""
+    body = (
+        f'Confirm your Eco-Thrift email:\n\n'
+        f'{magic_link}\n\n'
+        f'This link is single-use and expires soon. If you did not create an account, ignore this email.\n\n'
+        f'- Eco-Thrift\n{PICKUP_ADDRESS} · {PICKUP_PHONE}'
+    )
+    return _send('Confirm your Eco-Thrift email', body, email)
 
+
+def send_password_reset_link(*, email: str, magic_link: str) -> bool:
+    """Customer password reset - clicking unsets the password so they can set a new one."""
+    body = (
+        f'Reset your Eco-Thrift password:\n\n'
+        f'{magic_link}\n\n'
+        f'After you open the link you can add a new password. '
+        f'This link is single-use and expires soon. If you did not request it, ignore this email.\n\n'
+        f'- Eco-Thrift\n{PICKUP_ADDRESS} · {PICKUP_PHONE}'
+    )
+    return _send('Reset your Eco-Thrift password', body, email)
+
+
+def send_hold_verification(
+    reservation: 'Reservation',
+    *,
+    confirm_link: str = '',
+    code: str = '',
+    magic_link: str = '',
+) -> bool:
+    """Upgrade email: code + link to keep the hold 3 open days. No logistics yet.
+
+    ``magic_link`` is accepted as a deprecated alias for ``confirm_link`` so
+    in-flight call sites and older tests keep working during the cutover.
+    """
+    from apps.webstore.services.hours import confirmed_expiry
+    from apps.webstore.services.hold_status import _fmt_day_abbrev
+
+    link = (confirm_link or magic_link or '').strip()
+    title = reservation.listing.title if reservation.listing_id else 'your item'
+    status_url = f'{_public_base()}/hold/{reservation.status_token}'
+    until = _fmt_day_abbrev(confirmed_expiry())
+    try:
+        conversation = reservation.conversation
+    except Exception:
+        conversation = None
+    marker = ''
+    headers = None
+    if conversation:
+        marker, headers = _thread_headers(conversation)
+
+    code_line = f'Your confirmation code: {code}\n\n' if code else ''
+    link_line = f'Or open this link to confirm:\n{link}\n\n' if link else ''
+    body = (
+        f'Hi {reservation.customer_name},\n\n'
+        f'Your item is held - “{title}”.\n\n'
+        f'{code_line}'
+        f'{link_line}'
+        f'Confirm to keep it until {until}.\n\n'
+        f'Status page: {status_url}\n\n'
+        f'If you did not request this, ignore the email and the hold will end.\n\n'
+        f'- Eco-Thrift'
+    )
+    return _send(
+        f'{marker} Keep your hold until {until}: {title}'.strip(),
+        body,
+        reservation.email,
+        headers=headers,
+    )
+
+
+def send_inquiry_verification(conversation: 'Conversation', *, magic_link: str) -> bool:
+    """Guest must confirm email before an ask-about-item reaches staff."""
+    email = (conversation.guest_email or '').strip()
+    if not email:
+        return False
+    title = conversation.listing.title if conversation.listing_id else 'your question'
+    marker, headers = _thread_headers(conversation)
+    body = (
+        f'Hi {conversation.guest_name or "there"},\n\n'
+        f'Confirm your email so we can answer your question about “{title}”:\n\n'
+        f'{magic_link}\n\n'
+        f'This link is single-use and expires soon. If you did not send a message, ignore this email.\n\n'
+        f'- Eco-Thrift\n{PICKUP_ADDRESS} · {PICKUP_PHONE}'
+    )
+    return _send(
+        f'{marker} Confirm your message: {title}'.strip(),
+        body,
+        email,
+        headers=headers,
+    )
+
+
+def send_hold_confirmed(reservation: 'Reservation') -> bool:
+    """Customer: email verified - come in any time with your code (logistics OK now)."""
+    from apps.webstore.services.hold_status import _fmt_day_short, format_hold_deadline
+
+    deadline = format_hold_deadline(reservation.expires_at)
+    until = _fmt_day_short(reservation.expires_at) if reservation.expires_at else 'your hold window'
+    code = (getattr(reservation, 'pickup_code', None) or '').strip()
+    title = reservation.listing.title if reservation.listing_id else 'your item'
     status_url = f'{_public_base()}/hold/{reservation.status_token}'
     try:
         conversation = reservation.conversation
@@ -98,35 +192,148 @@ def send_hold_confirmed(reservation: 'Reservation') -> bool:
     if conversation:
         marker, headers = _thread_headers(conversation)
 
-    html_body = ''
-    try:
-        from apps.mailbox.rendering import render_email_template
-        from apps.mailbox.sanitize import email_html_to_text
-
-        subject, html_body = render_email_template('hold_confirmed', {
-            'customer_name': reservation.customer_name,
-            'listing_title': reservation.listing.title,
-            'pickup_by': expires,
-            'store_address': PICKUP_ADDRESS,
-            'hold_link': status_url,
-        })
-        body = email_html_to_text(html_body)
-    except Exception:
-        subject = f'Hold confirmed: {reservation.listing.title}'
-        body = (
-            f'Hi {reservation.customer_name},\n\n'
-            f'Your hold is confirmed for “{reservation.listing.title}” '
-            f'(qty {reservation.quantity}).\n\n'
-            f'Pick up at {PICKUP_ADDRESS}\n{PICKUP_PHONE}\n\n'
-            f'Hold expires: {expires}\nStatus link: {status_url}\n\n'
-            f'Pay in store at pickup. No shipping, delivery, or online payment. '
-            f'Items are typically final sale.\n\n— Eco-Thrift'
-        )
+    code_line = f'\nShow this code at the counter: {code}\n' if code else '\n'
+    subject = f'Held for you until {until}: {title}'
+    body = (
+        f'Hi {reservation.customer_name},\n\n'
+        f'“{title}” is held for you until {until}.\n'
+        f'{deadline["lead"]}'
+        + (f' ({deadline["secondary"]})' if deadline.get('secondary') else '')
+        + f'.\n'
+        f'{code_line}'
+        f'Come in any time before then.\n'
+        f'Pick up at {PICKUP_ADDRESS}\n{PICKUP_PHONE}\n'
+        f'Pay in store - cash or card.\n'
+        f'Status: {status_url}\n\n'
+        f'- Eco-Thrift'
+    )
     return _send(
         f'{marker} {subject}'.strip(),
         body,
         reservation.email,
-        html_body=html_body,
+        headers=headers,
+    )
+
+
+def send_hold_ready(reservation: 'Reservation') -> bool:
+    """Customer: bonus - already bagged. Not a newly opened door."""
+    from apps.webstore.services.hold_status import _fmt_day_short, format_hold_deadline
+
+    deadline = format_hold_deadline(reservation.expires_at)
+    until = _fmt_day_short(reservation.expires_at) if reservation.expires_at else 'your hold window'
+    code = (getattr(reservation, 'pickup_code', None) or '').strip()
+    status_url = f'{_public_base()}/hold/{reservation.status_token}'
+    try:
+        conversation = reservation.conversation
+    except Exception:
+        conversation = None
+    marker = ''
+    headers = None
+    if conversation:
+        marker, headers = _thread_headers(conversation)
+
+    title = reservation.listing.title if reservation.listing_id else 'your item'
+    subject = f"It's bagged and waiting: {title}"
+    code_line = f'\nShow this code at the counter: {code}\n' if code else '\n'
+    body = (
+        f'Hi {reservation.customer_name},\n\n'
+        f'“{title}” is already bagged and waiting for you.\n'
+        f'{deadline["lead"]}'
+        + (f' ({deadline["secondary"]})' if deadline.get('secondary') else '')
+        + f'. Pick up by {until}.\n'
+        f'{code_line}'
+        f'{PICKUP_ADDRESS}\n{PICKUP_PHONE}\n'
+        f'Pay in store - cash or card.\n'
+        f'Status: {status_url}\n\n'
+        f'- Eco-Thrift'
+    )
+    return _send(
+        f'{marker} {subject}'.strip(),
+        body,
+        reservation.email,
+        headers=headers,
+    )
+
+
+def send_hold_reopened(reservation: 'Reservation') -> bool:
+    """Customer: a released hold is active again and back to Approved."""
+    if reservation.expires_at:
+        expires = reservation.expires_at.strftime('%a %b %d, %Y %I:%M %p')
+    else:
+        expires = 'store close on the next business day'
+
+    title = reservation.listing.title if reservation.listing_id else 'your item'
+    status_url = f'{_public_base()}/hold/{reservation.status_token}'
+    try:
+        conversation = reservation.conversation
+    except Exception:
+        conversation = None
+    marker = ''
+    headers = None
+    if conversation:
+        marker, headers = _thread_headers(conversation)
+
+    code = (getattr(reservation, 'pickup_code', None) or '').strip()
+    code_line = f'\nShow this code at the counter: {code}\n' if code else '\n'
+    body = (
+        f'Hi {reservation.customer_name},\n\n'
+        f'Good news - your hold for “{title}” (qty {reservation.quantity}) '
+        f'is active again.\n'
+        f'{code_line}'
+        f'Come in any time before it expires and show your code.\n\n'
+        f'Pick up at {PICKUP_ADDRESS}\n{PICKUP_PHONE}\n'
+        f'Hold expires: {expires}\n'
+        f'Status link: {status_url}\n\n'
+        f'Pay in store at pickup. No shipping, delivery, or online payment.\n\n- Eco-Thrift'
+    )
+    return _send(
+        f'{marker} Hold reopened: {title}'.strip(),
+        body,
+        reservation.email,
+        headers=headers,
+    )
+
+
+def send_hold_released(reservation: 'Reservation') -> bool:
+    """Customer: hold declined, cancelled, or expired - include reason when present."""
+    status = reservation.status
+    if status not in ('declined', 'cancelled', 'expired'):
+        return False
+    title = reservation.listing.title if reservation.listing_id else 'your item'
+    reason = (reservation.release_reason or '').strip()
+    status_url = f'{_public_base()}/hold/{reservation.status_token}'
+    try:
+        conversation = reservation.conversation
+    except Exception:
+        conversation = None
+    marker = ''
+    headers = None
+    if conversation:
+        marker, headers = _thread_headers(conversation)
+
+    if status == 'declined':
+        subject = f'Hold declined: {title}'
+        lead = f'Your hold request for “{title}” was declined.'
+    elif status == 'cancelled':
+        subject = f'Hold cancelled: {title}'
+        lead = f'Your hold for “{title}” was cancelled.'
+    else:
+        subject = f'Hold expired: {title}'
+        lead = (
+            f'Your hold for “{title}” expired and the item went back on sale.'
+        )
+    reason_line = f'\nReason: {reason}\n' if reason else '\n'
+    body = (
+        f'Hi {reservation.customer_name},\n\n'
+        f'{lead}'
+        f'{reason_line}'
+        f'Status link: {status_url}\n\n'
+        f'- Eco-Thrift\n{PICKUP_ADDRESS} · {PICKUP_PHONE}'
+    )
+    return _send(
+        f'{marker} {subject}'.strip(),
+        body,
+        reservation.email,
         headers=headers,
     )
 
@@ -157,7 +364,7 @@ def send_you_have_a_reply(
             else f'Eco-Thrift replied about “{title}”.\n\n'
         )
         + f'View the conversation: {link}\n\n'
-        f'— Eco-Thrift\n{PICKUP_ADDRESS} · {PICKUP_PHONE}'
+        f'- Eco-Thrift\n{PICKUP_ADDRESS} · {PICKUP_PHONE}'
     )
     marker, headers = _thread_headers(conversation)
     return _send(

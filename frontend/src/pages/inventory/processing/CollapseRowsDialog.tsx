@@ -32,7 +32,7 @@ export function CollapseRowsDialog({
 }: CollapseRowsDialogProps) {
   const ordered = sortedRows(rows);
   const master = ordered[0];
-  const masterLabel = master ? `#${master.rowNum} ${queueTitleText(master)}` : '—';
+  const masterLabel = master ? `#${master.rowNum} ${queueTitleText(master)}` : '-';
 
   async function handleConfirm() {
     const ok = await onConfirm();
@@ -46,12 +46,12 @@ export function CollapseRowsDialog({
         <Stack spacing={1.5} sx={{ pt: 0.5 }}>
           <Typography variant="body2" color="text.secondary">
             These {rows.length} rows will act as one group in the queue. You do not pick a single shared
-            product — every attached product and every prior check-in from each row stays linked.
+            product - every attached product and every prior check-in from each row stays linked.
             Row details (title, brand, identifiers, etc.) come from the earliest row: {masterLabel}.
             Manifest lines stay untouched.
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            When you check in on the collapsed row, units fill the earliest rows first — each partial
+            When you check in on the collapsed row, units fill the earliest rows first - each partial
             row gets its own check-in batch. Any remainder after earlier rows are full lands on the
             last row (including overage).
           </Typography>

@@ -4,12 +4,16 @@ Handoff doc for reviewing how local/prod env vars are organized and pushed to He
 
 ## Purpose
 
-Eco-Thrift dashboard reads configuration from **repo-root env files**:
+Eco-Thrift dashboard reads configuration from **exactly two repo-root env files**.
+Both are gitignored; there is no committed example/template file:
 
 | File | Role |
 |------|------|
 | **`.env`** | Local development — Django (`ecothrift/settings.py` via python-decouple), Vite (`frontend/vite.config.ts` loads same file) |
 | **`.envprod`** | Production mirror — same keys as the shared portion of `.env`, but with prod-specific values in the **top section** (DEBUG, hosts, etc.) |
+
+The authoritative list of supported variables is the **Environment Variables** table in
+`.ai/extended/development.md`.
 
 **Heroku does not read `.env` or `.envprod`.** Those files exist on the developer machine only. Production uses **Heroku Config Vars** set separately (Dashboard or CLI).
 
@@ -26,8 +30,17 @@ The deploy script **`scripts/deploy/env/sync_to_heroku.bat`** pushes **`.envprod
    scripts\deploy\env\sync_to_heroku.bat
    ```
 
-4. **`--dry-run`** prints var names and masked values; no Heroku changes.
-5. Live sync asks `Y/N` confirmation, then runs `heroku config:set` in batches.
+4. **`--dry-run`** prints var names and masked values; never contacts Heroku, so it
+   works offline and without login.
+5. **`--check-drift`** reads the live Config Vars and reports keys that exist on
+   Heroku but not in `.envprod`; pushes nothing. Requires `heroku login`.
+6. Live sync asks `Y/N` confirmation, runs the drift report, then `heroku config:set`
+   in batches of 20 (each batch is one release, so expect a restart per batch).
+
+**This sync only ever sets keys — it never unsets.** A var added directly on Heroku
+therefore survives forever and silently breaks the "`.envprod` mirrors production"
+promise. That is what `--check-drift` exists to catch; clear a stale one with
+`heroku config:unset <KEY> -a ecothrift-dashboard`.
 
 ## Folder layout
 
@@ -92,8 +105,6 @@ AI_MODEL_INVENTORY_CLEANUP=gemini-2.5-flash   # preprocessing Step 2 only
 
 Only add purpose-specific `AI_MODEL_*` lines when one feature needs a different model.
 
-See `.env.example` at repo root for a one-line pointer.
-
 ## How Django loads config
 
 - **Local:** `ecothrift/settings.py` reads `.env` from repo root when the file exists.
@@ -122,15 +133,15 @@ accepts any provider's model id — a missing key fails fast with `LLMConfigErro
 | `ecothrift/settings_production.py` | Heroku overrides (DATABASE_URL, SSL, CORS) |
 | `apps/core/ai_config.py` | `ai_model(purpose, override=…)` |
 | `apps/core/services/llm_api_keys.py` | Key resolution from settings (.env only locally) |
-| `.gitignore` | `.env`, `.envprod` gitignored |
-| `.env.example` | Pointer to root files + sync bat |
+| `.gitignore` | `.env`, `.env.*`, `.envprod` all gitignored — no env file is ever committed |
+| `.ai/extended/development.md` | **Environment Variables** table — the authoritative key list (there is no example/template env file) |
 
 ## Review checklist for Fable
 
 1. **Sync safety** — `lib/sync_to_heroku.py` skip list complete? Any prod-only vars that should never be pushed?
 2. **Secret handling** — dry-run masks keys; confirm no logging of raw secrets.
 3. **Parity** — `.envprod` top section matches what Heroku actually needs (`DJANGO_SETTINGS_MODULE`, `ALLOWED_HOSTS`, …).
-4. **AI config** — document whether to slim `.envprod` to 3 model lines; remove dead `VITE_PUBLIC_*` vars if still present in user files.
+4. **AI config** — document whether to slim `.envprod` to 3 model lines; remove dead `VITE_PUBLIC_*` vars if still present in user files. **`VITE_API_URL` is set on Heroku but read by nothing** (the frontend uses a relative `/api` base) — candidate for `config:unset`.
 5. **Universal LLM router** — DONE: every AI call site routes via `apps/core/services/llm_router.py` (`ai_model()` purpose lookup + provider by model id), so `.envprod` model changes work everywhere.
 6. **Deploy integration** — should `4_deploy_careful.bat` optionally run sync before/after push? Currently manual.
 

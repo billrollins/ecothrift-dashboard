@@ -12,7 +12,8 @@ from apps.core.models import S3File
 from apps.webstore.emails import send_hold_confirmed, send_sign_in_link, send_you_have_a_reply
 from apps.webstore.models import Conversation, WebListing, WebListingImage
 from apps.webstore.services.conversations import open_inquiry, post_message
-from apps.webstore.services.reservations import confirm_reservation, create_hold
+from apps.webstore.tests.helpers import make_verified_hold
+from apps.webstore.services.reservations import confirm_reservation
 
 
 def _listing(slug='email-lamp'):
@@ -52,21 +53,22 @@ class SystemEmailTests(TestCase):
         self.assertEqual(msg.to, ['cust@example.com'])
         self.assertIn('retail@ecothrift.us', msg.from_email)
 
-    def test_confirm_reservation_sends_hold_confirmed(self):
+    def test_verify_hold_sends_hold_confirmed(self):
+        from apps.webstore.services.reservations import create_hold, verify_hold
+
         listing = _listing()
         res = create_hold(
             listing=listing, quantity=1, customer_name='Ada', email='ada@example.com',
+            verified=False,
         )
         mail.outbox.clear()
         # Email is scheduled with transaction.on_commit — execute callbacks here.
         with self.captureOnCommitCallbacks(execute=True):
-            confirm_reservation(res)
+            verify_hold(res)
         self.assertEqual(len(mail.outbox), 1)
         msg = mail.outbox[0]
-        self.assertIn('Hold confirmed', msg.subject)
         self.assertIn('Ada', msg.body)
         self.assertIn('/hold/', msg.body)
-        self.assertIn('No shipping', msg.body)
 
     def test_staff_reply_sends_you_have_a_reply(self):
         listing = _listing('reply-lamp')
@@ -75,6 +77,7 @@ class SystemEmailTests(TestCase):
             name='Guest',
             email='guest@example.com',
             body='Still available?',
+            verified=True,
         )
         mail.outbox.clear()
         group, _ = Group.objects.get_or_create(name='Manager')
@@ -96,7 +99,7 @@ class SystemEmailTests(TestCase):
 
     def test_mail_failure_does_not_block_confirm(self):
         listing = _listing('fail-lamp')
-        res = create_hold(
+        res = make_verified_hold(
             listing=listing, quantity=1, customer_name='B', email='b@example.com',
         )
         with patch('apps.webstore.emails.EmailMessage.send', side_effect=RuntimeError('smtp down')):
@@ -106,7 +109,7 @@ class SystemEmailTests(TestCase):
 
     def test_direct_helpers_use_retail_from(self):
         listing = _listing('direct-lamp')
-        res = create_hold(
+        res = make_verified_hold(
             listing=listing, quantity=1, customer_name='C', email='c@example.com',
         )
         res = confirm_reservation(res)

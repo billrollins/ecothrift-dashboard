@@ -32,7 +32,7 @@ export const ecoField = {
   sheetShadow: '0 -12px 40px rgba(20,32,26,.18)',
 } as const;
 
-/** Subtle step identity — outline / tint only; status greens stay for outcomes. */
+/** Subtle step identity - outline / tint only; status greens stay for outcomes. */
 export const ecoFieldStepAccent = {
   days: { accent: '#355C4A', tint: '#F2F6F3' },
   contact: { accent: '#2F6F8F', tint: '#EFF7FA' },
@@ -104,7 +104,7 @@ export function ecoFieldPrimaryButtonSx(density: DeliveryDensity = 'phone') {
   };
 }
 
-/** @deprecated Prefer ecoFieldPrimaryButtonSx('phone') — kept for Field call sites. */
+/** @deprecated Prefer ecoFieldPrimaryButtonSx('phone') - kept for Field call sites. */
 export const ecoFieldPrimaryButtonPhoneSx = ecoFieldPrimaryButtonSx('phone');
 
 export const ecoFieldCardSx = {
@@ -149,7 +149,7 @@ export function ecoFieldSummaryCardCompleteSx(
   };
 }
 
-/** Soft tint action tiles (Call / Text / Scan) — Field-only sizing. */
+/** Soft tint action tiles (Call / Text / Scan) - Field-only sizing. */
 export const ecoFieldActionTileSx = {
   minHeight: 76,
   borderRadius: `${ecoField.actionRadius}px`,

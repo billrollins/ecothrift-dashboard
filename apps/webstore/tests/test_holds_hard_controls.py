@@ -13,7 +13,8 @@ from apps.core.models import S3File, WorkLocation
 from apps.inventory.models import Item, Product
 from apps.pos.models import Drawer, Register
 from apps.webstore.models import Reservation, WebListing, WebListingImage
-from apps.webstore.services.reservations import create_hold, release_reservation
+from apps.webstore.tests.helpers import make_verified_hold
+from apps.webstore.services.reservations import release_reservation
 
 
 def _manager_user(email='os-mgr@example.com'):
@@ -60,7 +61,7 @@ class HoldRaceTests(TransactionTestCase):
         def attempt(i):
             # Each thread needs its own DB connection
             try:
-                create_hold(
+                make_verified_hold(
                     listing=listing,
                     quantity=1,
                     customer_name=f'Buyer {i}',
@@ -85,7 +86,7 @@ class HoldRaceTests(TransactionTestCase):
 class HoldReleaseTests(TestCase):
     def test_expire_releases_reserved_qty(self):
         listing = _published_listing(slug='expire-lamp', on_hand=2)
-        reservation = create_hold(
+        reservation = make_verified_hold(
             listing=listing,
             quantity=1,
             customer_name='Pat',
@@ -101,7 +102,7 @@ class HoldReleaseTests(TestCase):
 
     def test_cancel_releases_reserved_qty(self):
         listing = _published_listing(slug='cancel-lamp', on_hand=1)
-        reservation = create_hold(
+        reservation = make_verified_hold(
             listing=listing,
             quantity=1,
             customer_name='Sam',
@@ -112,6 +113,7 @@ class HoldReleaseTests(TestCase):
         self.assertEqual(listing.reserved, 0)
 
 
+@override_settings(ONLINE_SALES_ENABLED=False)
 class PolicyRejectTests(TestCase):
     def setUp(self):
         self.client = APIClient()
@@ -201,7 +203,7 @@ class HoldTokenPrivacyTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         listing = _published_listing(slug='token-lamp')
-        self.reservation = create_hold(
+        self.reservation = make_verified_hold(
             listing=listing,
             quantity=1,
             customer_name='Secret Customer',
@@ -214,9 +216,11 @@ class HoldTokenPrivacyTests(TestCase):
         self.assertEqual(r.status_code, 200)
         body = r.json()
         self.assertEqual(body['status_token'], self.reservation.status_token)
-        self.assertNotIn('email', body)
+        # Email is only exposed while pending_verification.
+        self.assertFalse(body.get('email'))
         self.assertNotIn('phone', body)
-        self.assertNotIn('customer_name', body)
+        self.assertIsNone(body.get('customer_name'))
+        self.assertIsNone(body.get('email'))
 
     def test_legacy_etw_order_status_denied(self):
         r = self.client.get('/api/webstore/order-status/ETW00001/')
@@ -255,7 +259,7 @@ class PosHoldGuardTests(TestCase):
             sku='OS-HOLD-1',
             on_hand=1,
         )
-        self.reservation = create_hold(
+        self.reservation = make_verified_hold(
             listing=self.listing,
             quantity=1,
             customer_name='Hold Buyer',

@@ -1,7 +1,7 @@
 import { useMediaQuery, useTheme } from '@mui/material';
 import { DASHBOARD_SHADOW_GUTTER } from './dashboardCardStyles';
 
-/** Dashboard layout breakpoints — aligned with MainLayout mobile nav (md). */
+/** Dashboard layout breakpoints - aligned with MainLayout mobile nav (md). */
 export function useDashboardLayout() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));

@@ -109,7 +109,7 @@ function headerBadge(order: PurchaseOrderDetailSurface): { label: string; style:
   };
 }
 
-/** Visual tokens copied from `order-detail-v2.jsx` mock — single source for parity */
+/** Visual tokens copied from `order-detail-v2.jsx` mock - single source for parity */
 const TOKENS = {
   pageBg: '#eef1f5',
   borderCard: '#dde2e9',
@@ -452,7 +452,7 @@ export default function OrderDetailPage() {
 
   const manifestRows = order.manifest_row_count ?? 0;
   const manifestCategoriesDisplay =
-    order.manifest_category_count == null ? '—' : formatNumber(order.manifest_category_count);
+    order.manifest_category_count == null ? '-' : formatNumber(order.manifest_category_count);
 
   const gridTemplateAreas = compact
     ? `"life" "costs" "manifest"`
@@ -784,7 +784,7 @@ export default function OrderDetailPage() {
                       color: mPct == null ? '#94a3b8' : mPct >= 60 ? '#059669' : '#d97706',
                     }}
                   >
-                    {mPct == null ? '—' : `${mPct.toFixed(1)}%`}
+                    {mPct == null ? '-' : `${mPct.toFixed(1)}%`}
                   </Typography>
                 </Box>
               </Box>
@@ -1003,7 +1003,7 @@ export default function OrderDetailPage() {
                         Uploaded{' '}
                         {order.manifest_uploaded_at
                           ? format(new Date(order.manifest_uploaded_at), 'MMM d, yyyy')
-                          : '—'}
+                          : '-'}
                         {' · '}
                         Click to preview / download
                       </Typography>
@@ -1025,7 +1025,7 @@ export default function OrderDetailPage() {
                     {[
                       { label: 'Rows', value: formatNumber(manifestRows) },
                       { label: 'Categories', value: manifestCategoriesDisplay },
-                      { label: 'Est. Value', value: retail > 0 ? formatCurrencyWhole(String(retail)) : '—', green: true },
+                      { label: 'Est. Value', value: retail > 0 ? formatCurrencyWhole(String(retail)) : '-', green: true },
                     ].map((s) => (
                       <Box
                         key={s.label}

@@ -95,7 +95,7 @@ export function RowProcessingPanel({
     }
     const seen = new Set<number>();
     for (const r of rows) {
-      if (!expectedRowIds.has(r.row_id)) return `Unknown row_id ${r.row_id} — not a staged row for this order.`;
+      if (!expectedRowIds.has(r.row_id)) return `Unknown row_id ${r.row_id} - not a staged row for this order.`;
       if (seen.has(r.row_id)) return `Duplicate row_id ${r.row_id}.`;
       seen.add(r.row_id);
       const expRn = rowNumberById[r.row_id];
@@ -147,7 +147,7 @@ export function RowProcessingPanel({
         return;
       }
       onValidatedPayloadChange(rows);
-      addLog(`Validated ${rows.length} row(s) locally — click Run Cleanup in the toolbar to apply.`, 'success');
+      addLog(`Validated ${rows.length} row(s) locally - click Run Cleanup in the toolbar to apply.`, 'success');
     } catch {
       const msg = 'Could not read CSV file.';
       setErrorMessage(msg);
@@ -231,7 +231,7 @@ export function RowProcessingPanel({
           </Box>
           {validatedPayload && (
             <Typography sx={{ fontSize: 14, fontWeight: 600, color: '#2D6A4F', px: 2, py: 1, bgcolor: '#D4EDDA', borderRadius: '6px' }}>
-              ✓ Validated — ready to apply
+              ✓ Validated - ready to apply
             </Typography>
           )}
         </Box>
@@ -246,7 +246,7 @@ export function RowProcessingPanel({
             {lastApplySoftWarnings.slice(0, 100).map((w, i) => (
               <Typography component="li" key={`${w.row_id}-${w.rule}-${i}`} variant="caption" sx={{ display: 'list-item' }}>
                 {w.row_id != null ? `row ${w.row_id}` : 'row ?'}
-                {w.rule ? ` — ${w.rule}` : ''}
+                {w.rule ? ` - ${w.rule}` : ''}
                 {w.reason ? `: ${w.reason}` : ''}
                 {w.column ? ` (${w.column})` : ''}
               </Typography>

@@ -1,5 +1,5 @@
 /**
- * Large check-in guard (owner ruling 2026-06-11): NO low per-action cap — staff may
+ * Large check-in guard (owner ruling 2026-06-11): NO low per-action cap - staff may
  * check in thousands at once. Above the threshold they confirm intent instead
  * ("You are about to check in X items"), and when labels will print they must type
  * the exact phrase `PRINT <qty>` so a stray Enter can't burn a roll of labels.

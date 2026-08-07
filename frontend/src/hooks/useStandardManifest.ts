@@ -183,7 +183,7 @@ interface UseStandardManifestArgs {
   manifestSessionKey: number;
   signature: string;
   headers: string[];
-  /** From GET /inventory/manifest-fields/ ``flat``; required — parent gates loading */
+  /** From GET /inventory/manifest-fields/ ``flat``; required - parent gates loading */
   flatColumns: StandardColumnDefinition[];
   initialMappings?: ManifestColumnMapping[];
 }

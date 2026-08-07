@@ -230,7 +230,7 @@ export function deliverySmsTemplates(vars: {
     {
       key: 'revised_eta',
       label: 'Revised ETA',
-      body: `Hi ${firstName} — quick update: your Eco-Thrift delivery ETA is now ${eta}.`,
+      body: `Hi ${firstName} - quick update: your Eco-Thrift delivery ETA is now ${eta}.`,
     },
     {
       key: 'delayed',

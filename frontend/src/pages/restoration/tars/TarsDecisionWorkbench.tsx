@@ -48,7 +48,7 @@ function Summary({ children }: { children: React.ReactNode }) {
 function perMinute(value: number): string {
   return Number.isFinite(value)
     ? `${value < 0 ? '-' : ''}$${Math.abs(value).toFixed(2)}/min`
-    : '—';
+    : '-';
 }
 
 export function TarsDecisionWorkbench({
@@ -115,9 +115,9 @@ export function TarsDecisionWorkbench({
   };
 
   const stateMessage = prepared.workState === 'queue'
-    ? 'Queue preview — decision fields unlock when the item reaches the bench.'
+    ? 'Queue preview - decision fields unlock when the item reaches the bench.'
     : prepared.workState === 'pending'
-      ? 'Pending summary — resume on the bench to continue editing.'
+      ? 'Pending summary - resume on the bench to continue editing.'
       : '';
 
   return (
@@ -367,7 +367,7 @@ export function TarsDecisionWorkbench({
         <AccordionDetails>
           <Stack spacing={1.1}>
             {best ? <Alert severity="success">
-              Recommend <strong>{best.grade}</strong> — highest restoration contribution per labor minute at {perMinute(best.contributionPerLaborMinute)}.
+              Recommend <strong>{best.grade}</strong> - highest restoration contribution per labor minute at {perMinute(best.contributionPerLaborMinute)}.
               {editable ? <Button size="small" color="success" onClick={() => emit(selectDecisionOutcome(prepared, best.outcomeId))} sx={{ ml: 1 }}>Use recommendation</Button> : null}
             </Alert> : <Alert severity="warning">No viable, unblocked path is available.</Alert>}
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 1 }}>

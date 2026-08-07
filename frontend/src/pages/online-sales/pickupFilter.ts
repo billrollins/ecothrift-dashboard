@@ -1,4 +1,4 @@
-/** Pure helpers for the Ready-for-pickup inbox tab. */
+/** Pure helpers for the Ready today Holds tab. */
 
 export type PickupFilterRow = {
   status: string;

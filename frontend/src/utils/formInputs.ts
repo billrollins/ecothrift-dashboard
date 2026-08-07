@@ -36,7 +36,7 @@ export function formatMoneyInput(raw: string): string {
   return rest.length > 0 ? `${grouped}.${dec}` : grouped;
 }
 
-/** Blurred money display — always two decimal places with grouping. */
+/** Blurred money display - always two decimal places with grouping. */
 export function formatMoneyDisplay(raw: string): string {
   const cleaned = sanitizeDecimalPaste(raw.trim());
   if (!cleaned) return '';

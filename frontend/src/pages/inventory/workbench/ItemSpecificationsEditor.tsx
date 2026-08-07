@@ -41,7 +41,7 @@ export function ItemSpecificationsEditor({
       />
       {helperText !== null ?
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-          {helperText ?? 'Supplements the product catalog specs — saved on each physical item.'}
+          {helperText ?? 'Supplements the product catalog specs - saved on each physical item.'}
         </Typography>
       : null}
     </Box>

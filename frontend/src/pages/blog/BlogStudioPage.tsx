@@ -290,7 +290,7 @@ export default function BlogStudioPage() {
       return true;
     } catch {
       setSaveState('error');
-      enqueueSnackbar('Could not save changes — will retry on next edit.', { variant: 'error' });
+      enqueueSnackbar('Could not save changes - will retry on next edit.', { variant: 'error' });
       return false;
     }
   }, [updateMutation, enqueueSnackbar]);
@@ -330,9 +330,9 @@ export default function BlogStudioPage() {
     const ok = await doSave({ force: true });
     if (!ok) return;
 
-    // Already live — only PATCH saves content (hero, body, excerpt). publish-now does not.
+    // Already live - only PATCH saves content (hero, body, excerpt). publish-now does not.
     if (serverPost?.status === 'published') {
-      enqueueSnackbar('Changes saved — live on ecothrift.us.', { variant: 'success' });
+      enqueueSnackbar('Changes saved - live on ecothrift.us.', { variant: 'success' });
       return;
     }
 
@@ -405,7 +405,7 @@ export default function BlogStudioPage() {
 
   const handleRevisionInfo = useCallback(() => {
     const n = serverPost?.revision_count ?? 0;
-    enqueueSnackbar(`Every save is versioned — ${n} revision${n === 1 ? '' : 's'} kept.`, {
+    enqueueSnackbar(`Every save is versioned - ${n} revision${n === 1 ? '' : 's'} kept.`, {
       variant: 'info',
     });
   }, [serverPost, enqueueSnackbar]);
@@ -421,7 +421,7 @@ export default function BlogStudioPage() {
       setHeroImageId(img.id);
       setHeroUrl(img.url);
 
-      // Persist immediately — autosave is debounced 1.2s, so "Update published post"
+      // Persist immediately - autosave is debounced 1.2s, so "Update published post"
       // right after upload used to run before the hero was saved.
       if (postId != null) {
         const data = buildPayload({
@@ -445,7 +445,7 @@ export default function BlogStudioPage() {
         } catch {
           setSaveState('error');
           enqueueSnackbar(
-            'Hero uploaded but could not attach to this post — use Save draft or Update published post.',
+            'Hero uploaded but could not attach to this post - use Save draft or Update published post.',
             { variant: 'warning' },
           );
         }
@@ -540,7 +540,7 @@ export default function BlogStudioPage() {
 
   const savedLabel = (() => {
     if (saveState === 'saving') return 'Saving…';
-    if (saveState === 'error') return 'Save failed — will retry';
+    if (saveState === 'error') return 'Save failed - will retry';
     const d = lastSavedAt;
     if (!d) return 'Saved';
     const secs = (Date.now() - d.getTime()) / 1000;
@@ -589,7 +589,7 @@ export default function BlogStudioPage() {
         </header>
 
         <div className="studio">
-          {/* LEFT — library */}
+          {/* LEFT - library */}
           <div className="col bl">
             <div className="ch">
               <h2>Library</h2>
@@ -648,7 +648,7 @@ export default function BlogStudioPage() {
             </div>
           </div>
 
-          {/* CENTER — writing desk */}
+          {/* CENTER - writing desk */}
           <div className="col desk">
             {hasSelection ? (
               <div className="desk-wrap">
@@ -737,11 +737,11 @@ export default function BlogStudioPage() {
             )}
           </div>
 
-          {/* RIGHT — publish cabinet */}
+          {/* RIGHT - publish cabinet */}
           <div className="col cab">
             <div className="ch">
               <h2>Publish</h2>
-              <span className="n">{seriesName || '—'}</span>
+              <span className="n">{seriesName || '-'}</span>
             </div>
 
             <div

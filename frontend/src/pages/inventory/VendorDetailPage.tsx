@@ -25,9 +25,9 @@ import type { VendorType, PurchaseOrderListRow } from '../../types/inventory.typ
 const VENDOR_TYPES: VendorType[] = ['liquidation', 'retail', 'direct', 'other'];
 
 function formatCurrency(value: string | null): string {
-  if (value == null) return '—';
+  if (value == null) return '-';
   const n = parseFloat(value);
-  return isNaN(n) ? '—' : `$${n.toFixed(2)}`;
+  return isNaN(n) ? '-' : `$${n.toFixed(2)}`;
 }
 
 export default function VendorDetailPage() {
@@ -92,13 +92,13 @@ export default function VendorDetailPage() {
       field: 'ordered_date',
       headerName: 'Ordered',
       width: 110,
-      valueFormatter: (value) => (value ? format(new Date(value), 'MMM d, yyyy') : '—'),
+      valueFormatter: (value) => (value ? format(new Date(value), 'MMM d, yyyy') : '-'),
     },
     {
       field: 'expected_delivery',
       headerName: 'Expected',
       width: 110,
-      valueFormatter: (value) => (value ? format(new Date(value), 'MMM d, yyyy') : '—'),
+      valueFormatter: (value) => (value ? format(new Date(value), 'MMM d, yyyy') : '-'),
     },
     {
       field: 'total_cost',

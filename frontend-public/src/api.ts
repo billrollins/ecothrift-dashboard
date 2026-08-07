@@ -1,10 +1,49 @@
-// Tiny fetch-based client for the public storefront API (no auth, same-origin /api).
+// Tiny fetch-based client for the public storefront API (same-origin /api).
+import { getAccessToken } from './auth'
+
 const BASE = '/api/webstore'
+
+export class ApiError extends Error {
+  status: number
+  data: unknown
+
+  constructor(message: string, status: number, data: unknown = null) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.data = data
+  }
+}
 
 async function getJSON<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: { Accept: 'application/json' } })
-  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    const detail =
+      data && typeof data === 'object' && 'detail' in data
+        ? String((data as { detail?: unknown }).detail || '')
+        : ''
+    throw new ApiError(detail || `Request failed (${res.status})`, res.status, data)
+  }
   return (await res.json()) as T
+}
+
+async function postJSON<T>(url: string, body: unknown = {}): Promise<T> {
+  const res = await fetch(url, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const detail =
+      data && typeof data === 'object' && 'detail' in data
+        ? String((data as { detail?: unknown }).detail || '')
+        : ''
+    throw new ApiError(detail || `Request failed (${res.status})`, res.status, data)
+  }
+  return data as T
 }
 
 export interface WebstoreConfig {
@@ -40,6 +79,9 @@ export interface CatalogItem {
   featured: boolean
   stock: number
   image: CatalogImage | null
+  /** ISO timestamps from the public catalog serializer. */
+  created_at?: string | null
+  published_at?: string | null
 }
 
 export interface CatalogDetail extends CatalogItem {
@@ -74,6 +116,7 @@ export type CatalogParams = {
   q?: string
   sort?: string
   page?: number
+  page_size?: number
   on_sale?: string
   featured?: string
   available?: string
@@ -92,7 +135,7 @@ export function fetchListing(slug: string): Promise<CatalogDetail> {
   return getJSON<CatalogDetail>(`${BASE}/catalog/${encodeURIComponent(slug)}/`)
 }
 
-// Categories rarely change within a session — memoize so the shop sidebar and the
+// Categories rarely change within a session - memoize so the shop sidebar and the
 // shop sidebar share a single request.
 let categoriesPromise: Promise<CategoriesResponse> | null = null
 
@@ -138,26 +181,161 @@ export interface PublicThread {
   listing_title?: string
 }
 
+export interface HoldTimelineEvent {
+  key: string
+  label: string
+  at: string | null
+}
+
+export type HoldRailStage = {
+  key: string
+  label: string
+  state: 'done' | 'current' | 'upcoming'
+  at?: string | null
+}
+
 export interface HoldSummary {
   status_token: string
   listing_title: string
+  listing_slug?: string | null
+  listing_image?: CatalogImage | null
+  listing_category_slug?: string | null
+  listing_category_name?: string | null
   quantity: number
+  unit_price?: string
   status: string
   status_display: string
+  customer_name?: string | null
+  email?: string | null
   expires_at: string | null
   created_at: string
   policy: string
   thread?: PublicThread | null
+  stage?: number
+  stage_total?: number
+  stages?: HoldRailStage[]
+  customer_status?: string
+  headline?: string
+  next_step?: string
+  can_pickup?: boolean
+  tone?: string
+  timeline?: HoldTimelineEvent[]
+  release_reason?: string
+  pickup_code?: string | null
+  expires_label?: string
+  expires_secondary?: string
+  expires_kind?: 'countdown' | 'day' | string
+  confirmed_until_preview?: string | null
+  confirmed_until_label?: string | null
+  provisional_label?: string | null
+  do_nothing_label?: string | null
+  if_confirmed_label?: string | null
+  code_expires_at?: string | null
+  attempts_remaining?: number | null
+  resend_available_in?: number | null
+  has_active_confirmation?: boolean | null
+  held_until?: string | null
+  staff_note_public?: string
+  /** When set, the customer hid this finished hold from History. */
+  customer_archived_at?: string | null
+}
+
+export type HoldConfirmationCreateResult = {
+  detail: string
+  code_expires_at?: string | null
+  resend_available_in?: number
+  attempts_remaining?: number
+}
+
+export type HoldConfirmationStatus = {
+  confirmed: boolean
+  held_until: string | null
+}
+
+export type MyConversationRow = {
+  public_token: string
+  state: string
+  listing_title: string | null
+  listing_slug?: string | null
+  reservation_status_token: string | null
+  customer_unread: number
+  last_message_at?: string | null
+  last_message_preview?: string | null
+  last_message_author?: string | null
+}
+
+export type MyThread = {
+  public_token: string
+  state: string
+  listing_title: string | null
+  listing_slug?: string | null
+  reservation_status_token: string | null
+  customer_unread: number
+  last_message_at?: string | null
+  messages: ThreadMessage[]
+}
+
+export async function fetchMyThread(token: string): Promise<MyThread> {
+  const headers = authHeaders()
+  const res = await fetch(`${BASE}/my/conversations/${encodeURIComponent(token)}/`, {
+    credentials: 'include',
+    headers,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error((data && data.detail) || `Could not load thread (${res.status})`)
+  }
+  return data as MyThread
+}
+
+export async function markMyThreadUnread(token: string): Promise<void> {
+  const res = await fetch(
+    `${BASE}/my/conversations/${encodeURIComponent(token)}/unread/`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: '{}',
+    },
+  )
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error((data && data.detail) || `Could not mark unread (${res.status})`)
+  }
+}
+
+export async function deleteMyThread(token: string): Promise<void> {
+  const res = await fetch(
+    `${BASE}/my/conversations/${encodeURIComponent(token)}/delete/`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: '{}',
+    },
+  )
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error((data && data.detail) || `Could not delete (${res.status})`)
+  }
+}
+
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    ...(extra || {}),
+  }
+  const mem = getAccessToken()
+  if (mem) headers.Authorization = `Bearer ${mem}`
+  return headers
 }
 
 export async function requestHold(input: HoldInput): Promise<HoldSummary | { holds: HoldSummary[]; count: number }> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-  }
+  const headers = authHeaders({ 'Content-Type': 'application/json' })
   if (input.idempotency_key) headers['Idempotency-Key'] = input.idempotency_key
   const res = await fetch(`${BASE}/holds/`, {
     method: 'POST',
+    credentials: 'include',
     headers,
     body: JSON.stringify(input),
   })
@@ -170,6 +348,33 @@ export async function requestHold(input: HoldInput): Promise<HoldSummary | { hol
 
 export function fetchHold(token: string): Promise<HoldSummary> {
   return getJSON<HoldSummary>(`${BASE}/holds/${encodeURIComponent(token)}/`)
+}
+
+export function createHoldConfirmation(token: string): Promise<HoldConfirmationCreateResult> {
+  return postJSON<HoldConfirmationCreateResult>(
+    `${BASE}/holds/${encodeURIComponent(token)}/confirmations/`,
+  )
+}
+
+export function confirmHoldCode(token: string, code: string): Promise<HoldSummary> {
+  return postJSON<HoldSummary>(`${BASE}/holds/${encodeURIComponent(token)}/confirm/`, { code })
+}
+
+export function fetchHoldConfirmationStatus(token: string): Promise<HoldConfirmationStatus> {
+  return getJSON<HoldConfirmationStatus>(
+    `${BASE}/holds/${encodeURIComponent(token)}/confirmation-status/`,
+  )
+}
+
+/** @deprecated Prefer createHoldConfirmation - same endpoint behavior. */
+export async function resendHoldVerification(token: string): Promise<HoldConfirmationCreateResult> {
+  return createHoldConfirmation(token)
+}
+
+export async function changeHoldEmail(token: string, email: string): Promise<HoldSummary> {
+  return postJSON<HoldSummary>(`${BASE}/holds/${encodeURIComponent(token)}/change-email/`, {
+    email,
+  })
 }
 
 export async function postThreadMessage(token: string, body: string): Promise<PublicThread> {
@@ -204,10 +409,11 @@ export async function askAboutListing(input: {
   email: string
   phone?: string
   body: string
-}): Promise<PublicThread> {
+}): Promise<PublicThread & { needs_verification?: boolean }> {
   const res = await fetch(`${BASE}/catalog/${encodeURIComponent(input.slug)}/ask/`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    credentials: 'include',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({
       name: input.name,
       email: input.email,
@@ -219,7 +425,7 @@ export async function askAboutListing(input: {
   if (!res.ok) {
     throw new Error((data && data.detail) || `Could not send inquiry (${res.status})`)
   }
-  return data as PublicThread
+  return data as PublicThread & { needs_verification?: boolean }
 }
 
 const MY_REQUESTS_KEY = 'ecothrift.my_requests.v1'
@@ -255,7 +461,7 @@ export function rememberMyRequest(entry: Omit<MyRequestEntry, 'saved_at'>) {
   }
 }
 
-/** @deprecated Online checkout disabled — use requestHold. POLICY_COPY_OK */
+/** @deprecated Online checkout disabled - use requestHold. POLICY_COPY_OK */
 export async function checkout(_input: unknown): Promise<never> {
   // POLICY_COPY_OK: steers callers away from online checkout
   throw new Error('Online checkout is no longer available. Request a hold instead.')

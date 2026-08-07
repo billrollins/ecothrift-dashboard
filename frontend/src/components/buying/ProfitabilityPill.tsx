@@ -10,7 +10,7 @@ function parseRatio(ratio: string | null | undefined): number | null {
 export default function ProfitabilityPill({ ratio }: { ratio: string | null | undefined }) {
   const n = parseRatio(ratio);
   if (n == null) {
-    return <Chip size="small" label="—" variant="outlined" />;
+    return <Chip size="small" label="-" variant="outlined" />;
   }
   const label = `${n >= 2 ? 'Strong' : n >= 1.5 ? 'Marginal' : 'Weak'} ${n.toFixed(1)}x`;
   const color = n >= 2 ? 'success' : n >= 1.5 ? 'warning' : 'error';

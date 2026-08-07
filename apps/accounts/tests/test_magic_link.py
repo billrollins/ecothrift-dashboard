@@ -13,7 +13,7 @@ from apps.accounts.permissions import IsCustomer, IsStaff
 from apps.core.models import S3File
 from apps.webstore.models import Conversation, WebListing, WebListingImage
 from apps.webstore.services.conversations import open_inquiry
-from apps.webstore.services.reservations import create_hold
+from apps.webstore.tests.helpers import make_verified_hold
 
 
 def _listing(slug='ml-lamp'):
@@ -71,7 +71,7 @@ class MagicLinkTests(TestCase):
         self.assertNotIn('token', r.json())
         self.assertNotIn('debug_token', r.json())
         self.assertEqual(len(mail.outbox), 1)
-        self.assertIn('sign-in', mail.outbox[0].body.lower())
+        self.assertIn('sign in', mail.outbox[0].body.lower())
         self.assertTrue(MagicLinkToken.objects.filter(email='new@example.com').exists())
 
     def test_consume_single_use_and_issues_jwt(self):
@@ -106,7 +106,7 @@ class MagicLinkTests(TestCase):
             email='claim@example.com',
             body='Hello?',
         )
-        create_hold(
+        make_verified_hold(
             listing=listing,
             quantity=1,
             customer_name='Guest',
@@ -142,7 +142,7 @@ class MagicLinkTests(TestCase):
 
     def test_customer_cannot_see_other_email_holds(self):
         listing = _listing('iso-lamp')
-        create_hold(
+        make_verified_hold(
             listing=listing, quantity=1, customer_name='Other', email='other@example.com',
         )
         self.client.post(
@@ -179,3 +179,60 @@ class MagicLinkTests(TestCase):
                 format='json',
             )
         self.assertEqual(r.status_code, 410)
+
+    def test_verify_hold_used_token_already_verified(self):
+        from apps.webstore.services.reservations import create_hold
+        from apps.accounts.services.magic_link import issue_magic_link
+
+        listing = _listing('used-hold')
+        hold = create_hold(
+            listing=listing, quantity=1, customer_name='U', email='usedhold@example.com',
+            verified=False,
+        )
+        row = issue_magic_link(
+            email=hold.email,
+            purpose=MagicLinkToken.PURPOSE_VERIFY_HOLD,
+            hold_token=hold.status_token,
+        )
+        first = self.client.post('/api/auth/magic-link/consume/', {'token': row.token}, format='json')
+        self.assertEqual(first.status_code, 200)
+        self.assertIn('access', first.json())
+
+        again = self.client.post('/api/auth/magic-link/consume/', {'token': row.token}, format='json')
+        self.assertEqual(again.status_code, 200)
+        body = again.json()
+        self.assertEqual(body['code'], 'ALREADY_VERIFIED')
+        self.assertNotIn('access', body)
+        self.assertIn(f'/hold/{hold.status_token}', body['redirect_to'])
+
+    def test_verify_hold_expired_token_refreshes_link(self):
+        from apps.webstore.models import HoldConfirmation
+        from apps.webstore.services.reservations import create_hold
+        from apps.accounts.services.magic_link import issue_magic_link
+
+        listing = _listing('exp-hold')
+        hold = create_hold(
+            listing=listing, quantity=1, customer_name='E', email='exphold@example.com',
+            verified=False,
+        )
+        row = issue_magic_link(
+            email=hold.email,
+            purpose=MagicLinkToken.PURPOSE_VERIFY_HOLD,
+            hold_token=hold.status_token,
+        )
+        MagicLinkToken.objects.filter(pk=row.pk).update(
+            expires_at=timezone.now() - timedelta(minutes=1),
+        )
+        mail.outbox.clear()
+        r = self.client.post('/api/auth/magic-link/consume/', {'token': row.token}, format='json')
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertEqual(body['code'], 'LINK_REFRESHED')
+        self.assertNotIn('access', body)
+        self.assertIn('relinked=1', body['redirect_to'])
+        # Refresh now mints a HoldConfirmation (code + prefetch-safe link).
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertTrue(
+            HoldConfirmation.objects.filter(reservation=hold).exists()
+        )
+        self.assertIn('/api/webstore/holds/confirm/', mail.outbox[0].body)

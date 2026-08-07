@@ -38,7 +38,7 @@ import { gradeLetterColor } from '../../components/quality-audit/qaScoring';
 type HubFilter = 'all' | 'submitted' | 'draft';
 
 function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
   return date.toLocaleString(undefined, {
@@ -67,7 +67,7 @@ function GradeBadge({ grade }: { grade: string }) {
         flexShrink: 0,
       }}
     >
-      {grade || '—'}
+      {grade || '-'}
     </Box>
   );
 }

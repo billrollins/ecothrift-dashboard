@@ -236,7 +236,7 @@ export interface CheckInAttachedProductOption {
   hint?: string;
 }
 
-/** Read-only product field — click opens the product editor when a product is linked. */
+/** Read-only product field - click opens the product editor when a product is linked. */
 function ProductSectionFieldCell({
   children,
   title,
@@ -277,7 +277,7 @@ function ProductSectionFieldCell({
           }
         : undefined
       }
-      title={editable && displayTitle ? `${displayTitle} — click to edit product` : displayTitle}
+      title={editable && displayTitle ? `${displayTitle} - click to edit product` : displayTitle}
     >
       <CellText title={displayTitle} fontWeight={fontWeight}>
         {children}
@@ -336,7 +336,7 @@ function EditableEnumCell({
           '&:hover': { bgcolor: 'action.hover', borderColor: processingTokens.borderStrong },
         }}
       >
-        <CellText title={`${display} — click to change`}>{display}</CellText>
+        <CellText title={`${display} - click to change`}>{display}</CellText>
         <ArrowDropDown sx={{ fontSize: 14, color: 'text.disabled', flexShrink: 0 }} />
       </Box>
       <Menu
@@ -501,7 +501,7 @@ function EditablePriceCell({
             '&:hover': { bgcolor: 'action.hover', borderColor: processingTokens.borderStrong },
           }}
         >
-          <CellText title={`${display} — click to change`} fontWeight={700}>
+          <CellText title={`${display} - click to change`} fontWeight={700}>
             {display}
           </CellText>
         </Box>

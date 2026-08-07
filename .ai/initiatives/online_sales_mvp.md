@@ -1,5 +1,5 @@
-<!-- initiative: slug=online-sales-mvp status=active updated=2026-07-30 -->
-<!-- Last updated: 2026-07-30T18:10:00-05:00 (resplit into 5 value-ordered phases; sending identity retail@) -->
+<!-- initiative: slug=online-sales-mvp status=active updated=2026-08-07 -->
+<!-- Last updated: 2026-08-07T15:15:00-05:00 (Session 9 v2.69.0 production go-live) -->
 
 # Initiative: Online Sales MVP — reserve online, pay & pick up in store
 
@@ -21,7 +21,7 @@ A code audit on 2026-07-30 found that **most of this MVP is already built and pa
 | Public catalog API | **Live** (`GET /api/webstore/catalog/`, `catalog/<slug>/`, `catalog/categories/`) — returns 0 rows because there are no listings |
 | Listing data model with lifecycle, on-hand/reserved quantity, return policy, FB copy | **Built** — `WebListing` (`draft → ready → published ↔ paused → sold | archived`), `WebListingImage`, `ChannelPublication` |
 | Reservation / hold model + state machine + unguessable token | **Built** — `Reservation` with `requested → confirmed → ready_for_pickup → completed`, exits `declined / expired / cancelled`; `services/reservations.py` |
-| Staff listing editor (full-page Studio), Listings grid, Work queue, Inbox, Sales log | **Built** in `frontend/src/pages/online-sales/` (6 pages) — **not routed**, no nav workspace |
+| Staff listing editor (full-page Studio), Listings (+ To list), Holds (needs / ready / completed / messages) | **Built** in `frontend/src/pages/online-sales/` — two nav items + Studio (v2.67.0 consolidation) |
 | Photo upload to S3 | **Built** — `POST listings/:id/images/` → `core.S3File` |
 | POS held-item guard + pickup completion | **Built** — cart `add-item` blocks held items (`ITEM_ON_HOLD`) unless matching `reservation_id` or manager override with reason; cart `complete` calls `complete_reservation()` |
 | Hard-control tests (race, release, policy reject, token privacy, POS guard) | **Built** — `apps/webstore/tests/test_holds_hard_controls.py` |
@@ -68,11 +68,11 @@ Not the finish line: marketing calendar, channel fee tracking, contribution/P&L,
 
 | # | Decision | Status |
 |---|----------|--------|
-| 7 | **Guest-first, account-optional.** A customer can ask about an item or request a hold with **name + email + phone and nothing else**. An account is how they *come back* — never a gate in front of the first action. Requiring signup before a thrift-store customer can ask "is this still there?" kills the conversation we are trying to start. | **Default — Gate G8** |
+| 7 | **Account optional; verified email mandatory.** A customer can still start a hold or question with name + email (no forced signup), but the request only reaches staff after the email is proven. Stock is reserved immediately as `pending_verification` and auto-releases if unconfirmed (~30 min). Signed-in verified customers skip that step. | **Revised G8 (2026-08-04)** |
 | 7b | **The account is deliberately thin.** It answers one question: *what did I ask for and what did you say?* My requests (holds + status) and My messages. No saved cards, no addresses, no order history beyond requests, no wishlists, no loyalty. | **Default** |
 | 7c | **Customers are a separate identity class from staff.** New `Customer` Django group + `IsCustomer` permission, `is_staff=False`, zero dashboard access, rejected by the staff SPA's route guards the way `Consignee` already is. The customer session lives on the **apex host** and the refresh cookie is host-scoped, so a customer session can never become a `dash.` session. | **Locked (security)** |
 | 8 | **The token URL still works and is still the guest path.** One page shows hold status *and* the message thread; the public site remembers tokens in `localStorage` as "My requests." Logging in simply gathers every request tied to that email into one place, on any device. | **Default** |
-| 8b | **Login is a magic link — passwordless.** Customer enters their email, gets a sign-in link, clicks it. Nothing to store, no reset flow, no password UI, nothing for a customer to forget. | **Accepted (G7, 2026-07-30)** |
+| 8b | **Login is magic-link first; password is optional.** Customers can always email a sign-in / verify link. They may also set a password (add later, or at register) and use email+password. Reset unsets the password only when the reset link is consumed. | **Revised (v2.65.0)** |
 | 9 | **The conversation itself lives only in our DB** — no email threads, no SMS provider, no Facebook API. Staff read and reply in the dashboard; the customer reads and replies on the website. | **Locked** (owner direction) |
 | 9b | **Transactional email is ON, and it is a different thing from messaging-by-email.** The magic-link sign-in, "your hold is confirmed," and "you have a reply" are one-line system notices — the conversation itself still lives only in our DB. There is **no working mail provider today** (`EMAIL_BACKEND` is the console backend), so configuring one is its own early phase rather than an afterthought. Sends as **`retail@ecothrift.us`**, display name **Eco-Thrift** (see *Resolved gates*). | **Accepted (G1, 2026-07-30)** |
 | 10 | **Staff still phone customers when it matters.** Email removes the *obligation* to call for every hold, not the option: a same-day pickup or a tricky question is still faster by phone, and the call gets logged in the thread as a system message. | **Default** |
@@ -85,7 +85,8 @@ Not the finish line: marketing calendar, channel fee tracking, contribution/P&L,
 |---|----------|--------|
 | 13 | **Reuse the parked code; do not redesign.** MVP ships the existing `ShopPage` / `ProductDetailPage` / `ListingStudioPage` with corrected copy and the messaging additions. Aesthetic upgrades are a later pass. | **Default** |
 | 14 | **"Hold list" not "cart."** The existing multi-item hold request stays (the backend already loops items); it is labeled a hold list, never a cart or checkout. | **Default — Gate G6** |
-| 15 | **Four staff destinations, not six.** `/online-sales` Work queue · `/online-sales/listings` (+ Studio) · `/online-sales/inbox` Messages & Holds (with a **Ready for pickup** tab) · `/online-sales/sales` Sales log. **Marketing stays parked**; Blog Studio stays in Admin. | **Default** |
+| 15 | **Three staff destinations (+ Studio).** `/online-sales/listings` (Catalog + To list) · `/online-sales/holds` (Needs action / Ready today / Completed / Released) · `/online-sales/customers` (Directory + Messages + CS tools) · Studio at `/online-sales/listings/:id`. Redirects: `/online-sales` + `/marketing` → listings; `/inbox` → customers?tab=messages; `/sales` → holds?tab=completed; `/admin/customers` → customers. | **Revised 2026-08-06** |
+| 15b | **A released hold is reopenable; a completed one is not.** `POST reservations/<id>/reopen/` returns declined/cancelled/expired holds to **Approved** (never straight to Ready) after re-checking that the listing is published and has enough left, and requires an internal note. Completed sales are permanently closed because inventory and the sales log already moved. | **Added v2.68.0** |
 | 16 | **No nav renames outside Online Sales.** Floor Ops → Retail Floor, Cashier → Store Sales, and the POS-setup/QA moves from the old Phase 0 contract are **out of scope**. Add one workspace; touch nothing else. | **Locked (scope cut)** |
 | 17 | **Reserved items stay visible on the shop** with a *Reserved* badge rather than vanishing. Availability = `on_hand − reserved`. | **Default — Gate G4** |
 | 18 | **`ONLINE_SALES_ENABLED` becomes a real kill switch.** Today it only gates `POST holds/` while the public catalog stays live and both SPAs hard-redirect. MVP makes one flag turn the whole customer surface on and off, so launch and rollback are a config change. | **Default** |
@@ -145,7 +146,7 @@ Minimal, boring, ours:
 
 - **Ready for pickup** tab in Inbox: today's confirmed/staged holds, customer name + phone, item + SKU + staging location, expiry countdown, and the actions staff actually take (stage, extend, cancel, no-show).
 - Verify the POS path end to end and make the cashier's moment obvious: scanning a held item must name the hold and offer completion rather than just erroring.
-- Keep the existing read-only **Sales log** of completed reservations. No fees, no contribution math, no exports.
+- Keep completed-reservation review under **Holds → Completed** (former Sales log). No exports. *(Revised v2.66.0 / v2.67.0: contribution totals + `ReservationEvent` timeline; v2.67 folds Sales log into Holds, adds staff notes and required release reasons — still no exports.)*
 
 ### Gap 5 — It has to actually run
 
@@ -177,7 +178,7 @@ Each of these has a home in the parked [`online_sales_workspace`](./_archived/_p
 | **G4 — Reserved visibility** | **Show with *Reserved* badge** (do not hide). | 2026-07-31 |
 | **G5 — Launch listings** | **Owner enters their own listings** via Listing Studio / work queue CRUD (not a fixed 10–20 seed set). | 2026-07-31 |
 | **G6 — Hold list** | **Keep multi-item** hold list. | 2026-07-31 |
-| **G8 — Accounts** | **Optional** (guest-first). | 2026-07-31 |
+| **G8 — Accounts** | **Optional account; verified email required** before a hold or question reaches staff. (Revised 2026-08-04 / v2.65.0 — was guest-first with no verification.) | 2026-08-04 |
 | **G9 — Sending pipe** | **Microsoft Graph** (Entra app + RBAC scoped to `retail@` only). No third-party provider. One mailbox; Online Sales vs general mail split in the dashboard UI by conversation token. No SPF/DKIM DNS change (mail leaves M365 as `retail@`). IMAP/POP basic auth is gone; SMTP basic auth is a dead-end by late 2026 — Graph is the durable path. | 2026-07-31 |
 
 ### Email is load-bearing — deliverability is a hard requirement
@@ -302,23 +303,23 @@ Time from `online_sales` Item → published listing · holds requested / confirm
 ## Acceptance
 
 - [x] Remaining gates (G2–G6, G8, G9) answered and recorded here. **G1/G7 accepted 2026-07-30; G2–G6, G8, G9 accepted 2026-07-31.**
-- [ ] Mail sends as **`retail@ecothrift.us`** / display name **Eco-Thrift** via Microsoft Graph; a sign-in link reaches live inboxes; Outlook still shows the full mailbox.
+- [ ] Mail sends as **`retail@ecothrift.us`** / display name **Eco-Thrift** via Microsoft Graph; a sign-in link reaches live inboxes; Outlook still shows the full mailbox. *(prove in v2.69.0 go-live)*
 - [ ] Replies to customer mail land in the `retail@` inbox and a named person watches it (Outlook + dashboard).
-- [ ] Only three system emails exist: sign-in link, hold confirmed, you have a reply.
-- [ ] Online Sales workspace live with four destinations; legacy `/admin/web-store` and `/admin/web-orders` redirect without losing bookmarks.
-- [ ] Listing Studio does basic CRUD well: create from Item or blank, photos, facts, price/quantity, publish/pause/sold/archive, clear readiness errors.
-- [ ] ecothrift.us `/shop` shows published listings with photos and pickup-only policy, reachable from site nav.
-- [ ] Customer can ask a question and request a hold **as a guest**; both land in one dashboard Inbox thread; staff replies reach the customer's token page.
-- [ ] A customer can sign in with a magic link and see their own requests and messages at `/account` — including ones they made as a guest with the same email.
-- [ ] Forgot-password no longer returns a token in the response; refresh cookie is `secure`; login and sign-in-link requests are throttled; sign-in links are short-lived and single-use.
-- [ ] A `Customer` account is proven to have zero staff access (route guards, `IsStaff`-gated APIs, dashboard host) and cannot read another customer's thread.
-- [ ] Staff can verify → stage → confirm → complete a hold; POS completion is the only revenue event.
-- [ ] Ready-for-pickup view answers "who is coming today and where is their stuff."
-- [ ] Hold expiry runs on a schedule and releases quantity.
-- [ ] `ONLINE_SALES_ENABLED=false` cleanly removes the customer surface (kill switch verified).
-- [ ] Hard controls above are covered by tests in `apps/webstore/tests/`.
+- [x] Only three system emails exist: sign-in link, hold confirmed, you have a reply.
+- [x] Online Sales workspace live with Listings / Holds / Customers (Messages under Customers); legacy `/admin/web-store` and `/admin/web-orders` redirect without losing bookmarks.
+- [x] Listing Studio does basic CRUD well: create from Item or blank, photos, facts, price/quantity, publish/pause/sold/archive, clear readiness errors.
+- [ ] ecothrift.us `/shop` shows published listings with photos and pickup-only policy, reachable from site nav. *(prove after `ONLINE_SALES_ENABLED=true`)*
+- [x] Customer can ask a question and request a hold **as a guest**; both land in one dashboard thread; staff replies reach the customer's token page / account Messages.
+- [x] A customer can sign in with a magic link and see their own requests and messages at `/account` — including ones they made as a guest with the same email.
+- [x] Forgot-password no longer returns a token in the response; refresh cookie is `secure`; login and sign-in-link requests are throttled; sign-in links are short-lived and single-use.
+- [x] A `Customer` account is proven to have zero staff access (route guards, `IsStaff`-gated APIs, dashboard host) and cannot read another customer's thread.
+- [x] Staff can verify → stage → confirm → complete a hold; POS completion is the only revenue event.
+- [x] Ready-for-pickup view answers "who is coming today and where is their stuff."
+- [ ] Hold expiry runs on a schedule and releases quantity. *(confirm Heroku Scheduler)*
+- [ ] `ONLINE_SALES_ENABLED=false` cleanly removes the customer surface (kill switch verified). *(prove at go-live)*
+- [x] Hard controls above are covered by tests in `apps/webstore/tests/`.
 - [ ] Staff SOP written; launch set published; one week of live use reviewed.
-- [ ] `CHANGELOG` + `.version` reflect the ship; `.ai/context.md` Active work updated.
+- [x] `CHANGELOG` + `.version` reflect the ship; `.ai/context.md` Active work updated.
 
 ---
 
@@ -358,6 +359,41 @@ Time from `online_sales` Item → published listing · holds requested / confirm
 - **Gates:** G2–G8 accepted; G5 = owner-entered listings; G9 = Microsoft Graph on `retail@`, one mailbox, UI-split OS vs general (Admin-only general inbox).
 - **Shipped:** v2.62.0 → v2.63.0 → v2.64.0 on Heroku. Public `ONLINE_SALES_ENABLED=false`; Graph `MS_GRAPH_ENABLED=false`.
 - **Owner next:** Entra app + Exchange RBAC (see email_setup.md); Heroku Scheduler `expire_online_holds` + `sync_ms_mailbox`; test in dev; say go to flip Online Sales and/or Graph.
+
+### Session 5 — 2026-08-04 verified holds (v2.65.0)
+
+- **Goal:** Require proven email before holds/questions reach staff; keep accounts optional with optional password.
+- **Done:** `pending_verification` holds + inquiries; purpose-scoped magic links; customer lookup/register/set-password/reset; public email-first sign-in + `/verify`; G8 revised in this file.
+- **Owner next (manual):** Change Heroku Scheduler job `expire_online_holds` from hourly to **every 10 minutes**.
+
+### Session 6 — 2026-08-04 Sales log detail (v2.66.0)
+
+- **Goal:** Answer “what sold online / did it close through POS / what happened on this hold” from the Sales log.
+- **Done:** `ReservationEvent` append-only history + backfill; `reservations/<id>/detail/`; sales-log `days`/`search`; staff grid UX + detail drawer. Gap 4 Sales log wording revised (still no exports).
+
+### Session 7 — 2026-08-06 local email + emailed links land (est 1h)
+
+- **Goal:** A customer who requests a sign-in link locally receives the email *and* the link signs them in.
+- **Finish line:** Magic-link request sends through Graph, and clicking the emailed link reaches `/account` instead of “invalid or expired”.
+- **Done:** Two independent defects, neither in the email templates or the token model.
+  - **Emails were not sending.** `venv\Scripts\activate.bat` still carried `VIRTUAL_ENV=D:\Coding\…` from when the venv was built on `D:`, so activation prepended a directory that does not exist and `python` fell through to system Python, which has no `msal` → `GraphConfigurationError` on every send. Corrected the three relocated paths (`activate`, `activate.bat`, `pyvenv.cfg`) and made `scripts/dev/dev.ps1` launch Django by the **absolute** `venv\Scripts\python.exe` rather than trusting activation. The venv itself has had `msal` since 2026-08-04.
+  - **Emailed links reported “expired”.** The token was single-use and being POSTed five times per click: `consumeToken` listed `user` in its dependency array, so a successful consume set `user`, changed the callback identity, and re-ran the `VerifyPage` effect that depends on it — doubled again by StrictMode in dev. One `200`, four `400`s. `consumeToken` now caches its promise per token (evicting rejections so real retries still work) and reads `user` through a ref to stay identity-stable; `VerifyPage` redirects to `/account` when a replayed token fails but its session is still good. `SignInPage` consumes tokens the same way and is covered by the provider fix.
+- **Verify:** `test apps.accounts.tests.test_magic_link` → **9 OK**; `tsc --noEmit` clean on `frontend-public`; Graph token + `sendMail` proven from the venv interpreter against `retail@ecothrift.us`.
+- **Note:** `Invalid or expired sign-in link.` covers both spent and expired tokens, which is what made a replay look like an expiry. Left as-is — distinguishing them tells an attacker which tokens were real.
+
+### Session 8 — 2026-08-06 customer account portal tabs (est 4h)
+
+- **Goal:** Rebuild public `/account` so a signed-in customer can see every active hold, past hold, and message thread without an emailed token, and tell at a glance what needs them.
+- **Finish line:** Tabbed Account / History / Messages portal with unread badges, active hold cards, and a real in-account inbox (including inquiry threads).
+- **Scope:** Frontend `frontend-public/src/pages/account/*` + App routes; backend `my_conversation_detail`, conversation list preview, hold `listing_image`/`listing_slug`, events/images prefetch on `my/holds/`. Out of scope: header unread badge, new-thread compose from account, POS purchase history.
+- **Done:** Nested account routes; shared account data context with focus refetch; HoldCard + History filters + Messages list/detail; `test_my_account` (5 OK); public `tsc`/Vite build green.
+
+### Session 9 — 2026-08-07 production go-live (v2.69.0)
+
+- **Goal:** Promote Online Sales to production: green gates, wipe Online Sales data only, remove whole-DB wipe commands, sync env, push GitHub + Heroku, flip storefront + Graph mail on.
+- **Done (prep):** Deleted `reset_business_data` / `reset_buying_data` / `create_test_auctions` and `seed_categories --clear`; Customers workspace + Messages move; query-budget pin for timeline prefetch; `.envprod` gains `PUBLIC_SITE_*` + retention keys with storefront temporarily off for sync; `CHANGELOG` / `.version` → **v2.69.0**.
+- **Verify:** `makemigrations --check` clean; `test apps.webstore apps.accounts` → 217 OK (query budget updated); staff vitest 421 OK; both Vite builds green.
+- **Owner ops after deploy:** `purge_online_sales --force-production --yes --customers`, seed shop categories/hours/blog, confirm Scheduler (`expire_online_holds`, `archive_online_sales`, `sync_ms_mailbox`), prove mail, flip `ONLINE_SALES_ENABLED=true`.
 
 ---
 

@@ -9,7 +9,7 @@ from apps.accounts.models import User
 from apps.core.models import S3File
 from apps.inventory.models import Item, Product
 from apps.webstore.models import WebListing, WebListingImage
-from apps.webstore.services.reservations import create_hold
+from apps.webstore.tests.helpers import make_verified_hold
 
 
 def _manager(email='listing-crud-mgr@example.com'):
@@ -96,7 +96,7 @@ class DeleteWithActiveHoldTests(TestCase):
         self.listing = _listing_with_photo(slug='delete-hold-lamp', status='published')
 
     def test_delete_blocked_when_active_hold(self):
-        create_hold(
+        make_verified_hold(
             listing=self.listing,
             quantity=1,
             customer_name='Hold Buyer',
@@ -189,3 +189,69 @@ class ConfigPublicBaseUrlTests(TestCase):
         r = APIClient().get('/api/webstore/config/')
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json().get('public_base_url'), 'https://preview.example')
+
+
+class WorkQueueRemoveItemTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.mgr = _manager('wq-remove-mgr@example.com')
+        self.client.force_authenticate(self.mgr)
+        product = Product.objects.create(title='Remove Me')
+        self.item = Item.objects.create(
+            sku='RM-1',
+            product=product,
+            price=Decimal('12.00'),
+            status='on_shelf',
+            location='online_sales',
+        )
+
+    def test_remove_moves_to_on_shelf(self):
+        r = self.client.post(f'/api/webstore/work-queue/{self.item.id}/remove/')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.location, 'on_shelf')
+        self.assertEqual(r.json()['location'], 'on_shelf')
+
+    def test_remove_rejects_when_not_on_queue(self):
+        self.item.location = 'on_shelf'
+        self.item.save(update_fields=['location'])
+        r = self.client.post(f'/api/webstore/work-queue/{self.item.id}/remove/')
+        self.assertEqual(r.status_code, 400)
+
+
+class ListingFacebookFilterTests(TestCase):
+    def setUp(self):
+        from django.utils import timezone
+
+        self.client = APIClient()
+        self.mgr = _manager('fb-filter-mgr@example.com')
+        self.client.force_authenticate(self.mgr)
+        self.posted = _listing_with_photo(
+            slug='fb-posted',
+            title='Posted lamp',
+            status='published',
+            fb_posted_at=timezone.now(),
+            fb_posted_url='https://facebook.com/posts/1',
+        )
+        self.not_posted = _listing_with_photo(
+            slug='fb-not-posted',
+            title='Quiet lamp',
+            status='published',
+        )
+
+    def test_fb_posted_1_only_posted(self):
+        r = self.client.get('/api/webstore/listings/', {'fb_posted': '1'})
+        self.assertEqual(r.status_code, 200)
+        ids = {row['id'] for row in r.json()['results']}
+        self.assertIn(self.posted.id, ids)
+        self.assertNotIn(self.not_posted.id, ids)
+        row = next(x for x in r.json()['results'] if x['id'] == self.posted.id)
+        self.assertIsNotNone(row['fb_posted_at'])
+        self.assertEqual(row['fb_posted_url'], 'https://facebook.com/posts/1')
+
+    def test_fb_posted_0_only_not_posted(self):
+        r = self.client.get('/api/webstore/listings/', {'fb_posted': '0'})
+        self.assertEqual(r.status_code, 200)
+        ids = {row['id'] for row in r.json()['results']}
+        self.assertIn(self.not_posted.id, ids)
+        self.assertNotIn(self.posted.id, ids)

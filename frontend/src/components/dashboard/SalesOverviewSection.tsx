@@ -171,7 +171,7 @@ export function SalesOverviewSection({ sales }: SalesOverviewSectionProps) {
 
   const goalAmount = sales.goal ? parseDashboardAmount(sales.goal.amount) : null;
   const canOpenGoal = Boolean(sales.goal) || isSuperuser;
-  const goalAmountLabel = sales.goal ? formatDashboardCurrency(sales.goal.amount) : isSuperuser ? 'Set' : '—';
+  const goalAmountLabel = sales.goal ? formatDashboardCurrency(sales.goal.amount) : isSuperuser ? 'Set' : '-';
 
   const dailyPoints = useMemo(
     () =>

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.64.0] -->
-<!-- Last reviewed: 2026-07-31 (v2.64.0 Microsoft Graph mailbox, dormant) -->
+<!-- Line 1 release: ## [2.69.0] -->
+<!-- Last reviewed: 2026-08-07 (v2.69.0 Online Sales go-live) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,142 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.69.0] - 2026-08-07
+
+User-facing theme: **Online Sales goes live** - Customers workspace, verified holds, Graph mail, and a hard blank-slate for Online Sales only.
+
+Initiative: [online_sales_mvp](.ai/initiatives/online_sales_mvp.md).
+
+
+### Added
+
+- **Online Sales → Customers** — new workspace page (`/online-sales/customers`) with Directory (create/edit profiles, active/inactive filter, notes) and **Messages** (moved off Holds). Customer service actions: send magic-link sign-in, deactivate/reactivate, open messages by email, and jump into recent holds. Sidebar unread badge now sits on Customers. Old `/online-sales/holds?tab=messages`, `/online-sales/inbox`, and `/admin/customers` redirect here.
+- **Holds ↔ Messages cross-links** — holds with a thread show a Messages link (unread badge or “Messages”) into `Customers?tab=messages&thread=…`; the hold drawer surfaces the same and closes before navigating. Message threads tied to a hold show a clear **Open hold** action in the list and thread pane. Reservation payloads include `conversation_id` + `has_messages`.
+- **Customers / Messages badge = your next action** — sidebar and Messages tab badges count `needs_reply` threads (Eco-Thrift owes a reply), not unread mail. Row pills can still show unread; the badge means work waiting on staff. Conversation list also accepts `?unread=0|1` when a screen needs that split.
+- **Customer Messages: Unread filter + soft delete** — Messages has All / Unread tabs, Mark unread on an open thread, and Delete with a confirm (“This cannot be undone”). Delete sets `customer_deleted_at` so the thread disappears from the customer inbox only — staff still see it and the DB row stays. A later staff reply clears the soft-delete so the customer sees the new message. Endpoints: `POST /api/webstore/my/conversations/<token>/unread|delete/`.
+- **Customer History archive** — finished holds can be archived from History (`POST /api/webstore/my/holds/<token>/archive|unarchive/`). That only sets `customer_archived_at` (separate from staff queue archive): the hold leaves History and shows on Account as a simple title + Restore list — no detail view. Active holds cannot be archived.
+- **Customer account portal tabs** — `/account` is now Account / History / Messages. Active holds show as glanceable cards (thumbnail, status, deadline, pickup code, compact progress rail); past holds live under History; Messages is a real inbox with unread badges, thread preview, and in-page read/reply (including inquiry threads with no hold). New `GET /api/webstore/my/conversations/<token>/` returns a customer-scoped thread; `my/conversations/` adds last-message preview fields; hold payloads include `listing_image` + `listing_slug`.
+- **Homepage featured items** — public `/` is now product-forward: who-we-are copy on the left and a wider Featured online panel on the right (one large card at a time; ← / → when there is more than one photographed available listing). The panel header is a single line — **Featured online** left, **Full store →** right — with no subtitle or update stamp. On production public hosts, Django stamps the intro + first card into `<!--PUBLIC_SHELL-->` before the SPA boots (60s cache).
+- **Live store open status** — Visit strip on the homepage computes open/closed from America/Chicago hours (Sun closed; Sat evening → Monday), as real DOM text plus a decorative status dot.
+- **Archive tier for Online Sales** — finished work now ages out of the staff queues instead of piling up forever. `Reservation` and `Conversation` gain `archived_at` / `archived_by` (migration `0013_archive_online_sales`); archiving is presentation-only, so it never changes a status, releases reserved stock, sends email, or hides anything from the customer's own view. Staff archive by hand from the hold drawer or the Messages panel (terminal holds and resolved threads only), and the new daily `archive_online_sales` command does the bulk by age. Reservation and conversation lists take `archived=0|1`; omitting it returns both, so search still reaches archived rows. Released and Messages panels gained Archived toggles, and `POST /reservations/<id>/archive|unarchive/` plus the conversation equivalents back them.
+- **Abandoned-hold purge, opt-in** — `archive_online_sales --purge` deletes holds abandoned before the customer ever proved their email (released, no `verified` event, no confirmed `HoldConfirmation`, no customer message, no POS cart), plus their thread when it holds only system messages. Completed sales are never eligible at any age. Plain runs only report the eligible count; `--dry-run` writes nothing. Windows live in `apps/webstore/services/retention.py` and are settings-overridable — released holds and resolved threads archive at 30 days, purge at 30 days.
+- **Unread is visible where the work is** — Customers Messages counts unread customer mail, and hold rows carry an unread chip plus a highlighted row, so a customer reply no longer hides behind a tab. Reservation payloads include `unread` from the hold's own thread.
+
+### Removed
+
+- **Whole-database wipe commands removed** - `reset_business_data`, `reset_buying_data`, and `create_test_auctions` are gone so production data cannot be erased in one line. Online Sales blank-slate remains `purge_online_sales` (DEBUG-gated; prod needs `--force-production --yes`). `seed_categories --clear` is also gone.
+
+- **"Saved on this device" removed from Account** — the localStorage hold/message shortcut list was internal plumbing dressed up as a customer feature. Account already lists active holds and History; those device-local links are gone from the UI.
+- **`.env.example` deleted** — exactly two env files remain, `.env` (local) and `.envprod` (Heroku mirror), and neither is committed. The file had decayed into an 18-line pointer covering 18 of ~107 keys, while several docs still cited it as the authoritative variable list. `.gitignore` now also blocks `.env.*` so no stray variant can be committed. The key list lives only in the **Environment Variables** table in `.ai/extended/development.md`.
+- **Debug-token bypass removed** — customer APIs no longer return the raw magic-link token in any environment, and the "Continue with debug link" buttons are gone from the public Sign-in and Hold status pages. Confirming an email always means clicking the emailed link, so local testing exercises the real path. Affected account register, magic-link request, password reset, resend verification, hold create, and hold resend-verification.
+- **Homepage clutter** — removed "Three simple steps", the standalone online-store green banner, fabricated testimonials, the single-item "In store now" spotlight, the blog teaser row (the nav and footer already link it), eyebrow labels, and the redundant "Plan your visit" / "Store details" buttons. Dead CSS for those blocks (`.hero`, `.frame`, `.how`, `.revs`, `.sell`) is gone too. Address remains in the visit strip and footer only; Google reviews link sits in the visit strip.
+- **Surnames and staff names in public copy** — blog bylines are now "Bill / Owner" instead of "Bill Rollins / Founder & CEO" (`blog` migration `0002_author_first_name_only` updates existing posts), and no online-sales copy names a person. Pending-verification holds now read "Ask the front desk for help with an online hold", and hold-thread replies are attributed to "Eco-Thrift" rather than a raw author kind.
+
+### Fixed
+
+- **Needs action and Ready today could silently go empty as holds accumulated** — both tabs fetched one page of reservations and filtered in the browser, and Ready today ordered by `expires_at` ascending, so long-dead holds took the top of page one and pushed live work off it. Both now scope by status on the server (search deliberately spans every status so an old pickup code still finds its hold).
+- **Emailed sign-in links reported "invalid or expired" on the first click** — the token was single-use and the public site spent it five times per click. `consumeToken` listed `user` in its dependency array, so a successful consume set `user`, gave the callback a new identity, and re-ran the `VerifyPage` effect that depends on it; StrictMode doubled each attempt in dev. One `200`, four `400`s, and the failures are what the customer saw. Consume now dedupes by token (rejections evicted so genuine retries still work) and reads `user` through a ref to stay identity-stable, and the verify page sends you to `/account` when a replayed token fails but its session is still valid.
+- **Local Graph sends failed with `No module named 'msal'`** — `venv\Scripts\activate.bat` still pointed at `D:\Coding\…` from when the venv was built on another drive, so activation prepended a directory that does not exist and `python` fell through to system Python. The three relocated paths are corrected and `scripts/dev/dev.ps1` now launches Django by absolute `venv\Scripts\python.exe` instead of trusting activation, which also stops a stale venv from silently running the wrong interpreter.
+- **Site header floated mid-viewport on every public page** — `.hdr` was pinned at `top: var(--util-height)` on the assumption that the "Under construction" banner sat above it, but that banner only renders when Online Sales is *off*. With the shop enabled the header stuck 52px down while content scrolled through the gap above and behind it. The header now sticks at `top: 0` and the notice banner is no longer sticky, removing the coupling. In-page sticky panels (product gallery, checkout summary) use a `--sticky-offset` derived from the header height instead of a hardcoded `96px`.
+
+### Changed
+
+- **No em dashes in UI copy** - staff dashboard, public site, and customer-facing emails/API messages use plain hyphens instead of `—` / `–`.
+- **Staff customer API is service-ready** — customer payloads include `is_active` / `email_verified`; create assigns the Customer group; URL pk is the user id; delete soft-deactivates; `POST …/reactivate/` and `POST …/send-sign-in-link/` cover the common CS actions. Conversation list can filter by `customer` and search linked account names/emails.
+- **Listing Studio sections share a baseline** — Details pairs with Shop preview and Photos with Facebook Page in two equal-height rows, so card bottoms line up on desktop. Preview shows the cover photo (or a dashed placeholder) and clamps the description so the side panels read evenly.
+- **To list: quick Remove with confirm** — Waiting items get Remove (confirm → back to on shelf via `POST /api/webstore/work-queue/<id>/remove/`). Drafts get Remove (confirm → delete draft). Neither is a silent click.
+- **Listings catalog table rebuilt** — Catalog rows now show a thumbnail, title + SKU/category, status, price, qty, **Facebook** (Posted / Not posted with last listed date; Posted links out when a URL exists), and glanceable Updated. Filters add All FB / Posted / Not posted (`fb_posted=0|1` on the listings API). Debounced search.
+- **Customers Messages filters stay put** — toggling Needs reply / Has hold / etc. no longer blanks the panel into a loading screen. Conversations keep the previous page on screen (`keepPreviousData`), cache for 20s, and prefetch the other filter buckets so switches feel instant.
+- **Customers unread badges no longer clip** — the Messages tab count and row unread pills were sheared by Tabs/DataGrid `overflow: hidden`. Tabs allow the badge to sit above the label, and unread counts render as a compact pill with overflow visible on the leading column.
+- **Holds is mobile-first on phones** — below the `md` breakpoint (same cutover as the sidebar drawer), Needs / Ready / Completed / Released switch from DataGrid to field-app style card rows (large tap targets, status + pickup code up front, whole-row open). The hold detail opens as a bottom sheet with a grab handle and safe-area padding instead of a right drawer. Tabs scroll with shorter labels, Messages stacks list → thread with a back control (no side-by-side), and filter/search controls go full width. Desktop grids and the right drawer stay as they were.
+- **Hold date columns are glanceable** — Requested, Expires, Released, and Completed show Today / Tomorrow / Yesterday (or a weekday) on the first line and the clock on the second, colored by urgency: Expires turns amber for today, blue for tomorrow, and red when overdue, with a short countdown on today's deadlines. Times use the America/Chicago store calendar.
+- **Hold Status hover shows the full action timeline** — reservation list rows now include a compact `timeline` (event label, who, when, optional note). Hovering the Status chip on Needs action / Ready today / Released opens a panel with every step from request through pull, ready, complete, or release — so staff can see history without opening the drawer.
+- **Hold drawer actions match the floor workflow** — Actions are split into Prepare (Pull item, Mark ready, Decline) and At pickup (Complete, Extend, Cancel, No-show). Steps that are already done disappear: Pull after confirmed, Mark ready after ready, Decline once pulling has started, and No-show only once the customer was expected. Buttons are large and color-coded inside a bordered Actions card. Timeline lists every event with a staff-facing label, who did it (customer / staff name / system), and the date/time.
+- **Sidebar says when a customer is waiting** — the Customers nav row carries a count of threads awaiting a staff reply, so unanswered mail is visible from any page instead of two clicks deep. Counts come from `hooks/useNavBadgeCounts.ts` keyed by nav item id, so a new badge needs no navigation changes, and the query is gated on the Online Sales workspace being visible so staff who cannot open the page never poll it. The Customers Messages tab reads the same number: the paginated `count` of threads needing a reply, not a sum of page one, which silently undercounted past 25 threads.
+- **Online Sales navigation trimmed to what exists** — dropped six catalog entries (`onlineSalesQueue`, `onlineSalesInbox`, `onlineSalesMarketing`, `onlineSalesSales`, `webStore`, `webOrders`) that pointed at routes which only redirect and appeared in no sidebar group. The redirects stay in `App.tsx` so old bookmarks keep working; the catalog is once again only links the sidebar shows. The Listings tab now lives in the URL (`?tab=tolist`) like the Holds page, so refresh, bookmark, and back all land where you were. `frontend/src/navigation/README.md` had drifted — it listed workspaces that were renamed and pages that had moved — and now matches the real layout.
+- **Online Sales looks like the rest of the dashboard** — the area was assembled panel by panel, so each tab invented its own status chips, date format, filter controls, and grid chrome, and every grid trailed a paragraph of grey instructions. Presentation now lives in one place (`frontend/src/pages/online-sales/presentation.tsx`): hold, thread, and listing chips with counter-facing labels (`Needs pull`, `Pulling`, `Ready`, `Awaiting email`) instead of raw snake_case, one datetime format, shared borderless grid styling, and centered empty states that read as calm rather than broken. Filters are consistent — debounced search plus `ToggleButtonGroup` buckets rather than hand-rolled button rows — money uses `formatCurrency`, guidance moved into page subtitles and one caption per tab, Completed gained a summary card, Messages gained thread search and a structured read/reply pane, and the hold drawer gained a proper toolbar header with the pickup code as its own block. Listing Studio is organised into titled cards, its readiness warnings are a list, and Mark sold / Archive / Delete moved behind an overflow menu so nothing destructive sits beside Publish.
+- **Local email sends for real** — `.env` now carries the `MS_GRAPH_*` block, so dev exercises the true verification flow through the `retail@ecothrift.us` mailbox while `ONLINE_SALES_PUBLIC_BASE_URL` keeps every emailed link pointed at `localhost:5174`. Set `MS_GRAPH_ENABLED=false` for console-only output. `msal` (already in `requirements.txt`) is required in the venv.
+- **`walk_online_sales_demo`** — reads the magic-link token from `MagicLinkToken` and asserts the API does *not* return it, standing in for the customer clicking the emailed link.
+- **Heroku env sync** — new `--check-drift` flag reports Config Vars present on Heroku but absent from `.envprod`. The sync only ever sets keys, never unsets, so vars added directly on Heroku were invisible. First finding: `VITE_API_URL` is set in production but read by nothing.
+- **Customer History says Picked up / Ended** — filters and chips no longer say "Released"; declined, cancelled, and expired holds are **Ended**. History defaults to the last 90 days plus every picked-up hold, with older ended holds behind "Show older"; Messages keeps open and unread threads and folds settled ones away after 90 days. The History tab badge counts what the list actually shows.
+- **Homepage restructure** — the first band is Intro + Featured online items side by side, then Visit, then Footer, so the page reads like a storefront instead of a brochure. The intro states plainly that most stock is on the retail floor and a handful of special items are online. Visit strip is compact (map + live hours + phone + directions + pickup note + reviews) and vertically centered in the band between the intro rule and the footer on taller viewports. Blog card excerpts clamp to two lines on `/blog`. "Sell to us" is deferred until real consignment terms exist.
+
+
+## [2.68.0] — 2026-08-04
+
+User-facing theme: **Reopen a released hold** — staff can put a cancelled, declined, or expired hold back in play without asking the customer to start over, and only when the item is genuinely still available.
+
+Initiative: [`online_sales_mvp`](.ai/initiatives/online_sales_mvp.md).
+
+### Added
+
+- **Reopen action** — `POST /api/webstore/reservations/<id>/reopen/` returns a released hold to Approved. Requires an internal note, re-checks that the listing is published and has enough left, and re-reserves the quantity under lock. Refuses outright on completed sales, since inventory already moved.
+- **Reopen lands on Approved, not Ready** — staff must pull the item and mark Ready again, so "Ready" keeps meaning the item is physically on the shelf.
+- **Customer comms** — `send_hold_reopened` email plus a system message saying the hold is active again and not to come in until Ready. The `reopened` event shows on the customer timeline as "Hold reopened"; the internal note never does.
+- **Dev tooling** — `manage.py purge_online_sales` clears all Online Sales records (dry-run by default, DEBUG-gated) and leaves inventory Items intact.
+
+### Changed
+
+- **Hold drawer** — shows Reopen for released holds, and surfaces the server's refusal verbatim so "only 0 available" is visible instead of a generic failure.
+- **Prod pull script** — `0_pull_prod_to_local.bat` now rebuilds the `pg_trgm` extension and the two trigram search indexes that `DROP SCHEMA CASCADE` removes, then runs `migrate`.
+
+### Fixed
+
+- **Stale test assertion** — the confirm system-message test still expected the pre-v2.67 wording ("confirmed" rather than "approved").
+
+## [2.67.0] — 2026-08-04
+
+User-facing theme: **Hold clarity + consolidation** — customers see a plain-language timeline (Approved → Ready → Picked up) and when to come in; staff work holds from one page with notes and required decline/cancel reasons; Online Sales nav shrinks to Listings + Holds.
+
+Initiative: [`online_sales_mvp`](.ai/initiatives/online_sales_mvp.md).
+
+### Added
+
+- **Hold vocabulary** — `hold_status.customer_view` maps DB statuses to stage / customer_status / headline / next_step / can_pickup / tone; public hold payload exposes timeline (staff notes filtered out).
+- **Release reasons** — `Reservation.release_reason`; decline/cancel require a reason; shown to the customer and recorded on `ReservationEvent`.
+- **Staff notes** — `POST /api/webstore/reservations/<id>/notes/` appends internal `kind=note` events (never public).
+- **Emails** — `send_hold_ready` on stage; `send_hold_released` on decline/cancel/expire.
+- **Public UI** — Hold status banner, step tracker, ready-to-pick-up callout, terminal reasons; Account/Checkout copy aligned.
+- **Staff UI** — Shared `HoldDetailDrawer` (Approve / Mark Ready / reason dialog / notes); `/online-sales/holds` with Needs action / Ready today / Completed / Messages.
+
+### Changed
+
+- **Staff nav** — Online Sales is two items: Listings (Catalog + To list) and Holds. Redirects: `/online-sales` and `/marketing` → listings; `/inbox` → holds; `/sales` → holds?tab=completed; legacy admin web-orders → holds.
+- **System messages** — Approved / Ready copy tells customers not to come until Ready.
+
+## [2.66.0] — 2026-08-04
+
+User-facing theme: **Sales log detail** — completed online holds get a real event timeline, a click-through drawer, and a usable grid (currency, range/search, totals, POS link).
+
+Initiative: [`online_sales_mvp`](.ai/initiatives/online_sales_mvp.md).
+
+### Added
+
+- **Webstore / ReservationEvent** — Append-only hold history (requested → verified → confirmed → staged → extended → completed / declined / expired / cancelled), written fail-soft from reservation services; backfill from existing timestamps.
+- **API** — `GET /api/webstore/reservations/<id>/detail/` (reservation + events + thread); `sales-log` supports `?days=` and `?search=` (cap 500).
+- **Staff UI** — Sales log range filters, search, totals strip, formatted money, POS chip, row detail drawer (timeline, notes, messages, Open in Inbox).
+
+### Changed
+
+- **Sales log scope note** — Still read-only and no exports; fees/contribution columns (present since v2.62) plus a contribution totals strip are intentional vs the earlier “no contribution math” gap wording.
+
+## [2.65.0] — 2026-08-04
+
+User-facing theme: **Verified holds + optional-password customer accounts** — a hold or question reaches staff only after the email is proven; passwords stay optional.
+
+Initiative: [`online_sales_mvp`](.ai/initiatives/online_sales_mvp.md) (**G8 revised**).
+
+### Added
+
+- **Accounts** — Magic-link purposes (`sign_in`, `verify_email`, `verify_hold`, `verify_thread`, `reset_password`); `CustomerProfile.email_verified_at`; customer lookup / register / set-password / reset-password / resend-verification; `has_password` + `email_verified` on `/api/auth/me/`.
+- **Holds / questions** — `pending_verification` reservation status (stock reserved, staff-hidden) and conversation state; confirm-email + resend endpoints; 30-minute auto-release; unverified inquiry purge after 24h.
+- **Public site** — Email-first sign-in (password, magic link, or create account); `/verify`; hold status “Confirm your email”; Account add-password / verify-email cards.
+
+### Changed
+
+- **G8** — Accounts remain optional, but a **verified email is mandatory** before a hold or question reaches staff. Signed-in verified customers skip the confirm step.
+- **Scheduler (manual)** — Run `expire_online_holds` **every 10 minutes** (was hourly) so 30-minute pending holds cannot sit on reserved stock for up to ~90 minutes.
 
 ## [2.64.0] — 2026-07-31
 

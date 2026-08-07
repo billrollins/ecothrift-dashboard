@@ -108,7 +108,7 @@ function drawBarcode(
       fontSize: Math.max(10, Math.round(boxH * 0.18)),
     });
   } catch {
-    // Invalid payload for Code128 — draw a placeholder box so layout is still visible.
+    // Invalid payload for Code128 - draw a placeholder box so layout is still visible.
     ctx.strokeStyle = '#000000';
     ctx.strokeRect(x, y, boxW, boxH);
     return;

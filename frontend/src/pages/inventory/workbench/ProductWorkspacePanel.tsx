@@ -100,7 +100,7 @@ export function ProductWorkspacePanel({
   const checkIns = checkInsQuery.data?.results ?? [];
   const items = itemsQuery.data?.results ?? [];
   const soldItems = items.filter((it) => it.status === 'sold');
-  const avgSold = usage?.avg_sold_price ? formatCurrency(usage.avg_sold_price) : '—';
+  const avgSold = usage?.avg_sold_price ? formatCurrency(usage.avg_sold_price) : '-';
 
   return (
     <Stack spacing={2}>
@@ -110,9 +110,9 @@ export function ProductWorkspacePanel({
       </Box>
 
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-        <StatTile label="On shelf" value={usage?.on_shelf_count ?? usage?.status_counts?.find((s) => s.status === 'on_shelf')?.count ?? '—'} />
-        <StatTile label="Sold" value={usage?.sold_count ?? '—'} />
-        <StatTile label="Ever" value={usage?.item_count ?? '—'} />
+        <StatTile label="On shelf" value={usage?.on_shelf_count ?? usage?.status_counts?.find((s) => s.status === 'on_shelf')?.count ?? '-'} />
+        <StatTile label="Sold" value={usage?.sold_count ?? '-'} />
+        <StatTile label="Ever" value={usage?.item_count ?? '-'} />
         <StatTile label="Avg sold" value={avgSold} />
       </Stack>
 
@@ -151,7 +151,7 @@ export function ProductWorkspacePanel({
                 >
                   <TableCell>#{ci.id}</TableCell>
                   <TableCell>{ci.quantity}</TableCell>
-                  <TableCell>{ci.created_at ? new Date(ci.created_at).toLocaleString() : '—'}</TableCell>
+                  <TableCell>{ci.created_at ? new Date(ci.created_at).toLocaleString() : '-'}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

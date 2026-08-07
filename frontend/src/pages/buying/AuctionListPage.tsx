@@ -73,7 +73,7 @@ import {
 } from '../../utils/buyingOptimisticCache';
 import { useBuyingArchiveGrace } from '../../utils/buyingArchiveGrace';
 
-/** Stable reference for useBuyingAuctionSummary — inline `{}` is a new object every render and churns the query key. */
+/** Stable reference for useBuyingAuctionSummary - inline `{}` is a new object every render and churns the query key. */
 const BUYING_SUMMARY_PARAMS_EMPTY: BuyingAuctionSummaryParams = {};
 const BUYING_SUMMARY_ARCHIVED: BuyingAuctionSummaryParams = { archived: true };
 const BUYING_SUMMARY_COMPLETED: BuyingAuctionSummaryParams = { completed: true };
@@ -99,7 +99,7 @@ export default function AuctionListPage() {
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
   const { hasRole } = useAuth();
-  /** Admin, Manager, or Employee — used for thumbs-up (matches backend IsStaff). */
+  /** Admin, Manager, or Employee - used for thumbs-up (matches backend IsStaff). */
   const isStaff = hasRole('Employee');
 
   const [ordering, setOrdering] = useState(DEFAULT_BUYING_LIST_ORDERING);
@@ -115,7 +115,7 @@ export default function AuctionListPage() {
     pageSize: 50,
   });
 
-  /** Draft vs committed — backend `q` only sends committed (Enter / Search). */
+  /** Draft vs committed - backend `q` only sends committed (Enter / Search). */
   const [searchDraft, setSearchDraft] = useState('');
   const [searchCommitted, setSearchCommitted] = useState('');
 

@@ -55,7 +55,7 @@ export function orderPickerReceivingBadgeColors(order: ReceivingBadgeInput): Ord
     return { iconBg: '#ffedd5', iconColor: '#c2410c', label: 'Receiving in progress' };
   }
   if (status === 'shipped' || Boolean(String(order.shipped_date ?? '').trim())) {
-    return { iconBg: '#dbeafe', iconColor: '#1d4ed8', label: 'Shipped — waiting' };
+    return { iconBg: '#dbeafe', iconColor: '#1d4ed8', label: 'Shipped - waiting' };
   }
   return { iconBg: '#f1f5f9', iconColor: '#475569', label: 'Pending shipment' };
 }
@@ -79,12 +79,12 @@ export function orderPickerProcessingBadgeColors(order: ProcessingBadgeInput): O
     return { iconBg: '#ccfbf1', iconColor: '#0f766e', label: 'Processing active' };
   }
   if (status === 'delivered') {
-    return { iconBg: '#e0f2fe', iconColor: '#0369a1', label: 'Delivered — ready' };
+    return { iconBg: '#e0f2fe', iconColor: '#0369a1', label: 'Delivered - ready' };
   }
   if (status === 'shipped') {
     return { iconBg: '#dbeafe', iconColor: '#1d4ed8', label: 'Shipped' };
   }
-  return { iconBg: '#fef3c7', iconColor: '#b45309', label: 'Paid — awaiting' };
+  return { iconBg: '#fef3c7', iconColor: '#b45309', label: 'Paid - awaiting' };
 }
 
 export type RelevantOrderDate = {
@@ -123,7 +123,7 @@ export function pickMostRelevantOrderDate(
 /** Compact display: `DEL · Nov 22, 2026` */
 export function formatRelevantOrderDateLine(
   order: OrderPickerDateFields,
-  fallback = '—',
+  fallback = '-',
 ): string {
   const hit = pickMostRelevantOrderDate(order);
   if (!hit) return fallback;
@@ -131,7 +131,7 @@ export function formatRelevantOrderDateLine(
 }
 
 export function formatOrderPickerDate(value: string | null | undefined): string {
-  if (!value) return '—';
+  if (!value) return '-';
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString(undefined, {

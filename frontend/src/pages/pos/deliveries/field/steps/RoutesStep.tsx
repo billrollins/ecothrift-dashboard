@@ -175,7 +175,7 @@ function DropZone({
   const { setNodeRef, isOver } = useDroppable({ id });
   useEffect(() => {
     onIsOverChange?.(isOver);
-    // Intentionally depend only on isOver — parent passes an inline callback.
+    // Intentionally depend only on isOver - parent passes an inline callback.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOver]);
   return (
@@ -198,12 +198,12 @@ function DropZone({
 }
 
 function formatEta(value?: string | null) {
-  if (!value) return '—';
+  if (!value) return '-';
   return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
 function formatMinutes(seconds?: number | null) {
-  if (seconds == null) return '—';
+  if (seconds == null) return '-';
   const mins = Math.max(0, Math.round(seconds / 60));
   if (mins < 60) return `${mins} min`;
   const h = Math.floor(mins / 60);
@@ -222,7 +222,7 @@ function formatCompactMinutes(seconds?: number | null) {
 }
 
 function formatClock(value?: string | null) {
-  if (!value) return '—';
+  if (!value) return '-';
   return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
@@ -334,7 +334,7 @@ export function RoutesStep({
       const onTruck = (stop.stop_items ?? []).filter((i) => i.is_ready || i.loaded_at).length;
       enqueueSnackbar(
         onTruck > 0
-          ? `Off route — remember to unload ${onTruck} item(s) when you get back`
+          ? `Off route - remember to unload ${onTruck} item(s) when you get back`
           : 'Moved off route',
         { variant: 'info' },
       );
@@ -410,7 +410,7 @@ export function RoutesStep({
                     stop_ids: previous,
                   })
                   .catch(() =>
-                    enqueueSnackbar('Could not undo — refresh and try again', {
+                    enqueueSnackbar('Could not undo - refresh and try again', {
                       variant: 'warning',
                     }),
                   );
@@ -421,7 +421,7 @@ export function RoutesStep({
           ),
         });
       } catch {
-        enqueueSnackbar('Route changed — refresh and try again', { variant: 'warning' });
+        enqueueSnackbar('Route changed - refresh and try again', { variant: 'warning' });
       }
     }
   };
@@ -460,7 +460,7 @@ export function RoutesStep({
       enqueueSnackbar('Added to route', { variant: 'success' });
     } catch (err: unknown) {
       enqueueSnackbar(
-        mutationErrorDetail(err) || 'Insert failed — route may have changed',
+        mutationErrorDetail(err) || 'Insert failed - route may have changed',
         { variant: 'error' },
       );
     }
@@ -471,7 +471,7 @@ export function RoutesStep({
     try {
       if (canReopenTruckFromRun(run)) {
         await mutations.reopenTruck.mutateAsync({ runId: run.id });
-        enqueueSnackbar('Truck reopened — load it now', { variant: 'info' });
+        enqueueSnackbar('Truck reopened - load it now', { variant: 'info' });
       } else {
         enqueueSnackbar(`Go load ${stopDisplayName(stop).split(' ')[0]}`, {
           variant: 'info',
@@ -602,7 +602,7 @@ export function RoutesStep({
     provider === 'optimized'
       ? 'Optimized route'
       : provider === 'fallback'
-        ? `ETAs limited${fallbackReason ? ` — ${fallbackReason}` : ''}`
+        ? `ETAs limited${fallbackReason ? ` - ${fallbackReason}` : ''}`
         : 'Route not calculated';
   const stripEta =
     summary?.total_eta_seconds != null || summary?.total_drive_seconds != null
@@ -802,7 +802,7 @@ export function RoutesStep({
       const first = pendingRouteDecisionStops(allStops)[0];
       const hint = first
         ? isOnRoute(first) && !stopIsOnTruck(first)
-          ? `${stopDisplayName(first).split(' ')[0]} is confirmed but not on the truck — remove from route, or reopen the truck to load it`
+          ? `${stopDisplayName(first).split(' ')[0]} is confirmed but not on the truck - remove from route, or reopen the truck to load it`
           : `${pendingRouteDecisionStops(allStops).length} stop(s) still need an Add/Remove decision`
         : 'Route is not ready to start';
       enqueueSnackbar(hint, { variant: 'warning' });

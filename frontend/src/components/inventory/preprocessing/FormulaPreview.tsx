@@ -143,7 +143,7 @@ export function FormulaPreview({
         </Typography>
       </Box>
       <Typography sx={{ fontSize: 12, color: '#888', mb: expanded ? 1 : 0 }}>
-        Snapshot from the manifest sample — expands with your flat fields plus JSON buckets; updates while editing when
+        Snapshot from the manifest sample - expands with your flat fields plus JSON buckets; updates while editing when
         open.
       </Typography>
       {expanded && previewTargets.length > 0 && (
@@ -233,7 +233,7 @@ export function FormulaPreview({
       )}
       {expanded && previewTargets.length === 0 && (
         <Typography sx={{ fontSize: 13, color: '#888', fontStyle: 'italic' }}>
-          No formulas yet — add expressions above, then expand or refresh.
+          No formulas yet - add expressions above, then expand or refresh.
         </Typography>
       )}
     </Box>

@@ -4,7 +4,7 @@ import type { RestorationJobDTO } from '../../../types/inventory.types';
 export function stackSkuSummary(job: Pick<RestorationJobDTO, 'sku' | 'quantity' | 'items'>): string {
   const items = job.items ?? [];
   const stackSize = Math.max(job.quantity, items.length);
-  const firstSku = items[0]?.sku ?? job.sku ?? '—';
+  const firstSku = items[0]?.sku ?? job.sku ?? '-';
   if (stackSize <= 1) return firstSku;
   return `${firstSku} +${stackSize - 1}`;
 }

@@ -43,7 +43,7 @@ export default function DeliveryExperienceLayout({ experience }: Props) {
     );
   }
 
-  // Field list/search: bottom nav only — no wasteful top Days/Deliveries links.
+  // Field list/search: bottom nav only - no wasteful top Days/Deliveries links.
   if (showFieldListBar) {
     return (
       <Box

@@ -28,7 +28,20 @@ Magic-link and hold emails embed `ONLINE_SALES_PUBLIC_BASE_URL`. For a clickable
 ONLINE_SALES_PUBLIC_BASE_URL=http://localhost:5174
 ```
 
-With `DEBUG=True`, the magic-link request API also returns `debug_token`, and the public Sign-in page shows a **Continue with debug link** button so you can sign in without relying on the emailed URL.
+**There is no debug bypass.** The customer APIs never return the raw magic-link
+token in any environment, and the public pages have no "continue with debug link"
+button — confirming an email always means clicking the emailed link, so local
+testing exercises the real path.
+
+Two ways to get that link locally:
+
+| `MS_GRAPH_ENABLED` | Where the link goes |
+|--------------------|---------------------|
+| `true` (current local default) | Real email from `retail@ecothrift.us` to the address you signed up with. Links still point at `localhost:5174`. |
+| `false` | Nothing is sent; the console email backend prints the whole message, link included, to the Django terminal. |
+
+Graph needs `msal` in the venv (`pip install -r requirements.txt`) plus the
+`MS_GRAPH_*` credentials in `.env`.
 
 ## Current DNS (overnight could not resolve)
 

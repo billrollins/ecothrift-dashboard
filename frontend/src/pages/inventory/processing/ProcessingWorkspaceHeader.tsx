@@ -76,7 +76,7 @@ function formatDate(value: string | null | undefined): string {
 }
 
 function formatCompactDate(value: string | null | undefined): string {
-  if (!value) return '—';
+  if (!value) return '-';
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
@@ -145,8 +145,8 @@ function formatDisputeDeadline(value: string | null | undefined): { value: strin
 
   const tooltip =
     daysLeft >= 0
-      ? `${dateStr} — ${daysLeft} business day${daysLeft === 1 ? '' : 's'} remaining (delivery + 4 business days).`
-      : `${dateStr} — dispute window closed.`;
+      ? `${dateStr} - ${daysLeft} business day${daysLeft === 1 ? '' : 's'} remaining (delivery + 4 business days).`
+      : `${dateStr} - dispute window closed.`;
 
   return { value: `${dateStr} · ${daysLabel}`, tooltip };
 }
@@ -198,7 +198,7 @@ export function ProcessingWorkspaceHeader({
 
   useEffect(() => {
     // The 1 Hz tick only feeds the items/hour rate, which renders as a static
-    // placeholder until the session starts — don't re-render the header until then.
+    // placeholder until the session starts - don't re-render the header until then.
     if (sessionStartedAt == null) return;
     const id = window.setInterval(() => tick((t) => t + 1), 1000);
     return () => window.clearInterval(id);
@@ -260,7 +260,7 @@ export function ProcessingWorkspaceHeader({
       {
         id: 'rate',
         label: 'Rate',
-        value: sessionStartedAt != null ? String(itemsPerHour) : '—',
+        value: sessionStartedAt != null ? String(itemsPerHour) : '-',
         suffix: sessionStartedAt != null ? '/hr' : undefined,
         helper: `${sessionCheckInCount} this session`,
         tone: itemsPerHour >= 100 ? 'good' : sessionCheckInCount > 0 ? 'warning' : 'default',
@@ -273,7 +273,7 @@ export function ProcessingWorkspaceHeader({
       {
         id: 'elapsed',
         label: 'Elapsed',
-        value: sessionStartedAt != null ? fmtElapsed(elapsedMs) : '—',
+        value: sessionStartedAt != null ? fmtElapsed(elapsedMs) : '-',
         helper: 'Since first check-in',
         detail: ['Timer starts at the first check-in this session.', `Session check-ins: ${fmtQty(sessionCheckInCount)}`],
       },

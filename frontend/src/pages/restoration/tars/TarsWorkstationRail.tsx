@@ -77,7 +77,7 @@ function itemTitle(job: RestorationJobDTO): string {
 
 function itemSku(job: RestorationJobDTO): string {
 
-  return job.items[0]?.sku ?? job.sku ?? '—';
+  return job.items[0]?.sku ?? job.sku ?? '-';
 
 }
 
@@ -93,11 +93,11 @@ function restorationEnteredAt(job: RestorationJobDTO): string | null {
 
 function formatRailDateTime(iso: string | null): string {
 
-  if (!iso) return '—';
+  if (!iso) return '-';
 
   const d = new Date(iso);
 
-  if (Number.isNaN(d.getTime())) return '—';
+  if (Number.isNaN(d.getTime())) return '-';
 
   return d.toLocaleString(undefined, {
 
@@ -169,7 +169,7 @@ function stageLabel(stage: RestorationJobDTO['stage']): string {
 
 function priceLabel(raw: string | null): string {
 
-  if (raw == null || raw === '') return '—';
+  if (raw == null || raw === '') return '-';
 
   const n = Number.parseFloat(raw);
 
@@ -239,7 +239,7 @@ function RailItemTooltipContent({ job }: { job: RestorationJobDTO }) {
 
     { label: 'SKU', value: itemSku(job) },
 
-    { label: 'Order', value: job.purchase_order_number ?? '—' },
+    { label: 'Order', value: job.purchase_order_number ?? '-' },
 
     { label: 'Stage', value: stageLabel(job.stage) },
 
@@ -255,11 +255,11 @@ function RailItemTooltipContent({ job }: { job: RestorationJobDTO }) {
 
     { label: 'Retail', value: priceLabel(job.retail) },
 
-    { label: 'Condition', value: job.condition?.replace(/_/g, ' ') || '—' },
+    { label: 'Condition', value: job.condition?.replace(/_/g, ' ') || '-' },
 
-    { label: 'Source', value: job.source || '—' },
+    { label: 'Source', value: job.source || '-' },
 
-    { label: 'Category', value: job.category || '—' },
+    { label: 'Category', value: job.category || '-' },
 
   ];
 

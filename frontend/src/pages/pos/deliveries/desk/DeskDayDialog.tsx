@@ -54,7 +54,7 @@ function formFromDay(day?: DeliveryDayDetail | null): FormState {
   };
 }
 
-/** Manager create/edit for a delivery day — the container Desk deliveries live on. */
+/** Manager create/edit for a delivery day - the container Desk deliveries live on. */
 export function DeskDayDialog({ open, onClose, day, onSaved }: Props) {
   const { enqueueSnackbar } = useSnackbar();
   const { create, update } = useDeliveryDayMutations();
@@ -168,7 +168,7 @@ export function DeskDayDialog({ open, onClose, day, onSaved }: Props) {
             label="Crew label"
             value={form.assigned_to}
             onChange={(e) => set('assigned_to', e.target.value)}
-            placeholder="e.g. Truck 1 — Mike & Dan"
+            placeholder="e.g. Truck 1 - Mike & Dan"
           />
           <TextField
             label="Notes"

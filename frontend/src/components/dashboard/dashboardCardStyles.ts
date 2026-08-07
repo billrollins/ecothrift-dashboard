@@ -59,7 +59,7 @@ export const dashboardCardElevation = 0;
 
 
 
-/** Main section panels — black border. */
+/** Main section panels - black border. */
 
 export const dashboardRaisedCardSx = {
 
@@ -73,7 +73,7 @@ export const dashboardRaisedCardSx = {
 
 
 
-/** Department cards — soft border, no black. */
+/** Department cards - soft border, no black. */
 
 export const dashboardRaisedDeptCardSx = {
 
@@ -89,7 +89,7 @@ export const dashboardRaisedDeptCardSx = {
 
 
 
-/** Stat pills (Goal, Last, Today) — soft border, no black. */
+/** Stat pills (Goal, Last, Today) - soft border, no black. */
 
 export const dashboardRaisedStatSx = {
 
@@ -113,7 +113,7 @@ export const dashboardRaisedStatSx = {
 
 
 
-/** Simple hover lift — shadow moves with the card via transform. */
+/** Simple hover lift - shadow moves with the card via transform. */
 export const dashboardCardHoverLiftSx = {
   transition: 'transform 0.2s ease',
   '@media (hover: hover)': {
@@ -123,7 +123,7 @@ export const dashboardCardHoverLiftSx = {
   },
 } as const;
 
-/** Solid left-edge accent — color only, no wash across the card. */
+/** Solid left-edge accent - color only, no wash across the card. */
 
 export function dashboardAccentLeftSx(accent: string) {
 

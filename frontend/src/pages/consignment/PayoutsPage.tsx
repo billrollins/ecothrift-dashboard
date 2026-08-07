@@ -72,7 +72,7 @@ export default function PayoutsPage() {
               new Date(row.period_end),
               'MM/dd/yyyy'
             )}`
-          : '—',
+          : '-',
     },
     { field: 'items_sold', headerName: 'Items Sold', width: 100 },
     {

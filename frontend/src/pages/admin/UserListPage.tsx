@@ -156,7 +156,7 @@ export default function UserListPage() {
       field: 'department',
       headerName: 'Department',
       width: 150,
-      valueGetter: (_value, row) => (row as User).employee?.department_name ?? '—',
+      valueGetter: (_value, row) => (row as User).employee?.department_name ?? '-',
     },
     {
       field: 'pay_rate',

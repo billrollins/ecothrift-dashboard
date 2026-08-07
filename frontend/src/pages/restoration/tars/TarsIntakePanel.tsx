@@ -345,10 +345,10 @@ function StackedQueueCard({
                         {[
               ['Category', job.category],
               ['Scale', job.scale || 'No scale'],
-              ['Retail', parseMoney(job.retail) != null ? formatUsd(parseMoney(job.retail)!) : '—'],
-              ['Price', parseMoney(job.price) != null ? formatUsd(parseMoney(job.price)!) : '—'],
-                          ['Values', `${completion.complete}/${completion.total || '—'}`],
-              ['Order #', job.purchase_order_number || '—'],
+              ['Retail', parseMoney(job.retail) != null ? formatUsd(parseMoney(job.retail)!) : '-'],
+              ['Price', parseMoney(job.price) != null ? formatUsd(parseMoney(job.price)!) : '-'],
+                          ['Values', `${completion.complete}/${completion.total || '-'}`],
+              ['Order #', job.purchase_order_number || '-'],
                         ].map(([label, value]) => (
                           <Box
                             key={label}
@@ -439,7 +439,7 @@ export function TarsIntakePanel() {
     Record<number, { scale: string; values: Record<string, number> }>
   >({});
   const patchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // One pending payload per job id — payloads for the same job merge (scale
+  // One pending payload per job id - payloads for the same job merge (scale
   // merges with grade edits; grade_values replaces wholesale since callers
   // always send the full values map).
   const pendingPatchesRef = useRef(
@@ -491,7 +491,7 @@ export function TarsIntakePanel() {
     return () => clearTimeout(handle);
   }, [searchInput]);
 
-  // Consume router nav state exactly once — window.history.replaceState does
+  // Consume router nav state exactly once - window.history.replaceState does
   // not clear react-router state, which previously re-selected the job and
   // reopened the dismissed "Needs prices" dialog on every refetch.
   const navStateConsumedRef = useRef(false);

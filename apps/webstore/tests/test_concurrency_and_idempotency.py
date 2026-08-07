@@ -7,10 +7,10 @@ from django.test import TestCase, TransactionTestCase, override_settings
 
 from apps.core.models import S3File
 from apps.webstore.models import Reservation, WebListing, WebListingImage
+from apps.webstore.tests.helpers import make_verified_hold
 from apps.webstore.services.reservations import (
     complete_reservation,
     confirm_reservation,
-    create_hold,
     release_reservation,
 )
 
@@ -35,7 +35,7 @@ class ConcurrencyStressTests(TransactionTestCase):
 
         def attempt(i):
             try:
-                create_hold(
+                make_verified_hold(
                     listing=listing,
                     quantity=1,
                     customer_name=f'Buyer {i}',
@@ -58,10 +58,10 @@ class ConcurrencyStressTests(TransactionTestCase):
 
     def test_interleave_confirm_expire_complete_invariant(self):
         listing = _listing('stress-life', on_hand=2)
-        a = create_hold(
+        a = make_verified_hold(
             listing=listing, quantity=1, customer_name='A', email='a@example.com',
         )
-        b = create_hold(
+        b = make_verified_hold(
             listing=listing, quantity=1, customer_name='B', email='b@example.com',
         )
         confirm_reservation(a)
@@ -79,11 +79,11 @@ class IdempotencyTests(TestCase):
     def test_duplicate_hold_idempotency_key(self):
         listing = _listing('idem-hold', on_hand=2)
         key = 'same-key-123'
-        r1 = create_hold(
+        r1 = make_verified_hold(
             listing=listing, quantity=1, customer_name='A', email='a@example.com',
             idempotency_key=key,
         )
-        r2 = create_hold(
+        r2 = make_verified_hold(
             listing=listing, quantity=1, customer_name='A', email='a@example.com',
             idempotency_key=key,
         )
@@ -93,7 +93,7 @@ class IdempotencyTests(TestCase):
 
     def test_double_complete_is_noop(self):
         listing = _listing('idem-complete', on_hand=1)
-        res = create_hold(
+        res = make_verified_hold(
             listing=listing, quantity=1, customer_name='C', email='c@example.com',
         )
         confirm_reservation(res)

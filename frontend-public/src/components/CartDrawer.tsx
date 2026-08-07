@@ -68,7 +68,7 @@ export default function CartDrawer() {
               </div>
               <p className="cartnote">
                 {/* POLICY_COPY_OK: negation prose */}
-                Request a hold online — pay and pick up in store. No shipping, delivery, or online
+                Request a hold online - pay and pick up in store. No shipping, delivery, or online
                 payment.
               </p>
               <Link className="btn btn--primary cartcheckout" to="/checkout" onClick={() => setOpen(false)}>

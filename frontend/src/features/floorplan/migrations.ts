@@ -30,7 +30,7 @@ export function migratePlanDocument(raw: PlanDocument): PlanDocument {
     if (++guard > 100) throw new UnsupportedSchemaError('migration loop');
   }
   if (doc.schema_version !== PLAN_SCHEMA_VERSION) {
-    // Newer than this client understands — refuse rather than corrupt.
+    // Newer than this client understands - refuse rather than corrupt.
     throw new UnsupportedSchemaError(doc.schema_version);
   }
   return applyDefaults(doc);

@@ -8,10 +8,10 @@ from rest_framework.test import APIClient
 from apps.accounts.models import User
 from apps.core.models import S3File
 from apps.webstore.models import Reservation, WebListing, WebListingImage
+from apps.webstore.tests.helpers import make_verified_hold
 from apps.webstore.services.reservations import (
     complete_reservation,
     confirm_reservation,
-    create_hold,
     release_reservation,
 )
 
@@ -43,6 +43,9 @@ class JourneyTests(TestCase):
         self.mgr.groups.add(group)
 
     def test_guest_ask_to_staff_reply(self):
+        from apps.accounts.models import MagicLinkToken
+        from apps.accounts.services.magic_link import consume_magic_link
+
         listing = _listing(slug='journey-ask')
         ask = self.client.post(
             f'/api/webstore/catalog/{listing.slug}/ask/',
@@ -50,7 +53,17 @@ class JourneyTests(TestCase):
             format='json',
         )
         self.assertEqual(ask.status_code, 201)
+        self.assertTrue(ask.json().get('needs_verification'))
+        # Unverified questions stay hidden from staff until the email is proven.
         self.client.force_authenticate(self.mgr)
+        hidden = self.client.get('/api/webstore/conversations/?state=needs_reply')
+        self.assertEqual(hidden.json().get('count', len(hidden.json().get('results', []))), 0)
+
+        tok = MagicLinkToken.objects.filter(
+            email='ada@example.com', purpose=MagicLinkToken.PURPOSE_VERIFY_THREAD,
+        ).latest('id').token
+        consume_magic_link(token=tok)
+
         convs = self.client.get('/api/webstore/conversations/?state=needs_reply')
         self.assertEqual(convs.status_code, 200)
         results = convs.json().get('results', convs.json())
@@ -65,7 +78,7 @@ class JourneyTests(TestCase):
 
     def test_hold_confirm_complete(self):
         listing = _listing(slug='journey-hold', on_hand=1)
-        res = create_hold(
+        res = make_verified_hold(
             listing=listing, quantity=1, customer_name='Bill', email='bill@example.com',
         )
         confirm_reservation(res)
@@ -77,7 +90,7 @@ class JourneyTests(TestCase):
 
     def test_expiry_releases_qty(self):
         listing = _listing(slug='journey-exp', on_hand=1)
-        res = create_hold(
+        res = make_verified_hold(
             listing=listing, quantity=1, customer_name='E', email='e@example.com',
         )
         confirm_reservation(res)
@@ -88,7 +101,7 @@ class JourneyTests(TestCase):
 
     def test_decline_releases_qty(self):
         listing = _listing(slug='journey-dec', on_hand=1)
-        res = create_hold(
+        res = make_verified_hold(
             listing=listing, quantity=1, customer_name='D', email='d@example.com',
         )
         release_reservation(res, 'declined')
@@ -97,7 +110,7 @@ class JourneyTests(TestCase):
 
     def test_partial_multi_qty(self):
         listing = _listing(slug='journey-multi', on_hand=3)
-        create_hold(
+        make_verified_hold(
             listing=listing, quantity=2, customer_name='M', email='m@example.com',
         )
         listing.refresh_from_db()
@@ -107,7 +120,7 @@ class JourneyTests(TestCase):
     def test_unlinked_listing_hold(self):
         listing = _listing(slug='journey-unlinked', on_hand=1)
         self.assertIsNone(listing.item_id)
-        res = create_hold(
+        res = make_verified_hold(
             listing=listing, quantity=1, customer_name='U', email='u@example.com',
         )
         self.assertEqual(res.status, 'requested')

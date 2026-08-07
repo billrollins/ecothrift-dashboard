@@ -84,7 +84,7 @@ export default function BuyingFilterChips({
 
     if (id === 'archived') {
       const count =
-        archivedCount != null && archivedCount >= 0 ? archivedCount : '—';
+        archivedCount != null && archivedCount >= 0 ? archivedCount : '-';
       return (
         <Tooltip key={id} title={title} enterDelay={400} placement="top">
           <ToggleButton

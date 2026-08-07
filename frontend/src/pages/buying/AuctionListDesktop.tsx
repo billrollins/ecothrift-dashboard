@@ -65,7 +65,7 @@ const EXPAND_COL_WIDTH = 40;
 const DETAIL_STRIP_PX = 44;
 /** Default row body height (must match DataGrid `rowHeight` and expanded-row split). */
 const ESTIMATE_ROW_BASE_PX = BUYING_AUCTION_LIST_ROW_HEIGHT_PX;
-/** Priority / Need — numeric. */
+/** Priority / Need - numeric. */
 const BUYING_COL_PRIORITY_NEED_WIDTH = 72;
 /** Vendor chip. */
 const BUYING_COL_VENDOR_WIDTH = 104;
@@ -121,7 +121,7 @@ const buyingGridThumbsTallySx = {
   fontSize: '0.7rem',
 } as const;
 
-/** Inert star (no toggle handler) — uses muted color. */
+/** Inert star (no toggle handler) - uses muted color. */
 const buyingGridInertStarSx = {
   ...buyingGridIconOnlySx,
   color: 'action.disabled',
@@ -140,7 +140,7 @@ const buyingGridHeaderIconBtnSx = {
 
 /**
  * Mutable state read by column closures via ref.
- * Avoids rebuilding the columns array on every data change — cells read current
+ * Avoids rebuilding the columns array on every data change - cells read current
  * values at render time, so DataGrid only re-renders rows whose data actually changed.
  */
 interface GridCellState {
@@ -181,7 +181,7 @@ const buyingGridArchiveIconBtnPendingSx = {
 } as const;
 
 function formatNeedScoreRaw(score: string | number | null | undefined): string {
-  if (score == null || score === '') return '—';
+  if (score == null || score === '') return '-';
   const n = Number.parseFloat(String(score));
   if (Number.isNaN(n)) return String(score);
   if (Number.isInteger(n)) return String(n);
@@ -189,7 +189,7 @@ function formatNeedScoreRaw(score: string | number | null | undefined): string {
 }
 
 function formatRatioOrDash(v: string | null | undefined): string {
-  if (v == null || v === '') return '—';
+  if (v == null || v === '') return '-';
   const n = Number.parseFloat(String(v));
   if (Number.isNaN(n)) return String(v);
   return `${n.toFixed(2)}×`;
@@ -207,7 +207,7 @@ function scopePhrase(selectedIds: number[]): string {
   return selectedIds.length > 0 ? 'selected' : 'on page';
 }
 
-/** Renders children only — disables MUI X header/tooltip wrappers (no hover popovers). */
+/** Renders children only - disables MUI X header/tooltip wrappers (no hover popovers). */
 function DataGridTooltipPassthrough({ children }: { children?: ReactNode }) {
   return <>{children}</>;
 }
@@ -216,14 +216,14 @@ type BulkSortableField = 'thumbs_up_count' | 'archived_at' | 'watchlist_sort';
 
 function bulkColumnSortTooltip(field: BulkSortableField, dir: 'asc' | 'desc' | null): string {
   if (field === 'watchlist_sort') {
-    if (dir === 'asc') return 'Sorted by unwatched first — click for watched first';
-    if (dir === 'desc') return 'Sorted by watched first — click to clear sort';
+    if (dir === 'asc') return 'Sorted by unwatched first - click for watched first';
+    if (dir === 'desc') return 'Sorted by watched first - click to clear sort';
     return 'Sort by watch status';
   }
   if (dir === 'asc')
-    return `Sorted by ${field === 'thumbs_up_count' ? 'thumbs up count' : 'archive date'} ascending — click for descending`;
+    return `Sorted by ${field === 'thumbs_up_count' ? 'thumbs up count' : 'archive date'} ascending - click for descending`;
   if (dir === 'desc')
-    return `Sorted by ${field === 'thumbs_up_count' ? 'thumbs up count' : 'archive date'} descending — click to clear sort`;
+    return `Sorted by ${field === 'thumbs_up_count' ? 'thumbs up count' : 'archive date'} descending - click to clear sort`;
   return field === 'thumbs_up_count' ? 'Sort by thumbs up count' : 'Sort by archived date';
 }
 
@@ -364,7 +364,7 @@ function buildColumns(
           anyUnwatched = targetRows.some((r) => !watchlistIds.has(r.id));
         }
         const tooltipTitle = watchLimited
-          ? 'Watchlist status limited to first 100 auctions — bulk actions disabled'
+          ? 'Watchlist status limited to first 100 auctions - bulk actions disabled'
           : noRows
             ? 'No rows on this page'
             : anyUnwatched
@@ -647,7 +647,7 @@ function buildColumns(
       headerClassName: 'buying-col-centered-tight',
       cellClassName: 'buying-col-centered-tight',
       renderCell: (params: GridRenderCellParams<BuyingAuctionListItem>) => {
-        const p = params.row.priority ?? '—';
+        const p = params.row.priority ?? '-';
         return (
           <Box sx={{ display: 'flex', width: '100%', justifyContent: 'center', alignItems: 'center' }}>
             <Typography variant="body2" fontWeight={600} sx={{ fontVariantNumeric: 'tabular-nums', textAlign: 'center' }}>
@@ -697,7 +697,7 @@ function buildColumns(
         <Box sx={{ display: 'flex', width: '100%', justifyContent: 'center', alignItems: 'center', minWidth: 0 }}>
           <Chip
             size="small"
-            label={params.row.marketplace?.name ?? '—'}
+            label={params.row.marketplace?.name ?? '-'}
             color="primary"
             variant="outlined"
             sx={{ maxWidth: '100%' }}
@@ -883,17 +883,17 @@ function InlineDetailStrip({ row }: { row: BuyingAuctionListItem }) {
   const top = row.top_categories ?? [];
   const costPct = formatAuctionCostToRetailPct(row);
   const mcount = row.manifest_row_count ?? 0;
-  const bids = row.bid_count != null ? String(row.bid_count) : '—';
+  const bids = row.bid_count != null ? String(row.bid_count) : '-';
   const srcLabel =
-    row.valuation_source === 'manifest' ? 'Manifest' : row.valuation_source === 'ai' ? 'AI estimate' : '—';
-  const profit = row.est_profit != null && row.est_profit !== '' ? formatCurrencyWhole(row.est_profit) : '—';
+    row.valuation_source === 'manifest' ? 'Manifest' : row.valuation_source === 'ai' ? 'AI estimate' : '-';
+  const profit = row.est_profit != null && row.est_profit !== '' ? formatCurrencyWhole(row.est_profit) : '-';
   const estCost =
     row.estimated_total_cost != null && row.estimated_total_cost !== ''
       ? formatCurrencyWhole(row.estimated_total_cost)
-      : '—';
+      : '-';
   const cats =
     top.length === 0
-      ? '—'
+      ? '-'
       : top.map((c) => `${c.name.length > 14 ? `${c.name.slice(0, 13)}…` : c.name} ${c.pct.toFixed(0)}%`).join(', ');
 
   const parts = [
@@ -903,8 +903,8 @@ function InlineDetailStrip({ row }: { row: BuyingAuctionListItem }) {
     `Est. cost: ${estCost}`,
     `Bids: ${bids}`,
     `Manifest: ${row.has_manifest ? `Yes (${mcount})` : 'No'}`,
-    `Condition: ${row.condition_summary || '—'}`,
-    `Lot: ${row.lot_size != null ? String(row.lot_size) : '—'}`,
+    `Condition: ${row.condition_summary || '-'}`,
+    `Lot: ${row.lot_size != null ? String(row.lot_size) : '-'}`,
     `Source: ${srcLabel}`,
     `Top cats: ${cats}`,
   ];

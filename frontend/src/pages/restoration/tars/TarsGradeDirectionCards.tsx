@@ -76,7 +76,7 @@ export function TarsGradeDirectionCards({
   if (directions.length === 0) {
     return (
       <Typography variant="body2" color="text.secondary" py={1}>
-        No processor grade values on this item — set grade scale in the queue first.
+        No processor grade values on this item - set grade scale in the queue first.
       </Typography>
     );
   }
@@ -105,10 +105,10 @@ export function TarsGradeDirectionCards({
             <Box minWidth={0}>
               <Typography variant="body2" fontWeight={900} sx={{ color: '#9a3412', lineHeight: 1.2 }}>
                 {canScrollRight ?
-                  `${hiddenCount} grade options — not all visible on screen`
+                  `${hiddenCount} grade options - not all visible on screen`
                 : canScrollLeft ?
-                  'More grades to the left — scroll back to compare'
-                : `${hiddenCount} grade options — scroll to review every one`}
+                  'More grades to the left - scroll back to compare'
+                : `${hiddenCount} grade options - scroll to review every one`}
               </Typography>
               <Typography variant="caption" sx={{ color: '#c2410c', fontWeight: 700 }}>
                 {canScrollRight ?
@@ -258,7 +258,7 @@ export function TarsGradeDirectionCards({
             />
           ))}
           <Typography variant="caption" fontWeight={800} color="warning.dark" sx={{ ml: 0.5 }}>
-            All {directions.length} grades — keep scrolling
+            All {directions.length} grades - keep scrolling
           </Typography>
         </Stack>
       : null}
@@ -272,7 +272,7 @@ function cardStatus(row: TarsGradeDirectionRow, readOnly?: boolean): { label: st
   if (row.isSelected) return { label: 'Your decision', tone: 'decision' };
   if (readOnly) {
     if (row.estimateHours > 0 || row.orderCount > 0) return { label: 'Planned', tone: 'planned' };
-    return { label: '—', tone: 'empty' };
+    return { label: '-', tone: 'empty' };
   }
   return { label: 'Choose this grade', tone: row.estimateHours > 0 || row.orderCount > 0 ? 'planned' : 'empty' };
 }

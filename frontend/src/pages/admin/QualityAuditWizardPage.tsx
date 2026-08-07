@@ -229,7 +229,7 @@ export default function QualityAuditWizardPage() {
       });
       setConfirmSubmitOpen(false);
       setDirty(false);
-      enqueueSnackbar(`Audit submitted — grade ${result.overall_grade || 'saved'}.`, {
+      enqueueSnackbar(`Audit submitted - grade ${result.overall_grade || 'saved'}.`, {
         variant: 'success',
       });
       navigate('/admin/quality-audit');
@@ -265,8 +265,8 @@ export default function QualityAuditWizardPage() {
     <Box>
       <QualityAuditMobileShell
         title={audit.form_title || 'Quality audit'}
-        intro={readOnly ? 'Submitted audit — review only' : audit.form_title ? undefined : 'Floor QA'}
-        auditorName={audit.conducted_by_name || '—'}
+        intro={readOnly ? 'Submitted audit - review only' : audit.form_title ? undefined : 'Floor QA'}
+        auditorName={audit.conducted_by_name || '-'}
         startedAt={audit.started_at}
         step={step}
         stepLabels={stepLabels}

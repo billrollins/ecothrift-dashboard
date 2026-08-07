@@ -19,6 +19,10 @@ if /I "%~1"=="--dry-run" (
     python "%~dp0lib\sync_to_heroku.py" --dry-run
     goto :DONE
 )
+if /I "%~1"=="--check-drift" (
+    python "%~dp0lib\sync_to_heroku.py" --check-drift
+    goto :DONE
+)
 if /I "%~1"=="--help" (
     python "%~dp0lib\sync_to_heroku.py" --help
     goto :DONE

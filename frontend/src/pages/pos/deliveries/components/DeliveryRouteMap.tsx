@@ -9,7 +9,7 @@ type Props = {
   height?: number;
   /** Bump to refetch after the route changes (e.g. run.route_revision). */
   revision?: number | string;
-  /** Native Maps handoff — the static image itself is not interactive. */
+  /** Native Maps handoff - the static image itself is not interactive. */
   mapsUrl?: string | null;
 };
 
@@ -68,7 +68,7 @@ export function DeliveryRouteMap({ dayId, height = 190, revision, mapsUrl }: Pro
         <Box sx={{ textAlign: 'center', color: ecoField.muted }}>
           <MapOutlined sx={{ fontSize: 28 }} />
           <Typography variant="caption" display="block" fontWeight={700}>
-            Map unavailable — use Open Maps to navigate
+            Map unavailable - use Open Maps to navigate
           </Typography>
         </Box>
       </Box>

@@ -260,7 +260,7 @@ def forgot_password_view(request):
     )
 
     payload = {'detail': public_detail}
-    # Dev convenience only — never echo the token when DEBUG is off.
+    # Dev convenience only - never echo the token when DEBUG is off.
     if settings.DEBUG:
         payload['reset_token'] = token
     return Response(payload)
@@ -374,23 +374,29 @@ class CustomerSerializer(serializers.Serializer):
     email = serializers.EmailField(source='user.email')
     first_name = serializers.CharField(source='user.first_name')
     last_name = serializers.CharField(source='user.last_name')
-    phone = serializers.CharField(source='user.phone', required=False, default='')
+    phone = serializers.CharField(source='user.phone', required=False, default='', allow_blank=True)
     full_name = serializers.CharField(source='user.full_name', read_only=True)
     customer_number = serializers.CharField(read_only=True)
     customer_since = serializers.DateField(read_only=True)
-    notes = serializers.CharField(required=False, default='')
+    notes = serializers.CharField(required=False, default='', allow_blank=True)
+    is_active = serializers.BooleanField(source='user.is_active', required=False)
+    email_verified = serializers.BooleanField(read_only=True)
 
     def create(self, validated_data):
+        from django.contrib.auth.models import Group
+
         user_data = validated_data.pop('user', {})
         user = User.objects.create_user(
             email=user_data['email'],
             first_name=user_data.get('first_name', ''),
             last_name=user_data.get('last_name', ''),
             phone=user_data.get('phone', ''),
-            password=None,  # No login needed
+            password=None,  # Optional; magic-link sign-in is the default path
             is_active=True,
             is_staff=False,
         )
+        group, _ = Group.objects.get_or_create(name='Customer')
+        user.groups.add(group)
         profile = CustomerProfile.objects.create(
             user=user,
             customer_number=CustomerProfile.generate_customer_number(),
@@ -401,7 +407,7 @@ class CustomerSerializer(serializers.Serializer):
     def update(self, instance, validated_data):
         user_data = validated_data.pop('user', {})
         user = instance.user
-        for attr in ('email', 'first_name', 'last_name', 'phone'):
+        for attr in ('email', 'first_name', 'last_name', 'phone', 'is_active'):
             if attr in user_data:
                 setattr(user, attr, user_data[attr])
         user.save()
@@ -415,6 +421,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
     """
     Customer management (Admin/Manager).
     Each customer is a User + CustomerProfile.
+    URL pk is the User id (matches the flat serializer `id`).
     """
     serializer_class = CustomerSerializer
     permission_classes = [IsAuthenticated, IsManagerOrAdmin]
@@ -424,9 +431,67 @@ class CustomerViewSet(viewsets.ModelViewSet):
         'user__phone', 'customer_number',
     ]
     ordering = ['customer_number']
+    # Serializer exposes user.id; keep URL pk aligned with that.
+    lookup_field = 'user_id'
+    lookup_url_kwarg = 'pk'
 
     def get_queryset(self):
-        return CustomerProfile.objects.select_related('user').all()
+        qs = CustomerProfile.objects.select_related('user').all()
+        active = self.request.query_params.get('is_active')
+        if active in ('0', 'false', 'False'):
+            qs = qs.filter(user__is_active=False)
+        elif active in ('1', 'true', 'True'):
+            qs = qs.filter(user__is_active=True)
+        return qs
+
+    def destroy(self, request, *args, **kwargs):
+        """Soft-deactivate instead of hard-deleting account history."""
+        profile = self.get_object()
+        user = profile.user
+        if not user.is_active:
+            return Response(CustomerSerializer(profile).data)
+        user.is_active = False
+        user.save(update_fields=['is_active'])
+        return Response(CustomerSerializer(profile).data)
+
+    @action(detail=True, methods=['post'], url_path='reactivate')
+    def reactivate(self, request, pk=None):
+        profile = self.get_object()
+        user = profile.user
+        if not user.is_active:
+            user.is_active = True
+            user.save(update_fields=['is_active'])
+        return Response(CustomerSerializer(profile).data)
+
+    @action(detail=True, methods=['post'], url_path='send-sign-in-link')
+    def send_sign_in_link(self, request, pk=None):
+        """Staff CS action: email a magic-link sign-in (never returns the token)."""
+        from apps.accounts.models import MagicLinkToken
+        from apps.accounts.services.magic_link import issue_magic_link
+        from apps.webstore.emails import send_sign_in_link
+
+        profile = self.get_object()
+        email = (profile.user.email or '').strip()
+        if not email:
+            return Response(
+                {'detail': 'This customer has no email address.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not profile.user.is_active:
+            return Response(
+                {'detail': 'Reactivate the customer before sending a sign-in link.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            token_row = issue_magic_link(
+                email=email,
+                request_ip=_client_ip(request),
+                purpose=MagicLinkToken.PURPOSE_SIGN_IN,
+            )
+        except ValidationError as exc:
+            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
+        send_sign_in_link(email=email, magic_link=_public_verify_link(token_row.token))
+        return Response({'detail': 'Sign-in link sent.'})
 
     @action(detail=False, methods=['get'], url_path='lookup/(?P<customer_number>[^/.]+)')
     def lookup(self, request, customer_number=None):
@@ -443,6 +508,24 @@ class CustomerViewSet(viewsets.ModelViewSet):
             )
 
 
+def _accounts_disabled_response():
+    return Response(
+        {'detail': 'Customer accounts are not available.', 'code': 'ACCOUNTS_DISABLED'},
+        status=status.HTTP_410_GONE,
+    )
+
+
+def _client_ip(request) -> str | None:
+    forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
+    return forwarded or request.META.get('REMOTE_ADDR') or None
+
+
+def _public_verify_link(token: str) -> str:
+    from django.conf import settings as dj_settings
+    base = getattr(dj_settings, 'ONLINE_SALES_PUBLIC_BASE_URL', 'https://ecothrift.us').rstrip('/')
+    return f'{base}/verify?token={token}'
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @throttle_classes([AuthMagicLinkIpThrottle, AuthMagicLinkEmailThrottle])
@@ -450,39 +533,34 @@ def magic_link_request_view(request):
     """Request a customer magic-link email. Never echoes the token."""
     from django.conf import settings as dj_settings
 
+    from apps.accounts.models import MagicLinkToken
     from apps.accounts.services.magic_link import issue_magic_link
     from apps.webstore.emails import send_sign_in_link
 
     if not bool(getattr(dj_settings, 'ONLINE_SALES_ACCOUNTS_ENABLED', True)):
-        return Response(
-            {'detail': 'Customer accounts are not available.', 'code': 'ACCOUNTS_DISABLED'},
-            status=status.HTTP_410_GONE,
-        )
+        return _accounts_disabled_response()
 
     email = ((request.data or {}).get('email') or '').strip()
     # Always return the same shape (no email enumeration).
     generic = {'detail': 'If that email can receive mail, a sign-in link is on its way.'}
     try:
-        ip = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip() or request.META.get('REMOTE_ADDR')
-        token_row = issue_magic_link(email=email, request_ip=ip or None)
+        token_row = issue_magic_link(
+            email=email,
+            request_ip=_client_ip(request),
+            purpose=MagicLinkToken.PURPOSE_SIGN_IN,
+        )
     except ValidationError:
         return Response(generic)
     except Exception:
         logger.exception('magic_link_request unexpected failure for %s', email)
         return Response(generic)
 
-    base = getattr(dj_settings, 'ONLINE_SALES_PUBLIC_BASE_URL', 'https://ecothrift.us').rstrip('/')
-    link = f'{base}/account/sign-in?token={token_row.token}'
     try:
-        send_sign_in_link(email=token_row.email, magic_link=link)
+        send_sign_in_link(email=token_row.email, magic_link=_public_verify_link(token_row.token))
     except Exception:
         pass
 
-    payload = dict(generic)
-    if getattr(dj_settings, 'DEBUG', False):
-        # Dev only — never in production responses.
-        payload['debug_token'] = token_row.token
-    return Response(payload)
+    return Response(generic)
 
 
 @api_view(['POST'])
@@ -492,24 +570,242 @@ def magic_link_consume_view(request):
     """Consume a magic-link token; issue JWT + refresh cookie. Token never returned."""
     from django.conf import settings as dj_settings
 
+    from apps.accounts.models import MagicLinkToken
     from apps.accounts.services.magic_link import consume_magic_link
     from rest_framework.exceptions import ValidationError as DRFValidationError
 
-    if not bool(getattr(dj_settings, 'ONLINE_SALES_ACCOUNTS_ENABLED', True)):
-        return Response(
-            {'detail': 'Customer accounts are not available.', 'code': 'ACCOUNTS_DISABLED'},
-            status=status.HTTP_410_GONE,
-        )
-
     raw = (request.data or {}).get('token') or ''
+    # Peek purpose so verify_hold / verify_thread work when accounts are killed.
+    peek = MagicLinkToken.objects.filter(token=(raw or '').strip()).first()
+    accounts_on = bool(getattr(dj_settings, 'ONLINE_SALES_ACCOUNTS_ENABLED', True))
+    if not accounts_on and (peek is None or peek.purpose not in MagicLinkToken.VERIFY_PURPOSES):
+        return _accounts_disabled_response()
+
     try:
-        user = consume_magic_link(token=raw)
+        result = consume_magic_link(
+            token=raw,
+            request_ip=request.META.get('REMOTE_ADDR'),
+        )
     except DRFValidationError as exc:
         return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
 
+    # Hold-verify soft outcomes: forward to the hold page without issuing a JWT.
+    if not result.issue_session or result.user is None:
+        return Response({
+            'redirect_to': result.redirect_to,
+            'purpose': result.purpose,
+            'needs_password_prompt': False,
+            'code': result.code or 'ALREADY_VERIFIED',
+        })
+
+    user = (
+        User.objects.prefetch_related('groups')
+        .select_related('employee', 'consignee', 'customer')
+        .get(pk=result.user.pk)
+    )
     refresh = RefreshToken.for_user(user)
     response = Response({
         'access': str(refresh.access_token),
         'user': UserSerializer(user).data,
+        'redirect_to': result.redirect_to,
+        'purpose': result.purpose,
+        'needs_password_prompt': result.needs_password_prompt,
+        'code': result.code or '',
     })
     return _set_refresh_cookie(response, str(refresh))
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@throttle_classes([AuthMagicLinkIpThrottle, AuthMagicLinkEmailThrottle])
+def customer_lookup_view(request):
+    """Reveal whether an email has a customer account / password (staff emails look empty)."""
+    from django.conf import settings as dj_settings
+
+    from apps.accounts.services.magic_link import _STAFF_ROLES, _normalize_email
+
+    if not bool(getattr(dj_settings, 'ONLINE_SALES_ACCOUNTS_ENABLED', True)):
+        return _accounts_disabled_response()
+
+    email = _normalize_email((request.data or {}).get('email') or '')
+    empty = {'has_account': False, 'has_password': False}
+    if not email or '@' not in email:
+        return Response(empty)
+
+    user = User.objects.filter(email__iexact=email).first()
+    if user is None:
+        return Response(empty)
+    if user.role in _STAFF_ROLES:
+        # Do not leak staff account existence.
+        return Response(empty)
+    return Response({
+        'has_account': True,
+        'has_password': user.has_usable_password(),
+    })
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@throttle_classes([AuthMagicLinkIpThrottle, AuthMagicLinkEmailThrottle])
+def customer_register_view(request):
+    """Create a customer account (password optional) and email a verify link."""
+    from django.conf import settings as dj_settings
+
+    from apps.accounts.services.magic_link import register_customer
+    from apps.webstore.emails import send_email_verification
+    from rest_framework.exceptions import ValidationError as DRFValidationError
+
+    if not bool(getattr(dj_settings, 'ONLINE_SALES_ACCOUNTS_ENABLED', True)):
+        return _accounts_disabled_response()
+
+    data = request.data or {}
+    try:
+        user, token_row = register_customer(
+            email=data.get('email') or '',
+            first_name=data.get('first_name') or '',
+            password=data.get('password') or '',
+            request_ip=_client_ip(request),
+        )
+    except DRFValidationError as exc:
+        return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        send_email_verification(
+            email=token_row.email,
+            magic_link=_public_verify_link(token_row.token),
+        )
+    except Exception:
+        pass
+
+    return Response(
+        {
+            'detail': 'Check your email to confirm your account.',
+            'email': user.email,
+        },
+        status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def customer_set_password_view(request):
+    """Add or change a customer password.
+
+    When the account has no usable password yet, old_password is not required.
+    """
+    from apps.accounts.permissions import IsCustomer
+
+    if not IsCustomer().has_permission(request, None):
+        return Response({'detail': 'Customer accounts only.'}, status=status.HTTP_403_FORBIDDEN)
+
+    data = request.data or {}
+    new_password = data.get('password') or data.get('new_password') or ''
+    if len(new_password) < 6:
+        return Response(
+            {'detail': 'Password must be at least 6 characters.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    from apps.accounts.services.magic_link import (
+        clear_password_change_unlock,
+        password_change_unlocked,
+    )
+
+    user = request.user
+    unlocked = password_change_unlocked(user)
+    if user.has_usable_password() and not unlocked:
+        old = data.get('old_password') or ''
+        if not old or not user.check_password(old):
+            return Response(
+                {'detail': 'Current password is incorrect.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    user.set_password(new_password)
+    user.save(update_fields=['password'])
+    if unlocked:
+        clear_password_change_unlock(user)
+    refreshed = (
+        User.objects.prefetch_related('groups')
+        .select_related('employee', 'consignee', 'customer')
+        .get(pk=user.pk)
+    )
+    return Response({
+        'detail': 'Password saved.',
+        'user': UserSerializer(refreshed).data,
+    })
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@throttle_classes([AuthMagicLinkIpThrottle, AuthMagicLinkEmailThrottle])
+def customer_reset_password_view(request):
+    """Email a reset link. Password is unset only when the link is consumed."""
+    from django.conf import settings as dj_settings
+
+    from apps.accounts.models import MagicLinkToken
+    from apps.accounts.services.magic_link import _STAFF_ROLES, _normalize_email, issue_magic_link
+    from apps.webstore.emails import send_password_reset_link
+
+    if not bool(getattr(dj_settings, 'ONLINE_SALES_ACCOUNTS_ENABLED', True)):
+        return _accounts_disabled_response()
+
+    email = _normalize_email((request.data or {}).get('email') or '')
+    generic = {'detail': 'If that email can receive mail, a reset link is on its way.'}
+    if not email or '@' not in email:
+        return Response(generic)
+
+    user = User.objects.filter(email__iexact=email).first()
+    if user is None or user.role in _STAFF_ROLES:
+        return Response(generic)
+
+    try:
+        token_row = issue_magic_link(
+            email=email,
+            request_ip=_client_ip(request),
+            purpose=MagicLinkToken.PURPOSE_RESET_PASSWORD,
+        )
+        send_password_reset_link(
+            email=email,
+            magic_link=_public_verify_link(token_row.token),
+        )
+    except Exception:
+        logger.exception('customer_reset_password failed for %s', email)
+        return Response(generic)
+
+    return Response(generic)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@throttle_classes([AuthMagicLinkIpThrottle])
+def customer_resend_verification_view(request):
+    """Resend verify_email for the signed-in customer."""
+    from django.conf import settings as dj_settings
+
+    from apps.accounts.models import MagicLinkToken
+    from apps.accounts.permissions import IsCustomer
+    from apps.accounts.services.magic_link import customer_email_verified, issue_magic_link
+    from apps.webstore.emails import send_email_verification
+
+    if not IsCustomer().has_permission(request, None):
+        return Response({'detail': 'Customer accounts only.'}, status=status.HTTP_403_FORBIDDEN)
+    if not bool(getattr(dj_settings, 'ONLINE_SALES_ACCOUNTS_ENABLED', True)):
+        return _accounts_disabled_response()
+    if customer_email_verified(request.user):
+        return Response({'detail': 'Email is already verified.', 'email_verified': True})
+
+    token_row = issue_magic_link(
+        email=request.user.email,
+        request_ip=_client_ip(request),
+        purpose=MagicLinkToken.PURPOSE_VERIFY_EMAIL,
+    )
+    try:
+        send_email_verification(
+            email=token_row.email,
+            magic_link=_public_verify_link(token_row.token),
+        )
+    except Exception:
+        pass
+
+    return Response({'detail': 'Confirmation link sent.', 'email_verified': False})

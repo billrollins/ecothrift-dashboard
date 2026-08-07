@@ -26,14 +26,14 @@ export type OrderListRowView = PurchaseOrderListRow & {
 };
 
 function quietCurrency(value: string | null | undefined): string {
-  if (value == null || value === '') return '—';
+  if (value == null || value === '') return '-';
   const n = Number.parseFloat(value);
-  if (Number.isNaN(n)) return '—';
+  if (Number.isNaN(n)) return '-';
   return formatCurrencyWhole(value);
 }
 
 function quietItems(n: number | null | undefined): string {
-  if (n == null || n === 0) return '—';
+  if (n == null || n === 0) return '-';
   return formatNumber(n);
 }
 
@@ -43,7 +43,7 @@ function parseMoney(value: string | null | undefined): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
-/** Zero/empty money reads as noise on a two-line cell — drop the whole line. */
+/** Zero/empty money reads as noise on a two-line cell - drop the whole line. */
 function hasMoney(value: string | null | undefined): boolean {
   const n = parseMoney(value);
   return n != null && n !== 0;
@@ -80,7 +80,7 @@ function coverageStyle(pct: number | null): CoverageStyle {
 }
 
 /**
- * Recovery ratios (EST REC / ACT REC) vs cost — 100% is break-even.
+ * Recovery ratios (EST REC / ACT REC) vs cost - 100% is break-even.
  * &lt;100 dark red → 150 warm → 200 dark green → 250+ super green.
  */
 function recoveryStyle(pct: number | null): CoverageStyle {
@@ -177,7 +177,7 @@ function conditionLabel(val: PurchaseOrderCondition | string): string {
     salvage: 'SALV',
     mixed: 'MIXED',
   };
-  return map[val] ?? (val ? String(val).toUpperCase() : '—');
+  return map[val] ?? (val ? String(val).toUpperCase() : '-');
 }
 
 function statusEligibleForReceiving(status: PurchaseOrderStatus): boolean {
@@ -305,7 +305,7 @@ function OrderNumberCell({ value }: { value: string }) {
         lineHeight: 1.25,
       }}
     >
-      {abbreviateOrderNumber(value) || '—'}
+      {abbreviateOrderNumber(value) || '-'}
     </Typography>
   );
 }
@@ -313,9 +313,9 @@ function OrderNumberCell({ value }: { value: string }) {
 function orderSecondaryLine(row: OrderListRowView): string | null {
   const vendor = (row.vendor_name || '').trim();
   const cond = row.condition ? conditionLabel(row.condition) : '';
-  if (vendor && cond && cond !== '—') return `${vendor} · ${cond}`;
+  if (vendor && cond && cond !== '-') return `${vendor} · ${cond}`;
   if (vendor) return vendor;
-  if (cond && cond !== '—') return cond;
+  if (cond && cond !== '-') return cond;
   return null;
 }
 
@@ -347,7 +347,7 @@ export function buildOrderListColumns(opts: {
           {statusEligibleForReceiving(p.row.status) ? (
             <IconButton
               size="small"
-              aria-label={`Receive shipment — order ${p.row.order_number}`}
+              aria-label={`Receive shipment - order ${p.row.order_number}`}
               onClick={(e) => {
                 e.stopPropagation();
                 onReceive(p.row.id);
@@ -413,7 +413,7 @@ export function buildOrderListColumns(opts: {
                 lineHeight: 1.3,
               }}
             >
-              {desc || '—'}
+              {desc || '-'}
             </Typography>
           </Tooltip>
         );

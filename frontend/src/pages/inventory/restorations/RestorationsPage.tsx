@@ -227,7 +227,7 @@ export default function RestorationsPage() {
                       }}
                     >
                       <ListItemText
-                        primary={`${job.sku ?? '—'} · ${job.name}`}
+                        primary={`${job.sku ?? '-'} · ${job.name}`}
                         secondary={`${job.stage}${grades ? ` · need ${grades}` : ''}`}
                         primaryTypographyProps={{ fontWeight: 800, fontSize: 13 }}
                         secondaryTypographyProps={{ fontSize: 12 }}

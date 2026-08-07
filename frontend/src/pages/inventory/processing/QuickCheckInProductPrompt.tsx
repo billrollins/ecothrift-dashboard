@@ -31,7 +31,7 @@ export interface QuickCheckInProductPromptProps {
 
 /**
  * P8c: quick check-in on a row with NO decided product and NO prior batch must ask
- * explicitly — new product from the row, or an existing catalog product. One question,
+ * explicitly - new product from the row, or an existing catalog product. One question,
  * two big buttons; search only appears after picking "existing".
  */
 export function QuickCheckInProductPrompt({
@@ -61,7 +61,7 @@ export function QuickCheckInProductPrompt({
       <DialogContent>
         <Stack spacing={1.5} sx={{ pt: 0.5 }}>
           <Typography variant="body2" color="text.secondary">
-            This is the first check-in on this row and no catalog product is linked. Pick how to identify it —
+            This is the first check-in on this row and no catalog product is linked. Pick how to identify it -
             later check-ins on this row will reuse your choice automatically.
           </Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>

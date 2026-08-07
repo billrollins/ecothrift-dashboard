@@ -1,5 +1,5 @@
 /**
- * Floorplan document types — schema_version 1.
+ * Floorplan document types - schema_version 1.
  *
  * All coordinates and dimensions are in INCHES, measured from the plan origin
  * (top-left), y-down. See apps/floorplan/README.md for the full contract.

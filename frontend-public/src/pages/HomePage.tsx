@@ -1,158 +1,211 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { fetchBlogPosts, type BlogPostSummary } from '../api'
-import PostCard from '../components/PostCard'
+import { fetchCatalog, money, type CatalogItem } from '../api'
 import StoreMap from '../components/StoreMap'
-import { HOW_IT_WORKS, STORE, STORE_JSONLD, TESTIMONIALS } from '../data/content'
+import { useCart } from '../cart'
+import { retailMapsDirectionsUrl, STORE, STORE_JSONLD } from '../data/content'
+import { useStoreStatus } from '../lib/storeHours'
+import { useOnlineSalesConfig } from '../onlineSalesConfig'
 import { useJsonLd, useSeo } from '../useSeo'
+
+/** Show the panel as soon as any photographed available listing exists. */
+const FEATURED_MIN = 1
+/** Pool of featured items you can page through beside the intro. */
+const FEATURED_SHOWN = 8
+
+function FeaturedSlide({
+  item,
+  onAdd,
+  eager,
+}: {
+  item: CatalogItem
+  onAdd: (item: CatalogItem) => void
+  eager?: boolean
+}) {
+  return (
+    <article className="featured-slide">
+      <Link to={`/shop/${item.slug}`} className="featured-slide__media">
+        {item.image ? (
+          <img
+            src={item.image.url}
+            alt={item.image.alt || item.title}
+            width={640}
+            height={480}
+            loading={eager ? 'eager' : 'lazy'}
+          />
+        ) : (
+          <span className="ph g3" />
+        )}
+        {item.on_sale && item.available > 0 && <span className="badge sale">Sale</span>}
+        {item.available <= 0 && <span className="badge reserved">Reserved</span>}
+      </Link>
+      <div className="featured-slide__body">
+        {item.category_name ? (
+          <div className="prodcat">{item.category_name}</div>
+        ) : null}
+        <Link to={`/shop/${item.slug}`} className="featured-slide__title">
+          {item.title}
+        </Link>
+        <div className="prodmeta">{item.condition_display}</div>
+        <div className="prodprice">
+          {money(item.price)}
+          {item.on_sale && item.compare_at_price ? (
+            <span className="was">{money(item.compare_at_price)}</span>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          className="btn btn--primary"
+          disabled={item.available <= 0}
+          onClick={() => onAdd(item)}
+        >
+          {item.available > 0 ? 'Add to hold list' : 'Reserved'}
+        </button>
+      </div>
+    </article>
+  )
+}
 
 export default function HomePage() {
   useSeo({ description: STORE.metaDescription, path: '/' })
   useJsonLd(STORE_JSONLD)
+  const { config, loading: configLoading } = useOnlineSalesConfig()
+  const shopOn = config.online_sales_enabled
+  const { add } = useCart()
+  const storeStatus = useStoreStatus()
 
-  const [posts, setPosts] = useState<BlogPostSummary[]>([])
-  const [postsLoading, setPostsLoading] = useState(true)
+  const [featured, setFeatured] = useState<CatalogItem[]>([])
+  const [featuredLoading, setFeaturedLoading] = useState(true)
+  const [slide, setSlide] = useState(0)
 
   useEffect(() => {
+    if (configLoading) return
+    if (!shopOn) {
+      setFeatured([])
+      setFeaturedLoading(false)
+      return
+    }
     let active = true
-    fetchBlogPosts()
-      .then((data) => {
-        if (active) setPosts(data.slice(0, 3))
+    setFeaturedLoading(true)
+    fetchCatalog({ sort: 'featured', page_size: 16, available: '1' })
+      .then((page) => {
+        if (!active) return
+        const withImage = (page.results || []).filter((it) => it.image?.url)
+        setFeatured(withImage.slice(0, FEATURED_SHOWN))
+        setSlide(0)
       })
       .catch(() => {
-        if (active) setPosts([])
+        if (active) setFeatured([])
       })
       .finally(() => {
-        if (active) setPostsLoading(false)
+        if (active) setFeaturedLoading(false)
       })
     return () => {
       active = false
     }
-  }, [])
+  }, [configLoading, shopOn])
+
+  const showFeatured = !featuredLoading && featured.length >= FEATURED_MIN
+  const showFeaturedPane = featuredLoading || showFeatured
+  const canNavigate = featured.length > 1
+  const current = featured[slide] || null
+
+  const go = (delta: number) => {
+    if (!canNavigate) return
+    setSlide((i) => (i + delta + featured.length) % featured.length)
+  }
+
+  // Don't promise online listings while the feature is off, and don't flash the
+  // wrong sentence before the config lands.
+  let onlineNote = ''
+  if (shopOn) {
+    onlineNote =
+      'A handful of special items are listed online - reserve one here, then pay and pick it up in store.'
+  } else if (!configLoading) {
+    onlineNote = 'Online listings are on the way.'
+  }
+
   return (
-    <>
-      <section className="hero">
-        <div className="wrap">
-          <div>
-            <span className="eyebrow">New inventory weekly</span>
-            <h1>
-              Quality goods,
-              <br />
-              fair prices, every week.
-            </h1>
-            <p className="lede">
-              Brand-name overstock and gently used finds, inspected and priced fairly. Come dig
-              through the latest arrivals at our Omaha store.
+    <div className="home">
+      <section className="intro">
+        <div className={`wrap intro__row${showFeaturedPane ? ' intro__row--split' : ''}`}>
+          <div className="intro__copy">
+            <h1>Quality goods, fair prices, every week.</h1>
+            <p>
+              Eco-Thrift is a liquidation and thrift store in Omaha. Brand-name overstock and
+              secondhand finds, inspected and priced fairly, with new stock arriving weekly.
             </p>
-            <div className="hbtns">
-              <Link className="btn btn--primary" to="/visit">
-                Visit the store
-              </Link>
-            </div>
+            <p className="intro__note">
+              Most of what we carry is on the floor at the Canfield store. {onlineNote}
+            </p>
           </div>
-          <div className="frame">
-            <span className="tab">In store now</span>
-            <div className="ph g4" style={{ aspectRatio: '5 / 4' }} />
-            <div className="cap">
-              <b>New finds, every week</b>
-              <span>{STORE.retail.address}</span>
-            </div>
-          </div>
-        </div>
-      </section>
 
-      <section className="section">
-        <div className="wrap">
-          <div className="head">
-            <div>
-              <span className="eyebrow">How it works</span>
-              <h2 className="h2">Three simple steps</h2>
-            </div>
-          </div>
-          <div className="how">
-            {HOW_IT_WORKS.map((s) => (
-              <div className="howc" key={s.n}>
-                <div className="hnum">{s.n}</div>
-                <h3>{s.title}</h3>
-                <p>{s.text}</p>
+          {showFeaturedPane && (
+            <div className="intro__featured" id="featured">
+              <div className="intro__featured-head">
+                <h2 className="h2">Featured online</h2>
+                <Link className="link" to="/shop">
+                  Full store →
+                </Link>
               </div>
-            ))}
-          </div>
+
+              {featuredLoading || !current ? (
+                <div className="featured-slide featured-slide--skeleton" aria-busy="true">
+                  <span className="featured-slide__media ph g3" />
+                  <div className="featured-slide__body">
+                    <span className="skline" />
+                    <span className="skline short" />
+                  </div>
+                </div>
+              ) : (
+                <FeaturedSlide
+                  item={current}
+                  eager
+                  onAdd={(it) =>
+                    add({
+                      slug: it.slug,
+                      title: it.title,
+                      price: parseFloat(it.price),
+                      image: it.image?.url ?? null,
+                      stock: it.stock,
+                    })
+                  }
+                />
+              )}
+
+              {canNavigate ? (
+                <div className="featured-nav">
+                  <button
+                    type="button"
+                    className="featured-nav__btn"
+                    onClick={() => go(-1)}
+                    aria-label="Previous featured item"
+                  >
+                    ←
+                  </button>
+                  <span className="featured-nav__count" aria-live="polite">
+                    {slide + 1} / {featured.length}
+                  </span>
+                  <button
+                    type="button"
+                    className="featured-nav__btn"
+                    onClick={() => go(1)}
+                    aria-label="Next featured item"
+                  >
+                    →
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          )}
         </div>
       </section>
 
-      <section className="section tight">
+      <section className="home__visit" aria-label="Visit the store">
         <div className="wrap">
-          <div className="sell">
-            <div>
-              <h3>Our online store is on the way.</h3>
-              <p>
-                We&rsquo;re rebuilding ecothrift.us so you can browse finds and request holds online.
-                For now, the full selection lives at our store — come see us.
-              </p>
-            </div>
-            <Link className="btn btn--light" to="/visit">
-              Plan your visit
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {(postsLoading || posts.length > 0) && (
-        <section className="section tight">
-          <div className="wrap">
-            <div className="head">
-              <div>
-                <span className="eyebrow">From the founder</span>
-                <h2 className="h2">Notes from Bill</h2>
-              </div>
-              <Link className="link" to="/blog">
-                Read the blog →
-              </Link>
-            </div>
-            <div className="bgrid">
-              {postsLoading
-                ? Array.from({ length: 3 }).map((_, i) => (
-                    <div className="post" key={i}>
-                      <div className="postthumb ph g3" />
-                      <div className="pb">
-                        <span className="skline short" />
-                        <span className="skline" />
-                      </div>
-                    </div>
-                  ))
-                : posts.map((p) => <PostCard key={p.slug} post={p} />)}
-            </div>
-          </div>
-        </section>
-      )}
-
-      <section className="section tight">
-        <div className="wrap">
-          <div className="head">
-            <div>
-              <span className="eyebrow">From the neighborhood</span>
-              <h2 className="h2">Trusted across Omaha</h2>
-            </div>
-          </div>
-          <div className="revs">
-            {TESTIMONIALS.map((t, i) => (
-              <div className="rev" key={i}>
-                <div className="stars">★★★★★</div>
-                <p>{t.quote}</p>
-                <div className="who">{t.who}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="section tight">
-        <div className="wrap">
-          <div className="visit">
+          <div className="visit visit--compact">
             <StoreMap />
             <div className="vinfo">
-              <span className="eyebrow">Visit</span>
               <h3>{STORE.retail.name}</h3>
               <div className="vrow">
                 <b>Address</b>
@@ -160,21 +213,44 @@ export default function HomePage() {
               </div>
               <div className="vrow">
                 <b>Hours</b>
-                <span>{STORE.retail.hours}</span>
+                <span className="store-status">
+                  <span
+                    className={`status-dot${storeStatus.open ? ' status-dot--open' : ''}`}
+                    aria-hidden="true"
+                  />
+                  {storeStatus.text}
+                </span>
+              </div>
+              <div className="vrow">
+                <b>Phone</b>
+                <span>
+                  <a href={`tel:${STORE.retail.phoneHref}`}>{STORE.retail.phone}</a>
+                </span>
+              </div>
+              <div className="vrow">
+                <b>Directions</b>
+                <span>
+                  <a href={retailMapsDirectionsUrl()} target="_blank" rel="noreferrer">
+                    Get directions
+                  </a>
+                </span>
               </div>
               <div className="vrow">
                 <b>Pickup</b>
                 <span>Free, usually ready the same day</span>
               </div>
-              <div style={{ marginTop: 20 }}>
-                <Link className="btn btn--primary" to="/visit">
-                  Store details
-                </Link>
+              <div className="vrow">
+                <b>Reviews</b>
+                <span>
+                  <a href={STORE.retail.reviewsUrl} target="_blank" rel="noreferrer">
+                    Read our Google reviews
+                  </a>
+                </span>
               </div>
             </div>
           </div>
         </div>
       </section>
-    </>
+    </div>
   )
 }

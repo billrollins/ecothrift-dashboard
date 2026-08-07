@@ -155,8 +155,8 @@ export function FieldBarcodeScannerSheet({
         tone: 'match',
         message:
           required > 1 && count + 1 < required
-            ? `Match — scan ${count + 1} of ${required}`
-            : `Match — ${code}`,
+            ? `Match - scan ${count + 1} of ${required}`
+            : `Match - ${code}`,
       });
       window.setTimeout(() => dedupeRef.current.clear(), 500);
     } catch (err) {
@@ -273,7 +273,7 @@ export function FieldBarcodeScannerSheet({
                 if (result) await acceptDecode(result.getText());
               }
             } catch {
-              // NotFound / empty frame / transient canvas errors — keep looping.
+              // NotFound / empty frame / transient canvas errors - keep looping.
             }
           }
           if (!cancelled) {
@@ -317,7 +317,7 @@ export function FieldBarcodeScannerSheet({
 
   useEffect(() => {
     if (!open || !verified) return;
-    setFeedback({ tone: 'match', message: 'Match — item verified' });
+    setFeedback({ tone: 'match', message: 'Match - item verified' });
     cleanupLive();
     closeTimerRef.current = window.setTimeout(onClose, 850);
     return () => {

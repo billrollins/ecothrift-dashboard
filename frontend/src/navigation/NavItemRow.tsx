@@ -1,4 +1,4 @@
-import { ListItemButton, ListItemIcon, ListItemText, Typography } from '@mui/material';
+import { Box, ListItemButton, ListItemIcon, ListItemText, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import type { ResolvedNavItem } from './navTypes';
 
@@ -7,9 +7,11 @@ interface NavItemRowProps {
   isActive: boolean;
   onClick: () => void;
   iconTint?: string;
+  /** Work waiting behind this link; hidden when zero. */
+  badgeCount?: number;
 }
 
-export function NavItemRow({ item, isActive, onClick, iconTint }: NavItemRowProps) {
+export function NavItemRow({ item, isActive, onClick, iconTint, badgeCount }: NavItemRowProps) {
   const theme = useTheme();
   const inactiveIconColor = iconTint ?? theme.palette.text.secondary;
   const Icon = item.Icon;
@@ -78,6 +80,29 @@ export function NavItemRow({ item, isActive, onClick, iconTint }: NavItemRowProp
         }
         sx={{ minWidth: 0, my: 0 }}
       />
+      {badgeCount ? (
+        <Box
+          component="span"
+          aria-label={`${badgeCount} waiting`}
+          sx={{
+            ml: 0.5,
+            mr: 0.5,
+            flexShrink: 0,
+            minWidth: 18,
+            height: 18,
+            px: 0.5,
+            borderRadius: 999,
+            bgcolor: theme.palette.error.main,
+            color: theme.palette.error.contrastText,
+            fontSize: '0.6875rem',
+            fontWeight: 700,
+            lineHeight: '18px',
+            textAlign: 'center',
+          }}
+        >
+          {badgeCount > 99 ? '99+' : badgeCount}
+        </Box>
+      ) : null}
     </ListItemButton>
   );
 }

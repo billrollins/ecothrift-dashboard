@@ -19,7 +19,7 @@ type Props = {
   onOpenDetails: () => void;
   onOpenItems?: () => void;
   children: React.ReactNode;
-  /** Primary commit control — pinned inside the card, never behind the scroll. */
+  /** Primary commit control - pinned inside the card, never behind the scroll. */
   footer?: React.ReactNode;
 };
 

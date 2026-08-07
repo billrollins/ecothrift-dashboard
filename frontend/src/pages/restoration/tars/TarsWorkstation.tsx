@@ -82,7 +82,7 @@ function benchSortValue(job: RestorationJobDTO): number {
   return timeValue(job.bench_started_at ?? job.sent_at ?? job.created_at);
 }
 
-/** TARS workstation — backend-backed evaluation + action log. */
+/** TARS workstation - backend-backed evaluation + action log. */
 
 export function TarsWorkstation() {
   const { enqueueSnackbar } = useSnackbar();
@@ -307,7 +307,7 @@ export function TarsWorkstation() {
         focusScanInput();
         return;
       }
-      // No matching job — fall through to normal selection.
+      // No matching job - fall through to normal selection.
     }
 
     const active =
@@ -505,7 +505,7 @@ export function TarsWorkstation() {
           });
           setSelectedRowKey(null);
           setStudioLocation('pending', displayJob.id);
-          enqueueSnackbar(`Parts request submitted for ${grade} — item moved to Pending`, {
+          enqueueSnackbar(`Parts request submitted for ${grade} - item moved to Pending`, {
             variant: 'success',
           });
           focusScanInput();
@@ -566,7 +566,7 @@ export function TarsWorkstation() {
       enqueueSnackbar('Item placed on hold', { variant: 'info' });
       setStudioLocation('pending', selectedJob.id);
       if (info.requestParts) {
-        // Hold already parked it in Pending — don't double-hold.
+        // Hold already parked it in Pending - don't double-hold.
         await requestPartsForGrade(info.requestGrade, { autoHold: false });
       }
       focusScanInput();

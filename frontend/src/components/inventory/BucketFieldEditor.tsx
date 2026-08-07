@@ -40,7 +40,7 @@ export interface BucketFieldEditorProps {
   ) => void;
 }
 
-/** Pairs usable for overlay preview — same completeness rules as Save, minus duplicate/error guard. */
+/** Pairs usable for overlay preview - same completeness rules as Save, minus duplicate/error guard. */
 function rowsToPreviewPairs(bucketId: string, rows: Row[]): Array<{ target: string; formula: string }> {
   const pairs: Array<{ target: string; formula: string }> = [];
   const seen = new Set<string>();

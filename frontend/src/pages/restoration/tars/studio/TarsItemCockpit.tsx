@@ -69,7 +69,7 @@ interface CockpitTool {
 function perMinute(value: number): string {
   return Number.isFinite(value)
     ? `${value < 0 ? '-' : ''}$${Math.abs(value).toFixed(2)}/min`
-    : '—';
+    : '-';
 }
 
 function shortTime(value?: string | null): string {
@@ -319,7 +319,7 @@ export function TarsItemCockpit({
     });
     setCandidateOutcomeId(outcome.id);
     setActiveTool(null);
-    setFlash({ message: 'Decision committed — tool put away', tone: 'success' });
+    setFlash({ message: 'Decision committed - tool put away', tone: 'success' });
   };
 
   const renderGradeTool = () => (
@@ -352,7 +352,7 @@ export function TarsItemCockpit({
           What grade is it right now?
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          This is the observed starting grade—not the grade Mike hopes to reach.
+          This is the observed starting grade-not the grade Mike hopes to reach.
         </Typography>
       </Box>
 
@@ -448,7 +448,7 @@ export function TarsItemCockpit({
           >
             {packTests.map((test) => (
               <option key={test.id} value={test.id}>
-                {test.name} — {test.result?.replace(/_/g, ' ') ?? 'not answered'}
+                {test.name} - {test.result?.replace(/_/g, ' ') ?? 'not answered'}
               </option>
             ))}
           </TextField>
@@ -640,7 +640,7 @@ export function TarsItemCockpit({
             Compare outcomes
           </Typography>
           <Typography variant="caption" sx={{ color: '#ddd6fe' }}>
-            Estimates—not work performed
+            Estimates-not work performed
           </Typography>
         </Box>
         <Stack spacing={0.65} sx={{ p: 0.75 }}>

@@ -18,8 +18,10 @@ function publicSiteUrlHint() {
     name: 'public-site-url-hint',
     configureServer() {
       return () => {
+        // The public site has no TLS of its own, so it stays http even when the
+        // staff dashboard is served over HTTPS.
         // eslint-disable-next-line no-console -- intentional dev-server banner
-        console.log(`  \u279C  Public site:  ${mobileHttps ? 'https' : 'http'}://localhost:5174/\n`)
+        console.log('  \u279C  Public site:  http://localhost:5174/\n')
         if (mobileHttps) {
           // eslint-disable-next-line no-console -- intentional dev-server banner
           console.log('  \u279C  Mobile HTTPS enabled (self-signed). Phone must use https://...\n')

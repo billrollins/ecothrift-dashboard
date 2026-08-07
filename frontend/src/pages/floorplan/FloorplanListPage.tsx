@@ -148,7 +148,7 @@ export default function FloorplanListPage() {
       const { data } = await getFloorPlan(plan.id);
       exportPlanJson(data.data, data.name);
     } catch {
-      enqueueSnackbar('Export failed — could not load the plan.', { variant: 'error' });
+      enqueueSnackbar('Export failed - could not load the plan.', { variant: 'error' });
     }
   };
 
@@ -352,7 +352,7 @@ export default function FloorplanListPage() {
         </DialogActions>
       </Dialog>
 
-      {/* Delete dialog — requires typing the plan name to arm the button */}
+      {/* Delete dialog - requires typing the plan name to arm the button */}
       <Dialog open={Boolean(deleteTarget)} onClose={closeDeleteDialog} fullWidth maxWidth="xs">
         <DialogTitle>Delete floorplan?</DialogTitle>
         <DialogContent>

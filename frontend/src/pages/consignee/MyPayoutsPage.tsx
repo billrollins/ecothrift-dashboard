@@ -28,7 +28,7 @@ export default function MyPayoutsPage() {
               new Date(row.period_end),
               'MM/dd/yyyy'
             )}`
-          : '—',
+          : '-',
     },
     { field: 'items_sold', headerName: 'Items Sold', width: 100 },
     {
@@ -48,7 +48,7 @@ export default function MyPayoutsPage() {
       headerName: 'Paid Date',
       width: 120,
       valueFormatter: (value) =>
-        value ? format(new Date(value as string), 'MM/dd/yyyy') : '—',
+        value ? format(new Date(value as string), 'MM/dd/yyyy') : '-',
     },
   ];
 

@@ -348,7 +348,7 @@ export function ProcessingDrawer({
                             )}
                           </Box>
                         }
-                        secondary={row.title ? (row.title.length > 40 ? `${row.title.slice(0, 40)}…` : row.title) : '—'}
+                        secondary={row.title ? (row.title.length > 40 ? `${row.title.slice(0, 40)}…` : row.title) : '-'}
                         primaryTypographyProps={{ variant: 'body2' }}
                         secondaryTypographyProps={{ noWrap: true }}
                       />
@@ -380,7 +380,7 @@ export function ProcessingDrawer({
                             )}
                           </Box>
                         }
-                        secondary={row.title ? (row.title.length > 40 ? `${row.title.slice(0, 40)}…` : row.title) : '—'}
+                        secondary={row.title ? (row.title.length > 40 ? `${row.title.slice(0, 40)}…` : row.title) : '-'}
                         primaryTypographyProps={{ variant: 'body2' }}
                         secondaryTypographyProps={{ noWrap: true }}
                       />

@@ -109,11 +109,11 @@ export function ProcessingFilterRow({
         >
           {filteredRowCount != null ?
             `${filteredRowCount.toLocaleString()} matching`
-          : '— matching'}
+          : '- matching'}
           {' · '}
           {totalRowCount != null ?
             `${totalRowCount.toLocaleString()} on order`
-          : '— on order'}
+          : '- on order'}
         </Typography>
       : null}
     </Box>

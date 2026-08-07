@@ -3,6 +3,8 @@ from .views import (
     login_view, refresh_view, logout_view, me_view, change_password_view,
     forgot_password_view, reset_password_view,
     magic_link_request_view, magic_link_consume_view,
+    customer_lookup_view, customer_register_view, customer_set_password_view,
+    customer_reset_password_view, customer_resend_verification_view,
 )
 
 urlpatterns = [
@@ -15,4 +17,13 @@ urlpatterns = [
     path('reset-password/', reset_password_view, name='auth-reset-password'),
     path('magic-link/request/', magic_link_request_view, name='auth-magic-link-request'),
     path('magic-link/consume/', magic_link_consume_view, name='auth-magic-link-consume'),
+    path('customer/lookup/', customer_lookup_view, name='auth-customer-lookup'),
+    path('customer/register/', customer_register_view, name='auth-customer-register'),
+    path('customer/set-password/', customer_set_password_view, name='auth-customer-set-password'),
+    path('customer/reset-password/', customer_reset_password_view, name='auth-customer-reset-password'),
+    path(
+        'customer/resend-verification/',
+        customer_resend_verification_view,
+        name='auth-customer-resend-verification',
+    ),
 ]

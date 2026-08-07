@@ -331,7 +331,7 @@ export default function FloorplanEditorPage() {
   }, []);
 
   /**
-   * Reset every selected element's image to its kind's CURRENT default —
+   * Reset every selected element's image to its kind's CURRENT default -
    * re-running this after a kind's default image changes adopts the new one.
    */
   const resetSelectionImages = useCallback(() => {

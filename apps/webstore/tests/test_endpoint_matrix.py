@@ -8,7 +8,7 @@ from rest_framework.test import APIClient
 from apps.accounts.models import User
 from apps.core.models import S3File
 from apps.webstore.models import WebListing, WebListingImage
-from apps.webstore.services.reservations import create_hold
+from apps.webstore.tests.helpers import make_verified_hold
 
 
 def _user(email, group_name, *, is_staff=False):
@@ -98,17 +98,19 @@ class EndpointMatrixTests(TestCase):
             format='json',
         )
         self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.json()['status'], 'pending_verification')
         token = r.json()['status_token']
         st = self._client().get(f'/api/webstore/holds/{token}/')
         self.assertEqual(st.status_code, 200)
-        self.assertIn('thread', st.json())
+        # Thread stays hidden until email is verified.
+        self.assertIsNone(st.json().get('thread'))
 
     def test_hold_oversell_409_or_400(self):
         listing = _listing('matrix-one')
         listing.on_hand = 1
         listing.sync_stock_mirror()
         listing.save()
-        create_hold(
+        make_verified_hold(
             listing=listing, quantity=1, customer_name='X', email='x@example.com',
         )
         r = self._client().post(

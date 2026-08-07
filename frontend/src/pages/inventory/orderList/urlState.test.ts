@@ -74,7 +74,7 @@ describe('orderList urlState', () => {
     expect(a).toBe(b);
   });
 
-  it('applies delivered 90–60 day window', () => {
+  it('applies delivered 90-60 day window', () => {
     const next = applyDelivered90to60(DEFAULT_ORDER_LIST_STATE, new Date('2026-07-21T12:00:00Z'));
     expect(next.dateField).toBe('delivered_date');
     expect(next.dateFrom).toBe('2026-04-22');

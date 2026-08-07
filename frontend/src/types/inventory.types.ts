@@ -192,7 +192,7 @@ export interface PurchaseOrderFinancialMetrics {
   cost: string;
   retail: string;
   priced: string;
-  /** Sum of Item.retail on shelf-eligible (priced) items — manifest + extras. */
+  /** Sum of Item.retail on shelf-eligible (priced) items - manifest + extras. */
   priced_retail?: string;
   sold: string;
   /** Net sold revenue in the last 7 days (same rules as `sold`). */
@@ -210,7 +210,7 @@ export interface PurchaseOrderSummary {
   /** Alias of retail_value for profitability strip. */
   retail?: string;
   priced: string;
-  /** Listing retail on shelf-eligible (priced) items — for MFT. */
+  /** Listing retail on shelf-eligible (priced) items - for MFT. */
   priced_retail?: string;
   sold: string;
   /** Net sold in the last 7 days across the filtered/selected set. */
@@ -249,7 +249,7 @@ export interface PurchaseOrder {
   fees: string | null;
   total_cost: string | null;
   retail_value: string | null;
-  /** Estimated shrink 0–1; item cost uses listing retail × (1 − est_shrink). Admin-editable. */
+  /** Estimated shrink 0-1; item cost uses listing retail × (1 − est_shrink). Admin-editable. */
   est_shrink: string;
   condition: PurchaseOrderCondition;
   description: string;
@@ -324,7 +324,7 @@ export interface PurchaseOrder {
   updated_at: string;
 }
 
-/** GET /api/inventory/orders/{id}/detail-surface/ — Order Detail page only (no manifest_preview, no processing_stats). */
+/** GET /api/inventory/orders/{id}/detail-surface/ - Order Detail page only (no manifest_preview, no processing_stats). */
 export interface PurchaseOrderDetailSurface {
   id: number;
   vendor: number;
@@ -612,7 +612,7 @@ export interface ProcessingProductLinkDTO {
   manifestUnits: number;
 }
 
-/** Bookmark row fields from finalize — unchanged when a catalog product overrides display. */
+/** Bookmark row fields from finalize - unchanged when a catalog product overrides display. */
 export interface ProcessingStandardizedIdentityDTO {
   title: string;
   brand: string;

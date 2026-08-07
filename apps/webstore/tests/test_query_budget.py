@@ -9,7 +9,7 @@ from apps.accounts.models import User
 from apps.core.models import S3File
 from apps.webstore.models import Conversation, WebListing, WebListingImage
 from apps.webstore.services.conversations import open_inquiry
-from apps.webstore.services.reservations import create_hold
+from apps.webstore.tests.helpers import make_verified_hold
 
 
 def _mgr():
@@ -42,7 +42,7 @@ class QueryBudgetTests(TestCase):
         self.mgr = _mgr()
         self.listings = [_listing(i) for i in range(5)]
         for i, listing in enumerate(self.listings):
-            create_hold(
+            make_verified_hold(
                 listing=listing,
                 quantity=1,
                 customer_name=f'C{i}',
@@ -53,6 +53,7 @@ class QueryBudgetTests(TestCase):
                 name=f'G{i}',
                 email=f'g{i}@example.com',
                 body=f'Question {i}',
+                verified=True,
             )
 
     def test_staff_listings_query_budget(self):
@@ -64,7 +65,8 @@ class QueryBudgetTests(TestCase):
 
     def test_staff_reservations_query_budget(self):
         self.client.force_authenticate(self.mgr)
-        with self.assertNumQueries(3):
+        # count + page (with conversation/_message_count) + timeline events prefetch (+ role groups).
+        with self.assertNumQueries(4):
             r = self.client.get('/api/webstore/reservations/')
         self.assertEqual(r.status_code, 200)
 

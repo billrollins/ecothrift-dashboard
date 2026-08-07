@@ -32,24 +32,24 @@ const KEY_META: Record<
   po_default_est_shrink: {
     label: 'Default PO est. shrink',
     help:
-      'Inventory: fraction 0–1 for new purchase orders (cost allocation). Does not retrofit existing POs.',
+      'Inventory: fraction 0-1 for new purchase orders (cost allocation). Does not retrofit existing POs.',
     kind: 'fraction',
   },
   pricing_shrinkage_factor: {
     label: 'Buying revenue shrink',
     help:
-      'Buying: fraction 0–1 applied to estimated auction revenue before profit (valuation card). Distinct from PO shrink but same default target (0.15).',
+      'Buying: fraction 0-1 applied to estimated auction revenue before profit (valuation card). Distinct from PO shrink but same default target (0.15).',
     kind: 'fraction',
   },
   pricing_need_window_days: {
-    label: 'Category need — sold lookback (days)',
+    label: 'Category need - sold lookback (days)',
     help: 'Buying: window for sold-items stats used in category need / SQL aggregates (e.g. 90).',
     kind: 'days',
   },
   delivery_service_minutes_per_stop: {
     label: 'Delivery unload time (minutes / stop)',
     help:
-      'Delivery Field: assumed on-site unload/service minutes per stop for ETA totals (5–120). Default 20.',
+      'Delivery Field: assumed on-site unload/service minutes per stop for ETA totals (5-120). Default 20.',
     kind: 'minutes',
   },
 };
@@ -128,7 +128,7 @@ export default function AssumptionsPage() {
 
       <Alert severity="info" sx={{ mb: 2 }}>
         <strong>PO shrink</strong> drives item cost allocation; <strong>buying revenue shrink</strong>{' '}
-        reduces estimated auction revenue in valuation — related ideas, separate settings. Changing PO
+        reduces estimated auction revenue in valuation - related ideas, separate settings. Changing PO
         default does not retrofit existing POs.
       </Alert>
 
@@ -148,7 +148,7 @@ export default function AssumptionsPage() {
                 return (
                   <Box key={key} sx={{ py: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
                     <Typography variant="subtitle2" color="text.secondary">
-                      {KEY_META[key]?.label ?? key} — not in database yet (run setup_initial_data).
+                      {KEY_META[key]?.label ?? key} - not in database yet (run setup_initial_data).
                     </Typography>
                   </Box>
                 );

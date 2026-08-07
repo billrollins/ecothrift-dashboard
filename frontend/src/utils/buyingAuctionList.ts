@@ -29,7 +29,7 @@ export function formatTimeRemaining(endTime: string | null): string {
 const MS_6H = 6 * 60 * 60 * 1000;
 const SEC_10M = 10 * 60;
 
-/** Mobile list: tiered — >6h hours only; <6h but ≥10m hours+minutes; <5m minutes+seconds (aligned with desktop). */
+/** Mobile list: tiered - >6h hours only; <6h but ≥10m hours+minutes; <5m minutes+seconds (aligned with desktop). */
 export function formatTimeRemainingShort(endTime: string | null): string {
   const ms = msUntilEnd(endTime);
   if (ms == null) return 'N/A';
@@ -67,7 +67,7 @@ export function timeRemainingSx(endTime: string | null): Record<string, unknown>
 const MS_24H = 24 * MS_1H;
 
 /**
- * Auction **detail** card: stronger hierarchy than list cells — within 24h gets
+ * Auction **detail** card: stronger hierarchy than list cells - within 24h gets
  * emphasis; <4h warning; <1h critical (aligns with list but adds a 24h tier).
  */
 export function timeRemainingDetailSx(endTime: string | null): Record<string, unknown> {
@@ -113,7 +113,7 @@ const ORDERING_FIELDS = [
 ] as const;
 
 /**
- * Map legacy API ordering tokens (pre–v2.19) to current field names.
+ * Map legacy API ordering tokens (pre-v2.19) to current field names.
  */
 export function normalizeBuyingListOrdering(ordering: string): string {
   if (!ordering) return ordering;
@@ -130,7 +130,7 @@ export function normalizeBuyingListOrdering(ordering: string): string {
 
 /**
  * Default API `ordering` when the user has not chosen a column sort this session
- * (watch first, then thumbs, priority, need — all desc).
+ * (watch first, then thumbs, priority, need - all desc).
  */
 export const DEFAULT_BUYING_LIST_ORDERING =
   '-watchlist_sort,-thumbs_up_count,-priority,-need_score';
@@ -138,7 +138,7 @@ const DEFAULT_LIST_ORDERING = DEFAULT_BUYING_LIST_ORDERING;
 
 /** Session-sticky sort persistence (Phase 3B G). */
 export const BUYING_AUCTION_LIST_ORDERING_STORAGE_KEY = 'ecothrift.buying.auctionList.ordering';
-/** Calendar day in America/Chicago (YYYY-MM-DD) for last saved auction-list ordering — new day resets to default. */
+/** Calendar day in America/Chicago (YYYY-MM-DD) for last saved auction-list ordering - new day resets to default. */
 export const BUYING_AUCTION_LIST_ORDERING_DAY_KEY = 'ecothrift.buying.auctionList.orderingDay';
 export const BUYING_WATCHLIST_ORDERING_STORAGE_KEY = 'ecothrift.buying.watchlist.ordering';
 
@@ -208,7 +208,7 @@ function parseMoneyString(v: string | null | undefined): number | null {
 export function formatAuctionCostToRetailPct(row: BuyingAuctionListItem): string {
   const retail = parseMoneyString(row.total_retail_value);
   const cost = parseMoneyString(row.estimated_total_cost);
-  if (retail == null || retail <= 0 || cost == null) return '—';
+  if (retail == null || retail <= 0 || cost == null) return '-';
   return `${((cost / retail) * 100).toFixed(1)}%`;
 }
 
@@ -219,6 +219,6 @@ export function formatAuctionCostToRetailPct(row: BuyingAuctionListItem): string
 export function formatPriceToRetailPct(row: BuyingAuctionListItem): string {
   const price = parseMoneyString(row.current_price);
   const retail = parseMoneyString(row.total_retail_display ?? row.total_retail_value);
-  if (price == null || retail == null || retail <= 0) return '—';
+  if (price == null || retail == null || retail <= 0) return '-';
   return `${Math.round((price / retail) * 100)}%`;
 }

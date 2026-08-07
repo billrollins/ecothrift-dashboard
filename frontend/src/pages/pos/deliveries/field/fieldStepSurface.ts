@@ -39,7 +39,7 @@ function normalizePhase(phase: string | undefined | null): string {
   return (phase || '').toLowerCase();
 }
 
-/** Any load/scan activity after Contact — blocks Reopen Contact. */
+/** Any load/scan activity after Contact - blocks Reopen Contact. */
 export function hasLoadDownstreamActivity(run: DeliveryRun): boolean {
   if (run.truck_closed || run.truck_closed_at) return true;
   const phase = normalizePhase(run.phase);
@@ -54,7 +54,7 @@ export function hasLoadDownstreamActivity(run: DeliveryRun): boolean {
   });
 }
 
-/** Route departure or later — blocks Reopen Load / mutating sealed truck. */
+/** Route departure or later - blocks Reopen Load / mutating sealed truck. */
 export function hasRouteDownstreamActivity(run: DeliveryRun): boolean {
   const phase = normalizePhase(run.phase);
   if (['active', 'return'].includes(phase)) return true;
@@ -68,7 +68,7 @@ export function hasRouteDownstreamActivity(run: DeliveryRun): boolean {
   );
 }
 
-/** Store return or finish — blocks Reopen Deliveries as a transition undo. */
+/** Store return or finish - blocks Reopen Deliveries as a transition undo. */
 export function hasFinishDownstreamActivity(run: DeliveryRun): boolean {
   if (run.returned_to_store_at) return true;
   if (run.status === 'completed') return true;
@@ -172,14 +172,14 @@ export function truckLoadReadyToSeal(run: DeliveryRun): boolean {
   if (run.departure_override) return true;
   const load = run.monitor?.load;
   if (load) return Boolean(load.can_close_truck);
-  // Phase truck always advertises close_truck — only fall back when monitor is missing.
+  // Phase truck always advertises close_truck - only fall back when monitor is missing.
   return runAllowsAction(run.allowed_actions, 'close_truck');
 }
 
 /**
  * Client seal gate must match the server close_truck action.
  * Requires a truck photo in the current seal window and server readiness.
- * Do not use local on-truck row counts — they can disagree with partial-load rules.
+ * Do not use local on-truck row counts - they can disagree with partial-load rules.
  */
 export function canSealTruckFromRun(run: DeliveryRun): boolean {
   if (run.truck_closed || run.truck_closed_at) return false;
@@ -204,7 +204,7 @@ export function sealTruckBlockers(run: DeliveryRun): string[] {
   if (run.truck_closed || run.truck_closed_at) return [];
   const blockers: string[] = [];
   const load = run.monitor?.load;
-  // Prefer load blockers first — camera-first Seal opens the camera when items are ready.
+  // Prefer load blockers first - camera-first Seal opens the camera when items are ready.
   if (!truckLoadReadyToSeal(run)) {
     if (load && load.ready > 0 && load.ready < load.total_items && !load.all_ready) {
       blockers.push('Finish or unload partially loaded deliveries');

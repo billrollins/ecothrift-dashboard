@@ -318,7 +318,7 @@ export function itemCatalogWorkbenchUrl(catalogItemId: number, sku: string): str
   return inventoryWorkbenchItemUrl({ id: catalogItemId, sku });
 }
 
-/** @deprecated Use inventoryWorkbenchItemsUrl — kept for call-site compatibility. */
+/** @deprecated Use inventoryWorkbenchItemsUrl - kept for call-site compatibility. */
 export function manageItemsSearchUrl(opts: {
   text?: string;
   filters?: Record<string, string | number>;

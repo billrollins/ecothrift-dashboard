@@ -29,7 +29,7 @@ export interface CheckInOrderAutocompleteProps {
   compact?: boolean;
   fullWidth?: boolean;
   autoSelectDefault?: boolean;
-  /** White pane shell — matches workbench product search (order tone). */
+  /** White pane shell - matches workbench product search (order tone). */
   paneShell?: boolean;
   /** Amber outline when required and no value selected. */
   highlightIfEmpty?: boolean;

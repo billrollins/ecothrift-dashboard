@@ -28,6 +28,8 @@ from .serializers import (
     ConversationStaffSerializer,
     MessagePublicSerializer,
     OrderStaffSerializer,
+    ReservationDetailSerializer,
+    ReservationEventSerializer,
     ReservationPublicSerializer,
     ReservationStaffSerializer,
     WebListingDetailPublicSerializer,
@@ -37,15 +39,33 @@ from .serializers import (
 )
 from .services.reservations import (
     complete_reservation,
+    add_staff_note,
     confirm_reservation,
     create_hold,
+    record_event,
     release_reservation,
+    reopen_reservation,
     stage_reservation,
 )
 
 PAGE_SIZE_DEFAULT = 24
 PAGE_SIZE_MAX = 60
 _TRUTHY = ('1', 'true', 'True', 'yes')
+_FALSY = ('0', 'false', 'False', 'no')
+
+
+def _apply_archived_filter(qs, request):
+    """`archived=0` hides archived rows, `archived=1` shows only them.
+
+    Omitting the param returns both, so a search reaches archived rows and no
+    existing caller silently loses data.
+    """
+    value = request.query_params.get('archived')
+    if value in _TRUTHY:
+        return qs.filter(archived_at__isnull=False)
+    if value in _FALSY:
+        return qs.filter(archived_at__isnull=True)
+    return qs
 
 
 class _FixedScopeThrottle(SimpleRateThrottle):
@@ -96,7 +116,19 @@ class WebListingViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'category', 'featured', 'condition', 'return_policy']
     search_fields = ['title', 'sku', 'description']
-    ordering_fields = ['created_at', 'updated_at', 'price', 'title', 'featured', 'on_hand']
+    ordering_fields = [
+        'created_at', 'updated_at', 'price', 'title', 'featured', 'on_hand', 'fb_posted_at',
+    ]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        # Staff catalog filter: Facebook posted vs never posted.
+        fb = self.request.query_params.get('fb_posted')
+        if fb == '1':
+            qs = qs.filter(fb_posted_at__isnull=False)
+        elif fb == '0':
+            qs = qs.filter(fb_posted_at__isnull=True)
+        return qs
 
     def perform_create(self, serializer):
         listing = serializer.save(created_by=self.request.user)
@@ -197,7 +229,7 @@ class WebListingViewSet(viewsets.ModelViewSet):
             f"Price: ${listing.price}\n\n"
             f"{(listing.description or '').strip()}\n\n"
             f"Request a hold at ecothrift.us/shop/{listing.slug}\n"
-            f"Pay & pick up in store — no shipping or online payment."
+            f"Pay & pick up in store - no shipping or online payment."
         ).strip()
         listing.fb_title = title
         listing.fb_body = body
@@ -290,17 +322,61 @@ class ReservationViewSet(
     mixins.UpdateModelMixin,
     viewsets.GenericViewSet,
 ):
-    queryset = (
-        Reservation.objects
-        .select_related('listing', 'item', 'pos_cart')
-        .all()
-    )
     serializer_class = ReservationStaffSerializer
     permission_classes = [IsAuthenticated, IsManagerOrAdmin]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'listing']
-    search_fields = ['customer_name', 'email', 'phone', 'status_token', 'listing__title']
+    # phone_digits is an annotated digit-stripped phone for counter lookup.
+    search_fields = [
+        'customer_name', 'email', 'phone', 'phone_digits',
+        'pickup_code', 'status_token', 'listing__title',
+    ]
     ordering_fields = ['created_at', 'expires_at', 'status']
+
+    def get_queryset(self):
+        # Include pending_verification - stock is already reserved, so staff must
+        # see why Available is 0. Internal confirm still refuses until verified.
+        from django.db.models import Count, Prefetch, Value
+        from django.db.models.functions import Replace
+
+        from apps.webstore.models import ReservationEvent
+
+        phone_digits = Replace(
+            Replace(
+                Replace(
+                    Replace('phone', Value('('), Value('')),
+                    Value(')'), Value(''),
+                ),
+                Value('-'), Value(''),
+            ),
+            Value(' '), Value(''),
+        )
+        qs = (
+            Reservation.objects
+            .select_related('listing', 'item', 'pos_cart', 'conversation')
+            .prefetch_related(
+                Prefetch(
+                    'events',
+                    queryset=(
+                        ReservationEvent.objects
+                        .select_related('actor')
+                        .order_by('created_at', 'id')
+                    ),
+                ),
+            )
+            .annotate(
+                phone_digits=phone_digits,
+                _message_count=Count('conversation__messages'),
+            )
+            .all()
+        )
+        # Comma-separated status list for Released tab (cancelled,declined,expired).
+        status_in = (self.request.query_params.get('status__in') or '').strip()
+        if status_in:
+            wanted = [s.strip() for s in status_in.split(',') if s.strip()]
+            if wanted:
+                qs = qs.filter(status__in=wanted)
+        return _apply_archived_filter(qs, self.request)
 
     @action(detail=True, methods=['post'], url_path='confirm')
     def confirm(self, request, pk=None):
@@ -312,25 +388,78 @@ class ReservationViewSet(
         reservation = stage_reservation(self.get_object(), user=request.user)
         return Response(ReservationStaffSerializer(reservation).data)
 
+    def _require_reason(self, request):
+        reason = (request.data.get('reason') or '').strip()
+        if not reason:
+            return None, Response({'detail': 'A reason is required.'}, status=400)
+        return reason[:200], None
+
     @action(detail=True, methods=['post'], url_path='decline')
     def decline(self, request, pk=None):
-        reservation = release_reservation(self.get_object(), 'declined')
+        reason, err = self._require_reason(request)
+        if err is not None:
+            return err
+        reservation = release_reservation(
+            self.get_object(), 'declined', user=request.user, reason=reason,
+        )
         return Response(ReservationStaffSerializer(reservation).data)
 
     @action(detail=True, methods=['post'], url_path='cancel')
     def cancel(self, request, pk=None):
-        reservation = release_reservation(self.get_object(), 'cancelled')
+        reason, err = self._require_reason(request)
+        if err is not None:
+            return err
+        reservation = release_reservation(
+            self.get_object(), 'cancelled', user=request.user, reason=reason,
+        )
         return Response(ReservationStaffSerializer(reservation).data)
 
     @action(detail=True, methods=['post'], url_path='expire')
     def expire(self, request, pk=None):
-        reservation = release_reservation(self.get_object(), 'expired')
+        reason = (request.data.get('reason') or '').strip()[:200] or 'No-show / expired by staff'
+        reservation = release_reservation(
+            self.get_object(), 'expired', user=request.user, reason=reason,
+        )
+        return Response(ReservationStaffSerializer(reservation).data)
+
+    @action(detail=True, methods=['post'], url_path='reopen')
+    def reopen(self, request, pk=None):
+        """Bring a declined/cancelled/expired hold back to Approved."""
+        note = (request.data.get('note') or request.data.get('reason') or '').strip()
+        if not note:
+            return Response({'detail': 'A note is required to reopen a hold.'}, status=400)
+        reservation = reopen_reservation(self.get_object(), user=request.user, note=note)
         return Response(ReservationStaffSerializer(reservation).data)
 
     @action(detail=True, methods=['post'], url_path='complete')
     def complete(self, request, pk=None):
         reservation = complete_reservation(self.get_object(), user=request.user)
         return Response(ReservationStaffSerializer(reservation).data)
+
+    @action(detail=True, methods=['post'], url_path='archive')
+    def archive(self, request, pk=None):
+        """Hide a finished hold from the queues. Status and stock untouched."""
+        from apps.webstore.services.retention import archive_reservation
+
+        reservation = archive_reservation(self.get_object(), user=request.user)
+        return Response(ReservationStaffSerializer(reservation).data)
+
+    @action(detail=True, methods=['post'], url_path='unarchive')
+    def unarchive(self, request, pk=None):
+        from apps.webstore.services.retention import unarchive_reservation
+
+        reservation = unarchive_reservation(self.get_object())
+        return Response(ReservationStaffSerializer(reservation).data)
+
+    @action(detail=True, methods=['post'], url_path='notes')
+    def notes(self, request, pk=None):
+        """Append an internal staff-only note to the hold timeline."""
+        note = (request.data.get('note') or '').strip()
+        if not note:
+            return Response({'detail': 'Note cannot be empty.'}, status=400)
+        reservation = self.get_object()
+        event = add_staff_note(reservation, request.user, note)
+        return Response(ReservationEventSerializer(event).data, status=201)
 
     @action(detail=True, methods=['post'], url_path='extend')
     def extend(self, request, pk=None):
@@ -345,7 +474,47 @@ class ReservationViewSet(
             )
         reservation.expires_at = next_business_day_close_after(timezone.now())
         reservation.save(update_fields=['expires_at', 'updated_at'])
+        record_event(
+            reservation,
+            'extended',
+            actor=request.user,
+            from_status=reservation.status,
+            to_status=reservation.status,
+            note=f'Expires {reservation.expires_at.isoformat()}' if reservation.expires_at else '',
+        )
         return Response(ReservationStaffSerializer(reservation).data)
+
+    @action(detail=True, methods=['get'], url_path='detail')
+    def sale_detail(self, request, pk=None):
+        """Sales-log / hold detail: reservation + event timeline + thread messages."""
+        # Method cannot be named `detail` - that shadows DRF's action.detail flag.
+        reservation = (
+            Reservation.objects
+            .select_related(
+                'listing', 'item', 'pos_cart',
+                'confirmed_by', 'staged_by', 'completed_by',
+            )
+            .prefetch_related('events__actor', 'conversation__messages')
+            .get(pk=self.get_object().pk)
+        )
+        events = reservation.events.select_related('actor').all()
+        thread = None
+        try:
+            conv = reservation.conversation
+        except Conversation.DoesNotExist:
+            conv = None
+        if conv is not None:
+            thread = {
+                'public_token': conv.public_token,
+                'state': conv.state,
+                'id': conv.id,
+                'messages': MessagePublicSerializer(conv.messages.all(), many=True).data,
+            }
+        return Response({
+            'reservation': ReservationDetailSerializer(reservation).data,
+            'events': ReservationEventSerializer(events, many=True).data,
+            'thread': thread,
+        })
 
 
 class ConversationViewSet(
@@ -356,8 +525,11 @@ class ConversationViewSet(
     permission_classes = [IsAuthenticated, IsManagerOrAdmin]
     serializer_class = ConversationStaffSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['state', 'listing', 'staff_owner']
-    search_fields = ['guest_name', 'guest_email', 'guest_phone', 'public_token', 'listing__title']
+    filterset_fields = ['state', 'listing', 'staff_owner', 'customer']
+    search_fields = [
+        'guest_name', 'guest_email', 'guest_phone', 'public_token',
+        'listing__title', 'customer__email', 'customer__first_name', 'customer__last_name',
+    ]
     ordering_fields = ['last_message_at', 'created_at', 'state']
 
     def get_serializer_class(self):
@@ -371,12 +543,22 @@ class ConversationViewSet(
         )
         if self.action != 'list':
             qs = qs.prefetch_related('messages')
+        # Hide unverified threads unless staff explicitly filters state=pending_verification.
+        if self.request.query_params.get('state') != 'pending_verification':
+            qs = qs.exclude(state='pending_verification')
         has_hold = self.request.query_params.get('has_hold')
         if has_hold in _TRUTHY:
             qs = qs.filter(reservation__isnull=False)
-        elif has_hold in ('0', 'false', 'False', 'no'):
+        elif has_hold in _FALSY:
             qs = qs.filter(reservation__isnull=True)
-        return qs
+        # Unread for staff - distinct from state=needs_reply (already-read
+        # threads can still need a reply; the red badge is unread only).
+        unread = self.request.query_params.get('unread')
+        if unread in _TRUTHY:
+            qs = qs.filter(staff_unread__gt=0)
+        elif unread in _FALSY:
+            qs = qs.filter(staff_unread=0)
+        return _apply_archived_filter(qs, self.request)
 
     def retrieve(self, request, *args, **kwargs):
         from apps.webstore.services.conversations import mark_staff_read
@@ -416,6 +598,21 @@ class ConversationViewSet(
     def reopen(self, request, pk=None):
         from apps.webstore.services.conversations import reopen_conversation
         conv = reopen_conversation(self.get_object())
+        return Response(ConversationStaffSerializer(conv).data)
+
+    @action(detail=True, methods=['post'], url_path='archive')
+    def archive(self, request, pk=None):
+        """Drop a resolved thread out of the inbox. The customer keeps it."""
+        from apps.webstore.services.retention import archive_conversation
+
+        conv = archive_conversation(self.get_object(), user=request.user)
+        return Response(ConversationStaffSerializer(conv).data)
+
+    @action(detail=True, methods=['post'], url_path='unarchive')
+    def unarchive(self, request, pk=None):
+        from apps.webstore.services.retention import unarchive_conversation
+
+        conv = unarchive_conversation(self.get_object())
         return Response(ConversationStaffSerializer(conv).data)
 
 
@@ -588,7 +785,7 @@ def checkout(request):
     return Response(
         {
             'detail': (
-                'Online checkout is no longer available. Request a hold instead — '
+                'Online checkout is no longer available. Request a hold instead - '
                 'pay and pick up in store. No shipping, delivery, or online payment.'
             ),
             'code': 'CHECKOUT_DISABLED',
@@ -658,6 +855,20 @@ def request_hold(request):
     note = (data.get('note') or data.get('customer_note') or '').strip()
     idem = (data.get('idempotency_key') or request.headers.get('Idempotency-Key') or '').strip()
 
+    from apps.accounts.services.magic_link import customer_email_verified
+
+    verified = False
+    user = getattr(request, 'user', None)
+    if user is not None and user.is_authenticated:
+        # Signed-in verified customers skip the confirm-email step.
+        if customer_email_verified(user) and (
+            not email or email.lower() == (user.email or '').strip().lower()
+        ):
+            verified = True
+            email = (user.email or '').strip()
+            if not name:
+                name = (user.first_name or user.email or '').strip()
+
     created = []
     try:
         with transaction.atomic():
@@ -680,6 +891,7 @@ def request_hold(request):
                     phone=phone,
                     customer_note=note,
                     idempotency_key=key,
+                    verified=verified,
                 )
                 created.append(reservation)
     except ValidationError as exc:
@@ -690,12 +902,332 @@ def request_hold(request):
 
     if not created:
         return Response({'detail': 'No valid listings to hold.'}, status=400)
+
+    if not verified:
+        _send_hold_verification_emails(created, request)
+
     if len(created) == 1:
         return Response(ReservationPublicSerializer(created[0]).data, status=201)
     return Response(
-        {'holds': ReservationPublicSerializer(created, many=True).data, 'count': len(created)},
+        {
+            'holds': ReservationPublicSerializer(created, many=True).data,
+            'count': len(created),
+        },
         status=201,
     )
+
+
+def _client_ip(request) -> str | None:
+    forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
+    return forwarded or request.META.get('REMOTE_ADDR') or None
+
+
+def _public_base_url() -> str:
+    from django.conf import settings as dj_settings
+    return (
+        getattr(dj_settings, 'ONLINE_SALES_PUBLIC_BASE_URL', None) or 'https://ecothrift.us'
+    ).rstrip('/')
+
+
+def _issue_and_email_confirmation(reservation, *, force: bool = False) -> tuple:
+    """Issue a HoldConfirmation and email code + link. Returns (row, code, token)."""
+    from apps.webstore.emails import send_hold_verification
+    from apps.webstore.services.hold_confirmations import issue_confirmation
+
+    row, plain_code, plain_token = issue_confirmation(reservation, force=force)
+    confirm_link = f'{_public_base_url()}/api/webstore/holds/confirm/?t={plain_token}'
+    try:
+        send_hold_verification(
+            reservation,
+            confirm_link=confirm_link,
+            code=plain_code,
+        )
+    except Exception:
+        pass
+    return row, plain_code, plain_token
+
+
+def _send_hold_verification_emails(reservations, request) -> None:
+    """Send the confirm-email for each pending hold.
+
+    The code and link token are never returned to the caller. Confirming a hold
+    must go through the emailed code/link so local testing exercises the real
+    path; when mail is not configured the console backend prints both.
+    """
+    for reservation in reservations:
+        if reservation.status != 'pending_verification':
+            continue
+        try:
+            _issue_and_email_confirmation(reservation)
+        except Exception:
+            pass
+
+
+def _pending_hold_or_response(token: str):
+    """Return (reservation, None) or (None, Response) for pending-verification holds."""
+    from apps.webstore.services.feature import online_sales_enabled
+
+    if not online_sales_enabled():
+        return None, _public_surface_disabled_response()
+    try:
+        reservation = Reservation.objects.select_related('listing', 'conversation').get(
+            status_token=token,
+        )
+    except Reservation.DoesNotExist:
+        return None, Response({'detail': 'Hold not found.'}, status=404)
+    return reservation, None
+
+
+@api_view(['POST'])
+@perm_classes([AllowAny])
+@throttle_classes([OnlineHoldThrottle])
+def create_hold_confirmation(request, token):
+    """Create a confirmation record + email. Rate-limited to one per 60s per hold."""
+    from apps.webstore.services.hold_confirmations import (
+        ConfirmationCooldown,
+        ConfirmationHoldEnded,
+        ConfirmationNotPending,
+        RESEND_COOLDOWN_SECONDS,
+        attempts_remaining,
+        issue_confirmation,
+    )
+    from apps.webstore.emails import send_hold_verification
+
+    reservation, err = _pending_hold_or_response(token)
+    if err is not None:
+        return err
+    if reservation.status != 'pending_verification':
+        return Response(
+            {'detail': 'This hold does not need email confirmation.', 'status': reservation.status},
+            status=400,
+        )
+
+    try:
+        row, plain_code, plain_token = issue_confirmation(reservation)
+    except ConfirmationCooldown as exc:
+        resp = Response(
+            {
+                'detail': 'A code was just sent. Try again shortly.',
+                'retry_after_seconds': exc.seconds,
+            },
+            status=429,
+        )
+        resp['Retry-After'] = str(exc.seconds)
+        return resp
+    except ConfirmationHoldEnded:
+        return Response({'detail': 'This hold has ended.'}, status=400)
+    except ConfirmationNotPending:
+        return Response(
+            {'detail': 'This hold does not need email confirmation.', 'status': reservation.status},
+            status=400,
+        )
+
+    confirm_link = f'{_public_base_url()}/api/webstore/holds/confirm/?t={plain_token}'
+    try:
+        send_hold_verification(reservation, confirm_link=confirm_link, code=plain_code)
+    except Exception:
+        pass
+
+    return Response(
+        {
+            'detail': 'If that email can receive mail, a confirmation code is on its way.',
+            'code_expires_at': row.expires_at.isoformat() if row.expires_at else None,
+            'resend_available_in': RESEND_COOLDOWN_SECONDS,
+            'attempts_remaining': attempts_remaining(row),
+        },
+        status=201,
+    )
+
+
+@api_view(['POST'])
+@perm_classes([AllowAny])
+@throttle_classes([OnlineHoldThrottle])
+def confirm_hold_code(request, token):
+    """Confirm a pending hold with the emailed 6-digit code."""
+    from apps.webstore.services.hold_confirmations import (
+        ConfirmationHoldEnded,
+        ConfirmationLocked,
+        ConfirmationMismatch,
+        ConfirmationNoActive,
+        ConfirmationNotPending,
+        confirm_with_code,
+    )
+
+    reservation, err = _pending_hold_or_response(token)
+    if err is not None:
+        return err
+
+    code = (request.data or {}).get('code') or ''
+    try:
+        updated = confirm_with_code(reservation, code)
+    except ConfirmationLocked:
+        return Response(
+            {
+                'detail': 'Too many attempts. Request a fresh code.',
+                'attempts_remaining': 0,
+                'locked': True,
+            },
+            status=429,
+        )
+    except ConfirmationMismatch as exc:
+        return Response(
+            {
+                'detail': 'That code does not match.',
+                'attempts_remaining': exc.attempts_remaining,
+            },
+            status=400,
+        )
+    except ConfirmationNoActive:
+        return Response(
+            {'detail': 'No active confirmation. Request a fresh code.', 'attempts_remaining': 0},
+            status=400,
+        )
+    except ConfirmationHoldEnded:
+        return Response({'detail': 'This hold has ended.'}, status=400)
+    except ConfirmationNotPending:
+        return Response(
+            {'detail': 'This hold does not need email confirmation.', 'status': reservation.status},
+            status=400,
+        )
+
+    updated = (
+        Reservation.objects
+        .select_related('listing', 'listing__category', 'conversation')
+        .prefetch_related('conversation__messages', 'events')
+        .get(pk=updated.pk)
+    )
+    payload = ReservationPublicSerializer(updated).data
+    payload['held_until'] = updated.expires_at.isoformat() if updated.expires_at else None
+    return Response(payload)
+
+
+@api_view(['GET'])
+@perm_classes([AllowAny])
+def confirm_hold_link(request):
+    """Prefetch-safe email link. Idempotent - scanners may hit this before the customer."""
+    from apps.webstore.services.hold_confirmations import confirm_with_token
+
+    raw = (request.query_params.get('t') or '').strip()
+    result = confirm_with_token(raw)
+    base = _public_base_url()
+
+    if result.kind in ('success', 'already_confirmed') and result.reservation is not None:
+        return HttpResponseRedirect(
+            f'{base}/hold/{result.reservation.status_token}?confirmed=1',
+        )
+    if result.kind == 'expired' and result.reservation is not None:
+        return HttpResponseRedirect(
+            f'{base}/hold/{result.reservation.status_token}?link=expired',
+        )
+    return HttpResponseRedirect(f'{base}/hold-link-expired')
+
+
+@api_view(['GET'])
+@perm_classes([AllowAny])
+def hold_confirmation_status(request, token):
+    """Lightweight poll payload for cross-device confirmation detection."""
+    from apps.webstore.services.hold_confirmations import confirmation_status_payload
+    from apps.webstore.services.feature import online_sales_enabled
+
+    if not online_sales_enabled():
+        return _public_surface_disabled_response()
+    try:
+        reservation = Reservation.objects.only('status', 'expires_at', 'status_token').get(
+            status_token=token,
+        )
+    except Reservation.DoesNotExist:
+        return Response({'detail': 'Hold not found.'}, status=404)
+    return Response(confirmation_status_payload(reservation))
+
+
+# resend_hold_verification URL maps to create_hold_confirmation (same behavior).
+
+
+@api_view(['POST'])
+@perm_classes([AllowAny])
+@throttle_classes([OnlineHoldThrottle])
+def change_hold_email(request, token):
+    """Correct a typo'd email on a pending hold and resend the confirm code in place."""
+    from django.core.validators import validate_email
+    from django.core.exceptions import ValidationError as DjangoValidationError
+
+    from apps.webstore.services.feature import online_sales_enabled
+    from apps.webstore.services.hold_confirmations import (
+        ConfirmationCooldown,
+        ConfirmationHoldEnded,
+        ConfirmationNotPending,
+    )
+    from apps.webstore.services.reservations import record_event
+
+    if not online_sales_enabled():
+        return _public_surface_disabled_response()
+
+    try:
+        reservation = Reservation.objects.select_related('listing', 'conversation').get(
+            status_token=token,
+        )
+    except Reservation.DoesNotExist:
+        return Response({'detail': 'Hold not found.'}, status=404)
+
+    if reservation.status != 'pending_verification':
+        return Response(
+            {'detail': 'This hold does not need email confirmation.', 'status': reservation.status},
+            status=400,
+        )
+
+    new_email = ((request.data or {}).get('email') or '').strip()
+    if not new_email:
+        return Response({'detail': 'Email is required.'}, status=400)
+    try:
+        validate_email(new_email)
+    except DjangoValidationError:
+        return Response({'detail': 'Enter a valid email address.'}, status=400)
+
+    old_email = reservation.email
+    email_changed = new_email.lower() != old_email.lower()
+    if email_changed:
+        reservation.email = new_email
+        reservation.save(update_fields=['email', 'updated_at'])
+        try:
+            conv = reservation.conversation
+        except Conversation.DoesNotExist:
+            conv = None
+        if conv is not None and (conv.guest_email or '').lower() == old_email.lower():
+            conv.guest_email = new_email
+            conv.save(update_fields=['guest_email', 'updated_at'])
+        record_event(
+            reservation,
+            'note',
+            from_status=reservation.status,
+            to_status=reservation.status,
+            note=f'Customer corrected email from {old_email} to {new_email}',
+        )
+
+    try:
+        # Force when the address changed so the new inbox gets a code immediately.
+        _issue_and_email_confirmation(reservation, force=email_changed)
+    except ConfirmationCooldown as exc:
+        resp = Response(
+            {
+                'detail': 'A code was just sent. Try again shortly.',
+                'retry_after_seconds': exc.seconds,
+            },
+            status=429,
+        )
+        resp['Retry-After'] = str(exc.seconds)
+        return resp
+    except (ConfirmationHoldEnded, ConfirmationNotPending):
+        pass
+    except Exception:
+        pass
+
+    reservation = (
+        Reservation.objects
+        .select_related('listing', 'conversation')
+        .prefetch_related('conversation__messages', 'events')
+        .get(pk=reservation.pk)
+    )
+    return Response(ReservationPublicSerializer(reservation).data)
 
 
 @api_view(['GET'])
@@ -704,8 +1236,8 @@ def hold_status(request, token):
     try:
         reservation = (
             Reservation.objects
-            .select_related('listing', 'conversation')
-            .prefetch_related('conversation__messages')
+            .select_related('listing', 'listing__category', 'conversation')
+            .prefetch_related('conversation__messages', 'events', 'listing__images')
             .get(status_token=token)
         )
     except Reservation.DoesNotExist:
@@ -789,26 +1321,94 @@ def catalog_ask(request, slug):
     except WebListing.DoesNotExist:
         return Response({'detail': 'Not found.'}, status=404)
 
+    from apps.accounts.models import MagicLinkToken
+    from apps.accounts.services.magic_link import customer_email_verified, issue_magic_link
+    from apps.webstore.emails import send_inquiry_verification
+
     data = request.data or {}
+    name = data.get('name') or data.get('customer_name') or ''
+    email = data.get('email') or ''
+    user = getattr(request, 'user', None)
+    verified = False
+    if user is not None and user.is_authenticated and customer_email_verified(user):
+        if not email or email.strip().lower() == (user.email or '').strip().lower():
+            verified = True
+            email = (user.email or '').strip()
+            if not (name or '').strip():
+                name = user.first_name or user.email or ''
+
     try:
         conv = open_inquiry(
             listing=listing,
-            name=data.get('name') or data.get('customer_name') or '',
-            email=data.get('email') or '',
+            name=name,
+            email=email,
             phone=data.get('phone') or '',
             body=data.get('body') or data.get('message') or '',
+            verified=verified,
         )
     except ValidationError as exc:
         return Response(exc.detail, status=400)
 
+    if not verified and conv.state == 'pending_verification':
+        base = getattr(dj_settings, 'ONLINE_SALES_PUBLIC_BASE_URL', 'https://ecothrift.us').rstrip('/')
+        try:
+            token_row = issue_magic_link(
+                email=conv.guest_email,
+                request_ip=_client_ip(request),
+                purpose=MagicLinkToken.PURPOSE_VERIFY_THREAD,
+                thread_token=conv.public_token,
+            )
+            send_inquiry_verification(
+                conv,
+                magic_link=f'{base}/verify?token={token_row.token}',
+            )
+        except Exception:
+            pass
+
     mark_customer_read(conv)
-    return Response({
+    payload = {
         'public_token': conv.public_token,
         'state': conv.state,
         'listing_title': listing.title,
         'customer_unread': 0,
         'messages': MessagePublicSerializer(conv.messages.all(), many=True).data,
-    }, status=201)
+        'needs_verification': conv.state == 'pending_verification',
+    }
+    return Response(payload, status=201)
+
+
+def _customer_conversation_qs(user, *, include_deleted=False):
+    """Conversations claimed to this customer or matching their email."""
+    email = (user.email or '').strip()
+    qs = Conversation.objects.filter(
+        Q(customer=user) | Q(guest_email__iexact=email),
+    )
+    if not include_deleted:
+        qs = qs.filter(customer_deleted_at__isnull=True)
+    return qs
+
+
+def _last_message_preview(messages, *, limit=120):
+    """Newest prefetched message → short preview for inbox list rows."""
+    if not messages:
+        return None, None
+    last = messages[-1]
+    body = (last.body or '').strip().replace('\n', ' ')
+    if len(body) > limit:
+        body = body[: limit - 1].rstrip() + '…'
+    return body or None, last.author_kind
+
+
+def _customer_owned_hold(user, token: str) -> Reservation | None:
+    email = (user.email or '').strip()
+    if not email or not token:
+        return None
+    return (
+        Reservation.objects.filter(email__iexact=email, status_token=token)
+        .select_related('listing', 'listing__category', 'conversation')
+        .prefetch_related('events', 'listing__images')
+        .first()
+    )
 
 
 @api_view(['GET'])
@@ -822,13 +1422,63 @@ def my_holds(request):
     email = (request.user.email or '').strip()
     qs = (
         Reservation.objects.filter(email__iexact=email)
-        .select_related('listing', 'conversation')
+        .select_related('listing', 'listing__category', 'conversation')
+        .prefetch_related('events', 'listing__images')
         .order_by('-created_at')[:100]
     )
     return Response(
         ReservationPublicSerializer(
             qs,
             many=True,
+            context={'include_thread_messages': False},
+        ).data,
+    )
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated])
+def my_hold_archive(request, token):
+    """Customer: hide a finished hold from History (restore from Account)."""
+    from apps.accounts.permissions import IsCustomer
+
+    if not IsCustomer().has_permission(request, None):
+        return Response({'detail': 'Customer accounts only.'}, status=403)
+    hold = _customer_owned_hold(request.user, token)
+    if hold is None:
+        return Response({'detail': 'Hold not found.'}, status=404)
+    if hold.status not in Reservation.TERMINAL_STATUSES:
+        return Response(
+            {'detail': 'Only finished holds can be archived.'},
+            status=400,
+        )
+    if hold.customer_archived_at is None:
+        hold.customer_archived_at = timezone.now()
+        hold.save(update_fields=['customer_archived_at', 'updated_at'])
+    return Response(
+        ReservationPublicSerializer(
+            hold,
+            context={'include_thread_messages': False},
+        ).data,
+    )
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated])
+def my_hold_unarchive(request, token):
+    """Customer: put an archived hold back in History."""
+    from apps.accounts.permissions import IsCustomer
+
+    if not IsCustomer().has_permission(request, None):
+        return Response({'detail': 'Customer accounts only.'}, status=403)
+    hold = _customer_owned_hold(request.user, token)
+    if hold is None:
+        return Response({'detail': 'Hold not found.'}, status=404)
+    if hold.customer_archived_at is not None:
+        hold.customer_archived_at = None
+        hold.save(update_fields=['customer_archived_at', 'updated_at'])
+    return Response(
+        ReservationPublicSerializer(
+            hold,
             context={'include_thread_messages': False},
         ).data,
     )
@@ -842,26 +1492,96 @@ def my_conversations(request):
 
     if not IsCustomer().has_permission(request, None):
         return Response({'detail': 'Customer accounts only.'}, status=403)
-    email = (request.user.email or '').strip()
     qs = (
-        Conversation.objects.filter(Q(customer=request.user) | Q(guest_email__iexact=email))
+        _customer_conversation_qs(request.user)
         .select_related('listing', 'reservation')
+        .prefetch_related('messages')
         .order_by('-last_message_at', '-created_at')[:100]
     )
-    # List shape — no message bodies (open hold/thread token for history).
-    return Response([
-        {
+    # List shape - preview only; open detail for full history.
+    rows = []
+    for c in qs:
+        messages = list(c.messages.all())
+        preview, author = _last_message_preview(messages)
+        rows.append({
             'public_token': c.public_token,
             'state': c.state,
             'listing_title': c.listing.title if c.listing_id else None,
+            'listing_slug': c.listing.slug if c.listing_id else None,
             'reservation_status_token': (
                 c.reservation.status_token if c.reservation_id else None
             ),
             'customer_unread': c.customer_unread,
             'last_message_at': c.last_message_at,
-        }
-        for c in qs
-    ])
+            'last_message_preview': preview,
+            'last_message_author': author,
+        })
+    return Response(rows)
+
+
+@api_view(['GET'])
+@perm_classes([IsAuthenticated])
+def my_conversation_detail(request, token):
+    """Customer: full thread for an owned conversation (messages included)."""
+    from apps.accounts.permissions import IsCustomer
+
+    if not IsCustomer().has_permission(request, None):
+        return Response({'detail': 'Customer accounts only.'}, status=403)
+    try:
+        conv = (
+            _customer_conversation_qs(request.user)
+            .select_related('listing', 'reservation')
+            .prefetch_related('messages')
+            .get(public_token=token)
+        )
+    except Conversation.DoesNotExist:
+        return Response({'detail': 'Thread not found.'}, status=404)
+    return Response({
+        'public_token': conv.public_token,
+        'state': conv.state,
+        'listing_title': conv.listing.title if conv.listing_id else None,
+        'listing_slug': conv.listing.slug if conv.listing_id else None,
+        'reservation_status_token': (
+            conv.reservation.status_token if conv.reservation_id else None
+        ),
+        'customer_unread': conv.customer_unread,
+        'last_message_at': conv.last_message_at,
+        'messages': MessagePublicSerializer(conv.messages.all(), many=True).data,
+    })
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated])
+def my_conversation_mark_unread(request, token):
+    """Customer: put a thread back in the Unread filter."""
+    from apps.accounts.permissions import IsCustomer
+    from apps.webstore.services.conversations import mark_customer_unread
+
+    if not IsCustomer().has_permission(request, None):
+        return Response({'detail': 'Customer accounts only.'}, status=403)
+    try:
+        conv = _customer_conversation_qs(request.user).get(public_token=token)
+    except Conversation.DoesNotExist:
+        return Response({'detail': 'Thread not found.'}, status=404)
+    mark_customer_unread(conv)
+    return Response({'public_token': token, 'customer_unread': 1})
+
+
+@api_view(['POST'])
+@perm_classes([IsAuthenticated])
+def my_conversation_delete(request, token):
+    """Customer: soft-delete a thread from Messages (staff/DB keep the row)."""
+    from apps.accounts.permissions import IsCustomer
+    from apps.webstore.services.conversations import soft_delete_for_customer
+
+    if not IsCustomer().has_permission(request, None):
+        return Response({'detail': 'Customer accounts only.'}, status=403)
+    try:
+        conv = _customer_conversation_qs(request.user).get(public_token=token)
+    except Conversation.DoesNotExist:
+        return Response({'detail': 'Thread not found.'}, status=404)
+    soft_delete_for_customer(conv)
+    return Response({'detail': 'Deleted.', 'public_token': token})
 
 
 @api_view(['GET'])
@@ -906,14 +1626,86 @@ def work_queue(request):
     })
 
 
+@api_view(['POST'])
+@perm_classes([IsAuthenticated, IsManagerOrAdmin])
+def work_queue_remove_item(request, item_id: int):
+    """Pull an inventory item out of the Online Sales to-list queue.
+
+    Sets location back to on_shelf. Does not delete draft listings - those stay
+    under Drafts until staff delete them separately.
+    """
+    from apps.inventory.models import Item
+
+    try:
+        item = Item.objects.select_related('product').get(pk=item_id)
+    except Item.DoesNotExist:
+        return Response({'detail': 'Item not found.'}, status=404)
+    if item.location != 'online_sales':
+        return Response(
+            {'detail': 'Item is not on the Online Sales queue.'},
+            status=400,
+        )
+    item.location = 'on_shelf'
+    item.save(update_fields=['location', 'updated_at'])
+    return Response({
+        'id': item.id,
+        'sku': item.sku,
+        'location': item.location,
+        'detail': 'Removed from Online Sales queue.',
+    })
+
+
 @api_view(['GET'])
 @perm_classes([IsAuthenticated, IsManagerOrAdmin])
 def sales_log(request):
+    from datetime import timedelta
+
+    from django.db.models import Prefetch
+
+    from apps.webstore.models import ReservationEvent
+
+    from django.db.models import Count
+
     qs = (
         Reservation.objects.filter(status='completed')
-        .select_related('listing', 'item', 'pos_cart')
-        .order_by('-completed_at')[:200]
+        .select_related('listing', 'item', 'pos_cart', 'conversation')
+        .prefetch_related(
+            Prefetch(
+                'events',
+                queryset=(
+                    ReservationEvent.objects
+                    .select_related('actor')
+                    .order_by('created_at', 'id')
+                ),
+            ),
+        )
+        .annotate(_message_count=Count('conversation__messages'))
+        .order_by('-completed_at')
     )
+    days_raw = (request.query_params.get('days') or '').strip()
+    if days_raw != '':
+        try:
+            days = int(days_raw)
+        except (TypeError, ValueError):
+            days = None
+        else:
+            if days == 0:
+                # Calendar today (local).
+                qs = qs.filter(completed_at__date=timezone.localdate())
+            elif days > 0:
+                cutoff = timezone.now() - timedelta(days=days)
+                qs = qs.filter(completed_at__gte=cutoff)
+
+    search = (request.query_params.get('search') or '').strip()
+    if search:
+        qs = qs.filter(
+            Q(listing__title__icontains=search)
+            | Q(customer_name__icontains=search)
+            | Q(email__icontains=search)
+            | Q(item__sku__icontains=search)
+        )
+
+    qs = qs[:500]
     return Response({'results': ReservationStaffSerializer(qs, many=True).data})
 
 

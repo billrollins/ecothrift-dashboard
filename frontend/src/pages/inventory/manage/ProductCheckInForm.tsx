@@ -220,7 +220,7 @@ export function ProductCheckInForm({
         value={specifications}
         onChange={setSpecifications}
         disabled={busy}
-        helperText="Starts from product catalog specs — saved on each item as additions, not replacements."
+        helperText="Starts from product catalog specs - saved on each item as additions, not replacements."
       />
 
       <Stack direction="row" spacing={0.75} justifyContent="flex-end" sx={{ mt: 0.85 }}>

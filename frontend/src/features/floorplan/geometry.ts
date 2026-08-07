@@ -142,7 +142,7 @@ export function parseInches(input: string): number | null {
 
 /**
  * Pick a "nice" scale-bar length in inches for the current zoom.
- * Targets ~15–40% of the given available screen width.
+ * Targets ~15-40% of the given available screen width.
  */
 export function pickScaleBarLength(scale: number, availablePx: number): number {
   const candidates = [1, 3, 6, 12, 24, 60, 120, 240, 600, 1200, 2400, 6000];

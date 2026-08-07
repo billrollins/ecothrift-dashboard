@@ -237,7 +237,7 @@ export function SalesGoalDialog({ open, onClose, goal, isSuperuser }: SalesGoalD
                 Goal Amount
               </Typography>
               <Typography sx={{ fontSize: '2.4rem', fontWeight: 900, color: GOLD, lineHeight: 1.2 }}>
-                {goal ? formatDashboardCurrency(goal.amount) : '—'}
+                {goal ? formatDashboardCurrency(goal.amount) : '-'}
               </Typography>
             </Box>
             <TextField

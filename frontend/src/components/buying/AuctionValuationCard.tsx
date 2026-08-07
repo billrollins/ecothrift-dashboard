@@ -323,7 +323,7 @@ function useValuationBreakdownRows(detail: BuyingAuctionDetail) {
 
 type CostsProps = { detail: BuyingAuctionDetail; isAdmin: boolean };
 
-/** Cell 2,1 — costs and revenue overrides. */
+/** Cell 2,1 - costs and revenue overrides. */
 export function ValuationCostsCard({ detail, isAdmin }: CostsProps) {
   const valuationMutation = useBuyingValuationInputsMutation();
   const { tableTotals } = useValuationBreakdownRows(detail);
@@ -528,7 +528,7 @@ export function ValuationCostsCard({ detail, isAdmin }: CostsProps) {
   const shrinkDisplay =
     appliedShrinkRatio != null && Number.isFinite(appliedShrinkRatio)
       ? `${(appliedShrinkRatio * 100).toFixed(1)}%`
-      : '—';
+      : '-';
 
   const appliedProfitTarget = (() => {
     if (inputsPending) {
@@ -543,7 +543,7 @@ export function ValuationCostsCard({ detail, isAdmin }: CostsProps) {
   const profitTDisplay =
     appliedProfitTarget != null && Number.isFinite(appliedProfitTarget)
       ? `${appliedProfitTarget.toFixed(2)}x`
-      : '—';
+      : '-';
 
   const effPostDisplay = formatCurrency(detail.effective_revenue_after_shrink);
   const preShrinkFromTable = tableTotals?.totalEstRev ?? null;
@@ -664,7 +664,7 @@ export function ValuationCostsCard({ detail, isAdmin }: CostsProps) {
           <Box>
             <Stack direction="row" alignItems="flex-start" justifyContent="space-between" gap={0.5}>
               <Tooltip
-                title={`From table: ${preShrinkFromTable != null ? formatCurrencyWhole(String(preShrinkFromTable)) : '—'}. Edit to override.`}
+                title={`From table: ${preShrinkFromTable != null ? formatCurrencyWhole(String(preShrinkFromTable)) : '-'}. Edit to override.`}
                 placement="top"
                 enterDelay={200}
                 arrow
@@ -749,7 +749,7 @@ export function ValuationCostsCard({ detail, isAdmin }: CostsProps) {
               color: estProfit != null ? (estProfit >= 0 ? 'success.main' : 'error.main') : 'text.primary',
             }}
           >
-            {estProfit != null ? formatCurrency(estProfit) : '—'}
+            {estProfit != null ? formatCurrency(estProfit) : '-'}
           </Typography>
         </Stack>
         <Stack direction="row" justifyContent="space-between" alignItems="baseline">
@@ -762,7 +762,7 @@ export function ValuationCostsCard({ detail, isAdmin }: CostsProps) {
               color: marginPct != null ? (marginPct >= 0 ? 'success.main' : 'error.main') : 'text.primary',
             }}
           >
-            {marginPct != null ? `${marginPct.toFixed(1)}%` : '—'}
+            {marginPct != null ? `${marginPct.toFixed(1)}%` : '-'}
           </Typography>
         </Stack>
       </Stack>
@@ -782,7 +782,7 @@ type TableProps = {
   onCategoryRowClick?: (filterValue: string) => void;
 };
 
-/** Cell 3,1 — category mix table (scroll body only). */
+/** Cell 3,1 - category mix table (scroll body only). */
 export function ValuationCategoryTableCard({ detail, onCategoryRowClick }: TableProps) {
   const { breakdownRows, tableTotals } = useValuationBreakdownRows(detail);
 
@@ -864,7 +864,7 @@ export function ValuationCategoryTableCard({ detail, onCategoryRowClick }: Table
                     {r.category}
                   </TableCell>
                   <TableCell align="right" sx={{ ...CATEGORY_MIX_COL_SX, fontVariantNumeric: 'tabular-nums' }}>
-                    {r.units != null ? r.units.toLocaleString() : '—'}
+                    {r.units != null ? r.units.toLocaleString() : '-'}
                   </TableCell>
                   <TableCell
                     align="right"
@@ -874,7 +874,7 @@ export function ValuationCategoryTableCard({ detail, onCategoryRowClick }: Table
                       color: needScoreColor(r.needMetric),
                     }}
                   >
-                    {r.needMetric != null ? Math.round(r.needMetric) : '—'}
+                    {r.needMetric != null ? Math.round(r.needMetric) : '-'}
                   </TableCell>
                   <TableCell align="right" sx={{ ...CATEGORY_MIX_COL_SX, fontVariantNumeric: 'tabular-nums' }}>
                     {r.pctDisplay.toFixed(1)}%
@@ -931,7 +931,7 @@ export function ValuationCategoryTableCard({ detail, onCategoryRowClick }: Table
                     fontVariantNumeric: 'tabular-nums',
                   }}
                 >
-                  {tableTotals.totalUnits != null ? tableTotals.totalUnits.toLocaleString() : '—'}
+                  {tableTotals.totalUnits != null ? tableTotals.totalUnits.toLocaleString() : '-'}
                 </TableCell>
                 <TableCell
                   align="right"
@@ -943,7 +943,7 @@ export function ValuationCategoryTableCard({ detail, onCategoryRowClick }: Table
                     fontVariantNumeric: 'tabular-nums',
                   }}
                 >
-                  {tableTotals.sumProductNeed != null ? tableTotals.sumProductNeed.toFixed(1) : '—'}
+                  {tableTotals.sumProductNeed != null ? tableTotals.sumProductNeed.toFixed(1) : '-'}
                 </TableCell>
                 <TableCell
                   align="right"
@@ -973,7 +973,7 @@ export function ValuationCategoryTableCard({ detail, onCategoryRowClick }: Table
                     color: 'text.disabled',
                   }}
                 >
-                  —
+                  -
                 </TableCell>
                 <TableCell
                   align="right"

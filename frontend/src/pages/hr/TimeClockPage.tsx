@@ -81,7 +81,7 @@ function OvertimeBanner({
   if (!showWarning) return null;
 
   const title = isOverLimit || worked > limit
-    ? 'OVERTIME — NOT ALLOWED'
+    ? 'OVERTIME - NOT ALLOWED'
     : isAtLimit || worked >= limit
       ? 'WEEKLY HOUR LIMIT REACHED'
       : 'APPROACHING WEEKLY HOUR LIMIT';
@@ -109,7 +109,7 @@ function OvertimeBanner({
       <Typography variant="body1" fontWeight={600}>
         This week: {formatHours(hoursWorked)} / {formatHours(hoursLimit)} hours.
         {worked >= limit
-          ? ' Overtime is not allowed. Clock out if needed, then use Correct time below to submit your actual hours — Super Admin will review and approve.'
+          ? ' Overtime is not allowed. Clock out if needed, then use Correct time below to submit your actual hours - Super Admin will review and approve.'
           : ` ${formatHours(Math.max(limit - worked, 0))} hours left this week.`}
       </Typography>
     </Alert>
@@ -319,13 +319,13 @@ export default function TimeClockPage() {
       field: 'clock_in',
       headerName: 'In',
       width: 100,
-      valueFormatter: (v) => (v ? format(parseISO(String(v)), 'h:mm a') : '—'),
+      valueFormatter: (v) => (v ? format(parseISO(String(v)), 'h:mm a') : '-'),
     },
     {
       field: 'clock_out',
       headerName: 'Out',
       width: 100,
-      valueFormatter: (v) => (v ? format(parseISO(String(v)), 'h:mm a') : '—'),
+      valueFormatter: (v) => (v ? format(parseISO(String(v)), 'h:mm a') : '-'),
     },
     {
       field: 'break_minutes',

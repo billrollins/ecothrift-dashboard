@@ -4,7 +4,7 @@ export default function StoreMap() {
   return (
     <div className="map">
       <iframe
-        title={`Map — ${STORE.retail.name}`}
+        title={`Map - ${STORE.retail.name}`}
         src={retailMapsEmbedSrc()}
         loading="lazy"
         allowFullScreen

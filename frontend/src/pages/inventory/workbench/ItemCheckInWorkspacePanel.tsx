@@ -69,7 +69,7 @@ export interface ItemCheckInWorkspacePanelProps {
 
 function formatShortDateTime(iso: string | null | undefined): string {
 
-  if (!iso) return '—';
+  if (!iso) return '-';
 
   try {
 
@@ -144,9 +144,9 @@ export function ItemCheckInWorkspacePanel({ checkInId, onNavigate }: ItemCheckIn
 
   const defaults = checkIn.defaults ?? {};
 
-  const condition = defaults.condition ? String(defaults.condition).replace(/_/g, ' ') : '—';
+  const condition = defaults.condition ? String(defaults.condition).replace(/_/g, ' ') : '-';
 
-  const price = defaults.price != null && defaults.price !== '' ? formatCurrency(String(defaults.price)) : '—';
+  const price = defaults.price != null && defaults.price !== '' ? formatCurrency(String(defaults.price)) : '-';
 
 
 
@@ -393,7 +393,7 @@ export function ItemCheckInWorkspacePanel({ checkInId, onNavigate }: ItemCheckIn
 
                   <TableCell align="right">{formatCurrency(it.price)}</TableCell>
 
-                  <TableCell>{it.location || '—'}</TableCell>
+                  <TableCell>{it.location || '-'}</TableCell>
 
                 </TableRow>
 

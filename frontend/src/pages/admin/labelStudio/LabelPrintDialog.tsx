@@ -269,7 +269,7 @@ export default function LabelPrintDialog({
       const detail = friendlyPrintError(reason);
       setError(
         usesIncrement && completed > 0
-          ? `Printed ${completed} of ${copies}; copies ${completed + 1}–${copies} were not sent. ${detail}`
+          ? `Printed ${completed} of ${copies}; copies ${completed + 1}-${copies} were not sent. ${detail}`
           : detail,
       );
     } finally {

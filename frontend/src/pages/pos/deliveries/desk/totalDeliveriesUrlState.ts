@@ -28,7 +28,7 @@ export function deskTotalStateToApiParams(state: DeskTotalUrlState): Record<stri
     page: state.page,
     page_size: 50,
   };
-  // Local seed packs only — never request QA rows in production builds.
+  // Local seed packs only - never request QA rows in production builds.
   if (import.meta.env.DEV) params.include_test = '1';
   if (state.search.trim()) params.search = state.search.trim();
   if (state.status) params.status = state.status;

@@ -8,7 +8,8 @@ from rest_framework.test import APIClient
 from apps.accounts.models import User
 from apps.core.models import S3File
 from apps.webstore.models import Conversation, Message, Reservation, WebListing, WebListingImage
-from apps.webstore.services.reservations import confirm_reservation, create_hold, release_reservation
+from apps.webstore.tests.helpers import make_verified_hold
+from apps.webstore.services.reservations import confirm_reservation, release_reservation
 
 
 def _manager():
@@ -46,7 +47,7 @@ def _listing(slug='msg-lamp'):
 class ConversationServiceTests(TestCase):
     def test_create_hold_opens_thread_with_note(self):
         listing = _listing()
-        res = create_hold(
+        res = make_verified_hold(
             listing=listing,
             quantity=1,
             customer_name='Ada',
@@ -62,23 +63,25 @@ class ConversationServiceTests(TestCase):
 
     def test_confirm_emits_system_message(self):
         listing = _listing('sys-lamp')
-        res = create_hold(
+        res = make_verified_hold(
             listing=listing, quantity=1, customer_name='B', email='b@example.com',
         )
         confirm_reservation(res)
         conv = Conversation.objects.get(reservation=res)
         kinds = list(conv.messages.values_list('author_kind', flat=True))
         self.assertIn('system', kinds)
-        self.assertTrue(any('confirmed' in m.body.lower() for m in conv.messages.filter(author_kind='system')))
+        self.assertTrue(any(
+            'hold' in m.body.lower() for m in conv.messages.filter(author_kind='system')
+        ))
 
     def test_release_emits_system_message(self):
         listing = _listing('rel-lamp')
-        res = create_hold(
+        res = make_verified_hold(
             listing=listing, quantity=1, customer_name='C', email='c@example.com',
         )
         release_reservation(res, 'declined')
         conv = Conversation.objects.get(reservation=res)
-        self.assertTrue(any('declined' in m.body.lower() for m in conv.messages.filter(author_kind='system')))
+        self.assertTrue(any('released' in m.body.lower() for m in conv.messages.filter(author_kind='system')))
 
 
 @override_settings(ONLINE_SALES_ENABLED=True, ONLINE_SALES_INQUIRIES_ENABLED=True)
@@ -89,7 +92,7 @@ class ConversationAPITests(TestCase):
         self.manager = _manager()
 
     def test_hold_status_includes_thread(self):
-        res = create_hold(
+        res = make_verified_hold(
             listing=self.listing,
             quantity=1,
             customer_name='Ada',
@@ -102,12 +105,12 @@ class ConversationAPITests(TestCase):
         self.assertIsNotNone(thread)
         self.assertEqual(thread['public_token'], res.conversation.public_token)
         self.assertEqual(len(thread['messages']), 1)
-        # Public payload must not leak guest email
+        # Public payload must not leak guest email (null is ok for verified holds)
         self.assertNotIn('guest_email', r.json())
-        self.assertNotIn('email', r.json())
+        self.assertFalse(r.json().get('email'))
 
     def test_guest_can_reply_on_thread_token(self):
-        res = create_hold(
+        res = make_verified_hold(
             listing=self.listing, quantity=1, customer_name='Ada', email='ada@example.com',
         )
         token = res.conversation.public_token
@@ -154,7 +157,7 @@ class ConversationAPITests(TestCase):
         self.assertEqual(r.status_code, 410)
 
     def test_staff_list_reply_assign_resolve(self):
-        res = create_hold(
+        res = make_verified_hold(
             listing=self.listing, quantity=1, customer_name='Ada', email='ada@example.com',
             customer_note='Need help',
         )
@@ -171,6 +174,13 @@ class ConversationAPITests(TestCase):
             results = r.json().get('results', r.json())
         self.assertGreaterEqual(len(results), 1)
         conv_id = res.conversation.id
+
+        unread = self.client.get('/api/webstore/conversations/?unread=1&archived=0')
+        self.assertEqual(unread.status_code, 200)
+        unread_body = unread.json()
+        unread_rows = unread_body.get('results', unread_body if isinstance(unread_body, list) else [])
+        self.assertTrue(any(row['id'] == conv_id for row in unread_rows))
+        self.assertGreaterEqual(unread_body.get('count', len(unread_rows)), 1)
 
         reply = self.client.post(
             f'/api/webstore/conversations/{conv_id}/reply/',

@@ -119,7 +119,7 @@ export default function OrderIntakeTimelineDrawer({
         done: order.has_manifest,
         meta: order.manifest_uploaded_at
           ? format(new Date(order.manifest_uploaded_at), 'MMM d, yyyy')
-          : '—',
+          : '-',
         future: false,
         href: null as string | null,
       },
@@ -129,7 +129,7 @@ export default function OrderIntakeTimelineDrawer({
         done: Boolean(order.standardized_at),
         meta: order.standardized_at
           ? format(new Date(order.standardized_at), 'MMM d, yyyy')
-          : '—',
+          : '-',
         future: false,
         href: null,
       },
@@ -137,7 +137,7 @@ export default function OrderIntakeTimelineDrawer({
         key: 'ai_cleanup',
         label: 'AI cleanup',
         done: Boolean(order.ai_cleaned_at),
-        meta: order.ai_cleaned_at ? format(new Date(order.ai_cleaned_at), 'MMM d, yyyy') : '—',
+        meta: order.ai_cleaned_at ? format(new Date(order.ai_cleaned_at), 'MMM d, yyyy') : '-',
         future: false,
         href: null,
       },
@@ -145,7 +145,7 @@ export default function OrderIntakeTimelineDrawer({
         key: 'review',
         label: 'Manual review',
         done: Boolean(order.review_saved_at),
-        meta: order.review_saved_at ? format(new Date(order.review_saved_at), 'MMM d, yyyy') : '—',
+        meta: order.review_saved_at ? format(new Date(order.review_saved_at), 'MMM d, yyyy') : '-',
         future: false,
         href: null,
       },
@@ -153,7 +153,7 @@ export default function OrderIntakeTimelineDrawer({
         key: 'finalize',
         label: 'Finalize (bookmarks)',
         done: Boolean(order.finalized_at),
-        meta: order.finalized_at ? format(new Date(order.finalized_at), 'MMM d, yyyy') : '—',
+        meta: order.finalized_at ? format(new Date(order.finalized_at), 'MMM d, yyyy') : '-',
         future: false,
         href: null,
       },
@@ -438,7 +438,7 @@ export default function OrderIntakeTimelineDrawer({
             </Typography>
             {!orderDeletePreview.isPending && deletePreviewLoaded ? (
               <Typography variant="caption" display="block" sx={{ mb: 1 }}>
-                Preview loaded — confirm with the order number below.
+                Preview loaded - confirm with the order number below.
               </Typography>
             ) : dangerPurge ? (
               <Typography variant="body2" sx={{ mb: 1 }}>

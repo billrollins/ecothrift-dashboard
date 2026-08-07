@@ -34,13 +34,13 @@ export default function MyItemsPage() {
       field: 'sale_amount',
       headerName: 'Sale Amount',
       width: 110,
-      valueFormatter: (value) => (value ? formatCurrency(value) : '—'),
+      valueFormatter: (value) => (value ? formatCurrency(value) : '-'),
     },
     {
       field: 'consignee_earnings',
       headerName: 'My Earnings',
       width: 110,
-      valueFormatter: (value) => (value ? formatCurrency(value) : '—'),
+      valueFormatter: (value) => (value ? formatCurrency(value) : '-'),
     },
   ];
 

@@ -257,14 +257,14 @@ export default function SettingsPage() {
                           month: 'long',
                           day: 'numeric',
                         })
-                      : '—'}
+                      : '-'}
                   </Typography>
                 </Box>
                 <Box>
                   <Typography variant="caption" color="text.secondary">
                     Description
                   </Typography>
-                  <Typography variant="body1">{appVersion.description || '—'}</Typography>
+                  <Typography variant="body1">{appVersion.description || '-'}</Typography>
                 </Box>
               </Box>
             </CardContent>
@@ -425,7 +425,7 @@ export default function SettingsPage() {
                   <Typography variant="body2" color="text.secondary">
                     Version
                   </Typography>
-                  <Typography variant="h6">{healthData?.version ?? '—'}</Typography>
+                  <Typography variant="h6">{healthData?.version ?? '-'}</Typography>
                 </Paper>
               </Grid>
               <Grid size={{ xs: 6, md: 3 }}>
@@ -438,7 +438,7 @@ export default function SettingsPage() {
                     sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}
                   >
                     <Speed fontSize="small" />
-                    {responseTime != null ? `${responseTime}ms` : '—'}
+                    {responseTime != null ? `${responseTime}ms` : '-'}
                   </Typography>
                 </Paper>
               </Grid>
@@ -475,7 +475,7 @@ export default function SettingsPage() {
                       onChange={(e: SelectChangeEvent) => saveLabelPrinter.mutate(e.target.value)}
                     >
                       <MenuItem value="">
-                        <em>(not set — uses system default)</em>
+                        <em>(not set - uses system default)</em>
                       </MenuItem>
                       {printers.map((p) => (
                         <MenuItem key={p.name} value={p.name}>
@@ -526,7 +526,7 @@ export default function SettingsPage() {
                       }
                     >
                       <MenuItem value="">
-                        <em>(not set — uses system default)</em>
+                        <em>(not set - uses system default)</em>
                       </MenuItem>
                       {printers.map((p) => (
                         <MenuItem key={p.name} value={p.name}>
@@ -595,7 +595,7 @@ export default function SettingsPage() {
                       <Typography variant="h6">
                         {printServerRelease.s3_file_info?.size
                           ? `${(printServerRelease.s3_file_info.size / 1024 / 1024).toFixed(1)} MB`
-                          : '—'}
+                          : '-'}
                       </Typography>
                     </Paper>
                   </Grid>
@@ -605,7 +605,7 @@ export default function SettingsPage() {
                         Filename
                       </Typography>
                       <Typography variant="body1" noWrap>
-                        {printServerRelease.s3_file_info?.filename ?? '—'}
+                        {printServerRelease.s3_file_info?.filename ?? '-'}
                       </Typography>
                     </Paper>
                   </Grid>
@@ -617,7 +617,7 @@ export default function SettingsPage() {
                       <Typography variant="body1">
                         {printServerRelease.released_at
                           ? new Date(printServerRelease.released_at).toLocaleDateString()
-                          : '—'}
+                          : '-'}
                       </Typography>
                     </Paper>
                   </Grid>

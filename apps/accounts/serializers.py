@@ -37,10 +37,21 @@ class ConsigneeProfileSerializer(serializers.ModelSerializer):
 
 
 class CustomerProfileSerializer(serializers.ModelSerializer):
+    email_verified = serializers.SerializerMethodField()
+
     class Meta:
         model = CustomerProfile
-        fields = ['id', 'customer_number', 'customer_since', 'notes']
-        read_only_fields = ['id', 'customer_number', 'customer_since']
+        fields = [
+            'id', 'customer_number', 'customer_since', 'notes',
+            'email_verified_at', 'email_verified',
+        ]
+        read_only_fields = [
+            'id', 'customer_number', 'customer_since',
+            'email_verified_at', 'email_verified',
+        ]
+
+    def get_email_verified(self, obj):
+        return obj.email_verified_at is not None
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -54,6 +65,8 @@ class UserSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     full_name = serializers.CharField(read_only=True)
+    has_password = serializers.SerializerMethodField()
+    email_verified = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -61,9 +74,20 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'email', 'first_name', 'last_name', 'phone',
             'is_active', 'is_staff', 'is_superuser', 'date_joined', 'updated_at',
             'role', 'roles', 'full_name',
+            'has_password', 'email_verified',
             'employee', 'consignee', 'customer',
         ]
-        read_only_fields = ['id', 'is_superuser', 'date_joined', 'updated_at']
+        read_only_fields = [
+            'id', 'is_superuser', 'date_joined', 'updated_at',
+            'has_password', 'email_verified',
+        ]
+
+    def get_has_password(self, obj):
+        return obj.has_usable_password()
+
+    def get_email_verified(self, obj):
+        profile = getattr(obj, 'customer', None)
+        return bool(profile and profile.email_verified_at)
 
 
 class UserCreateSerializer(serializers.ModelSerializer):

@@ -559,7 +559,7 @@ export interface AICleanupStatusResponse {
   remaining_rows: number;
   generation: number;
   use_staging: boolean;
-  /** Staging only — drives the web batch pool and resume. */
+  /** Staging only - drives the web batch pool and resume. */
   uncleaned_row_ids?: number[];
 }
 
@@ -705,7 +705,7 @@ export interface PreprocessingStatusResponse {
     id: number;
     order_number: string;
     vendor_name: string;
-    /** PO description — the long vendor load title shown beside the order selector. */
+    /** PO description - the long vendor load title shown beside the order selector. */
     load_type: string;
     status: string;
     item_count: number;

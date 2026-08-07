@@ -3,7 +3,6 @@ Seed the canonical Product categories.
 
 Usage:
     python manage.py seed_categories
-    python manage.py seed_categories --clear  # delete existing and re-seed
 """
 
 from django.core.management.base import BaseCommand
@@ -61,22 +60,10 @@ SPEC_TEMPLATES = {
 
 
 class Command(BaseCommand):
-    help = 'Seed the Category taxonomy into the database.'
-
-    def add_arguments(self, parser):
-        parser.add_argument(
-            '--clear',
-            action='store_true',
-            default=False,
-            help='Delete existing categories before seeding (WARNING: only safe before Products reference categories).',
-        )
+    help = 'Seed the Category taxonomy into the database (idempotent; never deletes).'
 
     def handle(self, *args, **options):
         from apps.inventory.models import Category
-
-        if options['clear']:
-            count, _ = Category.objects.all().delete()
-            self.stdout.write(self.style.WARNING(f'Deleted {count} existing categories.'))
 
         categories_created = 0
 

@@ -1,8 +1,8 @@
-/** Layout metrics for ProcessingQueueTable — keep in sync with sx on table cells. */
+/** Layout metrics for ProcessingQueueTable - keep in sync with sx on table cells. */
 export const PROCESSING_QUEUE_TABLE_HEAD_HEIGHT = 28;
 export const PROCESSING_QUEUE_TABLE_ROW_HEIGHT = 26;
 
-/** Column layout must use clientWidth — offsetWidth includes the vertical scrollbar gutter. */
+/** Column layout must use clientWidth - offsetWidth includes the vertical scrollbar gutter. */
 export function readProcessingQueueTableClientWidth(el: HTMLElement): number {
   return el.clientWidth;
 }

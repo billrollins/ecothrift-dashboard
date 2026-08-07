@@ -101,7 +101,7 @@ export function DisputeModal({ open, onClose, item, bulkProcessingRowIds, onSubm
         ) : (
           <>
             <Typography variant="body2">
-              {item.sku} — {item.condition_label}
+              {item.sku} - {item.condition_label}
             </Typography>
             {canBroken ? (
               <>

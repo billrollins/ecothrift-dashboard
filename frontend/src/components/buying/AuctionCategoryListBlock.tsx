@@ -22,7 +22,7 @@ export default function AuctionCategoryListBlock({ row, dense }: AuctionCategory
   if (entries.length === 0) {
     return (
       <Typography variant="body2" color="text.secondary" noWrap sx={{ fontSize }}>
-        —
+        -
       </Typography>
     );
   }

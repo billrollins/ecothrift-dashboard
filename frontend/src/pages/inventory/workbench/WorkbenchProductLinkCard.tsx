@@ -8,9 +8,9 @@ export interface WorkbenchProductLinkCardProps {
   product: ProductLike & { model?: string | null; category_name?: string | null };
   /** @deprecated Layout is unified; kept for call-site compatibility. */
   compact?: boolean;
-  /** Product ID badge — filter search on the current tab. */
+  /** Product ID badge - filter search on the current tab. */
   onProductIdClick?: () => void;
-  /** Title / category area — open Products tab and filter to this product. */
+  /** Title / category area - open Products tab and filter to this product. */
   onOpenProduct?: () => void;
   onSwitchProduct?: () => void;
 }

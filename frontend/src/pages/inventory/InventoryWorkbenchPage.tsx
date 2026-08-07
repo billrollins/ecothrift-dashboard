@@ -50,7 +50,7 @@ const PAGE_SIZE = 200;
 const EMPTY_RESULTS: never[] = [];
 
 /**
- * Memoized workspace panels — keeps the right-hand pane from re-rendering on
+ * Memoized workspace panels - keeps the right-hand pane from re-rendering on
  * every keystroke in the scan bar (raw `search` state lives at the page root).
  */
 const MemoProductManagePanel = memo(ProductManagePanel);
@@ -155,7 +155,7 @@ export default function InventoryWorkbenchPage() {
   const [draftCheckInProductId, setDraftCheckInProductId] = useState<number | null>(null);
   const productAutoSelectRef = useRef<string | null>(null);
   const tableAutoSelectRef = useRef<string | null>(null);
-  /** Target tab during programmatic navigation — avoids products auto-select racing before URL updates. */
+  /** Target tab during programmatic navigation - avoids products auto-select racing before URL updates. */
   const pendingNavigationTabRef = useRef<WorkbenchTab | null>(null);
   const tabSelectionMemory = useRef<Partial<Record<WorkbenchTab, WorkbenchSelection>>>({});
 

@@ -19,7 +19,7 @@ function writeCachedDashboardMetrics(metrics: DashboardMetrics) {
   try {
     sessionStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify(metrics));
   } catch {
-    // Quota or private browsing — ignore.
+    // Quota or private browsing - ignore.
   }
 }
 

@@ -104,7 +104,7 @@ export function PreprocessingPageHeader({
                 <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{option.order_number}</Typography>
                 <Typography sx={{ fontSize: 12, color: '#666' }}>{option.vendor_name}</Typography>
                 <Typography sx={{ fontSize: 11, color: '#888' }}>
-                  {option.preprocessing_row_count ? `${option.preprocessing_row_count} staged` : '—'}
+                  {option.preprocessing_row_count ? `${option.preprocessing_row_count} staged` : '-'}
                 </Typography>
               </Box>
             );

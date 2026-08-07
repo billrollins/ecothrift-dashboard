@@ -32,7 +32,7 @@ export function extractSkuFromScannedPayload(raw: string | null | undefined): st
         }
       }
     } catch {
-      // Not JSON — keep parsing as text/URL.
+      // Not JSON - keep parsing as text/URL.
     }
   }
 
@@ -201,7 +201,7 @@ export function describeScanMismatch(info: ScanMismatchInfo): string {
   if (info.foundDescription) {
     return `That QR reads as ${info.foundDescription} (${info.foundSku}).`;
   }
-  return `That QR code is ${info.scannedCode} — not found as another delivery item.`;
+  return `That QR code is ${info.scannedCode} - not found as another delivery item.`;
 }
 
 export function extractScanErrorDetail(err: unknown): string {

@@ -85,6 +85,8 @@ export interface Customer {
   customer_number: string;
   customer_since: string;
   notes: string;
+  is_active: boolean;
+  email_verified: boolean;
 }
 
 export function getCustomers(params?: Record<string, unknown>): Promise<{ data: PaginatedResponse<Customer> }> {
@@ -103,8 +105,17 @@ export function updateCustomer(id: number, data: Record<string, unknown>): Promi
   return api.patch<Customer>(`/accounts/customers/${id}/`, data);
 }
 
-export function deleteCustomer(id: number): Promise<{ data: void }> {
-  return api.delete(`/accounts/customers/${id}/`);
+/** Soft-deactivates the account (keeps history). */
+export function deleteCustomer(id: number): Promise<{ data: Customer }> {
+  return api.delete<Customer>(`/accounts/customers/${id}/`);
+}
+
+export function reactivateCustomer(id: number): Promise<{ data: Customer }> {
+  return api.post<Customer>(`/accounts/customers/${id}/reactivate/`);
+}
+
+export function sendCustomerSignInLink(id: number): Promise<{ data: { detail: string } }> {
+  return api.post<{ detail: string }>(`/accounts/customers/${id}/send-sign-in-link/`);
 }
 
 export function lookupCustomer(customerNumber: string): Promise<{ data: Customer }> {

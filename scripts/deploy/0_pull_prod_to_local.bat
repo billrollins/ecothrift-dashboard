@@ -100,6 +100,20 @@ if !RESTORE_RC! neq 0 (
 echo.
 
 :: -------------------------------------------------------
+:: Step 5b: Recreate pg_trgm + trigram indexes
+:: The dump references ecothrift.gin_trgm_ops, but DROP SCHEMA CASCADE removed
+:: the extension, so pg_restore cannot build those two indexes.
+:: -------------------------------------------------------
+echo [Step 5b] Restoring pg_trgm extension and trigram search indexes...
+set PGPASSWORD=password
+psql -h localhost -p 5432 -U postgres -d ecothrift_v3 -v ON_ERROR_STOP=0 ^
+  -c "CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA ecothrift;" ^
+  -c "CREATE INDEX IF NOT EXISTS item_searchtext_trgm ON ecothrift.inventory_item USING gin (search_text ecothrift.gin_trgm_ops);" ^
+  -c "CREATE INDEX IF NOT EXISTS po_searchtext_trgm ON ecothrift.inventory_purchaseorder USING gin (search_text ecothrift.gin_trgm_ops);"
+echo        Trigram search indexes rebuilt.
+echo.
+
+:: -------------------------------------------------------
 :: Step 6: Cleanup
 :: -------------------------------------------------------
 echo [Step 6] Cleaning up temp dump file...
@@ -110,9 +124,13 @@ echo.
 :: -------------------------------------------------------
 :: Step 7: Verify local Django
 :: -------------------------------------------------------
-echo [Step 7] Verifying local Django...
+echo [Step 7] Applying local migrations production has not seen yet...
 for %%I in ("%~dp0..\..") do set "PROJECT_ROOT=%%~fI"
 cd /d "!PROJECT_ROOT!"
+python manage.py migrate
+echo.
+
+echo [Step 8] Verifying local Django...
 python manage.py check
 echo.
 

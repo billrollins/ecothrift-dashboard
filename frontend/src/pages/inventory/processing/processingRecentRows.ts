@@ -1,4 +1,4 @@
-/** Recently opened processing rows — client-only, per order, max 10. */
+/** Recently opened processing rows - client-only, per order, max 10. */
 
 const STORAGE_PREFIX = 'ecothrift.processingRecentRows.v1';
 export const PROCESSING_RECENT_ROWS_MAX = 10;

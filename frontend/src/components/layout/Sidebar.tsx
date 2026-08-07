@@ -15,6 +15,7 @@ import {
 } from '../../navigation/slotCNavLayout';
 import type { ResolvedNavGroup, ResolvedNavItem } from '../../navigation/navTypes';
 import { useStaffNav } from '../../navigation/useStaffNav';
+import { useNavBadgeCounts } from '../../hooks/useNavBadgeCounts';
 
 export const SIDEBAR_WIDTH = 252;
 
@@ -124,12 +125,18 @@ export function Sidebar() {
     return () => window.removeEventListener('keydown', onKey);
   }, [selectWorkspace, visibleWorkspaces]);
 
+  // Only ask for Online Sales counts when the user can actually open it.
+  const badgeCounts = useNavBadgeCounts({
+    onlineSales: workspaceGroups.some((g) => g.id === 'onlineSales'),
+  });
+
   const renderRow = (item: ResolvedNavItem) => (
     <NavItemRow
       key={item.id}
       item={item}
       iconTint={INACTIVE_ICON}
       isActive={isActive(item)}
+      badgeCount={badgeCounts[item.id]}
       onClick={() => navigateToItem(item, { fromSidebar: true })}
     />
   );

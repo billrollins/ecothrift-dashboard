@@ -1,4 +1,4 @@
-/** TARS workstation — eco green palette (aligned with theme primary #2e7d32). */
+/** TARS workstation - eco green palette (aligned with theme primary #2e7d32). */
 export const tarsTokens = {
   green: '#2e7d32',
   greenDark: '#1b5e20',
@@ -23,7 +23,7 @@ export const tarsTokens = {
   greenAlpha90: 'rgba(46, 125, 50, 0.9)',
   timerRunningBg: 'linear-gradient(135deg, #1b5e20 0%, #020617 58%, #0f172a 100%)',
   timerStoppedBg: 'linear-gradient(135deg, #451a03 0%, #020617 58%, #0f172a 100%)',
-  /** Light toolbar timer — uniform shell; status lives on the item pill. */
+  /** Light toolbar timer - uniform shell; status lives on the item pill. */
   timerShellBg: '#ffffff',
   timerShellBorder: '#94a3b8',
   timerText: '#0f172a',
@@ -33,7 +33,7 @@ export const tarsTokens = {
 
 export type TarsTimerItemPillStatus = 'running' | 'paused' | 'mismatch';
 
-/** Item SKU pill colors — running (active), paused (inactive), mismatch (warning). */
+/** Item SKU pill colors - running (active), paused (inactive), mismatch (warning). */
 export function tarsTimerItemPillSx(status: TarsTimerItemPillStatus) {
   if (status === 'running') {
     return {
@@ -62,7 +62,7 @@ export function tarsTimerItemPillSx(status: TarsTimerItemPillStatus) {
   };
 }
 
-/** Full item header strip — same status colors as the timer item pill. */
+/** Full item header strip - same status colors as the timer item pill. */
 export function tarsTimerHeaderSx(status: TarsTimerItemPillStatus) {
   const pill = tarsTimerItemPillSx(status);
   return {

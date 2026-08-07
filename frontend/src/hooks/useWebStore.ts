@@ -1,5 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  archiveConversation,
   assignConversation,
   createWebListing,
   deleteWebListing,
@@ -7,6 +8,8 @@ import {
   getCategoryOptions,
   getConversation,
   getConversations,
+  addReservationNote,
+  getReservationDetail,
   getReservations,
   getSalesLog,
   getWebListing,
@@ -15,6 +18,7 @@ import {
   getWebOrders,
   getWebstoreConfig,
   getWorkQueue,
+  removeWorkQueueItem,
   archiveWebListing,
   generateFbCopy,
   markFbPosted,
@@ -27,12 +31,15 @@ import {
   reservationAction,
   resolveConversation,
   restoreWebListing,
+  unarchiveConversation,
   updateWebListing,
   updateWebListingImageAlt,
   updateWebOrder,
   uploadWebListingImage,
   type ConversationParams,
+  type ReservationActionName,
   type ReservationParams,
+  type SalesLogParams,
   type WebListingParams,
   type WebOrderParams,
 } from '../api/webstore.api';
@@ -237,13 +244,17 @@ export function useUpdateWebOrder() {
   });
 }
 
-export function useReservations(params?: ReservationParams) {
+export function useReservations(
+  params?: ReservationParams,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ['webReservations', params],
     queryFn: async () => {
       const { data } = await getReservations(params);
       return data;
     },
+    enabled: options?.enabled ?? true,
   });
 }
 
@@ -253,16 +264,38 @@ export function useReservationAction() {
     mutationFn: async ({
       id,
       action,
+      reason,
     }: {
       id: number;
-      action: 'confirm' | 'stage' | 'decline' | 'cancel' | 'expire' | 'complete' | 'extend';
+      action: ReservationActionName;
+      reason?: string;
     }) => {
-      const { data } = await reservationAction(id, action);
+      const { data } = await reservationAction(
+        id,
+        action,
+        reason != null ? { reason } : undefined,
+      );
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['webReservations'] });
       queryClient.invalidateQueries({ queryKey: ['webListings'] });
+      queryClient.invalidateQueries({ queryKey: ['webSalesLog'] });
+      queryClient.invalidateQueries({ queryKey: ['webReservationDetail', vars.id] });
+    },
+  });
+}
+
+export function useAddReservationNote() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, note }: { id: number; note: string }) => {
+      const { data } = await addReservationNote(id, note);
+      return data;
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['webReservationDetail', vars.id] });
+      queryClient.invalidateQueries({ queryKey: ['webReservations'] });
       queryClient.invalidateQueries({ queryKey: ['webSalesLog'] });
     },
   });
@@ -278,13 +311,37 @@ export function useWorkQueue() {
   });
 }
 
-export function useSalesLog() {
+export function useRemoveWorkQueueItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (itemId: number) => {
+      const { data } = await removeWorkQueueItem(itemId);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['webWorkQueue'] });
+    },
+  });
+}
+
+export function useSalesLog(params?: SalesLogParams) {
   return useQuery({
-    queryKey: ['webSalesLog'],
+    queryKey: ['webSalesLog', params],
     queryFn: async () => {
-      const { data } = await getSalesLog();
+      const { data } = await getSalesLog(params);
       return data.results;
     },
+  });
+}
+
+export function useReservationDetail(id: number | null) {
+  return useQuery({
+    queryKey: ['webReservationDetail', id],
+    queryFn: async () => {
+      const { data } = await getReservationDetail(id!);
+      return data;
+    },
+    enabled: id != null,
   });
 }
 
@@ -295,14 +352,50 @@ export function useConversations(params?: ConversationParams) {
       const { data } = await getConversations(params);
       return data;
     },
+    // Filter toggles must not flash LoadingScreen - keep the last page on
+    // screen until the next one lands, and reuse recent filter results.
+    placeholderData: keepPreviousData,
+    staleTime: 20_000,
   });
 }
 
+/** Threads where Eco-Thrift owes the next action. Drives Customers / Messages
+ *  badges and matches the Messages "Needs reply" filter - not unread mail. */
+export const NEEDS_REPLY_PARAMS: ConversationParams = {
+  state: 'needs_reply',
+  archived: '0',
+  ordering: '-last_message_at',
+};
+
+/**
+ * Count of conversations waiting on staff (your next action).
+ *
+ * Reads the paginated `count` rather than summing page-one rows.
+ */
+export function useNeedsReplyCount(options?: { enabled?: boolean }) {
+  const query = useQuery({
+    queryKey: ['webConversations', NEEDS_REPLY_PARAMS],
+    queryFn: async () => {
+      const { data } = await getConversations(NEEDS_REPLY_PARAMS);
+      return data;
+    },
+    enabled: options?.enabled ?? true,
+    staleTime: 15_000,
+  });
+  return query.data?.count ?? 0;
+}
+
 export function useConversation(id: number | null) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: ['webConversations', id],
     queryFn: async () => {
       const { data } = await getConversation(id!);
+      // Retrieve marks the thread staff-read - refresh list + badge counts.
+      void queryClient.invalidateQueries({
+        queryKey: ['webConversations'],
+        predicate: (q) => typeof q.queryKey[1] === 'object',
+      });
       return data;
     },
     enabled: id != null,
@@ -330,6 +423,14 @@ export function useConversationActions() {
     }),
     reopen: useMutation({
       mutationFn: async (id: number) => (await reopenConversation(id)).data,
+      onSuccess: invalidate,
+    }),
+    archive: useMutation({
+      mutationFn: async (id: number) => (await archiveConversation(id)).data,
+      onSuccess: invalidate,
+    }),
+    unarchive: useMutation({
+      mutationFn: async (id: number) => (await unarchiveConversation(id)).data,
       onSuccess: invalidate,
     }),
   };

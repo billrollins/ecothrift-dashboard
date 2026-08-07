@@ -249,7 +249,7 @@ export default function CashManagementPage() {
                 {formatCurrency(supp?.current_total ?? '0')}
               </Typography>
               <Typography variant="body2" color="text.secondary" gutterBottom>
-                {supp?.location_name ?? '—'}
+                {supp?.location_name ?? '-'}
               </Typography>
               {supp?.last_counted_at && (
                 <Typography variant="caption" color="text.secondary" display="block">
@@ -306,7 +306,7 @@ export default function CashManagementPage() {
                       }}
                     >
                       <Typography variant="body2">
-                        {tx.transaction_type.replace(/_/g, ' ')} • {tx.performed_by_name ?? '—'}
+                        {tx.transaction_type.replace(/_/g, ' ')} • {tx.performed_by_name ?? '-'}
                       </Typography>
                       <Typography variant="body2">
                         {formatCurrency(tx.total)} •{' '}
@@ -369,7 +369,7 @@ export default function CashManagementPage() {
                     >
                       <Box>
                         <Typography variant="body2">
-                          {tx.transaction_type.replace(/_/g, ' ')} • {tx.performed_by_name ?? '—'}
+                          {tx.transaction_type.replace(/_/g, ' ')} • {tx.performed_by_name ?? '-'}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                           {format(new Date(tx.created_at), 'PPp')} • {tx.status}

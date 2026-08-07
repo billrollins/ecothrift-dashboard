@@ -36,7 +36,7 @@ export interface BuyingAuctionListItem {
   status: string;
   has_manifest: boolean;
   last_updated_at: string | null;
-  /** Phase 5 valuation — see AuctionListSerializer */
+  /** Phase 5 valuation - see AuctionListSerializer */
   ai_category_estimates?: Record<string, number> | null;
   manifest_category_distribution?: Record<string, number> | null;
   estimated_revenue?: string | null;
@@ -49,7 +49,7 @@ export interface BuyingAuctionListItem {
   profitability_ratio?: string | null;
   /** Expected profit after shrink minus total cost (Phase 5+). */
   est_profit?: string | null;
-  /** 1–99 taxonomy need mix; absent when not computed. */
+  /** 1-99 taxonomy need mix; absent when not computed. */
   need_score?: number | null;
   shrinkage_override?: string | null;
   profit_target_override?: string | null;
@@ -244,15 +244,15 @@ export interface BuyingCategoryNeedRow {
   have_retail: string;
   /** Sold retail $ in need window, same cohort as SQL `want_retail`. */
   want_retail: string;
-  /** Raw unit leg for need score: `unit_raw_leg(want_units, have_units)` — see `category_stats_sql`. */
+  /** Raw unit leg for need score: `unit_raw_leg(want_units, have_units)` - see `category_stats_sql`. */
   need_raw_unit_leg: string;
   /** Raw retail leg: `retail_raw_leg(want_retail, have_retail)`. */
   need_raw_retail_leg: string;
-  /** Average of the two legs before min–max scale to 1–99. */
+  /** Average of the two legs before min-max scale to 1-99. */
   need_raw_combined: string;
   shelf_pct: string;
   sold_pct: string;
-  /** Mean sold_for per good-data sold row (all-time; sale/retail/cost each 0.01–9999). */
+  /** Mean sold_for per good-data sold row (all-time; sale/retail/cost each 0.01-9999). */
   avg_sale: string | null;
   /** Mean retail_value per good-data sold row. */
   avg_retail: string | null;
@@ -267,9 +267,9 @@ export interface BuyingCategoryNeedRow {
   recovery_pct: string;
   need_gap: string;
   bar_scale_max: string;
-  /** From CategoryStats — SUM(sold_for)/SUM(retail_value), 0–1 */
+  /** From CategoryStats - SUM(sold_for)/SUM(retail_value), 0-1 */
   recovery_rate: string;
-  /** Min–max scaled vs other categories (1–99), daily SQL. */
+  /** Min-max scaled vs other categories (1-99), daily SQL. */
   need_score_1to99: number;
 }
 

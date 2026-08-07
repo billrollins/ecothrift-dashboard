@@ -60,7 +60,7 @@ export default function ItemsPage() {
       field: 'sale_amount',
       headerName: 'Sale Amount',
       width: 110,
-      valueFormatter: (value) => (value ? formatCurrency(value) : '—'),
+      valueFormatter: (value) => (value ? formatCurrency(value) : '-'),
     },
   ];
 

@@ -5,9 +5,9 @@ import { StatusBadge } from '../common/StatusBadge';
 import type { Item } from '../../types/inventory.types';
 
 function formatCurrency(value: string | null | undefined): string {
-  if (value == null) return '—';
+  if (value == null) return '-';
   const n = parseFloat(value);
-  return Number.isNaN(n) ? '—' : `$${n.toFixed(2)}`;
+  return Number.isNaN(n) ? '-' : `$${n.toFixed(2)}`;
 }
 
 const cellSx = {
@@ -62,7 +62,7 @@ export default function ItemHeroStats({ item }: { item: Item }) {
         <Grid size={{ xs: 4 }}>
           <Box sx={{ ...cellSx, textAlign: 'center' }}>
             <Typography variant="h6" fontWeight={700} sx={{ lineHeight: 1.2, fontVariantNumeric: 'tabular-nums' }}>
-              {daysListed !== null ? `${daysListed}d` : '—'}
+              {daysListed !== null ? `${daysListed}d` : '-'}
             </Typography>
             <Typography variant="caption" color="text.secondary" fontWeight={600} letterSpacing={0.06}>
               DAYS LISTED
@@ -98,7 +98,7 @@ export default function ItemHeroStats({ item }: { item: Item }) {
                 </Link>
               ) : (
                 <Typography variant="body2" fontWeight={500}>
-                  —
+                  -
                 </Typography>
               )}
             </Box>
@@ -116,7 +116,7 @@ export default function ItemHeroStats({ item }: { item: Item }) {
               Listed
             </Typography>
             <Typography variant="body2" fontWeight={500}>
-              {item.listed_at ? format(new Date(item.listed_at), 'MMM d, yyyy') : '—'}
+              {item.listed_at ? format(new Date(item.listed_at), 'MMM d, yyyy') : '-'}
             </Typography>
           </Box>
           <Box sx={{ minWidth: { xs: '42%', sm: 140 } }}>
@@ -126,7 +126,7 @@ export default function ItemHeroStats({ item }: { item: Item }) {
             <Typography variant="body2" fontWeight={500}>
               {item.sold_at
                 ? `${format(new Date(item.sold_at), 'MMM d, yyyy')} · ${formatCurrency(item.sold_for)}`
-                : '—'}
+                : '-'}
             </Typography>
           </Box>
           <Box sx={{ minWidth: { xs: '42%', sm: 140 } }}>
@@ -134,7 +134,7 @@ export default function ItemHeroStats({ item }: { item: Item }) {
               Created
             </Typography>
             <Typography variant="body2" fontWeight={500}>
-              {item.created_at ? format(new Date(item.created_at), 'MMM d, yyyy HH:mm') : '—'}
+              {item.created_at ? format(new Date(item.created_at), 'MMM d, yyyy HH:mm') : '-'}
             </Typography>
           </Box>
           {item.checked_in_at && (

@@ -32,7 +32,7 @@ export function deskDaysStateToApiParams(state: DeskDaysUrlState): Record<string
     page: state.page,
     page_size: 50,
   };
-  // Local seed packs only — never request QA rows in production builds.
+  // Local seed packs only - never request QA rows in production builds.
   if (import.meta.env.DEV) params.include_test = '1';
   if (state.bucket !== 'all') params.bucket = state.bucket;
   if (state.search.trim()) params.search = state.search.trim();

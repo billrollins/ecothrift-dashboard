@@ -193,12 +193,12 @@ export function activeFilterChips(state: OrderListUrlState): ActiveFilterChip[] 
       ? format(parseISO(state.dateFrom), 'MMM d, yyyy')
       : '…';
     const to = state.dateTo ? format(parseISO(state.dateTo), 'MMM d, yyyy') : '…';
-    chips.push({ id: 'dates', label: `${field}: ${from} – ${to}` });
+    chips.push({ id: 'dates', label: `${field}: ${from} - ${to}` });
   }
   if (state.itemCountMin || state.itemCountMax) {
     chips.push({
       id: 'items',
-      label: `Items: ${state.itemCountMin || '0'}–${state.itemCountMax || '∞'}`,
+      label: `Items: ${state.itemCountMin || '0'}-${state.itemCountMax || '∞'}`,
     });
   }
   if (state.includeOlder) {
@@ -254,7 +254,7 @@ export function applyDelivered90to60(
   };
 }
 
-/** True when filters match the 90–60 delivered preset (for button highlight). */
+/** True when filters match the 90-60 delivered preset (for button highlight). */
 export function isDelivered90to60Active(
   state: OrderListUrlState,
   today: Date = new Date(),

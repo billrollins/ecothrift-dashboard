@@ -24,14 +24,14 @@ export interface ProductSearchAutocompleteProps {
   searchOnly?: boolean;
   /** Default helper when idle; pass empty string to hide. */
   helperText?: string;
-  /** White pane shell — matches workbench order search (product tone). */
+  /** White pane shell - matches workbench order search (product tone). */
   paneShell?: boolean;
   /** Amber outline when required and no value selected. */
   highlightIfEmpty?: boolean;
 }
 
 /**
- * Universal quick Product search — same mechanism everywhere (debounced API search + compact results).
+ * Universal quick Product search - same mechanism everywhere (debounced API search + compact results).
  */
 export function ProductSearchAutocomplete({
   scope,
@@ -43,7 +43,7 @@ export function ProductSearchAutocomplete({
   disabled = false,
   pageSize = 25,
   searchOnly = false,
-  helperText = 'Quick search — pick a product to load into the form',
+  helperText = 'Quick search - pick a product to load into the form',
   paneShell = false,
   highlightIfEmpty = false,
 }: ProductSearchAutocompleteProps) {

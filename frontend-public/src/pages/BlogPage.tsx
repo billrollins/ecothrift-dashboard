@@ -61,7 +61,7 @@ export default function BlogPage() {
               ))}
             </div>
           ) : posts.length === 0 ? (
-            <p className="lead">No posts yet — check back soon.</p>
+            <p className="lead">No posts yet - check back soon.</p>
           ) : (
             <div className="bgrid">
               {posts.map((p) => (

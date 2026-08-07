@@ -64,7 +64,7 @@ const PAYMENT_COLOR: Record<string, 'default' | 'warning' | 'info' | 'success' |
 
 const money = (v: string | number) => `$${Number(v).toFixed(2)}`;
 const dateTime = (iso: string) =>
-  iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+  iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '-';
 
 export default function WebOrdersPage() {
   const { enqueueSnackbar } = useSnackbar();
@@ -181,7 +181,7 @@ export default function WebOrdersPage() {
     <Box>
       <PageHeader
         title="Web orders"
-        subtitle="Online storefront orders — review, update status, and record payment"
+        subtitle="Online storefront orders - review, update status, and record payment"
       />
 
       <Box sx={{ mb: 2, display: 'flex', gap: 2, flexWrap: 'wrap' }}>

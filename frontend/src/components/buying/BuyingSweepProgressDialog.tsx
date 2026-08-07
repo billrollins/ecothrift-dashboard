@@ -33,7 +33,7 @@ export type BuyingSweepProgressDialogProps = {
 
 /**
  * Two-phase sweep summary after POST /api/buying/sweep/ returns.
- * Phase 1 rows are filled from `by_marketplace` (not live streaming — see plan).
+ * Phase 1 rows are filled from `by_marketplace` (not live streaming - see plan).
  * For real-time per-marketplace progress, a future SSE/WebSocket endpoint would be needed.
  */
 export default function BuyingSweepProgressDialog({
@@ -183,7 +183,7 @@ export default function BuyingSweepProgressDialog({
                             ? `Error: ${valuationErr}`
                             : ai
                               ? `${ai.estimated ?? 0} auction(s) estimated (${ai.considered ?? 0} considered)`
-                              : '—'
+                              : '-'
                         }
                       />
                     </ListItem>
@@ -199,10 +199,10 @@ export default function BuyingSweepProgressDialog({
                         primary="Lightweight recompute (active auctions)"
                         secondary={
                           valuationErr
-                            ? '—'
+                            ? '-'
                             : recomputed != null
                               ? `${recomputed} auction(s)`
-                              : '—'
+                              : '-'
                         }
                       />
                     </ListItem>

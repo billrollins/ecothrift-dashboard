@@ -436,7 +436,7 @@ export function RichTextEditorToolbar({
           disabled={disabled}
           onClick={() => editor?.chain().focus().setHorizontalRule().run()}
         >
-          &mdash;
+          -
         </button>
         <span className="rich-text-editor-divider" />
 

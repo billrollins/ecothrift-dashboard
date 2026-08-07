@@ -1,5 +1,5 @@
 /**
- * Label Studio — Admin library of persistent custom labels.
+ * Label Studio - Admin library of persistent custom labels.
  *
  * Templates open in the full-page designer; PDFs keep the dialog editor.
  */
@@ -156,7 +156,7 @@ export default function LabelStudioPage() {
     <Box>
       <PageHeader
         title="Label Studio"
-        subtitle="Saved custom labels — print any of them, as many copies as you need."
+        subtitle="Saved custom labels - print any of them, as many copies as you need."
         action={
           <>
             <Button
@@ -255,7 +255,7 @@ export default function LabelStudioPage() {
                   <TableCell>
                     {label.width_in && label.height_in
                       ? `${Number(label.width_in)}″ × ${Number(label.height_in)}″`
-                      : '—'}
+                      : '-'}
                   </TableCell>
                   <TableCell>{new Date(label.updated_at).toLocaleDateString()}</TableCell>
                   <TableCell align="right">
@@ -265,7 +265,7 @@ export default function LabelStudioPage() {
                           !label.is_active
                             ? 'Restore this label before printing'
                             : label.kind === 'pdf' && !label.pdf
-                              ? 'No PDF attached — edit this label to upload one'
+                              ? 'No PDF attached - edit this label to upload one'
                               : 'Print copies'
                         }
                       >

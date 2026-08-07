@@ -122,8 +122,8 @@ export function TarsBenchItemCard({
 
   const [detailsOpen, setDetailsOpen] = useState(false);
 
-  const orderNumber = item.orderNumber ?? '—';
-  const productNumber = item.productNumber ?? '—';
+  const orderNumber = item.orderNumber ?? '-';
+  const productNumber = item.productNumber ?? '-';
   const itemNumber = item.skuLabel ?? item.sku;
   const timerHeader = timerItemStatus ? tarsTimerHeaderSx(timerItemStatus) : null;
 
@@ -131,21 +131,21 @@ export function TarsBenchItemCard({
 
   const productFacts = [
 
-    { label: 'Brand', value: item.brand ?? '—' },
+    { label: 'Brand', value: item.brand ?? '-' },
 
-    { label: 'Category', value: item.category ?? '—' },
+    { label: 'Category', value: item.category ?? '-' },
 
-    { label: 'Condition', value: item.condition?.replace(/_/g, ' ') ?? '—' },
+    { label: 'Condition', value: item.condition?.replace(/_/g, ' ') ?? '-' },
 
     { label: 'Source', value: item.source },
 
     { label: 'Scale', value: item.scale },
 
-    { label: 'UPC', value: item.upc ?? '—' },
+    { label: 'UPC', value: item.upc ?? '-' },
 
-    { label: 'Retail', value: item.retail != null ? fmtUsd(item.retail) : '—' },
+    { label: 'Retail', value: item.retail != null ? fmtUsd(item.retail) : '-' },
 
-    { label: 'Price', value: item.price != null ? fmtUsd(item.price) : '—' },
+    { label: 'Price', value: item.price != null ? fmtUsd(item.price) : '-' },
 
   ];
 

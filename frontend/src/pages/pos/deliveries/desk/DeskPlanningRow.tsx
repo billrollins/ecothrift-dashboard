@@ -18,7 +18,7 @@ function toneForStatus(status: string): 'ok' | 'warn' | 'bad' | 'muted' {
   return 'muted';
 }
 
-/** Desktop planning row — shared Delivery tokens at compact density. */
+/** Desktop planning row - shared Delivery tokens at compact density. */
 export function DeskPlanningRow({ job, onActivate }: Props) {
   const tone = toneForStatus(job.status);
   const complete = job.status === 'completed';

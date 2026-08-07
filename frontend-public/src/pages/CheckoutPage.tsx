@@ -1,6 +1,7 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { money, requestHold } from '../api'
+import { useAuth } from '../auth'
 import { useCart } from '../cart'
 import { STORE } from '../data/content'
 import { useSeo } from '../useSeo'
@@ -14,6 +15,7 @@ export default function CheckoutPage() {
   useSeo({ title: 'Request a hold', noindex: true })
   const navigate = useNavigate()
   const { lines, subtotal, clear } = useCart()
+  const { user, emailVerified } = useAuth()
 
   const [form, setForm] = useState({
     customer_name: '',
@@ -24,9 +26,19 @@ export default function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (!user) return
+    setForm((f) => ({
+      ...f,
+      customer_name: f.customer_name || [user.first_name, user.last_name].filter(Boolean).join(' '),
+      email: user.email || f.email,
+    }))
+  }, [user])
+
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
 
+  const emailLocked = Boolean(user?.email)
   const canSubmit = useMemo(
     () => lines.length > 0 && form.customer_name.trim() && form.email.trim() && !submitting,
     [lines.length, form.customer_name, form.email, submitting],
@@ -88,6 +100,14 @@ export default function CheckoutPage() {
           {error && <div className="formerror">{error}</div>}
 
           <h3 className="fsec">Contact</h3>
+          {!emailVerified && (
+            <div className="pickupnote" style={{ marginBottom: 16 }}>
+              We&rsquo;ll email a link that upgrades this hold to 3 days.
+              {user && !emailVerified
+                ? ' Confirm once and future holds skip this step.'
+                : ' Or sign in with a verified account to skip this step.'}
+            </div>
+          )}
           <div className="formgrid">
             <label className="field span2">
               <span>Full name *</span>
@@ -99,7 +119,13 @@ export default function CheckoutPage() {
             </label>
             <label className="field">
               <span>Email *</span>
-              <input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} required />
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => set('email', e.target.value)}
+                required
+                readOnly={emailLocked}
+              />
             </label>
             <label className="field">
               <span>Phone</span>
@@ -110,8 +136,9 @@ export default function CheckoutPage() {
           <h3 className="fsec">Pickup policy</h3>
           <div className="pickupnote">
             <b>Pay and pick up in store</b> at {STORE.retail.name}, {STORE.retail.address}.{' '}
-            {STORE.retail.hours}. No shipping, delivery, or online payment. {/* POLICY_COPY_OK */} Staff confirm holds;
-            confirmed holds last until store close the next business day. Items are typically final sale.
+            {STORE.retail.hours}. No shipping, delivery, or online payment. {/* POLICY_COPY_OK */}
+            Tap the email link to keep your hold 3 open days, then come in any time with your
+            code. Items are typically final sale.
           </div>
 
           <h3 className="fsec">Notes</h3>

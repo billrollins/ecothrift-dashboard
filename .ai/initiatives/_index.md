@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-31 (online_sales_mvp v2.62.0 parked ship) -->
+<!-- Last updated: 2026-08-07 (online_sales_mvp v2.69.0 go-live) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not roadmap strategy, not week-scale projects, not an AI plan/TODO list.
@@ -13,7 +13,7 @@ Session details live **only** in each file under **`## Sessions`**.
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [online_sales_mvp](./online_sales_mvp.md) | **v2.62.0–v2.64.0** shipped; awaiting owner Entra + public flag flip | Staff Online Sales + Listing Studio + TipTap editor + Graph mailbox (dormant). Public parked. Owner: Entra app + Exchange RBAC, Scheduler jobs, then flip flags when ready. Narrows parked [online_sales_workspace](./_archived/_pending/online_sales_workspace.md). |
+| [online_sales_mvp](./online_sales_mvp.md) | **v2.69.0 go-live** | Public storefront + Graph mail on; Customers workspace; verified holds; account portal; Online Sales purge-only blank slate. Narrows parked [online_sales_workspace](./_archived/_pending/online_sales_workspace.md). |
 
 ---
 

@@ -199,12 +199,17 @@ class CustomerProfile(models.Model):
     customer_number = models.CharField(max_length=20, unique=True)
     customer_since = models.DateField(auto_now_add=True)
     notes = models.TextField(blank=True, default='')
+    email_verified_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['customer_number']
 
     def __str__(self):
         return f'{self.customer_number} - {self.user.full_name}'
+
+    @property
+    def email_verified(self) -> bool:
+        return self.email_verified_at is not None
 
     @staticmethod
     def generate_customer_number():
@@ -224,10 +229,31 @@ def _magic_link_token() -> str:
 
 
 class MagicLinkToken(models.Model):
-    """Single-use customer magic-link sign-in token (never echoed in API responses)."""
+    """Single-use customer magic-link token (never echoed in API responses)."""
+
+    PURPOSE_SIGN_IN = 'sign_in'
+    PURPOSE_VERIFY_EMAIL = 'verify_email'
+    PURPOSE_VERIFY_HOLD = 'verify_hold'
+    PURPOSE_VERIFY_THREAD = 'verify_thread'
+    PURPOSE_RESET_PASSWORD = 'reset_password'
+    PURPOSE_CHOICES = [
+        (PURPOSE_SIGN_IN, 'Sign in'),
+        (PURPOSE_VERIFY_EMAIL, 'Verify email'),
+        (PURPOSE_VERIFY_HOLD, 'Verify hold'),
+        (PURPOSE_VERIFY_THREAD, 'Verify thread'),
+        (PURPOSE_RESET_PASSWORD, 'Reset password'),
+    ]
+    # Purposes that must work even when ONLINE_SALES_ACCOUNTS_ENABLED is false.
+    VERIFY_PURPOSES = frozenset({PURPOSE_VERIFY_HOLD, PURPOSE_VERIFY_THREAD})
 
     email = models.EmailField(db_index=True)
     token = models.CharField(max_length=64, unique=True, default=_magic_link_token, db_index=True)
+    purpose = models.CharField(
+        max_length=32, choices=PURPOSE_CHOICES, default=PURPOSE_SIGN_IN, db_index=True,
+    )
+    # Opaque tokens — not FKs, so accounts stays free of a webstore dependency.
+    hold_token = models.CharField(max_length=48, blank=True, default='', db_index=True)
+    thread_token = models.CharField(max_length=48, blank=True, default='', db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
     used_at = models.DateTimeField(null=True, blank=True)
@@ -237,7 +263,7 @@ class MagicLinkToken(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f'{self.email} ({self.token[:8]}…)'
+        return f'{self.email} [{self.purpose}] ({self.token[:8]}…)'
 
     @property
     def is_usable(self) -> bool:

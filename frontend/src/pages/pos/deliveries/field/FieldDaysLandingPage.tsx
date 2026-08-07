@@ -49,12 +49,12 @@ function formatDayLabel(dateStr: string): { weekday: string; rest: string } {
   };
 }
 
-/** Compact window from API times like "10:00:00" → "10:00–14:00". */
+/** Compact window from API times like "10:00:00" → "10:00-14:00". */
 function formatDayWindow(start: string | null, end: string | null): string | null {
   const trim = (value: string | null) => (value ? value.slice(0, 5) : '');
   const from = trim(start);
   const to = trim(end);
-  if (from && to) return `${from}–${to}`;
+  if (from && to) return `${from}-${to}`;
   if (from) return from;
   if (to) return to;
   return null;
@@ -151,7 +151,7 @@ function DayListRow({
           {weekday.toUpperCase()}
         </Typography>
         <Typography variant="body2" fontWeight={800} sx={{ fontSize: '0.85rem' }}>
-          {rest || '—'}
+          {rest || '-'}
         </Typography>
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>

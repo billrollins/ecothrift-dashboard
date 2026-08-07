@@ -1,15 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import type { SxProps, Theme } from '@mui/material';
 import {
   Alert,
   Box,
   Button,
-  Chip,
-  Divider,
   FormControlLabel,
   Grid,
   IconButton,
+  Menu,
   MenuItem,
+  Paper,
   Stack,
   Switch,
   TextField,
@@ -20,10 +21,13 @@ import ArrowDownward from '@mui/icons-material/ArrowDownward';
 import ArrowUpward from '@mui/icons-material/ArrowUpward';
 import ContentCopy from '@mui/icons-material/ContentCopy';
 import Delete from '@mui/icons-material/Delete';
+import MoreVert from '@mui/icons-material/MoreVert';
 import PhotoCamera from '@mui/icons-material/PhotoCamera';
 import { useSnackbar } from 'notistack';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
+import { formatCurrency } from '../../utils/format';
+import { ListingStatusChip } from './presentation';
 import {
   useArchiveWebListing,
   useCategoryOptions,
@@ -92,6 +96,7 @@ export default function ListingStudioPage() {
   const [altDrafts, setAltDrafts] = useState<Record<number, string>>({});
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmSold, setConfirmSold] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!listing) return;
@@ -232,19 +237,30 @@ export default function ListingStudioPage() {
 
   return (
     <Box sx={{ pb: 6 }}>
-      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }} flexWrap="wrap" useFlexGap>
+      <Stack
+        direction="row"
+        alignItems="center"
+        spacing={1}
+        sx={{ mb: 2 }}
+        flexWrap="wrap"
+        useFlexGap
+      >
         <IconButton onClick={() => navigate('/online-sales/listings')} aria-label="Back">
           <ArrowBack />
         </IconButton>
         <Box sx={{ flex: 1, minWidth: 180 }}>
-          <Typography variant="h5">Listing Studio</Typography>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Typography variant="h5" fontWeight={600}>
+              Listing Studio
+            </Typography>
+            <ListingStatusChip status={listing.status} />
+          </Stack>
           <Typography variant="body2" color="text.secondary">
-            {listing.item_sku ? `Linked item ${listing.item_sku}` : 'Manual / unlinked listing'} · {listing.status_display}
+            {listing.item_sku ? `Linked item ${listing.item_sku}` : 'Manual listing, no inventory item'}
           </Typography>
         </Box>
-        <Chip label={listing.status} color={listing.status === 'published' ? 'success' : 'default'} />
         <Button variant="outlined" onClick={save} disabled={saving}>
-          Save
+          {saving ? 'Saving…' : 'Save'}
         </Button>
         {listing.status === 'archived' ? (
           <Button variant="contained" onClick={() => restore.mutateAsync(listing.id)}>
@@ -274,30 +290,65 @@ export default function ListingStudioPage() {
             Publish
           </Button>
         ) : null}
-        {listing.status !== 'archived' && listing.status !== 'sold' && (
-          <Button color="warning" onClick={() => archive.mutateAsync(listing.id)}>
-            Archive
-          </Button>
-        )}
-        {listing.status !== 'sold' && listing.status !== 'archived' && (
-          <Button color="secondary" onClick={() => setConfirmSold(true)}>
-            Mark sold
-          </Button>
-        )}
-        <Button color="error" onClick={() => setConfirmDelete(true)}>
-          Delete
-        </Button>
+        {/* Sold / Archive / Delete live behind the overflow so nobody clips
+            Delete while reaching for Publish. */}
+        <IconButton aria-label="More actions" onClick={(e) => setMenuAnchor(e.currentTarget)}>
+          <MoreVert />
+        </IconButton>
+        <Menu
+          anchorEl={menuAnchor}
+          open={Boolean(menuAnchor)}
+          onClose={() => setMenuAnchor(null)}
+        >
+          {listing.status !== 'sold' && listing.status !== 'archived' && (
+            <MenuItem
+              onClick={() => {
+                setMenuAnchor(null);
+                setConfirmSold(true);
+              }}
+            >
+              Mark sold
+            </MenuItem>
+          )}
+          {listing.status !== 'archived' && listing.status !== 'sold' && (
+            <MenuItem
+              onClick={() => {
+                setMenuAnchor(null);
+                archive.mutateAsync(listing.id);
+              }}
+            >
+              Archive
+            </MenuItem>
+          )}
+          <MenuItem
+            sx={{ color: 'error.main' }}
+            onClick={() => {
+              setMenuAnchor(null);
+              setConfirmDelete(true);
+            }}
+          >
+            Delete
+          </MenuItem>
+        </Menu>
       </Stack>
 
       {readiness.length > 0 && listing.status !== 'published' && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          Before publish: {readiness.join(' ')}
+          <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+            Finish these before publishing
+          </Typography>
+          <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+            {readiness.map((problem) => (
+              <li key={problem}>{problem}</li>
+            ))}
+          </Box>
         </Alert>
       )}
 
-      <Grid container spacing={3}>
-        <Grid size={{ xs: 12, md: 7 }}>
-          <Stack spacing={2}>
+      {/* Two paired rows so sibling cards share a baseline on md+ */}
+      <Grid container spacing={2.5} alignItems="stretch">
+        <Grid size={{ xs: 12, md: 7 }} sx={{ display: 'flex' }}>
+          <StudioSection title="Details">
             <TextField label="Title" value={form.title} onChange={(e) => setField('title', e.target.value)} fullWidth />
             <TextField
               label="Description"
@@ -338,7 +389,7 @@ export default function ListingStudioPage() {
                 fullWidth
               />
             </Stack>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'flex-start' }}>
               <TextField
                 select
                 label="Category"
@@ -365,15 +416,117 @@ export default function ListingStudioPage() {
                 <MenuItem value="return_48h_credit">48h → store credit (disabled advertising)</MenuItem>
               </TextField>
               <FormControlLabel
+                sx={{ mt: { sm: 1 }, flexShrink: 0 }}
                 control={
                   <Switch checked={form.featured} onChange={(e) => setField('featured', e.target.checked)} />
                 }
                 label="Featured"
               />
             </Stack>
+          </StudioSection>
+        </Grid>
 
-            <Divider />
-            <Typography variant="h6">Photos</Typography>
+        <Grid size={{ xs: 12, md: 5 }} sx={{ display: 'flex' }}>
+          <StudioSection title="Shop preview">
+            {images[0] ? (
+              <Box
+                component="img"
+                src={images[0].url}
+                alt={altDrafts[images[0].id] || form.title || 'Listing photo'}
+                sx={{
+                  width: '100%',
+                  height: 180,
+                  objectFit: 'cover',
+                  borderRadius: 1.5,
+                  bgcolor: 'action.hover',
+                }}
+              />
+            ) : (
+              <Box
+                sx={{
+                  height: 180,
+                  borderRadius: 1.5,
+                  border: '1px dashed',
+                  borderColor: 'divider',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  bgcolor: 'action.hover',
+                }}
+              >
+                <Typography variant="body2" color="text.secondary">
+                  No photo yet
+                </Typography>
+              </Box>
+            )}
+            <Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                {form.title || 'Untitled'}
+              </Typography>
+              <Typography variant="h5" sx={{ mt: 0.5, fontWeight: 700 }}>
+                {formatCurrency(form.price || '0')}
+              </Typography>
+              {form.compare_at_price ? (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ textDecoration: 'line-through' }}
+                >
+                  {formatCurrency(form.compare_at_price)}
+                </Typography>
+              ) : null}
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{
+                  whiteSpace: 'pre-wrap',
+                  mt: 1.5,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 6,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                }}
+              >
+                {form.description || 'No description yet.'}
+              </Typography>
+            </Box>
+            <Stack
+              direction="row"
+              spacing={2}
+              flexWrap="wrap"
+              useFlexGap
+              sx={{ mt: 'auto', pt: 1 }}
+            >
+              <Typography variant="caption" color="text.secondary">
+                Available <strong>{listing.available}</strong>
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Reserved <strong>{listing.reserved}</strong>
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                On hand <strong>{listing.on_hand}</strong>
+              </Typography>
+            </Stack>
+            {publicUrl ? (
+              <Button
+                component="a"
+                href={publicUrl}
+                target="_blank"
+                rel="noreferrer"
+                size="small"
+                sx={{ alignSelf: 'flex-start', px: 0 }}
+              >
+                View on the shop
+              </Button>
+            ) : null}
+          </StudioSection>
+        </Grid>
+
+        <Grid size={{ xs: 12, md: 7 }} sx={{ display: 'flex' }}>
+          <StudioSection
+            title="Photos"
+            caption="The first photo is the one shoppers see in the grid. Alt text keeps the listing accessible."
+          >
             <Button component="label" startIcon={<PhotoCamera />} variant="outlined" sx={{ alignSelf: 'flex-start' }}>
               Upload photo
               <input
@@ -383,6 +536,11 @@ export default function ListingStudioPage() {
                 onChange={(e) => onUpload(e.target.files?.[0])}
               />
             </Button>
+            {images.length === 0 && (
+              <Typography variant="body2" color="text.secondary">
+                No photos yet - a listing cannot publish without one.
+              </Typography>
+            )}
             <Stack spacing={1.5}>
               {images.map((im, index) => (
                 <Stack
@@ -390,7 +548,7 @@ export default function ListingStudioPage() {
                   direction={{ xs: 'column', sm: 'row' }}
                   spacing={1.5}
                   alignItems={{ sm: 'flex-start' }}
-                  sx={{ p: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}
+                  sx={{ p: 1.25, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}
                 >
                   <Box
                     component="img"
@@ -425,6 +583,7 @@ export default function ListingStudioPage() {
                       </IconButton>
                       <Typography variant="caption" color="text.secondary">
                         Position {index + 1}
+                        {index === 0 ? ' · cover' : ''}
                       </Typography>
                     </Stack>
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
@@ -451,50 +610,15 @@ export default function ListingStudioPage() {
                 </Stack>
               ))}
             </Stack>
-          </Stack>
+          </StudioSection>
         </Grid>
 
-        <Grid size={{ xs: 12, md: 5 }}>
-          <Box sx={{ position: 'sticky', top: 16, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              Preview
-            </Typography>
-            <Typography variant="subtitle1">{form.title || 'Untitled'}</Typography>
-            <Typography variant="h5" sx={{ my: 1 }}>
-              ${form.price || '0.00'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap', mb: 2 }}>
-              {form.description || 'No description yet.'}
-            </Typography>
-            <Typography variant="caption" display="block">
-              Available {listing.available} · Reserved {listing.reserved} · On hand {listing.on_hand}
-            </Typography>
-            {publicUrl && (
-              <Button
-                component="a"
-                href={publicUrl}
-                target="_blank"
-                rel="noreferrer"
-                size="small"
-                sx={{ mt: 1 }}
-              >
-                Public URL
-              </Button>
-            )}
-
-            <Divider sx={{ my: 2 }} />
-            <Typography variant="h6" gutterBottom>
-              Website
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              Native publish to the public shop. Status: {listing.status_display}.
-            </Typography>
-
-            <Divider sx={{ my: 2 }} />
-            <Typography variant="h6" gutterBottom>
-              Facebook Page
-            </Typography>
-            <Stack direction="row" spacing={1} sx={{ mb: 1 }} flexWrap="wrap" useFlexGap>
+        <Grid size={{ xs: 12, md: 5 }} sx={{ display: 'flex' }}>
+          <StudioSection
+            title="Facebook Page"
+            caption="Generate the copy here, then paste it into the Page post."
+          >
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
               <Button
                 size="small"
                 variant="outlined"
@@ -531,28 +655,30 @@ export default function ListingStudioPage() {
               </Button>
             </Stack>
             <TextField
-              label="FB title"
+              label="Post headline"
               value={form.fb_title}
               onChange={(e) => setField('fb_title', e.target.value)}
               fullWidth
-              sx={{ mb: 1 }}
+              size="small"
             />
             <TextField
-              label="FB body"
+              label="Post body"
               value={form.fb_body}
               onChange={(e) => setField('fb_body', e.target.value)}
               fullWidth
               multiline
               minRows={5}
-              sx={{ mb: 1 }}
+              size="small"
             />
+            <Box sx={{ flex: 1, minHeight: 0 }} />
             <TextField
               label="Posted URL"
               value={form.fb_posted_url}
               onChange={(e) => setField('fb_posted_url', e.target.value)}
               fullWidth
+              size="small"
             />
-          </Box>
+          </StudioSection>
         </Grid>
       </Grid>
 
@@ -577,5 +703,44 @@ export default function ListingStudioPage() {
         onCancel={() => setConfirmSold(false)}
       />
     </Box>
+  );
+}
+
+function StudioSection({
+  title,
+  caption,
+  sx,
+  children,
+}: {
+  title: string;
+  caption?: string;
+  sx?: SxProps<Theme>;
+  children: ReactNode;
+}) {
+  return (
+    <Paper
+      variant="outlined"
+      sx={{
+        p: 2.5,
+        borderRadius: 2,
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        ...sx,
+      }}
+    >
+      <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.3 }}>
+        {title}
+      </Typography>
+      {caption ? (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+          {caption}
+        </Typography>
+      ) : null}
+      <Stack spacing={2} sx={{ mt: 2, flex: 1, minHeight: 0 }}>
+        {children}
+      </Stack>
+    </Paper>
   );
 }

@@ -1,4 +1,4 @@
-/** Work session domain — parts/orders + per-grade plans + bench and decision work. */
+/** Work session domain - parts/orders + per-grade plans + bench and decision work. */
 
 import type { TarsDecisionWork } from './tarsDecisionTypes';
 
@@ -55,7 +55,7 @@ export interface TarsWorkBenchRow {
   performedAt?: string;
 }
 
-/** Per-grade plan — estimated hours + the orders attached to that grade option. */
+/** Per-grade plan - estimated hours + the orders attached to that grade option. */
 export interface TarsGradePlan {
   estimateHours: number;
   orderIds: string[];

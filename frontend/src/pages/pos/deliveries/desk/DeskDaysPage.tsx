@@ -32,8 +32,8 @@ import {
 import { DeskDayDialog } from './DeskDayDialog';
 
 function formatWindow(start: string | null, end: string | null) {
-  if (!start || !end) return '—';
-  return `${start.slice(0, 5)}–${end.slice(0, 5)}`;
+  if (!start || !end) return '-';
+  return `${start.slice(0, 5)}-${end.slice(0, 5)}`;
 }
 
 export default function DeskDaysPage() {
@@ -137,7 +137,7 @@ export default function DeskDaysPage() {
                 </Typography>
               </TableCell>
               <TableCell>{formatWindow(day.time_start, day.time_end)}</TableCell>
-              <TableCell>{day.primary_driver_name || day.assigned_to || '—'}</TableCell>
+              <TableCell>{day.primary_driver_name || day.assigned_to || '-'}</TableCell>
               <TableCell>
                 <Chip
                   size="small"

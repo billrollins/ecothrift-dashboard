@@ -6,7 +6,7 @@ import type { BuyingAuctionDetail } from '../../types/buying.types';
 import { formatCurrency, formatCurrencyWhole, formatNumber } from '../../utils/format';
 
 function formatEndTime(iso: string | null): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   try {
     return format(parseISO(iso), 'MMM d, yyyy h:mm a');
   } catch {
@@ -15,7 +15,7 @@ function formatEndTime(iso: string | null): string {
 }
 
 const LISTING_TYPE_TOOLTIPS: Record<string, string> = {
-  SPOT: 'Spot auction — standard single-lot listing on B-Stock.',
+  SPOT: 'Spot auction - standard single-lot listing on B-Stock.',
   CONTRACT: 'Contract-style listing on B-Stock (terms may differ from spot).',
 };
 
@@ -36,7 +36,7 @@ function conditionChipColor(cond: string): 'success' | 'primary' | 'warning' | '
 
 type Props = { detail: BuyingAuctionDetail };
 
-/** Cell 2,2 — listing details plus static bid-reference fields (starting price, buy now, profit). */
+/** Cell 2,2 - listing details plus static bid-reference fields (starting price, buy now, profit). */
 export default function AuctionDetailsInfoCard({ detail }: Props) {
   const retailVal = detail.total_retail_value != null ? Number.parseFloat(String(detail.total_retail_value)) : null;
   const lotSize = detail.lot_size;
@@ -106,7 +106,7 @@ export default function AuctionDetailsInfoCard({ detail }: Props) {
               )}
             </Stack>
           ) : (
-            <Typography variant="body2" sx={{ mt: 0.2 }}>—</Typography>
+            <Typography variant="body2" sx={{ mt: 0.2 }}>-</Typography>
           )}
         </Box>
         <Box>
@@ -122,7 +122,7 @@ export default function AuctionDetailsInfoCard({ detail }: Props) {
               sx={{ mt: 0.35, height: 22, '& .MuiChip-label': { px: 0.75, fontSize: '0.75rem' } }}
             />
           ) : (
-            <Typography variant="body2" sx={{ mt: 0.2 }}>—</Typography>
+            <Typography variant="body2" sx={{ mt: 0.2 }}>-</Typography>
           )}
         </Box>
         <Box>
@@ -135,7 +135,7 @@ export default function AuctionDetailsInfoCard({ detail }: Props) {
             </Tooltip>
           </Stack>
           <Typography variant="body2" sx={{ mt: 0.1 }}>
-            {detail.listing_type?.trim() || '—'}
+            {detail.listing_type?.trim() || '-'}
           </Typography>
         </Box>
         <Box>
@@ -172,7 +172,7 @@ export default function AuctionDetailsInfoCard({ detail }: Props) {
                   : 'text.primary',
             }}
           >
-            {estProfit != null && Number.isFinite(estProfit) ? formatCurrency(estProfit) : '—'}
+            {estProfit != null && Number.isFinite(estProfit) ? formatCurrency(estProfit) : '-'}
           </Typography>
         </Box>
         <Box>
@@ -197,7 +197,7 @@ export default function AuctionDetailsInfoCard({ detail }: Props) {
                   : 'text.primary',
             }}
           >
-            {profRatio != null && Number.isFinite(profRatio) ? `${profRatio.toFixed(2)}x` : '—'}
+            {profRatio != null && Number.isFinite(profRatio) ? `${profRatio.toFixed(2)}x` : '-'}
           </Typography>
         </Box>
       </Box>

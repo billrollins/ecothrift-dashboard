@@ -121,11 +121,25 @@ class Command(BaseCommand):
             format='json',
         )
         assert ml.status_code == 200, ml.content
-        debug_token = ml.json().get('debug_token')
-        assert debug_token, 'DEBUG should return debug_token'
+        assert 'debug_token' not in ml.json(), 'the API must never return the raw token'
+        # Read the token from the DB — the response deliberately withholds it, so
+        # this walk stands in for the customer clicking the emailed link.
+        from apps.accounts.models import MagicLinkToken
+
+        link_row = (
+            MagicLinkToken.objects
+            .filter(
+                email='demo.customer@ecothrift.example',
+                purpose=MagicLinkToken.PURPOSE_SIGN_IN,
+                used_at__isnull=True,
+            )
+            .order_by('-created_at')
+            .first()
+        )
+        assert link_row is not None, 'magic-link request did not persist a token'
         consume = client.post(
             '/api/auth/magic-link/consume/',
-            {'token': debug_token},
+            {'token': link_row.token},
             format='json',
         )
         assert consume.status_code == 200, consume.content

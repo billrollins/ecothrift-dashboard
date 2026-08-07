@@ -56,7 +56,7 @@ describe('order picker badge colors', () => {
     expect(orderPickerReceivingBadgeColors({ receiving_status: 'active' }).label).toBe(
       'Receiving in progress',
     );
-    expect(orderPickerReceivingBadgeColors({ status: 'shipped' }).label).toBe('Shipped — waiting');
+    expect(orderPickerReceivingBadgeColors({ status: 'shipped' }).label).toBe('Shipped - waiting');
     expect(orderPickerReceivingBadgeColors({ status: 'paid' }).label).toBe('Pending shipment');
   });
 
@@ -66,9 +66,9 @@ describe('order picker badge colors', () => {
       'Processing active',
     );
     expect(orderPickerProcessingBadgeColors({ status: 'delivered' }).label).toBe(
-      'Delivered — ready',
+      'Delivered - ready',
     );
     expect(orderPickerProcessingBadgeColors({ status: 'shipped' }).label).toBe('Shipped');
-    expect(orderPickerProcessingBadgeColors({ status: 'paid' }).label).toBe('Paid — awaiting');
+    expect(orderPickerProcessingBadgeColors({ status: 'paid' }).label).toBe('Paid - awaiting');
   });
 });

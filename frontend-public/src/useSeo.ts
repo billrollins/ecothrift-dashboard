@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { SITE_URL } from './data/content'
 
 const BRAND = 'Eco-Thrift'
-const DEFAULT_TITLE = `${BRAND} — Restore, Reuse, Reimagine`
+const DEFAULT_TITLE = `${BRAND} - Restore, Reuse, Reimagine`
 const DEFAULT_DESCRIPTION =
   'Eco-Thrift is a liquidation and thrift store in Omaha, NE. Quality goods at fair prices, with new finds every week. Shop in person or pick up at our store.'
 

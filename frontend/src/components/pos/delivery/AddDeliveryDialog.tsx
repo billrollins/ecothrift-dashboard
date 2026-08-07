@@ -372,7 +372,7 @@ export function AddDeliveryDialog({
                     <ListItemButton key={c.id} dense onClick={() => void pickSale(c.id)}>
                       <ListItemText
                         primary={c.receipt?.receipt_number || `Sale #${c.id}`}
-                        secondary={`${when && isValid(when) ? format(when, 'MMM d') : '—'} · $${c.total || '0'}`}
+                        secondary={`${when && isValid(when) ? format(when, 'MMM d') : '-'} · $${c.total || '0'}`}
                         primaryTypographyProps={{ variant: 'body2', fontWeight: 700 }}
                         secondaryTypographyProps={{ variant: 'caption' }}
                       />
@@ -476,7 +476,7 @@ export function AddDeliveryDialog({
           minRows={1}
           maxRows={3}
           sx={fieldSx}
-          placeholder={itemMode === 'describe' ? 'Washer, dryer…' : 'Auto-filled — edit if needed'}
+          placeholder={itemMode === 'describe' ? 'Washer, dryer…' : 'Auto-filled - edit if needed'}
         />
 
         <Stack
@@ -633,7 +633,7 @@ export function AddDeliveryDialog({
 
         {daySlots.length === 0 && availId !== 'later' && (
           <Alert severity="warning" sx={{ py: 0 }}>
-            No bookable dates in range — use Later or add a date first.
+            No bookable dates in range - use Later or add a date first.
           </Alert>
         )}
       </DialogContent>

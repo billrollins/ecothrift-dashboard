@@ -41,7 +41,7 @@ export function stepHint(step: TarsStudioStepId, decision: TarsDecisionWork): st
         : 'Review Ashley\'s handoff and acknowledge before continuing.';
     case 'stopouts':
       return decision.stopOut.blocked
-        ? 'A mandatory stop is active — use Hold or a compatible salvage path.'
+        ? 'A mandatory stop is active - use Hold or a compatible salvage path.'
         : 'Answer every stop-out. These cannot be overridden by margin.';
     case 'evidence':
       return 'Record what you see. This drives truthful sale state and grade direction.';

@@ -13,7 +13,7 @@ export default function Layout() {
   const { config, loading } = useOnlineSalesConfig()
   const { count, setOpen } = useCart()
   const { user, isLoading: authLoading } = useAuth()
-  // Treat config load as indeterminate — don't flash "under construction" when shop is on.
+  // Treat config load as indeterminate - don't flash "under construction" when shop is on.
   const shopOn = config.online_sales_enabled
   const accountsOn = config.accounts_enabled
   const showUnderConstruction = !loading && !shopOn
@@ -27,7 +27,7 @@ export default function Layout() {
           <div className="wrap">
             <span className="util-badge">Under construction</span>
             <span className="util-msg">
-              Website is under construction — online listings and holds are not available yet.
+              Website is under construction - online listings and holds are not available yet.
             </span>
           </div>
         </div>
@@ -70,9 +70,6 @@ export default function Layout() {
                 >
                   Hold list{count > 0 ? ` (${count})` : ''}
                 </button>
-                <Link className="btn btn--primary" to="/shop">
-                  Shop
-                </Link>
               </>
             ) : (
               <Link className="btn btn--primary" to="/visit">

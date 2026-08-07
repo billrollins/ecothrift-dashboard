@@ -89,7 +89,7 @@ import { SNAP_OPTIONS } from './snapping';
 import { paletteCategories, type PaletteEntry, type PaletteIndex } from './palette';
 import type { DrawStroke } from './FloorplanCanvas';
 
-/** Plan dimension limits (inches): 2 ft – 1000 ft, well under the backend cap. */
+/** Plan dimension limits (inches): 2 ft - 1000 ft, well under the backend cap. */
 const MIN_PLAN_DIM = 24;
 const MAX_PLAN_DIM = 12_000;
 
@@ -101,7 +101,7 @@ const TOOLS: { id: Tool; label: string; icon: React.ReactNode; shortcut: string 
   { id: 'zone', label: 'Zone (Z)', icon: <CropSquareIcon fontSize="small" />, shortcut: 'z' },
   { id: 'draw', label: 'Draw (D)', icon: <GestureIcon fontSize="small" />, shortcut: 'd' },
   { id: 'label', label: 'Label (T)', icon: <TextFieldsIcon fontSize="small" />, shortcut: 't' },
-  { id: 'cut', label: 'Cut wall (C) — click a wall to split it', icon: <ContentCutIcon fontSize="small" />, shortcut: 'c' },
+  { id: 'cut', label: 'Cut wall (C) - click a wall to split it', icon: <ContentCutIcon fontSize="small" />, shortcut: 'c' },
 ];
 
 interface ToolbarProps {
@@ -408,10 +408,10 @@ export function EditorToolbar({
 
 /** Minor/major spacing presets (inches). Keep majors as multiples of minors. */
 const GRID_SIZE_PRESETS: { minor: number; major: number; label: string }[] = [
-  { minor: 3, major: 12, label: 'Fine — 3" / 1\'' },
-  { minor: 6, major: 12, label: 'Standard — 6" / 1\'' },
-  { minor: 12, major: 48, label: 'Wide — 1\' / 4\'' },
-  { minor: 24, major: 96, label: 'Extra wide — 2\' / 8\'' },
+  { minor: 3, major: 12, label: 'Fine - 3" / 1\'' },
+  { minor: 6, major: 12, label: 'Standard - 6" / 1\'' },
+  { minor: 12, major: 48, label: 'Wide - 1\' / 4\'' },
+  { minor: 24, major: 96, label: 'Extra wide - 2\' / 8\'' },
 ];
 
 const GRID_STYLE_OPTIONS: { value: GridStyle; label: string; helper: string }[] = [
@@ -475,7 +475,7 @@ function GridOptionsPopover({ anchorEl, onClose, grid, snap, onChange, readOnly 
             ))}
             {!matchesPreset && (
               <MenuItem value="custom" disabled>
-                {`Custom — ${formatInches(grid.minor)} / ${formatInches(grid.major)}`}
+                {`Custom - ${formatInches(grid.minor)} / ${formatInches(grid.major)}`}
               </MenuItem>
             )}
           </Select>
@@ -573,7 +573,7 @@ export function PaletteSidebar({ entries, pendingPlacement, onPick, onAddInfoBlo
     <Box sx={{ width: 220, flexShrink: 0, borderRight: 1, borderColor: 'divider', overflowY: 'auto', bgcolor: 'background.paper' }}>
       {readOnly && (
         <Typography variant="caption" color="warning.main" sx={{ p: 1, display: 'block' }}>
-          View only — Manager or Admin role required to edit.
+          View only - Manager or Admin role required to edit.
         </Typography>
       )}
       {canManageKinds && onCreateKind && (
@@ -801,7 +801,7 @@ function ElementImagePicker({
   );
 }
 
-/** Combined selection size — type a new width/height to scale the selection. */
+/** Combined selection size - type a new width/height to scale the selection. */
 function SelectionSizeSection({
   doc,
   selection,
@@ -840,7 +840,7 @@ function SelectionSizeSection({
           disabled={readOnly}
           onCommit={(next) => next > 0 && onResize({ w: next }, lockAspect)}
         />
-        <Tooltip title={lockAspect ? 'Aspect locked — unlock to stretch one axis' : 'Aspect unlocked'}>
+        <Tooltip title={lockAspect ? 'Aspect locked - unlock to stretch one axis' : 'Aspect unlocked'}>
           <IconButton
             size="small"
             onClick={() => setLockAspect((v) => !v)}
@@ -892,7 +892,7 @@ function MultiElementImageTools({
   return (
     <Stack spacing={0.75}>
       <Divider />
-      <Typography variant="subtitle2">{`Image — ${count} element${count > 1 ? 's' : ''}`}</Typography>
+      <Typography variant="subtitle2">{`Image - ${count} element${count > 1 ? 's' : ''}`}</Typography>
       <Select<number | ''>
         size="small"
         displayEmpty
@@ -1052,7 +1052,7 @@ export function PropertiesPanel({ state, dispatch, onPatch, readOnly, assets = [
             <Typography variant="subtitle2">
               {`${selection.length} selected`}
               {wallCount > 0 || otherCount > 0
-                ? ` — ${[
+                ? ` - ${[
                     wallCount > 0 ? `${wallCount} wall${wallCount > 1 ? 's' : ''}` : null,
                     nonWallElementCount > 0 ? `${nonWallElementCount} element${nonWallElementCount > 1 ? 's' : ''}` : null,
                     otherCount > 0 ? `${otherCount} other` : null,
@@ -1061,7 +1061,7 @@ export function PropertiesPanel({ state, dispatch, onPatch, readOnly, assets = [
             </Typography>
             <Typography variant="caption" color="text.secondary">
               {selectionIsGrouped(doc, selection)
-                ? 'Grouped — moves and deletes together; Ctrl+Shift+G to ungroup.'
+                ? 'Grouped - moves and deletes together; Ctrl+Shift+G to ungroup.'
                 : 'Drag to move, Delete to remove, Ctrl+G to group.'}
             </Typography>
 
@@ -1089,7 +1089,7 @@ export function PropertiesPanel({ state, dispatch, onPatch, readOnly, assets = [
                 />
                 {commonWallThickness == null && (
                   <Typography variant="caption" color="text.secondary">
-                    Mixed thicknesses — type a value to unify.
+                    Mixed thicknesses - type a value to unify.
                   </Typography>
                 )}
               </Stack>

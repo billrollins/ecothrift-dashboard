@@ -38,7 +38,7 @@ export interface PaletteEntry {
   image?: number;
   /** DB row id (absent for the static placeholder + fallback entries) */
   kindId?: number;
-  /** Seeded built-in — editable, not deletable, slug locked */
+  /** Seeded built-in - editable, not deletable, slug locked */
   isSystem?: boolean;
   /** Wall behavior: raw h = thickness, resize changes length only */
   isWall?: boolean;
@@ -114,7 +114,7 @@ export function elementKindToPaletteEntry(kind: FloorPlanElementKind): PaletteEn
 const WALL_LEN = 96; // standard 8' segment
 const WALL_THICK = 6;
 
-// Segments stay exactly 8' and overlap at the corners (invisible — same color).
+// Segments stay exactly 8' and overlap at the corners (invisible - same color).
 const WALL_TOP: CompositePart = { x: 0, y: 0, w: WALL_LEN, h: WALL_THICK, rotation: 0 };
 const WALL_LEFT: CompositePart = { x: 0, y: 0, w: WALL_THICK, h: WALL_LEN, rotation: 90 };
 const WALL_RIGHT: CompositePart = { x: WALL_LEN - WALL_THICK, y: 0, w: WALL_THICK, h: WALL_LEN, rotation: 90 };

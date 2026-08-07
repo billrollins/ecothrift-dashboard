@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SnackbarProvider } from 'notistack';
@@ -83,6 +84,38 @@ describe('ListingStudioPage', () => {
     expect(screen.getByText(/Linked item ITEM-7/)).toBeInTheDocument();
     expect(screen.getByDisplayValue('Studio lamp')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Publish' })).toBeInTheDocument();
+  }, 15_000);
+
+  it('keeps Delete and Mark sold out of reach until the overflow is opened', async () => {
+    const user = userEvent.setup();
+    studioState.listing = {
+      id: 7,
+      title: 'Studio lamp',
+      sku: 'SL-7',
+      description: '',
+      condition: 'good',
+      price: '35.00',
+      compare_at_price: null,
+      on_hand: 1,
+      category: null,
+      featured: false,
+      return_policy: 'final_sale',
+      fb_title: '',
+      fb_body: '',
+      fb_posted_url: '',
+      status: 'draft',
+      status_display: 'Draft',
+      item_sku: 'ITEM-7',
+      readiness_errors: [],
+      images: [],
+    };
+    wrap();
+    expect(screen.queryByRole('menuitem', { name: 'Delete' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Mark sold' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
   });
 
   it('renders error when listing missing', () => {
@@ -115,7 +148,7 @@ describe('ListingStudioPage', () => {
       images: [],
     };
     wrap();
-    expect(screen.getByText(/Manual \/ unlinked listing/)).toBeInTheDocument();
+    expect(screen.getByText(/Manual listing, no inventory item/)).toBeInTheDocument();
     expect(screen.getByDisplayValue('Manual listing')).toBeInTheDocument();
   });
 });

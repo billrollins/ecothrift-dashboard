@@ -204,7 +204,7 @@ export default function InlineEditableValue({
         },
       }}
     >
-      {displayEmpty ? placeholder ?? '—' : formattedDisplay}
+      {displayEmpty ? placeholder ?? '-' : formattedDisplay}
     </Box>
   );
 }

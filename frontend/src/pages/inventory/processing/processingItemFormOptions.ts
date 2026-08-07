@@ -12,7 +12,7 @@ export const PROCESSING_ITEM_STATUS_OPTIONS: Array<{ value: ItemStatus; label: s
   label: formatItemStatusLabel(value),
 }));
 
-/** Manual processing edits — sold is set only through point of sale. */
+/** Manual processing edits - sold is set only through point of sale. */
 export const PROCESSING_ITEM_PATCHABLE_STATUS_OPTIONS = PROCESSING_ITEM_STATUS_OPTIONS.filter(
   (option) => option.value !== 'sold',
 );

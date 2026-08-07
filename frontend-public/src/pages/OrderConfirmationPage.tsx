@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useSeo } from '../useSeo'
 
-/** Legacy order confirmation route — holds replace online ordering. */
+/** Legacy order confirmation route - holds replace online ordering. */
 export default function OrderConfirmationPage() {
   useSeo({ title: 'Hold required', noindex: true })
   return (

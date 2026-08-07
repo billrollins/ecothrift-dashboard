@@ -134,7 +134,7 @@ export function DepartmentStatCard({
           </Typography>
         </Box>
 
-        {/* Fixed metrics band — keeps the divider Y identical across all four cards. */}
+        {/* Fixed metrics band - keeps the divider Y identical across all four cards. */}
         <Box
           sx={{
             position: 'relative',

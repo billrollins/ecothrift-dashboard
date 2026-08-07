@@ -16,7 +16,7 @@ export interface ProcessingBulkActionBarProps {
   itemActionsBlockedHint?: string;
 }
 
-/** Bulk strip for queue multi-select — collapse / uncollapse only. */
+/** Bulk strip for queue multi-select - collapse / uncollapse only. */
 export function ProcessingBulkActionBar({
   selectedCount,
   onClear,

@@ -52,7 +52,7 @@ type Props = {
 /** Full-screen mobile-friendly receipt / transaction detail. */
 export function TransactionDetailDialog({ open, cart, onClose }: Props) {
   const { enqueueSnackbar } = useSnackbar();
-  const receiptLabel = cart?.receipt?.receipt_number ?? (cart ? `#${cart.id}` : '—');
+  const receiptLabel = cart?.receipt?.receipt_number ?? (cart ? `#${cart.id}` : '-');
 
   return (
     <Dialog open={open} onClose={onClose} fullScreen scroll="paper">
@@ -80,7 +80,7 @@ export function TransactionDetailDialog({ open, cart, onClose }: Props) {
           <Box>
             <Typography variant="body2" color="text.secondary">
               {format(new Date(cart.completed_at ?? cart.created_at), 'PPp')} ·{' '}
-              {cart.cashier_name ?? '—'}
+              {cart.cashier_name ?? '-'}
             </Typography>
             <Box sx={{ mt: 2 }}>
               {(cart.lines ?? []).map((line: CartLine) => (
