@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-11 (online_sales_mvp → _completed/; Active empty) -->
+<!-- Last updated: 2026-08-11 (finalize_tars_app activated; supersedes both TARS initiatives) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not roadmap strategy, not week-scale projects, not an AI plan/TODO list.
@@ -11,7 +11,9 @@ Session details live **only** in each file under **`## Sessions`**.
 
 ## Active
 
-*(none — start a new initiative with [`session.0.Create.md`](../protocols/session.0.Create.md) / [`code.0.Startup.md`](../protocols/code.0.Startup.md))*
+| Initiative | Phase | Notes |
+|------------|-------|-------|
+| [finalize_tars_app](./finalize_tars_app.md) | **Stage 1 — Audit** | One 100%-functional TARS MVP in daily use. Runs **Audit → Design → Code**; coding phases are written only after design sign-off. **Supersedes** [tars_restoration_workspace](./_archived/_pending/tars_restoration_workspace.md) and [tars_full_instruction_wizard_guidance](./_archived/_pending/tars_full_instruction_wizard_guidance.md). |
 
 ---
 
@@ -22,8 +24,8 @@ Paused to resume later. Full checklists and sessions are in each file.
 | Initiative | Description | Pending since | Why / resume |
 |------------|-------------|---------------|--------------|
 | [online_sales_workspace](./_archived/_pending/online_sales_workspace.md) | Online Sales workspace long-term vision (channels, marketing, P&L). Phase 0 contract retained. | 2026-07-21 | MVP shipped via completed [online_sales_mvp](./_archived/_completed/online_sales_mvp.md) **v2.69.0**. **Resume:** only for scope beyond MVP (FB automation, contribution, B2B, etc.). |
-| [tars_full_instruction_wizard_guidance](./_archived/_pending/tars_full_instruction_wizard_guidance.md) | TARS decision guardrails / worksheet / guidance (process canon + Bill-managed catalogs + improvement loop). Phase 1.5 Studio (`/restoration/tars`) shipped. | 2026-07-21 | Deferred for Deliveries release. **Resume:** owner/Mike floor validation → Phase 2 catalogs → Phase 3 improvement loop. |
-| [tars_restoration_workspace](./_archived/_pending/tars_restoration_workspace.md) | TARS Restoration transactional product: queue + live bench. Phases 0–2 + hardening shipped (**~v2.39.0**). | 2026-07-09 | Bench live; execution/steering deferred. **Resume:** Phase 3 (verb panels, complete → location/dispatch) + Phase 4 (time premium / `AppSetting` steering). |
+| [tars_full_instruction_wizard_guidance](./_archived/_pending/tars_full_instruction_wizard_guidance.md) | TARS decision guardrails / worksheet / guidance (process canon + Bill-managed catalogs + improvement loop). Phase 1.5 Studio (`/restoration/tars`) shipped. | 2026-07-21 | **Superseded — closed to new work.** All remaining TARS scope moved to active [finalize_tars_app](./finalize_tars_app.md). Keep for reference material only. |
+| [tars_restoration_workspace](./_archived/_pending/tars_restoration_workspace.md) | TARS Restoration transactional product: queue + live bench. Phases 0–2 + hardening shipped (**~v2.39.0**). | 2026-07-09 | **Superseded — closed to new work.** All remaining TARS scope moved to active [finalize_tars_app](./finalize_tars_app.md). Keep for reference material only. |
 | [public_website](./_archived/_pending/public_website.md) | Public storefront rebuild (hostname split, curated catalog, shop UX). Engineering Phases 0–4 + polish shipped **v2.26.0**. | 2026-05-30 | Launch ops largely covered by Online Sales MVP go-live. **Resume:** Helcim/pay-online only if policy changes (MVP is pickup-only). |
 | [historical_sell_through_analysis](./_archived/_pending/historical_sell_through_analysis.md) | Historical sell-through by category; PO extract + manual `PricingRule` seeds shipped. | 2026-04-10 | Deeper legacy DB / CSV / sales-join phases deferred until needed. |
 | [print_server_receipt_format](./_archived/_pending/print_server_receipt_format.md) | GDI receipt layout + `receipt_data` parity; workspace tooling for reference. | 2026-03-28 | Paused pre-production. |

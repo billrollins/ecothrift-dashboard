@@ -4,9 +4,7 @@
 
 # Initiative: TARS Decision Guardrails / Worksheet / Guidance App
 
-**Status:** **Pending** (parked off main index, 2026-07-21) — Phase 0–1 + standalone TARS Studio (`/restoration/tars`) implemented and kept available in production. Owner/Mike floor validation and Phase 2/3 intentionally deferred.
-
-**Resume when:** ready for owner/Mike Phase 1.5 floor validation and iteration, then Phase 2 Bill-managed guardrails and Phase 3 continuous improvement.
+**Status:** **Superseded — closed to new work.** All remaining TARS scope now lives in the active initiative [`finalize_tars_app`](../../finalize_tars_app.md). Do not resume this file; read it for history and for the process canon / guardrail reasoning only. Phase 0–1 + standalone Studio shipped.
 
 **Purpose:** Establish the full TARS operating process and encode it as an integrated **guardrail / worksheet / reusable decision system** so Processing and Restoration staff save consistent work, tests, evaluations, rules of thumb, and decisions—not a separate library of formal documents.
 

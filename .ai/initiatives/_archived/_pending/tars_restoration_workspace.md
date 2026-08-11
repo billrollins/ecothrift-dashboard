@@ -4,9 +4,7 @@
 
 # Initiative: TARS Restoration Workspace
 
-**Status:** **Pending** (parked off main index, 2026-07-09) — Queue + **TARS 2** bench live (parts orders, work session persistence); hardening through **v2.39.0**. Phases 0–2 done.
-
-**Resume when:** ready for **Phase 3** (per-verb detail panels; complete → `Item.location` / dispatch) and/or **Phase 4** (time premium / steering from `AppSetting`).
+**Status:** **Superseded — closed to new work.** All remaining TARS scope now lives in the active initiative [`finalize_tars_app`](../../finalize_tars_app.md). Do not resume this file; read it for history only. Phases 0–2 + hardening shipped through **v2.39.0**.
 
 **Routes:** `/restoration/queue` (Send to Restoration), `/restoration/tars` (live bench workstation).
 

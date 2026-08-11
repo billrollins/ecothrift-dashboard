@@ -1,4 +1,6 @@
-<!-- Last updated: 2026-08-11 (online_sales_mvp → _completed/) -->
+<!-- Last updated: 2026-08-11 (both TARS initiatives marked superseded by active finalize_tars_app) -->
+
+<!-- NOTE: `_pending/tars_restoration_workspace.md` and `_pending/tars_full_instruction_wizard_guidance.md` are SUPERSEDED and closed to new work. All TARS scope lives in the active initiative `.ai/initiatives/finalize_tars_app.md`. Keep both files for history and process-canon reference. -->
 # Archive index — initiatives
 
 **Note:** Archived session logs may mention **`.ai/consultant_context.md`**, **`.ai/plans/`**, or **`.ai/debug/`** — those paths are **retired** (2026-05). Use **`.ai/context.md`**, initiatives as the plan, and repo root **`.version`** / **`CHANGELOG.md`**.
