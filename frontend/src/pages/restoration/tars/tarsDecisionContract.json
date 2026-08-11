@@ -1,0 +1,40 @@
+{
+  "_comment": "Enforcement contract shared by the TARS decision engine on both sides. The server in apps/inventory/services/tars_decision_work.py is the authority; this file mirrors the fields the browser must not disagree about. Tests on both sides fail if it drifts: apps/inventory/tests/test_tars_catalog_contract.py and tarsDecisionContract.test.ts.",
+  "schemaVersion": 1,
+  "catalogVersion": "phase1-mvp-v1",
+  "effectiveLaborRate": 19.8,
+  "minimumHandlingMinutes": {
+    "untested": 5,
+    "as_is": 5,
+    "salvage": 3
+  },
+  "testIds": [
+    "basic_function",
+    "elec_primary_function",
+    "elec_turns_on",
+    "elec_visual_inspection",
+    "included_components",
+    "universal_completeness",
+    "visual_identity_condition"
+  ],
+  "stopOuts": [
+    {
+      "id": "handling_stop",
+      "blocksAllSelections": true,
+      "blockedActions": [],
+      "blockedSaleStates": []
+    },
+    {
+      "id": "legal_prohibited_sale",
+      "blocksAllSelections": false,
+      "blockedActions": ["assemble", "repair", "test"],
+      "blockedSaleStates": ["as_is", "broken", "parts_only", "tested", "untested"]
+    },
+    {
+      "id": "truthful_disclosure",
+      "blocksAllSelections": false,
+      "blockedActions": [],
+      "blockedSaleStates": ["as_is", "broken", "parts_only", "tested", "untested"]
+    }
+  ]
+}

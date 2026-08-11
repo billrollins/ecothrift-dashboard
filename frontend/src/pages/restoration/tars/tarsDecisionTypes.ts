@@ -1,3 +1,4 @@
+import decisionContract from './tarsDecisionContract.json';
 import type { TarsActionType } from './tarsWorkTypes';
 
 export const TARS_DECISION_SCHEMA_VERSION = 1 as const;
@@ -11,7 +12,6 @@ export type TarsCompletenessStatus = 'unknown' | 'complete' | 'incomplete' | 'no
 export type TarsTestedStatus = 'not_tested' | 'partially_tested' | 'tested';
 export type TarsDecisionTestResult = 'pass' | 'fail' | 'unknown' | 'skipped' | 'not_applicable';
 export type TarsSaleState = 'tested' | 'untested' | 'as_is' | 'broken' | 'parts_only' | 'salvage';
-export type TarsQueuePressure = 'unknown' | 'low' | 'normal' | 'high';
 
 export interface TarsDecisionHandoff {
   acknowledged: boolean;
@@ -97,10 +97,6 @@ export interface TarsOutcomeEconomics {
 
 export interface TarsEconomicSnapshot {
   effectiveLaborRate: number;
-  queuePressure: TarsQueuePressure;
-  queuePressureNote: string;
-  /** Queue pressure is deliberately recorded as context and never changes candidate scores. */
-  queuePressureAffectsScore: false;
   candidates: TarsOutcomeEconomics[];
   evaluatedAt: string | null;
 }
@@ -174,10 +170,7 @@ export function createEmptyDecisionWork(now = new Date().toISOString()): TarsDec
     unknowns: [],
     outcomes: [],
     economics: {
-      effectiveLaborRate: 19.8,
-      queuePressure: 'unknown',
-      queuePressureNote: '',
-      queuePressureAffectsScore: false,
+      effectiveLaborRate: decisionContract.effectiveLaborRate,
       candidates: [],
       evaluatedAt: null,
     },

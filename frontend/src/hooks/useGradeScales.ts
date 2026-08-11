@@ -5,7 +5,6 @@ import {
   listRestorationGradeScales,
   suggestRestorationGradeScale,
 } from '../api/inventory.api';
-import { TARS_GRADE_SCALES } from '../pages/restoration/tars/tarsConstants';
 import type {
   RestorationGradeScaleCreatePayload,
   RestorationGradeScaleDTO,
@@ -29,9 +28,11 @@ export function useGradeScales() {
   });
 
   // Memoized so consumers can safely use the record in effect dependency lists
-  // without re-running on every render.
+  // without re-running on every render. No hardcoded fallback: the four seeded
+  // scales come from the database, so an empty result means something is wrong
+  // and should look wrong rather than quietly rendering plausible defaults.
   const scalesRecord = useMemo(
-    () => (query.data?.length ? gradeScalesToRecord(query.data) : TARS_GRADE_SCALES),
+    () => (query.data?.length ? gradeScalesToRecord(query.data) : {}),
     [query.data],
   );
 

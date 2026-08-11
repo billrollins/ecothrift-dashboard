@@ -94,9 +94,6 @@ def decision_work_payload(
         'outcomes': outcomes,
         'economics': {
             'effectiveLaborRate': 999,
-            'queuePressure': 'high',
-            'queuePressureNote': 'Busy queue',
-            'queuePressureAffectsScore': True,
             'candidates': [{'processorValue': 999999}],
             'evaluatedAt': None,
         },
@@ -303,7 +300,7 @@ class TarsDecisionWorkApiTests(RestorationQueueTestBase):
         self.assertEqual(session['selectedGrade'], 'Working')
         economics = session['decisionWork']['economics']
         self.assertEqual(economics['effectiveLaborRate'], 19.8)
-        self.assertFalse(economics['queuePressureAffectsScore'])
+        self.assertNotIn('queuePressure', economics)
         candidate = economics['candidates'][0]
         self.assertEqual(candidate['processorValue'], 19.99)
         self.assertEqual(candidate['partsAndOrdersCost'], 8.0)

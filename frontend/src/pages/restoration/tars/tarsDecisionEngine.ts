@@ -20,7 +20,7 @@ import {
   type TarsViableOutcome,
 } from './tarsDecisionTypes';
 import { orderGrandTotal } from './tarsPartsListSession';
-import { effectiveLaborRate } from './tarsProfit';
+import decisionContract from './tarsDecisionContract.json';
 import type { TarsItem } from './tarsTypes';
 import type {
   TarsActionType,
@@ -29,15 +29,13 @@ import type {
   TarsWorkSession,
 } from './tarsWorkTypes';
 
-/** $18 base rate × 1.1 payroll multiplier. */
-export const TARS_DECISION_EFFECTIVE_LABOR_RATE = effectiveLaborRate(18, 1);
+// The server recomputes and overwrites these numbers on save. Reading both from
+// the shared contract keeps the preview honest instead of merely coincidental.
+export const TARS_DECISION_EFFECTIVE_LABOR_RATE = decisionContract.effectiveLaborRate;
 
 /** Zero-work paths still consume intake, identification, disclosure, and routing time. */
-export const TARS_MINIMUM_HANDLING_MINUTES: Readonly<Partial<Record<TarsSaleState, number>>> = {
-  as_is: 5,
-  untested: 5,
-  salvage: 3,
-};
+export const TARS_MINIMUM_HANDLING_MINUTES: Readonly<Partial<Record<TarsSaleState, number>>> =
+  decisionContract.minimumHandlingMinutes;
 
 const TEST_RESULT_SET = new Set<TarsDecisionTestResult>([
   'pass',
@@ -206,7 +204,6 @@ export function normalizeDecisionWork(value: unknown, now = new Date().toISOStri
 
   const completeness = stringValue(condition.completeness);
   const testedStatus = stringValue(condition.testedStatus);
-  const queuePressure = stringValue(economics.queuePressure);
   const selectedSaleState = stringValue(selection.saleState);
   const selectedAction = stringValue(selection.action);
 
@@ -248,12 +245,6 @@ export function normalizeDecisionWork(value: unknown, now = new Date().toISOStri
       : [],
     economics: {
       effectiveLaborRate: TARS_DECISION_EFFECTIVE_LABOR_RATE,
-      queuePressure:
-        queuePressure === 'low' || queuePressure === 'normal' || queuePressure === 'high'
-          ? queuePressure
-          : 'unknown',
-      queuePressureNote: stringValue(economics.queuePressureNote),
-      queuePressureAffectsScore: false,
       candidates: Array.isArray(economics.candidates)
         ? economics.candidates
           .map(normalizeCandidate)
@@ -504,7 +495,6 @@ export function recalculateDecisionEconomics(
       economics: {
         ...decision.economics,
         effectiveLaborRate: TARS_DECISION_EFFECTIVE_LABOR_RATE,
-        queuePressureAffectsScore: false,
         candidates,
         evaluatedAt: now,
       },

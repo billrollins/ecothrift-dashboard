@@ -779,16 +779,6 @@ def normalize_decision_work(
     previous_timestamps = raw.get('timestamps') if isinstance(raw.get('timestamps'), dict) else {}
     created_at = previous_timestamps.get('createdAt') or now.isoformat()
     handoff_raw = raw.get('handoff') if isinstance(raw.get('handoff'), dict) else {}
-    economics_raw = raw.get('economics') if isinstance(raw.get('economics'), dict) else {}
-    queue_pressure = _text(
-        economics_raw.get('queuePressure') or 'unknown',
-        field='decisionWork.economics.queuePressure',
-        limit=32,
-    ).lower()
-    if queue_pressure not in {'unknown', 'low', 'normal', 'high'}:
-        raise DecisionWorkValidationError(
-            'decisionWork.economics.queuePressure must be unknown, low, normal, or high.',
-        )
     for test in tests:
         test['createdAt'] = test['createdAt'] or now.isoformat()
         test['updatedAt'] = test['updatedAt'] or now.isoformat()
@@ -825,12 +815,6 @@ def normalize_decision_work(
         ],
         'economics': {
             'effectiveLaborRate': float(EFFECTIVE_LABOR_RATE),
-            'queuePressure': queue_pressure,
-            'queuePressureNote': _text(
-                economics_raw.get('queuePressureNote'),
-                field='decisionWork.economics.queuePressureNote',
-            ),
-            'queuePressureAffectsScore': False,
             'candidates': [
                 {
                     'outcomeId': entry['id'],
