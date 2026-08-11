@@ -2392,7 +2392,11 @@ def processing_row_patch(user, order: PurchaseOrder, processing_row_id: int, dat
         if 'price' in data or 'shelf_price' in data:
             shelf = parse_decimal(data.get('shelf_price') or data.get('price'))
             if shelf is not None:
+                # Keep final_price in lockstep (same as push_shelf_price_to_bookmark).
+                # Denorm falls back to final_price when a row has no items; leaving it
+                # stale would overwrite a fresh shelf_price on the next refresh.
                 row.shelf_price = shelf
+                row.final_price = shelf
         if 'identifiers' in data:
             row.identifiers = _normalize_identifiers_dict(data.get('identifiers'))
         elif 'upc' in data:

@@ -1251,7 +1251,9 @@ def refresh_processing_rows_denorm(
             pr.item_ids = []
             pr.list_dispatch = 'on_shelf'
             pr.list_sku = ''
-            pr.shelf_price = pr.final_price if pr.final_price is not None else pr.proposed_price
+            # Only seed shelf_price when missing — never clobber a deliberate patch.
+            if pr.shelf_price is None:
+                pr.shelf_price = pr.final_price if pr.final_price is not None else pr.proposed_price
             # matched_product is preserved: ProcessingRow owns its decided match
             # (product_identity_design.md §2); deliberate clears go through
             # _unlink_processing_bookmarks / explicit mutations.
@@ -1285,7 +1287,10 @@ def refresh_processing_rows_denorm(
         else:
             pr.list_dispatch = 'on_shelf'
             pr.list_sku = ''
-            pr.shelf_price = pr.final_price if pr.final_price is not None else pr.proposed_price
+            # Item-less manifest rows: seed shelf from final/proposed only when unset.
+            # Overwriting here undid processing-row-patch shelf_price (retail lock / % badge).
+            if pr.shelf_price is None:
+                pr.shelf_price = pr.final_price if pr.final_price is not None else pr.proposed_price
 
     manifest_prs = [p for p in prs if p.row_kind != ProcessingRow.ROW_KIND_ADDED]
     # Rebuild after legacy manifest/item backfill may have set matched_product_id (P3 / Session 5).

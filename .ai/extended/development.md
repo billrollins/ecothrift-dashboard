@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-07 (v2.69.0 Online Sales env table + go-live flags) -->
+<!-- Last updated: 2026-08-11 (dev starters: dashboard = staff only, website = public only) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -108,10 +108,10 @@ If **POS registers** or **supplemental drawer** rows are missing, run `python ma
 
 | Script | What it does |
 |--------|-------------|
-| `scripts/dev/start_all.bat` | **Preferred full stack:** Django + staff Vite HTTPS (PC + phone) + public site (8000 / 5173 / 5174). |
-| `scripts/dev/start_dashboard.bat` | Django + staff HTTP + public site (8000 / 5173 / 5174). |
-| `scripts/dev/start_mobile_dashboard.bat` | Django + staff HTTPS on LAN + public site. |
-| `scripts/dev/start_website.bat` | Same as start_dashboard (staff + public); kept as a familiar name. |
+| `scripts/dev/start_all.bat` | **Full stack:** Django + staff Vite (LAN HTTPS by default) + public site (8000 / 5173 / 5174). |
+| `scripts/dev/start_dashboard.bat` | **Staff only (dash):** Django + staff Vite (8000 / 5173). Does **not** start www. |
+| `scripts/dev/start_mobile_dashboard.bat` | Same as `start_dashboard` (LAN HTTPS is already the default). |
+| `scripts/dev/start_website.bat` | **Public only (www):** Django + `frontend-public` (8000 / 5174). |
 | `python scripts/data/extract_po_descriptions.py` (if present locally) | **Historical sell-through —** reads POs from local **ecothrift_v1** / **ecothrift_v2** / **ecothrift_v3**; writes CSV under **`workspace/data/`** (**`CHANGELOG`** **2.7.1**). Requires **`psycopg2`** and root **`.env`** DB vars. |
 | `printserver/dev_print_label_test.bat` | Prints sample inventory labels **without** starting the print server (defaults to **Rollo Printer**). Pass `--dry-run` to write PNGs under `printserver/output/` instead. Example: `dev_print_label_test.bat --preset 3x2 --row 0` |
 | `printserver/dev_print_receipt_test.bat` | Renders a sample receipt to **PNG** under `printserver/output/` (no printer). Pass `--print` to also send to Windows (uses `receipt_printer` from settings or `--printer`). Optional JSON path (same shape as POST `/print/receipt` `receipt_data`). |

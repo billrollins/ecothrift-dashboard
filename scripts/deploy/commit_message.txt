@@ -1,17 +1,9 @@
-release: v2.69.0 Online Sales goes live
+feat(processing): retail/price lock with editable percent badge
 
-Release: v2.69.0
+Release: v2.70.0
 
-Ship the Online Sales MVP to production: Customers workspace (Messages
-moved off Holds), verified holds, account portal, Graph mail, and
-migrations through webstore 0015.
-
-Hardening for launch:
-- Remove whole-database wipe commands (reset_business_data,
-  reset_buying_data, create_test_auctions) and seed_categories --clear.
-  Online Sales blank-slate is purge_online_sales only.
-- Document ONLINE_SALES_*, MS_GRAPH_*, and PUBLIC_SITE_* in development.md;
-  sync .envprod with storefront off until post-deploy purge/seed/smoke.
-- Ignore scripts/deploy/temp_* so pull-prod dumps cannot be committed.
-
-Initiative: online_sales_mvp
+- Add lock toggle + % badge on Processing row details and shared check-in fields
+- Lock scales price when retail changes; % edit updates shelf price (never reverse)
+- Persist lock preference in localStorage; row-detail overlay matches check-in feel
+- Fix processing-row-patch: keep final_price with shelf_price; denorm no longer clobbers
+- Restore start_dashboard / start_website / start_all as distinct staff / public / full starters

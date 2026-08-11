@@ -35,6 +35,11 @@ import {
   CheckInOrderAutocomplete,
   type CheckInOrderAutocompleteProps,
 } from './CheckInOrderAutocomplete';
+import {
+  RetailPriceLockToggle,
+  RetailPricePctButton,
+  useRetailPriceLock,
+} from './RetailPriceLockControls';
 
 function parseCheckInQuantity(raw: string): number {
   const n = Number.parseInt(raw, 10);
@@ -482,8 +487,9 @@ const requiredFieldOutlineSx = {
 const checkInMoneyFieldsRowSx = {
   gridColumn: '1 / -1',
   display: 'grid',
-  gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+  gridTemplateColumns: { xs: '1fr', sm: '1fr auto 1fr' },
   gap: 1.5,
+  alignItems: 'center',
   p: 1.25,
   borderRadius: 1.5,
   border: '1.5px solid',
@@ -545,6 +551,7 @@ function CheckInMoneyField({
   disabled,
   required,
   highlightMissing,
+  endAdornment,
 }: {
   label: string;
   value: string;
@@ -552,6 +559,7 @@ function CheckInMoneyField({
   disabled?: boolean;
   required?: boolean;
   highlightMissing?: boolean;
+  endAdornment?: ReactNode;
 }) {
   const [focused, setFocused] = useState(false);
   const displayValue =
@@ -599,6 +607,7 @@ function CheckInMoneyField({
               $
             </Typography>
           ),
+          ...(endAdornment ? { endAdornment } : {}),
         },
       }}
     />
@@ -792,6 +801,7 @@ export function CheckInDetailFieldsSection({
   disabled,
   highlightRequired = false,
 }: CheckInDetailFieldsSectionProps) {
+  const retailPriceLock = useRetailPriceLock();
   const salvageLocked = condition === 'salvage';
   const priceMissing = highlightRequired && !isValidCheckInPrice(price);
   const showStatus = status != null && onStatusChange != null;
@@ -871,16 +881,57 @@ export function CheckInDetailFieldsSection({
           <CheckInMoneyField
             label="Retail"
             value={retail}
-            onChange={onRetailChange}
+            onChange={(next) => {
+              onRetailChange(next);
+              const nextPrice = retailPriceLock.priceForRetail(next, { retail, price });
+              if (nextPrice) {
+                onPriceChange(nextPrice);
+                retailPriceLock.syncPctFromPrice(next, nextPrice);
+              }
+            }}
             disabled={disabled}
           />
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              alignSelf: { xs: 'center', sm: 'stretch' },
+              py: { xs: 0, sm: 0.5 },
+            }}
+          >
+            <RetailPriceLockToggle
+              locked={retailPriceLock.locked}
+              pct={retailPriceLock.effectivePct(retail, price)}
+              size="medium"
+              disabled={disabled}
+              onToggle={() => retailPriceLock.toggleLock(retail, price)}
+            />
+          </Box>
           <CheckInMoneyField
             label="Price"
             value={price}
-            onChange={onPriceChange}
+            onChange={(next) => {
+              onPriceChange(next);
+              retailPriceLock.syncPctFromPrice(retail, next);
+            }}
             disabled={disabled}
             required={highlightRequired}
             highlightMissing={priceMissing}
+            endAdornment={
+              <RetailPricePctButton
+                retail={retail}
+                price={price}
+                pct={retailPriceLock.effectivePct(retail, price)}
+                isFallback={retailPriceLock.isPctFallback(retail, price)}
+                size="medium"
+                disabled={disabled}
+                onCommitPct={(nextPct, nextPrice) => {
+                  retailPriceLock.setPct(nextPct);
+                  onPriceChange(nextPrice);
+                }}
+              />
+            }
           />
         </Box>
         <Box sx={{ gridColumn: '1 / -1' }}>

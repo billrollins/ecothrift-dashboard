@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-07 (online_sales_mvp v2.69.0 go-live) -->
+<!-- Last updated: 2026-08-11 (online_sales_mvp → _completed/; Active empty) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not roadmap strategy, not week-scale projects, not an AI plan/TODO list.
@@ -11,9 +11,7 @@ Session details live **only** in each file under **`## Sessions`**.
 
 ## Active
 
-| Initiative | Phase | Notes |
-|------------|-------|-------|
-| [online_sales_mvp](./online_sales_mvp.md) | **v2.69.0 go-live** | Public storefront + Graph mail on; Customers workspace; verified holds; account portal; Online Sales purge-only blank slate. Narrows parked [online_sales_workspace](./_archived/_pending/online_sales_workspace.md). |
+*(none — start a new initiative with [`session.0.Create.md`](../protocols/session.0.Create.md) / [`code.0.Startup.md`](../protocols/code.0.Startup.md))*
 
 ---
 
@@ -23,10 +21,10 @@ Paused to resume later. Full checklists and sessions are in each file.
 
 | Initiative | Description | Pending since | Why / resume |
 |------------|-------------|---------------|--------------|
-| [online_sales_workspace](./_archived/_pending/online_sales_workspace.md) | Online Sales workspace + Listing Studio (holds, publish, channel copy, pickup-only policy). Phase 0 contract + substantial Phase 1 code retained. | 2026-07-21 | Disabled for **v2.50** Deliveries (`ONLINE_SALES_ENABLED=false`, nav/routes/holds off). **Resume:** re-enable flag + UI; hard-control corrections; A-grade Studio; Phase 2 ops. |
+| [online_sales_workspace](./_archived/_pending/online_sales_workspace.md) | Online Sales workspace long-term vision (channels, marketing, P&L). Phase 0 contract retained. | 2026-07-21 | MVP shipped via completed [online_sales_mvp](./_archived/_completed/online_sales_mvp.md) **v2.69.0**. **Resume:** only for scope beyond MVP (FB automation, contribution, B2B, etc.). |
 | [tars_full_instruction_wizard_guidance](./_archived/_pending/tars_full_instruction_wizard_guidance.md) | TARS decision guardrails / worksheet / guidance (process canon + Bill-managed catalogs + improvement loop). Phase 1.5 Studio (`/restoration/tars`) shipped. | 2026-07-21 | Deferred for Deliveries release. **Resume:** owner/Mike floor validation → Phase 2 catalogs → Phase 3 improvement loop. |
 | [tars_restoration_workspace](./_archived/_pending/tars_restoration_workspace.md) | TARS Restoration transactional product: queue + live bench. Phases 0–2 + hardening shipped (**~v2.39.0**). | 2026-07-09 | Bench live; execution/steering deferred. **Resume:** Phase 3 (verb panels, complete → location/dispatch) + Phase 4 (time premium / `AppSetting` steering). |
-| [public_website](./_archived/_pending/public_website.md) | Public storefront rebuild (hostname split, curated catalog, shop UX). Engineering Phases 0–4 + polish shipped **v2.26.0**. | 2026-05-30 | Code done; launch ops deferred. **Resume:** Heroku deploy, prod `seed_shop_categories`, Helcim + email wiring. Note: online-pay policy may be superseded by Online Sales (reserve online / pay in store). |
+| [public_website](./_archived/_pending/public_website.md) | Public storefront rebuild (hostname split, curated catalog, shop UX). Engineering Phases 0–4 + polish shipped **v2.26.0**. | 2026-05-30 | Launch ops largely covered by Online Sales MVP go-live. **Resume:** Helcim/pay-online only if policy changes (MVP is pickup-only). |
 | [historical_sell_through_analysis](./_archived/_pending/historical_sell_through_analysis.md) | Historical sell-through by category; PO extract + manual `PricingRule` seeds shipped. | 2026-04-10 | Deeper legacy DB / CSV / sales-join phases deferred until needed. |
 | [print_server_receipt_format](./_archived/_pending/print_server_receipt_format.md) | GDI receipt layout + `receipt_data` parity; workspace tooling for reference. | 2026-03-28 | Paused pre-production. |
 | [create_location_label](./_archived/_pending/create_location_label.md) | Inventory-scan thermal location label (3×2, QR + aisle/shelf/category). | 2026-03-28 | Product integration deferred. |
@@ -52,6 +50,7 @@ Not started / future; not scheduled.
 
 Name only. Details in each file.
 
+- [online_sales_mvp](./_archived/_completed/online_sales_mvp.md)
 - [retail_qa_submission_reliability](./_archived/_completed/retail_qa_submission_reliability.md)
 - [delivery_mobile_operations_completion](./_archived/_completed/delivery_mobile_operations_completion.md)
 - [pos_discount_and_delivery](./_archived/_completed/pos_discount_and_delivery.md)

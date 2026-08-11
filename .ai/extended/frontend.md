@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-07 (v2.69.0 Online Sales Customers workspace) -->
+<!-- Last updated: 2026-08-11 (start_website = public only; start_all = full stack) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -138,7 +138,7 @@
 
 Separate Vite + React 18.3 + TypeScript build for shoppers (`ecothrift.us` / `www`). **Not** bundled with the staff dashboard.
 
-- **Dev:** `cd frontend-public && npm run dev` → **http://localhost:5174** (proxies `/api` → Django `:8000`). Also started by `scripts/dev/start_website.bat`.
+- **Dev:** `cd frontend-public && npm run dev` → **http://localhost:5174** (proxies `/api` → Django `:8000`). Started by `scripts/dev/start_website.bat` (public only) or `scripts/dev/start_all.bat` (full stack).
 - **Prod:** `npm run build` → `frontend-public/dist`, collected under `STATIC_ROOT/site` (`base: '/static/site/'`). `PublicSiteMiddleware` serves `index.html` on public hosts.
 - **Routes:** `/` Home, `/shop` + `/shop/:slug` catalog, `/checkout`, `/order/:number`, `/blog` + `/blog/:slug`, `/visit`, `/sell`, `/404`.
 - **Stack:** React Router v7, shared design tokens in `styles.css`, `useSeo` + JSON-LD, client cart (`localStorage`), code-split lazy routes.

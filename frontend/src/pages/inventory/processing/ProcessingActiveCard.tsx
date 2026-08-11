@@ -56,8 +56,13 @@ import type {
 } from '../../../types/inventory.types';
 import { ProductManagePanel, rowDetailsToProductEditorDraft } from '../manage/ProductManageDrawer';
 import { isValidCheckInPrice } from '../workbench/CheckInDetailsLayout';
+import {
+  RetailPriceLockToggle,
+  RetailPricePctButton,
+  useRetailPriceLock,
+} from '../workbench/RetailPriceLockControls';
 import { formatCurrency } from '../../../utils/format';
-import { preventWheelChangeNumber, sanitizeDecimalPaste } from '../../../utils/formInputs';
+import { moneyValuesEqual, preventWheelChangeNumber, sanitizeDecimalPaste } from '../../../utils/formInputs';
 import { isTaxonomyV1CategoryName, TAXONOMY_V1_CATEGORY_NAMES } from '../../../constants/taxonomyV1';
 import { ProcessingGoogleSearchButton } from './ProcessingGoogleSearchButton';
 import { parseSearchTagsCsv } from './processingGoogleQuery';
@@ -521,6 +526,7 @@ function ManifestField({
   variant = 'block',
   selectOptions,
   emphasis = 'normal',
+  trailingAdornment,
   onSave,
 }: {
   fieldId?: ManifestFieldId;
@@ -534,6 +540,8 @@ function ManifestField({
   variant?: ManifestFieldVariant;
   selectOptions?: readonly string[];
   emphasis?: 'compact' | 'normal' | 'emphasized';
+  /** Rendered after the value / currency input (e.g. % of retail badge on Price). */
+  trailingAdornment?: ReactNode;
   onSave: (value: string) => void | Promise<void>;
 }) {
   const nav = useContext(ManifestFieldNavContext);
@@ -544,6 +552,8 @@ function ManifestField({
   const editContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(null);
   const suppressBlurRef = useRef(false);
+  /** Prop value at the moment we set optimistic — used to detect external updates. */
+  const optimisticBaselineRef = useRef<string | null>(null);
   const layout = manifestFieldLayout(variant, multiline, emphasis);
   const rawValue = optimisticValue ?? value;
   const effectiveRaw = currency ? rawValue : (optimisticValue ?? displayValue ?? value);
@@ -558,10 +568,24 @@ function ManifestField({
 
   useEffect(() => {
     setDraft(value);
-    if (optimisticValue != null && value === optimisticValue) {
+    if (optimisticValue == null) return;
+    // Server echoes money as "30.00" while the pill may have saved "30" — compare numerically.
+    const matches = currency ? moneyValuesEqual(value, optimisticValue) : value === optimisticValue;
+    if (matches) {
       setOptimisticValue(null);
+      optimisticBaselineRef.current = null;
+      return;
     }
-  }, [value, optimisticValue]);
+    // Prop left the baseline we saved over → external update (lock / % badge) wins.
+    const baseline = optimisticBaselineRef.current;
+    if (
+      baseline != null &&
+      !(currency ? moneyValuesEqual(value, baseline) : value === baseline)
+    ) {
+      setOptimisticValue(null);
+      optimisticBaselineRef.current = null;
+    }
+  }, [value, optimisticValue, currency]);
 
   const beginEdit = useCallback(() => {
     const nextDraft = selectOptions ? (optimisticValue ?? value) : (currency ? rawValue : effectiveRaw);
@@ -604,6 +628,7 @@ function ManifestField({
   function confirmEdit(nextValue: string = draft, tabDirection?: 1 | -1) {
     const normalized = currency ? sanitizeDecimalPaste(nextValue.trim()) : nextValue;
     armSuppressBlur();
+    optimisticBaselineRef.current = value;
     setOptimisticValue(normalized);
     setDraft(normalized);
     setSelectMenuOpen(false);
@@ -612,6 +637,7 @@ function ManifestField({
       releaseSuppressBlur();
       void Promise.resolve(onSave(normalized)).catch(() => {
         setOptimisticValue(null);
+        optimisticBaselineRef.current = null;
       });
       if (fieldId && nav && tabDirection) {
         nav.focusAdjacent(fieldId, tabDirection);
@@ -818,6 +844,19 @@ function ManifestField({
                       fontVariantNumeric: 'tabular-nums',
                     }}
                   />
+                  {trailingAdornment ?
+                    <Box
+                      sx={{ flexShrink: 0, display: 'flex', alignItems: 'center', pr: 0.35 }}
+                      onPointerDown={() => {
+                        armSuppressBlur();
+                        confirmEdit(draft);
+                      }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {trailingAdornment}
+                    </Box>
+                  : null}
                 </Box>
               : <Box
                   component="input"
@@ -879,6 +918,15 @@ function ManifestField({
             >
               {variant === 'pill' && isEmpty ? pillPlaceholder : shown}
             </Typography>
+            {trailingAdornment ?
+              <Box
+                sx={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {trailingAdornment}
+              </Box>
+            : null}
           </Box>
         }
       </Box>
@@ -1323,7 +1371,29 @@ export function ProcessingActiveCard({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { confirm, ConfirmDialogHost } = useWorkbenchConfirmDialog();
+  const retailPriceLock = useRetailPriceLock();
+  /**
+   * Instant retail/price overlay (check-in parity). Manifest pills commit on save, but lock/%
+   * must update the sibling field immediately — not after the PATCH round-trip.
+   */
+  const [moneyOverlay, setMoneyOverlay] = useState<{ retail?: string; price?: string } | null>(null);
   const priorCheckInsRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setMoneyOverlay(null);
+  }, [row.processing_row_id]);
+
+  useEffect(() => {
+    if (!moneyOverlay) return;
+    const retailCaughtUp =
+      moneyOverlay.retail == null || moneyValuesEqual(row.unitRetail ?? '', moneyOverlay.retail);
+    const priceCaughtUp =
+      moneyOverlay.price == null || moneyValuesEqual(row.price ?? '', moneyOverlay.price);
+    if (retailCaughtUp && priceCaughtUp) setMoneyOverlay(null);
+  }, [row.unitRetail, row.price, moneyOverlay]);
+
+  const displayRetail = moneyOverlay?.retail ?? row.unitRetail ?? '';
+  const displayPrice = moneyOverlay?.price ?? row.price ?? '';
   const { hasRole } = useAuth();
   const isManager = hasRole('Manager') || hasRole('Admin');
   const setRowProduct = useProcessingSetRowProduct(orderId);
@@ -1905,11 +1975,110 @@ export function ProcessingActiveCard({
               />
             </ManifestToolbarSlot>
             <ManifestToolbarSlot sx={manifestToolbarMoneyFieldSx}>
-              <ManifestField fieldId="unitRetail" label="Retail" currency value={row.unitRetail ?? ''} layerSources={row.rowLayerSources?.unitRetail ?? {}} variant="pill" onSave={(v) => patchRow({ unit_retail: v || undefined })} />
+              <ManifestField
+                fieldId="unitRetail"
+                label="Retail"
+                currency
+                value={displayRetail}
+                layerSources={row.rowLayerSources?.unitRetail ?? {}}
+                variant="pill"
+                onSave={(v) => {
+                  const nextPrice = retailPriceLock.priceForRetail(v, {
+                    retail: displayRetail,
+                    price: displayPrice,
+                  });
+                  if (nextPrice) retailPriceLock.syncPctFromPrice(v, nextPrice);
+                  setMoneyOverlay({
+                    retail: v,
+                    price: nextPrice ?? displayPrice,
+                  });
+                  void patchRow({
+                    unit_retail: v || undefined,
+                    ...(nextPrice ? { shelf_price: nextPrice } : {}),
+                  });
+                }}
+              />
             </ManifestToolbarSlot>
+            {/* Spacer matches ManifestField label so lock sits mid-pill, not mid-label+pill. */}
+            <Box
+              sx={{
+                flex: '0 0 auto',
+                display: 'flex',
+                flexDirection: 'column',
+                py: 0.35,
+                px: 0.15,
+              }}
+            >
+              <Box sx={{ ...processingRowLabelSx, visibility: 'hidden', userSelect: 'none' }} aria-hidden>
+                &nbsp;
+              </Box>
+              <Box
+                sx={{
+                  height: PROCESSING_ROW_FIELD_HEIGHT,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <RetailPriceLockToggle
+                  locked={retailPriceLock.locked}
+                  pct={retailPriceLock.effectivePct(displayRetail, displayPrice)}
+                  size="small"
+                  onToggle={() => retailPriceLock.toggleLock(displayRetail, displayPrice)}
+                />
+              </Box>
+            </Box>
             <ManifestToolbarSlot sx={manifestToolbarMoneyFieldSx}>
-              <ManifestField fieldId="price" label="Price" currency value={row.price ?? ''} layerSources={row.rowLayerSources?.price ?? {}} variant="pill" onSave={(v) => patchRow({ shelf_price: v || undefined })} />
+              <ManifestField
+                fieldId="price"
+                label="Price"
+                currency
+                value={displayPrice}
+                layerSources={row.rowLayerSources?.price ?? {}}
+                variant="pill"
+                onSave={(v) => {
+                  retailPriceLock.syncPctFromPrice(displayRetail, v);
+                  setMoneyOverlay({ retail: displayRetail, price: v });
+                  void patchRow({ shelf_price: v || undefined });
+                }}
+              />
             </ManifestToolbarSlot>
+            {/* % badge outside ManifestField so click/Enter don't fight pill edit + tooltip. */}
+            <Box
+              sx={{
+                flex: '0 0 auto',
+                display: 'flex',
+                flexDirection: 'column',
+                py: 0.35,
+                pl: 0.15,
+                pr: 0.35,
+              }}
+            >
+              <Box sx={{ ...processingRowLabelSx, visibility: 'hidden', userSelect: 'none' }} aria-hidden>
+                &nbsp;
+              </Box>
+              <Box
+                sx={{
+                  height: PROCESSING_ROW_FIELD_HEIGHT,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <RetailPricePctButton
+                  retail={displayRetail}
+                  price={displayPrice}
+                  pct={retailPriceLock.effectivePct(displayRetail, displayPrice)}
+                  isFallback={retailPriceLock.isPctFallback(displayRetail, displayPrice)}
+                  size="small"
+                  onCommitPct={(nextPct, nextPrice) => {
+                    retailPriceLock.setPct(nextPct);
+                    setMoneyOverlay({ retail: displayRetail, price: nextPrice });
+                    void patchRow({ shelf_price: nextPrice });
+                  }}
+                />
+              </Box>
+            </Box>
             <ManifestModalField
               label="Identifiers"
               summary={identifiersSummary(rowBookmark.identifiers)}

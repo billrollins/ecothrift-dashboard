@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-30 (retail_qa_submission_reliability → _completed/) -->
+<!-- Last updated: 2026-08-11 (online_sales_mvp → _completed/) -->
 # Archive index — initiatives
 
 **Note:** Archived session logs may mention **`.ai/consultant_context.md`**, **`.ai/plans/`**, or **`.ai/debug/`** — those paths are **retired** (2026-05). Use **`.ai/context.md`**, initiatives as the plan, and repo root **`.version`** / **`CHANGELOG.md`**.
@@ -51,6 +51,7 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 
 | File | Summary | Archived |
 |------|---------|----------|
+| [online_sales_mvp.md](./_completed/online_sales_mvp.md) | Online Sales MVP: reserve online / pay in store; Customers workspace; verified holds; Graph mail; public shop go-live. Shipped **v2.62.0–v2.69.0**. Residual: Scheduler confirm, first listings, week of live use. | 2026-08-11 |
 | [retail_qa_submission_reliability.md](./_completed/retail_qa_submission_reliability.md) | Retail QA submission reliability: stranded-draft recovery, autosave/resume, +/- grades, dashboard deep links, 8-week grids. Shipped **v2.60.0–v2.61.0**. Photo S3 deferred. | 2026-07-30 |
 | [delivery_mobile_operations_completion.md](./_completed/delivery_mobile_operations_completion.md) | Delivery Desk + Field ops: Days/Total, Eco Field five-step run, Routes API ETAs, evidence/SMS, Desk add/adjust, route maps, change history. Shipped **v2.55.0–v2.59.1**. Owner waived phone/visual pass. | 2026-07-29 |
 | [pos_discount_and_delivery.md](./_completed/pos_discount_and_delivery.md) | POS discount/store-credit + delivery fees, bilingual policy/printables, Deliveries board + scheduling. Shipped **v2.50.0**. Optional later: Directions API optimize. | 2026-07-21 |
@@ -100,14 +101,14 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 | File | Summary | Archived |
 |------|---------|----------|
 | [tars_full_instruction_wizard_guidance.md](./_pending/tars_full_instruction_wizard_guidance.md) | TARS decision guardrails / Studio guidance. Phase 1.5 Studio shipped and kept available. **Resume:** owner/Mike floor validation, then Phase 2 catalogs + Phase 3 improvement loop. | 2026-07-21 |
-| [online_sales_workspace.md](./_pending/online_sales_workspace.md) | Online Sales workspace (Listing Studio, holds, POS guard). Code retained; disabled for v2.50 Deliveries release. **Resume:** hard-control corrections + A-grade Studio + Phase 2 ops. | 2026-07-21 |
+| [online_sales_workspace.md](./_pending/online_sales_workspace.md) | Long-term Online Sales vision (channels, marketing, P&L). MVP shipped as [online_sales_mvp](./_completed/online_sales_mvp.md) **v2.69.0**. **Resume:** only for scope beyond MVP. | 2026-07-21 |
 | [tars_restoration_workspace.md](./_pending/tars_restoration_workspace.md) | TARS Restoration: queue + live bench (Phases 0–2 + hardening). **Resume:** Phase 3 execute workflows + Phase 4 steering. | 2026-07-09 |
 | [bstock_scraper.md](./_pending/bstock_scraper.md) | B-Stock notebook scraper; Phase 1 package in place; manifests/pipeline deferred (moved from `_backlog` 2026-03-27). | 2026-03-27 |
 | [historical_data_export.md](./_pending/historical_data_export.md) | **Phase 1 done** (pickles + manifest). **Phase 2** (seed V3, reporting slice, DS/embeddings) paused off main index. | 2026-03-28 |
 | [create_location_label.md](./_pending/create_location_label.md) | **Inventory-scan** thermal location label (3×2, QR + aisle/shelf/category); full layer spec was under **`.ai/reference/ecothrift_label_spec.txt`** (reference tree removed). Workspace render/CLI may exist locally; **product integration** deferred. | 2026-03-28 |
 | [print_server_receipt_format.md](./_pending/print_server_receipt_format.md) | GDI receipt layout, `receipt_data` parity, PNG vs plain-text paths; **paused** off main index pre-production (2026-03-28); `render_scale` + workspace GDI tooling shipped for reference. | 2026-03-28 |
 | [historical_sell_through_analysis.md](./_pending/historical_sell_through_analysis.md) | Historical sell-through rates by category; PO extract shipped (v2.7.1); manual `PricingRule` seeds live (v2.8.0); Phases 1–4 (legacy DB docs, CSV processing, sales join, data-backed rates) deferred until needed. | 2026-04-10 |
-| [public_website.md](./_pending/public_website.md) | Public storefront rebuild (Phases 0–4 + Session 7 polish); shipped **v2.26.0** in repo. **Resume:** Heroku deploy, prod `seed_shop_categories`, Helcim + email after vendor call. | 2026-05-30 |
+| [public_website.md](./_pending/public_website.md) | Public storefront rebuild (Phases 0–4 + Session 7 polish); shipped **v2.26.0**. Launch ops largely covered by Online Sales MVP go-live. **Resume:** Helcim/pay-online only if policy changes. | 2026-05-30 |
 
 ---
 

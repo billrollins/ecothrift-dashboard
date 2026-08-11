@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.69.0] -->
-<!-- Last reviewed: 2026-08-07 (v2.69.0 Online Sales go-live) -->
+<!-- Line 1 release: ## [2.70.0] -->
+<!-- Last reviewed: 2026-08-11 (v2.70.0 Processing retail/price lock) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.70.0] - 2026-08-11
+
+User-facing theme: **Processing retail/price lock** — lock % between Retail and Price, editable percent badge, and row-patch persistence that matches check-in.
+
+Outside initiatives (Processing QoL + dev starters).
+
+### Added
+
+- **Processing retail/price lock** — on the Processing row-detail toolbar and the shared check-in detail fields, a lock toggle sits between Retail and Price, and a clickable percent badge sits on the Price input. With the lock on, adjusting retail scales price by the held percent (price edits never move retail); clicking the badge edits the percent and updates the dollar amount. Lock + last percent persist in localStorage.
+
+### Fixed
+
+- **Dev starters split correctly again** — `start_dashboard.bat` / `start_mobile_dashboard.bat` start Django + staff dash only; `start_website.bat` starts Django + public www only; `start_all.bat` starts the full stack. They had all been aliases of one script that always launched both frontends.
+- **Processing row retail/price lock actually persists** — `processing-row-patch` now keeps `final_price` in lockstep with `shelf_price`, and denorm no longer overwrites a patched shelf price with a stale `final_price` on item-less rows. Row-detail lock/% updates match check-in modal dynamics.
 
 ## [2.69.0] - 2026-08-07
 

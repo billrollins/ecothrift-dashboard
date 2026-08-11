@@ -1,22 +1,29 @@
 <#
 .SYNOPSIS
-    Start the whole Eco-Thrift local stack: Django API, staff dashboard, public site.
+    Start the Eco-Thrift local stack (API + staff dash and/or public site).
 
 .DESCRIPTION
     Runs preflight checks before launching anything, so a broken start tells you
-    why instead of leaving three dead windows behind:
+    why instead of leaving dead windows behind:
 
       * Python / venv resolution
       * root .env present
       * database reachable and migrations applied (auto-applies by default)
-      * node_modules present in both frontends (auto-installs when missing)
+      * node_modules present for the frontends being started (auto-installs when missing)
 
     Then it launches each server in its own window and waits until the ports
     actually answer, so "READY" means ready.
 
+.PARAMETER Target
+    Which frontends to start alongside Django:
+      All    - staff dashboard (:5173) + public site (:5174)  [default]
+      Staff  - staff dashboard only (dash.ecothrift)
+      Public - public storefront only (www)
+
 .PARAMETER Http
     Serve the staff dashboard as plain HTTP on localhost only. The default is
-    HTTPS bound to the LAN so the same URL works from a phone.
+    HTTPS bound to the LAN so the same URL works from a phone. Ignored when
+    -Target Public.
 
 .PARAMETER Mobile
     Accepted for backwards compatibility. LAN HTTPS is now the default, so this
@@ -26,23 +33,29 @@
     Report pending migrations but do not apply them.
 
 .PARAMETER NoKill
-    Do not free ports 8000 / 5173 / 5174 first. Start fails if they are taken.
+    Do not free the target ports first. Start fails if they are taken.
 
 .PARAMETER NoOpen
     Do not open browser tabs once the stack is up.
 
 .PARAMETER Stop
-    Stop the stack and exit.
+    Stop the full stack (ports 8000 / 5173 / 5174) and exit.
 
 .EXAMPLE
-    .\dev.bat
+    .\dev.ps1
 .EXAMPLE
-    .\dev.bat -Http
+    .\dev.ps1 -Target Staff
 .EXAMPLE
-    .\dev.bat -Stop
+    .\dev.ps1 -Target Public
+.EXAMPLE
+    .\dev.ps1 -Http
+.EXAMPLE
+    .\dev.ps1 -Stop
 #>
 [CmdletBinding()]
 param(
+    [ValidateSet('All', 'Staff', 'Public')]
+    [string]$Target = 'All',
     [switch]$Http,
     [switch]$Mobile,
     [switch]$NoMigrate,
@@ -57,7 +70,12 @@ $Root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $ApiPort = 8000
 $StaffPort = 5173
 $PublicPort = 5174
-$Ports = @($ApiPort, $StaffPort, $PublicPort)
+$AllPorts = @($ApiPort, $StaffPort, $PublicPort)
+$StartStaff = $Target -ne 'Public'
+$StartPublic = $Target -ne 'Staff'
+$Ports = @($ApiPort)
+if ($StartStaff) { $Ports += $StaffPort }
+if ($StartPublic) { $Ports += $PublicPort }
 
 # ---------------------------------------------------------------- output helpers
 
@@ -146,7 +164,7 @@ function Get-LanIp {
 
 if ($Stop) {
     Write-Banner 'ECO-THRIFT DEV - STOP'
-    $n = Stop-Ports -PortList $Ports
+    $n = Stop-Ports -PortList $AllPorts
     if ($n -eq 0) { Write-Ok 'nothing was running' } else { Write-Ok "stopped $n process(es)" }
     Write-Host ''
     exit 0
@@ -154,7 +172,12 @@ if ($Stop) {
 
 # ---------------------------------------------------------------- preflight
 
-Write-Banner 'ECO-THRIFT DEV - PREFLIGHT'
+$targetLabel = switch ($Target) {
+    'Staff' { 'staff dashboard only' }
+    'Public' { 'public site only' }
+    default { 'full stack (staff + public)' }
+}
+Write-Banner "ECO-THRIFT DEV - PREFLIGHT ($targetLabel)"
 
 # Python: prefer the repo venv so the stack matches installed deps.
 $venvPython = Join-Path $Root 'venv\Scripts\python.exe'
@@ -221,10 +244,14 @@ finally {
 }
 
 # Frontend deps. A missing node_modules is otherwise a confusing Vite crash.
-foreach ($fe in @(
-        @{ Name = 'frontend'; Path = Join-Path $Root 'frontend' },
-        @{ Name = 'frontend-public'; Path = Join-Path $Root 'frontend-public' }
-    )) {
+$frontends = @()
+if ($StartStaff) {
+    $frontends += @{ Name = 'frontend'; Path = Join-Path $Root 'frontend' }
+}
+if ($StartPublic) {
+    $frontends += @{ Name = 'frontend-public'; Path = Join-Path $Root 'frontend-public' }
+}
+foreach ($fe in $frontends) {
     if (Test-Path (Join-Path $fe.Path 'node_modules')) {
         Write-Ok "$($fe.Name)\node_modules present"
     }
@@ -258,12 +285,13 @@ if ($NoKill) {
 }
 else {
     $n = Stop-Ports -PortList $Ports
-    if ($n -eq 0) { Write-Ok 'ports 8000 / 5173 / 5174 are free' }
+    if ($n -eq 0) { Write-Ok ("ports {0} are free" -f ($Ports -join ' / ')) }
 }
 
 # LAN HTTPS is the default so one URL works from both the PC and a phone, and
 # so the cert the browser already trusts keeps being the right one.
-$lanMode = -not $Http
+# Public-only skips staff Vite, so LAN mode is irrelevant there.
+$lanMode = $StartStaff -and -not $Http
 $lanIp = if ($lanMode) { Get-LanIp } else { $null }
 $staffScheme = if ($lanMode) { 'https' } else { 'http' }
 
@@ -298,34 +326,36 @@ else {
 Write-Step 'launching Django API'
 $null = Start-DevWindow -Title 'EcoThrift API' -WorkDir $Root -Command $djangoCmd
 
-Write-Step "launching staff dashboard$(if ($lanMode) { ' (HTTPS / LAN)' } else { ' (HTTP / localhost)' })"
-if ($lanMode) {
-    # Inherited by the child; frontend/vite.config.ts reads these.
-    $env:ECOTHRIFT_MOBILE_HTTPS = '1'
-    if ($lanIp) { $env:ECOTHRIFT_MOBILE_LAN_IP = $lanIp }
-}
-$staffCmd = if ($lanMode) { 'npm run dev:mobile' } else { 'npm run dev' }
-$null = Start-DevWindow -Title 'EcoThrift Staff' -WorkDir (Join-Path $Root 'frontend') -Command $staffCmd
-if ($lanMode) {
-    Remove-Item Env:ECOTHRIFT_MOBILE_HTTPS -ErrorAction SilentlyContinue
-    Remove-Item Env:ECOTHRIFT_MOBILE_LAN_IP -ErrorAction SilentlyContinue
+if ($StartStaff) {
+    Write-Step "launching staff dashboard$(if ($lanMode) { ' (HTTPS / LAN)' } else { ' (HTTP / localhost)' })"
+    if ($lanMode) {
+        # Inherited by the child; frontend/vite.config.ts reads these.
+        $env:ECOTHRIFT_MOBILE_HTTPS = '1'
+        if ($lanIp) { $env:ECOTHRIFT_MOBILE_LAN_IP = $lanIp }
+    }
+    $staffCmd = if ($lanMode) { 'npm run dev:mobile' } else { 'npm run dev' }
+    $null = Start-DevWindow -Title 'EcoThrift Staff' -WorkDir (Join-Path $Root 'frontend') -Command $staffCmd
+    if ($lanMode) {
+        Remove-Item Env:ECOTHRIFT_MOBILE_HTTPS -ErrorAction SilentlyContinue
+        Remove-Item Env:ECOTHRIFT_MOBILE_LAN_IP -ErrorAction SilentlyContinue
+    }
 }
 
-Write-Step 'launching public site'
-$null = Start-DevWindow -Title 'EcoThrift Public' -WorkDir (Join-Path $Root 'frontend-public') -Command 'npm run dev'
+if ($StartPublic) {
+    Write-Step 'launching public site'
+    $null = Start-DevWindow -Title 'EcoThrift Public' -WorkDir (Join-Path $Root 'frontend-public') -Command 'npm run dev'
+}
 
 # ---------------------------------------------------------------- health gate
 
 Write-Host ''
 Write-Step 'waiting for servers to answer...'
 
-# Poll all three together rather than one after another, so one dead server
-# cannot make the wait as long as the sum of every timeout.
-$results = [ordered]@{
-    'API'             = $false
-    'Staff dashboard' = $false
-    'Public site'     = $false
-}
+# Poll targeted servers together rather than one after another, so one dead
+# server cannot make the wait as long as the sum of every timeout.
+$results = [ordered]@{ 'API' = $false }
+if ($StartStaff) { $results['Staff dashboard'] = $false }
+if ($StartPublic) { $results['Public site'] = $false }
 $deadline = (Get-Date).AddSeconds(60)
 
 while ((Get-Date) -lt $deadline) {
@@ -337,11 +367,11 @@ while ((Get-Date) -lt $deadline) {
         }
     }
     # Vite is TCP-probed only, so a self-signed cert cannot fail the check.
-    if (-not $results['Staff dashboard'] -and (Get-PortOwner -Port $StaffPort)) {
+    if ($StartStaff -and -not $results['Staff dashboard'] -and (Get-PortOwner -Port $StaffPort)) {
         $results['Staff dashboard'] = $true
         Write-Ok 'Staff dashboard is up'
     }
-    if (-not $results['Public site'] -and (Get-PortOwner -Port $PublicPort)) {
+    if ($StartPublic -and -not $results['Public site'] -and (Get-PortOwner -Port $PublicPort)) {
         $results['Public site'] = $true
         Write-Ok 'Public site is up'
     }
@@ -363,8 +393,8 @@ $publicUrl = "http://localhost:$PublicPort/"
 
 if ($allUp) {
     Write-Banner 'READY'
-    Write-Host "  Staff dashboard   $staffUrl"
-    Write-Host "  Public site       $publicUrl"
+    if ($StartStaff) { Write-Host "  Staff dashboard   $staffUrl" }
+    if ($StartPublic) { Write-Host "  Public site       $publicUrl" }
     Write-Host "  API               http://127.0.0.1:$ApiPort/"
     if ($lanMode) {
         Write-Host ''
@@ -376,15 +406,15 @@ if ($allUp) {
         }
         Write-Host '  Accept the self-signed certificate warning once on the phone.'
         Write-Host '  Allow Node.js through Windows Firewall (Private networks) if it will not load.'
-        Write-Host '  Plain HTTP on localhost instead:  dev.bat -Http' -ForegroundColor DarkGray
+        Write-Host '  Plain HTTP on localhost instead:  scripts\dev\start_dashboard.bat -Http' -ForegroundColor DarkGray
     }
     Write-Host ''
-    Write-Host '  Stop everything:  scripts\dev\dev.bat -Stop' -ForegroundColor DarkGray
+    Write-Host '  Stop everything:  scripts\dev\start_all.bat -Stop' -ForegroundColor DarkGray
     Write-Host ''
 
     if (-not $NoOpen) {
-        Start-Process $staffUrl
-        Start-Process $publicUrl
+        if ($StartStaff) { Start-Process $staffUrl }
+        if ($StartPublic) { Start-Process $publicUrl }
     }
     exit 0
 }

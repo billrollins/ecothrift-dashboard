@@ -1,9 +1,10 @@
-<!-- initiative: slug=online-sales-mvp status=active updated=2026-08-07 -->
-<!-- Last updated: 2026-08-07T15:15:00-05:00 (Session 9 v2.69.0 production go-live) -->
+<!-- initiative: slug=online-sales-mvp status=completed updated=2026-08-11 -->
+<!-- Archived 2026-08-11: disposition=completed (v2.62.0–v2.69.0; production go-live) -->
+<!-- Last updated: 2026-08-11T11:51:00-05:00 (archived completed; Active cleared for next initiative) -->
 
 # Initiative: Online Sales MVP — reserve online, pay & pick up in store
 
-**Status:** **Active** (created 2026-07-30). Supersedes the ambition of parked [`online_sales_workspace`](./_archived/_pending/online_sales_workspace.md) for *what we ship next*; that file stays parked as the long-term vision and keeps the still-valid Phase 0 contract.
+**Status:** **Completed** (created 2026-07-30; archived 2026-08-11). Shipped **v2.62.0–v2.69.0**; production storefront + Graph mail live. Narrowed the parked [`online_sales_workspace`](../_pending/online_sales_workspace.md) vision for launch; that file stays as the long-term contract.
 
 **One sentence:** A customer sees an item on **ecothrift.us**, asks about it or reserves it, talks to us **inside our own system**, then comes to the store to **pay and pick up** — and staff run all of that from one **Online Sales** workspace in the dashboard.
 
@@ -308,15 +309,15 @@ Time from `online_sales` Item → published listing · holds requested / confirm
 - [x] Only three system emails exist: sign-in link, hold confirmed, you have a reply.
 - [x] Online Sales workspace live with Listings / Holds / Customers (Messages under Customers); legacy `/admin/web-store` and `/admin/web-orders` redirect without losing bookmarks.
 - [x] Listing Studio does basic CRUD well: create from Item or blank, photos, facts, price/quantity, publish/pause/sold/archive, clear readiness errors.
-- [ ] ecothrift.us `/shop` shows published listings with photos and pickup-only policy, reachable from site nav. *(prove after `ONLINE_SALES_ENABLED=true`)*
+- [x] ecothrift.us `/shop` shows published listings with photos and pickup-only policy, reachable from site nav. *(v2.69.0: shop/catalog live; catalog empty until owner publishes listings)*
 - [x] Customer can ask a question and request a hold **as a guest**; both land in one dashboard thread; staff replies reach the customer's token page / account Messages.
 - [x] A customer can sign in with a magic link and see their own requests and messages at `/account` — including ones they made as a guest with the same email.
 - [x] Forgot-password no longer returns a token in the response; refresh cookie is `secure`; login and sign-in-link requests are throttled; sign-in links are short-lived and single-use.
 - [x] A `Customer` account is proven to have zero staff access (route guards, `IsStaff`-gated APIs, dashboard host) and cannot read another customer's thread.
 - [x] Staff can verify → stage → confirm → complete a hold; POS completion is the only revenue event.
 - [x] Ready-for-pickup view answers "who is coming today and where is their stuff."
-- [ ] Hold expiry runs on a schedule and releases quantity. *(confirm Heroku Scheduler)*
-- [ ] `ONLINE_SALES_ENABLED=false` cleanly removes the customer surface (kill switch verified). *(prove at go-live)*
+- [ ] Hold expiry runs on a schedule and releases quantity. *(Scheduler dashboard opened; confirm jobs include expire_online_holds every 10 min, archive_online_sales daily, sync_ms_mailbox every 10 min)*
+- [x] `ONLINE_SALES_ENABLED=false` cleanly removes the customer surface (kill switch verified). *(prod: catalog 410 when off, 200 when on)*
 - [x] Hard controls above are covered by tests in `apps/webstore/tests/`.
 - [ ] Staff SOP written; launch set published; one week of live use reviewed.
 - [x] `CHANGELOG` + `.version` reflect the ship; `.ai/context.md` Active work updated.
@@ -343,7 +344,7 @@ Time from `online_sales` Item → published listing · holds requested / confirm
 - **Goal:** Implement overnight plan Phases 1–4 (surfaces, email, messages, accounts) + pickup tab + demo seed + hardening tests + handoff artifacts. No push, no prod.
 - **Done:** Auth hardening; audits; backend kill switch + expiry command; staff Online Sales nav/routes; public shop un-park behind config; policy copy guard; Conversation/Message + Inbox Messages; three system emails + email_setup; Customer magic-link + public account pages; Ready for pickup tab; `seed_online_sales_demo`; G1–G6 style tests; SOP/demo/changelog drafts; migration rollback rehearsal.
 - **Verify:** `makemigrations --check` clean; `test apps.webstore apps.accounts.tests` → **70 OK**; vitest online-sales+policy → **21 OK**; staff + public builds OK.
-- **Handoff:** Read [`.ai/reference/online_sales_mvp/overnight_log.md`](../reference/online_sales_mvp/overnight_log.md) first (DECISIONS NEEDED / WHERE I STOPPED / FINDINGS). Recommended semver draft `v2.62.0` in `changelog_draft.md` — do not bump yet.
+- **Handoff:** Read [`.ai/reference/online_sales_mvp/overnight_log.md`](../../../reference/online_sales_mvp/overnight_log.md) first (DECISIONS NEEDED / WHERE I STOPPED / FINDINGS). Recommended semver draft `v2.62.0` in `changelog_draft.md` — do not bump yet.
 - **Out of scope overnight:** Answering open gates G2–G6/G8/G9; DNS/provider signup; flipping `ONLINE_SALES_ENABLED` in production; editing `CHANGELOG.md` / `.version`.
 
 ### Session 3 — 2026-07-31 morning fix pass (stop before merge)
@@ -391,22 +392,30 @@ Time from `online_sales` Item → published listing · holds requested / confirm
 ### Session 9 — 2026-08-07 production go-live (v2.69.0)
 
 - **Goal:** Promote Online Sales to production: green gates, wipe Online Sales data only, remove whole-DB wipe commands, sync env, push GitHub + Heroku, flip storefront + Graph mail on.
-- **Done (prep):** Deleted `reset_business_data` / `reset_buying_data` / `create_test_auctions` and `seed_categories --clear`; Customers workspace + Messages move; query-budget pin for timeline prefetch; `.envprod` gains `PUBLIC_SITE_*` + retention keys with storefront temporarily off for sync; `CHANGELOG` / `.version` → **v2.69.0**.
-- **Verify:** `makemigrations --check` clean; `test apps.webstore apps.accounts` → 217 OK (query budget updated); staff vitest 421 OK; both Vite builds green.
-- **Owner ops after deploy:** `purge_online_sales --force-production --yes --customers`, seed shop categories/hours/blog, confirm Scheduler (`expire_online_holds`, `archive_online_sales`, `sync_ms_mailbox`), prove mail, flip `ONLINE_SALES_ENABLED=true`.
+- **Done:** Deleted `reset_business_data` / `reset_buying_data` / `create_test_auctions` and `seed_categories --clear`; Customers workspace + Messages move; query-budget pin; `.envprod` `PUBLIC_SITE_*` + retention keys; push GitHub + Heroku; prod purge/seed; Graph proof emails; kill switch 410/200; `ONLINE_SALES_ENABLED=true` + `MS_GRAPH_ENABLED=true`.
+- **Verify:** `makemigrations --check` clean; `test apps.webstore apps.accounts` → 217 OK; staff vitest 421 OK; both Vite builds green; live dyno `.version` **v2.69.0**.
+- **#### Result:** committed as **v2.69.0** at `d8e931b` (Heroku deploy + go-live config).
+- **Residual owner ops (not blocking archive):** confirm Heroku Scheduler jobs; publish first real listings; one full hold round trip; week of live use / staff SOP polish. Inbox confirmation of Graph proof mail.
+
+### Session 10 — 2026-08-11 archive completed
+
+- **Goal:** Close initiative so a new chat can start a fresh initiative with empty Active.
+- **Done:** Moved to `_archived/_completed/`; `_index.md` Active cleared; `ARCHIVE.md` + `context.md` compass updated.
+- **#### Result:** archived completed 2026-08-11 (no version bump; docs/lifecycle only).
 
 ---
 
 
 ## See also
 
-- [`.ai/initiatives/_archived/_pending/online_sales_workspace.md`](./_archived/_pending/online_sales_workspace.md) — full vision, parked; source of the accepted policy and data contracts
-- [`.ai/reference/online_sales_workspace/phase_0_contract.md`](../reference/online_sales_workspace/phase_0_contract.md) — accepted Phase 0 pack (policy copy, SOP, state machines, hard controls) — still authoritative where this file does not narrow it
-- [`.ai/initiatives/_archived/_pending/public_website.md`](./_archived/_pending/public_website.md) — public site build; its Helcim/shipping direction is superseded
+- [`.ai/initiatives/_archived/_pending/online_sales_workspace.md`](../_pending/online_sales_workspace.md) — full vision, parked; source of the accepted policy and data contracts
+- [`.ai/reference/online_sales_workspace/phase_0_contract.md`](../../../reference/online_sales_workspace/phase_0_contract.md) — accepted Phase 0 pack (policy copy, SOP, state machines, hard controls) — still authoritative where this file does not narrow it
+- [`.ai/initiatives/_archived/_pending/public_website.md`](../_pending/public_website.md) — public site build; its Helcim/shipping direction is superseded
 - `apps/webstore/` — models, views, `services/reservations.py`, `services/hours.py`, `services/feature.py`, `tests/test_holds_hard_controls.py`
 - `frontend/src/pages/online-sales/`, `frontend/src/api/webstore.api.ts`, `frontend/src/hooks/useWebStore.ts`
 - `frontend/src/navigation/navItemCatalog.ts`, `slotCNavLayout.ts`
 - `frontend-public/src/` — `App.tsx`, `api.ts`, `pages/`, `components/Layout.tsx`, `cart.tsx`
-- [`.ai/extended/development.md`](../extended/development.md) — Heroku Scheduler section for the expiry job
+- [`.ai/extended/development.md`](../../../extended/development.md) — Heroku Scheduler section for the expiry job
+- Root [`CHANGELOG.md`](../../../../CHANGELOG.md) **[2.69.0]** and earlier Online Sales sections
 
-*Parent: [`.ai/initiatives/_index.md`](./_index.md).*
+*Parent: [`.ai/initiatives/_index.md`](../../_index.md).*

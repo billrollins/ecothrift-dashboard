@@ -881,7 +881,46 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         pr.refresh_from_db()
         self.assertEqual(pr.title, 'Patched row title only')
         self.assertEqual(pr.shelf_price, Decimal('19.99'))
+        self.assertEqual(pr.final_price, Decimal('19.99'))
         self.assertIn('nerf', pr.search_string)
+
+    def test_processing_row_patch_shelf_price_survives_denorm_on_itemless_row(self):
+        """Retail-lock / % badge patches must not be clobbered by denorm's final_price fallback."""
+        from apps.inventory.models import ManifestRow, ProcessingRow
+
+        mr = ManifestRow.objects.create(
+            purchase_order=self.po,
+            row_number=99,
+            quantity=3,
+            title='Itemless lock target',
+            unit_retail=Decimal('100.00'),
+        )
+        pr = ProcessingRow.objects.create(
+            purchase_order=self.po,
+            manifest_row=mr,
+            row_number=99,
+            quantity=3,
+            title='Itemless lock target',
+            unit_retail=Decimal('100.00'),
+            shelf_price=Decimal('30.00'),
+            final_price=Decimal('30.00'),
+        )
+        r = self.client.patch(
+            f'/api/inventory/orders/{self.po.id}/processing-row-patch/',
+            {
+                'processing_row_id': pr.id,
+                'unit_retail': '150.00',
+                'shelf_price': '45.00',
+            },
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.data)
+        pr.refresh_from_db()
+        self.assertEqual(pr.unit_retail, Decimal('150.00'))
+        self.assertEqual(pr.shelf_price, Decimal('45.00'))
+        self.assertEqual(pr.final_price, Decimal('45.00'))
+        self.assertEqual(r.data['row']['price'], '45.00')
+        self.assertEqual(r.data['row']['unitRetail'], '150.00')
 
     def test_processing_row_patch_identifiers_replace_add_remove(self):
         pr = ProcessingRow.objects.get(purchase_order=self.po, manifest_row=self.mr1)

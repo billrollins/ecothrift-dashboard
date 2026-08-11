@@ -1,4 +1,4 @@
 @echo off
-REM Kept for muscle memory - dev.bat is the real entry point now.
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0dev.ps1" %*
+REM Staff dashboard only (Django API + frontend on :5173). Use start_all.bat for www too.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0dev.ps1" -Target Staff %*
 exit /b %ERRORLEVEL%

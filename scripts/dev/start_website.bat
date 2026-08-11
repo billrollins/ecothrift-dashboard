@@ -1,4 +1,4 @@
 @echo off
-REM Kept for muscle memory - dev.bat is the real entry point now.
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0dev.ps1" %*
+REM Public storefront only (Django API + frontend-public on :5174).
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0dev.ps1" -Target Public %*
 exit /b %ERRORLEVEL%
