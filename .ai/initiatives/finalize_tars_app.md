@@ -1,9 +1,9 @@
 <!-- initiative: slug=finalize-tars-app status=active updated=2026-08-11 -->
-<!-- Last updated: 2026-08-11 (restructured to Audit → Design → Code; code phases deferred until design is done) -->
+<!-- Last updated: 2026-08-11 (audit compiled; design drafted; two no-regret code stages shipped) -->
 
 # Initiative: Finalize TARS App
 
-**Status:** **Active** — Stage 1 (Audit)
+**Status:** **Active** — Stage 2 (Design) awaiting sign-off. Two no-regret code stages already shipped and tagged.
 
 **Objective:** One excellent, **100% functional MVP** of TARS that Mike and Ashley start using on the floor for real, pushed to production. Not a prototype, not a phase-gated research program — a finished small app.
 
@@ -39,6 +39,8 @@ TARS was built across two prior initiatives and many sessions. Parts of it are l
 
 **Register:** [`.ai/reference/TARS Restoration Processing App/audit_register.md`](../reference/TARS%20Restoration%20Processing%20App/audit_register.md)
 
+**Where it stands:** the register is compiled — ~90 elements across live surfaces, invisible rules, unreachable code, removed features, never-built intent, and reference docs, each with its verified state. Bill's per-row verdicts are **not** filled in: rather than review 90 rows, he asked for a proposed design to react to instead. The register stays as the backing detail behind any design decision he wants to argue with.
+
 ### How elements are reviewed
 
 | Element state | Review method |
@@ -73,7 +75,9 @@ TARS was built across two prior initiatives and many sessions. Parts of it are l
 
 **Goal:** Agree and document what the finished TARS app is, before writing code phases.
 
-**Design document:** to be created at the start of this stage.
+**Design document:** [`design.md`](../reference/TARS%20Restoration%20Processing%20App/design.md) — **drafted, awaiting Bill's sign-off.**
+
+In one line: *know what it's worth, decide what to do, prove what you did.* Three surfaces — **Handoff** (Ashley), **Bench** (Mike), **Desk** (Bill). The bench collapses five wizard-era tool tabs into three moves plus finish. Three lost queue functions return to whoever owns the problem. One open question: what device is physically at the bench.
 
 ### Inputs
 
@@ -121,7 +125,23 @@ Each phase will be a digestible, independently testable block sized to finish in
 
 A phase is not done until step 8. Phase ordering is Bill's call; the cycle does not change.
 
-*(phases: TBD after Stage 2)*
+### Proposed stages (from the design — not yet approved)
+
+Each is a git tag so Bill can keep some and drop others.
+
+| | Stage | What changes | Tag |
+|---|-------|--------------|-----|
+| 0 | *(baseline before any code)* | — | `tars/0-original` |
+| 1 | **Remove all legacy** | Delete everything unrouted, dead, and lying. No behavior change. | `tars/1-legacy-removed` **— shipped** |
+| 2 | **One truth** | Server is the only authority on the catalog and the money. | `tars/2-one-truth` **— shipped** |
+| 3 | **The bench** | Five cockpit tools become three moves plus finish. Touch-first. | pending design sign-off |
+| 4 | **Bring back what was lost** | Scan-new to Bench; split, combine, pull-back to Handoff. | pending |
+| 5 | **Bill's desk** | Parts and decisions in one place; dashboard tile reads the live schema. | pending |
+| 6 | **Finish** | Editable grade scales, cancel a parts request, role guards, docs, full test pass. | pending |
+
+**Stages 1 and 2 were shipped ahead of design sign-off deliberately:** both are pure subtraction or bug fix, correct under any design, and independently revertible. Stage 3 onward is not started, because the bench is exactly where Bill's judgement has to lead — the last time a decision UI was designed without it, it was graded D/F.
+
+Neither shipped stage has been pushed to production. Steps 6–8 of the cycle (bump, push, pull prod) are outstanding for both.
 
 ---
 
@@ -142,7 +162,7 @@ A phase is not done until step 8. Phase ordering is Bill's call; the cycle does 
 
 Logged for documentation only. No owner input required.
 
-*(none yet)*
+**2026-08-11 — Audit compiled, design drafted, stages 1–2 shipped.** Consolidated both prior TARS initiatives into this one. Compiled the audit register from a full read of the TARS backend and frontend. Drafted [`design.md`](../reference/TARS%20Restoration%20Processing%20App/design.md) and a matching canvas. Shipped `tars/1-legacy-removed` (4,646 lines of unrouted code deleted) and `tars/2-one-truth` (server made the sole authority on decision economics, guarded by a contract test on each side; queue pressure and the grade-scale fallback removed). Not pushed to production. Open question for Bill: what device is at the bench.
 
 ---
 

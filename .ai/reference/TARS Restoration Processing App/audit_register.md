@@ -2,7 +2,7 @@
 
 # TARS Audit Register
 
-**Initiative:** `[finalize_tars_app](../../initiatives/finalize_tars_app.md)` — Stage 1 (Audit)
+**Initiative:** [`finalize_tars_app`](../../initiatives/finalize_tars_app.md) — Stage 1 (Audit)
 
 **Purpose:** One accurate list of everything TARS is, was, or was meant to be, with Bill's verdict on each element. This register is the input to Stage 2 (Design). It records **facts and verdicts only** — no solutions, no plans.
 
@@ -218,10 +218,10 @@ From the two superseded initiatives and the pilot record. Bill decides whether e
 
 | #   | Document                                                           | What it claims                                                                                  | Verdict | MVP | Notes |
 | --- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- | ------- | --- | ----- |
-| D1  | `[standalone_studio_contract.md](./standalone_studio_contract.md)` | The Studio's product surface, ownership rules, log model, timer rules, and a 10-step smoke path |         |     |       |
-| D2  | `[phase_0_process_canon.md](./phase_0_process_canon.md)`           | The approved cross-role TARS process and vocabulary                                             |         |     |       |
-| D3  | `[phase_1_pilot_record.md](./phase_1_pilot_record.md)`             | What was tested and accepted at Phase 1, plus the observation plan that never ran               |         |     |       |
-| D4  | `[TARS.dc.html](./TARS.dc.html)`                                   | The original prototype; source of intent, not a contract                                        |         |     |       |
+| D1  | [`standalone_studio_contract.md`](./standalone_studio_contract.md) | The Studio's product surface, ownership rules, log model, timer rules, and a 10-step smoke path |         |     |       |
+| D2  | [`phase_0_process_canon.md`](./phase_0_process_canon.md)           | The approved cross-role TARS process and vocabulary                                             |         |     |       |
+| D3  | [`phase_1_pilot_record.md`](./phase_1_pilot_record.md)             | What was tested and accepted at Phase 1, plus the observation plan that never ran               |         |     |       |
+| D4  | [`TARS.dc.html`](./TARS.dc.html)                                   | The original prototype; source of intent, not a contract                                        |         |     |       |
 
 
 ---
@@ -235,9 +235,14 @@ Defects, surprises, and questions raised during the walkthrough. **Observations 
 
 | #   | Finding | Raised during | Severity |
 | --- | ------- | ------------- | -------- |
-|     |         |               |          |
+| F1  | The bench could show a labor rate the server would never save. The browser derived `$18 × 1.1` while the server hardcoded `$19.80`; they agreed only by coincidence of construction, so editing either constant alone would have silently diverged the previewed money from the saved money. | Code audit | **High** — fixed in `tars/2-one-truth` |
+| F2  | Queue pressure was asked, validated, stored, and then explicitly forced to not affect scoring. The app collected an answer it had already decided to ignore. | Code audit | Low — removed in `tars/2-one-truth` |
+| F3  | A failed grade-scales request rendered four hardcoded scales instead of an error, so a broken API looked like a working one. | Code audit | Medium — removed in `tars/2-one-truth` |
+| F4  | Roughly 2,500 lines of TARS frontend had no route to them, including a second complete implementation of the bench. Reading the tree meant guessing which version was live. | Code audit | Medium — deleted in `tars/1-legacy-removed` |
+| F5  | Split, combine, pull-back-before-bench, and scan-an-unknown-SKU existed only inside that unrouted code. The capabilities were lost silently when the Studio replaced the queue page. | Code audit | **High** — no home yet; Stage 4 of the design |
+| F6  | Nobody has confirmed what device is physically at the bench. Every layout decision depends on it. | Design | **Blocking** — one question for Bill |
 
 
 ---
 
-*Parent:* `[finalize_tars_app](../../initiatives/finalize_tars_app.md)`
+*Parent:* [`finalize_tars_app`](../../initiatives/finalize_tars_app.md) · *Design:* [`design.md`](./design.md)
