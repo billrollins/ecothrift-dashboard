@@ -2227,12 +2227,6 @@ export function patchRestorationJob(
   return api.patch(`/inventory/restoration-jobs/${id}/`, payload);
 }
 
-export function sendRestorationJob(
-  id: number,
-): Promise<{ data: RestorationJobDTO }> {
-  return api.post(`/inventory/restoration-jobs/${id}/send/`);
-}
-
 export function returnRestorationJobToProcessing(
   id: number,
   payload: RestorationJobReturnPayload,

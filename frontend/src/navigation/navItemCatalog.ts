@@ -201,12 +201,6 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'localOffer',
     roles: ['Manager', 'Admin'],
   },
-  restorationQueue: {
-    id: 'restorationQueue',
-    path: '/restoration/queue',
-    label: 'Queue',
-    icon: 'assignmentTurnedIn',
-  },
   tars: {
     id: 'tars',
     path: '/restoration/tars',

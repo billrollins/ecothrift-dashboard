@@ -559,31 +559,6 @@ def build_processing_desk_summary(job: RestorationJob) -> dict[str, Any]:
     }
 
 
-def processing_desk_queryset():
-    """TO (needs setup / queued) and FROM (unhandled returns) for Processing Restorations."""
-
-    from django.db.models import Q
-
-    return RestorationJob.objects.filter(
-        Q(
-            stage__in=[RestorationJob.STAGE_QUEUED, RestorationJob.STAGE_SENT],
-        )
-        | Q(
-            processing_handled_at__isnull=True,
-            stage=RestorationJob.STAGE_DONE,
-            bench_disposition=RestorationJob.BENCH_DISPOSITION_PROCESSING,
-        )
-        | Q(
-            processing_handled_at__isnull=True,
-            stage=RestorationJob.STAGE_RETURNED,
-            return_disposition_type__in=[
-                RestorationJob.RETURN_DISPOSITION_TARS_COMPLETED,
-                RestorationJob.RETURN_DISPOSITION_UNTOUCHED,
-            ],
-        ),
-    )
-
-
 def delete_restoration_job_for_check_in(check_in: ItemCheckIn) -> None:
     job = RestorationJob.objects.filter(item_check_in=check_in).first()
     if job is None:
