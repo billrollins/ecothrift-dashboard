@@ -34,6 +34,13 @@ import {
 } from './tarsActions';
 import { studio } from './studio/tarsStudioTheme';
 
+/**
+ * What the current-action card occupies: header row, category chips, and a
+ * two-row description. Both states of that slot claim it, so the list below
+ * sits at the same height whether or not the clock is on something.
+ */
+const CURRENT_ACTION_HEIGHT = 150;
+
 export function TarsWorkPanel({
   data,
   running,
@@ -76,6 +83,9 @@ export function TarsWorkPanel({
           sx={{
             px: 1.5,
             py: 1.5,
+            // Holds the space the action card will take, so starting work does
+            // not shove the activity list down the screen.
+            minHeight: CURRENT_ACTION_HEIGHT,
             borderRadius: `${studio.radius.lg}px`,
             border: `1px dashed ${studio.panelBorder}`,
             color: '#94a3b8',
@@ -139,8 +149,10 @@ function CurrentAction({
       sx={{
         px: 1.5,
         py: 1.25,
+        minHeight: CURRENT_ACTION_HEIGHT,
         borderRadius: `${studio.radius.lg}px`,
         bgcolor: studio.panel,
+        // Colour, never width: an undescribed action must not resize its card.
         border: `1px solid ${described ? studio.panelBorder : '#e3b23c'}`,
         borderLeft: `5px solid ${meta.color}`,
         boxShadow: studio.panelShadow,

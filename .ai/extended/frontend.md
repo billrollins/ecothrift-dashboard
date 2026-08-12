@@ -203,11 +203,17 @@ Adding a staff nav link: one object in `navItemCatalog.ts` + assign its id to a 
 
 ## Nothing may shift the page (house rule)
 
-**No element may push existing content up, down, or sideways when it appears.** A warning that pops in above a table moves the row the user was reaching for, which on a shop floor means a mis-click on a real item. This applies to alerts, banners, inline validation, empty states, and "N items need attention" strips.
+**No element may push existing content up, down, or sideways when it appears.** A warning that pops in above a table moves the row the user was reaching for, which on a shop floor means a mis-click on a real item. This applies to alerts, banners, hints, inline validation, empty states, and "N items need attention" strips.
+
+Enforced as an always-on rule in [`.cursor/rules/no-content-shift.mdc`](../../.cursor/rules/no-content-shift.mdc), because a rule that has to be looked up is a rule that gets broken while writing the component.
+
+**The test before any `{cond ? <X/> : null}`:** can `cond` change while someone is looking at this screen? If yes, it is a violation. A conditional is only safe when it is fixed for the life of the record on screen — a note that either exists on this item or does not.
 
 Use instead, in order of preference:
 
+- **Always render it, change only what it says** — the alternate state is usually real information rather than blank space (`{unclaimed ? 'Mark where it is now.' : \`Measured from ${grade}.\`}`).
 - **A reserved slot** — render the container at a fixed height whether or not it has content (`<Box sx={{ minHeight: 74 }}>{data ? <Thing /> : null}</Box>`).
+- **Colour, not size** — borders switch colour at the same width; never add a border, padding or margin that was not there before.
 - **A toast** (`notistack` `enqueueSnackbar`) — for the outcome of something the user just did.
 - **A badge and a drawer** — for standing conditions the user reads when they choose to. See `StudioNotices.tsx` in TARS: conditions collect behind a header badge and open in a right drawer.
 - **A modal** — for anything requiring an answer before continuing.

@@ -178,15 +178,33 @@ export function TarsGradeTable({
         />
       ))}
 
+      {/*
+        A footer that is always here and only changes what it says. An earlier
+        version rendered the prompt only while unclaimed, which pushed the whole
+        table down the moment someone answered it — the exact reflow this file
+        is otherwise careful to avoid.
+      */}
       {rows.length === 0 ? (
         <Typography sx={{ px: 1.25, py: 1.5, fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>
           No grade scale on this item yet. Set one from the queue.
         </Typography>
-      ) : unclaimed ? (
-        <Typography sx={{ px: 1.25, py: 0.7, fontSize: '0.72rem', fontWeight: 800, color: '#8a5200', bgcolor: '#fffaf0' }}>
-          Mark where the item is now — every rate is measured from it.
+      ) : (
+        <Typography
+          sx={{
+            px: 1.25,
+            py: 0.7,
+            fontSize: '0.72rem',
+            fontWeight: 800,
+            color: unclaimed ? '#8a5200' : '#94a3b8',
+            bgcolor: unclaimed ? '#fffaf0' : '#f8fafc',
+            borderTop: `1px solid ${studio.panelBorder}`,
+          }}
+        >
+          {unclaimed
+            ? 'Mark where the item is now — every rate is measured from it.'
+            : `Every rate is measured from ${plan.startingGrade}.`}
         </Typography>
-      ) : null}
+      )}
     </Box>
   );
 }
