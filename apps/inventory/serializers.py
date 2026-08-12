@@ -1815,6 +1815,10 @@ class RestorationDescribeActionSerializer(serializers.Serializer):
     category = serializers.CharField(required=False, allow_blank=True)
 
 
+class RestorationDeleteActionSerializer(serializers.Serializer):
+    action_id = serializers.IntegerField()
+
+
 class RestorationJobQueueDetailsSerializer(serializers.Serializer):
     """Queue context: the grade scale, its values, a note, and where it should go.
 

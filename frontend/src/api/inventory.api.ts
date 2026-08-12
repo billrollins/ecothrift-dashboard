@@ -2368,6 +2368,14 @@ export function describeRestorationAction(
   return api.post(`/inventory/restoration-jobs/${id}/describe-action/`, payload);
 }
 
+/** Drop a row from the log; its time goes to the row below it. */
+export function deleteRestorationAction(
+  id: number,
+  actionId: number,
+): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/delete-action/`, { action_id: actionId });
+}
+
 /** Queue context any staff member may fill in while the item is unfinished. */
 export function patchRestorationQueueDetails(
   id: number,

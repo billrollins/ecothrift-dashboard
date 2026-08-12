@@ -8,6 +8,7 @@ from apps.inventory.models import RestorationAction, RestorationJob
 from apps.inventory.services.restoration_actions import (
     ActionNeedsDescriptionError,
     action_totals,
+    delete_action,
     describe_action,
     ensure_initial_action,
     start_action,
@@ -435,7 +436,109 @@ class UndoActionTests(RestorationActionTestBase):
         start_action(self.job, self.user, grade='Repairable')
         self.job.refresh_from_db()
         undo_last_action(self.job, self.user)
-        self.assertTrue(self.job.timeline_events.filter(event_type='action.undone').exists())
+        self.assertTrue(self.job.timeline_events.filter(event_type='action.deleted').exists())
+
+
+class DeleteActionTests(RestorationActionTestBase):
+    """Any row in the log can go; its time goes to the row below it."""
+
+    def _three_actions(self):
+        """Initial inspection, then Working, then Repairable — 60s each."""
+
+        # Put the clock on the opening inspection first, so it has real time on
+        # it to hand over. Check-in leaves the timer stopped in these tests.
+        self.job, first = start_action(self.job, self.user, grade='')
+        self._age_timer(60)
+        self.job, working = start_action(self.job, self.user, grade='Working')
+        describe_action(self.job, working.pk, description='checked the ports')
+        self.job.refresh_from_db()
+        self._age_timer(60)
+        self.job, repairable = start_action(self.job, self.user, grade='Repairable')
+        describe_action(self.job, repairable.pk, description='looked at the hinge')
+        self.job.refresh_from_db()
+        self._age_timer(60)
+        return first, working, repairable
+
+    def test_a_middle_row_gives_its_time_to_the_one_before_it(self):
+        first, working, _repairable = self._three_actions()
+
+        self.job, absorber = delete_action(self.job, working.pk, self.user)
+        self.assertFalse(self.job.actions.filter(pk=working.pk).exists())
+        self.assertEqual(absorber.pk, first.pk)
+        first.refresh_from_db()
+        self.assertEqual(first.seconds, 120)
+
+    def test_deleting_a_row_that_is_not_current_leaves_the_clock_alone(self):
+        _first, working, repairable = self._three_actions()
+
+        self.job, _absorber = delete_action(self.job, working.pk, self.user)
+        self.assertEqual(self.job.current_action_id, repairable.pk)
+        self.assertTrue(self.job.timer_is_running)
+
+    def test_a_finished_row_stays_finished_after_absorbing(self):
+        first, working, _repairable = self._three_actions()
+
+        delete_action(self.job, working.pk, self.user)
+        first.refresh_from_db()
+        self.assertIsNotNone(first.ended_at)
+
+    def test_the_oldest_row_gives_its_time_forward_instead(self):
+        """Nothing sits below the first action, so its time goes to the next."""
+
+        first, working, _repairable = self._three_actions()
+
+        self.job, absorber = delete_action(self.job, first.pk, self.user)
+        self.assertEqual(absorber.pk, working.pk)
+        working.refresh_from_db()
+        self.assertEqual(working.seconds, 120)
+
+    def test_deleting_the_current_row_moves_the_clock_to_the_absorber(self):
+        _first, working, repairable = self._three_actions()
+
+        self.job, absorber = delete_action(self.job, repairable.pk, self.user)
+        self.assertEqual(absorber.pk, working.pk)
+        self.assertEqual(self.job.current_action_id, working.pk)
+        self.assertIsNone(absorber.ended_at)
+        self.assertTrue(self.job.timer_is_running)
+        self.assertEqual(self.job.timer_grade, 'Working')
+
+    def test_the_job_total_never_moves(self):
+        _first, working, _repairable = self._three_actions()
+        self.job.refresh_from_db()
+
+        delete_action(self.job, working.pk, self.user)
+        self.job.refresh_from_db()
+        self.assertEqual(action_totals(self.job)['total_seconds'], self.job.active_seconds)
+
+    def test_grade_time_is_refiled_as_item_time_when_the_scopes_differ(self):
+        first, working, _repairable = self._three_actions()
+        self.job.refresh_from_db()
+        before_look = self.job.look_seconds
+
+        # `working` is grade time; `first` is item time, so the 60s move bucket.
+        delete_action(self.job, working.pk, self.user)
+        self.job.refresh_from_db()
+        self.assertEqual(self.job.look_seconds, before_look + 60)
+        self.assertEqual(first.grade, '')
+
+    def test_the_last_row_standing_cannot_be_deleted(self):
+        only = self.job.current_action
+        with self.assertRaises(ValueError):
+            delete_action(self.job, only.pk, self.user)
+
+    def test_a_row_that_is_not_on_this_item_is_refused(self):
+        self._three_actions()
+        with self.assertRaises(RestorationAction.DoesNotExist):
+            delete_action(self.job, 999_999, self.user)
+
+    def test_it_is_recorded_in_the_timeline(self):
+        _first, working, _repairable = self._three_actions()
+
+        delete_action(self.job, working.pk, self.user)
+        self.job.refresh_from_db()
+        event = self.job.timeline_events.filter(event_type='action.deleted').first()
+        self.assertIsNotNone(event)
+        self.assertEqual(event.payload['seconds_returned'], 60)
 
 
 class ActionEndpointTests(RestorationActionTestBase):
@@ -494,6 +597,26 @@ class ActionEndpointTests(RestorationActionTestBase):
     def test_undo_is_refused_when_there_is_only_the_first_action(self):
         resp = self._post('undo-action', {})
         self.assertEqual(resp.status_code, 400)
+
+    def test_deleting_a_row_through_the_api(self):
+        self._post('start-action', {'grade': 'Working', 'description': 'checked the ports'})
+        self._post('start-action', {'grade': 'Repairable', 'description': 'looked at the hinge'})
+        self.job.refresh_from_db()
+        middle = self.job.actions.order_by('started_at', 'id')[1]
+
+        resp = self._post('delete-action', {'action_id': middle.pk})
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.job.refresh_from_db()
+        self.assertEqual(self.job.actions.count(), 2)
+        self.assertFalse(self.job.actions.filter(pk=middle.pk).exists())
+
+    def test_deleting_the_only_row_is_refused(self):
+        resp = self._post('delete-action', {'action_id': self.job.current_action_id})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_deleting_a_row_that_is_not_on_this_item_is_a_404(self):
+        resp = self._post('delete-action', {'action_id': 999_999})
+        self.assertEqual(resp.status_code, 404)
 
     def test_going_back_to_the_queue_records_why(self):
         resp = self.client.post(

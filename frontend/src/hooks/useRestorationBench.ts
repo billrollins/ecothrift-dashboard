@@ -13,6 +13,7 @@ import {
   markRestorationJobHandled,
   markRestorationJobMeaningfulAction,
   moveRestorationJobBackToQueue,
+  deleteRestorationAction,
   describeRestorationAction,
   getRestorationActions,
   startRestorationAction,
@@ -206,6 +207,22 @@ export function useUndoRestorationAction() {
   return useMutation({
     mutationFn: async (id: number) => {
       const { data } = await undoRestorationAction(id);
+      return data;
+    },
+    onSuccess: (data) => {
+      patchTarsBenchJobInCache(queryClient, data);
+      queryClient.invalidateQueries({ queryKey: restorationActionsQueryKey(data.id) });
+      queryClient.invalidateQueries({ queryKey: ['restoration-timeline', data.id] });
+    },
+  });
+}
+
+/** Drop a row from the log; its time goes to the row below it. */
+export function useDeleteRestorationAction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, actionId }: { id: number; actionId: number }) => {
+      const { data } = await deleteRestorationAction(id, actionId);
       return data;
     },
     onSuccess: (data) => {

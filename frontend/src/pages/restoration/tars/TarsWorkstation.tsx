@@ -37,6 +37,7 @@ import {
   useStartRestorationAction,
   useDescribeRestorationAction,
   useUndoRestorationAction,
+  useDeleteRestorationAction,
   ActionNeedsDescriptionError,
 
   useTarsBenchJobs,
@@ -119,6 +120,7 @@ function BenchRecord({
   onDescribe,
   onNewAction,
   onUndo,
+  onDeleteAction,
 }: {
   actions: RestorationActionsDTO | undefined;
   running: boolean;
@@ -127,6 +129,7 @@ function BenchRecord({
   onDescribe: (actionId: number, patch: { description?: string; category?: RestorationActionCategory }) => void;
   onNewAction: (grade: string) => void;
   onUndo: () => void;
+  onDeleteAction: (actionId: number) => void;
 }) {
   const [tab, setTab] = useState<'work' | 'log'>('work');
 
@@ -179,7 +182,7 @@ function BenchRecord({
             onUndo={onUndo}
           />
         ) : (
-          <TarsActionLog data={actions} />
+          <TarsActionLog data={actions} busy={busy} onDelete={onDeleteAction} />
         )}
       </Box>
     </Box>
@@ -388,6 +391,7 @@ export function TarsWorkstation() {
   const startAction = useStartRestorationAction();
   const describeAction = useDescribeRestorationAction();
   const undoAction = useUndoRestorationAction();
+  const deleteAction = useDeleteRestorationAction();
 
   // Work cannot be moved off an action nobody described. Surfaced on the
   // buttons it would block, so the rule is seen before it is hit.
@@ -682,6 +686,23 @@ export function TarsWorkstation() {
         }),
     });
   }, [displayJob, undoAction, enqueueSnackbar]);
+
+  /** Drop a row from the log. Its time goes to the row below it, never away. */
+  const handleDeleteAction = useCallback(
+    (actionId: number) => {
+      if (!displayJob) return;
+      deleteAction.mutate(
+        { id: displayJob.id, actionId },
+        {
+          onError: (err) =>
+            enqueueSnackbar(err instanceof Error ? err.message : 'Could not delete that row', {
+              variant: 'warning',
+            }),
+        },
+      );
+    },
+    [displayJob, deleteAction, enqueueSnackbar],
+  );
 
 
 
@@ -1047,11 +1068,17 @@ export function TarsWorkstation() {
             <BenchRecord
               actions={actions.data}
               running={displayJob.timer_is_running}
-              busy={startAction.isPending || describeAction.isPending || undoAction.isPending}
+              busy={
+                startAction.isPending ||
+                describeAction.isPending ||
+                undoAction.isPending ||
+                deleteAction.isPending
+              }
               scope={selectedScope}
               onDescribe={handleDescribeAction}
               onNewAction={handleNewAction}
               onUndo={handleUndoAction}
+              onDeleteAction={handleDeleteAction}
             />
           </Box>
         )}

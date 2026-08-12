@@ -269,16 +269,30 @@ def describe_action(
 
 
 @transaction.atomic
-def undo_last_action(job: RestorationJob, user=None) -> tuple[RestorationJob, RestorationAction]:
-    """Take back the action just opened, giving its time to the one before it.
+def delete_action(
+    job: RestorationJob,
+    action_id: int,
+    user=None,
+) -> tuple[RestorationJob, RestorationAction]:
+    """Remove a row from the log, handing its time to the row below it.
 
-    Pressing Work on the wrong row opens an action and moves the clock. Undo
-    deletes that row and hands its seconds to the action that was running
-    before, which is where they belonged all along — whoever misclicked was
-    still doing the previous thing.
+    A row can be wrong in two ways. Pressing Work on the wrong grade opens an
+    action that should never have existed, and reading back later you can find
+    two rows that were really one piece of work. Both are the same repair:
+    delete the row, and the time goes to its neighbour.
 
-    Nothing is ever lost this way. The job's total is untouched; only the row
-    the time is filed under changes. Returns the action the clock lands back on.
+    **Time is never destroyed, only refiled.** The neighbour is the action
+    directly before it, because that is what was really being done during those
+    seconds — the misclick did not stop the previous work, it only mislabelled
+    it. The oldest row has nothing before it, so its time goes forward to the
+    next one instead. The job's total does not move either way.
+
+    The only row that cannot go is the last one standing: an item with no
+    actions has nowhere to put the clock, and deleting the record of an item's
+    only work is not a correction.
+
+    Returns the action that absorbed the time, which is also where the clock
+    lands if it was on the row being deleted.
     """
 
     from apps.inventory.services.restoration_bench import (
@@ -289,62 +303,84 @@ def undo_last_action(job: RestorationJob, user=None) -> tuple[RestorationJob, Re
     )
 
     job = RestorationJob.objects.select_for_update().get(pk=job.pk)
-    current = current_action(job)
-    if current is None:
-        raise ValueError('There is nothing to undo.')
+    doomed = RestorationAction.objects.select_for_update().get(pk=action_id, job=job)
 
-    previous = (
-        job.actions.exclude(pk=current.pk).order_by('-started_at', '-id').first()
-    )
-    if previous is None:
-        raise ValueError('The first action on an item cannot be undone.')
+    # Read the log in order and take the neighbour by position, so ties on
+    # started_at resolve the same way here as they do on screen.
+    ordered = list(job.actions.order_by('started_at', 'id'))
+    if len(ordered) <= 1:
+        raise ValueError('An item cannot be left with no record of its work.')
+    index = next(i for i, row in enumerate(ordered) if row.pk == doomed.pk)
+    absorber = ordered[index - 1] if index > 0 else ordered[1]
 
+    was_current = job.current_action_id == doomed.pk
     was_running = job.timer_is_running
-    # Bank whatever the mistaken action collected before moving it.
-    _pause_timer(job)
-    current.refresh_from_db()
-    seconds = int(current.seconds or 0)
+    if was_current:
+        # Bank whatever it collected before the row goes.
+        _pause_timer(job)
+        doomed.refresh_from_db()
+    seconds = int(doomed.seconds or 0)
 
     # An action's scope never changes, so all of its seconds sat in one bucket.
-    # Moving the row moves the bucket with it.
-    if seconds and bool(current.grade) != bool(previous.grade):
-        if current.grade:
+    # Refiling the row moves the bucket with it.
+    if seconds and bool(doomed.grade) != bool(absorber.grade):
+        if doomed.grade:
             job.work_seconds = max(int(job.work_seconds or 0) - seconds, 0)
             job.look_seconds = int(job.look_seconds or 0) + seconds
         else:
             job.look_seconds = max(int(job.look_seconds or 0) - seconds, 0)
             job.work_seconds = int(job.work_seconds or 0) + seconds
 
-    undone = {
-        'action_id': current.pk,
-        'grade': current.grade,
-        'category': current.category,
-        'description': current.description,
+    removed = {
+        'action_id': doomed.pk,
+        'grade': doomed.grade,
+        'category': doomed.category,
+        'description': doomed.description,
         'seconds_returned': seconds,
-        'returned_to_action_id': previous.pk,
+        'returned_to_action_id': absorber.pk,
     }
-    current.delete()
+    doomed.delete()
 
-    previous.seconds = int(previous.seconds or 0) + seconds
-    # It is being worked again, so it is no longer finished.
-    previous.ended_at = None
-    previous.save(update_fields=['seconds', 'ended_at', 'updated_at'])
+    absorber.seconds = int(absorber.seconds or 0) + seconds
+    fields = ['seconds', 'updated_at']
+    if was_current:
+        # It is being worked again, so it is no longer finished.
+        absorber.ended_at = None
+        fields.append('ended_at')
+    absorber.save(update_fields=fields)
 
-    job.current_action = previous
-    mode = (
-        RestorationJob.TIMER_MODE_WORK
-        if previous.grade
-        else RestorationJob.TIMER_MODE_LOOK
-    )
-    if was_running:
-        _start_timer(job, user=user, mode=mode, grade=previous.grade)
-    else:
-        job.timer_mode = mode
-        job.timer_grade = previous.grade
+    if was_current:
+        job.current_action = absorber
+        mode = (
+            RestorationJob.TIMER_MODE_WORK
+            if absorber.grade
+            else RestorationJob.TIMER_MODE_LOOK
+        )
+        if was_running:
+            _start_timer(job, user=user, mode=mode, grade=absorber.grade)
+        else:
+            job.timer_mode = mode
+            job.timer_grade = absorber.grade
     job.save(update_fields=_timer_save_fields())
 
-    _timeline_event(job, 'action.undone', undone, actor=user, entity_id=f'action:{previous.pk}')
-    return job, previous
+    _timeline_event(job, 'action.deleted', removed, actor=user, entity_id=f'action:{absorber.pk}')
+    return job, absorber
+
+
+def undo_last_action(job: RestorationJob, user=None) -> tuple[RestorationJob, RestorationAction]:
+    """Take back the action just opened, giving its time to the one before it.
+
+    Undo is deletion aimed at the row the clock is on — the common case, and
+    the one worth a single button, because pressing Work on the wrong grade is
+    a mistake you notice a second later.
+    """
+
+    current = current_action(job)
+    if current is None:
+        raise ValueError('There is nothing to undo.')
+    if not job.actions.exclude(pk=current.pk).exists():
+        raise ValueError('The first action on an item cannot be undone.')
+    return delete_action(job, current.pk, user=user)
 
 
 def close_open_actions(job: RestorationJob) -> None:

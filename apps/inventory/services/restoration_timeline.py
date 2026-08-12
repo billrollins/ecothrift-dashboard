@@ -35,6 +35,7 @@ TIMELINE_EVENT_TYPES = {
     'action.started',
     'action.described',
     'action.undone',
+    'action.deleted',
     'timer.started',
     'timer.paused',
     'timer.adjusted',

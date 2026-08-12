@@ -135,6 +135,7 @@ from .serializers import (
     DisputePatchSerializer,
     RestorationJobSerializer,
     RestorationActionSerializer,
+    RestorationDeleteActionSerializer,
     RestorationDescribeActionSerializer,
     RestorationStartActionSerializer,
     RestorationJobPatchSerializer,
@@ -9073,6 +9074,25 @@ class RestorationJobViewSet(
         job = self.get_object()
         try:
             job, _landed = undo_last_action(job, request.user)
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        job = self.get_queryset().get(pk=job.pk)
+        return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=['post'], url_path='delete-action')
+    def remove_action(self, request, pk=None):
+        """Drop a row from the log, handing its time to the row below it."""
+
+        from apps.inventory.services.restoration_actions import delete_action
+
+        job = self.get_object()
+        ser = RestorationDeleteActionSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        try:
+            job, _absorber = delete_action(job, ser.validated_data['action_id'], user=request.user)
+        except RestorationAction.DoesNotExist:
+            return Response({'detail': 'That action is not on this item.'}, status=status.HTTP_404_NOT_FOUND)
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 

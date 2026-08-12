@@ -11,16 +11,32 @@
  * kind, what it was pointed at, what was done, how long. No group headings,
  * because the scope is already on the line and headings cost a row each. The
  * totals sit once at the top rather than repeating per section.
+ *
+ * Rows can be deleted here, because a log you cannot correct fills up with
+ * things everyone knows are wrong and stops being read. Deleting hands the
+ * row's time to the row below it — the work was really part of that — so the
+ * item's total never moves and no minute is ever thrown away.
  */
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import { useState } from 'react';
 import type { RestorationActionDTO, RestorationActionsDTO } from '../../../types/inventory.types';
 import { studio } from './studio/tarsStudioTheme';
 import { actionsNewestFirst, categoryMeta, formatDuration } from './tarsActions';
 import { ScopeTag } from './TarsWorkPanel';
 
-export function TarsActionLog({ data }: { data: RestorationActionsDTO | undefined }) {
+export function TarsActionLog({
+  data,
+  busy,
+  onDelete,
+}: {
+  data: RestorationActionsDTO | undefined;
+  busy?: boolean;
+  /** Drop a row, handing its time to the row below it. */
+  onDelete?: (actionId: number) => void;
+}) {
   const actions = data?.results ?? [];
   const rows = actionsNewestFirst(actions);
   const total = actions.reduce((sum, a) => sum + (a.seconds || 0), 0);
@@ -46,8 +62,19 @@ export function TarsActionLog({ data }: { data: RestorationActionsDTO | undefine
 
       <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <Stack spacing={0.3}>
-          {rows.map((action) => (
-            <LogRow key={action.id} action={action} isCurrent={action.id === data?.current_action_id} />
+          {rows.map((action, i) => (
+            <LogRow
+              key={action.id}
+              action={action}
+              isCurrent={action.id === data?.current_action_id}
+              // The row below on screen is the one that would take the time.
+              absorber={rows[i + 1] ?? rows[i - 1] ?? null}
+              // The last row standing has nowhere to put its time, and an item
+              // with no record of its work is not a correction.
+              canDelete={Boolean(onDelete) && rows.length > 1}
+              busy={busy}
+              onDelete={onDelete}
+            />
           ))}
         </Stack>
       </Box>
@@ -55,8 +82,23 @@ export function TarsActionLog({ data }: { data: RestorationActionsDTO | undefine
   );
 }
 
-function LogRow({ action, isCurrent }: { action: RestorationActionDTO; isCurrent: boolean }) {
+function LogRow({
+  action,
+  isCurrent,
+  absorber,
+  canDelete,
+  busy,
+  onDelete,
+}: {
+  action: RestorationActionDTO;
+  isCurrent: boolean;
+  absorber: RestorationActionDTO | null;
+  canDelete: boolean;
+  busy?: boolean;
+  onDelete?: (actionId: number) => void;
+}) {
   const meta = categoryMeta(action.category);
+  const [confirming, setConfirming] = useState(false);
 
   return (
     <Stack
@@ -103,7 +145,90 @@ function LogRow({ action, isCurrent }: { action: RestorationActionDTO; isCurrent
       <Typography sx={{ fontFamily: 'monospace', fontSize: '0.72rem', fontWeight: 900, color: '#64748b' }}>
         {formatDuration(action.seconds)}
       </Typography>
+
+      {/*
+        Always rendered, so no row changes width when the mouse arrives or when
+        confirming opens. Deleting time is worth one deliberate second, hence
+        the two-step, and the confirm names where the time is going so nobody
+        has to wonder whether it was lost.
+      */}
+      <Box sx={{ width: 62, flexShrink: 0, textAlign: 'right' }}>
+        {!canDelete ? null : confirming ? (
+          <Stack direction="row" spacing={0.3} justifyContent="flex-end">
+            <RowButton
+              label="Sure?"
+              danger
+              disabled={busy}
+              hint={
+                absorber
+                  ? `Its ${formatDuration(action.seconds)} goes to "${absorber.description || 'the row below'}"`
+                  : 'Delete this row'
+              }
+              onClick={() => {
+                setConfirming(false);
+                onDelete?.(action.id);
+              }}
+            />
+            <RowButton label="No" disabled={busy} hint="Keep it" onClick={() => setConfirming(false)} />
+          </Stack>
+        ) : (
+          <RowButton
+            label="Delete"
+            disabled={busy}
+            hint={
+              absorber
+                ? `Delete this row. Its ${formatDuration(action.seconds)} goes to "${absorber.description || 'the row below'}".`
+                : 'Delete this row'
+            }
+            onClick={() => setConfirming(true)}
+          />
+        )}
+      </Box>
     </Stack>
+  );
+}
+
+function RowButton({
+  label,
+  hint,
+  danger,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  hint: string;
+  danger?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Tooltip arrow title={hint}>
+      <Box
+        component="button"
+        type="button"
+        disabled={disabled}
+        onClick={onClick}
+        sx={{
+          px: 0.5,
+          py: 0,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          fontSize: '0.62rem',
+          fontWeight: 900,
+          lineHeight: '18px',
+          borderRadius: '4px',
+          border: '1px solid',
+          borderColor: danger ? '#f3b5ae' : 'transparent',
+          bgcolor: danger ? '#fdecea' : 'transparent',
+          color: danger ? '#b71c1c' : '#b6c0cd',
+          '&:hover:not(:disabled)': {
+            borderColor: danger ? '#e08a80' : '#e2e8f0',
+            color: danger ? '#b71c1c' : '#64748b',
+          },
+        }}
+      >
+        {label}
+      </Box>
+    </Tooltip>
   );
 }
 
