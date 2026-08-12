@@ -47,21 +47,36 @@ export interface TarsGradeRow {
 
 export const EMPTY_PLAN: TarsBenchPlan = { startingGrade: '', estimates: {} };
 
-export function readBenchPlan(session: unknown): TarsBenchPlan {
-  const plan = (session as { benchPlan?: unknown } | undefined)?.benchPlan;
-  if (!plan || typeof plan !== 'object') return EMPTY_PLAN;
-  const raw = plan as Partial<TarsBenchPlan>;
+/**
+ * A plan as it comes back from the server, checked field by field.
+ *
+ * The work session is a JSON blob, so nothing about its shape is guaranteed by
+ * the time it returns. Anything unrecognised becomes "unanswered" rather than
+ * being trusted into the arithmetic.
+ */
+export function normalizeBenchPlan(value: unknown): TarsBenchPlan {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return EMPTY_PLAN;
+  const raw = value as Partial<TarsBenchPlan>;
+  const estimates: Record<string, TarsGradeEstimate> = {};
+  if (raw.estimates && typeof raw.estimates === 'object' && !Array.isArray(raw.estimates)) {
+    for (const [grade, estimate] of Object.entries(raw.estimates)) {
+      if (!estimate || typeof estimate !== 'object') continue;
+      const { p, parts, minutes } = estimate as TarsGradeEstimate;
+      estimates[grade] = {
+        ...(typeof p === 'number' && Number.isFinite(p) ? { p } : {}),
+        ...(typeof parts === 'number' && Number.isFinite(parts) ? { parts } : {}),
+        ...(typeof minutes === 'number' && Number.isFinite(minutes) ? { minutes } : {}),
+      };
+    }
+  }
   return {
     startingGrade: typeof raw.startingGrade === 'string' ? raw.startingGrade : '',
-    estimates: raw.estimates && typeof raw.estimates === 'object' ? raw.estimates : {},
+    estimates,
   };
 }
 
-export function writeBenchPlan(
-  session: Record<string, unknown> | undefined,
-  plan: TarsBenchPlan,
-): Record<string, unknown> {
-  return { ...(session ?? {}), benchPlan: plan };
+export function readBenchPlan(session: { benchPlan?: TarsBenchPlan } | null | undefined): TarsBenchPlan {
+  return normalizeBenchPlan(session?.benchPlan);
 }
 
 /** How many of a row's three estimates are still unanswered. */

@@ -1,4 +1,5 @@
 import type { RestorationJobDTO } from '../../../types/inventory.types';
+import { normalizeBenchPlan } from './tarsBenchPlan';
 import { normalizeDecisionWork } from './tarsDecisionEngine';
 import { createEmptyWorkSession } from './tarsWorkRollup';
 import type { TarsItem, TarsDisplaySource } from './tarsTypes';
@@ -58,6 +59,7 @@ export function normalizeWorkSession(
         ? raw.gradePlans
         : {},
     benchRows: Array.isArray(raw.benchRows) ? raw.benchRows : [],
+    benchPlan: normalizeBenchPlan(raw.benchPlan),
     decisionWork: normalizeDecisionWork(raw.decisionWork ?? empty.decisionWork),
     pending: raw.pending,
   };
@@ -80,6 +82,7 @@ function mergeWorkSession(job: RestorationJobDTO): TarsWorkSession {
     orders: base.orders ?? [],
     gradePlans: base.gradePlans ?? {},
     benchRows: base.benchRows ?? [],
+    benchPlan: base.benchPlan,
     decisionWork: base.decisionWork,
   };
 }

@@ -1,5 +1,6 @@
 /** Work session domain - parts/orders + per-grade plans + bench and decision work. */
 
+import type { TarsBenchPlan } from './tarsBenchPlan';
 import type { TarsDecisionWork } from './tarsDecisionTypes';
 
 export type TarsActionType = 'test' | 'assemble' | 'repair' | 'salvage';
@@ -115,6 +116,16 @@ export interface TarsWorkSession {
   orders: TarsProcurementGroup[];
   gradePlans: Record<string, TarsGradePlan>;
   benchRows: TarsWorkBenchRow[];
+  /**
+   * The grade table's answers: where the item stands, and the odds, parts and
+   * minutes for each grade it could reach.
+   *
+   * Declared here rather than tacked onto the session as a loose key, because
+   * everything that reads a session back from the server rebuilds it from the
+   * fields named in this type. A field that is not named is a field that is
+   * silently dropped on the next refetch.
+   */
+  benchPlan?: TarsBenchPlan;
   /** Versioned Phase 1 decision worksheet; absent on legacy sessions. */
   decisionWork?: TarsDecisionWork;
   pending?: TarsPendingInfo;

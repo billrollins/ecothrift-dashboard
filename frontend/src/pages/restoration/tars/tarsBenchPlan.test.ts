@@ -5,11 +5,13 @@ import {
   buildGradeRows,
   estimatesToGo,
   evaluateGrade,
+  normalizeBenchPlan,
   rateBand,
   readBenchPlan,
-  writeBenchPlan,
   type TarsBenchPlan,
 } from './tarsBenchPlan';
+import { normalizeWorkSession } from './tarsJobAdapter';
+import { createEmptyWorkSession } from './tarsWorkRollup';
 
 const SCALE = ['Working', 'Repairable', 'Parts-only'];
 
@@ -199,22 +201,44 @@ describe('rateBand', () => {
   });
 });
 
-describe('reading and writing the plan', () => {
+describe('reading the plan back', () => {
   it('survives every shape of missing', () => {
-    for (const session of [undefined, {}, { benchPlan: null }, { benchPlan: 'nope' }, { benchPlan: {} }]) {
-      const read = readBenchPlan(session);
+    for (const stored of [undefined, null, 'nope', {}, [], 42]) {
+      const read = normalizeBenchPlan(stored);
       expect(read.startingGrade).toBe('');
       expect(read.estimates).toEqual({});
     }
   });
 
-  it('reads back what it wrote', () => {
-    const original = plan({ estimates: { Working: { p: 75 } } });
-    expect(readBenchPlan(writeBenchPlan({}, original))).toEqual(original);
+  it('reads back what was stored', () => {
+    const original = plan({ estimates: { Working: { p: 75, parts: 10, minutes: 30 } } });
+    expect(normalizeBenchPlan(original)).toEqual(original);
   });
 
-  it('leaves the rest of the session alone', () => {
-    const written = writeBenchPlan({ parts: ['keep me'] }, plan());
-    expect(written.parts).toEqual(['keep me']);
+  it('drops junk in an estimate rather than feeding it to the arithmetic', () => {
+    const read = normalizeBenchPlan({
+      startingGrade: 'Parts-only',
+      estimates: { Working: { p: 'lots', parts: 10, minutes: null } },
+    });
+    expect(read.estimates.Working).toEqual({ parts: 10 });
+  });
+
+  it('ignores a starting grade that is not a grade name', () => {
+    expect(normalizeBenchPlan({ startingGrade: 7 }).startingGrade).toBe('');
+  });
+
+  /**
+   * The regression that cost a session: the plan was stored on the work session
+   * as a loose key, and everything that read a session back from the server
+   * rebuilt it from an allowlist that did not mention it. Saving worked, and
+   * the next refetch silently threw the answers away.
+   */
+  it('survives a round trip through the work-session normalizer', () => {
+    const original = plan({
+      startingGrade: 'Parts-only',
+      estimates: { Working: { p: 50, parts: 20, minutes: 45 } },
+    });
+    const session = normalizeWorkSession({ ...createEmptyWorkSession('bench'), benchPlan: original });
+    expect(readBenchPlan(session)).toEqual(original);
   });
 });

@@ -73,7 +73,7 @@ import {
 } from './studio/StudioNotices';
 import { TarsHome } from './TarsHome';
 import { TarsGradeTable } from './TarsGradeTable';
-import { readBenchPlan, writeBenchPlan, type TarsBenchPlan } from './tarsBenchPlan';
+import { readBenchPlan, type TarsBenchPlan } from './tarsBenchPlan';
 import { TarsActionLog } from './TarsActionLog';
 import { TarsDispositionBar } from './TarsDispositionBar';
 import { summarizeParts } from './tarsPartsSummary';
@@ -823,12 +823,8 @@ export function TarsWorkstation() {
 
   const updateBenchPlan = useCallback(
     (plan: TarsBenchPlan) => {
-      replaceWorkSession(
-        writeBenchPlan(
-          draftWorkSession as unknown as Record<string, unknown> | undefined,
-          plan,
-        ) as unknown as TarsWorkSession,
-      );
+      if (!draftWorkSession) return;
+      replaceWorkSession({ ...draftWorkSession, benchPlan: plan });
     },
     [draftWorkSession, replaceWorkSession],
   );
