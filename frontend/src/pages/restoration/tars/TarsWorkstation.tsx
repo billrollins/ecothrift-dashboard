@@ -229,8 +229,10 @@ export function TarsWorkstation() {
     action: TimerGuardAction;
     onConfirm: () => Promise<void>;
   } | null>(null);
+  // Home unless asked for otherwise. An active bench item pulls the view to
+  // Bench a moment later; with nothing in progress, Home is the useful landing.
   const [studioLane, setStudioLane] = useState<StudioLane>(
-    queryView === 'home' || queryView === 'bench' ? queryView : 'bench',
+    queryView === 'bench' ? 'bench' : 'home',
   );
   const [partsDrawerOpen, setPartsDrawerOpen] = useState(false);
   const [noticesOpen, setNoticesOpen] = useState(false);
