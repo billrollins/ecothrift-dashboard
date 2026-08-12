@@ -11,6 +11,7 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import type { RestorationJobDTO, RestorationScoreboardDTO } from '../../../types/inventory.types';
 import { RestorationQueue } from '../queue/RestorationQueue';
+import { queueListAccent } from '../queue/restorationQueueModel';
 import { TarsHoldingRail } from './TarsHoldingRail';
 import { TarsScoreboard } from './TarsScoreboard';
 import { studio } from './studio/tarsStudioTheme';
@@ -49,7 +50,7 @@ export function TarsHome({
             <RailLabel text="Queue" count={queueJobs.length} />
             <RestorationQueue
               jobs={queueJobs}
-              busy={busy}
+              accent={queueListAccent('queue')}
               onStart={onStart}
               emptyMessage="Nothing is waiting for restoration."
             />

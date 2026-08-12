@@ -18,12 +18,13 @@ import { studio } from './tarsStudioTheme';
 /** Under this, a press reads as a tap and the options stay up. */
 const TAP_MS = 220;
 
-export function PressPicker<T extends number>({
+export function PressPicker<T extends string | number>({
   value,
   options,
   format,
   placeholder,
   width = 62,
+  height = 26,
   disabled,
   ariaLabel,
   onChange,
@@ -33,7 +34,8 @@ export function PressPicker<T extends number>({
   format: (value: T) => string;
   /** Shown muted when unanswered — the value the maths is using meanwhile. */
   placeholder: string;
-  width?: number;
+  width?: number | string;
+  height?: number;
   disabled?: boolean;
   ariaLabel: string;
   onChange: (value: T) => void;
@@ -49,7 +51,8 @@ export function PressPicker<T extends number>({
       const el = document.elementFromPoint(x, y);
       const option = el?.closest<HTMLElement>('[data-press-option]');
       if (option) {
-        onChange(Number(option.dataset.pressOption) as T);
+        const raw = option.dataset.pressOption ?? '';
+        onChange((typeof options[0] === 'number' ? Number(raw) : raw) as T);
         setOpen(false);
         return;
       }
@@ -72,7 +75,7 @@ export function PressPicker<T extends number>({
       window.removeEventListener('pointerup', handleUp);
       window.removeEventListener('keydown', handleKey);
     };
-  }, [open, onChange]);
+  }, [open, onChange, options]);
 
   const unset = value == null;
 
@@ -100,7 +103,7 @@ export function PressPicker<T extends number>({
         }}
         sx={{
           width,
-          height: 26,
+          height,
           px: 0.5,
           cursor: disabled ? 'default' : 'pointer',
           fontFamily: 'monospace',

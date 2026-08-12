@@ -1,25 +1,21 @@
-feat(tars): rebuild the queue and bench around what can be read at a glance
+feat(tars): make the restoration queue a full-width row you edit in place
 
-Stage 5 of finalize_tars_app. Bill reviewed the studio on the floor and
-rejected its shape: the scoreboard was bolted onto the Inbox lane, inline
-alerts pushed the work around whenever state changed, and the bench had
-grown past what anyone could take in at once.
+Bill's review of the queue: the rows used about two thirds of the page and
+stacked their fields on top of each other, wasting the length, and every edit
+went through a dialog when the whole point is filling in twenty items fast.
 
-Grading moves out of the studio. An item cannot reach a bench until its
-grades are priced and only Ashley knows the prices, but that step lived on
-Mike's screen where she had no reason to be. The queue is now one component
-mounted both at /restoration/queue and on TARS Home, with no role gate, so
-whoever is at a screen when the answer is known can record it. This exposed
-a real defect: the existing patch endpoint accepted only queued jobs, so
-anything already sent could not be edited at all. The new queue-details
-endpoint stays open until the item is finished.
+The row now runs the full width and reads left to right - what it is, a note,
+where it goes, what it sells for at each grade, what is at stake, how long it
+has waited, and the action. Every field in the middle is live. Focus selects
+what is there, typing replaces it, Tab moves on and saves. There is no Save
+button because leaving a field is the commit, and success is silent: a toast
+per field would be unreadable when a whole queue is being filled in. The
+details dialog is gone.
 
-The bench loses the cockpit, state bar, lane list, work-bench table and
-decision-session hook - about 1,950 lines - for a grade table. One row per
-grade; aiming the clock at a row is the decision, so there is no separate
-commit step to forget. Rates are read against a floor and a benchmark rather
-than one pass/fail line.
+Queue, Bench and Holding are now three tabs over the same row, so an item does
+not stop being editable the moment it reaches a bench - the person who knows
+what something is worth is rarely the one holding it. Each list colours the
+left edge of its rows and its own tab to match, so a glance tells you where
+you are. Opens on Queue.
 
-Every inline Alert is gone. Standing conditions collect behind a header badge
-and open in a drawer, and the no-layout-shift rule is recorded in
-.ai/extended/frontend.md so it does not have to be relearned.
+Restoration queue now leads the Restoration nav group, ahead of TARS.

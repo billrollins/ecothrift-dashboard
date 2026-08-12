@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { RestorationJobDTO } from '../../../types/inventory.types';
 import {
+  DESTINATION_IDS,
+  QUEUE_LISTS,
   destinationLabel,
   formatWaiting,
   handoffSummary,
@@ -8,8 +10,10 @@ import {
   isReadyForBench,
   isStale,
   missingGrades,
+  queueListAccent,
   sortQueue,
   valuePotential,
+  type QueueListId,
 } from './restorationQueueModel';
 
 const NOW = new Date('2026-08-12T12:00:00Z');
@@ -134,6 +138,28 @@ describe('sortQueue', () => {
   });
 });
 
+describe('the three lists', () => {
+  it('covers every stage an unfinished item can be in, once each', () => {
+    const stages = QUEUE_LISTS.flatMap((l) => l.stages);
+    expect([...stages].sort()).toEqual(['bench', 'pending', 'queued', 'sent']);
+    expect(new Set(stages).size).toBe(stages.length);
+  });
+
+  it('gives each list a colour of its own, so a glance tells you where you are', () => {
+    const accents = QUEUE_LISTS.map((l) => l.accent);
+    expect(new Set(accents).size).toBe(QUEUE_LISTS.length);
+  });
+
+  it('opens on the queue', () => {
+    expect(QUEUE_LISTS[0].id).toBe('queue');
+  });
+
+  it('looks up an accent, and falls back rather than rendering nothing', () => {
+    expect(queueListAccent('bench')).toBe('#4f46e5');
+    expect(queueListAccent('nonsense' as QueueListId)).toBe('#0f8a7e');
+  });
+});
+
 describe('presentation helpers', () => {
   it('prefers what Processing actually wrote', () => {
     const withNotes = job({
@@ -153,5 +179,10 @@ describe('presentation helpers', () => {
   it('names destinations and shrugs at unknown ones', () => {
     expect(destinationLabel('online_sales')).toBe('Online Sales');
     expect(destinationLabel('nowhere')).toBe('');
+  });
+
+  it('offers every destination as a pickable id', () => {
+    expect(DESTINATION_IDS).toEqual(['shelf', 'online_sales', 'storage', 'staff_pick']);
+    for (const id of DESTINATION_IDS) expect(destinationLabel(id)).not.toBe('');
   });
 });

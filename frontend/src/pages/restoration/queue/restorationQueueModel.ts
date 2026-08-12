@@ -16,8 +16,28 @@ export const INTENDED_DESTINATIONS = [
 
 export type IntendedDestination = (typeof INTENDED_DESTINATIONS)[number]['id'];
 
+export const DESTINATION_IDS = INTENDED_DESTINATIONS.map((d) => d.id) as readonly string[];
+
 export function destinationLabel(id: string): string {
   return INTENDED_DESTINATIONS.find((d) => d.id === id)?.label ?? '';
+}
+
+/**
+ * Which list an item is in, and the colour that says so.
+ *
+ * Queue, Bench and Holding hold the same kind of row and are edited the same
+ * way, so the left edge carries the distinction rather than the layout.
+ */
+export const QUEUE_LISTS = [
+  { id: 'queue', label: 'Queue', accent: '#0f8a7e', stages: ['queued', 'sent'] },
+  { id: 'bench', label: 'Bench', accent: '#4f46e5', stages: ['bench'] },
+  { id: 'holding', label: 'Holding', accent: '#b45309', stages: ['pending'] },
+] as const;
+
+export type QueueListId = (typeof QUEUE_LISTS)[number]['id'];
+
+export function queueListAccent(id: QueueListId): string {
+  return QUEUE_LISTS.find((l) => l.id === id)?.accent ?? '#0f8a7e';
 }
 
 /**
