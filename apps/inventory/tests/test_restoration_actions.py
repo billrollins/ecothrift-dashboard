@@ -58,6 +58,43 @@ class InitialActionTests(RestorationActionTestBase):
         self.assertEqual(again.pk, first.pk)
         self.assertEqual(self.job.actions.count(), 1)
 
+    def test_coming_back_from_a_hold_opens_a_fresh_action(self):
+        """Picking a job back up is a new sitting, not the old one continuing."""
+
+        from apps.inventory.services.restoration_bench import hold_restoration_job
+
+        self.job, first = start_action(self.job, self.user, grade='Working')
+        describe_action(self.job, first.pk, description='checked the ports')
+        self.job.refresh_from_db()
+        hold_restoration_job(self.job, reason='parts_needed', user=self.user)
+        self.job.refresh_from_db()
+
+        self.job = check_in_restoration_job(self.job, self.user, start_timer=False)
+        resumed = self.job.current_action
+        self.assertNotEqual(resumed.pk, first.pk)
+        self.assertEqual(resumed.grade, '')
+        self.assertEqual(resumed.category, RestorationAction.CATEGORY_INSPECT)
+        self.assertEqual(resumed.description, RestorationAction.RESUME_DESCRIPTION)
+
+    def test_a_hold_closes_whatever_was_open(self):
+        from apps.inventory.services.restoration_bench import hold_restoration_job
+
+        self.job, first = start_action(self.job, self.user, grade='Working')
+        describe_action(self.job, first.pk, description='checked the ports')
+        self.job.refresh_from_db()
+        hold_restoration_job(self.job, reason='parts_needed', user=self.user)
+
+        first.refresh_from_db()
+        self.assertIsNotNone(first.ended_at)
+
+    def test_the_resume_action_is_described_so_it_never_blocks(self):
+        from apps.inventory.services.restoration_bench import hold_restoration_job
+
+        hold_restoration_job(self.job, reason='parts_needed', user=self.user)
+        self.job.refresh_from_db()
+        self.job = check_in_restoration_job(self.job, self.user, start_timer=False)
+        self.assertTrue(self.job.current_action.is_described)
+
     def test_adopts_an_orphaned_action_rather_than_opening_another(self):
         existing = self.job.current_action
         RestorationJob.objects.filter(pk=self.job.pk).update(current_action=None)

@@ -72,33 +72,54 @@ def current_action(job: RestorationJob) -> RestorationAction | None:
     return job.current_action if job.current_action_id else None
 
 
-def ensure_initial_action(job: RestorationJob, user=None) -> RestorationAction:
-    """Open an item's first action, so the clock always has somewhere to go.
+def open_bench_action(job: RestorationJob, user=None) -> RestorationAction:
+    """Open the action an item lands on when it reaches a bench.
 
-    Idempotent: an item that already has one keeps it, which matters because
-    check-in can run more than once over an item's life.
+    An item arriving for the first time starts on an initial inspection. One
+    coming back from a hold or from the queue starts on a fresh inspection of
+    its own, because picking a job back up is genuinely a new sitting — the
+    work before the break was finished when the item left.
+
+    Both are on the item as a whole and both arrive already described, so the
+    clock has somewhere to go from the first second and the first action is
+    never the one blocking a description.
+    """
+
+    resumed = job.actions.exists()
+    action = RestorationAction.objects.create(
+        job=job,
+        grade='',
+        category=RestorationAction.CATEGORY_INSPECT,
+        description=(
+            RestorationAction.RESUME_DESCRIPTION
+            if resumed
+            else RestorationAction.INITIAL_DESCRIPTION
+        ),
+        created_by=user if getattr(user, 'pk', None) else None,
+    )
+    job.current_action = action
+    job.save(update_fields=['current_action', 'updated_at'])
+    return action
+
+
+def ensure_initial_action(job: RestorationJob, user=None) -> RestorationAction:
+    """Give an item somewhere for its time to go, if it has nowhere.
+
+    Idempotent, unlike `open_bench_action`: this is the repair for a job that
+    somehow has no current action, not the normal arrival path.
     """
 
     existing = current_action(job)
     if existing is not None:
         return existing
 
-    first = job.actions.order_by('started_at', 'id').first()
+    first = job.actions.order_by('-started_at', '-id').first()
     if first is not None:
         job.current_action = first
         job.save(update_fields=['current_action', 'updated_at'])
         return first
 
-    action = RestorationAction.objects.create(
-        job=job,
-        grade='',
-        category=RestorationAction.CATEGORY_INSPECT,
-        description=RestorationAction.INITIAL_DESCRIPTION,
-        created_by=user if getattr(user, 'pk', None) else None,
-    )
-    job.current_action = action
-    job.save(update_fields=['current_action', 'updated_at'])
-    return action
+    return open_bench_action(job, user=user)
 
 
 @transaction.atomic

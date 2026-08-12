@@ -314,12 +314,11 @@ def check_in_restoration_job(
     job.pending_notes = ''
     job.pending_storage_location = ''
     job.pending_started_at = None
-    # Open the item's first action before the clock starts, so there is never a
-    # moment where time is running with nowhere to attribute it.
-    from apps.inventory.services.restoration_actions import ensure_initial_action
+    # Open the action before the clock starts, so there is never a moment where
+    # time is running with nowhere to attribute it.
+    from apps.inventory.services.restoration_actions import open_bench_action
 
-    initial = ensure_initial_action(job, user=user)
-    job.current_action = initial
+    job.current_action = open_bench_action(job, user=user)
     if start_timer:
         _start_timer(job, user=user)
     _sync_work_state(job, 'bench')
@@ -459,6 +458,11 @@ def hold_restoration_job(
     was_running = job.timer_is_running
     elapsed_before_pause = elapsed_active_seconds(job)
     _pause_timer(job)
+    # Work stops when the item leaves the bench. Coming back opens a new
+    # action, so what was done before the hold stays a closed piece of work.
+    from apps.inventory.services.restoration_actions import close_open_actions
+
+    close_open_actions(job)
     now = timezone.now()
     job.stage = RestorationJob.STAGE_PENDING
     job.bench_owner = None

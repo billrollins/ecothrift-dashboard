@@ -1,18 +1,18 @@
 /**
- * What is on the bench, where it stands, and the ways it can leave.
+ * What is on the bench: what it is, what it came with, what it needs bought.
  *
  * Everything here is about the item as a whole, which is why it sits apart from
- * the grade list: that answers "which grade is worth chasing", and this answers
- * "what am I holding, and what do I do with it".
+ * the grade list — that answers "which grade is worth chasing", this answers
+ * "what am I holding".
  *
- * The current-grade claim is the load-bearing part. Every rate in the grade
- * list is measured from it, so an item with no claim has a table full of
- * meaningless numbers — hence the amber edge until it is answered.
+ * Two things used to live here and no longer do. Where the item stands is now a
+ * mark on the grade it stands at, because saying it twice in two places invited
+ * them to disagree. The ways it can leave are in the header, where the controls
+ * that end a session are all together.
  */
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
-import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import type { RestorationJobDTO } from '../../../types/inventory.types';
 import { studio } from './studio/tarsStudioTheme';
@@ -21,31 +21,21 @@ import { fmtUsd } from './tarsProfit';
 
 export function TarsBenchStatus({
   job,
-  grades,
-  startingGrade,
   busy,
   partsCount,
-  onClaimGrade,
+  partsCost,
   onParts,
-  onHold,
-  onSendBack,
-  onDone,
 }: {
   job: RestorationJobDTO;
-  grades: string[];
-  startingGrade: string;
   busy?: boolean;
   partsCount: number;
-  onClaimGrade: (grade: string) => void;
+  /** What those parts come to, at actual price where known and estimate otherwise. */
+  partsCost: number;
   onParts: () => void;
-  onHold: () => void;
-  onSendBack: () => void;
-  onDone: () => void;
 }) {
   const note = job.queue_note?.trim();
   const sku = job.items[0]?.sku ?? job.sku ?? `Job ${job.id}`;
   const detail = [job.brand, job.category].filter(Boolean).join(' · ');
-  const claimed = Boolean(startingGrade);
 
   return (
     <Stack spacing={1} sx={{ minWidth: 0 }}>
@@ -82,52 +72,12 @@ export function TarsBenchStatus({
         ) : null}
       </Panel>
 
-      <Panel warn={!claimed}>
-        <Typography sx={{ fontSize: '0.6rem', fontWeight: 900, letterSpacing: 0.5, color: '#94a3b8', mb: 0.5 }}>
-          IT IS AT
-        </Typography>
-        {grades.length === 0 ? (
-          <Typography sx={{ fontSize: '0.78rem', color: '#94a3b8', fontStyle: 'italic' }}>
-            No grade scale on this item yet.
-          </Typography>
-        ) : (
-          <Stack direction="row" spacing={0.4} flexWrap="wrap" useFlexGap>
-            {grades.map((grade) => {
-              const active = startingGrade === grade;
-              return (
-                <Box
-                  key={grade}
-                  component="button"
-                  type="button"
-                  disabled={busy}
-                  onClick={() => onClaimGrade(grade)}
-                  sx={{
-                    px: 0.85,
-                    py: 0.35,
-                    cursor: 'pointer',
-                    fontSize: '0.76rem',
-                    fontWeight: 800,
-                    borderRadius: `${studio.radius.sm}px`,
-                    border: `1px solid ${active ? studio.accentDark : '#e2e8f0'}`,
-                    bgcolor: active ? studio.accentDark : '#ffffff',
-                    color: active ? '#ffffff' : '#64748b',
-                    '&:hover:not(:disabled)': { borderColor: studio.accent },
-                  }}
-                >
-                  {grade}
-                </Box>
-              );
-            })}
-          </Stack>
-        )}
-        {!claimed && grades.length > 0 ? (
-          <Typography sx={{ fontSize: '0.7rem', color: '#8a5200', mt: 0.6, fontWeight: 700 }}>
-            Every rate is measured from here.
-          </Typography>
-        ) : null}
-      </Panel>
-
       <Panel>
+        {/*
+          A count on its own does not tell you whether to look: three washers
+          and three mainboards are the same number and a very different
+          decision. The money is what changes what you do, so it comes along.
+        */}
         <Button
           fullWidth
           size="small"
@@ -140,55 +90,18 @@ export function TarsBenchStatus({
           <Box
             component="span"
             sx={{
-              px: 0.6,
+              px: 0.7,
               borderRadius: '999px',
-              fontSize: '0.66rem',
+              fontFamily: 'monospace',
+              fontSize: '0.7rem',
               fontWeight: 900,
               bgcolor: partsCount > 0 ? studio.accentSoft : '#f1f5f9',
               color: partsCount > 0 ? studio.accentDark : '#94a3b8',
             }}
           >
-            {partsCount}
+            {partsCount === 0 ? 'none' : `${partsCount} · ${fmtUsd(partsCost)}`}
           </Box>
         </Button>
-      </Panel>
-
-      <Panel>
-        <Typography sx={{ fontSize: '0.6rem', fontWeight: 900, letterSpacing: 0.5, color: '#94a3b8', mb: 0.6 }}>
-          WHEN IT LEAVES
-        </Typography>
-        <Stack spacing={0.5}>
-          <Tooltip arrow title="Park it mid-job. It keeps its plan and comes back to you.">
-            <span>
-              <Button fullWidth size="small" variant="outlined" disabled={busy} onClick={onHold} sx={secondaryButton}>
-                Hold
-              </Button>
-            </span>
-          </Tooltip>
-          <Tooltip arrow title="Send it back unfinished, with a note saying why.">
-            <span>
-              <Button fullWidth size="small" variant="outlined" disabled={busy} onClick={onSendBack} sx={secondaryButton}>
-                Back to queue
-              </Button>
-            </span>
-          </Tooltip>
-          <Button
-            fullWidth
-            size="small"
-            variant="contained"
-            disabled={busy}
-            onClick={onDone}
-            sx={{
-              textTransform: 'none',
-              fontWeight: 900,
-              fontSize: '0.78rem',
-              bgcolor: studio.accentDark,
-              '&:hover': { bgcolor: studio.accentDark },
-            }}
-          >
-            Done
-          </Button>
-        </Stack>
       </Panel>
     </Stack>
   );
@@ -203,7 +116,7 @@ const secondaryButton = {
   '&:hover': { borderColor: studio.accent, bgcolor: studio.accentSoft },
 };
 
-function Panel({ children, warn }: { children: React.ReactNode; warn?: boolean }) {
+function Panel({ children }: { children: React.ReactNode }) {
   return (
     <Box
       sx={{
@@ -211,7 +124,7 @@ function Panel({ children, warn }: { children: React.ReactNode; warn?: boolean }
         py: 1,
         borderRadius: `${studio.radius.lg}px`,
         bgcolor: studio.panel,
-        border: `1px solid ${warn ? '#e3b23c' : studio.panelBorder}`,
+        border: `1px solid ${studio.panelBorder}`,
         boxShadow: studio.panelShadow,
       }}
     >

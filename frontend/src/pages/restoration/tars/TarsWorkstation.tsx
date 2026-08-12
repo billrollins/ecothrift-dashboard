@@ -74,7 +74,9 @@ import {
 import { TarsHome } from './TarsHome';
 import { TarsGradeTable } from './TarsGradeTable';
 import { readBenchPlan, writeBenchPlan, type TarsBenchPlan } from './tarsBenchPlan';
-import { TarsRestorationTimeline } from './studio/TarsRestorationTimeline';
+import { TarsActionLog } from './TarsActionLog';
+import { TarsDispositionBar } from './TarsDispositionBar';
+import { summarizeParts } from './tarsPartsSummary';
 import { studio } from './studio/tarsStudioTheme';
 
 import { jobMatchesScan, myActiveBenchRestorationJob, myRunningRestorationJob, restorationJobToTarsItem, tarsJobRowKey } from './tarsJobAdapter';
@@ -104,23 +106,24 @@ function benchSortValue(job: RestorationJobDTO): number {
 /**
  * The record of this item: what is being done, and what has been.
  *
- * Work leads because it is what someone is standing here to do. The log is the
- * full timeline — every valuation, hold and part as well as the work — and is
- * read when a question comes up, not while working.
+ * Work leads because it is what someone is standing here to do, and it shows
+ * one scope at a time — whichever row is selected in the grade table. The log
+ * is the same actions across every scope, one line each, read when a question
+ * comes up rather than while working.
  */
 function BenchRecord({
-  jobId,
   actions,
   running,
   busy,
+  scope,
   onDescribe,
   onNewAction,
   onUndo,
 }: {
-  jobId: number;
   actions: RestorationActionsDTO | undefined;
   running: boolean;
   busy?: boolean;
+  scope: string;
   onDescribe: (actionId: number, patch: { description?: string; category?: RestorationActionCategory }) => void;
   onNewAction: (grade: string) => void;
   onUndo: () => void;
@@ -170,12 +173,13 @@ function BenchRecord({
             data={actions}
             running={running}
             busy={busy}
+            scope={scope}
             onDescribe={onDescribe}
             onNewAction={onNewAction}
             onUndo={onUndo}
           />
         ) : (
-          <TarsRestorationTimeline jobId={jobId} editable />
+          <TarsActionLog data={actions} />
         )}
       </Box>
     </Box>
@@ -239,6 +243,15 @@ export function TarsWorkstation() {
   );
   const [partsDrawerOpen, setPartsDrawerOpen] = useState(false);
   const [noticesOpen, setNoticesOpen] = useState(false);
+  /**
+   * Which row's activity the Work panel is reading.
+   *
+   * Null means "whatever the clock is on", which is right almost always — you
+   * are looking at what you are doing. Clicking a row pins it instead, so you
+   * can check what was already tried on a grade without moving the clock off
+   * the work in front of you.
+   */
+  const [pinnedScope, setPinnedScope] = useState<string | null>(null);
 
   const scanInputRef = useRef<HTMLInputElement>(null);
   const appliedInitialSelectionRef = useRef(false);
@@ -836,6 +849,7 @@ export function TarsWorkstation() {
         setNoticesOpen(true);
         return;
       }
+      setPinnedScope(null);
       startAction.mutate(
         { id: displayJob.id, payload: { grade } },
         {
@@ -898,6 +912,11 @@ export function TarsWorkstation() {
     : null;
 
   const partsListLabel = displayItem?.skuLabel ?? displayItem?.sku;
+  const parts = useMemo(() => summarizeParts(displayItem?.workSession?.parts), [displayItem]);
+
+  const currentActionGrade =
+    actions.data?.results.find((a) => a.id === actions.data?.current_action_id)?.grade ?? '';
+  const selectedScope = pinnedScope ?? currentActionGrade;
 
   if (isLoading) {
     return (
@@ -918,6 +937,16 @@ export function TarsWorkstation() {
         onScanSubmit={() => void submitBenchScan()}
         scanInputRef={scanInputRef}
         onBack={handleBackToDashboard}
+        actionSlot={
+          studioLane === 'bench' && displayJob?.stage === 'bench' ? (
+            <TarsDispositionBar
+              busy={holdJob.isPending || moveBack.isPending}
+              onHold={() => runWithTimerGuard(displayJob, 'hold', () => setHoldOpen(true))}
+              onSendBack={() => runWithTimerGuard(displayJob, 'moveBack', () => setSendBackOpen(true))}
+              onDone={() => runWithTimerGuard(displayJob, 'done', () => setDoneOpen(true))}
+            />
+          ) : null
+        }
         noticeSlot={<StudioNoticeButton notices={notices} onOpen={() => setNoticesOpen(true)} />}
         hrSlot={
           <Chip
@@ -997,15 +1026,10 @@ export function TarsWorkstation() {
             >
               <TarsBenchStatus
                 job={displayJob}
-                grades={gradeScales[displayJob.scale] ?? Object.keys(displayJob.grade_values ?? {})}
-                startingGrade={benchPlan.startingGrade}
                 busy={holdJob.isPending || moveBack.isPending}
-                partsCount={displayItem?.workSession?.parts?.length ?? 0}
-                onClaimGrade={(grade) => updateBenchPlan({ ...benchPlan, startingGrade: grade })}
+                partsCount={parts.count}
+                partsCost={parts.cost}
                 onParts={() => setPartsDrawerOpen(true)}
-                onHold={() => runWithTimerGuard(displayJob, 'hold', () => setHoldOpen(true))}
-                onSendBack={() => runWithTimerGuard(displayJob, 'moveBack', () => setSendBackOpen(true))}
-                onDone={() => runWithTimerGuard(displayJob, 'done', () => setDoneOpen(true))}
               />
 
               <TarsGradeTable
@@ -1015,17 +1039,20 @@ export function TarsWorkstation() {
                 floorRate={floorRate}
                 benchmarkRate={benchmarkRate}
                 busy={timerController.busy || startAction.isPending}
+                selectedScope={selectedScope}
+                onSelectScope={setPinnedScope}
                 onPlanChange={updateBenchPlan}
+                onClaimGrade={(grade) => updateBenchPlan({ ...benchPlan, startingGrade: grade })}
                 onAimTimer={workOn}
                 blockedReason={workBlockedReason}
               />
             </Box>
 
             <BenchRecord
-              jobId={displayJob.id}
               actions={actions.data}
               running={displayJob.timer_is_running}
               busy={startAction.isPending || describeAction.isPending || undoAction.isPending}
+              scope={selectedScope}
               onDescribe={handleDescribeAction}
               onNewAction={handleNewAction}
               onUndo={handleUndoAction}
@@ -1069,6 +1096,7 @@ export function TarsWorkstation() {
             onSessionChange={replaceWorkSession}
             gradeOptions={gradeOptions}
             selectedGrade={displayItem?.workSession?.selectedGrade ?? null}
+            currentGrade={benchPlan.startingGrade}
             requesting={upsertParts.isPending}
             onRequestParts={(grade) => void requestPartsForGrade(grade)}
           />

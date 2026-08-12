@@ -1154,9 +1154,10 @@ class RestorationAction(models.Model):
     # can start on the first click instead of behind a form.
     DEFAULT_CATEGORY = CATEGORY_INSPECT
 
-    # Edge case: every item opens with this, so the clock always has somewhere
-    # to go and the first action is never the one blocking a description.
+    # Every item opens with one of these, so the clock always has somewhere to
+    # go and the first action is never the one blocking a description.
     INITIAL_DESCRIPTION = 'Initial item inspection'
+    RESUME_DESCRIPTION = 'Resume item from hold'
 
     job = models.ForeignKey(
         RestorationJob,

@@ -29,6 +29,16 @@ export interface TarsPartLine {
   unitPriceActual: number;
   status: TarsPartStatus;
   procurementGroupId: string | null;
+  /**
+   * The grades this part is needed for. A part usually buys one outcome, but
+   * one screw can be on the way to several, so this is a list.
+   *
+   * Naming the grade the item is already at makes no sense — you do not buy
+   * parts to stay where you are — but it is not refused. Someone marking it
+   * that way is more likely to be recording something the model does not know
+   * about than making a mistake worth blocking.
+   */
+  grades?: string[];
 }
 
 export interface TarsProcurementGroup {

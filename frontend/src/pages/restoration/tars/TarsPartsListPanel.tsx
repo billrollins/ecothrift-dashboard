@@ -21,10 +21,12 @@ import {
   Tab,
   Tabs,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import { useEffect, useMemo, useState } from 'react';
 import type { TarsPartLine, TarsProcurementGroup, TarsWorkSession } from './tarsWorkTypes';
+import { partGrades } from './tarsPartsSummary';
 import { fmtUsd } from './tarsProfit';
 import { parseMoney, parseQty } from './tarsMoney';
 import { absoluteUrl } from './tarsUrl';
@@ -53,6 +55,8 @@ interface TarsPartsListPanelProps {
   onSessionChange?: (session: TarsWorkSession) => void;
   gradeOptions?: string[];
   selectedGrade?: string | null;
+  /** Where the item stands now, so a part pointed at it can be questioned. */
+  currentGrade?: string;
   requesting?: boolean;
   onRequestParts?: (grade: string) => void;
 }
@@ -62,17 +66,38 @@ type PartsTab = 'parts' | 'orders';
 function PartLineRow({
   part,
   readOnly,
+  gradeOptions,
+  currentGrade,
   onChange,
   onRemove,
 }: {
   part: TarsPartLine;
   readOnly: boolean;
+  gradeOptions: string[];
+  /** Where the item stands now, so a part pointed at it can be questioned. */
+  currentGrade: string;
   onChange: (patch: Partial<TarsPartLine>) => void;
   onRemove: () => void;
 }) {
   const lineTotal = partLineTotal(part);
+  const grades = partGrades(part);
+
+  function toggleGrade(grade: string) {
+    const next = grades.includes(grade) ? grades.filter((g) => g !== grade) : [...grades, grade];
+    onChange({ grades: next });
+  }
 
   return (
+    <Box
+      sx={{
+        py: 0.45,
+        px: 0.6,
+        borderRadius: 1,
+        border: '1px solid #e2e8f0',
+        bgcolor: '#fff',
+        '&:hover': { bgcolor: readOnly ? '#fff' : '#f8fafc' },
+      }}
+    >
     <Box
       sx={{
         display: 'grid',
@@ -81,12 +106,6 @@ function PartLineRow({
           : 'minmax(0, 2.2fr) minmax(0, 1.4fr) 56px 92px 90px 32px',
         gap: 0.6,
         alignItems: 'center',
-        py: 0.45,
-        px: 0.6,
-        borderRadius: 1,
-        border: '1px solid #e2e8f0',
-        bgcolor: '#fff',
-        '&:hover': { bgcolor: readOnly ? '#fff' : '#f8fafc' },
       }}
     >
       <TextField
@@ -147,6 +166,62 @@ function PartLineRow({
           <Delete sx={{ fontSize: 16 }} />
         </IconButton>
       : null}
+    </Box>
+
+    {/*
+      What this part buys. Usually one grade, sometimes several — one screw can
+      be on the way to more than one outcome — so these toggle rather than pick.
+
+      Naming the grade the item is already at is flagged, not refused: you do
+      not buy parts to stay where you are, so it is worth a second look, but
+      someone marking it that way is more likely to be recording something the
+      grade scale cannot express than making a mistake worth blocking.
+    */}
+    {gradeOptions.length > 0 ? (
+      <Stack direction="row" spacing={0.4} flexWrap="wrap" useFlexGap alignItems="center" sx={{ mt: 0.5, pl: 0.2 }}>
+        <Typography sx={{ fontSize: '0.6rem', fontWeight: 900, letterSpacing: 0.4, color: '#94a3b8', mr: 0.3 }}>
+          FOR
+        </Typography>
+        {gradeOptions.map((grade) => {
+          const on = grades.includes(grade);
+          const questionable = on && grade === currentGrade;
+          return (
+            <Tooltip
+              key={grade}
+              arrow
+              title={
+                questionable
+                  ? 'The item is already at this grade — parts usually buy a move, not a stay.'
+                  : on
+                    ? `Needed to reach ${grade}`
+                    : `Mark as needed to reach ${grade}`
+              }
+            >
+              <Box
+                component="button"
+                type="button"
+                disabled={readOnly}
+                aria-pressed={on}
+                onClick={() => toggleGrade(grade)}
+                sx={{
+                  px: 0.7,
+                  py: 0.1,
+                  cursor: readOnly ? 'default' : 'pointer',
+                  fontSize: '0.68rem',
+                  fontWeight: 800,
+                  borderRadius: '999px',
+                  border: `1px solid ${questionable ? '#e3b23c' : on ? '#0b665e' : '#e2e8f0'}`,
+                  bgcolor: questionable ? '#fffaf0' : on ? '#e2f4f0' : '#ffffff',
+                  color: questionable ? '#8a5200' : on ? '#0b665e' : '#94a3b8',
+                }}
+              >
+                {grade}
+              </Box>
+            </Tooltip>
+          );
+        })}
+      </Stack>
+    ) : null}
     </Box>
   );
 }
@@ -220,6 +295,7 @@ export function TarsPartsListPanel({
   onSessionChange,
   gradeOptions = [],
   selectedGrade,
+  currentGrade = '',
   requesting = false,
   onRequestParts,
 }: TarsPartsListPanelProps) {
@@ -331,6 +407,8 @@ export function TarsPartsListPanel({
                 key={part.id}
                 part={part}
                 readOnly={!canEdit}
+                gradeOptions={gradeOptions}
+                currentGrade={currentGrade}
                 onChange={(patch) => commit(updateSessionPart(session, part.id, patch))}
                 onRemove={() => commit(removeSessionPart(session, part.id))}
               />

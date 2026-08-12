@@ -87,6 +87,7 @@ export function newPartLine(): TarsPartLine {
     unitPriceActual: 0,
     status: 'considering',
     procurementGroupId: null,
+    grades: [],
   };
 }
 

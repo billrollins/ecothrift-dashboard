@@ -29,6 +29,7 @@ export function TarsStudioShell({
   timerSlot,
   hrSlot,
   noticeSlot,
+  actionSlot,
   onBack,
   children,
 }: {
@@ -42,6 +43,8 @@ export function TarsStudioShell({
   timerSlot?: ReactNode;
   hrSlot?: ReactNode;
   noticeSlot?: ReactNode;
+  /** The ways the item in hand can leave. Bench only — Home has no item. */
+  actionSlot?: ReactNode;
   onBack: () => void;
   children: ReactNode;
 }) {
@@ -59,6 +62,14 @@ export function TarsStudioShell({
         overflow: 'hidden',
       }}
     >
+      {/*
+        Three zones, so the clock lands in the middle of the screen no matter
+        how wide the sides get: where you are on the left, what time is being
+        spent in the centre, what you can do about it on the right. The side
+        zones share the leftover width evenly, which is what actually keeps the
+        centre centred — an `mx: auto` would only centre it between its
+        neighbours.
+      */}
       <Box
         sx={{
           minHeight: 62,
@@ -69,11 +80,20 @@ export function TarsStudioShell({
           display: 'flex',
           alignItems: 'center',
           gap: { xs: 0.75, md: 1 },
-          flexWrap: 'wrap',
           boxShadow: '0 4px 18px rgba(15, 23, 42, 0.2)',
           zIndex: 5,
         }}
       >
+        <Box
+          sx={{
+            flex: '1 1 0',
+            minWidth: 0,
+            alignSelf: 'stretch',
+            display: 'flex',
+            alignItems: 'center',
+            gap: { xs: 0.75, md: 1 },
+          }}
+        >
         <Button
           onClick={onBack}
           startIcon={<ArrowBack />}
@@ -151,41 +171,52 @@ export function TarsStudioShell({
             );
           })}
         </Stack>
+        </Box>
 
-        {/*
-          Scanning is how an item gets onto a bench, so it belongs where you go
-          looking for one. On Bench there is already an item in hand and the
-          field would only be a way to lose it.
-        */}
-        {lane === 'home' ? (
-          <TextField
-            size="small"
-            placeholder="Scan SKU…"
-            value={scanValue}
-            onChange={(e) => onScanChange(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && onScanSubmit()}
-            inputRef={scanInputRef}
-            InputProps={{
-              startAdornment: <QrCodeScanner sx={{ mr: 0.75, color: studio.railTextMuted, fontSize: 18 }} />,
-            }}
-            sx={{
-              ml: 'auto',
-              width: { xs: '100%', sm: 210, lg: 250 },
-              '& .MuiOutlinedInput-root': {
-                height: 38,
-                bgcolor: '#f8fafc',
-                borderRadius: `${studio.radius.sm}px`,
-                fontSize: '0.85rem',
-                fontFamily: 'monospace',
-              },
-            }}
-          />
-        ) : (
-          <Box sx={{ ml: 'auto' }} />
-        )}
-        {hrSlot}
-        {noticeSlot}
-        {timerSlot}
+        <Box sx={{ flex: '0 0 auto', display: 'flex', justifyContent: 'center' }}>{timerSlot}</Box>
+
+        <Box
+          sx={{
+            flex: '1 1 0',
+            minWidth: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: { xs: 0.75, md: 1 },
+          }}
+        >
+          {/*
+            Scanning is how an item gets onto a bench, so it belongs where you go
+            looking for one. On Bench there is already an item in hand and the
+            field would only be a way to lose it.
+          */}
+          {lane === 'home' ? (
+            <TextField
+              size="small"
+              placeholder="Scan SKU…"
+              value={scanValue}
+              onChange={(e) => onScanChange(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && onScanSubmit()}
+              inputRef={scanInputRef}
+              InputProps={{
+                startAdornment: <QrCodeScanner sx={{ mr: 0.75, color: studio.railTextMuted, fontSize: 18 }} />,
+              }}
+              sx={{
+                width: { xs: 150, sm: 210, lg: 250 },
+                '& .MuiOutlinedInput-root': {
+                  height: 38,
+                  bgcolor: '#f8fafc',
+                  borderRadius: `${studio.radius.sm}px`,
+                  fontSize: '0.85rem',
+                  fontFamily: 'monospace',
+                },
+              }}
+            />
+          ) : null}
+          {hrSlot}
+          {noticeSlot}
+          {actionSlot}
+        </Box>
       </Box>
       <Box sx={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>{children}</Box>
     </Box>

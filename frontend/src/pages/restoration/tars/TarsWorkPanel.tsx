@@ -1,10 +1,14 @@
 /**
- * What you are doing right now, and everything already done.
+ * What you are doing right now, and what has been done to the row you are
+ * reading.
  *
  * The clock is always attached to exactly one action, shown at the top with its
- * category and a description you type as you go. Below it, the log: every
- * action on this item grouped by what it was pointed at, with the time each
- * took.
+ * category and a description you type as you go.
+ *
+ * Below it is one scope's activity, not the whole item's. Everything grouped by
+ * scope was a wall of headings you had to read past to find the two lines that
+ * mattered; picking a row in the grade table and seeing just its history is the
+ * same information asked a question. The whole item's record is one tab over.
  *
  * The description is the one thing this screen insists on. An action nobody
  * described is a hole in the record, so until it is filled in the buttons that
@@ -27,7 +31,6 @@ import {
   actionsForScope,
   categoryMeta,
   formatDuration,
-  scopesWorked,
 } from './tarsActions';
 import { studio } from './studio/tarsStudioTheme';
 
@@ -35,6 +38,7 @@ export function TarsWorkPanel({
   data,
   running,
   busy,
+  scope,
   onDescribe,
   onNewAction,
   onUndo,
@@ -42,6 +46,8 @@ export function TarsWorkPanel({
   data: RestorationActionsDTO | undefined;
   running: boolean;
   busy?: boolean;
+  /** Whose activity to show below: a grade, or '' for the item as a whole. */
+  scope: string;
   onDescribe: (actionId: number, patch: { description?: string; category?: RestorationActionCategory }) => void;
   /** Open a fresh action on the same scope the current one is on. */
   onNewAction: (grade: string) => void;
@@ -50,6 +56,8 @@ export function TarsWorkPanel({
 }) {
   const actions = data?.results ?? [];
   const current = actions.find((a) => a.id === data?.current_action_id) ?? null;
+  const scoped = actionsForScope(actions, scope);
+  const scopeSeconds = scoped.reduce((sum, a) => sum + (a.seconds || 0), 0);
 
   return (
     <Stack spacing={1} sx={{ minWidth: 0, height: '100%' }}>
@@ -80,7 +88,27 @@ export function TarsWorkPanel({
       )}
 
       <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        <ActionLog actions={actions} currentId={data?.current_action_id ?? null} />
+        <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mb: 0.5, px: 0.25 }}>
+          <ScopeTag grade={scope} />
+          <Typography sx={{ fontFamily: 'monospace', fontSize: '0.72rem', fontWeight: 900, color: '#64748b' }}>
+            {formatDuration(scopeSeconds)}
+          </Typography>
+          <Typography sx={{ fontSize: '0.68rem', color: '#a3b0c0' }}>
+            {scoped.length === 1 ? '1 action' : `${scoped.length} actions`}
+          </Typography>
+        </Stack>
+
+        {scoped.length === 0 ? (
+          <Typography sx={{ px: 0.25, fontSize: '0.78rem', color: '#a3b0c0', fontStyle: 'italic' }}>
+            Nothing done here yet.
+          </Typography>
+        ) : (
+          <Stack spacing={0.4}>
+            {scoped.map((row) => (
+              <ActionRow key={row.id} action={row} isCurrent={row.id === data?.current_action_id} />
+            ))}
+          </Stack>
+        )}
       </Box>
     </Stack>
   );
@@ -269,43 +297,16 @@ function DescriptionField({
   );
 }
 
-/** Everything done to this item, grouped by what it was pointed at. */
-function ActionLog({
-  actions,
-  currentId,
+export function ActionRow({
+  action,
+  isCurrent,
+  showScope,
 }: {
-  actions: RestorationActionDTO[];
-  currentId: number | null;
+  action: RestorationActionDTO;
+  isCurrent: boolean;
+  /** Show what it was pointed at. Off inside a list that is already one scope. */
+  showScope?: boolean;
 }) {
-  const scopes = scopesWorked(actions);
-  if (scopes.length === 0) return null;
-
-  return (
-    <Stack spacing={1}>
-      {scopes.map((grade) => {
-        const rows = actionsForScope(actions, grade);
-        const seconds = rows.reduce((sum, a) => sum + (a.seconds || 0), 0);
-        return (
-          <Box key={grade || '__item__'}>
-            <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mb: 0.4, px: 0.25 }}>
-              <ScopeTag grade={grade} />
-              <Typography sx={{ fontFamily: 'monospace', fontSize: '0.7rem', fontWeight: 900, color: '#64748b' }}>
-                {formatDuration(seconds)}
-              </Typography>
-            </Stack>
-            <Stack spacing={0.4}>
-              {rows.map((row) => (
-                <ActionRow key={row.id} action={row} isCurrent={row.id === currentId} />
-              ))}
-            </Stack>
-          </Box>
-        );
-      })}
-    </Stack>
-  );
-}
-
-function ActionRow({ action, isCurrent }: { action: RestorationActionDTO; isCurrent: boolean }) {
   const meta = categoryMeta(action.category);
   return (
     <Stack
@@ -333,6 +334,7 @@ function ActionRow({ action, isCurrent }: { action: RestorationActionDTO; isCurr
       >
         {meta.label}
       </Typography>
+      {showScope ? <ScopeTag grade={action.grade} /> : null}
       <Typography
         sx={{
           flex: 1,
@@ -385,7 +387,7 @@ function SmallButton({
   );
 }
 
-function ScopeTag({ grade }: { grade: string }) {
+export function ScopeTag({ grade }: { grade: string }) {
   const whole = !grade;
   return (
     <Box

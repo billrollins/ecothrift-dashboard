@@ -17,6 +17,15 @@
  * Pressing Work is the decision. There is no separate commit step, because the
  * record of what was chosen and the act of choosing it should not be two
  * pieces of work.
+ *
+ * Three different things can be true of a row at once, so each gets its own
+ * signal rather than sharing one highlight:
+ *
+ * - the item is *at* this grade — the filled mark in the first column, which is
+ *   also how you say so. Every rate in the table is measured from it.
+ * - the clock is *on* this row — the accent edge and the "On it" button.
+ * - you are *reading* this row — the ring, set by clicking the row body, which
+ *   points the Work panel at that scope's activity without touching the clock.
  */
 import PlayArrow from '@mui/icons-material/PlayArrow';
 import Box from '@mui/material/Box';
@@ -49,8 +58,8 @@ const BAND_COLORS: Record<RateBand, { fg: string; bg: string; border: string }> 
   unknown: { fg: '#94a3b8', bg: '#f8fafc', border: '#e2e8f0' },
 };
 
-const COLUMNS = 'minmax(110px, 1fr) 76px 64px 64px 68px 94px minmax(84px, 0.8fr) 88px';
-const HEADINGS = ['GRADE', 'SELLS FOR', 'ODDS', 'PARTS', 'MINS', 'WORTH', '', ''];
+const COLUMNS = '30px minmax(104px, 1fr) 76px 64px 64px 68px 94px minmax(84px, 0.8fr) 88px';
+const HEADINGS = ['AT', 'GRADE', 'SELLS FOR', 'ODDS', 'PARTS', 'MINS', 'WORTH', '', ''];
 
 export function TarsGradeTable({
   job,
@@ -59,7 +68,10 @@ export function TarsGradeTable({
   floorRate,
   benchmarkRate,
   busy,
+  selectedScope,
+  onSelectScope,
   onPlanChange,
+  onClaimGrade,
   onAimTimer,
   blockedReason,
 }: {
@@ -69,7 +81,12 @@ export function TarsGradeTable({
   floorRate: number;
   benchmarkRate: number | null;
   busy?: boolean;
+  /** Whose activity the Work panel is showing: a grade, or '' for the item. */
+  selectedScope: string;
+  onSelectScope: (grade: string) => void;
   onPlanChange: (plan: TarsBenchPlan) => void;
+  /** Say the item is at this grade now. Every rate is measured from it. */
+  onClaimGrade: (grade: string) => void;
   /** Point the clock at a grade, or at the item when the grade is empty. */
   onAimTimer: (grade: string) => void;
   /**
@@ -83,6 +100,7 @@ export function TarsGradeTable({
   const best = useMemo(() => bestGrade(rows), [rows]);
   const aimed = job.timer_mode === 'work' ? job.timer_grade : '';
   const onItem = job.timer_mode !== 'work';
+  const unclaimed = rows.length > 0 && !plan.startingGrade;
 
   function setEstimate(grade: string, patch: Partial<TarsGradeRow['estimate']>) {
     onPlanChange({
@@ -95,7 +113,9 @@ export function TarsGradeTable({
     <Box
       sx={{
         borderRadius: `${studio.radius.lg}px`,
-        border: `1px solid ${studio.panelBorder}`,
+        // Amber until someone says where the item stands: with no starting
+        // grade every rate below is measured from nowhere.
+        border: `1px solid ${unclaimed ? '#e3b23c' : studio.panelBorder}`,
         bgcolor: studio.panel,
         boxShadow: studio.panelShadow,
         overflow: 'hidden',
@@ -122,7 +142,7 @@ export function TarsGradeTable({
               fontWeight: 900,
               letterSpacing: 0.5,
               color: '#94a3b8',
-              textAlign: i === 0 || i >= 5 ? 'left' : 'center',
+              textAlign: i === 0 ? 'center' : i === 1 || i >= 6 ? 'left' : 'center',
             }}
           >
             {label}
@@ -133,8 +153,10 @@ export function TarsGradeTable({
       <ItemRow
         job={job}
         isAimed={onItem}
+        isSelected={selectedScope === ''}
         busy={busy}
         blockedReason={onItem ? undefined : blockedReason}
+        onSelect={() => onSelectScope('')}
         onAim={() => onAimTimer('')}
       />
 
@@ -144,10 +166,13 @@ export function TarsGradeTable({
           row={row}
           isBest={best?.grade === row.grade}
           isAimed={aimed === row.grade}
+          isSelected={selectedScope === row.grade}
           floorRate={floorRate}
           benchmarkRate={benchmarkRate}
           busy={busy}
           onEstimate={(patch) => setEstimate(row.grade, patch)}
+          onSelect={() => onSelectScope(row.grade)}
+          onClaim={() => onClaimGrade(row.grade)}
           onAim={() => onAimTimer(row.grade)}
           blockedReason={row.grade === aimed ? undefined : blockedReason}
         />
@@ -156,6 +181,10 @@ export function TarsGradeTable({
       {rows.length === 0 ? (
         <Typography sx={{ px: 1.25, py: 1.5, fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>
           No grade scale on this item yet. Set one from the queue.
+        </Typography>
+      ) : unclaimed ? (
+        <Typography sx={{ px: 1.25, py: 0.7, fontSize: '0.72rem', fontWeight: 800, color: '#8a5200', bgcolor: '#fffaf0' }}>
+          Mark where the item is now — every rate is measured from it.
         </Typography>
       ) : null}
     </Box>
@@ -172,31 +201,30 @@ export function TarsGradeTable({
 function ItemRow({
   job,
   isAimed,
+  isSelected,
   busy,
   blockedReason,
+  onSelect,
   onAim,
 }: {
   job: RestorationJobDTO;
   isAimed: boolean;
+  isSelected: boolean;
   busy?: boolean;
   blockedReason?: string;
+  onSelect: () => void;
   onAim: () => void;
 }) {
   return (
     <Box
+      onClick={onSelect}
       sx={{
-        display: 'grid',
-        gridTemplateColumns: COLUMNS,
-        gap: 1,
-        alignItems: 'center',
-        px: 1.25,
-        py: 0.65,
-        borderBottom: `1px solid ${studio.panelBorder}`,
-        borderLeft: `3px solid ${isAimed ? studio.accentDark : 'transparent'}`,
+        ...rowSx(isAimed, isSelected),
         bgcolor: isAimed ? studio.accentSoft : '#fcfdfe',
         '&:hover': { bgcolor: isAimed ? studio.accentSoft : '#f8fafc' },
       }}
     >
+      <Box />
       <Typography noWrap sx={{ fontWeight: 900, fontSize: '0.85rem', color: '#0f172a' }}>
         The item
       </Typography>
@@ -221,24 +249,48 @@ function ItemRow({
   );
 }
 
+/** Shared row frame: the clock's edge on the left, the reading ring around it. */
+function rowSx(isAimed: boolean, isSelected: boolean, isBest = false) {
+  return {
+    display: 'grid',
+    gridTemplateColumns: COLUMNS,
+    gap: 1,
+    alignItems: 'center',
+    cursor: 'pointer',
+    px: 1.25,
+    py: 0.65,
+    borderBottom: `1px solid ${studio.panelBorder}`,
+    borderLeft: `3px solid ${isAimed ? studio.accentDark : isBest ? studio.accent : 'transparent'}`,
+    // An inset shadow rather than a border, so selecting a row never changes
+    // its size and the table cannot shift under the hand.
+    boxShadow: isSelected ? `inset 0 0 0 2px ${studio.accentSoftBorder}` : 'none',
+  } as const;
+}
+
 function GradeRow({
   row,
   isBest,
   isAimed,
+  isSelected,
   floorRate,
   benchmarkRate,
   busy,
   onEstimate,
+  onSelect,
+  onClaim,
   onAim,
   blockedReason,
 }: {
   row: TarsGradeRow;
   isBest: boolean;
   isAimed: boolean;
+  isSelected: boolean;
   floorRate: number;
   benchmarkRate: number | null;
   busy?: boolean;
   onEstimate: (patch: Partial<TarsGradeRow['estimate']>) => void;
+  onSelect: () => void;
+  onClaim: () => void;
   onAim: () => void;
   blockedReason?: string;
 }) {
@@ -247,23 +299,20 @@ function GradeRow({
 
   return (
     <Box
+      onClick={onSelect}
       sx={{
-        display: 'grid',
-        gridTemplateColumns: COLUMNS,
-        gap: 1,
-        alignItems: 'center',
-        px: 1.25,
-        py: 0.65,
-        borderBottom: `1px solid ${studio.panelBorder}`,
-        borderLeft: `3px solid ${isAimed ? studio.accentDark : isBest ? studio.accent : 'transparent'}`,
+        ...rowSx(isAimed, isSelected, isBest),
         bgcolor: isAimed ? studio.accentSoft : 'transparent',
         // Dim rather than hide: a grade ruled out is still an answer, and its
         // row must stay in place so the table never reflows under the hand.
-        opacity: impossible || row.isStart ? 0.55 : 1,
+        // Where the item stands stays legible, because it is a fact you read.
+        opacity: impossible && !row.isStart ? 0.55 : 1,
         '&:last-of-type': { borderBottom: 'none' },
         '&:hover': { bgcolor: isAimed ? studio.accentSoft : '#f8fafc' },
       }}
     >
+      <CurrentGradeMark grade={row.grade} isAt={row.isStart} disabled={busy} onClaim={onClaim} />
+
       <Typography noWrap sx={{ fontWeight: 800, fontSize: '0.85rem', color: '#0f172a' }}>
         {row.grade}
       </Typography>
@@ -341,7 +390,7 @@ function GradeRow({
       </Tooltip>
 
       <Stack direction="row" spacing={0.4} flexWrap="wrap" useFlexGap>
-        {row.isStart ? <MiniTag label="it is here" /> : null}
+        {row.isStart ? <MiniTag label="it is here now" /> : null}
         {isBest && !row.isStart ? <MiniTag label="best" good /> : null}
         {impossible && !row.isStart ? <MiniTag label="ruled out" /> : null}
         {row.toGo > 0 && !row.isStart && !impossible ? (
@@ -363,6 +412,68 @@ function GradeRow({
         onClick={onAim}
       />
     </Box>
+  );
+}
+
+/**
+ * Where the item stands, said on the grade it stands at.
+ *
+ * This used to be a row of buttons in its own panel, which meant the same fact
+ * was written in two places on one screen and could be read two ways. Marking
+ * it on the row makes the claim and the thing claimed the same object.
+ *
+ * One is filled at a time, like a radio, because an item is at exactly one
+ * grade — but re-marking is just another press, since finding out you were
+ * wrong about the starting grade is half of what a teardown is for.
+ */
+function CurrentGradeMark({
+  grade,
+  isAt,
+  disabled,
+  onClaim,
+}: {
+  grade: string;
+  isAt: boolean;
+  disabled?: boolean;
+  onClaim: () => void;
+}) {
+  return (
+    <Tooltip arrow title={isAt ? `The item is at ${grade} now` : `Mark the item as being at ${grade} now`}>
+      <Box
+        component="button"
+        type="button"
+        role="radio"
+        aria-checked={isAt}
+        aria-label={`Item is at ${grade}`}
+        disabled={disabled}
+        onClick={(e: React.MouseEvent) => {
+          e.stopPropagation();
+          onClaim();
+        }}
+        sx={{
+          width: 18,
+          height: 18,
+          p: 0,
+          mx: 'auto',
+          display: 'grid',
+          placeItems: 'center',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          borderRadius: '50%',
+          border: `2px solid ${isAt ? studio.accentDark : '#cbd5e1'}`,
+          bgcolor: '#ffffff',
+          '&:hover:not(:disabled)': { borderColor: studio.accent },
+        }}
+      >
+        <Box
+          sx={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            bgcolor: isAt ? studio.accentDark : 'transparent',
+          }}
+        />
+      </Box>
+    </Tooltip>
   );
 }
 
