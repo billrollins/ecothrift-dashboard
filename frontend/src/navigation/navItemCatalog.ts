@@ -208,6 +208,13 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'build',
     openInNewWindow: true,
   },
+  // No role gate: whoever knows what an item is worth should be able to say so.
+  restorationQueue: {
+    id: 'restorationQueue',
+    path: '/restoration/queue',
+    label: 'Restoration queue',
+    icon: 'assignmentTurnedIn',
+  },
   restorationPartsRequests: {
     id: 'restorationPartsRequests',
     path: '/restoration/parts-requests',

@@ -3,7 +3,7 @@
 
 # Initiative: Finalize TARS App
 
-**Status:** **Active** — Design signed off. Stages 1–4 shipped and tagged; Stage 5 (the bench) is next. Nothing pushed to production yet.
+**Status:** **Active** — Design signed off. Stages 1–5 shipped and tagged. Nothing pushed to production yet.
 
 **Objective:** One excellent, **100% functional MVP** of TARS that Mike and Ashley start using on the floor for real, pushed to production. Not a prototype, not a phase-gated research program — a finished small app.
 
@@ -166,9 +166,21 @@ No stage has been pushed to production yet. Steps 6–8 of the cycle (bump, push
 | **Everyone's dashboard** | Items completed/dispositioned each day, for every department that has the notion — restoration counts already exist server-side and are not surfaced. |
 | **Acceptance** | Bill can read the restoration scoreboard without clicking anything; the dashboard shows a per-day completed count; both are honest when the numbers are zero. |
 
-### Stage 5 — The bench
+### Stage 5 — The queue and the bench
 
-Everything in [`design.md`](../reference/TARS%20Restoration%20Processing%20App/design.md) under *The Bench*: the grade table, three estimates per row, hover to expand, press-to-open and release-to-select, unset shown muted with a to-go badge, the item-level looking clock and its still-open line, the three bands against cost and the usual rate, and revisions auto-logged on re-tap.
+Bill reviewed stages 3 and 4 on the floor and rejected the shape: the scoreboard had been bolted onto the Inbox lane, inline alerts pushed the work around every time state changed, and the bench had grown to roughly 1,950 lines across a cockpit, a state bar and a work table that no one could read at once. Two structural corrections came out of it, and both landed here.
+
+**Grading moved out of the studio.** An item cannot go on a bench until its grades are priced, and only Ashley knows the prices — but the priced-grades step lived inside Mike's studio, where she had no reason to be. The queue is now its own component mounted in two places: `/restoration/queue` at her desk, and TARS Home so she can lean over and use Mike's screen. No role gate on either. This exposed a real gap: the existing patch endpoint only accepted `queued` jobs, so half the queue — anything already `sent` — could not be edited at all. `queue-details` replaces it and stays open until the item is finished.
+
+**Two tabs, not four.** Home (scoreboard strip, queue, holding rail) and Bench. Queue and Holding are both lists of waiting items, so they sit side by side rather than each claiming a tab nobody visits.
+
+| | |
+|---|---|
+| **Queue card** | Name, SKU, what Processing saw, retail, note, destination, days waiting, and value at stake — the spread between the best and worst grade. Sorted so items anyone can unblock come first, then the most money on the table, then age. |
+| **Grade table** | Replaces the cockpit. One row per grade; Ashley's price is given, Mike answers odds, parts and minutes through press-to-open/release-to-select pickers. Rows sort by rate. Aiming the clock at a row *is* the decision — there is no separate commit step. |
+| **Bands** | Each rate is read against the floor (what an hour costs) and the benchmark (what an hour usually returns), not one pass/fail line. |
+| **Notices** | Every inline alert is gone. Standing conditions collect behind a header badge and open in a drawer. Recorded as a house rule in `.ai/extended/frontend.md`. |
+| **Acceptance** | Nothing on any TARS surface shifts when state changes; Ashley can price grades without opening the studio; the bench fits on one screen. |
 
 ---
 
@@ -190,6 +202,8 @@ Everything in [`design.md`](../reference/TARS%20Restoration%20Processing%20App/d
 Logged for documentation only. No owner input required.
 
 **2026-08-12 — Design signed off; stages 3 and 4 shipped.** Settled the last six surface decisions with Bill on canvas and wrote them into `design.md`. Two of his answers changed the model rather than the surface: investigation time is clocked against the item instead of a grade, and rates are judged against a floor and a bar rather than one number. Wrote the Stage 3–7 phases from the design. Shipped `tars/3-what-it-earned` (timer attribution, `value_added` stamped at completion, scoreboard service — one migration) and `tars/4-numbers-up-front` (TARS home scoreboard; Restoration card on the shared dashboard now reports items finished this week instead of jobs in flight, which never matched the weekly goal beside it). 129 backend tests and 434 frontend tests green; build clean. Not pushed to production. Next: Stage 5, the grade table.
+
+**2026-08-12 — Stage 5: queue and bench.** Bill reviewed the studio and rejected its shape rather than its numbers: the scoreboard had been bolted onto the Inbox lane, inline alerts pushed the work around whenever state changed, and the bench had grown past what anyone could read at once. Shipped `tars/5-queue-and-bench`. Two corrections were structural rather than cosmetic. First, grading moved out of the studio — an item cannot reach a bench until Ashley prices its grades, but that step lived on Mike's screen where she had no reason to be; the queue is now one component mounted both at `/restoration/queue` and on TARS Home, ungated. Finding this surfaced a real defect: the existing patch endpoint accepted only `queued` jobs, so anything already `sent` could not be edited at all, which is a large share of the queue. Second, tore out the cockpit, state bar, lane list, work-bench table and decision-session hook — about 1,950 lines — and replaced them with a grade table where aiming the clock at a row is itself the decision. Every inline `<Alert>` is gone; standing conditions now collect behind a badge and open in a drawer, and the no-layout-shift rule is written into `.ai/extended/frontend.md` so it does not have to be relearned. 128 restoration backend tests and 488 frontend tests green; build clean, TARS bundle down to 79 kB. The 82 failures in the wider inventory suite predate this work — `ManifestRow.description` was dropped in `5d2d7ef` and its tests were not updated. Not pushed to production.
 
 **2026-08-11 — Audit compiled, design drafted, stages 1–2 shipped.** Consolidated both prior TARS initiatives into this one. Compiled the audit register from a full read of the TARS backend and frontend. Drafted [`design.md`](../reference/TARS%20Restoration%20Processing%20App/design.md) and a matching canvas. Shipped `tars/1-legacy-removed` (4,646 lines of unrouted code deleted) and `tars/2-one-truth` (server made the sole authority on decision economics, guarded by a contract test on each side; queue pressure and the grade-scale fallback removed). Not pushed to production. Open question for Bill: what device is at the bench.
 

@@ -32,6 +32,7 @@ import type {
   RestorationJobCombinePayload,
   RestorationJobHoldPayload,
   RestorationJobDonePayload,
+  RestorationJobQueueDetailsPayload,
   RestorationScoreboardDTO,
   TarsTimerMode,
   RestorationTimelineEventDTO,
@@ -2334,6 +2335,14 @@ export function startRestorationJobTimer(
 
 export function getRestorationScoreboard(): Promise<{ data: RestorationScoreboardDTO }> {
   return api.get('/inventory/restoration-jobs/scoreboard/');
+}
+
+/** Queue context any staff member may fill in while the item is unfinished. */
+export function patchRestorationQueueDetails(
+  id: number,
+  payload: RestorationJobQueueDetailsPayload,
+): Promise<{ data: RestorationJobDTO }> {
+  return api.patch(`/inventory/restoration-jobs/${id}/queue-details/`, payload);
 }
 
 export function pauseRestorationJobTimer(

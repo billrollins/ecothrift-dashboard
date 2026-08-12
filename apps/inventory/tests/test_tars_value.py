@@ -181,31 +181,44 @@ class TarsStartingGradeTests(RestorationQueueTestBase):
         resp = self._check_in_restoration(order, pr, product)
         self.job = RestorationJob.objects.get(item_check_in_id=resp.data['item_check_in_id'])
 
-    def test_reads_the_current_grade_from_the_decision_work(self):
+    def test_reads_the_datum_the_bench_writes(self):
+        session = {'benchPlan': {'startingGrade': 'Repairable'}}
+        self.assertEqual(starting_grade_from_session(session), 'Repairable')
+
+    def test_still_reads_jobs_the_retired_cockpit_touched(self):
         session = {'decisionWork': {'condition': {'currentGrade': 'Repairable'}}}
         self.assertEqual(starting_grade_from_session(session), 'Repairable')
+
+    def test_the_bench_wins_over_the_retired_cockpit(self):
+        session = {
+            'benchPlan': {'startingGrade': 'Working'},
+            'decisionWork': {'condition': {'currentGrade': 'Repairable'}},
+        }
+        self.assertEqual(starting_grade_from_session(session), 'Working')
 
     def test_tolerates_every_shape_of_missing(self):
         for session in (None, {}, {'decisionWork': None}, {'decisionWork': {}},
                         {'decisionWork': {'condition': 'nope'}},
-                        {'decisionWork': {'condition': {}}}):
+                        {'decisionWork': {'condition': {}}},
+                        {'benchPlan': None}, {'benchPlan': {}},
+                        {'benchPlan': {'startingGrade': ''}}):
             self.assertEqual(starting_grade_from_session(session), '')
 
     def test_sync_reports_whether_it_changed(self):
-        self.job.work_session = {'decisionWork': {'condition': {'currentGrade': 'Repairable'}}}
+        self.job.work_session = {'benchPlan': {'startingGrade': 'Repairable'}}
         self.assertTrue(sync_starting_grade(self.job))
         self.assertEqual(self.job.starting_grade, 'Repairable')
         self.assertFalse(sync_starting_grade(self.job))
 
     def test_a_correction_moves_the_datum(self):
         self.job.starting_grade = 'Parts-only'
-        self.job.work_session = {'decisionWork': {'condition': {'currentGrade': 'Repairable'}}}
+        self.job.work_session = {'benchPlan': {'startingGrade': 'Repairable'}}
         self.assertTrue(sync_starting_grade(self.job))
         self.assertEqual(self.job.starting_grade, 'Repairable')
 
     def test_an_empty_grade_never_erases_a_recorded_datum(self):
         self.job.starting_grade = 'Repairable'
-        self.job.work_session = {'decisionWork': {'condition': {'currentGrade': ''}}}
+        self.job.work_session = {'benchPlan': {'startingGrade': ''}}
         self.assertFalse(sync_starting_grade(self.job))
         self.assertEqual(self.job.starting_grade, 'Repairable')
 

@@ -1495,6 +1495,8 @@ class RestorationJobSerializer(serializers.ModelSerializer):
             'pending_notes',
             'pending_storage_location',
             'pending_started_at',
+            'intended_destination',
+            'queue_note',
             'bench_disposition',
             'starting_grade',
             'final_grade',
@@ -1773,6 +1775,55 @@ class RestorationJobPatchSerializer(serializers.Serializer):
                     )
                 except ValueError as exc:
                     raise serializers.ValidationError({'processing_handoff': str(exc)}) from exc
+        return attrs
+
+
+class RestorationJobQueueDetailsSerializer(serializers.Serializer):
+    """Queue context: the grade scale, its values, a note, and where it should go.
+
+    Deliberately separate from the full patch path, which only accepts queued
+    jobs. These fields stay answerable for as long as the item is unfinished,
+    because the person who knows the answer is not always the one who checked
+    it in.
+    """
+
+    scale = serializers.CharField(required=False, allow_blank=True)
+    grade_values = serializers.DictField(child=serializers.FloatField(), required=False)
+    intended_destination = serializers.CharField(required=False, allow_blank=True)
+    queue_note = serializers.CharField(required=False, allow_blank=True, max_length=2000)
+
+    def validate_scale(self, value):
+        from apps.inventory.services.restoration import is_known_active_scale
+
+        if value and not is_known_active_scale(value):
+            raise serializers.ValidationError('Unknown grade scale.')
+        return value
+
+    def validate_intended_destination(self, value):
+        valid = {choice[0] for choice in RestorationJob.INTENDED_DESTINATION_CHOICES}
+        if value and value not in valid:
+            raise serializers.ValidationError(f'Choose one of: {", ".join(sorted(valid))}.')
+        return value
+
+    def validate(self, attrs):
+        from apps.inventory.services.restoration import (
+            empty_values_for_scale,
+            normalize_grade_values,
+        )
+
+        job = self.context['job']
+        if 'scale' in attrs or 'grade_values' in attrs:
+            scale = attrs.get('scale', job.scale)
+            if 'grade_values' in attrs:
+                values = normalize_grade_values(attrs['grade_values'])
+            elif attrs.get('scale') and attrs['scale'] != job.scale:
+                # Switching scale keeps whatever values still apply and blanks
+                # the rest, rather than silently discarding Ashley's work.
+                values = empty_values_for_scale(scale, normalize_grade_values(job.grade_values))
+            else:
+                values = normalize_grade_values(job.grade_values)
+            attrs['scale'] = scale
+            attrs['grade_values'] = values
         return attrs
 
 

@@ -14,6 +14,7 @@ import {
   markRestorationJobMeaningfulAction,
   moveRestorationJobBackToQueue,
   patchRestorationJobWorkSession,
+  patchRestorationQueueDetails,
   pauseRestorationJobTimer,
   receiveRestorationPartsRequest,
   recordRestorationPartsOrder,
@@ -32,6 +33,7 @@ import type {
   RestorationTimelineEventType,
   RestorationPartsOrderCreatePayload,
   RestorationPartsRequestDTO,
+  RestorationJobQueueDetailsPayload,
   TarsTimerMode,
 } from '../types/inventory.types';
 import type { PaginatedResponse } from '../types/common.types';
@@ -130,6 +132,30 @@ export function useTarsBenchJobs() {
       return expandRestorationJobsForTars(Array.from(byId.values()));
     },
     refetchInterval: 10_000,
+  });
+}
+
+/**
+ * Fill in a queued item's scale, values, note or destination. Available to any
+ * staff member for as long as the item is unfinished.
+ */
+export function usePatchRestorationQueueDetails() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      payload,
+    }: {
+      id: number;
+      payload: RestorationJobQueueDetailsPayload;
+    }) => {
+      const { data } = await patchRestorationQueueDetails(id, payload);
+      return data;
+    },
+    onSuccess: (data) => {
+      patchTarsBenchJobInCache(queryClient, data);
+      invalidateBenchJobs(queryClient);
+    },
   });
 }
 

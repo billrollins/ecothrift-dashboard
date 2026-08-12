@@ -1,18 +1,21 @@
 import ArrowBack from '@mui/icons-material/ArrowBack';
-import Inbox from '@mui/icons-material/Inbox';
-import PauseCircle from '@mui/icons-material/PauseCircle';
 import QrCodeScanner from '@mui/icons-material/QrCodeScanner';
 import Build from '@mui/icons-material/Build';
+import SpaceDashboard from '@mui/icons-material/SpaceDashboard';
 import { Box, Button, Chip, Stack, TextField, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { studio } from './tarsStudioTheme';
 
-export type StudioLane = 'inbox' | 'bench' | 'pending';
+/**
+ * Two surfaces, not four. Home answers "what is there to do"; Bench is the one
+ * item being done. Queue and Holding are both lists of waiting items, so they
+ * live side by side on Home rather than each claiming a tab nobody visits.
+ */
+export type StudioLane = 'home' | 'bench';
 
 export const STUDIO_LANES: Array<{ id: StudioLane; label: string; icon: ReactNode }> = [
-  { id: 'inbox', label: 'Inbox', icon: <Inbox sx={{ fontSize: 16 }} /> },
+  { id: 'home', label: 'Home', icon: <SpaceDashboard sx={{ fontSize: 16 }} /> },
   { id: 'bench', label: 'Bench', icon: <Build sx={{ fontSize: 16 }} /> },
-  { id: 'pending', label: 'Pending', icon: <PauseCircle sx={{ fontSize: 16 }} /> },
 ];
 
 export function TarsStudioShell({
@@ -25,6 +28,7 @@ export function TarsStudioShell({
   scanInputRef,
   timerSlot,
   hrSlot,
+  noticeSlot,
   onBack,
   children,
 }: {
@@ -37,6 +41,7 @@ export function TarsStudioShell({
   scanInputRef?: React.RefObject<HTMLInputElement | null>;
   timerSlot?: ReactNode;
   hrSlot?: ReactNode;
+  noticeSlot?: ReactNode;
   onBack: () => void;
   children: ReactNode;
 }) {
@@ -139,6 +144,7 @@ export function TarsStudioShell({
           }}
         />
         {hrSlot}
+        {noticeSlot}
         {timerSlot}
       </Box>
       <Box sx={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>{children}</Box>

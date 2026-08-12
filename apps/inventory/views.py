@@ -134,6 +134,7 @@ from .serializers import (
     DisputePatchSerializer,
     RestorationJobSerializer,
     RestorationJobPatchSerializer,
+    RestorationJobQueueDetailsSerializer,
     RestorationJobWorkSessionSerializer,
     RestorationJobHoldSerializer,
     RestorationJobDoneSerializer,
@@ -9004,6 +9005,71 @@ class RestorationJobViewSet(
         job = self.get_queryset().get(pk=job.pk)
         out = RestorationJobSerializer(job, context=self.get_serializer_context())
         return Response(out.data)
+
+    @action(detail=True, methods=['patch'], url_path='queue-details')
+    def queue_details(self, request, pk=None):
+        """Fill in the grade scale, values, note and destination for a queued item.
+
+        Any staff member, at any screen, for as long as the item is unfinished.
+        The person who knows what an item is worth is often not the person who
+        checked it in, and making them find each other is the delay this avoids.
+        """
+
+        from apps.inventory.services.restoration import maybe_fulfill_valuation_request
+        from apps.inventory.services.restoration_timeline import append_timeline_event
+
+        with transaction.atomic():
+            job = RestorationJob.objects.select_for_update().get(pk=self.get_object().pk)
+            if job.stage in (RestorationJob.STAGE_DONE, RestorationJob.STAGE_RETURNED):
+                return Response(
+                    {'detail': 'This item is finished — its queue details can no longer change.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            ser = RestorationJobQueueDetailsSerializer(
+                data=request.data,
+                context={'job': job, 'user': request.user},
+            )
+            ser.is_valid(raise_exception=True)
+            data = ser.validated_data
+
+            old_scale = job.scale
+            old_values = dict(job.grade_values or {})
+            update_fields = ['updated_at']
+            if 'scale' in data:
+                job.scale = data['scale']
+                job.grade_values = data['grade_values']
+                update_fields += ['scale', 'grade_values']
+            if 'intended_destination' in data:
+                job.intended_destination = data['intended_destination']
+                update_fields.append('intended_destination')
+            if 'queue_note' in data:
+                job.queue_note = data['queue_note']
+                update_fields.append('queue_note')
+            job.save(update_fields=update_fields)
+
+            correlation_id = uuid.uuid4()
+            if old_scale != job.scale or old_values != job.grade_values:
+                append_timeline_event(
+                    job,
+                    'valuation.values_changed',
+                    {
+                        'scale': job.scale,
+                        'values': dict(job.grade_values or {}),
+                        'previous_scale': old_scale,
+                        'previous_values': old_values,
+                    },
+                    actor=request.user,
+                    entity_id=f'grade-values:{job.pk}',
+                    correlation_id=correlation_id,
+                )
+                maybe_fulfill_valuation_request(
+                    job,
+                    user=request.user,
+                    correlation_id=correlation_id,
+                )
+
+        job = self.get_queryset().get(pk=job.pk)
+        return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
 
     @action(detail=False, methods=['get'])
     def scoreboard(self, request):

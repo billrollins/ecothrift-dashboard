@@ -1,9 +1,25 @@
-feat(processing): retail/price lock with editable percent badge
+feat(tars): rebuild the queue and bench around what can be read at a glance
 
-Release: v2.70.0
+Stage 5 of finalize_tars_app. Bill reviewed the studio on the floor and
+rejected its shape: the scoreboard was bolted onto the Inbox lane, inline
+alerts pushed the work around whenever state changed, and the bench had
+grown past what anyone could take in at once.
 
-- Add lock toggle + % badge on Processing row details and shared check-in fields
-- Lock scales price when retail changes; % edit updates shelf price (never reverse)
-- Persist lock preference in localStorage; row-detail overlay matches check-in feel
-- Fix processing-row-patch: keep final_price with shelf_price; denorm no longer clobbers
-- Restore start_dashboard / start_website / start_all as distinct staff / public / full starters
+Grading moves out of the studio. An item cannot reach a bench until its
+grades are priced and only Ashley knows the prices, but that step lived on
+Mike's screen where she had no reason to be. The queue is now one component
+mounted both at /restoration/queue and on TARS Home, with no role gate, so
+whoever is at a screen when the answer is known can record it. This exposed
+a real defect: the existing patch endpoint accepted only queued jobs, so
+anything already sent could not be edited at all. The new queue-details
+endpoint stays open until the item is finished.
+
+The bench loses the cockpit, state bar, lane list, work-bench table and
+decision-session hook - about 1,950 lines - for a grade table. One row per
+grade; aiming the clock at a row is the decision, so there is no separate
+commit step to forget. Rates are read against a floor and a benchmark rather
+than one pass/fail line.
+
+Every inline Alert is gone. Standing conditions collect behind a header badge
+and open in a drawer, and the no-layout-shift rule is recorded in
+.ai/extended/frontend.md so it does not have to be relearned.

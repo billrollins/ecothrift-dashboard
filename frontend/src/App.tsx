@@ -73,6 +73,7 @@ import AuctionListPage from './pages/buying/AuctionListPage';
 import AuctionDetailPage from './pages/buying/AuctionDetailPage';
 import WatchlistPage from './pages/buying/WatchlistPage';
 import TarsPartsRequestsPage from './pages/restoration/TarsPartsRequestsPage';
+import RestorationQueuePage from './pages/restoration/queue/RestorationQueuePage';
 import RestorationLayout from './pages/restoration/RestorationLayout';
 import OnlineSalesListingsPage from './pages/online-sales/OnlineSalesListingsPage';
 import ListingStudioPage from './pages/online-sales/ListingStudioPage';
@@ -200,7 +201,7 @@ export default function App() {
         <Route path="/buying/watchlist" element={<WatchlistPage />} />
         <Route path="/restoration" element={<RestorationLayout />}>
           <Route index element={<Navigate to="/restoration/tars" replace />} />
-          <Route path="queue" element={<Navigate to="/restoration/tars" replace />} />
+          <Route path="queue" element={<RestorationQueuePage />} />
           <Route path="tars-2" element={<Navigate to="/restoration/tars" replace />} />
           <Route path="parts-requests" element={<TarsPartsRequestsPage />} />
         </Route>

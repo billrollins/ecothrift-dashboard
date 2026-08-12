@@ -55,11 +55,11 @@ describe('scoreboardVerdict', () => {
 
   it('flags a rate that pays but trails the usual', () => {
     const verdict = scoreboardVerdict(board({ per_hour_while_working: '22.00' }));
-    expect(verdict?.label).toBe('paying, below usual');
+    expect(verdict?.label).toBe('below usual');
   });
 
   it('celebrates a rate above the usual', () => {
-    expect(scoreboardVerdict(board())?.label).toBe('beating the usual');
+    expect(scoreboardVerdict(board())?.label).toBe('beating usual');
   });
 
   it('counts the floor exactly as clearing it, not as below cost', () => {
@@ -73,7 +73,7 @@ describe('scoreboardVerdict', () => {
       board({ per_hour_while_working: '22.00', benchmark_ready: false }),
     );
     // 22 trails the usual 25, but with too few jobs that bar is not yet a fact.
-    expect(verdict?.label).toBe('beating the usual');
+    expect(verdict?.label).toBe('beating usual');
     expect(verdict?.detail).toContain('$20');
   });
 

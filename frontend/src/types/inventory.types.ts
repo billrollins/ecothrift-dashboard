@@ -1124,6 +1124,10 @@ export interface RestorationJobDTO {
   pending_notes: string;
   pending_storage_location: string;
   pending_started_at: string | null;
+  /** Set in the queue, before any work — distinct from where it actually went. */
+  intended_destination: RestorationIntendedDestination | '';
+  /** Anything the person picking this up should know. Any staff member may write it. */
+  queue_note: string;
   bench_disposition: RestorationBenchDisposition | '';
   /** The grade the item arrived at — the datum every estimate is measured against. */
   starting_grade: string;
@@ -1138,6 +1142,20 @@ export interface RestorationJobDTO {
 }
 
 export type TarsTimerMode = 'look' | 'work';
+
+/** Where the item is meant to end up, decided in the queue before any work. */
+export type RestorationIntendedDestination =
+  | 'shelf'
+  | 'online_sales'
+  | 'storage'
+  | 'staff_pick';
+
+export interface RestorationJobQueueDetailsPayload {
+  scale?: string;
+  grade_values?: Record<string, number>;
+  intended_destination?: string;
+  queue_note?: string;
+}
 
 /** One span of finished work: what it added, over how many hours. */
 export interface RestorationScoreboardWindowDTO {

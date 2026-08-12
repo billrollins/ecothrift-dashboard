@@ -6,7 +6,7 @@ import {
   useStartRestorationJobTimer,
 } from '../../../hooks/useRestorationBench';
 import { useCurrentEntry } from '../../../hooks/useTimeClock';
-import type { RestorationJobDTO } from '../../../types/inventory.types';
+import type { RestorationJobDTO, TarsTimerMode } from '../../../types/inventory.types';
 
 export const TARS_IDLE_PROMPT_MS = 5 * 60 * 1000;
 
@@ -55,11 +55,17 @@ export function useTarsTimerController(job: RestorationJobDTO | null) {
     : currentEntry.data.on_break ? 'On break'
     : 'Clocked in';
 
-  const start = useCallback(async () => {
+  /**
+   * Start the clock, optionally aimed at a grade.
+   *
+   * Aiming is the decision: pointing the clock at a grade is what records that
+   * the grade was chosen, so there is no separate commit to forget.
+   */
+  const start = useCallback(async (aim?: { mode?: TarsTimerMode; grade?: string }) => {
     if (!job) return;
     if (!currentEntry.data) throw new Error('Clock in before starting restoration time.');
     if (currentEntry.data.on_break) throw new Error('End your break before resuming restoration time.');
-    await serializeTimer(() => startMutation.mutateAsync(job.id));
+    await serializeTimer(() => startMutation.mutateAsync({ id: job.id, ...aim }));
   }, [currentEntry.data, job, serializeTimer, startMutation]);
 
   const pause = useCallback(async () => {

@@ -85,10 +85,22 @@ def compute_value_added(
 
 
 def starting_grade_from_session(session: Any) -> str:
-    """The datum Mike recorded — the grade the item arrived at."""
+    """The datum Mike recorded — the grade the item arrived at.
+
+    The bench writes `benchPlan.startingGrade`. The retired decision cockpit
+    wrote it inside `decisionWork.condition`, and jobs it touched are still in
+    the database, so both are read.
+    """
 
     if not isinstance(session, dict):
         return ''
+
+    plan = session.get('benchPlan')
+    if isinstance(plan, dict):
+        grade = str(plan.get('startingGrade') or '').strip()
+        if grade:
+            return grade[:64]
+
     decision = session.get('decisionWork')
     if not isinstance(decision, dict):
         return ''

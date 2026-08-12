@@ -201,6 +201,21 @@ Adding a staff nav link: one object in `navItemCatalog.ts` + assign its id to a 
 - **Shape**: borderRadius 8
 - **Component overrides**: MuiButton (textTransform none, fontWeight 500), MuiCard (subtle shadow). **Buying grid snappiness (v2.13.1):** **`MuiIconButton`** and **`MuiCheckbox`** — **`defaultProps.disableRipple: true`**, **`styleOverrides.root.transition: 'none'`** — reduces perceived lag on checkbox / star / thumbs / archive interactions in **`AuctionListDesktop`**.
 
+## Nothing may shift the page (house rule)
+
+**No element may push existing content up, down, or sideways when it appears.** A warning that pops in above a table moves the row the user was reaching for, which on a shop floor means a mis-click on a real item. This applies to alerts, banners, inline validation, empty states, and "N items need attention" strips.
+
+Use instead, in order of preference:
+
+- **A reserved slot** — render the container at a fixed height whether or not it has content (`<Box sx={{ minHeight: 74 }}>{data ? <Thing /> : null}</Box>`).
+- **A toast** (`notistack` `enqueueSnackbar`) — for the outcome of something the user just did.
+- **A badge and a drawer** — for standing conditions the user reads when they choose to. See `StudioNotices.tsx` in TARS: conditions collect behind a header badge and open in a right drawer.
+- **A modal** — for anything requiring an answer before continuing.
+
+Cards and rows in a list must be **fixed height with every slot always rendered**, empty or not, so filling in a field never reflows the list beneath the hand. Prefer **dimming** a row that no longer applies over removing it.
+
+**Do not** mount `<Alert>` into a page body. `RestorationQueueCard.tsx` and `TarsGradeTable.tsx` are the reference implementations.
+
 ## Buying — desktop auction list (`AuctionListDesktop`, v2.18.0 list columns + layout; v2.13.1 grid perf; need v2.14.0)
 
 Staff **`/buying/auctions`** on **`md+`** uses **MUI X DataGrid** with **checkbox** selection. **v2.18.0:** columns **`Top category %`** (lead category word + share), **`P/R %`**, **Category** hover (full retail-weighted mix + **From Manifest** / **AI Estimate**); **expand** column header **expand all / collapse all** for the page; **compact** cell/header padding and **vertical centering**. **Expand/collapse** per row for the inline detail strip is the **last** column (after **Time left**). Multiple rows may be expanded. Expanded row shows a compact **pipe-separated** metrics strip under the row via **`slots.row`** + **`getRowHeight`** (**`GridRow`** wrapper). **Shift+click** a row toggles expand without navigating.

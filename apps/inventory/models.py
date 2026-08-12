@@ -915,6 +915,19 @@ class RestorationJob(models.Model):
         (TIMER_MODE_LOOK, 'Looking at the item'),
         (TIMER_MODE_WORK, 'Working toward a grade'),
     ]
+    # Where the item is meant to end up, set in the queue before any work
+    # starts. Distinct from bench_disposition, which records where it actually
+    # went once the work was done.
+    INTENDED_SHELF = 'shelf'
+    INTENDED_ONLINE_SALES = 'online_sales'
+    INTENDED_STORAGE = 'storage'
+    INTENDED_STAFF_PICK = 'staff_pick'
+    INTENDED_DESTINATION_CHOICES = [
+        (INTENDED_SHELF, 'Shelf'),
+        (INTENDED_ONLINE_SALES, 'Online Sales'),
+        (INTENDED_STORAGE, 'Storage'),
+        (INTENDED_STAFF_PICK, 'Staff Pick'),
+    ]
 
     item_check_in = models.OneToOneField(
         ItemCheckIn,
@@ -940,6 +953,16 @@ class RestorationJob(models.Model):
     )
     scale = models.CharField(max_length=64, blank=True, default='')
     grade_values = models.JSONField(default=dict, blank=True)
+    # Queue context any staff member can fill in before the item reaches a
+    # bench — no role gate, because whoever is standing at a screen should be
+    # able to answer these.
+    intended_destination = models.CharField(
+        max_length=32,
+        choices=INTENDED_DESTINATION_CHOICES,
+        blank=True,
+        default='',
+    )
+    queue_note = models.TextField(blank=True, default='')
     # TARS bench payload (JSON until reporting needs indexed columns).
     # Keys: workState (queue|bench|pending|done|returned), selectedGrade, actions,
     # procurementGroups, benchStartedAt, pending { reason, notes, storageLocation, ... }.
