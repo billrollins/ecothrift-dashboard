@@ -33,13 +33,24 @@ import {
 
   useRestorationScoreboard,
 
+  useRestorationActions,
+  useStartRestorationAction,
+  useDescribeRestorationAction,
+  ActionNeedsDescriptionError,
+
   useTarsBenchJobs,
 
   useUpsertRestorationPartsRequest,
   useHoldRestorationJob,
 } from '../../../hooks/useRestorationBench';
 import { useGradeScales } from '../../../hooks/useGradeScales';
-import type { RestorationJobDTO } from '../../../types/inventory.types';
+import type {
+  RestorationActionCategory,
+  RestorationActionsDTO,
+  RestorationJobDTO,
+} from '../../../types/inventory.types';
+import { TarsWorkPanel } from './TarsWorkPanel';
+import { actionScopeLabel, blockingAction } from './tarsActions';
 import { TARS_DEFAULT_HOURLY_RATE, TARS_DEFAULT_TIME_PREMIUM } from './tarsConstants';
 import { TarsTimerSwitchDialog } from './TarsTimerSwitchDialog';
 import { TarsDoneDialog } from './TarsDoneDialog';
@@ -85,6 +96,78 @@ function timeValue(iso: string | null | undefined): number {
 
 function benchSortValue(job: RestorationJobDTO): number {
   return timeValue(job.bench_started_at ?? job.sent_at ?? job.created_at);
+}
+
+/**
+ * The record of this item: what is being done, and what has been.
+ *
+ * Work leads because it is what someone is standing here to do. The log is the
+ * full timeline — every valuation, hold and part as well as the work — and is
+ * read when a question comes up, not while working.
+ */
+function BenchRecord({
+  jobId,
+  actions,
+  running,
+  busy,
+  onDescribe,
+  onNewAction,
+}: {
+  jobId: number;
+  actions: RestorationActionsDTO | undefined;
+  running: boolean;
+  busy?: boolean;
+  onDescribe: (actionId: number, patch: { description?: string; category?: RestorationActionCategory }) => void;
+  onNewAction: (grade: string) => void;
+}) {
+  const [tab, setTab] = useState<'work' | 'log'>('work');
+
+  return (
+    <Box sx={{ flex: 1, minHeight: 340, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+      <Stack direction="row" spacing={0.6} sx={{ mb: 0.85 }}>
+        {(['work', 'log'] as const).map((id) => {
+          const selected = id === tab;
+          return (
+            <Box
+              key={id}
+              component="button"
+              type="button"
+              onClick={() => setTab(id)}
+              aria-pressed={selected}
+              sx={{
+                px: 1.35,
+                py: 0.45,
+                cursor: 'pointer',
+                fontSize: '0.78rem',
+                fontWeight: 900,
+                borderRadius: `${studio.radius.sm}px`,
+                border: `1px solid ${selected ? studio.accentDark : '#e2e8f0'}`,
+                bgcolor: selected ? studio.accentDark : '#ffffff',
+                color: selected ? '#ffffff' : '#64748b',
+                '&:hover': { borderColor: studio.accent },
+              }}
+            >
+              {id === 'work' ? 'Work' : 'Log'}
+            </Box>
+          );
+        })}
+      </Stack>
+
+      <Box sx={{ flex: 1, minHeight: 0 }}>
+        {tab === 'work' ? (
+          <TarsWorkPanel
+            data={actions}
+            running={running}
+            busy={busy}
+            onDescribe={onDescribe}
+            onNewAction={onNewAction}
+          />
+        ) : (
+          <TarsRestorationTimeline jobId={jobId} editable />
+        )}
+      </Box>
+    </Box>
+  );
 }
 
 /**
@@ -367,6 +450,21 @@ export function TarsWorkstation() {
   }, [activeTimerJob, selectedJob]);
   const timerController = useTarsTimerController(headerTimerJob);
 
+  // What is being done to the item on the bench, and what already has been.
+  const actions = useRestorationActions(displayJob?.id ?? null);
+  const startAction = useStartRestorationAction();
+  const describeAction = useDescribeRestorationAction();
+
+  // Work cannot be moved off an action nobody described. Surfaced on the
+  // buttons it would block, so the rule is seen before it is hit.
+  const workBlockedReason = useMemo(() => {
+    const blocking = blockingAction(
+      actions.data?.results ?? [],
+      actions.data?.current_action_id ?? null,
+    );
+    if (!blocking) return undefined;
+    return `Say what you did on ${actionScopeLabel(blocking.grade)} before starting something else.`;
+  }, [actions.data]);
 
 
   const evaluation = useMemo(() => {
@@ -781,21 +879,75 @@ export function TarsWorkstation() {
   );
 
   /**
-   * Aim the clock. An empty grade means looking at the item as a whole, which
-   * is charged to the item because one teardown informs every grade at once.
+   * Press Work: the clock moves to that scope and an action opens for it.
+   *
+   * Coming back to the scope you were already on resumes that action rather
+   * than splitting one piece of work in two. A new action defaults to Inspect
+   * with no description, so the clock starts on the first click and the
+   * writing-up happens while the work is fresh.
    */
-  const aimTimer = useCallback(
+  const workOn = useCallback(
     (grade: string) => {
       if (!displayJob) return;
-      void timerController
-        .start(grade ? { mode: 'work', grade } : { mode: 'look' })
-        .catch((err) => {
-          enqueueSnackbar(err instanceof Error ? err.message : 'Could not start the clock', {
-            variant: 'warning',
-          });
-        });
+      if (!timerController.canTrackTime) {
+        enqueueSnackbar('Clock in before recording restoration work.', { variant: 'warning' });
+        setNoticesOpen(true);
+        return;
+      }
+      startAction.mutate(
+        { id: displayJob.id, payload: { grade } },
+        {
+          onError: (err) => {
+            if (err instanceof ActionNeedsDescriptionError) {
+              enqueueSnackbar(err.message, { variant: 'warning' });
+              return;
+            }
+            enqueueSnackbar(err instanceof Error ? err.message : 'Could not start that work', {
+              variant: 'error',
+            });
+          },
+        },
+      );
     },
-    [displayJob, timerController, enqueueSnackbar],
+    [displayJob, startAction, timerController.canTrackTime, enqueueSnackbar],
+  );
+
+  /**
+   * Close the current action and open a fresh one on the same scope.
+   *
+   * The server treats a repeat of the same scope as a resume, so a genuinely
+   * new piece of work on the same grade says so by ending the old one first.
+   */
+  const handleNewAction = useCallback(
+    (grade: string) => {
+      if (!displayJob) return;
+      startAction.mutate(
+        { id: displayJob.id, payload: { grade, force_new: true } },
+        {
+          onError: (err) =>
+            enqueueSnackbar(err instanceof Error ? err.message : 'Could not start a new action', {
+              variant: err instanceof ActionNeedsDescriptionError ? 'warning' : 'error',
+            }),
+        },
+      );
+    },
+    [displayJob, startAction, enqueueSnackbar],
+  );
+
+  const handleDescribeAction = useCallback(
+    (actionId: number, patch: { description?: string; category?: RestorationActionCategory }) => {
+      if (!displayJob) return;
+      describeAction.mutate(
+        { id: displayJob.id, payload: { action_id: actionId, ...patch } },
+        {
+          onError: (err) =>
+            enqueueSnackbar(err instanceof Error ? err.message : 'Could not save that', {
+              variant: 'error',
+            }),
+        },
+      );
+    },
+    [displayJob, describeAction, enqueueSnackbar],
   );
 
   const floorRate = Number.parseFloat(scoreboard.data?.floor_rate ?? '') || TARS_DEFAULT_HOURLY_RATE;
@@ -905,7 +1057,8 @@ export function TarsWorkstation() {
               benchmarkRate={benchmarkRate}
               busy={timerController.busy}
               onPlanChange={updateBenchPlan}
-              onAimTimer={aimTimer}
+              onAimTimer={workOn}
+              blockedReason={workBlockedReason}
               onPauseTimer={() => {
                 void timerController.pause().catch((err) => {
                   enqueueSnackbar(err instanceof Error ? err.message : 'Could not stop the clock', {
@@ -915,9 +1068,14 @@ export function TarsWorkstation() {
               }}
             />
 
-            <Box sx={{ minHeight: 320, flex: 1, minWidth: 0 }}>
-              <TarsRestorationTimeline jobId={displayJob.id} editable />
-            </Box>
+            <BenchRecord
+              jobId={displayJob.id}
+              actions={actions.data}
+              running={displayJob.timer_is_running}
+              busy={startAction.isPending || describeAction.isPending}
+              onDescribe={handleDescribeAction}
+              onNewAction={handleNewAction}
+            />
           </Box>
         )}
       </TarsStudioShell>
@@ -1008,7 +1166,8 @@ export function TarsWorkstation() {
         <DialogTitle sx={{ fontWeight: 950 }}>Were you working on this item?</DialogTitle>
         <DialogContent>
           <Typography variant="body1" sx={{ color: '#344258' }}>
-            No activity was detected for five minutes while the timer was running on{' '}
+            The screen has been quiet since{' '}
+            <strong>{timerController.idlePrompt?.idleSince}</strong> while the clock kept running on{' '}
             <strong>{timerController.idlePrompt?.itemLabel}</strong>.
           </Typography>
           <Typography variant="body2" sx={{ mt: 1, color: '#65748a' }}>

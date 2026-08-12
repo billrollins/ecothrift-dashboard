@@ -6,6 +6,7 @@ from .models import (
     ItemHistory, ItemScanHistory,
     PreprocessingRow,
     ProcessingRow,
+    RestorationAction,
     RestorationJob,
     RestorationTimelineEvent,
     Receiving, ReceivingPallet, ReceivingAttachment, ReceivingPhotoOverride,
@@ -1484,6 +1485,7 @@ class RestorationJobSerializer(serializers.ModelSerializer):
             'timer_started_by_id',
             'timer_mode',
             'timer_grade',
+            'current_action',
             'look_seconds',
             'work_seconds',
             'last_meaningful_action_at',
@@ -1776,6 +1778,41 @@ class RestorationJobPatchSerializer(serializers.Serializer):
                 except ValueError as exc:
                     raise serializers.ValidationError({'processing_handoff': str(exc)}) from exc
         return attrs
+
+
+class RestorationActionSerializer(serializers.ModelSerializer):
+    is_described = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = RestorationAction
+        fields = [
+            'id',
+            'grade',
+            'category',
+            'description',
+            'seconds',
+            'started_at',
+            'ended_at',
+            'created_by',
+            'is_described',
+        ]
+        read_only_fields = fields
+
+
+class RestorationStartActionSerializer(serializers.Serializer):
+    """Empty grade means the item as a whole."""
+
+    grade = serializers.CharField(required=False, allow_blank=True, default='')
+    category = serializers.CharField(required=False, allow_blank=True)
+    description = serializers.CharField(required=False, allow_blank=True, default='')
+    # Set when the same grade is genuinely a second piece of work, not a resume.
+    force_new = serializers.BooleanField(required=False, default=False)
+
+
+class RestorationDescribeActionSerializer(serializers.Serializer):
+    action_id = serializers.IntegerField()
+    description = serializers.CharField(required=False, allow_blank=True, max_length=2000)
+    category = serializers.CharField(required=False, allow_blank=True)
 
 
 class RestorationJobQueueDetailsSerializer(serializers.Serializer):

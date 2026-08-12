@@ -6,9 +6,11 @@ from decimal import Decimal, InvalidOperation
 from uuid import UUID, uuid4
 
 from django.db import transaction
+from django.db.models import F
 from django.utils import timezone
 
 from apps.inventory.models import (
+    RestorationAction,
     RestorationJob,
     RestorationPartsOrder,
     RestorationPartsOrderLine,
@@ -95,8 +97,25 @@ def _timer_save_fields() -> list[str]:
         'timer_grade',
         'look_seconds',
         'work_seconds',
+        'current_action',
         'updated_at',
     ]
+
+
+def _accrue_to_action(job: RestorationJob, seconds: int) -> None:
+    """Bank newly elapsed seconds against the action the clock is attached to.
+
+    The action carries the *why*; the job's buckets carry the totals. Both are
+    written from the same delta so a report built on either agrees with the
+    other.
+    """
+
+    if seconds <= 0 or job.current_action_id is None:
+        return
+    RestorationAction.objects.filter(pk=job.current_action_id).update(
+        seconds=F('seconds') + seconds,
+        updated_at=timezone.now(),
+    )
 
 
 def _accrue_to_mode(job: RestorationJob, seconds: int) -> None:
@@ -146,7 +165,9 @@ def _pause_timer(job: RestorationJob) -> None:
     if job.timer_is_running and job.timer_started_at:
         before = int(job.active_seconds or 0)
         job.active_seconds = elapsed_active_seconds(job)
-        _accrue_to_mode(job, job.active_seconds - before)
+        delta = job.active_seconds - before
+        _accrue_to_mode(job, delta)
+        _accrue_to_action(job, delta)
     job.timer_is_running = False
 
 
@@ -293,6 +314,12 @@ def check_in_restoration_job(
     job.pending_notes = ''
     job.pending_storage_location = ''
     job.pending_started_at = None
+    # Open the item's first action before the clock starts, so there is never a
+    # moment where time is running with nowhere to attribute it.
+    from apps.inventory.services.restoration_actions import ensure_initial_action
+
+    initial = ensure_initial_action(job, user=user)
+    job.current_action = initial
     if start_timer:
         _start_timer(job, user=user)
     _sync_work_state(job, 'bench')
@@ -309,6 +336,7 @@ def check_in_restoration_job(
             'active_seconds',
             'look_seconds',
             'work_seconds',
+            'current_action',
             'pending_reason',
             'pending_notes',
             'pending_storage_location',
@@ -713,6 +741,10 @@ def complete_restoration_job(
     was_running = job.timer_is_running
     elapsed_before_pause = elapsed_active_seconds(job)
     _pause_timer(job)
+    # Nothing is still being done to a finished item.
+    from apps.inventory.services.restoration_actions import close_open_actions
+
+    close_open_actions(job)
     now = timezone.now()
     default_hours = elapsed_active_hours(job)
     job.stage = RestorationJob.STAGE_DONE

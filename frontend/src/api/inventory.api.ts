@@ -31,6 +31,9 @@ import type {
   RestorationJobSplitResultDTO,
   RestorationJobCombinePayload,
   RestorationJobHoldPayload,
+  RestorationActionsDTO,
+  RestorationDescribeActionPayload,
+  RestorationStartActionPayload,
   RestorationJobDonePayload,
   RestorationJobQueueDetailsPayload,
   RestorationScoreboardDTO,
@@ -2335,6 +2338,25 @@ export function startRestorationJobTimer(
 
 export function getRestorationScoreboard(): Promise<{ data: RestorationScoreboardDTO }> {
   return api.get('/inventory/restoration-jobs/scoreboard/');
+}
+
+export function getRestorationActions(id: number): Promise<{ data: RestorationActionsDTO }> {
+  return api.get(`/inventory/restoration-jobs/${id}/actions/`);
+}
+
+/** Point the clock at a piece of work, opening a new action if needed. */
+export function startRestorationAction(
+  id: number,
+  payload: RestorationStartActionPayload,
+): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/start-action/`, payload);
+}
+
+export function describeRestorationAction(
+  id: number,
+  payload: RestorationDescribeActionPayload,
+): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/describe-action/`, payload);
 }
 
 /** Queue context any staff member may fill in while the item is unfinished. */

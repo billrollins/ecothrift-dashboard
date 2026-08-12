@@ -53,6 +53,7 @@ export function TarsGradeTable({
   onPlanChange,
   onAimTimer,
   onPauseTimer,
+  blockedReason,
 }: {
   job: RestorationJobDTO;
   plan: TarsBenchPlan;
@@ -64,6 +65,12 @@ export function TarsGradeTable({
   /** Point the clock at a grade. This is the decision. */
   onAimTimer: (grade: string) => void;
   onPauseTimer: () => void;
+  /**
+   * Why work cannot be moved right now, if it cannot. Set when the current
+   * action has not been described — shown on the buttons it would block, so
+   * the rule is visible before it is hit rather than after.
+   */
+  blockedReason?: string;
 }) {
   const rows = useMemo(() => buildGradeRows(job, plan, scaleGrades), [job, plan, scaleGrades]);
   const best = useMemo(() => bestGrade(rows), [rows]);
@@ -88,6 +95,7 @@ export function TarsGradeTable({
         onPick={(grade) => onPlanChange({ ...plan, startingGrade: grade })}
         onLook={() => onAimTimer('')}
         onPause={onPauseTimer}
+        blockedReason={job.timer_mode === 'look' ? undefined : blockedReason}
       />
 
       <Box
@@ -138,6 +146,7 @@ export function TarsGradeTable({
             busy={busy}
             onEstimate={(patch) => setEstimate(row.grade, patch)}
             onAim={() => onAimTimer(row.grade)}
+            blockedReason={row.grade === aimed ? undefined : blockedReason}
           />
         ))}
       </Box>
@@ -154,6 +163,7 @@ function GradeRow({
   busy,
   onEstimate,
   onAim,
+  blockedReason,
 }: {
   row: TarsGradeRow;
   isBest: boolean;
@@ -163,6 +173,7 @@ function GradeRow({
   busy?: boolean;
   onEstimate: (patch: Partial<TarsGradeRow['estimate']>) => void;
   onAim: () => void;
+  blockedReason?: string;
 }) {
   const band = BAND_COLORS[rateBand(row.rate, floorRate, benchmarkRate)];
   const impossible = row.estimate.p === 0;
@@ -266,25 +277,39 @@ function GradeRow({
         </Stack>
       </Tooltip>
 
-      <Button
-        size="small"
-        variant={isAimed ? 'contained' : 'outlined'}
-        disabled={busy || row.isStart || impossible}
-        onClick={onAim}
-        startIcon={<PlayArrow sx={{ fontSize: 15 }} />}
-        sx={{
-          textTransform: 'none',
-          fontWeight: 900,
-          fontSize: '0.72rem',
-          py: 0.15,
-          bgcolor: isAimed ? studio.accentDark : 'transparent',
-          borderColor: studio.panelBorder,
-          color: isAimed ? '#ffffff' : '#334155',
-          '&:hover': { bgcolor: isAimed ? studio.accentDark : studio.accentSoft },
-        }}
+      <Tooltip
+        arrow
+        title={
+          blockedReason
+            ?? (row.isStart
+              ? 'The item is already here'
+              : impossible
+                ? 'You set this at no chance'
+                : '')
+        }
       >
-        {isAimed ? 'On it' : 'Work'}
-      </Button>
+        <span>
+          <Button
+            size="small"
+            variant={isAimed ? 'contained' : 'outlined'}
+            disabled={busy || row.isStart || impossible || Boolean(blockedReason)}
+            onClick={onAim}
+            startIcon={<PlayArrow sx={{ fontSize: 15 }} />}
+            sx={{
+              textTransform: 'none',
+              fontWeight: 900,
+              fontSize: '0.72rem',
+              py: 0.15,
+              bgcolor: isAimed ? studio.accentDark : 'transparent',
+              borderColor: studio.panelBorder,
+              color: isAimed ? '#ffffff' : '#334155',
+              '&:hover': { bgcolor: isAimed ? studio.accentDark : studio.accentSoft },
+            }}
+          >
+            {isAimed ? 'On it' : 'Work'}
+          </Button>
+        </span>
+      </Tooltip>
     </Box>
   );
 }
@@ -305,6 +330,7 @@ function StartingGradeBar({
   onPick,
   onLook,
   onPause,
+  blockedReason,
 }: {
   rows: TarsGradeRow[];
   plan: TarsBenchPlan;
@@ -315,6 +341,7 @@ function StartingGradeBar({
   onPick: (grade: string) => void;
   onLook: () => void;
   onPause: () => void;
+  blockedReason?: string;
 }) {
   const lookMinutes = Math.round((job.look_seconds ?? 0) / 60);
   const workMinutes = Math.round((job.work_seconds ?? 0) / 60);
@@ -370,28 +397,34 @@ function StartingGradeBar({
 
       <Box sx={{ flex: 1, minWidth: 8 }} />
 
-      <Typography sx={{ fontSize: '0.7rem', color: '#7c8899', fontWeight: 700, fontFamily: 'monospace' }}>
-        looked {lookMinutes}m · worked {workMinutes}m
-      </Typography>
+      <Tooltip arrow title="Time charged to the item as a whole, and to grades">
+        <Typography sx={{ fontSize: '0.7rem', color: '#7c8899', fontWeight: 700, fontFamily: 'monospace' }}>
+          item {lookMinutes}m · grades {workMinutes}m
+        </Typography>
+      </Tooltip>
 
-      <Button
-        size="small"
-        variant={looking ? 'contained' : 'outlined'}
-        disabled={busy}
-        onClick={onLook}
-        sx={{
-          textTransform: 'none',
-          fontWeight: 900,
-          fontSize: '0.72rem',
-          py: 0.15,
-          bgcolor: looking ? studio.accentDark : 'transparent',
-          borderColor: studio.panelBorder,
-          color: looking ? '#ffffff' : '#334155',
-          '&:hover': { bgcolor: looking ? studio.accentDark : studio.accentSoft },
-        }}
-      >
-        {looking ? 'Looking' : 'Look at it'}
-      </Button>
+      <Tooltip arrow title={blockedReason ?? 'Work on the item as a whole, not one grade'}>
+        <span>
+          <Button
+            size="small"
+            variant={looking ? 'contained' : 'outlined'}
+            disabled={busy || Boolean(blockedReason)}
+            onClick={onLook}
+            sx={{
+              textTransform: 'none',
+              fontWeight: 900,
+              fontSize: '0.72rem',
+              py: 0.15,
+              bgcolor: looking ? studio.accentDark : 'transparent',
+              borderColor: studio.panelBorder,
+              color: looking ? '#ffffff' : '#334155',
+              '&:hover': { bgcolor: looking ? studio.accentDark : studio.accentSoft },
+            }}
+          >
+            {looking ? 'On the item' : 'Work on item'}
+          </Button>
+        </span>
+      </Tooltip>
 
       <Button
         size="small"

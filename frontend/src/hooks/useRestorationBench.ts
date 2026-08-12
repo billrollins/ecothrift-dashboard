@@ -13,6 +13,9 @@ import {
   markRestorationJobHandled,
   markRestorationJobMeaningfulAction,
   moveRestorationJobBackToQueue,
+  describeRestorationAction,
+  getRestorationActions,
+  startRestorationAction,
   patchRestorationJobWorkSession,
   patchRestorationQueueDetails,
   pauseRestorationJobTimer,
@@ -34,6 +37,8 @@ import type {
   RestorationPartsOrderCreatePayload,
   RestorationPartsRequestDTO,
   RestorationJobQueueDetailsPayload,
+  RestorationDescribeActionPayload,
+  RestorationStartActionPayload,
   TarsTimerMode,
 } from '../types/inventory.types';
 import type { PaginatedResponse } from '../types/common.types';
@@ -132,6 +137,80 @@ export function useTarsBenchJobs() {
       return expandRestorationJobsForTars(Array.from(byId.values()));
     },
     refetchInterval: 10_000,
+  });
+}
+
+export const restorationActionsQueryKey = (jobId: number | null | undefined) =>
+  ['restoration-actions', jobId] as const;
+
+/** Everything done to one item, with where its time went. */
+export function useRestorationActions(jobId: number | null | undefined) {
+  return useQuery({
+    queryKey: restorationActionsQueryKey(jobId),
+    queryFn: async () => {
+      const { data } = await getRestorationActions(jobId as number);
+      return data;
+    },
+    enabled: jobId != null,
+  });
+}
+
+/**
+ * Raised when the server refuses to open new work because the current action
+ * was never described. Carries the action so the bench can point at the field
+ * to fill in rather than showing a bare message.
+ */
+export class ActionNeedsDescriptionError extends Error {
+  actionId: number | null;
+
+  constructor(message: string, actionId: number | null) {
+    super(message);
+    this.name = 'ActionNeedsDescriptionError';
+    this.actionId = actionId;
+  }
+}
+
+function asActionError(err: unknown): unknown {
+  const body = (err as { response?: { data?: { code?: string; detail?: string; action_id?: number } } })
+    ?.response?.data;
+  if (body?.code === 'action_needs_description') {
+    return new ActionNeedsDescriptionError(body.detail ?? 'Describe what you did first.', body.action_id ?? null);
+  }
+  return err;
+}
+
+/** Point the clock at a piece of work. */
+export function useStartRestorationAction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, payload }: { id: number; payload: RestorationStartActionPayload }) => {
+      try {
+        const { data } = await startRestorationAction(id, payload);
+        return data;
+      } catch (err) {
+        throw asActionError(err);
+      }
+    },
+    onSuccess: (data) => {
+      patchTarsBenchJobInCache(queryClient, data);
+      queryClient.invalidateQueries({ queryKey: restorationActionsQueryKey(data.id) });
+      queryClient.invalidateQueries({ queryKey: ['restoration-timeline', data.id] });
+    },
+  });
+}
+
+/** Say what an action was, or correct it. */
+export function useDescribeRestorationAction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, payload }: { id: number; payload: RestorationDescribeActionPayload }) => {
+      const { data } = await describeRestorationAction(id, payload);
+      return data;
+    },
+    onSuccess: (data) => {
+      patchTarsBenchJobInCache(queryClient, data);
+      queryClient.invalidateQueries({ queryKey: restorationActionsQueryKey(data.id) });
+    },
   });
 }
 

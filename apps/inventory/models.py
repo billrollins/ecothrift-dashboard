@@ -953,6 +953,15 @@ class RestorationJob(models.Model):
     )
     scale = models.CharField(max_length=64, blank=True, default='')
     grade_values = models.JSONField(default=dict, blank=True)
+    # The action the clock is currently attached to. Every second the timer
+    # runs is banked against this row.
+    current_action = models.ForeignKey(
+        'RestorationAction',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
     # Queue context any staff member can fill in before the item reaches a
     # bench — no role gate, because whoever is standing at a screen should be
     # able to answer these.
@@ -1111,6 +1120,90 @@ class RestorationJob(models.Model):
 
     def __str__(self):
         return f'RestorationJob {self.pk} stage={self.stage} check_in={self.item_check_in_id}'
+
+
+class RestorationAction(models.Model):
+    """One thing someone did to an item, and how long it took.
+
+    Every second on the bench belongs to exactly one action, and every action
+    belongs either to a single grade or to the item as a whole. That is what
+    makes the log answer *why* the time went where it did rather than only how
+    much of it there was.
+
+    Actions are never merged or reused across sittings of different work. A
+    pause and resume stays one action — the person did not do anything new — but
+    turning to a different grade, or to a different kind of work, opens a new
+    one.
+    """
+
+    CATEGORY_INSPECT = 'inspect'
+    CATEGORY_TEST = 'test'
+    CATEGORY_REPAIR = 'repair'
+    CATEGORY_ASSEMBLE = 'assemble'
+    CATEGORY_SALVAGE = 'salvage'
+    CATEGORY_CHOICES = [
+        (CATEGORY_INSPECT, 'Inspect'),
+        (CATEGORY_TEST, 'Test'),
+        (CATEGORY_REPAIR, 'Repair'),
+        (CATEGORY_ASSEMBLE, 'Assemble'),
+        (CATEGORY_SALVAGE, 'Salvage'),
+    ]
+
+    # What a new action is until someone says otherwise. Work almost always
+    # opens by finding out where things stand, and defaulting means the clock
+    # can start on the first click instead of behind a form.
+    DEFAULT_CATEGORY = CATEGORY_INSPECT
+
+    # Edge case: every item opens with this, so the clock always has somewhere
+    # to go and the first action is never the one blocking a description.
+    INITIAL_DESCRIPTION = 'Initial item inspection'
+
+    job = models.ForeignKey(
+        RestorationJob,
+        on_delete=models.CASCADE,
+        related_name='actions',
+    )
+    # Empty means the item as a whole. One teardown informs every grade at
+    # once, so that work cannot honestly be charged to any single one.
+    grade = models.CharField(max_length=64, blank=True, default='')
+    category = models.CharField(
+        max_length=16,
+        choices=CATEGORY_CHOICES,
+        default=DEFAULT_CATEGORY,
+    )
+    description = models.TextField(blank=True, default='')
+    seconds = models.PositiveIntegerField(default=0)
+    started_at = models.DateTimeField(default=timezone.now)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='restoration_actions',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['started_at', 'id']
+        indexes = [
+            models.Index(fields=['job', 'started_at']),
+        ]
+
+    def __str__(self):
+        where = self.grade or 'item'
+        return f'RestorationAction {self.pk} {self.category} on {where}'
+
+    @property
+    def is_described(self) -> bool:
+        """Whether this action says what was done.
+
+        An action nobody described is a hole in the log, so one must be filled
+        in before its author moves on to something else.
+        """
+
+        return bool((self.description or '').strip())
 
 
 class RestorationTimelineEvent(models.Model):

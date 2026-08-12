@@ -88,6 +88,7 @@ from .models import (
     ItemHistory, ItemScanHistory,
     PreprocessingRow,
     ProcessingRow,
+    RestorationAction,
     RestorationJob,
     RestorationTimelineEvent,
     RestorationGradeScale,
@@ -133,6 +134,9 @@ from .serializers import (
     DisputeCreateSerializer,
     DisputePatchSerializer,
     RestorationJobSerializer,
+    RestorationActionSerializer,
+    RestorationDescribeActionSerializer,
+    RestorationStartActionSerializer,
     RestorationJobPatchSerializer,
     RestorationJobQueueDetailsSerializer,
     RestorationJobWorkSessionSerializer,
@@ -9005,6 +9009,81 @@ class RestorationJobViewSet(
         job = self.get_queryset().get(pk=job.pk)
         out = RestorationJobSerializer(job, context=self.get_serializer_context())
         return Response(out.data)
+
+    @action(detail=True, methods=['get'], url_path='actions')
+    def job_actions(self, request, pk=None):
+        """Everything done to this item, oldest first, with where the time went."""
+
+        from apps.inventory.services.restoration_actions import action_totals
+
+        job = self.get_object()
+        rows = job.actions.all()
+        return Response(
+            {
+                'results': RestorationActionSerializer(rows, many=True).data,
+                'current_action_id': job.current_action_id,
+                'totals': action_totals(job),
+            },
+        )
+
+    @action(detail=True, methods=['post'], url_path='start-action')
+    def begin_action(self, request, pk=None):
+        """Point the clock at a piece of work, opening a new action if needed."""
+
+        from apps.inventory.services.restoration_actions import (
+            ActionNeedsDescriptionError,
+            start_action,
+        )
+
+        job = self.get_object()
+        ser = RestorationStartActionSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        try:
+            job, _created = start_action(
+                job,
+                request.user,
+                grade=ser.validated_data.get('grade', ''),
+                category=ser.validated_data.get('category') or None,
+                description=ser.validated_data.get('description', ''),
+                force_new=ser.validated_data.get('force_new', False),
+            )
+        except ActionNeedsDescriptionError as exc:
+            # A distinct code so the bench can point at the field to fill in
+            # rather than showing a bare message.
+            return Response(
+                {'detail': str(exc), 'code': 'action_needs_description', 'action_id': exc.action_id},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        job = self.get_queryset().get(pk=job.pk)
+        return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=['post'], url_path='describe-action')
+    def record_action_description(self, request, pk=None):
+        """Say what an action was, or correct it, while the item is unfinished."""
+
+        from apps.inventory.services.restoration_actions import describe_action
+
+        job = self.get_object()
+        ser = RestorationDescribeActionSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        try:
+            describe_action(
+                job,
+                ser.validated_data['action_id'],
+                description=ser.validated_data.get('description'),
+                category=ser.validated_data.get('category') or None,
+                user=request.user,
+            )
+        except RestorationAction.DoesNotExist:
+            return Response({'detail': 'That action is not on this item.'}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        job = self.get_queryset().get(pk=job.pk)
+        return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
 
     @action(detail=True, methods=['patch'], url_path='queue-details')
     def queue_details(self, request, pk=None):

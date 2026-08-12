@@ -16,6 +16,8 @@ export interface TarsIdlePrompt {
   elapsedAtPrompt: number;
   keepThroughSeconds: number;
   lastActionLabel: string;
+  /** Wall-clock time the screen went quiet, so the question can be answered. */
+  idleSince: string;
 }
 
 export function useTarsTimerController(job: RestorationJobDTO | null) {
@@ -131,6 +133,10 @@ export function useTarsTimerController(job: RestorationJobDTO | null) {
             activeJob.last_meaningful_active_seconds ?? activeJob.active_seconds,
           ),
           lastActionLabel: activeJob.last_meaningful_action_label || 'the last recorded action',
+          idleSince: new Date(Date.now() - TARS_IDLE_PROMPT_MS).toLocaleTimeString([], {
+            hour: 'numeric',
+            minute: '2-digit',
+          }),
         });
       } finally {
         openingIdlePromptRef.current = false;

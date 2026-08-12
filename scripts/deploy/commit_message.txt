@@ -1,21 +1,47 @@
-feat(tars): make the restoration queue a full-width row you edit in place
+feat(tars): make actions the thing time belongs to
 
-Bill's review of the queue: the rows used about two thirds of the page and
-stacked their fields on top of each other, wasting the length, and every edit
-went through a dialog when the whole point is filling in twenty items fast.
+Time on the bench was attributed to a grade and a mode, which said where
+it went but never what was done. This makes an action the unit: one piece
+of work — inspect, test, repair, assemble or salvage — pointed either at a
+single grade or at the item as a whole, with the seconds banked against it.
 
-The row now runs the full width and reads left to right - what it is, a note,
-where it goes, what it sells for at each grade, what is at stake, how long it
-has waited, and the action. Every field in the middle is live. Focus selects
-what is there, typing replaces it, Tab moves on and saves. There is no Save
-button because leaving a field is the commit, and success is silent: a toast
-per field would be unreadable when a whole queue is being filled in. The
-details dialog is gone.
+Three rules hold the log together:
 
-Queue, Bench and Holding are now three tabs over the same row, so an item does
-not stop being editable the moment it reaches a bench - the person who knows
-what something is worth is rarely the one holding it. Each list colours the
-left edge of its rows and its own tab to match, so a glance tells you where
-you are. Opens on Queue.
+  The clock is never homeless. Check-in opens an initial inspection on the
+  item, so from the moment an item lands there is somewhere for time to go.
 
-Restoration queue now leads the Restoration nav group, ahead of TARS.
+  A pause is not a new action. Coming back to the grade you were already on
+  resumes that action; one repair does not become five because someone took
+  a phone call. Turning to a different scope closes the old action and opens
+  a new one, and an explicit New action button covers the case where the
+  same grade genuinely holds a second piece of work.
+
+  Nothing is left unsaid. An action must be described before its author can
+  start another. The moment you move on is the moment you know what you did,
+  so it is also the last honest moment to write it down. The buttons that
+  would move on are disabled and say why, so the rule is seen before it is
+  hit rather than after.
+
+Pressing Work now starts immediately with an Inspect action and a blank
+description rather than opening a form. The cost of that is paid at the
+other end, by the gate above, which is the cheaper place to pay it.
+
+Inspect is its own category, separate from Test: finding out what is wrong
+is different work from verifying that something works. Scope still decides
+attribution — the item as a whole is charged to the item, because one
+teardown informs every grade at once — but nothing says "looking" any more;
+the bench reads "item 12m · grades 34m".
+
+Also closes the two remaining gaps at the edges of a shift. Clocking out
+with the clock running now asks first, writes up the work and stops the
+clock in one go, instead of pausing quietly server-side and mentioning it
+afterwards. The idle prompt now names the time the screen went quiet, so
+the question it asks can actually be answered.
+
+Backend: RestorationAction with job.current_action, a service that owns the
+three rules, three endpoints, and 35 tests covering attribution, the resume
+rule and the description gate.
+
+Frontend: Work and Log tabs on the bench with Work leading, since work is
+what someone is standing there to do; the log is read when a question comes
+up. Categories are colour-coded and correctable as the work reveals itself.

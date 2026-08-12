@@ -1129,6 +1129,8 @@ export interface RestorationJobDTO {
   /** Anything the person picking this up should know. Any staff member may write it. */
   queue_note: string;
   bench_disposition: RestorationBenchDisposition | '';
+  /** The action the clock is attached to. Every running second is banked here. */
+  current_action: number | null;
   /** The grade the item arrived at — the datum every estimate is measured against. */
   starting_grade: string;
   final_grade: string;
@@ -1142,6 +1144,54 @@ export interface RestorationJobDTO {
 }
 
 export type TarsTimerMode = 'look' | 'work';
+
+/** The kinds of work an action can be. */
+export type RestorationActionCategory =
+  | 'inspect'
+  | 'test'
+  | 'repair'
+  | 'assemble'
+  | 'salvage';
+
+/** One thing someone did to an item, and how long it took. */
+export interface RestorationActionDTO {
+  id: number;
+  /** Empty means the item as a whole. */
+  grade: string;
+  category: RestorationActionCategory;
+  description: string;
+  seconds: number;
+  started_at: string;
+  ended_at: string | null;
+  created_by: number | null;
+  is_described: boolean;
+}
+
+export interface RestorationActionTotalsDTO {
+  total_seconds: number;
+  by_grade: Record<string, number>;
+  by_category: Record<string, number>;
+}
+
+export interface RestorationActionsDTO {
+  results: RestorationActionDTO[];
+  current_action_id: number | null;
+  totals: RestorationActionTotalsDTO;
+}
+
+export interface RestorationStartActionPayload {
+  grade?: string;
+  category?: RestorationActionCategory;
+  description?: string;
+  /** Same grade, genuinely a second piece of work rather than resuming. */
+  force_new?: boolean;
+}
+
+export interface RestorationDescribeActionPayload {
+  action_id: number;
+  description?: string;
+  category?: RestorationActionCategory;
+}
 
 /** Where the item is meant to end up, decided in the queue before any work. */
 export type RestorationIntendedDestination =
