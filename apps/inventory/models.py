@@ -909,6 +909,12 @@ class RestorationJob(models.Model):
         (RETURN_DISPOSITION_TARS_COMPLETED, 'TARS completed'),
         (RETURN_DISPOSITION_UNTOUCHED, 'Untouched'),
     ]
+    TIMER_MODE_LOOK = 'look'
+    TIMER_MODE_WORK = 'work'
+    TIMER_MODE_CHOICES = [
+        (TIMER_MODE_LOOK, 'Looking at the item'),
+        (TIMER_MODE_WORK, 'Working toward a grade'),
+    ]
 
     item_check_in = models.OneToOneField(
         ItemCheckIn,
@@ -984,6 +990,18 @@ class RestorationJob(models.Model):
         blank=True,
         related_name='restoration_jobs_timer_running',
     )
+    # Every second on the bench is either investigation or performance.
+    # Investigation belongs to the item — one teardown informs every grade at
+    # once — so only work time carries a grade. look_seconds + work_seconds is
+    # kept equal to active_seconds; see services/restoration_bench.py.
+    timer_mode = models.CharField(
+        max_length=8,
+        choices=TIMER_MODE_CHOICES,
+        default=TIMER_MODE_LOOK,
+    )
+    timer_grade = models.CharField(max_length=64, blank=True, default='')
+    look_seconds = models.PositiveIntegerField(default=0)
+    work_seconds = models.PositiveIntegerField(default=0)
     last_meaningful_action_at = models.DateTimeField(null=True, blank=True)
     last_meaningful_active_seconds = models.PositiveIntegerField(default=0)
     last_meaningful_action_label = models.CharField(max_length=128, blank=True, default='')
@@ -997,10 +1015,17 @@ class RestorationJob(models.Model):
         blank=True,
         default='',
     )
+    # The grade the item arrived at — the datum every estimate is measured
+    # against. Mirrored from work_session.decisionWork.condition.currentGrade.
+    starting_grade = models.CharField(max_length=64, blank=True, default='')
     final_grade = models.CharField(max_length=64, blank=True, default='')
     disposition_notes = models.TextField(blank=True, default='')
     spent_hours = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     spent_parts_cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # Stamped at completion so later edits to a grade scale cannot rewrite what
+    # a finished job earned. Null means it could not be computed honestly —
+    # usually no starting grade — and the job is excluded from rate reporting.
+    value_added = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     dispositioned_at = models.DateTimeField(null=True, blank=True)
     dispositioned_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

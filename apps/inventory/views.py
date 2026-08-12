@@ -8727,7 +8727,12 @@ class RestorationJobViewSet(
             )
             ser.is_valid(raise_exception=True)
             job.work_session = ser.validated_data['work_session']
-            job.save(update_fields=['work_session', 'updated_at'])
+            from apps.inventory.services.tars_value import sync_starting_grade
+
+            fields = ['work_session', 'updated_at']
+            if sync_starting_grade(job):
+                fields.append('starting_grade')
+            job.save(update_fields=fields)
             from apps.inventory.services.restoration_bench import mark_restoration_meaningful_action
             from apps.inventory.services.restoration_timeline import record_work_session_changes
 
@@ -8824,11 +8829,25 @@ class RestorationJobViewSet(
 
     @action(detail=True, methods=['post'], url_path='timer/start')
     def timer_start(self, request, pk=None):
+        """Start or re-aim the clock.
+
+        Optional `mode` ('look' or 'work') and `grade` say what the seconds are
+        for. Looking is charged to the item; working is charged to the grade it
+        is aimed at.
+        """
+
         from apps.inventory.services.restoration_bench import start_restoration_timer
 
         job = self.get_object()
+        mode = request.data.get('mode')
+        grade = request.data.get('grade')
         try:
-            job = start_restoration_timer(job, user=request.user)
+            job = start_restoration_timer(
+                job,
+                user=request.user,
+                mode=str(mode).strip() if mode is not None else None,
+                grade=str(grade or '').strip()[:64] if grade is not None else None,
+            )
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         job = self.get_queryset().get(pk=job.pk)
@@ -8985,6 +9004,17 @@ class RestorationJobViewSet(
         job = self.get_queryset().get(pk=job.pk)
         out = RestorationJobSerializer(job, context=self.get_serializer_context())
         return Response(out.data)
+
+    @action(detail=False, methods=['get'])
+    def scoreboard(self, request):
+        """What restoration earned: value added and rate by day, week and month.
+
+        Powers the TARS home screen. Read-only and cheap enough to poll.
+        """
+
+        from apps.inventory.services.tars_value import build_restoration_scoreboard
+
+        return Response(build_restoration_scoreboard())
 
     @action(detail=False, methods=['get'])
     def returns(self, request):

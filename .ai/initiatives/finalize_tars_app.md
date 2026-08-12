@@ -110,9 +110,9 @@ Recorded here as **open questions**, not options. Answers come from the Stage 1 
 
 ## Stage 3 — Code
 
-**Phases to be written after Stage 2 sign-off. Do not populate this section early.**
+**Design signed off 2026-08-12.** All six surface decisions are settled in [`design.md`](../reference/TARS%20Restoration%20Processing%20App/design.md); phases below are written from it.
 
-Each phase will be a digestible, independently testable block sized to finish in one sitting, running the same full cycle:
+Each phase is a digestible, independently testable block sized to finish in one sitting, running the same full cycle:
 
 1. **Design detail** — the specific behavior for this block
 2. **Plan** — file-level plan, Bill approves scope before code
@@ -125,7 +125,7 @@ Each phase will be a digestible, independently testable block sized to finish in
 
 A phase is not done until step 8. Phase ordering is Bill's call; the cycle does not change.
 
-### Proposed stages (from the design — not yet approved)
+### Stages
 
 Each is a git tag so Bill can keep some and drop others.
 
@@ -134,14 +134,41 @@ Each is a git tag so Bill can keep some and drop others.
 | 0 | *(baseline before any code)* | — | `tars/0-original` |
 | 1 | **Remove all legacy** | Delete everything unrouted, dead, and lying. No behavior change. | `tars/1-legacy-removed` **— shipped** |
 | 2 | **One truth** | Server is the only authority on the catalog and the money. | `tars/2-one-truth` **— shipped** |
-| 3 | **The bench** | Five cockpit tools become three moves plus finish. Touch-first. | pending design sign-off |
-| 4 | **Bring back what was lost** | Scan-new to Bench; split, combine, pull-back to Handoff. | pending |
-| 5 | **Bill's desk** | Parts and decisions in one place; dashboard tile reads the live schema. | pending |
-| 6 | **Finish** | Editable grade scales, cancel a parts request, role guards, docs, full test pass. | pending |
+| 3 | **What it earned** | The clock learns the difference between looking and working; every finished job stamps what it added and what that came to per hour. | `tars/3-what-it-earned` |
+| 4 | **The numbers up front** | TARS home is a scoreboard, not a menu. Everyone's dashboard gets items dispositioned per day. | `tars/4-numbers-up-front` |
+| 5 | **The bench** | The grade table replaces the cockpit. Hover-expand, press-select, item-level looking clock, three bands. | `tars/5-the-bench` |
+| 6 | **Bring back what was lost** | Scan-new to Bench; split, combine, pull-back to Handoff. | `tars/6-lost-found` |
+| 7 | **Finish** | Editable grade scales, cancel a parts request, role guards, docs, full test pass. | `tars/7-finish` |
 
-**Stages 1 and 2 were shipped ahead of design sign-off deliberately:** both are pure subtraction or bug fix, correct under any design, and independently revertible. Stage 3 onward is not started, because the bench is exactly where Bill's judgement has to lead — the last time a decision UI was designed without it, it was graded D/F.
+**Stages 1 and 2 were shipped ahead of design sign-off deliberately:** both are pure subtraction or bug fix, correct under any design, and independently revertible.
 
-Neither shipped stage has been pushed to production. Steps 6–8 of the cycle (bump, push, pull prod) are outstanding for both.
+**Why 3 comes before the bench.** The bench's whole purpose is to make a rate visible, and a rate cannot be shown until the clock can tell looking from working and a finished job records what it added. Building the surface first would mean designing around numbers that do not exist yet. Stage 3 is also the only stage with a migration, so it lands alone and early.
+
+No stage has been pushed to production yet. Steps 6–8 of the cycle (bump, push, pull prod) are outstanding.
+
+### Stage 3 — What it earned
+
+**Why:** every number on the bench and on the TARS home screen is derived from two facts the database cannot currently express: *how much value did this job add*, and *how much of the clock was looking versus working*.
+
+| | |
+|---|---|
+| **Backend** | `RestorationJob` gains `starting_grade`, `look_seconds`, `work_seconds`, `timer_mode`, `timer_grade`, `value_added`. The timer routes elapsed time to looking or working. Completion stamps `value_added` so later edits to a grade scale cannot rewrite history. |
+| **Value added** | `grade_values[final_grade] − grade_values[starting_grade] − spent_parts_cost`, frozen at completion. |
+| **Rate** | Value added ÷ hours on the item, **including** looking — the reported rate, not the decision rate. |
+| **Scoreboard service** | Per-day, per-week and trailing 4-week value added, items done, and $/hour. One endpoint. |
+| **Acceptance** | Starting and pausing the clock in each mode moves seconds to the right bucket; totals still equal `active_seconds`; a completed job stamps a value that does not move when grade values change afterwards; the scoreboard survives jobs with no grades, no hours, and zero value. |
+
+### Stage 4 — The numbers up front
+
+| | |
+|---|---|
+| **TARS home** | Replaces the lane menu as the landing surface. $/hour while working, value added today, this week, and a trailing 4-week weekly average, plus items finished for each. At a glance from across the room. |
+| **Everyone's dashboard** | Items completed/dispositioned each day, for every department that has the notion — restoration counts already exist server-side and are not surfaced. |
+| **Acceptance** | Bill can read the restoration scoreboard without clicking anything; the dashboard shows a per-day completed count; both are honest when the numbers are zero. |
+
+### Stage 5 — The bench
+
+Everything in [`design.md`](../reference/TARS%20Restoration%20Processing%20App/design.md) under *The Bench*: the grade table, three estimates per row, hover to expand, press-to-open and release-to-select, unset shown muted with a to-go badge, the item-level looking clock and its still-open line, the three bands against cost and the usual rate, and revisions auto-logged on re-tap.
 
 ---
 

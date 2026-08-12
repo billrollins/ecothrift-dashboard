@@ -86,12 +86,67 @@ def _sync_work_state(job: RestorationJob, work_state: str) -> None:
 
 
 def _timer_save_fields() -> list[str]:
-    return ['active_seconds', 'timer_is_running', 'timer_started_at', 'timer_started_by', 'updated_at']
+    return [
+        'active_seconds',
+        'timer_is_running',
+        'timer_started_at',
+        'timer_started_by',
+        'timer_mode',
+        'timer_grade',
+        'look_seconds',
+        'work_seconds',
+        'updated_at',
+    ]
+
+
+def _accrue_to_mode(job: RestorationJob, seconds: int) -> None:
+    """Route newly elapsed seconds to looking or working.
+
+    Investigation is charged to the item and performance to a grade, so the two
+    buckets together must always account for active_seconds.
+    """
+
+    if seconds <= 0:
+        return
+    if job.timer_mode == RestorationJob.TIMER_MODE_WORK:
+        job.work_seconds = int(job.work_seconds or 0) + seconds
+    else:
+        job.look_seconds = int(job.look_seconds or 0) + seconds
+
+
+def _reconcile_attribution(job: RestorationJob) -> None:
+    """Restore `look + work == active_seconds` after a manual total adjustment.
+
+    A correction to the total says nothing about which bucket was wrong, so the
+    difference lands on whatever the clock is currently attributing to, and any
+    shortfall is taken from the other bucket rather than left inconsistent.
+    """
+
+    total = int(job.active_seconds or 0)
+    look = max(int(job.look_seconds or 0), 0)
+    work = max(int(job.work_seconds or 0), 0)
+    drift = total - (look + work)
+    if drift == 0:
+        job.look_seconds, job.work_seconds = look, work
+        return
+
+    working = job.timer_mode == RestorationJob.TIMER_MODE_WORK
+    primary, other = (work, look) if working else (look, work)
+    primary += drift
+    if primary < 0:
+        other = max(other + primary, 0)
+        primary = 0
+    if working:
+        job.work_seconds, job.look_seconds = primary, other
+    else:
+        job.look_seconds, job.work_seconds = primary, other
 
 
 def _pause_timer(job: RestorationJob) -> None:
     if job.timer_is_running and job.timer_started_at:
+        before = int(job.active_seconds or 0)
         job.active_seconds = elapsed_active_seconds(job)
+        _accrue_to_mode(job, job.active_seconds - before)
     job.timer_is_running = False
 
 
@@ -123,8 +178,25 @@ def _pause_other_running_timers(*, user, exclude_job_id: int | None = None) -> N
         )
 
 
-def _start_timer(job: RestorationJob, user=None) -> None:
+def _start_timer(
+    job: RestorationJob,
+    user=None,
+    *,
+    mode: str | None = None,
+    grade: str | None = None,
+) -> None:
     _pause_other_running_timers(user=user, exclude_job_id=job.pk)
+    switching = mode is not None and mode != job.timer_mode
+    if switching or (grade is not None and grade != job.timer_grade):
+        # Bank what the previous attribution earned before the clock changes
+        # meaning, otherwise looking time would be booked as work.
+        _pause_timer(job)
+    if mode is not None:
+        job.timer_mode = mode
+    if grade is not None:
+        job.timer_grade = grade
+    if job.timer_mode != RestorationJob.TIMER_MODE_WORK:
+        job.timer_grade = ''
     if not job.timer_is_running:
         job.timer_started_at = timezone.now()
         job.timer_is_running = True
@@ -232,7 +304,11 @@ def check_in_restoration_job(
             'timer_started_at',
             'timer_is_running',
             'timer_started_by',
+            'timer_mode',
+            'timer_grade',
             'active_seconds',
+            'look_seconds',
+            'work_seconds',
             'pending_reason',
             'pending_notes',
             'pending_storage_location',
@@ -393,18 +469,42 @@ def hold_restoration_job(
 
 
 @transaction.atomic
-def start_restoration_timer(job: RestorationJob, user=None) -> RestorationJob:
+def start_restoration_timer(
+    job: RestorationJob,
+    user=None,
+    *,
+    mode: str | None = None,
+    grade: str | None = None,
+) -> RestorationJob:
+    """Start or re-aim the clock.
+
+    Passing a mode is how the bench attributes time: `look` charges the item,
+    `work` charges a grade. Re-aiming a running clock banks the previous
+    attribution first, so a switch never mislabels seconds already spent.
+    """
+
     job = RestorationJob.objects.select_for_update().get(pk=job.pk)
     if job.stage not in (RestorationJob.STAGE_BENCH, RestorationJob.STAGE_PENDING):
         raise ValueError('Timer can only run on bench or pending jobs.')
+    if mode is not None and mode not in dict(RestorationJob.TIMER_MODE_CHOICES):
+        raise ValueError(f'Unknown timer mode: {mode}')
     was_running = job.timer_is_running
-    _start_timer(job, user=user)
-    job.save(update_fields=['timer_started_at', 'timer_is_running', 'timer_started_by', 'updated_at'])
-    if not was_running:
+    previous_mode, previous_grade = job.timer_mode, job.timer_grade
+    _start_timer(job, user=user, mode=mode, grade=grade)
+    job.save(update_fields=_timer_save_fields())
+    reaimed = job.timer_mode != previous_mode or job.timer_grade != previous_grade
+    if not was_running or reaimed:
         _timeline_event(
             job,
             'timer.started',
-            {'active_seconds': job.active_seconds, 'reason': 'manual'},
+            {
+                'active_seconds': job.active_seconds,
+                'reason': 'reaimed' if was_running and reaimed else 'manual',
+                'mode': job.timer_mode,
+                'grade': job.timer_grade,
+                'look_seconds': job.look_seconds,
+                'work_seconds': job.work_seconds,
+            },
             actor=user,
             entity_id=f'timer:{job.pk}',
         )
@@ -448,6 +548,7 @@ def adjust_restoration_timer(
     job.active_seconds = max(int(active_seconds), 0)
     if job.timer_is_running:
         job.timer_started_at = timezone.now()
+    _reconcile_attribution(job)
     job.save(update_fields=_timer_save_fields())
     _timeline_event(
         job,
@@ -455,6 +556,8 @@ def adjust_restoration_timer(
         {
             'active_seconds_before': before,
             'active_seconds_after': job.active_seconds,
+            'look_seconds': job.look_seconds,
+            'work_seconds': job.work_seconds,
             'reason': reason,
         },
         actor=user,
@@ -506,7 +609,11 @@ def mark_restoration_meaningful_action(
             'timer_started_at',
             'timer_is_running',
             'timer_started_by',
+            'timer_mode',
+            'timer_grade',
             'active_seconds',
+            'look_seconds',
+            'work_seconds',
             'last_meaningful_action_at',
             'last_meaningful_active_seconds',
             'last_meaningful_action_label',
@@ -617,6 +724,11 @@ def complete_restoration_job(
     job.spent_parts_cost = Decimal(str(spent_parts_cost))
     job.dispositioned_at = now
     job.dispositioned_by = user
+    # Freeze what the work earned. Grade scales get edited; history should not
+    # move when they do.
+    from apps.inventory.services.tars_value import compute_value_added
+
+    job.value_added = compute_value_added(job, final_grade=final_grade)
     _sync_work_state(job, 'done')
     session = dict(job.work_session or {})
     session['selectedGrade'] = final_grade
@@ -644,6 +756,7 @@ def complete_restoration_job(
             'disposition_notes',
             'spent_hours',
             'spent_parts_cost',
+            'value_added',
             'dispositioned_at',
             'dispositioned_by',
             'work_session',
