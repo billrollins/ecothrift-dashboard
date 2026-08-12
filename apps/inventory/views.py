@@ -8806,7 +8806,11 @@ class RestorationJobViewSet(
 
         job = self.get_object()
         try:
-            job = move_restoration_job_back_to_queue(job, user=request.user)
+            job = move_restoration_job_back_to_queue(
+                job,
+                user=request.user,
+                note=str(request.data.get('note') or ''),
+            )
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         job = self.get_queryset().get(pk=job.pk)
@@ -9054,6 +9058,21 @@ class RestorationJobViewSet(
                 {'detail': str(exc), 'code': 'action_needs_description', 'action_id': exc.action_id},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        job = self.get_queryset().get(pk=job.pk)
+        return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=['post'], url_path='undo-action')
+    def undo_action(self, request, pk=None):
+        """Take back the action just opened, giving its time to the one before."""
+
+        from apps.inventory.services.restoration_actions import undo_last_action
+
+        job = self.get_object()
+        try:
+            job, _landed = undo_last_action(job, request.user)
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 

@@ -95,7 +95,7 @@ describe('estimatesToGo', () => {
 });
 
 describe('buildGradeRows', () => {
-  it('ranks the best rate first', () => {
+  it('keeps the scale order, so a grade is always in the same place', () => {
     const rows = buildGradeRows(
       job(),
       plan({
@@ -106,21 +106,27 @@ describe('buildGradeRows', () => {
       }),
       SCALE,
     );
-    expect(rows[0].grade).toBe('Working');
+    expect(rows.map((r) => r.grade)).toEqual(SCALE);
   });
 
-  it('sinks the grade the item is already at to the bottom', () => {
+  it('does not move the grade the item is already at', () => {
     const rows = buildGradeRows(job(), plan(), SCALE);
-    expect(rows[rows.length - 1].grade).toBe('Repairable');
+    expect(rows[1].grade).toBe('Repairable');
+    expect(rows[1].isStart).toBe(true);
   });
 
-  it('keeps rated rows above rows that cannot be rated yet', () => {
-    const rows = buildGradeRows(job(), plan({ estimates: { 'Parts-only': { p: 50, minutes: 30 } } }), SCALE);
-    expect(rows[0].grade).toBe('Parts-only');
+  it('does not reorder when an estimate changes', () => {
+    const before = buildGradeRows(job(), plan(), SCALE).map((r) => r.grade);
+    const after = buildGradeRows(
+      job(),
+      plan({ estimates: { 'Parts-only': { p: 100, parts: 0, minutes: 1 } } }),
+      SCALE,
+    ).map((r) => r.grade);
+    expect(after).toEqual(before);
   });
 
   it('returns every grade on the scale even when nothing is estimated', () => {
-    expect(buildGradeRows(job(), plan(), SCALE).map((r) => r.grade).sort()).toEqual([...SCALE].sort());
+    expect(buildGradeRows(job(), plan(), SCALE).map((r) => r.grade)).toEqual(SCALE);
   });
 
   it('falls back to the priced grades when the scale is not known', () => {
@@ -132,6 +138,22 @@ describe('bestGrade', () => {
   it('picks the top rated row', () => {
     const rows = buildGradeRows(job(), plan({ estimates: { Working: { p: 50, parts: 0, minutes: 60 } } }), SCALE);
     expect(bestGrade(rows)?.grade).toBe('Working');
+  });
+
+  it('finds the winner wherever it sits in the scale', () => {
+    const rows = buildGradeRows(
+      job(),
+      plan({
+        startingGrade: 'Parts-only',
+        estimates: {
+          Working: { p: 10, parts: 0, minutes: 120 },
+          Repairable: { p: 100, parts: 0, minutes: 15 },
+        },
+      }),
+      SCALE,
+    );
+    expect(rows[0].grade).toBe('Working');
+    expect(bestGrade(rows)?.grade).toBe('Repairable');
   });
 
   it('is nothing when no row can be rated', () => {

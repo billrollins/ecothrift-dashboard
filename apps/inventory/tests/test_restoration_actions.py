@@ -11,6 +11,7 @@ from apps.inventory.services.restoration_actions import (
     describe_action,
     ensure_initial_action,
     start_action,
+    undo_last_action,
 )
 from apps.inventory.services.restoration_bench import (
     check_in_restoration_job,
@@ -290,6 +291,116 @@ class DescribeActionTests(RestorationActionTestBase):
         self.assertEqual(len(action.description), 2000)
 
 
+class UndoActionTests(RestorationActionTestBase):
+    """Undo hands the time back rather than throwing it away."""
+
+    def test_the_mistaken_row_disappears(self):
+        self.job, first = start_action(self.job, self.user, grade='Working')
+        describe_action(self.job, first.pk, description='checked the ports')
+        self.job.refresh_from_db()
+        self.job, wrong = start_action(self.job, self.user, grade='Repairable')
+
+        self.job, landed = undo_last_action(self.job, self.user)
+        self.assertFalse(self.job.actions.filter(pk=wrong.pk).exists())
+        self.assertEqual(landed.pk, first.pk)
+        self.assertEqual(self.job.current_action_id, first.pk)
+
+    def test_its_time_goes_to_the_action_it_was_taken_from(self):
+        self.job, first = start_action(self.job, self.user, grade='Working')
+        self._age_timer(300)
+        describe_action(self.job, first.pk, description='checked the ports')
+        self.job.refresh_from_db()
+        self.job, _wrong = start_action(self.job, self.user, grade='Repairable')
+        self._age_timer(90)
+
+        self.job, _landed = undo_last_action(self.job, self.user)
+        first.refresh_from_db()
+        self.assertEqual(first.seconds, 390)
+
+    def test_the_job_total_is_untouched(self):
+        self.job, first = start_action(self.job, self.user, grade='Working')
+        self._age_timer(300)
+        describe_action(self.job, first.pk, description='checked the ports')
+        self.job.refresh_from_db()
+        self.job, _wrong = start_action(self.job, self.user, grade='Repairable')
+        self._age_timer(90)
+        self.job.refresh_from_db()
+
+        self.job, _landed = undo_last_action(self.job, self.user)
+        self.job.refresh_from_db()
+        self.assertEqual(action_totals(self.job)['total_seconds'], self.job.active_seconds)
+
+    def test_time_moves_between_buckets_when_the_scope_differs(self):
+        """Undoing grade work back onto item work re-files the seconds."""
+
+        self.job, first = start_action(self.job, self.user, grade='')
+        self._age_timer(200)
+        describe_action(self.job, first.pk, description='opened it up')
+        self.job.refresh_from_db()
+        self.job, _wrong = start_action(self.job, self.user, grade='Working')
+        self._age_timer(100)
+
+        self.job, _landed = undo_last_action(self.job, self.user)
+        self.job.refresh_from_db()
+        self.assertEqual(self.job.work_seconds, 0)
+        self.assertEqual(self.job.look_seconds, 300)
+
+    def test_the_clock_keeps_running_if_it_was(self):
+        self.job, first = start_action(self.job, self.user, grade='Working')
+        describe_action(self.job, first.pk, description='checked the ports')
+        self.job.refresh_from_db()
+        self.job, _wrong = start_action(self.job, self.user, grade='Repairable')
+
+        self.job, _landed = undo_last_action(self.job, self.user)
+        self.assertTrue(self.job.timer_is_running)
+        self.assertEqual(self.job.timer_grade, 'Working')
+
+    def test_the_clock_stays_stopped_if_it_was(self):
+        self.job, first = start_action(self.job, self.user, grade='Working')
+        describe_action(self.job, first.pk, description='checked the ports')
+        self.job.refresh_from_db()
+        self.job, _wrong = start_action(self.job, self.user, grade='Repairable')
+        pause_restoration_timer(self.job)
+        self.job.refresh_from_db()
+
+        self.job, _landed = undo_last_action(self.job, self.user)
+        self.assertFalse(self.job.timer_is_running)
+        self.assertEqual(self.job.timer_grade, 'Working')
+
+    def test_the_action_it_lands_on_is_open_again(self):
+        self.job, first = start_action(self.job, self.user, grade='Working')
+        describe_action(self.job, first.pk, description='checked the ports')
+        self.job.refresh_from_db()
+        self.job, _wrong = start_action(self.job, self.user, grade='Repairable')
+
+        self.job, landed = undo_last_action(self.job, self.user)
+        self.assertIsNone(landed.ended_at)
+
+    def test_the_first_action_on_an_item_cannot_be_undone(self):
+        with self.assertRaises(ValueError):
+            undo_last_action(self.job, self.user)
+
+    def test_undoing_twice_walks_back_two_actions(self):
+        self.job, first = start_action(self.job, self.user, grade='Working')
+        describe_action(self.job, first.pk, description='checked the ports')
+        self.job.refresh_from_db()
+        self.job, _second = start_action(self.job, self.user, grade='Repairable')
+
+        self.job, _landed = undo_last_action(self.job, self.user)
+        self.job, landed = undo_last_action(self.job, self.user)
+        self.assertEqual(self.job.actions.count(), 1)
+        self.assertEqual(landed.description, RestorationAction.INITIAL_DESCRIPTION)
+
+    def test_it_is_recorded_in_the_timeline(self):
+        self.job, first = start_action(self.job, self.user, grade='Working')
+        describe_action(self.job, first.pk, description='checked the ports')
+        self.job.refresh_from_db()
+        start_action(self.job, self.user, grade='Repairable')
+        self.job.refresh_from_db()
+        undo_last_action(self.job, self.user)
+        self.assertTrue(self.job.timeline_events.filter(event_type='action.undone').exists())
+
+
 class ActionEndpointTests(RestorationActionTestBase):
     def _post(self, path, payload):
         return self.client.post(
@@ -333,3 +444,26 @@ class ActionEndpointTests(RestorationActionTestBase):
     def test_an_unknown_category_is_refused(self):
         resp = self._post('start-action', {'grade': 'Working', 'category': 'pondering'})
         self.assertEqual(resp.status_code, 400)
+
+    def test_undoing_through_the_api(self):
+        self._post('start-action', {'grade': 'Working', 'description': 'checked the ports'})
+        self._post('start-action', {'grade': 'Repairable'})
+        resp = self._post('undo-action', {})
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.job.refresh_from_db()
+        self.assertEqual(self.job.current_action.grade, 'Working')
+        self.assertEqual(self.job.actions.count(), 2)
+
+    def test_undo_is_refused_when_there_is_only_the_first_action(self):
+        resp = self._post('undo-action', {})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_going_back_to_the_queue_records_why(self):
+        resp = self.client.post(
+            f'/api/inventory/restoration-jobs/{self.job.pk}/move-back-to-queue/',
+            {'note': 'missing the power brick'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.job.refresh_from_db()
+        self.assertEqual(self.job.queue_note, 'missing the power brick')

@@ -20,7 +20,7 @@ import type { RestorationJobDTO } from '../../../types/inventory.types';
 import { PressPicker } from '../tars/studio/PressPicker';
 import { studio } from '../tars/studio/tarsStudioTheme';
 import { fmtUsd } from '../tars/tarsProfit';
-import { MoneyCell, NoteCell } from './QueueInlineCells';
+import { FIELD_HEIGHT, FieldLabel, MoneyCell, NoteCell } from './QueueInlineCells';
 import {
   DESTINATION_IDS,
   destinationLabel,
@@ -126,6 +126,7 @@ export function RestorationQueueCard({
 
       {/* Note */}
       <NoteCell
+        label="Note"
         value={job.queue_note ?? ''}
         placeholder="add a note…"
         disabled={busy}
@@ -133,40 +134,32 @@ export function RestorationQueueCard({
       />
 
       {/* Where it goes */}
-      <PressPicker
-        value={job.intended_destination || undefined}
-        options={DESTINATION_IDS}
-        format={destinationLabel}
-        placeholder="destination"
-        width="100%"
-        height={28}
-        disabled={busy}
-        ariaLabel={`Destination for ${job.name}`}
-        onChange={(intended_destination) => onEdit(job.id, { intended_destination })}
-      />
+      <Box sx={{ minWidth: 0 }}>
+        <FieldLabel muted={!job.intended_destination}>Destination</FieldLabel>
+        <PressPicker
+          value={job.intended_destination || undefined}
+          options={DESTINATION_IDS}
+          format={destinationLabel}
+          placeholder="pick one"
+          width="100%"
+          height={FIELD_HEIGHT}
+          disabled={busy}
+          ariaLabel={`Destination for ${job.name}`}
+          onChange={(intended_destination) => onEdit(job.id, { intended_destination })}
+        />
+      </Box>
 
       {/* What it sells for at each grade */}
       <Stack direction="row" spacing={0.75} alignItems="flex-end" flexWrap="wrap" useFlexGap sx={{ minWidth: 0 }}>
         <Box sx={{ minWidth: 0 }}>
-          <Typography
-            sx={{
-              fontSize: '0.56rem',
-              fontWeight: 900,
-              letterSpacing: 0.3,
-              color: '#8593a5',
-              textTransform: 'uppercase',
-              mb: 0.2,
-            }}
-          >
-            Scale
-          </Typography>
+          <FieldLabel muted={!job.scale}>Scale</FieldLabel>
           <PressPicker
             value={job.scale || undefined}
             options={scaleNames}
             format={(name) => name}
             placeholder="pick one"
             width={104}
-            height={26}
+            height={FIELD_HEIGHT}
             disabled={busy}
             ariaLabel={`Grade scale for ${job.name}`}
             onChange={(scale) => onEdit(job.id, { scale })}

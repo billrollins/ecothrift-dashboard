@@ -37,6 +37,7 @@ export function TarsWorkPanel({
   busy,
   onDescribe,
   onNewAction,
+  onUndo,
 }: {
   data: RestorationActionsDTO | undefined;
   running: boolean;
@@ -44,6 +45,8 @@ export function TarsWorkPanel({
   onDescribe: (actionId: number, patch: { description?: string; category?: RestorationActionCategory }) => void;
   /** Open a fresh action on the same scope the current one is on. */
   onNewAction: (grade: string) => void;
+  /** Delete the current action, giving its time back to the one before it. */
+  onUndo?: () => void;
 }) {
   const actions = data?.results ?? [];
   const current = actions.find((a) => a.id === data?.current_action_id) ?? null;
@@ -55,8 +58,10 @@ export function TarsWorkPanel({
           action={current}
           running={running}
           busy={busy}
+          canUndo={actions.length > 1}
           onDescribe={onDescribe}
           onNewAction={onNewAction}
+          onUndo={onUndo}
         />
       ) : (
         <Box
@@ -85,14 +90,18 @@ function CurrentAction({
   action,
   running,
   busy,
+  canUndo,
   onDescribe,
   onNewAction,
+  onUndo,
 }: {
   action: RestorationActionDTO;
   running: boolean;
   busy?: boolean;
+  canUndo: boolean;
   onDescribe: (actionId: number, patch: { description?: string; category?: RestorationActionCategory }) => void;
   onNewAction: (grade: string) => void;
+  onUndo?: () => void;
 }) {
   const meta = categoryMeta(action.category);
   const described = action.is_described;
@@ -120,31 +129,31 @@ function CurrentAction({
 
         <Box sx={{ flex: 1, minWidth: 8 }} />
 
+        {onUndo ? (
+          <Tooltip
+            arrow
+            title={
+              canUndo
+                ? 'Wrong row? Delete this action and give its time back to the one before it.'
+                : 'There is nothing before this to go back to.'
+            }
+          >
+            <span>
+              <SmallButton disabled={busy || !canUndo} onClick={onUndo}>
+                Undo
+              </SmallButton>
+            </span>
+          </Tooltip>
+        ) : null}
+
         <Tooltip
           arrow
           title={described ? 'Start a fresh action on this same scope' : 'Say what you did first'}
         >
           <span>
-            <Box
-              component="button"
-              type="button"
-              disabled={busy || !described}
-              onClick={() => onNewAction(action.grade)}
-              sx={{
-                px: 1,
-                py: 0.4,
-                cursor: described ? 'pointer' : 'not-allowed',
-                fontSize: '0.72rem',
-                fontWeight: 900,
-                borderRadius: `${studio.radius.sm}px`,
-                border: `1px solid ${studio.panelBorder}`,
-                bgcolor: '#ffffff',
-                color: described ? '#334155' : '#b6c0cd',
-                '&:hover:not(:disabled)': { borderColor: studio.accent, bgcolor: studio.accentSoft },
-              }}
-            >
-              New action on {actionScopeLabel(action.grade)}
-            </Box>
+            <SmallButton disabled={busy || !described} onClick={() => onNewAction(action.grade)}>
+              {`New action on ${actionScopeLabel(action.grade)}`}
+            </SmallButton>
           </span>
         </Tooltip>
       </Stack>
@@ -339,6 +348,40 @@ function ActionRow({ action, isCurrent }: { action: RestorationActionDTO; isCurr
         {formatDuration(action.seconds)}
       </Typography>
     </Stack>
+  );
+}
+
+function SmallButton({
+  children,
+  disabled,
+  onClick,
+}: {
+  children: string;
+  disabled?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <Box
+      component="button"
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      sx={{
+        px: 1,
+        py: 0.4,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        fontSize: '0.72rem',
+        fontWeight: 900,
+        whiteSpace: 'nowrap',
+        borderRadius: `${studio.radius.sm}px`,
+        border: `1px solid ${studio.panelBorder}`,
+        bgcolor: '#ffffff',
+        color: disabled ? '#b6c0cd' : '#334155',
+        '&:hover:not(:disabled)': { borderColor: studio.accent, bgcolor: studio.accentSoft },
+      }}
+    >
+      {children}
+    </Box>
   );
 }
 

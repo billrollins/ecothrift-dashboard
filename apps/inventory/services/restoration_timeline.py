@@ -34,6 +34,7 @@ TIMELINE_EVENT_TYPES = {
     'work.performed',
     'action.started',
     'action.described',
+    'action.undone',
     'timer.started',
     'timer.paused',
     'timer.adjusted',

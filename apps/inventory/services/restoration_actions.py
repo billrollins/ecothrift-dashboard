@@ -247,6 +247,85 @@ def describe_action(
     return action
 
 
+@transaction.atomic
+def undo_last_action(job: RestorationJob, user=None) -> tuple[RestorationJob, RestorationAction]:
+    """Take back the action just opened, giving its time to the one before it.
+
+    Pressing Work on the wrong row opens an action and moves the clock. Undo
+    deletes that row and hands its seconds to the action that was running
+    before, which is where they belonged all along — whoever misclicked was
+    still doing the previous thing.
+
+    Nothing is ever lost this way. The job's total is untouched; only the row
+    the time is filed under changes. Returns the action the clock lands back on.
+    """
+
+    from apps.inventory.services.restoration_bench import (
+        _pause_timer,
+        _start_timer,
+        _timeline_event,
+        _timer_save_fields,
+    )
+
+    job = RestorationJob.objects.select_for_update().get(pk=job.pk)
+    current = current_action(job)
+    if current is None:
+        raise ValueError('There is nothing to undo.')
+
+    previous = (
+        job.actions.exclude(pk=current.pk).order_by('-started_at', '-id').first()
+    )
+    if previous is None:
+        raise ValueError('The first action on an item cannot be undone.')
+
+    was_running = job.timer_is_running
+    # Bank whatever the mistaken action collected before moving it.
+    _pause_timer(job)
+    current.refresh_from_db()
+    seconds = int(current.seconds or 0)
+
+    # An action's scope never changes, so all of its seconds sat in one bucket.
+    # Moving the row moves the bucket with it.
+    if seconds and bool(current.grade) != bool(previous.grade):
+        if current.grade:
+            job.work_seconds = max(int(job.work_seconds or 0) - seconds, 0)
+            job.look_seconds = int(job.look_seconds or 0) + seconds
+        else:
+            job.look_seconds = max(int(job.look_seconds or 0) - seconds, 0)
+            job.work_seconds = int(job.work_seconds or 0) + seconds
+
+    undone = {
+        'action_id': current.pk,
+        'grade': current.grade,
+        'category': current.category,
+        'description': current.description,
+        'seconds_returned': seconds,
+        'returned_to_action_id': previous.pk,
+    }
+    current.delete()
+
+    previous.seconds = int(previous.seconds or 0) + seconds
+    # It is being worked again, so it is no longer finished.
+    previous.ended_at = None
+    previous.save(update_fields=['seconds', 'ended_at', 'updated_at'])
+
+    job.current_action = previous
+    mode = (
+        RestorationJob.TIMER_MODE_WORK
+        if previous.grade
+        else RestorationJob.TIMER_MODE_LOOK
+    )
+    if was_running:
+        _start_timer(job, user=user, mode=mode, grade=previous.grade)
+    else:
+        job.timer_mode = mode
+        job.timer_grade = previous.grade
+    job.save(update_fields=_timer_save_fields())
+
+    _timeline_event(job, 'action.undone', undone, actor=user, entity_id=f'action:{previous.pk}')
+    return job, previous
+
+
 def close_open_actions(job: RestorationJob) -> None:
     """Stamp every still-open action as ended. Used when an item is finished."""
 

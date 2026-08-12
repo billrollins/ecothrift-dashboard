@@ -14,6 +14,33 @@ import Typography from '@mui/material/Typography';
 import { useEffect, useRef, useState } from 'react';
 import { studio } from '../tars/studio/tarsStudioTheme';
 
+/**
+ * The height every inline field shares.
+ *
+ * Fields sit in different grid columns, so they only line up if each one is
+ * the same caption-plus-input stack. One constant keeps that true.
+ */
+export const FIELD_HEIGHT = 26;
+
+/** The caption above an inline field. Greyed when the field is empty. */
+export function FieldLabel({ children, muted }: { children: string; muted?: boolean }) {
+  return (
+    <Typography
+      noWrap
+      sx={{
+        fontSize: '0.56rem',
+        fontWeight: 900,
+        letterSpacing: 0.3,
+        color: muted ? '#b6c0cd' : '#8593a5',
+        textTransform: 'uppercase',
+        mb: 0.2,
+      }}
+    >
+      {children}
+    </Typography>
+  );
+}
+
 /** Compact money entry. Blank means "no price recorded", which is not zero. */
 export function MoneyCell({
   label,
@@ -53,19 +80,7 @@ export function MoneyCell({
 
   return (
     <Box sx={{ minWidth: 0 }}>
-      <Typography
-        noWrap
-        sx={{
-          fontSize: '0.56rem',
-          fontWeight: 900,
-          letterSpacing: 0.3,
-          color: empty ? '#b6c0cd' : '#8593a5',
-          textTransform: 'uppercase',
-          mb: 0.2,
-        }}
-      >
-        {label}
-      </Typography>
+      <FieldLabel muted={empty}>{label}</FieldLabel>
       <Box
         component="input"
         inputMode="decimal"
@@ -89,7 +104,7 @@ export function MoneyCell({
         }}
         sx={{
           width: 58,
-          height: 26,
+          height: FIELD_HEIGHT,
           px: 0.5,
           fontFamily: 'monospace',
           fontSize: '0.8rem',
@@ -111,11 +126,13 @@ export function MoneyCell({
 
 /** A note, typed straight onto the row. */
 export function NoteCell({
+  label,
   value,
   placeholder,
   disabled,
   onCommit,
 }: {
+  label: string;
   value: string;
   placeholder: string;
   disabled?: boolean;
@@ -130,48 +147,51 @@ export function NoteCell({
   }, [value]);
 
   return (
-    <Box
-      component="input"
-      aria-label="Note for the bench"
-      disabled={disabled}
-      value={draft}
-      placeholder={placeholder}
-      onFocus={() => {
-        focused.current = true;
-      }}
-      onChange={(e) => setDraft(e.currentTarget.value)}
-      onBlur={() => {
-        focused.current = false;
-        const trimmed = draft.trim();
-        if (trimmed !== value) onCommit(trimmed);
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') e.currentTarget.blur();
-        if (e.key === 'Escape') {
-          setDraft(value);
+    <Box sx={{ minWidth: 0 }}>
+      <FieldLabel muted={draft.trim() === ''}>{label}</FieldLabel>
+      <Box
+        component="input"
+        aria-label={label}
+        disabled={disabled}
+        value={draft}
+        placeholder={placeholder}
+        onFocus={() => {
+          focused.current = true;
+        }}
+        onChange={(e) => setDraft(e.currentTarget.value)}
+        onBlur={() => {
           focused.current = false;
-          e.currentTarget.blur();
-        }
-      }}
-      sx={{
-        width: '100%',
-        height: 28,
-        px: 0.75,
-        fontSize: '0.78rem',
-        fontWeight: 600,
-        color: '#334155',
-        borderRadius: `${studio.radius.sm}px`,
-        border: '1px solid transparent',
-        bgcolor: 'transparent',
-        outline: 'none',
-        '&:hover:not(:disabled)': { borderColor: '#e2e8f0', bgcolor: '#f8fafc' },
-        '&:focus': {
-          borderColor: studio.accentDark,
-          bgcolor: '#ffffff',
-          boxShadow: `0 0 0 2px ${studio.accentSoft}`,
-        },
-        '&::placeholder': { color: '#b6c0cd', fontStyle: 'italic', fontWeight: 500 },
-      }}
-    />
+          const trimmed = draft.trim();
+          if (trimmed !== value) onCommit(trimmed);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+          if (e.key === 'Escape') {
+            setDraft(value);
+            focused.current = false;
+            e.currentTarget.blur();
+          }
+        }}
+        sx={{
+          width: '100%',
+          height: FIELD_HEIGHT,
+          px: 0.75,
+          fontSize: '0.78rem',
+          fontWeight: 600,
+          color: '#334155',
+          borderRadius: `${studio.radius.sm}px`,
+          border: '1px solid transparent',
+          bgcolor: 'transparent',
+          outline: 'none',
+          '&:hover:not(:disabled)': { borderColor: '#e2e8f0', bgcolor: '#f8fafc' },
+          '&:focus': {
+            borderColor: studio.accentDark,
+            bgcolor: '#ffffff',
+            boxShadow: `0 0 0 2px ${studio.accentSoft}`,
+          },
+          '&::placeholder': { color: '#b6c0cd', fontStyle: 'italic', fontWeight: 500 },
+        }}
+      />
+    </Box>
   );
 }

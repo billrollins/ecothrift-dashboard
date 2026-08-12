@@ -1,47 +1,43 @@
-feat(tars): make actions the thing time belongs to
+feat(tars): rebuild the bench across the width of the page
 
-Time on the bench was attributed to a grade and a mode, which said where
-it went but never what was done. This makes an action the unit: one piece
-of work — inspect, test, repair, assemble or salvage — pointed either at a
-single grade or at the item as a whole, with the seconds banked against it.
+Everything above the work log was a stack of full-width bars, each using a
+fraction of its row. It now splits: the item on the left, the grades it
+could reach on the right.
 
-Three rules hold the log together:
+Left is the item as a whole — what it is, what it is worth, where its time
+has gone, the current-grade claim, and the ways it can leave. The claim is
+load-bearing, since every rate in the table is measured from it, so it
+carries an amber edge until it is answered.
 
-  The clock is never homeless. Check-in opens an initial inspection on the
-  item, so from the moment an item lands there is somewhere for time to go.
+Right is one row per grade with the item itself on top. Work that informs
+every grade at once — opening it up, looking things up — is not an outcome,
+it belongs to the item, and giving it a row means the clock always has an
+honest place to go.
 
-  A pause is not a new action. Coming back to the grade you were already on
-  resumes that action; one repair does not become five because someone took
-  a phone call. Turning to a different scope closes the old action and opens
-  a new one, and an explicit New action button covers the case where the
-  same grade genuinely holds a second piece of work.
+Grades now sit in scale order and stay there. Sorting by rate meant the
+table rearranged itself under the hand every time an estimate changed; a
+row you are reaching for should be where it was a second ago. The winner is
+marked where it stands, which costs one badge and keeps the layout
+learnable. Badges moved out of the grade name into their own column, beside
+the Work button that starts the clock.
 
-  Nothing is left unsaid. An action must be described before its author can
-  start another. The moment you move on is the moment you know what you did,
-  so it is also the last honest moment to write it down. The buttons that
-  would move on are disabled and say why, so the rule is seen before it is
-  hit rather than after.
+Undo, because Work now opens an action on the first press and a misclick
+costs a row. It deletes the action and hands its seconds back to the one
+before, which is where the time belonged anyway — whoever misclicked was
+still doing the previous thing. Nothing is lost: the job total does not
+move, only the row the time is filed under.
 
-Pressing Work now starts immediately with an Inspect action and a blank
-description rather than opening a form. The cost of that is paid at the
-other end, by the gate above, which is the cheaper place to pay it.
+Going back to the queue now asks why, with four common reasons as one press
+each. An item that reappears with no explanation just gets picked up and
+put down again by the next person. Hold and Done already asked.
 
-Inspect is its own category, separate from Test: finding out what is wrong
-is different work from verifying that something works. Scope still decides
-attribution — the item as a whole is charged to the item, because one
-teardown informs every grade at once — but nothing says "looking" any more;
-the bench reads "item 12m · grades 34m".
+Scanning left the Bench header. It is how an item gets onto a bench, so it
+belongs where you go looking for one; with something already in hand the
+field was only a way to lose it. On Home with a clear bench the cursor now
+waits there, since scanning is the one thing left to do.
 
-Also closes the two remaining gaps at the edges of a shift. Clocking out
-with the clock running now asks first, writes up the work and stops the
-clock in one go, instead of pausing quietly server-side and mentioning it
-afterwards. The idle prompt now names the time the screen went quiet, so
-the question it asks can actually be answered.
+Parts moved off the disposition row into its own button with a count, since
+it opens a drawer and is not a way for the item to leave.
 
-Backend: RestorationAction with job.current_action, a service that owns the
-three rules, three endpoints, and 35 tests covering attribution, the resume
-rule and the description gate.
-
-Frontend: Work and Log tabs on the bench with Work leading, since work is
-what someone is standing there to do; the log is read when a question comes
-up. Categories are colour-coded and correctable as the work reveals itself.
+Tabs are drawn as tabs in both places, joining the surface they open rather
+than floating above it as buttons.

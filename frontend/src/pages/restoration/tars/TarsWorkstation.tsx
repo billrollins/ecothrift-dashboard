@@ -36,6 +36,7 @@ import {
   useRestorationActions,
   useStartRestorationAction,
   useDescribeRestorationAction,
+  useUndoRestorationAction,
   ActionNeedsDescriptionError,
 
   useTarsBenchJobs,
@@ -50,6 +51,8 @@ import type {
   RestorationJobDTO,
 } from '../../../types/inventory.types';
 import { TarsWorkPanel } from './TarsWorkPanel';
+import { TarsBenchStatus } from './TarsBenchStatus';
+import { TarsSendBackDialog } from './TarsSendBackDialog';
 import { actionScopeLabel, blockingAction } from './tarsActions';
 import { TARS_DEFAULT_HOURLY_RATE, TARS_DEFAULT_TIME_PREMIUM } from './tarsConstants';
 import { TarsTimerSwitchDialog } from './TarsTimerSwitchDialog';
@@ -112,6 +115,7 @@ function BenchRecord({
   busy,
   onDescribe,
   onNewAction,
+  onUndo,
 }: {
   jobId: number;
   actions: RestorationActionsDTO | undefined;
@@ -119,12 +123,14 @@ function BenchRecord({
   busy?: boolean;
   onDescribe: (actionId: number, patch: { description?: string; category?: RestorationActionCategory }) => void;
   onNewAction: (grade: string) => void;
+  onUndo: () => void;
 }) {
   const [tab, setTab] = useState<'work' | 'log'>('work');
 
   return (
     <Box sx={{ flex: 1, minHeight: 340, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-      <Stack direction="row" spacing={0.6} sx={{ mb: 0.85 }}>
+      {/* Tabs sitting on the edge of the panel they open, not buttons above it. */}
+      <Stack direction="row" spacing={0.25} sx={{ borderBottom: `1px solid ${studio.panelBorder}` }}>
         {(['work', 'log'] as const).map((id) => {
           const selected = id === tab;
           return (
@@ -132,19 +138,24 @@ function BenchRecord({
               key={id}
               component="button"
               type="button"
+              role="tab"
+              aria-selected={selected}
               onClick={() => setTab(id)}
-              aria-pressed={selected}
               sx={{
-                px: 1.35,
-                py: 0.45,
+                px: 1.6,
+                pt: 0.5,
+                pb: 0.55,
+                mb: '-1px',
                 cursor: 'pointer',
-                fontSize: '0.78rem',
+                fontSize: '0.8rem',
                 fontWeight: 900,
-                borderRadius: `${studio.radius.sm}px`,
-                border: `1px solid ${selected ? studio.accentDark : '#e2e8f0'}`,
-                bgcolor: selected ? studio.accentDark : '#ffffff',
-                color: selected ? '#ffffff' : '#64748b',
-                '&:hover': { borderColor: studio.accent },
+                borderRadius: '8px 8px 0 0',
+                border: '1px solid',
+                borderColor: selected ? studio.panelBorder : 'transparent',
+                borderBottomColor: selected ? studio.panel : 'transparent',
+                bgcolor: selected ? studio.panel : 'transparent',
+                color: selected ? studio.accentDark : '#8593a5',
+                '&:hover': { color: selected ? studio.accentDark : '#475569' },
               }}
             >
               {id === 'work' ? 'Work' : 'Log'}
@@ -153,7 +164,7 @@ function BenchRecord({
         })}
       </Stack>
 
-      <Box sx={{ flex: 1, minHeight: 0 }}>
+      <Box sx={{ flex: 1, minHeight: 0, pt: 1 }}>
         {tab === 'work' ? (
           <TarsWorkPanel
             data={actions}
@@ -161,106 +172,13 @@ function BenchRecord({
             busy={busy}
             onDescribe={onDescribe}
             onNewAction={onNewAction}
+            onUndo={onUndo}
           />
         ) : (
           <TarsRestorationTimeline jobId={jobId} editable />
         )}
       </Box>
     </Box>
-  );
-}
-
-/**
- * What the item is, and the four things that can happen to it.
- *
- * Actions live above the grade table rather than inside it: the table answers
- * which grade to work toward, and these are decisions about the item as a whole.
- */
-function BenchItemBar({
-  job,
-  busy,
-  onParts,
-  onHold,
-  onMoveBack,
-  onDone,
-}: {
-  job: RestorationJobDTO;
-  busy?: boolean;
-  onParts: () => void;
-  onHold: () => void;
-  onMoveBack: () => void;
-  onDone: () => void;
-}) {
-  const note = job.queue_note?.trim();
-  return (
-    <Stack
-      direction="row"
-      spacing={1}
-      alignItems="center"
-      flexWrap="wrap"
-      useFlexGap
-      sx={{
-        px: 1.25,
-        py: 0.85,
-        borderRadius: `${studio.radius.lg}px`,
-        border: `1px solid ${studio.panelBorder}`,
-        bgcolor: studio.panel,
-        boxShadow: studio.panelShadow,
-      }}
-    >
-      <Stack sx={{ minWidth: 0, mr: 'auto' }}>
-        <Stack direction="row" spacing={0.85} alignItems="baseline" sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '0.78rem', color: studio.accentDark }}>
-            {job.items[0]?.sku ?? job.sku ?? `Job ${job.id}`}
-          </Typography>
-          <Typography noWrap sx={{ fontWeight: 900, fontSize: '1rem', color: '#0f172a' }}>
-            {job.name}
-          </Typography>
-        </Stack>
-        <Typography noWrap sx={{ fontSize: '0.73rem', color: note ? '#334155' : '#94a3b8' }}>
-          {note || [job.brand, job.category].filter(Boolean).join(' · ') || 'No notes from the queue'}
-        </Typography>
-      </Stack>
-
-      {[
-        { label: 'Parts', onClick: onParts },
-        { label: 'Hold', onClick: onHold },
-        { label: 'Back to queue', onClick: onMoveBack },
-      ].map((action) => (
-        <Button
-          key={action.label}
-          size="small"
-          variant="outlined"
-          disabled={busy}
-          onClick={action.onClick}
-          sx={{
-            textTransform: 'none',
-            fontWeight: 800,
-            fontSize: '0.75rem',
-            borderColor: studio.panelBorder,
-            color: '#334155',
-          }}
-        >
-          {action.label}
-        </Button>
-      ))}
-
-      <Button
-        size="small"
-        variant="contained"
-        disabled={busy}
-        onClick={onDone}
-        sx={{
-          textTransform: 'none',
-          fontWeight: 900,
-          fontSize: '0.75rem',
-          bgcolor: studio.accentDark,
-          '&:hover': { bgcolor: studio.accentDark },
-        }}
-      >
-        Done
-      </Button>
-    </Stack>
   );
 }
 
@@ -303,6 +221,8 @@ export function TarsWorkstation() {
   const [doneOpen, setDoneOpen] = useState(false);
 
   const [holdOpen, setHoldOpen] = useState(false);
+
+  const [sendBackOpen, setSendBackOpen] = useState(false);
 
   const [scanMessageDialog, setScanMessageDialog] = useState<{ title: string; message: string } | null>(null);
   const timerSwitchAckRef = useRef<Set<string>>(new Set());
@@ -454,6 +374,7 @@ export function TarsWorkstation() {
   const actions = useRestorationActions(displayJob?.id ?? null);
   const startAction = useStartRestorationAction();
   const describeAction = useDescribeRestorationAction();
+  const undoAction = useUndoRestorationAction();
 
   // Work cannot be moved off an action nobody described. Surfaced on the
   // buttons it would block, so the rule is seen before it is hit.
@@ -723,21 +644,31 @@ export function TarsWorkstation() {
     ],
   );
 
-  const handleMoveBack = async () => {
+  const handleSendBack = async (note: string) => {
     if (!selectedJob) return;
-    runWithTimerGuard(selectedJob, 'moveBack', async () => {
-      try {
-        await flushWorkSessionSave();
-        await moveBack.mutateAsync(selectedJob.id);
-        setSelectedRowKey(null);
-        setStudioLocation('home');
-        enqueueSnackbar('Moved back to queue', { variant: 'info' });
-        focusScanInput();
-      } catch (err) {
-        enqueueSnackbar(err instanceof Error ? err.message : 'Move back failed', { variant: 'error' });
-      }
-    });
+    try {
+      await flushWorkSessionSave();
+      await moveBack.mutateAsync({ id: selectedJob.id, note });
+      setSendBackOpen(false);
+      setSelectedRowKey(null);
+      setStudioLocation('home');
+      enqueueSnackbar('Sent back to the queue', { variant: 'info' });
+      focusScanInput();
+    } catch (err) {
+      enqueueSnackbar(err instanceof Error ? err.message : 'Move back failed', { variant: 'error' });
+    }
   };
+
+  /** Wrong row. Delete the action and give its time back to the one before. */
+  const handleUndoAction = useCallback(() => {
+    if (!displayJob) return;
+    undoAction.mutate(displayJob.id, {
+      onError: (err) =>
+        enqueueSnackbar(err instanceof Error ? err.message : 'Could not undo that', {
+          variant: 'warning',
+        }),
+    });
+  }, [displayJob, undoAction, enqueueSnackbar]);
 
 
 
@@ -800,6 +731,17 @@ export function TarsWorkstation() {
     setHoldOpen(false);
     focusScanInput();
   }, [focusScanInput]);
+
+  /**
+   * With nothing in hand, scanning is the only thing to do next, so the cursor
+   * waits there. Once an item is on the bench the field is gone from the header
+   * and the focus belongs to the work.
+   */
+  const benchIsClear = myActiveBenchRestorationJob(myBenchJobs, currentUserId) == null;
+  useEffect(() => {
+    if (studioLane !== 'home' || !benchIsClear) return;
+    focusScanInput();
+  }, [studioLane, benchIsClear, focusScanInput]);
 
   const handleLaneChange = useCallback((lane: StudioLane) => {
     if (lane === 'bench') {
@@ -1037,50 +979,70 @@ export function TarsWorkstation() {
               p: { xs: 0.75, md: 1.25 },
               display: 'flex',
               flexDirection: 'column',
-              gap: 1,
+              gap: 1.25,
             }}
           >
-            <BenchItemBar
-              job={displayJob}
-              busy={holdJob.isPending || moveBack.isPending}
-              onParts={() => setPartsDrawerOpen(true)}
-              onHold={() => runWithTimerGuard(displayJob, 'hold', () => setHoldOpen(true))}
-              onMoveBack={() => void handleMoveBack()}
-              onDone={() => runWithTimerGuard(displayJob, 'done', () => setDoneOpen(true))}
-            />
-
-            <TarsGradeTable
-              job={displayJob}
-              plan={benchPlan}
-              scaleGrades={gradeScales[displayJob.scale] ?? []}
-              floorRate={floorRate}
-              benchmarkRate={benchmarkRate}
-              busy={timerController.busy}
-              onPlanChange={updateBenchPlan}
-              onAimTimer={workOn}
-              blockedReason={workBlockedReason}
-              onPauseTimer={() => {
-                void timerController.pause().catch((err) => {
-                  enqueueSnackbar(err instanceof Error ? err.message : 'Could not stop the clock', {
-                    variant: 'error',
-                  });
-                });
+            {/*
+              What it is on the left, what to do with it on the right. The two
+              answer different questions and are read at different moments, so
+              they sit side by side rather than stacking and wasting the width.
+            */}
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', lg: 'minmax(260px, 300px) minmax(0, 1fr)' },
+                gap: 1.25,
+                alignItems: 'start',
               }}
-            />
+            >
+              <TarsBenchStatus
+                job={displayJob}
+                grades={gradeScales[displayJob.scale] ?? Object.keys(displayJob.grade_values ?? {})}
+                startingGrade={benchPlan.startingGrade}
+                busy={holdJob.isPending || moveBack.isPending}
+                partsCount={displayItem?.workSession?.parts?.length ?? 0}
+                onClaimGrade={(grade) => updateBenchPlan({ ...benchPlan, startingGrade: grade })}
+                onParts={() => setPartsDrawerOpen(true)}
+                onHold={() => runWithTimerGuard(displayJob, 'hold', () => setHoldOpen(true))}
+                onSendBack={() => runWithTimerGuard(displayJob, 'moveBack', () => setSendBackOpen(true))}
+                onDone={() => runWithTimerGuard(displayJob, 'done', () => setDoneOpen(true))}
+              />
+
+              <TarsGradeTable
+                job={displayJob}
+                plan={benchPlan}
+                scaleGrades={gradeScales[displayJob.scale] ?? []}
+                floorRate={floorRate}
+                benchmarkRate={benchmarkRate}
+                busy={timerController.busy || startAction.isPending}
+                onPlanChange={updateBenchPlan}
+                onAimTimer={workOn}
+                blockedReason={workBlockedReason}
+              />
+            </Box>
 
             <BenchRecord
               jobId={displayJob.id}
               actions={actions.data}
               running={displayJob.timer_is_running}
-              busy={startAction.isPending || describeAction.isPending}
+              busy={startAction.isPending || describeAction.isPending || undoAction.isPending}
               onDescribe={handleDescribeAction}
               onNewAction={handleNewAction}
+              onUndo={handleUndoAction}
             />
           </Box>
         )}
       </TarsStudioShell>
 
       <StudioNoticeDrawer open={noticesOpen} notices={notices} onClose={() => setNoticesOpen(false)} />
+
+      <TarsSendBackDialog
+        open={sendBackOpen}
+        itemLabel={displayJob?.items[0]?.sku ?? displayJob?.sku ?? 'this item'}
+        busy={moveBack.isPending}
+        onCancel={() => setSendBackOpen(false)}
+        onSubmit={(note) => void handleSendBack(note)}
+      />
 
       <Drawer
         anchor="right"

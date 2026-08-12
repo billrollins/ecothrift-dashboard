@@ -370,7 +370,19 @@ def check_in_restoration_job(
 
 
 @transaction.atomic
-def move_restoration_job_back_to_queue(job: RestorationJob, *, user=None) -> RestorationJob:
+def move_restoration_job_back_to_queue(
+    job: RestorationJob,
+    *,
+    user=None,
+    note: str = '',
+) -> RestorationJob:
+    """Send an item back unfinished.
+
+    The note says why it is coming back, which is the whole point of the trip —
+    an item that reappears in the queue with no explanation just gets picked up
+    and put down again.
+    """
+
     job = RestorationJob.objects.select_for_update().get(pk=job.pk)
     if job.stage not in (RestorationJob.STAGE_BENCH, RestorationJob.STAGE_PENDING):
         raise ValueError('Only bench or pending jobs can move back to queue.')
@@ -379,6 +391,12 @@ def move_restoration_job_back_to_queue(job: RestorationJob, *, user=None) -> Res
     was_running = job.timer_is_running
     elapsed_before_pause = elapsed_active_seconds(job)
     _pause_timer(job)
+    from apps.inventory.services.restoration_actions import close_open_actions
+
+    close_open_actions(job)
+    note = str(note or '').strip()[:2000]
+    if note:
+        job.queue_note = note
     job.stage = RestorationJob.STAGE_SENT
     job.bench_owner = None
     job.pending_reason = ''
@@ -391,6 +409,7 @@ def move_restoration_job_back_to_queue(job: RestorationJob, *, user=None) -> Res
             'stage',
             'bench_owner',
             *_timer_save_fields(),
+            'queue_note',
             'pending_reason',
             'pending_notes',
             'pending_storage_location',
@@ -414,7 +433,7 @@ def move_restoration_job_back_to_queue(job: RestorationJob, *, user=None) -> Res
     _timeline_event(
         job,
         'job.moved_to_queue',
-        {'from_stage': from_stage, 'to_stage': RestorationJob.STAGE_SENT},
+        {'from_stage': from_stage, 'to_stage': RestorationJob.STAGE_SENT, 'note': note},
         actor=user,
         entity_id=f'job:{job.pk}',
         correlation_id=correlation_id,

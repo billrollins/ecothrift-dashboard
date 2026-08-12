@@ -1,16 +1,23 @@
 /**
- * The bench: one item, one table, one decision.
+ * Every grade the item could reach, in the order the scale lists them.
  *
- * Every grade the item could reach is a row. Ashley's prices are given; Mike
- * answers three things per row — how likely, what parts, how long — and the
- * rows sort themselves by what each is worth per hour. The top row is the
- * answer.
+ * Ashley's prices are given. Mike answers three things per row — how likely,
+ * what parts, how long — and each row says what it would be worth per hour. The
+ * best one is marked where it stands.
  *
- * Aiming the clock at a row is the decision. There is no separate commit step,
- * because the record of what was chosen and the act of choosing it should not
- * be two pieces of work.
+ * Rows never move. An earlier version sorted by rate, which meant the table
+ * rearranged itself under the hand every time an estimate changed; a row you
+ * are reaching for should be where it was a second ago. Marking the winner
+ * costs one badge and keeps the layout learnable.
+ *
+ * The item itself sits at the top as a row of its own. Work that informs every
+ * grade at once — opening it up, looking things up — belongs to the item, and
+ * giving it a row means the clock always has an honest place to go.
+ *
+ * Pressing Work is the decision. There is no separate commit step, because the
+ * record of what was chosen and the act of choosing it should not be two
+ * pieces of work.
  */
-import PauseCircle from '@mui/icons-material/PauseCircle';
 import PlayArrow from '@mui/icons-material/PlayArrow';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -21,6 +28,7 @@ import { useMemo } from 'react';
 import type { RestorationJobDTO } from '../../../types/inventory.types';
 import { PressPicker } from './studio/PressPicker';
 import { studio } from './studio/tarsStudioTheme';
+import { formatDuration } from './tarsActions';
 import {
   MINUTES_CHOICES,
   PARTS_CHOICES,
@@ -41,7 +49,8 @@ const BAND_COLORS: Record<RateBand, { fg: string; bg: string; border: string }> 
   unknown: { fg: '#94a3b8', bg: '#f8fafc', border: '#e2e8f0' },
 };
 
-const COLUMNS = 'minmax(120px, 1.2fr) 74px 62px 62px 66px minmax(96px, 0.8fr) 92px';
+const COLUMNS = 'minmax(110px, 1fr) 76px 64px 64px 68px 94px minmax(84px, 0.8fr) 88px';
+const HEADINGS = ['GRADE', 'SELLS FOR', 'ODDS', 'PARTS', 'MINS', 'WORTH', '', ''];
 
 export function TarsGradeTable({
   job,
@@ -52,7 +61,6 @@ export function TarsGradeTable({
   busy,
   onPlanChange,
   onAimTimer,
-  onPauseTimer,
   blockedReason,
 }: {
   job: RestorationJobDTO;
@@ -62,9 +70,8 @@ export function TarsGradeTable({
   benchmarkRate: number | null;
   busy?: boolean;
   onPlanChange: (plan: TarsBenchPlan) => void;
-  /** Point the clock at a grade. This is the decision. */
+  /** Point the clock at a grade, or at the item when the grade is empty. */
   onAimTimer: (grade: string) => void;
-  onPauseTimer: () => void;
   /**
    * Why work cannot be moved right now, if it cannot. Set when the current
    * action has not been described — shown on the buttons it would block, so
@@ -75,6 +82,7 @@ export function TarsGradeTable({
   const rows = useMemo(() => buildGradeRows(job, plan, scaleGrades), [job, plan, scaleGrades]);
   const best = useMemo(() => bestGrade(rows), [rows]);
   const aimed = job.timer_mode === 'work' ? job.timer_grade : '';
+  const onItem = job.timer_mode !== 'work';
 
   function setEstimate(grade: string, patch: Partial<TarsGradeRow['estimate']>) {
     onPlanChange({
@@ -84,73 +92,132 @@ export function TarsGradeTable({
   }
 
   return (
-    <Stack spacing={1} sx={{ minWidth: 0 }}>
-      <StartingGradeBar
-        rows={rows}
-        plan={plan}
-        job={job}
-        aimed={aimed}
-        looking={job.timer_is_running && job.timer_mode === 'look'}
-        busy={busy}
-        onPick={(grade) => onPlanChange({ ...plan, startingGrade: grade })}
-        onLook={() => onAimTimer('')}
-        onPause={onPauseTimer}
-        blockedReason={job.timer_mode === 'look' ? undefined : blockedReason}
-      />
-
+    <Box
+      sx={{
+        borderRadius: `${studio.radius.lg}px`,
+        border: `1px solid ${studio.panelBorder}`,
+        bgcolor: studio.panel,
+        boxShadow: studio.panelShadow,
+        overflow: 'hidden',
+        minWidth: 0,
+      }}
+    >
       <Box
         sx={{
-          borderRadius: `${studio.radius.lg}px`,
-          border: `1px solid ${studio.panelBorder}`,
-          bgcolor: studio.panel,
-          boxShadow: studio.panelShadow,
-          overflow: 'hidden',
+          display: 'grid',
+          gridTemplateColumns: COLUMNS,
+          gap: 1,
+          alignItems: 'center',
+          px: 1.25,
+          py: 0.6,
+          bgcolor: '#f8fafc',
+          borderBottom: `1px solid ${studio.panelBorder}`,
         }}
       >
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: COLUMNS,
-            gap: 1,
-            alignItems: 'center',
-            px: 1.25,
-            py: 0.6,
-            bgcolor: '#f8fafc',
-            borderBottom: `1px solid ${studio.panelBorder}`,
-          }}
-        >
-          {['GRADE', 'SELLS FOR', 'ODDS', 'PARTS', 'MINS', 'WORTH', ''].map((label, i) => (
-            <Typography
-              key={label || i}
-              sx={{
-                fontSize: '0.6rem',
-                fontWeight: 900,
-                letterSpacing: 0.5,
-                color: '#94a3b8',
-                textAlign: i === 0 || i === 5 ? 'left' : 'center',
-              }}
-            >
-              {label}
-            </Typography>
-          ))}
-        </Box>
-
-        {rows.map((row) => (
-          <GradeRow
-            key={row.grade}
-            row={row}
-            isBest={best?.grade === row.grade}
-            isAimed={aimed === row.grade}
-            floorRate={floorRate}
-            benchmarkRate={benchmarkRate}
-            busy={busy}
-            onEstimate={(patch) => setEstimate(row.grade, patch)}
-            onAim={() => onAimTimer(row.grade)}
-            blockedReason={row.grade === aimed ? undefined : blockedReason}
-          />
+        {HEADINGS.map((label, i) => (
+          <Typography
+            key={label || i}
+            sx={{
+              fontSize: '0.6rem',
+              fontWeight: 900,
+              letterSpacing: 0.5,
+              color: '#94a3b8',
+              textAlign: i === 0 || i >= 5 ? 'left' : 'center',
+            }}
+          >
+            {label}
+          </Typography>
         ))}
       </Box>
-    </Stack>
+
+      <ItemRow
+        job={job}
+        isAimed={onItem}
+        busy={busy}
+        blockedReason={onItem ? undefined : blockedReason}
+        onAim={() => onAimTimer('')}
+      />
+
+      {rows.map((row) => (
+        <GradeRow
+          key={row.grade}
+          row={row}
+          isBest={best?.grade === row.grade}
+          isAimed={aimed === row.grade}
+          floorRate={floorRate}
+          benchmarkRate={benchmarkRate}
+          busy={busy}
+          onEstimate={(patch) => setEstimate(row.grade, patch)}
+          onAim={() => onAimTimer(row.grade)}
+          blockedReason={row.grade === aimed ? undefined : blockedReason}
+        />
+      ))}
+
+      {rows.length === 0 ? (
+        <Typography sx={{ px: 1.25, py: 1.5, fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>
+          No grade scale on this item yet. Set one from the queue.
+        </Typography>
+      ) : null}
+    </Box>
+  );
+}
+
+/**
+ * The item as a whole, above the grades it could reach.
+ *
+ * It has no odds or price of its own because it is not an outcome — it is the
+ * thing every outcome is about. What it does have is somewhere for the work
+ * that serves all of them to go.
+ */
+function ItemRow({
+  job,
+  isAimed,
+  busy,
+  blockedReason,
+  onAim,
+}: {
+  job: RestorationJobDTO;
+  isAimed: boolean;
+  busy?: boolean;
+  blockedReason?: string;
+  onAim: () => void;
+}) {
+  return (
+    <Box
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: COLUMNS,
+        gap: 1,
+        alignItems: 'center',
+        px: 1.25,
+        py: 0.65,
+        borderBottom: `1px solid ${studio.panelBorder}`,
+        borderLeft: `3px solid ${isAimed ? studio.accentDark : 'transparent'}`,
+        bgcolor: isAimed ? studio.accentSoft : '#fcfdfe',
+        '&:hover': { bgcolor: isAimed ? studio.accentSoft : '#f8fafc' },
+      }}
+    >
+      <Typography noWrap sx={{ fontWeight: 900, fontSize: '0.85rem', color: '#0f172a' }}>
+        The item
+      </Typography>
+      <Box />
+      <Box />
+      <Box />
+      <Box />
+      <Typography sx={{ fontFamily: 'monospace', fontSize: '0.8rem', fontWeight: 800, color: '#64748b' }}>
+        {formatDuration(job.look_seconds ?? 0)}
+      </Typography>
+      <Stack direction="row" spacing={0.4} flexWrap="wrap" useFlexGap>
+        <MiniTag label="serves every grade" />
+      </Stack>
+      <WorkButton
+        isAimed={isAimed}
+        disabled={busy}
+        blockedReason={blockedReason}
+        hint="Work that informs every grade at once"
+        onClick={onAim}
+      />
+    </Box>
   );
 }
 
@@ -197,13 +264,9 @@ function GradeRow({
         '&:hover': { bgcolor: isAimed ? studio.accentSoft : '#f8fafc' },
       }}
     >
-      <Stack direction="row" spacing={0.6} alignItems="center" sx={{ minWidth: 0 }}>
-        <Typography noWrap sx={{ fontWeight: 800, fontSize: '0.85rem', color: '#0f172a' }}>
-          {row.grade}
-        </Typography>
-        {row.isStart ? <MiniTag label="now" /> : null}
-        {row.toGo > 0 && !row.isStart ? <MiniTag label={`${row.toGo} to go`} warn /> : null}
-      </Stack>
+      <Typography noWrap sx={{ fontWeight: 800, fontSize: '0.85rem', color: '#0f172a' }}>
+        {row.grade}
+      </Typography>
 
       <Typography
         sx={{
@@ -262,7 +325,7 @@ function GradeRow({
             : `${fmtUsd(row.expected ?? 0)} expected for the work left`
         }
       >
-        <Stack direction="row" spacing={0.5} alignItems="baseline" sx={{ cursor: 'help', minWidth: 0 }}>
+        <Stack direction="row" spacing={0.4} alignItems="baseline" sx={{ cursor: 'help', minWidth: 0 }}>
           <Typography
             sx={{
               fontFamily: 'monospace',
@@ -271,185 +334,90 @@ function GradeRow({
               color: row.rate == null ? '#cbd5e1' : band.fg,
             }}
           >
-            {row.rate == null ? '—' : `${fmtUsd(row.rate)}`}
+            {row.rate == null ? '—' : fmtUsd(row.rate)}
           </Typography>
-          <Typography sx={{ fontSize: '0.62rem', fontWeight: 800, color: '#94a3b8' }}>/hr</Typography>
+          <Typography sx={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8' }}>/hr</Typography>
         </Stack>
       </Tooltip>
 
-      <Tooltip
-        arrow
-        title={
-          blockedReason
-            ?? (row.isStart
-              ? 'The item is already here'
-              : impossible
-                ? 'You set this at no chance'
-                : '')
+      <Stack direction="row" spacing={0.4} flexWrap="wrap" useFlexGap>
+        {row.isStart ? <MiniTag label="it is here" /> : null}
+        {isBest && !row.isStart ? <MiniTag label="best" good /> : null}
+        {impossible && !row.isStart ? <MiniTag label="ruled out" /> : null}
+        {row.toGo > 0 && !row.isStart && !impossible ? (
+          <MiniTag label={`${row.toGo} to go`} warn />
+        ) : null}
+      </Stack>
+
+      <WorkButton
+        isAimed={isAimed}
+        disabled={busy || row.isStart || impossible}
+        blockedReason={blockedReason}
+        hint={
+          row.isStart
+            ? 'The item is already here'
+            : impossible
+              ? 'You set this at no chance'
+              : `Work toward ${row.grade}`
         }
-      >
-        <span>
-          <Button
-            size="small"
-            variant={isAimed ? 'contained' : 'outlined'}
-            disabled={busy || row.isStart || impossible || Boolean(blockedReason)}
-            onClick={onAim}
-            startIcon={<PlayArrow sx={{ fontSize: 15 }} />}
-            sx={{
-              textTransform: 'none',
-              fontWeight: 900,
-              fontSize: '0.72rem',
-              py: 0.15,
-              bgcolor: isAimed ? studio.accentDark : 'transparent',
-              borderColor: studio.panelBorder,
-              color: isAimed ? '#ffffff' : '#334155',
-              '&:hover': { bgcolor: isAimed ? studio.accentDark : studio.accentSoft },
-            }}
-          >
-            {isAimed ? 'On it' : 'Work'}
-          </Button>
-        </span>
-      </Tooltip>
+        onClick={onAim}
+      />
     </Box>
   );
 }
 
 /**
- * Where the item is now, and the clock that is not yet aimed at a grade.
+ * Starts the clock and opens an action in one press.
  *
- * Looking is charged to the item, never to a row: one teardown informs every
- * grade at once, so splitting it between them would be a fiction.
+ * Nothing is asked first. A new action defaults to Inspect with a blank
+ * description, which is nearly always what the first minutes are, and the
+ * writing-up happens in the Work panel while the work is fresh.
  */
-function StartingGradeBar({
-  rows,
-  plan,
-  job,
-  aimed,
-  looking,
-  busy,
-  onPick,
-  onLook,
-  onPause,
+function WorkButton({
+  isAimed,
+  disabled,
   blockedReason,
+  hint,
+  onClick,
 }: {
-  rows: TarsGradeRow[];
-  plan: TarsBenchPlan;
-  job: RestorationJobDTO;
-  aimed: string;
-  looking: boolean;
-  busy?: boolean;
-  onPick: (grade: string) => void;
-  onLook: () => void;
-  onPause: () => void;
+  isAimed: boolean;
+  disabled?: boolean;
   blockedReason?: string;
+  hint: string;
+  onClick: () => void;
 }) {
-  const lookMinutes = Math.round((job.look_seconds ?? 0) / 60);
-  const workMinutes = Math.round((job.work_seconds ?? 0) / 60);
-
   return (
-    <Stack
-      direction="row"
-      spacing={1}
-      alignItems="center"
-      flexWrap="wrap"
-      useFlexGap
-      sx={{
-        px: 1.25,
-        py: 0.75,
-        borderRadius: `${studio.radius.lg}px`,
-        border: `1px solid ${plan.startingGrade ? studio.panelBorder : '#e3b23c'}`,
-        bgcolor: studio.panel,
-        boxShadow: studio.panelShadow,
-      }}
-    >
-      <Typography sx={{ fontSize: '0.62rem', fontWeight: 900, letterSpacing: 0.5, color: '#94a3b8' }}>
-        IT IS AT
-      </Typography>
-
-      <Stack direction="row" spacing={0.4}>
-        {rows.map((row) => {
-          const active = plan.startingGrade === row.grade;
-          return (
-            <Box
-              key={row.grade}
-              component="button"
-              type="button"
-              disabled={busy}
-              onClick={() => onPick(row.grade)}
-              sx={{
-                px: 0.85,
-                py: 0.3,
-                cursor: 'pointer',
-                fontSize: '0.74rem',
-                fontWeight: 800,
-                borderRadius: `${studio.radius.sm}px`,
-                border: `1px solid ${active ? studio.accentDark : '#e2e8f0'}`,
-                bgcolor: active ? studio.accentDark : '#ffffff',
-                color: active ? '#ffffff' : '#64748b',
-                '&:hover:not(:disabled)': { borderColor: studio.accent },
-              }}
-            >
-              {row.grade}
-            </Box>
-          );
-        })}
-      </Stack>
-
-      <Box sx={{ flex: 1, minWidth: 8 }} />
-
-      <Tooltip arrow title="Time charged to the item as a whole, and to grades">
-        <Typography sx={{ fontSize: '0.7rem', color: '#7c8899', fontWeight: 700, fontFamily: 'monospace' }}>
-          item {lookMinutes}m · grades {workMinutes}m
-        </Typography>
-      </Tooltip>
-
-      <Tooltip arrow title={blockedReason ?? 'Work on the item as a whole, not one grade'}>
-        <span>
-          <Button
-            size="small"
-            variant={looking ? 'contained' : 'outlined'}
-            disabled={busy || Boolean(blockedReason)}
-            onClick={onLook}
-            sx={{
-              textTransform: 'none',
-              fontWeight: 900,
-              fontSize: '0.72rem',
-              py: 0.15,
-              bgcolor: looking ? studio.accentDark : 'transparent',
-              borderColor: studio.panelBorder,
-              color: looking ? '#ffffff' : '#334155',
-              '&:hover': { bgcolor: looking ? studio.accentDark : studio.accentSoft },
-            }}
-          >
-            {looking ? 'On the item' : 'Work on item'}
-          </Button>
-        </span>
-      </Tooltip>
-
-      <Button
-        size="small"
-        variant="outlined"
-        disabled={busy || !job.timer_is_running}
-        onClick={onPause}
-        startIcon={<PauseCircle sx={{ fontSize: 15 }} />}
-        sx={{
-          textTransform: 'none',
-          fontWeight: 900,
-          fontSize: '0.72rem',
-          py: 0.15,
-          borderColor: studio.panelBorder,
-          color: '#334155',
-        }}
-      >
-        Stop
-      </Button>
-
-      {aimed ? <MiniTag label={`clock on ${aimed}`} /> : null}
-    </Stack>
+    <Tooltip arrow title={blockedReason ?? hint}>
+      <span>
+        <Button
+          fullWidth
+          size="small"
+          variant={isAimed ? 'contained' : 'outlined'}
+          disabled={disabled || Boolean(blockedReason)}
+          onClick={onClick}
+          startIcon={<PlayArrow sx={{ fontSize: 15 }} />}
+          sx={{
+            textTransform: 'none',
+            fontWeight: 900,
+            fontSize: '0.72rem',
+            py: 0.15,
+            bgcolor: isAimed ? studio.accentDark : 'transparent',
+            borderColor: studio.panelBorder,
+            color: isAimed ? '#ffffff' : '#334155',
+            '&:hover': { bgcolor: isAimed ? studio.accentDark : studio.accentSoft },
+          }}
+        >
+          {isAimed ? 'On it' : 'Work'}
+        </Button>
+      </span>
+    </Tooltip>
   );
 }
 
-function MiniTag({ label, warn }: { label: string; warn?: boolean }) {
+function MiniTag({ label, warn, good }: { label: string; warn?: boolean; good?: boolean }) {
+  const fg = warn ? '#8a5200' : good ? studio.accentDark : '#64748b';
+  const bg = warn ? '#fdf2dc' : good ? studio.accentSoft : '#f1f5f9';
+  const border = warn ? '#efd39a' : good ? studio.accentSoftBorder : '#e2e8f0';
   return (
     <Box
       sx={{
@@ -459,9 +427,9 @@ function MiniTag({ label, warn }: { label: string; warn?: boolean }) {
         fontWeight: 900,
         lineHeight: '16px',
         whiteSpace: 'nowrap',
-        bgcolor: warn ? '#fdf2dc' : studio.accentSoft,
-        color: warn ? '#8a5200' : studio.accentDark,
-        border: `1px solid ${warn ? '#efd39a' : studio.accentSoftBorder}`,
+        bgcolor: bg,
+        color: fg,
+        border: `1px solid ${border}`,
       }}
     >
       {label}

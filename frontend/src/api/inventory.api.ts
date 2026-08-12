@@ -2314,8 +2314,12 @@ export function checkInRestorationJob(
   );
 }
 
-export function moveRestorationJobBackToQueue(id: number): Promise<{ data: RestorationJobDTO }> {
-  return api.post(`/inventory/restoration-jobs/${id}/move-back-to-queue/`);
+/** Send an item back unfinished. The note says why it is coming back. */
+export function moveRestorationJobBackToQueue(
+  id: number,
+  note = '',
+): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/move-back-to-queue/`, { note });
 }
 
 export function holdRestorationJob(
@@ -2350,6 +2354,11 @@ export function startRestorationAction(
   payload: RestorationStartActionPayload,
 ): Promise<{ data: RestorationJobDTO }> {
   return api.post(`/inventory/restoration-jobs/${id}/start-action/`, payload);
+}
+
+/** Take back the action just opened, giving its time to the one before it. */
+export function undoRestorationAction(id: number): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/undo-action/`, {});
 }
 
 export function describeRestorationAction(

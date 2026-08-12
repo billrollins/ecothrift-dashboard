@@ -119,20 +119,24 @@ export function buildGradeRows(
   scaleGrades: string[],
 ): TarsGradeRow[] {
   const grades = scaleGrades.length > 0 ? scaleGrades : Object.keys(job.grade_values ?? {});
-  const rows = grades.map((grade) => evaluateGrade(job, plan, grade));
-
-  return rows.sort((a, b) => {
-    if (a.isStart !== b.isStart) return a.isStart ? 1 : -1;
-    if ((a.rate == null) !== (b.rate == null)) return a.rate == null ? 1 : -1;
-    if (a.rate != null && b.rate != null && a.rate !== b.rate) return b.rate - a.rate;
-    return (b.expected ?? -Infinity) - (a.expected ?? -Infinity);
-  });
+  return grades.map((grade) => evaluateGrade(job, plan, grade));
 }
 
-/** The row worth doing, or null when nothing is rated yet. */
+/**
+ * The row worth doing, or null when nothing is rated yet.
+ *
+ * Found rather than sorted to the top. The rows stay in scale order so a grade
+ * is always in the same place on the screen — a table that rearranges itself
+ * every time an estimate changes cannot be learned, and the one row that
+ * matters is easier to mark than to move.
+ */
 export function bestGrade(rows: TarsGradeRow[]): TarsGradeRow | null {
-  const rated = rows.filter((r) => r.rate != null && !r.isStart);
-  return rated.length > 0 ? rated[0] : null;
+  let best: TarsGradeRow | null = null;
+  for (const row of rows) {
+    if (row.isStart || row.rate == null) continue;
+    if (best?.rate == null || row.rate > best.rate) best = row;
+  }
+  return best;
 }
 
 export type RateBand = 'below-cost' | 'below-usual' | 'good' | 'unknown';

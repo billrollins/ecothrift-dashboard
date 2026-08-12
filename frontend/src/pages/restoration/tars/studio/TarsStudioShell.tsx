@@ -97,52 +97,92 @@ export function TarsStudioShell({
             Restoration Studio
           </Typography>
         </Box>
-        <Stack direction="row" gap={0.5}>
+        {/*
+          Tabs, drawn as tabs. They sit on the bottom edge of the header and the
+          active one joins the surface below it, so the shape itself says which
+          surface you are looking at rather than leaving colour to do the work.
+        */}
+        <Stack direction="row" gap={0.25} sx={{ alignSelf: 'stretch', alignItems: 'flex-end', mb: '-0.75rem' }}>
           {STUDIO_LANES.map((entry) => {
             const active = lane === entry.id;
             return (
-              <Chip
+              <Box
                 key={entry.id}
-                size="small"
-                icon={entry.icon as React.ReactElement}
-                label={`${entry.label} ${counts[entry.id]}`}
-                clickable
+                component="button"
+                type="button"
+                role="tab"
+                aria-selected={active}
                 onClick={() => onLaneChange(entry.id)}
                 sx={{
-                  height: 28,
-                  fontWeight: 800,
-                  bgcolor: active ? '#d8f3ee' : 'transparent',
-                  color: active ? '#0b665e' : '#b6c4d5',
-                  border: `1px solid ${active ? '#51b9ad' : '#3b4a60'}`,
-                  '& .MuiChip-icon': { color: 'inherit', ml: 0.5 },
-                  '& .MuiChip-label': { px: 0.75 },
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.6,
+                  px: 1.5,
+                  pt: 0.7,
+                  pb: 0.9,
+                  cursor: 'pointer',
+                  fontSize: '0.82rem',
+                  fontWeight: 900,
+                  borderRadius: '8px 8px 0 0',
+                  border: '1px solid',
+                  borderColor: active ? '#e8edf3' : 'transparent',
+                  borderBottomColor: active ? '#e8edf3' : 'transparent',
+                  bgcolor: active ? '#e8edf3' : 'transparent',
+                  color: active ? '#0b3b46' : '#8ea2ba',
+                  '&:hover': { color: active ? '#0b3b46' : '#d9e3f0' },
                 }}
-              />
+              >
+                {entry.icon}
+                {entry.label}
+                <Box
+                  component="span"
+                  sx={{
+                    px: 0.55,
+                    borderRadius: '999px',
+                    fontSize: '0.68rem',
+                    fontWeight: 900,
+                    bgcolor: active ? '#c9e6e0' : '#26344a',
+                    color: active ? '#0b665e' : '#9db0c7',
+                  }}
+                >
+                  {counts[entry.id]}
+                </Box>
+              </Box>
             );
           })}
         </Stack>
-        <TextField
-          size="small"
-          placeholder="Scan SKU…"
-          value={scanValue}
-          onChange={(e) => onScanChange(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && onScanSubmit()}
-          inputRef={scanInputRef}
-          InputProps={{
-            startAdornment: <QrCodeScanner sx={{ mr: 0.75, color: studio.railTextMuted, fontSize: 18 }} />,
-          }}
-          sx={{
-            ml: 'auto',
-            width: { xs: '100%', sm: 210, lg: 250 },
-            '& .MuiOutlinedInput-root': {
-              height: 38,
-              bgcolor: '#f8fafc',
-              borderRadius: `${studio.radius.sm}px`,
-              fontSize: '0.85rem',
-              fontFamily: 'monospace',
-            },
-          }}
-        />
+
+        {/*
+          Scanning is how an item gets onto a bench, so it belongs where you go
+          looking for one. On Bench there is already an item in hand and the
+          field would only be a way to lose it.
+        */}
+        {lane === 'home' ? (
+          <TextField
+            size="small"
+            placeholder="Scan SKU…"
+            value={scanValue}
+            onChange={(e) => onScanChange(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && onScanSubmit()}
+            inputRef={scanInputRef}
+            InputProps={{
+              startAdornment: <QrCodeScanner sx={{ mr: 0.75, color: studio.railTextMuted, fontSize: 18 }} />,
+            }}
+            sx={{
+              ml: 'auto',
+              width: { xs: '100%', sm: 210, lg: 250 },
+              '& .MuiOutlinedInput-root': {
+                height: 38,
+                bgcolor: '#f8fafc',
+                borderRadius: `${studio.radius.sm}px`,
+                fontSize: '0.85rem',
+                fontFamily: 'monospace',
+              },
+            }}
+          />
+        ) : (
+          <Box sx={{ ml: 'auto' }} />
+        )}
         {hrSlot}
         {noticeSlot}
         {timerSlot}

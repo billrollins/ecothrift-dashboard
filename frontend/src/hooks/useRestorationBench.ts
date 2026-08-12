@@ -16,6 +16,7 @@ import {
   describeRestorationAction,
   getRestorationActions,
   startRestorationAction,
+  undoRestorationAction,
   patchRestorationJobWorkSession,
   patchRestorationQueueDetails,
   pauseRestorationJobTimer,
@@ -199,6 +200,22 @@ export function useStartRestorationAction() {
   });
 }
 
+/** Take back the action just opened, giving its time to the one before it. */
+export function useUndoRestorationAction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await undoRestorationAction(id);
+      return data;
+    },
+    onSuccess: (data) => {
+      patchTarsBenchJobInCache(queryClient, data);
+      queryClient.invalidateQueries({ queryKey: restorationActionsQueryKey(data.id) });
+      queryClient.invalidateQueries({ queryKey: ['restoration-timeline', data.id] });
+    },
+  });
+}
+
 /** Say what an action was, or correct it. */
 export function useDescribeRestorationAction() {
   const queryClient = useQueryClient();
@@ -325,8 +342,8 @@ export function useCheckInRestorationJob() {
 export function useMoveRestorationJobBackToQueue() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (id: number) => {
-      const { data } = await moveRestorationJobBackToQueue(id);
+    mutationFn: async ({ id, note }: { id: number; note?: string }) => {
+      const { data } = await moveRestorationJobBackToQueue(id, note ?? '');
       return data;
     },
     onSuccess: () => invalidateBenchJobs(queryClient),
