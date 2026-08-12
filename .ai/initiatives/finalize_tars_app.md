@@ -1,9 +1,9 @@
-<!-- initiative: slug=finalize-tars-app status=active updated=2026-08-11 -->
-<!-- Last updated: 2026-08-11 (audit compiled; design drafted; two no-regret code stages shipped) -->
+<!-- initiative: slug=finalize-tars-app status=active updated=2026-08-12 -->
+<!-- Last updated: 2026-08-12 (design signed off; stages 1-4 shipped; next is the bench) -->
 
 # Initiative: Finalize TARS App
 
-**Status:** **Active** — Stage 2 (Design) awaiting sign-off. Two no-regret code stages already shipped and tagged.
+**Status:** **Active** — Design signed off. Stages 1–4 shipped and tagged; Stage 5 (the bench) is next. Nothing pushed to production yet.
 
 **Objective:** One excellent, **100% functional MVP** of TARS that Mike and Ashley start using on the floor for real, pushed to production. Not a prototype, not a phase-gated research program — a finished small app.
 
@@ -75,9 +75,9 @@ TARS was built across two prior initiatives and many sessions. Parts of it are l
 
 **Goal:** Agree and document what the finished TARS app is, before writing code phases.
 
-**Design document:** [`design.md`](../reference/TARS%20Restoration%20Processing%20App/design.md) — **drafted, awaiting Bill's sign-off.**
+**Design document:** [`design.md`](../reference/TARS%20Restoration%20Processing%20App/design.md) — **signed off 2026-08-12.**
 
-In one line: *know what it's worth, decide what to do, prove what you did.* Three surfaces — **Handoff** (Ashley), **Bench** (Mike), **Desk** (Bill). The bench collapses five wizard-era tool tabs into three moves plus finish. Three lost queue functions return to whoever owns the problem. One open question: what device is physically at the bench.
+The bench is a **table of grades**. Ashley owns what each grade is worth; Mike owns how likely it is, what parts it needs, and how long it takes. The app does one subtraction and one division and sorts the rows by the answer. Investigation is clocked against the item, never a grade, because one teardown informs every grade at once. Only what is left counts — minutes already spent never enter a decision, though they do enter the record of what the item earned.
 
 ### Inputs
 
@@ -98,11 +98,11 @@ Recorded here as **open questions**, not options. Answers come from the Stage 1 
 
 ### Design checklist
 
-- [ ] Design document created
-- [ ] Every "Keep with changes" and "Cut" verdict from the audit is reflected
-- [ ] Every open question above is answered in writing
-- [ ] Bill signs off on the design
-- [ ] Only then: Stage 3 phases are written into this file
+- [x] Design document created
+- [x] Every "Keep with changes" and "Cut" verdict from the audit is reflected
+- [x] Every open question above is answered in writing
+- [x] Bill signs off on the design
+- [x] Only then: Stage 3 phases are written into this file
 
 **Exit:** a written design Bill agrees with, detailed enough to cut into testable coding blocks.
 
@@ -188,6 +188,8 @@ Everything in [`design.md`](../reference/TARS%20Restoration%20Processing%20App/d
 ## Sessions
 
 Logged for documentation only. No owner input required.
+
+**2026-08-12 — Design signed off; stages 3 and 4 shipped.** Settled the last six surface decisions with Bill on canvas and wrote them into `design.md`. Two of his answers changed the model rather than the surface: investigation time is clocked against the item instead of a grade, and rates are judged against a floor and a bar rather than one number. Wrote the Stage 3–7 phases from the design. Shipped `tars/3-what-it-earned` (timer attribution, `value_added` stamped at completion, scoreboard service — one migration) and `tars/4-numbers-up-front` (TARS home scoreboard; Restoration card on the shared dashboard now reports items finished this week instead of jobs in flight, which never matched the weekly goal beside it). 129 backend tests and 434 frontend tests green; build clean. Not pushed to production. Next: Stage 5, the grade table.
 
 **2026-08-11 — Audit compiled, design drafted, stages 1–2 shipped.** Consolidated both prior TARS initiatives into this one. Compiled the audit register from a full read of the TARS backend and frontend. Drafted [`design.md`](../reference/TARS%20Restoration%20Processing%20App/design.md) and a matching canvas. Shipped `tars/1-legacy-removed` (4,646 lines of unrouted code deleted) and `tars/2-one-truth` (server made the sole authority on decision economics, guarded by a contract test on each side; queue pressure and the grade-scale fallback removed). Not pushed to production. Open question for Bill: what device is at the bench.
 
