@@ -32,6 +32,8 @@ import type {
   RestorationJobCombinePayload,
   RestorationJobHoldPayload,
   RestorationJobDonePayload,
+  RestorationScoreboardDTO,
+  TarsTimerMode,
   RestorationTimelineEventDTO,
   RestorationTimelineEventType,
   RestorationPartsRequestDTO,
@@ -2319,8 +2321,19 @@ export function holdRestorationJob(
   return api.post(`/inventory/restoration-jobs/${id}/hold/`, payload);
 }
 
-export function startRestorationJobTimer(id: number): Promise<{ data: RestorationJobDTO }> {
-  return api.post(`/inventory/restoration-jobs/${id}/timer/start/`);
+/**
+ * Start or re-aim the clock. `mode` says what the seconds are for: `look`
+ * charges the item, `work` charges the grade it is aimed at.
+ */
+export function startRestorationJobTimer(
+  id: number,
+  aim?: { mode?: TarsTimerMode; grade?: string },
+): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/timer/start/`, aim ?? {});
+}
+
+export function getRestorationScoreboard(): Promise<{ data: RestorationScoreboardDTO }> {
+  return api.get('/inventory/restoration-jobs/scoreboard/');
 }
 
 export function pauseRestorationJobTimer(

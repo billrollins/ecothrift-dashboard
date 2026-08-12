@@ -1110,6 +1110,11 @@ export interface RestorationJobDTO {
   active_seconds: number;
   timer_is_running: boolean;
   timer_started_by_id?: number | null;
+  /** What the clock is currently for. Looking is charged to the item, working to a grade. */
+  timer_mode: TarsTimerMode;
+  timer_grade: string;
+  look_seconds: number;
+  work_seconds: number;
   last_meaningful_action_at?: string | null;
   last_meaningful_active_seconds?: number;
   last_meaningful_action_label?: string;
@@ -1120,12 +1125,56 @@ export interface RestorationJobDTO {
   pending_storage_location: string;
   pending_started_at: string | null;
   bench_disposition: RestorationBenchDisposition | '';
+  /** The grade the item arrived at — the datum every estimate is measured against. */
+  starting_grade: string;
   final_grade: string;
   disposition_notes: string;
   spent_hours: string | null;
   spent_parts_cost: string | null;
+  /** Frozen at completion. Null means it could not be computed honestly. */
+  value_added: string | null;
   dispositioned_at: string | null;
   processing_handled_at: string | null;
+}
+
+export type TarsTimerMode = 'look' | 'work';
+
+/** One span of finished work: what it added, over how many hours. */
+export interface RestorationScoreboardWindowDTO {
+  start: string;
+  end: string;
+  value_added: string | null;
+  items: number;
+  items_measured: number;
+  /** Finished without a computable value — counted, never priced. */
+  items_unmeasured: number;
+  hours: string;
+  /** Null when there are no recorded hours to divide by. */
+  per_hour: string | null;
+}
+
+export interface RestorationScoreboardDayDTO {
+  date: string;
+  items: number;
+  value_added: string;
+}
+
+export interface RestorationScoreboardDTO {
+  as_of: string;
+  today: RestorationScoreboardWindowDTO;
+  week: RestorationScoreboardWindowDTO;
+  four_week: RestorationScoreboardWindowDTO & {
+    weekly_average_value: string | null;
+    weekly_average_items: string;
+  };
+  per_hour_while_working: string | null;
+  /** What an hour costs. A policy number, not a measurement. */
+  floor_rate: string;
+  /** The trailing rate to beat — withheld until it rests on enough jobs. */
+  benchmark_rate: string | null;
+  benchmark_ready: boolean;
+  benchmark_minimum_jobs: number;
+  days: RestorationScoreboardDayDTO[];
 }
 
 export type RestorationTimelineEventStatus = 'active' | 'revised' | 'voided';

@@ -32,6 +32,8 @@ import {
 
   usePauseRestorationJobTimer,
 
+  useRestorationScoreboard,
+
   useTarsBenchJobs,
 
   useUpsertRestorationPartsRequest,
@@ -55,6 +57,7 @@ import {
 import { TarsStudioTimerControl } from './studio/TarsStudioTimerControl';
 import { TarsItemStateBar } from './studio/TarsItemStateBar';
 import { TarsLaneList } from './studio/TarsLaneList';
+import { TarsScoreboard } from './TarsScoreboard';
 import { TarsRestorationTimeline } from './studio/TarsRestorationTimeline';
 import { studio } from './studio/tarsStudioTheme';
 
@@ -91,6 +94,7 @@ export function TarsWorkstation() {
   const currentUserId = user?.id;
   const { data: jobs = [], isLoading, refetch } = useTarsBenchJobs();
   const { scales: gradeScales } = useGradeScales();
+  const scoreboard = useRestorationScoreboard();
 
 
 
@@ -685,12 +689,15 @@ export function TarsWorkstation() {
         }
       >
         {studioLane === 'inbox' ? (
-          <TarsLaneList
-            lane="inbox"
-            jobs={queueJobs}
-            busy={checkIn.isPending}
-            onOpen={(job) => void handleCheckIn(job, { startTimer: timerController.canTrackTime })}
-          />
+          <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            {scoreboard.data ? <TarsScoreboard board={scoreboard.data} /> : null}
+            <TarsLaneList
+              lane="inbox"
+              jobs={queueJobs}
+              busy={checkIn.isPending}
+              onOpen={(job) => void handleCheckIn(job, { startTimer: timerController.canTrackTime })}
+            />
+          </Box>
         ) : studioLane === 'pending' ? (
           <TarsLaneList
             lane="pending"

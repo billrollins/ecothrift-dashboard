@@ -5,6 +5,7 @@ import {
   completeRestorationJob,
   createRestorationTimelineEvent,
   getRestorationPartsRequest,
+  getRestorationScoreboard,
   listRestorationJobs,
   listRestorationJobTimeline,
   listRestorationPartsRequests,
@@ -31,6 +32,7 @@ import type {
   RestorationTimelineEventType,
   RestorationPartsOrderCreatePayload,
   RestorationPartsRequestDTO,
+  TarsTimerMode,
 } from '../types/inventory.types';
 import type { PaginatedResponse } from '../types/common.types';
 import { expandRestorationJobsForTars } from '../pages/restoration/tars/tarsJobAdapter';
@@ -131,6 +133,20 @@ export function useTarsBenchJobs() {
   });
 }
 
+export const restorationScoreboardQueryKey = ['restoration-scoreboard'] as const;
+
+/** What restoration earned: value added and rate by day, week and month. */
+export function useRestorationScoreboard() {
+  return useQuery({
+    queryKey: restorationScoreboardQueryKey,
+    queryFn: async () => {
+      const { data } = await getRestorationScoreboard();
+      return data;
+    },
+    refetchInterval: 60_000,
+  });
+}
+
 export const restorationReturnsQueryKey = ['restoration-returns'] as const;
 export const restorationsFromDeskQueryKey = restorationReturnsQueryKey;
 
@@ -223,11 +239,19 @@ export function useHoldRestorationJob() {
   });
 }
 
+/**
+ * Start or re-aim the clock. Pass a mode to say what the seconds are for;
+ * omitting it leaves the current aim alone.
+ */
 export function useStartRestorationJobTimer() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (id: number) => {
-      const { data } = await startRestorationJobTimer(id);
+    mutationFn: async (
+      input: number | { id: number; mode?: TarsTimerMode; grade?: string },
+    ) => {
+      const id = typeof input === 'number' ? input : input.id;
+      const aim = typeof input === 'number' ? undefined : { mode: input.mode, grade: input.grade };
+      const { data } = await startRestorationJobTimer(id, aim);
       return data;
     },
     onSuccess: (data) => {
@@ -285,6 +309,8 @@ export function useCompleteRestorationJob() {
     onSuccess: () => {
       invalidateBenchJobs(queryClient);
       queryClient.invalidateQueries({ queryKey: restorationReturnsQueryKey });
+      // Finishing a job is the only thing that moves the scoreboard.
+      queryClient.invalidateQueries({ queryKey: restorationScoreboardQueryKey });
     },
   });
 }

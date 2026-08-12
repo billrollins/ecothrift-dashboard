@@ -13,6 +13,8 @@ interface DepartmentStatCardProps {
   icon: ReactNode;
   goalDisplay: string;
   actualDisplay: string;
+  /** Small line under the actual — context the headline number leaves out. */
+  actualNote?: string;
   placeholder?: boolean;
   goalMet?: boolean;
   onGoalClick: () => void;
@@ -42,6 +44,7 @@ export function DepartmentStatCard({
   icon,
   goalDisplay,
   actualDisplay,
+  actualNote,
   placeholder = false,
   goalMet = false,
   onGoalClick,
@@ -243,6 +246,22 @@ export function DepartmentStatCard({
             >
               {actualDisplay}
             </Typography>
+            {actualNote ? (
+              <Typography
+                noWrap
+                title={actualNote}
+                sx={{
+                  mt: 0.15,
+                  maxWidth: '100%',
+                  fontSize: { xs: '0.62rem', md: '0.6rem' },
+                  fontWeight: 700,
+                  lineHeight: 1.1,
+                  color: 'text.secondary',
+                }}
+              >
+                {actualNote}
+              </Typography>
+            ) : null}
           </Box>
 
           {goalMet ? (

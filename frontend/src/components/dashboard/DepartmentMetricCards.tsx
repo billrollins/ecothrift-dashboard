@@ -53,6 +53,7 @@ interface CardConfig {
   accent: string;
   icon: ReactNode;
   actual: string;
+  actualNote?: string;
   placeholder?: boolean;
   goalMet?: boolean;
   getValue: (day: DepartmentDailyMetric) => string;
@@ -153,11 +154,15 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
     },
     {
       key: 'restoration',
+      // Items finished this week, matching the weekly goal it sits beside and
+      // the per-day completed counts in the grid below. Jobs still in flight are
+      // the note, not the headline — a weekly goal needs a weekly number.
       label: 'Restoration',
       kind: 'count',
       accent: dashboardPalette.violet,
       icon: <Handyman />,
-      actual: String(restoration.active_jobs),
+      actual: String(restoration.week_jobs_done),
+      actualNote: `${restoration.today_jobs_done} today · ${restoration.active_jobs} in flight`,
       placeholder: false,
       getValue: restorationGridValue,
       getWeekTotal: restorationWeekTotal,
@@ -203,6 +208,7 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
                   icon={card.icon}
                   goalDisplay={formatDepartmentGoalValue(card.kind, goals[card.key]?.value ?? '')}
                   actualDisplay={card.actual}
+                  actualNote={card.actualNote}
                   placeholder={card.placeholder}
                   goalMet={card.goalMet}
                   onGoalClick={() => setOpenKey(card.key)}
