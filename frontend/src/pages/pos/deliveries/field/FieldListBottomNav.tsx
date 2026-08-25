@@ -1,17 +1,18 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BottomNavigation, BottomNavigationAction } from '@mui/material';
 import CalendarMonthOutlined from '@mui/icons-material/CalendarMonthOutlined';
-import LocalShippingOutlined from '@mui/icons-material/LocalShippingOutlined';
+import TableChartOutlined from '@mui/icons-material/TableChartOutlined';
+import { deliveryListPath, isDeliveryTablePath } from '../deliveryPaths';
 
 /**
- * Fixed bottom bar for Field Days / Total Deliveries list pages.
+ * Fixed bottom bar for Field Schedule / Table list pages.
  * Hidden on day-detail / run shell so the step rail owns the active-run chrome.
  */
 export function FieldListBottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
-  const onTotal = location.pathname.includes('/total');
-  const value = onTotal ? 'deliveries' : 'days';
+  const onTable = isDeliveryTablePath(location.pathname);
+  const value = onTable ? 'table' : 'schedule';
 
   return (
     <BottomNavigation
@@ -36,19 +37,19 @@ export function FieldListBottomNav() {
       }}
     >
       <BottomNavigationAction
-        value="days"
-        label="Days"
+        value="schedule"
+        label="Schedule"
         icon={<CalendarMonthOutlined />}
         onClick={() => {
-          if (onTotal) navigate(`/pos/deliveries/field/days${location.search}`);
+          if (onTable) navigate(deliveryListPath('field', 'schedule', location.search));
         }}
       />
       <BottomNavigationAction
-        value="deliveries"
-        label="Deliveries"
-        icon={<LocalShippingOutlined />}
+        value="table"
+        label="Table"
+        icon={<TableChartOutlined />}
         onClick={() => {
-          if (!onTotal) navigate(`/pos/deliveries/field/total${location.search}`);
+          if (!onTable) navigate(deliveryListPath('field', 'table', location.search));
         }}
       />
     </BottomNavigation>

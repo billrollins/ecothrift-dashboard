@@ -1,19 +1,29 @@
-/** TARS Studio - eco-green lifecycle UI, denser than the old bench shell. */
+/** Restoration surfaces: dashboard sage, not a second cool-gray app. */
 import { tarsTokens as eco } from '../tarsTokens';
 
 export const studio = {
-  canvas: '#f1f5f9',
-  canvasSolid: '#f1f5f9',
+  canvas: '#e6ece8',
+  canvasSolid: '#e6ece8',
 
   panel: '#ffffff',
   panelMuted: eco.greenSoft,
-  panelBorder: '#cbd5e1',
-  panelShadow: '0 1px 2px rgba(15, 23, 42, 0.06)',
+  panelBorder: '#8fa396',
+  panelShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08)',
+
+  /** Body copy — same ink as receiving / dashboard, not washed slate. */
+  ink: '#0f172a',
+  /** Captions, waiting, scoreboard labels. AA on white. */
+  inkMuted: '#334155',
+  /** Unused tabs, placeholders. Still readable at 12px. */
+  inkFaint: '#3d4d45',
+  /** Tiny uppercase field labels — sage so restoration still has a tell. */
+  inkLabel: '#1b4d20',
+  rule: '#b7c4b9',
 
   rail: '#ffffff',
-  railBorder: '#e2e8f0',
+  railBorder: '#8fa396',
   railText: '#0f172a',
-  railTextMuted: '#64748b',
+  railTextMuted: '#334155',
   railActive: eco.greenAlpha12,
   railActiveBorder: eco.greenAlpha42,
 
@@ -34,7 +44,7 @@ export const studio = {
   stepIdle: '#cbd5e1',
   stepActive: eco.green,
   stepDone: eco.greenDark,
-  stepLabel: '#64748b',
+  stepLabel: '#475569',
   stepLabelActive: eco.greenDarker,
 
   recommendRing: `0 0 0 2px ${eco.green}`,

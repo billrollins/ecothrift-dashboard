@@ -21,6 +21,7 @@ import { FieldStepSummaryShell } from '../components/FieldStepSummaryShell';
 import { FieldSheet } from '../components/FieldSheet';
 import { resolveStepCompletionControl } from '../fieldStepSurface';
 import { ecoField, ecoFieldCardSx, ecoFieldPrimaryButtonSx, ecoFieldSecondaryOutlineSx } from '../ecoFieldTheme';
+import { deliveryListPath } from '../../deliveryPaths';
 
 type Mutations = ReturnType<typeof useFieldDeliveryRunMutations>;
 
@@ -78,7 +79,7 @@ export function FinishStep({ day, run, mutations, busy, canManage }: Props) {
     return (
       <FieldDayCompleteSummary
         run={run}
-        onDone={() => navigate('/pos/deliveries/field/days')}
+        onDone={() => navigate(deliveryListPath('field', 'schedule'))}
       />
     );
   }

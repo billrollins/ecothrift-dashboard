@@ -1,43 +1,11 @@
-feat(tars): rebuild the bench across the width of the page
+feat: TARS floor app, parts command center, and enhancement requests
 
-Everything above the work log was a stack of full-width bars, each using a
-fraction of its row. It now splits: the item on the left, the grades it
-could reach on the right.
+Release: v2.71.0
 
-Left is the item as a whole — what it is, what it is worth, where its time
-has gone, the current-grade claim, and the ways it can leave. The claim is
-load-bearing, since every rate in the table is measured from it, so it
-carries an amber edge until it is answered.
+Ship the restoration floor: queue and grade table, parts Live/History
+board with receive vs inspect, hold as a story of pieces, item notes,
+and a staff Requests sheet with a superuser triage board.
 
-Right is one row per grade with the item itself on top. Work that informs
-every grade at once — opening it up, looking things up — is not an outcome,
-it belongs to the item, and giving it a row means the clock always has an
-honest place to go.
-
-Grades now sit in scale order and stay there. Sorting by rate meant the
-table rearranged itself under the hand every time an estimate changed; a
-row you are reaching for should be where it was a second ago. The winner is
-marked where it stands, which costs one badge and keeps the layout
-learnable. Badges moved out of the grade name into their own column, beside
-the Work button that starts the clock.
-
-Undo, because Work now opens an action on the first press and a misclick
-costs a row. It deletes the action and hands its seconds back to the one
-before, which is where the time belonged anyway — whoever misclicked was
-still doing the previous thing. Nothing is lost: the job total does not
-move, only the row the time is filed under.
-
-Going back to the queue now asks why, with four common reasons as one press
-each. An item that reappears with no explanation just gets picked up and
-put down again by the next person. Hold and Done already asked.
-
-Scanning left the Bench header. It is how an item gets onto a bench, so it
-belongs where you go looking for one; with something already in hand the
-field was only a way to lose it. On Home with a clear bench the cursor now
-waits there, since scanning is the one thing left to do.
-
-Parts moved off the disposition row into its own button with a count, since
-it opens a drawer and is not a way for the item to leave.
-
-Tabs are drawn as tabs in both places, joining the surface they open rather
-than floating above it as buttons.
+Parts Requests nav badges follow the live list so they clear when the
+last waiting order is handled. finalize_tars_app and enhancement_requests
+are completed. GitHub only — not Heroku.

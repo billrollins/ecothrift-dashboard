@@ -1,8 +1,7 @@
 """Candidate product matching for preprocessing staging rows.
 
-Design: `.ai/reference/product_identity/product_identity_design.md` §2 — Level 1 (candidates) and the
-auto-select half of Level 2 (decided match). Products are never created here; candidates
-may only point at products that already exist.
+Design: `.ai/extended/inventory-pipeline.md` (Final Decisions / product match). Products
+are never created here; candidates may only point at products that already exist.
 
 Matchers, strongest first:
     1. UPC exact            (score 100) — auto-selects ``final_matched_product`` when undecided

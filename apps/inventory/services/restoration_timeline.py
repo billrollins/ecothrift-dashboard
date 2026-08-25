@@ -9,7 +9,7 @@ from uuid import UUID, uuid4
 from django.db import transaction
 from django.utils import timezone
 
-from apps.inventory.models import RestorationJob, RestorationTimelineEvent
+from apps.inventory.models import RestorationAction, RestorationJob, RestorationTimelineEvent
 
 
 TIMELINE_EVENT_TYPES = {
@@ -27,10 +27,23 @@ TIMELINE_EVENT_TYPES = {
     'plan.estimated',
     'plan.committed',
     'plan.cleared',
-    'parts.draft_changed',
-    'parts.request_submitted',
-    'parts.ordered',
-    'parts.received',
+    'plan.estimate_changed',
+    'grade.claimed',
+    'note.queue_changed',
+    'note.added',
+    'parts.order_requested',
+    'parts.order_approved',
+    'parts.order_denied',
+    'parts.order_purchased',
+    'parts.order_eta_revised',
+    'parts.order_received',
+    'parts.order_reviewed',
+    'parts.order_inspected',
+    'parts.order_cancelled',
+    'parts.order_withdrawn',
+    'parts.cancel_asked',
+    'parts.cancel_confirmed',
+    'parts.cancel_refused',
     'work.performed',
     'action.started',
     'action.described',
@@ -42,6 +55,9 @@ TIMELINE_EVENT_TYPES = {
     'hold.placed',
     'hold.resumed',
     'disposition.completed',
+    'disposition.revised',
+    'job.reopened',
+    'processing.checked_in',
     'return.to_processing',
 }
 
@@ -185,6 +201,319 @@ def void_timeline_event(
     event.void_reason = str(reason).strip()
     event.save(update_fields=['status', 'voided_at', 'voided_by', 'void_reason'])
     return event
+
+
+CLEARED_WORDS_REASON = 'Cleared from the bench history.'
+
+PINNED_EVENT_TYPES = {
+    'job.sent',
+    'processing.checked_in',
+    'parts.order_requested',
+    'parts.order_approved',
+    'parts.order_denied',
+    'parts.order_purchased',
+    'parts.order_eta_revised',
+    'parts.order_received',
+    'parts.order_reviewed',
+    'parts.order_inspected',
+    'parts.order_cancelled',
+    'parts.order_withdrawn',
+    'parts.cancel_asked',
+    'parts.cancel_confirmed',
+    'parts.cancel_refused',
+    'valuation.requested',
+    'valuation.fulfilled',
+    'return.to_processing',
+}
+NOTE_EVENT_TYPE = 'note.queue_changed'
+COMMENT_EVENT_TYPES = frozenset({'note.queue_changed', 'note.added'})
+CANNED_ACTION_DESCRIPTIONS = {
+    RestorationAction.INITIAL_DESCRIPTION,
+    RestorationAction.RESUME_DESCRIPTION,
+}
+
+
+def _assert_job_history_editable(job: RestorationJob) -> None:
+    if job.stage in (RestorationJob.STAGE_DONE, RestorationJob.STAGE_RETURNED):
+        raise ValueError('This item is finished — its history words can no longer change.')
+
+
+def _void_words_event(event: RestorationTimelineEvent, actor=None) -> RestorationTimelineEvent:
+    event.status = RestorationTimelineEvent.STATUS_VOIDED
+    event.voided_at = timezone.now()
+    event.voided_by = _actor(actor)
+    event.void_reason = CLEARED_WORDS_REASON
+    event.save(update_fields=['status', 'voided_at', 'voided_by', 'void_reason'])
+    return event
+
+
+def _actor_pk(user) -> int | None:
+    actor = _actor(user)
+    return getattr(actor, 'pk', None) if actor is not None else None
+
+
+def _history_actions(job: RestorationJob):
+    return list(job.actions.order_by('started_at', 'id'))
+
+
+def _active_history_events(job: RestorationJob):
+    return list(
+        RestorationTimelineEvent.objects.filter(
+            job=job,
+            status=RestorationTimelineEvent.STATUS_ACTIVE,
+        ).order_by('occurred_at', 'id')
+    )
+
+
+def _as_text(value) -> str:
+    return value.strip() if isinstance(value, str) else ''
+
+
+def _as_price_key(value) -> str | None:
+    if value is None or value == '':
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        if isinstance(value, float) and value.is_integer():
+            return str(int(value))
+        return str(value)
+    if isinstance(value, str) and value.strip():
+        try:
+            number = float(value)
+        except ValueError:
+            return value.strip()
+        if number.is_integer():
+            return str(int(number))
+        return str(number)
+    return None
+
+
+def _values_map(value) -> dict:
+    return value if isinstance(value, dict) else {}
+
+
+def _is_splitter_action(action) -> bool:
+    return (action.description or '').strip() not in CANNED_ACTION_DESCRIPTIONS
+
+
+def _last_splitter_id(occurred_at, actions) -> int:
+    splitter_id = 0
+    started = None
+    for action in actions:
+        if not _is_splitter_action(action):
+            continue
+        if action.started_at < occurred_at and (started is None or action.started_at >= started):
+            started = action.started_at
+            splitter_id = action.pk
+    return splitter_id
+
+
+def _changed_fields(event) -> list[str]:
+    payload = event.payload if isinstance(event.payload, dict) else {}
+    if event.event_type == 'plan.estimate_changed':
+        fields: list[str] = []
+        if 'parts_to' in payload or 'parts_from' in payload:
+            fields.append('parts')
+        if 'minutes_to' in payload or 'minutes_from' in payload:
+            fields.append('minutes')
+        return fields or ['*']
+    if event.event_type == 'valuation.values_changed':
+        fields = []
+        scale = _as_text(payload.get('scale'))
+        previous = _as_text(payload.get('previous_scale'))
+        if scale and previous and scale != previous:
+            fields.append('scale')
+        before = _values_map(payload.get('previous_values'))
+        after = _values_map(payload.get('values'))
+        for grade in set(before) | set(after):
+            if _as_price_key(before.get(grade)) != _as_price_key(after.get(grade)):
+                fields.append(f'price:{grade}')
+        return fields or ['*']
+    return ['*']
+
+
+def _fields_covered(event, later) -> bool:
+    mine = _changed_fields(event)
+    covered: set[str] = set()
+    for nxt in later:
+        covered.update(_changed_fields(nxt))
+    if '*' in covered:
+        return True
+    return all(field == '*' or field in covered for field in mine)
+
+
+def _superseded_event_ids(events, actions) -> set[int]:
+    groups: dict[tuple[str, int], list] = {}
+    for event in events:
+        if event.event_type in PINNED_EVENT_TYPES or event.event_type == NOTE_EVENT_TYPE:
+            continue
+        if not event.entity_id:
+            continue
+        key = (event.entity_id, _last_splitter_id(event.occurred_at, actions))
+        groups.setdefault(key, []).append(event)
+    ids: set[int] = set()
+    for group in groups.values():
+        group.sort(key=lambda row: (row.occurred_at, row.pk), reverse=True)
+        for index, event in enumerate(group):
+            if index == 0:
+                continue
+            if _fields_covered(event, group[:index]):
+                ids.add(event.pk)
+    return ids
+
+
+def _note_is_locked(event, actions, events) -> bool:
+    from apps.inventory.services.restoration_comments import comment_is_locked
+
+    return comment_is_locked(
+        occurred_at=event.occurred_at,
+        row_id=event.pk,
+        job=event.job,
+        actor=None,
+        exclude_event_id=event.pk,
+    )
+
+
+def _latest_note_id(events) -> int | None:
+    notes = [event for event in events if event.event_type == NOTE_EVENT_TYPE]
+    if not notes:
+        return None
+    notes.sort(key=lambda event: (event.occurred_at, event.pk), reverse=True)
+    return notes[0].pk
+
+
+def _note_is_clearable(event, *, actor, actions, events) -> bool:
+    if event.event_type not in COMMENT_EVENT_TYPES:
+        return False
+    from apps.inventory.services.restoration_comments import comment_is_locked, comment_owned_by
+
+    if not comment_owned_by(author_id=event.actor_id, actor=actor):
+        return False
+    return not comment_is_locked(
+        occurred_at=event.occurred_at,
+        row_id=event.pk,
+        job=event.job,
+        actor=actor,
+        exclude_event_id=event.pk,
+    )
+
+
+def _event_clear_kind(event, *, actor, actions, events) -> str | None:
+    if event.status != RestorationTimelineEvent.STATUS_ACTIVE:
+        return None
+    if event.event_type in PINNED_EVENT_TYPES:
+        return None
+    if event.event_type in COMMENT_EVENT_TYPES:
+        if event.event_type == NOTE_EVENT_TYPE and event.pk == _latest_note_id(events):
+            return None
+        return 'notes' if _note_is_clearable(event, actor=actor, actions=actions, events=events) else None
+    if event.pk in _superseded_event_ids(events, actions):
+        return 'superseded'
+    return None
+
+
+@transaction.atomic
+def forget_timeline_words(
+    event: RestorationTimelineEvent,
+    *,
+    actor=None,
+) -> RestorationTimelineEvent:
+    """Void one history line that is allowed to go. Live job facts stay."""
+
+    event = (
+        RestorationTimelineEvent.objects.select_for_update()
+        .select_related('job')
+        .get(pk=event.pk)
+    )
+    if event.status != RestorationTimelineEvent.STATUS_ACTIVE:
+        raise ValueError('Only an active timeline entry can be cleared.')
+    if event.event_type in COMMENT_EVENT_TYPES:
+        from apps.inventory.services.restoration_comments import trash_restoration_comment
+
+        return trash_restoration_comment(event=event, actor=actor)
+    _assert_job_history_editable(event.job)
+    actions = _history_actions(event.job)
+    events = _active_history_events(event.job)
+    if _event_clear_kind(event, actor=actor, actions=actions, events=events) is None:
+        raise ValueError('This history line cannot be cleared.')
+    return _void_words_event(event, actor)
+
+
+@transaction.atomic
+def reset_latest_queue_note(
+    event: RestorationTimelineEvent,
+    *,
+    actor=None,
+) -> RestorationTimelineEvent:
+    """Void the current note line and put the live note back to what it said before."""
+
+    event = (
+        RestorationTimelineEvent.objects.select_for_update()
+        .select_related('job')
+        .get(pk=event.pk)
+    )
+    from apps.inventory.services.restoration_comments import trash_restoration_comment
+
+    if event.status != RestorationTimelineEvent.STATUS_ACTIVE:
+        raise ValueError('Only an active timeline entry can be reset.')
+    if event.event_type != NOTE_EVENT_TYPE:
+        raise ValueError('Only the current note can be reset.')
+    events = _active_history_events(event.job)
+    if event.pk != _latest_note_id(events):
+        raise ValueError('Only the current note can be reset.')
+    return trash_restoration_comment(event=event, actor=actor)
+
+
+@transaction.atomic
+def clear_queue_note_history(job: RestorationJob, *, actor=None) -> int:
+    """Void queue-note history the current user is allowed to clear. The live note stays."""
+
+    job = RestorationJob.objects.select_for_update().get(pk=job.pk)
+    _assert_job_history_editable(job)
+    actions = _history_actions(job)
+    events = _active_history_events(job)
+    notes = [
+        event
+        for event in events
+        if _event_clear_kind(event, actor=actor, actions=actions, events=events) == 'notes'
+    ]
+    for event in notes:
+        locked = RestorationTimelineEvent.objects.select_for_update().get(pk=event.pk)
+        _void_words_event(locked, actor)
+    return len(notes)
+
+
+@transaction.atomic
+def clear_clearable_history(job: RestorationJob, *, actor=None) -> dict[str, int]:
+    """Void every history line that is allowed to go.
+
+    Actions stay. Allowed notes and superseded desk answers are voided.
+    Live notes, estimates, sell-as, parts, origin, and stage stay.
+    """
+
+    job = RestorationJob.objects.select_for_update().get(pk=job.pk)
+    _assert_job_history_editable(job)
+
+    actions = _history_actions(job)
+    events = _active_history_events(job)
+    planned: dict[int, str] = {}
+    for event in events:
+        kind = _event_clear_kind(event, actor=actor, actions=actions, events=events)
+        if kind is not None:
+            planned[event.pk] = kind
+
+    counts = {'notes': 0, 'superseded': 0}
+    still_active = RestorationTimelineEvent.objects.select_for_update().filter(
+        pk__in=planned.keys(),
+        status=RestorationTimelineEvent.STATUS_ACTIVE,
+    )
+    for event in still_active:
+        kind = planned[event.pk]
+        _void_words_event(event, actor)
+        counts[kind] += 1
+
+    return counts
 
 
 @transaction.atomic
@@ -486,16 +815,85 @@ def record_work_session_changes(
                 correlation_id=correlation_id,
             )
 
-    if old.get('parts') != new.get('parts') or old.get('orders') != new.get('orders'):
-        append_entity_revision(
+    _record_bench_plan_changes(
+        job,
+        old.get('benchPlan'),
+        new.get('benchPlan'),
+        actor=actor,
+        correlation_id=correlation_id,
+    )
+
+
+def _plan_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _estimate_number(estimate: Any, key: str) -> float | None:
+    if not isinstance(estimate, dict):
+        return None
+    value = estimate.get(key)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def _record_bench_plan_changes(
+    job: RestorationJob,
+    before: Any,
+    after: Any,
+    *,
+    actor=None,
+    correlation_id: UUID | None = None,
+) -> None:
+    old_plan = _plan_dict(before)
+    new_plan = _plan_dict(after)
+    old_original = str(old_plan.get('startingGrade') or '').strip()
+    new_original = str(new_plan.get('startingGrade') or '').strip()
+    if old_original != new_original:
+        append_timeline_event(
             job,
-            'parts.draft_changed',
-            {
-                'parts': new.get('parts') or [],
-                'orders': new.get('orders') or [],
-            },
+            'grade.claimed',
+            {'field': 'original', 'grade': new_original, 'previous': old_original},
             actor=actor,
-            entity_id='parts-draft',
+            entity_id='grade:original',
+            correlation_id=correlation_id,
+        )
+    old_current = str(old_plan.get('currentGrade') or '').strip()
+    new_current = str(new_plan.get('currentGrade') or '').strip()
+    if old_current != new_current:
+        append_timeline_event(
+            job,
+            'grade.claimed',
+            {'field': 'current', 'grade': new_current, 'previous': old_current},
+            actor=actor,
+            entity_id='grade:current',
+            correlation_id=correlation_id,
+        )
+
+    old_estimates = old_plan.get('estimates') if isinstance(old_plan.get('estimates'), dict) else {}
+    new_estimates = new_plan.get('estimates') if isinstance(new_plan.get('estimates'), dict) else {}
+    for grade in set(old_estimates) | set(new_estimates):
+        old_estimate = old_estimates.get(grade)
+        new_estimate = new_estimates.get(grade)
+        old_parts = _estimate_number(old_estimate, 'parts')
+        new_parts = _estimate_number(new_estimate, 'parts')
+        old_minutes = _estimate_number(old_estimate, 'minutes')
+        new_minutes = _estimate_number(new_estimate, 'minutes')
+        if old_parts == new_parts and old_minutes == new_minutes:
+            continue
+        payload: dict[str, Any] = {'grade': str(grade)}
+        if old_parts != new_parts:
+            payload['parts_from'] = old_parts
+            payload['parts_to'] = new_parts
+        if old_minutes != new_minutes:
+            payload['minutes_from'] = old_minutes
+            payload['minutes_to'] = new_minutes
+        append_timeline_event(
+            job,
+            'plan.estimate_changed',
+            payload,
+            actor=actor,
+            entity_id=f'estimate:{grade}',
             correlation_id=correlation_id,
         )
 

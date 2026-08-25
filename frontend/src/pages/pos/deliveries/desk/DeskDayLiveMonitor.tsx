@@ -36,6 +36,7 @@ import {
   ecoFieldStatusChipSx,
 } from '../../../../theme/deliveryTheme';
 import { DeliveryRouteMap } from '../components/DeliveryRouteMap';
+import { deliveryDayPath, deliveryListPath } from '../deliveryPaths';
 
 type Props = {
   day: DeliveryDayDetail;
@@ -212,13 +213,13 @@ export function DeskDayLiveMonitor({ day }: Props) {
 
       {isActive && (
         <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-          <Button size="small" component={RouterLink} to="/pos/deliveries/desk/total">
+          <Button size="small" component={RouterLink} to={deliveryListPath('desk', 'table')}>
             Manager interventions
           </Button>
           <Button
             size="small"
             component={RouterLink}
-            to={`/pos/deliveries/field/days/${day.id}`}
+            to={deliveryDayPath('field', day.id)}
           >
             Open Field view
           </Button>

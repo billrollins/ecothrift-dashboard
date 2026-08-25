@@ -62,43 +62,8 @@ Staff can **clock in / take break / clock out** with a **huge overtime warning**
 
 ---
 
-## Sessions
-
-### Session 1 — 2026-06-22
-
-**Goal:** Ship MVP time clock, Employees admin, Time & payroll, soft delete; strip legacy HR pages.
-
-**Updates:**
-
-- Time clock in/out/break, weekly ring, overtime banner; mod requests from My recent shifts.
-- **Time & payroll** — `/admin/time-payroll`: roster, payroll summary with pay $, change requests (approve + reject), soft delete + `purge_soft_deleted_hr`.
-- **Employees** — renamed from Users; pay rate on add/edit.
-- Migrations `0003` (break fields), `0004` (soft delete).
-- Shipped **v2.33.0**.
-
-### Session 2 — 2026-06-23
-
-**Goal:** Fix Time clock **My recent shifts** listing all staff for managers/admins.
-
-**Updates:**
-
-- `TimeEntryViewSet` list/summary default to current user unless `?employee=` (manager).
-- Shipped **v2.33.1**.
-
-### Session 3 — 2026-06-23 (post-release polish, local)
-
-**Goal:** Time & payroll roster/by-employee UX — week hours, overtime display, completed-shift totals.
-
-**Updates (may be uncommitted at archive time):**
-
-- Roster columns: Date, Employee, Start, Stop, Break, Hours, Week hours (partition sum Mon–Sun + OT format), Pay.
-- By employee: This week / This payroll with per-week OT breakdown; `hours_this_week` on payroll API.
-- Week hours = `SUM(hours) PARTITION BY (employee, week)` — not running cumulative per row.
-
----
-
 ## See also
 
 - Models: [`apps/hr/models.py`](../../../../apps/hr/models.py)
 - HR API: [`apps/hr/views.py`](../../../../apps/hr/views.py)
-- Accounts / roles: [`apps/accounts/models.py`](../../../../apps/accounts/models.py), [`.ai/extended/auth-and-roles.md`](../../extended/auth-and-roles.md)
+- Accounts / roles: [`apps/accounts/models.py`](../../../../apps/accounts/models.py), [`.ai/extended/auth-and-roles.md`](../../../extended/auth-and-roles.md)

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-10 (custom_label_studio completed) -->
+<!-- Last updated: 2026-08-13 (dropped Consult Label reference path) -->
 
 # Print Server — Extended Context
 
@@ -59,7 +59,7 @@ Upload path pattern: `print-server/ecothrift-printserver-setup-v{VERSION}.exe` v
 
 Labels (GDI + Pillow), receipts (GDI text), cash drawer (ESC/POS). Built-in UI: `/` printers, `/manage` updates + uninstall trigger (server self-remove).
 
-**Labels (shipped in source, v1.2.x):** “Concept C” side stripe — raster in [`printserver/services/label_printer.py`](../../printserver/services/label_printer.py); 203 DPI presets `3x2` / `1.5x1`. Price band: smaller `$` top-left; larger dollar digits and cents; dollar digits left-aligned with extra inset from the stripe edge when whole dollars > 0 (see `_draw_price_block`). **Sub-dollar** prices (e.g. `$0.75`): **`$` + cents only** — no large middle `0`. Fit loop tries scales **1.0 → 0.5** step **0.01** (integer font sizes may repeat across steps). Optional `price_fit_stats` on `generate_label` fills `first_fit_scale` and `used_fallback` for tooling. **Fringe harness:** [`printserver/scripts/label_price_fringe_grid.py`](../../printserver/scripts/label_price_fringe_grid.py) writes PNGs + a console summary under `printserver/output_label_fringe_review/` (gitignored). **GDI:** `printer_manager.send_image` fits the bitmap to `HORZRES`×`VERTRES`, centers horizontally, top-aligns vertically (thermal drivers). Reference PNGs + notes: [`.ai/reference/Consult Label/to-be-checked/`](../reference/Consult%20Label/to-be-checked/). Quick local print: [`printserver/dev_print_e2e_3_labels.bat`](../../printserver/dev_print_e2e_3_labels.bat).
+**Labels (shipped in source, v1.2.x):** “Concept C” side stripe — raster in [`printserver/services/label_printer.py`](../../printserver/services/label_printer.py); 203 DPI presets `3x2` / `1.5x1`. Price band: smaller `$` top-left; larger dollar digits and cents; dollar digits left-aligned with extra inset from the stripe edge when whole dollars > 0 (see `_draw_price_block`). **Sub-dollar** prices (e.g. `$0.75`): **`$` + cents only** — no large middle `0`. Fit loop tries scales **1.0 → 0.5** step **0.01** (integer font sizes may repeat across steps). Optional `price_fit_stats` on `generate_label` fills `first_fit_scale` and `used_fallback` for tooling. **Fringe harness:** [`printserver/scripts/label_price_fringe_grid.py`](../../printserver/scripts/label_price_fringe_grid.py) writes PNGs + a console summary under `printserver/output_label_fringe_review/` (gitignored). **GDI:** `printer_manager.send_image` fits the bitmap to `HORZRES`×`VERTRES`, centers horizontally, top-aligns vertically (thermal drivers). Quick local print: [`printserver/dev_print_e2e_3_labels.bat`](../../printserver/dev_print_e2e_3_labels.bat).
 
 ## Custom labels (Label Studio, v1.4.1)
 

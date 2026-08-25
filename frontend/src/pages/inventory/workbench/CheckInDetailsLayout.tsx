@@ -62,6 +62,7 @@ export function SegmentedOptionButtons({
   readOnly,
   helperText,
   dense,
+  fill,
 }: {
   label: string;
   value: string;
@@ -71,25 +72,36 @@ export function SegmentedOptionButtons({
   readOnly?: boolean;
   helperText?: string;
   dense?: boolean;
+  /** One reserved row; chips share the width so labels stay readable. */
+  fill?: boolean;
 }) {
   return (
     <Box sx={{ minWidth: 0 }}>
-      <Typography
-        variant="caption"
+      {label ? (
+        <Typography
+          variant="caption"
+          sx={{
+            display: 'block',
+            fontWeight: 800,
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase',
+            fontSize: '0.58rem',
+            color: processingTokens.textMute,
+            mb: 0.35,
+            lineHeight: 1,
+          }}
+        >
+          {label}
+        </Typography>
+      ) : null}
+      <Box
         sx={{
-          display: 'block',
-          fontWeight: 800,
-          letterSpacing: '0.05em',
-          textTransform: 'uppercase',
-          fontSize: '0.58rem',
-          color: processingTokens.textMute,
-          mb: 0.35,
-          lineHeight: 1,
+          display: 'flex',
+          flexWrap: fill ? 'nowrap' : 'wrap',
+          gap: dense ? 0.35 : 0.5,
+          minHeight: fill ? (dense ? 28 : 36) : undefined,
         }}
       >
-        {label}
-      </Typography>
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: dense ? 0.35 : 0.5 }}>
         {options.map((option) => {
           const active = option.value === value;
           return (
@@ -104,12 +116,14 @@ export function SegmentedOptionButtons({
               sx={{
                 px: dense ? 0.65 : 0.85,
                 py: dense ? 0.15 : 0.25,
+                flex: fill ? 1 : undefined,
                 minWidth: 0,
-                minHeight: dense ? 24 : 28,
+                minHeight: fill ? (dense ? 28 : 36) : dense ? 24 : 28,
                 textTransform: 'none',
                 fontWeight: active ? 800 : 600,
                 fontSize: dense ? '0.68rem' : '0.72rem',
                 lineHeight: 1.2,
+                whiteSpace: 'nowrap',
                 borderColor: active ? undefined : workbenchDetailTokens.borderSubtle,
                 color: active ? undefined : processingTokens.textSoft,
                 bgcolor: active ? undefined : '#fff',

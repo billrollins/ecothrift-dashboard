@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-04-21 (v2.19.0 list ordering thumbs_up_count; my_thumbs_up JSON) -->
+<!-- Last updated: 2026-08-13 (Category Need panel notes from retired efforts/) -->
 # B-Stock API and scraper reference
 
 **Committed map:** This file is the **scraper-centric** reference aligned with `apps/buying/services/scraper.py`. A longer probe-backed catalog previously lived under **`.ai/reference/`**; that tree is **not** in the repo anymore — treat **`scraper.py`** + this doc as authoritative.
@@ -42,4 +42,6 @@ Token-backed operations (ban risk, use only when needed):
 
 ## Staff React UI (cross-reference)
 
-Desktop **auction list** DataGrid behavior, stable columns, watch/thumbs mutations — **v2.13.1** — documented in **`.ai/extended/frontend.md`** (section *Buying — desktop auction list*). **Need** column shows integer **1–99** after **v2.14.0**. This file remains scraper/API-centric.
+Desktop **auction list** DataGrid behavior, stable columns, watch/thumbs mutations — **v2.13.1** — documented in **`.ai/extended/frontend.md`** (section *Buying — desktop auction list*). **Need** column shows integer **1–99** after **v2.14.0**.
+
+**Category Need panel** (`CategoryNeedPanel` on `/buying/auctions`, desktop `md+` only): one collapsible bordered panel above the table (`localStorage` key `buying.categoryNeedPanelSize`; legacy `full` maps to `window`). Open height follows the right detail card (fixed **440px**). Left: `CategoryNeedBars` (Shelf / Sold / n / Margin / Recovery / Need; `gap` in the grid must stay the string `'4px'` — numeric `gap` is theme spacing and caused a horizontal scrollbar). Never leave no category selected when rows exist. Right: `CategoryNeedDetail` explainer (unit leg / retail leg / combined / need score). Data: **`GET /api/buying/category-need/`**.

@@ -8,13 +8,7 @@ Two questions, one source of truth:
   excluded from every rate, counted instead as unmeasured.
 
 * **Across a window** — the scoreboard on the TARS home screen. Value added and
-  items finished per day, per week and over a trailing four weeks, plus the rate
-  those came to per hour on the bench.
-
-The rate here **includes** investigation time. That is deliberate and it is the
-opposite of the bench's rule: a forward-looking decision ignores minutes already
-spent, but a report of what an item earned must count every minute it consumed,
-or restoration reads as more profitable than it is.
+  items finished per day, per week and over a trailing four weeks.
 """
 
 from __future__ import annotations
@@ -29,14 +23,7 @@ from django.utils import timezone
 
 from apps.inventory.models import RestorationJob
 
-# Bill's pay-rate unit: what an hour of bench time costs. Recorded here rather
-# than derived — it is a policy number, not a measurement.
-PAY_RATE_UNIT = Decimal('20.00')
-
-# The trailing average is only meaningful once it has something to average, and
-# an unreachable target set by one lucky item is worse than no target at all.
 BENCHMARK_WINDOW_DAYS = 28
-BENCHMARK_MINIMUM_JOBS = 10
 
 CENTS = Decimal('0.01')
 
@@ -84,6 +71,23 @@ def compute_value_added(
     return end - start - (spent or Decimal('0'))
 
 
+def lowest_grade(grade_values: Any) -> str:
+    """The cheapest priced grade on the scale — the honest floor for arrival."""
+
+    if not isinstance(grade_values, dict):
+        return ''
+    best_name = ''
+    best_value: Decimal | None = None
+    for name, raw in grade_values.items():
+        amount = _grade_value(grade_values, str(name))
+        if amount is None:
+            continue
+        if best_value is None or amount < best_value:
+            best_value = amount
+            best_name = str(name)
+    return best_name
+
+
 def starting_grade_from_session(session: Any) -> str:
     """The datum Mike recorded — the grade the item arrived at.
 
@@ -124,15 +128,6 @@ def sync_starting_grade(job: RestorationJob) -> bool:
     return True
 
 
-def job_hours_on_bench(job: RestorationJob) -> Decimal:
-    """Hours the item actually consumed, looking included."""
-
-    seconds = int(job.look_seconds or 0) + int(job.work_seconds or 0)
-    if not seconds:
-        seconds = int(job.active_seconds or 0)
-    return Decimal(seconds) / Decimal('3600')
-
-
 def _day_bounds(start: date, end: date):
     tz = timezone.get_current_timezone()
     start_dt = timezone.make_aware(
@@ -158,14 +153,11 @@ def _finished_jobs(start: date, end: date):
 
 
 def _window(start: date, end: date) -> dict[str, Any]:
-    """Value, items and rate for one span of days."""
+    """Value and items for one span of days."""
 
-    rows = _finished_jobs(start, end).values(
-        'value_added', 'look_seconds', 'work_seconds', 'active_seconds',
-    )
+    rows = _finished_jobs(start, end).values('value_added')
 
     value = Decimal('0')
-    seconds = 0
     items = 0
     measured = 0
     unmeasured = 0
@@ -178,11 +170,6 @@ def _window(start: date, end: date) -> dict[str, Any]:
             continue
         measured += 1
         value += Decimal(added)
-        attributed = int(row['look_seconds'] or 0) + int(row['work_seconds'] or 0)
-        seconds += attributed or int(row['active_seconds'] or 0)
-
-    hours = Decimal(seconds) / Decimal('3600')
-    per_hour = (value / hours) if hours > 0 else None
 
     return {
         'start': start.isoformat(),
@@ -191,8 +178,6 @@ def _window(start: date, end: date) -> dict[str, Any]:
         'items': items,
         'items_measured': measured,
         'items_unmeasured': unmeasured,
-        'hours': str(hours.quantize(CENTS)),
-        'per_hour': _money(per_hour),
     }
 
 
@@ -242,22 +227,10 @@ def build_restoration_scoreboard(today: date | None = None) -> dict[str, Any]:
         (Decimal(four_week['items']) / weeks).quantize(CENTS),
     )
 
-    # The bar to beat is the trailing rate, but only once it is built on enough
-    # jobs to mean something. Until then the floor stands alone.
-    benchmark = four_week['per_hour']
-    benchmark_ready = four_week['items_measured'] >= BENCHMARK_MINIMUM_JOBS
-    if not benchmark_ready:
-        benchmark = None
-
     return {
         'as_of': today.isoformat(),
         'today': day,
         'week': week,
         'four_week': four_week,
-        'per_hour_while_working': four_week['per_hour'],
-        'floor_rate': _money(PAY_RATE_UNIT),
-        'benchmark_rate': benchmark,
-        'benchmark_ready': benchmark_ready,
-        'benchmark_minimum_jobs': BENCHMARK_MINIMUM_JOBS,
         'days': _by_day(today - timedelta(days=13), today),
     }

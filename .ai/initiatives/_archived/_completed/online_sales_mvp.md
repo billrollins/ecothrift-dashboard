@@ -163,7 +163,7 @@ Minimal, boring, ours:
 
 Online payment · shipping / delivery · customer loyalty, wishlists, saved addresses/cards, or any account feature beyond *my requests* and *my messages* · social login (Google/Facebook sign-in) · SMS delivery · Facebook / Marketplace API posting (the existing FB copy fields may be used by hand; nothing new is built) · Marketing calendar and campaigns · channel accounts, logins, fee rules · contribution / P&L reporting · B2B channel · durable intake queue models from Processing/TARS (the existing `location='online_sales'` work queue is enough) · Slot C renames and Admin page moves elsewhere in the app · Listing Studio visual redesign or AI copy assistance · returns/store-credit operations · multi-location pickup · Product FK for multi-quantity listings.
 
-Each of these has a home in the parked [`online_sales_workspace`](./_archived/_pending/online_sales_workspace.md) if it earns its way back.
+Each of these has a home in the parked [`online_sales_workspace`](../_pending/online_sales_workspace.md) if it earns its way back.
 
 ---
 
@@ -324,92 +324,10 @@ Time from `online_sales` Item → published listing · holds requested / confirm
 
 ---
 
-## Sessions
-
-### Session 1 — 2026-07-30T17:14:00-05:00 (est 1h)
-
-- **Goal:** Create a strategic MVP initiative for online sales — high-level, all major decisions written down, scope cut to an absolute minimum.
-- **Finish line:** Initiative file on disk with a solid outline (decisions, gaps, phases, gates, acceptance) + row on `_index.md`; owner gates ready to answer.
-- **Scope:** Read-only audit of `apps/webstore`, `frontend-public`, staff Online Sales pages, nav, and the parked initiative; then authoring. No application code.
-- **Out of scope:** Answering the owner gates, any implementation, version bump.
-- **Update 2026-07-30T17:32:00-05:00 — customer login added to scope.** Owner asked for a simple customer login. Audited the auth stack: the JWT machinery is reusable and the public site is same-origin with the API (no CORS work), but there is no `Customer` group, no `IsCustomer`, no self-registration, and no auth code at all in `frontend-public/`. Decision #7 reversed to **guest-first, account-optional**; new decisions on identity isolation (#7c) and login flavour (#8b); new **Gap 2 — Identity**; Phase 2 renamed *Identity and conversation*; gates **G7** (magic link vs password) and **G8** (optional vs required) added, and **G1 reframed** — transactional email is now the pivotal dependency because it makes login passwordless *and* solves customer notification. **Two pre-existing auth defects found and recorded as prerequisites:** `forgot-password` returns a valid reset token in its response body to anonymous callers (staff account-takeover path today), and the refresh cookie is written with `secure=False`.
-- **Update 2026-07-30T17:46:00-05:00 — G1 and G7 accepted.** Owner chose **transactional email ON**, which settles the login as a **magic link (passwordless)**. Sending identity defaulted to **`shop@ecothrift.us`** / display name Eco-Thrift / `Reply-To` itself, and it must be a real monitored mailbox rather than `noreply@` (owner to confirm the mailbox and its owner — new **G9**). Consequence recorded: because sign-in *is* an emailed link, **deliverability becomes a hard requirement** — real transactional provider, SPF + DKIM verified against Gmail/Outlook/Yahoo, short-lived single-use links never echoed in a response, and the guest token URL retained as the degradation path. Phase 2 reordered so email plumbing lands before the login that depends on it, and scoped to exactly three system emails.
-- **Update 2026-07-30T17:56:00-05:00 — mail architecture settled.** Owner shared the Entra tenant: `ecothrift.us` runs on **Microsoft 365** with `bill_rollins@`, `marketing@`, `retail@`, `warehouse@`; **no `shop@` yet**. Verified current Microsoft guidance and recorded the decision to **split sending from receiving** — app mail goes out through a **transactional provider**, M365 only receives replies. Rationale captured in the file: basic-auth SMTP is disabled by default after **December 2026** (removal announced 2H 2027), **shared mailboxes cannot SMTP-auth** so the M365 path would require a paid licensed robot mailbox, **HVE is internal-recipient oriented**, and routing customer mail through the staff identity risks staff deliverability with no bounce visibility. `shop@` to be created as a **free shared mailbox** (or alias on `retail@`) for replies. **SPF must be appended, never replacing the Microsoft entry.** G9 narrowed to provider choice + mailbox-vs-alias.
-- **Update 2026-07-30T18:10:00-05:00 — resplit into five phases.** Phase 2 had accumulated security fixes + email + messages + login + templates, so it was broken up and **ordered by value**: **1 Live surface** (plus the two small auth fixes, since sitting on an account-takeover path for weeks is indefensible) → **2 Email** (its own phase because it is the only piece with an external dependency — DNS, provider, spam filters — and it unblocks both later notices) → **3 Messages** → **4 Accounts** → **5 Pickup + launch**. Each phase is independently releasable; **stopping after Phase 3 still delivers the MVP as originally described**, with accounts as a convenience layer. Phases 2 and 3 may be collapsed if four phases is preferred; nothing else should merge.
-- **Update 2026-07-30T18:04:00-05:00 — sending identity is `retail@ecothrift.us`.** Owner chose the existing **Retail Operations** mailbox (Business Standard licensed) rather than creating `shop@`: it is already staffed so replies cannot vanish, and no new mailbox or licence is needed. Display name set to **Eco-Thrift** (not “Retail Operations”, which reads as internal machinery to a customer). Because `retail@` is licensed, the earlier shared-mailbox objection no longer applies and its SMTP *would* work today — the provider recommendation now rests on reputation coupling with a mailbox staff depend on, a stored mailbox credential in Heroku config, absent bounce visibility under magic-link login, the Dec 2026 basic-auth default change, and display-name control. The `retail@` SMTP path is recorded as an **accepted MVP fallback** since switching pipes is only a Django settings change, with a hard note to migrate before December 2026. G9 reduced to the pipe choice.
-- **Result:** Initiative created. Key finding: the MVP is ~80% built and parked — Listing model, Reservation state machine, POS hold guard, Studio, Inbox, public shop/hold pages all exist behind redirects and `ONLINE_SALES_ENABLED=false`. **Five real gaps** identified: turn-on hygiene, customer identity/login, Messages subsystem, pickup prep, and expiry scheduler + launch data. Scope cut: no marketing/channels/P&L/B2B, no nav renames outside Online Sales, no account features beyond my-requests/my-messages. **Eight owner gates open**; G1 (transactional email) is pivotal because it decides both the login flavour and whether customers get notified at all. No code written.
-
-### Session 2 — 2026-07-30 overnight (unsupervised build on `online-sales-mvp`)
-
-- **Goal:** Implement overnight plan Phases 1–4 (surfaces, email, messages, accounts) + pickup tab + demo seed + hardening tests + handoff artifacts. No push, no prod.
-- **Done:** Auth hardening; audits; backend kill switch + expiry command; staff Online Sales nav/routes; public shop un-park behind config; policy copy guard; Conversation/Message + Inbox Messages; three system emails + email_setup; Customer magic-link + public account pages; Ready for pickup tab; `seed_online_sales_demo`; G1–G6 style tests; SOP/demo/changelog drafts; migration rollback rehearsal.
-- **Verify:** `makemigrations --check` clean; `test apps.webstore apps.accounts.tests` → **70 OK**; vitest online-sales+policy → **21 OK**; staff + public builds OK.
-- **Handoff:** Read [`.ai/reference/online_sales_mvp/overnight_log.md`](../../../reference/online_sales_mvp/overnight_log.md) first (DECISIONS NEEDED / WHERE I STOPPED / FINDINGS). Recommended semver draft `v2.62.0` in `changelog_draft.md` — do not bump yet.
-- **Out of scope overnight:** Answering open gates G2–G6/G8/G9; DNS/provider signup; flipping `ONLINE_SALES_ENABLED` in production; editing `CHANGELOG.md` / `.version`.
-
-### Session 3 — 2026-07-31 morning fix pass (stop before merge)
-
-- **Goal:** Review overnight branch; fix confirmed defects; walk demo locally with flags on; do not merge.
-- **Done:** Unread no longer cleared by GET (explicit `POST …/threads/<token>/read/`); list payloads omit message bodies; 48h untriaged-request expiry; idempotency scoped to active+email; confirm email on `transaction.on_commit`; cache-backed hold/message throttles; pickup “today” filter extracted and fixed; lazy public auth; SignIn `debug_token`; seed wipe + `walk_online_sales_demo`.
-- **Verify:** `test apps.webstore apps.accounts.tests` → **80 OK**; vitest online-sales+policy → **27 OK**; both FE builds OK; local walk with `ONLINE_SALES_ENABLED=true` OK.
-- **Still open:** G9 provider/SPF; merge decision; marking G2–G6/G8 accepted.
-
-### Session 4 — 2026-07-31 release + next slices
-
-- **Goal:** Full release **v2.62.0** (merge + deploy, public flag off); then listing CRUD polish + shared TipTap editor (v2.63); then M365 Graph two-way mail (v2.64).
-- **Gates:** G2–G8 accepted; G5 = owner-entered listings; G9 = Microsoft Graph on `retail@`, one mailbox, UI-split OS vs general (Admin-only general inbox).
-- **Shipped:** v2.62.0 → v2.63.0 → v2.64.0 on Heroku. Public `ONLINE_SALES_ENABLED=false`; Graph `MS_GRAPH_ENABLED=false`.
-- **Owner next:** Entra app + Exchange RBAC (see email_setup.md); Heroku Scheduler `expire_online_holds` + `sync_ms_mailbox`; test in dev; say go to flip Online Sales and/or Graph.
-
-### Session 5 — 2026-08-04 verified holds (v2.65.0)
-
-- **Goal:** Require proven email before holds/questions reach staff; keep accounts optional with optional password.
-- **Done:** `pending_verification` holds + inquiries; purpose-scoped magic links; customer lookup/register/set-password/reset; public email-first sign-in + `/verify`; G8 revised in this file.
-- **Owner next (manual):** Change Heroku Scheduler job `expire_online_holds` from hourly to **every 10 minutes**.
-
-### Session 6 — 2026-08-04 Sales log detail (v2.66.0)
-
-- **Goal:** Answer “what sold online / did it close through POS / what happened on this hold” from the Sales log.
-- **Done:** `ReservationEvent` append-only history + backfill; `reservations/<id>/detail/`; sales-log `days`/`search`; staff grid UX + detail drawer. Gap 4 Sales log wording revised (still no exports).
-
-### Session 7 — 2026-08-06 local email + emailed links land (est 1h)
-
-- **Goal:** A customer who requests a sign-in link locally receives the email *and* the link signs them in.
-- **Finish line:** Magic-link request sends through Graph, and clicking the emailed link reaches `/account` instead of “invalid or expired”.
-- **Done:** Two independent defects, neither in the email templates or the token model.
-  - **Emails were not sending.** `venv\Scripts\activate.bat` still carried `VIRTUAL_ENV=D:\Coding\…` from when the venv was built on `D:`, so activation prepended a directory that does not exist and `python` fell through to system Python, which has no `msal` → `GraphConfigurationError` on every send. Corrected the three relocated paths (`activate`, `activate.bat`, `pyvenv.cfg`) and made `scripts/dev/dev.ps1` launch Django by the **absolute** `venv\Scripts\python.exe` rather than trusting activation. The venv itself has had `msal` since 2026-08-04.
-  - **Emailed links reported “expired”.** The token was single-use and being POSTed five times per click: `consumeToken` listed `user` in its dependency array, so a successful consume set `user`, changed the callback identity, and re-ran the `VerifyPage` effect that depends on it — doubled again by StrictMode in dev. One `200`, four `400`s. `consumeToken` now caches its promise per token (evicting rejections so real retries still work) and reads `user` through a ref to stay identity-stable; `VerifyPage` redirects to `/account` when a replayed token fails but its session is still good. `SignInPage` consumes tokens the same way and is covered by the provider fix.
-- **Verify:** `test apps.accounts.tests.test_magic_link` → **9 OK**; `tsc --noEmit` clean on `frontend-public`; Graph token + `sendMail` proven from the venv interpreter against `retail@ecothrift.us`.
-- **Note:** `Invalid or expired sign-in link.` covers both spent and expired tokens, which is what made a replay look like an expiry. Left as-is — distinguishing them tells an attacker which tokens were real.
-
-### Session 8 — 2026-08-06 customer account portal tabs (est 4h)
-
-- **Goal:** Rebuild public `/account` so a signed-in customer can see every active hold, past hold, and message thread without an emailed token, and tell at a glance what needs them.
-- **Finish line:** Tabbed Account / History / Messages portal with unread badges, active hold cards, and a real in-account inbox (including inquiry threads).
-- **Scope:** Frontend `frontend-public/src/pages/account/*` + App routes; backend `my_conversation_detail`, conversation list preview, hold `listing_image`/`listing_slug`, events/images prefetch on `my/holds/`. Out of scope: header unread badge, new-thread compose from account, POS purchase history.
-- **Done:** Nested account routes; shared account data context with focus refetch; HoldCard + History filters + Messages list/detail; `test_my_account` (5 OK); public `tsc`/Vite build green.
-
-### Session 9 — 2026-08-07 production go-live (v2.69.0)
-
-- **Goal:** Promote Online Sales to production: green gates, wipe Online Sales data only, remove whole-DB wipe commands, sync env, push GitHub + Heroku, flip storefront + Graph mail on.
-- **Done:** Deleted `reset_business_data` / `reset_buying_data` / `create_test_auctions` and `seed_categories --clear`; Customers workspace + Messages move; query-budget pin; `.envprod` `PUBLIC_SITE_*` + retention keys; push GitHub + Heroku; prod purge/seed; Graph proof emails; kill switch 410/200; `ONLINE_SALES_ENABLED=true` + `MS_GRAPH_ENABLED=true`.
-- **Verify:** `makemigrations --check` clean; `test apps.webstore apps.accounts` → 217 OK; staff vitest 421 OK; both Vite builds green; live dyno `.version` **v2.69.0**.
-- **#### Result:** committed as **v2.69.0** at `d8e931b` (Heroku deploy + go-live config).
-- **Residual owner ops (not blocking archive):** confirm Heroku Scheduler jobs; publish first real listings; one full hold round trip; week of live use / staff SOP polish. Inbox confirmation of Graph proof mail.
-
-### Session 10 — 2026-08-11 archive completed
-
-- **Goal:** Close initiative so a new chat can start a fresh initiative with empty Active.
-- **Done:** Moved to `_archived/_completed/`; `_index.md` Active cleared; `ARCHIVE.md` + `context.md` compass updated.
-- **#### Result:** archived completed 2026-08-11 (no version bump; docs/lifecycle only).
-
----
-
-
 ## See also
 
 - [`.ai/initiatives/_archived/_pending/online_sales_workspace.md`](../_pending/online_sales_workspace.md) — full vision, parked; source of the accepted policy and data contracts
-- [`.ai/reference/online_sales_workspace/phase_0_contract.md`](../../../reference/online_sales_workspace/phase_0_contract.md) — accepted Phase 0 pack (policy copy, SOP, state machines, hard controls) — still authoritative where this file does not narrow it
+- `.ai/reference/online_sales_workspace/phase_0_contract.md` — accepted Phase 0 pack (policy copy, SOP, state machines, hard controls) — still authoritative where this file does not narrow it
 - [`.ai/initiatives/_archived/_pending/public_website.md`](../_pending/public_website.md) — public site build; its Helcim/shipping direction is superseded
 - `apps/webstore/` — models, views, `services/reservations.py`, `services/hours.py`, `services/feature.py`, `tests/test_holds_hard_controls.py`
 - `frontend/src/pages/online-sales/`, `frontend/src/api/webstore.api.ts`, `frontend/src/hooks/useWebStore.ts`

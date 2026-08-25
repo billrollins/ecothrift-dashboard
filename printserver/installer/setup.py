@@ -97,7 +97,7 @@ def _kill_port_8888() -> None:
 
 
 def _is_likely_v2_install(path: Path) -> bool:
-    """V2 dashboard print server: Python venv + print_server.py (see .ai/reference/PrintServer (V2))."""
+    """V2 dashboard print server: Python venv + print_server.py (legacy layout; see printserver/installer/)."""
     return (path / "print_server.py").is_file() and (path / "venv").is_dir()
 
 

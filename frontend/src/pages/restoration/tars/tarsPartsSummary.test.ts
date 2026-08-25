@@ -91,4 +91,22 @@ describe('grade association', () => {
     expect(partsCostForGrade(parts, 'Working')).toBe(15);
     expect(partsCostForGrade(parts, 'Like-new')).toBe(45);
   });
+
+  it('counts an untagged Parts line on every destination grade', () => {
+    const parts = [
+      part({ id: 'shared', unitPriceEstimate: 8, grades: [] }),
+      part({ id: 'only-working', unitPriceEstimate: 2, grades: ['Working'] }),
+    ];
+    expect(partsCostForGrade(parts, 'Working')).toBe(10);
+    expect(partsCostForGrade(parts, 'Like-new')).toBe(8);
+  });
+
+  it('leaves FFE and Supplies out of the repair cost', () => {
+    const parts = [
+      part({ id: 'hinge', unitPriceEstimate: 6, section: 'parts', grades: ['Working'] }),
+      part({ id: 'glue', unitPriceEstimate: 3, section: 'supplies', grades: ['Working'] }),
+      part({ id: 'stand', unitPriceEstimate: 40, section: 'ffe', grades: ['Working'] }),
+    ];
+    expect(partsCostForGrade(parts, 'Working')).toBe(6);
+  });
 });

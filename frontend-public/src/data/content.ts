@@ -1,5 +1,4 @@
-// Real Eco-Thrift copy, reconciled from the live-site scrape
-// (.ai/reference/shopify-site-copy/site_copy.md). Reconciliations:
+// Real Eco-Thrift copy. Reconciliations:
 //  - Retail store is Eco-Thrift - Canfield (8425 W Center Rd). Applewood / 9717 Q St closed.
 //  - Do not claim daily automatic markdowns on customer-facing copy (outdated).
 //    The single "10% on Mondays" testimonial was dropped as inconsistent/outdated).

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.70.0] -->
-<!-- Last reviewed: 2026-08-11 (v2.70.0 Processing retail/price lock) -->
+<!-- Line 1 release: ## [2.71.0] -->
+<!-- Last reviewed: 2026-08-25 (v2.71.0 TARS floor + enhancement requests) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.71.0] - 2026-08-25
+
+User-facing theme: **TARS on the floor** — queue and grade table, a parts command center, a hold story, and a staff Requests sheet.
+
+Initiatives: [`finalize_tars_app`](.ai/initiatives/_archived/_completed/finalize_tars_app.md), [`enhancement_requests`](.ai/initiatives/_archived/_completed/enhancement_requests.md). GitHub only — not Heroku.
+
+### Added
+
+- **Enhancement requests** — staff file a Restoration or Processing ask from a bottom sheet on the bench and Processing (`RequestsDrawer`). Superuser triages on `/admin/enhancement-requests` (priority, target date, status). Notes are owner-or-superuser only. API: `GET/POST /api/core/enhancement-requests/`, `PATCH …/{id}/`, `GET/POST …/{id}/notes/`, `POST …/{id}/triage/` (superuser). Migration `core.0002_enhancement_request`.
+- **Parts command center** — `/restoration/parts-requests` is Live (attention strip + Requested / Approved / Ordered / Received) and History (grouped by item). Receive and inspect are two steps: Delivered only marks arrival; inspect is per-line Acceptable / Issues (`POST …/inspect/`). The Received lane is the inspect form. Uninspected received stays Live after Finish; inspect moves the order to History. Old `POST …/review/` is 410. Timeline event `parts.order_inspected`.
+- **Hold story** — Place on hold is pieces, not one reason code. Buy comes from live parts orders. Time / Space / Help / Other are optional add-ons with a description. Where it sits is Holding Rack or freeform. The hold-note field is gone; the assembled story writes to the item notes ledger. Same dialog on the bench and Overview.
+- **TARS floor surfaces** — Overview scoreboard + queue, grade table bench, item notes ledger, Finish / Receive / Reject, salvage outputs, purchase desk, cancel-a-parts-request. Stages 1–5 and 8. See the initiative Record.
+
+### Changed
+
+- **Parts Requests nav badge** — counts approvals, cancel asks, and reviews from the same live orders list the board writes. Approve, deny, or file the last waiting order and the badge (and Restoration workspace pip) clear with the board instead of waiting on a 30s poll.
+
+### Documentation
+
+- **AI steering overhaul** — `.ai/` is a compass again: four protocols (`load-context`, `ship`, `initiative`, `sql-schema`), `context.md` no longer retells the changelog, `.ai/reference/` kept to TARS design/canon plus the bookkeeping recon, and session start/checkpoint/close machinery is gone.
 
 ## [2.70.0] - 2026-08-11
 

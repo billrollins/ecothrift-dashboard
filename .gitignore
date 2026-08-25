@@ -2,9 +2,6 @@
 printserver/output/
 printserver/output_label_fringe_review/
 
-# Dev logging (config is tracked; log output is not)
-.ai/debug/debug.log
-
 # Python
 __pycache__/
 *.py[cod]
@@ -169,8 +166,3 @@ workspace/notebooks/__pycache__/
 scripts/deploy/backups/
 # Transient artifacts from 0_pull_prod_to_local.bat (dumps + credential-bearing helper bats)
 scripts/deploy/temp_*
-
-# Reference drops — avoid accidental staging via scripts/deploy/2_push_github.bat (`git add .`)
-.ai/reference/files.zip
-.ai/reference/Processor Mockups/
-.ai/reference/deep_dive/_runs/

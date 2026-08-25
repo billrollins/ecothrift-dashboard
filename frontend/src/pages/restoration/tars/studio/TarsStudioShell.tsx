@@ -2,8 +2,9 @@ import ArrowBack from '@mui/icons-material/ArrowBack';
 import QrCodeScanner from '@mui/icons-material/QrCodeScanner';
 import Build from '@mui/icons-material/Build';
 import SpaceDashboard from '@mui/icons-material/SpaceDashboard';
-import { Box, Button, Chip, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, Stack, TextField, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
+import { DECK, PANEL, RADIUS, TYPE } from './benchScale';
 import { studio } from './tarsStudioTheme';
 
 /**
@@ -26,8 +27,6 @@ export function TarsStudioShell({
   onScanChange,
   onScanSubmit,
   scanInputRef,
-  timerSlot,
-  hrSlot,
   noticeSlot,
   actionSlot,
   onBack,
@@ -40,8 +39,6 @@ export function TarsStudioShell({
   onScanChange: (value: string) => void;
   onScanSubmit: () => void;
   scanInputRef?: React.RefObject<HTMLInputElement | null>;
-  timerSlot?: ReactNode;
-  hrSlot?: ReactNode;
   noticeSlot?: ReactNode;
   /** The ways the item in hand can leave. Bench only — Home has no item. */
   actionSlot?: ReactNode;
@@ -57,30 +54,26 @@ export function TarsStudioShell({
         minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
-        bgcolor: '#e8edf3',
+        bgcolor: '#e9eeea',
         color: studio.heroOnDark,
         overflow: 'hidden',
       }}
     >
       {/*
-        Three zones, so the clock lands in the middle of the screen no matter
-        how wide the sides get: where you are on the left, what time is being
-        spent in the centre, what you can do about it on the right. The side
-        zones share the leftover width evenly, which is what actually keeps the
-        centre centred — an `mx: auto` would only centre it between its
-        neighbours.
+        Two zones: where you are on the left, what you can do about it on the
+        right. The leftover width is shared so the work surface stays even.
       */}
       <Box
         sx={{
           minHeight: 62,
           px: { xs: 1, md: 1.5 },
           py: 0.75,
-          borderBottom: '1px solid #253247',
-          bgcolor: '#111c2e',
+          borderBottom: '1px solid #2c3a34',
+          bgcolor: '#1a2420',
           display: 'flex',
           alignItems: 'center',
           gap: { xs: 0.75, md: 1 },
-          boxShadow: '0 4px 18px rgba(15, 23, 42, 0.2)',
+          boxShadow: '0 2px 12px rgba(16,33,26,0.22)',
           zIndex: 5,
         }}
       >
@@ -99,7 +92,7 @@ export function TarsStudioShell({
           startIcon={<ArrowBack />}
           aria-label="Back to dashboard"
           sx={{
-            color: '#d9e3f0',
+            color: DECK.muted,
             minWidth: 0,
             px: 1,
             fontWeight: 800,
@@ -109,11 +102,11 @@ export function TarsStudioShell({
         >
           <Box component="span" sx={{ display: { xs: 'none', lg: 'inline' } }}>Dashboard</Box>
         </Button>
-        <Box sx={{ pr: { xs: 0, md: 1.25 }, borderRight: { md: '1px solid #334155' } }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 950, color: '#f8fafc', lineHeight: 1 }}>
+        <Box sx={{ pr: { xs: 0, md: 1.25 }, borderRight: { md: '1px solid #2c3a34' } }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: DECK.ink, lineHeight: 1 }}>
             TARS
           </Typography>
-          <Typography variant="caption" sx={{ color: '#91a4bc', lineHeight: 1 }}>
+          <Typography variant="caption" sx={{ ...TYPE.meta, color: DECK.label, lineHeight: 1 }}>
             Restoration Studio
           </Typography>
         </Box>
@@ -140,16 +133,15 @@ export function TarsStudioShell({
                   px: 1.5,
                   pt: 0.7,
                   pb: 0.9,
+                  ...TYPE.value,
                   cursor: 'pointer',
-                  fontSize: '0.82rem',
-                  fontWeight: 900,
                   borderRadius: '8px 8px 0 0',
                   border: '1px solid',
-                  borderColor: active ? '#e8edf3' : 'transparent',
-                  borderBottomColor: active ? '#e8edf3' : 'transparent',
-                  bgcolor: active ? '#e8edf3' : 'transparent',
-                  color: active ? '#0b3b46' : '#8ea2ba',
-                  '&:hover': { color: active ? '#0b3b46' : '#d9e3f0' },
+                  borderColor: active ? '#e9eeea' : 'transparent',
+                  borderBottomColor: active ? '#e9eeea' : 'transparent',
+                  bgcolor: active ? '#e9eeea' : 'transparent',
+                  color: active ? PANEL.ink : DECK.label,
+                  '&:hover': { color: active ? PANEL.ink : DECK.muted },
                 }}
               >
                 {entry.icon}
@@ -157,12 +149,11 @@ export function TarsStudioShell({
                 <Box
                   component="span"
                   sx={{
+                    ...TYPE.micro,
                     px: 0.55,
                     borderRadius: '999px',
-                    fontSize: '0.68rem',
-                    fontWeight: 900,
-                    bgcolor: active ? '#c9e6e0' : '#26344a',
-                    color: active ? '#0b665e' : '#9db0c7',
+                    bgcolor: active ? 'rgba(127,199,154,0.24)' : 'rgba(255,255,255,0.07)',
+                    color: active ? '#1b5e20' : DECK.label,
                   }}
                 >
                   {counts[entry.id]}
@@ -172,8 +163,6 @@ export function TarsStudioShell({
           })}
         </Stack>
         </Box>
-
-        <Box sx={{ flex: '0 0 auto', display: 'flex', justifyContent: 'center' }}>{timerSlot}</Box>
 
         <Box
           sx={{
@@ -204,16 +193,15 @@ export function TarsStudioShell({
               sx={{
                 width: { xs: 150, sm: 210, lg: 250 },
                 '& .MuiOutlinedInput-root': {
+                  ...TYPE.body,
                   height: 38,
-                  bgcolor: '#f8fafc',
-                  borderRadius: `${studio.radius.sm}px`,
-                  fontSize: '0.85rem',
+                  bgcolor: PANEL.bg,
+                  borderRadius: `${RADIUS.sm}px`,
                   fontFamily: 'monospace',
                 },
               }}
             />
           ) : null}
-          {hrSlot}
           {noticeSlot}
           {actionSlot}
         </Box>

@@ -22,6 +22,7 @@ import { hasDirtyFieldState, isFieldDayToday, resolveFieldStage } from './fieldR
 import { pendingCountForRun } from '../../../../services/delivery/deliveryMediaClient';
 import { DeliveryRouteMap } from '../components/DeliveryRouteMap';
 import type { DeliveryDayDetail } from '../../../../types/pos.types';
+import { deliveryListPath } from '../deliveryPaths';
 import {
   ecoField,
   ecoFieldCardSx,
@@ -116,8 +117,8 @@ export default function FieldDayDetailPage() {
 
   return (
     <Box sx={{ pb: 10 }}>
-      <Button component={RouterLink} to="/pos/deliveries/field/days" size="small" sx={{ mb: 1 }}>
-        ← Days
+      <Button component={RouterLink} to={deliveryListPath('field', 'schedule')} size="small" sx={{ mb: 1 }}>
+        ← Schedule
       </Button>
       <Typography variant="h6" fontWeight={700}>
         {dayIsToday ? `Today · ${day.date}` : day.date}
@@ -266,7 +267,7 @@ export default function FieldDayDetailPage() {
         >
           <FieldDayCompleteSummary
             run={run}
-            onDone={() => navigate('/pos/deliveries/field/days')}
+            onDone={() => navigate(deliveryListPath('field', 'schedule'))}
           />
         </Stack>
       )}

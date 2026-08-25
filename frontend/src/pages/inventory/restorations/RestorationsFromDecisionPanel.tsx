@@ -15,10 +15,19 @@ import { useEffect, useMemo, useState } from 'react';
 import { processingPatchItem } from '../../../api/inventory.api';
 import {
   restorationsFromDeskQueryKey,
+  useCreateRestorationOutputItem,
   useMarkRestorationJobHandled,
+  useProcessingCheckInRestorationJob,
+  useRemapRestorationItemProduct,
 } from '../../../hooks/useRestorationBench';
 import type { RestorationJobDTO } from '../../../types/inventory.types';
+import { JobNotesSlot } from '../../../components/notes/JobNotesSlot';
 import { printProcessingLabelsAndMarkPrinted } from '../processing/printProcessingLabel';
+import {
+  printRestorationReceiveLabels,
+  RestorationReceiveDialog,
+} from '../../restoration/queue/RestorationReceiveDialog';
+import { runRestorationReceive } from '../../restoration/queue/restorationReceive';
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '-';
@@ -41,9 +50,13 @@ export function RestorationsFromDecisionPanel({ job, onHandled }: RestorationsFr
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
   const markHandled = useMarkRestorationJobHandled();
+  const mintPart = useCreateRestorationOutputItem();
+  const processingCheckIn = useProcessingCheckInRestorationJob();
+  const remapProduct = useRemapRestorationItemProduct();
   const [price, setPrice] = useState(job.price ?? '');
   const [printing, setPrinting] = useState(false);
   const [savingPrice, setSavingPrice] = useState(false);
+  const [receiveOpen, setReceiveOpen] = useState(false);
 
   useEffect(() => {
     setPrice(job.price ?? '');
@@ -156,6 +169,9 @@ export function RestorationsFromDecisionPanel({ job, onHandled }: RestorationsFr
         <Typography variant="overline" sx={{ fontWeight: 900, letterSpacing: '0.08em' }}>
           Context
         </Typography>
+        <Box sx={{ mt: 0.75 }}>
+          <JobNotesSlot jobId={job.id} />
+        </Box>
         <Stack spacing={0.65} sx={{ mt: 0.35 }}>
           <Typography variant="body2">
             <strong>Grade / outcome:</strong> {grade}
@@ -203,6 +219,14 @@ export function RestorationsFromDecisionPanel({ job, onHandled }: RestorationsFr
           Processor actions
         </Typography>
         <Stack spacing={1} sx={{ mt: 0.75 }}>
+          <Button
+            variant="contained"
+            disabled={Boolean(job.processing_handled_at)}
+            onClick={() => setReceiveOpen(true)}
+            sx={{ alignSelf: 'flex-start' }}
+          >
+            Check in from Restoration
+          </Button>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
             <TextField
               size="small"
@@ -227,7 +251,7 @@ export function RestorationsFromDecisionPanel({ job, onHandled }: RestorationsFr
             </Button>
           </Stack>
           <Button
-            variant="contained"
+            variant="outlined"
             disabled={markHandled.isPending}
             onClick={() => void handleMarkHandled()}
             sx={{ alignSelf: 'flex-start' }}
@@ -236,6 +260,32 @@ export function RestorationsFromDecisionPanel({ job, onHandled }: RestorationsFr
           </Button>
         </Stack>
       </Box>
+
+      <RestorationReceiveDialog
+        open={receiveOpen}
+        job={receiveOpen ? job : null}
+        busy={processingCheckIn.isPending || mintPart.isPending || remapProduct.isPending}
+        onCancel={() => setReceiveOpen(false)}
+        onSubmit={async (submit) => {
+          try {
+            await runRestorationReceive({
+              jobId: job.id,
+              submit,
+              remap: (itemId, payload) => remapProduct.mutateAsync({ itemId, payload }),
+              mint: (id, payload) => mintPart.mutateAsync({ id, payload }),
+              checkIn: (id, payload) => processingCheckIn.mutateAsync({ id, payload }),
+              printLabels: printRestorationReceiveLabels,
+            });
+            enqueueSnackbar(submit.print ? 'Received and printed' : 'Received', { variant: 'success' });
+            setReceiveOpen(false);
+            onHandled?.();
+          } catch (err) {
+            enqueueSnackbar(err instanceof Error ? err.message : 'Could not receive that item.', {
+              variant: 'error',
+            });
+          }
+        }}
+      />
     </Stack>
   );
 }

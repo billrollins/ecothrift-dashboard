@@ -1,6 +1,6 @@
 """P3 identity coalescing: workspace list/detail, search tokens, denorm timing.
 
-Design: `.ai/reference/product_identity/session_5_questions.md` (Fable 5 corrected).
+Design: `.ai/extended/inventory-pipeline.md` (Item Processor workspace).
 """
 
 from decimal import Decimal

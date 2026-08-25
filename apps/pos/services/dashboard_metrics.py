@@ -12,7 +12,7 @@ from django.db.models import Count, Q, Sum
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 
-from apps.inventory.models import ItemHistory, PurchaseOrder, RestorationJob
+from apps.inventory.models import Item, ItemHistory, PurchaseOrder, RestorationJob
 from apps.pos.models import (
     Cart,
     CartLine,
@@ -262,7 +262,8 @@ def _processing_on_shelf_aggregate(
     def _shelf_value(row) -> Decimal:
         return _dec(row['item__price'] or row['item__retail'])
 
-    def _skip(row) -> bool:
+    def _skip_send_to_restoration(row) -> bool:
+        """Dispatch to Restoration is not processed. Credit lands on Overview check-in."""
         check_in_id = row['item__check_in_id']
         return bool(check_in_id and check_in_id in restoration_check_ins)
 
@@ -273,14 +274,35 @@ def _processing_on_shelf_aggregate(
     counted_items: set[int] = set()
     by_day: dict[date, Decimal] = defaultdict(lambda: Decimal('0'))
     for row in daily_rows:
-        if _skip(row):
+        if _skip_send_to_restoration(row):
             continue
         by_day[row['day']] += _shelf_value(row)
         if row['day'] >= total_start and row['item_id'] not in counted_items:
             counted_items.add(row['item_id'])
             range_total += _shelf_value(row)
 
+    for row in _processing_restoration_checkin_rows(start, end):
+        value = _dec(row['price'] or row['retail'])
+        by_day[row['day']] += value
+        if row['day'] >= total_start and row['id'] not in counted_items:
+            counted_items.add(row['id'])
+            range_total += value
+
     return range_total, dict(by_day)
+
+
+def _processing_restoration_checkin_rows(start: date, end: date) -> list[dict[str, Any]]:
+    """Items Processing took in from Restoration Overview (`processing_handled_at`)."""
+    start_dt, end_dt = _day_range(start, end)
+    return list(
+        Item.objects.filter(
+            parent_item__isnull=True,
+            check_in__restoration_job__processing_handled_at__gte=start_dt,
+            check_in__restoration_job__processing_handled_at__lt=end_dt,
+        )
+        .annotate(day=TruncDate('check_in__restoration_job__processing_handled_at'))
+        .values('id', 'day', 'price', 'retail')
+    )
 
 
 def _processing_on_shelf_value(start: date, end: date) -> Decimal:

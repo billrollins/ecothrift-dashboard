@@ -20,6 +20,8 @@ export type TarsPartStatus =
   | 'installed'
   | 'skipped';
 
+export type TarsPurchaseSection = 'parts' | 'supplies' | 'ffe';
+
 export interface TarsPartLine {
   id: string;
   partNumber: string;
@@ -30,6 +32,11 @@ export interface TarsPartLine {
   unitPriceActual: number;
   status: TarsPartStatus;
   procurementGroupId: string | null;
+  /**
+   * What kind of buy this line is. Missing / unknown reads as Parts so
+   * existing lists keep their cost math.
+   */
+  section?: TarsPurchaseSection;
   /**
    * The grades this part is needed for. A part usually buys one outcome, but
    * one screw can be on the way to several, so this is a list.
@@ -99,14 +106,34 @@ export const TARS_PENDING_REASON_LABELS: Record<TarsPendingReason, string> = {
   other: 'Other',
 };
 
+export interface TarsWaitFor {
+  time?: string;
+  space?: string;
+  help?: string;
+  other?: string;
+}
+
+export interface TarsWithOtherItems {
+  knowledge: 'known' | 'unknown';
+  waitUntil?: string;
+  waitingOnOrder?: string;
+  otherSkus?: string;
+}
+
 export interface TarsPendingInfo {
-  reason: TarsPendingReason;
+  /** Derived rail label, or a legacy reason code on older jobs. */
+  reason: string;
+  needsPurchased: TarsPurchaseSection[];
+  waitFor?: TarsWaitFor;
+  withOtherItems?: TarsWithOtherItems | null;
   notes: string;
   storageLocation: string;
   pendingStartedAt: string;
-  /** Set by the backend when a linked parts request is received. */
+  receivedSections?: TarsPurchaseSection[];
+  /** Legacy single flag. Prefer receivedSections. */
   partsReceived?: boolean;
   partsReceivedAt?: string;
+  legacyReason?: string;
 }
 
 export interface TarsWorkSession {
@@ -117,7 +144,7 @@ export interface TarsWorkSession {
   gradePlans: Record<string, TarsGradePlan>;
   benchRows: TarsWorkBenchRow[];
   /**
-   * The grade table's answers: where the item stands, and the odds, parts and
+   * The grade table's answers: where the item stands, and the parts and
    * minutes for each grade it could reach.
    *
    * Declared here rather than tacked onto the session as a loose key, because

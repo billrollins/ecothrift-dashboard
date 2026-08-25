@@ -30,6 +30,7 @@ import {
   parseDeskDaysUrlState,
 } from './daysUrlState';
 import { DeskDayDialog } from './DeskDayDialog';
+import { deliveryDayPath } from '../deliveryPaths';
 
 function formatWindow(start: string | null, end: string | null) {
   if (!start || !end) return '-';
@@ -124,12 +125,12 @@ export default function DeskDaysPage() {
               key={day.id}
               hover
               sx={{ cursor: 'pointer' }}
-              onClick={() => navigate(`/pos/deliveries/desk/days/${day.id}`)}
+              onClick={() => navigate(deliveryDayPath('desk', day.id))}
             >
               <TableCell>
                 <Typography
                   component={RouterLink}
-                  to={`/pos/deliveries/desk/days/${day.id}`}
+                  to={deliveryDayPath('desk', day.id)}
                   onClick={(e) => e.stopPropagation()}
                   sx={{ fontWeight: 700, textDecoration: 'none', color: ecoField.ink }}
                 >
@@ -182,7 +183,7 @@ export default function DeskDaysPage() {
         open={newDayOpen}
         onClose={() => setNewDayOpen(false)}
         onSaved={(dayId) => {
-          if (dayId) navigate(`/pos/deliveries/desk/days/${dayId}`);
+          if (dayId) navigate(deliveryDayPath('desk', dayId));
         }}
       />
     </Box>

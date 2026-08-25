@@ -54,6 +54,22 @@ class RestorationQueueDetailsTests(RestorationQueueTestBase):
         self.job.refresh_from_db()
         self.assertEqual(self.job.intended_destination, '')
 
+    def test_switching_scale_keeps_the_old_prices(self):
+        self._patch({'scale': 'Functional', 'grade_values': {**FUNCTIONAL_GRADES}})
+        switched = self._patch({'scale': 'Completeness'})
+        self.assertEqual(switched.status_code, 200, switched.data)
+        self.assertEqual(switched.data['scale'], 'Completeness')
+        self.assertEqual(switched.data['grade_values']['Working'], FUNCTIONAL_GRADES['Working'])
+        self.assertEqual(switched.data['grade_values']['Repairable'], FUNCTIONAL_GRADES['Repairable'])
+        self.assertEqual(switched.data['grade_values']['Parts-only'], FUNCTIONAL_GRADES['Parts-only'])
+        self.assertTrue(switched.data['needs_setup'])
+
+        back = self._patch({'scale': 'Functional'})
+        self.assertEqual(back.status_code, 200, back.data)
+        self.assertEqual(back.data['scale'], 'Functional')
+        self.assertEqual(back.data['grade_values']['Working'], FUNCTIONAL_GRADES['Working'])
+        self.assertFalse(back.data['needs_setup'])
+
     def test_fills_in_grade_values(self):
         resp = self._patch({'grade_values': {**FUNCTIONAL_GRADES, 'Working': 25.0}})
         self.assertEqual(resp.status_code, 200, resp.data)
@@ -81,8 +97,17 @@ class RestorationQueueDetailsTests(RestorationQueueTestBase):
         self.job.save(update_fields=['stage'])
         self.assertEqual(self._patch({'intended_destination': 'staff_pick'}).status_code, 200)
 
-    def test_closed_once_the_item_is_finished(self):
+    def test_note_still_works_once_the_item_is_finished(self):
         self.job.stage = RestorationJob.STAGE_DONE
+        self.job.save(update_fields=['stage'])
+        resp = self._patch({'queue_note': 'for Processing'})
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.job.refresh_from_db()
+        self.assertEqual(self.job.queue_note, 'for Processing')
+        self.assertEqual(self._patch({'intended_destination': 'shelf'}).status_code, 400)
+
+    def test_closed_once_processing_has_taken_it(self):
+        self.job.stage = RestorationJob.STAGE_RETURNED
         self.job.save(update_fields=['stage'])
         self.assertEqual(self._patch({'queue_note': 'too late'}).status_code, 400)
 
@@ -97,3 +122,11 @@ class RestorationQueueDetailsTests(RestorationQueueTestBase):
         self.assertFalse(
             self.job.timeline_events.filter(event_type='valuation.values_changed').exists(),
         )
+
+    def test_changing_the_note_is_written_to_the_timeline(self):
+        self._patch({'queue_note': 'check the cable'})
+        event = self.job.timeline_events.get(event_type='note.queue_changed')
+        self.assertEqual(event.payload['previous'], '')
+        self.assertEqual(event.payload['next'], 'check the cable')
+        self._patch({'queue_note': 'check the cable'})
+        self.assertEqual(self.job.timeline_events.filter(event_type='note.queue_changed').count(), 1)

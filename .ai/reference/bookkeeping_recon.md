@@ -140,7 +140,7 @@ Tax is not a separate field. There is no “paid to bank” amount distinct from
 ### What retag did
 
 - Created **new** DB3 Items with notes `RETAGGED_FROM_DB2:{old_sku}`.
-- Scaffolding (`TempLegacyItem`, `RetagLog`, retag APIs) was **removed** after cutover (see `.ai/extended/retag-operations.md`, migration cleanup).
+- Scaffolding (`TempLegacyItem`, `RetagLog`, retag APIs) was **removed** after cutover (see git history / inventory migrations).
 - **Counts (create window 2026-03-30 → 2026-04-02):** 8,187 items; **all 8,187 have `cost IS NULL` and no PO**; they do have `price` and `retail`.
 - Old SKUs were largely moved to **`scrapped`** (still carry their old `cost`).
 

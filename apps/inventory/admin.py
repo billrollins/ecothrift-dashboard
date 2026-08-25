@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (
     Vendor, Category, PurchaseOrder, CSVTemplate, ManifestRow,
     Product, VendorProductRef, BatchGroup, Item, ProcessingBatch,
-    ItemHistory, ItemScanHistory,
+    ItemHistory, ItemNote, ItemScanHistory,
 )
 
 
@@ -85,6 +85,14 @@ class ItemHistoryAdmin(admin.ModelAdmin):
     list_display = ('item', 'event_type', 'created_by', 'created_at')
     list_filter = ('event_type',)
     search_fields = ('item__sku', 'note')
+
+
+@admin.register(ItemNote)
+class ItemNoteAdmin(admin.ModelAdmin):
+    list_display = ('item', 'surface', 'status', 'author', 'occurred_at')
+    list_filter = ('surface', 'status')
+    search_fields = ('item__sku', 'body')
+    readonly_fields = ('created_at',)
 
 
 @admin.register(ItemScanHistory)

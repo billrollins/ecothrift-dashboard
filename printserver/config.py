@@ -322,7 +322,7 @@ CHANGELOG = """\
 ## [1.2.0] — 2026-03-25
 
 ### Changed
-- **Label design:** "Concept C: Side Stripe" per consultant spec (see `.ai/reference/Consult Label/`): landscape image built directly (no rotation); left ~33% black column with white `$` / dollars / cents / separator / SKU; right area title (bold then regular lines), centered QR (`ERROR_CORRECT_H`, NEAREST resize), logo at bottom; 1px border; only black/white gray values (0/255)
+- **Label design:** "Concept C: Side Stripe" (see `.ai/extended/print-server.md`): landscape image built directly (no rotation); left ~33% black column with white `$` / dollars / cents / separator / SKU; right area title (bold then regular lines), centered QR (`ERROR_CORRECT_H`, NEAREST resize), logo at bottom; 1px border; only black/white gray values (0/255)
 - **Code128** linear barcode removed from labels (QR + SKU in stripe only)
 - Layout scales from reference 305×203px to both `3x2` and `1.5x1` presets at 203 DPI
 

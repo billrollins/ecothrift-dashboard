@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import type { RestorationActionDTO } from '../../../types/inventory.types';
 import {
   ACTION_CATEGORIES,
@@ -6,8 +6,13 @@ import {
   actionsForScope,
   actionsNewestFirst,
   blockingAction,
+  categoryChangeStartsNewSitting,
   categoryMeta,
+  claimCannedActionEnter,
+  fileCurrentActionPlan,
   formatDuration,
+  isCannedActionDescription,
+  resetClaimedCannedActionEnters,
   scopesWorked,
 } from './tarsActions';
 
@@ -42,8 +47,8 @@ describe('the vocabulary of work', () => {
     expect(ACTION_CATEGORIES.map((c) => c.label)).toEqual([
       'Inspect',
       'Test',
-      'Repair',
       'Assemble',
+      'Repair',
       'Salvage',
     ]);
   });
@@ -136,5 +141,64 @@ describe('blockingAction', () => {
 
   it('does not block on an action that is not in the list', () => {
     expect(blockingAction([action({ id: 1 })], 999)).toBeNull();
+  });
+});
+
+describe('categoryChangeStartsNewSitting', () => {
+  it('starts a new sitting when the current one already has words', () => {
+    expect(categoryChangeStartsNewSitting({ is_described: true, category: 'inspect' }, 'test')).toBe(true);
+  });
+
+  it('relabels an undescribed sitting instead of opening a blank row', () => {
+    expect(categoryChangeStartsNewSitting({ is_described: false, category: 'inspect' }, 'test')).toBe(false);
+  });
+
+  it('does nothing when the type did not change', () => {
+    expect(categoryChangeStartsNewSitting({ is_described: true, category: 'test' }, 'test')).toBe(false);
+  });
+});
+
+describe('fileCurrentActionPlan', () => {
+  it('files a new description and starts the next sitting', () => {
+    expect(fileCurrentActionPlan({ description: 'Resume item from hold' }, 'Checked the wheels.')).toEqual({
+      describe: 'Checked the wheels.',
+      startNext: true,
+      blockedReason: null,
+    });
+  });
+
+  it('starts the next sitting when the words were already saved', () => {
+    expect(fileCurrentActionPlan({ description: 'Checked the wheels.' }, 'Checked the wheels.')).toEqual({
+      describe: null,
+      startNext: true,
+      blockedReason: null,
+    });
+  });
+
+  it('will not move on from an empty description', () => {
+    expect(fileCurrentActionPlan({ description: '' }, '   ')).toEqual({
+      describe: null,
+      startNext: false,
+      blockedReason: 'Say what you did before starting something else.',
+    });
+  });
+});
+
+describe('canned bench actions', () => {
+  beforeEach(() => {
+    resetClaimedCannedActionEnters();
+  });
+
+  it('recognizes the two sittings the bench files for you', () => {
+    expect(isCannedActionDescription('Initial item inspection')).toBe(true);
+    expect(isCannedActionDescription('Resume item from hold')).toBe(true);
+    expect(isCannedActionDescription('Checked the wheels.')).toBe(false);
+  });
+
+  it('claims a canned sitting once', () => {
+    expect(claimCannedActionEnter(9, 'Initial item inspection')).toBe(true);
+    expect(claimCannedActionEnter(9, 'Initial item inspection')).toBe(false);
+    expect(claimCannedActionEnter(10, 'Resume item from hold')).toBe(true);
+    expect(claimCannedActionEnter(11, 'Checked the wheels.')).toBe(false);
   });
 });

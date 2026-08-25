@@ -4,7 +4,7 @@
 
 # Initiative: TARS Decision Guardrails / Worksheet / Guidance App
 
-**Status:** **Superseded — closed to new work.** All remaining TARS scope now lives in the active initiative [`finalize_tars_app`](../../finalize_tars_app.md). Do not resume this file; read it for history and for the process canon / guardrail reasoning only. Phase 0–1 + standalone Studio shipped.
+**Status:** **Superseded — closed to new work.** All remaining TARS scope now lives in the active initiative [`finalize_tars_app`](../_completed/finalize_tars_app.md). Do not resume this file; read it for history and for the process canon / guardrail reasoning only. Phase 0–1 + standalone Studio shipped.
 
 **Purpose:** Establish the full TARS operating process and encode it as an integrated **guardrail / worksheet / reusable decision system** so Processing and Restoration staff save consistent work, tests, evaluations, rules of thumb, and decisions—not a separate library of formal documents.
 
@@ -12,7 +12,7 @@
 
 **Related (do not conflate):** [`tars_restoration_workspace`](./tars_restoration_workspace.md) owns the transactional queue/bench product. This initiative owns the **process, guidance, content operations, and improvement system** layered onto that product. See [Boundary with the parked workspace](#boundary-with-the-parked-workspace).
 
-**Reference material:** [`.ai/reference/TARS Restoration Processing App/`](../../../reference/TARS%20Restoration%20Processing%20App/). The prototype is a source of product intent, not the contract for the current UI.
+**Reference material:** [`.ai/reference/tars/`](../../../reference/tars/). The prototype HTML was removed 2026-08-13; recover from git history if needed.
 
 ---
 
@@ -281,13 +281,13 @@ The initiative has **four large phases**. A phase may span multiple implementati
 
 **Phase planning decides:** participants and observation method; process-map format; exact role boundaries; selected Mike/Ashley journey; inside-bench vs adjacent entry point; discovery artifacts; which decisions must be owner-approved.
 
-**Phase 0 result:** Approved [`process canon`](../../../reference/TARS%20Restoration%20Processing%20App/phase_0_process_canon.md) + [`discovery workbook`](../../../reference/TARS%20Restoration%20Processing%20App/phase_0_discovery_workbook.md). Selected Phase 1: **Ashley handoff → Mike assessment/tests/evidence → saved grade direction + next TARS action/reason**.
+**Phase 0 result:** Approved [`process canon`](../../../reference/tars/phase_0_process_canon.md). Discovery workbook removed 2026-08-13.
 
 ### Phase 1 — Structured decision-work MVP
 
 **Goal:** Deliver and validate the smallest complete in-app worksheet/guardrail experience for one linked Ashley-to-Mike TARS journey with saved, comparable evidence and materially more consistent decisions.
 
-**Result (2026-07-10):** **Complete.** The versioned Processing handoff, integrated Guided decision workbench, authoritative contribution-per-labor-minute engine, ordinary override rules, mandatory stop-outs, completion integration, and backward-compatible tests are implemented. Bill accepted the functioning MVP based on automated representative-item coverage; Ashley/Mike live use feeds continuous improvement rather than blocking functionality. See [`phase_1_pilot_record.md`](../../../reference/TARS%20Restoration%20Processing%20App/phase_1_pilot_record.md).
+**Result (2026-07-10):** **Complete.** The versioned Processing handoff, integrated Guided decision workbench, authoritative contribution-per-labor-minute engine, ordinary override rules, mandatory stop-outs, completion integration, and backward-compatible tests are implemented. Bill accepted the functioning MVP based on automated representative-item coverage; Ashley/Mike live use feeds continuous improvement rather than blocking functionality. See [`phase_1_pilot_record.md`](../../../reference/tars/phase_1_pilot_record.md).
 
 **Outcomes:**
 
@@ -480,7 +480,7 @@ Phase 0 selects a small baseline set; Phase 3 formalizes targets and review. Not
 
 - Live routes: `/restoration/tars`, `/restoration/parts-requests`, `/inventory/restorations` (legacy `/inventory/restoration-returns` redirects to FROM)
 - Bench: [`frontend/src/pages/restoration/tars/TarsWorkstation.tsx`](../../../../frontend/src/pages/restoration/tars/TarsWorkstation.tsx)
-- Unified action log: [`frontend/src/pages/restoration/tars/TarsWorkBenchTable.tsx`](../../../../frontend/src/pages/restoration/tars/TarsWorkBenchTable.tsx)
+- Grade table: [`frontend/src/pages/restoration/tars/TarsGradeTable.tsx`](../../../../frontend/src/pages/restoration/tars/TarsGradeTable.tsx)
 - Holds/escalation types: [`frontend/src/pages/restoration/tars/tarsWorkTypes.ts`](../../../../frontend/src/pages/restoration/tars/tarsWorkTypes.ts)
 - TARS Studio Inbox (replaces Processing-facing Queue nav): [`frontend/src/pages/restoration/tars/studio/`](../../../../frontend/src/pages/restoration/tars/studio/)
 - Parts requests: [`frontend/src/pages/restoration/TarsPartsRequestsPage.tsx`](../../../../frontend/src/pages/restoration/TarsPartsRequestsPage.tsx)
@@ -495,157 +495,7 @@ Phase 0 selects a small baseline set; Phase 3 formalizes targets and review. Not
 ## See also
 
 - Parked transactional initiative: [`tars_restoration_workspace`](./tars_restoration_workspace.md)
-- Reference prototype: [`.ai/reference/TARS Restoration Processing App/`](../../../reference/TARS%20Restoration%20Processing%20App/)
+- Process canon: [`.ai/reference/tars/`](../../../reference/tars/)
 - Frontend context: [`.ai/extended/frontend.md`](../../../extended/frontend.md)
 - Backend context: [`.ai/extended/backend.md`](../../../extended/backend.md)
 - Active initiatives index: [`.ai/initiatives/_index.md`](../../_index.md)
-
----
-
-## Sessions
-
-### Session 6 — 2026-07-13
-
-**Goal:** Replace the rejected nested cockpit/navigation with a professional standalone TARS work app that uses the full page.
-
-**Finish line:** Full-screen new-tab Studio, one technician-owned Bench item, Item State + focused actions + durable Restoration log, and reliable prominent labor behavior.
-
-**Scope:** Standalone route/shell and deep links; explicit bench ownership; attributed timeline with revision/void; rebuilt Bench information architecture; timer controller; lifecycle event integration; focused verification and reference contract.
-
-**Result:**
-
-- `/restoration/tars` moved outside dashboard chrome and opens in a new tab with safe Back behavior.
-- Inbox and Pending are full-width lists; Bench is one explicit technician-owned job enforced by row locks and a conditional database constraint.
-- Item State, focused action launcher, Restoration log, and final-disposition review replace the persistent tool shelf / secondary work accordion hierarchy.
-- `RestorationTimelineEvent` records valuations, assessments, tests, estimates, plans, parts, performed work, timers, holds, returns, and disposition with actor/time/entity/correlation, superseding revisions, and reasoned voids.
-- Labor auto-starts on meaningful state changes; break/clock-out synchronization and a tested five-minute Yes/No idle correction use a persisted server baseline.
-- Contract and smoke path: [`standalone_studio_contract.md`](../../../reference/TARS%20Restoration%20Processing%20App/standalone_studio_contract.md).
-- Automated focused backend lifecycle/timeline tests and frontend fake-timer/route tests pass. Owner/Mike live-use grade remains the Phase 1.5 exit gate.
-
-### Session 5 — 2026-07-13
-
-**Goal:** Phase 1.5 — define and iteratively build a fast, scan-first replacement for the Guided decision wizard while keeping the surrounding TARS Studio shell.
-
-**Finish line:** Item Cockpit live on `/restoration/tars` with valuation request loop; Bill grades UX (iterate toward A+).
-
-**Scope:** Item Cockpit MVP (UI + valuation request API + baked packs + soft stop-outs); Restorations TO badge; no Phase 2 pack editor.
-
-**Out of scope:** Owner test-pack CRUD; immutable estimate-history table; commit/deploy unless requested.
-
-**Est:** ~1–2h framing + feedback. **Start:** 2026-07-13T14:31:00-05:00
-
-**Session updates:**
-
-- 2026-07-13T14:31:00-05:00 — Opened Phase 1.5 ideation. Owner signal: hate TARS tabs. Scope clarified: **Guided decision steps only** (Studio shell as-is). Rewrote `workspace/tars_wizard_ux_variations.md` to five step/substep variants. Awaiting Bill direction.
-- 2026-07-13T14:42:00-05:00 — Owner direction: optimize for Mike scanning and rapidly triaging ~10 items; no dedicated Stops UI; missing valuations need a bright request-back-to-Processing loop; baked and owner-creatable test packs; current/possible grades with time/parts/labor estimates; strict separation of estimates, committed decisions, and performed actions; all revisions attributed and timestamped. Replaced the five variants with one detailed **TARS Item Cockpit** concept for review.
-- 2026-07-13T14:51:00-05:00 — Implemented Item Cockpit MVP: relaxed check-in for incomplete grades; valuation request API + Restorations TO badge/list; baked Basic Electronics + universal packs; soft stop-outs; `TarsItemCockpit` replaces 6-step wizard; Done still requires complete grades + committed decision. Owner pack editor deferred to Phase 2.
-- 2026-07-13T15:26:00-05:00 — Owner rejected the all-at-once cockpit as busy, low-contrast, and nebulous: tools should be organized on a shelf, taken down only when needed, then put back. Rebuilt the cockpit as a dark high-contrast **tool shelf** with five color-coded tools and one focused workspace. Tests and options each use compact selection shelves plus one active detail surface. Separated observed **current grade** from the chosen target grade in the decision contract and made current grade required before commit/completion.
-
-### Session 4 — 2026-07-13
-
-**Goal:** Ship Processing **Restorations** hub (TO setup + FROM desk); record owner UX verdict and next priority.
-
-**Finish line:** Restorations replaces Restoration Returns / inline grade blocking; docs/changelog release; initiative points next work at TARS Wizard UX A+.
-
-**Scope:** `/inventory/restorations` TO/FROM; softened Processing restoration dispatch + navigate; returns API untouched + desk badges; nav cleanup; initiative + review bump.
-
-**Out of scope:** TARS Wizard visual redesign (deferred to Phase 1.5 planning); Phase 2 catalogs; deploy push unless separately requested.
-
-**Session updates:**
-
-- 2026-07-13 — Restorations Processing Hub implemented per plan: TO grade/handoff setup, FROM Worked/Untouched list + decision panel, legacy returns redirect, Queue nav removed.
-- 2026-07-13 — **Owner feedback:** Restorations hub overall pretty good; **TARS Decision Wizard UX graded D/F** (“so many things I hate”). Next: take wizard to **A+** before Phase 2 managed catalogs.
-
-**Result:**
-
-- Restorations hub shipped and released under this initiative’s changelog slice.
-- Phase table adds **1.5 — Decision Wizard UX A+** as the active next gate; Phase 2 remains blocked pending that pass (unless reordered).
-
----
-
-### Session 3 — 2026-07-10
-
-**Goal:** Implement Phase 1 — the structured Ashley-to-Mike decision-work MVP inside the live TARS web app.
-
-**Finish line:** Ashley can save a minimal comparable Processing handoff; Mike can complete an autosaved guided evaluation, receive an economic recommendation, save grade/action/reason, and use the existing hold/parts/completion lifecycle with validated exceptions and stop-outs.
-
-**Scope:** Versioned handoff and `decisionWork` contracts; universal code-defined guardrails/tests; authoritative economics; integrated TARS workbench; completion/override gates; backward compatibility; automated verification; representative pilot and Phase 2 handoff.
-
-**Out of scope:** Database-managed templates/editor, broad category catalogs, generic SOP library, new transactional lifecycle, broad analytics/dashboard repair, automatic backlog multipliers, release/deploy/commit.
-
-**Est:** Multi-session implementation + representative automated pilot. **Start:** 2026-07-10T15:18:00-05:00
-
-**Session updates:**
-
-- 2026-07-10T15:18:00-05:00 — Phase 1 implementation opened from the approved plan. Locked choices: existing `work_session` JSON for versioned item decisions, read-only Processing snapshot handoff, integrated TARS center workbench, universal + custom tests, core gates with reasoned ordinary override, non-economic mandatory stop-outs, $19.80 effective labor rate, minimum handling minutes, and neutral backlog scoring.
-- 2026-07-10T15:47:00-05:00 Checkpoint — Phase 1 implementation and automated readiness completed: Ashley handoff, Mike Guided decision workbench, server-authoritative economics, selected-grade synchronization, completion/ordinary-override/mandatory-stop rules, legacy compatibility, and pilot evidence. Verification passed 127 backend restoration/processing tests, 256 frontend tests, production build, compile/type/migration/diff checks.
-- 2026-07-10T15:50:00-05:00 — Bill accepted the functioning MVP and removed staff feedback as a functionality gate. Ashley/Mike live usage will evolve the system through the continuous-improvement components; it does not block Phase 1 closeout or Phase 2 planning.
-
-**Result:**
-
-- Phase 1 complete: versioned Processing handoff and in-workstation Guided decision MVP are functioning and backward compatible.
-- Server-authoritative economics, ordinary overrides, and mandatory stop-outs are enforced at persistence/completion boundaries.
-- Automated representative-item pilot and regression verification passed; the initial Phase 2 backlog is recorded.
-- Real staff use now enters the continuous-improvement loop rather than creating a pre-use acceptance wait state.
-
----
-
-### Session 2 — 2026-07-10
-
-**Goal:** Complete Phase 0 — validate the live TARS process, establish the approved process canon and ownership model, then select one focused Phase 1 structured decision-work MVP.
-
-**Finish line:** Owner + Restoration lead approve the cross-role process canon; representative floor observations are recorded; every critical step has an owner/escalation path; one Phase 1 user/journey has acceptance criteria and pilot measures.
-
-**Scope:** Code/data evidence pack; owner walkthrough; Processing and Restoration observation; as-is/as-intended maps; vocabulary; authority/gate matrix; gap register; minimal operational baseline; Phase 1 MVP selection and handoff.
-
-**Out of scope:** Product implementation, migrations, transactional TARS fixes, guardrail/schema implementation, reactivating the parked initiative, production writes, release/version work.
-
-**Est:** Multi-session discovery. **Start:** 2026-07-10T14:21:00-05:00
-
-**Session updates:**
-
-- 2026-07-10T14:21:00-05:00 — Phase 0 opened. Confirmed discovery method: owner walkthrough + representative staff observation; canon approval: Owner + Restoration lead jointly.
-- 2026-07-10T14:35:00-05:00 — Owner direction: Bill Rollins (Owner/CEO, superuser, builder) and Mike (Lead Restoration; current Restoration performer) jointly own the TARS process; Ashley leads Processing. Product center is an **in-dashboard guardrail/worksheet/template and saved decision system** (tests, scales, rules, evaluation/salvage logic, steps), not a formal SOP/document library. Bill orders parts and initially maintains the guardrail structure.
-
-**Result:**
-
-- Approved the Phase 0 process canon and role model: Bill owns product/guardrail structure and parts ordering; Mike owns Restoration execution; Ashley owns Processing practice; Bill + Mike jointly approve TARS policy.
-- Approved direct queued → bench flow; Mike-submit/Bill-order/Mike-receive parts authority; Processing-initial values with Mike/Ashley corrections; return-to-Processing-with-reason for bench misroutes; and rework as any completed/returned re-entry.
-- Approved the universal evaluation sequence and throughput/margin-first decision model: explicit tested/untested/as-is/broken/salvage states; test only when results can change the decision; primary score is expected contribution margin per labor minute, adjusted for workload; mandatory legal/handling/truthful-disclosure stop-outs remain.
-- Read-only production baseline (28 days): 4 total jobs (2 done, 2 returned, 0 active), 2 recent `benchRows`, 0 legacy `actions`; volume is too small for throughput/rate targets and confirms current verb metrics are invalid.
-- Selected Phase 1: Ashley handoff → Mike assessment/tests/evidence → saved grade direction and next TARS action/reason. First worksheet priority: tests/results, condition evidence, and unknowns. Weekly Bill + Mike guardrail review; Ashley feedback enters post-acceptance continuous improvement under Bill's Phase 1 closeout decision.
-- Artifacts: [`phase_0_process_canon.md`](../../../reference/TARS%20Restoration%20Processing%20App/phase_0_process_canon.md), [`phase_0_discovery_workbook.md`](../../../reference/TARS%20Restoration%20Processing%20App/phase_0_discovery_workbook.md).
-
----
-
-### Session 1 — 2026-07-10
-
-**Goal:** Finish the initiative definition so it covers the full problem and major work while leaving detailed solutioning to each phase plan.
-
-**Finish line:** A comprehensive, brownfield-aware initiative with a small number of large phases, a goal and exit criteria for each phase, explicit boundaries, deferred decision ownership, risks, measures, and initiative acceptance.
-
-**Scope:** Initiative planning/documentation only; review the shipped TARS baseline and parked initiative, then replace the placeholder outline.
-
-**Out of scope:** Product implementation, schema/UI selection, reactivating the parked initiative, release/version work, commit or deploy.
-
-**Est:** ~1h. **Start:** 2026-07-10T13:48:00-05:00
-
-**Result:**
-
-- Reframed the effort as a brownfield process/guidance layer over the live TARS workflow.
-- Replaced six small placeholder phases with four large, goal-led phases: **canon/direction**, **guided MVP**, **managed system/rollout**, and **continuous improvement/maturity**.
-- Added a phase-planning rule so implementation choices are made with current evidence at the start of each phase.
-- Added scope, principles, users, process spine, capability areas, baseline, boundary, decisions, measures, risks, dependencies, acceptance, and technical anchors.
-- Initiative definition is complete; **Phase 0 planning is next**.
-
----
-
-### Session 0 — 2026-07-10
-
-**Goal:** Open the initiative; capture intent with solutions unresolved.
-
-**Updates:**
-
-- Created this file; listed on active index.
-- Framed four pillars: **process design**, **guidance app**, **execute/update**, **continuous improvement** (feedback + systematic method).
-- Explicitly left UX, data model, ownership, and relationship to parked TARS workspace **open**.

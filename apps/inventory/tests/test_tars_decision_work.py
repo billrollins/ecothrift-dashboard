@@ -303,9 +303,9 @@ class TarsDecisionWorkApiTests(RestorationQueueTestBase):
         self.assertNotIn('queuePressure', economics)
         candidate = economics['candidates'][0]
         self.assertEqual(candidate['processorValue'], 19.99)
-        self.assertEqual(candidate['partsAndOrdersCost'], 8.0)
+        self.assertEqual(candidate['partsAndOrdersCost'], 6.0)
         self.assertEqual(candidate['laborCost'], 19.8)
-        self.assertEqual(candidate['contribution'], -7.81)
+        self.assertEqual(candidate['contribution'], -5.81)
 
     def test_rejects_version_catalog_unknown_catalog_test_and_caps(self):
         job = self._sent_job()
@@ -359,24 +359,44 @@ class TarsDecisionWorkApiTests(RestorationQueueTestBase):
             '',
         )
 
-    def test_override_cannot_replace_required_selection(self):
+    def test_empty_decision_work_does_not_block_finish(self):
+        """The cockpit is gone. An empty stub must not 400 Finish."""
+        from apps.inventory.models import RestorationAction
+        from apps.inventory.services.restoration_actions import describe_action, start_action
+
         job = self._sent_job()
         self.client.post(f'/api/inventory/restoration-jobs/{job.id}/check-in/')
-        missing_selection = decision_work_payload(
-            complete=False,
-            override_reason='Recover a legacy item.',
+        job.refresh_from_db()
+        # Check-in opens the first action. Two more make three logged rows.
+        job, second = start_action(
+            job, self.user, force_new=True, category='assemble', description='put together',
         )
-        saved = self._save_decision(job, missing_selection)
+        describe_action(job, second.pk, description='put together')
+        job.refresh_from_db()
+        job, _third = start_action(
+            job, self.user, force_new=True, category='inspect', description='final look',
+        )
+        self.assertEqual(RestorationAction.objects.filter(job=job).count(), 3)
+
+        empty = decision_work_payload(complete=False)
+        saved = self._save_decision(job, empty)
         self.assertEqual(saved.status_code, 200, saved.data)
-        rejected = self.client.post(
+
+        done = self.client.post(
             f'/api/inventory/restoration-jobs/{job.id}/done/',
-            {'destination': 'processing', 'final_grade': 'Working'},
+            {
+                'destination': 'processing',
+                'final_grade': 'Working',
+                'starting_grade': 'Parts-only',
+            },
             format='json',
         )
-        self.assertEqual(rejected.status_code, 400, rejected.data)
-        self.assertIn('required phase 1 decision fields', rejected.data['detail'].lower())
+        self.assertEqual(done.status_code, 200, done.data)
+        self.assertEqual(done.data['stage'], 'done')
+        self.assertEqual(done.data['bench_disposition'], 'processing')
+        self.assertEqual(done.data['final_grade'], 'Working')
 
-    def test_completion_gate_override_and_mandatory_stop_out(self):
+    def test_decision_work_override_stamps_identity_and_finish_still_works(self):
         job = self._sent_job()
         self.client.post(f'/api/inventory/restoration-jobs/{job.id}/check-in/')
 
@@ -390,15 +410,6 @@ class TarsDecisionWorkApiTests(RestorationQueueTestBase):
             'evidence': '',
         }
         incomplete['tests'][0]['result'] = None
-        saved = self._save_decision(job, incomplete)
-        self.assertEqual(saved.status_code, 200, saved.data)
-        rejected = self.client.post(
-            f'/api/inventory/restoration-jobs/{job.id}/done/',
-            {'destination': 'processing', 'final_grade': 'Working'},
-            format='json',
-        )
-        self.assertEqual(rejected.status_code, 400, rejected.data)
-
         incomplete['selection']['overrideReason'] = 'Recovering a legacy in-progress job.'
         saved = self._save_decision(job, incomplete)
         self.assertEqual(saved.status_code, 200, saved.data)
@@ -413,37 +424,6 @@ class TarsDecisionWorkApiTests(RestorationQueueTestBase):
         self.assertTrue(
             completed.data['work_session']['decisionWork']['timestamps']['completedAt'],
         )
-
-        blocked_job = self._sent_job()
-        self.client.post(f'/api/inventory/restoration-jobs/{blocked_job.id}/check-in/')
-        blocked = decision_work_payload(stop_response='blocked', override_reason='Ignore margin gate.')
-        saved = self._save_decision(blocked_job, blocked)
-        self.assertEqual(saved.status_code, 200, saved.data)
-        candidate = saved.data['work_session']['decisionWork']['economics']['candidates'][0]
-        self.assertTrue(candidate['blocked'])
-        rejected = self.client.post(
-            f'/api/inventory/restoration-jobs/{blocked_job.id}/done/',
-            {'destination': 'online_sales', 'final_grade': 'Working'},
-            format='json',
-        )
-        self.assertEqual(rejected.status_code, 400, rejected.data)
-        self.assertIn('mandatory stop-out', rejected.data['detail'].lower())
-
-        salvage = decision_work_payload(
-            grade='Parts-only',
-            sale_state='salvage',
-            action='salvage',
-            stop_response='blocked',
-        )
-        saved = self._save_decision(blocked_job, salvage)
-        self.assertEqual(saved.status_code, 200, saved.data)
-        completed = self.client.post(
-            f'/api/inventory/restoration-jobs/{blocked_job.id}/done/',
-            {'destination': 'salvage', 'final_grade': 'Parts-only'},
-            format='json',
-        )
-        self.assertEqual(completed.status_code, 200, completed.data)
-        self.assertEqual(completed.data['bench_disposition'], 'salvage')
 
     def test_decision_work_survives_hold_and_parts_session_updates(self):
         job = self._sent_job()

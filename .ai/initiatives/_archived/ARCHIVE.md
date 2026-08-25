@@ -1,49 +1,9 @@
-<!-- Last updated: 2026-08-11 (both TARS initiatives marked superseded by active finalize_tars_app) -->
+<!-- Last updated: 2026-08-25 (finalize_tars_app + enhancement_requests completed) -->
 
-<!-- NOTE: `_pending/tars_restoration_workspace.md` and `_pending/tars_full_instruction_wizard_guidance.md` are SUPERSEDED and closed to new work. All TARS scope lives in the active initiative `.ai/initiatives/finalize_tars_app.md`. Keep both files for history and process-canon reference. -->
+<!-- NOTE: `_pending/tars_restoration_workspace.md` and `_pending/tars_full_instruction_wizard_guidance.md` are SUPERSEDED. TARS scope is `_completed/finalize_tars_app.md`. -->
 # Archive index — initiatives
 
-**Note:** Archived session logs may mention **`.ai/consultant_context.md`**, **`.ai/plans/`**, or **`.ai/debug/`** — those paths are **retired** (2026-05). Use **`.ai/context.md`**, initiatives as the plan, and repo root **`.version`** / **`CHANGELOG.md`**.
-
-## What this is
-
-This folder, **`.ai/initiatives/_archived/`**, holds initiative markdown files that are **no longer tracked** on the [main initiatives index](../_index.md): work that is **done**, **parked**, **paused off the main list**, or **abandoned**. Files are grouped into subfolders by **disposition** so you can find them later without mixing “completed” with “we might never do this.”
-
-**`ARCHIVE.md`** (this file) is the **table of contents** for all archived files and the **procedure** for archiving and maintaining the archive.
-
-### Initiative lifecycle protocols (`_protocols/`)
-
-Step-by-step protocols (which files to edit, `git mv`, `session.9.Close.md`) live in **[`_protocols/README.md`](./_protocols/README.md)** — **`activate_initiative`**, **`move_initiative_to_pending`**, **`move_initiative_to_backlog`**, **`move_initiative_to_completed`**, **`move_initiative_to_abandoned`**. Use those when the user drops a protocol into chat with an initiative name.
-
----
-
-## How to archive
-
-**Human gate:** An initiative is moved here only when the **user explicitly** approves archiving (or gives a direct instruction). Assistants should **ask** before `git mv` to `_archived/`; do not archive silently.
-
-### 1. Choose a disposition
-
-| Bucket | Use when |
-|--------|----------|
-| **`_completed/`** | The initiative’s stated scope was **delivered** (~100%). Note in the file or in `CHANGELOG` `[Unreleased]` / release notes when code shipped. |
-| **`_pending/`** | Work is **paused** and you are **removing it from the main index** (not the same as **on hold** at the initiatives root—see below). Record what would resume it. |
-| **`_backlog/`** | **Future** work that is **not started**, or intentionally **parked** here instead of cluttering the main backlog table. |
-| **`_abandoned/`** | You **will not** pursue (or will not finish); keep the file for archaeology. One-line **why** in the TOC below. |
-
-**On hold (root) vs `_archived/_pending/`:** **On hold** initiatives stay as **files in `.ai/initiatives/`** with a row in the main index. Move to **`_archived/_pending/`** only when you want the initiative **off the main index** but not deleted.
-
-### 2. Mechanics
-
-1. `git mv .ai/initiatives/<file>.md .ai/initiatives/_archived/_<bucket>/<file>.md`
-2. At the top of the moved file, ensure an archive marker exists, e.g.  
-   `<!-- Archived YYYY-MM-DD: disposition=completed ... -->`
-3. Update **[`.ai/initiatives/_index.md`](../_index.md)** — remove the initiative from Active / On hold / Backlog.
-4. Update **this file** (`ARCHIVE.md`) — add a row to the matching TOC section below.
-5. Prefer **one pass** that moves the file and updates **both** the main **`_index.md`** and **`ARCHIVE.md`**.
-
-### 3. How to update **ARCHIVE.md**
-
-Whenever you **add**, **remove**, or **move** an archived initiative: edit the **TOC tables** in this file and bump the `<!-- Last updated: ... -->` timestamp. If the initiative was listed on the main index, that index must stay in sync in the **same update pass**.
+Files under **`.ai/initiatives/_archived/`** that are off the [main index](../_index.md). Lifecycle (create / activate / park / complete / abandon): [`.ai/protocols/initiative.md`](../../protocols/initiative.md). **Human gate:** do not archive without explicit approval.
 
 ---
 
@@ -53,37 +13,39 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 
 | File | Summary | Archived |
 |------|---------|----------|
-| [online_sales_mvp.md](./_completed/online_sales_mvp.md) | Online Sales MVP: reserve online / pay in store; Customers workspace; verified holds; Graph mail; public shop go-live. Shipped **v2.62.0–v2.69.0**. Residual: Scheduler confirm, first listings, week of live use. | 2026-08-11 |
-| [retail_qa_submission_reliability.md](./_completed/retail_qa_submission_reliability.md) | Retail QA submission reliability: stranded-draft recovery, autosave/resume, +/- grades, dashboard deep links, 8-week grids. Shipped **v2.60.0–v2.61.0**. Photo S3 deferred. | 2026-07-30 |
-| [delivery_mobile_operations_completion.md](./_completed/delivery_mobile_operations_completion.md) | Delivery Desk + Field ops: Days/Total, Eco Field five-step run, Routes API ETAs, evidence/SMS, Desk add/adjust, route maps, change history. Shipped **v2.55.0–v2.59.1**. Owner waived phone/visual pass. | 2026-07-29 |
-| [pos_discount_and_delivery.md](./_completed/pos_discount_and_delivery.md) | POS discount/store-credit + delivery fees, bilingual policy/printables, Deliveries board + scheduling. Shipped **v2.50.0**. Optional later: Directions API optimize. | 2026-07-21 |
-| [custom_label_studio.md](./_completed/custom_label_studio.md) | Custom Label Studio: Admin library + designer (PDF/template, variables/increment, QR/Code128, AI Create), print × N, print-server **1.4.1**. Shipped **v2.48.0**–**v2.48.2**. | 2026-07-10 |
-| [floorplan_builder.md](./_completed/floorplan_builder.md) | Floorplan builder: SVG editor, DB element kinds + Super Admin CRUD, walls/cut/print/drafting aids. Shipped **v2.39.0**–**v2.47.0**. | 2026-07-09 |
-| [retail_quality_audit.md](./_completed/retail_quality_audit.md) | Retail Quality Audit: Admin hub + mobile wizard, dashboard grade, editable forms + JSON/YAML import. Shipped **v2.38.0** / **v2.43.0**. | 2026-07-09 |
-| [hr_time_clock_mvp.md](./_completed/hr_time_clock_mvp.md) | HR Time Clock MVP: clock in/out/break, overtime banner, **Employees** admin (pay rate), **Time & payroll** (roster, payroll $, mod requests approve/reject), soft delete; legacy HR pages removed. Shipped **v2.33.0**–**v2.33.1**. | 2026-06-23 |
-| [product_item_crud_and_processing.md](./_completed/product_item_crud_and_processing.md) | Product & Item CRUD → Processing: Manage Products/Items, **Inventory Catalog** (**v2.30.0**), product-linked check-ins (**v2.31.0**), unmanifested lines + queue resume (**v2.32.0**). Semantic search on hold. | 2026-06-22 |
-| [intake_processing_improvements.md](./_completed/intake_processing_improvements.md) | Intake → Processing product-identity roadmap **P1–P9 shipped** (Sessions 3–11: matching, Final Decisions, precedence, split/collapse, check-in UX, break apart/make set). **Superseded** by **`product_item_crud_and_processing`** — remaining backlog moved 2026-06-13. | 2026-06-13 |
-| [preprocessing_ai_cleanup_review.md](./_completed/preprocessing_ai_cleanup_review.md) | Step 2 AI cleanup review + Fable verdict + web batch implementation (`ai-cleanup-batch` pool, chunked offline apply, gthread Procfile, legacy 410); shipped **v2.28.0**. | 2026-06-10 |
-| [print_server_label_design.md](./_completed/print_server_label_design.md) | Print server label “Concept C” side-stripe design; shipped **v1.2.x**. | 2026-03-27 (migration) |
-| [print_server_label_price_layout.md](./_completed/print_server_label_price_layout.md) | Price fit scale grid, sub-dollar layout, `big_base` by digit count, fringe harness; shipped **v1.2.35–v1.2.38**. | 2026-03-28 |
-| [print_server_v3_testing_and_migration.md](./_completed/print_server_v3_testing_and_migration.md) | V3 testing, V2 migration, installer/distribution validation. | 2026-03-27 (migration) |
-| [codebase_organization.md](./_completed/codebase_organization.md) | Codebase organization plan; completed 2026-03-24. | 2026-03-27 (migration) |
-| [retag_cutover.md](./_completed/retag_cutover.md) | Retag + old-dash cutover checklist; superseded by ops docs. | 2026-03-27 (migration) |
-| [e2e_retag_quick_reprice_fixes.md](./_completed/e2e_retag_quick_reprice_fixes.md) | E2E retag history + Quick reprice (SKU filter, sold flows, session list, item Print/Reprice); label reminder + Quick Reprice 10% / session persistence — shipped **dashboard v2.2.3**. | 2026-03-28 |
-| [add_item_dialog_and_sources.md](./_completed/add_item_dialog_and_sources.md) | Add Item flow (Items panel + `ItemForm`), AI suggest, misc/PO/consignment sources, hierarchical dev logging (`LOG_ADD_ITEM_*`). Estimated retail left for a future product decision. | 2026-03-28 |
-| [django_admin_legacy_navigation.md](./_completed/django_admin_legacy_navigation.md) | Django **`contrib.admin`** at **`/db-admin/`**; React **`/admin/*`** no longer collides — hard refresh loads SPA; Vite proxies **`/db-admin`** only. Shipped 2026-03-30 (`CHANGELOG` `[Unreleased]`). | 2026-03-30 |
-| [pos_cart_total_stale_prefetch_bug.md](./_completed/pos_cart_total_stale_prefetch_bug.md) | POS cart **subtotal/total** one step behind line totals — **`Cart.recalculate()`** uses fresh DB lines (stale `prefetch_related` fix); shipped **v2.2.7**. | 2026-04-06 |
-| [pos_sold_item_scan_ux_and_audit_trail.md](./_completed/pos_sold_item_scan_ux_and_audit_trail.md) | Sold-SKU messaging, **`ItemScanHistory`** outcomes, **`add-resale-copy`**, staff-only resale captions; customer-safe receipts; shipped **v2.2.8**. | 2026-04-06 |
-| [pos_unscannable_manual_line.md](./_completed/pos_unscannable_manual_line.md) | **`add-manual-line`** API + terminal **Unscannable item** dialog; pink-tag chip for `item`-null lines; shipped **v2.2.9**. | 2026-04-06 |
-| [category_sales_inventory_and_taxonomy.md](./_completed/category_sales_inventory_and_taxonomy.md) | Category intelligence: unified bin SQL, 19-category `taxonomy_v1`, manifest mapping (`cr/taxonomy_estimate.py`), Claude categorization (`cr/prompts.py`, `cr/categorize.py`), Bin 2 vs Bin 3 sell-through; **actionable buying recommendations**; [`.ai/extended/development.md`](../../extended/development.md) (*Jupyter* / category-research notebooks). Phases 0–7 complete. | 2026-04-06 |
-| [docs_restructure.md](./_completed/docs_restructure.md) | `.ai` documentation restructure: `session_close`, `startup` step 8, `get_bearing` protocols; `context.md` Working prune to capability pointers; domain warnings to `extended/`; consultant bundle workflow generalized (today: `extended/consultant_handoff.md`); session history in initiative files. No semver bump (docs-only). | 2026-04-10 |
-| [data_backfill_initiative.md](./_completed/data_backfill_initiative.md) | Historical V1/V2 → V3 backfill: phased loaders through `backfill_phase5_categories` + `classify_v2_iterate`; taxonomy + `PricingRule` on loaded DB; Phase 6 verification. Shipped **v2.10.0**; portable production CSV export / `import_backfill` still deferred. | 2026-04-11 |
-| [bstock_auction_intelligence.md](./_completed/bstock_auction_intelligence.md) | B-Stock auction intelligence: **`apps/buying/`**, scraper/sweep, manifests (CSV upload **v2.18.0**+), valuation + category need through **v2.9.0**; **Phase 6** (outcomes) next. Session history + phased checklist in file. | 2026-04-16 |
-| [ui_ux_polish.md](./_completed/ui_ux_polish.md) | Buying / auction list + detail UX polish and metric corrections (**v2.12.1**–**v2.15.x**); superseded column notes per file (e.g. Recovery vs Thru). | 2026-04-16 |
-| [staff_nav_redesign.md](./_completed/staff_nav_redesign.md) | Staff sidebar bake-off; **Slot C workspace nav** winner; lifecycle workspaces (Buying → Processing → Restoration → Floor → Cashier → Admin); TARS placeholder; switcher + losing variants removed. | 2026-05-30 |
-| [order_processing_pipeline_rebuild.md](./_completed/order_processing_pipeline_rebuild.md) | Inbound fulfillment rebuild: Orders → Preprocessing → Receiving → Processing + disputes/repair; migrations **0045–0051**; shipped **v2.20.0**–**v2.24.2**. Polish (Final Review UI, route placeholders) deferred to future initiatives. | 2026-05-30 |
-| [web_ui_cleanup.md](./_completed/web_ui_cleanup.md) | Staff page/route audit: owner section pass → sidebar nav hides (HR subset, staff Consignment) + route/page removals (legacy hub, products, templates, categories, processing-legacy, public `/pricing`); shipped **v2.25.0**. Customer-facing follow-on: **[public_website](./_pending/public_website.md)** (parked pending). | 2026-05-30 |
-| [blog_studio.md](./_completed/blog_studio.md) | Super Admin **Blog Studio** (`/blog-studio`, lazy TipTap) + DB-backed public blog (`apps.blog`); editor tools, Bold Modern typography, series rename, landing copy + draft slug preview; shipped **v2.27.0**–**v2.27.2**. One-time prod: `seed_initial_blog_posts` (see `CHANGELOG` `[2.27.0]` Deploy). | 2026-06-06 |
+| [finalize_tars_app.md](./_completed/finalize_tars_app.md) | Finalize TARS: queue, grade table, parts command center, hold story, inspect. Shipped **v2.71.0** (GitHub). | 2026-08-25 |
+| [enhancement_requests.md](./_completed/enhancement_requests.md) | Staff Requests sheet + superuser Enhancements board. Shipped **v2.71.0** (GitHub). | 2026-08-25 |
+| [online_sales_mvp.md](./_completed/online_sales_mvp.md) | Online Sales MVP: reserve online / pay in store; Customers workspace; verified holds; Graph mail; public shop go-live. Shipped **v2.62.0–v2.69.0**. | 2026-08-11 |
+| [retail_qa_submission_reliability.md](./_completed/retail_qa_submission_reliability.md) | Retail QA submission reliability. Shipped **v2.60.0–v2.61.0**. Photo S3 deferred. | 2026-07-30 |
+| [delivery_mobile_operations_completion.md](./_completed/delivery_mobile_operations_completion.md) | Delivery Desk + Field ops. Shipped **v2.55.0–v2.59.1**. | 2026-07-29 |
+| [pos_discount_and_delivery.md](./_completed/pos_discount_and_delivery.md) | POS discount/store-credit + delivery. Shipped **v2.50.0**. | 2026-07-21 |
+| [custom_label_studio.md](./_completed/custom_label_studio.md) | Custom Label Studio. Shipped **v2.48.0**–**v2.48.2**. | 2026-07-10 |
+| [floorplan_builder.md](./_completed/floorplan_builder.md) | Floorplan builder. Shipped **v2.39.0**–**v2.47.0**. | 2026-07-09 |
+| [retail_quality_audit.md](./_completed/retail_quality_audit.md) | Retail Quality Audit. Shipped **v2.38.0** / **v2.43.0**. | 2026-07-09 |
+| [hr_time_clock_mvp.md](./_completed/hr_time_clock_mvp.md) | HR Time Clock MVP. Shipped **v2.33.0**–**v2.33.1**. | 2026-06-23 |
+| [product_item_crud_and_processing.md](./_completed/product_item_crud_and_processing.md) | Product & Item CRUD → Processing. Shipped **v2.30.0**–**v2.32.0**. | 2026-06-22 |
+| [intake_processing_improvements.md](./_completed/intake_processing_improvements.md) | Intake → Processing P1–P9. Superseded by **`product_item_crud_and_processing`**. | 2026-06-13 |
+| [preprocessing_ai_cleanup_review.md](./_completed/preprocessing_ai_cleanup_review.md) | Step 2 AI cleanup. Shipped **v2.28.0**. | 2026-06-10 |
+| [print_server_label_design.md](./_completed/print_server_label_design.md) | Print server label “Concept C”. Shipped **v1.2.x**. | 2026-03-27 |
+| [print_server_label_price_layout.md](./_completed/print_server_label_price_layout.md) | Price fit scale grid. Shipped **v1.2.35–v1.2.38**. | 2026-03-28 |
+| [print_server_v3_testing_and_migration.md](./_completed/print_server_v3_testing_and_migration.md) | V3 testing, V2 migration, installer validation. | 2026-03-27 |
+| [codebase_organization.md](./_completed/codebase_organization.md) | Codebase organization. Completed 2026-03-24. | 2026-03-27 |
+| [retag_cutover.md](./_completed/retag_cutover.md) | Retag + old-dash cutover checklist. | 2026-03-27 |
+| [e2e_retag_quick_reprice_fixes.md](./_completed/e2e_retag_quick_reprice_fixes.md) | E2E retag history + Quick reprice. Shipped **v2.2.3**. | 2026-03-28 |
+| [add_item_dialog_and_sources.md](./_completed/add_item_dialog_and_sources.md) | Add Item flow. | 2026-03-28 |
+| [django_admin_legacy_navigation.md](./_completed/django_admin_legacy_navigation.md) | Django admin at **`/db-admin/`**. | 2026-03-30 |
+| [pos_cart_total_stale_prefetch_bug.md](./_completed/pos_cart_total_stale_prefetch_bug.md) | POS cart total one step behind. Shipped **v2.2.7**. | 2026-04-06 |
+| [pos_sold_item_scan_ux_and_audit_trail.md](./_completed/pos_sold_item_scan_ux_and_audit_trail.md) | Sold-SKU messaging + scan audit. Shipped **v2.2.8**. | 2026-04-06 |
+| [pos_unscannable_manual_line.md](./_completed/pos_unscannable_manual_line.md) | Unscannable item dialog. Shipped **v2.2.9**. | 2026-04-06 |
+| [category_sales_inventory_and_taxonomy.md](./_completed/category_sales_inventory_and_taxonomy.md) | Category intelligence. Phases 0–7 complete. | 2026-04-06 |
+| [docs_restructure.md](./_completed/docs_restructure.md) | `.ai` documentation restructure. Docs-only. | 2026-04-10 |
+| [data_backfill_initiative.md](./_completed/data_backfill_initiative.md) | V1/V2 → V3 backfill. Shipped **v2.10.0**. | 2026-04-11 |
+| [bstock_auction_intelligence.md](./_completed/bstock_auction_intelligence.md) | B-Stock auction intelligence. Phases 1–5 shipped; Phase 6 next. | 2026-04-16 |
+| [ui_ux_polish.md](./_completed/ui_ux_polish.md) | Buying / auction list + detail UX. | 2026-04-16 |
+| [staff_nav_redesign.md](./_completed/staff_nav_redesign.md) | Staff sidebar Slot C workspace nav. | 2026-05-30 |
+| [order_processing_pipeline_rebuild.md](./_completed/order_processing_pipeline_rebuild.md) | Inbound fulfillment rebuild. Shipped **v2.20.0**–**v2.24.2**. | 2026-05-30 |
+| [web_ui_cleanup.md](./_completed/web_ui_cleanup.md) | Staff page/route audit. Shipped **v2.25.0**. | 2026-05-30 |
+| [blog_studio.md](./_completed/blog_studio.md) | Blog Studio + public blog. Shipped **v2.27.0**–**v2.27.2**. | 2026-06-06 |
 
 ---
 
@@ -91,10 +53,10 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 
 | File | Summary | Archived |
 |------|---------|----------|
-| [schema_public_to_ecothrift.md](./_backlog/schema_public_to_ecothrift.md) | Move V3 Django tables from `public` to schema `ecothrift` for shared Postgres with `darkhorse`. | 2026-03-28 |
-| [category_taxonomy_from_sales_history.md](./_backlog/category_taxonomy_from_sales_history.md) | Derive canonical category set from historical sales/inventory; map legacy labels → V3 seeds. | 2026-03-28 |
-| [item_retail_price_on_instance.md](./_backlog/item_retail_price_on_instance.md) | Retail/estimated retail on `Item` (not Product); migrations, backfill, API/UI; foundation for DS. Parked — interim SQL uses RetagLog + ManifestRow. | 2026-04-06 |
-| [vendor_avatars.md](./_backlog/vendor_avatars.md) | **Vendor avatars:** upload image per vendor (`S3File` FK), API + staff UI; show photo on PO dashboard + Create PO (+ optional rollout). Parked — not scheduled. | 2026-04-29 |
+| [schema_public_to_ecothrift.md](./_backlog/schema_public_to_ecothrift.md) | Move V3 Django tables from `public` to schema `ecothrift`. | 2026-03-28 |
+| [category_taxonomy_from_sales_history.md](./_backlog/category_taxonomy_from_sales_history.md) | Derive canonical categories from historical sales/inventory. | 2026-03-28 |
+| [item_retail_price_on_instance.md](./_backlog/item_retail_price_on_instance.md) | Retail on `Item` (not Product). | 2026-04-06 |
+| [vendor_avatars.md](./_backlog/vendor_avatars.md) | Vendor avatars. | 2026-04-29 |
 
 ---
 
@@ -102,15 +64,15 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 
 | File | Summary | Archived |
 |------|---------|----------|
-| [tars_full_instruction_wizard_guidance.md](./_pending/tars_full_instruction_wizard_guidance.md) | TARS decision guardrails / Studio guidance. Phase 1.5 Studio shipped and kept available. **Resume:** owner/Mike floor validation, then Phase 2 catalogs + Phase 3 improvement loop. | 2026-07-21 |
-| [online_sales_workspace.md](./_pending/online_sales_workspace.md) | Long-term Online Sales vision (channels, marketing, P&L). MVP shipped as [online_sales_mvp](./_completed/online_sales_mvp.md) **v2.69.0**. **Resume:** only for scope beyond MVP. | 2026-07-21 |
-| [tars_restoration_workspace.md](./_pending/tars_restoration_workspace.md) | TARS Restoration: queue + live bench (Phases 0–2 + hardening). **Resume:** Phase 3 execute workflows + Phase 4 steering. | 2026-07-09 |
-| [bstock_scraper.md](./_pending/bstock_scraper.md) | B-Stock notebook scraper; Phase 1 package in place; manifests/pipeline deferred (moved from `_backlog` 2026-03-27). | 2026-03-27 |
-| [historical_data_export.md](./_pending/historical_data_export.md) | **Phase 1 done** (pickles + manifest). **Phase 2** (seed V3, reporting slice, DS/embeddings) paused off main index. | 2026-03-28 |
-| [create_location_label.md](./_pending/create_location_label.md) | **Inventory-scan** thermal location label (3×2, QR + aisle/shelf/category); full layer spec was under **`.ai/reference/ecothrift_label_spec.txt`** (reference tree removed). Workspace render/CLI may exist locally; **product integration** deferred. | 2026-03-28 |
-| [print_server_receipt_format.md](./_pending/print_server_receipt_format.md) | GDI receipt layout, `receipt_data` parity, PNG vs plain-text paths; **paused** off main index pre-production (2026-03-28); `render_scale` + workspace GDI tooling shipped for reference. | 2026-03-28 |
-| [historical_sell_through_analysis.md](./_pending/historical_sell_through_analysis.md) | Historical sell-through rates by category; PO extract shipped (v2.7.1); manual `PricingRule` seeds live (v2.8.0); Phases 1–4 (legacy DB docs, CSV processing, sales join, data-backed rates) deferred until needed. | 2026-04-10 |
-| [public_website.md](./_pending/public_website.md) | Public storefront rebuild (Phases 0–4 + Session 7 polish); shipped **v2.26.0**. Launch ops largely covered by Online Sales MVP go-live. **Resume:** Helcim/pay-online only if policy changes. | 2026-05-30 |
+| [tars_full_instruction_wizard_guidance.md](./_pending/tars_full_instruction_wizard_guidance.md) | TARS process canon. **Superseded** by [finalize_tars_app](./_completed/finalize_tars_app.md). | 2026-07-21 |
+| [online_sales_workspace.md](./_pending/online_sales_workspace.md) | Long-term Online Sales vision. MVP shipped **v2.69.0**. | 2026-07-21 |
+| [tars_restoration_workspace.md](./_pending/tars_restoration_workspace.md) | TARS queue + bench. **Superseded** by [finalize_tars_app](./_completed/finalize_tars_app.md). | 2026-07-09 |
+| [bstock_scraper.md](./_pending/bstock_scraper.md) | B-Stock notebook scraper; Phase 1. | 2026-03-27 |
+| [historical_data_export.md](./_pending/historical_data_export.md) | Phase 1 done. Phase 2 paused. | 2026-03-28 |
+| [create_location_label.md](./_pending/create_location_label.md) | Inventory-scan thermal location label. | 2026-03-28 |
+| [print_server_receipt_format.md](./_pending/print_server_receipt_format.md) | GDI receipt layout. Paused pre-production. | 2026-03-28 |
+| [historical_sell_through_analysis.md](./_pending/historical_sell_through_analysis.md) | Historical sell-through by category. | 2026-04-10 |
+| [public_website.md](./_pending/public_website.md) | Public storefront rebuild. Shipped **v2.26.0**. | 2026-05-30 |
 
 ---
 
@@ -118,7 +80,7 @@ Whenever you **add**, **remove**, or **move** an archived initiative: edit the *
 
 | File | Summary | Archived |
 |------|---------|----------|
-| [inventory_intake_pipeline.md](./_abandoned/inventory_intake_pipeline.md) | Order → dispute intake initiative; Order/Preprocess/Process redesign **superseded** by **`order_processing_pipeline_rebuild`** (pages/processes torn down for rebuild). | 2026-04-29 |
+| [inventory_intake_pipeline.md](./_abandoned/inventory_intake_pipeline.md) | Superseded by **`order_processing_pipeline_rebuild`**. | 2026-04-29 |
 
 ---
 

@@ -84,4 +84,4 @@
 
 - [`.ai/initiatives/_index.md`](../../_index.md)
 - [Print server — receipt format](../_pending/print_server_receipt_format.md) *(archived — pending)*
-- [`.ai/extended/retag-operations.md`](../../extended/retag-operations.md), [`.ai/extended/inventory-pipeline.md`](../../extended/inventory-pipeline.md)
+- [`.ai/extended/retag-operations.md`](../../../extended/inventory-pipeline.md), [`.ai/extended/inventory-pipeline.md`](../../../extended/inventory-pipeline.md)

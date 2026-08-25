@@ -8,7 +8,7 @@
 
 **Fable verdict (summary):** Web UI click-to-run is primary; **new** slim `ai-cleanup-batch` endpoint (explicit `row_ids`, ≤10/batch, Anthropic only, writes `PreprocessingRow.ai_*` via the same merge helper as `apply-cleanup-csv`, generation guard kept) — do **not** refactor legacy `ai-cleanup-rows` (it creates Products/Items pre-check-in and overwrites the `ManifestRow` vendor claim; deprecate→410→remove). **batch_size 10 confirmed.** Concurrency: Procfile must move to gthread (`--workers 2 --threads 8`) first; then browser pool **default 4, cap 8, never 16** (16 would starve the 2-worker dyno incl. POS). Grok harness **frozen** as offline fallback; `.cleaned.csv` stays the interchange; apply cliff fixed by **chunked apply** (50 rows/POST, `partial: true`, candidates deferred to new `ai-cleanup-complete`). Implementation order + acceptance checklist in the handoff doc.
 
-**Parent context:** Follow-on to the shipped inbound rebuild ([`order_processing_pipeline_rebuild`](./order_processing_pipeline_rebuild.md) **v2.20.0**–**v2.24.2**) and separate from the active product-identity / Item Processor work in [`intake_processing_improvements`](../../intake_processing_improvements.md).
+**Parent context:** Follow-on to the shipped inbound rebuild ([`order_processing_pipeline_rebuild`](./order_processing_pipeline_rebuild.md) **v2.20.0**–**v2.24.2**) and separate from the active product-identity / Item Processor work in [`intake_processing_improvements`](./intake_processing_improvements.md).
 
 **Primary question:** Does Step 2 **need** to be offline (download → local AI → re-upload), or can we restore a **click-to-run** path that survives **Heroku's ~30s request limit** via **one small API call per batch**, partial progress, and resume?
 
@@ -109,56 +109,9 @@ POST ai-cleanup-complete  (optional, fast)
 
 ## Key references
 
-- Domain: [`.ai/extended/inventory-pipeline.md`](../../extended/inventory-pipeline.md) — Step 2 **Clean**, § AI Row Cleanup
-- Backend API notes: [`.ai/extended/backend.md`](../../extended/backend.md) — `download-cleanup-csv` / `apply-cleanup-csv`
+- Domain: [`.ai/extended/inventory-pipeline.md`](../../../extended/inventory-pipeline.md) — Step 2 **Clean**, § AI Row Cleanup
+- Backend API notes: [`.ai/extended/backend.md`](../../../extended/backend.md) — `download-cleanup-csv` / `apply-cleanup-csv`
 - Shipped rebuild sessions: [`order_processing_pipeline_rebuild`](./order_processing_pipeline_rebuild.md) — preprocessing + Grok workspace notes
 - Frontend CSV parser: `frontend/src/components/inventory/preprocessing/cleanupCsv.ts`
 - Undo: `apps/inventory/services/intake_undo.py` — `ai_cleanup` stage
-- **Fable handoff (primary):** [`workspace/ai-cleanup-grok/FABLE_REVIEW_offline_vs_webui_ai_cleanup.md`](../../../../workspace/ai-cleanup-grok/FABLE_REVIEW_offline_vs_webui_ai_cleanup.md)
-
----
-
-## Sessions
-
-### Session 1 — 2026-06-10
-
-- **Start:** 2026-06-10T09:00:00-05:00
-- **est:** ~2–4h (review + benchmarks + Fable handoff; no Step 2 implementation)
-- **Goal:** Decide whether offline CSV is still required vs in-app batch cleanup; define stable architecture under Heroku 30s limit.
-- **Finish line:** Written verdict + batch/fail-safe design; Fable handoff for path/concurrency decision before implementation.
-- **Scope:**
-  - **In:** docs + code read-through; Anthropic benchmarks; Fable handoff doc; `.ai` doc sync.
-  - **Out:** Step 2 UI/backend implementation; product-identity work.
-- **Owner decisions captured:** batch_size **10**; parallel workers **like Grok** (browser pool, not one long server request).
-
-#### Session updates
-
-- `2026-06-10T09:00:00-05:00` — Opened initiative; read Step 2 pipeline (offline CSV vs legacy `ai-cleanup-rows`).
-- `2026-06-10T10:30:00-05:00` — Anthropic Haiku benchmarks on PO 323 (`test_ai_cleanup` dry-run): batch 5 avg 7.2s API, batch 10 avg 13.5s, batch 25 avg 19.6s — all under 30s API-only.
-- `2026-06-10T11:00:00-05:00` — Identified production hot-path blocker: `ensure_manifest_products_and_items` on every `ai-cleanup-rows` call; apply cliff (744-row single POST).
-- `2026-06-10T11:30:00-05:00` — Fable handoff: `workspace/ai-cleanup-grok/FABLE_REVIEW_offline_vs_webui_ai_cleanup.md` (Grok WLMRT run 744 rows / ~37s / 16 threads).
-- `2026-06-10T12:00:00-05:00` **Checkpoint** — `.ai` doc sync (`context.md`, `inventory-pipeline.md`, `frontend.md`, `backend.md`, `_index.md`, `CHANGELOG` `[Unreleased]` steering); `test_ai_cleanup` command field fixes (dev tooling only).
-
-- `2026-06-10T13:00:00-05:00` — **Fable 5 verdict** delivered after code walk (verified hot-path `ensure_manifest_*` per batch, `ManifestRow` writes, apply cliff, and the `Procfile` `--workers 2` constraint Composer's doc missed). Full Q1–Q6 answers + implementation order appended to the workspace handoff doc; summary added to this file's header.
-
-#### Result
-
-**done** — Analysis + Fable verdict complete; superseded by Session 2 implementation.
-
-### Session 2 — 2026-06-10 (Fable)
-
-- **Start:** 2026-06-10T13:15:00-05:00
-- **Goal:** Implement the full Fable verdict — all seven slices, no stopping.
-- **Finish line:** Web batch cleanup runnable from Step 2; chunked offline apply; legacy endpoint 410; all tests green.
-- **Scope:** In — backend service/endpoints, pool UI, Procfile, tests, docs. Out — production deploy, manual smoke on real PO.
-
-#### Session updates
-
-- `2026-06-10T13:20:00-05:00` — Slice 1: Procfile → `--worker-class gthread --workers 2 --threads 8`.
-- `2026-06-10T13:35:00-05:00` — Slices 2–4: `apps/inventory/services/ai_cleanup.py` (shared staging merge extracted from `_upload_cleanup_csv_impl`, batch runner with generation guard, completion); views: `ai-cleanup-batch` / `ai-cleanup-complete` actions, status extended with `uncleaned_row_ids` + `generation`; legacy `ai-cleanup-rows` 410 on staging-active. Found + fixed latent prompt bug: legacy fast-mode told the model to use "Miscellaneous", which is not a taxonomy category (those outputs were silently dropped) — new prompt uses `Mixed lots & uncategorized`.
-- `2026-06-10T13:45:00-05:00` — Slices 5–7 frontend: `WebAiCleanupPanel` + `utils/aiCleanupPool.ts` (partition, shared-index pool, retry ×2 backoff, pause/generation stop); CleanupStep: web panel primary, offline under **Advanced** accordion; PreprocessingPage Run Cleanup → 50-row partial chunks + `ai-cleanup-complete`; removed dead `aiCleanupRows`/`useAICleanupRows` + legacy response types.
-- `2026-06-10T13:50:00-05:00` — Verification: `test_ai_cleanup_batch.py` (13 tests: merge/snapshot, manifest frozen, no Product/Item creation, generation guard, discards, 409/400/502, status shrink, complete idempotent, partial apply, full-apply coverage gate intact, legacy 410); full inventory suite **240 passed**; vitest **67 passed** (7 new pool tests); `tsc --noEmit` clean.
-
-#### Result
-
-**done** — All seven slices shipped; released **v2.28.0**. Initiative archived 2026-06-10.
+- **Fable handoff (primary):** `workspace/ai-cleanup-grok/FABLE_REVIEW_offline_vs_webui_ai_cleanup.md`

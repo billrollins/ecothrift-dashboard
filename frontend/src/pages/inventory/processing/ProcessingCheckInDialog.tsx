@@ -14,7 +14,6 @@ import {
   Paper,
   Stack,
   Typography,
-  Alert,
 } from '@mui/material';
 import { useEffect, useMemo, useState, type WheelEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -415,12 +414,6 @@ export function ProcessingCheckInDialog({
               disabled={busy}
               highlightRequired={!isEditMode}
             />
-            {dispatch === 'restoration' ? (
-              <Alert severity="info" variant="outlined" sx={{ py: 0.5 }}>
-                Check-in creates the restoration job, then opens Restorations to set grade scale, values, and
-                handoff before TARS.
-              </Alert>
-            ) : null}
           </Stack>
         )}
       </DialogContent>

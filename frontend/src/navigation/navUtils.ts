@@ -35,19 +35,21 @@ export function navItemIsActive(
   pathname: string,
   search: string,
   hash: string,
-  item: Pick<NavItemDef, 'path' | 'navSearch' | 'navigateHash' | 'inactiveWhenHash'>,
+  item: Pick<NavItemDef, 'path' | 'pathAliases' | 'navSearch' | 'navigateHash' | 'inactiveWhenHash'>,
 ): boolean {
   if (item.navSearch != null && item.navSearch !== '') {
     const canon = item.navSearch.startsWith('?') ? item.navSearch : `?${item.navSearch}`;
     return pathname === item.path && search === canon;
   }
-  const itemPathRaw = item.path;
-  if (itemPathRaw.includes('?')) {
-    const [p, qs] = itemPathRaw.split('?');
-    if (!p) return false;
-    return pathname === p && search === `?${qs}`;
-  }
-  const pathOk = pathname === itemPathRaw || pathname.startsWith(`${itemPathRaw}/`);
+  const candidates = [item.path, ...(item.pathAliases ?? [])];
+  const pathOk = candidates.some((itemPathRaw) => {
+    if (itemPathRaw.includes('?')) {
+      const [p, qs] = itemPathRaw.split('?');
+      if (!p) return false;
+      return pathname === p && search === `?${qs}`;
+    }
+    return pathname === itemPathRaw || pathname.startsWith(`${itemPathRaw}/`);
+  });
 
   if (item.navigateHash) {
     return pathOk && hash === item.navigateHash;

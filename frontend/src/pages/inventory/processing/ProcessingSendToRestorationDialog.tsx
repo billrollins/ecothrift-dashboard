@@ -100,8 +100,13 @@ export function ProcessingSendToRestorationDialog({
     setValues(createEmptyGradeValuesForScale(nextScale, gradeScales, values));
   }
 
-  function handleGradeValueChange(grade: string, value: number) {
-    setValues((prev) => ({ ...prev, [grade]: value }));
+  function handleGradeValueChange(grade: string, value: number | null) {
+    setValues((prev) => {
+      const next = { ...prev };
+      if (value == null) delete next[grade];
+      else next[grade] = value;
+      return next;
+    });
   }
 
   function handleSend() {

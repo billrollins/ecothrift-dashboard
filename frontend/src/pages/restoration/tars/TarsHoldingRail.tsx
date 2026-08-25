@@ -11,12 +11,15 @@ import Typography from '@mui/material/Typography';
 import type { RestorationJobDTO } from '../../../types/inventory.types';
 import { formatWaiting } from '../queue/restorationQueueModel';
 import { studio } from './studio/tarsStudioTheme';
-import { TARS_PENDING_REASON_LABELS } from './tarsWorkTypes';
+import { holdDisplayLabel, normalizePending, purchaseHoldReady } from './tarsHold';
 
-/** True when the parts this item was waiting on have arrived. */
+/** True when every requested purchase section has arrived. */
 function partsAreIn(job: RestorationJobDTO): boolean {
-  const pending = (job.work_session as { pending?: { partsReceived?: boolean } } | undefined)?.pending;
-  return job.pending_reason === 'parts_needed' && Boolean(pending?.partsReceived);
+  const pending = normalizePending(
+    (job.work_session as { pending?: unknown } | undefined)?.pending,
+    job.pending_reason,
+  );
+  return purchaseHoldReady(pending, job.pending_reason);
 }
 
 function heldSince(job: RestorationJobDTO): string {
@@ -101,10 +104,8 @@ export function TarsHoldingRail({
                 }}
               >
                 {ready
-                  ? 'parts in — ready to finish'
-                  : job.pending_reason
-                    ? TARS_PENDING_REASON_LABELS[job.pending_reason]
-                    : 'on hold'}
+                  ? 'purchase in — ready to finish'
+                  : holdDisplayLabel(job.pending_reason)}
               </Typography>
             </Box>
           );

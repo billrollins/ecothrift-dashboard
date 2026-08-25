@@ -2,6 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     WorkLocationViewSet, AppSettingViewSet, S3FileViewSet,
+    EnhancementRequestViewSet,
     app_version, print_server_version, print_server_releases,
     print_server_version_public,
     dev_log_config, dev_log_line,
@@ -11,6 +12,7 @@ router = DefaultRouter()
 router.register(r'locations', WorkLocationViewSet, basename='worklocation')
 router.register(r'settings', AppSettingViewSet, basename='appsetting')
 router.register(r'files', S3FileViewSet, basename='s3file')
+router.register(r'enhancement-requests', EnhancementRequestViewSet, basename='enhancementrequest')
 
 urlpatterns = [
     path('', include(router.urls)),

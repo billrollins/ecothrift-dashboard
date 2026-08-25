@@ -130,12 +130,11 @@ export function RestorationsToSetupPanel({ job, onSaved }: RestorationsToSetupPa
 
       {job.valuation_pending ? (
         <Alert severity="warning" variant="outlined" sx={{ py: 0.5 }}>
-          TARS requested
           {Array.isArray(job.valuation_requested_grades) && job.valuation_requested_grades.length
-            ? `: ${job.valuation_requested_grades.join(', ')}`
-            : ' grade values'}
-          {job.valuation_request_notes ? ` - ${job.valuation_request_notes}` : ''}.
-          Fill all grades and save to send back.
+            ? `TARS does not agree with the grades (${job.valuation_requested_grades.join(', ')})`
+            : 'TARS has a question'}
+          {job.valuation_request_notes ? ` — ${job.valuation_request_notes}` : ''}.
+          Review and save when you have answered.
         </Alert>
       ) : null}
 
@@ -155,7 +154,12 @@ export function RestorationsToSetupPanel({ job, onSaved }: RestorationsToSetupPa
           setValues(createEmptyGradeValuesForScale(next, gradeScales, values));
         }}
         onGradeValueChange={(grade, value) => {
-          setValues((prev) => ({ ...prev, [grade]: value }));
+          setValues((prev) => {
+            const next = { ...prev };
+            if (value == null) delete next[grade];
+            else next[grade] = value;
+            return next;
+          });
         }}
       />
 

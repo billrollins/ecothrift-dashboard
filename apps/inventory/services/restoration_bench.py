@@ -1,4 +1,4 @@
-"""TARS bench workflow — timer, hold/pending, queue, disposition."""
+﻿"""TARS bench workflow â€” timer, hold/pending, queue, disposition."""
 
 from __future__ import annotations
 
@@ -9,28 +9,18 @@ from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
 
-from apps.inventory.models import (
-    RestorationAction,
-    RestorationJob,
-    RestorationPartsOrder,
-    RestorationPartsOrderLine,
-    RestorationPartsRequest,
-    RestorationPartsRequestLine,
-    RestorationPartsRequestSite,
+from apps.inventory.models import RestorationAction, RestorationJob
+from apps.inventory.services.tars_purchase import (
+    LEGACY_HOLD_REASONS,
+    WAIT_KEYS,
+    derive_hold_label,
+    hold_has_substance,
+    hold_story,
+    normalize_purchase_section,
+    pending_from_legacy_reason,
 )
 
-PENDING_REASONS = {
-    'parts_needed': 'Parts needed',
-    'need_more_time': 'Need more time',
-    'pending_test': 'Pending test',
-    'repair_time_needed': 'Repair time needed',
-    'tools_needed': 'Tools needed',
-    'needs_approval': 'Needs approval',
-    'research_sop': 'Research / SOP',
-    'safety_hold': 'Safety hold',
-    'between_steps': 'Between steps',
-    'other': 'Other',
-}
+PENDING_REASONS = LEGACY_HOLD_REASONS
 
 
 class BenchOccupiedError(ValueError):
@@ -71,7 +61,7 @@ def _timeline_event(
 def elapsed_active_seconds(job: RestorationJob) -> int:
     extra = 0
     if job.timer_is_running and job.timer_started_at:
-        # Clamp against clock skew — a timer_started_at in the future must not
+        # Clamp against clock skew â€” a timer_started_at in the future must not
         # subtract from the accumulated total.
         extra = max(int((timezone.now() - job.timer_started_at).total_seconds()), 0)
     return int(job.active_seconds or 0) + extra
@@ -242,43 +232,10 @@ def _lock_and_assert_bench_available(*, user, exclude_job_id: int | None = None)
 
 
 @transaction.atomic
-def pause_running_restoration_timer_for_user(user, reason: str = '') -> RestorationJob | None:
-    """Pause the user's active restoration timer (e.g. HR break or clock-out)."""
-
-    if user is None:
-        return None
-    job = (
-        RestorationJob.objects.select_for_update()
-        .filter(timer_is_running=True, timer_started_by=user)
-        .order_by('-timer_started_at')
-        .first()
-    )
-    if job is None:
-        return None
-    before = elapsed_active_seconds(job)
-    _pause_timer(job)
-    job.save(update_fields=_timer_save_fields())
-    _timeline_event(
-        job,
-        'timer.paused',
-        {
-            'active_seconds': job.active_seconds,
-            'previous_elapsed_seconds': before,
-            'reason': reason or 'hr',
-        },
-        actor=user,
-        entity_id=f'timer:{job.pk}',
-    )
-    return job
-
-
-@transaction.atomic
 def check_in_restoration_job(
     job: RestorationJob,
     user=None,
     item_id: int | None = None,
-    *,
-    start_timer: bool = True,
 ) -> RestorationJob:
     from apps.inventory.services.restoration import split_restoration_job
 
@@ -290,7 +247,7 @@ def check_in_restoration_job(
         RestorationJob.STAGE_PENDING,
     ):
         raise ValueError('Only queued, sent, or pending jobs can be checked in to the bench.')
-    # Incomplete grade values no longer block check-in — cockpit shows amber MISSING
+    # Incomplete grade values no longer block check-in â€” cockpit shows amber MISSING
     # and Mike can request valuations from Processing while assessing.
     if job.quantity > 1:
         if item_id is None:
@@ -314,27 +271,15 @@ def check_in_restoration_job(
     job.pending_notes = ''
     job.pending_storage_location = ''
     job.pending_started_at = None
-    # Open the action before the clock starts, so there is never a moment where
-    # time is running with nowhere to attribute it.
     from apps.inventory.services.restoration_actions import open_bench_action
 
     job.current_action = open_bench_action(job, user=user)
-    if start_timer:
-        _start_timer(job, user=user)
     _sync_work_state(job, 'bench')
     job.save(
         update_fields=[
             'stage',
             'bench_started_at',
             'bench_owner',
-            'timer_started_at',
-            'timer_is_running',
-            'timer_started_by',
-            'timer_mode',
-            'timer_grade',
-            'active_seconds',
-            'look_seconds',
-            'work_seconds',
             'current_action',
             'pending_reason',
             'pending_notes',
@@ -350,22 +295,34 @@ def check_in_restoration_job(
         {
             'from_stage': from_stage,
             'to_stage': RestorationJob.STAGE_BENCH,
-            'timer_started': bool(start_timer),
         },
         actor=user,
         entity_id=f'job:{job.pk}',
         correlation_id=correlation_id,
     )
-    if start_timer:
-        _timeline_event(
-            job,
-            'timer.started',
-            {'active_seconds': job.active_seconds, 'reason': 'check_in'},
-            actor=user,
-            entity_id=f'timer:{job.pk}',
-            correlation_id=correlation_id,
-        )
     return job
+
+
+QUEUE_RETURN_REASONS = {
+    'not_ready': 'Not ready',
+    'question': 'Question for Processing',
+    'grades': "Don't agree with grades/values",
+}
+
+SENT_BACK_NOTE_PREFIX = '{Sent Back to Queue}'
+QUEUE_NOTE_MAX = 2000
+
+
+def append_sent_back_note(existing: str, addition: str) -> str:
+    """Keep the standing item note; tag the send-back line so it does not replace it."""
+
+    addition = (addition or '').strip()
+    existing = (existing or '').rstrip()
+    if not addition:
+        return existing
+    line = f'{SENT_BACK_NOTE_PREFIX}: {addition}'
+    combined = line if not existing else f'{existing}\n{line}'
+    return combined[:QUEUE_NOTE_MAX]
 
 
 @transaction.atomic
@@ -374,28 +331,32 @@ def move_restoration_job_back_to_queue(
     *,
     user=None,
     note: str = '',
+    reason: str = '',
 ) -> RestorationJob:
-    """Send an item back unfinished.
+    """Send an item back unfinished. Not a hold, and not a finish.
 
-    The note says why it is coming back, which is the whole point of the trip —
-    an item that reappears in the queue with no explanation just gets picked up
-    and put down again.
+    From the bench the reasons are: not ready (no note), a question for
+    Processing, or disagreement with the posted grades. The last two mark the
+    job for Processing's TO desk.
     """
 
     job = RestorationJob.objects.select_for_update().get(pk=job.pk)
     if job.stage not in (RestorationJob.STAGE_BENCH, RestorationJob.STAGE_PENDING):
         raise ValueError('Only bench or pending jobs can move back to queue.')
+    reason = str(reason or '').strip()
+    if reason and reason not in QUEUE_RETURN_REASONS:
+        raise ValueError('Unknown return reason.')
+    note = str(note or '').strip()[:2000]
+    if reason in ('question', 'grades') and not note:
+        raise ValueError('Write what Processing needs to know.')
     from_stage = job.stage
     correlation_id = uuid4()
-    was_running = job.timer_is_running
-    elapsed_before_pause = elapsed_active_seconds(job)
-    _pause_timer(job)
     from apps.inventory.services.restoration_actions import close_open_actions
 
     close_open_actions(job)
-    note = str(note or '').strip()[:2000]
+    old_note = job.queue_note or ''
     if note:
-        job.queue_note = note
+        job.queue_note = append_sent_back_note(old_note, note)
     job.stage = RestorationJob.STAGE_SENT
     job.bench_owner = None
     job.pending_reason = ''
@@ -407,57 +368,130 @@ def move_restoration_job_back_to_queue(
         update_fields=[
             'stage',
             'bench_owner',
-            *_timer_save_fields(),
             'queue_note',
             'pending_reason',
             'pending_notes',
             'pending_storage_location',
             'pending_started_at',
             'work_session',
+            'updated_at',
         ],
     )
-    if was_running:
-        _timeline_event(
-            job,
-            'timer.paused',
-            {
-                'active_seconds': job.active_seconds,
-                'previous_elapsed_seconds': elapsed_before_pause,
-                'reason': 'moved_to_queue',
-            },
-            actor=user,
-            entity_id=f'timer:{job.pk}',
-            correlation_id=correlation_id,
-        )
     _timeline_event(
         job,
         'job.moved_to_queue',
-        {'from_stage': from_stage, 'to_stage': RestorationJob.STAGE_SENT, 'note': note},
+        {
+            'from_stage': from_stage,
+            'to_stage': RestorationJob.STAGE_SENT,
+            'note': note,
+            'reason': reason,
+        },
         actor=user,
         entity_id=f'job:{job.pk}',
         correlation_id=correlation_id,
     )
+    if note and job.queue_note != old_note:
+        from apps.inventory.services.item_notes import record_surface_note_for_job
+        from apps.inventory.services.restoration_comments import record_queue_note_change
+
+        record_surface_note_for_job(
+            job,
+            'send_back',
+            note,
+            author=user,
+            source_key='send_back',
+        )
+        record_queue_note_change(
+            job,
+            previous=old_note,
+            next_text=job.queue_note or '',
+            actor=user,
+            correlation_id=correlation_id,
+        )
+    if reason == 'question':
+        from apps.inventory.services.restoration import request_restoration_valuation
+
+        job = request_restoration_valuation(job, notes=note, user=user, kind='question')
+    elif reason == 'grades':
+        from apps.inventory.services.restoration import request_restoration_valuation
+
+        job = request_restoration_valuation(job, notes=note, user=user, kind='disagree')
     return job
+
+
+def _live_hold_orders(job: RestorationJob) -> list[dict]:
+    from apps.inventory.services.restoration_parts import OPEN_STATUSES
+
+    rows: list[dict] = []
+    orders = (
+        job.parts_orders.filter(status__in=OPEN_STATUSES)
+        .prefetch_related('lines__part')
+        .order_by('id')
+    )
+    for order in orders:
+        sections: list[str] = []
+        for line in order.lines.all():
+            section = normalize_purchase_section(getattr(line.part, 'category', None))
+            if section not in sections:
+                sections.append(section)
+        if not sections:
+            sections = ['parts']
+        rows.append({
+            'name': order.name,
+            'status': order.status,
+            'sections': sections,
+        })
+    return rows
+
+
+def _wait_for_payload(wait_for: dict | None) -> dict:
+    raw = wait_for if isinstance(wait_for, dict) else {}
+    return {key: str(raw.get(key) or '').strip() for key in WAIT_KEYS}
 
 
 @transaction.atomic
 def hold_restoration_job(
     job: RestorationJob,
     *,
-    reason: str,
-    notes: str = '',
+    reason: str = '',
     storage_location: str = '',
+    wait_for: dict | None = None,
     user=None,
 ) -> RestorationJob:
     job = RestorationJob.objects.select_for_update().get(pk=job.pk)
     if job.stage != RestorationJob.STAGE_BENCH:
         raise ValueError('Only bench jobs can be placed on hold.')
-    if reason not in PENDING_REASONS:
+
+    live_orders = _live_hold_orders(job)
+    needs: list[str] = []
+    for order in live_orders:
+        for section in order['sections']:
+            if section not in needs:
+                needs.append(section)
+    wait = _wait_for_payload(wait_for)
+    other = None
+
+    if reason and reason not in PENDING_REASONS:
         raise ValueError('Invalid hold reason.')
+    if not hold_has_substance(needs_purchased=needs, wait_for=wait):
+        if reason:
+            mapped = pending_from_legacy_reason(reason)
+            if not needs:
+                needs = list(mapped.get('needsPurchased') or [])
+            if not any(wait.get(key) for key in WAIT_KEYS):
+                mapped_wait = mapped.get('waitFor') or {}
+                wait = _wait_for_payload(mapped_wait)
+            other = mapped.get('withOtherItems')
+        if not hold_has_substance(needs_purchased=needs, wait_for=wait, with_other_items=other):
+            raise ValueError('Say what this item is waiting on.')
+
+    label = derive_hold_label(needs_purchased=needs, wait_for=wait, with_other_items=other)
+    story = hold_story(
+        live_orders=live_orders,
+        wait_for=wait,
+        storage_location=storage_location,
+    )
     correlation_id = uuid4()
-    was_running = job.timer_is_running
-    elapsed_before_pause = elapsed_active_seconds(job)
-    _pause_timer(job)
     # Work stops when the item leaves the bench. Coming back opens a new
     # action, so what was done before the hold stays a closed piece of work.
     from apps.inventory.services.restoration_actions import close_open_actions
@@ -466,254 +500,123 @@ def hold_restoration_job(
     now = timezone.now()
     job.stage = RestorationJob.STAGE_PENDING
     job.bench_owner = None
-    job.pending_reason = reason
-    job.pending_notes = notes or ''
+    job.pending_reason = label
+    job.pending_notes = story
     job.pending_storage_location = storage_location or ''
     job.pending_started_at = now
     session = dict(job.work_session or {})
     session['workState'] = 'pending'
     session['pending'] = {
-        'reason': reason,
-        'notes': notes or '',
+        'reason': label,
+        'needsPurchased': needs,
+        'waitFor': wait,
+        'withOtherItems': other,
+        'notes': story,
         'storageLocation': storage_location or '',
         'pendingStartedAt': now.isoformat(),
+        'receivedSections': [],
+        'legacyReason': reason if reason in PENDING_REASONS else None,
     }
     job.work_session = session
     job.save(
         update_fields=[
             'stage',
             'bench_owner',
-            *_timer_save_fields(),
             'pending_reason',
             'pending_notes',
             'pending_storage_location',
             'pending_started_at',
             'work_session',
+            'updated_at',
         ],
     )
-    if was_running:
-        _timeline_event(
-            job,
-            'timer.paused',
-            {
-                'active_seconds': job.active_seconds,
-                'previous_elapsed_seconds': elapsed_before_pause,
-                'reason': 'hold',
-            },
-            actor=user,
-            entity_id=f'timer:{job.pk}',
-            correlation_id=correlation_id,
-        )
     _timeline_event(
         job,
         'hold.placed',
         {
-            'reason': reason,
-            'notes': notes or '',
+            'reason': label,
+            'needs_purchased': needs,
+            'wait_for': wait,
+            'story': story,
             'storage_location': storage_location or '',
         },
         actor=user,
         entity_id=f'hold:{job.pk}',
         correlation_id=correlation_id,
     )
-    return job
+    from apps.inventory.services.item_notes import record_surface_note_for_job
 
-
-@transaction.atomic
-def start_restoration_timer(
-    job: RestorationJob,
-    user=None,
-    *,
-    mode: str | None = None,
-    grade: str | None = None,
-) -> RestorationJob:
-    """Start or re-aim the clock.
-
-    Passing a mode is how the bench attributes time: `look` charges the item,
-    `work` charges a grade. Re-aiming a running clock banks the previous
-    attribution first, so a switch never mislabels seconds already spent.
-    """
-
-    job = RestorationJob.objects.select_for_update().get(pk=job.pk)
-    if job.stage not in (RestorationJob.STAGE_BENCH, RestorationJob.STAGE_PENDING):
-        raise ValueError('Timer can only run on bench or pending jobs.')
-    if mode is not None and mode not in dict(RestorationJob.TIMER_MODE_CHOICES):
-        raise ValueError(f'Unknown timer mode: {mode}')
-    was_running = job.timer_is_running
-    previous_mode, previous_grade = job.timer_mode, job.timer_grade
-    _start_timer(job, user=user, mode=mode, grade=grade)
-    job.save(update_fields=_timer_save_fields())
-    reaimed = job.timer_mode != previous_mode or job.timer_grade != previous_grade
-    if not was_running or reaimed:
-        _timeline_event(
-            job,
-            'timer.started',
-            {
-                'active_seconds': job.active_seconds,
-                'reason': 'reaimed' if was_running and reaimed else 'manual',
-                'mode': job.timer_mode,
-                'grade': job.timer_grade,
-                'look_seconds': job.look_seconds,
-                'work_seconds': job.work_seconds,
-            },
-            actor=user,
-            entity_id=f'timer:{job.pk}',
-        )
-    return job
-
-
-@transaction.atomic
-def pause_restoration_timer(job: RestorationJob, *, user=None, reason: str = 'manual') -> RestorationJob:
-    job = RestorationJob.objects.select_for_update().get(pk=job.pk)
-    was_running = job.timer_is_running
-    before = elapsed_active_seconds(job)
-    _pause_timer(job)
-    job.save(update_fields=_timer_save_fields())
-    if was_running:
-        _timeline_event(
-            job,
-            'timer.paused',
-            {
-                'active_seconds': job.active_seconds,
-                'previous_elapsed_seconds': before,
-                'reason': reason,
-            },
-            actor=user,
-            entity_id=f'timer:{job.pk}',
-        )
-    return job
-
-
-@transaction.atomic
-def adjust_restoration_timer(
-    job: RestorationJob,
-    *,
-    active_seconds: int,
-    user=None,
-    reason: str = 'manual',
-) -> RestorationJob:
-    job = RestorationJob.objects.select_for_update().get(pk=job.pk)
-    if job.stage not in (RestorationJob.STAGE_BENCH, RestorationJob.STAGE_PENDING):
-        raise ValueError('Timer can only be adjusted on bench or pending jobs.')
-    before = elapsed_active_seconds(job)
-    job.active_seconds = max(int(active_seconds), 0)
-    if job.timer_is_running:
-        job.timer_started_at = timezone.now()
-    _reconcile_attribution(job)
-    job.save(update_fields=_timer_save_fields())
-    _timeline_event(
+    record_surface_note_for_job(
         job,
-        'timer.adjusted',
-        {
-            'active_seconds_before': before,
-            'active_seconds_after': job.active_seconds,
-            'look_seconds': job.look_seconds,
-            'work_seconds': job.work_seconds,
-            'reason': reason,
-        },
-        actor=user,
-        entity_id=f'timer:{job.pk}',
+        'hold',
+        story,
+        author=user,
+        source_key='hold',
     )
-    return job
-
-
-@transaction.atomic
-def mark_restoration_meaningful_action(
-    job: RestorationJob,
-    *,
-    user=None,
-    label: str = 'TARS update',
-    correlation_id: UUID | None = None,
-) -> RestorationJob:
-    """Record the idle-clawback baseline and auto-start bench time."""
-
-    job = RestorationJob.objects.select_for_update().get(pk=job.pk)
-    if job.stage != RestorationJob.STAGE_BENCH:
-        return job
-    if job.bench_owner_id and user is not None and job.bench_owner_id != getattr(user, 'pk', None):
-        raise BenchOccupiedError(job)
-    if job.bench_owner_id is None and user is not None:
-        _lock_and_assert_bench_available(user=user, exclude_job_id=job.pk)
-        job.bench_owner = user
-    can_track_time = True
-    if user is not None and getattr(user, 'is_authenticated', False):
-        from apps.hr.models import TimeEntry
-
-        current_entry = (
-            TimeEntry.objects.filter(employee=user, clock_out__isnull=True)
-            .only('on_break')
-            .first()
-        )
-        can_track_time = current_entry is not None and not current_entry.on_break
-    was_running = job.timer_is_running
-    if can_track_time:
-        _start_timer(job, user=user)
-    elif job.timer_is_running:
-        _pause_timer(job)
-    now = timezone.now()
-    job.last_meaningful_action_at = now
-    job.last_meaningful_active_seconds = elapsed_active_seconds(job)
-    job.last_meaningful_action_label = str(label or 'TARS update')[:128]
-    job.save(
-        update_fields=[
-            'bench_owner',
-            'timer_started_at',
-            'timer_is_running',
-            'timer_started_by',
-            'timer_mode',
-            'timer_grade',
-            'active_seconds',
-            'look_seconds',
-            'work_seconds',
-            'last_meaningful_action_at',
-            'last_meaningful_active_seconds',
-            'last_meaningful_action_label',
-            'updated_at',
-        ],
-    )
-    if can_track_time and not was_running:
-        _timeline_event(
-            job,
-            'timer.started',
-            {
-                'active_seconds': job.active_seconds,
-                'reason': 'meaningful_action',
-                'label': job.last_meaningful_action_label,
-            },
-            actor=user,
-            entity_id=f'timer:{job.pk}',
-            correlation_id=correlation_id,
-        )
-    elif not can_track_time and was_running:
-        _timeline_event(
-            job,
-            'timer.paused',
-            {
-                'active_seconds': job.active_seconds,
-                'reason': 'not_clocked_in_or_on_break',
-            },
-            actor=user,
-            entity_id=f'timer:{job.pk}',
-            correlation_id=correlation_id,
-        )
     return job
 
 
 def _actual_parts_cost_for_job(job: RestorationJob) -> Decimal:
-    """Sum of ordered/received line costs (qty x actual unit price) across the
-    job's parts requests — the default spend when the payload omits it."""
+    """Sum of purchased/received order costs. FFE and Supplies are bought,
+    but only the Parts share of freight enters the repair."""
 
-    total = Decimal('0')
-    lines = RestorationPartsRequestLine.objects.filter(
-        site__parts_request__job=job,
-        status__in=[
-            RestorationPartsRequestLine.STATUS_ORDERED,
-            RestorationPartsRequestLine.STATUS_RECEIVED,
-        ],
+    from apps.inventory.services.restoration_parts import actual_parts_cost_for_job
+
+    return actual_parts_cost_for_job(job)
+
+
+FINISHABLE_STAGES = (
+    RestorationJob.STAGE_QUEUED,
+    RestorationJob.STAGE_SENT,
+    RestorationJob.STAGE_BENCH,
+    RestorationJob.STAGE_PENDING,
+)
+
+
+def _job_sale_state(job: RestorationJob) -> str:
+    from apps.inventory.services.restoration import _sale_state_from_session
+
+    return str(_sale_state_from_session(job.work_session) or '').strip().lower()
+
+
+def _assert_finish_payload(
+    job: RestorationJob,
+    *,
+    destination: str,
+    final_grade: str,
+    notes: str,
+    skip_grade_gates: bool = False,
+) -> None:
+    from apps.inventory.services.restoration import (
+        grades_for_scale,
+        job_has_restoration_actions,
+        restoration_job_needs_setup,
     )
-    for line in lines:
-        total += (line.unit_price_actual or Decimal('0')) * line.qty
-    return total
+
+    valid = {c[0] for c in RestorationJob.BENCH_DISPOSITION_CHOICES}
+    if destination not in valid:
+        raise ValueError('Invalid destination.')
+    from apps.inventory.services.restoration_parts import (
+        FINISH_BLOCKED_MESSAGE,
+        job_has_open_parts_order,
+    )
+
+    if job_has_open_parts_order(job):
+        raise ValueError(FINISH_BLOCKED_MESSAGE)
+    has_actions = job_has_restoration_actions(job)
+    notes = (notes or '').strip()
+    if not has_actions and not notes:
+        raise ValueError('Say why this item is leaving restoration. Nothing was done to it.')
+    if has_actions and not skip_grade_gates:
+        if restoration_job_needs_setup(job):
+            raise ValueError('Enter a value for every grade before completing the job.')
+        if not final_grade:
+            raise ValueError('Final grade is required.')
+        if job.scale and final_grade not in grades_for_scale(job.scale):
+            raise ValueError('Choose a final grade from the job grade scale.')
+    elif final_grade and job.scale:
+        if final_grade not in grades_for_scale(job.scale):
+            raise ValueError('Choose a final grade from the job grade scale.')
 
 
 @transaction.atomic
@@ -723,59 +626,46 @@ def complete_restoration_job(
     destination: str,
     final_grade: str,
     notes: str = '',
+    starting_grade: str = '',
     spent_hours: Decimal | float | None = None,
     spent_parts_cost: Decimal | float | None = None,
+    outputs: list[dict] | None = None,
+    skip_grade_gates: bool = False,
     user=None,
 ) -> RestorationJob:
     job = RestorationJob.objects.select_for_update().get(pk=job.pk)
-    if job.stage not in (RestorationJob.STAGE_BENCH, RestorationJob.STAGE_PENDING):
-        raise ValueError('Only bench or pending jobs can be completed.')
-    from apps.inventory.services.restoration import restoration_job_needs_setup
-
-    if restoration_job_needs_setup(job):
-        raise ValueError('Enter a value for every grade before completing the job.')
-    valid = {c[0] for c in RestorationJob.BENCH_DISPOSITION_CHOICES}
-    if destination not in valid:
-        raise ValueError('Invalid disposition destination.')
-    if not final_grade:
-        raise ValueError('Final grade is required.')
-    if job.scale:
-        from apps.inventory.services.restoration import grades_for_scale
-
-        if final_grade not in grades_for_scale(job.scale):
-            raise ValueError('Choose a final grade from the job grade scale.')
-    from apps.inventory.services.tars_decision_work import (
-        DecisionWorkValidationError,
-        validate_job_completion,
+    if job.stage not in FINISHABLE_STAGES:
+        raise ValueError('Only queued, bench, or holding jobs can be finished.')
+    if job.quantity > 1:
+        raise ValueError('Scan one item tag to split it off the stack first. Finish takes one item at a time.')
+    _assert_finish_payload(
+        job,
+        destination=destination,
+        final_grade=final_grade,
+        notes=notes,
+        skip_grade_gates=skip_grade_gates,
     )
-
-    try:
-        validate_job_completion(
-            job,
-            final_grade=final_grade,
-            destination=destination,
-        )
-    except DecisionWorkValidationError as exc:
-        raise ValueError(str(exc)) from exc
     if spent_parts_cost is None:
         spent_parts_cost = _actual_parts_cost_for_job(job)
+    if starting_grade:
+        job.starting_grade = str(starting_grade).strip()[:64]
+    else:
+        from apps.inventory.services.tars_value import sync_starting_grade
+
+        sync_starting_grade(job)
 
     correlation_id = uuid4()
-    was_running = job.timer_is_running
-    elapsed_before_pause = elapsed_active_seconds(job)
-    _pause_timer(job)
     # Nothing is still being done to a finished item.
     from apps.inventory.services.restoration_actions import close_open_actions
 
     close_open_actions(job)
     now = timezone.now()
-    default_hours = elapsed_active_hours(job)
     job.stage = RestorationJob.STAGE_DONE
     job.bench_owner = None
     job.bench_disposition = destination
     job.final_grade = final_grade
     job.disposition_notes = notes or ''
-    job.spent_hours = Decimal(str(spent_hours if spent_hours is not None else default_hours))
+    job.spent_hours = Decimal(str(spent_hours if spent_hours is not None else 0))
     job.spent_parts_cost = Decimal(str(spent_parts_cost))
     job.dispositioned_at = now
     job.dispositioned_by = user
@@ -805,8 +695,8 @@ def complete_restoration_job(
         update_fields=[
             'stage',
             'bench_owner',
-            *_timer_save_fields(),
             'bench_disposition',
+            'starting_grade',
             'final_grade',
             'disposition_notes',
             'spent_hours',
@@ -815,6 +705,7 @@ def complete_restoration_job(
             'dispositioned_at',
             'dispositioned_by',
             'work_session',
+            'updated_at',
         ],
     )
     _move_items_for_disposition(
@@ -824,19 +715,6 @@ def complete_restoration_job(
         notes=notes or '',
         user=user,
     )
-    if was_running:
-        _timeline_event(
-            job,
-            'timer.paused',
-            {
-                'active_seconds': job.active_seconds,
-                'previous_elapsed_seconds': elapsed_before_pause,
-                'reason': 'disposition_completed',
-            },
-            actor=user,
-            entity_id=f'timer:{job.pk}',
-            correlation_id=correlation_id,
-        )
     _timeline_event(
         job,
         'disposition.completed',
@@ -851,7 +729,471 @@ def complete_restoration_job(
         entity_id=f'disposition:{job.pk}',
         correlation_id=correlation_id,
     )
+    write_restoration_outputs(job, outputs or [], user=user)
+    from apps.inventory.services.item_notes import record_surface_note_for_job
+
+    record_surface_note_for_job(
+        job,
+        'finish',
+        notes or '',
+        author=user,
+        source_key='finish',
+    )
     return job
+
+
+def write_restoration_outputs(job: RestorationJob, outputs: list[dict], *, user=None) -> list:
+    """Replace the job's output lines. Seq 0 is always the main item."""
+
+    from apps.inventory.models import RestorationOutput
+
+    RestorationOutput.objects.filter(job=job).delete()
+    items = list(job.item_check_in.items.order_by('id')) if job.item_check_in_id else []
+    main = items[0] if items else None
+    destination = job.bench_disposition or 'processing'
+    by_seq = {
+        int(row.get('seq', 0)): row
+        for row in outputs
+        if isinstance(row, dict)
+    }
+    written = []
+    main_payload = by_seq.get(0) or {}
+    written.append(
+        RestorationOutput.objects.create(
+            job=job,
+            seq=0,
+            label=str(main_payload.get('label') or 'Whole item').strip()[:200] or 'Whole item',
+            notes=str(main_payload.get('notes') or '').strip(),
+            destination=str(main_payload.get('destination') or destination).strip()[:32],
+            suggested_product_id=main_payload.get('suggested_product_id'),
+            item=main,
+            created_by=user if getattr(user, 'pk', None) else None,
+        )
+    )
+    next_seq = 1
+    extras = [
+        row
+        for seq, row in sorted(by_seq.items())
+        if seq != 0
+    ]
+    for row in extras:
+        label = str(row.get('label') or '').strip()[:200]
+        if not label:
+            continue
+        written.append(
+            RestorationOutput.objects.create(
+                job=job,
+                seq=next_seq,
+                label=label,
+                notes=str(row.get('notes') or '').strip(),
+                destination=str(row.get('destination') or destination).strip()[:32],
+                suggested_product_id=row.get('suggested_product_id'),
+                created_by=user if getattr(user, 'pk', None) else None,
+            )
+        )
+        next_seq += 1
+    from apps.inventory.services.item_notes import record_surface_note_for_job
+
+    for row in written:
+        if row.notes:
+            record_surface_note_for_job(
+                job,
+                'output',
+                row.notes,
+                author=user,
+                source_key=f'output:{row.seq}',
+            )
+    return written
+
+
+@transaction.atomic
+def reject_restoration_job(job: RestorationJob, *, reason: str, user=None) -> RestorationJob:
+    """Send the item to Processing as rejected — no restoration attempted."""
+
+    reason = (reason or '').strip()
+    if not reason:
+        raise ValueError('Say why this item is being rejected.')
+    job = complete_restoration_job(
+        job,
+        destination=RestorationJob.BENCH_DISPOSITION_PROCESSING,
+        final_grade=job.starting_grade or job.final_grade or '',
+        starting_grade=job.starting_grade,
+        notes=reason,
+        skip_grade_gates=True,
+        user=user,
+    )
+    job.return_disposition_type = RestorationJob.RETURN_DISPOSITION_UNTOUCHED
+    job.return_reason = 'rejected'
+    job.return_notes = reason
+    job.save(
+        update_fields=[
+            'return_disposition_type',
+            'return_reason',
+            'return_notes',
+            'updated_at',
+        ],
+    )
+    from apps.inventory.services.item_notes import record_surface_note_for_job
+
+    record_surface_note_for_job(
+        job,
+        'reject',
+        reason,
+        author=user,
+        source_key='reject',
+    )
+    return job
+
+
+def family_retail_for_item(item) -> Decimal:
+    from apps.inventory.models import Item
+
+    root = item.parent_item if item.parent_item_id else item
+    ids = [root.pk, *root.child_items.values_list('pk', flat=True)]
+    total = Decimal('0')
+    for row in Item.objects.filter(pk__in=ids).only('retail'):
+        total += row.retail or Decimal('0')
+    return total
+
+
+SALVAGE_PRODUCT_NUMBER = 'PRD-SALVAGE'
+
+
+def ensure_salvage_product():
+    """One catalog sink for parts that leave as salvage — never picked by staff."""
+
+    from apps.inventory.models import Product
+
+    product, _created = Product.objects.get_or_create(
+        product_number=SALVAGE_PRODUCT_NUMBER,
+        defaults={'title': 'Salvage', 'brand': 'Generic'},
+    )
+    return product
+
+
+@transaction.atomic
+def create_item_from_restoration_output(
+    output,
+    *,
+    product,
+    retail,
+    price,
+    parent_retail,
+    condition: str = '',
+    dispatch: str = '',
+    notes: str = '',
+    specifications: dict | None = None,
+    user=None,
+):
+    """Mint a salvaged-part SKU that inherits the truck and the parent item."""
+
+    from apps.inventory.models import Item, Product, RestorationOutput
+    from apps.inventory.processing_ops import _resolve_condition_db
+    from apps.inventory.services.processing_workspace import dispatch_to_location
+
+    output = RestorationOutput.objects.select_for_update().get(pk=output.pk)
+    if output.seq == 0:
+        raise ValueError('The main item already has a SKU.')
+    if output.item_id:
+        raise ValueError('This part already has a SKU.')
+    if product is None:
+        product = ensure_salvage_product()
+    if not isinstance(product, Product):
+        raise ValueError('Choose a product for this part.')
+    parent = None
+    main = RestorationOutput.objects.filter(job_id=output.job_id, seq=0).first()
+    if main and main.item_id:
+        parent = Item.objects.select_for_update().get(pk=main.item_id)
+    elif output.job.item_check_in_id:
+        parent_id = (
+            Item.objects.filter(check_in_id=output.job.item_check_in_id)
+            .order_by('id')
+            .values_list('pk', flat=True)
+            .first()
+        )
+        if parent_id:
+            parent = Item.objects.select_for_update().get(pk=parent_id)
+    if parent is None:
+        raise ValueError('No main item to inherit from.')
+    try:
+        part_retail = Decimal(str(retail))
+        part_price = Decimal(str(price))
+        new_parent_retail = Decimal(str(parent_retail))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise ValueError('Retail and price must be numbers.') from exc
+    if part_retail < 0 or part_price < 0 or new_parent_retail < 0:
+        raise ValueError('Retail and price cannot be negative.')
+    old_parent_retail = parent.retail or Decimal('0')
+    salvage_skip = part_retail == 0 and new_parent_retail == old_parent_retail
+    if not salvage_skip and new_parent_retail >= old_parent_retail:
+        raise ValueError('Reduce the main item retail when minting a part.')
+
+    cond_db = _resolve_condition_db(condition) if condition else (parent.condition or 'unknown')
+    if dispatch:
+        location = 'salvage' if cond_db == 'salvage' else dispatch_to_location(dispatch)
+    else:
+        location = 'processing'
+    specs = specifications if isinstance(specifications, dict) else {}
+
+    item = Item(
+        sku=Item.generate_sku(),
+        product=product,
+        purchase_order=parent.purchase_order,
+        manifest_row=parent.manifest_row,
+        check_in=parent.check_in,
+        parent_item=parent,
+        price=part_price,
+        retail=part_retail,
+        source=parent.source,
+        status='intake',
+        condition=cond_db,
+        location=location,
+        notes=(notes or '').strip(),
+        specifications=specs,
+    )
+    item.save()
+    parent.retail = new_parent_retail
+    parent.save(update_fields=['retail', 'updated_at'])
+    output.item = item
+    output.suggested_product = product
+    output.save(update_fields=['item', 'suggested_product'])
+    return item
+
+
+def _assert_not_handled(job: RestorationJob) -> None:
+    if job.processing_handled_at is not None:
+        raise ValueError('Processing has already checked this in.')
+
+
+@transaction.atomic
+def reopen_restoration_job(job: RestorationJob, *, user=None, note: str = '') -> RestorationJob:
+    """Send a finished item back to the Queue before Processing takes it in."""
+
+    from apps.inventory.services.restoration import (
+        _apply_restoration_dispatch_to_check_in,
+        _requeue_restoration_job,
+    )
+
+    note = str(note or '').strip()[:2000]
+    if not note:
+        raise ValueError('Write why this is coming back.')
+    job = RestorationJob.objects.select_for_update().get(pk=job.pk)
+    _assert_not_handled(job)
+    if job.stage not in (RestorationJob.STAGE_DONE, RestorationJob.STAGE_RETURNED):
+        raise ValueError('Only finished items can come back to restoration.')
+    from_stage = job.stage
+    job = _requeue_restoration_job(job)
+    if job.item_check_in_id:
+        _apply_restoration_dispatch_to_check_in(job.item_check_in, user)
+    _timeline_event(
+        job,
+        'job.reopened',
+        {'from_stage': from_stage, 'to_stage': RestorationJob.STAGE_QUEUED, 'note': note},
+        actor=user,
+        entity_id=f'job:{job.pk}',
+    )
+    from apps.inventory.services.item_notes import record_surface_note_for_job
+
+    record_surface_note_for_job(
+        job,
+        'send_back',
+        note,
+        author=user,
+        source_key='reopen',
+    )
+    return job
+
+
+@transaction.atomic
+def fix_restoration_finish(
+    job: RestorationJob,
+    *,
+    destination: str,
+    final_grade: str,
+    notes: str = '',
+    starting_grade: str = '',
+    user=None,
+) -> RestorationJob:
+    """Correct where a finished item went, before Processing takes it in."""
+
+    job = RestorationJob.objects.select_for_update().get(pk=job.pk)
+    _assert_not_handled(job)
+    if job.stage != RestorationJob.STAGE_DONE:
+        raise ValueError('Only a finished item can have its finish corrected.')
+    _assert_finish_payload(job, destination=destination, final_grade=final_grade, notes=notes)
+    previous = job.bench_disposition
+    job.bench_disposition = destination
+    job.final_grade = final_grade or ''
+    job.disposition_notes = notes or ''
+    if starting_grade:
+        job.starting_grade = str(starting_grade).strip()[:64]
+    from apps.inventory.services.tars_value import compute_value_added
+
+    job.value_added = compute_value_added(job, final_grade=final_grade or None)
+    job.save(
+        update_fields=[
+            'bench_disposition',
+            'starting_grade',
+            'final_grade',
+            'disposition_notes',
+            'value_added',
+            'updated_at',
+        ],
+    )
+    if destination != previous:
+        _move_items_for_disposition(
+            job,
+            destination=destination,
+            final_grade=final_grade or '',
+            notes=notes or '',
+            user=user,
+        )
+    _timeline_event(
+        job,
+        'disposition.revised',
+        {
+            'destination': destination,
+            'previous_destination': previous,
+            'final_grade': final_grade or '',
+            'notes': notes or '',
+        },
+        actor=user,
+        entity_id=f'disposition:{job.pk}',
+    )
+    from apps.inventory.services.item_notes import record_surface_note_for_job
+
+    record_surface_note_for_job(
+        job,
+        'finish',
+        notes or '',
+        author=user,
+        source_key='finish',
+    )
+    return job
+
+
+@transaction.atomic
+def processing_check_in_restoration_job(
+    job: RestorationJob,
+    *,
+    price,
+    retail=None,
+    condition: str = '',
+    dispatch: str = 'on_shelf',
+    notes: str = '',
+    specifications: dict | None = None,
+    user=None,
+) -> tuple[RestorationJob, list]:
+    """Processing takes a finished restoration item in: price, place, stamp handled."""
+
+    from decimal import Decimal, InvalidOperation
+
+    from apps.inventory.models import ItemCheckIn, ItemHistory
+    from apps.inventory.processing_ops import apply_item_updates, _resolve_condition_db
+    from apps.inventory.services.processing_workspace import (
+        dispatch_to_location,
+        printed_items_preview,
+    )
+
+    job = RestorationJob.objects.select_for_update().get(pk=job.pk)
+    _assert_not_handled(job)
+    if job.stage not in (RestorationJob.STAGE_DONE, RestorationJob.STAGE_RETURNED):
+        raise ValueError('Only finished items can be checked in from restoration.')
+
+    notes = (notes or '').strip()
+
+    try:
+        item_price = Decimal(str(price))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise ValueError('Price is required.') from exc
+    if item_price < 0:
+        raise ValueError('Price cannot be negative.')
+
+    item_retail = None
+    if retail not in (None, ''):
+        try:
+            item_retail = Decimal(str(retail))
+        except (InvalidOperation, TypeError, ValueError) as exc:
+            raise ValueError('Retail must be a number.') from exc
+
+    cond_db = _resolve_condition_db(condition) if condition else ''
+    location = 'salvage' if cond_db == 'salvage' else dispatch_to_location(dispatch)
+    specs = specifications if isinstance(specifications, dict) else {}
+
+    if not job.item_check_in_id:
+        raise ValueError('This job has no check-in to update.')
+    check_in = ItemCheckIn.objects.select_for_update().get(pk=job.item_check_in_id)
+    snapshot = dict(check_in.defaults_snapshot or {})
+    snapshot['dispatch'] = location if location == 'salvage' else dispatch
+    snapshot['location'] = location
+    snapshot['price'] = str(item_price)
+    if item_retail is not None:
+        snapshot['retail'] = str(item_retail)
+    if cond_db:
+        snapshot['condition'] = cond_db
+    snapshot['notes'] = notes
+    if specs:
+        snapshot['specifications'] = specs
+    check_in.defaults_snapshot = snapshot
+    check_in.save(update_fields=['defaults_snapshot', 'updated_at'])
+
+    histories: list[ItemHistory] = []
+    items = list(check_in.items.select_for_update().all())
+    main_items = [item for item in items if not item.parent_item_id]
+    for item in main_items:
+        if item.status == 'sold' or item.sold_at:
+            continue
+        updates = {'price': item_price, 'location': location, 'notes': notes}
+        if item_retail is not None:
+            updates['retail'] = item_retail
+        if cond_db:
+            updates['condition'] = cond_db
+        if specs:
+            updates['specifications'] = specs
+        changed = apply_item_updates(item, updates)
+        if changed:
+            item.save(update_fields=[field for field, _old, _new in changed] + ['updated_at'])
+            for field, old_value, new_value in changed:
+                if field == 'location' and str(old_value or '') != str(new_value or ''):
+                    histories.append(
+                        ItemHistory(
+                            item=item,
+                            event_type='location_change',
+                            old_value=str(old_value or ''),
+                            new_value=str(new_value or ''),
+                            note='Checked in from restoration',
+                            created_by=user,
+                        ),
+                    )
+    if histories:
+        ItemHistory.objects.bulk_create(histories)
+
+    now = timezone.now()
+    job.processing_handled_at = now
+    job.processing_handled_by = user if user is not None else job.processing_handled_by
+    job.save(update_fields=['processing_handled_at', 'processing_handled_by', 'updated_at'])
+    from apps.inventory.services.item_notes import record_surface_note_for_job
+
+    record_surface_note_for_job(
+        job,
+        'processing_return',
+        notes,
+        author=user,
+        source_key='processing_return',
+    )
+    _timeline_event(
+        job,
+        'processing.checked_in',
+        {
+            'price': str(item_price),
+            'dispatch': dispatch,
+            'sale_state': _job_sale_state(job),
+        },
+        actor=user,
+        entity_id=f'processing-check-in:{job.pk}',
+    )
+    preview = printed_items_preview([item.pk for item in items])
+    return job, preview
 
 
 # Bench disposition destinations -> Item.location values.
@@ -920,340 +1262,3 @@ def _move_items_for_disposition(
 
         refresh_processing_rows_denorm(job.purchase_order_id)
 
-
-def timer_state_payload(job: RestorationJob) -> dict:
-    return {
-        'bench_started_at': job.bench_started_at,
-        'timer_started_at': job.timer_started_at,
-        'active_seconds': job.active_seconds,
-        'timer_is_running': job.timer_is_running,
-        'timer_started_by_id': job.timer_started_by_id,
-        'elapsed_seconds': elapsed_active_seconds(job),
-        'elapsed_hours': str(elapsed_active_hours(job).quantize(Decimal('0.01'))),
-    }
-
-
-def _parse_line_qty(value, *, field: str) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f'Invalid {field}: {value!r} is not a whole number.') from exc
-
-
-def _parse_line_price(value, *, field: str) -> Decimal:
-    try:
-        return Decimal(str(value))
-    except (InvalidOperation, TypeError, ValueError) as exc:
-        raise ValueError(f'Invalid {field}: {value!r} is not a number.') from exc
-
-
-def _truncate_for_field(model, field_name: str, value) -> str:
-    text = str(value or '')
-    max_length = model._meta.get_field(field_name).max_length
-    return text[:max_length] if max_length else text
-
-
-@transaction.atomic
-def upsert_parts_request_from_work_session(
-    job: RestorationJob,
-    *,
-    user,
-    grade: str | None = None,
-    eval_snapshot: dict | None = None,
-) -> RestorationPartsRequest:
-    """Bundle the orders attached to a single grade option into one purchasing request.
-
-    A request always carries a grade option so the owner knows what the spend is for.
-    """
-
-    session = job.work_session or {}
-    selected_grade = str(grade or session.get('selectedGrade') or job.final_grade or '').strip()
-    if not selected_grade:
-        raise ValueError('Select a grade option before requesting parts.')
-
-    snapshot = eval_snapshot if eval_snapshot is not None else session.get('evalSnapshot') or {}
-
-    parts_by_id = {
-        p.get('id'): p for p in (session.get('parts') or []) if isinstance(p, dict) and p.get('id')
-    }
-    orders = [o for o in (session.get('orders') or []) if isinstance(o, dict)]
-    order_by_id = {o.get('id'): o for o in orders}
-    grade_plans = session.get('gradePlans') or {}
-    plan = grade_plans.get(selected_grade) or {}
-    order_ids = [oid for oid in (plan.get('orderIds') or []) if oid in order_by_id]
-
-    request = (
-        RestorationPartsRequest.objects.filter(
-            job=job,
-            status__in=[
-                RestorationPartsRequest.STATUS_DRAFT,
-                RestorationPartsRequest.STATUS_SUBMITTED,
-            ],
-        )
-        .order_by('-updated_at')
-        .first()
-    )
-    if request is None:
-        request = RestorationPartsRequest.objects.create(
-            job=job,
-            status=RestorationPartsRequest.STATUS_DRAFT,
-            selected_grade=selected_grade,
-            eval_snapshot=snapshot,
-            requested_by=user,
-        )
-    else:
-        request.selected_grade = selected_grade
-        request.eval_snapshot = snapshot
-        request.save(update_fields=['selected_grade', 'eval_snapshot', 'updated_at'])
-
-    # Clear and rebuild sites/lines from the orders attached to the selected grade.
-    request.sites.all().delete()
-    site_map: dict[str, RestorationPartsRequestSite] = {}
-
-    for order_id in order_ids:
-        order = order_by_id.get(order_id)
-        if not isinstance(order, dict):
-            continue
-        supplier = str(order.get('supplierName') or '').strip() or 'Unassigned'
-        supplier = _truncate_for_field(RestorationPartsRequestSite, 'supplier_name', supplier)
-        site = site_map.get(supplier)
-        if site is None:
-            site = RestorationPartsRequestSite.objects.create(
-                parts_request=request,
-                supplier_name=supplier,
-                sort_order=len(site_map),
-            )
-            site_map[supplier] = site
-        overrides = order.get('partQtyOverrides') or {}
-        if not isinstance(overrides, dict):
-            overrides = {}
-        for part_id in order.get('partIds') or []:
-            part = parts_by_id.get(part_id)
-            if not isinstance(part, dict):
-                continue
-            override_qty = overrides.get(part_id)
-            if override_qty not in (None, 0):
-                qty = _parse_line_qty(override_qty, field='part quantity override')
-            else:
-                qty = _parse_line_qty(part.get('qty') or 1, field='part quantity')
-            RestorationPartsRequestLine.objects.create(
-                site=site,
-                part_number=_truncate_for_field(
-                    RestorationPartsRequestLine, 'part_number', part.get('partNumber'),
-                ),
-                description=_truncate_for_field(
-                    RestorationPartsRequestLine, 'description', part.get('description'),
-                ),
-                url=_truncate_for_field(RestorationPartsRequestLine, 'url', part.get('url')),
-                qty=max(qty, 1),
-                unit_price_estimate=_parse_line_price(
-                    part.get('unitPriceEstimate') or 0, field='part price estimate',
-                ),
-                unit_price_actual=_parse_line_price(
-                    part.get('unitPriceActual') or 0, field='part actual price',
-                ),
-                status=_truncate_for_field(
-                    RestorationPartsRequestLine,
-                    'status',
-                    part.get('status') or RestorationPartsRequestLine.STATUS_PLANNED,
-                ),
-                linked_grade=_truncate_for_field(
-                    RestorationPartsRequestLine, 'linked_grade', selected_grade,
-                ),
-            )
-
-    correlation_id = uuid4()
-    mark_restoration_meaningful_action(
-        job,
-        user=user,
-        label='Parts request updated',
-        correlation_id=correlation_id,
-    )
-    _timeline_event(
-        job,
-        'parts.draft_changed',
-        {
-            'parts_request_id': request.pk,
-            'selected_grade': selected_grade,
-            'site_count': request.sites.count(),
-            'line_count': RestorationPartsRequestLine.objects.filter(
-                site__parts_request=request,
-            ).count(),
-        },
-        actor=user,
-        entity_id=f'parts-request:{request.pk}',
-        correlation_id=correlation_id,
-    )
-    return request
-
-
-@transaction.atomic
-def submit_parts_request(request: RestorationPartsRequest, *, user=None) -> RestorationPartsRequest:
-    if request.status != RestorationPartsRequest.STATUS_DRAFT:
-        raise ValueError(
-            f'Request cannot be submitted — it is already {request.get_status_display().lower()}.',
-        )
-    request.status = RestorationPartsRequest.STATUS_SUBMITTED
-    request.save(update_fields=['status', 'updated_at'])
-    _timeline_event(
-        request.job,
-        'parts.request_submitted',
-        {
-            'parts_request_id': request.pk,
-            'selected_grade': request.selected_grade,
-        },
-        actor=user,
-        entity_id=f'parts-request:{request.pk}',
-    )
-    return request
-
-
-@transaction.atomic
-def record_parts_order(
-    request: RestorationPartsRequest,
-    *,
-    site_id: int | None,
-    po_number: str,
-    supplier_name: str,
-    subtotal: Decimal | float,
-    shipping: Decimal | float,
-    tax: Decimal | float,
-    fees: Decimal | float,
-    ship_to_address: str = '',
-    expected_delivery=None,
-    line_ids: list[int] | None = None,
-    notes: str = '',
-    supplier_url: str = '',
-    lines: list[dict] | None = None,
-    user=None,
-) -> RestorationPartsOrder:
-    if request.status in (
-        RestorationPartsRequest.STATUS_RECEIVED,
-        RestorationPartsRequest.STATUS_CANCELLED,
-    ):
-        raise ValueError(
-            f'Cannot record an order on a {request.get_status_display().lower()} parts request.',
-        )
-    site = None
-    if site_id:
-        site = request.sites.filter(pk=site_id).first()
-    elif not line_ids and request.sites.count() > 1:
-        raise ValueError(
-            'This parts request spans multiple supplier sites — specify site_id or line_ids '
-            'so the order is recorded against the right lines.',
-        )
-    sub = Decimal(str(subtotal))
-    ship = Decimal(str(shipping))
-    tax_amt = Decimal(str(tax))
-    fee_amt = Decimal(str(fees))
-    total = sub + ship + tax_amt + fee_amt
-    order = RestorationPartsOrder.objects.create(
-        parts_request=request,
-        site=site,
-        po_number=po_number,
-        supplier_name=supplier_name or (site.supplier_name if site else ''),
-        supplier_url=supplier_url or '',
-        subtotal=sub,
-        shipping=ship,
-        tax=tax_amt,
-        fees=fee_amt,
-        total=total,
-        ship_to_address=ship_to_address,
-        expected_delivery=expected_delivery,
-        ordered_at=timezone.now(),
-        notes=notes,
-        status=RestorationPartsOrder.STATUS_ORDERED,
-    )
-    line_costs: dict[int, Decimal] = {}
-    for entry in lines or []:
-        try:
-            lid = int(entry.get('id'))
-        except (TypeError, ValueError):
-            continue
-        try:
-            cost = Decimal(str(entry.get('unit_cost')))
-        except Exception:
-            cost = Decimal('0')
-        if cost > 0:
-            line_costs[lid] = cost
-    lines_qs = RestorationPartsRequestLine.objects.filter(site__parts_request=request).exclude(
-        status=RestorationPartsRequestLine.STATUS_SKIPPED,
-    )
-    if site:
-        lines_qs = lines_qs.filter(site=site)
-    if line_ids:
-        lines_qs = lines_qs.filter(pk__in=line_ids)
-    for line in lines_qs:
-        unit = line_costs.get(line.id) or line.unit_price_actual or line.unit_price_estimate
-        RestorationPartsOrderLine.objects.create(
-            order=order,
-            request_line=line,
-            qty=line.qty,
-            unit_cost=unit,
-            line_total=unit * line.qty,
-        )
-        line.status = RestorationPartsRequestLine.STATUS_ORDERED
-        line.unit_price_actual = unit
-        line.save(update_fields=['status', 'unit_price_actual'])
-    request.status = RestorationPartsRequest.STATUS_ORDERED
-    request.save(update_fields=['status', 'updated_at'])
-    _timeline_event(
-        request.job,
-        'parts.ordered',
-        {
-            'parts_request_id': request.pk,
-            'order_id': order.pk,
-            'po_number': order.po_number,
-            'supplier_name': order.supplier_name,
-            'total': str(order.total),
-            'expected_delivery': (
-                order.expected_delivery.isoformat() if order.expected_delivery else None
-            ),
-        },
-        actor=user,
-        entity_id=f'parts-order:{order.pk}',
-    )
-    return order
-
-
-@transaction.atomic
-def receive_parts_request(request: RestorationPartsRequest, *, user=None) -> RestorationPartsRequest:
-    """Tech marks an approved/ordered request as received — archives it to the Received tab."""
-
-    if request.status != RestorationPartsRequest.STATUS_ORDERED:
-        raise ValueError('Only ordered requests can be marked received.')
-    request.status = RestorationPartsRequest.STATUS_RECEIVED
-    request.save(update_fields=['status', 'updated_at'])
-    request.orders.exclude(status=RestorationPartsOrder.STATUS_RECEIVED).update(
-        status=RestorationPartsOrder.STATUS_RECEIVED,
-    )
-    RestorationPartsRequestLine.objects.filter(site__parts_request=request).exclude(
-        status=RestorationPartsRequestLine.STATUS_SKIPPED,
-    ).update(
-        status=RestorationPartsRequestLine.STATUS_RECEIVED,
-    )
-
-    # Signal the bench: if the job is parked in Pending waiting on these parts,
-    # flag it so the workstation shows "parts in — ready to finish".
-    if request.job_id:
-        job = RestorationJob.objects.select_for_update().get(pk=request.job_id)
-        if job.stage == RestorationJob.STAGE_PENDING:
-            session = dict(job.work_session or {})
-            pending = dict(session.get('pending') or {})
-            pending['partsReceived'] = True
-            pending['partsReceivedAt'] = timezone.now().isoformat()
-            session['pending'] = pending
-            job.work_session = session
-            job.save(update_fields=['work_session', 'updated_at'])
-        _timeline_event(
-            job,
-            'parts.received',
-            {
-                'parts_request_id': request.pk,
-                'selected_grade': request.selected_grade,
-            },
-            actor=user,
-            entity_id=f'parts-request:{request.pk}',
-        )
-
-    return request

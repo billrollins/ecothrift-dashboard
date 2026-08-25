@@ -594,12 +594,39 @@ def _check_in_processing_row(
     if dispatch == 'restoration':
         from apps.inventory.services.restoration import create_restoration_job_from_check_in
 
-        create_restoration_job_from_check_in(
+        job = create_restoration_job_from_check_in(
             batch,
             scale=restoration_scale,
             grade_values=restoration_grade_values,
             user=user,
         )
+    else:
+        job = None
+    from apps.inventory.services.item_notes import append_item_note, handoff_note_body
+
+    job_id = getattr(job, 'pk', None)
+    for item in items:
+        append_item_note(
+            item,
+            'check_in',
+            notes,
+            author=user,
+            job_id=job_id,
+            check_in=batch,
+            source_key='check_in',
+        )
+    if processing_handoff:
+        handoff_body = handoff_note_body(processing_handoff)
+        for item in items:
+            append_item_note(
+                item,
+                'handoff',
+                handoff_body,
+                author=user,
+                job_id=job_id,
+                check_in=batch,
+                source_key='handoff',
+            )
     return items, batch
 
 

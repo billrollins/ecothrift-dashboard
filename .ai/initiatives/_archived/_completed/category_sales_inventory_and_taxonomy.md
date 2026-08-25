@@ -13,7 +13,7 @@ This initiative file was the **full program** — **Phases 0 through 7** (three 
 
 ## Completion — **2026-04-06**
 
-**Phases 0–7 are complete.** Deliverables include unified notebook SQL extracts for three bins (`scripts/sql/unified_bin*_public.sql`), the **19-category** spine ([`taxonomy_v1.example.json`](../../../../workspace/notebooks/category-research/taxonomy_v1.example.json)), rule-based manifest mapping ([`cr/taxonomy_estimate.py`](../../../../workspace/notebooks/category-research/cr/taxonomy_estimate.py)), full-item **AI categorization** via Claude ([`cr/prompts.py`](../../../../workspace/notebooks/category-research/cr/prompts.py), [`cr/categorize.py`](../../../../workspace/notebooks/category-research/cr/categorize.py), [`categorize.ipynb`](../../../../workspace/notebooks/category-research/categorize.ipynb)), and **sell-through** comparison of sold (Bin 2) vs on-shelf (Bin 3) by category.
+**Phases 0–7 are complete.** Deliverables include unified notebook SQL extracts for three bins (`scripts/sql/unified_bin*_public.sql`), the **19-category** spine (`taxonomy_v1.example.json`), rule-based manifest mapping (`cr/taxonomy_estimate.py`), full-item **AI categorization** via Claude (`cr/prompts.py`, `cr/categorize.py`, `categorize.ipynb`), and **sell-through** comparison of sold (Bin 2) vs on-shelf (Bin 3) by category.
 
 **Outcome:** The project produced **actionable buying recommendations** (e.g. category-level understock vs overstock, margin and days-to-sell context). Onboarding: [`.ai/extended/development.md`](../../../extended/development.md) (*Jupyter*) and the **`workspace/notebooks/category-research/`** tree (**`category_research.ipynb`**, **`cr/`**).
 
@@ -32,17 +32,17 @@ This initiative file was the **full program** — **Phases 0 through 7** (three 
 
 ## How we run extracts (unified notebook + legacy CLI; no SET search_path in SQL)
 
-- **Unified notebook path (preferred for Phase 1):** [`scripts/sql/unified_bin1_public.sql`](../../../../scripts/sql/unified_bin1_public.sql), [`unified_bin2_public.sql`](../../../../scripts/sql/unified_bin2_public.sql), [`unified_bin3_public.sql`](../../../../scripts/sql/unified_bin3_public.sql) — identical columns from **`public`** item/manifest/product/**vendor**; Bin 3 uses **ecothrift** only to filter SKUs (retag notes). Run via [`workspace/notebooks/category-research/cr/`](../../../../workspace/notebooks/category-research/cr/) and [`category_research.ipynb`](../../../../workspace/notebooks/category-research/category_research.ipynb). Discovery queries: [`ai_scripts/sql/category_research_discovery.sql`](../../../../workspace/notebooks/category-research/ai_scripts/sql/category_research_discovery.sql) — run with [`ai_execute_sql.py`](../../../../workspace/notebooks/category-research/ai_scripts/ai_execute_sql.py) (see `scripts/sql/category_research_discovery.sql` for the one-line pointer).
+- **Unified notebook path (preferred for Phase 1):** `scripts/sql/unified_bin1_public.sql`, `unified_bin2_public.sql`, `unified_bin3_public.sql` — identical columns from **`public`** item/manifest/product/**vendor**; Bin 3 uses **ecothrift** only to filter SKUs (retag notes). Run via `workspace/notebooks/category-research/cr/` and `category_research.ipynb`. Discovery queries: `ai_scripts/sql/category_research_discovery.sql` — run with `ai_execute_sql.py` (see `scripts/sql/category_research_discovery.sql` for the one-line pointer).
 
-- **Legacy CLI path:** **`export_category_bins`** ([`apps/inventory/management/commands/export_category_bins.py`](../../../../apps/inventory/management/commands/export_category_bins.py)) runs older bin SQL from [`scripts/sql/`](../../../../scripts/sql/) (Bins 1–2 **`public.*`**; legacy Bin 3 was **`ecothrift.*`**-shaped). Still supported for existing workflows.
+- **Legacy CLI path:** **`export_category_bins`** ([`apps/inventory/management/commands/export_category_bins.py`](../../../../apps/inventory/management/commands/export_category_bins.py)) runs older bin SQL from `scripts/sql/` (Bins 1–2 **`public.*`**; legacy Bin 3 was **`ecothrift.*`**-shaped). Still supported for existing workflows.
 
 - **Bins 1–3** use one connection: Django’s **`default`** database (`DATABASE_*` in `.env`). Typical production: **same** Postgres holds both schemas — no second `DATABASES` entry.
 
 - **Do not** rely on `SET search_path` in hand-written SQL for this initiative — qualify tables (`public.inventory_item`, `ecothrift.inventory_item`, …). Django’s `search_path=ecothrift` on the default connection does not replace explicit `public.` prefixes in these scripts.
 
-**Shared taxonomy columns** — See [`docs/taxonomy_input_schema.md`](../../../../workspace/notebooks/category-research/docs/taxonomy_input_schema.md) for the **unified** contract (`vendor_name`, identical column order) vs legacy CLI. Do not use `ecothrift.inventory_item.category` as a taxonomy proxy.
+**Shared taxonomy columns** — See `docs/taxonomy_input_schema.md` for the **unified** contract (`vendor_name`, identical column order) vs legacy CLI. Do not use `ecothrift.inventory_item.category` as a taxonomy proxy.
 
-**Taxonomy list artifact** — [`taxonomy_v1.example.json`](../../../../workspace/notebooks/category-research/taxonomy_v1.example.json) holds the **19 canonical categories** (`taxonomy_v1`); use with `categorize_category_bins --taxonomy`. Copy to `taxonomy_v1.json` in the same folder locally if you fork names (gitignored).
+**Taxonomy list artifact** — `taxonomy_v1.example.json` holds the **19 canonical categories** (`taxonomy_v1`); use with `categorize_category_bins --taxonomy`. Copy to `taxonomy_v1.json` in the same folder locally if you fork names (gitignored).
 
 **AI mapping (Bins 2–3)** — [`categorize_category_bins`](../../../../apps/inventory/management/commands/categorize_category_bins.py): `python manage.py categorize_category_bins --taxonomy … --bin bin2|bin3 --input …`. Logs: **`logs/categorization/*.jsonl`** (gitignored). Outputs: **`categorized_exports/`** (gitignored; includes **`_chunks/`** during long runs).
 
@@ -50,7 +50,7 @@ This initiative file was the **full program** — **Phases 0 through 7** (three 
 
 **Process logs** — Append-only **`logs/extraction_runs.log`** for exports; optional human notes can live in the same **`logs/`** tree or in this initiative. **SQL staging** (temp tables): document in initiative or a dated file under **`logs/`** when used.
 
-**Notebook project** — [`category_research.ipynb`](../../../../workspace/notebooks/category-research/category_research.ipynb) plus [`cr/`](../../../../workspace/notebooks/category-research/cr/) helpers. CLI artifact paths remain in [`apps/inventory/category_research_paths.py`](../../../../apps/inventory/category_research_paths.py).
+**Notebook project** — `category_research.ipynb` plus `cr/` helpers. CLI artifact paths remain in [`apps/inventory/category_research_paths.py`](../../../../apps/inventory/category_research_paths.py).
 
 **Working principles**
 
@@ -100,7 +100,7 @@ This initiative file was the **full program** — **Phases 0 through 7** (three 
 - **Three bins, three jobs** — Do not merge the questions; **`public`** (V2) vs **`ecothrift`** (V3) in the **same** database is intentional.
 - **Retail / estimated retail** — Part of the analytics story; document **missing** retail, do not silently average junk.
 - **SKU as bridge** — Across DBs when both sides exist.
-- **Artifacts** — [`workspace/notebooks/category-research/`](../../../../workspace/notebooks/category-research/) (generated `exports/`, `logs/`, etc., are gitignored locally).
+- **Artifacts** — `workspace/notebooks/category-research/` (generated `exports/`, `logs/`, etc., are gitignored locally).
 
 ---
 
@@ -241,7 +241,7 @@ Skip ahead only when a phase’s **exit criteria** are met (or explicitly waived
 - **[`.ai/extended/development.md`](../../../extended/development.md)** — Jupyter / notebook setup; **`workspace/notebooks/category-research/`** — exports, taxonomy, AI, reports
 - **[`apps/inventory/category_research_paths.py`](../../../../apps/inventory/category_research_paths.py)** — canonical paths for CLI outputs
 - **[`apps/inventory/services/category_taxonomy.py`](../../../../apps/inventory/services/category_taxonomy.py)** — taxonomy helpers and validation
-- **[`scripts/sql/`](../../../../scripts/sql/)** — `unified_bin*_public.sql`, `category_research_discovery.sql`, legacy `public_bin*_`, `ecothrift_bin3_*`
+- **`scripts/sql/`** — `unified_bin*_public.sql`, `category_research_discovery.sql`, legacy `public_bin*_`, `ecothrift_bin3_*`
 - **Backlog:** [item retail on instance](../_backlog/item_retail_price_on_instance.md)
 
 ---

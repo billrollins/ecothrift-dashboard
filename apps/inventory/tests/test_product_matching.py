@@ -1,6 +1,6 @@
 """P1 matching backend: candidate generation, decisions, finalize carry, denorm preservation.
 
-Design: `.ai/reference/product_identity/product_identity_design.md` §2/§8.
+Design: `.ai/extended/inventory-pipeline.md` (Final Decisions / product match).
 """
 
 from decimal import Decimal

@@ -64,5 +64,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
+    // Files pass alone in well under a second of real work, but a full parallel
+    // run alongside the dev servers starves them past the 5s default.
+    testTimeout: 20_000,
   },
 })

@@ -82,25 +82,18 @@ Built different. Built fast. Built to last.
 
 ---
 
-### AI steering & initiatives
+### AI steering
 
 | Doc | Purpose |
 |-----|---------|
-| [`.ai/context.md`](.ai/context.md) | Living **current state** (what works, known gaps). |
-| [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md) | **Active** initiatives table (may be empty; bounded work tracked as one `.md` each when listed). |
-| [`.ai/initiatives/_archived/ARCHIVE.md`](.ai/initiatives/_archived/ARCHIVE.md) | **Archived** initiatives (completed, backlog, pending, abandoned). Example: [category intelligence](.ai/initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md) (Phases 0–7, 2026-04-06). |
-| [`.ai/protocols/code.0.Startup.md`](.ai/protocols/code.0.Startup.md) | Session start: load context; **frame** the session (questions); **create session entry** in the initiative file. |
-| [`.ai/protocols/session.0.Create.md`](.ai/protocols/session.0.Create.md) | Reserved placeholder (session-only protocol TBD; steps today live in `code.0.Startup.md`). |
-| [`.ai/protocols/session.1.Checkpoint.md`](.ai/protocols/session.1.Checkpoint.md) | **During** the session (often ~5×): append session updates, keep **`CHANGELOG` `[Unreleased]`** and light docs in sync. |
-| [`.ai/protocols/code.1.Bearing.md`](.ai/protocols/code.1.Bearing.md) | Mid-session when **stuck**: compare progress to the written session goal (compass check). |
-| [`.ai/protocols/review.0.Bump.md`](.ai/protocols/review.0.Bump.md) | **Docs audit + semver + `CHANGELOG`** slice (optional **`commit_message.txt`** growth); **local** `git commit` — **no push** unless you ask. |
-| [`.ai/protocols/code.9.Push.md`](.ai/protocols/code.9.Push.md) | **`review.0.Bump`** checklist + **full** **`commit_message.txt`** + **`scripts/deploy/2_push_github.bat`** (`git push origin main`). |
-| [`.ai/protocols/review.9.Deep.md`](.ai/protocols/review.9.Deep.md) | Full repo/context audit; human-readable reports + `PLAN.md` under `.ai/reference/deep_dive/latest/`. |
-| [`.ai/protocols/session.9.Close.md`](.ai/protocols/session.9.Close.md) | **End** of session: **`Result`**, scoped docs, version bump, commit message (includes keeping this README in sync). |
+| [`.ai/context.md`](.ai/context.md) | Product compass (not a changelog). |
+| [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md) | Active / pending / completed initiatives. |
+| [`.ai/protocols/load-context.md`](.ai/protocols/load-context.md) | Start of work: load compass, version, changelog top, active initiative. |
+| [`.ai/protocols/ship.md`](.ai/protocols/ship.md) | Docs audit, semver bump, CHANGELOG, commit, `2_push_github.bat`, pull prod. |
+| [`.ai/protocols/initiative.md`](.ai/protocols/initiative.md) | Create / activate / park / complete / abandon an initiative. |
+| [`.ai/protocols/sql-schema.md`](.ai/protocols/sql-schema.md) | Refresh `.ai/extended/sql/schema.csv`. |
 
-**Notebook research:** [`.ai/extended/development.md`](.ai/extended/development.md) (*Jupyter*); category work under **`workspace/notebooks/category-research/`** (**`category_research.ipynb`**, **`categorize.ipynb`**, **`cr/`**). **B-Stock / buying:** archived initiative [`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md); optional **`workspace/notebooks/bstock-scraper/Scraper/`** + **`examples/bstock_quickstart.ipynb`**. **Phases 4.1A–4.1B** (manifest templates, AI template + key mapping, upload progress UI, usage logging) shipped **v2.7.0** — see **`CHANGELOG`** **[2.7.0]**. **Phase 5** (auction valuation engine + category need/want APIs **v2.8.0**; React list/detail/category-need valuation UI **v2.9.0**) — **`CHANGELOG`** **[2.8.0]**, **[2.9.0]**. **Historical sell-through — PO extract** (local CSV under **`workspace/data/`**, **v2.7.1**): **`CHANGELOG`** **[2.7.1]**; archived initiative [`.ai/initiatives/_archived/_pending/historical_sell_through_analysis.md`](.ai/initiatives/_archived/_pending/historical_sell_through_analysis.md); single-file handoff [`.ai/consultant_context.md`](.ai/consultant_context.md).
-
-Detailed setup beyond **Quick Start** lives in [`.ai/extended/development.md`](.ai/extended/development.md).
+**Notebook research:** [`.ai/extended/development.md`](.ai/extended/development.md) (*Jupyter*); category work under **`workspace/notebooks/category-research/`**. **B-Stock / buying:** archived initiative [`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md). Detailed setup: [`.ai/extended/development.md`](.ai/extended/development.md).
 
 ---
 

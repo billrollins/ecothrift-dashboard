@@ -36,10 +36,6 @@ import {
 import { useTimeEntries } from '../../hooks/useTimeEntries';
 import { createModificationRequest } from '../../api/hr.api';
 import { useAuth } from '../../contexts/AuthContext';
-import {
-  TarsClockOutReconcileDialog,
-  useRunningRestorationWork,
-} from '../restoration/tars/TarsClockOutReconcile';
 import type { TimeEntry } from '../../types/hr.types';
 
 function formatHours(value: string | number | null | undefined): string {
@@ -201,9 +197,6 @@ export default function TimeClockPage() {
   const startBreak = useStartBreak();
   const endBreak = useEndBreak();
 
-  const runningRestorationJob = useRunningRestorationWork();
-  const [reconcileOpen, setReconcileOpen] = useState(false);
-
   const [modOpen, setModOpen] = useState(false);
   const [modEntry, setModEntry] = useState<TimeEntry | null>(null);
   const [modForm, setModForm] = useState({
@@ -247,29 +240,11 @@ export default function TimeClockPage() {
     }
   };
 
-  /**
-   * Clocking out ends the shift, so it ends any restoration work too. Rather
-   * than letting the server pause it quietly and telling someone afterwards,
-   * ask first — this is the last moment they will remember what they were
-   * doing.
-   */
   const handleClockOut = async () => {
     if (!currentEntry) return;
-    if (runningRestorationJob) {
-      setReconcileOpen(true);
-      return;
-    }
-    await finishClockOut();
-  };
-
-  const finishClockOut = async () => {
-    if (!currentEntry) return;
     try {
-      const result = await clockOut.mutateAsync({ id: currentEntry.id });
+      await clockOut.mutateAsync({ id: currentEntry.id });
       enqueueSnackbar('Clocked out', { variant: 'success' });
-      if (result?.restoration_timer_paused_job_id) {
-        enqueueSnackbar('Restoration bench timer paused for clock-out', { variant: 'info' });
-      }
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
@@ -285,11 +260,8 @@ export default function TimeClockPage() {
         await endBreak.mutateAsync(currentEntry.id);
         enqueueSnackbar('Break ended', { variant: 'success' });
       } else {
-        const result = await startBreak.mutateAsync(currentEntry.id);
+        await startBreak.mutateAsync(currentEntry.id);
         enqueueSnackbar('Break started', { variant: 'info' });
-        if (result?.restoration_timer_paused_job_id) {
-          enqueueSnackbar('Restoration bench timer paused for break', { variant: 'info' });
-        }
       }
     } catch (err: unknown) {
       const msg =
@@ -619,16 +591,6 @@ export default function TimeClockPage() {
         </DialogActions>
       </Dialog>
 
-      {reconcileOpen && runningRestorationJob ? (
-        <TarsClockOutReconcileDialog
-          job={runningRestorationJob}
-          onCancel={() => setReconcileOpen(false)}
-          onConfirm={() => {
-            setReconcileOpen(false);
-            void finishClockOut();
-          }}
-        />
-      ) : null}
     </Box>
   );
 }

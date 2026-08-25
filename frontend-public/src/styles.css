@@ -1,8 +1,7 @@
-/* Eco-Thrift public site - design system ported from the approved mockup
+/* Eco-Thrift public site - design system.
 
-   (.ai/reference/shopify-site-copy/ecothrift-store.html). Commerce-only styles
-
-   (product cards, cart drawer, checkout) are intentionally deferred to Phase 2/3. */
+   Commerce-only styles (product cards, cart drawer, checkout) are intentionally
+   deferred. */
 
 :root {
 

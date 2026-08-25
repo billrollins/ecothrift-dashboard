@@ -33,7 +33,7 @@
 - [x] **Step 4 — Receiving transition hardening:** receiving timestamps/pallets + desktop fallback — **`v2.24.0`**.
 - [x] **Step 5 — Processing handoff compatibility:** Item Processor + build-processing-data; **`v2.24.1`** decoupled Processing from Receiving gate.
 - [x] **Step 6 — Disputes and rollups:** **`Dispute`** model/API + atomic **`processing_dispute`** — **`v2.24.0`**.
-- [x] **Step 7 — Recon/repair/deploy runbook:** [`_recon/README.md`](../../../reference/order_processing_pipeline_rebuild/_recon/README.md) exercised on prod rollout.
+- [x] **Step 7 — Recon/repair/deploy runbook:** `_recon/README.md` exercised on prod rollout.
 - [x] **Step 8 — Closeout docs/tests/commit message:** **`v2.24.0`** + **`v2.24.1`** released; steering cleanup in progress.
 
 **Work loop:** finish one step at a time. Each step ends with targeted tests or a noted blocker, any migration/deploy note captured, and a short Session 15 update before starting the next step.
@@ -50,7 +50,7 @@
 | Receiving transition | In scope | `apps/inventory/services/receiving.py`, `frontend/src/components/inventory/receiving/ReceivingDesktopWorkspace.tsx`, `frontend/src/pages/inventory/ReceivingOrderPage.tsx` |
 | Processing handoff | In scope | `apps/inventory/processing_ops.py`, `apps/inventory/services/processing_finalize.py`, `apps/inventory/services/processing_workspace.py`, `apps/inventory/management/commands/build_legacy_checkin_queue.py` |
 | Disputes / repair | In scope | `apps/inventory/services/disputes.py`, `apps/inventory/services/intake_po_repair.py`, `apps/inventory/management/commands/repair_intake_pipeline_pos.py`, dispute/intake repair tests |
-| Recon / deploy references | Supporting | [`.ai/reference/order_processing_pipeline_rebuild/`](../../../reference/order_processing_pipeline_rebuild/README.md) (`_sql/`, `_recon/`, field map), `scripts/deploy/` |
+| Recon / deploy references | Supporting | `.ai/reference/order_processing_pipeline_rebuild/` (`_sql/`, `_recon/`, field map), `scripts/deploy/` |
 | Final Review visual pass | **Deferred** (future initiative) | Mockup rebuild was tracked under retired **`fix_this.md`** (removed 2026-05 steering cleanup) |
 
 ---
@@ -123,9 +123,9 @@ Subgroup headers under collapsible **Inventory**:
 
 ## Context
 
-This initiative **replaces** the approach and shipped direction of **[Inventory intake pipeline (abandoned)](./_archived/_abandoned/inventory_intake_pipeline.md)** (`inventory_intake_pipeline`). That initiative tracked Order → Preprocess → Process hardening and a multi-step preprocessing redesign; **those pages and processes are being torn down** and rebuilt with a clearer scope.
+This initiative **replaces** the approach and shipped direction of **[Inventory intake pipeline (abandoned)](../_abandoned/inventory_intake_pipeline.md)** (`inventory_intake_pipeline`). That initiative tracked Order → Preprocess → Process hardening and a multi-step preprocessing redesign; **those pages and processes are being torn down** and rebuilt with a clearer scope.
 
-**Supporting docs:** [`2026.05.08_intake_updates.md`](../../../reference/order_processing_pipeline_rebuild/2026.05.08_intake_updates.md), [`data_flow_plan.md`](../../../reference/order_processing_pipeline_rebuild/data_flow_plan.md), [`intake_field_map.md`](../../../reference/order_processing_pipeline_rebuild/intake_field_map.md), [`order_dashboard_surfaces.md`](../../../reference/order_processing_pipeline_rebuild/order_dashboard_surfaces.md), [`_sql/`](../../../reference/order_processing_pipeline_rebuild/_sql/README.md), and [`_recon/`](../../../reference/order_processing_pipeline_rebuild/_recon/README.md).
+**Supporting docs:** `2026.05.08_intake_updates.md`, `data_flow_plan.md`, `intake_field_map.md`, `order_dashboard_surfaces.md`, `_sql/`, and `_recon/`.
 
 ---
 
@@ -156,7 +156,7 @@ TBD per session. Buying auction manifests (`/buying/*`) remain a separate domain
 
 ## Preprocessing — target UX
 
-_Core path is **shipped** (stepper + CSV round-trip + final review + finalize). Remaining items are polish and deeper pricing workflows._ Step 2/3 details and handoff: [`workspace/ai-cleanup-grok/data/upload-pipeline-handoff.md`](../../../../workspace/ai-cleanup-grok/data/upload-pipeline-handoff.md); validation contract: **[`inventory-pipeline.md`](../../../extended/inventory-pipeline.md)** (cleanup CSV contract).
+_Core path is **shipped** (stepper + CSV round-trip + final review + finalize). Remaining items are polish and deeper pricing workflows._ Step 2/3 details and handoff: `workspace/ai-cleanup-grok/data/upload-pipeline-handoff.md`; validation contract: **[`inventory-pipeline.md`](../../../extended/inventory-pipeline.md)** (cleanup CSV contract).
 
 **Route:** keep **`/inventory/preprocessing`** and **`/inventory/preprocessing/:id`** unless we decide a clearer path later (either is fine).
 
@@ -208,133 +208,9 @@ Lightweight interchange with external cleanup (offline Grok, Excel, etc.).
 
 ---
 
-## Sessions
-
-### Session 1
-
-- **Goal:** Group Inventory sidebar under **Inbound fulfillment** + Items / Vendors / Admin; roadmap placeholders for receiving/finalization/disputes/categories; legacy hub; manifest templates splash; processing settings via `#settings`.
-- **Finish line:** Shipped nav + routes + initiative table; old pages not deleted.
-- **Scope:** `Sidebar.tsx`, `App.tsx`, small pages under `pages/inventory/*`, `ProcessingPage` hash/`?settings=1`, initiative file.
-- **Start:** 2026-04-29
-
-### Session 2
-
-- **Goal:** Maintain an **offline** manifest row cleanup harness for liquidation CSVs aligned with preprocessing taxonomy (**before/after** few-shot parity with in-app preprocessing expectations).
-- **Scope (local tooling):** `workspace/ai-cleanup-grok/` — **`helpers/clean-grok.mjs`**, **`run.bat`**, `.config`, **`data/in/`** / **`data/out/`** / **`data/on deck/`** (optional staging) / **`data/batches/active/`**, **`prompts/`** (`system-prompt.txt`, `examples.json`, `amazon-examples.json`), **`helpers/`** ( **`build-amazon-examples.mjs`**, Grok API key file path in `.config`).
-- **Repo note:** `workspace/*` is **gitignored** (see repo root `.gitignore`); this tree is **not in git commit history**. To track in-repo later, whitelist a path such as **`!workspace/ai-cleanup-grok/`** intentionally.
-- **Start:** 2026-04-29
-
-### Session 3 — PO Raw Manifest CSV (git: `46e0996`)
-
-- **Evidence:** local commit **`46e0996`** — **`feat(inventory): PO manifest upload + review_bump steering`** (`git show --stat`).
-- **Scope:** `apps/inventory/views.py` (manifest upload / remove / staging expectations); **`OrderDetailPage.tsx`** Raw Manifest flow; **`PreprocessingPage.tsx`** small wiring; **`frontend/src/api/inventory.api.ts`**, **`frontend/src/types/inventory.types.ts`**; **`CHANGELOG.md`** **`[Unreleased]`** inventory manifest bullets expanded; `.ai/context.md`, `.ai/consultant_context.md`, `.ai/extended/{backend,frontend,inventory-pipeline}.md`; `.ai/protocols/review.0.Bump.md`; `.ai/initiatives/_index.md`; additional initiative bookkeeping files per **`git show --stat 46e0996`**.
-- **Finish line (for this slice):** doc + changelog alignment with unreleased backend/FE prep; semver bump deferred per protocol until explicit release (`session_close`).
-
-### Session 4 — Inbound receiving + preprocessing primitives (working tree only)
-
-- **Evidence:** working tree snapshot (uncommitted / untracked vs **`HEAD`** at stewardship); not necessarily present on **`origin/main`**. Modified **`frontend/src/App.tsx`**, **`frontend/src/components/layout/Sidebar.tsx`**, **`apps/inventory/models.py`**, **`serializers.py`**, **`views.py`**; untracked **`frontend/src/components/inventory/receiving/`**, migrations **`0024_preprocessing_staging.py`**, **`0025_po_vendor_cache_search.py`**, **`0026_receiving_models.py`** (introduces **`Receiving`**), **`0027_purchase_order_order_pallet_count.py`**, plus tests **`test_receiving_api.py`**, **`test_preprocessing_redesign.py`**, **`test_po_dashboard.py`**, **`test_purchase_order_pallet_count.py`**. **Receiving** dirs/files visible in **`git status`** as **`??`** at capture time.
-- **Finish line:** TBD once committed and reviewed — do not treat API/UI guarantees as shipped until merged.
-- **Start:** 2026-04-29
-
-### Session 5 — Receiving entry + `for-receiving` ordering (`v2.20.0`)
-
-- **Evidence:** **`review_bump`** aligns **`.version`**, **`CHANGELOG [2.20.0]`**, steering docs (**2026-04-29**).
-- **Goal:** Tiered **`GET /api/inventory/orders/for-receiving/`** queryset; **`/inventory/receiving`** resolves to the first PO in that list; **Orders** table **Receive** truck when status is eligible; back from receiving to **`/inventory/orders`** (no separate receiving list page).
-- **Scope:** `apps/inventory/views.py` (for-receiving ordering + tests); `ReceivingEntryRedirect.tsx`; `App.tsx`; `OrderListPage.tsx`; `ReceivingOrderPage.tsx`; removed `ReceivingListPage.tsx`.
-- **Finish line:** Sidebar **Receiving** and orders **Receive** both land staff on dock receive for the right PO by **expected_delivery** priority.
-- **Start:** 2026-04-29
-
-### Session 6 — Preprocessing (**core shipped 2026-05**)
-
-- **Goal (met):** [Preprocessing — target UX](#preprocessing--target-ux): stepper **Standardize / Clean / Final Review**, Step 1 **`manifest_preview` until apply**, Step 2 **wide Grok CSV (+ optional `ai_status`) + legacy narrow** cleanup apply with server validation, Step 3 **Final Review** + **`finalize-preprocessing`** coalesce to **`ManifestRow`**.
-- **Scope (shipped):** `PreprocessingPage.tsx` + preprocessing API/views/models (**`apps/inventory/views.py`**, **`cleanup_csv_validate.py`**, **`layer_helpers.py`**, three-layer **`PreprocessingRow`**), **`Sidebar`** **Preprocessing** entry, route **`/inventory/preprocessing`**. See **`test_preprocessing_redesign.py`**.
-- **Finish line:** Staff can run export → offline clean → apply → final review → finalize; canonical manifest reflects **`final_*`**.
-- **Remaining:** Step 3 Final Review **visual mockup** (deferred — future initiative); UX polish, optional advanced pricing.
-- **Start:** 2026-04-29; **core complete:** 2026-05-01
-
-### Session 7 — Startup + `ai-cleanup-grok` review
-
-- **Goal:** Run **`code.0.Startup`**: load **`.ai/context.md`**, version (**`v2.20.0`**), **`CHANGELOG`** (`[Unreleased]` + **`[2.20.0]`**), **`.ai/initiatives/_index.md`** + **`ARCHIVE.md`**, terminals check; deliver a concise **code review** of **`workspace/ai-cleanup-grok/`** (offline Grok CSV cleanup harness).
-- **Finish line:** Startup summary + review notes in session chat; this session block recorded.
-- **Scope:** Read-only assessment of **`helpers/clean-grok.mjs`**, **`.config`**, **`helpers/build-amazon-examples.mjs`**, **`prompts/`**; no repo product code changes.
-- **Out of scope:** Core Session 6 preprocessing implementation (**shipped 2026-05**); committing **`workspace/`** (remains gitignored unless whitelisted).
-- **Start:** 2026-04-30
-
-### Session 8 — Startup + Preprocessing Step 2 (Clean) understanding
-
-- **Goal:** Run **`code.0.Startup`** and map **initiative Step 2 — Clean** to the **current shipped** preprocessing UI/API.
-- **Finish line:** Startup checklist + concise explanation of Step 2 flow (download → offline edit → upload → apply) and naming/label gaps vs target UX.
-- **Scope:** Read-only: **`.ai/context.md`**, **`.version`**, **`CHANGELOG`** top, **`_index.md`**, initiative file, **`PreprocessingPage`**, **`CleanupStep`**, **`RowProcessingPanel`**, inventory views cleanup endpoints.
-- **Start:** 2026-04-30
-
-### Session 9 — `review.0.Bump` (cleanup docs + unreleased steering)
-
-- **Goal:** Align **[Unreleased]** **`CHANGELOG`** + **`inventory-pipeline.md`** with the adjunct **Grok** path and three-layer staging; local **`git commit`** (no semver bump).
-- **Scope:** `CHANGELOG.md`, `.ai/extended/inventory-pipeline.md`, this initiative header; **`workspace/ai-cleanup-grok/data/upload-pipeline-handoff.md`** (workspace; gitignored unless whitelisted); committed **`workspace/notebooks/ai-cleanup/`** tree **removed** — notebook narrative lives in handoff + **[`inventory-pipeline.md`](../../../extended/inventory-pipeline.md)** (cleanup CSV contract) instead.
-- **Finish line:** No steering references to missing notebook paths unless marked historical.
-- **Start:** 2026-05-01
-
-### Session 10 — Final Review **`ai_status`** + second **`review.0.Bump`**
-
-- **Goal:** Surface **`ai_status`** on Final Review; keep client/server in sync when staff edits clear it; refresh **`CHANGELOG [Unreleased]`**, **`context.md`** / **`consultant_context.md`**, **`extended/*`**, initiative Sessions; local **`git commit`** (no **`.version`** bump).
-- **Scope:** `PreprocessingReviewTable.tsx`, `PreprocessingPage.tsx` (`mergeReviewPatches`), `RowProcessingPanel.tsx`, `cleanupCsv.ts`, `apps/inventory/views.py` (`_normalize_cleanup_ai_status_value`, `update_preprocessing_review_rows`), `test_preprocessing_redesign.py`.
-- **Finish line:** Steering + **[Unreleased]** describe 13-col CSV, **`soft_warnings`**, Final Review chips, and clear-on-edit semantics.
-- **Start:** 2026-05-01
-
-### Session 12 — `review.0.Bump` (Item Processor pricing audit + `manual-review` Retail)
-
-- **Goal:** Staff can **see** manifest-line economics (**`GET …/manual-review/`**) during Item Processor without editing; **Retail** column matches API **`unit_retail`**; active card shows manifest MSRP vs shelf when investigating bad prices.
-- **Scope:** `ProcessingWorkspacePage.tsx` (accordion + **`useManualReview`**), `ManualReviewPanel.tsx` (`readOnly`, **`displayRetail`**), `ProcessingActiveCard.tsx`, `inventory.types.ts` **`ManifestRow.unit_retail`**; **`CHANGELOG [Unreleased]`**; `.ai/context.md`, `.ai/consultant_context.md`, `.ai/extended/{frontend,inventory-pipeline}.md`; this session block.
-- **Finish line:** Steering + **[Unreleased]** describe read-only audit + column fix; **no** `.version` bump (`review.0.Bump` Part **2A**).
-- **Start:** 2026-05-02
-
-### Session 13 — Item Processor Phase 3 row-first + **`review.0.Bump`** (`v2.22.0`)
-
-- **Evidence:** **`CHANGELOG [2.22.0]`**, **`.version`**, migration **`inventory/0042_processing_data_build`**.
-- **Goal:** Selection identity (**`processing_row_id`**) matches mutation payloads — dispute, merge, bulk disposition, print-multiple accept **`processing_row_ids`** / **`processing_row_id`**; bookmark-only rows yield **`processing_data_required`**; merge denorm refresh scoped.
-- **Scope:** **`apps/inventory/processing_ops.py`**, **`views.py`**, **`processing_workspace.py`**, **`processing_finalize.py`**, **`models.py`**; **`frontend`** processing modals/page/hooks/**`inventory.api.ts`**; **`test_processing_validation_matrix`**, **`test_preprocessing_redesign`**; **`.gitignore`** **`.0.learning/`** (safe **`git add .`** before deploy bats); steering **`context.md`** / **`consultant_context.md`** / **`extended/{inventory-pipeline,frontend}.md`**.
-- **Finish line:** Operators can **`5_deploy_yolo.bat`** without staging stray learning dirs; **`commit_message.txt`** holds full deploy message (**line 1** not **`---`**).
-- **Start:** 2026-05-02
-
-### Session 14 — Intake pipeline data flow (2026-05-08)
-
-- **Goal:** Clarify **how data is created and mutated** across the full intake path (order → preprocess → receiving → processing → disputes) so writes can be cleaned up and SSOT is obvious per stage.
-- **Finish line:** Working notes + per-step object/entry-point map in [`.ai/reference/order_processing_pipeline_rebuild/2026.05.08_intake_updates.md`](../../../reference/order_processing_pipeline_rebuild/2026.05.08_intake_updates.md); agreed follow-on code scoped to specific pipeline steps.
-- **Scope:** Data-flow documentation and targeted refactors only as needed after mapping; pipeline steps: Create/Edit Order → Standardize Manifest → AI Cleanup → Final Manual Review → Receiving (photos) → Build Data → Check-in/labels → Close PO → Disputes.
-- **Est:** TBD · **Start:** 2026-05-08
-- **Result:** Discovery produced the intake reference docs/recon scaffolding and revealed that the active work is larger than documentation-only mapping. Implementation is now split into the Session 15 stabilization steps above.
-
-#### Session updates
-
-- Bearing: MESSY — ~40% — next: Reconcile Session 14 scope vs working tree (intake migrations 0045–51 + API/FE); update session entry or add Session 15 before committing — 2026-05-09
-
-### Session 15 — Intake rebuild stabilization wave
-
-- **Goal:** Stabilize the intake rebuild currently on disk by working through the **Current Execution Steps** in order.
-- **Finish line:** Local/test can run orders list/detail, preprocessing, receiving, processing handoff, disputes, and repair paths after migrations; targeted tests and deploy notes are aligned; `scripts/deploy/commit_message.txt` is ready for the eventual commit/deploy.
-- **Scope:** The **Current Operating Scope** and **Scope Ledger** above. Do not pull parked finalization UI, broad nav expansion, advanced pricing polish, buying auction behavior, or broad legacy cleanup into this session without an explicit scope update.
-- **Start:** 2026-05-18
-
-#### Session updates
-
-- Scope cleanup: Session 14 closed as discovery; Session 15 owns the ordered stabilization wave. Next: Step 1 — schema + migration baseline.
-- Review: **`review.0.Bump`** + **`review.1.Diff`** + **`review.9.Deep`** — shipped **`v2.24.0`** / **`v2.24.1`**; steering sync — 2026-05-18
-- Stabilization pass (Business-hours readiness): **`0045`** rollout PO map corrected; **`processing_dispute`** all-in-one **`transaction.atomic()`**; **`OrderDetailPage`** PATCH queue retention + **`ReceivingOrderPage`** desktop missing-PO fallback; targeted pytest (8 modules) **`121`** OK; **`repair_intake_pipeline_pos --verify`** OK; **`npm run build`**. **`0050`** still full-scan on migrate — rehearsal deploy/window timing on prod-sized copy remains a release gate — 2026-05-18
-- Release bookkeeping correction: main release is **`v2.24.0`**; same-day production hotfixes are **`v2.24.1`** (PATCH) for structured processing-data validation and temporary Processing/Receiving decoupling. Going forward, **every production push warrants a semver bump + `CHANGELOG` entry** — 2026-05-18
-- **Result:** Session 15 stabilization wave **shipped** (**`v2.24.0`**, **`v2.24.1`**). Remaining polish deferred to future initiatives (see archive note above).
-
-### Session 16 — Initiative closeout
-
-- **Goal:** Archive **`order_processing_pipeline_rebuild`**; clean slate for future polish initiatives.
-- **Finish line:** File in **`_archived/_completed/`**; **`_index.md`** + **`ARCHIVE.md`** + **`context.md`** updated; loose ends summarized for the user.
-- **Start:** 2026-05-30
-- **Result:** **Archived** (disposition=completed). User will create separate initiatives for polish.
-
----
-
 ## See also
 
 - **Supersedes / archaeology:** [`.ai/initiatives/_archived/_abandoned/inventory_intake_pipeline.md`](../_abandoned/inventory_intake_pipeline.md)
 - Deep reference: [`.ai/extended/inventory-pipeline.md`](../../../extended/inventory-pipeline.md)
 - **Cleanup apply contract:** *(retired path `cleanup_csv_contract.md` — see **`inventory-pipeline.md`** and **`CHANGELOG`**)*
-- [`.ai/initiatives/_index.md`](../_index.md)
+- [`.ai/initiatives/_index.md`](../../_index.md)

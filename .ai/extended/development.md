@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-11 (dev starters: dashboard = staff only, website = public only) -->
+<!-- Last updated: 2026-08-21 (prod pull is ecothrift schema only, then migrate) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -87,7 +87,26 @@ npm run dev
 |----------|---------|
 | Every 10 minutes (Scheduler minimum) | `python manage.py sync_ms_mailbox` |
 
-Requires `MS_GRAPH_ENABLED=true` plus tenant/client/secret/mailbox config (see `.ai/reference/online_sales_mvp/email_setup.md`). Manual refresh: Admin **Retail inbox** → Refresh now, or `POST /api/mailbox/sync/`.
+Requires `MS_GRAPH_ENABLED=true` plus the `MS_GRAPH_*` keys below. Manual refresh: Admin **Retail inbox** → Refresh now, or `POST /api/mailbox/sync/`.
+
+**Send/receive mailbox:** `retail@ecothrift.us` via Microsoft Graph client credentials. From: `Eco-Thrift <retail@ecothrift.us>`. Reply-To: `retail@ecothrift.us`. Magic-link and hold emails embed `ONLINE_SALES_PUBLIC_BASE_URL` (local: `http://localhost:5174`). There is no debug-token bypass — confirming an email always means clicking the emailed link. With `MS_GRAPH_ENABLED=false`, the console backend prints the message (link included) to the Django terminal. Graph send does not require an SPF change.
+
+**Entra app (do not grant org-wide Graph mail permissions):** single-tenant app registration + client secret. Record tenant ID, application (client) ID, and the **Enterprise Application** (service principal) object ID — not the app-registration object ID. Do **not** add application permissions `Mail.Read` / `Mail.ReadWrite` / `Mail.Send` and do **not** grant tenant-wide admin consent for those scopes.
+
+**Restrict to retail@ with Exchange Online RBAC** (Application Mail.Send / Application Mail.ReadWrite, scoped to `retail@ecothrift.us`):
+
+```powershell
+Connect-ExchangeOnline
+New-ServicePrincipal -AppId "<CLIENT_ID>" -ObjectId "<ENTERPRISE_APPLICATION_OBJECT_ID>" -DisplayName "Eco-Thrift Dashboard Graph Mail"
+New-ManagementScope -Name "Eco-Thrift retail mailbox" -RecipientRestrictionFilter "PrimarySmtpAddress -eq 'retail@ecothrift.us'"
+New-ManagementRoleAssignment -Name "Eco-Thrift retail Mail.ReadWrite" -Role "Application Mail.ReadWrite" -App "<ENTERPRISE_APPLICATION_OBJECT_ID>" -CustomResourceScope "Eco-Thrift retail mailbox"
+New-ManagementRoleAssignment -Name "Eco-Thrift retail Mail.Send" -Role "Application Mail.Send" -App "<ENTERPRISE_APPLICATION_OBJECT_ID>" -CustomResourceScope "Eco-Thrift retail mailbox"
+Test-ServicePrincipalAuthorization -Identity "<ENTERPRISE_APPLICATION_OBJECT_ID>" -Resource "retail@ecothrift.us"
+```
+
+RBAC can take time to propagate. Verify with `python manage.py check_ms_graph` (optional `--to`), then `python manage.py sync_ms_mailbox` (stores the Graph delta cursor; safe to rerun). Disable immediately with `MS_GRAPH_ENABLED=false`.
+
+**SPF:** if a transactional send provider is added later, **append** its `include:` to the existing SPF TXT — never replace Microsoft's `include:spf.protection.outlook.com`.
 
 **Inventory / Item Processor:** optional safety net for `ProcessingRow.search_string` (bulk/SQL paths that bypass ORM `save()`): e.g. weekly `python manage.py rebuild_processing_search_string` (defaults to excluding `complete`/`cancelled` POs; add `--dry-run` to count rows only).
 
@@ -109,14 +128,14 @@ If **POS registers** or **supplemental drawer** rows are missing, run `python ma
 | Script | What it does |
 |--------|-------------|
 | `scripts/dev/start_all.bat` | **Full stack:** Django + staff Vite (LAN HTTPS by default) + public site (8000 / 5173 / 5174). |
-| `scripts/dev/start_dashboard.bat` | **Staff only (dash):** Django + staff Vite (8000 / 5173). Does **not** start www. |
-| `scripts/dev/start_mobile_dashboard.bat` | Same as `start_dashboard` (LAN HTTPS is already the default). |
+| `scripts/dev/start_dashboard.bat` | **Staff only, localhost HTTP:** Django + staff Vite (8000 / 5173). No www, no phone/LAN HTTPS. |
+| `scripts/dev/start_mobile_dashboard.bat` | **Staff on LAN HTTPS:** Django + staff Vite bound for a phone on the same Wi-Fi. No www. |
 | `scripts/dev/start_website.bat` | **Public only (www):** Django + `frontend-public` (8000 / 5174). |
 | `python scripts/data/extract_po_descriptions.py` (if present locally) | **Historical sell-through —** reads POs from local **ecothrift_v1** / **ecothrift_v2** / **ecothrift_v3**; writes CSV under **`workspace/data/`** (**`CHANGELOG`** **2.7.1**). Requires **`psycopg2`** and root **`.env`** DB vars. |
 | `printserver/dev_print_label_test.bat` | Prints sample inventory labels **without** starting the print server (defaults to **Rollo Printer**). Pass `--dry-run` to write PNGs under `printserver/output/` instead. Example: `dev_print_label_test.bat --preset 3x2 --row 0` |
 | `printserver/dev_print_receipt_test.bat` | Renders a sample receipt to **PNG** under `printserver/output/` (no printer). Pass `--print` to also send to Windows (uses `receipt_printer` from settings or `--printer`). Optional JSON path (same shape as POST `/print/receipt` `receipt_data`). |
 
-**Commit message staging (for scripted commits):** write the next message in `scripts/deploy/commit_message.txt` (placeholder `---` until you replace it). See `.ai/protocols/session.9.Close.md`.
+**Commit message staging (for scripted commits):** write the next message in `scripts/deploy/commit_message.txt` (placeholder `---` until you replace it). See `.ai/protocols/ship.md`.
 
 **Jupyter (DB1 / DB2 / DB3):** From repo root: `pip install -r workspace/notebooks/_shared/requirements-notebooks.txt` (and `jupyter` / `jupyterlab` as needed). Copy **`workspace/notebooks/_shared/config.example.py`** → **`config_local.py`** (gitignored) for multi-DB connection dicts aligned with root **`.env`**.
 
@@ -192,7 +211,7 @@ Defined in `.env` (gitignored):
 
 **Full SOCKS5 setup (all `BUYING_SOCKS5_*` vars):** See **[`.ai/extended/vpn-socks5.md`](vpn-socks5.md)**.
 
-**PostgreSQL schemas (local):** `DATABASE_*` points at **one** database (typically `ecothrift_v3`). Django sets `search_path=ecothrift` so models use **`ecothrift.*`**. The **`public`** schema in the same database may hold legacy/V2 data; category-bin exports query **`public.*`** and **`ecothrift.*`** with explicit names. Use **`scripts/deploy/0_pull_prod_to_local.bat`** to load production (including `public` + `ecothrift`) into that local DB. See the **Environment Variables** table above. Separate local archives **`ecothrift_v1`** (V1) and **`ecothrift_v2`** (V2 **`public`** only) are optional for historical tooling; see **`.ai/extended/databases.md`**.
+**PostgreSQL schemas (local):** `DATABASE_*` points at **one** database (typically `ecothrift_v3`). Django sets `search_path=ecothrift` so models use **`ecothrift.*`**. The **`public`** schema in the same database may hold legacy/V2 data; category-bin exports query **`public.*`** and **`ecothrift.*`** with explicit names. **`scripts/deploy/0_pull_prod_to_local.bat`** is the one action for fresh prod data: it stops whatever is on ports 8000 / 5173 / 5174, replaces **schema `ecothrift` only** (not `public` / `darkhorse`), then `migrate`s whatever this checkout has that production has not. It does not start servers again. Timestamped dumps live in **`scripts/deploy/backups/`** (gitignored). Full off-box backup of every schema is **`1_backup_prod.bat`**. See the **Environment Variables** table above. Separate local archives **`ecothrift_v1`** (V1) and **`ecothrift_v2`** (V2 **`public`** only) are optional for historical tooling; see **`.ai/extended/databases.md`**.
 
 ## Adding a New Feature
 

@@ -25,6 +25,7 @@ import { Sidebar, SIDEBAR_WIDTH } from './Sidebar';
 import { getAppVersion } from '../../api/core.api';
 import logo from '../../assets/logo-full-240x80.png';
 import { dashboardPalette } from '../dashboard/dashboardCardStyles';
+import { RESTORATION_BENCH_PATH } from '../../pages/restoration/restorationRoutes';
 
 const DASHBOARD_BACKDROP = dashboardPalette.backdrop;
 
@@ -37,6 +38,8 @@ export default function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const isDashboard = location.pathname === '/dashboard';
+  const isRestoration = location.pathname.startsWith('/restoration');
+  const isRestorationBench = location.pathname === RESTORATION_BENCH_PATH;
   const isFieldMobile = isMobile && location.pathname.startsWith('/pos/deliveries/field');
 
   const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
@@ -78,7 +81,7 @@ export default function MainLayout() {
         <img src={logo} alt="Eco-Thrift" style={{ maxWidth: '100%', width: 180, height: 'auto' }} />
       </Box>
       <Divider />
-      <Box sx={{ flexGrow: 1, minWidth: 0, overflowX: 'hidden', overflowY: 'auto' }}>
+      <Box sx={{ flexGrow: 1, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
         <Sidebar />
       </Box>
       {appVersion?.version && (
@@ -208,8 +211,14 @@ export default function MainLayout() {
             display: 'flex',
             flexDirection: 'column',
             overflowX: 'hidden',
-            overflowY: 'auto',
-            p: isFieldMobile ? 0 : isDashboard ? { xs: 1, sm: 2, md: 3 } : 3,
+            overflowY: isRestorationBench ? 'hidden' : 'auto',
+            p: isFieldMobile
+              ? 0
+              : isRestoration
+                ? { xs: 0.75, md: 1 }
+                : isDashboard
+                  ? { xs: 1, sm: 2, md: 3 }
+                  : 3,
             ...(isDashboard
               ? {
                   background: DASHBOARD_BACKDROP,

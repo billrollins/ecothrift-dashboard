@@ -48,7 +48,7 @@ from rest_framework.filters import OrderingFilter, SearchFilter
 
 from ecothrift.pagination import ConfigurablePageSizePagination, ItemListPagination
 
-from apps.accounts.permissions import IsManagerOrAdmin, IsStaff
+from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsSuperAdmin
 from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED, TAXONOMY_V1_CATEGORY_NAMES
 from apps.inventory.canonical_categories import canonical_category_name
 
@@ -85,11 +85,12 @@ def _validation_error_response_detail(exc):
 from .models import (
     Vendor, Category, PurchaseOrder, CSVTemplate, ManifestRow,
     Product, VendorProductRef, BatchGroup, Item, ItemCheckIn, ProcessingBatch,
-    ItemHistory, ItemScanHistory,
+    ItemHistory, ItemNote, ItemScanHistory,
     PreprocessingRow,
     ProcessingRow,
     RestorationAction,
     RestorationJob,
+    RestorationOutput,
     RestorationTimelineEvent,
     RestorationGradeScale,
     Receiving, ReceivingAttachment, ReceivingPallet, ReceivingPhotoOverride,
@@ -125,7 +126,8 @@ from .serializers import (
     VendorProductRefSerializer, BatchGroupSerializer,
     ProductSerializer, ItemSerializer, ItemPublicSerializer,
     ItemCheckInCatalogSerializer,
-    ProcessingBatchSerializer, ItemHistorySerializer,
+    ProcessingBatchSerializer, ItemHistorySerializer, ItemNoteSerializer,
+    ItemNoteWriteSerializer, ItemNoteVoidSerializer,
     ReceivingAttachmentSerializer,
     ReceivingDetailSerializer,
     OrderForReceivingListSerializer,
@@ -143,10 +145,12 @@ from .serializers import (
     RestorationJobWorkSessionSerializer,
     RestorationJobHoldSerializer,
     RestorationJobDoneSerializer,
+    RestorationJobRejectSerializer,
+    RestorationOutputSerializer,
+    RestorationOutputCreateItemSerializer,
+    RestorationJobProcessingCheckInSerializer,
     RestorationJobCreateSerializer,
     RestorationJobReturnSerializer,
-    RestorationJobTimerAdjustSerializer,
-    RestorationJobMeaningfulActionSerializer,
     RestorationTimelineEventSerializer,
     RestorationTimelineEventWriteSerializer,
     RestorationTimelineEventRevisionSerializer,
@@ -154,10 +158,16 @@ from .serializers import (
     RestorationJobSplitSerializer,
     RestorationJobCombineSerializer,
     RestorationJobRequestValuationSerializer,
-    RestorationPartsRequestSerializer,
-    RestorationPartsRequestUpsertSerializer,
-    RestorationPartsOrderCreateSerializer,
+    RestorationPartSerializer,
+    RestorationPartWriteSerializer,
     RestorationPartsOrderSerializer,
+    RestorationPartsOrderWriteSerializer,
+    RestorationPartsOrderDenySerializer,
+    RestorationPartsOrderPurchaseSerializer,
+    RestorationPartsOrderEtaSerializer,
+    RestorationPartsOrderInspectSerializer,
+    RestorationPartsOrderRequestCancelSerializer,
+    RestorationPartsOrderResolveCancelSerializer,
     RestorationGradeScaleSerializer,
     RestorationGradeScaleCreateSerializer,
 )
@@ -7828,6 +7838,35 @@ class ItemViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    @action(detail=True, methods=['get', 'post'], url_path='notes')
+    def notes(self, request, pk=None):
+        from apps.inventory.services.item_notes import note_trail
+
+        item = self.get_object()
+        if request.method == 'GET':
+            return Response(
+                ItemNoteSerializer(
+                    note_trail([item.pk]),
+                    many=True,
+                    context=self.get_serializer_context(),
+                ).data
+            )
+        ser = ItemNoteWriteSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        from apps.inventory.services.restoration_comments import append_manual_job_note
+
+        note = append_manual_job_note(
+            item,
+            ser.validated_data['body'],
+            author=request.user,
+        )
+        if note is None:
+            return Response({'detail': 'Write the note.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            ItemNoteSerializer(note, context=self.get_serializer_context()).data,
+            status=status.HTTP_201_CREATED,
+        )
+
     @action(detail=True, methods=['post'], url_path='remap-product')
     def remap_product(self, request, pk=None):
         from apps.inventory.processing_ops import remap_single_item_product
@@ -7987,6 +8026,54 @@ class ItemHistoryViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_fields = ['item', 'event_type']
     ordering_fields = ['created_at']
     ordering = ['-created_at']
+
+
+class ItemNoteViewSet(viewsets.GenericViewSet):
+    queryset = ItemNote.objects.select_related('item', 'author').all()
+    serializer_class = ItemNoteSerializer
+    permission_classes = [IsAuthenticated, IsStaff]
+
+    def partial_update(self, request, pk=None):
+        from apps.inventory.services.restoration_comments import (
+            job_for_note,
+            revise_restoration_comment,
+        )
+        from apps.inventory.services.item_notes import revise_item_note
+
+        note = self.get_object()
+        ser = ItemNoteWriteSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        try:
+            if job_for_note(note) is not None:
+                updated = revise_restoration_comment(
+                    note, body=ser.validated_data['body'], actor=request.user
+                )
+            else:
+                updated = revise_item_note(
+                    note, body=ser.validated_data['body'], actor=request.user
+                )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(ItemNoteSerializer(updated, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=['post'], url_path='void')
+    def void(self, request, pk=None):
+        from apps.inventory.services.restoration_comments import job_for_note, trash_restoration_comment
+        from apps.inventory.services.item_notes import void_item_note
+
+        note = self.get_object()
+        ser = ItemNoteVoidSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        try:
+            if job_for_note(note) is not None:
+                updated = trash_restoration_comment(note=note, actor=request.user)
+            else:
+                updated = void_item_note(
+                    note, reason=ser.validated_data['reason'], actor=request.user
+                )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(ItemNoteSerializer(updated, context=self.get_serializer_context()).data)
 
 
 
@@ -8460,8 +8547,16 @@ class RestorationJobViewSet(
                 'bench_owner',
             )
             .prefetch_related(
-                Prefetch('item_check_in__items', queryset=Item.objects.order_by('id'))
+                Prefetch('item_check_in__items', queryset=Item.objects.order_by('id')),
+                Prefetch(
+                    'outputs',
+                    queryset=RestorationOutput.objects.select_related(
+                        'suggested_product',
+                        'item',
+                    ).order_by('seq', 'id'),
+                ),
             )
+            .annotate(action_count=Count('actions'))
             .order_by('-updated_at', '-id')
         )
 
@@ -8476,6 +8571,9 @@ class RestorationJobViewSet(
                 valuation_requested_at__isnull=False,
                 valuation_fulfilled_at__isnull=True,
             )
+        unhandled = (self.request.query_params.get('unhandled') or '').strip().lower()
+        if unhandled in ('1', 'true', 'yes'):
+            qs = qs.filter(processing_handled_at__isnull=True)
         return qs
 
     def list(self, request, *args, **kwargs):
@@ -8570,6 +8668,7 @@ class RestorationJobViewSet(
             handoff = ser.validated_data.get('processing_handoff')
             if handoff is not None and job.item_check_in_id:
                 from apps.inventory.services.restoration import merge_restoration_into_defaults_snapshot
+                from apps.inventory.services.item_notes import handoff_note_body, record_surface_note_for_job
 
                 check_in = job.item_check_in
                 check_in.defaults_snapshot = merge_restoration_into_defaults_snapshot(
@@ -8579,6 +8678,13 @@ class RestorationJobViewSet(
                     processing_handoff=handoff,
                 )
                 check_in.save(update_fields=['defaults_snapshot', 'updated_at'])
+                record_surface_note_for_job(
+                    job,
+                    'handoff',
+                    handoff_note_body(handoff),
+                    author=request.user,
+                    source_key='handoff',
+                )
         job = self.get_queryset().get(pk=job.pk)
         out = RestorationJobSerializer(job, context=self.get_serializer_context())
         return Response(out.data)
@@ -8621,7 +8727,6 @@ class RestorationJobViewSet(
 
         ser = RestorationTimelineEventWriteSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-        from apps.inventory.services.restoration_bench import mark_restoration_meaningful_action
         from apps.inventory.services.restoration_timeline import create_projected_timeline_event
 
         try:
@@ -8632,12 +8737,6 @@ class RestorationJobViewSet(
                 payload=ser.validated_data['payload'],
                 entity_id=ser.validated_data['entity_id'],
                 actor=request.user,
-                correlation_id=correlation_id,
-            )
-            mark_restoration_meaningful_action(
-                job,
-                user=request.user,
-                label=ser.validated_data['event_type'].replace('.', ' '),
                 correlation_id=correlation_id,
             )
         except ValueError as exc:
@@ -8668,14 +8767,6 @@ class RestorationJobViewSet(
                 actor=request.user,
                 correlation_id=correlation_id,
             )
-            from apps.inventory.services.restoration_bench import mark_restoration_meaningful_action
-
-            mark_restoration_meaningful_action(
-                job,
-                user=request.user,
-                label=f'Revised {event.event_type}',
-                correlation_id=correlation_id,
-            )
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         event = RestorationTimelineEvent.objects.select_related('actor', 'voided_by').get(pk=event.pk)
@@ -8700,18 +8791,76 @@ class RestorationJobViewSet(
                 reason=ser.validated_data['reason'],
                 actor=request.user,
             )
-            from apps.inventory.services.restoration_bench import mark_restoration_meaningful_action
-
-            mark_restoration_meaningful_action(
-                job,
-                user=request.user,
-                label=f'Voided {event.event_type}',
-                correlation_id=correlation_id,
-            )
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         event = RestorationTimelineEvent.objects.select_related('actor', 'voided_by').get(pk=event.pk)
         return Response(RestorationTimelineEventSerializer(event, context=self.get_serializer_context()).data)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path=r'timeline/(?P<event_id>[0-9]+)/forget-words',
+    )
+    def forget_timeline_words(self, request, pk=None, event_id=None):
+        """Void one history line that is allowed to go. Live job facts stay."""
+
+        from apps.inventory.services.restoration_timeline import (
+            forget_timeline_words as forget_words,
+        )
+
+        job = self.get_object()
+        event = get_object_or_404(RestorationTimelineEvent, pk=event_id, job=job)
+        try:
+            event = forget_words(event, actor=request.user)
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        event = RestorationTimelineEvent.objects.select_related('actor', 'voided_by').get(pk=event.pk)
+        return Response(RestorationTimelineEventSerializer(event, context=self.get_serializer_context()).data)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path=r'timeline/(?P<event_id>[0-9]+)/reset-note',
+    )
+    def reset_latest_queue_note(self, request, pk=None, event_id=None):
+        """Void the current note line and put the live note back to what it said before."""
+
+        from apps.inventory.services.restoration_timeline import reset_latest_queue_note as reset_note
+
+        job = self.get_object()
+        event = get_object_or_404(RestorationTimelineEvent, pk=event_id, job=job)
+        try:
+            event = reset_note(event, actor=request.user)
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        event = RestorationTimelineEvent.objects.select_related('actor', 'voided_by').get(pk=event.pk)
+        return Response(RestorationTimelineEventSerializer(event, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=['post'], url_path='clear-note-history')
+    def clear_note_history(self, request, pk=None):
+        """Void queue-note history the current user is allowed to clear. The live note stays."""
+
+        from apps.inventory.services.restoration_timeline import clear_queue_note_history
+
+        job = self.get_object()
+        try:
+            cleared = clear_queue_note_history(job, actor=request.user)
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'cleared': cleared})
+
+    @action(detail=True, methods=['post'], url_path='clear-history')
+    def clear_history(self, request, pk=None):
+        """Clear every history line that is allowed to go."""
+
+        from apps.inventory.services.restoration_timeline import clear_clearable_history
+
+        job = self.get_object()
+        try:
+            cleared = clear_clearable_history(job, actor=request.user)
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(cleared)
 
     @action(detail=True, methods=['patch'], url_path='work-session')
     def update_work_session(self, request, pk=None):
@@ -8739,7 +8888,6 @@ class RestorationJobViewSet(
             if sync_starting_grade(job):
                 fields.append('starting_grade')
             job.save(update_fields=fields)
-            from apps.inventory.services.restoration_bench import mark_restoration_meaningful_action
             from apps.inventory.services.restoration_timeline import record_work_session_changes
 
             correlation_id = uuid.uuid4()
@@ -8748,12 +8896,6 @@ class RestorationJobViewSet(
                 before,
                 job.work_session,
                 actor=request.user,
-                correlation_id=correlation_id,
-            )
-            job = mark_restoration_meaningful_action(
-                job,
-                user=request.user,
-                label='Item assessment updated',
                 correlation_id=correlation_id,
             )
         job = self.get_queryset().get(pk=job.pk)
@@ -8769,23 +8911,17 @@ class RestorationJobViewSet(
 
         job = self.get_object()
         item_id = request.data.get('item_id')
-        start_timer = request.data.get('start_timer', True)
         parsed_item_id = None
         if item_id is not None and item_id != '':
             try:
                 parsed_item_id = int(item_id)
             except (TypeError, ValueError):
                 return Response({'detail': 'item_id must be an integer.'}, status=status.HTTP_400_BAD_REQUEST)
-        if isinstance(start_timer, str):
-            start_timer = start_timer.strip().lower() not in ('0', 'false', 'no', 'off')
-        else:
-            start_timer = bool(start_timer)
         try:
             job = check_in_restoration_job(
                 job,
                 user=request.user,
                 item_id=parsed_item_id,
-                start_timer=start_timer,
             )
         except BenchOccupiedError as exc:
             return Response(
@@ -8811,6 +8947,7 @@ class RestorationJobViewSet(
                 job,
                 user=request.user,
                 note=str(request.data.get('note') or ''),
+                reason=str(request.data.get('reason') or ''),
             )
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
@@ -8827,86 +8964,10 @@ class RestorationJobViewSet(
         try:
             job = hold_restoration_job(
                 job,
-                reason=ser.validated_data['reason'],
-                notes=ser.validated_data.get('notes', ''),
+                reason=ser.validated_data.get('reason', ''),
                 storage_location=ser.validated_data.get('storage_location', ''),
+                wait_for=ser.validated_data.get('wait_for'),
                 user=request.user,
-            )
-        except ValueError as exc:
-            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        job = self.get_queryset().get(pk=job.pk)
-        return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
-
-    @action(detail=True, methods=['post'], url_path='timer/start')
-    def timer_start(self, request, pk=None):
-        """Start or re-aim the clock.
-
-        Optional `mode` ('look' or 'work') and `grade` say what the seconds are
-        for. Looking is charged to the item; working is charged to the grade it
-        is aimed at.
-        """
-
-        from apps.inventory.services.restoration_bench import start_restoration_timer
-
-        job = self.get_object()
-        mode = request.data.get('mode')
-        grade = request.data.get('grade')
-        try:
-            job = start_restoration_timer(
-                job,
-                user=request.user,
-                mode=str(mode).strip() if mode is not None else None,
-                grade=str(grade or '').strip()[:64] if grade is not None else None,
-            )
-        except ValueError as exc:
-            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        job = self.get_queryset().get(pk=job.pk)
-        return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
-
-    @action(detail=True, methods=['post'], url_path='timer/pause')
-    def timer_pause(self, request, pk=None):
-        from apps.inventory.services.restoration_bench import pause_restoration_timer
-
-        job = self.get_object()
-        try:
-            reason = str(request.data.get('reason') or 'manual').strip()[:64]
-            job = pause_restoration_timer(job, user=request.user, reason=reason)
-        except ValueError as exc:
-            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        job = self.get_queryset().get(pk=job.pk)
-        return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
-
-    @action(detail=True, methods=['post'], url_path='timer/adjust')
-    def timer_adjust(self, request, pk=None):
-        from apps.inventory.services.restoration_bench import adjust_restoration_timer
-
-        job = self.get_object()
-        ser = RestorationJobTimerAdjustSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-        try:
-            job = adjust_restoration_timer(
-                job,
-                active_seconds=ser.validated_data['active_seconds'],
-                user=request.user,
-                reason=ser.validated_data.get('reason') or 'manual',
-            )
-        except ValueError as exc:
-            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        job = self.get_queryset().get(pk=job.pk)
-        return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
-
-    @action(detail=True, methods=['post'], url_path='timer/meaningful-action')
-    def timer_meaningful_action(self, request, pk=None):
-        from apps.inventory.services.restoration_bench import mark_restoration_meaningful_action
-
-        job = self.get_object()
-        ser = RestorationJobMeaningfulActionSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-        try:
-            job = mark_restoration_meaningful_action(
-                job,
-                user=request.user,
-                label=ser.validated_data.get('label') or 'TARS update',
             )
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
@@ -8924,16 +8985,96 @@ class RestorationJobViewSet(
             job = complete_restoration_job(
                 job,
                 destination=ser.validated_data['destination'],
-                final_grade=ser.validated_data['final_grade'],
+                final_grade=ser.validated_data.get('final_grade', ''),
+                starting_grade=ser.validated_data.get('starting_grade', ''),
                 notes=ser.validated_data.get('notes', ''),
-                spent_hours=ser.validated_data.get('spent_hours'),
                 spent_parts_cost=ser.validated_data.get('spent_parts_cost'),
+                outputs=ser.validated_data.get('outputs'),
                 user=request.user,
             )
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         job = self.get_queryset().get(pk=job.pk)
         return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        from apps.inventory.services.restoration_bench import reject_restoration_job
+
+        job = self.get_object()
+        ser = RestorationJobRejectSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        try:
+            job = reject_restoration_job(
+                job,
+                reason=ser.validated_data['reason'],
+                user=request.user,
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        job = self.get_queryset().get(pk=job.pk)
+        return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=['post'])
+    def reopen(self, request, pk=None):
+        from apps.inventory.services.restoration_bench import reopen_restoration_job
+
+        job = self.get_object()
+        try:
+            job = reopen_restoration_job(
+                job,
+                user=request.user,
+                note=str(request.data.get('note') or ''),
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        job = self.get_queryset().get(pk=job.pk)
+        return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=['post'], url_path='fix-finish')
+    def fix_finish(self, request, pk=None):
+        from apps.inventory.services.restoration_bench import fix_restoration_finish
+
+        job = self.get_object()
+        ser = RestorationJobDoneSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        try:
+            job = fix_restoration_finish(
+                job,
+                destination=ser.validated_data['destination'],
+                final_grade=ser.validated_data.get('final_grade', ''),
+                starting_grade=ser.validated_data.get('starting_grade', ''),
+                notes=ser.validated_data.get('notes', ''),
+                user=request.user,
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        job = self.get_queryset().get(pk=job.pk)
+        return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=['post'], url_path='processing-check-in')
+    def processing_check_in(self, request, pk=None):
+        from apps.inventory.services.restoration_bench import processing_check_in_restoration_job
+
+        job = self.get_object()
+        ser = RestorationJobProcessingCheckInSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        try:
+            job, preview = processing_check_in_restoration_job(
+                job,
+                price=ser.validated_data['price'],
+                retail=ser.validated_data.get('retail'),
+                condition=ser.validated_data.get('condition', ''),
+                dispatch=ser.validated_data.get('dispatch') or 'on_shelf',
+                notes=ser.validated_data.get('notes', ''),
+                specifications=ser.validated_data.get('specifications') or {},
+                user=request.user,
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        job = self.get_queryset().get(pk=job.pk)
+        payload = RestorationJobSerializer(job, context=self.get_serializer_context()).data
+        return Response({**payload, 'printed_items_preview': preview})
 
     @action(detail=True, methods=['post'])
     def send(self, request, pk=None):
@@ -9047,7 +9188,6 @@ class RestorationJobViewSet(
             job, _created = start_action(
                 job,
                 request.user,
-                grade=ser.validated_data.get('grade', ''),
                 category=ser.validated_data.get('category') or None,
                 description=ser.validated_data.get('description', ''),
                 force_new=ser.validated_data.get('force_new', False),
@@ -9128,9 +9268,9 @@ class RestorationJobViewSet(
     def queue_details(self, request, pk=None):
         """Fill in the grade scale, values, note and destination for a queued item.
 
-        Any staff member, at any screen, for as long as the item is unfinished.
-        The person who knows what an item is worth is often not the person who
-        checked it in, and making them find each other is the delay this avoids.
+        Any staff member, at any screen, while the item is unfinished. On Done
+        the note can still be added — Processing has not taken the item yet.
+        Scale, prices and destination stay locked once it is finished.
         """
 
         from apps.inventory.services.restoration import maybe_fulfill_valuation_request
@@ -9138,11 +9278,18 @@ class RestorationJobViewSet(
 
         with transaction.atomic():
             job = RestorationJob.objects.select_for_update().get(pk=self.get_object().pk)
-            if job.stage in (RestorationJob.STAGE_DONE, RestorationJob.STAGE_RETURNED):
+            if job.stage == RestorationJob.STAGE_RETURNED:
                 return Response(
                     {'detail': 'This item is finished — its queue details can no longer change.'},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+            if job.stage == RestorationJob.STAGE_DONE:
+                extra = set(request.data) - {'queue_note'}
+                if extra:
+                    return Response(
+                        {'detail': 'Only the note can still change on a finished item.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
             ser = RestorationJobQueueDetailsSerializer(
                 data=request.data,
                 context={'job': job, 'user': request.user},
@@ -9160,12 +9307,32 @@ class RestorationJobViewSet(
             if 'intended_destination' in data:
                 job.intended_destination = data['intended_destination']
                 update_fields.append('intended_destination')
+            old_note = job.queue_note
             if 'queue_note' in data:
                 job.queue_note = data['queue_note']
                 update_fields.append('queue_note')
+            if 'starting_grade' in data:
+                job.starting_grade = str(data['starting_grade'] or '').strip()[:64]
+                update_fields.append('starting_grade')
+            elif 'grade_values' in data and not job.starting_grade:
+                from apps.inventory.services.tars_value import lowest_grade
+
+                job.starting_grade = lowest_grade(job.grade_values)
+                if job.starting_grade:
+                    update_fields.append('starting_grade')
             job.save(update_fields=update_fields)
 
             correlation_id = uuid.uuid4()
+            if 'queue_note' in data and old_note != job.queue_note:
+                from apps.inventory.services.restoration_comments import record_queue_note_change
+
+                record_queue_note_change(
+                    job,
+                    previous=old_note or '',
+                    next_text=job.queue_note or '',
+                    actor=request.user,
+                    correlation_id=correlation_id,
+                )
             if old_scale != job.scale or old_values != job.grade_values:
                 append_timeline_event(
                     job,
@@ -9189,6 +9356,56 @@ class RestorationJobViewSet(
         job = self.get_queryset().get(pk=job.pk)
         return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
 
+    @action(detail=True, methods=['get'], url_path='notes')
+    def notes(self, request, pk=None):
+        from apps.inventory.services.item_notes import note_trail
+
+        job = self.get_object()
+        item_ids = []
+        if job.item_check_in_id:
+            item_ids = list(job.item_check_in.items.values_list('id', flat=True))
+        return Response(
+            ItemNoteSerializer(
+                note_trail(item_ids),
+                many=True,
+                context=self.get_serializer_context(),
+            ).data
+        )
+
+    @action(detail=False, methods=['get'])
+    def lookup(self, request):
+        """Read-only scan: a restoration job, a catalog item, or nothing."""
+
+        from apps.inventory.services.restoration import lookup_restoration_scan
+
+        result = lookup_restoration_scan(str(request.query_params.get('q') or ''))
+        found = result.get('found')
+        if found == 'job':
+            job = self.get_queryset().get(pk=result['job'].pk)
+            return Response(
+                {
+                    'found': 'job',
+                    'job': RestorationJobSerializer(job, context=self.get_serializer_context()).data,
+                }
+            )
+        if found == 'item':
+            item = result['item']
+            product = getattr(item, 'product', None)
+            return Response(
+                {
+                    'found': 'item',
+                    'item': {
+                        'id': item.pk,
+                        'sku': item.sku,
+                        'name': getattr(product, 'title', '') or '',
+                        'location': item.location or '',
+                        'status': item.status or '',
+                        'condition': item.condition or '',
+                    },
+                }
+            )
+        return Response({'found': 'none'})
+
     @action(detail=False, methods=['get'])
     def scoreboard(self, request):
         """What restoration earned: value added and rate by day, week and month.
@@ -9204,8 +9421,8 @@ class RestorationJobViewSet(
     def returns(self, request):
         """Processing Restorations FROM desk: unhandled worked + untouched returns.
 
-        Includes bench disposition to Processing (stage=done), TARS-completed
-        returns, and untouched returns. Each row carries desk summary badges.
+        Includes every unfinished Done job (any destination) plus TARS-completed
+        and untouched returns. Each row stays until Processing checks it in.
         """
         from django.db.models import Q
 
@@ -9213,7 +9430,7 @@ class RestorationJobViewSet(
             self.get_queryset()
             .filter(processing_handled_at__isnull=True)
             .filter(
-                Q(stage=RestorationJob.STAGE_DONE, bench_disposition=RestorationJob.BENCH_DISPOSITION_PROCESSING)
+                Q(stage=RestorationJob.STAGE_DONE)
                 | Q(
                     stage=RestorationJob.STAGE_RETURNED,
                     return_disposition_type__in=[
@@ -9259,124 +9476,420 @@ class RestorationJobViewSet(
         return Response(RestorationJobSerializer(job, context=self.get_serializer_context()).data)
 
 
-class RestorationPartsRequestViewSet(
-    mixins.ListModelMixin,
-    mixins.RetrieveModelMixin,
-    viewsets.GenericViewSet,
-):
-    serializer_class = RestorationPartsRequestSerializer
+class RestorationOutputViewSet(viewsets.GenericViewSet):
+    serializer_class = RestorationOutputSerializer
     permission_classes = [IsAuthenticated, IsStaff]
-    pagination_class = ConfigurablePageSizePagination
     http_method_names = ['get', 'post', 'head', 'options']
 
     def get_queryset(self):
-        from apps.inventory.models import RestorationPartsRequest
+        return RestorationOutput.objects.select_related(
+            'job',
+            'suggested_product',
+            'item',
+        ).order_by('seq', 'id')
+
+    def retrieve(self, request, *args, **kwargs):
+        return Response(
+            RestorationOutputSerializer(self.get_object(), context=self.get_serializer_context()).data,
+        )
+
+    @action(detail=True, methods=['post'], url_path='create-item')
+    def create_item(self, request, pk=None):
+        from apps.inventory.processing_ops import _resolve_product_for_processing
+        from apps.inventory.services.restoration_bench import create_item_from_restoration_output
+
+        output = self.get_object()
+        ser = RestorationOutputCreateItemSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        identity = {
+            key: ser.validated_data[key]
+            for key in ('product_mode', 'product_id', 'title', 'brand', 'category', 'model', 'upc')
+            if key in ser.validated_data
+        }
+        try:
+            if identity.get('product_mode') == 'none':
+                product = None
+            else:
+                product = _resolve_product_for_processing(
+                    identity,
+                    matched_product=output.suggested_product,
+                    fallback_title=output.label,
+                )
+            parent_retail = ser.validated_data.get('parent_retail')
+            if parent_retail is None:
+                from apps.inventory.models import Item, RestorationOutput
+
+                main = RestorationOutput.objects.filter(job_id=output.job_id, seq=0).first()
+                parent = Item.objects.filter(pk=main.item_id).first() if main and main.item_id else None
+                if parent is None and output.job.item_check_in_id:
+                    parent = Item.objects.filter(check_in_id=output.job.item_check_in_id).order_by('id').first()
+                parent_retail = parent.retail if parent is not None else 0
+            item = create_item_from_restoration_output(
+                output,
+                product=product,
+                retail=ser.validated_data.get('retail') if ser.validated_data.get('retail') is not None else 0,
+                price=ser.validated_data.get('price') if ser.validated_data.get('price') is not None else 0,
+                parent_retail=parent_retail,
+                condition=ser.validated_data.get('condition', ''),
+                dispatch=ser.validated_data.get('dispatch', ''),
+                notes=ser.validated_data.get('notes', ''),
+                specifications=ser.validated_data.get('specifications') or {},
+                user=request.user,
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        output = self.get_queryset().get(pk=output.pk)
+        payload = RestorationOutputSerializer(output, context=self.get_serializer_context()).data
+        return Response({**payload, 'item_id': item.pk, 'item_sku': item.sku})
+
+
+class RestorationPartViewSet(viewsets.GenericViewSet):
+    serializer_class = RestorationPartSerializer
+    permission_classes = [IsAuthenticated, IsStaff]
+    pagination_class = ConfigurablePageSizePagination
+    http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
+
+    def get_queryset(self):
+        from apps.inventory.models import RestorationPart
+
+        qs = RestorationPart.objects.select_related('job').order_by('id')
+        job_id = (self.request.query_params.get('job') or '').strip()
+        if job_id.isdigit():
+            qs = qs.filter(job_id=int(job_id))
+        return qs
+
+    def list(self, request, *args, **kwargs):
+        page = self.paginate_queryset(self.get_queryset())
+        ser = RestorationPartSerializer(page, many=True, context=self.get_serializer_context())
+        return self.get_paginated_response(ser.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        return Response(RestorationPartSerializer(self.get_object(), context=self.get_serializer_context()).data)
+
+    def create(self, request, *args, **kwargs):
+        from apps.inventory.models import RestorationJob
+        from apps.inventory.services.restoration_parts import create_part
+
+        ser = RestorationPartWriteSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        job_id = ser.validated_data.get('job')
+        if not job_id:
+            return Response({'detail': 'Say which job this part belongs to.'}, status=status.HTTP_400_BAD_REQUEST)
+        job = get_object_or_404(RestorationJob, pk=job_id)
+        try:
+            part = create_part(job, user=request.user, **{k: v for k, v in ser.validated_data.items() if k != 'job'})
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            RestorationPartSerializer(part, context=self.get_serializer_context()).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    def partial_update(self, request, *args, **kwargs):
+        from apps.inventory.services.restoration_parts import update_part
+
+        ser = RestorationPartWriteSerializer(data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        try:
+            part = update_part(
+                self.get_object(),
+                **{k: v for k, v in ser.validated_data.items() if k != 'job'},
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(RestorationPartSerializer(part, context=self.get_serializer_context()).data)
+
+    def destroy(self, request, *args, **kwargs):
+        from apps.inventory.services.restoration_parts import delete_part
+
+        try:
+            delete_part(self.get_object())
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class RestorationPartsOrderViewSet(viewsets.GenericViewSet):
+    serializer_class = RestorationPartsOrderSerializer
+    permission_classes = [IsAuthenticated, IsStaff]
+    pagination_class = ConfigurablePageSizePagination
+    http_method_names = ['get', 'post', 'patch', 'head', 'options']
+
+    def get_queryset(self):
+        from apps.inventory.models import RestorationPartsOrder
 
         return (
-            RestorationPartsRequest.objects.select_related('job', 'job__product', 'job__item_check_in')
+            RestorationPartsOrder.objects.select_related(
+                'job',
+                'job__product',
+                'job__item_check_in',
+                'queued_behind',
+                'requested_by',
+                'approved_by',
+                'purchased_by',
+                'received_by',
+                'cancel_requested_by',
+            )
+            .defer(
+                'job__work_session',
+                'job__queue_note',
+                'job__disposition_notes',
+                'job__pending_notes',
+            )
             .prefetch_related(
-                'sites__lines',
-                'orders__lines',
-                Prefetch('job__item_check_in__items', queryset=Item.objects.order_by('id')),
+                'lines__part',
+                'queued_replacements',
+                Prefetch(
+                    'job__item_check_in__items',
+                    queryset=Item.objects.order_by('id').only('id', 'sku', 'check_in_id'),
+                ),
             )
             .order_by('-updated_at', '-id')
         )
 
     def filter_queryset(self, queryset):
-        qs = super().filter_queryset(queryset) if hasattr(super(), 'filter_queryset') else queryset
+        qs = queryset
         status_param = (self.request.query_params.get('status') or '').strip()
         if status_param:
             qs = qs.filter(status=status_param)
         job_id = (self.request.query_params.get('job') or '').strip()
         if job_id.isdigit():
             qs = qs.filter(job_id=int(job_id))
+        if (self.request.query_params.get('open') or '').strip() in ('1', 'true'):
+            from apps.inventory.services.restoration_parts import OPEN_STATUSES
+
+            qs = qs.filter(status__in=OPEN_STATUSES)
+        if (self.request.query_params.get('needs_review') or '').strip() in ('1', 'true'):
+            from apps.inventory.services.restoration_parts import parts_orders_needing_review
+
+            qs = qs.filter(pk__in=parts_orders_needing_review().values('pk'))
+        if (self.request.query_params.get('cancel_requested') or '').strip() in ('1', 'true'):
+            qs = qs.filter(cancel_requested_at__isnull=False)
+        bucket = (self.request.query_params.get('bucket') or '').strip()
+        if bucket == 'live':
+            from apps.inventory.services.restoration_parts import live_orders_filter
+
+            qs = qs.filter(live_orders_filter())
+        elif bucket == 'history':
+            from apps.inventory.services.restoration_parts import history_orders_filter
+
+            qs = qs.filter(history_orders_filter())
+        since_raw = (self.request.query_params.get('since') or '').strip()
+        if since_raw:
+            from django.utils.dateparse import parse_date, parse_datetime
+
+            since_dt = parse_datetime(since_raw)
+            since_d = parse_date(since_raw)
+            if since_dt:
+                qs = qs.filter(updated_at__gte=since_dt)
+            elif since_d:
+                qs = qs.filter(updated_at__date__gte=since_d)
         return qs
 
-    @action(detail=False, methods=['post'], url_path='upsert-from-job/(?P<job_id>[^/.]+)')
-    def upsert_from_job(self, request, job_id=None):
-        from apps.inventory.models import RestorationJob, RestorationPartsRequest
-        from apps.inventory.services.restoration_bench import (
-            submit_parts_request,
-            upsert_parts_request_from_work_session,
-        )
+    def _serialized(self, order):
+        order = self.get_queryset().get(pk=order.pk)
+        return RestorationPartsOrderSerializer(order, context=self.get_serializer_context()).data
 
+    def list(self, request, *args, **kwargs):
+        page = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
+        ser = RestorationPartsOrderSerializer(page, many=True, context=self.get_serializer_context())
+        return self.get_paginated_response(ser.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        return Response(self._serialized(self.get_object()))
+
+    def create(self, request, *args, **kwargs):
+        from apps.inventory.models import RestorationJob
+        from apps.inventory.services.restoration_parts import create_order
+
+        ser = RestorationPartsOrderWriteSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        job_id = ser.validated_data.get('job')
+        if not job_id:
+            return Response({'detail': 'Say which job this order belongs to.'}, status=status.HTTP_400_BAD_REQUEST)
         job = get_object_or_404(RestorationJob, pk=job_id)
-        ser = RestorationPartsRequestUpsertSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
         try:
-            req = upsert_parts_request_from_work_session(
+            order = create_order(
                 job,
-                user=request.user,
-                grade=ser.validated_data.get('grade') or None,
-                eval_snapshot=ser.validated_data.get('eval_snapshot'),
-            )
-            if (
-                request.query_params.get('submit') == 'true'
-                and req.status == RestorationPartsRequest.STATUS_DRAFT
-            ):
-                req = submit_parts_request(req, user=request.user)
-        except ValueError as exc:
-            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        req = (
-            RestorationPartsRequest.objects.select_related('job', 'job__product')
-            .prefetch_related('sites__lines', 'orders__lines')
-            .get(pk=req.pk)
-        )
-        return Response(RestorationPartsRequestSerializer(req, context=self.get_serializer_context()).data)
-
-    @action(detail=True, methods=['post'])
-    def submit(self, request, pk=None):
-        from apps.inventory.services.restoration_bench import submit_parts_request
-
-        req = self.get_object()
-        try:
-            req = submit_parts_request(req, user=request.user)
-        except ValueError as exc:
-            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(RestorationPartsRequestSerializer(req, context=self.get_serializer_context()).data)
-
-    @action(detail=True, methods=['post'])
-    def receive(self, request, pk=None):
-        from apps.inventory.services.restoration_bench import receive_parts_request
-
-        req = self.get_object()
-        try:
-            req = receive_parts_request(req, user=request.user)
-        except ValueError as exc:
-            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        req = (
-            self.get_queryset().get(pk=req.pk)
-        )
-        return Response(RestorationPartsRequestSerializer(req, context=self.get_serializer_context()).data)
-
-    @action(detail=True, methods=['post'], url_path='record-order')
-    def record_order(self, request, pk=None):
-        from apps.inventory.services.restoration_bench import record_parts_order
-
-        req = self.get_object()
-        ser = RestorationPartsOrderCreateSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-        try:
-            order = record_parts_order(
-                req,
-                site_id=ser.validated_data.get('site_id'),
-                po_number=ser.validated_data['po_number'],
-                supplier_name=ser.validated_data.get('supplier_name', ''),
-                subtotal=ser.validated_data['subtotal'],
+                name=ser.validated_data.get('name', ''),
+                target_grade=ser.validated_data.get('target_grade', ''),
                 shipping=ser.validated_data.get('shipping', 0),
                 tax=ser.validated_data.get('tax', 0),
                 fees=ser.validated_data.get('fees', 0),
-                ship_to_address=ser.validated_data.get('ship_to_address', ''),
-                expected_delivery=ser.validated_data.get('expected_delivery'),
-                line_ids=ser.validated_data.get('line_ids'),
-                notes=ser.validated_data.get('notes', ''),
-                supplier_url=ser.validated_data.get('supplier_url', ''),
                 lines=ser.validated_data.get('lines'),
                 user=request.user,
             )
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(RestorationPartsOrderSerializer(order, context=self.get_serializer_context()).data)
+        return Response(self._serialized(order), status=status.HTTP_201_CREATED)
+
+    def partial_update(self, request, *args, **kwargs):
+        from apps.inventory.services.restoration_parts import update_order
+
+        ser = RestorationPartsOrderWriteSerializer(data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+        try:
+            order = update_order(
+                self.get_object(),
+                name=data.get('name'),
+                target_grade=data.get('target_grade'),
+                shipping=data.get('shipping'),
+                tax=data.get('tax'),
+                fees=data.get('fees'),
+                lines=data.get('lines'),
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(self._serialized(order))
+
+    def _run(self, fn, *args, **kwargs):
+        try:
+            order = fn(self.get_object(), *args, user=self.request.user, **kwargs)
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(self._serialized(order))
+
+    @action(detail=True, methods=['post'], url_path='request')
+    def request_order_action(self, request, pk=None):
+        from apps.inventory.services.restoration_parts import BlockingOrderError, request_order
+
+        raw = request.data if isinstance(request.data, dict) else {}
+        target_grade = raw.get('target_grade') if raw else None
+        try:
+            order = request_order(self.get_object(), user=request.user, target_grade=target_grade)
+        except BlockingOrderError as exc:
+            blocking = exc.blocking_order
+            return Response(
+                {
+                    'detail': str(exc),
+                    'blocking_order': {
+                        'id': blocking.pk,
+                        'name': blocking.name,
+                        'status': blocking.status,
+                    },
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(self._serialized(order))
+
+    @action(detail=True, methods=['post'])
+    def withdraw(self, request, pk=None):
+        from apps.inventory.services.restoration_parts import withdraw_order
+
+        return self._run(withdraw_order)
+
+    @action(detail=True, methods=['post'], url_path='request-cancel')
+    def request_cancel_action(self, request, pk=None):
+        from apps.inventory.models import RestorationPartsOrder
+        from apps.inventory.services.restoration_parts import request_cancel
+
+        ser = RestorationPartsOrderRequestCancelSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        replacement = None
+        replacement_id = ser.validated_data.get('replacement_id')
+        if replacement_id:
+            replacement = get_object_or_404(RestorationPartsOrder, pk=replacement_id)
+        return self._run(
+            request_cancel,
+            replacement=replacement,
+            reason=ser.validated_data.get('reason', ''),
+        )
+
+    @action(detail=True, methods=['post'], url_path='drop-queue')
+    def drop_queue_action(self, request, pk=None):
+        from apps.inventory.services.restoration_parts import drop_queue
+
+        return self._run(drop_queue)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='resolve-cancel',
+        permission_classes=[IsAuthenticated, IsSuperAdmin],
+    )
+    def resolve_cancel_action(self, request, pk=None):
+        from apps.inventory.services.restoration_parts import resolve_cancel
+
+        ser = RestorationPartsOrderResolveCancelSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        return self._run(
+            resolve_cancel,
+            confirmed=ser.validated_data['confirmed'],
+            refunded=ser.validated_data.get('refunded', False),
+        )
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        from apps.inventory.services.restoration_parts import cancel_order
+
+        raw = request.data if isinstance(request.data, dict) else {}
+        refunded = bool(raw.get('refunded')) if raw else False
+        force = bool(getattr(request.user, 'is_superuser', False))
+        return self._run(cancel_order, force=force, refunded=refunded)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsSuperAdmin])
+    def approve(self, request, pk=None):
+        from apps.inventory.services.restoration_parts import approve_order
+
+        return self._run(approve_order)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsSuperAdmin])
+    def deny(self, request, pk=None):
+        from apps.inventory.services.restoration_parts import deny_order
+
+        ser = RestorationPartsOrderDenySerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        return self._run(deny_order, reason=ser.validated_data['reason'])
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsSuperAdmin])
+    def purchase(self, request, pk=None):
+        from apps.inventory.services.restoration_parts import purchase_order
+
+        ser = RestorationPartsOrderPurchaseSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        return self._run(
+            purchase_order,
+            est_shipping_days=ser.validated_data.get('est_shipping_days'),
+            expected_on=ser.validated_data.get('expected_delivery_on'),
+        )
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='eta',
+        permission_classes=[IsAuthenticated, IsSuperAdmin],
+    )
+    def eta_action(self, request, pk=None):
+        from apps.inventory.services.restoration_parts import revise_eta
+
+        ser = RestorationPartsOrderEtaSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        return self._run(
+            revise_eta,
+            expected_on=ser.validated_data.get('expected_delivery_on'),
+            est_shipping_days=ser.validated_data.get('est_shipping_days'),
+        )
+
+    @action(detail=True, methods=['post'])
+    def receive(self, request, pk=None):
+        from apps.inventory.services.restoration_parts import receive_order
+
+        return self._run(receive_order)
+
+    @action(detail=True, methods=['post'])
+    def inspect(self, request, pk=None):
+        from apps.inventory.services.restoration_parts import inspect_order
+
+        ser = RestorationPartsOrderInspectSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        return self._run(inspect_order, lines=ser.validated_data['lines'])
+
+    @action(detail=True, methods=['post'])
+    def review(self, request, pk=None):
+        return Response({'detail': 'Use inspect.'}, status=status.HTTP_410_GONE)
 
 
 class RestorationGradeScaleViewSet(

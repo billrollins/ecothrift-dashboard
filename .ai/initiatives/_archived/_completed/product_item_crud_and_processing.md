@@ -24,7 +24,7 @@
 |-------|---------|
 | **1 — Product CRUD** | Staff Product page: search, create, edit. Fields aligned to target Product model. |
 | **2 — Item CRUD** | Staff Item page: search, create, edit. Item form assumes product selected first; item fields only on edit. |
-| **3 — Schema / field cleanup** | Audit and migrate bad field choices on `Product` and `Item` (POS, preprocessing, reports impact). **Planning pack:** [product_item_field_audit/](../reference/product_item_field_audit/README.md) (decisions, schema, lineage, code audit, migration, testing, ready-to-code gate). |
+| **3 — Schema / field cleanup** | Audit and migrate bad field choices on `Product` and `Item` (POS, preprocessing, reports impact). **Planning pack:** product_item_field_audit/ (decisions, schema, lineage, code audit, migration, testing, ready-to-code gate). |
 | **4 — Search-or-create form** | Reusable Product picker modal: simple token search, AI suggest, create/edit/select; used standalone and from processing. |
 | **5 — Slim check-in** | Item create = quantity + condition + dispatch + price + notes after product is chosen. |
 | **6 — Processing integration** | Row detail: attach products, list products from check-ins + explicit attachments, check-in uses shared forms. |
@@ -89,7 +89,7 @@ A kick-ass **sentence-embedding similarity** search is in progress elsewhere. Wh
 
 ## Moved from prior initiative (not done)
 
-From [`intake_processing_improvements`](./_archived/_completed/intake_processing_improvements.md) **Remaining high-level work**:
+From [`intake_processing_improvements`](./intake_processing_improvements.md) **Remaining high-level work**:
 
 - Processing workspace UX simplification (this initiative reframes it)
 - Richer processing search → **deferred** to semantic search; v1 uses Product indexed field / identifier / tag search
@@ -113,46 +113,12 @@ From [`intake_processing_improvements`](./_archived/_completed/intake_processing
 
 ---
 
-## Sessions
-
-### 2026-06-15 — v2.29.0 catalog CRUD + product check-in
-
-#### Result
-
-Shipped **Manage Products** / **Manage Items** catalog pages, Product CRUD modal (AI suggest, stat cards, **Check in items**), migrations **`0061`–`0062`** (canonical categories, drop Product/description lineage), **`POST /api/inventory/products/{id}/check-in/`**, and post-create catalog search. Initiative phases 1–3 + partial phase 5 complete; phase 6 processing integration remains.
-
-### 2026-06-15 — ItemCheckIn normalization (0063)
-
-#### Result
-
-Normalized check-in membership: **`ProcessingCheckInBatch` → `ItemCheckIn`**, **`Item.check_in`** FK, nullable **`processing_row`** (`SET_NULL` on staging purge), durable **`manifest_row_id`**, backfill from legacy **`item_ids` JSON**, dual-write on all mutation paths, FK-based item list filter and serializer **`check_in_batch_id`**. Phase 5 JSON removal gated in [12_check_in_normalization](../reference/product_item_field_audit/12_check_in_normalization.md).
-
-### 2026-06-15 — Inventory Catalog (v2.30.0)
-
-#### Result
-
-Shipped unified **Inventory Catalog** at `/inventory/workbench` (nav **Catalog**): shared rich search, Products / Check-ins / Items tabs, in-place product/item/check-in edit and create, URL-driven selection, legacy manage URLs redirect here. **`GET /api/inventory/item-check-ins/`** catalog API; migrations **`0063`–`0065`** complete ItemCheckIn FK cleanup. Replaces separate Manage Products/Items pages.
-
-### 2026-06-16 — Processing workspace product-linked check-ins (v2.31.0)
-
-#### Result
-
-Shipped processing-workspace integration for product-linked row/check-in workflows: migration **`0066_processingrow_product_links`**, attached-product selection/remap in prior check-ins, compact flat prior history table, inline condition/dispatch/price edits, Product editor access from prior history product cells, and no manual Status column in prior check-ins. Dispatch labels now use the canonical option labels; `processing-patch` rejects manual `status="sold"`.
-
-### 2026-06-16 — Processing unmanifested lines and queue resume (v2.32.0)
-
-#### Result
-
-Shipped unmanifested add/delete processing lines (`row_kind='added'`), multi-chip OR queue filters including **Unmanifested**, session resume (search + open row), scan search history + Recent row chips, row-detail **Refresh page**, Google search shortcuts on product surfaces, set/part check-in price/retail scaling from row bookmark, and attach-product-then-check-in UX for added rows (manifest audit rollups unchanged).
-
----
-
 ## See also
 
-- Prior initiative (closed): [`intake_processing_improvements`](./_archived/_completed/intake_processing_improvements.md)
-- **Field audit planning pack (Phase 3):** [`.ai/reference/product_item_field_audit/`](../reference/product_item_field_audit/README.md) — decisions, target schema, lineage, code audit, migration/backfill, implementation plan, testing, ready-to-code gate
-- Long-form audit report: [`.ai/reference/product_item_field_audit.md`](../reference/product_item_field_audit.md)
-- Field matrix: [`.ai/reference/item_product_creation_fields.md`](../reference/item_product_creation_fields.md)
-- Landmark design (historical): [`.ai/reference/product_identity/product_identity_design.md`](../reference/product_identity/product_identity_design.md)
-- Models: [`apps/inventory/models.py`](../../apps/inventory/models.py) (`Product`, `Item`)
-- Existing forms: [`frontend/src/components/inventory/ItemForm.tsx`](../../frontend/src/components/inventory/ItemForm.tsx)
+- Prior initiative (closed): [`intake_processing_improvements`](./intake_processing_improvements.md)
+- **Field audit planning pack (Phase 3):** `.ai/reference/product_item_field_audit/` — decisions, target schema, lineage, code audit, migration/backfill, implementation plan, testing, ready-to-code gate
+- Long-form audit report: `.ai/reference/product_item_field_audit.md`
+- Field matrix: `.ai/reference/item_product_creation_fields.md`
+- Landmark design (historical): `.ai/reference/product_identity/product_identity_design.md`
+- Models: [`apps/inventory/models.py`](../../../../apps/inventory/models.py) (`Product`, `Item`)
+- Existing forms: [`frontend/src/components/inventory/ItemForm.tsx`](../../../../frontend/src/components/inventory/ItemForm.tsx)

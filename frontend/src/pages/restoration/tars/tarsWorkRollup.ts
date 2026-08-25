@@ -1,11 +1,10 @@
 import { EMPTY_PLAN } from './tarsBenchPlan';
 import { TARS_GRADE_SCALES } from './tarsConstants';
 import { createEmptyDecisionWork } from './tarsDecisionTypes';
+import { partsCostForGrade } from './tarsPartsSummary';
 import { effectiveLaborRate, gradesForScale } from './tarsProfit';
 import type { TarsItem } from './tarsTypes';
 import type {
-  TarsPartLine,
-  TarsProcurementGroup,
   TarsWorkEvaluation,
   TarsGradeDirectionRow,
   TarsWorkSession,
@@ -18,27 +17,9 @@ function num(v: number | null | undefined): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : 0;
 }
 
-function partUnit(part: TarsPartLine): number {
-  const actual = num(part.unitPriceActual);
-  return actual > 0 ? actual : num(part.unitPriceEstimate);
-}
-
-/** Grand total for one order: selected parts (with order qty overrides) + shipping + tax + fees. */
-function orderTotal(parts: TarsPartLine[], order: TarsProcurementGroup): number {
-  const byId = new Map(parts.map((p) => [p.id, p]));
-  const subtotal = order.partIds.reduce((sum, id) => {
-    const part = byId.get(id);
-    if (!part) return sum;
-    const override = num(order.partQtyOverrides?.[id]);
-    const qty = override > 0 ? override : num(part.qty) || 1;
-    return sum + partUnit(part) * qty;
-  }, 0);
-  return subtotal + num(order.shipping) + num(order.tax) + num(order.fees);
-}
-
 /**
  * One direction row per grade in the item's current scale that has a value > 0.
- * Cost-only: labor (estimated hours × rate) + attached orders. No profit math.
+ * Cost-only: labor (estimated hours × rate) + Parts-section lines. No fees.
  */
 export function evaluateWorkSession(
   item: TarsItem,
@@ -61,7 +42,7 @@ export function evaluateWorkSession(
       const orderIds = plan?.orderIds ?? [];
       const attachedOrders = resolved.orders.filter((o) => orderIds.includes(o.id));
       const laborCost = estimateHours * laborRate;
-      const ordersCost = attachedOrders.reduce((sum, o) => sum + orderTotal(resolved.parts, o), 0);
+      const ordersCost = partsCostForGrade(resolved.parts, grade);
       return {
         grade,
         processorValue: values[grade] ?? 0,

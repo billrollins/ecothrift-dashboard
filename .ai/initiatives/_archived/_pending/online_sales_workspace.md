@@ -72,7 +72,7 @@ Without that system, online sales stay fragile, policy stays oral, and Admin acc
 
 ## Decision baseline — 2026-07-13
 
-**Phase 0 status:** Accepted — full contract in [`.ai/reference/online_sales_workspace/phase_0_contract.md`](../../../reference/online_sales_workspace/phase_0_contract.md). Gates G1–G4 resolved; migration posture **A**.
+**Phase 0 status:** Accepted — full contract in `.ai/reference/online_sales_workspace/phase_0_contract.md`. Gates G1–G4 resolved; migration posture **A**.
 
 ### Decision register
 
@@ -325,7 +325,7 @@ Design from what exists; do not treat shipped code as matching the new policy.
 
 **Goal:** Accept the decision baseline, remove business ambiguity, and produce an implementation/migration contract before coding.
 
-**Status:** **Complete — accepted 2026-07-13.** Full text: [`.ai/reference/online_sales_workspace/phase_0_contract.md`](../../../reference/online_sales_workspace/phase_0_contract.md).
+**Status:** **Complete — accepted 2026-07-13.** Full text: `.ai/reference/online_sales_workspace/phase_0_contract.md`.
 
 **Evidence summary:** Public SPA live on apex; catalog API count=0; local+prod webstore tables empty; **5** Items at `location=online_sales`; migration posture **A**; payment provider effective **`manual`**.
 
@@ -460,37 +460,9 @@ Design from what exists; do not treat shipped code as matching the new policy.
 
 ---
 
-## Sessions
-
-### Session 1 — 2026-07-13T14:15:00-05:00 (est 0.5h)
-
-- **Goal:** Create the Online Sales Workspace initiative with a small number of long phases and explicit end-of-phase deliverables.
-- **Finish line:** Initiative file on disk + row on `_index.md`; ready to plan Phase 0 next.
-- **Scope:** Initiative authoring and index/compass pointers only — no Phase 0 workshop yet, no code.
-- **Out of scope:** Phase 0 decisions, nav implementation, editor build.
-- **Result:** Initiative created with three long phases (0 map/policy, 1 editor+publish+templates, 2 workspace ops+nav cutover); listed on `_index.md`; compass pointer in `.ai/context.md`. Phase 0 planning not started.
-
-### Session 2 — 2026-07-13T14:23:00-05:00 (est 1.5h)
-
-- **Goal:** Review the initiative against the shipped nav/webstore/public-site code and replace vague possibilities with a concrete product contract.
-- **Finish line:** Good default decisions on workspace/pages, state/quantity ownership, Listing Studio, reserve/pickup policy, messages/channels/security, B2B, contribution reporting, permissions, phases, tests, and risks—while keeping only true owner policy gates open.
-- **Scope:** Read-only brownfield audit + this initiative update; no production behavior, nav code, model, route, or archived-initiative edits.
-- **Out of scope:** Owner acceptance of Policy v1, Phase 1 implementation, release/version changes.
-- **Result:** Working decision baseline added. Phase 0 is ready for owner review of four focused gates rather than open-ended product discovery.
-
-### Session 3 — 2026-07-13T14:50:00-05:00 (est 3h)
-
-- **Goal:** Execute Phase 0 — verify production/local posture, accept nav/policy/data/security contracts, resolve four owner gates, and produce a Grok-ready Phase 1 brief.
-- **Finish line:** Four deliverables Accepted/Ready; Phase 1 executable without product improvisation; zero application code.
-- **Scope:** Docs only — initiative + `.ai/reference/online_sales_workspace/phase_0_contract.md` + index/context pointers; read-only HTTP + aggregate SQL.
-- **Out of scope:** Application code, migrations, seeds, deploys, semver, Helcim/shipping resume.
-- **Result:** Phase 0 accepted. Migration posture **A** (empty webstore; 5 `online_sales` Items). Gates G1–G4 accepted (Page FB template; Marketplace Phase 2; role-default capabilities). Nav Phase 1/2 split, Policy v1 + SOP, data/security/rollback, and Phase 1 slices/fixtures/tests/A-grade script recorded in [`phase_0_contract.md`](../../../reference/online_sales_workspace/phase_0_contract.md). Next = Phase 1 build.
-
----
-
 ## See also
 
-- [`.ai/reference/online_sales_workspace/phase_0_contract.md`](../../../reference/online_sales_workspace/phase_0_contract.md) — **Phase 0 accepted pack**
+- `.ai/reference/online_sales_workspace/phase_0_contract.md` — **Phase 0 accepted pack**
 - [`.ai/initiatives/_index.md`](../../_index.md)
 - [`.ai/initiatives/_archived/_pending/public_website.md`](./public_website.md)
 - [`.ai/initiatives/_archived/_completed/blog_studio.md`](../_completed/blog_studio.md)

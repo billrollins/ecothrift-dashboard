@@ -1207,6 +1207,55 @@ class RestorationAction(models.Model):
         return bool((self.description or '').strip())
 
 
+class RestorationOutput(models.Model):
+    """What Restoration is sending on: the main item, plus any salvaged parts.
+
+    Seq 0 is the main item (keeps its SKU). Seq 1+ are part lines. Processing
+    mints those SKUs later; until then ``item`` is null.
+    """
+
+    job = models.ForeignKey(
+        RestorationJob,
+        on_delete=models.CASCADE,
+        related_name='outputs',
+    )
+    seq = models.PositiveIntegerField()
+    label = models.CharField(max_length=200)
+    notes = models.TextField(blank=True, default='')
+    destination = models.CharField(max_length=32, blank=True, default='')
+    suggested_product = models.ForeignKey(
+        'Product',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    item = models.ForeignKey(
+        'Item',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='restoration_outputs',
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='restoration_outputs_created',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['seq', 'id']
+        constraints = [
+            models.UniqueConstraint(fields=['job', 'seq'], name='restout_job_seq_uniq'),
+        ]
+
+    def __str__(self):
+        return f'RestorationOutput job={self.job_id} seq={self.seq} {self.label}'
+
+
 class RestorationTimelineEvent(models.Model):
     """Append-only, attributed history for a restoration job.
 
@@ -1272,188 +1321,199 @@ class RestorationTimelineEvent(models.Model):
         return f'{self.event_type} job={self.job_id} event={self.pk}'
 
 
-class RestorationPartsRequest(models.Model):
-    """Formal parts request for a restoration job — manager review and ordering."""
+class RestorationPart(models.Model):
+    """One line on a restoration job's parts list."""
 
-    STATUS_DRAFT = 'draft'
-    STATUS_SUBMITTED = 'submitted'
-    STATUS_ORDERED = 'ordered'
-    STATUS_RECEIVED = 'received'
-    STATUS_CANCELLED = 'cancelled'
-    STATUS_CHOICES = [
-        (STATUS_DRAFT, 'Draft'),
-        (STATUS_SUBMITTED, 'Submitted'),
-        (STATUS_ORDERED, 'Ordered'),
-        (STATUS_RECEIVED, 'Received'),
-        (STATUS_CANCELLED, 'Cancelled'),
+    CATEGORY_PARTS = 'parts'
+    CATEGORY_SUPPLIES = 'supplies'
+    CATEGORY_FFE = 'ffe'
+    CATEGORY_CHOICES = [
+        (CATEGORY_PARTS, 'Parts'),
+        (CATEGORY_SUPPLIES, 'Supplies'),
+        (CATEGORY_FFE, 'FFE'),
     ]
 
     job = models.ForeignKey(
         RestorationJob,
         on_delete=models.CASCADE,
-        related_name='parts_requests',
+        related_name='parts',
     )
+    part_number = models.CharField(max_length=64, blank=True, default='')
+    description = models.CharField(max_length=300, blank=True, default='')
+    url = models.URLField(blank=True, default='')
+    qty = models.PositiveIntegerField(default=1)
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    category = models.CharField(
+        max_length=16,
+        choices=CATEGORY_CHOICES,
+        default=CATEGORY_PARTS,
+        db_index=True,
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='restoration_parts_created',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['id']
+
+    def __str__(self):
+        return self.description or self.part_number or f'Part {self.pk}'
+
+    @property
+    def line_total(self) -> Decimal:
+        return (self.unit_price or Decimal('0')) * (self.qty or 0)
+
+
+class RestorationPartsOrder(models.Model):
+    """A named basket of parts that targets one grade."""
+
+    STATUS_DRAFT = 'draft'
+    STATUS_REQUESTED = 'requested'
+    STATUS_APPROVED = 'approved'
+    STATUS_DENIED = 'denied'
+    STATUS_PURCHASED = 'purchased'
+    STATUS_RECEIVED = 'received'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, 'Draft'),
+        (STATUS_REQUESTED, 'Requested'),
+        (STATUS_APPROVED, 'Approved'),
+        (STATUS_DENIED, 'Denied'),
+        (STATUS_PURCHASED, 'Purchased'),
+        (STATUS_RECEIVED, 'Received'),
+        (STATUS_CANCELLED, 'Cancelled'),
+    ]
+
+    REVIEW_OK = 'ok'
+    REVIEW_NEEDS = 'needs_review'
+    REVIEW_REVIEWED = 'reviewed'
+    REVIEW_CHOICES = [
+        (REVIEW_OK, 'OK'),
+        (REVIEW_NEEDS, 'Needs review'),
+        (REVIEW_REVIEWED, 'Reviewed'),
+    ]
+
+    job = models.ForeignKey(
+        RestorationJob,
+        on_delete=models.CASCADE,
+        related_name='parts_orders',
+    )
+    name = models.CharField(max_length=128)
+    target_grade = models.CharField(max_length=64, blank=True, default='')
+    shipping = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    tax = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    fees = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
         default=STATUS_DRAFT,
         db_index=True,
     )
-    selected_grade = models.CharField(max_length=64, blank=True, default='')
-    eval_snapshot = models.JSONField(default=dict, blank=True)
-    notes = models.TextField(blank=True, default='')
+    denied_reason = models.TextField(blank=True, default='')
+    est_shipping_days = models.PositiveIntegerField(null=True, blank=True)
+    requested_at = models.DateTimeField(null=True, blank=True)
     requested_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='restoration_parts_requests_created',
+        related_name='restoration_parts_orders_requested',
     )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ['-updated_at', '-id']
-        indexes = [
-            models.Index(fields=['status', 'updated_at']),
-            models.Index(fields=['job', 'status']),
-        ]
-
-    def __str__(self):
-        return f'PartsRequest {self.pk} job={self.job_id} status={self.status}'
-
-
-class RestorationPartsRequestSite(models.Model):
-    """Supplier/site grouping within a parts request."""
-
-    parts_request = models.ForeignKey(
-        RestorationPartsRequest,
-        on_delete=models.CASCADE,
-        related_name='sites',
-    )
-    supplier_name = models.CharField(max_length=128)
-    sort_order = models.PositiveIntegerField(default=0)
-
-    class Meta:
-        ordering = ['sort_order', 'id']
-
-    def __str__(self):
-        return f'{self.supplier_name} (request {self.parts_request_id})'
-
-
-class RestorationPartsRequestLine(models.Model):
-    """Individual part line on a parts request."""
-
-    STATUS_PLANNED = 'planned'
-    STATUS_ORDERED = 'ordered'
-    STATUS_RECEIVED = 'received'
-    STATUS_SKIPPED = 'skipped'
-    STATUS_CHOICES = [
-        (STATUS_PLANNED, 'Planned'),
-        (STATUS_ORDERED, 'Ordered'),
-        (STATUS_RECEIVED, 'Received'),
-        (STATUS_SKIPPED, 'Skipped'),
-    ]
-
-    site = models.ForeignKey(
-        RestorationPartsRequestSite,
-        on_delete=models.CASCADE,
-        related_name='lines',
-    )
-    part_number = models.CharField(max_length=64, blank=True, default='')
-    description = models.CharField(max_length=300, blank=True, default='')
-    url = models.URLField(blank=True, default='')
-    qty = models.PositiveIntegerField(default=1)
-    unit_price_estimate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    unit_price_actual = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    status = models.CharField(
-        max_length=20,
-        choices=STATUS_CHOICES,
-        default=STATUS_PLANNED,
-    )
-    linked_grade = models.CharField(max_length=64, blank=True, default='')
-
-    class Meta:
-        ordering = ['id']
-
-    def __str__(self):
-        return self.description or self.part_number or f'Line {self.pk}'
-
-
-class RestorationPartsOrder(models.Model):
-    """Purchase order record for a parts request site."""
-
-    STATUS_PENDING = 'pending'
-    STATUS_ORDERED = 'ordered'
-    STATUS_RECEIVED = 'received'
-    STATUS_CHOICES = [
-        (STATUS_PENDING, 'Pending'),
-        (STATUS_ORDERED, 'Ordered'),
-        (STATUS_RECEIVED, 'Received'),
-    ]
-
-    parts_request = models.ForeignKey(
-        RestorationPartsRequest,
-        on_delete=models.CASCADE,
-        related_name='orders',
-    )
-    site = models.ForeignKey(
-        RestorationPartsRequestSite,
+    approved_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='orders',
+        related_name='restoration_parts_orders_approved',
     )
-    po_number = models.CharField(max_length=64, blank=True, default='', db_index=True)
-    supplier_name = models.CharField(max_length=128, blank=True, default='')
-    supplier_url = models.URLField(blank=True, default='')
-    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    shipping = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    tax = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    fees = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    ship_to_address = models.TextField(blank=True, default='')
-    expected_delivery = models.DateField(null=True, blank=True)
-    ordered_at = models.DateTimeField(null=True, blank=True)
-    notes = models.TextField(blank=True, default='')
-    status = models.CharField(
+    purchased_at = models.DateTimeField(null=True, blank=True)
+    purchased_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='restoration_parts_orders_purchased',
+    )
+    received_at = models.DateTimeField(null=True, blank=True)
+    received_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='restoration_parts_orders_received',
+    )
+    review_state = models.CharField(
         max_length=20,
-        choices=STATUS_CHOICES,
-        default=STATUS_PENDING,
+        choices=REVIEW_CHOICES,
+        default=REVIEW_OK,
         db_index=True,
     )
+    review_note = models.TextField(blank=True, default='')
+    cancel_requested_at = models.DateTimeField(null=True, blank=True)
+    cancel_requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='restoration_parts_orders_cancel_asked',
+    )
+    cancel_reason = models.TextField(blank=True, default='')
+    queued_behind = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='queued_replacements',
+    )
+    refunded = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['-updated_at', '-id']
         indexes = [
-            models.Index(fields=['status', 'expected_delivery']),
+            models.Index(fields=['status', 'updated_at'], name='inventory_r_status_8f4c1a_idx'),
+            models.Index(fields=['job', 'status'], name='inventory_r_job_id_2c8e4b_idx'),
+            models.Index(fields=['review_state', 'updated_at'], name='inventory_r_review__9a1d2e_idx'),
         ]
 
     def __str__(self):
-        return self.po_number or f'Order {self.pk}'
+        return self.name or f'Order {self.pk}'
 
 
 class RestorationPartsOrderLine(models.Model):
-    """Links an order to request lines with actual costs."""
+    """One part on a named order, with an order-only qty and paid cost."""
 
     order = models.ForeignKey(
         RestorationPartsOrder,
         on_delete=models.CASCADE,
         related_name='lines',
     )
-    request_line = models.ForeignKey(
-        RestorationPartsRequestLine,
-        on_delete=models.CASCADE,
+    part = models.ForeignKey(
+        RestorationPart,
+        on_delete=models.PROTECT,
         related_name='order_lines',
     )
     qty = models.PositiveIntegerField(default=1)
-    unit_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    line_total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    unit_cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    inspect_verdict = models.CharField(max_length=16, blank=True, default='')
+    inspect_note = models.TextField(blank=True, default='')
 
     class Meta:
         ordering = ['id']
+        constraints = [
+            models.UniqueConstraint(fields=['order', 'part'], name='uniq_restoration_parts_order_part'),
+        ]
+
+    def __str__(self):
+        return f'Order {self.order_id} part {self.part_id}'
 
 
 class RestorationGradeScale(models.Model):
@@ -1766,6 +1826,14 @@ class Item(models.Model):
         blank=True,
         related_name='items',
     )
+    parent_item = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='child_items',
+        help_text='The item this SKU was salvaged from. Truck lineage stays on purchase_order / manifest_row.',
+    )
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     retail = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
@@ -2067,6 +2135,107 @@ class ItemHistory(models.Model):
 
     def __str__(self):
         return f'{self.item.sku} - {self.event_type}'
+
+
+class ItemNote(models.Model):
+    """Append-only note about one item. Survives check-in, job and split churn.
+
+    Corrections append a successor and retire the old row. Removal voids in
+    place and keeps the body. Job is a soft integer because split/combine
+    delete RestorationJob rows.
+    """
+
+    SURFACE_CHECK_IN = 'check_in'
+    SURFACE_HANDOFF = 'handoff'
+    SURFACE_QUEUE = 'queue'
+    SURFACE_ACTION = 'action'
+    SURFACE_HOLD = 'hold'
+    SURFACE_SEND_BACK = 'send_back'
+    SURFACE_REJECT = 'reject'
+    SURFACE_FINISH = 'finish'
+    SURFACE_OUTPUT = 'output'
+    SURFACE_PROCESSING_RETURN = 'processing_return'
+    SURFACE_MANUAL = 'manual'
+    SURFACE_CHOICES = [
+        (SURFACE_CHECK_IN, 'Check-in'),
+        (SURFACE_HANDOFF, 'Handoff'),
+        (SURFACE_QUEUE, 'Queue'),
+        (SURFACE_ACTION, 'Action'),
+        (SURFACE_HOLD, 'Hold'),
+        (SURFACE_SEND_BACK, 'Send back'),
+        (SURFACE_REJECT, 'Reject'),
+        (SURFACE_FINISH, 'Finish'),
+        (SURFACE_OUTPUT, 'Output'),
+        (SURFACE_PROCESSING_RETURN, 'Processing return'),
+        (SURFACE_MANUAL, 'Manual'),
+    ]
+
+    STATUS_ACTIVE = 'active'
+    STATUS_REVISED = 'revised'
+    STATUS_VOIDED = 'voided'
+    STATUS_CHOICES = [
+        (STATUS_ACTIVE, 'Active'),
+        (STATUS_REVISED, 'Revised'),
+        (STATUS_VOIDED, 'Voided'),
+    ]
+
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='note_trail')
+    body = models.TextField()
+    surface = models.CharField(max_length=32, choices=SURFACE_CHOICES)
+    source_key = models.CharField(
+        max_length=128,
+        blank=True,
+        default='',
+        help_text='Groups a supersede chain: queue, action:12, output:0.',
+    )
+    restoration_job_id = models.PositiveIntegerField(null=True, blank=True)
+    check_in = models.ForeignKey(
+        'ItemCheckIn',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='item_notes_authored',
+    )
+    occurred_at = models.DateTimeField(default=timezone.now)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
+    supersedes = models.ForeignKey(
+        'self',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='revisions',
+    )
+    voided_at = models.DateTimeField(null=True, blank=True)
+    voided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='item_notes_voided',
+    )
+    void_reason = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['occurred_at', 'id']
+        indexes = [
+            models.Index(fields=['item', 'occurred_at', 'id'], name='itemnote_item_time_idx'),
+            models.Index(fields=['item', 'surface', 'status'], name='itemnote_item_surf_idx'),
+            models.Index(
+                fields=['item', 'surface', 'source_key', 'status'],
+                name='itemnote_src_status_idx',
+            ),
+        ]
+
+    def __str__(self):
+        return f'ItemNote item={self.item_id} {self.surface} #{self.pk}'
 
 
 class ItemScanHistory(models.Model):

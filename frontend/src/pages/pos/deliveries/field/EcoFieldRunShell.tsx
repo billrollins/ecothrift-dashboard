@@ -23,6 +23,7 @@ import { DeliveriesStep } from './steps/DeliveriesStep';
 import { FinishStep } from './steps/FinishStep';
 import { finalActionThenAdvance } from './finalActionAdvance';
 import { ecoField, ecoFieldStepAccent, type EcoFieldStepKey } from './ecoFieldTheme';
+import { deliveryListPath } from '../deliveryPaths';
 
 type Props = {
   day: DeliveryDayDetail;
@@ -67,8 +68,8 @@ function TimerChrome({
       }}
     >
       <IconButton
-        aria-label="Back to delivery days"
-        onClick={() => navigate('/pos/deliveries/field/days')}
+        aria-label="Back to schedule"
+        onClick={() => navigate(deliveryListPath('field', 'schedule'))}
         sx={{ border: `1px solid ${ecoField.line}`, width: 42, height: 42 }}
       >
         <ArrowBackRounded />

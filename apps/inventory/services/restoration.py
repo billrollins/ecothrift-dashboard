@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
+import math
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
@@ -70,24 +71,45 @@ def grades_for_scale(scale: str) -> list[str]:
     return list(get_active_scales().get(scale or '', []))
 
 
+def _recorded_grade_amount(value: Any) -> float | None:
+    """A saved grade price, including $0. None means the grade is still blank."""
+    if value is None or value == '':
+        return None
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(amount) or amount < 0:
+        return None
+    return amount
+
+
 def normalize_grade_values(raw: Any) -> dict[str, float]:
     if not isinstance(raw, dict):
         return {}
     out: dict[str, float] = {}
     for grade, value in raw.items():
-        try:
-            amount = float(value)
-        except (TypeError, ValueError):
+        amount = _recorded_grade_amount(value)
+        if amount is None:
             continue
-        if amount > 0:
-            out[str(grade)] = amount
+        out[str(grade)] = amount
     return out
 
 
-def empty_values_for_scale(scale: str, prev: dict[str, float] | None = None) -> dict[str, float]:
+def empty_values_for_scale(_scale: str, prev: dict[str, float] | None = None) -> dict[str, float]:
+    """Keep every recorded price when the scale changes.
+
+    Grades not on the new scale stay in the map so switching back — or
+    switching by accident — does not throw the numbers away. Completeness
+    still only requires the current scale's grades.
+    """
     prev = prev or {}
-    grades = grades_for_scale(scale)
-    return {g: prev.get(g, 0.0) if prev.get(g, 0) > 0 else 0.0 for g in grades}
+    out: dict[str, float] = {}
+    for grade, value in prev.items():
+        amount = _recorded_grade_amount(value)
+        if amount is not None:
+            out[str(grade)] = amount
+    return out
 
 
 def grade_values_complete(scale: str, values: dict[str, float] | dict[str, Any]) -> bool:
@@ -97,7 +119,7 @@ def grade_values_complete(scale: str, values: dict[str, float] | dict[str, Any])
     if not grades:
         return False
     normalized = normalize_grade_values(values)
-    return all(normalized.get(g, 0) > 0 for g in grades)
+    return all(g in normalized for g in grades)
 
 
 def validate_restoration_check_in_payload(data: dict) -> tuple[str, dict[str, float]]:
@@ -299,17 +321,9 @@ def restoration_job_valuation_pending(job: RestorationJob) -> bool:
 
 
 def missing_grade_keys(scale: str, values: dict[str, float] | dict[str, Any] | None) -> list[str]:
-    """Grade labels on the scale that are missing or not positive."""
-    raw = values or {}
-    missing: list[str] = []
-    for grade in grades_for_scale(scale):
-        try:
-            amount = float(raw.get(grade))
-        except (TypeError, ValueError):
-            amount = 0.0
-        if not amount or amount <= 0:
-            missing.append(grade)
-    return missing
+    """Grade labels on the scale that still have no price. $0 is a price."""
+    normalized = normalize_grade_values(values)
+    return [grade for grade in grades_for_scale(scale) if grade not in normalized]
 
 
 @transaction.atomic
@@ -319,22 +333,44 @@ def request_restoration_valuation(
     grades: list[str] | None = None,
     notes: str = '',
     user=None,
+    kind: str = 'missing',
 ) -> RestorationJob:
-    """TARS asks Processing to fill missing (or selected) grade values."""
+    """TARS asks Processing to look at this item.
+
+    ``missing`` — fill blank grade prices (the original request).
+    ``disagree`` — Mike does not agree with the posted values; all grades.
+    ``question`` — a note for Processing; grades may be empty.
+    """
     job = RestorationJob.objects.select_for_update().get(pk=job.pk)
     if job.stage in (
         RestorationJob.STAGE_DONE,
         RestorationJob.STAGE_RETURNED,
     ):
         raise ValueError('Cannot request valuations for a completed or returned job.')
+    notes = (notes or '').strip()
     known = set(grades_for_scale(job.scale)) if job.scale else set()
     requested = [str(g).strip() for g in (grades or []) if str(g).strip()]
-    if not requested:
-        requested = missing_grade_keys(job.scale, job.grade_values or {})
-    if known:
-        requested = [g for g in requested if g in known]
-    if not requested:
-        raise ValueError('No missing grade values to request.')
+    if kind == 'question':
+        if not notes:
+            raise ValueError('Write the question for Processing.')
+        if known:
+            requested = [g for g in requested if g in known]
+    elif kind == 'disagree':
+        if not notes:
+            raise ValueError('Say what is wrong with the grades.')
+        if not requested:
+            requested = list(grades_for_scale(job.scale)) if job.scale else list((job.grade_values or {}).keys())
+        if known:
+            requested = [g for g in requested if g in known]
+        if not requested:
+            raise ValueError('This item has no grade scale to disagree with.')
+    else:
+        if not requested:
+            requested = missing_grade_keys(job.scale, job.grade_values or {})
+        if known:
+            requested = [g for g in requested if g in known]
+        if not requested:
+            raise ValueError('No missing grade values to request.')
     now = timezone.now()
     job.valuation_requested_at = now
     job.valuation_requested_by = user if getattr(user, 'is_authenticated', False) else None
@@ -351,16 +387,9 @@ def request_restoration_valuation(
             'updated_at',
         ],
     )
-    from apps.inventory.services.restoration_bench import mark_restoration_meaningful_action
     from apps.inventory.services.restoration_timeline import append_timeline_event
 
     correlation_id = uuid4()
-    mark_restoration_meaningful_action(
-        job,
-        user=user,
-        label='Valuation requested',
-        correlation_id=correlation_id,
-    )
     append_timeline_event(
         job,
         'valuation.requested',
@@ -516,19 +545,28 @@ def _decision_reason_from_session(session: Any) -> str:
     return str(selection.get('reason') or '').strip()
 
 
+def job_has_restoration_actions(job: RestorationJob) -> bool:
+    """True once someone recorded work on the item. Empty log means untouched."""
+
+    cached = getattr(job, 'action_count', None)
+    if isinstance(cached, int):
+        return cached > 0
+    return job.actions.exists()
+
+
 def processing_desk_from_family(job: RestorationJob) -> str | None:
     """Return worked|untouched for FROM desk rows, else None for TO rows."""
 
-    if (
-        job.stage == RestorationJob.STAGE_DONE
-        and job.bench_disposition == RestorationJob.BENCH_DISPOSITION_PROCESSING
-    ):
-        return 'worked'
+    if job.return_disposition_type == RestorationJob.RETURN_DISPOSITION_UNTOUCHED:
+        return 'untouched'
+    if job.stage == RestorationJob.STAGE_DONE:
+        return 'worked' if job_has_restoration_actions(job) else 'untouched'
     if job.stage == RestorationJob.STAGE_RETURNED:
-        if job.return_disposition_type == RestorationJob.RETURN_DISPOSITION_UNTOUCHED:
-            return 'untouched'
+        if job_has_restoration_actions(job):
+            return 'worked'
         if job.return_disposition_type == RestorationJob.RETURN_DISPOSITION_TARS_COMPLETED:
             return 'worked'
+        return 'untouched'
     return None
 
 
@@ -597,6 +635,21 @@ def _find_item_by_identifier(identifier: str) -> Item | None:
     return Item.objects.filter(sku__iexact=raw).first()
 
 
+def lookup_restoration_scan(identifier: str) -> dict:
+    """Read-only scan: restoration job, catalog item, or nothing. Never creates."""
+
+    raw = _normalize_scan_identifier(identifier)
+    if not raw:
+        return {'found': 'none'}
+    item = _find_item_by_identifier(raw)
+    if item is None:
+        return {'found': 'none'}
+    job = RestorationJob.objects.filter(item_check_in__items=item).first()
+    if job is not None:
+        return {'found': 'job', 'job': job, 'item': item}
+    return {'found': 'item', 'item': item}
+
+
 QueueAddStatus = Literal['created', 'already_queued', 'requeued', 'on_bench', 'on_pending']
 
 
@@ -623,11 +676,14 @@ def _requeue_restoration_job(job: RestorationJob) -> RestorationJob:
     job.pending_notes = ''
     job.pending_storage_location = ''
     job.pending_started_at = None
+    job.bench_owner = None
     job.bench_disposition = ''
+    job.starting_grade = ''
     job.final_grade = ''
     job.disposition_notes = ''
     job.spent_hours = None
     job.spent_parts_cost = None
+    job.value_added = None
     job.dispositioned_at = None
     job.dispositioned_by = None
     job.processing_handled_at = None
@@ -652,11 +708,14 @@ def _requeue_restoration_job(job: RestorationJob) -> RestorationJob:
         'pending_notes',
         'pending_storage_location',
         'pending_started_at',
+        'bench_owner',
         'bench_disposition',
+        'starting_grade',
         'final_grade',
         'disposition_notes',
         'spent_hours',
         'spent_parts_cost',
+        'value_added',
         'dispositioned_at',
         'dispositioned_by',
         'processing_handled_at',

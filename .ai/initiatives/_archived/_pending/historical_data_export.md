@@ -12,7 +12,7 @@
 
 ## Phase 1 — What shipped
 
-- **Notebooks layout:** Shared config in [`workspace/notebooks/_shared/config.example.py`](../../../../workspace/notebooks/_shared/config.example.py); project folders `historical-data/`, `db-explorer/`, `bstock-scraper/`.
+- **Notebooks layout:** Shared config in `workspace/notebooks/_shared/config.example.py`; project folders `historical-data/`, `db-explorer/`, `bstock-scraper/`.
 - **`schema_discovery.ipynb`** — Full schema discovery for DB1/DB2 (saved outputs).
 - **`export_all.ipynb`** — Pulls sales, inventory, orders/manifests, POS, templates, etc. → `pickle/db1/*.pkl`, `pickle/db2/*.pkl`.
 - **`pickle/manifest.json`** — Row/col counts; re-runnable cell at end of `export_all.ipynb` refreshes manifest **with column names** for every pickle.

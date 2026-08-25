@@ -1,13 +1,11 @@
 import {
   Box,
   Button,
-  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  Drawer,
   Stack,
   Typography,
 } from '@mui/material';
@@ -17,56 +15,76 @@ import { useSnackbar } from 'notistack';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
+import { RequestsDrawerHost } from '../../../components/enhancements/RequestsDrawer';
 import { useAuth } from '../../../hooks/useAuth';
 
 import {
-
   useCheckInRestorationJob,
-
   useCompleteRestorationJob,
-
+  useRejectRestorationJob,
   useMoveRestorationJobBackToQueue,
-
   usePatchRestorationJobWorkSession,
-
-  usePauseRestorationJobTimer,
-
   useRestorationScoreboard,
-
   useRestorationActions,
-  useStartRestorationAction,
   useDescribeRestorationAction,
+  useStartRestorationAction,
   useUndoRestorationAction,
   useDeleteRestorationAction,
-  ActionNeedsDescriptionError,
-
   useTarsBenchJobs,
-
-  useUpsertRestorationPartsRequest,
+  useRestorationParts,
+  useRestorationPartsOrders,
+  useCreateRestorationPart,
+  useUpdateRestorationPart,
+  useDeleteRestorationPart,
+  useCreateRestorationPartsOrder,
+  useUpdateRestorationPartsOrder,
+  useRequestRestorationPartsOrder,
+  useReceiveRestorationPartsOrder,
+  useInspectRestorationPartsOrder,
+  useWithdrawRestorationPartsOrder,
+  useRequestCancelRestorationPartsOrder,
+  useDropQueueRestorationPartsOrder,
+  useCancelRestorationPartsOrder,
   useHoldRestorationJob,
+  useRestorationJobTimeline,
+  useForgetRestorationTimelineWords,
+  useResetRestorationQueueNote,
 } from '../../../hooks/useRestorationBench';
 import { useGradeScales } from '../../../hooks/useGradeScales';
 import type {
   RestorationActionCategory,
-  RestorationActionsDTO,
   RestorationJobDTO,
+  RestorationPartDTO,
+  RestorationPartsOrderDTO,
+  RestorationPartsLineInspectPayload,
+  RestorationPartsOrderWritePayload,
 } from '../../../types/inventory.types';
-import { TarsWorkPanel } from './TarsWorkPanel';
-import { TarsBenchStatus } from './TarsBenchStatus';
 import { TarsSendBackDialog } from './TarsSendBackDialog';
-import { actionScopeLabel, blockingAction } from './tarsActions';
+import { categoryChangeStartsNewSitting, fileCurrentActionPlan } from './tarsActions';
 import { TARS_DEFAULT_HOURLY_RATE, TARS_DEFAULT_TIME_PREMIUM } from './tarsConstants';
-import { TarsTimerSwitchDialog } from './TarsTimerSwitchDialog';
 import { TarsDoneDialog } from './TarsDoneDialog';
+import { TarsRejectDialog } from './TarsRejectDialog';
 import { TarsScanMessageDialog } from './TarsScanMessageDialog';
 import { TarsHoldDialog } from './TarsHoldDialog';
-import { TarsPartsListPanel } from './TarsPartsListPanel';
-import { PARTS_DRAWER_WIDTH } from './tarsPartsListSession';
+import { TarsActionHistory } from './TarsActionHistory';
+import { TarsBenchConsole } from './TarsBenchConsole';
+import { TarsPurchaseDesk } from './TarsPartsListPanel';
 import {
   TarsStudioShell,
   type StudioLane,
 } from './studio/TarsStudioShell';
-import { TarsStudioTimerControl } from './studio/TarsStudioTimerControl';
+import { TarsDashboardShell } from './studio/TarsDashboardShell';
+import {
+  RESTORATION_OVERVIEW_PATH,
+  restorationOverviewAddPath,
+  restorationOverviewPath,
+} from '../restorationRoutes';
+import {
+  decideBenchScan,
+  fetchRestorationScanLookup,
+  isOccupiedBenchError,
+  shouldPickupOnScan,
+} from '../restorationScanFind';
 import {
   StudioNoticeButton,
   StudioNoticeDrawer,
@@ -74,16 +92,21 @@ import {
 } from './studio/StudioNotices';
 import { TarsHome } from './TarsHome';
 import { TarsGradeTable } from './TarsGradeTable';
-import { readBenchPlan, type TarsBenchPlan } from './tarsBenchPlan';
-import { TarsActionLog } from './TarsActionLog';
-import { TarsDispositionBar } from './TarsDispositionBar';
-import { summarizeParts } from './tarsPartsSummary';
+import { BENCH_SPLIT_COLUMNS, BENCH_SPLIT_GAP } from './tarsBenchLayout';
+import { bestRemainingGrade } from './tarsBenchValue';
+import { currentGradeOf, readBenchPlan, withLowestValueStart, type TarsBenchPlan } from './tarsBenchPlan';
+import {
+  FINISH_BLOCKED_MESSAGE,
+  isOpenPartsOrder,
+  partsRangeByGrade,
+  spentPartsCost,
+  summarizePartsList,
+} from './tarsPartsOrders';
 import { studio } from './studio/tarsStudioTheme';
 
-import { jobMatchesScan, myActiveBenchRestorationJob, myRunningRestorationJob, restorationJobToTarsItem, tarsJobRowKey } from './tarsJobAdapter';
-import { timerGuardKey, type TimerGuardAction } from './tarsTimerWarnings';
+import { isForeignBench, myActiveBenchRestorationJob, restorationJobToTarsItem, tarsJobRowKey } from './tarsJobAdapter';
+import { benchOwnerGivenName } from '../queue/restorationQueueModel';
 import { useWorkSessionDraft } from './useWorkSessionDraft';
-import { useTarsTimerController } from './useTarsTimerController';
 
 import { evaluateWorkSession } from './tarsWorkRollup';
 
@@ -104,116 +127,44 @@ function benchSortValue(job: RestorationJobDTO): number {
   return timeValue(job.bench_started_at ?? job.sent_at ?? job.created_at);
 }
 
-/**
- * The record of this item: what is being done, and what has been.
- *
- * Work leads because it is what someone is standing here to do, and it shows
- * one scope at a time — whichever row is selected in the grade table. The log
- * is the same actions across every scope, one line each, read when a question
- * comes up rather than while working.
- */
-function BenchRecord({
-  actions,
-  running,
-  busy,
-  scope,
-  onDescribe,
-  onNewAction,
-  onUndo,
-  onDeleteAction,
-}: {
-  actions: RestorationActionsDTO | undefined;
-  running: boolean;
-  busy?: boolean;
-  scope: string;
-  onDescribe: (actionId: number, patch: { description?: string; category?: RestorationActionCategory }) => void;
-  onNewAction: (grade: string) => void;
-  onUndo: () => void;
-  onDeleteAction: (actionId: number) => void;
-}) {
-  const [tab, setTab] = useState<'work' | 'log'>('work');
-
-  return (
-    <Box sx={{ flex: 1, minHeight: 340, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-      {/* Tabs sitting on the edge of the panel they open, not buttons above it. */}
-      <Stack direction="row" spacing={0.25} sx={{ borderBottom: `1px solid ${studio.panelBorder}` }}>
-        {(['work', 'log'] as const).map((id) => {
-          const selected = id === tab;
-          return (
-            <Box
-              key={id}
-              component="button"
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              onClick={() => setTab(id)}
-              sx={{
-                px: 1.6,
-                pt: 0.5,
-                pb: 0.55,
-                mb: '-1px',
-                cursor: 'pointer',
-                fontSize: '0.8rem',
-                fontWeight: 900,
-                borderRadius: '8px 8px 0 0',
-                border: '1px solid',
-                borderColor: selected ? studio.panelBorder : 'transparent',
-                borderBottomColor: selected ? studio.panel : 'transparent',
-                bgcolor: selected ? studio.panel : 'transparent',
-                color: selected ? studio.accentDark : '#8593a5',
-                '&:hover': { color: selected ? studio.accentDark : '#475569' },
-              }}
-            >
-              {id === 'work' ? 'Work' : 'Log'}
-            </Box>
-          );
-        })}
-      </Stack>
-
-      <Box sx={{ flex: 1, minHeight: 0, pt: 1 }}>
-        {tab === 'work' ? (
-          <TarsWorkPanel
-            data={actions}
-            running={running}
-            busy={busy}
-            scope={scope}
-            onDescribe={onDescribe}
-            onNewAction={onNewAction}
-            onUndo={onUndo}
-          />
-        ) : (
-          <TarsActionLog data={actions} busy={busy} onDelete={onDeleteAction} />
-        )}
-      </Box>
-    </Box>
-  );
-}
-
 /** TARS workstation - backend-backed evaluation + action log. */
 
-export function TarsWorkstation() {
+function actionErrorMessage(err: unknown, fallback: string): string {
+  const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+  if (typeof detail === 'string' && detail.trim()) return detail;
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
+}
+
+export function TarsWorkstation({ chrome = 'studio' }: { chrome?: 'studio' | 'dashboard' } = {}) {
+  const isDashboard = chrome === 'dashboard';
   const { enqueueSnackbar } = useSnackbar();
   const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
   const currentUserId = user?.id;
+  const isSuperuser = Boolean(user?.is_superuser);
   const { data: jobs = [], isLoading, refetch } = useTarsBenchJobs();
   const { scales: gradeScales } = useGradeScales();
   const scoreboard = useRestorationScoreboard();
 
-
-
   const checkIn = useCheckInRestorationJob();
-
   const moveBack = useMoveRestorationJobBackToQueue();
-
   const holdJob = useHoldRestorationJob();
-
   const completeJob = useCompleteRestorationJob();
-
-  const pauseTimer = usePauseRestorationJobTimer();
-
+  const rejectJob = useRejectRestorationJob();
   const patchWorkSession = usePatchRestorationJobWorkSession();
-  const upsertParts = useUpsertRestorationPartsRequest();
+  const createPart = useCreateRestorationPart();
+  const updatePart = useUpdateRestorationPart();
+  const deletePart = useDeleteRestorationPart();
+  const createOrder = useCreateRestorationPartsOrder();
+  const updateOrder = useUpdateRestorationPartsOrder();
+  const requestOrder = useRequestRestorationPartsOrder();
+  const receiveOrder = useReceiveRestorationPartsOrder();
+  const inspectOrder = useInspectRestorationPartsOrder();
+  const withdrawOrder = useWithdrawRestorationPartsOrder();
+  const requestCancel = useRequestCancelRestorationPartsOrder();
+  const dropQueue = useDropQueueRestorationPartsOrder();
+  const cancelOrder = useCancelRestorationPartsOrder();
 
   const location = useLocation();
   const navState = location.state as TarsWorkstationNavState | null;
@@ -222,39 +173,20 @@ export function TarsWorkstation() {
   const queryView = searchParams.get('view');
 
   const [benchScanInput, setBenchScanInput] = useState('');
-
   const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null);
-
   const [doneOpen, setDoneOpen] = useState(false);
-
   const [holdOpen, setHoldOpen] = useState(false);
-
   const [sendBackOpen, setSendBackOpen] = useState(false);
-
+  const [rejectOpen, setRejectOpen] = useState(false);
   const [scanMessageDialog, setScanMessageDialog] = useState<{ title: string; message: string } | null>(null);
-  const timerSwitchAckRef = useRef<Set<string>>(new Set());
-  const [timerSwitchDialog, setTimerSwitchDialog] = useState<{
-    runningJob: RestorationJobDTO;
-    targetJob: RestorationJobDTO;
-    action: TimerGuardAction;
-    onConfirm: () => Promise<void>;
-  } | null>(null);
   // Home unless asked for otherwise. An active bench item pulls the view to
   // Bench a moment later; with nothing in progress, Home is the useful landing.
+  // Dashboard chrome is the bench page itself — it never hosts Home.
   const [studioLane, setStudioLane] = useState<StudioLane>(
-    queryView === 'bench' ? 'bench' : 'home',
+    chrome === 'dashboard' || queryView === 'bench' ? 'bench' : 'home',
   );
-  const [partsDrawerOpen, setPartsDrawerOpen] = useState(false);
   const [noticesOpen, setNoticesOpen] = useState(false);
-  /**
-   * Which row's activity the Work panel is reading.
-   *
-   * Null means "whatever the clock is on", which is right almost always — you
-   * are looking at what you are doing. Clicking a row pins it instead, so you
-   * can check what was already tried on a grade without moving the clock off
-   * the work in front of you.
-   */
-  const [pinnedScope, setPinnedScope] = useState<string | null>(null);
+  const [holdSuggest, setHoldSuggest] = useState<string | null>(null);
 
   const scanInputRef = useRef<HTMLInputElement>(null);
   const appliedInitialSelectionRef = useRef(false);
@@ -265,13 +197,24 @@ export function TarsWorkstation() {
 
   const setStudioLocation = useCallback(
     (lane: StudioLane, jobId?: number | null) => {
+      if (chrome === 'dashboard') {
+        if (lane === 'home') {
+          navigate(RESTORATION_OVERVIEW_PATH);
+          return;
+        }
+        setStudioLane('bench');
+        const next = new URLSearchParams();
+        if (jobId != null) next.set('job', String(jobId));
+        setSearchParams(next, { replace: true });
+        return;
+      }
       setStudioLane(lane);
       const next = new URLSearchParams();
       next.set('view', lane);
       if (jobId != null) next.set('job', String(jobId));
       setSearchParams(next, { replace: true });
     },
-    [setSearchParams],
+    [chrome, navigate, setSearchParams],
   );
 
   const handleBackToDashboard = useCallback(() => {
@@ -283,8 +226,6 @@ export function TarsWorkstation() {
     }, 50);
   }, [navigate]);
 
-
-
   const queueJobs = useMemo(
     () => jobs.filter((j) => j.stage === 'queued' || j.stage === 'sent'),
     [jobs],
@@ -292,18 +233,10 @@ export function TarsWorkstation() {
 
   const benchJobs = useMemo(() => {
     const bench = jobs.filter((j) => j.stage === 'bench');
-    return [...bench].sort((a, b) => {
-      const aTimerStarted = timeValue(a.timer_started_at);
-      const bTimerStarted = timeValue(b.timer_started_at);
-      if (aTimerStarted !== bTimerStarted) return bTimerStarted - aTimerStarted;
-      return benchSortValue(a) - benchSortValue(b);
-    });
+    return [...bench].sort((a, b) => benchSortValue(b) - benchSortValue(a));
   }, [jobs]);
   const myBenchJobs = useMemo(
-    () => benchJobs.filter((job) => (
-      job.bench_owner_id === currentUserId
-      || (job.bench_owner_id == null && job.timer_started_by_id === currentUserId)
-    )),
+    () => benchJobs.filter((job) => job.bench_owner_id === currentUserId),
     [benchJobs, currentUserId],
   );
   const ambiguousBenchJobs = useMemo(
@@ -316,8 +249,6 @@ export function TarsWorkstation() {
 
   const pendingJobs = useMemo(() => jobs.filter((j) => j.stage === 'pending'), [jobs]);
 
-
-
   const jobById = useMemo(() => new Map(jobs.map((j) => [j.id, j])), [jobs]);
 
   const selectedJob = useMemo(
@@ -326,6 +257,14 @@ export function TarsWorkstation() {
   );
 
   const displayJob = selectedJob;
+  const foreignBench = isForeignBench(displayJob, currentUserId);
+  const jobPartsQuery = useRestorationParts(displayJob?.id ?? null);
+  const jobOrdersQuery = useRestorationPartsOrders({
+    job: displayJob?.id ?? null,
+    enabled: displayJob != null,
+  });
+  const jobParts = jobPartsQuery.data ?? [];
+  const jobOrders = jobOrdersQuery.data ?? [];
 
   const persistWorkSession = useCallback(
     async (jobId: number, session: TarsWorkSession) => {
@@ -361,49 +300,15 @@ export function TarsWorkstation() {
     return { ...base, workSession: draftWorkSession };
   }, [displayJob, draftWorkSession]);
 
-  const runningJob = useMemo(
-    () => myRunningRestorationJob(jobs, currentUserId),
-    [jobs, currentUserId],
-  );
-  const runningRowKey = runningJob ? tarsJobRowKey(runningJob) : null;
-
-  // Timer-switch confirmations are only good for the timer that was running
-  // when the user acknowledged them.
-  useEffect(() => {
-    timerSwitchAckRef.current.clear();
-  }, [runningRowKey]);
-
-  const activeTimerJob = useMemo(() => {
-    if (runningJob) return runningJob;
-    return myActiveBenchRestorationJob(myBenchJobs, currentUserId);
-  }, [runningJob, myBenchJobs, currentUserId]);
-  const headerTimerJob = useMemo(() => {
-    if (activeTimerJob) return activeTimerJob;
-    if (selectedJob?.stage === 'bench') {
-      return selectedJob;
-    }
-    return null;
-  }, [activeTimerJob, selectedJob]);
-  const timerController = useTarsTimerController(headerTimerJob);
-
   // What is being done to the item on the bench, and what already has been.
   const actions = useRestorationActions(displayJob?.id ?? null);
-  const startAction = useStartRestorationAction();
+  const timeline = useRestorationJobTimeline(displayJob?.id ?? null);
   const describeAction = useDescribeRestorationAction();
+  const startAction = useStartRestorationAction();
   const undoAction = useUndoRestorationAction();
   const deleteAction = useDeleteRestorationAction();
-
-  // Work cannot be moved off an action nobody described. Surfaced on the
-  // buttons it would block, so the rule is seen before it is hit.
-  const workBlockedReason = useMemo(() => {
-    const blocking = blockingAction(
-      actions.data?.results ?? [],
-      actions.data?.current_action_id ?? null,
-    );
-    if (!blocking) return undefined;
-    return `Say what you did on ${actionScopeLabel(blocking.grade)} before starting something else.`;
-  }, [actions.data]);
-
+  const forgetWords = useForgetRestorationTimelineWords();
+  const resetNote = useResetRestorationQueueNote();
 
   const evaluation = useMemo(() => {
     if (!displayItem) return null;
@@ -421,11 +326,10 @@ export function TarsWorkstation() {
     [evaluation],
   );
 
-
-
   useEffect(() => {
     if (isLoading || authLoading) return;
     if (appliedInitialSelectionRef.current) return;
+    if (isDashboard && searchParams.get('pickup') === '1') return;
 
     const requestedJobId = queryJobId ?? navState?.selectJobId ?? null;
     if (requestedJobId) {
@@ -433,7 +337,11 @@ export function TarsWorkstation() {
       if (navState?.selectJobId) navigate(location.pathname + location.search, { replace: true, state: {} });
       if (match) {
         setSelectedRowKey(tarsJobRowKey(match));
-        setStudioLocation(match.stage === 'bench' ? 'bench' : 'home', match.id);
+        if (isDashboard) {
+          setStudioLocation('bench', match.id);
+        } else {
+          setStudioLocation(match.stage === 'bench' ? 'bench' : 'home', match.id);
+        }
         appliedInitialSelectionRef.current = true;
         focusScanInput();
         return;
@@ -441,13 +349,12 @@ export function TarsWorkstation() {
       // No matching job - fall through to normal selection.
     }
 
-    const active =
-      myRunningRestorationJob(jobs, currentUserId)
-      ?? myActiveBenchRestorationJob(myBenchJobs, currentUserId)
-      ?? null;
+    const active = myActiveBenchRestorationJob(myBenchJobs, currentUserId);
     if (active) {
       setSelectedRowKey(tarsJobRowKey(active));
       setStudioLocation('bench', active.id);
+    } else if (isDashboard) {
+      setStudioLane('bench');
     } else if (queryView === 'home' || queryView === 'bench') {
       setStudioLane(queryView);
     }
@@ -456,11 +363,13 @@ export function TarsWorkstation() {
   }, [
     isLoading,
     authLoading,
+    isDashboard,
     jobs,
     myBenchJobs,
     navState?.selectJobId,
     queryJobId,
     queryView,
+    searchParams,
     focusScanInput,
     currentUserId,
     navigate,
@@ -469,203 +378,297 @@ export function TarsWorkstation() {
     setStudioLocation,
   ]);
 
-  const timerBusy = pauseTimer.isPending || timerSwitchDialog != null;
-
-  const runWithTimerGuard = useCallback(
-    (targetJob: RestorationJobDTO, action: TimerGuardAction, proceed: () => void | Promise<void>) => {
-      const activeRunning = myRunningRestorationJob(jobs, currentUserId);
-      if (!activeRunning || tarsJobRowKey(activeRunning) === tarsJobRowKey(targetJob)) {
-        void proceed();
-        return;
-      }
-      const key = timerGuardKey(action, tarsJobRowKey(activeRunning), tarsJobRowKey(targetJob));
-      const pauseThenProceed = async () => {
-        try {
-          await pauseTimer.mutateAsync(activeRunning.id);
-        } catch (err) {
-          enqueueSnackbar(err instanceof Error ? err.message : 'Could not pause the running timer', {
-            variant: 'error',
-          });
-          return false;
-        }
-        try {
-          await proceed();
-        } catch (err) {
-          enqueueSnackbar(err instanceof Error ? err.message : 'Action failed', {
-            variant: 'error',
-          });
-          return false;
-        }
-        return true;
-      };
-      if (timerSwitchAckRef.current.has(key)) {
-        void pauseThenProceed();
-        return;
-      }
-      setTimerSwitchDialog({
-        runningJob: activeRunning,
-        targetJob,
-        action,
-        onConfirm: async () => {
-          setTimerSwitchDialog(null);
-          const ok = await pauseThenProceed();
-          if (!ok) return;
-          timerSwitchAckRef.current.add(key);
-          focusScanInput();
-        },
-      });
-    },
-    [jobs, currentUserId, pauseTimer, enqueueSnackbar, focusScanInput],
-  );
-
   const handleCheckIn = useCallback(
-    async (job: RestorationJobDTO, options?: { startTimer?: boolean }) => {
-      const startTimerOnCheckIn = options?.startTimer !== false;
-      const perform = async () => {
-        try {
-          const itemId = job.items[0]?.id;
-          const updated = await checkIn.mutateAsync({ id: job.id, itemId, startTimer: startTimerOnCheckIn });
-          setSelectedRowKey(tarsJobRowKey(updated));
-          setStudioLocation('bench', updated.id);
-          setBenchScanInput('');
-          focusScanInput();
-        } catch (err) {
-          const message =
-            err instanceof Error ? err.message : 'Could not check in to the bench.';
-          const refreshed = await refetch();
-          const active = myActiveBenchRestorationJob(refreshed.data ?? [], currentUserId);
-          if (active) {
-            setSelectedRowKey(tarsJobRowKey(active));
-            setStudioLocation('bench', active.id);
-          }
-          setScanMessageDialog({
-            title: 'Check-in failed',
-            message,
-          });
+    async (job: RestorationJobDTO) => {
+      try {
+        const itemId = job.items[0]?.id;
+        const updated = await checkIn.mutateAsync({ id: job.id, itemId });
+        setSelectedRowKey(tarsJobRowKey(updated));
+        setStudioLocation('bench', updated.id);
+        setBenchScanInput('');
+        focusScanInput();
+      } catch (err) {
+        if (isOccupiedBenchError(err)) {
+          navigate(restorationOverviewPath(job.id));
+          return;
         }
-      };
-      if (startTimerOnCheckIn) {
-        runWithTimerGuard(job, 'checkIn', perform);
-        return;
+        const message =
+          err instanceof Error ? err.message : 'Could not check in to the bench.';
+        const refreshed = await refetch();
+        const active = myActiveBenchRestorationJob(refreshed.data ?? [], currentUserId);
+        if (active) {
+          setSelectedRowKey(tarsJobRowKey(active));
+          setStudioLocation('bench', active.id);
+        }
+        setScanMessageDialog({
+          title: 'Check-in failed',
+          message,
+        });
       }
-      await perform();
     },
-    [
-      checkIn,
-      currentUserId,
-      focusScanInput,
-      refetch,
-      runWithTimerGuard,
-      setStudioLocation,
-    ],
+    [checkIn, currentUserId, focusScanInput, navigate, refetch, setStudioLocation],
   );
+
+  const pickupAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (!isDashboard) return;
+    if (pickupAttemptedRef.current) return;
+    if (isLoading || authLoading) return;
+    if (searchParams.get('pickup') !== '1' || !queryJobId) return;
+    const match = jobs.find((j) => j.id === queryJobId);
+    pickupAttemptedRef.current = true;
+    appliedInitialSelectionRef.current = true;
+    const next = new URLSearchParams(searchParams);
+    next.delete('pickup');
+    setSearchParams(next, { replace: true });
+    if (!match) return;
+    if (match.stage === 'bench') {
+      setSelectedRowKey(tarsJobRowKey(match));
+      return;
+    }
+    void handleCheckIn(match);
+  }, [
+    isDashboard,
+    isLoading,
+    authLoading,
+    searchParams,
+    queryJobId,
+    jobs,
+    handleCheckIn,
+    setSearchParams,
+  ]);
 
   const submitBenchScan = useCallback(async () => {
     const v = benchScanInput.trim();
     if (!v) return;
+    setBenchScanInput('');
 
-    const benchMatch = benchJobs.find((j) => jobMatchesScan(j, v));
-    if (benchMatch) {
-      setSelectedRowKey(tarsJobRowKey(benchMatch));
-      setStudioLocation('bench', benchMatch.id);
-      setBenchScanInput('');
+    const mine = myActiveBenchRestorationJob(myBenchJobs, currentUserId);
+    const decision = decideBenchScan(v, mine, jobs);
+    if (decision.action === 'pickup') {
+      void handleCheckIn(decision.job);
+      return;
+    }
+    if (decision.action === 'stay') {
+      setSelectedRowKey(tarsJobRowKey(decision.job));
+      setStudioLocation('bench', decision.job.id);
       setScanMessageDialog({
         title: 'Already on bench',
-        message: `Item ${benchMatch.sku ?? v.toUpperCase()} is already on the bench and has been selected.`,
+        message: `Item ${decision.job.sku ?? v.toUpperCase()} is already on the bench and has been selected.`,
       });
       return;
     }
-
-    const pendingMatch = pendingJobs.find((j) => jobMatchesScan(j, v));
-    if (pendingMatch) {
-      await handleCheckIn(pendingMatch, { startTimer: timerController.canTrackTime });
+    if (decision.action === 'overview') {
+      navigate(restorationOverviewPath(decision.jobId));
       return;
     }
 
-    const queueMatch = queueJobs.find((j) => jobMatchesScan(j, v));
-    if (queueMatch) {
-      setBenchScanInput('');
-      await handleCheckIn(queueMatch, { startTimer: timerController.canTrackTime });
+    const looked = await fetchRestorationScanLookup(v);
+    if (looked.found === 'job' && looked.job) {
+      if (looked.job.stage === 'bench') {
+        setSelectedRowKey(tarsJobRowKey(looked.job));
+        setStudioLocation('bench', looked.job.id);
+        return;
+      }
+      if (shouldPickupOnScan(looked.job, mine == null)) {
+        void handleCheckIn(looked.job);
+        return;
+      }
+      navigate(restorationOverviewPath(looked.job.id));
       return;
     }
-
-    setBenchScanInput('');
+    if (looked.found === 'item' && looked.item) {
+      navigate(restorationOverviewAddPath(looked.item.sku));
+      return;
+    }
     setScanMessageDialog({
       title: 'No matching item',
-      message: `No queue, bench, or pending item found for ${v.toUpperCase()}.`,
+      message: `${v.toUpperCase()} is not in restoration and no catalog item was found for that SKU.`,
     });
   }, [
     benchScanInput,
-    benchJobs,
-    pendingJobs,
-    queueJobs,
+    currentUserId,
     handleCheckIn,
+    jobs,
+    myBenchJobs,
+    navigate,
     setStudioLocation,
-    timerController.canTrackTime,
   ]);
 
+  const partsBusy = deletePart.isPending || cancelOrder.isPending || inspectOrder.isPending;
 
-
-  const requestPartsForGrade = useCallback(
-    async (grade: string | null, options?: { autoHold?: boolean }) => {
-      const autoHold = options?.autoHold !== false;
+  const handleCreatePart = useCallback(
+    () => {
       if (!displayJob) return;
-      if (!grade) {
-        enqueueSnackbar('Select a grade option before requesting parts.', { variant: 'warning' });
-        return;
-      }
-      try {
-        await flushWorkSessionSave();
-        const snapshot = evaluation?.directions.find((d) => d.grade === grade) ?? null;
-        await upsertParts.mutateAsync({
-          jobId: displayJob.id,
-          grade,
-          submit: true,
-          evalSnapshot: snapshot ? { ...snapshot } : undefined,
-        });
-        // "Put in order and send to pending": a parts request from the bench
-        // parks the item in Pending so it leaves the active bench.
-        if (autoHold && displayJob.stage === 'bench') {
-          await holdJob.mutateAsync({
-            id: displayJob.id,
-            payload: {
-              reason: 'parts_needed',
-              notes: `Parts requested for grade ${grade}`,
-              storage_location: '',
-            },
-          });
-          setSelectedRowKey(null);
-          setStudioLocation('home', displayJob.id);
-          enqueueSnackbar(`Parts request submitted for ${grade} - item moved to Holding`, {
-            variant: 'success',
-          });
-          focusScanInput();
-        } else {
-          enqueueSnackbar(`Parts request submitted for grade ${grade}`, { variant: 'success' });
-        }
-      } catch (err) {
-        enqueueSnackbar(err instanceof Error ? err.message : 'Could not request parts', {
-          variant: 'error',
-        });
-      }
+      createPart.mutate(
+        { job: displayJob.id, category: 'parts', description: '', qty: 1, unit_price: 0 },
+        {
+          onError: (err) =>
+            enqueueSnackbar(actionErrorMessage(err, 'Could not add that part'), { variant: 'error' }),
+        },
+      );
     },
-    [
-      displayJob,
-      evaluation,
-      flushWorkSessionSave,
-      upsertParts,
-      holdJob,
-      enqueueSnackbar,
-      focusScanInput,
-      setStudioLocation,
-    ],
+    [displayJob, createPart, enqueueSnackbar],
   );
 
-  const handleSendBack = async (note: string) => {
+  const handleUpdatePart = useCallback(
+    (id: number, patch: Partial<Pick<RestorationPartDTO, 'description' | 'url' | 'qty' | 'unit_price' | 'category'>>) => {
+      updatePart.mutate(
+        { id, payload: patch },
+        {
+          onError: (err) =>
+            enqueueSnackbar(actionErrorMessage(err, 'Could not save that part'), { variant: 'error' }),
+        },
+      );
+    },
+    [updatePart, enqueueSnackbar],
+  );
+
+  const handleDeletePart = useCallback(
+    (id: number) => {
+      if (!displayJob) return;
+      deletePart.mutate(
+        { id, jobId: displayJob.id },
+        {
+          onError: (err) =>
+            enqueueSnackbar(actionErrorMessage(err, 'Could not remove that part'), { variant: 'error' }),
+        },
+      );
+    },
+    [displayJob, deletePart, enqueueSnackbar],
+  );
+
+  const handleSaveOrder = useCallback(
+    (payload: RestorationPartsOrderWritePayload, existingId?: number) => {
+      if (!displayJob) return;
+      if (existingId) {
+        updateOrder.mutate(
+          { id: existingId, payload },
+          {
+            onError: (err) =>
+              enqueueSnackbar(actionErrorMessage(err, 'Could not save that order'), { variant: 'error' }),
+          },
+        );
+        return;
+      }
+      createOrder.mutate(
+        { ...payload, job: displayJob.id, name: payload.name || 'Order' },
+        {
+          onError: (err) =>
+            enqueueSnackbar(actionErrorMessage(err, 'Could not create that order'), { variant: 'error' }),
+        },
+      );
+    },
+    [displayJob, createOrder, updateOrder, enqueueSnackbar],
+  );
+
+  const handleCancelOrder = useCallback(
+    (id: number) => {
+      cancelOrder.mutate(id, {
+        onError: (err) =>
+          enqueueSnackbar(actionErrorMessage(err, 'Could not cancel that order'), { variant: 'error' }),
+      });
+    },
+    [cancelOrder, enqueueSnackbar],
+  );
+
+  const handleRequestOrder = useCallback(
+    (order: RestorationPartsOrderDTO) => {
+      const fallback =
+        order.target_grade.trim() ||
+        currentGradeOf(readBenchPlan(draftWorkSession)) ||
+        gradeOptions[0] ||
+        '';
+      if (!fallback) {
+        enqueueSnackbar('Say which grade this order would achieve.', { variant: 'error' });
+        return;
+      }
+      requestOrder.mutate(
+        {
+          id: order.id,
+          jobId: order.job,
+          target_grade: fallback,
+        },
+        {
+          onSuccess: () => {
+            enqueueSnackbar(`Requested ${order.name}`, { variant: 'success' });
+            setHoldSuggest(order.name);
+          },
+          onError: (err) =>
+            enqueueSnackbar(actionErrorMessage(err, 'Could not request that order'), { variant: 'error' }),
+        },
+      );
+    },
+    [draftWorkSession, gradeOptions, requestOrder, enqueueSnackbar],
+  );
+
+  const handleWithdrawOrder = useCallback(
+    (id: number) => {
+      withdrawOrder.mutate(id, {
+        onSuccess: (order) => enqueueSnackbar(`Cancelled the request for ${order.name}`, { variant: 'info' }),
+        onError: (err) =>
+          enqueueSnackbar(actionErrorMessage(err, 'Could not cancel that request'), { variant: 'error' }),
+      });
+    },
+    [withdrawOrder, enqueueSnackbar],
+  );
+
+  const handleRequestCancel = useCallback(
+    (blockingId: number, replacementId?: number) => {
+      requestCancel.mutate(
+        { id: blockingId, replacement_id: replacementId },
+        {
+          onSuccess: (order) =>
+            enqueueSnackbar(`Asked to cancel ${order.name}`, { variant: 'info' }),
+          onError: (err) =>
+            enqueueSnackbar(actionErrorMessage(err, 'Could not ask for a cancel'), { variant: 'error' }),
+        },
+      );
+    },
+    [requestCancel, enqueueSnackbar],
+  );
+
+  const handleReceiveOrder = useCallback(
+    (order: RestorationPartsOrderDTO) => {
+      receiveOrder.mutate(order.id, {
+        onSuccess: () => enqueueSnackbar(`Marked ${order.name} received`, { variant: 'success' }),
+        onError: (err) =>
+          enqueueSnackbar(actionErrorMessage(err, 'Could not mark that received'), { variant: 'error' }),
+      });
+    },
+    [receiveOrder, enqueueSnackbar],
+  );
+
+  const handleInspectOrder = useCallback(
+    (order: RestorationPartsOrderDTO, lines: RestorationPartsLineInspectPayload[]) => {
+      inspectOrder.mutate(
+        { id: order.id, lines },
+        {
+          onSuccess: () => enqueueSnackbar(`Inspected ${order.name}`, { variant: 'success' }),
+          onError: (err) =>
+            enqueueSnackbar(actionErrorMessage(err, 'Could not inspect that order'), { variant: 'error' }),
+        },
+      );
+    },
+    [inspectOrder, enqueueSnackbar],
+  );
+
+  const handleDropQueue = useCallback(
+    (id: number) => {
+      dropQueue.mutate(id, {
+        onSuccess: (order) => enqueueSnackbar(`Dropped ${order.name} from the queue`, { variant: 'info' }),
+        onError: (err) =>
+          enqueueSnackbar(actionErrorMessage(err, 'Could not drop that order'), { variant: 'error' }),
+      });
+    },
+    [dropQueue, enqueueSnackbar],
+  );
+
+  const handleSendBack = async ({ note, reason }: { note: string; reason?: string }) => {
     if (!selectedJob) return;
     try {
       await flushWorkSessionSave();
-      await moveBack.mutateAsync({ id: selectedJob.id, note });
+      await moveBack.mutateAsync({ id: selectedJob.id, note, reason });
       setSendBackOpen(false);
       setSelectedRowKey(null);
       setStudioLocation('home');
@@ -676,7 +679,7 @@ export function TarsWorkstation() {
     }
   };
 
-  /** Wrong row. Delete the action and give its time back to the one before. */
+  /** Wrong row. Delete the action. */
   const handleUndoAction = useCallback(() => {
     if (!displayJob) return;
     undoAction.mutate(displayJob.id, {
@@ -687,7 +690,7 @@ export function TarsWorkstation() {
     });
   }, [displayJob, undoAction, enqueueSnackbar]);
 
-  /** Drop a row from the log. Its time goes to the row below it, never away. */
+  /** Drop a row from the log. */
   const handleDeleteAction = useCallback(
     (actionId: number) => {
       if (!displayJob) return;
@@ -704,7 +707,37 @@ export function TarsWorkstation() {
     [displayJob, deleteAction, enqueueSnackbar],
   );
 
+  const handleForgetWords = useCallback(
+    (eventId: number) => {
+      if (!displayJob) return;
+      forgetWords.mutate(
+        { jobId: displayJob.id, eventId },
+        {
+          onError: (err) =>
+            enqueueSnackbar(err instanceof Error ? err.message : 'Could not clear that', {
+              variant: 'warning',
+            }),
+        },
+      );
+    },
+    [displayJob, forgetWords, enqueueSnackbar],
+  );
 
+  const handleResetNote = useCallback(
+    (eventId: number) => {
+      if (!displayJob) return;
+      resetNote.mutate(
+        { jobId: displayJob.id, eventId },
+        {
+          onError: (err) =>
+            enqueueSnackbar(err instanceof Error ? err.message : 'Could not reset that note', {
+              variant: 'warning',
+            }),
+        },
+      );
+    },
+    [displayJob, resetNote, enqueueSnackbar],
+  );
 
   const handleHoldSubmit = async (info: TarsHoldSubmit) => {
     if (!selectedJob) return;
@@ -714,8 +747,7 @@ export function TarsWorkstation() {
       await holdJob.mutateAsync({
         id: selectedJob.id,
         payload: {
-          reason: info.reason,
-          notes: info.notes,
+          wait_for: info.waitFor,
           storage_location: info.storageLocation,
         },
       });
@@ -723,31 +755,40 @@ export function TarsWorkstation() {
       setHoldOpen(false);
       enqueueSnackbar('Item placed on hold', { variant: 'info' });
       setStudioLocation('home', selectedJob.id);
-      if (info.requestParts) {
-        // Hold already parked it in Pending - don't double-hold.
-        await requestPartsForGrade(info.requestGrade, { autoHold: false });
-      }
       focusScanInput();
     } catch (err) {
       enqueueSnackbar(err instanceof Error ? err.message : 'Hold failed', { variant: 'error' });
     }
   };
 
-
-
-  const handleDoneSubmit = async (payload: Parameters<typeof completeJob.mutateAsync>[0]['payload']) => {
+  const handleDoneSubmit = (payload: Parameters<typeof completeJob.mutateAsync>[0]['payload']) => {
     if (!selectedJob) return;
+    const jobId = selectedJob.id;
+    setSelectedRowKey(null);
+    setDoneOpen(false);
+    setStudioLocation('home');
+    enqueueSnackbar('Sent to Done — waiting for Processing to check it in', { variant: 'success' });
+    focusScanInput();
+    void flushWorkSessionSave();
+    completeJob.mutate(
+      { id: jobId, payload },
+      {
+        onError: (err) => enqueueSnackbar(actionErrorMessage(err, 'Done failed'), { variant: 'error' }),
+      },
+    );
+  };
 
+  const handleRejectSubmit = async (reason: string) => {
+    if (!selectedJob) return;
     try {
-      await flushWorkSessionSave();
-      await completeJob.mutateAsync({ id: selectedJob.id, payload });
+      await rejectJob.mutateAsync({ id: selectedJob.id, reason });
       setSelectedRowKey(null);
-      setDoneOpen(false);
+      setRejectOpen(false);
       setStudioLocation('home');
-      enqueueSnackbar('Disposition recorded', { variant: 'success' });
+      enqueueSnackbar('Rejected — sent to Processing', { variant: 'info' });
       focusScanInput();
     } catch (err) {
-      enqueueSnackbar(err instanceof Error ? err.message : 'Done failed', { variant: 'error' });
+      enqueueSnackbar(err instanceof Error ? err.message : 'Reject failed', { variant: 'error' });
     }
   };
 
@@ -791,20 +832,27 @@ export function TarsWorkstation() {
   /** Bring a held item back to the bench and pick up where it stopped. */
   const handleResumeHeld = useCallback(
     (job: RestorationJobDTO) => {
-      void handleCheckIn(job, { startTimer: timerController.canTrackTime });
+      void handleCheckIn(job);
     },
-    [handleCheckIn, timerController.canTrackTime],
+    [handleCheckIn],
   );
 
   useEffect(() => {
+    if (isDashboard) return;
     if (!selectedJob) return;
     setStudioLane(selectedJob.stage === 'bench' ? 'bench' : 'home');
-  }, [selectedJob?.id, selectedJob?.stage]);
+  }, [isDashboard, selectedJob?.id, selectedJob?.stage]);
 
   const studioCounts = {
     home: queueJobs.length + pendingJobs.length,
     bench: myBenchJobs.length,
   };
+
+  const benchPlan = useMemo(() => {
+    const raw = readBenchPlan(draftWorkSession);
+    if (!displayJob) return raw;
+    return withLowestValueStart(raw, displayJob, gradeScales[displayJob.scale] ?? []);
+  }, [draftWorkSession, displayJob, gradeScales]);
 
   /**
    * Conditions worth knowing about, collected rather than mounted. Nothing here
@@ -812,20 +860,23 @@ export function TarsWorkstation() {
    */
   const notices = useMemo<StudioNotice[]>(() => {
     const list: StudioNotice[] = [];
-    if (!timerController.canTrackTime) {
-      list.push({
-        id: 'clock',
-        tone: 'warning',
-        title: 'Restoration time is not being recorded',
-        detail: 'Clock in or end your break before resuming work.',
-      });
-    }
     if (ambiguousBenchJobs.length > 0) {
       list.push({
         id: 'ownership',
         tone: 'error',
         title: `${ambiguousBenchJobs.length} bench item${ambiguousBenchJobs.length === 1 ? '' : 's'} with unclear ownership`,
         detail: 'Left over from an earlier version. Move them back to the queue or finish them before claiming another.',
+      });
+    }
+    if (foreignBench && displayJob) {
+      const whose = benchOwnerGivenName(displayJob.bench_owner_name) || 'another technician';
+      list.push({
+        id: 'foreign-bench',
+        tone: isSuperuser ? 'info' : 'warning',
+        title: `This is ${whose}'s bench`,
+        detail: isSuperuser
+          ? 'You can work any bench.'
+          : 'You can still work it. Tell them if you are taking over.',
       });
     }
     const unpriced = queueJobs.filter((j) => !j.scale).length;
@@ -837,10 +888,25 @@ export function TarsWorkstation() {
         detail: 'They cannot go on a bench until someone prices their grades. Open Details on the card to add them.',
       });
     }
+    const openOrders = jobOrders.filter(isOpenPartsOrder);
+    if (openOrders.length > 0) {
+      list.push({
+        id: 'open-parts-orders',
+        tone: 'warning',
+        title: 'Parts are on order',
+        detail: FINISH_BLOCKED_MESSAGE,
+      });
+    }
     return list;
-  }, [timerController.canTrackTime, ambiguousBenchJobs.length, queueJobs]);
+  }, [ambiguousBenchJobs.length, queueJobs, foreignBench, displayJob, jobOrders, isSuperuser]);
 
-  const benchPlan = useMemo(() => readBenchPlan(draftWorkSession), [draftWorkSession]);
+  const liveJob = useMemo(() => {
+    if (!displayJob) return null;
+    return {
+      ...displayJob,
+      work_session: (draftWorkSession ?? displayJob.work_session) as RestorationJobDTO['work_session'],
+    };
+  }, [displayJob, draftWorkSession]);
 
   const updateBenchPlan = useCallback(
     (plan: TarsBenchPlan) => {
@@ -850,62 +916,13 @@ export function TarsWorkstation() {
     [draftWorkSession, replaceWorkSession],
   );
 
-  /**
-   * Press Work: the clock moves to that scope and an action opens for it.
-   *
-   * Coming back to the scope you were already on resumes that action rather
-   * than splitting one piece of work in two. A new action defaults to Inspect
-   * with no description, so the clock starts on the first click and the
-   * writing-up happens while the work is fresh.
-   */
-  const workOn = useCallback(
-    (grade: string) => {
-      if (!displayJob) return;
-      if (!timerController.canTrackTime) {
-        enqueueSnackbar('Clock in before recording restoration work.', { variant: 'warning' });
-        setNoticesOpen(true);
-        return;
-      }
-      setPinnedScope(null);
-      startAction.mutate(
-        { id: displayJob.id, payload: { grade } },
-        {
-          onError: (err) => {
-            if (err instanceof ActionNeedsDescriptionError) {
-              enqueueSnackbar(err.message, { variant: 'warning' });
-              return;
-            }
-            enqueueSnackbar(err instanceof Error ? err.message : 'Could not start that work', {
-              variant: 'error',
-            });
-          },
-        },
-      );
-    },
-    [displayJob, startAction, timerController.canTrackTime, enqueueSnackbar],
-  );
-
-  /**
-   * Close the current action and open a fresh one on the same scope.
-   *
-   * The server treats a repeat of the same scope as a resume, so a genuinely
-   * new piece of work on the same grade says so by ending the old one first.
-   */
-  const handleNewAction = useCallback(
-    (grade: string) => {
-      if (!displayJob) return;
-      startAction.mutate(
-        { id: displayJob.id, payload: { grade, force_new: true } },
-        {
-          onError: (err) =>
-            enqueueSnackbar(err instanceof Error ? err.message : 'Could not start a new action', {
-              variant: err instanceof ActionNeedsDescriptionError ? 'warning' : 'error',
-            }),
-        },
-      );
-    },
-    [displayJob, startAction, enqueueSnackbar],
-  );
+  useEffect(() => {
+    if (!displayJob || !draftWorkSession) return;
+    const raw = readBenchPlan(draftWorkSession);
+    if (raw.startingGrade || raw.currentGrade) return;
+    if (!benchPlan.startingGrade) return;
+    updateBenchPlan(benchPlan);
+  }, [displayJob, draftWorkSession, benchPlan, updateBenchPlan]);
 
   const handleDescribeAction = useCallback(
     (actionId: number, patch: { description?: string; category?: RestorationActionCategory }) => {
@@ -914,7 +931,7 @@ export function TarsWorkstation() {
         { id: displayJob.id, payload: { action_id: actionId, ...patch } },
         {
           onError: (err) =>
-            enqueueSnackbar(err instanceof Error ? err.message : 'Could not save that', {
+            enqueueSnackbar(actionErrorMessage(err, 'Could not save that'), {
               variant: 'error',
             }),
         },
@@ -923,17 +940,206 @@ export function TarsWorkstation() {
     [displayJob, describeAction, enqueueSnackbar],
   );
 
-  const floorRate = Number.parseFloat(scoreboard.data?.floor_rate ?? '') || TARS_DEFAULT_HOURLY_RATE;
-  const benchmarkRate = scoreboard.data?.benchmark_ready
-    ? Number.parseFloat(scoreboard.data.benchmark_rate ?? '') || null
+  const handleEnterAction = useCallback(
+    async (description: string) => {
+      if (!displayJob) return;
+      const current =
+        actions.data?.results.find((row) => row.id === actions.data?.current_action_id) ?? null;
+      if (!current) return;
+      const plan = fileCurrentActionPlan(current, description);
+      try {
+        if (plan.describe != null) {
+          await describeAction.mutateAsync({
+            id: displayJob.id,
+            payload: { action_id: current.id, description: plan.describe },
+          });
+        }
+        if (plan.blockedReason) {
+          enqueueSnackbar(plan.blockedReason, { variant: 'warning' });
+          return;
+        }
+        if (plan.startNext) {
+          await startAction.mutateAsync({ id: displayJob.id, payload: { force_new: true } });
+        }
+      } catch (err) {
+        enqueueSnackbar(actionErrorMessage(err, 'Could not save that'), { variant: 'error' });
+      }
+    },
+    [displayJob, actions.data, describeAction, startAction, enqueueSnackbar],
+  );
+
+  const handleChangeActionCategory = useCallback(
+    (category: RestorationActionCategory) => {
+      if (!displayJob) return;
+      const current =
+        actions.data?.results.find((row) => row.id === actions.data?.current_action_id) ?? null;
+      if (!current) return;
+      if (categoryChangeStartsNewSitting(current, category)) {
+        startAction.mutate(
+          { id: displayJob.id, payload: { force_new: true, category } },
+          {
+            onError: (err) =>
+              enqueueSnackbar(actionErrorMessage(err, 'Could not start that'), {
+                variant: 'error',
+              }),
+          },
+        );
+        return;
+      }
+      handleDescribeAction(current.id, { category });
+    },
+    [displayJob, actions.data, startAction, handleDescribeAction, enqueueSnackbar],
+  );
+
+  const floorRate = TARS_DEFAULT_HOURLY_RATE;
+  const benchmarkRate = null;
+
+  const hasBenchJob = displayJob?.stage === 'bench';
+  const partsRanges = partsRangeByGrade(jobOrders);
+  const finishBlocked = jobOrders.some(isOpenPartsOrder);
+  const remainingGrade = displayJob
+    ? bestRemainingGrade(displayJob, benchPlan, gradeScales[displayJob.scale] ?? [])
     : null;
+  const remainingParts = remainingGrade ? (partsRanges[remainingGrade]?.max ?? 0) : 0;
+  const partsSummary = summarizePartsList(jobParts);
 
-  const partsListLabel = displayItem?.skuLabel ?? displayItem?.sku;
-  const parts = useMemo(() => summarizeParts(displayItem?.workSession?.parts), [displayItem]);
+  const noticeSlot = (
+    <StudioNoticeButton
+      notices={notices}
+      onOpen={() => setNoticesOpen(true)}
+      tone={isDashboard ? 'light' : 'dark'}
+    />
+  );
 
-  const currentActionGrade =
-    actions.data?.results.find((a) => a.id === actions.data?.current_action_id)?.grade ?? '';
-  const selectedScope = pinnedScope ?? currentActionGrade;
+  const benchConsole = hasBenchJob && liveJob ? (
+    <TarsBenchConsole
+      job={liveJob}
+      plan={benchPlan}
+      scaleGrades={gradeScales[liveJob.scale] ?? []}
+      busy={holdJob.isPending || moveBack.isPending}
+      notices={notices}
+      onPlanChange={updateBenchPlan}
+      onOpenNotices={() => setNoticesOpen(true)}
+      onHold={() => {
+        if (!displayJob || displayJob.stage !== 'bench') return;
+        setHoldOpen(true);
+      }}
+      onSendBack={() => {
+        if (!displayJob || displayJob.stage !== 'bench') return;
+        setSendBackOpen(true);
+      }}
+      onReject={() => {
+        if (!displayJob || displayJob.stage !== 'bench') return;
+        setRejectOpen(true);
+      }}
+      spentParts={spentPartsCost(jobOrders)}
+      remainingParts={remainingParts}
+      finishBlocked={finishBlocked}
+      onDone={() => {
+        if (!displayJob || displayJob.stage !== 'bench') return;
+        if (finishBlocked) {
+          setScanMessageDialog({ title: 'Parts are on order', message: FINISH_BLOCKED_MESSAGE });
+          return;
+        }
+        setDoneOpen(true);
+      }}
+    />
+  ) : null;
+
+  const benchBody = !hasBenchJob || !displayJob ? null : (
+    <Box
+      sx={{
+        flex: 1,
+        minWidth: 0,
+        minHeight: 0,
+        overflow: 'hidden',
+        p: { xs: 0.35, md: 0.4 },
+        display: 'grid',
+        gridTemplateColumns: BENCH_SPLIT_COLUMNS,
+        gridTemplateRows: { xs: 'auto auto 1fr 1fr 1fr', lg: 'auto 1fr 1fr' },
+        gap: { xs: 0.75, lg: BENCH_SPLIT_GAP },
+      }}
+    >
+      {benchConsole}
+        <Box sx={{ minWidth: 0, minHeight: 0, overflow: 'hidden', gridColumn: '1', gridRow: { xs: '3', lg: '2' } }}>
+          <TarsGradeTable
+            job={liveJob ?? displayJob}
+            plan={benchPlan}
+            scaleGrades={gradeScales[displayJob.scale] ?? []}
+            floorRate={floorRate}
+            benchmarkRate={benchmarkRate}
+            partsRangeByGrade={partsRanges}
+            onPlanChange={updateBenchPlan}
+          />
+        </Box>
+        <Box sx={{ minWidth: 0, minHeight: 0, overflow: 'hidden', gridColumn: '1', gridRow: { xs: '4', lg: '3' } }}>
+          <TarsPurchaseDesk
+            jobId={displayJob?.id ?? null}
+            parts={jobParts}
+            orders={jobOrders}
+            gradeOptions={gradeOptions}
+            currentGrade={currentGradeOf(benchPlan)}
+            gradeValues={displayJob?.grade_values ?? {}}
+            plan={benchPlan}
+            busy={partsBusy}
+            onCreatePart={handleCreatePart}
+            onUpdatePart={handleUpdatePart}
+            onDeletePart={handleDeletePart}
+            onSaveOrder={handleSaveOrder}
+            onCancelOrder={handleCancelOrder}
+            onRequestOrder={handleRequestOrder}
+            onWithdrawOrder={handleWithdrawOrder}
+            onRequestCancel={handleRequestCancel}
+            onReceiveOrder={handleReceiveOrder}
+            onInspectOrder={handleInspectOrder}
+            onDropQueue={handleDropQueue}
+          />
+        </Box>
+        <Box
+          sx={{
+            minWidth: 0,
+            minHeight: 0,
+            overflow: 'hidden',
+            gridColumn: { xs: '1', lg: '2' },
+            gridRow: { xs: '5', lg: '2 / -1' },
+          }}
+        >
+          <TarsActionHistory
+            jobId={displayJob?.id ?? null}
+            actions={actions.data}
+            events={timeline.data ?? []}
+            currentUserId={currentUserId}
+            busy={
+              describeAction.isPending ||
+              startAction.isPending ||
+              undoAction.isPending ||
+              deleteAction.isPending ||
+              forgetWords.isPending ||
+              resetNote.isPending
+            }
+            onDescribe={handleDescribeAction}
+            onEnter={handleEnterAction}
+            onStartAction={() => {
+              if (!displayJob) return;
+              startAction.mutate(
+                { id: displayJob.id, payload: { force_new: true } },
+                {
+                  onError: (err) =>
+                    enqueueSnackbar(actionErrorMessage(err, 'Could not start that'), {
+                      variant: 'error',
+                    }),
+                },
+              );
+            }}
+            onChangeCategory={handleChangeActionCategory}
+            onUndo={handleUndoAction}
+            onDeleteAction={handleDeleteAction}
+            onForgetWords={handleForgetWords}
+            onResetNote={handleResetNote}
+          />
+        </Box>
+    </Box>
+  );
 
   if (isLoading) {
     return (
@@ -945,6 +1151,30 @@ export function TarsWorkstation() {
 
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', width: '100%' }}>
+      {isDashboard ? (
+        <TarsDashboardShell
+          title="Bench"
+          subtitle="Scan on Overview, or open a priced row"
+          hideHeader={hasBenchJob}
+          noticeSlot={hasBenchJob ? undefined : noticeSlot}
+        >
+          {!hasBenchJob || !displayJob ? (
+            <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', p: 2, color: '#526177' }}>
+              <Stack alignItems="center" spacing={1}>
+                <Typography variant="h6" sx={{ color: '#172033', fontWeight: 950 }}>Bench is clear</Typography>
+                <Typography variant="body2">Scan on Overview, or open a priced row.</Typography>
+                <Button
+                  variant="contained"
+                  onClick={() => navigate(RESTORATION_OVERVIEW_PATH)}
+                  sx={{ bgcolor: studio.accentDark }}
+                >
+                  Open Overview
+                </Button>
+              </Stack>
+            </Box>
+          ) : benchBody}
+        </TarsDashboardShell>
+      ) : (
       <TarsStudioShell
         lane={studioLane}
         onLaneChange={handleLaneChange}
@@ -954,55 +1184,16 @@ export function TarsWorkstation() {
         onScanSubmit={() => void submitBenchScan()}
         scanInputRef={scanInputRef}
         onBack={handleBackToDashboard}
-        actionSlot={
-          studioLane === 'bench' && displayJob?.stage === 'bench' ? (
-            <TarsDispositionBar
-              busy={holdJob.isPending || moveBack.isPending}
-              onHold={() => runWithTimerGuard(displayJob, 'hold', () => setHoldOpen(true))}
-              onSendBack={() => runWithTimerGuard(displayJob, 'moveBack', () => setSendBackOpen(true))}
-              onDone={() => runWithTimerGuard(displayJob, 'done', () => setDoneOpen(true))}
-            />
-          ) : null
-        }
-        noticeSlot={<StudioNoticeButton notices={notices} onOpen={() => setNoticesOpen(true)} />}
-        hrSlot={
-          <Chip
-            size="small"
-            label={timerController.hrLabel}
-            sx={{
-              height: 28,
-              bgcolor: timerController.canTrackTime ? '#183f3b' : '#49323a',
-              color: timerController.canTrackTime ? '#b9f0e6' : '#ffd8df',
-              border: `1px solid ${timerController.canTrackTime ? '#2f6f68' : '#80505d'}`,
-              fontWeight: 850,
-            }}
-          />
-        }
-        timerSlot={
-          <TarsStudioTimerControl
-            job={headerTimerJob}
-            busy={timerBusy || timerController.busy}
-            canTrackTime={timerController.canTrackTime}
-            onStart={() => {
-              void timerController.start().catch((err) => {
-                enqueueSnackbar(err instanceof Error ? err.message : 'Could not start timer', { variant: 'warning' });
-              });
-            }}
-            onPause={() => {
-              void timerController.pause().catch((err) => {
-                enqueueSnackbar(err instanceof Error ? err.message : 'Could not pause timer', { variant: 'error' });
-              });
-            }}
-          />
-        }
+        noticeSlot={studioLane === 'bench' && hasBenchJob ? null : noticeSlot}
       >
         {studioLane === 'home' ? (
           <TarsHome
             board={scoreboard.data}
             queueJobs={queueJobs}
             holdingJobs={pendingJobs}
+            occupyingBenchJob={myActiveBenchRestorationJob(myBenchJobs, currentUserId)}
             busy={checkIn.isPending}
-            onStart={(job) => void handleCheckIn(job, { startTimer: timerController.canTrackTime })}
+            onStart={(job) => void handleCheckIn(job)}
             onResume={handleResumeHeld}
           />
         ) : !displayJob || displayJob.stage !== 'bench' ? (
@@ -1015,158 +1206,57 @@ export function TarsWorkstation() {
               </Button>
             </Stack>
           </Box>
-        ) : (
-          <Box
-            sx={{
-              flex: 1,
-              minWidth: 0,
-              minHeight: 0,
-              overflow: 'auto',
-              p: { xs: 0.75, md: 1.25 },
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 1.25,
-            }}
-          >
-            {/*
-              What it is on the left, what to do with it on the right. The two
-              answer different questions and are read at different moments, so
-              they sit side by side rather than stacking and wasting the width.
-            */}
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: { xs: '1fr', lg: 'minmax(260px, 300px) minmax(0, 1fr)' },
-                gap: 1.25,
-                alignItems: 'start',
-              }}
-            >
-              <TarsBenchStatus
-                job={displayJob}
-                busy={holdJob.isPending || moveBack.isPending}
-                partsCount={parts.count}
-                partsCost={parts.cost}
-                onParts={() => setPartsDrawerOpen(true)}
-              />
-
-              <TarsGradeTable
-                job={displayJob}
-                plan={benchPlan}
-                scaleGrades={gradeScales[displayJob.scale] ?? []}
-                floorRate={floorRate}
-                benchmarkRate={benchmarkRate}
-                busy={timerController.busy || startAction.isPending}
-                selectedScope={selectedScope}
-                onSelectScope={setPinnedScope}
-                onPlanChange={updateBenchPlan}
-                onClaimGrade={(grade) => updateBenchPlan({ ...benchPlan, startingGrade: grade })}
-                onAimTimer={workOn}
-                blockedReason={workBlockedReason}
-              />
-            </Box>
-
-            <BenchRecord
-              actions={actions.data}
-              running={displayJob.timer_is_running}
-              busy={
-                startAction.isPending ||
-                describeAction.isPending ||
-                undoAction.isPending ||
-                deleteAction.isPending
-              }
-              scope={selectedScope}
-              onDescribe={handleDescribeAction}
-              onNewAction={handleNewAction}
-              onUndo={handleUndoAction}
-              onDeleteAction={handleDeleteAction}
-            />
-          </Box>
-        )}
+        ) : benchBody}
       </TarsStudioShell>
+      )}
 
       <StudioNoticeDrawer open={noticesOpen} notices={notices} onClose={() => setNoticesOpen(false)} />
 
       <TarsSendBackDialog
         open={sendBackOpen}
         itemLabel={displayJob?.items[0]?.sku ?? displayJob?.sku ?? 'this item'}
+        jobId={displayJob?.id ?? null}
         busy={moveBack.isPending}
         onCancel={() => setSendBackOpen(false)}
         onSubmit={(note) => void handleSendBack(note)}
       />
 
-      <Drawer
-        anchor="right"
-        open={partsDrawerOpen}
-        onClose={() => setPartsDrawerOpen(false)}
-        PaperProps={{
-          sx: {
-            width: PARTS_DRAWER_WIDTH,
-            maxWidth: '96vw',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-          },
-        }}
-      >
-        <Box sx={{ px: 1.25, py: 1, borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
-          <Typography variant="subtitle2" fontWeight={800}>Parts & orders</Typography>
-        </Box>
-        <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-          <TarsPartsListPanel
-            session={displayItem?.workSession}
-            itemLabel={partsListLabel}
-            readOnly={false}
-            onSessionChange={replaceWorkSession}
-            gradeOptions={gradeOptions}
-            selectedGrade={displayItem?.workSession?.selectedGrade ?? null}
-            currentGrade={benchPlan.startingGrade}
-            requesting={upsertParts.isPending}
-            onRequestParts={(grade) => void requestPartsForGrade(grade)}
-          />
-        </Box>
-      </Drawer>
-
-
-
-      <TarsDoneDialog
-
-        open={doneOpen}
-
-        job={selectedJob && (selectedJob.stage === 'bench' || selectedJob.stage === 'pending') ? selectedJob : null}
-
-        evaluation={evaluation}
-        session={displayItem?.workSession}
-
-        onClose={closeDoneDialog}
-
-        onSubmit={(payload) => void handleDoneSubmit(payload)}
+      <TarsRejectDialog
+        open={rejectOpen}
+        itemLabel={displayJob?.items[0]?.sku ?? displayJob?.sku ?? 'this item'}
+        jobId={displayJob?.id ?? null}
+        busy={rejectJob.isPending}
+        onCancel={() => setRejectOpen(false)}
+        onSubmit={(reason) => void handleRejectSubmit(reason)}
       />
 
-
+      <TarsDoneDialog
+        open={doneOpen}
+        job={doneOpen ? selectedJob : null}
+        evaluation={evaluation}
+        session={displayItem?.workSession}
+        partsCost={{
+          parts: partsSummary.parts.cost,
+          supplies: partsSummary.supplies.cost,
+          ffe: partsSummary.ffe.cost,
+        }}
+        onClose={closeDoneDialog}
+        onSubmit={(payload) => void handleDoneSubmit(payload)}
+      />
 
       {selectedJob && (selectedJob.stage === 'bench' || selectedJob.stage === 'pending') ?
         <TarsHoldDialog
           open={holdOpen}
           title="Place on hold"
+          itemLabel={displayJob?.items[0]?.sku ?? displayJob?.sku ?? 'this item'}
+          jobId={selectedJob.id}
+          itemId={displayJob?.items[0]?.id ?? null}
           initial={displayItem?.workSession?.pending}
-          canRequestParts
-          gradeOptions={gradeOptions}
-          selectedGrade={displayItem?.workSession?.selectedGrade ?? null}
-          requesting={upsertParts.isPending}
+          requesting={holdJob.isPending}
           onClose={closeHoldDialog}
           onSubmit={(info) => void handleHoldSubmit(info)}
         />
       : null}
-
-      <TarsTimerSwitchDialog
-        open={timerSwitchDialog != null}
-        runningJob={timerSwitchDialog?.runningJob ?? null}
-        targetJob={timerSwitchDialog?.targetJob ?? null}
-        action={timerSwitchDialog?.action ?? null}
-        busy={timerBusy}
-        onConfirm={() => void timerSwitchDialog?.onConfirm()}
-        onCancel={() => setTimerSwitchDialog(null)}
-      />
 
       <TarsScanMessageDialog
         open={scanMessageDialog != null}
@@ -1175,50 +1265,28 @@ export function TarsWorkstation() {
         onClose={closeScanMessageDialog}
       />
 
-      <Dialog open={timerController.idlePrompt != null} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 950 }}>Were you working on this item?</DialogTitle>
+      <Dialog open={holdSuggest != null} onClose={() => setHoldSuggest(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800 }}>Request sent</DialogTitle>
         <DialogContent>
-          <Typography variant="body1" sx={{ color: '#344258' }}>
-            The screen has been quiet since{' '}
-            <strong>{timerController.idlePrompt?.idleSince}</strong> while the clock kept running on{' '}
-            <strong>{timerController.idlePrompt?.itemLabel}</strong>.
-          </Typography>
-          <Typography variant="body2" sx={{ mt: 1, color: '#65748a' }}>
-            Yes keeps the elapsed time and resumes. No removes time after{' '}
-            {timerController.idlePrompt?.lastActionLabel ?? 'the last recorded action'} and leaves the timer paused.
+          <Typography variant="body2">
+            {holdSuggest ? `${holdSuggest} is with the owner now.` : 'The order is with the owner now.'}
+            {' '}Hold this item while parts are on the way? You can stay on the bench if you still have work.
           </Typography>
         </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button
-            variant="outlined"
-            disabled={timerController.busy}
-            onClick={() => {
-              void timerController.resolveIdle(false).catch((err) => {
-                enqueueSnackbar(err instanceof Error ? err.message : 'Could not adjust idle time', { variant: 'error' });
-              });
-            }}
-            sx={{ minWidth: 150, fontWeight: 900 }}
-          >
-            No, remove idle time
-          </Button>
+        <DialogActions sx={{ px: 2, pb: 1.5 }}>
+          <Button onClick={() => setHoldSuggest(null)}>Stay on bench</Button>
           <Button
             variant="contained"
-            disabled={timerController.busy || !timerController.canTrackTime}
             onClick={() => {
-              void timerController.resolveIdle(true).catch((err) => {
-                enqueueSnackbar(err instanceof Error ? err.message : 'Could not resume timer', { variant: 'error' });
-              });
+              setHoldSuggest(null);
+              setHoldOpen(true);
             }}
-            sx={{ minWidth: 150, bgcolor: '#087b6f', fontWeight: 950 }}
           >
-            Yes, keep working
+            Hold
           </Button>
         </DialogActions>
       </Dialog>
+      <RequestsDrawerHost defaultArea="restoration" />
     </Box>
-
   );
-
 }
-
-

@@ -9,9 +9,14 @@
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import { useSnackbar } from 'notistack';
+import { useState } from 'react';
+import { useCompleteRestorationJob } from '../../../hooks/useRestorationBench';
 import type { RestorationJobDTO, RestorationScoreboardDTO } from '../../../types/inventory.types';
 import { RestorationQueue } from '../queue/RestorationQueue';
+import type { DispatchTarget } from '../queue/queueDispatch';
 import { queueListAccent } from '../queue/restorationQueueModel';
+import { TarsDoneDialog } from './TarsDoneDialog';
 import { TarsHoldingRail } from './TarsHoldingRail';
 import { TarsScoreboard } from './TarsScoreboard';
 import { studio } from './studio/tarsStudioTheme';
@@ -20,6 +25,7 @@ export function TarsHome({
   board,
   queueJobs,
   holdingJobs,
+  occupyingBenchJob,
   busy,
   onStart,
   onResume,
@@ -27,10 +33,25 @@ export function TarsHome({
   board: RestorationScoreboardDTO | undefined;
   queueJobs: RestorationJobDTO[];
   holdingJobs: RestorationJobDTO[];
+  occupyingBenchJob?: RestorationJobDTO | null;
   busy?: boolean;
   onStart: (job: RestorationJobDTO) => void;
   onResume: (job: RestorationJobDTO) => void;
 }) {
+  const { enqueueSnackbar } = useSnackbar();
+  const completeJob = useCompleteRestorationJob();
+  const [finishJob, setFinishJob] = useState<RestorationJobDTO | null>(null);
+
+  function handleDispatch(job: RestorationJobDTO, target: DispatchTarget) {
+    if (target === 'bench') {
+      onStart(job);
+      return;
+    }
+    if (target === 'done') {
+      setFinishJob(job);
+    }
+  }
+
   return (
     <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', p: { xs: 1, md: 1.5 } }}>
       <Stack spacing={1.5}>
@@ -51,7 +72,9 @@ export function TarsHome({
             <RestorationQueue
               jobs={queueJobs}
               accent={queueListAccent('queue')}
-              onStart={onStart}
+              occupyingBenchJob={occupyingBenchJob}
+              busy={busy}
+              onDispatch={handleDispatch}
               emptyMessage="Nothing is waiting for restoration."
             />
           </Stack>
@@ -62,6 +85,31 @@ export function TarsHome({
           </Stack>
         </Box>
       </Stack>
+
+      <TarsDoneDialog
+        open={finishJob != null}
+        job={finishJob}
+        evaluation={null}
+        cannotUndo
+        onClose={() => setFinishJob(null)}
+        onSubmit={(payload) => {
+          if (!finishJob) return;
+          const id = finishJob.id;
+          setFinishJob(null);
+          enqueueSnackbar('Sent to Done — waiting for Processing to check it in', {
+            variant: 'success',
+          });
+          completeJob.mutate(
+            { id, payload },
+            {
+              onError: (err) =>
+                enqueueSnackbar(err instanceof Error ? err.message : 'Could not finish that item', {
+                  variant: 'error',
+                }),
+            },
+          );
+        }}
+      />
     </Box>
   );
 }
@@ -69,7 +117,7 @@ export function TarsHome({
 function RailLabel({ text, count }: { text: string; count: number }) {
   return (
     <Stack direction="row" alignItems="baseline" spacing={0.75} sx={{ px: 0.25 }}>
-      <Typography sx={{ fontSize: '0.68rem', fontWeight: 900, letterSpacing: 0.7, color: '#64748b' }}>
+      <Typography sx={{ fontSize: '0.68rem', fontWeight: 800, letterSpacing: 0.7, color: studio.inkLabel }}>
         {text.toUpperCase()}
       </Typography>
       <Typography sx={{ fontFamily: 'monospace', fontSize: '0.7rem', fontWeight: 900, color: studio.accentDark }}>

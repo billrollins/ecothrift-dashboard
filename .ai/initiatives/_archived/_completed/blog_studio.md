@@ -11,7 +11,7 @@ Give the owner a private, premium place to write the Eco-Thrift blog from the st
 drafted, scheduled, and published without a code change.
 
 - **Access (owner-confirmed):** Super Admin only — Django `is_superuser`, not merely the dashboard `Admin` role.
-- **Design source of truth:** [`blog-studio-5-minimal.html`](../../../reference/blog-studio-5-minimal.html) for the three-pane studio layout, plus [`blog-studio-typography-explorations.html`](../../../reference/blog-studio-typography-explorations.html) option **05 Bold Modern** for blog/studio article typography (DM Serif Display + DM Sans, sage accents).
+- **Design source of truth:** `blog-studio-5-minimal.html` for the three-pane studio layout, plus `blog-studio-typography-explorations.html` option **05 Bold Modern** for blog/studio article typography (DM Serif Display + DM Sans, sage accents).
 - **Plan of record:** the approved session plan (mirrored here).
 
 ---
@@ -48,47 +48,8 @@ drafted, scheduled, and published without a code change.
 
 ---
 
-## Sessions
-
-### Session 1 — 2026-05-30 (build)
-
-- **Goal:** implement the full plan: `apps.blog` backend, DB-backed public blog, and the Super Admin Blog Studio page.
-- **Scope:** all four phases above.
-- **Status:** **built + verified locally.** Seeding deferred to deploy (see below).
-- **Delivered:**
-  - **Backend** (`apps.blog`): `BlogSeries`/`BlogPost`(+`live()`)/`BlogPostRevision`/`BlogImage`, `IsSuperAdmin`, split public/staff serializers, viewsets (CRUD + `publish-now`/`schedule`/`archive`/`duplicate`/`restore-revision`), public read endpoints, image proxy + Super Admin upload, `bleach` sanitization, migration `0001_initial`, `seed_initial_blog_posts`. `is_superuser` exposed on `GET /api/auth/me/`. **14 tests pass.**
-  - **Public blog:** `frontend-public` reads the API (`fetchBlogPosts`/`fetchBlogPost`/`fetchBlogSeries`), renders sanitized `body_html`, extended `.abody` CSS; sitemap uses `BlogPost.objects.live()`; legacy Shopify blog handle → slug redirects in `apps/core/middleware.py`.
-  - **Studio:** standalone `/blog-studio` route outside `MainLayout` (`ProtectedRoute` + `SuperAdminRoute`), lazy-loaded (**emits its own ~349 kB chunk — TipTap stays out of the main bundle**). Superuser-only `blogStudio` nav item at the bottom of the Admin group, `openInNewWindow`. Three-pane studio (`BlogStudioPage.tsx` + `StudioEditor.tsx` + `blogStudio.css`) faithful to the mockup: TipTap WYSIWYG + toolbar, debounced autosave (slug tracks title until first publish), hero/inline image upload, series create/continue, native date+time scheduling, social/SEO preview, publish/schedule/save/duplicate/archive.
-- **Verification:** `makemigrations --check` clean; `migrate`/`check` OK; `apps.blog` tests green; staff `frontend` and `frontend-public` production builds both succeed.
-- **Deferred — seeding:** `seed_initial_blog_posts` was **not run** from this session because local `USE_S3=True` (writes hero art to the shared S3 bucket; DB target also env-dependent). **Run once on prod after deploy:** `python manage.py seed_initial_blog_posts` (idempotent — skips existing slugs). Hero files confirmed present in `frontend-public/public/blog/`.
-
-### Session 2 — 2026-06-01 (editor tools + typography)
-
-- **Goal:** finish Blog Editor Tools Upgrade Phases 4/5 and lock the selected typography system before push.
-- **Status:** **ready for v2.27.0 push.**
-- **Delivered:**
-  - **Authoring polish:** reader preview toggle, cleaned rich paste handling, character count + selection word count, and shortcut-hints popover.
-  - **Magazine blocks:** callouts, tables, code/pull-quote/drop-cap/columns styling, safe no-iframe link cards with removable selected-card controls, and portal-safe color/highlight swatches.
-  - **Rendering safety:** sanitizer allow-list and tests expanded for callouts, tables, and link cards; iframe/script remain stripped.
-  - **Typography:** selected **05 Bold Modern** from the exploration file and applied it to Blog Studio plus public blog list/article rendering, so existing published posts update through CSS.
-- **Verification:** `python manage.py test apps.blog` → **22 tests OK**; staff `frontend` and `frontend-public` production builds both succeed.
-
-### Session 3 — 2026-06-01 (series rename + studio chrome)
-
-- **Goal:** let owners rename an existing series without Django admin; align Blog Studio shell accents with Bold Modern sage.
-- **Delivered:** inline series rename field beside the Publish-panel Series dropdown (`PATCH /api/blog/series/<id>/`, blur/Enter save); `updateBlogSeries` + `useUpdateBlogSeries`; studio chrome uses `--blog-accent` for links, buttons, kickers, and focus states.
-- **Shipped:** **v2.27.1**.
-
-### Session 4 — 2026-06-01 (blog copy + draft slug preview)
-
-- **Goal:** tighten the public blog landing copy and stop new drafts from showing `/blog/untitled-post` after the title changes.
-- **Delivered:** `/blog` hero copy changed to **Founder Notes / The Eco-Thrift Journal** with a transparency-focused description; Blog Studio draft/scheduled URL preview now derives from the current title until publish, and autosave continues clearing unpublished slugs so the backend regenerates them from title.
-- **Shipped:** **v2.27.2**.
-
----
-
 ## See also
 
-- Plan / mockup: [`.ai/reference/blog-studio-5-minimal.html`](../../../reference/blog-studio-5-minimal.html)
+- Plan / mockup: `.ai/reference/blog-studio-5-minimal.html`
 - Reuse patterns: [`apps/webstore/`](../../../../apps/webstore/) (image proxy, split serializers), [`apps/accounts/permissions.py`](../../../../apps/accounts/permissions.py)
 - Public site: [`frontend-public/`](../../../../frontend-public/), sitemap [`apps/core/views.py`](../../../../apps/core/views.py), middleware [`apps/core/middleware.py`](../../../../apps/core/middleware.py)

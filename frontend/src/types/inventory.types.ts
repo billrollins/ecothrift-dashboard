@@ -1049,12 +1049,92 @@ export type RestorationUntouchedReason = 'recalled' | 'not_worth_it' | 'other';
 
 export type TarsSource = 'Target' | 'Amazon' | 'Walmart' | null;
 
+export type ItemNoteSurface =
+  | 'check_in'
+  | 'handoff'
+  | 'queue'
+  | 'action'
+  | 'hold'
+  | 'send_back'
+  | 'reject'
+  | 'finish'
+  | 'output'
+  | 'processing_return'
+  | 'manual';
+
+export type ItemNoteStatus = 'active' | 'revised' | 'voided';
+
+export interface ItemNoteDTO {
+  id: number;
+  item: number;
+  item_sku: string | null;
+  body: string;
+  surface: ItemNoteSurface;
+  source_key: string;
+  restoration_job_id: number | null;
+  check_in: number | null;
+  author: number | null;
+  author_name: string | null;
+  occurred_at: string;
+  status: ItemNoteStatus;
+  supersedes: number | null;
+  voided_at: string | null;
+  voided_by: number | null;
+  void_reason: string;
+  created_at: string;
+  can_delete?: boolean;
+  can_edit?: boolean;
+}
+
 export interface RestorationJobItemDTO {
   id: number;
   sku: string;
   status: string;
   condition: string;
   location: string;
+  retail?: string | null;
+  price?: string | null;
+  product_id?: number | null;
+  parent_item_id?: number | null;
+}
+
+export interface RestorationOutputDTO {
+  id: number;
+  job: number;
+  seq: number;
+  label: string;
+  notes: string;
+  destination: string;
+  suggested_product_id: number | null;
+  suggested_product_title?: string | null;
+  item_id: number | null;
+  item_sku?: string | null;
+  created_at: string;
+}
+
+export interface RestorationOutputWritePayload {
+  seq?: number;
+  label: string;
+  notes?: string;
+  destination?: string;
+  suggested_product_id?: number | null;
+}
+
+export interface RestorationOutputCreateItemPayload {
+  product_id?: number;
+  product_mode?: 'existing' | 'new' | 'keep' | 'edit' | 'none';
+  title?: string;
+  brand?: string;
+  category?: string;
+  model?: string;
+  upc?: string;
+  retail: string | number;
+  price: string | number;
+  parent_retail: string | number;
+  condition?: string;
+  dispatch?: string;
+  notes?: string;
+  specifications?: Record<string, string>;
 }
 
 export interface RestorationJobDTO {
@@ -1105,22 +1185,12 @@ export interface RestorationJobDTO {
   returned_at: string | null;
   bench_started_at: string | null;
   bench_owner_id?: number | null;
+  bench_owner_name?: string | null;
   bench_ownership_ambiguous?: boolean;
-  timer_started_at: string | null;
-  active_seconds: number;
-  timer_is_running: boolean;
-  timer_started_by_id?: number | null;
-  /** What the clock is currently for. Looking is charged to the item, working to a grade. */
-  timer_mode: TarsTimerMode;
-  timer_grade: string;
-  look_seconds: number;
-  work_seconds: number;
-  last_meaningful_action_at?: string | null;
-  last_meaningful_active_seconds?: number;
-  last_meaningful_action_label?: string;
-  elapsed_seconds: number;
-  elapsed_hours: string;
-  pending_reason: RestorationPendingReason | '';
+  /** How many work-log rows this job has. Empty means nothing was done. */
+  action_count?: number;
+  outputs?: RestorationOutputDTO[];
+  pending_reason: string;
   pending_notes: string;
   pending_storage_location: string;
   pending_started_at: string | null;
@@ -1129,21 +1199,18 @@ export interface RestorationJobDTO {
   /** Anything the person picking this up should know. Any staff member may write it. */
   queue_note: string;
   bench_disposition: RestorationBenchDisposition | '';
-  /** The action the clock is attached to. Every running second is banked here. */
+  /** The action currently open on this job. */
   current_action: number | null;
   /** The grade the item arrived at — the datum every estimate is measured against. */
   starting_grade: string;
   final_grade: string;
   disposition_notes: string;
-  spent_hours: string | null;
   spent_parts_cost: string | null;
   /** Frozen at completion. Null means it could not be computed honestly. */
   value_added: string | null;
   dispositioned_at: string | null;
   processing_handled_at: string | null;
 }
-
-export type TarsTimerMode = 'look' | 'work';
 
 /** The kinds of work an action can be. */
 export type RestorationActionCategory =
@@ -1164,6 +1231,7 @@ export interface RestorationActionDTO {
   started_at: string;
   ended_at: string | null;
   created_by: number | null;
+  created_by_name?: string | null;
   is_described: boolean;
 }
 
@@ -1180,10 +1248,9 @@ export interface RestorationActionsDTO {
 }
 
 export interface RestorationStartActionPayload {
-  grade?: string;
   category?: RestorationActionCategory;
   description?: string;
-  /** Same grade, genuinely a second piece of work rather than resuming. */
+  /** Genuinely a second sitting rather than resuming the open one. */
   force_new?: boolean;
 }
 
@@ -1205,6 +1272,7 @@ export interface RestorationJobQueueDetailsPayload {
   grade_values?: Record<string, number>;
   intended_destination?: string;
   queue_note?: string;
+  starting_grade?: string;
 }
 
 /** One span of finished work: what it added, over how many hours. */
@@ -1216,9 +1284,6 @@ export interface RestorationScoreboardWindowDTO {
   items_measured: number;
   /** Finished without a computable value — counted, never priced. */
   items_unmeasured: number;
-  hours: string;
-  /** Null when there are no recorded hours to divide by. */
-  per_hour: string | null;
 }
 
 export interface RestorationScoreboardDayDTO {
@@ -1235,13 +1300,6 @@ export interface RestorationScoreboardDTO {
     weekly_average_value: string | null;
     weekly_average_items: string;
   };
-  per_hour_while_working: string | null;
-  /** What an hour costs. A policy number, not a measurement. */
-  floor_rate: string;
-  /** The trailing rate to beat — withheld until it rests on enough jobs. */
-  benchmark_rate: string | null;
-  benchmark_ready: boolean;
-  benchmark_minimum_jobs: number;
   days: RestorationScoreboardDayDTO[];
 }
 
@@ -1262,17 +1320,37 @@ export type RestorationTimelineEventType =
   | 'plan.estimated'
   | 'plan.committed'
   | 'plan.cleared'
-  | 'parts.draft_changed'
-  | 'parts.request_submitted'
-  | 'parts.ordered'
-  | 'parts.received'
+  | 'plan.estimate_changed'
+  | 'grade.claimed'
+  | 'note.queue_changed'
+  | 'note.added'
+  | 'parts.order_requested'
+  | 'parts.order_approved'
+  | 'parts.order_denied'
+  | 'parts.order_purchased'
+  | 'parts.order_eta_revised'
+  | 'parts.order_received'
+  | 'parts.order_reviewed'
+  | 'parts.order_inspected'
+  | 'parts.order_cancelled'
+  | 'parts.order_withdrawn'
+  | 'parts.cancel_asked'
+  | 'parts.cancel_confirmed'
+  | 'parts.cancel_refused'
   | 'work.performed'
+  | 'action.started'
+  | 'action.described'
+  | 'action.undone'
+  | 'action.deleted'
   | 'timer.started'
   | 'timer.paused'
   | 'timer.adjusted'
   | 'hold.placed'
   | 'hold.resumed'
   | 'disposition.completed'
+  | 'disposition.revised'
+  | 'job.reopened'
+  | 'processing.checked_in'
   | 'return.to_processing';
 
 export interface RestorationTimelineEventDTO {
@@ -1294,6 +1372,20 @@ export interface RestorationTimelineEventDTO {
   payload: Record<string, unknown>;
 }
 
+export interface RestorationScanItemDTO {
+  id: number;
+  sku: string;
+  name: string;
+  location: string;
+  status: string;
+  condition: string;
+}
+
+export type RestorationScanLookupDTO =
+  | { found: 'job'; job: RestorationJobDTO }
+  | { found: 'item'; item: RestorationScanItemDTO }
+  | { found: 'none' };
+
 export type RestorationQueueAddStatus =
   | 'created'
   | 'already_queued'
@@ -1308,97 +1400,156 @@ export interface RestorationJobCreateResultDTO extends RestorationJobDTO {
 }
 
 export interface RestorationJobHoldPayload {
-  reason: RestorationPendingReason;
-  notes?: string;
+  reason?: RestorationPendingReason | '';
   storage_location?: string;
+  wait_for?: { time?: string; space?: string; help?: string; other?: string };
 }
 
 export interface RestorationJobDonePayload {
   destination: RestorationBenchDisposition;
-  final_grade: string;
+  final_grade?: string;
+  starting_grade?: string;
   notes?: string;
-  spent_hours?: string | number;
   spent_parts_cost?: string | number;
+  outputs?: RestorationOutputWritePayload[];
 }
 
-export interface RestorationPartsRequestLineDTO {
+export type RestorationQueueReturnReason = 'not_ready' | 'question' | 'grades';
+
+export interface RestorationJobProcessingCheckInPayload {
+  price: string | number;
+  retail?: string | number | null;
+  condition?: string;
+  dispatch?: string;
+  notes?: string;
+  specifications?: Record<string, string>;
+}
+
+export type RestorationPartCategory = 'parts' | 'supplies' | 'ffe';
+
+export interface RestorationPartDTO {
   id: number;
+  job: number;
   part_number: string;
   description: string;
   url: string;
   qty: number;
-  unit_price_estimate: string;
-  unit_price_actual: string;
-  status: string;
-  linked_grade: string;
+  unit_price: string;
+  category: RestorationPartCategory;
+  line_total: string;
+  created_at: string;
+  updated_at: string;
 }
 
-export interface RestorationPartsRequestSiteDTO {
-  id: number;
-  supplier_name: string;
-  sort_order: number;
-  lines: RestorationPartsRequestLineDTO[];
+export interface RestorationPartWritePayload {
+  job?: number;
+  part_number?: string;
+  description?: string;
+  url?: string;
+  qty?: number;
+  unit_price?: string | number;
+  category?: RestorationPartCategory;
 }
+
+export type RestorationPartsOrderStatus =
+  | 'draft'
+  | 'requested'
+  | 'approved'
+  | 'denied'
+  | 'purchased'
+  | 'received'
+  | 'cancelled';
+
+export type RestorationPartsOrderReviewState = 'ok' | 'needs_review' | 'reviewed';
+
+export type PartsOrderAttention = 'cancel_ask' | 'approval' | 'to_place' | 'late' | 'review' | '';
+
+export type RestorationPartsLineInspectVerdict = 'acceptable' | 'issues' | '';
 
 export interface RestorationPartsOrderLineDTO {
   id: number;
-  request_line_id: number;
+  part_id: number;
+  description: string;
+  url: string;
+  category: RestorationPartCategory;
   qty: number;
+  unit_price: string;
   unit_cost: string;
   line_total: string;
+  inspect_verdict: RestorationPartsLineInspectVerdict;
+  inspect_note: string;
+}
+
+export interface RestorationPartsLineInspectPayload {
+  id: number;
+  verdict: 'acceptable' | 'issues';
+  note?: string;
 }
 
 export interface RestorationPartsOrderDTO {
   id: number;
-  po_number: string;
-  supplier_name: string;
-  supplier_url: string;
-  subtotal: string;
+  job: number;
+  job_sku: string | null;
+  job_name: string;
+  job_stage: string;
+  job_starting_grade: string;
+  job_final_grade: string;
+  job_value_added: string | null;
+  job_spent_parts_cost: string | null;
+  job_dispositioned_at: string | null;
+  name: string;
+  target_grade: string;
+  target_grade_value: string | null;
   shipping: string;
   tax: string;
   fees: string;
+  status: RestorationPartsOrderStatus;
+  denied_reason: string;
+  est_shipping_days: number | null;
+  expected_delivery_on: string | null;
+  days_late: number | null;
+  attention: PartsOrderAttention;
+  requested_at: string | null;
+  requested_by: number | null;
+  requested_by_name: string;
+  approved_at: string | null;
+  approved_by: number | null;
+  approved_by_name: string;
+  purchased_at: string | null;
+  purchased_by: number | null;
+  purchased_by_name: string;
+  received_at: string | null;
+  received_by: number | null;
+  received_by_name: string;
+  review_state: RestorationPartsOrderReviewState;
+  review_note: string;
+  cancel_requested: boolean;
+  cancel_requested_at: string | null;
+  cancel_requested_by: number | null;
+  cancel_requested_by_name: string;
+  cancel_reason: string;
+  queued_behind: number | null;
+  queued_behind_name: string;
+  replacement_id: number | null;
+  replacement_name: string;
+  refunded: boolean;
+  item_count: number;
   total: string;
-  ship_to_address: string;
-  expected_delivery: string | null;
-  ordered_at: string | null;
-  notes: string;
-  status: string;
-  site: number | null;
+  parts_cost: string;
+  needs_review: boolean;
   lines: RestorationPartsOrderLineDTO[];
   created_at: string;
   updated_at: string;
 }
 
-export interface RestorationPartsRequestDTO {
-  id: number;
-  job: number;
-  job_sku: string | null;
-  job_name: string;
-  status: string;
-  selected_grade: string;
-  eval_snapshot: Record<string, unknown> | null;
-  notes: string;
-  requested_by: number | null;
-  sites: RestorationPartsRequestSiteDTO[];
-  orders: RestorationPartsOrderDTO[];
-  created_at: string;
-  updated_at: string;
-}
-
-export interface RestorationPartsOrderCreatePayload {
-  site_id?: number | null;
-  po_number: string;
-  supplier_name?: string;
-  supplier_url?: string;
-  subtotal: string | number;
+export interface RestorationPartsOrderWritePayload {
+  job?: number;
+  name?: string;
+  target_grade?: string;
   shipping?: string | number;
   tax?: string | number;
   fees?: string | number;
-  ship_to_address?: string;
-  expected_delivery?: string | null;
-  line_ids?: number[];
-  notes?: string;
-  lines?: Array<{ id: number; unit_cost: string | number }>;
+  lines?: Array<{ part_id: number; qty?: number; unit_cost?: string | number | null }>;
 }
 
 export interface RestorationJobPatchPayload {

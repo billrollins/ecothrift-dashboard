@@ -3,11 +3,12 @@ from apps.core.serializers import S3FileSerializer
 from .models import (
     Vendor, Category, PurchaseOrder, CSVTemplate, ManifestRow,
     Product, VendorProductRef, BatchGroup, Item, ItemCheckIn, ProcessingBatch,
-    ItemHistory, ItemScanHistory,
+    ItemHistory, ItemNote, ItemScanHistory,
     PreprocessingRow,
     ProcessingRow,
     RestorationAction,
     RestorationJob,
+    RestorationOutput,
     RestorationTimelineEvent,
     Receiving, ReceivingPallet, ReceivingAttachment, ReceivingPhotoOverride,
     Dispute,
@@ -1022,6 +1023,60 @@ class ItemHistorySerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
 
+class ItemNoteSerializer(serializers.ModelSerializer):
+    author_name = serializers.CharField(source='author.full_name', read_only=True, default=None)
+    item_sku = serializers.CharField(source='item.sku', read_only=True, default=None)
+    can_delete = serializers.SerializerMethodField()
+    can_edit = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ItemNote
+        fields = [
+            'id',
+            'item',
+            'item_sku',
+            'body',
+            'surface',
+            'source_key',
+            'restoration_job_id',
+            'check_in',
+            'author',
+            'author_name',
+            'occurred_at',
+            'status',
+            'supersedes',
+            'voided_at',
+            'voided_by',
+            'void_reason',
+            'created_at',
+            'can_delete',
+            'can_edit',
+        ]
+        read_only_fields = fields
+
+    def _actor(self):
+        request = self.context.get('request')
+        return getattr(request, 'user', None) if request is not None else None
+
+    def get_can_delete(self, obj):
+        from apps.inventory.services.restoration_comments import item_note_can_delete
+
+        return item_note_can_delete(obj, self._actor())
+
+    def get_can_edit(self, obj):
+        from apps.inventory.services.restoration_comments import item_note_can_edit
+
+        return item_note_can_edit(obj, self._actor())
+
+
+class ItemNoteWriteSerializer(serializers.Serializer):
+    body = serializers.CharField(max_length=4000)
+
+
+class ItemNoteVoidSerializer(serializers.Serializer):
+    reason = serializers.CharField(max_length=500)
+
+
 class ItemScanHistorySerializer(serializers.ModelSerializer):
     class Meta:
         model = ItemScanHistory
@@ -1413,8 +1468,9 @@ class RestorationJobSerializer(serializers.ModelSerializer):
     valuation_pending = serializers.SerializerMethodField()
     items = serializers.SerializerMethodField()
     bench_ownership_ambiguous = serializers.SerializerMethodField()
-    elapsed_seconds = serializers.SerializerMethodField()
-    elapsed_hours = serializers.SerializerMethodField()
+    bench_owner_name = serializers.SerializerMethodField()
+    action_count = serializers.SerializerMethodField()
+    outputs = serializers.SerializerMethodField()
     processing_handoff = serializers.SerializerMethodField()
     direction = serializers.SerializerMethodField()
     from_family = serializers.SerializerMethodField()
@@ -1478,21 +1534,11 @@ class RestorationJobSerializer(serializers.ModelSerializer):
             'returned_at',
             'bench_started_at',
             'bench_owner_id',
+            'bench_owner_name',
             'bench_ownership_ambiguous',
-            'timer_started_at',
-            'active_seconds',
-            'timer_is_running',
-            'timer_started_by_id',
-            'timer_mode',
-            'timer_grade',
+            'action_count',
+            'outputs',
             'current_action',
-            'look_seconds',
-            'work_seconds',
-            'last_meaningful_action_at',
-            'last_meaningful_active_seconds',
-            'last_meaningful_action_label',
-            'elapsed_seconds',
-            'elapsed_hours',
             'pending_reason',
             'pending_notes',
             'pending_storage_location',
@@ -1511,13 +1557,21 @@ class RestorationJobSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_elapsed_seconds(self, obj):
-        from apps.inventory.services.restoration_bench import elapsed_active_seconds
-
-        return elapsed_active_seconds(obj)
-
     def get_bench_ownership_ambiguous(self, obj):
         return obj.stage == RestorationJob.STAGE_BENCH and obj.bench_owner_id is None
+
+    def get_bench_owner_name(self, obj):
+        owner = getattr(obj, 'bench_owner', None)
+        if owner is None:
+            return None
+        name = f'{getattr(owner, "first_name", "")} {getattr(owner, "last_name", "")}'.strip()
+        return name or getattr(owner, 'email', None) or 'another technician'
+
+    def get_action_count(self, obj):
+        cached = getattr(obj, 'action_count', None)
+        if isinstance(cached, int):
+            return cached
+        return obj.actions.count()
 
     def get_processing_handoff(self, obj):
         from apps.inventory.services.restoration import processing_handoff_from_check_in
@@ -1552,12 +1606,6 @@ class RestorationJobSerializer(serializers.ModelSerializer):
     def get_decision_reason(self, obj):
         return self._desk_summary(obj).get('decision_reason') or ''
 
-    def get_elapsed_hours(self, obj):
-        from decimal import Decimal
-        from apps.inventory.services.restoration_bench import elapsed_active_hours
-
-        return str(elapsed_active_hours(obj).quantize(Decimal('0.01')))
-
     def _check_in_items(self, obj: RestorationJob):
         if not obj.item_check_in_id:
             return []
@@ -1575,9 +1623,17 @@ class RestorationJobSerializer(serializers.ModelSerializer):
                 'status': it.status,
                 'condition': it.condition,
                 'location': it.location or '',
+                'retail': str(it.retail) if it.retail is not None else None,
+                'price': str(it.price) if it.price is not None else None,
+                'product_id': it.product_id,
+                'parent_item_id': it.parent_item_id,
             }
             for it in self._check_in_items(obj)
         ]
+
+    def get_outputs(self, obj):
+        rows = list(getattr(obj, 'outputs').all()) if hasattr(obj, 'outputs') else []
+        return RestorationOutputSerializer(rows, many=True).data
 
     def _first_item(self, obj: RestorationJob):
         cached = getattr(obj, '_first_item_cache', None)
@@ -1691,8 +1747,10 @@ class RestorationTimelineEventSerializer(serializers.ModelSerializer):
     def _user_name(user) -> str:
         if user is None:
             return ''
-        full_name = user.get_full_name() if hasattr(user, 'get_full_name') else ''
-        return full_name or getattr(user, 'username', '') or getattr(user, 'email', '')
+        name = (getattr(user, 'full_name', None) or '').strip()
+        if name:
+            return name
+        return getattr(user, 'email', '') or ''
 
     def get_actor_name(self, obj):
         return self._user_name(obj.actor)
@@ -1782,6 +1840,7 @@ class RestorationJobPatchSerializer(serializers.Serializer):
 
 class RestorationActionSerializer(serializers.ModelSerializer):
     is_described = serializers.BooleanField(read_only=True)
+    created_by_name = serializers.CharField(source='created_by.full_name', read_only=True, default='')
 
     class Meta:
         model = RestorationAction
@@ -1794,18 +1853,18 @@ class RestorationActionSerializer(serializers.ModelSerializer):
             'started_at',
             'ended_at',
             'created_by',
+            'created_by_name',
             'is_described',
         ]
         read_only_fields = fields
 
 
 class RestorationStartActionSerializer(serializers.Serializer):
-    """Empty grade means the item as a whole."""
+    """Start or resume a sitting. Actions are always on the item."""
 
-    grade = serializers.CharField(required=False, allow_blank=True, default='')
     category = serializers.CharField(required=False, allow_blank=True)
     description = serializers.CharField(required=False, allow_blank=True, default='')
-    # Set when the same grade is genuinely a second piece of work, not a resume.
+    # Set when this is genuinely a second piece of work, not a resume.
     force_new = serializers.BooleanField(required=False, default=False)
 
 
@@ -1823,15 +1882,15 @@ class RestorationJobQueueDetailsSerializer(serializers.Serializer):
     """Queue context: the grade scale, its values, a note, and where it should go.
 
     Deliberately separate from the full patch path, which only accepts queued
-    jobs. These fields stay answerable for as long as the item is unfinished,
-    because the person who knows the answer is not always the one who checked
-    it in.
+    jobs. Scale and destination stay answerable while unfinished. The note
+    can still be written on Done — Processing has not taken the item yet.
     """
 
     scale = serializers.CharField(required=False, allow_blank=True)
     grade_values = serializers.DictField(child=serializers.FloatField(), required=False)
     intended_destination = serializers.CharField(required=False, allow_blank=True)
     queue_note = serializers.CharField(required=False, allow_blank=True, max_length=2000)
+    starting_grade = serializers.CharField(required=False, allow_blank=True, max_length=64)
 
     def validate_scale(self, value):
         from apps.inventory.services.restoration import is_known_active_scale
@@ -1858,8 +1917,8 @@ class RestorationJobQueueDetailsSerializer(serializers.Serializer):
             if 'grade_values' in attrs:
                 values = normalize_grade_values(attrs['grade_values'])
             elif attrs.get('scale') and attrs['scale'] != job.scale:
-                # Switching scale keeps whatever values still apply and blanks
-                # the rest, rather than silently discarding Ashley's work.
+                # Switching scale keeps every recorded price, including grades
+                # that are not on the new scale, so an accidental switch can be undone.
                 values = empty_values_for_scale(scale, normalize_grade_values(job.grade_values))
             else:
                 values = normalize_grade_values(job.grade_values)
@@ -1915,68 +1974,238 @@ class RestorationJobWorkSessionSerializer(serializers.Serializer):
 
 
 class RestorationJobHoldSerializer(serializers.Serializer):
-    reason = serializers.CharField()
-    notes = serializers.CharField(required=False, allow_blank=True, default='')
+    reason = serializers.CharField(required=False, allow_blank=True, default='')
     storage_location = serializers.CharField(required=False, allow_blank=True, default='')
+    wait_for = serializers.DictField(required=False)
 
     def validate_reason(self, value):
-        from apps.inventory.services.restoration_bench import PENDING_REASONS
+        from apps.inventory.services.tars_purchase import LEGACY_HOLD_REASONS
 
-        if value not in PENDING_REASONS:
+        if value and value not in LEGACY_HOLD_REASONS:
             raise serializers.ValidationError('Invalid hold reason.')
         return value
+
+    def validate_wait_for(self, value):
+        from apps.inventory.services.tars_purchase import WAIT_KEYS
+
+        if not isinstance(value, dict):
+            return {}
+        return {
+            key: str(value.get(key) or '').strip()
+            for key in WAIT_KEYS
+        }
+
+
+class RestorationOutputWriteSerializer(serializers.Serializer):
+    seq = serializers.IntegerField(min_value=0, required=False, default=0)
+    label = serializers.CharField(max_length=200)
+    notes = serializers.CharField(required=False, allow_blank=True, default='')
+    destination = serializers.CharField(required=False, allow_blank=True, default='')
+    suggested_product_id = serializers.IntegerField(required=False, allow_null=True)
 
 
 class RestorationJobDoneSerializer(serializers.Serializer):
     destination = serializers.ChoiceField(
         choices=['processing', 'storage', 'salvage', 'online_sales'],
     )
-    final_grade = serializers.CharField()
+    final_grade = serializers.CharField(required=False, allow_blank=True, default='')
+    starting_grade = serializers.CharField(required=False, allow_blank=True, default='')
     notes = serializers.CharField(required=False, allow_blank=True, default='')
-    spent_hours = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
     spent_parts_cost = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+    outputs = RestorationOutputWriteSerializer(many=True, required=False)
 
 
-class RestorationPartsRequestLineSerializer(serializers.ModelSerializer):
+class RestorationJobRejectSerializer(serializers.Serializer):
+    reason = serializers.CharField(max_length=2000)
+
+
+class RestorationOutputSerializer(serializers.ModelSerializer):
+    suggested_product_title = serializers.SerializerMethodField()
+    item_sku = serializers.SerializerMethodField()
+
     class Meta:
-        from apps.inventory.models import RestorationPartsRequestLine
-
-        model = RestorationPartsRequestLine
+        model = RestorationOutput
         fields = [
             'id',
+            'job',
+            'seq',
+            'label',
+            'notes',
+            'destination',
+            'suggested_product_id',
+            'suggested_product_title',
+            'item_id',
+            'item_sku',
+            'created_at',
+        ]
+        read_only_fields = fields
+
+    def get_suggested_product_title(self, obj):
+        product = getattr(obj, 'suggested_product', None)
+        return product.title if product is not None else None
+
+    def get_item_sku(self, obj):
+        item = getattr(obj, 'item', None)
+        return item.sku if item is not None else None
+
+
+class RestorationOutputCreateItemSerializer(serializers.Serializer):
+    product_id = serializers.IntegerField(required=False, allow_null=True)
+    product_mode = serializers.CharField(required=False, allow_blank=True, default='existing')
+    title = serializers.CharField(required=False, allow_blank=True, default='')
+    brand = serializers.CharField(required=False, allow_blank=True, default='')
+    category = serializers.CharField(required=False, allow_blank=True, default='')
+    model = serializers.CharField(required=False, allow_blank=True, default='')
+    upc = serializers.CharField(required=False, allow_blank=True, default='')
+    retail = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+    parent_retail = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+    condition = serializers.CharField(required=False, allow_blank=True, default='')
+    dispatch = serializers.CharField(required=False, allow_blank=True, default='')
+    notes = serializers.CharField(required=False, allow_blank=True, default='')
+    specifications = serializers.DictField(child=serializers.CharField(allow_blank=True), required=False)
+
+    def validate(self, attrs):
+        from decimal import Decimal
+
+        mode = str(attrs.get('product_mode') or 'existing').strip().lower() or 'existing'
+        attrs['product_mode'] = mode
+        dispatch = str(attrs.get('dispatch') or '').strip().lower()
+        condition = str(attrs.get('condition') or '').strip().lower()
+        salvage = dispatch == 'salvage' or condition == 'salvage'
+        if mode == 'none':
+            if not salvage:
+                raise serializers.ValidationError(
+                    {'product_mode': 'none is only for a part leaving as salvage.'}
+                )
+            attrs['retail'] = Decimal('0.00') if attrs.get('retail') in (None, '') else attrs['retail']
+            attrs['price'] = Decimal('0.00') if attrs.get('price') in (None, '') else attrs['price']
+            return attrs
+        if mode == 'existing' and attrs.get('product_id') in (None, ''):
+            raise serializers.ValidationError({'product_id': 'Required when the product already exists.'})
+        if mode == 'new' and not str(attrs.get('title') or '').strip():
+            raise serializers.ValidationError({'title': 'Write a title for the new product.'})
+        if attrs.get('retail') in (None, '') or attrs.get('price') in (None, '') or attrs.get('parent_retail') in (None, ''):
+            raise serializers.ValidationError('Retail, price, and parent retail are required.')
+        return attrs
+
+
+class RestorationJobProcessingCheckInSerializer(serializers.Serializer):
+    price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    retail = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+    condition = serializers.CharField(required=False, allow_blank=True, default='')
+    dispatch = serializers.CharField(required=False, allow_blank=True, default='on_shelf')
+    notes = serializers.CharField(required=False, allow_blank=True, default='')
+    specifications = serializers.DictField(child=serializers.CharField(allow_blank=True), required=False)
+
+
+class RestorationPartSerializer(serializers.ModelSerializer):
+    line_total = serializers.SerializerMethodField()
+
+    class Meta:
+        from apps.inventory.models import RestorationPart
+
+        model = RestorationPart
+        fields = [
+            'id',
+            'job',
             'part_number',
             'description',
             'url',
             'qty',
-            'unit_price_estimate',
-            'unit_price_actual',
-            'status',
-            'linked_grade',
+            'unit_price',
+            'category',
+            'line_total',
+            'created_at',
+            'updated_at',
         ]
+        read_only_fields = ['id', 'job', 'line_total', 'created_at', 'updated_at']
+
+    def get_line_total(self, obj):
+        return str(obj.line_total)
 
 
-class RestorationPartsRequestSiteSerializer(serializers.ModelSerializer):
-    lines = RestorationPartsRequestLineSerializer(many=True, read_only=True)
-
-    class Meta:
-        from apps.inventory.models import RestorationPartsRequestSite
-
-        model = RestorationPartsRequestSite
-        fields = ['id', 'supplier_name', 'sort_order', 'lines']
+class RestorationPartWriteSerializer(serializers.Serializer):
+    part_number = serializers.CharField(required=False, allow_blank=True, default='')
+    description = serializers.CharField(required=False, allow_blank=True, default='')
+    url = serializers.CharField(required=False, allow_blank=True, default='')
+    qty = serializers.IntegerField(required=False, min_value=1, default=1)
+    unit_price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, default=0)
+    category = serializers.ChoiceField(
+        choices=['parts', 'supplies', 'ffe'],
+        required=False,
+        default='parts',
+    )
+    job = serializers.IntegerField(required=False)
 
 
 class RestorationPartsOrderLineSerializer(serializers.ModelSerializer):
-    request_line_id = serializers.IntegerField(source='request_line.id', read_only=True)
+    part_id = serializers.IntegerField(source='part.id', read_only=True)
+    description = serializers.CharField(source='part.description', read_only=True)
+    url = serializers.CharField(source='part.url', read_only=True)
+    category = serializers.CharField(source='part.category', read_only=True)
+    unit_price = serializers.DecimalField(
+        source='part.unit_price', max_digits=10, decimal_places=2, read_only=True,
+    )
+    unit_cost = serializers.SerializerMethodField()
+    line_total = serializers.SerializerMethodField()
 
     class Meta:
         from apps.inventory.models import RestorationPartsOrderLine
 
         model = RestorationPartsOrderLine
-        fields = ['id', 'request_line_id', 'qty', 'unit_cost', 'line_total']
+        fields = [
+            'id',
+            'part_id',
+            'description',
+            'url',
+            'category',
+            'qty',
+            'unit_price',
+            'unit_cost',
+            'line_total',
+            'inspect_verdict',
+            'inspect_note',
+        ]
+
+    def get_unit_cost(self, obj):
+        from apps.inventory.services.restoration_parts import line_unit_cost
+
+        return str(line_unit_cost(obj))
+
+    def get_line_total(self, obj):
+        from apps.inventory.services.restoration_parts import line_subtotal
+
+        return str(line_subtotal(obj))
 
 
 class RestorationPartsOrderSerializer(serializers.ModelSerializer):
     lines = RestorationPartsOrderLineSerializer(many=True, read_only=True)
+    job_sku = serializers.SerializerMethodField()
+    job_name = serializers.SerializerMethodField()
+    job_stage = serializers.CharField(source='job.stage', read_only=True)
+    job_starting_grade = serializers.CharField(source='job.starting_grade', read_only=True)
+    job_final_grade = serializers.CharField(source='job.final_grade', read_only=True)
+    job_value_added = serializers.SerializerMethodField()
+    job_spent_parts_cost = serializers.SerializerMethodField()
+    job_dispositioned_at = serializers.DateTimeField(source='job.dispositioned_at', read_only=True)
+    item_count = serializers.SerializerMethodField()
+    total = serializers.SerializerMethodField()
+    parts_cost = serializers.SerializerMethodField()
+    needs_review = serializers.SerializerMethodField()
+    attention = serializers.SerializerMethodField()
+    expected_delivery_on = serializers.SerializerMethodField()
+    days_late = serializers.SerializerMethodField()
+    target_grade_value = serializers.SerializerMethodField()
+    cancel_requested = serializers.SerializerMethodField()
+    queued_behind_name = serializers.SerializerMethodField()
+    replacement_id = serializers.SerializerMethodField()
+    replacement_name = serializers.SerializerMethodField()
+    requested_by_name = serializers.SerializerMethodField()
+    approved_by_name = serializers.SerializerMethodField()
+    purchased_by_name = serializers.SerializerMethodField()
+    received_by_name = serializers.SerializerMethodField()
+    cancel_requested_by_name = serializers.SerializerMethodField()
 
     class Meta:
         from apps.inventory.models import RestorationPartsOrder
@@ -1984,88 +2213,207 @@ class RestorationPartsOrderSerializer(serializers.ModelSerializer):
         model = RestorationPartsOrder
         fields = [
             'id',
-            'po_number',
-            'supplier_name',
-            'supplier_url',
-            'subtotal',
-            'shipping',
-            'tax',
-            'fees',
-            'total',
-            'ship_to_address',
-            'expected_delivery',
-            'ordered_at',
-            'notes',
-            'status',
-            'site',
-            'lines',
-            'created_at',
-            'updated_at',
-        ]
-
-
-class RestorationPartsRequestSerializer(serializers.ModelSerializer):
-    sites = RestorationPartsRequestSiteSerializer(many=True, read_only=True)
-    orders = RestorationPartsOrderSerializer(many=True, read_only=True)
-    job_sku = serializers.SerializerMethodField()
-    job_name = serializers.SerializerMethodField()
-
-    class Meta:
-        from apps.inventory.models import RestorationPartsRequest
-
-        model = RestorationPartsRequest
-        fields = [
-            'id',
             'job',
             'job_sku',
             'job_name',
+            'job_stage',
+            'job_starting_grade',
+            'job_final_grade',
+            'job_value_added',
+            'job_spent_parts_cost',
+            'job_dispositioned_at',
+            'name',
+            'target_grade',
+            'target_grade_value',
+            'shipping',
+            'tax',
+            'fees',
             'status',
-            'selected_grade',
-            'eval_snapshot',
-            'notes',
+            'denied_reason',
+            'est_shipping_days',
+            'expected_delivery_on',
+            'days_late',
+            'attention',
+            'requested_at',
             'requested_by',
-            'sites',
-            'orders',
+            'requested_by_name',
+            'approved_at',
+            'approved_by',
+            'approved_by_name',
+            'purchased_at',
+            'purchased_by',
+            'purchased_by_name',
+            'received_at',
+            'received_by',
+            'received_by_name',
+            'review_state',
+            'review_note',
+            'cancel_requested',
+            'cancel_requested_at',
+            'cancel_requested_by',
+            'cancel_requested_by_name',
+            'cancel_reason',
+            'queued_behind',
+            'queued_behind_name',
+            'replacement_id',
+            'replacement_name',
+            'refunded',
+            'item_count',
+            'total',
+            'parts_cost',
+            'needs_review',
+            'lines',
             'created_at',
             'updated_at',
         ]
         read_only_fields = fields
 
     def get_job_sku(self, obj):
-        item = obj.job.item_check_in.items.order_by('id').first() if obj.job.item_check_in_id else None
+        check_in = obj.job.item_check_in if obj.job.item_check_in_id else None
+        if check_in is None:
+            return None
+        item = next(iter(check_in.items.all()), None)
         return item.sku if item else None
 
     def get_job_name(self, obj):
         return obj.job.product.title if obj.job.product_id else ''
 
+    def get_item_count(self, obj):
+        from apps.inventory.services.restoration_parts import item_count
 
-class RestorationPartsRequestUpsertSerializer(serializers.Serializer):
-    grade = serializers.CharField(required=False, allow_blank=True)
-    eval_snapshot = serializers.DictField(required=False)
+        return item_count(obj)
+
+    def get_total(self, obj):
+        from apps.inventory.services.restoration_parts import order_total
+
+        return str(order_total(obj))
+
+    def get_parts_cost(self, obj):
+        from apps.inventory.services.restoration_parts import order_parts_cost
+
+        return str(order_parts_cost(obj))
+
+    def get_needs_review(self, obj):
+        from apps.inventory.services.restoration_parts import order_needs_review
+
+        return order_needs_review(obj)
+
+    def get_attention(self, obj):
+        from apps.inventory.services.restoration_parts import attention_for
+
+        return attention_for(obj)
+
+    def get_expected_delivery_on(self, obj):
+        from apps.inventory.services.restoration_parts import expected_delivery_on
+
+        due = expected_delivery_on(obj)
+        return due.isoformat() if due else None
+
+    def get_days_late(self, obj):
+        from apps.inventory.services.restoration_parts import days_late
+
+        return days_late(obj)
+
+    def get_target_grade_value(self, obj):
+        values = obj.job.grade_values or {}
+        raw = values.get(obj.target_grade)
+        if raw is None or raw == '':
+            return None
+        try:
+            return f'{float(raw):.2f}'
+        except (TypeError, ValueError):
+            return None
+
+    def get_job_value_added(self, obj):
+        value = obj.job.value_added
+        return str(value) if value is not None else None
+
+    def get_job_spent_parts_cost(self, obj):
+        value = obj.job.spent_parts_cost
+        return str(value) if value is not None else None
+
+    def get_cancel_requested(self, obj):
+        return obj.cancel_requested_at is not None
+
+    def get_queued_behind_name(self, obj):
+        return obj.queued_behind.name if obj.queued_behind_id else ''
+
+    def get_replacement_id(self, obj):
+        row = next(iter(obj.queued_replacements.all()), None)
+        return row.pk if row else None
+
+    def get_replacement_name(self, obj):
+        row = next(iter(obj.queued_replacements.all()), None)
+        return row.name if row else ''
+
+    def get_requested_by_name(self, obj):
+        return obj.requested_by.full_name if obj.requested_by_id else ''
+
+    def get_approved_by_name(self, obj):
+        return obj.approved_by.full_name if obj.approved_by_id else ''
+
+    def get_purchased_by_name(self, obj):
+        return obj.purchased_by.full_name if obj.purchased_by_id else ''
+
+    def get_received_by_name(self, obj):
+        return obj.received_by.full_name if obj.received_by_id else ''
+
+    def get_cancel_requested_by_name(self, obj):
+        return obj.cancel_requested_by.full_name if obj.cancel_requested_by_id else ''
 
 
-class RestorationPartsOrderCreateSerializer(serializers.Serializer):
-    site_id = serializers.IntegerField(required=False, allow_null=True)
-    po_number = serializers.CharField(required=False, allow_blank=True, default='')
-    supplier_name = serializers.CharField(required=False, allow_blank=True, default='')
-    supplier_url = serializers.CharField(required=False, allow_blank=True, default='')
-    subtotal = serializers.DecimalField(max_digits=10, decimal_places=2)
-    shipping = serializers.DecimalField(max_digits=10, decimal_places=2, default=0)
-    tax = serializers.DecimalField(max_digits=10, decimal_places=2, default=0)
-    fees = serializers.DecimalField(max_digits=10, decimal_places=2, default=0)
-    ship_to_address = serializers.CharField(required=False, allow_blank=True, default='')
-    expected_delivery = serializers.DateField(required=False, allow_null=True)
-    line_ids = serializers.ListField(
-        child=serializers.IntegerField(min_value=1),
-        required=False,
-        allow_empty=True,
-    )
-    notes = serializers.CharField(required=False, allow_blank=True, default='')
-    lines = serializers.ListField(
-        child=serializers.DictField(),
-        required=False,
-        allow_empty=True,
-    )
+class RestorationPartsOrderWriteSerializer(serializers.Serializer):
+    job = serializers.IntegerField(required=False)
+    name = serializers.CharField(required=False)
+    target_grade = serializers.CharField(required=False, allow_blank=True)
+    shipping = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    tax = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    fees = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    lines = serializers.ListField(child=serializers.DictField(), required=False, allow_empty=False)
+
+
+class RestorationPartsOrderDenySerializer(serializers.Serializer):
+    reason = serializers.CharField()
+
+
+class RestorationPartsOrderPurchaseSerializer(serializers.Serializer):
+    est_shipping_days = serializers.IntegerField(min_value=0, required=False)
+    expected_delivery_on = serializers.DateField(required=False)
+
+    def validate(self, attrs):
+        if attrs.get('expected_delivery_on') is None and attrs.get('est_shipping_days') is None:
+            raise serializers.ValidationError('Say when it will arrive.')
+        return attrs
+
+
+class RestorationPartsOrderEtaSerializer(serializers.Serializer):
+    est_shipping_days = serializers.IntegerField(min_value=0, required=False)
+    expected_delivery_on = serializers.DateField(required=False)
+
+    def validate(self, attrs):
+        if attrs.get('expected_delivery_on') is None and attrs.get('est_shipping_days') is None:
+            raise serializers.ValidationError('Say the new delivery date.')
+        return attrs
+
+
+class RestorationPartsOrderLineInspectSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    verdict = serializers.ChoiceField(choices=['acceptable', 'issues'])
+    note = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class RestorationPartsOrderInspectSerializer(serializers.Serializer):
+    lines = RestorationPartsOrderLineInspectSerializer(many=True)
+
+
+class RestorationPartsOrderRequestCancelSerializer(serializers.Serializer):
+    replacement_id = serializers.IntegerField(required=False, allow_null=True)
+    reason = serializers.CharField(required=False, allow_blank=True)
+
+
+class RestorationPartsOrderResolveCancelSerializer(serializers.Serializer):
+    confirmed = serializers.BooleanField()
+    refunded = serializers.BooleanField(required=False, default=False)
 
 
 class RestorationJobCreateSerializer(serializers.Serializer):
@@ -2083,15 +2431,6 @@ class RestorationJobReturnSerializer(serializers.Serializer):
         required=False,
         allow_empty=False,
     )
-
-
-class RestorationJobTimerAdjustSerializer(serializers.Serializer):
-    active_seconds = serializers.IntegerField(min_value=0, max_value=86400)
-    reason = serializers.CharField(required=False, allow_blank=True, max_length=64, default='manual')
-
-
-class RestorationJobMeaningfulActionSerializer(serializers.Serializer):
-    label = serializers.CharField(required=False, allow_blank=True, max_length=128, default='TARS update')
 
 
 class RestorationJobSplitGroupSerializer(serializers.Serializer):

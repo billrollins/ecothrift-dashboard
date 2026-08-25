@@ -6,6 +6,7 @@
  * the part that changes what you do, so it travels with the count.
  */
 import type { TarsPartLine } from './tarsWorkTypes';
+import { partsLinesForRepairGrade } from './tarsPurchase';
 
 /** Statuses that mean the part is no longer part of the plan. */
 const DROPPED = new Set(['skipped']);
@@ -49,12 +50,12 @@ export function pointsAtCurrentGrade(part: TarsPartLine, currentGrade: string): 
   return partGrades(part).includes(currentGrade);
 }
 
-/** Parts needed on the way to one grade. */
+/** Parts needed on the way to one grade, including untagged repair lines. */
 export function partsForGrade(parts: TarsPartLine[] | undefined, grade: string): TarsPartLine[] {
-  return (parts ?? []).filter((p) => partGrades(p).includes(grade));
+  return partsLinesForRepairGrade(parts, grade);
 }
 
-/** What the parts for one grade come to. */
+/** What the Parts-section lines for one grade come to. FFE and Supplies are out. */
 export function partsCostForGrade(parts: TarsPartLine[] | undefined, grade: string): number {
-  return partsForGrade(parts, grade).reduce((sum, part) => sum + partLineCost(part), 0);
+  return partsLinesForRepairGrade(parts, grade).reduce((sum, part) => sum + partLineCost(part), 0);
 }

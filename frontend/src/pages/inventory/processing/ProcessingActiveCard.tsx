@@ -27,7 +27,6 @@ import {
 import { alpha } from '@mui/material/styles';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
 import { useAuth } from '../../../contexts/AuthContext';
 import {
@@ -1348,6 +1347,7 @@ export interface ProcessingActiveCardProps {
   /** Refetch workspace + row detail without leaving the page. */
   onRefreshDetail?: () => void;
   detailRefreshing?: boolean;
+  onRestorationCreated?: (jobId: number) => void;
 }
 
 export function ProcessingActiveCard({
@@ -1366,9 +1366,9 @@ export function ProcessingActiveCard({
   onScrollToHistoryDone,
   onRefreshDetail,
   detailRefreshing,
+  onRestorationCreated,
 }: ProcessingActiveCardProps) {
   const { enqueueSnackbar } = useSnackbar();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { confirm, ConfirmDialogHost } = useWorkbenchConfirmDialog();
   const retailPriceLock = useRetailPriceLock();
@@ -1781,10 +1781,7 @@ export function ProcessingActiveCard({
         }
       }
       if (payload.dispatch === 'restoration' && data.restoration_job_id) {
-        const from = `/inventory/processing/${orderId}`;
-        navigate(
-          `/inventory/restorations?lane=to&job=${data.restoration_job_id}&from=${encodeURIComponent(from)}`,
-        );
+        onRestorationCreated?.(data.restoration_job_id);
       }
       return true;
     } catch (err) {

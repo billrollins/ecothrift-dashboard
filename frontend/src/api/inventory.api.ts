@@ -18,6 +18,7 @@ import type {
   VendorProductRef,
   BatchGroup,
   ItemHistory,
+  ItemNoteDTO,
   ReceivingDetailDTO,
   ReceivingPatchPayload,
   ReceivingCompleteResponse,
@@ -25,6 +26,7 @@ import type {
   ProcessingWorkspacePatchDTO,
   RestorationJobDTO,
   RestorationJobCreateResultDTO,
+  RestorationScanLookupDTO,
   RestorationJobPatchPayload,
   RestorationJobReturnPayload,
   RestorationJobSplitPayload,
@@ -35,14 +37,18 @@ import type {
   RestorationDescribeActionPayload,
   RestorationStartActionPayload,
   RestorationJobDonePayload,
+  RestorationOutputDTO,
+  RestorationOutputCreateItemPayload,
+  RestorationJobProcessingCheckInPayload,
   RestorationJobQueueDetailsPayload,
   RestorationScoreboardDTO,
-  TarsTimerMode,
   RestorationTimelineEventDTO,
   RestorationTimelineEventType,
-  RestorationPartsRequestDTO,
+  RestorationPartDTO,
+  RestorationPartWritePayload,
   RestorationPartsOrderDTO,
-  RestorationPartsOrderCreatePayload,
+  RestorationPartsLineInspectPayload,
+  RestorationPartsOrderWritePayload,
   RestorationGradeScaleDTO,
   RestorationGradeScaleCreatePayload,
   RestorationGradeScaleSuggestParams,
@@ -2205,6 +2211,7 @@ export function fetchOrderDisputes(
 export function listRestorationJobs(params?: {
   stage?: string;
   valuation_pending?: boolean;
+  unhandled?: boolean;
   page?: number;
   page_size?: number;
 }): Promise<{ data: PaginatedResponse<RestorationJobDTO> }> {
@@ -2212,12 +2219,17 @@ export function listRestorationJobs(params?: {
     params: {
       ...params,
       ...(params?.valuation_pending ? { valuation_pending: '1' } : {}),
+      ...(params?.unhandled ? { unhandled: '1' } : {}),
     },
   });
 }
 
 export function getRestorationJob(id: number): Promise<{ data: RestorationJobDTO }> {
   return api.get(`/inventory/restoration-jobs/${id}/`);
+}
+
+export function lookupRestorationScan(q: string): Promise<{ data: RestorationScanLookupDTO }> {
+  return api.get('/inventory/restoration-jobs/lookup/', { params: { q } });
 }
 
 export function createRestorationJobFromSku(
@@ -2300,26 +2312,49 @@ export function voidRestorationTimelineEvent(
   return api.post(`/inventory/restoration-jobs/${jobId}/timeline/${eventId}/void/`, { reason });
 }
 
+export function forgetRestorationTimelineWords(
+  jobId: number,
+  eventId: number,
+): Promise<{ data: RestorationTimelineEventDTO }> {
+  return api.post(`/inventory/restoration-jobs/${jobId}/timeline/${eventId}/forget-words/`);
+}
+
+export function resetRestorationQueueNote(
+  jobId: number,
+  eventId: number,
+): Promise<{ data: RestorationTimelineEventDTO }> {
+  return api.post(`/inventory/restoration-jobs/${jobId}/timeline/${eventId}/reset-note/`);
+}
+
+export function clearRestorationNoteHistory(
+  jobId: number,
+): Promise<{ data: { cleared: number } }> {
+  return api.post(`/inventory/restoration-jobs/${jobId}/clear-note-history/`);
+}
+
+export function clearRestorationHistory(
+  jobId: number,
+): Promise<{ data: { actions: number; notes: number; scrubbed: number } }> {
+  return api.post(`/inventory/restoration-jobs/${jobId}/clear-history/`);
+}
+
 export function checkInRestorationJob(
   id: number,
   itemId?: number,
-  startTimer = true,
 ): Promise<{ data: RestorationJobDTO }> {
   return api.post(
     `/inventory/restoration-jobs/${id}/check-in/`,
-    {
-      ...(itemId != null ? { item_id: itemId } : {}),
-      start_timer: startTimer,
-    },
+    itemId != null ? { item_id: itemId } : {},
   );
 }
 
-/** Send an item back unfinished. The note says why it is coming back. */
+/** Send an item back unfinished. From the bench, reason is why you are not ready. */
 export function moveRestorationJobBackToQueue(
   id: number,
   note = '',
+  reason = '',
 ): Promise<{ data: RestorationJobDTO }> {
-  return api.post(`/inventory/restoration-jobs/${id}/move-back-to-queue/`, { note });
+  return api.post(`/inventory/restoration-jobs/${id}/move-back-to-queue/`, { note, reason });
 }
 
 export function holdRestorationJob(
@@ -2327,17 +2362,6 @@ export function holdRestorationJob(
   payload: RestorationJobHoldPayload,
 ): Promise<{ data: RestorationJobDTO }> {
   return api.post(`/inventory/restoration-jobs/${id}/hold/`, payload);
-}
-
-/**
- * Start or re-aim the clock. `mode` says what the seconds are for: `look`
- * charges the item, `work` charges the grade it is aimed at.
- */
-export function startRestorationJobTimer(
-  id: number,
-  aim?: { mode?: TarsTimerMode; grade?: string },
-): Promise<{ data: RestorationJobDTO }> {
-  return api.post(`/inventory/restoration-jobs/${id}/timer/start/`, aim ?? {});
 }
 
 export function getRestorationScoreboard(): Promise<{ data: RestorationScoreboardDTO }> {
@@ -2348,7 +2372,7 @@ export function getRestorationActions(id: number): Promise<{ data: RestorationAc
   return api.get(`/inventory/restoration-jobs/${id}/actions/`);
 }
 
-/** Point the clock at a piece of work, opening a new action if needed. */
+/** Open a piece of work, or resume the same scope if it is already open. */
 export function startRestorationAction(
   id: number,
   payload: RestorationStartActionPayload,
@@ -2356,7 +2380,7 @@ export function startRestorationAction(
   return api.post(`/inventory/restoration-jobs/${id}/start-action/`, payload);
 }
 
-/** Take back the action just opened, giving its time to the one before it. */
+/** Take back the action just opened. */
 export function undoRestorationAction(id: number): Promise<{ data: RestorationJobDTO }> {
   return api.post(`/inventory/restoration-jobs/${id}/undo-action/`, {});
 }
@@ -2368,12 +2392,32 @@ export function describeRestorationAction(
   return api.post(`/inventory/restoration-jobs/${id}/describe-action/`, payload);
 }
 
-/** Drop a row from the log; its time goes to the row below it. */
+/** Drop a row from the log. */
 export function deleteRestorationAction(
   id: number,
   actionId: number,
 ): Promise<{ data: RestorationJobDTO }> {
   return api.post(`/inventory/restoration-jobs/${id}/delete-action/`, { action_id: actionId });
+}
+
+export function getItemNotes(itemId: number): Promise<{ data: ItemNoteDTO[] }> {
+  return api.get(`/inventory/items/${itemId}/notes/`);
+}
+
+export function createItemNote(itemId: number, body: string): Promise<{ data: ItemNoteDTO }> {
+  return api.post(`/inventory/items/${itemId}/notes/`, { body });
+}
+
+export function getRestorationJobNotes(jobId: number): Promise<{ data: ItemNoteDTO[] }> {
+  return api.get(`/inventory/restoration-jobs/${jobId}/notes/`);
+}
+
+export function reviseItemNote(noteId: number, body: string): Promise<{ data: ItemNoteDTO }> {
+  return api.patch(`/inventory/item-notes/${noteId}/`, { body });
+}
+
+export function voidItemNote(noteId: number, reason: string): Promise<{ data: ItemNoteDTO }> {
+  return api.post(`/inventory/item-notes/${noteId}/void/`, { reason });
 }
 
 /** Queue context any staff member may fill in while the item is unfinished. */
@@ -2384,36 +2428,46 @@ export function patchRestorationQueueDetails(
   return api.patch(`/inventory/restoration-jobs/${id}/queue-details/`, payload);
 }
 
-export function pauseRestorationJobTimer(
-  id: number,
-  reason = 'manual',
-): Promise<{ data: RestorationJobDTO }> {
-  return api.post(`/inventory/restoration-jobs/${id}/timer/pause/`, { reason });
-}
-
-export function adjustRestorationJobTimer(
-  id: number,
-  activeSeconds: number,
-  reason = 'manual',
-): Promise<{ data: RestorationJobDTO }> {
-  return api.post(`/inventory/restoration-jobs/${id}/timer/adjust/`, {
-    active_seconds: activeSeconds,
-    reason,
-  });
-}
-
-export function markRestorationJobMeaningfulAction(
-  id: number,
-  label: string,
-): Promise<{ data: RestorationJobDTO }> {
-  return api.post(`/inventory/restoration-jobs/${id}/timer/meaningful-action/`, { label });
-}
-
 export function completeRestorationJob(
   id: number,
   payload: RestorationJobDonePayload,
 ): Promise<{ data: RestorationJobDTO }> {
   return api.post(`/inventory/restoration-jobs/${id}/done/`, payload);
+}
+
+export function rejectRestorationJob(
+  id: number,
+  payload: { reason: string },
+): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/reject/`, payload);
+}
+
+export function createRestorationOutputItem(
+  id: number,
+  payload: RestorationOutputCreateItemPayload,
+): Promise<{ data: RestorationOutputDTO }> {
+  return api.post(`/inventory/restoration-outputs/${id}/create-item/`, payload);
+}
+
+export function reopenRestorationJob(
+  id: number,
+  payload: { note: string },
+): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/reopen/`, payload);
+}
+
+export function fixRestorationFinish(
+  id: number,
+  payload: RestorationJobDonePayload,
+): Promise<{ data: RestorationJobDTO }> {
+  return api.post(`/inventory/restoration-jobs/${id}/fix-finish/`, payload);
+}
+
+export function processingCheckInRestorationJob(
+  id: number,
+  payload: RestorationJobProcessingCheckInPayload,
+): Promise<{ data: RestorationJobDTO & { printed_items_preview?: PrintedItemPreview[] } }> {
+  return api.post(`/inventory/restoration-jobs/${id}/processing-check-in/`, payload);
 }
 
 export function listRestorationReturns(): Promise<{ data: RestorationJobDTO[] }> {
@@ -2429,44 +2483,142 @@ export function markRestorationJobHandled(id: number): Promise<{ data: Restorati
   return api.post(`/inventory/restoration-jobs/${id}/mark-handled/`);
 }
 
-export function listRestorationPartsRequests(params?: {
-  status?: string;
+export function listRestorationParts(params?: {
   job?: number;
   page?: number;
   page_size?: number;
-}): Promise<{ data: PaginatedResponse<RestorationPartsRequestDTO> }> {
-  return api.get('/inventory/restoration-parts-requests/', { params });
+}): Promise<{ data: PaginatedResponse<RestorationPartDTO> }> {
+  return api.get('/inventory/restoration-parts/', { params });
 }
 
-export function getRestorationPartsRequest(id: number): Promise<{ data: RestorationPartsRequestDTO }> {
-  return api.get(`/inventory/restoration-parts-requests/${id}/`);
+export function createRestorationPart(
+  payload: RestorationPartWritePayload,
+): Promise<{ data: RestorationPartDTO }> {
+  return api.post('/inventory/restoration-parts/', payload);
 }
 
-export function upsertRestorationPartsRequestFromJob(
-  jobId: number,
-  payload: { grade?: string; eval_snapshot?: Record<string, unknown> },
-  submit = false,
-): Promise<{ data: RestorationPartsRequestDTO }> {
-  return api.post(
-    `/inventory/restoration-parts-requests/upsert-from-job/${jobId}/`,
-    payload,
-    { params: submit ? { submit: 'true' } : undefined },
-  );
+export function updateRestorationPart(
+  id: number,
+  payload: RestorationPartWritePayload,
+): Promise<{ data: RestorationPartDTO }> {
+  return api.patch(`/inventory/restoration-parts/${id}/`, payload);
 }
 
-export function submitRestorationPartsRequest(id: number): Promise<{ data: RestorationPartsRequestDTO }> {
-  return api.post(`/inventory/restoration-parts-requests/${id}/submit/`);
+export function deleteRestorationPart(id: number): Promise<void> {
+  return api.delete(`/inventory/restoration-parts/${id}/`);
 }
 
-export function receiveRestorationPartsRequest(id: number): Promise<{ data: RestorationPartsRequestDTO }> {
-  return api.post(`/inventory/restoration-parts-requests/${id}/receive/`);
+export function listRestorationPartsOrders(params?: {
+  job?: number;
+  status?: string;
+  open?: boolean;
+  needs_review?: boolean;
+  cancel_requested?: boolean;
+  bucket?: 'live' | 'history';
+  since?: string;
+  page?: number;
+  page_size?: number;
+}): Promise<{ data: PaginatedResponse<RestorationPartsOrderDTO> }> {
+  const query: Record<string, string | number> = {};
+  if (params?.job != null) query.job = params.job;
+  if (params?.status) query.status = params.status;
+  if (params?.open) query.open = '1';
+  if (params?.needs_review) query.needs_review = '1';
+  if (params?.cancel_requested) query.cancel_requested = '1';
+  if (params?.bucket) query.bucket = params.bucket;
+  if (params?.since) query.since = params.since;
+  if (params?.page != null) query.page = params.page;
+  if (params?.page_size != null) query.page_size = params.page_size;
+  return api.get('/inventory/restoration-parts-orders/', { params: query });
 }
 
-export function recordRestorationPartsOrder(
-  requestId: number,
-  payload: RestorationPartsOrderCreatePayload,
+export function getRestorationPartsOrder(id: number): Promise<{ data: RestorationPartsOrderDTO }> {
+  return api.get(`/inventory/restoration-parts-orders/${id}/`);
+}
+
+export function createRestorationPartsOrder(
+  payload: RestorationPartsOrderWritePayload,
 ): Promise<{ data: RestorationPartsOrderDTO }> {
-  return api.post(`/inventory/restoration-parts-requests/${requestId}/record-order/`, payload);
+  return api.post('/inventory/restoration-parts-orders/', payload);
+}
+
+export function updateRestorationPartsOrder(
+  id: number,
+  payload: RestorationPartsOrderWritePayload,
+): Promise<{ data: RestorationPartsOrderDTO }> {
+  return api.patch(`/inventory/restoration-parts-orders/${id}/`, payload);
+}
+
+export function requestRestorationPartsOrder(
+  id: number,
+  payload?: { target_grade?: string },
+): Promise<{ data: RestorationPartsOrderDTO }> {
+  return api.post(`/inventory/restoration-parts-orders/${id}/request/`, payload ?? {});
+}
+
+export function withdrawRestorationPartsOrder(id: number): Promise<{ data: RestorationPartsOrderDTO }> {
+  return api.post(`/inventory/restoration-parts-orders/${id}/withdraw/`);
+}
+
+export function requestCancelRestorationPartsOrder(
+  id: number,
+  payload?: { replacement_id?: number | null; reason?: string },
+): Promise<{ data: RestorationPartsOrderDTO }> {
+  return api.post(`/inventory/restoration-parts-orders/${id}/request-cancel/`, payload ?? {});
+}
+
+export function dropQueueRestorationPartsOrder(id: number): Promise<{ data: RestorationPartsOrderDTO }> {
+  return api.post(`/inventory/restoration-parts-orders/${id}/drop-queue/`);
+}
+
+export function resolveCancelRestorationPartsOrder(
+  id: number,
+  payload: { confirmed: boolean; refunded?: boolean },
+): Promise<{ data: RestorationPartsOrderDTO }> {
+  return api.post(`/inventory/restoration-parts-orders/${id}/resolve-cancel/`, payload);
+}
+
+export function cancelRestorationPartsOrder(
+  id: number,
+  payload?: { refunded?: boolean },
+): Promise<{ data: RestorationPartsOrderDTO }> {
+  return api.post(`/inventory/restoration-parts-orders/${id}/cancel/`, payload ?? {});
+}
+
+export function approveRestorationPartsOrder(id: number): Promise<{ data: RestorationPartsOrderDTO }> {
+  return api.post(`/inventory/restoration-parts-orders/${id}/approve/`);
+}
+
+export function denyRestorationPartsOrder(
+  id: number,
+  reason: string,
+): Promise<{ data: RestorationPartsOrderDTO }> {
+  return api.post(`/inventory/restoration-parts-orders/${id}/deny/`, { reason });
+}
+
+export function purchaseRestorationPartsOrder(
+  id: number,
+  payload: { est_shipping_days?: number; expected_delivery_on?: string },
+): Promise<{ data: RestorationPartsOrderDTO }> {
+  return api.post(`/inventory/restoration-parts-orders/${id}/purchase/`, payload);
+}
+
+export function reviseRestorationPartsOrderEta(
+  id: number,
+  payload: { est_shipping_days?: number; expected_delivery_on?: string },
+): Promise<{ data: RestorationPartsOrderDTO }> {
+  return api.post(`/inventory/restoration-parts-orders/${id}/eta/`, payload);
+}
+
+export function receiveRestorationPartsOrder(id: number): Promise<{ data: RestorationPartsOrderDTO }> {
+  return api.post(`/inventory/restoration-parts-orders/${id}/receive/`);
+}
+
+export function inspectRestorationPartsOrder(
+  id: number,
+  lines: RestorationPartsLineInspectPayload[],
+): Promise<{ data: RestorationPartsOrderDTO }> {
+  return api.post(`/inventory/restoration-parts-orders/${id}/inspect/`, { lines });
 }
 
 export function listRestorationGradeScales(): Promise<{ data: RestorationGradeScaleDTO[] }> {

@@ -2,8 +2,8 @@
  * Where warnings live.
  *
  * Nothing that needs saying is allowed to mount into the page and push the work
- * down. Conditions collect behind a badge in the header and are read on demand,
- * so the surface under them never moves.
+ * down. Conditions collect behind a lamp on the command deck and are read from
+ * a top drawer, so the surface under them never moves.
  */
 import Badge from '@mui/material/Badge';
 import Box from '@mui/material/Box';
@@ -12,6 +12,7 @@ import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import Close from '@mui/icons-material/Close';
 import NotificationsNone from '@mui/icons-material/NotificationsNone';
 
 export type StudioNoticeTone = 'warning' | 'error' | 'info';
@@ -32,9 +33,14 @@ const TONES: Record<StudioNoticeTone, { color: string; bg: string; border: strin
 export function StudioNoticeButton({
   notices,
   onOpen,
+  tone = 'dark',
+  inset = false,
 }: {
   notices: StudioNotice[];
   onOpen: () => void;
+  tone?: 'dark' | 'light';
+  /** Keep the count inside the button so a parent overflow cannot crop it. */
+  inset?: boolean;
 }) {
   const worst = notices.some((n) => n.tone === 'error') ? 'error' : 'warning';
   return (
@@ -44,12 +50,32 @@ export function StudioNoticeButton({
           onClick={onOpen}
           size="small"
           aria-label={`Notices (${notices.length})`}
-          sx={{ color: notices.length > 0 ? '#ffd9a3' : '#7d8ea6' }}
+          sx={{
+            width: inset ? 32 : undefined,
+            height: inset ? 32 : undefined,
+            color: notices.length > 0
+              ? tone === 'light' ? '#ed6c02' : '#ffd9a3'
+              : tone === 'light' ? '#64748b' : '#7d8ea6',
+          }}
         >
           <Badge
             badgeContent={notices.length}
             color={worst === 'error' ? 'error' : 'warning'}
             overlap="circular"
+            sx={
+              inset
+                ? {
+                    '& .MuiBadge-badge': {
+                      top: 4,
+                      right: 4,
+                      minWidth: 14,
+                      height: 14,
+                      fontSize: '0.62rem',
+                      padding: '0 4px',
+                    },
+                  }
+                : undefined
+            }
           >
             <NotificationsNone sx={{ fontSize: 21 }} />
           </Badge>
@@ -69,14 +95,46 @@ export function StudioNoticeDrawer({
   onClose: () => void;
 }) {
   return (
-    <Drawer anchor="right" open={open} onClose={onClose} PaperProps={{ sx: { width: 380, maxWidth: '92vw' } }}>
-      <Box sx={{ px: 1.75, py: 1.35, borderBottom: '1px solid #e2e8f0' }}>
-        <Typography sx={{ fontWeight: 900, fontSize: '0.95rem' }}>Needs attention</Typography>
+    <Drawer
+      anchor="top"
+      open={open}
+      onClose={onClose}
+      PaperProps={{
+        sx: {
+          maxHeight: 'min(420px, 48vh)',
+          bgcolor: '#111c2e',
+          color: '#f8fafc',
+          borderBottom: '1px solid #1e2f46',
+          boxShadow: '0 16px 40px rgba(15, 23, 42, 0.28)',
+        },
+      }}
+    >
+      <Box
+        sx={{
+          px: { xs: 1.75, md: 3 },
+          py: 1.35,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: '1px solid #1e2f46',
+        }}
+      >
+        <Box>
+          <Typography sx={{ fontWeight: 800, fontSize: '0.62rem', letterSpacing: 1.2, color: '#7d8ea6' }}>
+            NOTICES
+          </Typography>
+          <Typography sx={{ fontWeight: 800, fontSize: '1.05rem', letterSpacing: '-0.02em' }}>
+            {notices.length === 0 ? 'Nothing needs attention' : `${notices.length} to review`}
+          </Typography>
+        </Box>
+        <IconButton aria-label="Close notices" onClick={onClose} sx={{ color: '#91a4bc' }}>
+          <Close />
+        </IconButton>
       </Box>
-      <Box sx={{ p: 1.5, flex: 1, overflowY: 'auto' }}>
+      <Box sx={{ px: { xs: 1.75, md: 3 }, py: 1.75, overflowY: 'auto' }}>
         {notices.length === 0 ? (
-          <Typography sx={{ color: '#94a3b8', fontSize: '0.85rem' }}>
-            Nothing needs attention.
+          <Typography sx={{ color: '#7d8ea6', fontSize: '0.85rem', minHeight: 48 }}>
+            Standing conditions will land here. The bench under this drawer does not move.
           </Typography>
         ) : (
           <Stack spacing={1}>
@@ -86,17 +144,17 @@ export function StudioNoticeDrawer({
                 <Box
                   key={notice.id}
                   sx={{
-                    px: 1.25,
-                    py: 1,
-                    borderRadius: '8px',
+                    px: 1.5,
+                    py: 1.15,
+                    borderRadius: '10px',
                     bgcolor: tone.bg,
                     border: `1px solid ${tone.border}`,
                   }}
                 >
-                  <Typography sx={{ fontWeight: 900, fontSize: '0.82rem', color: tone.color }}>
+                  <Typography sx={{ fontWeight: 800, fontSize: '0.86rem', color: tone.color }}>
                     {notice.title}
                   </Typography>
-                  <Typography sx={{ fontSize: '0.78rem', color: '#334155', mt: 0.2 }}>
+                  <Typography sx={{ fontSize: '0.8rem', color: '#334155', mt: 0.25 }}>
                     {notice.detail}
                   </Typography>
                 </Box>

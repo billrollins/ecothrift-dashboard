@@ -1,5 +1,6 @@
-import { Box, ListItemButton, ListItemIcon, ListItemText, Typography } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { ListItemButton, ListItemIcon, ListItemText, Typography } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
+import { NavWaitingBadge } from './NavWaitingBadge';
 import type { ResolvedNavItem } from './navTypes';
 
 interface NavItemRowProps {
@@ -7,14 +8,27 @@ interface NavItemRowProps {
   isActive: boolean;
   onClick: () => void;
   iconTint?: string;
+  /** Workspace jump-letter colour. On hover the icon glows this; omitted for Essentials. */
+  glowColor?: string;
   /** Work waiting behind this link; hidden when zero. */
   badgeCount?: number;
 }
 
-export function NavItemRow({ item, isActive, onClick, iconTint, badgeCount }: NavItemRowProps) {
+/** Essentials have no letter: hover just brightens the slate icon. */
+const ESSENTIALS_HOVER_ICON = '#475569';
+
+export function NavItemRow({
+  item,
+  isActive,
+  onClick,
+  iconTint,
+  glowColor,
+  badgeCount,
+}: NavItemRowProps) {
   const theme = useTheme();
   const inactiveIconColor = iconTint ?? theme.palette.text.secondary;
   const Icon = item.Icon;
+  const hoverIconColor = glowColor ?? ESSENTIALS_HOVER_ICON;
 
   return (
     <ListItemButton
@@ -30,11 +44,22 @@ export function NavItemRow({ item, isActive, onClick, iconTint, badgeCount }: Na
         pl: 1.75,
         pr: 1.25,
         position: 'relative',
+        overflow: 'visible',
         transition: theme.transitions.create('background-color', {
           duration: 120,
           easing: theme.transitions.easing.easeInOut,
         }),
-        ...(!isActive && { '&:hover': { bgcolor: '#F8FAFC' } }),
+        ...(!isActive && {
+          '&:hover': { bgcolor: 'transparent' },
+          '&:hover .MuiListItemIcon-root': { color: hoverIconColor },
+          ...(glowColor
+            ? {
+                '&:hover .MuiSvgIcon-root': {
+                  filter: `drop-shadow(0 0 2px ${alpha(glowColor, 0.4)})`,
+                },
+              }
+            : {}),
+        }),
         ...(isActive && {
           bgcolor: '#F8FAFC',
           '&:hover': { bgcolor: '#F1F5F9' },
@@ -59,8 +84,20 @@ export function NavItemRow({ item, isActive, onClick, iconTint, badgeCount }: Na
         sx={{
           minWidth: 40,
           flexShrink: 0,
+          overflow: 'visible',
           color: isActive ? theme.palette.primary.main : inactiveIconColor,
-          '& .MuiSvgIcon-root': { fontSize: 20 },
+          transition: theme.transitions.create('color', {
+            duration: 120,
+            easing: theme.transitions.easing.easeInOut,
+          }),
+          '& .MuiSvgIcon-root': {
+            fontSize: 20,
+            overflow: 'visible',
+            transition: theme.transitions.create('filter', {
+              duration: 120,
+              easing: theme.transitions.easing.easeInOut,
+            }),
+          },
         }}
       >
         <Icon />
@@ -81,27 +118,7 @@ export function NavItemRow({ item, isActive, onClick, iconTint, badgeCount }: Na
         sx={{ minWidth: 0, my: 0 }}
       />
       {badgeCount ? (
-        <Box
-          component="span"
-          aria-label={`${badgeCount} waiting`}
-          sx={{
-            ml: 0.5,
-            mr: 0.5,
-            flexShrink: 0,
-            minWidth: 18,
-            height: 18,
-            px: 0.5,
-            borderRadius: 999,
-            bgcolor: theme.palette.error.main,
-            color: theme.palette.error.contrastText,
-            fontSize: '0.6875rem',
-            fontWeight: 700,
-            lineHeight: '18px',
-            textAlign: 'center',
-          }}
-        >
-          {badgeCount > 99 ? '99+' : badgeCount}
-        </Box>
+        <NavWaitingBadge count={badgeCount} />
       ) : null}
     </ListItemButton>
   );

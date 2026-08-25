@@ -3,9 +3,11 @@ import { normalizeBenchPlan } from './tarsBenchPlan';
 import { normalizeDecisionWork } from './tarsDecisionEngine';
 import { createEmptyWorkSession } from './tarsWorkRollup';
 import type { TarsItem, TarsDisplaySource } from './tarsTypes';
+import { normalizePending } from './tarsHold';
+import { normalizePurchaseSection } from './tarsPurchase';
 import type {
+  TarsPartLine,
   TarsPendingInfo,
-  TarsPendingReason,
   TarsWorkSession,
   TarsWorkState,
 } from './tarsWorkTypes';
@@ -25,13 +27,15 @@ function parseMoney(value: string | null | undefined): number | undefined {
 }
 
 function pendingFromJob(job: RestorationJobDTO): TarsPendingInfo | undefined {
-  if (job.stage !== 'pending' || !job.pending_reason) return undefined;
-  return {
-    reason: job.pending_reason as TarsPendingReason,
-    notes: job.pending_notes ?? '',
-    storageLocation: job.pending_storage_location ?? '',
-    pendingStartedAt: job.pending_started_at ?? '',
-  };
+  if (job.stage !== 'pending') return undefined;
+  const raw = (job.work_session as { pending?: unknown } | null | undefined)?.pending;
+  return normalizePending(
+    raw,
+    job.pending_reason ?? '',
+    job.pending_notes ?? '',
+    job.pending_storage_location ?? '',
+    job.pending_started_at ?? '',
+  );
 }
 
 export function normalizeWorkSession(
@@ -52,7 +56,13 @@ export function normalizeWorkSession(
   return {
     workState,
     selectedGrade: typeof raw.selectedGrade === 'string' ? raw.selectedGrade : null,
-    parts: Array.isArray(raw.parts) ? raw.parts : [],
+    parts: Array.isArray(raw.parts)
+      ? raw.parts.flatMap((part) => {
+          if (!part || typeof part !== 'object') return [];
+          const line = part as TarsPartLine;
+          return [{ ...line, section: normalizePurchaseSection(line.section) }];
+        })
+      : [],
     orders: Array.isArray(raw.orders) ? raw.orders : [],
     gradePlans:
       typeof raw.gradePlans === 'object' && raw.gradePlans !== null && !Array.isArray(raw.gradePlans)
@@ -153,42 +163,19 @@ export function restorationJobToTarsItem(job: RestorationJobDTO): TarsItem {
   };
 }
 
-export function formatElapsed(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
-
-/** Always HH:MM:SS - for stopwatch display. */
-export function formatStopwatch(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
-
-export function liveElapsedSeconds(job: RestorationJobDTO, nowMs = Date.now()): number {
-  let total = job.active_seconds ?? job.elapsed_seconds ?? 0;
-  if (job.timer_is_running && job.timer_started_at) {
-    const started = new Date(job.timer_started_at).getTime();
-    if (Number.isFinite(started)) {
-      total += Math.max(0, Math.floor((nowMs - started) / 1000));
-    }
-  }
-  return total;
-}
-
-export function myRunningRestorationJob(
-  jobs: RestorationJobDTO[],
+export function isForeignBench(
+  job: Pick<RestorationJobDTO, 'stage' | 'bench_owner_id'> | null | undefined,
   userId: number | undefined,
-): RestorationJobDTO | null {
-  if (userId == null) return null;
-  return jobs.find((j) => j.timer_is_running && j.timer_started_by_id === userId) ?? null;
+): boolean {
+  return Boolean(
+    job?.stage === 'bench' &&
+      job.bench_owner_id != null &&
+      userId != null &&
+      job.bench_owner_id !== userId,
+  );
 }
 
-/** Most recent on-bench job this user had a timer on (running or paused). */
+/** Most recent on-bench job this user owns. */
 export function myActiveBenchRestorationJob(
   benchJobs: RestorationJobDTO[],
   userId: number | undefined,
@@ -197,11 +184,8 @@ export function myActiveBenchRestorationJob(
   let best: RestorationJobDTO | null = null;
   let bestStarted = 0;
   for (const job of benchJobs) {
-    const owned =
-      job.bench_owner_id === userId
-      || (job.bench_owner_id == null && job.timer_started_by_id === userId);
-    if (job.stage !== 'bench' || !owned) continue;
-    const started = new Date(job.timer_started_at ?? job.bench_started_at ?? job.updated_at).getTime();
+    if (job.stage !== 'bench' || job.bench_owner_id !== userId) continue;
+    const started = new Date(job.bench_started_at ?? job.updated_at).getTime();
     if (!Number.isFinite(started)) {
       if (best == null) best = job;
       continue;

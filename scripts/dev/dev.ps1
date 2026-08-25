@@ -310,6 +310,7 @@ function Start-DevWindow {
     return Start-Process -FilePath 'cmd.exe' `
         -ArgumentList '/k', $inner `
         -WorkingDirectory $WorkDir `
+        -WindowStyle Minimized `
         -PassThru
 }
 

@@ -123,8 +123,6 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def clock_out(self, request, pk=None):
         """Clock out: set clock_out time and compute total_hours."""
-        from apps.inventory.services.restoration_bench import pause_running_restoration_timer_for_user
-
         entry = self.get_object()
         if entry.clock_out:
             return Response(
@@ -133,34 +131,24 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
             )
         if entry.on_break:
             entry.finalize_open_break()
-        paused_timer = pause_running_restoration_timer_for_user(request.user, reason='clock_out')
         entry.clock_out = timezone.now()
         if 'break_minutes' in request.data:
             entry.break_minutes = request.data.get('break_minutes', entry.break_minutes)
         entry.save()
-        payload = TimeEntrySerializer(entry).data
-        if paused_timer is not None:
-            payload['restoration_timer_paused_job_id'] = paused_timer.pk
-        return Response(payload)
+        return Response(TimeEntrySerializer(entry).data)
 
     @action(detail=True, methods=['post'])
     def start_break(self, request, pk=None):
         """Start an unpaid break on the active shift."""
-        from apps.inventory.services.restoration_bench import pause_running_restoration_timer_for_user
-
         entry = self.get_object()
         if entry.clock_out:
             return Response({'detail': 'Shift already ended.'}, status=status.HTTP_400_BAD_REQUEST)
         if entry.on_break:
             return Response({'detail': 'Already on break.'}, status=status.HTTP_400_BAD_REQUEST)
-        paused_timer = pause_running_restoration_timer_for_user(request.user, reason='start_break')
         entry.on_break = True
         entry.break_started_at = timezone.now()
         entry.save(update_fields=['on_break', 'break_started_at', 'updated_at'])
-        payload = TimeEntrySerializer(entry).data
-        if paused_timer is not None:
-            payload['restoration_timer_paused_job_id'] = paused_timer.pk
-        return Response(payload)
+        return Response(TimeEntrySerializer(entry).data)
 
     @action(detail=True, methods=['post'])
     def end_break(self, request, pk=None):

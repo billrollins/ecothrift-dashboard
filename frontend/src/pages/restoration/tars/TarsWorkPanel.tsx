@@ -1,14 +1,8 @@
 /**
- * What you are doing right now, and what has been done to the row you are
- * reading.
+ * What you are doing right now.
  *
- * The clock is always attached to exactly one action, shown at the top with its
- * category and a description you type as you go.
- *
- * Below it is one scope's activity, not the whole item's. Everything grouped by
- * scope was a wall of headings you had to read past to find the two lines that
- * mattered; picking a row in the grade table and seeing just its history is the
- * same information asked a question. The whole item's record is one tab over.
+ * One action is open at a time, shown at the top with its category and a
+ * description you type as you go. Actions are on the item, not on a grade.
  *
  * The description is the one thing this screen insists on. An action nobody
  * described is a hole in the record, so until it is filled in the buttons that
@@ -19,7 +13,7 @@ import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import type {
   RestorationActionCategory,
   RestorationActionDTO,
@@ -27,72 +21,80 @@ import type {
 } from '../../../types/inventory.types';
 import {
   ACTION_CATEGORIES,
+  DEFAULT_CATEGORY,
   actionScopeLabel,
   actionsForScope,
   categoryMeta,
-  formatDuration,
+  claimCannedActionEnter,
 } from './tarsActions';
+import { PressPicker, type PressPaint } from './studio/PressPicker';
+import { PANEL, RADIUS, TYPE } from './studio/benchScale';
 import { studio } from './studio/tarsStudioTheme';
 
+const ACTION_TYPE_IDS = ACTION_CATEGORIES.map((category) => category.id);
+
+function actionTypePaint(id: RestorationActionCategory): PressPaint {
+  const meta = categoryMeta(id);
+  return {
+    bgcolor: meta.soft,
+    border: meta.border,
+    color: meta.color,
+    strong: meta.color,
+    onStrong: '#ffffff',
+  };
+}
+
 /**
- * What the current-action card occupies: header row, category chips, and a
- * two-row description. Both states of that slot claim it, so the list below
- * sits at the same height whether or not the clock is on something.
+ * What the current-action card occupies: one combined type-and-description
+ * field. Both states of that slot claim it, so the list below sits at the
+ * same height whether or not an action is open.
  */
-const CURRENT_ACTION_HEIGHT = 150;
+export const CURRENT_ACTION_HEIGHT = 80;
 
 export function TarsWorkPanel({
   data,
-  running,
   busy,
   scope,
   onDescribe,
-  onNewAction,
   onUndo,
 }: {
   data: RestorationActionsDTO | undefined;
-  running: boolean;
   busy?: boolean;
   /** Whose activity to show below: a grade, or '' for the item as a whole. */
   scope: string;
   onDescribe: (actionId: number, patch: { description?: string; category?: RestorationActionCategory }) => void;
-  /** Open a fresh action on the same scope the current one is on. */
-  onNewAction: (grade: string) => void;
-  /** Delete the current action, giving its time back to the one before it. */
+  /** Delete the current action. */
   onUndo?: () => void;
 }) {
   const actions = data?.results ?? [];
   const current = actions.find((a) => a.id === data?.current_action_id) ?? null;
   const scoped = actionsForScope(actions, scope);
-  const scopeSeconds = scoped.reduce((sum, a) => sum + (a.seconds || 0), 0);
 
   return (
     <Stack spacing={1} sx={{ minWidth: 0, height: '100%' }}>
       {current ? (
         <CurrentAction
           action={current}
-          running={running}
           busy={busy}
           canUndo={actions.length > 1}
           onDescribe={onDescribe}
-          onNewAction={onNewAction}
           onUndo={onUndo}
         />
       ) : (
         <Box
           sx={{
-            px: 1.5,
-            py: 1.5,
+            px: 1,
+            py: 1,
             // Holds the space the action card will take, so starting work does
             // not shove the activity list down the screen.
             minHeight: CURRENT_ACTION_HEIGHT,
-            borderRadius: `${studio.radius.lg}px`,
-            border: `1px dashed ${studio.panelBorder}`,
-            color: '#94a3b8',
+            borderRadius: `${RADIUS.md}px`,
+            border: `1px dashed ${PANEL.borderStrong}`,
+            color: PANEL.inkMuted,
           }}
         >
-          <Typography sx={{ fontSize: '0.82rem', fontWeight: 700 }}>
-            Nothing is being worked. Press Work on a grade, or on the item.
+          <Typography sx={{ ...TYPE.value, color: PANEL.inkMuted }}>
+            Log an action
           </Typography>
         </Box>
       )}
@@ -100,9 +102,6 @@ export function TarsWorkPanel({
       <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mb: 0.5, px: 0.25 }}>
           <ScopeTag grade={scope} />
-          <Typography sx={{ fontFamily: 'monospace', fontSize: '0.72rem', fontWeight: 900, color: '#64748b' }}>
-            {formatDuration(scopeSeconds)}
-          </Typography>
           <Typography sx={{ fontSize: '0.68rem', color: '#a3b0c0' }}>
             {scoped.length === 1 ? '1 action' : `${scoped.length} actions`}
           </Typography>
@@ -124,189 +123,244 @@ export function TarsWorkPanel({
   );
 }
 
-function CurrentAction({
+export function CurrentAction({
   action,
-  running,
   busy,
   canUndo,
   onDescribe,
-  onNewAction,
+  onEnter,
+  onChangeCategory,
   onUndo,
 }: {
   action: RestorationActionDTO;
-  running: boolean;
   busy?: boolean;
   canUndo: boolean;
   onDescribe: (actionId: number, patch: { description?: string; category?: RestorationActionCategory }) => void;
-  onNewAction: (grade: string) => void;
+  /** File this sitting and open the next. The Enter button and the Enter key. */
+  onEnter?: (description: string) => void;
+  onChangeCategory?: (category: RestorationActionCategory) => void;
   onUndo?: () => void;
 }) {
   const meta = categoryMeta(action.category);
   const described = action.is_described;
+  const composerRef = useRef<ActionComposerHandle>(null);
+
+  useEffect(() => {
+    if (!onEnter || busy) return;
+    if (!claimCannedActionEnter(action.id, action.description)) return;
+    onEnter(action.description);
+  }, [action.description, action.id, busy, onEnter]);
 
   return (
     <Box
       sx={{
-        px: 1.5,
-        py: 1.25,
+        px: 1,
+        py: 0.75,
         minHeight: CURRENT_ACTION_HEIGHT,
-        borderRadius: `${studio.radius.lg}px`,
+        borderRadius: `${RADIUS.md}px`,
         bgcolor: studio.panel,
-        // Colour, never width: an undescribed action must not resize its card.
-        border: `1px solid ${described ? studio.panelBorder : '#e3b23c'}`,
-        borderLeft: `5px solid ${meta.color}`,
-        boxShadow: studio.panelShadow,
+        // Colour, never width: undescribed uses the type's own edge, not a
+        // second yellow that fights Inspect's teal.
+        border: `1px solid ${described ? PANEL.border : meta.border}`,
+        borderLeft: `3px solid ${meta.color}`,
+        boxShadow: 'none',
       }}
     >
-      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 0.85 }}>
-        <Typography sx={{ fontSize: '0.62rem', fontWeight: 900, letterSpacing: 0.5, color: '#94a3b8' }}>
-          {running ? 'WORKING ON' : 'STOPPED ON'}
-        </Typography>
-        <ScopeTag grade={action.grade} />
-        <Typography sx={{ fontFamily: 'monospace', fontSize: '0.8rem', fontWeight: 900, color: '#334155' }}>
-          {formatDuration(action.seconds)}
-        </Typography>
-
-        <Box sx={{ flex: 1, minWidth: 8 }} />
-
-        {onUndo ? (
+      <Stack direction="row" spacing={0.75} alignItems="flex-start" sx={{ minHeight: 56 }}>
+        <ActionComposer
+          ref={composerRef}
+          action={action}
+          busy={busy}
+          onDescribe={onDescribe}
+          onEnter={onEnter}
+          onChangeCategory={onChangeCategory}
+        />
+        <Stack spacing={0.4} sx={{ width: 52, flexShrink: 0, alignItems: 'stretch' }}>
           <Tooltip
             arrow
             title={
               canUndo
-                ? 'Wrong row? Delete this action and give its time back to the one before it.'
+                ? 'Wrong row? Delete this action.'
                 : 'There is nothing before this to go back to.'
             }
           >
             <span>
-              <SmallButton disabled={busy || !canUndo} onClick={onUndo}>
+              <SmallButton disabled={busy || !canUndo || !onUndo} onClick={onUndo}>
                 Undo
               </SmallButton>
             </span>
           </Tooltip>
-        ) : null}
-
-        <Tooltip
-          arrow
-          title={described ? 'Start a fresh action on this same scope' : 'Say what you did first'}
-        >
-          <span>
-            <SmallButton disabled={busy || !described} onClick={() => onNewAction(action.grade)}>
-              {`New action on ${actionScopeLabel(action.grade)}`}
-            </SmallButton>
-          </span>
-        </Tooltip>
-      </Stack>
-
-      <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mb: 0.85 }}>
-        {ACTION_CATEGORIES.map((category) => {
-          const active = category.id === action.category;
-          return (
-            <Tooltip key={category.id} arrow title={category.hint}>
-              <Box
-                component="button"
-                type="button"
+          <Tooltip arrow title="File this action and start the next. Shift+Enter or Ctrl+Enter for a new line.">
+            <span>
+              <SmallButton
                 disabled={busy}
-                onClick={() => onDescribe(action.id, { category: category.id })}
-                sx={{
-                  px: 1,
-                  py: 0.35,
-                  cursor: 'pointer',
-                  fontSize: '0.73rem',
-                  fontWeight: 900,
-                  borderRadius: `${studio.radius.sm}px`,
-                  border: `1px solid ${active ? category.color : '#e2e8f0'}`,
-                  bgcolor: active ? category.color : '#ffffff',
-                  color: active ? '#ffffff' : '#64748b',
-                  '&:hover:not(:disabled)': { borderColor: category.color },
-                }}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => composerRef.current?.enter()}
               >
-                {category.label}
-              </Box>
-            </Tooltip>
-          );
-        })}
+                Enter
+              </SmallButton>
+            </span>
+          </Tooltip>
+        </Stack>
       </Stack>
-
-      <DescriptionField
-        actionId={action.id}
-        value={action.description}
-        busy={busy}
-        onCommit={(description) => onDescribe(action.id, { description })}
-      />
     </Box>
   );
 }
 
+type ActionComposerHandle = { enter: () => void };
+
 /**
- * What you did, and how it went.
- *
- * Saves when you leave it rather than on every keystroke — this gets typed
- * mid-teardown, often one-handed, and a request per character would be both
- * wasteful and distracting.
+ * Type and description are one field: [Inspect | what you did].
+ * The type key stretches with the note. Saves the words when you leave.
  */
-function DescriptionField({
-  actionId,
-  value,
-  busy,
-  onCommit,
-}: {
-  actionId: number;
-  value: string;
+const ActionComposer = forwardRef<ActionComposerHandle, {
+  action: RestorationActionDTO;
   busy?: boolean;
-  onCommit: (value: string) => void;
-}) {
-  const [draft, setDraft] = useState(value);
+  onDescribe: (actionId: number, patch: { description?: string; category?: RestorationActionCategory }) => void;
+  onEnter?: (description: string) => void;
+  onChangeCategory?: (category: RestorationActionCategory) => void;
+}>(function ActionComposer({ action, busy, onDescribe, onEnter, onChangeCategory }, ref) {
+  const [draft, setDraft] = useState(action.description);
   const focused = useRef(false);
+  const fieldRef = useRef<HTMLTextAreaElement | null>(null);
+  const meta = categoryMeta(action.category || DEFAULT_CATEGORY);
+  const empty = draft.trim() === '';
 
   useEffect(() => {
     if (focused.current) return;
-    setDraft(value);
-  }, [value, actionId]);
+    setDraft(action.description);
+  }, [action.description, action.id]);
 
-  const empty = draft.trim() === '';
+  const saveDraft = useCallback(() => {
+    const trimmed = draft.trim();
+    if (trimmed !== action.description.trim()) onDescribe(action.id, { description: trimmed });
+  }, [action.description, action.id, draft, onDescribe]);
+
+  const enter = useCallback(() => {
+    if (onEnter) {
+      onEnter(draft);
+    } else {
+      saveDraft();
+    }
+    focused.current = false;
+    fieldRef.current?.blur();
+  }, [draft, onEnter, saveDraft]);
+
+  useImperativeHandle(ref, () => ({ enter }), [enter]);
 
   return (
     <Box
-      component="textarea"
-      rows={2}
-      aria-label="What you did"
-      disabled={busy}
-      value={draft}
-      placeholder="What did you do, and how did it go?"
-      onFocus={() => {
-        focused.current = true;
-      }}
-      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDraft(e.currentTarget.value)}
-      onBlur={() => {
-        focused.current = false;
-        const trimmed = draft.trim();
-        if (trimmed !== value.trim()) onCommit(trimmed);
-      }}
-      onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === 'Escape') {
-          setDraft(value);
-          focused.current = false;
-          e.currentTarget.blur();
-        }
-      }}
       sx={{
-        width: '100%',
-        p: 0.85,
-        resize: 'vertical',
-        fontFamily: 'inherit',
-        fontSize: '0.82rem',
-        lineHeight: 1.45,
-        color: '#0f172a',
-        borderRadius: `${studio.radius.sm}px`,
-        border: `1px solid ${empty ? '#e3b23c' : studio.accentSoftBorder}`,
-        bgcolor: empty ? '#fffaf0' : '#ffffff',
-        outline: 'none',
-        '&:focus': { borderColor: studio.accentDark, boxShadow: `0 0 0 2px ${studio.accentSoft}` },
-        '&::placeholder': { color: '#b6c0cd', fontStyle: 'italic' },
+        flex: 1,
+        minWidth: 0,
+        display: 'flex',
+        alignItems: 'stretch',
+        minHeight: 56,
+        overflow: 'hidden',
+        borderRadius: `${RADIUS.sm}px`,
+        border: `1px solid ${meta.border}`,
+        bgcolor: empty ? meta.soft : '#ffffff',
+        '&:focus-within': {
+          borderColor: meta.color,
+          boxShadow: `0 0 0 2px ${meta.soft}`,
+        },
       }}
-    />
+    >
+      <Box
+        sx={{
+          width: 96,
+          flexShrink: 0,
+          alignSelf: 'stretch',
+          position: 'relative',
+          borderRight: `1px solid ${meta.border}`,
+        }}
+      >
+        <Box sx={{ position: 'absolute', inset: 0 }}>
+          <PressPicker
+            value={action.category || DEFAULT_CATEGORY}
+            options={ACTION_TYPE_IDS}
+            format={(id) => categoryMeta(id).label}
+            placeholder={categoryMeta(DEFAULT_CATEGORY).label}
+            width="100%"
+            height="100%"
+            layout="row"
+            optionMinWidth={80}
+            embedded
+            paint={actionTypePaint}
+            ariaLabel="Action type"
+            disabled={busy}
+            onChange={(category) => {
+              if (onChangeCategory) onChangeCategory(category);
+              else onDescribe(action.id, { category });
+            }}
+          />
+        </Box>
+      </Box>
+      <Box
+        component="textarea"
+        ref={fieldRef}
+        rows={2}
+        aria-label="What you did"
+        disabled={busy}
+        value={draft}
+        placeholder="What did you do, and how did it go?"
+        onFocus={() => {
+          focused.current = true;
+        }}
+        onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => setDraft(event.currentTarget.value)}
+        onBlur={() => {
+          focused.current = false;
+          saveDraft();
+        }}
+        onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
+          if (event.key === 'Enter' && (event.shiftKey || event.ctrlKey || event.metaKey)) {
+            event.preventDefault();
+            insertNewline(event.currentTarget, draft, setDraft);
+            return;
+          }
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            enter();
+            return;
+          }
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            focused.current = false;
+            event.currentTarget.blur();
+          }
+        }}
+        sx={{
+          flex: 1,
+          minWidth: 0,
+          minHeight: 56,
+          ...TYPE.body,
+          p: 0.7,
+          resize: 'vertical',
+          fontFamily: 'inherit',
+          lineHeight: 1.45,
+          color: PANEL.ink,
+          border: 'none',
+          bgcolor: 'transparent',
+          outline: 'none',
+          '&::placeholder': { color: PANEL.faint },
+        }}
+      />
+    </Box>
   );
+});
+
+function insertNewline(
+  field: HTMLTextAreaElement,
+  draft: string,
+  setDraft: (next: string) => void,
+) {
+  const start = field.selectionStart;
+  const end = field.selectionEnd;
+  const next = `${draft.slice(0, start)}\n${draft.slice(end)}`;
+  setDraft(next);
+  requestAnimationFrame(() => {
+    field.selectionStart = field.selectionEnd = start + 1;
+  });
 }
 
 export function ActionRow({
@@ -358,9 +412,6 @@ export function ActionRow({
       >
         {action.description || 'not yet described'}
       </Typography>
-      <Typography sx={{ fontFamily: 'monospace', fontSize: '0.72rem', fontWeight: 900, color: '#64748b' }}>
-        {formatDuration(action.seconds)}
-      </Typography>
     </Stack>
   );
 }
@@ -369,29 +420,31 @@ function SmallButton({
   children,
   disabled,
   onClick,
+  onMouseDown,
 }: {
   children: string;
   disabled?: boolean;
   onClick?: () => void;
+  onMouseDown?: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
   return (
     <Box
       component="button"
       type="button"
       disabled={disabled}
+      onMouseDown={onMouseDown}
       onClick={onClick}
       sx={{
+        ...TYPE.micro,
         px: 1,
         py: 0.4,
         cursor: disabled ? 'not-allowed' : 'pointer',
-        fontSize: '0.72rem',
-        fontWeight: 900,
         whiteSpace: 'nowrap',
-        borderRadius: `${studio.radius.sm}px`,
-        border: `1px solid ${studio.panelBorder}`,
+        borderRadius: `${RADIUS.sm}px`,
+        border: `1px solid ${PANEL.border}`,
         bgcolor: '#ffffff',
-        color: disabled ? '#b6c0cd' : '#334155',
-        '&:hover:not(:disabled)': { borderColor: studio.accent, bgcolor: studio.accentSoft },
+        color: disabled ? PANEL.faint : PANEL.inkMuted,
+        '&:hover:not(:disabled)': { borderColor: PANEL.accent, bgcolor: PANEL.bgSubtle },
       }}
     >
       {children}
@@ -404,15 +457,14 @@ export function ScopeTag({ grade }: { grade: string }) {
   return (
     <Box
       sx={{
+        ...TYPE.micro,
         px: 0.6,
         borderRadius: '4px',
-        fontSize: '0.64rem',
-        fontWeight: 900,
         lineHeight: '18px',
         whiteSpace: 'nowrap',
-        bgcolor: whole ? '#eef2f6' : studio.accentSoft,
-        color: whole ? '#475569' : studio.accentDark,
-        border: `1px solid ${whole ? '#dbe3ec' : studio.accentSoftBorder}`,
+        bgcolor: whole ? PANEL.bgSubtle : '#e8f5e9',
+        color: whole ? PANEL.inkMuted : PANEL.accent,
+        border: `1px solid ${whole ? PANEL.border : '#a5d6a7'}`,
       }}
     >
       {actionScopeLabel(grade)}

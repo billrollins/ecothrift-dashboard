@@ -54,7 +54,7 @@ So: **three schemas support three use cases** (two business + personal/legacy/to
 
 - **Goal:** Clear org in S3: **`{environment}/{project}/...`** (e.g. **`dev/ecothrift/...`** vs **`prod/ecothrift/...`**) so **env**, **product**, and **file type** are obvious from the key.
 - **Non-goal:** **No mass migration** of existing keys in this initiative—**do not restructure past work** in the bucket as a precondition. Older objects can stay where they are until a dedicated migration session; **from “now” onward**, new code should write under the agreed prefix pattern once env + project are wired (likely `AWS_LOCATION` / custom storage backend, or explicit path prefix in `save()`—design in a focused session).
-- **Acceptance tie-in:** When we implement **partitioned dev uploads**, document the env var(s) and update [`.ai/extended/inventory-pipeline.md`](../../../extended/inventory-pipeline.md) + [`.env.example`](../../../../.env.example) notes for `USE_S3` / prefix behavior.
+- **Acceptance tie-in:** When we implement **partitioned dev uploads**, document the env var(s) and update [`.ai/extended/inventory-pipeline.md`](../../../extended/inventory-pipeline.md) + `.env.example` notes for `USE_S3` / prefix behavior.
 
 ---
 
@@ -92,48 +92,11 @@ Regression checks: run through a **single PO** from create (or existing) → upl
 
 ---
 
-## Sessions
-
-### Session 1
-
-- **Goal:** Establish initiative, align **Order + Preprocess + Process** as the **today** priority; list known gap (PO manifest upload UI missing while API exists).
-- **Finish line:** Initiative file + index row; shared understanding that **Receive / WrapUp / Dispute** are later; next session(s) execute hardening + missing UI/API fixes.
-- **Scope:** Documentation only (`_index.md`, this file). Code changes tracked in follow-up sessions.
-- **Est:** 0.25h
-- **Start:** 2026-04-28T12:00:00-05:00
-
-### Session 2
-
-- **Goal:** Ship Order detail **manifest upload/replace** wired to `POST …/upload-manifest/`, multipart fix, backend decode/storage/replace safety; verify preprocessing handoff notes.
-- **Finish line:** Staff can create/open a PO → upload CSV → **Preprocessing** unlocks → preprocessing flow unchanged except clearer copy; optional **`process-manifest`** atomic rows write.
-- **Scope:** [`OrderDetailPage.tsx`](../../../../frontend/src/pages/inventory/OrderDetailPage.tsx), [`inventory.api.ts`](../../../../frontend/src/api/inventory.api.ts), [`apps/inventory/views.py`](../../../../apps/inventory/views.py), [`inventory.types.ts`](../../../../frontend/src/types/inventory.types.ts), [`PreprocessingPage.tsx`](../../../../frontend/src/pages/inventory/PreprocessingPage.tsx) alert copy, [`inventory-pipeline.md`](../../../extended/inventory-pipeline.md), `CHANGELOG.md` `[Unreleased]`.
-- **Est:** 4h
-- **Start:** 2026-04-28T15:30:00-05:00
-- **Result:** Shipped **Order detail** Raw Manifest upload/replace (`useUploadManifest`, multipart fix in `inventory.api.ts`). **`upload-manifest`** hardened (UTF-8 decode, empty header, storage/DB errors + `code`; link new file before deleting old blob). **`process-manifest`** row writes wrapped in **`transaction.atomic()`**. Types: **`PurchaseOrder.manifest_rows`**. Preprocessing alert points to Order detail **Raw Manifest**. Docs: **`inventory-pipeline.md`**, **`backend.md`**, **`CHANGELOG.md` `[Unreleased]`**.
-
-### Session 3
-
-- **Goal:** Redesign preprocessing around three staff-facing steps: always-preview standardization, bulk Add Item-style AI cleanup, and Manual Review/pricing.
-- **Finish line:** Product Matching removed from the wizard; standardization creates/reuses Products and early Items idempotently; AI cleanup supports preprocessing model controls; Manual Review edits item/product/pricing fields and processing handoff reuses existing Items.
-- **Scope:** [`apps/inventory/views.py`](../../../../apps/inventory/views.py), [`apps/inventory/serializers.py`](../../../../apps/inventory/serializers.py), [`PreprocessingPage.tsx`](../../../../frontend/src/pages/inventory/PreprocessingPage.tsx), [`RowProcessingPanel.tsx`](../../../../frontend/src/components/inventory/RowProcessingPanel.tsx), [`ManualReviewPanel.tsx`](../../../../frontend/src/components/inventory/ManualReviewPanel.tsx), inventory API/hooks/types, docs.
-- **Start:** 2026-04-28T11:26:00-05:00
-- **Result:** Standardization preview refreshes on formulas/search and exposes blank formula columns. `process-manifest` now prepares deterministic Products and early intake Items. AI cleanup uses AppSetting-backed cleanup models and strict row/item identity echo before saving suggestions. Manual Review shows total paid / ideal / set price math and supports search, inline edits, and ±10% ideal adjustments. `create-items` opens processing and creates BatchGroups without duplicating Items.
-
-### Session 4
-
-- **Goal:** Create a reusable prompt for running offline AI cleanup locally from the standardized cleanup CSV drop folder.
-- **Finish line:** Prompt explains that the AI should read the single standardized CSV from `workspace/AI Cleanup/active file`, fill only cleanup output fields, and write an import-ready CSV to `workspace/AI Cleanup/processed files`.
-- **Scope:** Prompt artifact under `workspace/AI Cleanup`; no app behavior changes.
-- **Est:** 0.5h
-- **Start:** 2026-04-28T13:18:00-05:00
-
----
-
 ## See also
 
 - [`.ai/extended/databases.md`](../../../extended/databases.md) — `ecothrift` / `darkhorse` / `public`, `search_path`, Heroku restores
 - [`.ai/extended/inventory-pipeline.md`](../../../extended/inventory-pipeline.md) — PO model, CSV upload, templates, `ManifestRow`, processing references
 - [`frontend/src/api/inventory.api.ts`](../../../../frontend/src/api/inventory.api.ts) — `uploadManifest`, `processManifest`, previews
-- [`frontend/src/pages/inventory/OrderDetailPage.tsx`](../../../../frontend/src/pages/inventory/OrderDetailPage.tsx), [`PreprocessingPage.tsx`](../../../../frontend/src/pages/inventory/PreprocessingPage.tsx), [`ProcessingPage.tsx`](../../../../frontend/src/pages/inventory/ProcessingPage.tsx)
+- [`frontend/src/pages/inventory/OrderDetailPage.tsx`](../../../../frontend/src/pages/inventory/OrderDetailPage.tsx), [`PreprocessingPage.tsx`](../../../../frontend/src/pages/inventory/PreprocessingPage.tsx), [`ProcessingPage.tsx`](../../../../frontend/src/pages/inventory/processing/ProcessingWorkspacePage.tsx)
 
-*Parent: [`.ai/initiatives/_index.md`](../../../_index.md).*
+*Parent: [`.ai/initiatives/_index.md`](../../_index.md).*

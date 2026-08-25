@@ -8,7 +8,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.core.models import WorkLocation
-from apps.inventory.models import Item, ItemHistory, Product, PurchaseOrder, Vendor
+from apps.inventory.models import Item, ItemCheckIn, ItemHistory, Product, PurchaseOrder, RestorationJob, Vendor
 from apps.pos.models import (
     Cart,
     CartLine,
@@ -154,6 +154,90 @@ class DashboardMetricsTests(TestCase):
 
         payload = build_dashboard_metrics(self.today)
         self.assertEqual(payload['department_metrics']['processing']['today'], '25.00')
+
+    def test_processing_does_not_count_send_to_restoration(self):
+        order = PurchaseOrder.objects.create(
+            vendor=self.vendor,
+            order_number='PO-DASH-SEND-REST',
+            ordered_date=self.today,
+            status='processing',
+        )
+        check_in = ItemCheckIn.objects.create(
+            purchase_order=order,
+            product=self.product,
+            origin=ItemCheckIn.ORIGIN_PROCESSING,
+            quantity=1,
+            created_by=self.user,
+        )
+        item = Item.objects.create(
+            sku='TST0000101',
+            product=self.product,
+            purchase_order=order,
+            check_in=check_in,
+            price=Decimal('40.00'),
+            status='on_shelf',
+            location='restoration',
+        )
+        RestorationJob.objects.create(
+            item_check_in=check_in,
+            product=self.product,
+            purchase_order=order,
+            quantity=1,
+            stage=RestorationJob.STAGE_QUEUED,
+        )
+        ItemHistory.objects.create(
+            item=item,
+            event_type='status_change',
+            old_value='',
+            new_value='on_shelf',
+            note='Created and checked in via Item Processor row check-in',
+        )
+
+        payload = build_dashboard_metrics(self.today)
+        self.assertEqual(payload['department_metrics']['processing']['today'], '0')
+
+    def test_processing_counts_restoration_overview_check_in(self):
+        order = PurchaseOrder.objects.create(
+            vendor=self.vendor,
+            order_number='PO-DASH-FROM-REST',
+            ordered_date=self.today,
+            status='processing',
+        )
+        check_in = ItemCheckIn.objects.create(
+            purchase_order=order,
+            product=self.product,
+            origin=ItemCheckIn.ORIGIN_PROCESSING,
+            quantity=1,
+            created_by=self.user,
+        )
+        item = Item.objects.create(
+            sku='TST0000102',
+            product=self.product,
+            purchase_order=order,
+            check_in=check_in,
+            price=Decimal('40.00'),
+            status='on_shelf',
+            location='on_shelf',
+        )
+        RestorationJob.objects.create(
+            item_check_in=check_in,
+            product=self.product,
+            purchase_order=order,
+            quantity=1,
+            stage=RestorationJob.STAGE_DONE,
+            processing_handled_at=timezone.now(),
+        )
+        ItemHistory.objects.create(
+            item=item,
+            event_type='status_change',
+            old_value='',
+            new_value='on_shelf',
+            note='Created and checked in via Item Processor row check-in',
+        )
+
+        payload = build_dashboard_metrics(self.today)
+        self.assertEqual(payload['department_metrics']['processing']['today'], '40.00')
+        self.assertEqual(payload['department_metrics']['processing']['week'], '40.00')
 
     def test_retail_placeholder(self):
         payload = build_dashboard_metrics(self.today)

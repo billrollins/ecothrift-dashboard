@@ -1,3 +1,4 @@
+import { parseMoneyOpt } from './tarsMoney';
 import {
   TARS_DEFAULT_HOURLY_RATE,
   TARS_DEFAULT_TIME_PREMIUM,
@@ -20,7 +21,7 @@ export function gradeValuesComplete(
   if (!scale) return false;
   const grades = gradesForScale(scale, scales);
   if (grades.length === 0) return false;
-  return grades.every((g) => (values[g] ?? 0) > 0);
+  return grades.every((g) => parseMoneyOpt(values[g]) != null);
 }
 
 export function gradesForScale(scale: string, scales: Record<string, string[]>): string[] {
@@ -28,13 +29,15 @@ export function gradesForScale(scale: string, scales: Record<string, string[]>):
 }
 
 export function emptyValuesForScale(
-  scale: string,
-  scales: Record<string, string[]>,
+  _scale: string,
+  _scales: Record<string, string[]>,
   prev: Record<string, number> = {},
 ): Record<string, number> {
-  const grades = gradesForScale(scale, scales);
   const next: Record<string, number> = {};
-  for (const g of grades) next[g] = prev[g] ?? 0;
+  for (const [key, value] of Object.entries(prev)) {
+    const amount = parseMoneyOpt(value);
+    if (amount != null) next[key] = amount;
+  }
   return next;
 }
 
@@ -42,6 +45,12 @@ export function fmtUsd(n: number): string {
   const rounded = Math.round(n);
   const prefix = rounded < 0 ? '-$' : '$';
   return prefix + Math.abs(rounded).toLocaleString('en-US');
+}
+
+/** One number when the ends match; otherwise "x to y". */
+export function fmtUsdRange(min: number, max: number): string {
+  if (Math.abs(max - min) < 0.005) return fmtUsd(min);
+  return `${fmtUsd(min)} to ${fmtUsd(max)}`;
 }
 
 export function fmtProfit(n: number | null): string {

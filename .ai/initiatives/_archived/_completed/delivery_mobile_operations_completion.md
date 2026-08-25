@@ -52,7 +52,7 @@ Owner formally closed this initiative. Deferred (not blocking archive; open a ne
 | Item | Notes |
 |---|---|
 | **Owner-only hardware pass** | Real rear-camera / GPS / Messages handoff on a physical phone. Code-level paths already audited. |
-| **Owner visual sign-off** | Field composition vs [`eco-field-demo.html`](../../../reference/eco-field-demo.html) at phone width. |
+| **Owner visual sign-off** | Field composition vs `eco-field-demo.html` at phone width. |
 
 Everything else listed as open earlier shipped in **v2.59.0–v2.59.1**.
 
@@ -267,7 +267,7 @@ This **supersedes** the earlier rule that Desk and Field must be visually unrela
 
 ## Eco Field visual contract (still binding, now the app-wide source)
 
-Reference: [`../../../reference/eco-field-demo.html`](../../../reference/eco-field-demo.html).
+Reference: `../../../reference/eco-field-demo.html`.
 
 - Replicate composition and one-handed behavior, not every raw CSS value.
 - Tokens live in [`ecoFieldTheme.ts`](../../../../frontend/src/pages/pos/deliveries/field/ecoFieldTheme.ts) (ink `#14201A`, green `#0E8A4E` / deep `#0A6B3C`, tints, 44px+ touch, safe areas). Phase 5 promotes them to an app-level module; Field keeps consuming them, not owning them.
@@ -356,65 +356,6 @@ Reference: [`../../../reference/eco-field-demo.html`](../../../reference/eco-fie
 
 ---
 
-## Sessions
-
-### Session 1–2 (2026-07-22) — Planning
-Initiative + Phase 1 IA/migration plan. Docs only.
-
-### Session 3 (2026-07-22) — Phase 1
-Canonical Days/items/datasets, Days + Deliveries APIs, Desk/Field inactive shells, seed/show/reset. **v2.55.**
-
-### Session 4 (2026-07-22) — Phase 2
-Contact truth, item load, Field Start Today shell, Desk monitor, active-run seed. **v2.56.**
-
-### Session 5 (2026-07-22) — Eco Field rebuild contract
-Mockup-driven Field Home + five-step shell over real APIs; local phone loop. Desk redesign deferred.
-
-### Session 6 (2026-07-24) — Phase 3
-Routes API, service-minutes ETAs, Field route/evidence/SMS/completion, Desk route panel, legacy retired. **v2.57.0.** Owner phone smoke left open.
-
-### Session 7 (2026-07-24 → 2026-07-27) — Field polish / ops acceptance prep
-- Camera-first reseal + reopen seal window + upload busy bar.
-- Off-route DnD / membership decoupled from contact; Routes API departureTime fixes.
-- Compact Routes UI; zig-zag scenario v6 seed.
-- Hold-to-complete; drop handed-over checkpoint; evidence thumbnails in buttons.
-- Remaining work restructured into two phases at owner direction: **Phase 4 finalize mobile**, **Phase 5 unify desktop on the mobile design language**.
-
-### Session 8 (2026-07-27) — Phase 4A Field cleanup
-- Deleted unused `FieldStageHeader` / `FieldBottomShortcuts`.
-- Gated `include_test` on `import.meta.env.DEV` across Desk/Field list queries.
-- Cleaned `tsc` (ContactStep sx, BarcodeDetector cast); added `deliveryMediaClient` outbox regression tests.
-- Staged `[Unreleased]` CHANGELOG; locked policy: no production test data; phone QA is local HTTPS.
-- Documented Phase 5B production add/adjust gaps (orphaned `AddDeliveryDialog` / `DeliveryDetailsModal`).
-
-### Session 9 (2026-07-27) — Phase 4B audit + 4C Field device fixes
-- Owner skipped physical-phone smoke; AI code audit substituted (signature/SMS/scanner/pager/hold/safe-area/outbox).
-- Fixed: `viewport-fit=cover` + `100dvh`; pager tap swallow; hold-to-complete fail-safe; file-input reset; single-flight + visibility/focus outbox drain; SignaturePad mid-stroke resize wipe; scanner resume + Type SKU LED off; empty-phone + iPadOS SMS.
-- Deferred to Phase 5: pinned CTA layout, uiStep soft-sync, selection freeze, signature letterbox, extension phones.
-
-### Session 10 (2026-07-28) — v2.58.0 + Phase 5B function-first
-- Released **v2.58.0** (Field polish) to GitHub; fixed root `package.json` drift (was 2.56.2).
-- Audited past-sale create: `DeliveryViewSet.create` accepts `cart_id` / `cart_line_ids`; `AddDeliveryDialog` posts to `/deliveries/`.
-- Mounted Add + adjust on Desk; Day detail planning rows; run-sync for assign-day/archive.
-- Promoted `deliveryTheme.ts`; restyled Desk Days/Total/monitor.
-
-### Session 11 (2026-07-28) — Phase 5C completion sweep → v2.59.0
-- Landed all five deferred 4C shell fixes and byte-level upload progress.
-- Built the change-history read path (`describe_change` / `serialize_change_event` / day+job `history` endpoints) and `DeliveryHistoryPanel`.
-- Replaced `MiniMap` with a real route map: Routes API polyline → cached Static Map behind `GET /delivery-days/{id}/route-map/` (key never reaches the browser).
-- Mounted manager item add/remove and `DeskDayDialog` day create/edit.
-- Swept dead code (legacy board trio, orphaned `usePOS` hooks, 16 unused API clients).
-- Repaired pre-existing `apps.pos` failures unrelated to deliveries (stale `Item.title` cart tests; `test_dashboard_metrics` future-dated audits + seeded-goal collision).
-- Gates: `apps.pos` 176 pass, frontend 374 pass, `tsc` clean, `makemigrations --check` clean. Released **v2.59.0**.
-- **Remaining at time:** owner phone hardware pass and owner visual sign-off only.
-
-### Session 12 (2026-07-29) — Close
-- **v2.59.1** live on Heroku (assign-day / restore run-sync).
-- Owner formally closed the initiative; optional phone/visual passes waived for archive (new initiative later if needed).
-- Moved to `_archived/_completed/`.
-
----
-
 ## See also
 
 - [`pos_discount_and_delivery`](./pos_discount_and_delivery.md)
@@ -422,5 +363,5 @@ Routes API, service-minutes ETAs, Field route/evidence/SMS/completion, Desk rout
 - [`../../../extended/frontend.md`](../../../extended/frontend.md)
 - [`../../../extended/inventory-pipeline.md`](../../../extended/inventory-pipeline.md) — Receiving media behavior
 - [`../../../../docs/app_navigation_and_pages.md`](../../../../docs/app_navigation_and_pages.md)
-- [`../../../protocols/code.0.Startup.md`](../../../protocols/code.0.Startup.md)
+- [`../../../protocols/load-context.md`](../../../protocols/load-context.md)
 - [`../../../context.md`](../../../context.md)

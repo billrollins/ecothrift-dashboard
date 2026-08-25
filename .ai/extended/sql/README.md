@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-05-06 (**inventory_daily_migration.sql** v4 flat CSV + **daily_migration.csv**) -->
+<!-- Last updated: 2026-08-13 (dropped missing inventory_summary.sql; schema.csv is committed) -->
 
 # SQL (`extended/sql/`)
 
@@ -10,10 +10,9 @@ PostgreSQL snippets for **pgAdmin**, **`psql`**, and automation. **[`cli.md`](cl
 |------|---------|
 | [`cli.md`](cli.md) | **`psql`** / **`manage.py dbshell`** — humans and AI agents. |
 | [`schema_columns_ecothrift.sql`](schema_columns_ecothrift.sql) | **`information_schema`** column listing for **`ecothrift`**. |
-| [`inventory_summary.sql`](inventory_summary.sql) | On-shelf **historical** rollups by **day** (90) / **week** (52) / **month** (18), Chicago-local buckets — see file header. |
-| [`inventory_daily_migration.sql`](inventory_daily_migration.sql) | **v4** bulk interval reconstruction → flat columns **`prefix_suffix`** (e.g. `sales_qty`, `migration_to_from_intake`). Writes **[`daily_migration.csv`](daily_migration.csv)** via **`psql --csv`** — **Daily migration** section. |
-| [`daily_migration.csv`](daily_migration.csv) | Generated report (**`psql --csv`**); gitignored unless you choose to commit snapshots. |
-| **`schema.csv`** | Generated snapshot (not hand-edited). See **Update schema** below. |
+| [`inventory_daily_migration.sql`](inventory_daily_migration.sql) | **v4** bulk interval reconstruction → flat columns **`prefix_suffix`**. Writes **[`daily_migration.csv`](daily_migration.csv)** via **`psql --csv`**. |
+| [`daily_migration.csv`](daily_migration.csv) | Generated report; gitignored unless you choose to commit snapshots. |
+| **`schema.csv`** | Generated snapshot (not hand-edited). **Intentionally committed.** Refresh via [`.ai/protocols/sql-schema.md`](../../protocols/sql-schema.md). |
 
 ---
 
@@ -82,7 +81,7 @@ WHERE NOT EXISTS (
 
 ## Update schema (AI + humans)
 
-Formal checklist: **[`.ai/protocols/sql.0.UpdateSchema.md`](../../protocols/sql.0.UpdateSchema.md)**.
+Formal checklist: **[`.ai/protocols/sql-schema.md`](../../protocols/sql-schema.md)**.
 
 After **migrations**, **new models**, or whenever SQL needs an accurate column list:
 
@@ -100,7 +99,7 @@ psql -h localhost -p 5432 -U postgres -d ecothrift_v3 --csv -f ".ai/extended/sql
 
 If **`psql --csv`** is unavailable (very old client), use **`cli.md`** alternatives or pgAdmin export from the same SQL file.
 
-**`schema.csv`** may be large; commit only if the team wants a tracked snapshot—otherwise keep it local/gitignored.
+**`schema.csv`** is generated and **intentionally committed** as a snapshot. Refresh it when columns change; do not hand-edit.
 
 ---
 

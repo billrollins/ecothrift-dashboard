@@ -1,4 +1,4 @@
 @echo off
-REM Staff dashboard only (LAN HTTPS default). Use start_all.bat for www too.
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0dev.ps1" -Target Staff -Mobile %*
+REM Staff dashboard on LAN HTTPS so a phone on the same Wi-Fi can hit it. Does not start www.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0dev.ps1" -Target Staff %*
 exit /b %ERRORLEVEL%

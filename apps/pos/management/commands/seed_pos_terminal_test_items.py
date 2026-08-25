@@ -197,7 +197,7 @@ class Command(BaseCommand):
                 f'on_shelf={count} sold=1.'
             )
         )
-        self.stdout.write('See .ai/reference/pos_terminal_cart_scroll/testing_skus.md')
+        self.stdout.write('Seeded POSTEST## SKUs for cart-scroll QA. See .ai/extended/pos-system.md.')
 
     def _ensure_product(self, *, product_number: str, title: str, category: Category) -> Product:
         product, created = Product.objects.get_or_create(

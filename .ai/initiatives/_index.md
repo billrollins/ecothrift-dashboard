@@ -1,11 +1,11 @@
-<!-- Last updated: 2026-08-11 (finalize_tars_app activated; supersedes both TARS initiatives) -->
+<!-- Last updated: 2026-08-25 (finalize_tars_app + enhancement_requests completed) -->
 # Initiatives index
 
-Bounded work (hours–days), one `.md` per initiative. Not roadmap strategy, not week-scale projects, not an AI plan/TODO list.
+Bounded work (hours–days), one `.md` per initiative. Not a session log.
 
-**Releases:** [`.version`](../.version) + [`CHANGELOG.md`](../../CHANGELOG.md) only. Every production push → semver + changelog.
+**Releases:** [`.version`](../../.version) + [`CHANGELOG.md`](../../CHANGELOG.md) only. Every GitHub push → semver + changelog ([`ship.md`](../protocols/ship.md)).
 
-Session details live **only** in each file under **`## Sessions`**.
+Lifecycle moves: [`.ai/protocols/initiative.md`](../protocols/initiative.md). **Human gate:** do not archive without explicit approval.
 
 ---
 
@@ -13,24 +13,24 @@ Session details live **only** in each file under **`## Sessions`**.
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [finalize_tars_app](./finalize_tars_app.md) | **Stage 1 — Audit** | One 100%-functional TARS MVP in daily use. Runs **Audit → Design → Code**; coding phases are written only after design sign-off. **Supersedes** [tars_restoration_workspace](./_archived/_pending/tars_restoration_workspace.md) and [tars_full_instruction_wizard_guidance](./_archived/_pending/tars_full_instruction_wizard_guidance.md). |
+| [universal_object_surfaces](./universal_object_surfaces.md) | **Design only** | Permissioned ObjectChip → ObjectSurface. No code scheduled. |
 
 ---
 
 ## Pending
 
-Paused to resume later. Full checklists and sessions are in each file.
+Paused to resume later. Checklists live in each file.
 
 | Initiative | Description | Pending since | Why / resume |
 |------------|-------------|---------------|--------------|
-| [online_sales_workspace](./_archived/_pending/online_sales_workspace.md) | Online Sales workspace long-term vision (channels, marketing, P&L). Phase 0 contract retained. | 2026-07-21 | MVP shipped via completed [online_sales_mvp](./_archived/_completed/online_sales_mvp.md) **v2.69.0**. **Resume:** only for scope beyond MVP (FB automation, contribution, B2B, etc.). |
-| [tars_full_instruction_wizard_guidance](./_archived/_pending/tars_full_instruction_wizard_guidance.md) | TARS decision guardrails / worksheet / guidance (process canon + Bill-managed catalogs + improvement loop). Phase 1.5 Studio (`/restoration/tars`) shipped. | 2026-07-21 | **Superseded — closed to new work.** All remaining TARS scope moved to active [finalize_tars_app](./finalize_tars_app.md). Keep for reference material only. |
-| [tars_restoration_workspace](./_archived/_pending/tars_restoration_workspace.md) | TARS Restoration transactional product: queue + live bench. Phases 0–2 + hardening shipped (**~v2.39.0**). | 2026-07-09 | **Superseded — closed to new work.** All remaining TARS scope moved to active [finalize_tars_app](./finalize_tars_app.md). Keep for reference material only. |
-| [public_website](./_archived/_pending/public_website.md) | Public storefront rebuild (hostname split, curated catalog, shop UX). Engineering Phases 0–4 + polish shipped **v2.26.0**. | 2026-05-30 | Launch ops largely covered by Online Sales MVP go-live. **Resume:** Helcim/pay-online only if policy changes (MVP is pickup-only). |
-| [historical_sell_through_analysis](./_archived/_pending/historical_sell_through_analysis.md) | Historical sell-through by category; PO extract + manual `PricingRule` seeds shipped. | 2026-04-10 | Deeper legacy DB / CSV / sales-join phases deferred until needed. |
-| [print_server_receipt_format](./_archived/_pending/print_server_receipt_format.md) | GDI receipt layout + `receipt_data` parity; workspace tooling for reference. | 2026-03-28 | Paused pre-production. |
+| [online_sales_workspace](./_archived/_pending/online_sales_workspace.md) | Online Sales long-term vision (channels, marketing, P&L). | 2026-07-21 | MVP shipped via [online_sales_mvp](./_archived/_completed/online_sales_mvp.md) **v2.69.0**. Resume only for scope beyond MVP. |
+| [tars_full_instruction_wizard_guidance](./_archived/_pending/tars_full_instruction_wizard_guidance.md) | TARS process canon / guardrails. | 2026-07-21 | **Superseded — closed to new work.** Scope is [finalize_tars_app](./_archived/_completed/finalize_tars_app.md). |
+| [tars_restoration_workspace](./_archived/_pending/tars_restoration_workspace.md) | TARS queue + live bench (Phases 0–2 + hardening ~v2.39.0). | 2026-07-09 | **Superseded — closed to new work.** Scope is [finalize_tars_app](./_archived/_completed/finalize_tars_app.md). |
+| [public_website](./_archived/_pending/public_website.md) | Public storefront rebuild. Phases 0–4 shipped **v2.26.0**. | 2026-05-30 | Launch ops covered by Online Sales MVP. Resume: Helcim/pay-online only if policy changes. |
+| [historical_sell_through_analysis](./_archived/_pending/historical_sell_through_analysis.md) | Historical sell-through by category; PO extract + `PricingRule` seeds shipped. | 2026-04-10 | Deeper legacy DB / CSV / sales-join deferred. |
+| [print_server_receipt_format](./_archived/_pending/print_server_receipt_format.md) | GDI receipt layout + `receipt_data` parity. | 2026-03-28 | Paused pre-production. |
 | [create_location_label](./_archived/_pending/create_location_label.md) | Inventory-scan thermal location label (3×2, QR + aisle/shelf/category). | 2026-03-28 | Product integration deferred. |
-| [historical_data_export](./_archived/_pending/historical_data_export.md) | Legacy → V3 data path. Phase 1 (pickles + manifest) done. | 2026-03-28 | Phase 2 (seed, reporting, DS/embeddings) paused. |
+| [historical_data_export](./_archived/_pending/historical_data_export.md) | Legacy → V3 data path. Phase 1 done. | 2026-03-28 | Phase 2 paused. |
 | [bstock_scraper](./_archived/_pending/bstock_scraper.md) | B-Stock notebook scraper; Phase 1 package in place. | 2026-03-27 | Manifests/pipeline deferred. |
 
 ---
@@ -52,6 +52,8 @@ Not started / future; not scheduled.
 
 Name only. Details in each file.
 
+- [finalize_tars_app](./_archived/_completed/finalize_tars_app.md)
+- [enhancement_requests](./_archived/_completed/enhancement_requests.md)
 - [online_sales_mvp](./_archived/_completed/online_sales_mvp.md)
 - [retail_qa_submission_reliability](./_archived/_completed/retail_qa_submission_reliability.md)
 - [delivery_mobile_operations_completion](./_archived/_completed/delivery_mobile_operations_completion.md)
@@ -97,37 +99,12 @@ Name only. Details in each file.
 | Phase | Action |
 |-------|--------|
 | **Draft** | File may exist unlisted until scope is clear. |
-| **Active** | Row in **Active**; update checklists/acceptance while working. |
-| **Pending** | Off Active; listed in **Pending**; resume later. |
-| **Backlog** | Future / not started; listed in **Backlog**. |
-| **Completed** | Scope delivered; move to **Completed** list. |
-| **Abandoned** | Will not pursue; move to **Abandoned** list. |
+| **Active** | Row in **Active**. |
+| **Pending** | Paused off Active; listed above; files in `_archived/_pending/`. |
+| **Backlog** | Future / not started; `_archived/_backlog/`. |
+| **Completed** | Scope delivered; `_archived/_completed/`. |
+| **Abandoned** | Will not pursue; `_archived/_abandoned/`. |
 
-**Human gate:** do not move an initiative out of Active without explicit user approval.
-
-Optional file header:
-
-```html
-<!-- initiative: slug=my-feature status=active updated=2026-03-27 -->
-```
-
----
-
-## Releases vs initiative docs
-
-| Do | Don't |
-|----|-------|
-| Add `[Unreleased]` when **shipping code** that fulfills an initiative | Bump `.version` / `CHANGELOG` only because an initiative `.md` changed |
-| Follow [`session.9.Close.md`](../protocols/session.9.Close.md) on release | Treat “one initiative” as “one minor bump” |
-
----
-
-## Create / move
-
-**Create:** add `descriptive_snake_name.md` → context, objectives, acceptance, `## Sessions`, See also → Active row → bump this file’s `Last updated`.
-
-**Move** (pending / backlog / completed / abandoned): confirm with user → matching protocol under [`_protocols/`](./_archived/_protocols/README.md) → update **this** `_index.md` in one pass.
-
----
+Create / move: [`initiative.md`](../protocols/initiative.md). Same pass updates this file and [`ARCHIVE.md`](./_archived/ARCHIVE.md).
 
 *Parent: [`.ai/context.md`](../context.md).*

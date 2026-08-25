@@ -24,8 +24,6 @@ export interface TimeEntry {
   approved_by: number | null;
   approved_by_name: string | null;
   notes: string;
-  /** Set when HR break/clock-out auto-pauses an active restoration bench timer. */
-  restoration_timer_paused_job_id?: number;
   created_at: string;
   updated_at: string;
 }

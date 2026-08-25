@@ -34,7 +34,7 @@ import {
   type GradeSuggestionDims,
 } from './tarsGradeSuggestions';
 import { gradeValuesComplete, gradesForScale, emptyValuesForScale } from './tarsProfit';
-import { formatUsdWhole as formatUsd } from './tarsMoney';
+import { formatUsdWhole as formatUsd, parseMoneyOpt } from './tarsMoney';
 import { formatRichSearch, inventoryWorkbenchUrl, itemCatalogWorkbenchUrl, productCatalogWorkbenchUrl } from '../../../utils/richInventorySearch';
 import {
   useCreateRestorationGradeScale,
@@ -43,8 +43,9 @@ import {
 
 const CARD_HEADER_MIN_HEIGHT = 132;
 
-function formatMoneyInput(value: number): string {
-  return Number.isFinite(value) && value > 0 ? value.toFixed(2) : '';
+function formatMoneyInput(value: number | null | undefined): string {
+  const n = parseMoneyOpt(value);
+  return n == null ? '' : n.toFixed(2);
 }
 
 function formatPctInput(value: number | null): string {
@@ -102,7 +103,7 @@ export interface TarsGradeValuesCardProps {
   scale: string;
   values: Record<string, number>;
   onScaleChange: (scale: string) => void;
-  onGradeValueChange: (grade: string, value: number) => void;
+  onGradeValueChange: (grade: string, value: number | null) => void;
   scales?: Record<string, string[]>;
   /** Primary action at the bottom of the card (Queue page - Save grade values). */
   sendAction?: {
@@ -137,7 +138,7 @@ export function TarsGradeValuesCard({
   const grades = scale ? gradesForScale(scale, scales) : [];
   const canSend = gradeValuesComplete(scale, values, scales);
   const retailBase = item.retail ?? 0;
-  const completeCount = grades.filter((grade) => (values[grade] ?? 0) > 0).length;
+  const completeCount = grades.filter((grade) => parseMoneyOpt(values[grade]) != null).length;
   const productFacts: Array<{ label: string; value: string }> = [
     { label: 'Brand', value: item.brand ?? '' },
     { label: 'Category', value: item.category },
@@ -229,7 +230,7 @@ export function TarsGradeValuesCard({
   useEffect(() => {
     setMoneyDrafts(
       Object.fromEntries(
-        grades.map((grade) => [grade, formatMoneyInput(values[grade] ?? 0)]),
+        grades.map((grade) => [grade, formatMoneyInput(values[grade])]),
       ),
     );
     setPctDrafts(
@@ -612,8 +613,9 @@ export function TarsGradeValuesCard({
               </Typography>
             </Stack>
             {grades.map((grade, i) => {
-              const value = values[grade] ?? 0;
-              const filled = value > 0;
+              const raw = values[grade];
+              const filled = parseMoneyOpt(raw) != null;
+              const value = filled ? Number(raw) : 0;
               const suggestedPct = gradeSuggestions[grade] ?? null;
               const suggestedValue =
                 suggestedPct != null && retailBase > 0 ?
@@ -736,11 +738,16 @@ export function TarsGradeValuesCard({
                       size="small"
                       type="text"
                       hiddenLabel
-                      value={moneyDrafts[grade] ?? (value ? String(value) : '')}
+                      value={moneyDrafts[grade] ?? (filled ? String(value) : '')}
                       onChange={(e) => {
                         const raw = e.target.value;
-                        const next = parseDecoratedNumber(raw);
                         setMoneyDrafts((prev) => ({ ...prev, [grade]: raw }));
+                        if (raw.trim() === '') {
+                          setPctDrafts((prev) => ({ ...prev, [grade]: '' }));
+                          onGradeValueChange(grade, null);
+                          return;
+                        }
+                        const next = parseDecoratedNumber(raw);
                         setPctDrafts((prev) => ({ ...prev, [grade]: formatPctInput(pctFromValue(retailBase, next)) }));
                         onGradeValueChange(grade, next);
                       }}
@@ -777,14 +784,14 @@ export function TarsGradeValuesCard({
                         const raw = e.target.value;
                         const pct = parseDecoratedNumber(raw);
                         setPctDrafts((prev) => ({ ...prev, [grade]: raw }));
-                        if (Number.isFinite(pct)) {
-                          const nextValue = suggestedValueFromPct(retailBase, pct);
-                          setMoneyDrafts((prev) => ({ ...prev, [grade]: formatMoneyInput(nextValue) }));
-                          onGradeValueChange(grade, nextValue);
-                        } else {
+                        if (raw.trim() === '' || !Number.isFinite(pct)) {
                           setMoneyDrafts((prev) => ({ ...prev, [grade]: '' }));
-                          onGradeValueChange(grade, 0);
+                          onGradeValueChange(grade, null);
+                          return;
                         }
+                        const nextValue = suggestedValueFromPct(retailBase, pct);
+                        setMoneyDrafts((prev) => ({ ...prev, [grade]: formatMoneyInput(nextValue) }));
+                        onGradeValueChange(grade, nextValue);
                       }}
                       placeholder="-"
                       sx={{

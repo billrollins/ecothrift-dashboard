@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
+import { RequestsDrawerHost } from '../../../components/enhancements/RequestsDrawer';
 import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
 import { useMarkOrderComplete, usePurchaseOrders } from '../../../hooks/useInventory';
 import { getProcessingWorkspace, type ProcessingCheckInPayload } from '../../../api/inventory.api';
@@ -56,6 +57,7 @@ import { CheckInTogetherDialog } from './CheckInTogetherDialog';
 import { CollapseRowsDialog } from './CollapseRowsDialog';
 // import { ProcessingQueuePagination } from './ProcessingQueuePagination';
 import { ProcessingActiveCard } from './ProcessingActiveCard';
+import { TarsQuickGradeDialog } from '../../restoration/tars/TarsQuickGradeDialog';
 import { printProcessingLabelsAndMarkPrinted } from './printProcessingLabel';
 import { queueTitleText } from './processingQueueCellText';
 import {
@@ -99,6 +101,7 @@ export default function ProcessingWorkspacePage() {
   const [searchFocusSignal, setSearchFocusSignal] = useState(0);
   const [sessionHydratedForOrderId, setSessionHydratedForOrderId] = useState<number | null>(null);
   const [recentRows, setRecentRows] = useState<ProcessingRecentRowEntry[]>([]);
+  const [quickGradeJobId, setQuickGradeJobId] = useState<number | null>(null);
 
   /** Session rate counts mutation results; the timer starts at the first check-in. */
   const recordSessionCheckIns = useCallback((count: number) => {
@@ -551,10 +554,7 @@ export default function ProcessingWorkspacePage() {
         }
         bumpSearchFocus();
         if (payload.dispatch === 'restoration' && data.restoration_job_id) {
-          const from = `/inventory/processing/${orderId}`;
-          navigate(
-            `/inventory/restorations?lane=to&job=${data.restoration_job_id}&from=${encodeURIComponent(from)}`,
-          );
+          setQuickGradeJobId(data.restoration_job_id);
         }
         return true;
       } catch (e: unknown) {
@@ -1011,6 +1011,7 @@ export default function ProcessingWorkspacePage() {
               onRefreshDetail={() => void handleRefreshDetail()}
               detailRefreshing={detailRefreshPending}
               onCheckIn={handleCheckIn}
+              onRestorationCreated={setQuickGradeJobId}
               checkInLoading={rowCheckIn.isPending}
               onPatchCheckedIn={handlePatchCheckedIn}
               patchLoading={patchItem.isPending}
@@ -1181,7 +1182,13 @@ export default function ProcessingWorkspacePage() {
           }
         }}
       />
+      <TarsQuickGradeDialog
+        open={quickGradeJobId != null}
+        jobId={quickGradeJobId}
+        onClose={() => setQuickGradeJobId(null)}
+      />
       {ConfirmDialogHost}
+      <RequestsDrawerHost defaultArea="processing" />
     </Box>
   );
 }

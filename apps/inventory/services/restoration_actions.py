@@ -2,7 +2,7 @@
 
 Every second on a bench belongs to exactly one action. An action is a single
 piece of work — inspecting, testing, repairing, assembling or salvaging —
-pointed either at one grade or at the item as a whole.
+on the item as a whole. Grades are a money question, not a clock question.
 
 Three rules hold the log together:
 
@@ -10,8 +10,8 @@ Three rules hold the log together:
   from check-in onwards there is always somewhere for time to go.
 
 * **A pause is not a new action.** Someone who stops for a phone call and comes
-  back to the same grade is still doing the same thing; splitting that into two
-  rows would say something untrue about the work.
+  back is still doing the same sitting; splitting that into two rows would say
+  something untrue about the work.
 
 * **Nothing is left unsaid.** An action must be described before its author
   starts another. The moment you move on is the moment you know what you did,
@@ -37,10 +37,7 @@ class ActionNeedsDescriptionError(ValueError):
 
     def __init__(self, action: RestorationAction):
         self.action_id = action.pk
-        where = action.grade or 'the item'
-        super().__init__(
-            f'Say what you did on {where} before starting something else.',
-        )
+        super().__init__('Say what you did before starting something else.')
 
 
 def _clean_description(raw: Any) -> str:
@@ -54,18 +51,6 @@ def _clean_category(raw: Any) -> str:
     if value not in VALID_CATEGORIES:
         raise ValueError(f'Unknown action category: {value}')
     return value
-
-
-def _clean_grade(job: RestorationJob, raw: Any) -> str:
-    """Empty means the item as a whole; anything else must be a real grade."""
-
-    grade = str(raw or '').strip()[:64]
-    if not grade:
-        return ''
-    known = job.grade_values if isinstance(job.grade_values, dict) else {}
-    if known and grade not in known:
-        raise ValueError(f'{grade} is not a grade on this item\'s scale.')
-    return grade
 
 
 def current_action(job: RestorationJob) -> RestorationAction | None:
@@ -99,6 +84,19 @@ def open_bench_action(job: RestorationJob, user=None) -> RestorationAction:
     )
     job.current_action = action
     job.save(update_fields=['current_action', 'updated_at'])
+    from apps.inventory.services.restoration_bench import _timeline_event
+    _timeline_event(
+        job,
+        'action.started',
+        {
+            'action_id': action.pk,
+            'grade': action.grade,
+            'category': action.category,
+            'description': action.description,
+        },
+        actor=user,
+        entity_id=f'action:{action.pk}',
+    )
     return action
 
 
@@ -127,68 +125,58 @@ def start_action(
     job: RestorationJob,
     user=None,
     *,
-    grade: str = '',
     category: str | None = None,
     description: str = '',
     force_new: bool = False,
 ) -> tuple[RestorationJob, RestorationAction]:
-    """Point the clock at a piece of work, opening a new action if needed.
+    """Point the clock at a piece of work, opening a new sitting if needed.
 
-    Returning to the grade you were already on resumes that action rather than
-    opening another — you have not started anything new. Turning to a different
-    grade, or to the item as a whole, closes the old action and opens one.
-
-    `force_new` is how someone says they have genuinely moved on to a second
-    piece of work on the same grade: finished testing it, now repairing it. The
+    Coming back to an open sitting resumes it. `force_new` is how someone says
+    they have genuinely moved on: finished inspecting, now repairing. The
     description gate still applies, so the first piece has to be written up
     before the second can start.
 
     A new action defaults to Inspect with no description so the clock starts on
     the first click. The cost of that convenience is paid at the other end: the
     action must be described before the next one can begin.
+
+    Actions are always on the item. The leftover `grade` column stays empty.
     """
 
-    from apps.inventory.services.restoration_bench import (
-        _pause_timer,
-        _timeline_event,
-        _timer_save_fields,
-    )
+    from apps.inventory.services.restoration_bench import _timeline_event
 
     job = RestorationJob.objects.select_for_update().get(pk=job.pk)
     if job.stage not in (RestorationJob.STAGE_BENCH, RestorationJob.STAGE_PENDING):
         raise ValueError('Work can only be recorded on bench or pending items.')
 
-    grade = _clean_grade(job, grade)
     existing = current_action(job)
 
-    # Same scope, still open: this is a resume, not a new piece of work.
-    if not force_new and existing is not None and existing.ended_at is None and existing.grade == grade:
+    # Still open: this is a resume, not a new piece of work.
+    if not force_new and existing is not None and existing.ended_at is None:
         if category is not None:
             existing.category = _clean_category(category)
         if description:
             existing.description = _clean_description(description)
         existing.save(update_fields=['category', 'description', 'updated_at'])
-        _aim_timer_at(job, existing, user=user)
+        _open_action_on(job, existing)
         return job, existing
 
     # Moving on. The work being left behind has to say what it was.
     if existing is not None and not existing.is_described:
         raise ActionNeedsDescriptionError(existing)
 
-    # Bank the outgoing action's time before the clock changes meaning.
-    _pause_timer(job)
     if existing is not None and existing.ended_at is None:
         existing.ended_at = timezone.now()
         existing.save(update_fields=['ended_at', 'updated_at'])
 
     action = RestorationAction.objects.create(
         job=job,
-        grade=grade,
+        grade='',
         category=_clean_category(category),
         description=_clean_description(description),
         created_by=user if getattr(user, 'pk', None) else None,
     )
-    _aim_timer_at(job, action, user=user)
+    _open_action_on(job, action)
 
     _timeline_event(
         job,
@@ -205,24 +193,11 @@ def start_action(
     return job, action
 
 
-def _aim_timer_at(job: RestorationJob, action: RestorationAction, *, user=None) -> None:
-    """Attach the clock to an action and set the attribution it implies.
+def _open_action_on(job: RestorationJob, action: RestorationAction) -> None:
+    """Point the diary at this action. Seconds stay 0 until the clock returns."""
 
-    Work on a grade is charged to that grade; work on the item as a whole is
-    charged to the item, because one teardown informs every grade at once and
-    splitting it between them would be a fiction.
-    """
-
-    from apps.inventory.services.restoration_bench import _start_timer, _timer_save_fields
-
-    mode = (
-        RestorationJob.TIMER_MODE_WORK
-        if action.grade
-        else RestorationJob.TIMER_MODE_LOOK
-    )
     job.current_action = action
-    _start_timer(job, user=user, mode=mode, grade=action.grade)
-    job.save(update_fields=_timer_save_fields())
+    job.save(update_fields=['current_action', 'updated_at'])
 
 
 @transaction.atomic
@@ -265,6 +240,16 @@ def describe_action(
         actor=user,
         entity_id=f'action:{action.pk}',
     )
+    if description is not None:
+        from apps.inventory.services.item_notes import record_surface_note_for_job
+
+        record_surface_note_for_job(
+            job,
+            'action',
+            action.description,
+            author=user,
+            source_key=f'action:{action.pk}',
+        )
     return action
 
 
@@ -274,39 +259,20 @@ def delete_action(
     action_id: int,
     user=None,
 ) -> tuple[RestorationJob, RestorationAction]:
-    """Remove a row from the log, handing its time to the row below it.
-
-    A row can be wrong in two ways. Pressing Work on the wrong grade opens an
-    action that should never have existed, and reading back later you can find
-    two rows that were really one piece of work. Both are the same repair:
-    delete the row, and the time goes to its neighbour.
-
-    **Time is never destroyed, only refiled.** The neighbour is the action
-    directly before it, because that is what was really being done during those
-    seconds — the misclick did not stop the previous work, it only mislabelled
-    it. The oldest row has nothing before it, so its time goes forward to the
-    next one instead. The job's total does not move either way.
+    """Remove a row from the log.
 
     The only row that cannot go is the last one standing: an item with no
-    actions has nowhere to put the clock, and deleting the record of an item's
-    only work is not a correction.
+    actions has no diary of its work, and deleting that is not a correction.
 
-    Returns the action that absorbed the time, which is also where the clock
-    lands if it was on the row being deleted.
+    Returns the neighbouring action, which becomes current if the deleted row
+    was the open one.
     """
 
-    from apps.inventory.services.restoration_bench import (
-        _pause_timer,
-        _start_timer,
-        _timeline_event,
-        _timer_save_fields,
-    )
+    from apps.inventory.services.restoration_bench import _timeline_event
 
     job = RestorationJob.objects.select_for_update().get(pk=job.pk)
     doomed = RestorationAction.objects.select_for_update().get(pk=action_id, job=job)
 
-    # Read the log in order and take the neighbour by position, so ties on
-    # started_at resolve the same way here as they do on screen.
     ordered = list(job.actions.order_by('started_at', 'id'))
     if len(ordered) <= 1:
         raise ValueError('An item cannot be left with no record of its work.')
@@ -314,54 +280,20 @@ def delete_action(
     absorber = ordered[index - 1] if index > 0 else ordered[1]
 
     was_current = job.current_action_id == doomed.pk
-    was_running = job.timer_is_running
-    if was_current:
-        # Bank whatever it collected before the row goes.
-        _pause_timer(job)
-        doomed.refresh_from_db()
-    seconds = int(doomed.seconds or 0)
-
-    # An action's scope never changes, so all of its seconds sat in one bucket.
-    # Refiling the row moves the bucket with it.
-    if seconds and bool(doomed.grade) != bool(absorber.grade):
-        if doomed.grade:
-            job.work_seconds = max(int(job.work_seconds or 0) - seconds, 0)
-            job.look_seconds = int(job.look_seconds or 0) + seconds
-        else:
-            job.look_seconds = max(int(job.look_seconds or 0) - seconds, 0)
-            job.work_seconds = int(job.work_seconds or 0) + seconds
-
     removed = {
         'action_id': doomed.pk,
         'grade': doomed.grade,
         'category': doomed.category,
         'description': doomed.description,
-        'seconds_returned': seconds,
         'returned_to_action_id': absorber.pk,
     }
     doomed.delete()
 
-    absorber.seconds = int(absorber.seconds or 0) + seconds
-    fields = ['seconds', 'updated_at']
     if was_current:
-        # It is being worked again, so it is no longer finished.
         absorber.ended_at = None
-        fields.append('ended_at')
-    absorber.save(update_fields=fields)
-
-    if was_current:
+        absorber.save(update_fields=['ended_at', 'updated_at'])
         job.current_action = absorber
-        mode = (
-            RestorationJob.TIMER_MODE_WORK
-            if absorber.grade
-            else RestorationJob.TIMER_MODE_LOOK
-        )
-        if was_running:
-            _start_timer(job, user=user, mode=mode, grade=absorber.grade)
-        else:
-            job.timer_mode = mode
-            job.timer_grade = absorber.grade
-    job.save(update_fields=_timer_save_fields())
+        job.save(update_fields=['current_action', 'updated_at'])
 
     _timeline_event(job, 'action.deleted', removed, actor=user, entity_id=f'action:{absorber.pk}')
     return job, absorber
@@ -371,8 +303,8 @@ def undo_last_action(job: RestorationJob, user=None) -> tuple[RestorationJob, Re
     """Take back the action just opened, giving its time to the one before it.
 
     Undo is deletion aimed at the row the clock is on — the common case, and
-    the one worth a single button, because pressing Work on the wrong grade is
-    a mistake you notice a second later.
+    the one worth a single button, because opening the wrong sitting is a
+    mistake you notice a second later.
     """
 
     current = current_action(job)
@@ -393,7 +325,7 @@ def close_open_actions(job: RestorationJob) -> None:
 
 
 def action_totals(job: RestorationJob) -> dict[str, Any]:
-    """Where this item's time went, by scope and by category."""
+    """Where this item's time went, by leftover grade (always empty now) and category."""
 
     by_grade: dict[str, int] = {}
     by_category: dict[str, int] = {}

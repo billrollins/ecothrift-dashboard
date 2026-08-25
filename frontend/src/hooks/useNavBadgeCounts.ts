@@ -1,5 +1,19 @@
 import { useMemo } from 'react';
+import { partsNavWaitingCount } from '../pages/restoration/parts/partsBoard';
+import { useAuth } from './useAuth';
+import { useRestorationPartsOrders } from './useRestorationBench';
 import { useNeedsReplyCount } from './useWebStore';
+
+function useRestorationPartsWaitingCount(enabled: boolean): number {
+  // Same live list the command center writes on approve / deny / file, so the
+  // sidebar badge drops as soon as the last waiting order leaves that cache.
+  const live = useRestorationPartsOrders({
+    bucket: 'live',
+    enabled,
+    refetchInterval: 30_000,
+  });
+  return partsNavWaitingCount(live.data ?? []);
+}
 
 /**
  * Counts to show on sidebar rows, keyed by nav item id.
@@ -10,11 +24,14 @@ import { useNeedsReplyCount } from './useWebStore';
  * where staff owes the next action (`needs_reply`), not unread mail.
  */
 export function useNavBadgeCounts(options: { onlineSales: boolean }): Record<string, number> {
+  const { user } = useAuth();
   const nextAction = useNeedsReplyCount({ enabled: options.onlineSales });
+  const partsWaiting = useRestorationPartsWaitingCount(Boolean(user?.is_superuser));
 
   return useMemo(() => {
     const counts: Record<string, number> = {};
     if (nextAction > 0) counts.onlineSalesCustomers = nextAction;
+    if (partsWaiting > 0) counts.restorationPartsRequests = partsWaiting;
     return counts;
-  }, [nextAction]);
+  }, [nextAction, partsWaiting]);
 }

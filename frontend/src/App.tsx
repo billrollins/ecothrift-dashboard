@@ -12,7 +12,7 @@ const RetailInboxPage = lazy(() => import('./pages/mailbox/RetailInboxPage'));
 
 // Full-screen floorplan editor - lazy so the SVG editor bundle stays out of the main chunk.
 const FloorplanEditorPage = lazy(() => import('./pages/floorplan/FloorplanEditorPage'));
-// TARS Studio owns its browser tab and stays out of the dashboard bundle/chrome.
+// Legacy fullscreen TARS Studio — parked off the sidebar, still out of the main chunk.
 const TarsPage = lazy(() => import('./pages/restoration/tars/TarsPage'));
 import FloorplanListPage from './pages/floorplan/FloorplanListPage';
 
@@ -22,6 +22,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import TimeClockPage from './pages/hr/TimeClockPage';
 import TimePayrollPage from './pages/admin/TimePayrollPage';
+import EnhancementRequestsPage from './pages/admin/EnhancementRequestsPage';
 import VendorListPage from './pages/inventory/VendorListPage';
 import VendorDetailPage from './pages/inventory/VendorDetailPage';
 import OrderListPage from './pages/inventory/OrderListPage';
@@ -37,13 +38,14 @@ import { inventoryWorkbenchUrl, legacyItemParamsToRichSearch } from './utils/ric
 import ItemListPage from './pages/inventory/ItemListPage';
 import ItemDetailPage from './pages/inventory/ItemDetailPage';
 import QuickRepricePage from './pages/inventory/QuickRepricePage';
-import InboundFulfillmentPlaceholderPage from './pages/inventory/InboundFulfillmentPlaceholderPage';
 import TerminalPage from './pages/pos/TerminalPage';
 import DrawerListPage from './pages/pos/DrawerListPage';
 import CashManagementPage from './pages/pos/CashManagementPage';
 import TransactionListPage from './pages/pos/TransactionListPage';
 import PosPrintablesPage from './pages/pos/PosPrintablesPage';
-import DeliveriesEntryRedirect from './pages/pos/deliveries/DeliveriesEntryRedirect';
+import DeliveriesEntryRedirect, {
+  LegacyDeliveryDayRedirect,
+} from './pages/pos/deliveries/DeliveriesEntryRedirect';
 import DeliveryExperienceLayout from './pages/pos/deliveries/DeliveryExperienceLayout';
 import DeskDaysPage from './pages/pos/deliveries/desk/DeskDaysPage';
 import DeskDayDetailPage from './pages/pos/deliveries/desk/DeskDayDetailPage';
@@ -72,9 +74,11 @@ import QualityAuditFormListPage from './pages/admin/QualityAuditFormListPage';
 import AuctionListPage from './pages/buying/AuctionListPage';
 import AuctionDetailPage from './pages/buying/AuctionDetailPage';
 import WatchlistPage from './pages/buying/WatchlistPage';
-import TarsPartsRequestsPage from './pages/restoration/TarsPartsRequestsPage';
+import PartsCommandCenterPage from './pages/restoration/parts/PartsCommandCenterPage';
 import RestorationQueuePage from './pages/restoration/queue/RestorationQueuePage';
+import RestorationBenchPage from './pages/restoration/RestorationBenchPage';
 import RestorationLayout from './pages/restoration/RestorationLayout';
+import TarsStudioRedirect from './pages/restoration/TarsStudioRedirect';
 import OnlineSalesListingsPage from './pages/online-sales/OnlineSalesListingsPage';
 import ListingStudioPage from './pages/online-sales/ListingStudioPage';
 import OnlineSalesHoldsPage from './pages/online-sales/OnlineSalesHoldsPage';
@@ -170,40 +174,47 @@ export default function App() {
         {/* Legacy Search items - kept for code reference until Find item ships */}
         <Route path="/inventory/items" element={<ItemListPage />} />
         <Route path="/inventory/items/:id" element={<ItemDetailPage />} />
-        <Route path="/inventory/inbound" element={<InboundFulfillmentPlaceholderPage />} />
+        <Route path="/inventory/inbound" element={<Navigate to="/inventory/processing" replace />} />
         <Route path="/inventory/quick-reprice" element={<QuickRepricePage />} />
         <Route path="/floor-ops/floorplans" element={<FloorplanListPage />} />
         <Route path="/inventory/inbound/receiving" element={<Navigate to="/inventory/receiving" replace />} />
-        <Route
-          path="/inventory/inbound/finalization"
-          element={<Navigate to="/inventory/inbound?view=finalization" replace />}
-        />
-        <Route path="/inventory/inbound/disputes" element={<Navigate to="/inventory/inbound?view=disputes" replace />} />
+        <Route path="/inventory/inbound/finalization" element={<Navigate to="/inventory/processing" replace />} />
+        <Route path="/inventory/inbound/disputes" element={<Navigate to="/inventory/processing" replace />} />
         <Route path="/pos/terminal" element={<TerminalPage />} />
         <Route path="/pos/drawers" element={<DrawerListPage />} />
         <Route path="/pos/cash" element={<CashManagementPage />} />
         <Route path="/pos/transactions" element={<TransactionListPage />} />
         <Route path="/pos/printables" element={<PosPrintablesPage />} />
         <Route path="/pos/deliveries" element={<DeliveriesEntryRedirect />} />
+        <Route path="/pos/deliveries/schedule" element={<DeliveriesEntryRedirect page="schedule" />} />
+        <Route path="/pos/deliveries/table" element={<DeliveriesEntryRedirect page="table" />} />
         <Route path="/pos/deliveries/legacy" element={<Navigate to="/pos/deliveries" replace />} />
         <Route path="/pos/deliveries/desk" element={<DeliveryExperienceLayout experience="desk" />}>
-          <Route path="days" element={<DeskDaysPage />} />
-          <Route path="days/:dayId" element={<DeskDayDetailPage />} />
-          <Route path="total" element={<DeskTotalDeliveriesPage />} />
+          <Route path="schedule" element={<DeskDaysPage />} />
+          <Route path="schedule/:dayId" element={<DeskDayDetailPage />} />
+          <Route path="table" element={<DeskTotalDeliveriesPage />} />
+          <Route path="days" element={<Navigate to="/pos/deliveries/desk/schedule" replace />} />
+          <Route path="days/:dayId" element={<LegacyDeliveryDayRedirect experience="desk" />} />
+          <Route path="total" element={<Navigate to="/pos/deliveries/desk/table" replace />} />
         </Route>
         <Route path="/pos/deliveries/field" element={<DeliveryExperienceLayout experience="field" />}>
-          <Route path="days" element={<FieldDaysLandingPage />} />
-          <Route path="days/:dayId" element={<FieldDayDetailPage />} />
-          <Route path="total" element={<FieldTotalDeliveriesPage />} />
+          <Route path="schedule" element={<FieldDaysLandingPage />} />
+          <Route path="schedule/:dayId" element={<FieldDayDetailPage />} />
+          <Route path="table" element={<FieldTotalDeliveriesPage />} />
+          <Route path="days" element={<Navigate to="/pos/deliveries/field/schedule" replace />} />
+          <Route path="days/:dayId" element={<LegacyDeliveryDayRedirect experience="field" />} />
+          <Route path="total" element={<Navigate to="/pos/deliveries/field/table" replace />} />
         </Route>
         <Route path="/buying/auctions" element={<AuctionListPage />} />
         <Route path="/buying/auctions/:id" element={<AuctionDetailPage />} />
         <Route path="/buying/watchlist" element={<WatchlistPage />} />
         <Route path="/restoration" element={<RestorationLayout />}>
-          <Route index element={<Navigate to="/restoration/tars" replace />} />
-          <Route path="queue" element={<RestorationQueuePage />} />
-          <Route path="tars-2" element={<Navigate to="/restoration/tars" replace />} />
-          <Route path="parts-requests" element={<TarsPartsRequestsPage />} />
+          <Route index element={<Navigate to="/restoration/overview" replace />} />
+          <Route path="overview" element={<RestorationQueuePage />} />
+          <Route path="queue" element={<Navigate to="/restoration/overview" replace />} />
+          <Route path="bench" element={<RestorationBenchPage />} />
+          <Route path="tars-2" element={<Navigate to="/restoration/tars-legacy" replace />} />
+          <Route path="parts-requests" element={<PartsCommandCenterPage />} />
         </Route>
         <Route
           path="/admin/pos-setup"
@@ -281,6 +292,14 @@ export default function App() {
           element={
             <SuperAdminRoute>
               <TimePayrollPage />
+            </SuperAdminRoute>
+          }
+        />
+        <Route
+          path="/admin/enhancement-requests"
+          element={
+            <SuperAdminRoute>
+              <EnhancementRequestsPage />
             </SuperAdminRoute>
           }
         />
@@ -405,9 +424,21 @@ export default function App() {
         }
       />
 
-      {/* TARS Studio - full-screen staff work app in its own tab. */}
+      {/* Old TARS Studio bookmarks: job/bench → in-dashboard bench, else Overview. */}
       <Route
         path="/restoration/tars"
+        element={
+          <ProtectedRoute>
+            <StaffRoute>
+              <TarsStudioRedirect />
+            </StaffRoute>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Legacy fullscreen studio — no sidebar link; delete once the floor has moved. */}
+      <Route
+        path="/restoration/tars-legacy"
         element={
           <ProtectedRoute>
             <StaffRoute>

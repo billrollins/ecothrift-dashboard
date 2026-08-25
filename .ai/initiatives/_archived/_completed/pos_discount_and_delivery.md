@@ -33,30 +33,8 @@ Cashiers need terminal actions for **in-store credit discounts** (returns) and *
 | Distance tiers | Prefer Google driving miles when `GOOGLE_MAPS_API_KEY` is set; otherwise **straight-line fallback is allowed** and shown in the Terminal quote. |
 | Maps route URL | Cap ~10 stops per URL; warn and use a second route/log sheet above 10. Directions API waypoint optimize **deferred**. |
 
-## Sessions
-
-### Session 1
-- **Goal:** Ship discount + delivery on POS terminal and the three printables.
-- **Finish line:** Cashier can add discount/delivery on a live cart and open/print the three HTML tools.
-- **Scope:** `apps/pos` cart lines + terminal UI + `frontend/public/pos/` printables + Cashier nav. Out of scope: full delivery scheduling DB, refunds, loyalty.
-- **est** 3h
-- **Started:** 2026-07-13T15:05:00-05:00
-- **Session updates:**
-  - Migration `pos.0010` `CartLine.line_kind` + `meta`; APIs `add-discount` / `add-delivery`; terminal dialogs; Cashier Printables hub; EN+es-MX policy + sell + driver HTML; tests green for discount/delivery.
-- **Result:** Session 1 deliverables in working tree (not yet released).
-
-### Session 2
-- **Goal:** Delivery dates + Dash Deliveries board (available slots + job list).
-- **Finish line:** Cashiers pick a date when adding delivery; managers set available dates (who/times/crew) and see booked deliveries/items.
-- **Scope:** `DeliveryAvailability` / `DeliveryJob` (`pos.0011`); terminal date select; `/pos/deliveries`; cancel job on void/line remove.
-- **est** 2h
-- **Started:** 2026-07-13T16:20:00-05:00
-- **Session updates:**
-  - Models + APIs for availabilities/jobs; `add-delivery` requires `availability_id`; Deliveries page + Cashier nav; cart-line multi-select for items (default **none** selected); Google Maps multi-stop URL for a route day; tests green.
-- **Result:** Scheduling path shipped in **v2.50.0** (local bump). Optional next: Directions API waypoint optimize.
-
 ## See also
 
 - [`.ai/extended/pos-system.md`](../../../extended/pos-system.md)
-- [`.ai/reference/pos_terminal_cart_scroll/`](../../../reference/pos_terminal_cart_scroll/)
+- `.ai/reference/pos_terminal_cart_scroll/`
 - [`.ai/initiatives/_index.md`](../../_index.md)

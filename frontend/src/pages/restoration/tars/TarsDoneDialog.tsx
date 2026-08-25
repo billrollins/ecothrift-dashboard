@@ -1,5 +1,4 @@
 import {
-  Alert,
   Box,
   Button,
   Dialog,
@@ -8,35 +7,60 @@ import {
   DialogTitle,
   MenuItem,
   Stack,
+  Tab,
+  Tabs,
   TextField,
   Typography,
 } from '@mui/material';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type {
   RestorationJobDTO,
   RestorationJobDonePayload,
   RestorationBenchDisposition,
 } from '../../../types/inventory.types';
-import type { TarsWorkEvaluation, TarsWorkSession } from './tarsWorkTypes';
-import { formatElapsed } from './tarsJobAdapter';
+import { JobNotesSlot } from '../../../components/notes/JobNotesSlot';
+import { useAuth } from '../../../hooks/useAuth';
+import { useRestorationActions, useRestorationJobTimeline } from '../../../hooks/useRestorationBench';
+import { JobHistoryList } from '../queue/JobHistoryList';
 import {
-  doneTimeWarning,
-  doneTimeWarningMessage,
-  type DoneTimeWarningKind,
-} from './tarsTimerWarnings';
+  filterBenchHistory,
+  mergeBenchHistory,
+  type TarsHistoryFilter,
+} from './tarsBenchHistory';
+import { HistoryFilterRows } from './tarsHistoryFilters';
+import { GRADE_ROLE } from './tarsGradeRoles';
+import { studio } from './studio/tarsStudioTheme';
+import type { TarsWorkEvaluation, TarsWorkSession } from './tarsWorkTypes';
+import {
+  emptyMainOutput,
+  emptyPartOutput,
+  FINISH_DESTINATIONS,
+  finishMainNoteReady,
+  lowestGrade,
+  type FinishOutputLine,
+} from './finishNotes';
 
-const DESTINATIONS: { value: RestorationBenchDisposition; label: string }[] = [
-  { value: 'processing', label: 'Processing' },
-  { value: 'storage', label: 'Storage' },
-  { value: 'salvage', label: 'Salvage' },
-  { value: 'online_sales', label: 'Online Sales' },
-];
+const STAT_HEIGHT = 78;
+const TAB_BODY_HEIGHT = 520;
+const REMOVE_SLOT = 72;
+
+const INTENDED_TO_DESTINATION: Record<string, RestorationBenchDisposition> = {
+  shelf: 'processing',
+  staff_pick: 'processing',
+  online_sales: 'online_sales',
+  storage: 'storage',
+};
+
+type FinishTab = 'dispatch' | 'notes' | 'actions';
 
 interface TarsDoneDialogProps {
   open: boolean;
   job: RestorationJobDTO | null;
   evaluation: TarsWorkEvaluation | null;
   session?: TarsWorkSession;
+  partsCost?: { parts: number; supplies: number; ffe: number };
+  cannotUndo?: boolean;
+  mode?: 'finish' | 'fix';
   onClose: () => void;
   onSubmit: (payload: RestorationJobDonePayload) => void;
 }
@@ -45,223 +69,449 @@ function usd(value: number): string {
   return value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 }
 
+function defaultDestination(job: RestorationJobDTO, mode: 'finish' | 'fix'): RestorationBenchDisposition {
+  if (mode === 'fix' && job.bench_disposition) {
+    return job.bench_disposition;
+  }
+  const intended = INTENDED_TO_DESTINATION[job.intended_destination ?? ''];
+  return intended ?? 'processing';
+}
+
+function gradeMoney(job: RestorationJobDTO, grade: string): number | null {
+  const raw = job.grade_values?.[grade];
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
+}
+
 export function TarsDoneDialog({
   open,
   job,
   evaluation,
   session,
+  partsCost,
+  mode = 'finish',
   onClose,
   onSubmit,
 }: TarsDoneDialogProps) {
-  const [destination, setDestination] = useState<RestorationBenchDisposition>('processing');
+  const [tab, setTab] = useState<FinishTab>('dispatch');
+  const [startingGrade, setStartingGrade] = useState('');
   const [finalGrade, setFinalGrade] = useState('');
-  const [notes, setNotes] = useState('');
-  const [spentHours, setSpentHours] = useState('');
-  const [timeWarning, setTimeWarning] = useState<DoneTimeWarningKind>(null);
-  const [overrideNote, setOverrideNote] = useState('');
+  const [outputs, setOutputs] = useState<FinishOutputLine[]>([emptyMainOutput()]);
+  const [editingGrades, setEditingGrades] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState<TarsHistoryFilter>('all');
+  const { user } = useAuth();
 
+  const actions = useRestorationActions(open ? job?.id : null);
+  const timeline = useRestorationJobTimeline(open ? job?.id ?? null : null);
   const gradeOptions = useMemo(
-    () => Object.keys(job?.grade_values ?? {}).filter((g) => (job?.grade_values[g] ?? 0) > 0),
+    () =>
+      Object.keys(job?.grade_values ?? {}).filter((g) => {
+        const value = job?.grade_values?.[g];
+        return typeof value === 'number' && Number.isFinite(value);
+      }),
     [job],
   );
 
-  const defaultHours = job?.elapsed_hours ?? '0';
   const selectedDecision = session?.decisionWork?.selection;
-  const knownPartsCost = (session?.parts ?? []).reduce((total, part) => (
-    total + Math.max(part.qty || 0, 0) * Math.max(
-      part.unitPriceActual > 0 ? part.unitPriceActual : part.unitPriceEstimate,
-      0,
-    )
-  ), 0);
-  const performedCount = session?.benchRows?.length ?? 0;
-  const completedTestCount = session?.decisionWork?.tests.filter((test) => test.result != null).length ?? 0;
-  const currentGrade = session?.decisionWork?.condition.currentGrade ?? 'Not assessed';
+  const knownBySection = partsCost ?? { parts: 0, supplies: 0, ffe: 0 };
+  const costTotal = knownBySection.parts + knownBySection.supplies + knownBySection.ffe;
   const itemLabel = job?.items[0]?.sku ?? job?.sku ?? job?.name ?? 'Item';
+  const hasActions = (job?.action_count ?? 0) > 0 || (actions.data?.results.length ?? 0) > 0;
+  const merged = useMemo(
+    () =>
+      mergeBenchHistory(
+        actions.data?.results ?? [],
+        timeline.data ?? [],
+        actions.data?.current_action_id ?? job?.current_action ?? null,
+      ),
+    [actions.data, timeline.data, job?.current_action],
+  );
+  const historyRows = useMemo(
+    () => filterBenchHistory(merged, historyFilter),
+    [merged, historyFilter],
+  );
+  const startMoney = job ? gradeMoney(job, startingGrade) : null;
+  const endMoney = job ? gradeMoney(job, finalGrade) : null;
+  const valueAdded =
+    startMoney != null && endMoney != null ? endMoney - startMoney - costTotal : null;
 
   useEffect(() => {
     if (!open || !job) return;
-    setDestination('processing');
+    const dest = defaultDestination(job, mode);
+    setTab('dispatch');
+    setHistoryFilter('all');
+    setStartingGrade(
+      job.starting_grade ||
+        session?.benchPlan?.startingGrade ||
+        session?.decisionWork?.condition.currentGrade ||
+        lowestGrade(job.grade_values) ||
+        '',
+    );
+    setEditingGrades(false);
+    if (mode === 'fix') {
+      setFinalGrade(job.final_grade || selectedDecision?.grade || evaluation?.selectedGrade || gradeOptions[0] || '');
+      setOutputs([{ ...emptyMainOutput(job.items[0]?.sku ?? job.sku ?? undefined, dest), notes: job.disposition_notes ?? '' }]);
+      return;
+    }
     setFinalGrade(selectedDecision?.grade ?? evaluation?.selectedGrade ?? gradeOptions[0] ?? '');
-    setNotes('');
-    setSpentHours(defaultHours);
-    setTimeWarning(null);
-    setOverrideNote('');
-  }, [open, job, evaluation, gradeOptions, defaultHours, selectedDecision?.grade]);
+    setOutputs([emptyMainOutput(job.items[0]?.sku ?? job.sku ?? undefined, dest)]);
+  }, [open, job, evaluation, gradeOptions, selectedDecision?.grade, mode, session]);
 
   if (!job) return null;
 
-  const elapsedLabel = formatElapsed(job.elapsed_seconds ?? 0);
-
-  const buildPayload = (): RestorationJobDonePayload => {
-    const baseNotes = notes.trim();
-    const override = overrideNote.trim();
-    const combinedNotes =
-      override ?
-        [baseNotes, `[Time override: ${override}]`].filter(Boolean).join('\n')
-      : baseNotes;
-    return {
-      destination,
-      final_grade: finalGrade.trim(),
-      notes: combinedNotes,
-      spent_hours: spentHours.trim() || defaultHours,
-    };
-  };
+  const main = outputs[0] ?? emptyMainOutput();
+  const parts = outputs.filter((row) => row.seq > 0);
+  const gradeReady = !hasActions || finalGrade.trim() !== '';
+  const canSubmit = finishMainNoteReady(main.notes, hasActions) && gradeReady;
 
   const handleSubmit = () => {
-    if (!finalGrade.trim()) return;
-    const warning = doneTimeWarning(spentHours.trim() || defaultHours);
-    if (warning && !overrideNote.trim()) {
-      setTimeWarning(warning);
-      return;
-    }
-    onSubmit(buildPayload());
+    if (!canSubmit) return;
+    onSubmit({
+      destination: main.destination,
+      final_grade: finalGrade.trim(),
+      starting_grade: startingGrade.trim(),
+      notes: main.notes.trim(),
+      outputs: outputs
+        .filter((row) => row.seq === 0 || row.label.trim() !== '')
+        .map((row) => ({
+          seq: row.seq,
+          label: row.seq === 0 ? itemLabel || 'Whole item' : row.label.trim(),
+          notes: row.seq === 0 ? '' : row.notes.trim(),
+          destination: row.destination,
+        })),
+    });
     onClose();
   };
 
-  const confirmTimeOverride = () => {
-    if (!overrideNote.trim()) return;
-    onSubmit(buildPayload());
-    setTimeWarning(null);
-    onClose();
-  };
+  const title = mode === 'fix' ? 'Fix Finish' : 'Finish';
+  const confirmLabel = mode === 'fix' ? 'Save finish' : 'Finish';
+  const patchLine = (seq: number, partial: Partial<FinishOutputLine>) =>
+    setOutputs((prev) => prev.map((row) => (row.seq === seq ? { ...row, ...partial } : row)));
 
   return (
-    <>
-      <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ pb: 1, fontWeight: 900 }}>Review final disposition</DialogTitle>
-        <DialogContent>
-          <Stack spacing={1.25} sx={{ pt: 0.5 }}>
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' },
-                gap: 1,
-                p: 1.25,
-                borderRadius: 2,
-                bgcolor: '#f5f8fa',
-                border: '1px solid #d7e0e7',
-              }}
-            >
-              {[
-                ['Item', itemLabel],
-                ['Grade', `${currentGrade} → ${finalGrade || 'Choose'}`],
-                ['Labor', elapsedLabel],
-                ['Known parts', usd(knownPartsCost)],
-              ].map(([label, value]) => (
-                <Box key={label}>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle sx={{ pb: 0.5, fontWeight: 900 }}>{title}</DialogTitle>
+      <DialogContent sx={{ pt: 0.5 }}>
+        <Tabs
+          value={tab}
+          onChange={(_event, next: FinishTab) => setTab(next)}
+          aria-label="Finish sections"
+          sx={{ minHeight: 40, mb: 1, borderBottom: `1px solid ${studio.rule}` }}
+        >
+          <Tab value="dispatch" label="Dispatch" sx={{ textTransform: 'none', fontWeight: 800, minHeight: 40 }} />
+          <Tab value="notes" label="Notes" sx={{ textTransform: 'none', fontWeight: 800, minHeight: 40 }} />
+          <Tab value="actions" label="Actions" sx={{ textTransform: 'none', fontWeight: 800, minHeight: 40 }} />
+        </Tabs>
+
+        <Box sx={{ height: TAB_BODY_HEIGHT, minHeight: TAB_BODY_HEIGHT, overflow: 'hidden' }}>
+          <Box
+            role="tabpanel"
+            hidden={tab !== 'dispatch'}
+            sx={{ height: '100%', overflow: 'auto', display: tab === 'dispatch' ? 'block' : 'none' }}
+          >
+            <Stack spacing={1.25}>
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' },
+                  gap: 1,
+                }}
+              >
+                <StatCard label="Item" value={itemLabel} detail={job.name || '—'} />
+                <Box
+                  sx={{
+                    minHeight: STAT_HEIGHT,
+                    p: 1,
+                    borderRadius: `${studio.radius.md}px`,
+                    border: `1px solid ${studio.panelBorder}`,
+                    bgcolor: studio.panel,
+                  }}
+                >
                   <Typography variant="caption" color="text.secondary" fontWeight={800} display="block">
-                    {label}
+                    Grade
                   </Typography>
-                  <Typography variant="body2" fontWeight={900}>{value}</Typography>
+                  {editingGrades ? (
+                    <Stack direction="row" spacing={0.5} sx={{ mt: 0.35 }}>
+                      <TextField
+                        select
+                        size="small"
+                        label="Original"
+                        value={startingGrade}
+                        onChange={(e) => setStartingGrade(e.target.value)}
+                        sx={{ flex: 1 }}
+                      >
+                        {gradeOptions.map((g) => (
+                          <MenuItem key={g} value={g}>{g}</MenuItem>
+                        ))}
+                      </TextField>
+                      <TextField
+                        select
+                        size="small"
+                        label="Current"
+                        value={finalGrade}
+                        disabled={Boolean(selectedDecision?.grade)}
+                        onChange={(e) => setFinalGrade(e.target.value)}
+                        sx={{ flex: 1 }}
+                      >
+                        {gradeOptions.map((g) => (
+                          <MenuItem key={g} value={g}>{g}</MenuItem>
+                        ))}
+                      </TextField>
+                    </Stack>
+                  ) : (
+                    <Box
+                      component="button"
+                      type="button"
+                      onClick={() => setEditingGrades(true)}
+                      sx={{
+                        display: 'block',
+                        width: '100%',
+                        textAlign: 'left',
+                        border: 0,
+                        bgcolor: 'transparent',
+                        p: 0,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Typography variant="body2" fontWeight={900}>
+                        <Box component="span" sx={{ color: GRADE_ROLE.original.ink }}>{startingGrade || '—'}</Box>
+                        {' → '}
+                        <Box component="span" sx={{ color: GRADE_ROLE.current.ink }}>{finalGrade || '—'}</Box>
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: studio.inkMuted }}>
+                        Click to edit
+                      </Typography>
+                    </Box>
+                  )}
                 </Box>
-              ))}
+                <StatCard
+                  label="Value added"
+                  value={valueAdded == null ? '—' : `${valueAdded >= 0 ? '+' : ''}${usd(valueAdded)}`}
+                  detail={valueAdded == null ? 'Set grades to see value' : 'After parts and supplies'}
+                />
+                <StatCard
+                  label="Cost"
+                  value={usd(costTotal)}
+                  detail={`Parts ${usd(knownBySection.parts)} · Supplies ${usd(knownBySection.supplies)} · FFE ${usd(knownBySection.ffe)}`}
+                />
+              </Box>
+
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: `minmax(140px, 1.1fr) minmax(150px, 1fr) minmax(160px, 1.4fr) ${REMOVE_SLOT}px`,
+                  gap: 0.75,
+                  alignItems: 'center',
+                  px: 0.25,
+                }}
+              >
+                <ColHead>Item</ColHead>
+                <ColHead>Dispatched to</ColHead>
+                <ColHead>Notes for dispatch</ColHead>
+                <Box />
+              </Box>
+
+              <Typography sx={{ fontSize: '0.68rem', fontWeight: 800, color: studio.inkLabel, letterSpacing: 0.4 }}>
+                Main
+              </Typography>
+              <DispatchRow
+                item={
+                  <Typography noWrap sx={{ fontWeight: 800, fontSize: '0.84rem', color: studio.ink }} title={itemLabel}>
+                    {itemLabel}
+                  </Typography>
+                }
+                destination={main.destination}
+                notes={main.notes}
+                notesRequired={!hasActions}
+                onDestination={(destination) => patchLine(0, { destination })}
+                onNotes={(notes) => patchLine(0, { notes })}
+              />
+
+              {mode === 'fix' ? null : (
+                <>
+                  <Box sx={{ borderTop: `1px solid ${studio.rule}`, pt: 1 }}>
+                    <Stack direction="row" alignItems="center" justifyContent="space-between">
+                      <Typography sx={{ fontSize: '0.68rem', fontWeight: 800, color: studio.inkLabel, letterSpacing: 0.4 }}>
+                        Additionals
+                      </Typography>
+                      <Button
+                        size="small"
+                        onClick={() =>
+                          setOutputs((prev) => [
+                            ...prev,
+                            emptyPartOutput((prev.at(-1)?.seq ?? 0) + 1, main.destination),
+                          ])
+                        }
+                        sx={{ textTransform: 'none', fontWeight: 800 }}
+                      >
+                        Add
+                      </Button>
+                    </Stack>
+                  </Box>
+                  {parts.map((row) => (
+                    <DispatchRow
+                      key={row.seq}
+                      item={
+                        <TextField
+                          size="small"
+                          fullWidth
+                          label="Item"
+                          value={row.label}
+                          onChange={(e) => patchLine(row.seq, { label: e.target.value })}
+                        />
+                      }
+                      destination={row.destination}
+                      notes={row.notes}
+                      onDestination={(destination) => patchLine(row.seq, { destination })}
+                      onNotes={(notes) => patchLine(row.seq, { notes })}
+                      onRemove={() => setOutputs((prev) => prev.filter((line) => line.seq !== row.seq))}
+                    />
+                  ))}
+                </>
+              )}
+            </Stack>
+          </Box>
+
+          <Box
+            role="tabpanel"
+            hidden={tab !== 'notes'}
+            sx={{ height: '100%', overflow: 'auto', display: tab === 'notes' ? 'block' : 'none' }}
+          >
+            <JobNotesSlot jobId={open ? job.id : null} itemId={job.items[0]?.id ?? null} compose />
+          </Box>
+
+          <Box
+            role="tabpanel"
+            hidden={tab !== 'actions'}
+            sx={{
+              height: '100%',
+              display: tab === 'actions' ? 'flex' : 'none',
+              flexDirection: 'column',
+              minHeight: 0,
+            }}
+          >
+            <Box sx={{ flexShrink: 0, pb: 1 }}>
+              <HistoryFilterRows filter={historyFilter} onFilter={setHistoryFilter} />
             </Box>
+            <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+              <JobHistoryList
+                rows={historyRows}
+                empty={merged.length === 0 ? 'Nothing recorded yet.' : 'Nothing in this history yet.'}
+                jobId={open ? job.id : null}
+                actions={actions.data?.results ?? []}
+                merged={merged}
+                currentUserId={user?.id ?? null}
+                closed={job.stage === 'done' || job.stage === 'returned'}
+              />
+            </Box>
+          </Box>
+        </Box>
+      </DialogContent>
+      <DialogActions sx={{ px: 2, pb: 1.5 }}>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button variant="contained" disabled={!canSubmit} onClick={handleSubmit}>
+          {confirmLabel}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
 
-            <TextField
-              select
-              fullWidth
-              size="small"
-              label="Destination"
-              value={destination}
-              onChange={(e) => setDestination(e.target.value as RestorationBenchDisposition)}
-            >
-              {DESTINATIONS.map((d) => (
-                <MenuItem key={d.value} value={d.value}>
-                  {d.label}
-                </MenuItem>
-              ))}
-            </TextField>
+function ColHead({ children }: { children: string }) {
+  return (
+    <Typography
+      sx={{
+        fontSize: '0.62rem',
+        fontWeight: 800,
+        letterSpacing: 0.6,
+        textTransform: 'uppercase',
+        color: studio.inkMuted,
+      }}
+    >
+      {children}
+    </Typography>
+  );
+}
 
-            <TextField
-              select
-              fullWidth
-              size="small"
-              required
-              label="Final grade"
-              value={finalGrade}
-              disabled={Boolean(selectedDecision?.grade)}
-              onChange={(e) => setFinalGrade(e.target.value)}
-              helperText={selectedDecision?.grade ? 'Grade is controlled by the committed plan.' : undefined}
-            >
-              {gradeOptions.map((g) => (
-                <MenuItem key={g} value={g}>
-                  {g}
-                </MenuItem>
-              ))}
-            </TextField>
+function DispatchRow({
+  item,
+  destination,
+  notes,
+  notesRequired,
+  onDestination,
+  onNotes,
+  onRemove,
+}: {
+  item: ReactNode;
+  destination: RestorationBenchDisposition;
+  notes: string;
+  notesRequired?: boolean;
+  onDestination: (value: RestorationBenchDisposition) => void;
+  onNotes: (value: string) => void;
+  onRemove?: () => void;
+}) {
+  return (
+    <Box
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: `minmax(140px, 1.1fr) minmax(150px, 1fr) minmax(160px, 1.4fr) ${REMOVE_SLOT}px`,
+        gap: 0.75,
+        alignItems: 'center',
+      }}
+    >
+      <Box sx={{ minWidth: 0 }}>{item}</Box>
+      <TextField
+        select
+        size="small"
+        fullWidth
+        label="Dispatched to"
+        value={destination}
+        onChange={(e) => onDestination(e.target.value as RestorationBenchDisposition)}
+      >
+        {FINISH_DESTINATIONS.map((d) => (
+          <MenuItem key={d.value} value={d.value}>
+            {d.label}
+          </MenuItem>
+        ))}
+      </TextField>
+      <TextField
+        size="small"
+        fullWidth
+        required={notesRequired}
+        label="Notes for dispatch"
+        value={notes}
+        onChange={(e) => onNotes(e.target.value)}
+      />
+      {onRemove ? (
+        <Button size="small" onClick={onRemove} sx={{ textTransform: 'none', minWidth: REMOVE_SLOT }}>
+          Remove
+        </Button>
+      ) : (
+        <Box sx={{ width: REMOVE_SLOT }} />
+      )}
+    </Box>
+  );
+}
 
-            {selectedDecision?.grade ?
-              <Alert severity="success" icon={false}>
-                <Typography variant="body2" fontWeight={800}>
-                  {selectedDecision.grade} · {selectedDecision.action ?? 'action not set'} · {selectedDecision.saleState?.replace(/_/g, ' ') ?? 'sale state not set'}
-                </Typography>
-                <Typography variant="caption">
-                  {selectedDecision.reason || 'No decision reason recorded.'}
-                </Typography>
-              </Alert>
-            : null}
-
-            <Typography variant="body2" sx={{ color: '#526177' }}>
-              Item story: {completedTestCount} test{completedTestCount === 1 ? '' : 's'} completed,{' '}
-              {performedCount} performed action{performedCount === 1 ? '' : 's'} recorded,{' '}
-              {usd(knownPartsCost)} in known parts, and {elapsedLabel} of active labor.
-            </Typography>
-
-            <TextField
-              fullWidth
-              size="small"
-              label="Spent hours"
-              type="number"
-              inputProps={{ min: 0, step: 0.01 }}
-              value={spentHours}
-              onChange={(e) => setSpentHours(e.target.value)}
-              helperText={`Timer default: ${defaultHours}h`}
-            />
-
-            <TextField
-              fullWidth
-              size="small"
-              label="Notes"
-              multiline
-              minRows={2}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ px: 2, pb: 1.5 }}>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button variant="contained" disabled={!finalGrade.trim()} onClick={handleSubmit}>
-            Complete
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={timeWarning != null} onClose={() => setTimeWarning(null)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ pb: 1 }}>
-          {timeWarning === 'high' ? 'Unusually high bench time' : 'Very low bench time'}
-        </DialogTitle>
-        <DialogContent>
-          <Alert severity={timeWarning === 'high' ? 'warning' : 'info'} sx={{ mb: 1.5 }}>
-            {doneTimeWarningMessage(timeWarning)}
-          </Alert>
-          <TextField
-            fullWidth
-            size="small"
-            required
-            label="Override note"
-            placeholder="Explain why this time is correct"
-            value={overrideNote}
-            onChange={(e) => setOverrideNote(e.target.value)}
-          />
-        </DialogContent>
-        <DialogActions sx={{ px: 2, pb: 1.5 }}>
-          <Button onClick={() => setTimeWarning(null)}>Go back</Button>
-          <Button variant="contained" disabled={!overrideNote.trim()} onClick={confirmTimeOverride}>
-            Override and complete
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </>
+function StatCard({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <Box
+      sx={{
+        minHeight: STAT_HEIGHT,
+        p: 1,
+        borderRadius: `${studio.radius.md}px`,
+        border: `1px solid ${studio.panelBorder}`,
+        bgcolor: studio.panel,
+      }}
+    >
+      <Typography variant="caption" color="text.secondary" fontWeight={800} display="block">
+        {label}
+      </Typography>
+      <Typography variant="body2" fontWeight={900} noWrap>
+        {value}
+      </Typography>
+      <Typography variant="caption" sx={{ color: studio.inkMuted }} noWrap>
+        {detail}
+      </Typography>
+    </Box>
   );
 }

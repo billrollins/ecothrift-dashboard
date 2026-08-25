@@ -3,7 +3,7 @@
 <!-- Last updated: 2026-04-29 -->
 # Vendor avatars (upload + dashboard-wide display)
 
-**Status:** **Backlog** — parked under [`.ai/initiatives/_archived/_backlog/`](./). No active session. When ready to implement, move to initiatives root per [`.ai/initiatives/_archived/_protocols/README.md`](../_protocols/README.md) (**`activate_initiative`**) and add a row to [`.ai/initiatives/_index.md`](../../_index.md).
+**Status:** **Backlog** — parked under [`.ai/initiatives/_archived/_backlog/`](./). When ready to implement, follow [`.ai/protocols/initiative.md`](../../../protocols/initiative.md) (activate) and add a row to [`.ai/initiatives/_index.md`](../../_index.md).
 
 ---
 
@@ -83,9 +83,3 @@ Let staff **upload a photo per vendor** that serves as a **visual avatar** (repl
 - Inventory models / serializers / views: `apps/inventory/models.py`, `apps/inventory/serializers.py`, `apps/inventory/views.py`
 - `core.S3File`: `apps/core/models.py`, `apps/core/serializers.py`
 - Prior analysis (session 2026-04-29): initials live in `frontend/src/pages/inventory/OrderListPage.tsx` (`vendorInitials`, `hueFromString`).
-
----
-
-## Sessions
-
-_When this leaves backlog and work starts, add **`## Sessions`** blocks in the file at the initiatives root per [`.ai/protocols/code.0.Startup.md`](../../../protocols/code.0.Startup.md) step 8._

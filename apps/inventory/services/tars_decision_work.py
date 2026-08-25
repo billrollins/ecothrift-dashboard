@@ -9,6 +9,8 @@ from typing import Any
 
 from django.utils import timezone
 
+from apps.inventory.services.tars_purchase import parts_cost_for_grade
+
 
 SCHEMA_VERSION = 1
 CATALOG_VERSION = 'phase1-mvp-v1'
@@ -506,7 +508,11 @@ def _normalize_outcome(
     if len(raw_order_ids) > 50:
         raise DecisionWorkValidationError('An outcome may attach at most 50 orders.')
 
-    expected_parts_cost = _attached_order_cost(session, order_ids)
+    from apps.inventory.services.restoration_parts import committed_parts_cost_for_grade
+
+    expected_parts_cost = committed_parts_cost_for_grade(job, grade)
+    if expected_parts_cost <= Decimal('0'):
+        expected_parts_cost = parts_cost_for_grade(session, grade)
     labor_cost = EFFECTIVE_LABOR_RATE * effective_minutes / Decimal('60')
     contribution = grade_value - expected_parts_cost - labor_cost
     score = contribution / effective_minutes
@@ -619,57 +625,14 @@ def _normalize_override(raw: Any, *, user, now) -> dict[str, Any]:
     }
 
 
-def _completion_gaps(decision: dict[str, Any]) -> tuple[list[str], list[str]]:
-    condition = decision.get('condition') if isinstance(decision.get('condition'), dict) else {}
-    handoff = decision.get('handoff') if isinstance(decision.get('handoff'), dict) else {}
-    tests = decision.get('tests') if isinstance(decision.get('tests'), list) else []
-    outcomes = decision.get('outcomes') if isinstance(decision.get('outcomes'), list) else []
-    selection = decision.get('selection') if isinstance(decision.get('selection'), dict) else {}
-    required: list[str] = []
-    ordinary: list[str] = []
+def decision_work_progress(_decision: dict[str, Any]) -> dict[str, Any]:
+    """Progress is informational only — it never gates finish."""
 
-    if not str(condition.get('currentGrade') or '').strip():
-        required.append('current_grade')
-    if not handoff.get('acknowledged'):
-        # Cockpit: handoff ack is informational only — not a finalize gate.
-        pass
-    if condition.get('testedStatus') not in TESTED_STATUSES:
-        ordinary.append('tested_status')
-    if not str(condition.get('evidence') or '').strip():
-        ordinary.append('condition_evidence')
-    if str(condition.get('completeness') or '').strip() in {'', 'unknown'}:
-        ordinary.append('completeness')
-    if any(
-        isinstance(test, dict)
-        and test.get('relevant')
-        and test.get('result') not in TEST_RESULTS
-        for test in tests
-    ):
-        ordinary.append('relevant_test_results')
-    if not any(bool(outcome.get('viable')) for outcome in outcomes if isinstance(outcome, dict)):
-        required.append('viable_outcome')
-    if not str(selection.get('outcomeId') or '').strip():
-        required.append('selected_outcome')
-    if not str(selection.get('grade') or '').strip():
-        required.append('selected_grade')
-    if not str(selection.get('action') or '').strip():
-        required.append('selected_action')
-    if not str(selection.get('saleState') or '').strip():
-        required.append('selected_sale_state')
-    if not str(selection.get('reason') or '').strip():
-        required.append('selection_reason')
-    return required, ordinary
-
-
-def decision_work_progress(decision: dict[str, Any]) -> dict[str, Any]:
-    required, ordinary = _completion_gaps(decision)
-    missing = [*required, *ordinary]
-    required_count = 11
     return {
-        'missing': missing,
-        'complete': not missing,
-        'completedCount': max(0, required_count - len(missing)),
-        'requiredCount': required_count,
+        'missing': [],
+        'complete': True,
+        'completedCount': 0,
+        'requiredCount': 0,
     }
 
 
@@ -839,17 +802,48 @@ def normalize_decision_work(
     return normalized
 
 
+def strip_bench_plan_odds(session: dict[str, Any]) -> bool:
+    """Keep only parts and minutes on each bench-plan estimate. Returns True if anything changed."""
+
+    plan = session.get('benchPlan')
+    if not isinstance(plan, dict):
+        return False
+    estimates = plan.get('estimates')
+    if not isinstance(estimates, dict):
+        return False
+    cleaned: dict[str, Any] = {}
+    changed = False
+    for grade, estimate in estimates.items():
+        if not isinstance(estimate, dict):
+            changed = True
+            continue
+        kept: dict[str, Any] = {}
+        parts = estimate.get('parts')
+        minutes = estimate.get('minutes')
+        if isinstance(parts, (int, float)) and not isinstance(parts, bool):
+            kept['parts'] = parts
+        if isinstance(minutes, (int, float)) and not isinstance(minutes, bool):
+            kept['minutes'] = minutes
+        cleaned[str(grade)] = kept
+        if estimate != kept:
+            changed = True
+    if changed:
+        plan['estimates'] = cleaned
+    return changed
+
+
 def normalize_work_session(
     raw_session: Any,
     *,
     job,
     user=None,
 ) -> dict[str, Any]:
-    """Preserve all existing session keys and normalize only ``decisionWork``."""
+    """Preserve existing session keys; strip bench-plan odds; normalize ``decisionWork``."""
 
     if not isinstance(raw_session, dict):
         raise DecisionWorkValidationError('work_session must be an object.')
     session = copy.deepcopy(raw_session)
+    strip_bench_plan_odds(session)
     if 'decisionWork' not in session:
         return session
     session['decisionWork'] = normalize_decision_work(
@@ -864,95 +858,3 @@ def normalize_work_session(
         session['selectedGrade'] = selected_grade
     return session
 
-
-def _selection_path(selection: dict[str, Any]) -> str:
-    return str(selection.get('saleState') or selection.get('action') or '').strip().lower()
-
-
-def validate_completion(
-    decision: Any,
-    *,
-    final_grade: str,
-    destination: str,
-) -> None:
-    """Apply Phase 1 completion gates when decision work is present."""
-
-    if not isinstance(decision, dict):
-        return
-    stop_out = decision.get('stopOut') if isinstance(decision.get('stopOut'), dict) else {}
-    selection = decision.get('selection') if isinstance(decision.get('selection'), dict) else {}
-    responses = {
-        entry.get('stopOutId'): entry.get('response')
-        for entry in stop_out.get('responses') or []
-        if isinstance(entry, dict)
-    }
-    # Soft stop-outs: unanswered is treated as clear. Only an explicit blocked
-    # response interrupts completion.
-    blocked = [
-        stop_id
-        for stop_id in MANDATORY_STOP_OUT_CATALOG
-        if responses.get(stop_id) == 'blocked'
-    ]
-    if blocked and stop_out.get('blocked'):
-        pass  # evaluated below via _outcome_block_reason
-
-    action = str(selection.get('action') or '').strip().lower()
-    sale_state = str(selection.get('saleState') or '').strip().lower()
-    block_reason = _outcome_block_reason(
-        stop_out,
-        action=action,
-        sale_state=sale_state,
-    )
-    if block_reason:
-        raise DecisionWorkValidationError(
-            'A mandatory stop-out blocks the selected completion path. '
-            'Use a compatible hold, return, or salvage path.',
-        )
-    if destination == 'online_sales' and stop_out.get('blocked') and sale_state == 'tested':
-        raise DecisionWorkValidationError(
-            'A mandatory stop-out cannot be completed as a normal tested sale.',
-        )
-
-    required_gaps, ordinary_gaps = _completion_gaps(decision)
-    if required_gaps:
-        raise DecisionWorkValidationError(
-            'Complete the required Phase 1 decision fields before completion. '
-            f"Missing: {', '.join(required_gaps)}.",
-        )
-    if ordinary_gaps:
-        if (
-            not str(selection.get('overrideReason') or '').strip()
-            or not selection.get('overrideRecordedById')
-        ):
-            raise DecisionWorkValidationError(
-                'Complete the Phase 1 evidence fields or save an ordinary override reason with identity. '
-                f"Missing: {', '.join(ordinary_gaps)}.",
-            )
-
-    selected_grade = str(selection.get('grade') or '').strip()
-    if selected_grade and selected_grade != final_grade:
-        raise DecisionWorkValidationError(
-            'The completion grade must match decisionWork.selection.grade.',
-        )
-    selected_outcome_id = selection.get('outcomeId')
-    if selected_outcome_id:
-        outcomes = decision.get('outcomes') if isinstance(decision.get('outcomes'), list) else []
-        selected_outcome = next(
-            (
-                outcome
-                for outcome in outcomes
-                if isinstance(outcome, dict) and outcome.get('id') == selected_outcome_id
-            ),
-            None,
-        )
-        if selected_outcome is None or not selected_outcome.get('viable'):
-            raise DecisionWorkValidationError('The selected outcome must be viable.')
-
-
-def validate_job_completion(job, *, final_grade: str, destination: str) -> None:
-    session = job.work_session if isinstance(job.work_session, dict) else {}
-    validate_completion(
-        session.get('decisionWork'),
-        final_grade=final_grade,
-        destination=destination,
-    )

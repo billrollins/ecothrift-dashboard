@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-07-29 (v2.60.0 Retail QA reliability + 8-week dashboard) -->
+<!-- Last updated: 2026-08-13 (dropped pos_terminal_cart_scroll QA-pack path) -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -154,7 +154,7 @@ The `useDeviceConfig` hook (`frontend/src/hooks/useDeviceConfig.ts`) reads/write
 - **Inline line editing**: Edit icon opens in-place `TextField`s for `quantity`, `description`, `unit_price` per line; Save/Cancel buttons; calls `PATCH /pos/carts/{id}/lines/{line_id}/`
 - **Remove line**: Optimistic UI (line removed from local state immediately); calls `DELETE /pos/carts/{id}/lines/{line_id}/`; rolls back on error
 - **Void Sale**: Red "Void" button + `ConfirmDialog`; Manager/Admin only; calls `POST /pos/carts/{id}/void/`
-- **Cart list viewport**: Cart `Paper` fills leftover main height (md+); line list scrolls inside; subtotal/tax/total stay pinned under the list. After add-item / qty bump / manual line / resale copy / line edit, the **affected** line scrolls into view (`scrollIntoView({ block: 'nearest' })`). QA pack: `.ai/reference/pos_terminal_cart_scroll/`.
+- **Cart list viewport**: Cart `Paper` fills leftover main height (md+); line list scrolls inside; subtotal/tax/total stay pinned under the list. After add-item / qty bump / manual line / resale copy / line edit, the **affected** line scrolls into view (`scrollIntoView({ block: 'nearest' })`). Seeded QA SKUs: `python manage.py seed_pos_terminal_test_items` (`POSTEST##`).
 - **Discount / store credit**: `POST …/add-discount/` adds a negative `line_kind=discount` line (cart-wide or `target_line_id`); cannot exceed merchandise/delivery total.
 - **Delivery fee**: `POST …/add-delivery/` with `tier` `5mi` ($50) or `10mi` ($75); requires name/phone/address/`items_delivered`; Apt? requires Unit #; optional `availability_id` **or** `schedule_later` / omit date → `DeliveryJob` status `needs_scheduling` (nullable availability/date; migration `pos.0013`); optional `notes`. Address suggest `GET /pos/delivery/address-suggest/?q=` uses **US Census** geocoder (Nominatim fallback), returns distance to **8425 West Center Road** and recommended tier; over 10 mi → `too_far` (terminal popup, cannot add). After schedule-later, terminal shows Saturday / must-be-home reminder.
 - **Delivery scheduling**: `DeliveryAvailability` (date/times/crew/who) + `DeliveryJob`; APIs `/pos/delivery-availabilities/`, `/pos/delivery-jobs/` (`GET`/`POST`/`PATCH`); Dash page `/pos/deliveries` **Add delivery** (Manager): past sale lines, inventory SKU, or free-text; `POST /delivery-jobs/` creates cart-optional jobs (no fee line). Warns on `needs_scheduling`; Schedule dialog `PATCH` with `availability_id` (+ notes) returns `customer_schedule_message` / `just_scheduled`. Void cart or remove delivery line cancels active jobs (including needs_scheduling).

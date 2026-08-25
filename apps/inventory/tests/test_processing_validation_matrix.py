@@ -1,7 +1,7 @@
 """
 Item Processor validation matrix — API-level tests.
 
-Traceability: .ai/reference/Processor Mockups/PROCESSING_VALIDATION_MATRIX.md
+Traceability: `.ai/extended/inventory-pipeline.md` (Item Processor workspace).
 """
 
 from __future__ import annotations

@@ -22,6 +22,7 @@ import LocalShippingOutlined from '@mui/icons-material/LocalShippingOutlined';
 import MenuRounded from '@mui/icons-material/MenuRounded';
 import PlayArrowRounded from '@mui/icons-material/PlayArrowRounded';
 import { useDeliveryDays, useDeliveryDaysInfinite } from '../../../../hooks/useDelivery';
+import { deliveryDayPath } from '../deliveryPaths';
 import { useAuth } from '../../../../hooks/useAuth';
 import type { DeliveryDayDisplayState, DeliveryDaySummary } from '../../../../types/pos.types';
 import {
@@ -515,7 +516,7 @@ export default function FieldDaysLandingPage() {
   });
 
   const today = pickTodayDay(todayData?.results);
-  const openDay = (id: number) => navigate(`/pos/deliveries/field/days/${id}`);
+  const openDay = (id: number) => navigate(deliveryDayPath('field', id));
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : 'Evening';
 

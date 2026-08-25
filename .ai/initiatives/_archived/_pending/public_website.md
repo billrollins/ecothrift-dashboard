@@ -14,7 +14,7 @@ Rebuild the public Eco-Thrift website (previously Shopify) **inside this repo**,
 
 - **End goal (owner-confirmed):** **full online checkout** — real payments (Stripe), shipping/tax, and order management (what Shopify did).
 - **Catalog (owner-confirmed):** a **separately hand-curated web catalog** — staff manually pick/list a subset of items with their own photos, descriptions, and prices (not auto-pulled from floor inventory).
-- **Design source of truth:** [`ecothrift-store.html`](../../../reference/shopify-site-copy/ecothrift-store.html) (full storefront mockup) + real copy in [`site_copy.md`](../../../reference/shopify-site-copy/site_copy.md). Plan of record: this file (mirrors the approved session plan).
+- **Design source of truth:** `ecothrift-store.html` (full storefront mockup) + real copy in `site_copy.md`. Plan of record: this file (mirrors the approved session plan).
 
 ---
 
@@ -88,7 +88,7 @@ Alternative: single SPA branching on `window.location.hostname` — cheaper to w
 
 ## Non-code dependencies (owner)
 
-- **Payment processor** — *not Stripe* (owner decision 2026-05-30); likely **Helcim**. For now build a provider-agnostic abstraction + no-op stub (no live charges); wire the real processor when the account/keys exist. Email provider (SES/Postmark/SendGrid) for order confirmations; Nebraska sales-tax handling/registration; refund/privacy/terms pages (refund copy exists in [`site_copy.md`](../../../reference/shopify-site-copy/site_copy.md)).
+- **Payment processor** — *not Stripe* (owner decision 2026-05-30); likely **Helcim**. For now build a provider-agnostic abstraction + no-op stub (no live charges); wire the real processor when the account/keys exist. Email provider (SES/Postmark/SendGrid) for order confirmations; Nebraska sales-tax handling/registration; refund/privacy/terms pages (refund copy exists in `site_copy.md`).
 - **Public image hosting — ✅ resolved (Session 3): keep S3 private**; the public catalog serves photos via an `AllowAny` presigned-redirect endpoint (302 → short-lived presigned URL). No bucket policy change, fully reversible; can swap to a public CDN prefix later if desired.
 
 ## Open decisions to confirm during the work
@@ -107,101 +107,14 @@ Alternative: single SPA branching on `window.location.hostname` — cheaper to w
 - [x] Staff can curate a web catalog (with photos); the public can browse it. *(Phase 2: `apps.webstore` + staff "Web store" CRUD + public shop/detail/cart)*
 - [x] Customers can complete an order (pickup or ship) and receive confirmation; staff can fulfill. *(Phase 3: public `/checkout` + `/order/:number`, `Order`/`OrderLine`, NE tax + flat ship, atomic stock reserve, staff "Web orders" status/payment mgmt. **Live charge stubbed** — `manual` provider records the order awaiting payment; swap to Helcim by config.)*
 - [x] SEO basics + old-URL redirects in place at launch. *(Phase 4: per-route title/description/canonical/OG/Twitter via `useSeo`, Store + Product JSON-LD, `robots.txt` + `sitemap.xml`, legacy Shopify 301s (`/products|/collections|/blogs|/pages|/cart|/account`) merged with the canonical-host redirect, route code-splitting, SVG favicon + theme-color, `noindex` on checkout/order/404. Optional Plausible analytics gated by `VITE_PLAUSIBLE_DOMAIN`.)*
-- [x] [`.ai/extended/frontend.md`](../../../extended/frontend.md) and [`.ai/context.md`](../../../context.md) updated as routes/architecture change; releases bumped per [`session.9.Close.md`](../../../protocols/session.9.Close.md). *(v2.26.0)*
-
----
-
-## Sessions
-
-### Session 1 — Archive cleanup + Phase 0 (host split + holding page)
-
-- **Goal:** Stand up the initiative and stop `ecothrift.us` from serving the staff login.
-- **Finish line:** `web_ui_cleanup` archived; this initiative created + indexed; host-based routing + canonical `www`→apex 301 + branded holding page in place; `python manage.py check` clean.
-- **Scope:** Docs (archive + this file + `_index.md` + `context.md`); `ecothrift/settings.py` (host config + middleware registration), new `apps/core/middleware.py`, new `apps/core/templates/public/holding.html`. **Out of scope:** the public SPA build, catalog models, payments.
-- **Est:** ~1–2h · **Start:** 2026-05-30
-- **Result (2026-05-30):** Done. `web_ui_cleanup` archived → `_completed/`; this initiative created + indexed; `context.md` compass repointed. Phase 0 shipped to code: `apps.core.middleware.PublicSiteMiddleware` + `apps/core/templates/public/holding.html` + `PUBLIC_SITE_HOSTS`/`PUBLIC_SITE_CANONICAL_HOST` settings (prod defaults to apex + www). Verified locally: apex serves the holding page, `www`→apex 301 (path+query preserved), `/api/` + `dash` pass through, `manage.py check` clean. Takes effect on next Heroku deploy. **Next:** confirm the Phase 1 architecture (separate public Vite build vs host-switching SPA) before scaffolding the public frontend.
-
-### Session 2 — Phase 1 (public scaffold + marketing pages)
-
-- **Goal:** Stand up the public storefront frontend and ship the static marketing site on the apex.
-- **Architecture decision:** **separate public Vite build** (`frontend-public/`) — owner-confirmed (`frontend_arch = separate_build`). Keeps the heavy staff bundle off public pages.
-- **Scope (done):**
-  - New `frontend-public/` app — React 18.3 / TS / Vite 7 / `react-router-dom` 7 (versions matched to staff `frontend/`). Self-contained `tsconfig.json` (no project refs), `vite.config.ts` with prod `base: '/static/site/'` + `/api` dev proxy.
-  - Design system ported from the mockup (`styles.css`: Spectral/Manrope, brand greens, tokens), shared `Layout` (utility bar + header + category subnav + footer) and `PostCard`.
-  - Pages from **real** copy: **Home, Shop** (opening-soon shell), **Blog list + post**, **Visit, Sell**, **404**. Content centralized in `src/data/content.ts` — reconciled store facts (**9717 Q St, Omaha NE 68127**; 9 AM–8 PM daily; (402) 510-7509; dropped "Canfield"), founder blog essays, testimonials.
-  - SEO: `usePageTitle` per page + meta description in `index.html`.
-  - Django wiring: `STATICFILES_DIRS += ('site', frontend-public/dist)`, `PUBLIC_SITE_INDEX` → public `index.html`; `PublicSiteMiddleware` serves the built SPA on the apex (falls back to the Phase 0 holding page when no build is present, e.g. local dev). Root `package.json` `heroku-postbuild` now builds `frontend-public` too; `.gitignore` updated.
-- **Verified (2026-05-30):** `npm run build` (frontend-public) OK; `manage.py check` clean; `manage.py collectstatic --noinput` → 176 copied / 496 post-processed, **no manifest errors**; assets land at `staticfiles/site/assets/*` (hashed + gz). Routing harness: apex `/` → 200 built SPA, apex `/shop` → 200 SPA fallback, `www/blog` → 301 apex, apex `/api/...` → 401 passthrough, `dash /` → passthrough. Live on next Heroku deploy.
-- **Result:** **Phase 1 complete.** Full marketing site renders on the apex (Home/Shop/Blog/Visit/Sell/404). **Next:** Phase 2 — two open decisions gate the data model (**public image hosting** + **price-drop approach**), and Phase 3 is hard-blocked on owner-provided **Stripe** + **email** accounts. Checkpoint with owner before the catalog build.
-
-### Session 3 — Phase 2 (curated catalog: backend + staff CRUD + public shop)
-
-- **Goal:** Stand up a hand-curated catalog with photos, a public browse/cart experience, and staff tooling to manage it.
-- **Owner decisions (this session):** payments **not Stripe** — likely **Helcim**; build provider-agnostic + stubbed for now. Image hosting → **keep S3 private + presigned-redirect proxy**. Price drops → **`compare_at_price` + copy** (defer engine).
-- **Scope (done):**
-  - **New app `apps.webstore`** (registered in `INSTALLED_APPS`, mounted at `/api/webstore/`). Models `WebListing` (title/slug, optional FK `inventory.Category` + `inventory.Item`, condition, price, `compare_at_price`, stock, status draft/published/archived, featured) + `WebListingImage` (FK `core.S3File`, position/alt). Migration `0001_initial` applied locally.
-  - **Public API (`AllowAny`):** `catalog/` (filters: category, q, sort, featured, on_sale, available; paginated), `catalog/<slug>/`, `catalog/categories/` (counts), and `images/<id>/` — a **private-S3 image proxy** (302 → presigned URL on S3, streams in non-S3 dev).
-  - **Staff API (`IsStaff`):** `WebListingViewSet` CRUD + actions `images` (multipart upload), `images/reorder`, `images/<id>` (delete).
-  - **Staff UI:** `frontend/src/pages/admin/WebStorePage.tsx` — DataGrid list + create/edit dialog (category/condition/status/featured/price/compare-at/stock/SKU/description) + inline photo upload/delete. New **"Web store"** link in the **Admin** workspace (`storefront` icon), route `/admin/web-store` (Manager/Admin). API/hooks: `api/webstore.api.ts`, `hooks/useWebStore.ts`.
-  - **Public UI:** `frontend-public` Shop is now a live catalog grid (category sidebar w/ counts, sort, search, sale/sold badges, add-to-cart), new **Product detail** page (`/shop/:slug`, gallery + qty + add-to-cart), and a **client-side cart** (`cart.tsx` + `CartDrawer`, localStorage) with a cart button in the header. Checkout remains a stub (cart → "reserve by email"; full checkout is Phase 3).
-- **Verified (2026-05-30):** `manage.py makemigrations`/`migrate` + `check` clean; staff `tsc` clean; public `tsc && vite build` clean. Integration harness (local DB `ecothrift_v3`): catalog hides drafts, lists sold-out as unavailable, on_sale/category filters work, detail returns images + multiline description, image proxy 302s to presigned S3, apex serves the rebuilt SPA, `/api` passes through.
-- **Result:** **Phase 2 complete.** Real curated catalog browsable with photos; cart works. **Next:** Phase 3 — order models + provider-agnostic payments (stub now, Helcim-ready), shipping/Nebraska tax, stock reserve/mark-sold, order email, staff order management.
-
-### Session 4 — Phase 3 (checkout + orders + provider-agnostic payments)
-
-- **Goal:** Turn the working cart into placed orders — end-to-end checkout, order records, NE tax + shipping, stock reservation, email confirmation, and staff order management. Payments are wired through an abstraction but **not charged** (owner: not Stripe; likely Helcim later).
-- **Scope (done):**
-  - **Backend (`apps.webstore`):** `Order` (auto `ETW#####` number, status pending/paid/fulfilled/cancelled, payment provider/status/reference, fulfillment pickup/ship + ship address, money snapshot, customer/staff notes) + `OrderLine` (title/sku/price snapshot). Migration `0002_order_orderline` applied locally.
-    - **Payments:** `payments.py` — `PaymentProvider` interface + `ManualProvider` (default stub: records order awaiting payment, always "succeeds") + `HelcimProvider` placeholder; `get_payment_provider()` factory keyed off `WEBSTORE_PAYMENT_PROVIDER`.
-    - **Public API (`AllowAny`):** `POST checkout/` — validates cart, **atomically** `select_for_update`-reserves stock (409 on oversell), computes flat shipping (`WEBSTORE_SHIP_FLAT`, ship only) + NE tax (`WEBSTORE_SALES_TAX_RATE` on subtotal+shipping), creates order+lines, decrements stock, runs the payment provider, sends confirmation. `GET order-status/<number>/` (number is the customer's token).
-    - **Staff API (`IsStaff`):** `OrderViewSet` (list/retrieve/update — only payment status/reference + staff note writable) + `set-status` action (cancel **restocks** reserved units atomically; marking paid syncs `payment_status`).
-    - **Email:** `emails.py` `send_order_confirmation` (best-effort, `fail_silently`); console backend by default (`EMAIL_BACKEND`/`DEFAULT_FROM_EMAIL` settings), so checkout never blocks on mail.
-  - **Public UI (`frontend-public`):** `/checkout` (contact + pickup/ship toggle + address + order summary; shipping/tax shown as "calculated on confirmation"; honest "online payment coming soon — we'll arrange payment" note) → `/order/:number` confirmation (status, totals, ship/pickup, emailed-to). Cart drawer CTA changed from "reserve by email" to **Checkout**. `api.ts` gained `checkout()` + `fetchOrder()`.
-  - **Staff UI:** new **"Web orders"** page (`/admin/web-orders`, Manager/Admin, `receiptLong` icon in the Admin workspace) — DataGrid (order/date/customer/status/payment/fulfillment/total, filters + search) + detail dialog (lines, totals, customer/ship info, status action buttons, editable payment status/reference + staff note). API/hooks added to `webstore.api.ts` + `useWebStore.ts`.
-- **Verified (2026-05-30):** Phase 3 backend harness — pickup order → 201 `ETW00001`, subtotal $20 / tax $1.40 / total $21.40, stock decremented; ship order → subtotal $25 + ship $9.95 + tax $2.45 = $37.40; oversell → 409; missing ship address → 400; `order-status` → 200; staff `orders` unauthenticated → 401. Staff `tsc --noEmit` clean; public `tsc && vite build` clean (224 kB / 72 kB gz). Lints clean.
-- **Result:** **Phase 3 complete.** Customers can place pickup/ship orders end-to-end (real charge stubbed, Helcim-ready); staff manage orders + payment status in the dashboard. **Next:** Phase 4 — SEO/meta/sitemap, old-Shopify-URL redirects, performance/code-split, analytics, favicon/branding/404, optional accounts + price-drop engine.
-
-### Session 5 — Phase 4 (launch hardening: SEO + redirects + perf + branding)
-
-- **Goal:** Make the storefront launch-ready: discoverable (SEO/meta/structured data/sitemap), continuous with the old Shopify URLs (301s), fast (code-split), and branded (favicon/social).
-- **Scope (done):**
-  - **SEO (`frontend-public`):** new **`useSeo`** hook (replaces `usePageTitle`) sets per-route `<title>`, meta description, **canonical** link, **Open Graph** + **Twitter** tags, and the **robots** directive; **`useJsonLd`** injects structured data. Applied across all pages: Home/Visit emit **Store (LocalBusiness)** JSON-LD; product pages emit **Product** JSON-LD (price/availability/images) + per-item description & `og:image`; checkout, order confirmation, and 404 are **`noindex`**. Canonical origin centralized as `SITE_URL`.
-  - **Branding:** SVG **favicon** (brand leaf) in `public/`, `theme-color`, and default OG/Twitter tags baked into `index.html` (Vite rewrites the favicon to `/static/site/favicon.svg` for the non-root base).
-  - **Performance:** route components **code-split** via `React.lazy` + `Suspense` — entry chunk dropped ~225 kB → **207 kB** (gz 72 → 69), with per-route chunks (Shop, Product, Checkout, Blog, …) loaded on demand.
-  - **Backend SEO:** `apps/core/views.py` `robots_txt` + `sitemap_xml` (marketing routes + blog slugs + every published `WebListing` slug, built from the canonical host); wired in `ecothrift/urls.py` ahead of the SPA fallback; `PublicSiteMiddleware` passes `/robots.txt` + `/sitemap.xml` through.
-  - **Legacy redirects:** `PublicSiteMiddleware.rewrite_legacy_path` maps old Shopify URLs — `/products/<h>`→`/shop/<h>`, `/collections[/*]`→`/shop`, `/blogs[/*]`→`/blog`, `/pages/<slug>`→`/visit|/sell|/blog|/`, `/cart`→`/shop`, `/account[/*]`→`/` — **merged with the canonical-host 301** so `www` + a legacy path resolve in a single hop.
-  - **Analytics:** optional, privacy-friendly **Plausible** include gated by `VITE_PLAUSIBLE_DOMAIN` (no-op unless set at build) — "ready to hook up," mirroring the payments approach.
-- **Verified (2026-05-30):** public `tsc && vite build` clean (code-split chunks emitted, favicon copied + path rewritten in `dist/index.html`); `manage.py check` clean; SEO/redirect harness all-pass — `robots.txt`/`sitemap.xml` 200 with expected content, the full legacy-301 matrix, single-hop `www` + `/products/x` → apex `/shop/x`, query preserved, native routes serve 200, `/api` still passes through.
-- **Result:** **Phase 4 complete — all build phases done.** The public site is launch-ready pending owner/deploy tasks (deploy, secret rotation, payment + email providers, a real social share image). Deferred by owner decision: customer accounts / "Thrift+" and a real price-drop schedule engine.
-
-### Session 6 — Content polish + launch copy (Canfield, categories, pickup-only)
-
-- **Goal:** Align the public site with current store reality and tone before deploy.
-- **Scope (done):**
-  - **Store facts:** Canfield retail (8425 W Center Rd; Mon–Sat 9–6; (402) 881-9861); removed closed warehouse (8072 H St) from Visit + holding page.
-  - **Shop:** taxonomy v1 categories (19) via `shop_categories.py` + `seed_shop_categories`; collection legacy 301s → taxonomy slugs.
-  - **UX/copy:** pickup-only checkout (no ship UI / no nationwide-shipping promises); Sell page “coming this summer”; sticky high-visibility under-construction banner; larger high-res logos; Google Maps embed on Visit; three blog posts with photos; removed shop empty-state “Ask what’s in stock” and hero secondary CTA.
-  - **Dev:** `start_servers.bat` / `kill_servers.bat` include public Vite on `:5174`.
-- **Result (2026-05-30):** Content polish complete. Released **v2.26.0**. **Next:** deploy to Heroku, run `seed_shop_categories` on prod, rotate secrets, wire payment + email.
-
-### Session 7 — Pre-deploy UX + copy fixes (post-release polish)
-
-- **Goal:** Fix customer-facing issues before deploy — wrong Maps pin, misleading pricing copy, cramped Visit info, horizontal category scroll in header.
-- **Finish line:** No daily-markdown claims on the public site; Get directions opens the Canfield place pin; Visit address block reads cleanly; category links only on Shop (no global subnav scroll).
-- **Scope:** `frontend-public` (Layout, Visit/Home/Shop/Sell, `content.ts`, `styles.css`); `apps/core/templates/public/holding.html`. **Out of scope:** payment/email wiring, new features.
-- **Est:** ~1h · **Start:** 2026-05-30
-- **Session updates:**
-  - `2026-05-30T15:45:00-05:00` — Removed outdated “prices drop daily / 5%” copy across marketing pages, How it works, blog *Turns Two*, testimonial, Sell step, holding page.
-  - `2026-05-30T15:50:00-05:00` — Visit retail block: stacked label/value rows; removed “Near S 84th…” line; maps use place pin `41.2336219,-96.0442073` via `retailMapsDirectionsUrl()`.
-  - `2026-05-30T15:55:00-05:00` — Removed global category **subnav** from `Layout` (categories remain on Shop sidebar only).
-- **Result:** `committed as v2.26.0 at eb3abc8` (bundled in the same release commit as Phases 0–4). **Session closed 2026-05-30** — initiative **parked** in `_archived/_pending/`; owner deploy + Helcim/email deferred (not this weekend).
+- [x] [`.ai/extended/frontend.md`](../../../extended/frontend.md) and [`.ai/context.md`](../../../context.md) updated as routes/architecture change; releases bumped per [`ship.md`](../../../protocols/ship.md). *(v2.26.0)*
 
 ---
 
 ## See also
 
 - Plan of record (approved): mirrors this file's phases.
-- [`.ai/reference/shopify-site-copy/`](../../../reference/shopify-site-copy/README.md) — mockup HTML + scraped copy.
+- `.ai/reference/shopify-site-copy/` — mockup HTML + scraped copy.
 - [`.ai/extended/frontend.md`](../../../extended/frontend.md) — routing/pages (update as the public site lands).
 - Predecessor: [`web_ui_cleanup`](../_completed/web_ui_cleanup.md) (staff nav/page audit, shipped v2.25.0).
 - [`.ai/initiatives/_index.md`](../../_index.md).

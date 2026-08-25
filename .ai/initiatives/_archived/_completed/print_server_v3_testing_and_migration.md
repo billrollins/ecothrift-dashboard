@@ -4,9 +4,9 @@
 
 **Status: closed (2026-03-26).** Installer legacy V2 cleanup, dashboard download, and inventory printing (Processor / Retag / Quick Reprice) **verified 2026-03-25**. Label layout was tracked separately — **closed** in [archive: print server label design](./print_server_label_design.md). Follow-on print work (pending): [receipt format](../_pending/print_server_receipt_format.md).
 
-**Legacy removal:** **`ecothrift-printserver-setup.exe` → Install** runs [`cleanup_legacy_prior()`](../../../printserver/installer/setup.py) (V2 Startup VBS, `C:\DashPrintServer` / `C:\PrintServer` with safety checks, kill 8888). Optional IT batch: [`printserver/installer/uninstall_legacy_prior.bat`](../../../printserver/installer/uninstall_legacy_prior.bat).
+**Legacy removal:** **`ecothrift-printserver-setup.exe` → Install** runs [`cleanup_legacy_prior()`](../../../../printserver/installer/setup.py) (V2 Startup VBS, `C:\DashPrintServer` / `C:\PrintServer` with safety checks, kill 8888). Optional IT batch: [`printserver/installer/uninstall_legacy_prior.bat`](../../../../printserver/installer/uninstall_legacy_prior.bat).
 
-**AI context:** [`.ai/extended/print-server.md`](../../extended/print-server.md).
+**AI context:** [`.ai/extended/print-server.md`](../../../extended/print-server.md).
 
 ---
 

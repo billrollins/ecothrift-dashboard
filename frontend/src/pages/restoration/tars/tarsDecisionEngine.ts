@@ -19,7 +19,7 @@ import {
   type TarsStopOutResponseValue,
   type TarsViableOutcome,
 } from './tarsDecisionTypes';
-import { orderGrandTotal } from './tarsPartsListSession';
+import { partsCostForGrade } from './tarsPartsSummary';
 import decisionContract from './tarsDecisionContract.json';
 import type { TarsItem } from './tarsTypes';
 import type {
@@ -421,10 +421,7 @@ export function scoredMinutesForOutcome(outcome: Pick<TarsViableOutcome, 'estima
 }
 
 function gradeOrderCost(session: TarsWorkSession, grade: string): number {
-  const ids = new Set(session.gradePlans?.[grade]?.orderIds ?? []);
-  return (session.orders ?? [])
-    .filter((order) => ids.has(order.id))
-    .reduce((sum, order) => sum + orderGrandTotal(session, order), 0);
+  return partsCostForGrade(session.parts, grade);
 }
 
 export function evaluateDecisionOutcomes(

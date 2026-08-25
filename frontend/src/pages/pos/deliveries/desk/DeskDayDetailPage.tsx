@@ -35,6 +35,7 @@ import { DeliveryHistoryPanel } from './DeliveryHistoryPanel';
 import { DeskDayDialog } from './DeskDayDialog';
 import { DeskDayLiveMonitor } from './DeskDayLiveMonitor';
 import { DeskPlanningRow } from './DeskPlanningRow';
+import { deliveryDayPath, deliveryListPath } from '../deliveryPaths';
 
 export default function DeskDayDetailPage() {
   const { dayId } = useParams();
@@ -113,11 +114,11 @@ export default function DeskDayDetailPage() {
     <Box>
       <Button
         component={RouterLink}
-        to="/pos/deliveries/desk/days"
+        to={deliveryListPath('desk', 'schedule')}
         size="small"
         sx={{ mb: 1, color: ecoField.muted, fontWeight: 700 }}
       >
-        ← Back to Days
+        ← Back to Schedule
       </Button>
 
       <Box
@@ -171,7 +172,7 @@ export default function DeskDayDetailPage() {
       {day.display_state === 'planned' && (
         <Alert severity="info" sx={{ mb: 2, borderRadius: `${ecoField.radius}px` }}>
           Inactive planning/review mode. Drivers start today from{' '}
-          <Button component={RouterLink} to={`/pos/deliveries/field/days/${day.id}`} size="small">
+          <Button component={RouterLink} to={deliveryDayPath('field', day.id)} size="small">
             Field day board
           </Button>
           . Managers can add and adjust deliveries below.

@@ -6,13 +6,13 @@
 
 **Status:** **Completed** (2026-05-30) — shipped in **v2.25.0** (sidebar nav hides + route/page removals). See [`CHANGELOG`](../../../../CHANGELOG.md) `[2.25.0]`.
 
-**Owner pass:** [`web_ui_cleanup_section_pass.txt`](../../../reference/web_ui_cleanup_section_pass.txt) · **Hidden / removed** lists in [`.ai/context.md`](../../../context.md).
+**Owner pass:** `web_ui_cleanup_section_pass.txt` · **Hidden / removed** lists in [`.ai/context.md`](../../../context.md).
 
 ---
 
 ## Current execution steps
 
-- [x] **Step 0 — Section pass:** owner marked **HIDE** vs **REMOVE** vs implicit keep ([`web_ui_cleanup_section_pass.txt`](../../../reference/web_ui_cleanup_section_pass.txt)).
+- [x] **Step 0 — Section pass:** owner marked **HIDE** vs **REMOVE** vs implicit keep (`web_ui_cleanup_section_pass.txt`).
 - [x] **Step 1 — Hide from nav:** `Sidebar.tsx` — HR subset, staff Consignment section, Products, Templates, Inventory Admin subgroup.
 - [x] **Step 2 — Removal audit:** inline in plan + execution (no blockers; processing settings were legacy-only).
 - [x] **Step 3 — Execute removals:** routes/pages deleted; `InboundFulfillmentPlaceholderPage` legacy copy removed.
@@ -225,27 +225,6 @@ Source of truth for routes: [`frontend/src/App.tsx`](../../../../frontend/src/Ap
 - [ ] Sidebar updated to match **Keep (nav)** vs **Hide** decisions.
 - [ ] Placeholder / legacy routes either hidden or documented as intentional escape hatches.
 - [ ] **`frontend.md`** updated when nav/routes change.
-
----
-
-## Sessions
-
-### Session 1 — Page inventory + disposition pass
-
-- **Goal:** Complete the page inventory and mark what you actually use vs what should be hidden or removed.
-- **Finish line:** Owner has filled **Disposition** on every row (or explicitly deferred sections); next session scope is clear (nav-only vs route deletion).
-- **Scope:** This file + walkthrough in chat; **no code changes** unless owner asks mid-session.
-- **Out of scope:** Deleting pages, API changes, consignee portal redesign.
-- **Est:** 1–2h · **Start:** 2026-05-30
-- **Result:** Section pass in [`web_ui_cleanup_section_pass.txt`](../../../reference/web_ui_cleanup_section_pass.txt) — **6 hide**, **6 remove (audit first)**, rest **keep**. Hidden list copied to **`context.md`**.
-
-### Session 2 — Hide from nav + execute removals
-
-- **Goal:** Staff sidebar matches section pass; remove dead routes/pages in one pass.
-- **Finish line:** `Sidebar.tsx` updated; removed routes/pages deleted; `npm run build` green; docs synced.
-- **Scope:** `Sidebar.tsx`, `App.tsx`, placeholder page, deleted page files, `useInventory` hook trim, steering docs.
-- **Start:** 2026-05-30
-- **Result:** **Shipped.** Hidden: HR (3), staff Consignment (section), Products, Templates, Inventory Admin. Removed: categories, legacy hub/orders, processing-legacy (+ settings modal), products page, templates splash, `/pricing`. **`frontend npm run build`** OK.
 
 ---
 

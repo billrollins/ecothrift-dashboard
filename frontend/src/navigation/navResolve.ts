@@ -37,6 +37,7 @@ export function resolveNavGroups(user: NavAccessUser, defs: NavGroupDef[]): Reso
       id: group.id,
       label: group.label,
       items: resolveNavItems(user, group.itemIds),
+      guestItems: resolveNavItems(user, group.guestItemIds ?? []),
     }))
-    .filter((group) => group.items.length > 0);
+    .filter((group) => group.items.length > 0 || group.guestItems.length > 0);
 }
