@@ -28,7 +28,7 @@ def _pay_rate_for(entry: TimeEntry) -> Decimal:
     return Decimal(rate) if rate is not None else Decimal('0')
 
 
-def _shift_hours(entry: TimeEntry) -> Decimal:
+def shift_hours(entry: TimeEntry) -> Decimal:
     if entry.clock_out:
         entry.compute_total_hours()
         return (entry.total_hours or Decimal('0')).quantize(Decimal('0.01'))
@@ -47,7 +47,7 @@ def _week_partition_totals(week_keys: set[tuple[int, date]]) -> dict[tuple[int, 
         )
         total = Decimal('0')
         for entry in entries:
-            total += _shift_hours(entry)
+            total += shift_hours(entry)
         totals[(employee_id, week_start)] = total.quantize(Decimal('0.01'))
     return totals
 
@@ -68,7 +68,7 @@ def build_time_roster(date_from, date_to) -> list[dict]:
         week_key = (entry.employee_id, ws)
         week_keys.add(week_key)
 
-        shift_hours = _shift_hours(entry)
+        hours = shift_hours(entry)
         rate = _pay_rate_for(entry)
 
         rows.append({
@@ -81,9 +81,9 @@ def build_time_roster(date_from, date_to) -> list[dict]:
             'break_minutes': entry.break_minutes or 0,
             'break_label': _break_label(entry),
             'on_break': entry.on_break,
-            'total_hours': shift_hours,
+            'total_hours': hours,
             'pay_rate': rate.quantize(Decimal('0.01')),
-            'pay': (shift_hours * rate).quantize(Decimal('0.01')),
+            'pay': (hours * rate).quantize(Decimal('0.01')),
             'week_start': ws.isoformat(),
             'week_end': we.isoformat(),
             'is_open': entry.clock_out is None,

@@ -87,10 +87,60 @@ export interface Customer {
   notes: string;
   is_active: boolean;
   email_verified: boolean;
+  /** Holds matching this email address. Annotated on the list. */
+  holds_count?: number;
+  last_hold_at?: string | null;
+}
+
+/** Per-person totals for the customer detail drawer. */
+export interface CustomerRollup {
+  holds_total: number;
+  holds_active: number;
+  holds_completed: number;
+  lifetime_spend: string;
+  conversations: number;
+  needs_reply: number;
+  last_activity: string | null;
+  first_hold_at: string | null;
+}
+
+export interface CustomerStats {
+  total: number;
+  active: number;
+  inactive: number;
+  verified: number;
+  verified_pct: number;
+  new_this_month: number;
+  new_last_month: number;
+  holds_this_month: number;
+  needs_reply: number;
+}
+
+export interface EmployeeStats {
+  active: number;
+  inactive: number;
+  admins: number;
+  managers: number;
+  employees: number;
+  on_the_clock: number;
+  new_hires_90d: number;
+  no_password: number;
 }
 
 export function getCustomers(params?: Record<string, unknown>): Promise<{ data: PaginatedResponse<Customer> }> {
   return api.get<PaginatedResponse<Customer>>('/accounts/customers/', { params });
+}
+
+export function getCustomerStats(): Promise<{ data: CustomerStats }> {
+  return api.get<CustomerStats>('/accounts/customers/stats/');
+}
+
+export function getCustomerRollup(id: number): Promise<{ data: CustomerRollup }> {
+  return api.get<CustomerRollup>(`/accounts/customers/${id}/rollup/`);
+}
+
+export function getEmployeeStats(): Promise<{ data: EmployeeStats }> {
+  return api.get<EmployeeStats>('/accounts/users/stats/');
 }
 
 export function getCustomer(id: number): Promise<{ data: Customer }> {
@@ -123,11 +173,16 @@ export function lookupCustomer(customerNumber: string): Promise<{ data: Customer
 }
 
 // Password reset endpoints
-export function adminResetPassword(userId: number): Promise<{ data: { detail: string; temporary_password: string } }> {
-  return api.post(`/accounts/users/${userId}/reset-password/`);
+/** Emails a single-use reset link. No password is ever shown to the admin. */
+export function sendEmployeePasswordReset(userId: number): Promise<{ data: { detail: string } }> {
+  return api.post(`/accounts/users/${userId}/send-password-reset/`);
 }
 
-export function forgotPassword(email: string): Promise<{ data: { detail: string; reset_token?: string } }> {
+export function sendCustomerPasswordReset(id: number): Promise<{ data: { detail: string } }> {
+  return api.post(`/accounts/customers/${id}/send-password-reset-link/`);
+}
+
+export function forgotPassword(email: string): Promise<{ data: { detail: string } }> {
   return api.post('/auth/forgot-password/', { email });
 }
 

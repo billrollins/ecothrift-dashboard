@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-25 (enhancement requests, parts badges) -->
+<!-- Last updated: 2026-08-25 (Admin Users, staff reset, Time & payroll) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -30,11 +30,11 @@
 - **AdminRoute** — requires Admin; redirects to `/dashboard` otherwise
 - **SuperAdminRoute** — requires Django `is_superuser`; redirects to `/dashboard` otherwise (gates the Blog Studio)
 
-**Public routes:** `/login`, `/forgot-password`
+**Public routes:** `/login`, `/forgot-password`, `/reset-password`
 
-**Staff routes** (MainLayout): Dashboard; HR (**Time clock** in Essentials); **Buying** (auctions, watchlist, **vendors**, **orders**, preprocessing); Inventory (**Inbound:** receiving, processing; **Catalog** workbench; quick reprice under Floor Ops); POS (terminal, drawers, cash, transactions); **Admin** (Manager+: assumptions, POS setup, settings; Admin-only: **Employees**, customers, permissions; Super Admin: **Time & payroll** `/admin/time-payroll`, **Enhancements** `/admin/enhancement-requests`). Staff **Consignment** routes remain (`/consignment/*`) but are **hidden from sidebar**; **Consignee portal** (`/consignee/*`) unchanged.
+**Staff routes** (MainLayout): Dashboard; HR (**Time clock** in Essentials); **Buying** (auctions, watchlist, **vendors**, **orders**, preprocessing); Inventory (**Inbound:** receiving, processing; **Catalog** workbench; quick reprice under Floor Ops); POS (terminal, drawers, cash, transactions); **Admin** (Manager+: assumptions, POS setup, settings; Users at `/admin/users` — Customers for Manager+, Employees tab Admin-only; Super Admin: **Time & payroll** `/admin/time-payroll`, **Enhancements** `/admin/enhancement-requests`). Staff **Consignment** routes remain (`/consignment/*`) but are **hidden from sidebar**; **Consignee portal** (`/consignee/*`) unchanged.
 
-**HR — Time & payroll (`TimePayrollPage`, Super Admin):** Three tabs — **Roster** (shift CRUD, soft delete), **By employee** (payroll summary with **This week** + **This payroll** per-week OT lines, e.g. `Jun 9–15: 40.00 (+5.00 overtime)`), **Change requests** (approve/reject). Roster columns: Date, Employee, Start, Stop, Break, Hours, **Week hours** (partition Mon–Sun total + red OT), Pay. Start/Stop show date when clock spans a different day than the row. KPI strip: current-week hours, selected-period hours/pay, pending mod count.
+**HR — Time & payroll (`TimePayrollPage`, Super Admin):** No page title. One-line period toolbar (From/To, past periods, week/period/month chips, current-week hours). Content capped at **1680px**. Pending sits left of the **Payroll** total (`N` employees · `N` shifts). One card: tabs on the top edge — **Roster**, **By employee**, **Change requests**. **By employee**: Employee, # Shifts, Rate, Ind. weeks (stacked Mon–Sun lines), Time (Regular over Overtime), Payroll, plus a totals footer. OT uses a muted dash at zero and amber only at **≥ 1 h**. Hours and pay are computed from 2-decimal shift hours so `$` matches the printed hours. Pagination footer hides on a single page.
 
 **Restoration — TARS:** `/restoration/overview` (scoreboard + queue), `/restoration/bench` (grade table + purchase desk), `/restoration/parts-requests` (superuser command center). `/restoration/tars` redirects in-dashboard. Parts Requests nav badge counts approvals, cancel asks, and reviews from the live orders query (`useNavBadgeCounts` / `partsNavWaitingCount`). Domain: [`.ai/extended/restoration.md`](restoration.md). Initiative: [`finalize_tars_app`](../initiatives/_archived/_completed/finalize_tars_app.md).
 

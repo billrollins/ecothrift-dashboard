@@ -37,22 +37,19 @@ class ForgotPasswordHardeningTests(APITestCase):
     def setUp(self):
         self.user = _user()
 
-    def test_forgot_password_does_not_return_token_when_debug_false(self):
+    def test_forgot_password_emails_a_clickable_link_and_returns_nothing(self):
         resp = self.client.post('/api/auth/forgot-password/', {'email': self.user.email}, format='json')
         self.assertEqual(resp.status_code, 200)
         self.assertNotIn('reset_token', resp.data)
-        self.assertIn('If this email is registered', resp.data['detail'])
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn(self.user.email, mail.outbox[0].to)
-        # Token must appear in the email body (not the HTTP response).
-        self.assertIn('token', mail.outbox[0].body.lower())
+        self.assertIn('/reset-password?token=', mail.outbox[0].body)
 
     @override_settings(DEBUG=True)
-    def test_forgot_password_returns_token_when_debug_true(self):
+    def test_forgot_password_never_returns_the_token_even_in_debug(self):
         resp = self.client.post('/api/auth/forgot-password/', {'email': self.user.email}, format='json')
         self.assertEqual(resp.status_code, 200)
-        self.assertIn('reset_token', resp.data)
-        self.assertTrue(resp.data['reset_token'])
+        self.assertNotIn('reset_token', resp.data)
         self.assertEqual(len(mail.outbox), 1)
 
     def test_forgot_password_unknown_email_same_message_no_mail(self):
@@ -63,6 +60,21 @@ class ForgotPasswordHardeningTests(APITestCase):
         )
         self.assertEqual(resp.status_code, 200)
         self.assertNotIn('reset_token', resp.data)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_forgot_password_ignores_a_customer_account(self):
+        """Customers reset through the storefront, not the staff dashboard."""
+        group, _ = Group.objects.get_or_create(name='Customer')
+        shopper = User.objects.create_user(
+            email='shopper@example.com', first_name='Ada', last_name='Shopper',
+            password='x' * 12,
+        )
+        shopper.groups.add(group)
+
+        resp = self.client.post(
+            '/api/auth/forgot-password/', {'email': shopper.email}, format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(mail.outbox), 0)
 
 
@@ -93,6 +105,19 @@ class RefreshCookieSecureTests(APITestCase):
         cookie = resp.cookies.get('refresh_token')
         self.assertIsNotNone(cookie)
         self.assertFalse(cookie['secure'])
+
+    def test_login_stamps_last_login(self):
+        # login_view mints its own JWT, so nothing fires user_logged_in for us.
+        # Without the explicit stamp, Admin > Users reads every account as unused.
+        self.assertIsNone(self.user.last_login)
+        resp = self.client.post(
+            '/api/auth/login/',
+            {'email': 'cookie@example.com', 'password': 'test-pass-123'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.user.refresh_from_db()
+        self.assertIsNotNone(self.user.last_login)
 
 
 class AuthThrottleTests(APITestCase):

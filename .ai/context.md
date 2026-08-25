@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-25 (TARS + enhancement requests completed) -->
+<!-- Last updated: 2026-08-25 (Admin Users, staff reset, Time & payroll) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -27,7 +27,7 @@ Sidebar entries removed; direct URL still works if bookmarked.
 |------|-----------------|--------|
 | **Consignment (staff)** | Accounts, Items, Payouts (+ account detail) | `/consignment/accounts`, `/consignment/accounts/:id`, `/consignment/items`, `/consignment/payouts` |
 
-**HR (Essentials):** Time clock. **Admin:** Employees, Permissions, **Time & payroll** (superuser). **Consignee portal** (`/consignee/*`) unchanged.
+**HR (Essentials):** Time clock. **Admin:** Users (Customers + Employees tabs; Employees is Admin-only), Permissions, **Time & payroll** (superuser). **Consignee portal** (`/consignee/*`) unchanged.
 
 ## File Map
 
@@ -98,7 +98,7 @@ When you add, rename, or remove a file in `.ai/extended/`, update this table.
 ## Not yet implemented (live gaps)
 
 - No DB link from won **Auction** → **PurchaseOrder**.
-- Email notifications beyond Graph transactional mail (forgot-password tokens are not emailed).
+- Email notifications beyond Graph transactional mail (holds, magic links, and password resets are covered).
 - Broad automated test suite (POS and restoration have coverage; most domains do not).
 - Pricing ML model not trained. Buying Phase 6 (outcome tracking) not started.
 

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-21 (prod pull is ecothrift schema only, then migrate) -->
+<!-- Last updated: 2026-08-25 (STAFF_DASHBOARD_HOST for staff reset links) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -191,6 +191,8 @@ Defined in `.env` (gitignored):
 | `ONLINE_SALES_INQUIRIES_ENABLED` | Allow "Ask about this item" without a hold | `True` |
 | `ONLINE_SALES_ACCOUNTS_ENABLED` | Magic-link customer accounts | `True` |
 | `ONLINE_SALES_PUBLIC_BASE_URL` | Absolute origin used in emailed magic/hold links | `https://ecothrift.us` |
+| `STAFF_DASHBOARD_HOST` | Host in emailed **staff** password-reset links (localhost gets `http://`) | `dash.ecothrift.us` |
+| `DEFAULT_FROM_EMAIL` | `From` for Django's own senders | `Eco-Thrift <retail@ecothrift.us>` |
 | `ONLINE_SALES_EMAIL_FROM` | SMTP/`From` address for transactional mail | `retail@ecothrift.us` |
 | `ONLINE_SALES_EMAIL_DISPLAY_NAME` | Display name on transactional mail | `Eco-Thrift` |
 | `ONLINE_SALES_EMAIL_REPLY_TO` | Reply-To on transactional mail | `retail@ecothrift.us` |

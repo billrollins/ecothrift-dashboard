@@ -16,7 +16,8 @@ import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
 import { useReservations } from '../../../hooks/useWebStore';
 import type { Reservation } from '../../../api/webstore.api';
 import {
-  GRID_HEIGHT,
+  GRID_FILL_SX,
+  PAGE_FILL_SX,
   GRID_PAGE_PROPS,
   GRID_SX,
   holdStatusLabel,
@@ -82,7 +83,7 @@ export default function ReleasedPanel({ onSelect }: Props) {
     : 'Cancelled, declined, and expired holds land here.';
 
   return (
-    <>
+    <Box sx={PAGE_FILL_SX}>
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
         spacing={1.5}
@@ -150,7 +151,7 @@ export default function ReleasedPanel({ onSelect }: Props) {
           emphasis="released"
         />
       ) : (
-        <Box sx={{ height: GRID_HEIGHT }}>
+        <Box sx={GRID_FILL_SX}>
           <DataGrid
             rows={rows}
             columns={columns}
@@ -163,6 +164,6 @@ export default function ReleasedPanel({ onSelect }: Props) {
           />
         </Box>
       )}
-    </>
+    </Box>
   );
 }

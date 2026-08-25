@@ -292,6 +292,9 @@ class Reservation(models.Model):
             models.Index(fields=['status', 'created_at']),
             models.Index(fields=['listing', 'status']),
             models.Index(fields=['archived_at', 'status']),
+            # Holds join to a customer by email, not by FK. Plain index only —
+            # db_index=True would also build the varchar_pattern_ops twin.
+            models.Index(fields=['email']),
         ]
 
     def __str__(self):

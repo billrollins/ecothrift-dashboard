@@ -82,6 +82,8 @@ ONLINE_SALES_EMAIL_FROM = config('ONLINE_SALES_EMAIL_FROM', default='retail@ecot
 ONLINE_SALES_EMAIL_DISPLAY_NAME = config('ONLINE_SALES_EMAIL_DISPLAY_NAME', default='Eco-Thrift')
 ONLINE_SALES_EMAIL_REPLY_TO = config('ONLINE_SALES_EMAIL_REPLY_TO', default='retail@ecothrift.us')
 ONLINE_SALES_PUBLIC_BASE_URL = config('ONLINE_SALES_PUBLIC_BASE_URL', default='https://ecothrift.us')
+# Host used to build staff password-reset links. Localhost values get http://.
+STAFF_DASHBOARD_HOST = config('STAFF_DASHBOARD_HOST', default='dash.ecothrift.us').strip()
 
 # ── Application definition ────────────────────────────────────────────────────
 INSTALLED_APPS = [

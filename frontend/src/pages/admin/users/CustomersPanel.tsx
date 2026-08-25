@@ -1,8 +1,14 @@
+/**
+ * The customer directory.
+ *
+ * Rows are two-line: who they are over how to reach them, then how much they
+ * have actually done with us. Every state cell is always painted and only
+ * changes colour and wording, so filtering never resizes a row.
+ */
 import { useEffect, useState } from 'react';
 import {
   Box,
   Button,
-  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -18,12 +24,24 @@ import Add from '@mui/icons-material/Add';
 import Search from '@mui/icons-material/Search';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
-import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
+import {
+  GRID_FILL_SX,
+  GRID_PAGE_PROPS,
+  GRID_SX,
+  PAGE_FILL_SX,
+  noRowsSlot,
+} from '../../../components/common/gridChrome';
+import {
+  PersonCell,
+  StackCell,
+  StateChip,
+  formatDay,
+  relativeDay,
+} from '../../../components/users/userChrome';
 import type { Customer } from '../../../api/accounts.api';
 import { useCreateCustomer, useCustomers } from '../../../hooks/useEmployees';
+import { useIsMobileLayout } from '../../../hooks/useIsMobileLayout';
 import { formatPhone, maskPhoneInput, stripPhone } from '../../../utils/formatPhone';
-import { GRID_HEIGHT, GRID_PAGE_PROPS, GRID_SX, noRowsSlot } from '../presentation';
-import { useOnlineSalesMobile } from '../useOnlineSalesMobile';
 
 type Props = {
   onSelect: (customerId: number) => void;
@@ -39,6 +57,19 @@ const EMPTY_FORM = {
   notes: '',
 };
 
+function reachState(customer: Customer): { label: string; tone: 'good' | 'warn' | 'muted'; hint: string } {
+  if (!customer.is_active) {
+    return { label: 'Inactive', tone: 'warn', hint: 'Cannot sign in. History is kept.' };
+  }
+  if (!customer.email) {
+    return { label: 'No email', tone: 'warn', hint: 'Nothing to send a sign-in link to.' };
+  }
+  if (!customer.email_verified) {
+    return { label: 'Unverified', tone: 'muted', hint: 'They have not proven this email yet.' };
+  }
+  return { label: 'Verified', tone: 'good', hint: 'Email proven. Sign-in links will reach them.' };
+}
+
 function CustomerMobileRow({
   customer,
   onSelect,
@@ -46,18 +77,21 @@ function CustomerMobileRow({
   customer: Customer;
   onSelect: (id: number) => void;
 }) {
+  const state = reachState(customer);
+  const holds = customer.holds_count ?? 0;
   return (
     <Box
       component="button"
       type="button"
       onClick={() => onSelect(customer.id)}
+      aria-label={`Open ${customer.full_name || customer.email || 'customer'}`}
       sx={{
         display: 'block',
         width: '100%',
         textAlign: 'left',
         px: 1.5,
         py: 1.25,
-        minHeight: 72,
+        minHeight: 84,
         border: '1.5px solid',
         borderColor: customer.is_active ? 'divider' : 'warning.light',
         borderRadius: 2.5,
@@ -67,34 +101,30 @@ function CustomerMobileRow({
         '&:active': { transform: 'scale(0.985)' },
       }}
     >
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.35 }}>
-        <Typography variant="subtitle2" sx={{ fontWeight: 700 }} noWrap>
-          {customer.full_name || 'Unnamed'}
+      <PersonCell
+        name={customer.full_name}
+        secondary={customer.email || 'No email'}
+        seed={customer.email || String(customer.id)}
+        muted={!customer.is_active}
+        trailing={
+          <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto', flexShrink: 0 }}>
+            {customer.customer_number}
+          </Typography>
+        }
+      />
+      <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.75 }}>
+        <StateChip label={state.label} tone={state.tone} />
+        <Typography variant="caption" color="text.secondary" noWrap>
+          {holds ? `${holds} hold${holds === 1 ? '' : 's'}` : 'No holds'}
+          {customer.phone ? ` · ${formatPhone(customer.phone)}` : ''}
         </Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto', flexShrink: 0 }}>
-          {customer.customer_number}
-        </Typography>
-      </Stack>
-      <Typography variant="body2" color="text.secondary" noWrap>
-        {customer.email || 'No email'}
-        {customer.phone ? ` · ${formatPhone(customer.phone)}` : ''}
-      </Typography>
-      <Stack direction="row" spacing={0.75} sx={{ mt: 0.75 }}>
-        {customer.email_verified ? (
-          <Chip size="small" label="Verified" color="success" variant="outlined" />
-        ) : (
-          <Chip size="small" label="Unverified" variant="outlined" />
-        )}
-        {!customer.is_active ? (
-          <Chip size="small" label="Inactive" color="warning" variant="outlined" />
-        ) : null}
       </Stack>
     </Box>
   );
 }
 
-export default function DirectoryPanel({ onSelect }: Props) {
-  const isMobile = useOnlineSalesMobile();
+export default function CustomersPanel({ onSelect }: Props) {
+  const isMobile = useIsMobileLayout();
   const { enqueueSnackbar } = useSnackbar();
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
@@ -108,51 +138,84 @@ export default function DirectoryPanel({ onSelect }: Props) {
     return () => window.clearTimeout(t);
   }, [searchInput]);
 
-  const listParams = {
+  const { data, isLoading, isError } = useCustomers({
     search: search || undefined,
     is_active: activeFilter || undefined,
     ordering: 'customer_number',
-  };
-
-  const { data, isLoading, isError } = useCustomers(listParams);
+  });
 
   const rows = data?.results || [];
 
   const columns: GridColDef<Customer>[] = [
-    { field: 'customer_number', headerName: '#', width: 110 },
     {
       field: 'full_name',
-      headerName: 'Name',
-      flex: 1,
-      minWidth: 160,
+      headerName: 'Customer',
+      flex: 1.4,
+      minWidth: 230,
+      sortable: false,
       renderCell: ({ row }) => (
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
-          <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
-            {row.full_name || '-'}
-          </Typography>
-          {!row.is_active ? <Chip size="small" label="Inactive" color="warning" /> : null}
-        </Stack>
+        <PersonCell
+          name={row.full_name}
+          secondary={row.email || 'No email'}
+          seed={row.email || String(row.id)}
+          muted={!row.is_active}
+        />
       ),
     },
-    { field: 'email', headerName: 'Email', flex: 1, minWidth: 180 },
+    {
+      field: 'customer_number',
+      headerName: '#',
+      width: 96,
+      renderCell: ({ row }) => (
+        <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+          {row.customer_number}
+        </Typography>
+      ),
+    },
     {
       field: 'phone',
       headerName: 'Phone',
-      width: 140,
-      valueFormatter: (value) => formatPhone(value as string),
+      width: 136,
+      renderCell: ({ row }) => (
+        <Typography variant="body2" color={row.phone ? 'text.primary' : 'text.disabled'}>
+          {row.phone ? formatPhone(row.phone) : '—'}
+        </Typography>
+      ),
     },
     {
       field: 'email_verified',
-      headerName: 'Verified',
-      width: 100,
-      renderCell: ({ value }) =>
-        value ? (
-          <Chip size="small" label="Yes" color="success" variant="outlined" />
-        ) : (
-          <Chip size="small" label="No" variant="outlined" />
-        ),
+      headerName: 'Account',
+      width: 124,
+      sortable: false,
+      renderCell: ({ row }) => {
+        const state = reachState(row);
+        return <StateChip label={state.label} tone={state.tone} hint={state.hint} />;
+      },
     },
-    { field: 'customer_since', headerName: 'Since', width: 110 },
+    {
+      field: 'holds_count',
+      headerName: 'Holds',
+      width: 128,
+      renderCell: ({ row }) => {
+        const holds = row.holds_count ?? 0;
+        return (
+          <StackCell
+            top={holds ? String(holds) : '—'}
+            bottom={holds ? relativeDay(row.last_hold_at) || 'on file' : 'none yet'}
+          />
+        );
+      },
+    },
+    {
+      field: 'customer_since',
+      headerName: 'Since',
+      width: 124,
+      renderCell: ({ row }) => (
+        <Typography variant="body2" color="text.secondary">
+          {formatDay(row.customer_since) || '—'}
+        </Typography>
+      ),
+    },
   ];
 
   const handleCreate = async () => {
@@ -176,7 +239,6 @@ export default function DirectoryPanel({ onSelect }: Props) {
     }
   };
 
-  if (isLoading && !data) return <LoadingScreen message="Loading customers…" />;
   if (isError && !data) {
     return (
       <Typography color="error" variant="body2">
@@ -186,12 +248,12 @@ export default function DirectoryPanel({ onSelect }: Props) {
   }
 
   return (
-    <Box>
+    <Box sx={PAGE_FILL_SX}>
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
         spacing={1.5}
         alignItems={{ sm: 'center' }}
-        sx={{ mb: 2 }}
+        sx={{ mb: 2, flexShrink: 0 }}
       >
         <TextField
           size="small"
@@ -235,31 +297,29 @@ export default function DirectoryPanel({ onSelect }: Props) {
       </Stack>
 
       {isMobile ? (
-        rows.length === 0 ? (
-          <Stack
-            alignItems="center"
-            justifyContent="center"
-            sx={{
-              px: 3,
-              py: 6,
-              border: '1px dashed',
-              borderColor: 'divider',
-              borderRadius: 2.5,
-            }}
-          >
-            <Typography variant="body2" color="text.secondary" align="center">
-              {search ? 'No customers match this search' : 'No customers yet'}
-            </Typography>
-          </Stack>
-        ) : (
-          <Stack spacing={1}>
-            {rows.map((row) => (
+        <Stack spacing={1} sx={{ minHeight: 200 }}>
+          {rows.length === 0 ? (
+            <Stack
+              alignItems="center"
+              justifyContent="center"
+              sx={{ px: 3, py: 6, border: '1px dashed', borderColor: 'divider', borderRadius: 2.5 }}
+            >
+              <Typography variant="body2" color="text.secondary" align="center">
+                {isLoading
+                  ? 'Loading customers…'
+                  : search
+                    ? 'No customers match this search'
+                    : 'No customers yet'}
+              </Typography>
+            </Stack>
+          ) : (
+            rows.map((row) => (
               <CustomerMobileRow key={row.id} customer={row} onSelect={onSelect} />
-            ))}
-          </Stack>
-        )
+            ))
+          )}
+        </Stack>
       ) : (
-        <Box sx={{ height: GRID_HEIGHT }}>
+        <Box sx={GRID_FILL_SX}>
           <DataGrid
             rows={rows}
             columns={columns}
@@ -267,7 +327,10 @@ export default function DirectoryPanel({ onSelect }: Props) {
             loading={isLoading}
             disableRowSelectionOnClick
             onRowClick={(params) => onSelect(params.row.id)}
-            slots={noRowsSlot(search ? 'No customers match this search' : 'No customers yet')}
+            slots={noRowsSlot(
+              search ? 'No customers match this search' : 'No customers yet',
+              search ? 'Try an email address or a CUS- number.' : undefined,
+            )}
             sx={{ ...GRID_SX, cursor: 'pointer' }}
             {...GRID_PAGE_PROPS}
           />
@@ -301,6 +364,7 @@ export default function DirectoryPanel({ onSelect }: Props) {
               value={createForm.email}
               onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
               fullWidth
+              helperText="Without this they cannot sign in or receive a hold."
             />
             <TextField
               label="Phone"

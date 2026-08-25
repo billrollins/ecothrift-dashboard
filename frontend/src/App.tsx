@@ -19,6 +19,7 @@ import FloorplanListPage from './pages/floorplan/FloorplanListPage';
 // Pages
 import LoginPage from './pages/LoginPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import TimeClockPage from './pages/hr/TimeClockPage';
 import TimePayrollPage from './pages/admin/TimePayrollPage';
@@ -61,7 +62,7 @@ import ConsignmentPayoutsPage from './pages/consignment/PayoutsPage';
 import ConsigneeItemsPage from './pages/consignee/MyItemsPage';
 import ConsigneePayoutsPage from './pages/consignee/MyPayoutsPage';
 import ConsigneeSummaryPage from './pages/consignee/SummaryPage';
-import UserListPage from './pages/admin/UserListPage';
+import UsersPage from './pages/admin/users/UsersPage';
 import PermissionsPage from './pages/admin/PermissionsPage';
 import SettingsPage from './pages/admin/SettingsPage';
 import LabelStudioPage from './pages/admin/labelStudio/LabelStudioPage';
@@ -82,7 +83,7 @@ import TarsStudioRedirect from './pages/restoration/TarsStudioRedirect';
 import OnlineSalesListingsPage from './pages/online-sales/OnlineSalesListingsPage';
 import ListingStudioPage from './pages/online-sales/ListingStudioPage';
 import OnlineSalesHoldsPage from './pages/online-sales/OnlineSalesHoldsPage';
-import OnlineSalesCustomersPage from './pages/online-sales/OnlineSalesCustomersPage';
+import OnlineSalesMessagesPage from './pages/online-sales/OnlineSalesMessagesPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -111,6 +112,18 @@ function ManagerRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** Old Online Sales Customers/Inbox URLs. Keeps the thread someone was looking at. */
+function MessagesRedirect() {
+  const [searchParams] = useSearchParams();
+  const next = new URLSearchParams();
+  const q = searchParams.get('q');
+  const thread = searchParams.get('thread');
+  if (q) next.set('q', q);
+  if (thread) next.set('thread', thread);
+  const search = next.toString();
+  return <Navigate to={`/online-sales/messages${search ? `?${search}` : ''}`} replace />;
+}
+
 function LegacyManageProductsRedirect() {
   const [searchParams] = useSearchParams();
   const q = (searchParams.get('q') || searchParams.get('search') || '').trim() || undefined;
@@ -135,6 +148,7 @@ export default function App() {
       {/* Public routes */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       {/* Staff routes */}
       <Route
@@ -242,11 +256,11 @@ export default function App() {
         />
         <Route
           path="/admin/users"
-          element={<AdminRoute><UserListPage /></AdminRoute>}
+          element={<ManagerRoute><UsersPage /></ManagerRoute>}
         />
         <Route
           path="/admin/customers"
-          element={<Navigate to="/online-sales/customers" replace />}
+          element={<Navigate to="/admin/users" replace />}
         />
         <Route
           path="/admin/retail-inbox"
@@ -272,10 +286,12 @@ export default function App() {
           element={<ManagerRoute><OnlineSalesHoldsPage /></ManagerRoute>}
         />
         <Route
-          path="/online-sales/customers"
-          element={<ManagerRoute><OnlineSalesCustomersPage /></ManagerRoute>}
+          path="/online-sales/messages"
+          element={<ManagerRoute><OnlineSalesMessagesPage /></ManagerRoute>}
         />
-        <Route path="/online-sales/inbox" element={<Navigate to="/online-sales/customers?tab=messages" replace />} />
+        {/* The Directory tab moved to Admin > Users; bookmarks land on the inbox. */}
+        <Route path="/online-sales/customers" element={<MessagesRedirect />} />
+        <Route path="/online-sales/inbox" element={<MessagesRedirect />} />
         <Route
           path="/online-sales/sales"
           element={<Navigate to="/online-sales/holds?tab=completed" replace />}

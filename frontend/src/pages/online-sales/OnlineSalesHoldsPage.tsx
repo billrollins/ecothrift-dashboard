@@ -8,6 +8,7 @@ import ReadyTodayPanel from './holds/ReadyTodayPanel';
 import CompletedPanel from './holds/CompletedPanel';
 import ReleasedPanel from './holds/ReleasedPanel';
 import { useOnlineSalesMobile } from './useOnlineSalesMobile';
+import { PAGE_FILL_SX } from '../../components/common/gridChrome';
 
 type HoldsTab = 'needs' | 'ready' | 'completed' | 'released';
 
@@ -31,7 +32,7 @@ export default function OnlineSalesHoldsPage() {
   // Messages moved to Customers - keep old bookmarks working.
   useEffect(() => {
     if (mapped === 'messages') {
-      navigate('/online-sales/customers?tab=messages', { replace: true });
+      navigate('/online-sales/messages', { replace: true });
     }
   }, [mapped, navigate]);
 
@@ -52,7 +53,7 @@ export default function OnlineSalesHoldsPage() {
   }
 
   return (
-    <Box>
+    <Box sx={PAGE_FILL_SX}>
       <PageHeader
         title="Holds"
         dense={isMobile}
@@ -70,6 +71,7 @@ export default function OnlineSalesHoldsPage() {
         allowScrollButtonsMobile
         sx={{
           mb: 2,
+          flexShrink: 0,
           borderBottom: 1,
           borderColor: 'divider',
           minHeight: 48,

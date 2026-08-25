@@ -75,7 +75,8 @@ class TimeEntry(models.Model):
             delta = self.clock_out - self.clock_in
             hours = Decimal(str(delta.total_seconds())) / Decimal('3600')
             break_hours = Decimal(str(self.break_minutes)) / Decimal('60')
-            self.total_hours = max(hours - break_hours, Decimal('0'))
+            # Field is 2 dp. Pay and the roster must use this rounded figure, not raw seconds.
+            self.total_hours = max(hours - break_hours, Decimal('0')).quantize(Decimal('0.01'))
         return self.total_hours
 
     def finalize_open_break(self, as_of=None):

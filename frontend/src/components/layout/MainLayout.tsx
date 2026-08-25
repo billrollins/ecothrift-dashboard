@@ -19,8 +19,10 @@ import {
 import MenuIcon from '@mui/icons-material/Menu';
 import Logout from '@mui/icons-material/Logout';
 import Person from '@mui/icons-material/Person';
+import LockReset from '@mui/icons-material/LockReset';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
+import ChangePasswordDialog from '../users/ChangePasswordDialog';
 import { Sidebar, SIDEBAR_WIDTH } from './Sidebar';
 import { getAppVersion } from '../../api/core.api';
 import logo from '../../assets/logo-full-240x80.png';
@@ -34,6 +36,7 @@ export default function MainLayout() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [passwordOpen, setPasswordOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -189,11 +192,24 @@ export default function MainLayout() {
                       />
                     </MenuItem>
                     <Divider />
+                    <MenuItem
+                      onClick={() => {
+                        handleMenuClose();
+                        setPasswordOpen(true);
+                      }}
+                    >
+                      <ListItemIcon><LockReset fontSize="small" /></ListItemIcon>
+                      <ListItemText primary="Change password" />
+                    </MenuItem>
                     <MenuItem onClick={handleLogout}>
                       <ListItemIcon><Logout fontSize="small" /></ListItemIcon>
                       <ListItemText primary="Logout" />
                     </MenuItem>
                   </Menu>
+                  <ChangePasswordDialog
+                    open={passwordOpen}
+                    onClose={() => setPasswordOpen(false)}
+                  />
                 </>
               )}
             </Toolbar>

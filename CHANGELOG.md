@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.71.0] -->
-<!-- Last reviewed: 2026-08-25 (v2.71.0 TARS floor + enhancement requests) -->
+<!-- Line 1 release: ## [2.72.0] -->
+<!-- Last reviewed: 2026-08-25 (v2.72.0 Users workspace, staff reset, Time & payroll) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.72.0] - 2026-08-25
+
+User-facing theme: **People and pay** - one Admin Users board, emailed staff password reset, and a Time & payroll table that can be read in one pass.
+
+Outside initiatives.
+
+### Added
+
+- **Admin → Users** — `/admin/users` replaces Employees. Customers (Manager+) and Employees (Admin) sit as tabs with search, rich rows, stats, and detail drawers. Staff can email a password-reset link from either drawer. `/admin/customers` redirects here. Customer directory left Online Sales; Messages is now `/online-sales/messages`.
+- **Staff password reset** — forgot-password emails a one-hour `MagicLinkToken` (`staff_reset_password`) to `/reset-password?token=…`. The old cache token and plaintext admin temp password are gone. Account menu has **Change password**. New: `STAFF_DASHBOARD_HOST`, `POST /api/accounts/users/{id}/send-password-reset/`, `POST /api/accounts/customers/{id}/send-password-reset-link/`.
+- **Directory stats** — `GET /api/accounts/customers/stats/`, `GET /api/accounts/users/stats/`, and a customer rollup on the drawer. Reservation list annotates hold counts via an index on `Reservation.email` (`webstore.0016`).
+
+### Changed
+
+- **Time & payroll** — one-line period toolbar, pending left of the payroll total, no page title. By employee is Employee / # Shifts / Rate / Ind. weeks / Time / Payroll with a totals footer. Regular vs overtime is 40 h per Mon–Sun week. Pay is computed from 2-decimal hours so the printed hours match the dollars.
+- **Shop-floor grids** — Messages, Holds, Listings, Retail inbox, and Users fill the page so the bottom gap matches the side margins.
+
+### Fixed
+
+- **Staff last sign-in** — `POST /api/auth/login/` (and magic-link consume) now stamps `last_login`. The JWT path never fired Django's login signal, so every employee read as unused.
+- **Payroll rounding** — `TimeEntry.compute_total_hours` quantizes to 2 dp before pay is multiplied, matching the roster.
+
+### Removed
+
+- `UserListPage`, the Online Sales Customers directory, and returning a staff reset token in the forgot-password JSON body.
 
 ## [2.71.0] - 2026-08-25
 

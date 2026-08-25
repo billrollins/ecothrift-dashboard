@@ -16,9 +16,9 @@ Workspaces (lifecycle order):
 6. **Cashier** — Terminal, Transactions, Drawers, Cash, Printables, POS setup
 7. **Deliveries** — Schedule, Table
 8. **Online Sales** (Manager/Admin) — Listings, Holds, Customers
-9. **Admin** (Manager/Admin) — Assumptions, Employees, Retail inbox, Permissions, Settings, Label Studio, Blog Studio, Time & payroll. Superuser **Enhancements** lives as a Restoration guest item (`/admin/enhancement-requests`), not in the Admin list.
+9. **Admin** (Manager/Admin) — Assumptions, Users, Retail inbox, Permissions, Settings, Label Studio, Blog Studio, Time & payroll. **Users** is Manager+ but its Employees tab renders for Admin only. Superuser **Enhancements** lives as a Restoration guest item (`/admin/enhancement-requests`), not in the Admin list.
 
-Deprecated paths (`/online-sales/inbox`, `/online-sales/sales`, `/admin/web-store`, …) keep
+Deprecated paths (`/online-sales/inbox`, `/online-sales/customers`, `/online-sales/sales`, `/admin/web-store`, …) keep
 working as redirects in `App.tsx` and deliberately have no catalog entry — the catalog only
 holds links that appear in the sidebar.
 

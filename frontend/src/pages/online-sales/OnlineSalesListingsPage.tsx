@@ -34,7 +34,8 @@ import type { WebListing } from '../../api/webstore.api';
 import { formatCurrency } from '../../utils/format';
 import {
   FacebookPostedCell,
-  GRID_HEIGHT,
+  GRID_FILL_SX,
+  PAGE_FILL_SX,
   GRID_PAGE_PROPS,
   GRID_SX,
   GRID_SX_STATIC,
@@ -224,11 +225,11 @@ function CatalogPanel() {
   if (isError) return <Alert severity="error">Could not load listings.</Alert>;
 
   return (
-    <>
+    <Box sx={PAGE_FILL_SX}>
       <Stack
         direction="row"
         spacing={1.5}
-        sx={{ mb: 2 }}
+        sx={{ mb: 2, flexShrink: 0 }}
         flexWrap="wrap"
         useFlexGap
         alignItems="center"
@@ -287,7 +288,7 @@ function CatalogPanel() {
           New listing
         </Button>
       </Stack>
-      <Box sx={{ height: GRID_HEIGHT + 40 }}>
+      <Box sx={GRID_FILL_SX}>
         <DataGrid
           rows={data?.results || []}
           columns={columns}
@@ -307,7 +308,7 @@ function CatalogPanel() {
           rowHeight={64}
         />
       </Box>
-    </>
+    </Box>
   );
 }
 
@@ -573,7 +574,7 @@ export default function OnlineSalesListingsPage() {
   };
 
   return (
-    <Box>
+    <Box sx={PAGE_FILL_SX}>
       <PageHeader
         title="Listings"
         dense={isMobile}
@@ -589,7 +590,7 @@ export default function OnlineSalesListingsPage() {
         variant={isMobile ? 'scrollable' : 'standard'}
         scrollButtons={isMobile ? 'auto' : false}
         allowScrollButtonsMobile
-        sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
+        sx={{ mb: 2, flexShrink: 0, borderBottom: 1, borderColor: 'divider' }}
       >
         <Tab value="catalog" label="Catalog" sx={{ textTransform: 'none', fontWeight: 600 }} />
         <Tab value="tolist" label="To list" sx={{ textTransform: 'none', fontWeight: 600 }} />

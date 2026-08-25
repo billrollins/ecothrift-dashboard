@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -32,7 +33,9 @@ import { getMailboxTemplates } from '../../../api/mailbox.api';
 import {
   describeWhen,
   fmtWhen,
-  GRID_HEIGHT,
+  GRID_FILL_SX,
+  GRID_MIN_HEIGHT,
+  PAGE_FILL_SX,
   GRID_PAGE_PROPS,
   GRID_SX,
   humanize,
@@ -166,6 +169,7 @@ export default function MessagesPanel({
   onThreadChange,
 }: Props) {
   const isMobile = useOnlineSalesMobile();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   const [filter, setFilter] = useState<Filter>(
@@ -369,9 +373,10 @@ export default function MessagesPanel({
       variant="outlined"
       sx={{
         borderRadius: 2,
-        minHeight: isMobile ? '70dvh' : GRID_HEIGHT,
+        minHeight: isMobile ? '70dvh' : GRID_MIN_HEIGHT,
         display: 'flex',
         flexDirection: 'column',
+        overflow: 'hidden',
         pb: isMobile ? 'env(safe-area-inset-bottom)' : 0,
       }}
     >
@@ -425,16 +430,26 @@ export default function MessagesPanel({
               </Stack>
               <ThreadStateChip state={selected.state} />
             </Stack>
-            {selected.reservation_id && onOpenHold ? (
-              <Button
-                size="small"
-                variant="contained"
-                sx={{ mt: 1.5 }}
-                onClick={() => onOpenHold(selected.reservation_id!)}
-              >
-                Open hold #{selected.reservation_id}
-              </Button>
-            ) : null}
+            <Stack direction="row" spacing={0.75} sx={{ mt: 1.5 }} flexWrap="wrap" useFlexGap>
+              {selected.reservation_id && onOpenHold ? (
+                <Button
+                  size="small"
+                  variant="contained"
+                  onClick={() => onOpenHold(selected.reservation_id!)}
+                >
+                  Open hold #{selected.reservation_id}
+                </Button>
+              ) : null}
+              {selected.customer ? (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => navigate(`/admin/users?customer=${selected.customer}`)}
+                >
+                  Open customer record
+                </Button>
+              ) : null}
+            </Stack>
             <Stack direction="row" spacing={0.75} sx={{ mt: 1.5 }} flexWrap="wrap" useFlexGap>
               <Button size="small" onClick={() => actions.assign.mutateAsync(selected.id)}>
                 Assign to me
@@ -557,10 +572,12 @@ export default function MessagesPanel({
         display: 'grid',
         gridTemplateColumns: isMobile ? '1fr' : { xs: '1fr', lg: '1.15fr 1fr' },
         gap: 2,
+        // Desktop fills the page; on a phone the page scrolls as one column.
+        ...(isMobile ? {} : { flex: 1, minHeight: 0, gridTemplateRows: 'minmax(0, 1fr)' }),
       }}
     >
       {showList && (
-        <Box>
+        <Box sx={isMobile ? undefined : PAGE_FILL_SX}>
           <Stack
             direction={{ xs: 'column', sm: 'row' }}
             spacing={1.5}
@@ -613,6 +630,7 @@ export default function MessagesPanel({
               opacity: listBusy ? 0.85 : 1,
               transition: 'opacity 80ms linear',
               pointerEvents: listBusy ? 'none' : 'auto',
+              ...(isMobile ? {} : PAGE_FILL_SX),
             }}
           >
             {isMobile ? (
@@ -644,7 +662,7 @@ export default function MessagesPanel({
                 </Stack>
               )
             ) : (
-              <Box sx={{ height: GRID_HEIGHT }}>
+              <Box sx={GRID_FILL_SX}>
                 <DataGrid
                   rows={rows}
                   columns={columns}

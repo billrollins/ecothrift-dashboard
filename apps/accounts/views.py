@@ -2,7 +2,7 @@ import logging
 
 from django.conf import settings
 from django.contrib.auth import get_user_model, authenticate
-from django.core.mail import send_mail
+from django.contrib.auth.models import update_last_login
 from rest_framework import serializers, viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
 from rest_framework.exceptions import ValidationError
@@ -117,6 +117,10 @@ def login_view(request):
             status=status.HTTP_401_UNAUTHORIZED,
         )
 
+    # This view mints its own JWT rather than calling django.contrib.auth.login,
+    # so the user_logged_in signal never fires and nothing else stamps this.
+    update_last_login(None, user)
+
     refresh = RefreshToken.for_user(user)
     user_data = UserSerializer(user).data
 
@@ -200,106 +204,100 @@ def change_password_view(request):
     return Response({'detail': 'Password changed successfully.'})
 
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated, IsAdmin])
-def admin_reset_password_view(request, user_id):
-    """Admin: reset a user's password to a random temporary password."""
-    import secrets
-    import string
-    try:
-        target_user = User.objects.get(id=user_id)
-    except User.DoesNotExist:
-        return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+def _send_staff_reset(user, *, request, requested_by_admin: bool):
+    """Issue and email a staff reset link. Returns a DRF Response."""
+    from apps.accounts.services.staff_password import issue_staff_reset, staff_reset_link
+    from apps.webstore.emails import send_staff_password_reset
 
-    # Generate a random temporary password
-    alphabet = string.ascii_letters + string.digits
-    temp_password = ''.join(secrets.choice(alphabet) for _ in range(12))
-    target_user.set_password(temp_password)
-    target_user.save()
-    return Response({
-        'detail': 'Password reset successfully.',
-        'temporary_password': temp_password,
-    })
+    if not (user.email or '').strip():
+        return Response(
+            {'detail': 'This account has no email address to send to.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if not user.is_active:
+        return Response(
+            {'detail': 'Reactivate this account before sending a reset link.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        token_row = issue_staff_reset(user=user, request_ip=_client_ip(request))
+        send_staff_password_reset(
+            email=user.email,
+            reset_link=staff_reset_link(token_row.token),
+            requested_by_admin=requested_by_admin,
+        )
+    except ValidationError as exc:
+        return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
+    except Exception:
+        logger.exception('Staff password reset email failed for user %s', user.pk)
+        return Response(
+            {'detail': 'Could not send the reset email. Try again in a moment.'},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    return Response({'detail': f'Reset link sent to {user.email}.'})
 
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @throttle_classes([AuthForgotPasswordThrottle])
 def forgot_password_view(request):
-    """Request a password reset token. Token is emailed; never returned unless DEBUG."""
-    import secrets
-    email = request.data.get('email')
+    """Email a staff member a single-use reset link. The token is never returned."""
+    from apps.accounts.services.staff_password import (
+        is_staff_account, issue_staff_reset, staff_reset_link,
+    )
+    from apps.webstore.emails import send_staff_password_reset
+
+    email = (request.data.get('email') or '').strip()
     if not email:
         return Response({'detail': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
     # Always the same public message so we do not reveal whether the email exists.
-    public_detail = 'If this email is registered, a reset link will be sent.'
+    public_detail = 'If that email belongs to a staff account, a reset link is on its way.'
 
-    try:
-        user = User.objects.get(email=email)
-    except User.DoesNotExist:
+    user = User.objects.filter(email__iexact=email).first()
+    # Customers reset through the storefront magic link, not the staff dashboard.
+    if user is None or not is_staff_account(user) or not user.is_active:
         return Response({'detail': public_detail})
 
-    token = secrets.token_urlsafe(32)
-    from django.core.cache import cache
-    cache.set(f'password_reset_{token}', user.id, timeout=3600)  # 1 hour
+    try:
+        token_row = issue_staff_reset(user=user, request_ip=_client_ip(request))
+        send_staff_password_reset(
+            email=user.email,
+            reset_link=staff_reset_link(token_row.token),
+        )
+    except ValidationError:
+        return Response({'detail': public_detail})
+    except Exception:
+        logger.exception('Staff password reset email failed for user %s', user.pk)
+        return Response(
+            {'detail': 'We could not send the reset email. Try again in a moment.'},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
 
-    dash_host = getattr(settings, 'STAFF_DASHBOARD_HOST', 'dash.ecothrift.us')
-    body = (
-        'You requested a password reset for your Eco-Thrift account.\n\n'
-        f'Open https://{dash_host}/forgot-password and paste this token:\n\n'
-        f'{token}\n\n'
-        'This token expires in one hour. If you did not request a reset, ignore this email.\n'
-    )
-    send_mail(
-        subject='Eco-Thrift password reset',
-        message=body,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        fail_silently=True,
-    )
-
-    payload = {'detail': public_detail}
-    # Dev convenience only - never echo the token when DEBUG is off.
-    if settings.DEBUG:
-        payload['reset_token'] = token
-    return Response(payload)
+    return Response({'detail': public_detail})
 
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([AuthForgotPasswordThrottle])
 def reset_password_view(request):
-    """Reset password using a token from forgot_password."""
-    token = request.data.get('token')
-    new_password = request.data.get('new_password')
-    if not token or not new_password:
-        return Response(
-            {'detail': 'Token and new_password are required.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    if len(new_password) < 6:
-        return Response(
-            {'detail': 'Password must be at least 6 characters.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    from django.core.cache import cache
-    user_id = cache.get(f'password_reset_{token}')
-    if not user_id:
-        return Response(
-            {'detail': 'Invalid or expired reset token.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+    """Set a new password from an emailed staff reset link."""
+    from apps.accounts.services.staff_password import consume_staff_reset
 
     try:
-        user = User.objects.get(id=user_id)
-    except User.DoesNotExist:
-        return Response({'detail': 'User not found.'}, status=status.HTTP_400_BAD_REQUEST)
+        consume_staff_reset(
+            token=request.data.get('token') or '',
+            new_password=request.data.get('new_password') or '',
+        )
+    except ValidationError as exc:
+        detail = exc.detail
+        if isinstance(detail, dict):
+            detail = detail.get('detail', 'Could not reset the password.')
+        return Response({'detail': detail}, status=status.HTTP_400_BAD_REQUEST)
 
-    user.set_password(new_password)
-    user.save()
-    cache.delete(f'password_reset_{token}')
-    return Response({'detail': 'Password reset successfully.'})
+    return Response({'detail': 'Password updated. You can sign in now.'})
 
 
 # ── User CRUD ViewSet ─────────────────────────────────────────────────────────
@@ -349,6 +347,27 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer.save()
         return Response(serializer.data)
 
+    @action(detail=False, methods=['get'], url_path='stats')
+    def stats(self, request):
+        """Counts behind the Employees tab strip."""
+        from apps.accounts.services.stats import employee_stats
+
+        return Response(employee_stats())
+
+    @action(detail=True, methods=['post'], url_path='send-password-reset')
+    def send_password_reset(self, request, pk=None):
+        """Email this staff member a single-use reset link. No password is ever shown."""
+        from apps.accounts.services.staff_password import is_staff_account
+
+        user = self.get_object()
+        if not is_staff_account(user):
+            return Response(
+                {'detail': 'Only staff accounts reset through the dashboard. '
+                           'Use the customer record for a shopper.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return _send_staff_reset(user, request=request, requested_by_admin=True)
+
     @action(detail=True, methods=['patch'])
     def consignee_profile(self, request, pk=None):
         """Update the consignee profile for a user."""
@@ -381,6 +400,9 @@ class CustomerSerializer(serializers.Serializer):
     notes = serializers.CharField(required=False, default='', allow_blank=True)
     is_active = serializers.BooleanField(source='user.is_active', required=False)
     email_verified = serializers.BooleanField(read_only=True)
+    # Annotated on the list queryset; absent on a freshly created profile.
+    holds_count = serializers.IntegerField(read_only=True, default=0)
+    last_hold_at = serializers.DateTimeField(read_only=True, required=False, allow_null=True)
 
     def create(self, validated_data):
         from django.contrib.auth.models import Group
@@ -436,13 +458,29 @@ class CustomerViewSet(viewsets.ModelViewSet):
     lookup_url_kwarg = 'pk'
 
     def get_queryset(self):
+        from django.db.models import Count, IntegerField, OuterRef, Subquery, Value
+        from django.db.models.functions import Coalesce
+        from apps.webstore.models import Reservation
+
         qs = CustomerProfile.objects.select_related('user').all()
         active = self.request.query_params.get('is_active')
         if active in ('0', 'false', 'False'):
             qs = qs.filter(user__is_active=False)
         elif active in ('1', 'true', 'True'):
             qs = qs.filter(user__is_active=True)
-        return qs
+
+        # Holds carry an email, not a customer FK, so the rows join by address.
+        holds = Reservation.objects.filter(email__iexact=OuterRef('user__email'))
+        # Group on a constant: grouping on email would split rows that differ
+        # only in case, and iexact has already folded those together.
+        counted = holds.order_by().annotate(g=Value(1)).values('g').annotate(n=Count('pk'))
+        return qs.annotate(
+            holds_count=Coalesce(
+                Subquery(counted.values('n')[:1], output_field=IntegerField()),
+                Value(0),
+            ),
+            last_hold_at=Subquery(holds.order_by('-created_at').values('created_at')[:1]),
+        )
 
     def destroy(self, request, *args, **kwargs):
         """Soft-deactivate instead of hard-deleting account history."""
@@ -492,6 +530,51 @@ class CustomerViewSet(viewsets.ModelViewSet):
             return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
         send_sign_in_link(email=email, magic_link=_public_verify_link(token_row.token))
         return Response({'detail': 'Sign-in link sent.'})
+
+    @action(detail=False, methods=['get'], url_path='stats')
+    def stats(self, request):
+        """Counts behind the Customers tab strip."""
+        from apps.accounts.services.stats import customer_stats
+
+        return Response(customer_stats())
+
+    @action(detail=True, methods=['get'], url_path='rollup')
+    def rollup(self, request, pk=None):
+        """Everything this person has done with us, for the detail drawer."""
+        from apps.accounts.services.stats import customer_rollup
+
+        profile = self.get_object()
+        return Response(customer_rollup(profile))
+
+    @action(detail=True, methods=['post'], url_path='send-password-reset-link')
+    def send_password_reset_link_action(self, request, pk=None):
+        """Staff CS action: email a reset link. Opening it clears the old password."""
+        from apps.accounts.models import MagicLinkToken
+        from apps.accounts.services.magic_link import issue_magic_link
+        from apps.webstore.emails import send_password_reset_link
+
+        profile = self.get_object()
+        email = (profile.user.email or '').strip()
+        if not email:
+            return Response(
+                {'detail': 'This customer has no email address.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not profile.user.is_active:
+            return Response(
+                {'detail': 'Reactivate the customer before sending a reset link.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            token_row = issue_magic_link(
+                email=email,
+                request_ip=_client_ip(request),
+                purpose=MagicLinkToken.PURPOSE_RESET_PASSWORD,
+            )
+        except ValidationError as exc:
+            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
+        send_password_reset_link(email=email, magic_link=_public_verify_link(token_row.token))
+        return Response({'detail': 'Password reset link sent.'})
 
     @action(detail=False, methods=['get'], url_path='lookup/(?P<customer_number>[^/.]+)')
     def lookup(self, request, customer_number=None):
@@ -603,6 +686,7 @@ def magic_link_consume_view(request):
         .select_related('employee', 'consignee', 'customer')
         .get(pk=result.user.pk)
     )
+    update_last_login(None, user)
     refresh = RefreshToken.for_user(user)
     response = Response({
         'access': str(refresh.access_token),

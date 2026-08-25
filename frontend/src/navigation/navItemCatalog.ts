@@ -155,17 +155,18 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
   },
   onlineSalesCustomers: {
     id: 'onlineSalesCustomers',
-    path: '/online-sales/customers',
-    label: 'Customers',
+    path: '/online-sales/messages',
+    label: 'Messages',
     icon: 'people',
     roles: ['Manager', 'Admin'],
   },
+  // Customers and staff share one workspace; the Employees tab inside is Admin-only.
   users: {
     id: 'users',
     path: '/admin/users',
-    label: 'Employees',
+    label: 'Users',
     icon: 'supervisorAccount',
-    roles: ['Admin'],
+    roles: ['Manager', 'Admin'],
   },
   retailInbox: {
     id: 'retailInbox',

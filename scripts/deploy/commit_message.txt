@@ -1,11 +1,8 @@
-feat: TARS floor app, parts command center, and enhancement requests
+feat: Admin Users workspace, emailed staff reset, Time & payroll
 
-Release: v2.71.0
+Release: v2.72.0
 
-Ship the restoration floor: queue and grade table, parts Live/History
-board with receive vs inspect, hold as a story of pieces, item notes,
-and a staff Requests sheet with a superuser triage board.
-
-Parts Requests nav badges follow the live list so they clear when the
-last waiting order is handled. finalize_tars_app and enhancement_requests
-are completed. GitHub only — not Heroku.
+- Replace Admin Employees with Users (Customers + Employees), stats, and drawers.
+- Staff forgot-password emails a one-hour reset link; no token in the JSON body.
+- Time & payroll: regular/OT totals, one-line period bar, pay matches printed hours.
+- Stamp last_login on JWT login; Messages is its own Online Sales page.

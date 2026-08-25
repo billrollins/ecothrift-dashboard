@@ -236,15 +236,19 @@ class MagicLinkToken(models.Model):
     PURPOSE_VERIFY_HOLD = 'verify_hold'
     PURPOSE_VERIFY_THREAD = 'verify_thread'
     PURPOSE_RESET_PASSWORD = 'reset_password'
+    PURPOSE_STAFF_RESET_PASSWORD = 'staff_reset_password'
     PURPOSE_CHOICES = [
         (PURPOSE_SIGN_IN, 'Sign in'),
         (PURPOSE_VERIFY_EMAIL, 'Verify email'),
         (PURPOSE_VERIFY_HOLD, 'Verify hold'),
         (PURPOSE_VERIFY_THREAD, 'Verify thread'),
         (PURPOSE_RESET_PASSWORD, 'Reset password'),
+        (PURPOSE_STAFF_RESET_PASSWORD, 'Staff reset password'),
     ]
     # Purposes that must work even when ONLINE_SALES_ACCOUNTS_ENABLED is false.
     VERIFY_PURPOSES = frozenset({PURPOSE_VERIFY_HOLD, PURPOSE_VERIFY_THREAD})
+    # Staff tokens never travel the customer consume path — see services/staff_password.py.
+    STAFF_PURPOSES = frozenset({PURPOSE_STAFF_RESET_PASSWORD})
 
     email = models.EmailField(db_index=True)
     token = models.CharField(max_length=64, unique=True, default=_magic_link_token, db_index=True)

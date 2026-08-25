@@ -64,10 +64,16 @@ export interface User {
   is_superuser: boolean;
   date_joined: string;
   updated_at: string;
+  /** Null until the account signs in for the first time. */
+  last_login: string | null;
   role: UserRole | null;
   /** Canonical Django groups (Admin…Customer), priority order - from `GET /api/auth/me/`. */
   roles?: UserRole[];
   full_name: string;
+  /** False when the account has no usable password and cannot sign in yet. */
+  has_password: boolean;
+  /** Only meaningful for customers; staff accounts report false. */
+  email_verified: boolean;
   employee?: EmployeeProfile | null;
   consignee?: ConsigneeProfile | null;
   customer?: CustomerProfile | null;

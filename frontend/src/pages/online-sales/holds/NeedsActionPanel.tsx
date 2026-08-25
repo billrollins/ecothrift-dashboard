@@ -15,7 +15,8 @@ import { useReservations } from '../../../hooks/useWebStore';
 import type { Reservation } from '../../../api/webstore.api';
 import {
   expiresAtColumn,
-  GRID_HEIGHT,
+  GRID_FILL_SX,
+  PAGE_FILL_SX,
   GRID_PAGE_PROPS,
   GRID_SX,
   holdStatusLabel,
@@ -91,7 +92,7 @@ export default function NeedsActionPanel({ onSelect }: Props) {
   const emptyHint = status || search ? undefined : 'New requests land here as they come in.';
 
   return (
-    <>
+    <Box sx={PAGE_FILL_SX}>
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
         spacing={1.5}
@@ -147,7 +148,7 @@ export default function NeedsActionPanel({ onSelect }: Props) {
           emphasis="expires"
         />
       ) : (
-        <Box sx={{ height: GRID_HEIGHT }}>
+        <Box sx={GRID_FILL_SX}>
           <DataGrid
             rows={rows}
             columns={columns}
@@ -161,6 +162,6 @@ export default function NeedsActionPanel({ onSelect }: Props) {
           />
         </Box>
       )}
-    </>
+    </Box>
   );
 }

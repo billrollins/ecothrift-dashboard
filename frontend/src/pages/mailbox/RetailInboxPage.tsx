@@ -23,6 +23,7 @@ import {
 } from '../../api/mailbox.api';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { PageHeader } from '../../components/common/PageHeader';
+import { GRID_FILL_SX, GRID_MIN_HEIGHT, PAGE_FILL_SX } from '../../components/common/gridChrome';
 
 const EmailEditor = lazy(async () => {
   const module = await import('../../components/common/RichTextEditor');
@@ -90,7 +91,7 @@ export default function RetailInboxPage() {
   ];
 
   return (
-    <Box>
+    <Box sx={PAGE_FILL_SX}>
       <PageHeader
         title="Retail inbox"
         subtitle="General messages received by retail@ecothrift.us. Admin access only."
@@ -106,16 +107,25 @@ export default function RetailInboxPage() {
         )}
       />
       {messages.isError && <Alert severity="error">Could not load the retail inbox.</Alert>}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1.1fr 1fr' }, gap: 2 }}>
-        <Box>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', lg: '1.1fr 1fr' },
+          gridTemplateRows: 'minmax(0, 1fr)',
+          gap: 2,
+          flex: 1,
+          minHeight: 0,
+        }}
+      >
+        <Box sx={PAGE_FILL_SX}>
           <TextField
             size="small"
             label="Search inbox"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            sx={{ mb: 1.5, minWidth: 280 }}
+            sx={{ mb: 1.5, minWidth: 280, flexShrink: 0 }}
           />
-          <Box sx={{ height: 600 }}>
+          <Box sx={GRID_FILL_SX}>
             <DataGrid
               rows={messages.data?.results || []}
               columns={columns}
@@ -127,7 +137,16 @@ export default function RetailInboxPage() {
             />
           </Box>
         </Box>
-        <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 2, minHeight: 600 }}>
+        <Box
+          sx={{
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: 1,
+            p: 2,
+            minHeight: GRID_MIN_HEIGHT,
+            overflowY: 'auto',
+          }}
+        >
           {!selectedId && (
             <Typography color="text.secondary">Select a message to read and reply.</Typography>
           )}

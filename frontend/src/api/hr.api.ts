@@ -35,8 +35,10 @@ export interface TimeEntryParams {
 }
 
 // Department endpoints
-export function getDepartments(): Promise<{ data: Department[] }> {
-  return api.get<Department[]>('/hr/departments/');
+/** Always resolves to a plain array, whether or not DRF paginated the response. */
+export async function getDepartments(): Promise<{ data: Department[] }> {
+  const { data } = await api.get<Department[] | PaginatedResponse<Department>>('/hr/departments/');
+  return { data: Array.isArray(data) ? data : data?.results || [] };
 }
 
 export function createDepartment(data: Record<string, unknown>): Promise<{ data: Department }> {

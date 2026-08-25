@@ -149,15 +149,15 @@ describe('OnlineSalesHoldsPage', () => {
     expect(holdsState.lastReservationParams?.archived).toBe('1');
   });
 
-  it('redirects the old Messages tab to Customers', async () => {
+  it('redirects the old Messages tab to the inbox', async () => {
     wrap(
       <Routes>
         <Route path="/online-sales/holds" element={<OnlineSalesHoldsPage />} />
-        <Route path="/online-sales/customers" element={<div>Customers home</div>} />
+        <Route path="/online-sales/messages" element={<div>Messages home</div>} />
       </Routes>,
       '/online-sales/holds?tab=messages',
     );
-    expect(await screen.findByText('Customers home')).toBeInTheDocument();
+    expect(await screen.findByText('Messages home')).toBeInTheDocument();
   });
 
   it('exposes a Released tab scoped to cancelled / declined / expired holds', async () => {

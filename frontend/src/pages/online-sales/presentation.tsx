@@ -14,7 +14,7 @@ import type { Reservation, ReservationTimelineEntry } from '../../api/webstore.a
 /** Deep-link a hold's thread into Customers → Messages. */
 export function messagesHrefForHold(row: Pick<Reservation, 'conversation_id'>): string | null {
   if (!row.conversation_id) return null;
-  return `/online-sales/customers?tab=messages&thread=${row.conversation_id}`;
+  return `/online-sales/messages?thread=${row.conversation_id}`;
 }
 
 type ChipColor = 'default' | 'primary' | 'success' | 'warning' | 'info' | 'error';
@@ -520,55 +520,18 @@ export const completedAtColumn: GridColDef<Reservation> = {
   renderCell: ({ value }) => <WhenCell value={value as string} tone="happened" />,
 };
 
-export const GRID_HEIGHT = 520;
-
-/** Tall enough for two-line date cells and unread chips without shearing the top. */
-export const GRID_ROW_HEIGHT = 56;
-
-/** Matches the dashboard's mature grids: borderless, no focus ring, bold heads.
- *  Cells are flex-centered so custom renderCell content (chips, codes) sits
- *  on the row midline instead of hugging the top - DataGrid's default
- *  overflow:hidden otherwise clips the unread badge. */
-export const GRID_SX: SxProps<Theme> = {
-  border: 'none',
-  '& .MuiDataGrid-cell': {
-    display: 'flex',
-    alignItems: 'center',
-    // Beat DataGrid's align-items: flex-start on typed cells.
-    py: 0,
-    lineHeight: 1.25,
-  },
-  // Unread count pills sit in a narrow leading column; DataGrid's default
-  // overflow:hidden shears the circle on the left/top/bottom.
-  '& .MuiDataGrid-cell[data-field="unread"], & .MuiDataGrid-cell[data-field="staff_unread"], & .MuiDataGrid-cell[data-field="state_action"]': {
-    overflow: 'visible',
-  },
-  '& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within': { outline: 'none' },
-  '& .MuiDataGrid-columnHeaderTitle': { fontWeight: 700 },
-  '& .MuiDataGrid-row': { cursor: 'pointer' },
-  // Unread rows lead the eye without shouting. Don't set fontWeight on the
-  // cell itself - it throws Chip metrics off and helps clip the badge.
-  '& .os-row--unread': { bgcolor: 'action.hover' },
-};
-
-/** Same chrome for grids whose rows are not clickable. */
-export const GRID_SX_STATIC: SxProps<Theme> = {
-  border: 'none',
-  '& .MuiDataGrid-cell': {
-    display: 'flex',
-    alignItems: 'center',
-    py: 0,
-    lineHeight: 1.25,
-  },
-  '& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within': { outline: 'none' },
-  '& .MuiDataGrid-columnHeaderTitle': { fontWeight: 700 },
-};
-
-export const GRID_PAGE_PROPS = {
-  rowHeight: GRID_ROW_HEIGHT,
-  pageSizeOptions: [25, 50, 100],
-  initialState: { pagination: { paginationModel: { pageSize: 25 } } },
-} as const;
+// Grid chrome moved to components/common/gridChrome so Admin > Users can wear it.
+export {
+  GRID_HEIGHT,
+  GRID_MIN_HEIGHT,
+  GRID_FILL_SX,
+  PAGE_FILL_SX,
+  GRID_ROW_HEIGHT,
+  GRID_SX,
+  GRID_SX_STATIC,
+  GRID_PAGE_PROPS,
+  noRowsSlot,
+} from '../../components/common/gridChrome';
 
 /** Full-cell flex wrapper so chips/pills sit on the row midline. */
 function CellCenter({
@@ -595,23 +558,6 @@ function CellCenter({
 }
 
 /** Centered empty state, so a quiet queue reads as calm rather than broken. */
-export function noRowsSlot(message: string, hint?: string) {
-  return {
-    noRowsOverlay: () => (
-      <Stack height="100%" alignItems="center" justifyContent="center" spacing={0.5} sx={{ px: 3 }}>
-        <Typography variant="body2" color="text.secondary" align="center">
-          {message}
-        </Typography>
-        {hint ? (
-          <Typography variant="caption" color="text.disabled" align="center">
-            {hint}
-          </Typography>
-        ) : null}
-      </Stack>
-    ),
-  };
-}
-
 export function unreadRowClass(row: { unread?: number }): string {
   return (row.unread || 0) > 0 ? 'os-row--unread' : '';
 }

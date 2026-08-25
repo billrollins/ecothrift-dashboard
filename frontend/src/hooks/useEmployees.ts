@@ -12,6 +12,11 @@ import {
   deleteCustomer,
   reactivateCustomer,
   sendCustomerSignInLink,
+  sendCustomerPasswordReset,
+  sendEmployeePasswordReset,
+  getCustomerStats,
+  getCustomerRollup,
+  getEmployeeStats,
   lookupCustomer,
 } from '../api/accounts.api';
 import type { UserParams, Customer } from '../api/accounts.api';
@@ -177,6 +182,64 @@ export function useSendCustomerSignInLink() {
       const { data } = await sendCustomerSignInLink(id);
       return data;
     },
+  });
+}
+
+export function useSendCustomerPasswordReset() {
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await sendCustomerPasswordReset(id);
+      return data;
+    },
+  });
+}
+
+export function useSendEmployeePasswordReset() {
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await sendEmployeePasswordReset(id);
+      return data;
+    },
+  });
+}
+
+export function useCustomerRollup(id: number | null, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['customers', id, 'rollup'],
+    queryFn: async () => {
+      if (!id) return null;
+      const { data } = await getCustomerRollup(id);
+      return data;
+    },
+    enabled: (options?.enabled ?? true) && id != null,
+  });
+}
+
+// ── Stats strip ──────────────────────────────────────────────────────────────
+
+export function useCustomerStats(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['customers', 'stats'],
+    queryFn: async () => {
+      const { data } = await getCustomerStats();
+      return data;
+    },
+    enabled: options?.enabled ?? true,
+    staleTime: 60_000,
+  });
+}
+
+export function useEmployeeStats(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['users', 'stats'],
+    queryFn: async () => {
+      const { data } = await getEmployeeStats();
+      return data;
+    },
+    enabled: options?.enabled ?? true,
+    // Who is clocked in changes through the day.
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
 }
 

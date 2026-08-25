@@ -7,7 +7,8 @@ import type { Reservation } from '../../../api/webstore.api';
 import { isTodaysPickupRow } from '../pickupFilter';
 import {
   expiresAtColumn,
-  GRID_HEIGHT,
+  GRID_FILL_SX,
+  PAGE_FILL_SX,
   GRID_PAGE_PROPS,
   GRID_SX,
   noRowsSlot,
@@ -59,7 +60,7 @@ export default function ReadyTodayPanel({ onSelect }: Props) {
   if (isError) return <Alert severity="error">Could not load pickup holds.</Alert>;
 
   return (
-    <>
+    <Box sx={PAGE_FILL_SX}>
       {!isMobile && (
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
           Confirmed and Ready holds due today. Open a row to stage, extend, complete,
@@ -75,7 +76,7 @@ export default function ReadyTodayPanel({ onSelect }: Props) {
           emphasis="expires"
         />
       ) : (
-        <Box sx={{ height: GRID_HEIGHT }}>
+        <Box sx={GRID_FILL_SX}>
           <DataGrid
             rows={rows}
             columns={columns}
@@ -92,6 +93,6 @@ export default function ReadyTodayPanel({ onSelect }: Props) {
           />
         </Box>
       )}
-    </>
+    </Box>
   );
 }

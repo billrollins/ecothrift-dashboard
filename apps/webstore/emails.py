@@ -1,7 +1,11 @@
-"""Online Sales system emails - exactly three transactional messages.
+"""Eco-Thrift transactional email.
 
-Send as retail@ecothrift.us / Eco-Thrift. Best-effort: callers must use
-fail_silently paths so mail never rolls back a hold or reply.
+Send as retail@ecothrift.us / Eco-Thrift. Sign-in, verification, hold lifecycle,
+and reply notices are best-effort: they must never roll back a hold or a reply,
+so they swallow failures and return False.
+
+Staff password reset is the exception. If that mail does not leave, the person
+is locked out and nothing else will tell them, so it raises.
 """
 from __future__ import annotations
 
@@ -102,6 +106,33 @@ def send_password_reset_link(*, email: str, magic_link: str) -> bool:
         f'- Eco-Thrift\n{PICKUP_ADDRESS} · {PICKUP_PHONE}'
     )
     return _send('Reset your Eco-Thrift password', body, email)
+
+
+def send_staff_password_reset(*, email: str, reset_link: str, requested_by_admin: bool = False) -> None:
+    """Staff password reset. Raises if the send fails - a silent drop locks someone out."""
+    opening = (
+        'An administrator started a password reset for your Eco-Thrift staff account.'
+        if requested_by_admin
+        else 'You requested a password reset for your Eco-Thrift staff account.'
+    )
+    body = (
+        f'{opening}\n\n'
+        f'Set a new password:\n\n'
+        f'{reset_link}\n\n'
+        f'This link is single-use and expires in one hour. '
+        f'If you did not expect it, ignore this email and your password stays as it is.\n\n'
+        f'- Eco-Thrift\n{PICKUP_ADDRESS} · {PICKUP_PHONE}'
+    )
+    msg = EmailMessage(
+        subject='Reset your Eco-Thrift staff password',
+        body=body,
+        from_email=_from_email(),
+        to=[email],
+        reply_to=_reply_to(),
+    )
+    sent = msg.send(fail_silently=False)
+    if not sent:
+        raise RuntimeError('Password reset email was not accepted for delivery.')
 
 
 def send_hold_verification(
