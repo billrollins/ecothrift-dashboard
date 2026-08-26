@@ -1,8 +1,6 @@
-feat: Studios workspace, Settings house, and assigned nav digits
+fix: make public hours Open now green
 
-- Add Studios (8/S) and fold Assumptions, Store, Printing, Permissions into /admin/settings
-- Move Catalog onto Floor; drop the empty Inventory workspace; digits 1–8 plus Admin 0
-- Ship capability catalog APIs and a read-only Permissions matrix
-- Polish Print Settings; keep the public hours status dot on one line
+- Stop the Hours row gray rule from winning over the open-state dot
+- Color the Open now label green while the store is open
 
-Release: v2.74.0
+Release: v2.74.1

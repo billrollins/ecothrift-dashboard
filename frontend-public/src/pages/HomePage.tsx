@@ -213,12 +213,21 @@ export default function HomePage() {
               </div>
               <div className="vrow">
                 <b>Hours</b>
-                <span className="store-status">
+                <span className={`store-status${storeStatus.open ? ' store-status--open' : ''}`}>
                   <span
                     className={`status-dot${storeStatus.open ? ' status-dot--open' : ''}`}
                     aria-hidden="true"
                   />
-                  <span>{storeStatus.text}</span>
+                  <span>
+                    {storeStatus.open ? (
+                      <>
+                        <span className="store-status__lead">Open now</span>
+                        {storeStatus.text.replace(/^Open now/, '')}
+                      </>
+                    ) : (
+                      storeStatus.text
+                    )}
+                  </span>
                 </span>
               </div>
               <div className="vrow">

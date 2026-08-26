@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.74.0] -->
-<!-- Last reviewed: 2026-08-26 (v2.74.0 admin workspaces + Settings house) -->
+<!-- Line 1 release: ## [2.74.1] -->
+<!-- Last reviewed: 2026-08-26 (v2.74.1 public hours open-now green) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.74.1] - 2026-08-26
+
+User-facing theme: **Open now is green** — the public hours status actually looks open.
+
+Outside initiatives.
+
+### Fixed
+
+- **Public home hours** — `.vrow .status-dot` no longer overrides the open color. The dot and **Open now** are green while the store is open.
 
 ## [2.74.0] - 2026-08-26
 

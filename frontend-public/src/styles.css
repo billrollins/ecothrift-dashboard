@@ -496,7 +496,13 @@ main:has(.home) + .ft { margin-top: 0; }
   flex: none;
 }
 
-.status-dot--open { background: #2f8f4e; }
+.vrow .status-dot--open {
+  background: #2f8f4e;
+}
+
+.vrow .store-status--open .store-status__lead {
+  color: #2f8f4e;
+}
 
 .vrow { font-size: 14.5px; color: var(--muted); margin-bottom: 16px; line-height: 1.55; }
 
