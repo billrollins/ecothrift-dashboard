@@ -25,7 +25,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import ChangePasswordDialog from '../users/ChangePasswordDialog';
 import { Sidebar, SIDEBAR_WIDTH } from './Sidebar';
 import { getAppVersion } from '../../api/core.api';
-import logo from '../../assets/logo-full-240x80.png';
+import logo from '../../assets/logo-full-360x120.png';
 import { dashboardPalette } from '../dashboard/dashboardCardStyles';
 import { RESTORATION_BENCH_PATH } from '../../pages/restoration/restorationRoutes';
 

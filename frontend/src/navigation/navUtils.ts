@@ -1,23 +1,16 @@
 import type { NavigateFunction } from 'react-router-dom';
+import { ROLE_RANK, roleRank } from '../auth/roles';
 import type { UserRole } from '../types/accounts.types';
 import type { NavItemDef } from './navTypes';
 
-/** Rank for nav access: Admin 3 … Consignee 0; Customer below staff portal. */
-export const ROLE_RANK: Record<UserRole, number> = {
-  Admin: 3,
-  Manager: 2,
-  Employee: 1,
-  Consignee: 0,
-  Customer: -1,
-};
+export { ROLE_RANK };
 
 export function effectiveRoleRank(user: { role: UserRole | null; roles?: UserRole[] } | null): number {
   if (!user) return -1;
   if (user.roles?.length) {
-    return Math.max(...user.roles.map((r) => ROLE_RANK[r] ?? -1));
+    return Math.max(...user.roles.map((r) => roleRank(r)));
   }
-  if (user.role) return ROLE_RANK[user.role] ?? -1;
-  return -1;
+  return roleRank(user.role);
 }
 
 export function canAccessNav(

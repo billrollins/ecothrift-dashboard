@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-25 (Admin Users, staff reset, Time & payroll) -->
+<!-- Last updated: 2026-08-26 (admin_workspace_overhaul shipped v2.74.0) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,6 +13,7 @@ Full-stack business management for a thrift store in Omaha, NE. HR (time clock, 
 
 ## Active work
 
+- **ACTIVE — Admin workspace overhaul:** [`admin_workspace_overhaul`](initiatives/admin_workspace_overhaul.md) — Studios workspace, Settings house, capability catalog. Grants deferred.
 - **ACTIVE — Universal object surfaces:** [`universal_object_surfaces`](initiatives/universal_object_surfaces.md) — design only. No code scheduled.
 
 TARS and enhancement requests shipped **v2.71.0** (GitHub, not Heroku): [`finalize_tars_app`](initiatives/_archived/_completed/finalize_tars_app.md), [`enhancement_requests`](initiatives/_archived/_completed/enhancement_requests.md). Domain: [`extended/restoration.md`](extended/restoration.md).
@@ -27,7 +28,7 @@ Sidebar entries removed; direct URL still works if bookmarked.
 |------|-----------------|--------|
 | **Consignment (staff)** | Accounts, Items, Payouts (+ account detail) | `/consignment/accounts`, `/consignment/accounts/:id`, `/consignment/items`, `/consignment/payouts` |
 
-**HR (Essentials):** Time clock. **Admin:** Users (Customers + Employees tabs; Employees is Admin-only), Permissions, **Time & payroll** (superuser). **Consignee portal** (`/consignee/*`) unchanged.
+**HR (Essentials):** Time clock. **Admin:** Users (Customers + Employees tabs; Employees is Admin-only), Settings (System / Printing / Store / Assumptions / Permissions), Retail inbox (Admin), Time & payroll (superuser). **Studios:** Label Studio, Floorplans, QA Forms, Blog Studio. **Consignee portal** (`/consignee/*`) unchanged.
 
 ## File Map
 

@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { roleRank } from '../auth/roles';
 import type { User } from '../types/accounts.types';
 import * as accountsApi from '../api/accounts.api';
 import { setAccessToken } from '../api/client';
@@ -91,16 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasRole = useCallback(
     (role: User['role'] | null): boolean => {
       if (!user?.role || role == null) return false;
-      const ROLE_HIERARCHY: Record<string, number> = {
-        Admin: 4,
-        Manager: 3,
-        Employee: 2,
-        Consignee: 1,
-        Customer: 0,
-      };
-      const userLevel = ROLE_HIERARCHY[user.role] ?? -1;
-      const requiredLevel = ROLE_HIERARCHY[String(role)] ?? -1;
-      return userLevel >= requiredLevel;
+      return roleRank(user.role) >= roleRank(role);
     },
     [user]
   );

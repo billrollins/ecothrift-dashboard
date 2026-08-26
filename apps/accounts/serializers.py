@@ -195,8 +195,14 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         instance.save()
 
         if role:
-            # Remove all existing groups, add the new one
-            instance.groups.clear()
+            # Replace only the role-axis groups this field sets. Keep any
+            # other membership (Consignee + Employee, leftover Customer, etc.).
+            staff_names = {'Admin', 'Manager', 'Employee'}
+            portal_names = {'Consignee', 'Customer'}
+            drop = staff_names if role in staff_names else portal_names
+            for group in list(instance.groups.all()):
+                if group.name in drop:
+                    instance.groups.remove(group)
             group, _ = Group.objects.get_or_create(name=role)
             instance.groups.add(group)
 

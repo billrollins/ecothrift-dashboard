@@ -9,6 +9,11 @@ export interface SlotCWorkspaceMeta {
   icon: NavIconKey;
   /** Color of the jump-letter chip. Unique per workspace so a glance finds the key. */
   shortcutColor: string;
+  /**
+   * Digit pressed in the open switcher. Same key always opens this workspace
+   * when the user can see it. 1–8 are lifecycle + Studios; 0 is Admin / Settings.
+   */
+  shortcutDigit?: number;
 }
 
 /** Lifecycle order: source → prep → ingest → restore → records → floor → sell → deliver → online → manage. */
@@ -39,14 +44,9 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     guestItemIds: ['enhancementRequests'],
   },
   {
-    id: 'inventory',
-    label: 'Inventory',
-    itemIds: ['inventoryWorkbench'],
-  },
-  {
     id: 'retailFloor',
     label: 'Retail Floor',
-    itemIds: ['quickReprice', 'floorplans', 'qualityAudit', 'qualityAuditForms'],
+    itemIds: ['inventoryWorkbench', 'quickReprice', 'floorplans', 'qualityAudit'],
   },
   {
     id: 'storeSales',
@@ -69,19 +69,16 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     ],
   },
   {
+    id: 'studios',
+    label: 'Studios',
+    roles: ['Manager', 'Admin'],
+    itemIds: ['labelStudio', 'floorplans', 'qualityAuditForms', 'blogStudio'],
+  },
+  {
     id: 'admin',
     label: 'Admin',
     roles: ['Manager', 'Admin'],
-    itemIds: [
-      'assumptions',
-      'users',
-      'retailInbox',
-      'permissions',
-      'settings',
-      'labelStudio',
-      'blogStudio',
-      'payrollHours',
-    ],
+    itemIds: ['users', 'retailInbox', 'settings', 'payrollHours'],
   },
 ];
 
@@ -90,11 +87,14 @@ export const SLOT_C_ESSENTIALS_GROUP_ID = 'essentials';
 /** Stale bake-off / renamed workspace ids → lifecycle ids. */
 export const SLOT_C_WORKSPACE_ID_MIGRATION: Record<string, string> = {
   inbound: 'processing',
-  catalog: 'inventory',
-  floor: 'inventory',
+  catalog: 'retailFloor',
+  inventory: 'retailFloor',
+  floor: 'retailFloor',
   store: 'storeSales',
   floorOps: 'retailFloor',
   cashier: 'storeSales',
+  people: 'admin',
+  mail: 'onlineSales',
 };
 
 export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
@@ -105,6 +105,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     helper: 'Auctions, vendors, orders, and manifest prep',
     icon: 'gavel',
     shortcutColor: '#0D9488',
+    shortcutDigit: 1,
   },
   {
     id: 'processing',
@@ -113,6 +114,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     helper: 'Receive and process inbound orders',
     icon: 'localShipping',
     shortcutColor: '#2563EB',
+    shortcutDigit: 2,
   },
   {
     id: 'restoration',
@@ -121,22 +123,16 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     helper: 'Test, assemble, repair, salvage',
     icon: 'build',
     shortcutColor: '#EA580C',
-  },
-  {
-    id: 'inventory',
-    label: 'Inventory',
-    shortLabel: 'Inventory',
-    helper: 'Catalog - products, check-ins, items',
-    icon: 'inventory',
-    shortcutColor: '#7C3AED',
+    shortcutDigit: 3,
   },
   {
     id: 'retailFloor',
     label: 'Retail Floor',
     shortLabel: 'Floor',
-    helper: 'Shelf, floorplans, and quality audit',
+    helper: 'Catalog, shelf, floorplans, and quality audit',
     icon: 'storefront',
     shortcutColor: '#DB2777',
+    shortcutDigit: 4,
   },
   {
     id: 'storeSales',
@@ -145,6 +141,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     helper: 'Register, drawers, and POS setup',
     icon: 'pointOfSale',
     shortcutColor: '#CA8A04',
+    shortcutDigit: 5,
   },
   {
     id: 'deliveries',
@@ -153,6 +150,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     helper: 'Schedule days and every delivery',
     icon: 'localShipping',
     shortcutColor: '#16A34A',
+    shortcutDigit: 6,
   },
   {
     id: 'onlineSales',
@@ -161,14 +159,25 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     helper: 'List, reserve, message, and hand off at the register',
     icon: 'storefront',
     shortcutColor: '#0284C7',
+    shortcutDigit: 7,
+  },
+  {
+    id: 'studios',
+    label: 'Studios',
+    shortLabel: 'Studios',
+    helper: 'Labels, floorplans, QA forms, and the blog',
+    icon: 'palette',
+    shortcutColor: '#C026D3',
+    shortcutDigit: 8,
   },
   {
     id: 'admin',
     label: 'Admin',
     shortLabel: 'Admin',
-    helper: 'Setup and access',
+    helper: 'Users, settings, inbox, and payroll',
     icon: 'settings',
     shortcutColor: '#1E293B',
+    shortcutDigit: 0,
   },
 ];
 
@@ -191,20 +200,18 @@ export function resolveWorkspaceForRoute(
 }
 
 /**
- * Map a digit key onto the visible (role-filtered) workspace list.
+ * Map a digit key onto a workspace by its assigned `shortcutDigit`.
  *
- * 1 is the first workspace the user can actually see, not a fixed catalog
- * index — an Employee with six workspaces and a Manager with eight both
- * press 3 for the third row on their own list. 0, letters, and digits past
- * the list all return null rather than wrapping.
+ * The same key always opens the same workspace. If that workspace is not in
+ * `visible` (role-filtered out), the key does nothing. 0 is Admin.
  */
 export function workspaceIdForDigit(
   visible: SlotCWorkspaceMeta[],
   key: string,
 ): string | null {
-  if (key.length !== 1 || key < '1' || key > '9') return null;
-  const index = Number(key) - 1;
-  return visible[index]?.id ?? null;
+  if (key.length !== 1 || key < '0' || key > '9') return null;
+  const digit = Number(key);
+  return visible.find((w) => w.shortcutDigit === digit)?.id ?? null;
 }
 
 /** The letter that jumps to this workspace: the first letter of its short name. */
@@ -248,6 +255,10 @@ function pathsOverlap(a: NavItemDef, b: NavItemDef): boolean {
  * the workspace they are visiting.
  */
 export function glowColorForNavItem(itemId: string): string | undefined {
+  const essentialsIds =
+    SLOT_C_NAV_GROUPS.find((g) => g.id === SLOT_C_ESSENTIALS_GROUP_ID)?.itemIds ?? [];
+  if (essentialsIds.includes(itemId)) return undefined;
+
   for (const group of SLOT_C_NAV_GROUPS) {
     if (group.id === SLOT_C_ESSENTIALS_GROUP_ID) continue;
     if (group.itemIds.includes(itemId)) {

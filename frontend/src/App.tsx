@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
+import { isStaffRole } from './auth/roles';
 import { useAuth } from './contexts/AuthContext';
 import { LoadingScreen } from './components/feedback/LoadingScreen';
 import MainLayout from './components/layout/MainLayout';
@@ -63,11 +64,9 @@ import ConsigneeItemsPage from './pages/consignee/MyItemsPage';
 import ConsigneePayoutsPage from './pages/consignee/MyPayoutsPage';
 import ConsigneeSummaryPage from './pages/consignee/SummaryPage';
 import UsersPage from './pages/admin/users/UsersPage';
-import PermissionsPage from './pages/admin/PermissionsPage';
 import SettingsPage from './pages/admin/SettingsPage';
 import LabelStudioPage from './pages/admin/labelStudio/LabelStudioPage';
 import LabelDesignerPage from './pages/admin/labelStudio/LabelDesignerPage';
-import AssumptionsPage from './pages/admin/AssumptionsPage';
 import QualityAuditHubPage from './pages/admin/QualityAuditHubPage';
 import QualityAuditWizardPage from './pages/admin/QualityAuditWizardPage';
 import QualityAuditFormEditorPage from './pages/admin/QualityAuditFormEditorPage';
@@ -95,8 +94,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function StaffRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   if (user?.role === 'Consignee') return <Navigate to="/consignee" replace />;
-  if (user?.role === 'Customer') return <Navigate to="/login" replace />;
-  return <>{children}</>;
+  if (isStaffRole(user?.role)) return <>{children}</>;
+  return <Navigate to="/login" replace />;
 }
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
@@ -301,7 +300,7 @@ export default function App() {
         <Route path="/admin/web-orders" element={<Navigate to="/online-sales/holds" replace />} />
         <Route
           path="/admin/permissions"
-          element={<AdminRoute><PermissionsPage /></AdminRoute>}
+          element={<Navigate to="/admin/settings?tab=permissions" replace />}
         />
         <Route
           path="/admin/time-payroll"
@@ -346,11 +345,7 @@ export default function App() {
         />
         <Route
           path="/admin/assumptions"
-          element={
-            <ManagerRoute>
-              <AssumptionsPage />
-            </ManagerRoute>
-          }
+          element={<Navigate to="/admin/settings?tab=assumptions" replace />}
         />
         <Route
           path="/admin/quality-audit"

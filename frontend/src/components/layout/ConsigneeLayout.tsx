@@ -3,7 +3,7 @@ import Logout from '@mui/icons-material/Logout';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../contexts/AuthContext';
-import logoImg from '../../assets/logo-full-240x80.png';
+import logoImg from '../../assets/logo-full-360x120.png';
 
 const navItems = [
   { path: '/consignee/items', label: 'My Items' },

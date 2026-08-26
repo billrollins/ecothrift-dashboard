@@ -49,7 +49,11 @@ export default function RetailInboxPage() {
   });
   const selected = useQuery({
     queryKey: ['retailMailboxMessage', selectedId],
-    queryFn: async () => (await getMailboxMessage(selectedId!)).data,
+    queryFn: async () => {
+      const { data } = await getMailboxMessage(selectedId!);
+      void queryClient.invalidateQueries({ queryKey: ['retailMailbox'] });
+      return data;
+    },
     enabled: selectedId != null,
   });
   const refresh = useMutation({

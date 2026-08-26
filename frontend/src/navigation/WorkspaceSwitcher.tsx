@@ -2,8 +2,8 @@
  * One card that names the current workspace, and a menu of every workspace
  * the user can open.
  *
- * The eight cards used to sit in the sidebar all the time and ate a third of
- * it. They still exist — they just live in the menu, so the trigger can stay
+ * The workspace cards used to sit in the sidebar all the time and ate a third
+ * of it. They still exist — they just live in the menu, so the trigger can stay
  * one row and opening it never pushes the links below.
  *
  * Digits and first letters jump while the menu is open and do nothing the rest
@@ -175,7 +175,7 @@ export function WorkspaceSwitcher({
           sx: { py: 0.75, px: 0.75 },
         }}
       >
-        {workspaces.map((workspace, idx) => {
+        {workspaces.map((workspace) => {
           const selected = workspace.id === current.id;
           const Icon = resolveNavIcon(workspace.icon);
           const letter = workspaceShortcutLetter(workspace);
@@ -189,7 +189,12 @@ export function WorkspaceSwitcher({
                   : workspace.shortLabel
               }
               aria-checked={selected}
-              aria-keyshortcuts={[String(idx + 1), letter].filter(Boolean).join(' ')}
+              aria-keyshortcuts={[
+                workspace.shortcutDigit != null ? String(workspace.shortcutDigit) : '',
+                letter,
+              ]
+                .filter(Boolean)
+                .join(' ')}
               selected={selected}
               disableRipple
               onClick={(e) => pick(workspace.id, e.detail === 0)}
@@ -254,7 +259,7 @@ export function WorkspaceSwitcher({
                   {workspace.helper}
                 </Typography>
               </Box>
-              <Keycap digit={idx + 1} selected={selected} />
+              <Keycap digit={workspace.shortcutDigit} selected={selected} />
             </MenuItem>
           );
         })}
@@ -313,7 +318,7 @@ function ShortcutLabel({ text, color }: { text: string; color: string }) {
   );
 }
 
-function Keycap({ digit, selected }: { digit: number; selected: boolean }) {
+function Keycap({ digit, selected }: { digit?: number; selected: boolean }) {
   return (
     <Box
       component="span"
@@ -334,7 +339,7 @@ function Keycap({ digit, selected }: { digit: number; selected: boolean }) {
         boxShadow: selected ? 'inset 0 -1px 0 #D1E7D3' : 'inset 0 -1px 0 #E2E8F0',
       }}
     >
-      {digit}
+      {digit != null ? digit : ''}
     </Box>
   );
 }

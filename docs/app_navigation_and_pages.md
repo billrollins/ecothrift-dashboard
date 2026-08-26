@@ -80,7 +80,7 @@ Intended story: *source → prep → ingest → restore → records → floor �
 |----------|--------|
 | One workspace at a time | Switching workspace replaces the link list under the selector |
 | Persistence | Last selected workspace stored in `localStorage` (`ecothrift.navC.workspace.v1`) |
-| Keyboard | `Alt+1…N` switches among visible workspaces and focuses the first item |
+| Keyboard | Open the workspace switcher, then press the assigned digit (`1`–`8`, `0` Admin) or the short-name letter. Keys do nothing while the menu is closed. There is no Alt+digit shortcut. |
 | Default workspace | `buying` if nothing stored |
 | Sidebar click vs deep link | Clicking a sidebar link keeps the current workspace pinned. Opening a URL / refresh resolves which workspace “owns” the active route (lowest lifecycle order that contains a matching item) |
 | Role filtering | Items and whole groups can require min role or `superuserOnly`; empty groups disappear |

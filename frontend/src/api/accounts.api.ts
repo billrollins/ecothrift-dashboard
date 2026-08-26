@@ -32,6 +32,22 @@ export function getMe(): Promise<{ data: User }> {
   return api.get<User>('/auth/me/');
 }
 
+export interface CapabilityRow {
+  id: string;
+  area: string;
+  label: string;
+  holders: string[];
+  source: string;
+}
+
+export function getMyCapabilities(): Promise<{ data: { capabilities: string[] } }> {
+  return api.get('/auth/capabilities/');
+}
+
+export function getCapabilityCatalog(): Promise<{ data: { results: CapabilityRow[] } }> {
+  return api.get('/accounts/capability-catalog/');
+}
+
 export function changePassword(
   oldPassword: string,
   newPassword: string

@@ -1,7 +1,8 @@
-feat: full-width receipts, Google Review discount, and Tue-Sat hours
+feat: Studios workspace, Settings house, and assigned nav digits
 
-Receipts print raw ESC/POS with a hardcoded Canfield storefront and a
-Google Review coupon. POS Discount can redeem that offer once per
-username. Public hours are Tuesday-Saturday 9-6.
+- Add Studios (8/S) and fold Assumptions, Store, Printing, Permissions into /admin/settings
+- Move Catalog onto Floor; drop the empty Inventory workspace; digits 1–8 plus Admin 0
+- Ship capability catalog APIs and a read-only Permissions matrix
+- Polish Print Settings; keep the public hours status dot on one line
 
-Release: v2.73.0
+Release: v2.74.0

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { partsNavWaitingCount } from '../pages/restoration/parts/partsBoard';
 import { useAuth } from './useAuth';
+import { useRetailInboxUnreadCount } from './useMailbox';
 import { useRestorationPartsOrders } from './useRestorationBench';
 import { useNeedsReplyCount } from './useWebStore';
 
@@ -23,15 +24,22 @@ function useRestorationPartsWaitingCount(enabled: boolean): number {
  * interrupting someone for) lives in this hook - Online Sales badges threads
  * where staff owes the next action (`needs_reply`), not unread mail.
  */
-export function useNavBadgeCounts(options: { onlineSales: boolean }): Record<string, number> {
+export function useNavBadgeCounts(options: {
+  onlineSales: boolean;
+  retailInbox?: boolean;
+}): Record<string, number> {
   const { user } = useAuth();
   const nextAction = useNeedsReplyCount({ enabled: options.onlineSales });
+  const inboxUnread = useRetailInboxUnreadCount({
+    enabled: Boolean(options.retailInbox) && user?.role === 'Admin',
+  });
   const partsWaiting = useRestorationPartsWaitingCount(Boolean(user?.is_superuser));
 
   return useMemo(() => {
     const counts: Record<string, number> = {};
     if (nextAction > 0) counts.onlineSalesCustomers = nextAction;
+    if (inboxUnread > 0) counts.retailInbox = inboxUnread;
     if (partsWaiting > 0) counts.restorationPartsRequests = partsWaiting;
     return counts;
-  }, [nextAction, partsWaiting]);
+  }, [nextAction, inboxUnread, partsWaiting]);
 }

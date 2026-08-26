@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.73.0] -->
-<!-- Last reviewed: 2026-08-26 (v2.73.0 receipts, Google Review discount, Canfield hours) -->
+<!-- Line 1 release: ## [2.74.0] -->
+<!-- Last reviewed: 2026-08-26 (v2.74.0 admin workspaces + Settings house) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.74.0] - 2026-08-26
+
+User-facing theme: **Rooms that stay put** — Studios, Catalog on the Floor, and one Settings house with a real permissions catalog.
+
+Initiative: [`admin_workspace_overhaul`](.ai/initiatives/admin_workspace_overhaul.md).
+
+### Added
+
+- **Studios workspace** (`8` / `S`) — Label Studio, Floorplans, QA Forms, Blog Studio. Floorplans stay on Retail Floor too.
+- **Settings house** — `/admin/settings?tab=` opens System, Printing, Store, Assumptions, Permissions. `/admin/assumptions` and `/admin/permissions` redirect in. Default tab is System.
+- **Capability catalog** — `apps/accounts/capabilities.py`, `GET /api/auth/capabilities/`, `GET /api/accounts/capability-catalog/`. Permissions tab is a read-only matrix (Employee / Manager / Admin / Super Admin, plus Consignee and Customer).
+
+### Changed
+
+- **Assigned workspace digits** — Buying 1, Processing 2, Restoration 3, Floor 4, Cashier 5, Deliveries 6, Online Sales 7, Studios 8, Admin 0. Catalog moved onto Floor; the empty Inventory workspace is gone. `9` is unused.
+- **StaffRoute and roles** — one `ROLE_RANK` table; `StaffRoute` requires a staff role; `IsManager` removed; `UserUpdateSerializer` no longer clears extra groups.
+- **Print Settings** — assignment rows, installer strip, click-to-refresh Print Server title, manage URL is a link.
+- **Public home hours** — open/closed dot sits on the same line as the status text.
+
+### Removed
+
+- Standalone Assumptions and Permissions pages (redirects remain).
+
+### Documentation
+
+- `.ai/extended/frontend.md`, `.ai/extended/auth-and-roles.md`, `.ai/extended/backend.md`, `frontend/src/navigation/README.md`.
 
 ## [2.73.0] - 2026-08-26
 

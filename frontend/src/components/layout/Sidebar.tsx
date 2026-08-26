@@ -116,6 +116,7 @@ export function Sidebar() {
   // Only ask for Online Sales counts when the user can actually open it.
   const badgeCounts = useNavBadgeCounts({
     onlineSales: workspaceGroups.some((g) => g.id === 'onlineSales'),
+    retailInbox: workspaceGroups.some((g) => g.id === 'admin'),
   });
   const workspaceBadgeCounts = useMemo(
     () => rollupWorkspaceBadgeCounts(workspaceGroups, badgeCounts),

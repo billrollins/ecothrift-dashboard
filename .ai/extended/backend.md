@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-25 (enhancement requests, parts inspect) -->
+<!-- Last updated: 2026-08-26 (capability catalog; IsManager removed) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -220,7 +220,7 @@ consignment.ConsignmentPayout → User (consignee)
 ### Permission Classes
 
 - Default: `IsAuthenticated`.
-- Custom: `IsAdmin`, `IsManager`, `IsManagerOrAdmin`, `IsEmployee`, `IsConsignee`, `IsStaff`.
+- Custom: `IsAdmin`, `IsManagerOrAdmin`, `IsEmployee`, `IsConsignee`, `IsStaff` (alias of `IsEmployee`), `IsCustomer`, `IsSuperAdmin`. Catalog: `apps/accounts/capabilities.py`.
 - Applied per ViewSet or view via `permission_classes`.
 
 ### Timestamps

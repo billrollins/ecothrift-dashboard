@@ -35,6 +35,8 @@ export async function getMailboxMessages(params?: {
   classification?: string;
   search?: string;
   ordering?: string;
+  is_read?: boolean;
+  page_size?: number;
 }): Promise<{ data: PaginatedResponse<MailboxMessage> }> {
   return api.get('/mailbox/messages/', { params });
 }

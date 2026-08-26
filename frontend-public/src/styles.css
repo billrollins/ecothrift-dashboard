@@ -479,7 +479,7 @@ main:has(.home) + .ft { margin-top: 0; }
 
 .vinfo h3 { font-family: var(--fdisp); font-weight: 600; font-size: 30px; margin: 6px 0 22px; }
 
-.store-status {
+.vrow .store-status {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -487,7 +487,8 @@ main:has(.home) + .ft { margin-top: 0; }
   font-weight: 500;
 }
 
-.status-dot {
+.vrow .status-dot {
+  display: inline-block;
   width: 8px;
   height: 8px;
   border-radius: 50%;

@@ -22,8 +22,16 @@ describe('workspaceIdForDigit', () => {
     expect(workspaceIdForDigit(SLOT_C_WORKSPACES, '3')).toBe('restoration');
   });
 
-  it('refuses 0 — there is no zeroth workspace', () => {
-    expect(workspaceIdForDigit(SLOT_C_WORKSPACES, '0')).toBeNull();
+  it('maps 0 to Admin', () => {
+    expect(workspaceIdForDigit(SLOT_C_WORKSPACES, '0')).toBe('admin');
+  });
+
+  it('maps 8 to Studios', () => {
+    expect(workspaceIdForDigit(SLOT_C_WORKSPACES, '8')).toBe('studios');
+  });
+
+  it('leaves 9 unused', () => {
+    expect(workspaceIdForDigit(SLOT_C_WORKSPACES, '9')).toBeNull();
   });
 
   it('refuses a digit past the list rather than wrapping', () => {
@@ -36,12 +44,12 @@ describe('workspaceIdForDigit', () => {
 
   it('numbers the role-filtered list, not the full catalog', () => {
     const employeeSees = SLOT_C_WORKSPACES.filter(
-      (w) => w.id !== 'onlineSales' && w.id !== 'admin',
+      (w) => w.id !== 'onlineSales' && w.id !== 'admin' && w.id !== 'studios',
     );
-    expect(employeeSees).toHaveLength(7);
-    expect(workspaceIdForDigit(employeeSees, '6')).toBe('storeSales');
-    expect(workspaceIdForDigit(employeeSees, '7')).toBe('deliveries');
-    expect(workspaceIdForDigit(employeeSees, '8')).toBeNull();
+    expect(employeeSees).toHaveLength(6);
+    expect(workspaceIdForDigit(employeeSees, '5')).toBe('storeSales');
+    expect(workspaceIdForDigit(employeeSees, '6')).toBe('deliveries');
+    expect(workspaceIdForDigit(employeeSees, '7')).toBeNull();
   });
 });
 
@@ -66,6 +74,15 @@ describe('workspaceIdForKey', () => {
     expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'r')).toBe('restoration');
     expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'R')).toBe('restoration');
     expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'f')).toBe('retailFloor');
+    expect(workspaceIdForKey(SLOT_C_WORKSPACES, 's')).toBe('studios');
+    expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'a')).toBe('admin');
+  });
+
+  it('assigns each digit to at most one workspace', () => {
+    const digits = SLOT_C_WORKSPACES.map((w) => w.shortcutDigit).filter(
+      (d): d is number => d != null,
+    );
+    expect(new Set(digits).size).toBe(digits.length);
   });
 
   it('ignores a letter that no visible workspace starts with', () => {
@@ -121,6 +138,17 @@ describe('Processing workspace pages', () => {
     expect(NAV_ITEM_CATALOG.restorations?.path).toBe('/restoration/overview');
   });
 
+  it('keeps a dual-listed Floorplan on Retail Floor, not Studios', () => {
+    const groups = resolveNavGroups(
+      { role: 'Admin', is_superuser: true },
+      SLOT_C_NAV_GROUPS,
+    );
+    const workspaces = groups.filter((g) => g.id !== 'essentials');
+    const isActive = (item: { path: string; pathAliases?: string[] }) =>
+      navItemIsActive('/floor-ops/floorplans', '', '', item);
+    expect(resolveWorkspaceForRoute(workspaces, SLOT_C_WORKSPACES, isActive)).toBe('retailFloor');
+  });
+
   it('does not let that shortcut steal Overview away from the Restoration workspace', () => {
     const groups = resolveNavGroups(
       { role: 'Admin', is_superuser: true },
@@ -130,6 +158,29 @@ describe('Processing workspace pages', () => {
     const isActive = (item: { path: string; pathAliases?: string[] }) =>
       navItemIsActive('/restoration/overview', '', '', item);
     expect(resolveWorkspaceForRoute(workspaces, SLOT_C_WORKSPACES, isActive)).toBe('restoration');
+  });
+});
+
+describe('Studios and Admin placement', () => {
+  const admin = SLOT_C_NAV_GROUPS.find((g) => g.id === 'admin');
+  const studios = SLOT_C_NAV_GROUPS.find((g) => g.id === 'studios');
+  const retailFloor = SLOT_C_NAV_GROUPS.find((g) => g.id === 'retailFloor');
+  const onlineSales = SLOT_C_NAV_GROUPS.find((g) => g.id === 'onlineSales');
+
+  it('keeps Admin as Users, Retail inbox, Settings, and Time & payroll', () => {
+    expect(admin?.itemIds).toEqual(['users', 'retailInbox', 'settings', 'payrollHours']);
+    expect(admin?.guestItemIds ?? []).toEqual([]);
+  });
+
+  it('puts every studio under Studios', () => {
+    expect(studios?.itemIds).toEqual(['labelStudio', 'floorplans', 'qualityAuditForms', 'blogStudio']);
+    expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'people')).toBeUndefined();
+    expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'mail')).toBeUndefined();
+  });
+
+  it('keeps Floorplans on Retail Floor and Messages on Online Sales', () => {
+    expect(retailFloor?.itemIds).toEqual(['inventoryWorkbench', 'quickReprice', 'floorplans', 'qualityAudit']);
+    expect(onlineSales?.itemIds).toContain('onlineSalesCustomers');
   });
 });
 

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-25 (finalize_tars_app + enhancement_requests completed) -->
+<!-- Last updated: 2026-08-26 (admin_workspace_overhaul phases 1–3 shipped) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not a session log.
@@ -13,6 +13,7 @@ Lifecycle moves: [`.ai/protocols/initiative.md`](../protocols/initiative.md). **
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
+| [admin_workspace_overhaul](./admin_workspace_overhaul.md) | **Active** | Phases 1–3 shipped **v2.74.0**. Grants deferred. |
 | [universal_object_surfaces](./universal_object_surfaces.md) | **Design only** | Permissioned ObjectChip → ObjectSurface. No code scheduled. |
 
 ---

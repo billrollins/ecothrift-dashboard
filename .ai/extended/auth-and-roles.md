@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-25 (Admin > Users workspace; staff reset is now an emailed link) -->
+<!-- Last updated: 2026-08-26 (capability catalog; StaffRoute; IsManager removed) -->
 
 # Eco-Thrift Dashboard — Auth and Roles
 
@@ -111,13 +111,14 @@ User's `roles` property: returns **all** group names as a list (e.g. `['Employee
 | Class | Allowed Roles |
 |-------|---------------|
 | `IsAdmin` | Admin only |
-| `IsManager` | Manager only |
 | `IsManagerOrAdmin` | Manager or Admin |
 | `IsEmployee` | Employee, Manager, Admin |
 | `IsConsignee` | Consignee only |
 | `IsCustomer` | Customer only (storefront account endpoints) |
-| `IsStaff` | Employee, Manager, Admin (same as IsEmployee) |
+| `IsStaff` | Alias of `IsEmployee` (staff floor) |
 | `IsSuperAdmin` | Django superuser (Blog Studio and other owner-only tooling) |
+
+`IsManager` (Manager only) was unused and has been removed. Django's `Permission` table is not consulted. The live list of what each role can do is `apps/accounts/capabilities.py`, exposed as `GET /api/auth/capabilities/` (the caller's set) and `GET /api/accounts/capability-catalog/` (Admin, full matrix). Per-user extra grants are not implemented.
 
 ---
 
@@ -126,9 +127,10 @@ User's `roles` property: returns **all** group names as a list (e.g. `['Employee
 | Guard | Logic |
 |-------|-------|
 | **ProtectedRoute** | Requires `isAuthenticated`; else redirect to `/login` |
-| **StaffRoute** | If `role === 'Consignee'` → redirect to `/consignee` |
+| **StaffRoute** | Requires `Admin` / `Manager` / `Employee`. Consignee → `/consignee`. Anyone else (including `role === null`) → `/login` |
 | **ManagerRoute** | If `role` not in `['Admin','Manager']` → redirect to `/dashboard` |
 | **AdminRoute** | If `role !== 'Admin'` → redirect to `/dashboard` |
+| **SuperAdminRoute** | If `!user.is_superuser` → redirect to `/dashboard` |
 
 Route nesting: `ProtectedRoute` → `StaffRoute` → `MainLayout` for staff; `ProtectedRoute` → `ConsigneeLayout` for consignees.
 
@@ -136,9 +138,11 @@ Route nesting: `ProtectedRoute` → `StaffRoute` → `MainLayout` for staff; `Pr
 
 ## hasRole() Hierarchy Logic
 
+Single table in `frontend/src/auth/roles.ts` (also used by nav):
+
 ```ts
-ROLE_HIERARCHY: { Admin: 4, Manager: 3, Employee: 2, Consignee: 1, Customer: 0 }
-hasRole(role) => userLevel >= requiredLevel
+ROLE_RANK: { Admin: 4, Manager: 3, Employee: 2, Consignee: 1, Customer: 0 }
+hasRole(role) => roleRank(user.role) >= roleRank(role)
 ```
 
 - `hasRole('Admin')` → true only for Admin
@@ -153,17 +157,18 @@ hasRole(role) => userLevel >= requiredLevel
 ### Admin
 
 - All staff routes
-- React in-app admin: `/admin/permissions`, `/admin/settings`, and other **`/admin/*`** routes (not Django `contrib.admin`)
-- `/admin/users` — the Users workspace. Manager+ reach the page; the **Employees** tab inside is Admin-only. Customers tab is Manager+.
+- Settings house at `/admin/settings` (System, Printing, Store, Assumptions, Permissions)
+- `/admin/users` — Admin workspace. Manager+ reach the page; the **Employees** tab inside is Admin-only. Customers tab is Manager+.
+- Retail inbox (`/admin/retail-inbox`)
 - **Django model admin** (superuser, raw ORM UI): **`/db-admin/`** — separate prefix from React **`/admin/*`**
 - Consignment management (`/consignment/accounts`, `/consignment/items`, `/consignment/payouts`)
 
 ### Manager
 
-- All staff routes except admin
+- All staff routes except Admin-only pages (Retail inbox, Employees tab, Permissions tab)
+- Settings (System / Printing / Store / Assumptions), Users (Customers), Studios, Quality Audit, Online Sales (Messages)
 - Consignment management
-- `/admin/users` (Customers tab only — the Employees tab is not rendered)
-- No other `/admin/*`
+- POS setup
 
 ### Employee
 

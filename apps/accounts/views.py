@@ -20,6 +20,7 @@ from .serializers import (
     LoginSerializer, EmployeeProfileSerializer, ConsigneeProfileSerializer,
     PasswordChangeSerializer,
 )
+from .capabilities import capabilities_for_user, catalog_as_dicts
 from .permissions import IsAdmin, IsManagerOrAdmin
 
 from .models import CustomerProfile
@@ -171,6 +172,20 @@ def logout_view(request):
             pass
     response = Response({'detail': 'Logged out successfully.'})
     return _clear_refresh_cookie(response)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def capabilities_view(request):
+    """Capability ids the calling user holds today (role + is_superuser)."""
+    return Response({'capabilities': capabilities_for_user(request.user)})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsAdmin])
+def capability_catalog_view(request):
+    """Full catalog for the Settings → Permissions matrix."""
+    return Response({'results': catalog_as_dicts()})
 
 
 @api_view(['GET'])

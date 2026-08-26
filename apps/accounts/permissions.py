@@ -11,16 +11,6 @@ class IsAdmin(BasePermission):
         )
 
 
-class IsManager(BasePermission):
-    """Allow access only to Manager role users."""
-    def has_permission(self, request, view):
-        return (
-            request.user
-            and request.user.is_authenticated
-            and request.user.role == 'Manager'
-        )
-
-
 class IsManagerOrAdmin(BasePermission):
     """Allow access to Manager or Admin role users."""
     def has_permission(self, request, view):
@@ -51,14 +41,8 @@ class IsConsignee(BasePermission):
         )
 
 
-class IsStaff(BasePermission):
-    """Allow access to any staff role (Employee, Manager, Admin)."""
-    def has_permission(self, request, view):
-        return (
-            request.user
-            and request.user.is_authenticated
-            and request.user.role in ('Employee', 'Manager', 'Admin')
-        )
+class IsStaff(IsEmployee):
+    """Identical to IsEmployee. Staff floor (Employee, Manager, Admin)."""
 
 
 class IsCustomer(BasePermission):

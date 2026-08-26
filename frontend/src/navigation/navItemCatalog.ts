@@ -185,6 +185,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
   settings: {
     id: 'settings',
     path: '/admin/settings',
+    pathAliases: ['/admin/assumptions', '/admin/permissions'],
     label: 'Settings',
     icon: 'settings',
     roles: ['Manager', 'Admin'],

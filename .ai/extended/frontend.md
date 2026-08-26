@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-25 (Admin Users, staff reset, Time & payroll) -->
+<!-- Last updated: 2026-08-26 (Settings tab order System-first; Catalog on Floor) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -32,7 +32,7 @@
 
 **Public routes:** `/login`, `/forgot-password`, `/reset-password`
 
-**Staff routes** (MainLayout): Dashboard; HR (**Time clock** in Essentials); **Buying** (auctions, watchlist, **vendors**, **orders**, preprocessing); Inventory (**Inbound:** receiving, processing; **Catalog** workbench; quick reprice under Floor Ops); POS (terminal, drawers, cash, transactions); **Admin** (Manager+: assumptions, POS setup, settings; Users at `/admin/users` — Customers for Manager+, Employees tab Admin-only; Super Admin: **Time & payroll** `/admin/time-payroll`, **Enhancements** `/admin/enhancement-requests`). Staff **Consignment** routes remain (`/consignment/*`) but are **hidden from sidebar**; **Consignee portal** (`/consignee/*`) unchanged.
+**Staff routes** (MainLayout): Dashboard; HR (**Time clock** in Essentials); **Buying** (auctions, watchlist, **vendors**, **orders**, preprocessing); Inventory (**Inbound:** receiving, processing); **Retail Floor** (Catalog workbench, quick reprice, floorplans, quality audit); POS (terminal, drawers, cash, transactions); **Studios** (Manager+: Label Studio, Floorplans, QA Forms, Blog Studio); **Admin** (Manager+: Users at `/admin/users` — Customers for Manager+, Employees tab Admin-only; Settings house at `/admin/settings` (System / Printing / Store / Assumptions / Permissions); Retail inbox Admin-only; Super Admin: **Time & payroll** `/admin/time-payroll`). Super Admin **Enhancements** `/admin/enhancement-requests` is a Restoration guest. Staff **Consignment** routes remain (`/consignment/*`) but are **hidden from sidebar**; **Consignee portal** (`/consignee/*`) unchanged.
 
 **HR — Time & payroll (`TimePayrollPage`, Super Admin):** No page title. One-line period toolbar (From/To, past periods, week/period/month chips, current-week hours). Content capped at **1680px**. Pending sits left of the **Payroll** total (`N` employees · `N` shifts). One card: tabs on the top edge — **Roster**, **By employee**, **Change requests**. **By employee**: Employee, # Shifts, Rate, Ind. weeks (stacked Mon–Sun lines), Time (Regular over Overtime), Payroll, plus a totals footer. OT uses a muted dash at zero and amber only at **≥ 1 h**. Hours and pay are computed from 2-decimal shift hours so `$` matches the printed hours. Pagination footer hides on a single page.
 
@@ -80,7 +80,7 @@ Staff catalog + order management: **`WebStorePage`** (`/admin/web-store`), **`We
 
 ### MainLayout
 
-- **Sidebar** (**252px**): workspace nav — pinned Essentials (Dashboard, Time clock) + lifecycle workspaces (Buying → Processing → Restoration → Inventory → Retail Floor → Cashier → Deliveries → Online Sales → Admin); logo, version footer. Waiting-work badges come from `useNavBadgeCounts` (Customers = `needs_reply`; Parts Requests = live approvals / cancel asks / reviews) and roll up onto the workspace pip. **Overflow:** drawer paper and the nav scroll area use **`overflow-x: hidden`** (vertical scroll only); nav list is full-width with **`minWidth: 0`**; long labels **`noWrap`** + ellipsis (see **v2.2.4** `CHANGELOG`).
+- **Sidebar** (**252px**): workspace nav — pinned Essentials (Dashboard, Time clock) + workspaces (Buying → Processing → Restoration → Retail Floor → Cashier → Deliveries → Online Sales → Studios → Admin); logo, version footer. Waiting-work badges come from `useNavBadgeCounts` (Messages = `needs_reply`; Retail inbox = unread `MailMessage`; Parts Requests = live approvals / cancel asks / reviews) and roll up onto the workspace pip. **Overflow:** drawer paper and the nav scroll area use **`overflow-x: hidden`** (vertical scroll only); nav list is full-width with **`minWidth: 0`**; long labels **`noWrap`** + ellipsis (see **v2.2.4** `CHANGELOG`).
 - **AppBar**: sticky, default color, user avatar + menu (logout)
 - **Outlet** for page content
 - Mobile: temporary drawer with hamburger toggle
@@ -98,9 +98,9 @@ Shared module: **`frontend/src/navigation/`**
 | `useStaffNav.ts` | Active route detection + navigation |
 | `NavItemRow.tsx` | Shared row component |
 
-Shell: **`frontend/src/components/layout/Sidebar.tsx`** — one workspace panel visible; sidebar clicks keep the current workspace (shared links like Search items); external URL entry picks lowest lifecycle # workspace via **`resolveWorkspaceForRoute`**; manual choice in `ecothrift.navC.workspace.v1`; **Alt+1..6** switches workspaces.
+Shell: **`frontend/src/components/layout/Sidebar.tsx`** — one workspace panel visible; sidebar clicks keep the current workspace (shared links like Search items); external URL entry picks lowest lifecycle # workspace via **`resolveWorkspaceForRoute`**; manual choice in `ecothrift.navC.workspace.v1`. Open the switcher and press the assigned digit (`1`–`8`, `0` Admin) or the short-name letter. Keys listen only while the menu is open. There is no Alt+digit shortcut.
 
-Adding a staff nav link: one object in `navItemCatalog.ts` + assign its id to a workspace in `slotCNavLayout.ts`. See **`frontend/src/navigation/README.md`**. Item flags: **`superuserOnly`** (dropped for non-`is_superuser` in `navResolve`) and **`openInNewWindow`** (`navUtils.navigateForNavItem` → `window.open(path, '_blank', 'noopener')`) — both used by **`blogStudio`** (bottom of the Admin group).
+Adding a staff nav link: one object in `navItemCatalog.ts` + assign its id to a workspace in `slotCNavLayout.ts`. See **`frontend/src/navigation/README.md`**. Item flags: **`superuserOnly`** (dropped for non-`is_superuser` in `navResolve`) and **`openInNewWindow`** (`navUtils.navigateForNavItem` → `window.open(path, '_blank', 'noopener')`) — both used by **`blogStudio`** (Studios workspace).
 
 ### ConsigneeLayout
 
