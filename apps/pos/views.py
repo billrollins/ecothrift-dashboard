@@ -34,6 +34,14 @@ from .serializers import (
     DeliveryAvailabilitySerializer, DeliveryJobSerializer, DeliveryDayWriteSerializer,
 )
 from .filters import CartFilter, DrawerFilter
+from .services.discounts import (
+    REASON_GOOGLE_REVIEW,
+    REASON_STORE_CREDIT,
+    DiscountError,
+    assert_google_review_available,
+    list_google_review_usernames,
+    resolve_discount_amount,
+)
 
 
 def _estimate_delivery_item_count(items_delivered: str, explicit=None) -> int:
@@ -844,6 +852,11 @@ class CartViewSet(viewsets.ModelViewSet):
         cart = self.get_queryset().get(pk=cart.pk)
         return Response(CartSerializer(cart).data)
 
+    @action(detail=False, methods=['get'], url_path='google-review-usernames')
+    def google_review_usernames(self, request):
+        q = (request.query_params.get('q') or '').strip()
+        return Response({'results': list_google_review_usernames(q)})
+
     @action(detail=True, methods=['post'], url_path='add-discount')
     def add_discount(self, request, pk=None):
         """Add a negative discount / in-store credit line (cart-wide or against one line)."""
@@ -854,28 +867,30 @@ class CartViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
-        raw_amount = request.data.get('amount')
-        try:
-            amount = Decimal(str(raw_amount)).quantize(Decimal('0.01'))
-        except (InvalidOperation, TypeError):
-            return Response(
-                {'detail': 'Invalid amount.', 'code': 'INVALID_AMOUNT'},
-                status=400,
-            )
-        if amount <= 0:
-            return Response(
-                {'detail': 'amount must be greater than zero.', 'code': 'INVALID_AMOUNT'},
-                status=400,
-            )
-
-        reason = (request.data.get('reason') or 'In-store credit (return)').strip()
+        reason = (request.data.get('reason') or REASON_STORE_CREDIT).strip()
         if not reason:
-            reason = 'In-store credit (return)'
+            reason = REASON_STORE_CREDIT
         if len(reason) > 200:
             return Response(
                 {'detail': 'Reason is too long.', 'code': 'REASON_TOO_LONG'},
                 status=400,
             )
+
+        review_name = None
+        review_stars = None
+        review_key = None
+        if reason == REASON_GOOGLE_REVIEW:
+            try:
+                review_name, review_stars, review_key = assert_google_review_available(
+                    cart,
+                    request.data.get('google_review_username'),
+                    request.data.get('google_review_stars'),
+                )
+            except DiscountError as exc:
+                return Response(
+                    {'detail': exc.detail, 'code': exc.code},
+                    status=exc.http_status,
+                )
 
         target_line_id = request.data.get('target_line_id')
         target_line = None
@@ -897,21 +912,36 @@ class CartViewSet(viewsets.ModelViewSet):
                     status=400,
                 )
             scope = 'line'
-            if amount > target_line.line_total:
-                return Response(
-                    {
-                        'detail': 'Discount cannot exceed the target line total.',
-                        'code': 'DISCOUNT_EXCEEDS_LINE',
-                    },
-                    status=400,
-                )
 
-        # Reject discounts that would make merchandise subtotal negative
-        # (sum of non-discount lines minus this discount).
         positive = sum(
             (ln.line_total for ln in cart.lines.exclude(line_kind=CartLine.LINE_KIND_DISCOUNT)),
             Decimal('0'),
         )
+        base = target_line.line_total if target_line is not None else positive
+        mode = (request.data.get('mode') or 'amount')
+
+        try:
+            amount, percent = resolve_discount_amount(
+                mode=mode,
+                raw_amount=request.data.get('amount'),
+                raw_percent=request.data.get('percent'),
+                base=base,
+                reason=reason,
+            )
+        except DiscountError as exc:
+            return Response(
+                {'detail': exc.detail, 'code': exc.code},
+                status=exc.http_status,
+            )
+
+        if scope == 'line' and target_line is not None and amount > target_line.line_total:
+            return Response(
+                {
+                    'detail': 'Discount cannot exceed the target line total.',
+                    'code': 'DISCOUNT_EXCEEDS_LINE',
+                },
+                status=400,
+            )
         if amount > positive:
             return Response(
                 {
@@ -921,11 +951,28 @@ class CartViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
-        if scope == 'line' and target_line is not None:
+        if reason == REASON_GOOGLE_REVIEW and review_name:
+            description = f'Discount — {reason} ({review_name}, {review_stars} stars)'
+        elif scope == 'line' and target_line is not None:
             description = f'Discount — {reason} (on {target_line.description[:80]})'
         else:
             description = f'Discount — {reason}'
+        if scope == 'line' and target_line is not None and reason == REASON_GOOGLE_REVIEW:
+            description = f'{description} (on {target_line.description[:80]})'
         description = description[:300]
+
+        meta = {
+            'reason': reason,
+            'scope': scope,
+            'target_line_id': target_line.pk if target_line else None,
+            'amount': str(amount),
+            'mode': (str(mode) or 'amount').strip().lower(),
+            'percent': str(percent) if percent is not None else None,
+        }
+        if review_name is not None:
+            meta['google_review_username'] = review_name
+            meta['google_review_username_key'] = review_key
+            meta['google_review_stars'] = review_stars
 
         CartLine.objects.create(
             cart=cart,
@@ -934,12 +981,7 @@ class CartViewSet(viewsets.ModelViewSet):
             quantity=1,
             unit_price=-amount,
             line_kind=CartLine.LINE_KIND_DISCOUNT,
-            meta={
-                'reason': reason,
-                'scope': scope,
-                'target_line_id': target_line.pk if target_line else None,
-                'amount': str(amount),
-            },
+            meta=meta,
         )
 
         cart.recalculate()

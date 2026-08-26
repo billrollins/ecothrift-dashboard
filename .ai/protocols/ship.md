@@ -1,7 +1,7 @@
-<!-- Last updated: 2026-08-13 (merged review.0.Bump + code.9.Push; no session close) -->
+<!-- Last updated: 2026-08-26 (no prod data pull) -->
 # Protocol: Ship
 
-Docs audit → semver bump → `CHANGELOG` → commit → GitHub push → pull prod.
+Docs audit → semver bump → `CHANGELOG` → commit → GitHub push.
 
 **Every GitHub push is a release.** Production shows `.version` via `GET /api/core/system/version/` and the staff sidebar footer. Pushing without a bump ships code while the live version string stays unchanged.
 
@@ -99,11 +99,7 @@ Prompts `Y` to confirm. `--called` skips the prompt (only when the user invoked 
 
 Never force-push. Never `--no-verify`. Never amend a pushed commit.
 
-Then pull prod so local migrations do not drift:
-
-```bat
-scripts\deploy\0_pull_prod_to_local.bat
-```
+Do **not** pull production data as part of ship.
 
 Optional Heroku: `scripts\deploy\3_push_heroku.bat` — confirm the live version matches the bump.
 

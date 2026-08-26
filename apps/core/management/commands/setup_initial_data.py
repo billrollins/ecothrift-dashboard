@@ -210,9 +210,9 @@ class Command(BaseCommand):
                     'timezone': 'America/Chicago',
                     'open': '09:00',
                     'close': '18:00',
-                    'closed_weekdays': [6],
+                    'closed_weekdays': [0, 6],
                 },
-                'Online Sales hold expiry hours (Canfield Mon–Sat 9–6, closed Sunday).',
+                'Online Sales hold expiry hours (Canfield Tue–Sat 9–6, closed Sun & Mon).',
             ),
         ]
 

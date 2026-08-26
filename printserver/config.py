@@ -1,11 +1,31 @@
-VERSION = "1.4.1"
-RELEASE_NOTES = "Hardens custom label printing with upload, page-count, and raster safety limits; pre-sized image jobs retain their physical dimensions."
+VERSION = "1.5.0"
+RELEASE_NOTES = "Receipts print as raw ESC/POS at full width instead of shrunken GDI text, with a rebuilt storefront header, policy footer, and a Google review coupon."
 
 # Default URL for the public version-check endpoint on the dashboard backend.
 # Users can override this in settings.json via the /manage page (useful for local dev).
 UPDATE_CHECK_URL = "https://dash.ecothrift.us/api/core/system/print-server-version-public/"
 
 CHANGELOG = """\
+## [1.5.0] — 2026-08-26
+
+### Changed
+- **Receipts print raw ESC/POS:** ``POST /print/receipt`` and ``/print/test-receipt`` send
+  ``format_receipt`` bytes through ``send_raw`` instead of GDI text. The driver no longer
+  shrink-to-fits a short receipt onto a tall page, so type is full size edge to edge.
+- **Receipt layout:** storefront header (name, tagline, address, phone, store hours), a
+  ``THANK YOU`` block with the all-sales-final policy, and a framed Google review coupon —
+  5% off the next visit, up to $5 — with its terms as the last thing on the tape.
+- **Policy copy:** final sale plus “we test as much as we can… please test before you buy”
+  (no used/donated / sold-as-is line).
+
+### Fixed
+- **Missing glyphs:** en/em dashes, bullets, curly quotes and the like are folded to ASCII
+  before the cp437 encode, so they no longer print as ``?``.
+- **GDI text fallback:** ``send_text`` now sizes a 72mm-wide page to the content height and
+  paginates, for anyone still printing receipts through a driver page.
+
+---
+
 ## [1.4.1] — 2026-07-09
 
 ### Fixed

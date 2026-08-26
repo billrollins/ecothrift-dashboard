@@ -170,9 +170,31 @@ export function addManualLineToCart(
   return api.post<Cart>(`/pos/carts/${cartId}/add-manual-line/`, body);
 }
 
+export interface GoogleReviewUsername {
+  username: string;
+  username_key: string;
+  stars: number | null;
+}
+
+export function listGoogleReviewUsernames(params?: { q?: string }): Promise<{
+  data: { results: GoogleReviewUsername[] };
+}> {
+  return api.get<{ results: GoogleReviewUsername[] }>('/pos/carts/google-review-usernames/', {
+    params,
+  });
+}
+
 export function addDiscountToCart(
   cartId: number,
-  body: { amount: number | string; reason?: string; target_line_id?: number | null },
+  body: {
+    mode?: 'amount' | 'percent';
+    amount?: number | string;
+    percent?: number | string;
+    reason?: string;
+    target_line_id?: number | null;
+    google_review_username?: string;
+    google_review_stars?: number;
+  },
 ): Promise<{ data: Cart }> {
   return api.post<Cart>(`/pos/carts/${cartId}/add-discount/`, body);
 }

@@ -58,6 +58,7 @@ import DenominationCounter, {
   calculateTotal,
 } from '../../components/forms/DenominationCounter';
 import { DeviceSetupDialog } from '../../components/pos/DeviceSetupDialog';
+import { DiscountDialog, type DiscountSubmitPayload } from '../../components/pos/DiscountDialog';
 import {
   useRegisters,
   useDrawers,
@@ -232,9 +233,6 @@ export default function TerminalPage() {
   const [manualDescription, setManualDescription] = useState(DEFAULT_MANUAL_LINE_TITLE);
   const [manualUnitPrice, setManualUnitPrice] = useState(DEFAULT_MANUAL_LINE_PRICE);
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
-  const [discountAmount, setDiscountAmount] = useState('');
-  const [discountReason, setDiscountReason] = useState('In-store credit (return)');
-  const [discountTargetLineId, setDiscountTargetLineId] = useState<number | ''>('');
   const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
   const [deliveryTier, setDeliveryTier] = useState<'5mi' | '10mi'>('5mi');
   const [deliveryName, setDeliveryName] = useState('');
@@ -596,28 +594,17 @@ export default function TerminalPage() {
   }, [cart, isRegister, managerDrawerId, createCartMutation, enqueueSnackbar]);
 
   const handleOpenDiscountDialog = useCallback(() => {
-    setDiscountAmount('');
-    setDiscountReason('In-store credit (return)');
-    setDiscountTargetLineId('');
     setDiscountDialogOpen(true);
   }, []);
 
   const handleSubmitDiscount = useCallback(
-    async (e: FormEvent) => {
-      e.preventDefault();
-      const amount = parseFloat(discountAmount);
-      if (Number.isNaN(amount) || amount <= 0) {
-        enqueueSnackbar('Enter a discount amount greater than zero.', { variant: 'warning' });
-        return;
-      }
+    async (payload: DiscountSubmitPayload) => {
       const activeCart = await ensureOpenCart();
       if (!activeCart) return;
       try {
         const updated = await addDiscountMutation.mutateAsync({
           cartId: activeCart.id,
-          amount,
-          reason: discountReason.trim() || 'In-store credit (return)',
-          target_line_id: discountTargetLineId === '' ? null : discountTargetLineId,
+          ...payload,
         });
         commitCart(updated as unknown as Cart);
         setDiscountDialogOpen(false);
@@ -629,15 +616,7 @@ export default function TerminalPage() {
         enqueueSnackbar(detail, { variant: 'error' });
       }
     },
-    [
-      discountAmount,
-      discountReason,
-      discountTargetLineId,
-      ensureOpenCart,
-      addDiscountMutation,
-      commitCart,
-      enqueueSnackbar,
-    ],
+    [ensureOpenCart, addDiscountMutation, commitCart, enqueueSnackbar],
   );
 
   const handleOpenDeliveryDialog = useCallback(() => {
@@ -1970,76 +1949,16 @@ export default function TerminalPage() {
         </form>
       </Dialog>
 
-      <Dialog
+      <DiscountDialog
         open={discountDialogOpen}
+        cart={cart}
+        pending={addDiscountMutation.isPending}
         onClose={() => {
           setDiscountDialogOpen(false);
           skuInputRef.current?.focus();
         }}
-        maxWidth="sm"
-        fullWidth
-      >
-        <form onSubmit={handleSubmitDiscount}>
-          <DialogTitle>Discount / store credit</DialogTitle>
-          <DialogContent>
-            <Stack spacing={2} sx={{ mt: 1 }}>
-              <TextField
-                autoFocus
-                label="Amount"
-                type="number"
-                required
-                value={discountAmount}
-                onChange={(e) => setDiscountAmount(e.target.value)}
-                slotProps={{ input: { inputProps: { min: 0.01, step: 0.01 } } }}
-                helperText="Applied as a negative line (in-store credit from returns)."
-              />
-              <TextField
-                label="Reason"
-                value={discountReason}
-                onChange={(e) => setDiscountReason(e.target.value)}
-                fullWidth
-              />
-              <FormControl fullWidth size="small">
-                <InputLabel>Apply to</InputLabel>
-                <Select
-                  label="Apply to"
-                  value={discountTargetLineId === '' ? '' : String(discountTargetLineId)}
-                  onChange={(e) =>
-                    setDiscountTargetLineId(e.target.value === '' ? '' : Number(e.target.value))
-                  }
-                >
-                  <MenuItem value="">Entire cart</MenuItem>
-                  {(cart?.lines ?? [])
-                    .filter(
-                      (ln) =>
-                        ln.line_kind !== 'discount' &&
-                        ln.line_kind !== 'delivery',
-                    )
-                    .map((ln) => (
-                      <MenuItem key={ln.id} value={String(ln.id)}>
-                        {ln.description} ({formatCurrency(ln.line_total)})
-                      </MenuItem>
-                    ))}
-                </Select>
-              </FormControl>
-            </Stack>
-          </DialogContent>
-          <DialogActions sx={{ px: 3, pb: 2 }}>
-            <Button
-              type="button"
-              onClick={() => {
-                setDiscountDialogOpen(false);
-                skuInputRef.current?.focus();
-              }}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" variant="contained" disabled={addDiscountMutation.isPending}>
-              {addDiscountMutation.isPending ? 'Adding…' : 'Add discount'}
-            </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
+        onSubmit={handleSubmitDiscount}
+      />
 
       <Dialog
         open={deliveryDialogOpen}

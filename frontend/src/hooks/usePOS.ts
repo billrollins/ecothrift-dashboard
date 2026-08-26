@@ -13,6 +13,7 @@ import {
   addItemToCart,
   addManualLineToCart,
   addDiscountToCart,
+  listGoogleReviewUsernames,
   addDeliveryToCart,
   addResaleCopyToCart,
   updateCartLine,
@@ -237,25 +238,51 @@ export function useAddDiscountToCart() {
   return useMutation({
     mutationFn: async ({
       cartId,
+      mode,
       amount,
+      percent,
       reason,
       target_line_id,
+      google_review_username,
+      google_review_stars,
     }: {
       cartId: number;
-      amount: number | string;
+      mode?: 'amount' | 'percent';
+      amount?: number | string;
+      percent?: number | string;
       reason?: string;
       target_line_id?: number | null;
+      google_review_username?: string;
+      google_review_stars?: number;
     }) => {
       const { data } = await addDiscountToCart(cartId, {
-        amount,
+        ...(mode !== undefined ? { mode } : {}),
+        ...(amount !== undefined ? { amount } : {}),
+        ...(percent !== undefined ? { percent } : {}),
         ...(reason !== undefined ? { reason } : {}),
         ...(target_line_id != null ? { target_line_id } : {}),
+        ...(google_review_username !== undefined
+          ? { google_review_username, google_review_stars }
+          : {}),
       });
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['carts'] });
+      queryClient.invalidateQueries({ queryKey: ['google-review-usernames'] });
     },
+  });
+}
+
+export function useGoogleReviewUsernames(enabled: boolean) {
+  return useQuery({
+    queryKey: ['google-review-usernames'],
+    queryFn: async () => {
+      const { data } = await listGoogleReviewUsernames();
+      return data.results ?? [];
+    },
+    enabled,
+    staleTime: 30_000,
   });
 }
 

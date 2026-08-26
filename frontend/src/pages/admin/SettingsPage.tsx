@@ -38,6 +38,15 @@ import type {
   LabelSizePreset,
 } from '../../services/localPrintService';
 
+/** Receipt storefront is hardcoded on the print server. Do not edit it here. */
+const HIDDEN_APP_SETTING_KEYS = new Set([
+  'store_name',
+  'store_address',
+  'store_phone',
+  'receipt_header',
+  'receipt_footer',
+]);
+
 interface PrintServerReleaseData {
   available: boolean;
   version?: string;
@@ -215,11 +224,13 @@ export default function SettingsPage() {
     setEditValue(String(value ?? ''));
   };
 
-  const settingList = (settings ?? []) as Array<{
-    key: string;
-    value: unknown;
-    description?: string;
-  }>;
+  const settingList = (
+    (settings ?? []) as Array<{
+      key: string;
+      value: unknown;
+      description?: string;
+    }>
+  ).filter((s) => !HIDDEN_APP_SETTING_KEYS.has(s.key));
 
   if (isLoading && !settings) return <LoadingScreen message="Loading settings..." />;
 

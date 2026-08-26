@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 import win32con  # type: ignore[import-untyped]
+import win32gui  # type: ignore[import-untyped]
 import win32print  # type: ignore[import-untyped]
 import win32ui  # type: ignore[import-untyped]
 from PIL import Image, ImageWin
@@ -238,38 +239,140 @@ def send_image(
     )
 
 
-def send_text(printer_name: str, text: str, doc_name: str = "Receipt") -> None:
-    """Print plain text through the Windows GDI pipeline.
+def _gdi_caps(hdc: Any) -> tuple[int, int, int, int]:
+    return (
+        hdc.GetDeviceCaps(win32con.HORZRES),
+        hdc.GetDeviceCaps(win32con.VERTRES),
+        hdc.GetDeviceCaps(win32con.LOGPIXELSX),
+        hdc.GetDeviceCaps(win32con.LOGPIXELSY),
+    )
 
-    Uses a monospace font sized to fit ~48 chars across the page, suitable
-    for receipt-style output on any Windows printer.
-    """
-    hdc = win32ui.CreateDC()
-    hdc.CreatePrinterDC(printer_name)
 
-    printable_w = hdc.GetDeviceCaps(win32con.HORZRES)
-    printer_dpi = hdc.GetDeviceCaps(win32con.LOGPIXELSX)
-
-    # Size a monospace font so ~48 chars span the printable width.
-    char_width = printable_w // 48
-    font_height = int(char_width * 1.6)
-
-    font = win32ui.CreateFont({
+def _receipt_font(height: int) -> Any:
+    return win32ui.CreateFont({
         "name": "Consolas",
-        "height": font_height,
+        "height": max(8, height),
         "weight": 400,
     })
 
-    hdc.StartDoc(doc_name)
-    hdc.StartPage()
+
+def _widest_line_px(hdc: Any, font: Any, lines: list[str]) -> int:
     hdc.SelectObject(font)
+    widest = 0
+    for line in lines:
+        if line:
+            widest = max(widest, hdc.GetTextExtent(line)[0])
+    return widest
 
+
+def _fit_receipt_font(hdc: Any, lines: list[str], printable_w: int) -> tuple[Any, int, int]:
+    """Consolas sized for ~48 columns, then shrunk until every line fits HORZRES."""
+    height = max(8, int((max(printable_w, 1) // 48) * 1.6))
+    font = _receipt_font(height)
+    while printable_w > 0 and _widest_line_px(hdc, font, lines) > printable_w and height > 8:
+        height -= 1
+        font = _receipt_font(height)
+    hdc.SelectObject(font)
+    line_h = max(height, hdc.GetTextExtent("Mg")[1])
+    return font, height, line_h
+
+
+# POS-80C / MUNBYN ITPP047: 72mm printable (576 dots @ 203 DPI) on 80mm (3 1/8") stock.
+_PAPER_USER = getattr(win32con, "DMPAPER_USER", 0)
+
+
+def _content_page_mm(content_h: int, dpi_y: int) -> int:
+    raw = int(round(content_h / max(dpi_y, 1) * 25.4)) + 5
+    return max(40, min(297, raw))
+
+
+def _create_receipt_dc(printer_name: str, height_mm: int) -> Any:
+    """GDI DC on a 72mm-wide page as tall as the receipt. CreatePrinterDC cannot take a DEVMODE."""
+    handle = win32print.OpenPrinter(printer_name)
+    try:
+        devmode = win32print.GetPrinter(handle, 2).get("pDevMode")
+    finally:
+        win32print.ClosePrinter(handle)
+    if devmode is None:
+        raise RuntimeError("printer has no DEVMODE")
+    fields = int(getattr(devmode, "Fields", 0))
+    fields |= win32con.DM_PAPERSIZE | win32con.DM_PAPERWIDTH | win32con.DM_PAPERLENGTH
+    devmode.PaperSize = _PAPER_USER
+    devmode.PaperWidth = 720
+    devmode.PaperLength = height_mm * 10
+    if hasattr(win32con, "DM_SCALE"):
+        devmode.Scale = 100
+        fields |= win32con.DM_SCALE
+    devmode.Fields = fields
+    raw = win32gui.CreateDC("WINSPOOL", printer_name, devmode)
+    return win32ui.CreateDCFromHandle(raw)
+
+
+def send_text(printer_name: str, text: str, doc_name: str = "Receipt") -> None:
+    """Print plain text through the Windows GDI pipeline.
+
+    POS-80C shrinks a short receipt on a tall form. Page height is the content
+    height so shrink-to-fit cannot squeeze 78mm of ink onto a 100/297mm page.
+    """
+    lines = text.split("\n")
+    probe = win32ui.CreateDC()
+    probe.CreatePrinterDC(printer_name)
+    printable_w, _printable_h, _dpi_x, dpi_y = _gdi_caps(probe)
+    _font, _fh, line_h = _fit_receipt_font(probe, lines, printable_w)
+    content_h = max(line_h, len(lines) * line_h)
+    height_mm = _content_page_mm(content_h, dpi_y)
+    probe.DeleteDC()
+
+    hdc: Any
+    form_note: str
+    try:
+        hdc = _create_receipt_dc(printer_name, height_mm)
+        form_note = f"user/{height_mm}mm"
+    except Exception:
+        logger.exception("Receipt form CreateDC failed; using driver default")
+        hdc = win32ui.CreateDC()
+        hdc.CreatePrinterDC(printer_name)
+        form_note = "default"
+
+    printable_w, printable_h, _dpi_x, dpi_y = _gdi_caps(hdc)
+    font, font_height, line_h = _fit_receipt_font(hdc, lines, printable_w)
+    content_h = max(line_h, len(lines) * line_h)
+    printable_h = max(printable_h, line_h)
+
+    hdc.StartDoc(doc_name)
+    page_open = False
     y = 0
-    for line in text.split("\n"):
-        hdc.TextOut(0, y, line)
-        y += font_height
+    pages = 0
 
-    hdc.EndPage()
+    def new_page() -> None:
+        nonlocal page_open, y, pages
+        if page_open:
+            hdc.EndPage()
+        hdc.StartPage()
+        hdc.SelectObject(font)
+        page_open = True
+        y = 0
+        pages += 1
+
+    for line in lines:
+        if not page_open or (y > 0 and y + line_h > printable_h):
+            new_page()
+        hdc.TextOut(0, y, line)
+        y += line_h
+    if page_open:
+        hdc.EndPage()
     hdc.EndDoc()
     hdc.DeleteDC()
-    logger.info("GDI text sent to %s (%d lines)", printer_name, text.count("\n") + 1)
+    logger.info(
+        "GDI text sent to %s lines=%d pages=%d font_h=%d line_h=%d "
+        "content_h=%d printable=%dx%d form=%s",
+        printer_name,
+        len(lines),
+        pages,
+        font_height,
+        line_h,
+        content_h,
+        printable_w,
+        printable_h,
+        form_note,
+    )

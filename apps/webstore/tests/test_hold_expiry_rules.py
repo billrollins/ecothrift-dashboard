@@ -63,6 +63,15 @@ class HoldExpiryRulesTests(TestCase):
             exp = provisional_expiry(moment)
         self.assertEqual(exp, _aware(2026, 8, 7, 18, 0))
 
+    def test_provisional_monday_rolls_to_tuesday(self):
+        moment = _aware(2026, 8, 10, 12, 0)  # Monday
+        with patch('apps.webstore.services.hours.get_hours_config', return_value={
+            'timezone': 'America/Chicago', 'open': '09:00', 'close': '18:00',
+            'closed_weekdays': [0, 6],
+        }):
+            exp = provisional_expiry(moment)
+        self.assertEqual(exp, _aware(2026, 8, 11, 18, 0))
+
     def test_provisional_sunday_rolls_to_monday(self):
         moment = _aware(2026, 8, 9, 12, 0)  # Sunday
         with patch('apps.webstore.services.hours.get_hours_config', return_value={

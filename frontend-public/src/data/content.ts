@@ -29,7 +29,7 @@ export const STORE = {
     name: 'Eco-Thrift - Canfield',
     address: '8425 W Center Rd, Omaha, NE 68124',
     /** Full schedule for the footer; live open status uses hoursConfig. */
-    hours: '9 AM - 6 PM, Monday - Saturday · Closed Sunday',
+    hours: '9 AM - 6 PM, Tuesday - Saturday · Closed Sunday & Monday',
     /**
      * Structured hours for client-side open status.
      * Keep in sync with apps/webstore/services/hours.py DEFAULT_HOURS.
@@ -39,7 +39,7 @@ export const STORE = {
       timezone: 'America/Chicago',
       openMinutes: 9 * 60,
       closeMinutes: 18 * 60,
-      closedWeekdays: [0],
+      closedWeekdays: [0, 1],
     },
     phone: '(402) 881-9861',
     phoneHref: '+14028819861',
@@ -83,7 +83,7 @@ export const STORE_JSONLD = {
   openingHoursSpecification: [
     {
       '@type': 'OpeningHoursSpecification',
-      dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+      dayOfWeek: ['Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
       opens: '09:00',
       closes: '18:00',
     },

@@ -1,4 +1,4 @@
-"""Seed AppSetting key online_sales.hours (Canfield Mon–Sat 9–6, closed Sun).
+"""Seed AppSetting key online_sales.hours (Canfield Tue–Sat 9–6, closed Sun & Mon).
 
 Usage:
     python manage.py seed_online_sales_hours

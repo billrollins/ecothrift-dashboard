@@ -11,8 +11,8 @@ DEFAULT_HOURS = {
     'timezone': 'America/Chicago',
     'open': '09:00',
     'close': '18:00',
-    # 0=Mon … 6=Sun
-    'closed_weekdays': [6],
+    # 0=Mon … 6=Sun  (Canfield is closed Sunday and Monday)
+    'closed_weekdays': [0, 6],
 }
 
 

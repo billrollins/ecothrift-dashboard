@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-13 (dropped Consult Label reference path) -->
+<!-- Last updated: 2026-08-26 (receipts print raw ESC/POS; header/footer/review coupon; v1.5.0) -->
 
 # Print Server — Extended Context
 
@@ -50,8 +50,7 @@ Upload path pattern: `print-server/ecothrift-printserver-setup-v{VERSION}.exe` v
 
 - **Data:** one `receipt_data` dict (JSON fixtures: [`printserver/fixtures/README.md`](../../printserver/fixtures/README.md), same shape as `ReceiptPrintRequest` in [`printserver/models.py`](../../printserver/models.py)).
 - **Rich preview (mockup / marketing layout):** [`printserver/services/receipt_printer.py`](../../printserver/services/receipt_printer.py) **`render_receipt_to_image`** — logo from `assets/ecothrift_logo_bw.png`, themes `professional` / `cool` / `emoji`. Local PNG: [`printserver/scripts/print_receipt_local_test.py`](../../printserver/scripts/print_receipt_local_test.py).
-- **Production print today:** same module **`format_receipt_text`** → [`printer_manager.send_text`](../../printserver/services/printer_manager.py) — monospace plain text, **not** the pixel-perfect PNG layout.
-- **ESC/POS:** **`format_receipt`** (bytes) exists in `receipt_printer.py` but is **not** wired to [`printserver/routers/receipts.py`](../../printserver/routers/receipts.py).
+- **Production print today:** [`format_receipt`](../../printserver/services/receipt_printer.py) ESC/POS bytes → [`printer_manager.send_raw`](../../printserver/services/printer_manager.py) (MUNBYN / POS-80C). Storefront (name, tagline, address, phone, hours, thank-you) is **hardcoded** in that module — POS `receipt_data` only supplies the sale (lines, totals, payment). Admin → Settings no longer shows `store_*` / `receipt_header` / `receipt_footer`. GDI `format_receipt_text` / `send_text` is the fallback path only. Policy: final sale + test-before-you-buy. Test receipts use the same layout as live sales.
 
 **Future parity** (if thermal output should match the PNG): (1) raster — `render_receipt_to_image` → crop → `send_image` with width/DPI tuned for 80mm; (2) richer plain text in `format_receipt_text`; (3) raw thermal — `format_receipt` + `send_raw`. Tracked initiative (pending): [`.ai/initiatives/_archived/_pending/print_server_receipt_format.md`](../initiatives/_archived/_pending/print_server_receipt_format.md).
 

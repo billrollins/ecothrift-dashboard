@@ -5,6 +5,22 @@ Run `python distribute.py` from this directory to build and publish a new releas
 
 ---
 
+## [1.5.0] — 2026-08-26
+
+### Changed
+- **Receipts print raw ESC/POS:** `POST /print/receipt` and `POST /print/test-receipt` send `format_receipt` bytes via `send_raw` instead of GDI text. The POS-80C driver was shrink-to-fitting a short receipt onto a tall page, which is what made the type small with a wide right margin; raw bytes print full width.
+- **Receipt layout:** storefront header (name, tagline, address, phone, bold store hours), a `THANK YOU` block over the all-sales-final policy, then a framed Google review coupon — 5% off the next visit, up to $5 — with its terms last on the tape so they read as fine print, not as the offer.
+- **Policy copy:** no “used or donated / sold as-is.” Body is final-sale plus “we test as much as we can… please test before you buy.”
+
+### Fixed
+- **Missing glyphs:** en/em dashes, bullets, ellipses and curly quotes are folded to ASCII before the cp437 encode; they were printing as `?`.
+- **GDI text fallback:** `send_text` sizes a 72mm-wide user form to the content height, shrinks the Consolas fit until the widest line fits `HORZRES`, and paginates instead of overrunning one page. Not the live receipt path.
+
+### Removed
+- The `FIX #n` test-receipt banner and its persisted counter, used while diagnosing the scaling.
+
+---
+
 ## [1.4.1] — 2026-07-09
 
 ### Fixed

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.72.0] -->
-<!-- Last reviewed: 2026-08-25 (v2.72.0 Users workspace, staff reset, Time & payroll) -->
+<!-- Line 1 release: ## [2.73.0] -->
+<!-- Last reviewed: 2026-08-26 (v2.73.0 receipts, Google Review discount, Canfield hours) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.73.0] - 2026-08-26
+
+User-facing theme: **Receipts that fit the tape** — full-width ESC/POS, a Google Review coupon, and a POS discount that can redeem it once.
+
+Outside initiatives.
+
+### Added
+
+- **Google Review discount** — POS Discount reason autofills 5% / Full ticket (max $5). Cashiers enter the Google username and stars; `GET /pos/carts/google-review-usernames/` typeaheads prior names. The same username cannot redeem again on an open or completed cart (`POST …/add-discount/` with `mode`, `percent`, `google_review_username`, `google_review_stars`).
+- **Receipt coupon** — printed tape ends with a framed 5% / next-visit Google Review offer and its terms.
+
+### Changed
+
+- **Receipts print raw ESC/POS** — `format_receipt` → `send_raw` so the POS-80C no longer shrink-to-fits a short receipt. Storefront (name, tagline, address, phone, Tue–Sat 9–6 / Sun & Mon closed) is hardcoded on the print server (v1.5.0). Policy is final-sale plus test-before-you-buy, not used/donated.
+- **POS discount dialog** — reason first; `$` / `%` both visible; apply Full ticket or per line.
+- **Public hours** — ecothrift.us and the holding page are **9 AM – 6 PM, Tuesday – Saturday · Closed Sunday & Monday**. Hold-expiry `online_sales.hours` matches (`webstore.0017`).
+- **Ship protocol** — no production data pull after push.
+
+### Documentation
+
+- `.ai/extended/pos-system.md`, `.ai/extended/print-server.md`.
 
 ## [2.72.0] - 2026-08-25
 

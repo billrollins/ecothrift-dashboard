@@ -104,6 +104,144 @@ class CartDiscountDeliveryAPITests(TestCase):
         self.assertEqual(disc['meta']['target_line_id'], target['id'])
         self.assertIn('Price match', disc['description'])
 
+    def test_add_discount_percent_cart_wide(self):
+        cid = self._open_cart()
+        self.client.post(f'/api/pos/carts/{cid}/add-item/', {'sku': self.item.sku}, format='json')
+        r = self.client.post(
+            f'/api/pos/carts/{cid}/add-discount/',
+            {'mode': 'percent', 'percent': '10', 'reason': 'Price match'},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.content)
+        disc = next(ln for ln in r.data['lines'] if ln['line_kind'] == 'discount')
+        self.assertEqual(Decimal(str(disc['unit_price'])), Decimal('-2.00'))
+        self.assertEqual(disc['meta']['mode'], 'percent')
+        self.assertEqual(Decimal(str(disc['meta']['percent'])), Decimal('10'))
+
+    def test_add_discount_google_review_small_ticket(self):
+        cid = self._open_cart()
+        self.client.post(f'/api/pos/carts/{cid}/add-item/', {'sku': self.item.sku}, format='json')
+        r = self.client.post(
+            f'/api/pos/carts/{cid}/add-discount/',
+            {
+                'mode': 'percent',
+                'percent': '5',
+                'reason': 'Google Review',
+                'google_review_username': 'Jane Doe',
+                'google_review_stars': 5,
+            },
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.content)
+        disc = next(ln for ln in r.data['lines'] if ln['line_kind'] == 'discount')
+        self.assertEqual(Decimal(str(disc['unit_price'])), Decimal('-1.00'))
+        self.assertEqual(disc['meta']['reason'], 'Google Review')
+        self.assertEqual(disc['meta']['google_review_username'], 'Jane Doe')
+        self.assertEqual(disc['meta']['google_review_stars'], 5)
+        self.assertIn('Jane Doe', disc['description'])
+
+    def test_add_discount_google_review_caps_at_five(self):
+        self.item.price = Decimal('200.00')
+        self.item.save()
+        cid = self._open_cart()
+        self.client.post(f'/api/pos/carts/{cid}/add-item/', {'sku': self.item.sku}, format='json')
+        r = self.client.post(
+            f'/api/pos/carts/{cid}/add-discount/',
+            {
+                'mode': 'percent',
+                'percent': '5',
+                'reason': 'Google Review',
+                'google_review_username': 'Pat Lee',
+                'google_review_stars': 5,
+            },
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.content)
+        disc = next(ln for ln in r.data['lines'] if ln['line_kind'] == 'discount')
+        self.assertEqual(Decimal(str(disc['unit_price'])), Decimal('-5.00'))
+
+    def test_add_discount_google_review_requires_username(self):
+        cid = self._open_cart()
+        self.client.post(f'/api/pos/carts/{cid}/add-item/', {'sku': self.item.sku}, format='json')
+        r = self.client.post(
+            f'/api/pos/carts/{cid}/add-discount/',
+            {'mode': 'percent', 'percent': '5', 'reason': 'Google Review'},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(r.data['code'], 'REVIEW_USERNAME_REQUIRED')
+
+    def test_add_discount_google_review_rejects_reused_username(self):
+        cid1 = self._open_cart()
+        self.client.post(f'/api/pos/carts/{cid1}/add-item/', {'sku': self.item.sku}, format='json')
+        first = self.client.post(
+            f'/api/pos/carts/{cid1}/add-discount/',
+            {
+                'mode': 'percent',
+                'percent': '5',
+                'reason': 'Google Review',
+                'google_review_username': 'Sam Reviewer',
+                'google_review_stars': 4,
+            },
+            format='json',
+        )
+        self.assertEqual(first.status_code, 200, first.content)
+
+        item2 = Item.objects.create(
+            sku='POSTESTDISC2',
+            product=self.item.product,
+            price=Decimal('20.00'),
+            status='on_shelf',
+        )
+        cid2 = self._open_cart()
+        self.client.post(f'/api/pos/carts/{cid2}/add-item/', {'sku': item2.sku}, format='json')
+        r = self.client.post(
+            f'/api/pos/carts/{cid2}/add-discount/',
+            {
+                'mode': 'percent',
+                'percent': '5',
+                'reason': 'Google Review',
+                'google_review_username': 'sam reviewer',
+                'google_review_stars': 5,
+            },
+            format='json',
+        )
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(r.data['code'], 'REVIEW_USERNAME_USED')
+
+    def test_google_review_usernames_lists_past(self):
+        cid = self._open_cart()
+        self.client.post(f'/api/pos/carts/{cid}/add-item/', {'sku': self.item.sku}, format='json')
+        self.client.post(
+            f'/api/pos/carts/{cid}/add-discount/',
+            {
+                'mode': 'percent',
+                'percent': '5',
+                'reason': 'Google Review',
+                'google_review_username': 'Sam Reviewer',
+                'google_review_stars': 4,
+            },
+            format='json',
+        )
+        listed = self.client.get('/api/pos/carts/google-review-usernames/')
+        self.assertEqual(listed.status_code, 200, listed.content)
+        names = [row['username'] for row in listed.data['results']]
+        self.assertIn('Sam Reviewer', names)
+        filtered = self.client.get('/api/pos/carts/google-review-usernames/', {'q': 'sam'})
+        self.assertEqual(len(filtered.data['results']), 1)
+        self.assertEqual(filtered.data['results'][0]['stars'], 4)
+
+    def test_add_discount_rejects_bad_percent(self):
+        cid = self._open_cart()
+        self.client.post(f'/api/pos/carts/{cid}/add-item/', {'sku': self.item.sku}, format='json')
+        r = self.client.post(
+            f'/api/pos/carts/{cid}/add-discount/',
+            {'mode': 'percent', 'percent': '0'},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(r.data['code'], 'INVALID_PERCENT')
+
     def test_add_delivery_5mi(self):
         from datetime import time, timedelta
 

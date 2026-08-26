@@ -78,4 +78,4 @@ python printserver\scripts\print_receipt_local_test.py --style cool printserver\
 | `receipt_var_13_sparse_header_rich_meta.json` | No address/phone/time; long receipt # |
 | `receipt_var_14_unicode.json` | Apostrophes, em dash, café; `store_address` only in tail |
 
-Printed and PNG receipts end with two policy lines (final sale + as-is); the PNG adds a large monochrome (professional) or colored (cool/emoji) policy card with headline and subhead.
+Printed and PNG receipts end with the policy lines from `RECEIPT_POLICY_LINES` (final sale + test-before-you-buy); the PNG adds a large monochrome (professional) or colored (cool/emoji) policy card with headline and subhead.

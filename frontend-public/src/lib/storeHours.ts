@@ -2,7 +2,7 @@
  * Live open/closed status for Eco-Thrift - Canfield.
  *
  * Hours mirror apps/webstore/services/hours.py DEFAULT_HOURS
- * (09:00-18:00 America/Chicago, closed Sunday). AppSetting overrides
+ * (09:00-18:00 America/Chicago, closed Sunday and Monday). AppSetting overrides
  * are not exposed on the public API today, so this stays local.
  */
 import { useEffect, useState } from 'react'
@@ -95,8 +95,8 @@ export function getStoreStatus(now: Date = new Date()): StoreStatus {
     return { open: false, text: `Closed, opens today at ${openLabel}` }
   }
 
-  // After close on an open day, or any closed day (Sunday) → next open day.
-  // Saturday evening rolls to Monday; Sunday rolls to Monday.
+  // After close on an open day, or any closed day → next open day.
+  // Saturday evening / Sunday / Monday roll to Tuesday.
   const openDay = nextOpenWeekdayAfter(weekday)
   return { open: false, text: `Closed, opens ${DAY_NAMES[openDay]} at ${openLabel}` }
 }

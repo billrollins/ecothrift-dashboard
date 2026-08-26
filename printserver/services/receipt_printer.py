@@ -29,6 +29,8 @@ DOUBLE_HW = ESC + b"!\x30"
 NORMAL = ESC + b"!\x00"
 UNDERLINE_ON = ESC + b"-\x01"
 UNDERLINE_OFF = ESC + b"-\x00"
+REVERSE_ON = GS + b"B\x01"  # white on black
+REVERSE_OFF = GS + b"B\x00"
 FEED_LINES = lambda n: ESC + b"d" + bytes([n])  # noqa: E731
 CUT_PAPER = GS + b"V\x00"
 PARTIAL_CUT = GS + b"V\x01"
@@ -40,16 +42,39 @@ logger = logging.getLogger(__name__)
 # After footer + optional address (GDI + ESC/POS + PNG policy body).
 RECEIPT_POLICY_LINES: tuple[str, ...] = (
     "All sales are final. No refunds or exchanges.",
-    "Merchandise is used or donated, sold AS-IS. Inspect before you buy.",
+    "We test as much as we can, but we cannot test everything.",
+    "Please test items before you buy.",
 )
 
 # Large type on PNG policy card only (print uses RECEIPT_POLICY_LINES).
 RECEIPT_POLICY_PNG_HEADLINE = "NO REFUNDS"
-RECEIPT_POLICY_PNG_SUB = "ALL SALES FINAL — AS-IS"
+RECEIPT_POLICY_PNG_SUB = "ALL SALES FINAL — TEST BEFORE YOU BUY"
+
+
+# cp437 has no en/em dash, bullet, or curly quotes — they printed as "?".
+_ASCII_FOLD = str.maketrans({
+    "–": "-",
+    "—": "-",
+    "‑": "-",
+    "·": "*",
+    "•": "*",
+    "’": "'",
+    "‘": "'",
+    "“": '"',
+    "”": '"',
+    "…": "...",
+    "×": "x",
+    "é": "e",
+    "\u00a0": " ",
+})
+
+
+def _ascii(text: str) -> str:
+    return str(text).translate(_ASCII_FOLD)
 
 
 def _encode(text: str) -> bytes:
-    return text.encode("cp437", errors="replace")
+    return _ascii(text).encode("cp437", errors="replace")
 
 
 def _line(text: str = "") -> bytes:
@@ -62,6 +87,7 @@ def _separator(char: str = "-") -> bytes:
 
 def _lr(left: str, right: str) -> bytes:
     """Left-right aligned line within receipt width."""
+    left, right = _ascii(left), _ascii(right)
     gap = W - len(left) - len(right)
     if gap < 1:
         left = left[: W - len(right) - 1]
@@ -73,27 +99,98 @@ def _center_text(text: str) -> bytes:
     return CENTER + _line(text) + LEFT
 
 
+# cp437 box drawing — a framed coupon reads as a tear-off, not more fine print.
+_TEAR_LINE = ("- " * (W // 2)).rstrip()
+_BOX_INNER = W - 2
+
+
+def _box_top() -> bytes:
+    return _line("\u2554" + "\u2550" * _BOX_INNER + "\u2557")
+
+
+def _box_bottom() -> bytes:
+    return _line("\u255a" + "\u2550" * _BOX_INNER + "\u255d")
+
+
+def _box_row(text: str, *, bold: bool = False) -> bytes:
+    body = _ascii(text)[:_BOX_INNER].center(_BOX_INNER)
+    if bold:
+        return _encode("\u2551") + BOLD_ON + _encode(body) + BOLD_OFF + _encode("\u2551") + b"\n"
+    return _line(f"\u2551{body}\u2551")
+
+
+def _wrap_chars(text: str, width: int = W) -> list[str]:
+    """Word-wrap so no line is longer than ``width`` (GDI font is sized for ``W``)."""
+    words = (text or "").split()
+    if not words:
+        return [""]
+    lines: list[str] = []
+    cur: list[str] = []
+    for word in words:
+        trial = " ".join(cur + [word])
+        if len(trial) <= width:
+            cur.append(word)
+            continue
+        if cur:
+            lines.append(" ".join(cur))
+        while len(word) > width:
+            lines.append(word[:width])
+            word = word[width:]
+        cur = [word] if word else []
+    if cur:
+        lines.append(" ".join(cur))
+    return lines
+
+
+# Storefront is print-server owned. Incoming receipt_data must not override it
+# (POS and Admin → Settings used to send / expose a different name, hours, footer).
+RECEIPT_STORE_NAME = "Eco-Thrift - Canfield"
+RECEIPT_TAGLINE = "Another chance for everything and everyone"
+RECEIPT_STORE_ADDRESS: tuple[str, ...] = (
+    "8425 W Center Rd",
+    "Omaha, NE 68124",
+)
+RECEIPT_STORE_PHONE = "(402) 881-9861"
+RECEIPT_STORE_HOURS: tuple[str, ...] = (
+    "Tue - Sat 9 AM - 6 PM",
+    "Sun & Mon Closed",
+)
+RECEIPT_FOOTER = "Thank you for shopping Eco-Thrift Canfield"
+RECEIPT_WEBSITE = "ecothrift.us"
+
+# Fine print for the Google review offer (kept short enough to read on 80mm).
+RECEIPT_REVIEW_TERMS: tuple[str, ...] = (
+    "Review must be posted after the date on this",
+    "receipt. Show it on your phone at checkout.",
+    "One use per customer, 5% off one transaction,",
+    "max $5 discount. Not valid with other offers",
+    "and no cash value. Offer may change anytime.",
+)
+
+
 def format_receipt(data: dict[str, Any]) -> bytes:
     """Build a complete ESC/POS byte stream from receipt_data.
 
-    Header: ``store_name``, optional ``store_phone`` / ``store_hours`` (no street
-    address). ``store_address`` prints after ``footer``, then two policy lines
-    (``RECEIPT_POLICY_LINES``).
+    Header is the hardcoded storefront (name, tagline, address, phone, hours).
+    Sale payload may only supply lines, totals, and payment — never branding.
     """
     buf = bytearray(INIT)
 
-    # --- Store header (no street address here) ---
-    buf += CENTER + DOUBLE_HW + BOLD_ON
-    buf += _line(data.get("store_name", "Eco-Thrift"))
+    # --- Store header (always the Canfield storefront; ignore payload branding) ---
+    buf += CENTER
+    buf += DOUBLE_HW + BOLD_ON
+    buf += _line(RECEIPT_STORE_NAME)
     buf += NORMAL + BOLD_OFF
+    buf += _line(RECEIPT_TAGLINE)
+    buf += _line()
+    for part in RECEIPT_STORE_ADDRESS:
+        buf += _line(part)
+    buf += _line(RECEIPT_STORE_PHONE)
+    buf += _line()
+    buf += BOLD_ON + _line("STORE HOURS") + BOLD_OFF
+    for part in RECEIPT_STORE_HOURS:
+        buf += _line(part)
     buf += LEFT
-    if data.get("store_phone"):
-        buf += _lr("Phone:", str(data["store_phone"]).strip())
-    if data.get("store_hours"):
-        buf += _line("Hours:")
-        for part in str(data["store_hours"]).split("\n"):
-            if part.strip():
-                buf += _line(f"  {part.strip()}")
     buf += _separator("=")
 
     # --- Receipt meta ---
@@ -114,7 +211,8 @@ def format_receipt(data: dict[str, Any]) -> bytes:
         unit = item.get("unit_price", 0)
         total = item.get("line_total", qty * unit)
         if qty > 1:
-            buf += _line(name)
+            for wrapped in _wrap_chars(str(name)):
+                buf += _line(wrapped)
             buf += _lr(f"  {qty} x ${unit:.2f}", f"${total:.2f}")
         else:
             buf += _lr(name, f"${total:.2f}")
@@ -151,20 +249,42 @@ def format_receipt(data: dict[str, Any]) -> bytes:
     buf += _separator("=")
 
     # --- Footer ---
-    footer = data.get("footer", "Thank you for shopping at Eco-Thrift!")
-    for part in str(footer).split("\n"):
-        if part.strip():
-            buf += _center_text(part.strip())
+    buf += CENTER
+    buf += BOLD_ON + DOUBLE_HEIGHT
+    buf += _line("THANK YOU")
+    buf += NORMAL + BOLD_OFF
+    for wrapped in _wrap_chars(RECEIPT_FOOTER):
+        buf += _line(wrapped)
 
-    if data.get("store_address"):
-        buf += _separator("-")
-        for part in str(data["store_address"]).split("\n"):
-            if part.strip():
-                buf += _center_text(part.strip())
-
-    buf += _separator("-")
+    buf += _line()
+    buf += BOLD_ON + _line("ALL SALES FINAL") + BOLD_OFF
     for pl in RECEIPT_POLICY_LINES:
-        buf += _center_text(pl)
+        for wrapped in _wrap_chars(pl):
+            buf += _line(wrapped)
+
+    buf += _line()
+    buf += _line("Questions? Ask any team member")
+    buf += _line(RECEIPT_WEBSITE)
+    buf += LEFT
+
+    # --- Review offer: last thing on the tape so it reads as a coupon, not terms ---
+    buf += _line()
+    buf += LEFT
+    buf += _line(_TEAR_LINE)
+    buf += _box_top()
+    buf += _box_row("GOOGLE REVIEW REWARD")
+    buf += _box_row("")
+    buf += _box_row("5% OFF YOUR NEXT VISIT", bold=True)
+    buf += _box_row("")
+    buf += _box_row("Review us today, then show it")
+    buf += _box_row("to a cashier next time you shop.")
+    buf += _box_bottom()
+    buf += CENTER
+    buf += _line()
+    for pl in RECEIPT_REVIEW_TERMS:
+        for wrapped in _wrap_chars(pl):
+            buf += _line(wrapped)
+    buf += LEFT
 
     # --- Feed & cut ---
     buf += FEED_LINES(4)
@@ -176,7 +296,7 @@ def format_receipt(data: dict[str, Any]) -> bytes:
 _TEST_DATA: dict[str, Any] = {
     "store_name": "Eco-Thrift - Canfield",
     "store_address": "8425 W Center Rd\nOmaha, NE 68124",
-    "store_hours": "Wed–Sat 9–6 · Sun closed\nMon–Tue 9–6",
+    "store_hours": "Tue - Sat 9 AM - 6 PM\nSun & Mon Closed",
     "store_phone": "(402) 881-9861",
     "receipt_number": "R-TEST-001",
     "date": "2026-01-01",
@@ -194,7 +314,7 @@ _TEST_DATA: dict[str, Any] = {
     "payment_method": "Cash",
     "amount_tendered": 25.00,
     "change": 0.95,
-    "footer": "Another chance for everything and everyone\nThank you for shopping Eco-Thrift",
+    "footer": "Thank you for shopping Eco-Thrift Canfield",
 }
 
 
@@ -227,14 +347,16 @@ def format_receipt_text(data: dict[str, Any]) -> str:
     """
     lines: list[str] = []
 
-    lines.append(data.get("store_name", "Eco-Thrift").center(W))
+    for part in _wrap_chars(str(data.get("store_name", "Eco-Thrift"))):
+        lines.append(part.center(W))
     if data.get("store_phone"):
         lines.append(_txt_lr("Phone:", str(data["store_phone"]).strip()))
     if data.get("store_hours"):
         lines.append("Hours:")
         for part in str(data["store_hours"]).split("\n"):
             if part.strip():
-                lines.append(part.strip().center(W))
+                for wrapped in _wrap_chars(part.strip()):
+                    lines.append(wrapped.center(W))
     lines.append("=" * W)
 
     if data.get("receipt_number"):
@@ -253,7 +375,7 @@ def format_receipt_text(data: dict[str, Any]) -> str:
         unit = item.get("unit_price", 0)
         total = item.get("line_total", qty * unit)
         if qty > 1:
-            lines.append(name)
+            lines.extend(_wrap_chars(str(name)))
             lines.append(_txt_lr(f"  {qty} x ${unit:.2f}", f"${total:.2f}"))
         else:
             lines.append(_txt_lr(name, f"${total:.2f}"))
@@ -287,15 +409,18 @@ def format_receipt_text(data: dict[str, Any]) -> str:
     footer = data.get("footer", "Thank you for shopping at Eco-Thrift!")
     for part in str(footer).split("\n"):
         if part.strip():
-            lines.append(part.strip().center(W))
+            for wrapped in _wrap_chars(part.strip()):
+                lines.append(wrapped.center(W))
     if data.get("store_address"):
         lines.append("-" * W)
         for part in str(data["store_address"]).split("\n"):
             if part.strip():
-                lines.append(part.strip().center(W))
+                for wrapped in _wrap_chars(part.strip()):
+                    lines.append(wrapped.center(W))
     lines.append("-" * W)
     for pl in RECEIPT_POLICY_LINES:
-        lines.append(pl.center(W))
+        for wrapped in _wrap_chars(pl):
+            lines.append(wrapped.center(W))
     lines.append("")
 
     return "\n".join(lines)

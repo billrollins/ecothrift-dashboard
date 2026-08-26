@@ -1,8 +1,7 @@
-feat: Admin Users workspace, emailed staff reset, Time & payroll
+feat: full-width receipts, Google Review discount, and Tue-Sat hours
 
-Release: v2.72.0
+Receipts print raw ESC/POS with a hardcoded Canfield storefront and a
+Google Review coupon. POS Discount can redeem that offer once per
+username. Public hours are Tuesday-Saturday 9-6.
 
-- Replace Admin Employees with Users (Customers + Employees), stats, and drawers.
-- Staff forgot-password emails a one-hour reset link; no token in the JSON body.
-- Time & payroll: regular/OT totals, one-line period bar, pay matches printed hours.
-- Stamp last_login on JWT login; Messages is its own Online Sales page.
+Release: v2.73.0
