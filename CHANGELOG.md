@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.74.2] -->
-<!-- Last reviewed: 2026-08-26 (v2.74.2 hours status stays one line) -->
+<!-- Line 1 release: ## [2.74.3] -->
+<!-- Last reviewed: 2026-08-26 (v2.74.3 dotted AppSetting PATCH) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.74.3] - 2026-08-26
+
+User-facing theme: **Store hours save again** — dotted setting keys reach the API.
+
+Outside initiatives.
+
+### Fixed
+
+- **AppSetting PATCH** — `lookup_value_regex` allows dots so `/api/core/settings/online_sales.hours/` no longer 404s.
 
 ## [2.74.2] - 2026-08-26
 

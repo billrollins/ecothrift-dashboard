@@ -33,6 +33,8 @@ class AppSettingViewSet(viewsets.ModelViewSet):
     serializer_class = AppSettingSerializer
     permission_classes = [IsAuthenticated, IsManagerOrAdmin]
     lookup_field = 'key'
+    # DefaultRouter uses [^/.]+ which 404s dotted keys like online_sales.hours.
+    lookup_value_regex = r'[^/]+'
 
     def perform_update(self, serializer):
         serializer.save(updated_by=self.request.user)

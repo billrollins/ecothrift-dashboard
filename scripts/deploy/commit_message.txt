@@ -1,5 +1,5 @@
-fix: keep public hours Open now on one line
+fix: allow dotted AppSetting keys on PATCH
 
-- Stop .vrow span { display: block } from stacking the green Open now label over closes-at
+- DefaultRouter was cutting online_sales.hours at the first dot and 404ing Store hours saves
 
-Release: v2.74.2
+Release: v2.74.3
