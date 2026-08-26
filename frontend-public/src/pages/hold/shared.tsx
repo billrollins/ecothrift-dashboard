@@ -3,6 +3,7 @@ import type { HoldSummary } from '../../api'
 import HoldRail from '../../components/HoldRail'
 import { STORE } from '../../data/content'
 import { useCountdown } from '../../lib/holdTime'
+import { useStoreHoursLabel } from '../../lib/storeHours'
 
 export function HoldShell({
   hold,
@@ -62,11 +63,12 @@ export function DirectionsButton() {
 }
 
 export function StoreFacts() {
+  const label = useStoreHoursLabel()
   return (
     <div className="holdstore">
       <div>{STORE.retail.name}</div>
       <div>{STORE.retail.address}</div>
-      <div>{STORE.retail.hours}</div>
+      <div>{label}</div>
       <div>Pay in store - cash or card</div>
     </div>
   )

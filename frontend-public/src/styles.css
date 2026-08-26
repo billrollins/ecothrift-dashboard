@@ -531,7 +531,7 @@ main:has(.home) + .ft { margin-top: 0; }
 
 .vrow span { display: block; color: var(--ink); font-weight: 500; }
 
-.vrow .vnear { color: var(--muted); font-weight: 400; font-size: 13.5px; margin-top: 4px; }
+.vrow .vnear { display: block; color: var(--muted); font-weight: 400; font-size: 13.5px; margin-top: 4px; }
 
 .vrow a { font-weight: 600; }
 

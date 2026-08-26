@@ -1,5 +1,7 @@
-fix: allow dotted AppSetting keys on PATCH
+feat: drive public store hours from Settings
 
-- DefaultRouter was cutting online_sales.hours at the first dot and 404ing Store hours saves
+- Expose online_sales.hours on GET /api/webstore/config/
+- Build the public schedule line from open/close/closed days
+- Settings Store tab previews the same sentence
 
-Release: v2.74.3
+Release: v2.75.0

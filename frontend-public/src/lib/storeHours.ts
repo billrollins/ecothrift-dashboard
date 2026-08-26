@@ -1,17 +1,22 @@
 /**
  * Live open/closed status for Eco-Thrift - Canfield.
  *
- * Hours mirror apps/webstore/services/hours.py DEFAULT_HOURS
- * (09:00-18:00 America/Chicago, closed Sunday and Monday). AppSetting overrides
- * are not exposed on the public API today, so this stays local.
+ * Weekdays on the API are Python `date.weekday()`: 0=Mon … 6=Sun.
+ * Intl / Date.getDay() use 0=Sun … 6=Sat — convert before comparing.
  */
 import { useEffect, useState } from 'react'
+import type { StoreHoursPublic } from '../api'
 import { STORE } from '../data/content'
+import { useOnlineSalesConfig } from '../onlineSalesConfig'
+import { DEFAULT_HOURS_LABEL, formatHoursLabel } from './hoursLabel'
 
-const TZ = STORE.retail.hoursConfig.timezone
-const OPEN_MINUTES = STORE.retail.hoursConfig.openMinutes
-const CLOSE_MINUTES = STORE.retail.hoursConfig.closeMinutes
-const CLOSED_WEEKDAYS = new Set<number>(STORE.retail.hoursConfig.closedWeekdays)
+export const DEFAULT_STORE_HOURS_PUBLIC: StoreHoursPublic = {
+  timezone: STORE.retail.hoursConfig.timezone,
+  open: '09:00',
+  close: '18:00',
+  closed_weekdays: [0, 6],
+  label: DEFAULT_HOURS_LABEL,
+}
 
 const DAY_NAMES = [
   'Sunday',
@@ -28,9 +33,50 @@ export type StoreStatus = {
   text: string
 }
 
-function chicagoParts(now: Date): { weekday: number; minutes: number } {
+function asHhmm(value: string | undefined, fallback: string): string {
+  if (!value) return fallback
+  const match = /^(\d{1,2}):(\d{2})/.exec(value.trim())
+  if (!match) return fallback
+  const hour = Number(match[1])
+  const minute = Number(match[2])
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return fallback
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+}
+
+export function resolveHours(hours?: StoreHoursPublic | null): StoreHoursPublic {
+  const closed = Array.isArray(hours?.closed_weekdays)
+    ? hours.closed_weekdays
+        .map((n) => Number(n))
+        .filter((n) => Number.isInteger(n) && n >= 0 && n <= 6)
+    : DEFAULT_STORE_HOURS_PUBLIC.closed_weekdays
+  const open = asHhmm(hours?.open, DEFAULT_STORE_HOURS_PUBLIC.open)
+  const close = asHhmm(hours?.close, DEFAULT_STORE_HOURS_PUBLIC.close)
+  const closed_weekdays = [...new Set(closed)].sort((a, b) => a - b)
+  return {
+    timezone:
+      typeof hours?.timezone === 'string' && hours.timezone.trim()
+        ? hours.timezone.trim()
+        : DEFAULT_STORE_HOURS_PUBLIC.timezone,
+    open,
+    close,
+    closed_weekdays,
+    label: formatHoursLabel({ open, close, closed_weekdays }),
+  }
+}
+
+/** Python 0=Mon … 6=Sun → JS Date.getDay() 0=Sun … 6=Sat. */
+export function pythonWeekdayToJs(py: number): number {
+  return (py + 1) % 7
+}
+
+function parseHhmmToMinutes(hhmm: string): number {
+  const [hour, minute] = asHhmm(hhmm, '00:00').split(':').map(Number)
+  return hour * 60 + minute
+}
+
+function chicagoParts(now: Date, timeZone: string): { weekday: number; minutes: number } {
   const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: TZ,
+    timeZone,
     weekday: 'short',
     hour: '2-digit',
     minute: '2-digit',
@@ -68,48 +114,65 @@ function formatClock(totalMinutes: number): string {
   return `${hour12}:${String(minute).padStart(2, '0')} ${suffix}`
 }
 
-function isOpenDay(weekday: number): boolean {
-  return !CLOSED_WEEKDAYS.has(weekday)
-}
-
-/** Next open weekday strictly after `weekday` (0-6). */
-function nextOpenWeekdayAfter(weekday: number): number {
-  for (let offset = 1; offset <= 7; offset += 1) {
-    const day = (weekday + offset) % 7
-    if (isOpenDay(day)) return day
-  }
-  return (weekday + 1) % 7
-}
-
 /** Pure status calculator - pass a Date for tests. */
-export function getStoreStatus(now: Date = new Date()): StoreStatus {
-  const { weekday, minutes } = chicagoParts(now)
-  const openLabel = formatClock(OPEN_MINUTES)
-  const closeLabel = formatClock(CLOSE_MINUTES)
+export function getStoreStatus(
+  now: Date = new Date(),
+  hours: StoreHoursPublic = DEFAULT_STORE_HOURS_PUBLIC,
+): StoreStatus {
+  const resolved = resolveHours(hours)
+  const { weekday, minutes } = chicagoParts(now, resolved.timezone)
+  const openMinutes = parseHhmmToMinutes(resolved.open)
+  const closeMinutes = parseHhmmToMinutes(resolved.close)
+  const closedJs = new Set(resolved.closed_weekdays.map(pythonWeekdayToJs))
+  const isOpenDay = (day: number) => !closedJs.has(day)
+  const openLabel = formatClock(openMinutes)
+  const closeLabel = formatClock(closeMinutes)
 
-  if (isOpenDay(weekday) && minutes >= OPEN_MINUTES && minutes < CLOSE_MINUTES) {
+  if (isOpenDay(weekday) && minutes >= openMinutes && minutes < closeMinutes) {
     return { open: true, text: `Open now, closes at ${closeLabel}` }
   }
 
-  if (isOpenDay(weekday) && minutes < OPEN_MINUTES) {
+  if (isOpenDay(weekday) && minutes < openMinutes) {
     return { open: false, text: `Closed, opens today at ${openLabel}` }
   }
 
-  // After close on an open day, or any closed day → next open day.
-  // Saturday evening / Sunday / Monday roll to Tuesday.
-  const openDay = nextOpenWeekdayAfter(weekday)
+  let openDay = weekday
+  for (let offset = 1; offset <= 7; offset += 1) {
+    const day = (weekday + offset) % 7
+    if (isOpenDay(day)) {
+      openDay = day
+      break
+    }
+  }
   return { open: false, text: `Closed, opens ${DAY_NAMES[openDay]} at ${openLabel}` }
 }
 
-export function useStoreStatus(pollMs = 60_000): StoreStatus {
-  const [status, setStatus] = useState<StoreStatus>(() => getStoreStatus())
+export function useStoreStatus(
+  hours?: StoreHoursPublic | null,
+  pollMs = 60_000,
+): StoreStatus {
+  const resolved = resolveHours(hours)
+  const key = `${resolved.timezone}|${resolved.open}|${resolved.close}|${resolved.closed_weekdays.join(',')}`
+  const [status, setStatus] = useState<StoreStatus>(() => getStoreStatus(new Date(), resolved))
 
   useEffect(() => {
-    const tick = () => setStatus(getStoreStatus())
+    const tick = () => setStatus(getStoreStatus(new Date(), resolved))
     tick()
     const id = window.setInterval(tick, pollMs)
     return () => window.clearInterval(id)
-  }, [pollMs])
+  }, [key, pollMs])
 
   return status
+}
+
+export function useStoreHoursLabel() {
+  const { config } = useOnlineSalesConfig()
+  return resolveHours(config.hours).label
+}
+
+export function usePublicHours() {
+  const { config } = useOnlineSalesConfig()
+  const hours = resolveHours(config.hours)
+  const status = useStoreStatus(hours)
+  return { hours, status, label: hours.label }
 }

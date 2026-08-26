@@ -4,7 +4,7 @@ import Save from '@mui/icons-material/Save';
 import { useSnackbar } from 'notistack';
 import { useQueryClient } from '@tanstack/react-query';
 import { updateSetting } from '../../../api/core.api';
-import { parseStoreHours, setDayOpen, WEEKDAYS, type StoreHours } from './storeHours';
+import { formatHoursLabel, parseStoreHours, setDayOpen, WEEKDAYS, type StoreHours } from './storeHours';
 
 export function StoreHoursEditor({ value }: { value: unknown }) {
   const { enqueueSnackbar } = useSnackbar();
@@ -21,7 +21,8 @@ export function StoreHoursEditor({ value }: { value: unknown }) {
       return;
     }
     try {
-      await updateSetting('online_sales.hours', { value: draft });
+      const { data } = await updateSetting('online_sales.hours', { value: draft });
+      setDraft(parseStoreHours(data.value));
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       enqueueSnackbar('Hours saved', { variant: 'success' });
     } catch {
@@ -90,7 +91,10 @@ export function StoreHoursEditor({ value }: { value: unknown }) {
           );
         })}
       </Box>
-      <Button sx={{ mt: 2 }} size="small" variant="contained" startIcon={<Save />} onClick={() => void save()}>
+      <Typography variant="body2" sx={{ mt: 2, minHeight: 24, color: 'text.secondary' }}>
+        {formatHoursLabel(draft)}
+      </Typography>
+      <Button sx={{ mt: 1.5 }} size="small" variant="contained" startIcon={<Save />} onClick={() => void save()}>
         Save hours
       </Button>
     </Box>

@@ -46,11 +46,21 @@ async function postJSON<T>(url: string, body: unknown = {}): Promise<T> {
   return data as T
 }
 
+/** Store hours from AppSetting `online_sales.hours`. Weekdays are Python: 0=Mon … 6=Sun. */
+export interface StoreHoursPublic {
+  timezone: string
+  open: string
+  close: string
+  closed_weekdays: number[]
+  label: string
+}
+
 export interface WebstoreConfig {
   online_sales_enabled: boolean
   inquiries_enabled: boolean
   accounts_enabled: boolean
   public_base_url?: string
+  hours?: StoreHoursPublic
 }
 
 export function fetchWebstoreConfig(): Promise<WebstoreConfig> {

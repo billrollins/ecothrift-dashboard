@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom'
 import { fetchCatalog, money, type CatalogItem } from '../api'
 import StoreMap from '../components/StoreMap'
 import { useCart } from '../cart'
-import { retailMapsDirectionsUrl, STORE, STORE_JSONLD } from '../data/content'
-import { useStoreStatus } from '../lib/storeHours'
+import StoreHoursBlock from '../components/StoreHoursBlock'
+import { retailMapsDirectionsUrl, STORE, storeJsonLd } from '../data/content'
+import { usePublicHours } from '../lib/storeHours'
 import { useOnlineSalesConfig } from '../onlineSalesConfig'
 import { useJsonLd, useSeo } from '../useSeo'
 
@@ -67,12 +68,12 @@ function FeaturedSlide({
 }
 
 export default function HomePage() {
+  const { hours, status, label } = usePublicHours()
   useSeo({ description: STORE.metaDescription, path: '/' })
-  useJsonLd(STORE_JSONLD)
+  useJsonLd(storeJsonLd(hours))
   const { config, loading: configLoading } = useOnlineSalesConfig()
   const shopOn = config.online_sales_enabled
   const { add } = useCart()
-  const storeStatus = useStoreStatus()
 
   const [featured, setFeatured] = useState<CatalogItem[]>([])
   const [featuredLoading, setFeaturedLoading] = useState(true)
@@ -211,25 +212,7 @@ export default function HomePage() {
                 <b>Address</b>
                 <span>{STORE.retail.address}</span>
               </div>
-              <div className="vrow">
-                <b>Hours</b>
-                <span className={`store-status${storeStatus.open ? ' store-status--open' : ''}`}>
-                  <span
-                    className={`status-dot${storeStatus.open ? ' status-dot--open' : ''}`}
-                    aria-hidden="true"
-                  />
-                  <span className="store-status__copy">
-                    {storeStatus.open ? (
-                      <>
-                        <span className="store-status__lead">Open now</span>
-                        {storeStatus.text.replace(/^Open now/, '')}
-                      </>
-                    ) : (
-                      storeStatus.text
-                    )}
-                  </span>
-                </span>
-              </div>
+              <StoreHoursBlock status={status} label={label} />
               <div className="vrow">
                 <b>Phone</b>
                 <span>

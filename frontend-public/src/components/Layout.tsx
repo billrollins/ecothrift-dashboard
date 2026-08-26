@@ -4,6 +4,7 @@ import logoImg from '../assets/logo-full-halfsize.png'
 import { useAuth } from '../auth'
 import { useCart } from '../cart'
 import { retailMapsDirectionsUrl, STORE } from '../data/content'
+import { useStoreHoursLabel } from '../lib/storeHours'
 import { useOnlineSalesConfig } from '../onlineSalesConfig'
 import CartDrawer from './CartDrawer'
 
@@ -11,6 +12,7 @@ const navClass = ({ isActive }: { isActive: boolean }) => (isActive ? 'on' : und
 
 export default function Layout() {
   const { config, loading } = useOnlineSalesConfig()
+  const hoursLabel = useStoreHoursLabel()
   const { count, setOpen } = useCart()
   const { user, isLoading: authLoading } = useAuth()
   // Treat config load as indeterminate - don't flash "under construction" when shop is on.
@@ -109,7 +111,7 @@ export default function Layout() {
           <div>
             <h4>Visit</h4>
             <p>{STORE.retail.address}</p>
-            <p>{STORE.retail.hours}</p>
+            <p>{hoursLabel}</p>
             <a href={`tel:${STORE.retail.phoneHref}`}>{STORE.retail.phone}</a>
             <a href={retailMapsDirectionsUrl()} target="_blank" rel="noreferrer">
               Get directions

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-25 (STAFF_DASHBOARD_HOST for staff reset links) -->
+<!-- Last updated: 2026-08-26 (public config hours) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -71,7 +71,7 @@ npm run dev
 | Every 10–15 minutes | `python manage.py expire_online_holds` |
 | Daily (e.g. 08:00 UTC) | `python manage.py archive_online_sales` |
 
-`expire_online_holds` releases reserved quantity for active holds past `expires_at` (`pending_verification` / provisional through today's close, verified `requested`/`confirmed`/`ready_for_pickup` through the 3-open-day window). Staff inaction never expires a verified hold. It also deletes unverified inquiry conversations older than `ONLINE_SALES_INQUIRY_VERIFY_HOURS` (default 24). Use `--dry-run` to count only. Seed hours once with `python manage.py seed_online_sales_hours` (AppSetting key `online_sales.hours`).
+`expire_online_holds` releases reserved quantity for active holds past `expires_at` (`pending_verification` / provisional through today's close, verified `requested`/`confirmed`/`ready_for_pickup` through the 3-open-day window). Staff inaction never expires a verified hold. It also deletes unverified inquiry conversations older than `ONLINE_SALES_INQUIRY_VERIFY_HOURS` (default 24). Use `--dry-run` to count only. Seed hours once with `python manage.py seed_online_sales_hours` (AppSetting key `online_sales.hours`). The same row is exposed on **`GET /api/webstore/config/`** as `hours` so the public site can print the schedule.
 
 `archive_online_sales` ages finished work out of the staff queues. It stamps `archived_at` on released holds and resolved threads past their window — reversible, invisible to customers, and it never changes a status or touches reserved stock. Windows come from `apps/webstore/services/retention.py`: `ONLINE_SALES_ARCHIVE_RELEASED_DAYS` (30), `ONLINE_SALES_ARCHIVE_RESOLVED_DAYS` (30), `ONLINE_SALES_PURGE_ABANDONED_DAYS` (30), `ONLINE_SALES_CUSTOMER_HISTORY_DAYS` (90, customer-facing view only).
 

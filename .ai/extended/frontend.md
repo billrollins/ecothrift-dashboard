@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-26 (Settings tab order System-first; Catalog on Floor) -->
+<!-- Last updated: 2026-08-26 (public hours from online_sales.hours) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -72,7 +72,7 @@ Separate Vite + React 18.3 + TypeScript build for shoppers (`ecothrift.us` / `ww
 - **Prod:** `npm run build` → `frontend-public/dist`, collected under `STATIC_ROOT/site` (`base: '/static/site/'`). `PublicSiteMiddleware` serves `index.html` on public hosts.
 - **Routes:** `/` Home, `/shop` + `/shop/:slug` catalog, `/checkout`, `/order/:number`, `/blog` + `/blog/:slug`, `/visit`, `/sell`, `/404`.
 - **Stack:** React Router v7, shared design tokens in `styles.css`, `useSeo` + JSON-LD, client cart (`localStorage`), code-split lazy routes.
-- **API:** `AllowAny` `/api/webstore/catalog/*`, `checkout/`, `order-status/<number>/` (see **`.ai/extended/backend.md`** / `apps.webstore`).
+- **API:** `AllowAny` `/api/webstore/catalog/*`, `checkout/`, `order-status/<number>/`, **`GET /api/webstore/config/`** — `hours` comes from AppSetting `online_sales.hours` (Python weekdays 0=Mon … 6=Sun). Home, Visit, footer, checkout, holds, and account build the schedule line from that payload (see **`.ai/extended/backend.md`** / `apps.webstore`).
 
 Staff catalog + order management: **`WebStorePage`** (`/admin/web-store`), **`WebOrdersPage`** (`/admin/web-orders`) — Admin workspace, Manager/Admin.
 

@@ -168,11 +168,20 @@ export function markWebListingSold(id: number): Promise<{ data: WebListing }> {
   return api.post(`/webstore/listings/${id}/mark-sold/`);
 }
 
+export interface WebstoreHours {
+  timezone: string;
+  open: string;
+  close: string;
+  closed_weekdays: number[];
+  label: string;
+}
+
 export interface WebstoreConfig {
   online_sales_enabled: boolean;
   inquiries_enabled: boolean;
   accounts_enabled: boolean;
   public_base_url: string;
+  hours?: WebstoreHours;
 }
 
 export function getWebstoreConfig(): Promise<{ data: WebstoreConfig }> {

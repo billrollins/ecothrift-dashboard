@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.74.3] -->
-<!-- Last reviewed: 2026-08-26 (v2.74.3 dotted AppSetting PATCH) -->
+<!-- Line 1 release: ## [2.75.0] -->
+<!-- Last reviewed: 2026-08-26 (v2.75.0 public hours from settings) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.75.0] - 2026-08-26
+
+User-facing theme: **Hours on the website match Settings** — saving Store hours updates the public schedule line.
+
+Outside initiatives.
+
+### Added
+
+- **`GET /api/webstore/config/` `hours`** — timezone, open, close, Python `closed_weekdays`, and a generated `label` from AppSetting `online_sales.hours`.
+
+### Changed
+
+- **Public schedule copy** — Home, Visit, footer, checkout, holds, and account build `9 AM - 6 PM, Tuesday - Saturday · Closed Sunday & Monday` from those fields. Settings shows the same sentence as a live preview.
+
+### Documentation
+
+- `.ai/extended/frontend.md`, `.ai/extended/development.md`.
 
 ## [2.74.3] - 2026-08-26
 

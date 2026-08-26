@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseStoreHours, setDayOpen } from './storeHours';
+import { formatHoursLabel, parseStoreHours, setDayOpen } from './storeHours';
 
 describe('parseStoreHours', () => {
   it('fills Canfield defaults when the value is missing', () => {
@@ -25,6 +25,25 @@ describe('parseStoreHours', () => {
       close: '18:00',
       closed_weekdays: [0, 6],
     });
+  });
+});
+
+describe('formatHoursLabel', () => {
+  it('writes the Canfield public sentence', () => {
+    expect(formatHoursLabel(parseStoreHours(null))).toBe(
+      '9 AM - 6 PM, Tuesday - Saturday · Closed Sunday & Monday',
+    );
+  });
+
+  it('rebuilds the sentence when Wednesday is closed', () => {
+    expect(
+      formatHoursLabel({
+        timezone: 'America/Chicago',
+        open: '09:00',
+        close: '18:00',
+        closed_weekdays: [2, 6],
+      }),
+    ).toBe('9 AM - 6 PM, Monday & Tuesday, Thursday - Saturday · Closed Wednesday & Sunday');
   });
 });
 

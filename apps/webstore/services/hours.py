@@ -15,6 +15,16 @@ DEFAULT_HOURS = {
     'closed_weekdays': [0, 6],
 }
 
+_DAY_NAMES = (
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+)
+
 
 def get_hours_config() -> dict:
     try:
@@ -28,9 +38,92 @@ def get_hours_config() -> dict:
     return dict(DEFAULT_HOURS)
 
 
+def public_hours_payload(cfg: dict | None = None) -> dict:
+    """Safe subset of store hours for the public /config/ payload."""
+    cfg = cfg or get_hours_config()
+    closed = [
+        int(n)
+        for n in (cfg.get('closed_weekdays') or [])
+        if str(n).isdigit() and 0 <= int(n) <= 6
+    ]
+    return {
+        'timezone': cfg.get('timezone') or DEFAULT_HOURS['timezone'],
+        'open': cfg.get('open') or DEFAULT_HOURS['open'],
+        'close': cfg.get('close') or DEFAULT_HOURS['close'],
+        'closed_weekdays': sorted(set(closed)),
+        'label': format_hours_label(cfg),
+    }
+
+
+def _clock_label(hhmm: str) -> str:
+    parsed = _parse_hhmm(hhmm)
+    hour, minute = parsed.hour, parsed.minute
+    suffix = 'AM' if hour < 12 else 'PM'
+    hour12 = hour % 12 or 12
+    if minute == 0:
+        return f'{hour12} {suffix}'
+    return f'{hour12}:{minute:02d} {suffix}'
+
+
+def _phrase_range(first: int, last: int) -> str:
+    if first == last:
+        return _DAY_NAMES[first]
+    if last == first + 1:
+        return f'{_DAY_NAMES[first]} & {_DAY_NAMES[last]}'
+    return f'{_DAY_NAMES[first]} - {_DAY_NAMES[last]}'
+
+
+def _day_phrase(ids: list[int]) -> str:
+    """Turn weekday ids into 'Tuesday - Saturday' / 'Sunday & Monday'."""
+    if not ids:
+        return ''
+    ranges: list[tuple[int, int]] = []
+    start = prev = ids[0]
+    for day in ids[1:]:
+        if day == prev + 1:
+            prev = day
+            continue
+        ranges.append((start, prev))
+        start = prev = day
+    ranges.append((start, prev))
+    parts = [_phrase_range(first, last) for first, last in ranges]
+    if len(parts) == 2 and all(first == last for first, last in ranges):
+        return f'{parts[0]} & {parts[1]}'
+    return ', '.join(parts)
+
+
+def _closed_display_order(closed: list[int]) -> list[int]:
+    # Keep the public line as "Closed Sunday & Monday", not "Monday & Sunday".
+    if set(closed) == {0, 6}:
+        return [6, 0]
+    return list(closed)
+
+
+def format_hours_label(cfg: dict | None = None) -> str:
+    """Public schedule line, e.g. 9 AM - 6 PM, Tuesday - Saturday · Closed Sunday & Monday."""
+    cfg = {**DEFAULT_HOURS, **(cfg or {})}
+    closed = sorted(
+        {
+            int(n)
+            for n in (cfg.get('closed_weekdays') or [])
+            if str(n).lstrip('-').isdigit() and 0 <= int(n) <= 6
+        }
+    )
+    open_days = [i for i in range(7) if i not in set(closed)]
+    clock = f"{_clock_label(str(cfg.get('open') or '09:00'))} - {_clock_label(str(cfg.get('close') or '18:00'))}"
+    if not open_days:
+        return f'Closed · {clock}'
+    open_bit = _day_phrase(open_days)
+    if not closed:
+        return f'{clock}, {open_bit}'
+    return f'{clock}, {open_bit} · Closed {_day_phrase(_closed_display_order(closed))}'
+
+
 def _parse_hhmm(value: str) -> time:
-    hour, minute = value.split(':')
-    return time(int(hour), int(minute))
+    parts = str(value).split(':')
+    hour = int(parts[0])
+    minute = int(parts[1]) if len(parts) > 1 else 0
+    return time(hour, minute)
 
 
 def _local_now(moment=None):

@@ -633,6 +633,8 @@ def public_config(request):
     from apps.webstore.services.feature import online_sales_enabled
     from django.conf import settings as dj_settings
 
+    from apps.webstore.services.hours import public_hours_payload
+
     public_base = (
         getattr(dj_settings, 'ONLINE_SALES_PUBLIC_BASE_URL', None) or 'https://ecothrift.us'
     ).rstrip('/')
@@ -641,6 +643,7 @@ def public_config(request):
         'inquiries_enabled': bool(getattr(dj_settings, 'ONLINE_SALES_INQUIRIES_ENABLED', True)),
         'accounts_enabled': bool(getattr(dj_settings, 'ONLINE_SALES_ACCOUNTS_ENABLED', True)),
         'public_base_url': public_base,
+        'hours': public_hours_payload(),
     })
 
 

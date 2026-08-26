@@ -34,9 +34,7 @@ export function StorePanel() {
             {metaForKey('online_sales.hours').label}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {hours && typeof hours.description === 'string' && hours.description
-              ? hours.description
-              : metaForKey('online_sales.hours').help}
+            {metaForKey('online_sales.hours').help}
           </Typography>
           <StoreHoursEditor value={hours?.value} />
         </CardContent>

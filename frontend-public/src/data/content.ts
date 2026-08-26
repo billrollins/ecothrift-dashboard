@@ -28,12 +28,12 @@ export const STORE = {
   retail: {
     name: 'Eco-Thrift - Canfield',
     address: '8425 W Center Rd, Omaha, NE 68124',
-    /** Full schedule for the footer; live open status uses hoursConfig. */
+    /** Default schedule copy. Live pages build this from `/api/webstore/config/` hours. */
     hours: '9 AM - 6 PM, Tuesday - Saturday · Closed Sunday & Monday',
     /**
-     * Structured hours for client-side open status.
-     * Keep in sync with apps/webstore/services/hours.py DEFAULT_HOURS.
-     * Weekdays use JS Date.getDay() numbering: 0=Sun … 6=Sat.
+     * Offline fallback for live open status.
+     * Live copy comes from AppSetting `online_sales.hours` via /api/webstore/config/.
+     * Weekdays here use JS Date.getDay(): 0=Sun … 6=Sat.
      */
     hoursConfig: {
       timezone: 'America/Chicago',
@@ -62,38 +62,63 @@ export const AUTHOR = {
   photo: '/author/bill-rollins.jpg',
 } as const
 
-/** schema.org Store / LocalBusiness for the retail location (used on Home + Visit). */
-export const STORE_JSONLD = {
-  '@context': 'https://schema.org',
-  '@type': 'Store',
-  '@id': `${SITE_URL}/#store`,
-  name: 'Eco-Thrift - Canfield',
-  description: STORE.metaDescription,
-  url: SITE_URL,
-  telephone: STORE.retail.phoneHref,
-  email: STORE.email,
-  address: {
-    '@type': 'PostalAddress',
-    streetAddress: '8425 W Center Rd',
-    addressLocality: 'Omaha',
-    addressRegion: 'NE',
-    postalCode: '68124',
-    addressCountry: 'US',
-  },
-  openingHoursSpecification: [
-    {
-      '@type': 'OpeningHoursSpecification',
-      dayOfWeek: ['Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
-      opens: '09:00',
-      closes: '18:00',
+const SCHEMA_WEEKDAYS = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+] as const
+
+/** schema.org Store / LocalBusiness. Pass settings hours (Python 0=Mon) when available. */
+export function storeJsonLd(hours?: {
+  open?: string
+  close?: string
+  closed_weekdays?: number[]
+} | null) {
+  const open = hours?.open ?? '09:00'
+  const close = hours?.close ?? '18:00'
+  const closed = new Set(hours?.closed_weekdays ?? [0, 6])
+  const dayOfWeek = SCHEMA_WEEKDAYS.filter((_, i) => !closed.has(i))
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Store',
+    '@id': `${SITE_URL}/#store`,
+    name: 'Eco-Thrift - Canfield',
+    description: STORE.metaDescription,
+    url: SITE_URL,
+    telephone: STORE.retail.phoneHref,
+    email: STORE.email,
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: '8425 W Center Rd',
+      addressLocality: 'Omaha',
+      addressRegion: 'NE',
+      postalCode: '68124',
+      addressCountry: 'US',
     },
-  ],
-  geo: {
-    '@type': 'GeoCoordinates',
-    latitude: STORE.retail.mapsLat,
-    longitude: STORE.retail.mapsLng,
-  },
-} as const
+    openingHoursSpecification: dayOfWeek.length
+      ? [
+          {
+            '@type': 'OpeningHoursSpecification',
+            dayOfWeek: [...dayOfWeek],
+            opens: open,
+            closes: close,
+          },
+        ]
+      : [],
+    geo: {
+      '@type': 'GeoCoordinates',
+      latitude: STORE.retail.mapsLat,
+      longitude: STORE.retail.mapsLng,
+    },
+  }
+}
+
+/** Fallback structured data using Canfield defaults. */
+export const STORE_JSONLD = storeJsonLd()
 
 /** Open Google Maps directions to the retail place pin. */
 export function retailMapsDirectionsUrl(): string {

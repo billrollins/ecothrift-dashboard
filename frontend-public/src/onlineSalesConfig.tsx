@@ -6,11 +6,20 @@ import {
   type ReactNode,
 } from 'react'
 import { fetchWebstoreConfig, type WebstoreConfig } from './api'
+import { STORE } from './data/content'
+import { DEFAULT_HOURS_LABEL } from './lib/hoursLabel'
 
 const DEFAULT_CONFIG: WebstoreConfig = {
   online_sales_enabled: false,
   inquiries_enabled: false,
   accounts_enabled: false,
+  hours: {
+    timezone: STORE.retail.hoursConfig.timezone,
+    open: '09:00',
+    close: '18:00',
+    closed_weekdays: [0, 6],
+    label: DEFAULT_HOURS_LABEL,
+  },
 }
 
 const OnlineSalesConfigContext = createContext<{

@@ -6,6 +6,7 @@ import {
   useAuth,
 } from '../../auth'
 import { STORE, retailMapsDirectionsUrl } from '../../data/content'
+import { useStoreHoursLabel } from '../../lib/storeHours'
 import { useAccountData } from './accountData'
 import HoldCard from './HoldCard'
 
@@ -18,6 +19,7 @@ export default function AccountOverviewPage() {
     setPassword,
     resendVerification,
   } = useAuth()
+  const hoursLabel = useStoreHoursLabel()
   const { activeHolds, archivedHolds, unarchiveHold } = useAccountData()
   const [params] = useSearchParams()
 
@@ -236,7 +238,7 @@ export default function AccountOverviewPage() {
           <div className="acct__store">
             <div>{STORE.retail.name}</div>
             <div>{STORE.retail.address}</div>
-            <div>{STORE.retail.hours}</div>
+            <div>{hoursLabel}</div>
             <div>Pay in store - cash or card</div>
           </div>
           <a

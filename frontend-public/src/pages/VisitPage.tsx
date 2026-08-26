@@ -1,15 +1,18 @@
 import { Link } from 'react-router-dom'
+import StoreHoursBlock from '../components/StoreHoursBlock'
 import StoreMap from '../components/StoreMap'
-import { retailMapsDirectionsUrl, STORE, STORE_JSONLD } from '../data/content'
+import { retailMapsDirectionsUrl, STORE, storeJsonLd } from '../data/content'
+import { usePublicHours } from '../lib/storeHours'
 import { useJsonLd, useSeo } from '../useSeo'
 
 export default function VisitPage() {
+  const { hours, status, label } = usePublicHours()
   useSeo({
     title: 'Visit',
-    description: `Visit Eco-Thrift at ${STORE.retail.address}. Open ${STORE.retail.hours}.`,
+    description: `Visit Eco-Thrift at ${STORE.retail.address}. Open ${label}.`,
     path: '/visit',
   })
-  useJsonLd(STORE_JSONLD)
+  useJsonLd(storeJsonLd(hours))
   return (
     <>
       <div className="wrap">
@@ -36,10 +39,7 @@ export default function VisitPage() {
                   {STORE.retail.address}
                 </span>
               </div>
-              <div className="vrow">
-                <b>Hours</b>
-                <span>{STORE.retail.hours}</span>
-              </div>
+              <StoreHoursBlock status={status} label={label} />
               <div className="vrow">
                 <b>Phone</b>
                 <span>

@@ -58,7 +58,10 @@ class EndpointMatrixTests(TestCase):
     def test_config_allow_any(self):
         r = self._client().get('/api/webstore/config/')
         self.assertEqual(r.status_code, 200)
-        self.assertIn('online_sales_enabled', r.json())
+        body = r.json()
+        self.assertIn('online_sales_enabled', body)
+        self.assertIn('hours', body)
+        self.assertIn('label', body['hours'])
 
     def test_catalog_roles(self):
         for user, expected in [
