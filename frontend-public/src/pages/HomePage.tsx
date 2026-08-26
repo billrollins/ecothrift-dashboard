@@ -218,7 +218,7 @@ export default function HomePage() {
                     className={`status-dot${storeStatus.open ? ' status-dot--open' : ''}`}
                     aria-hidden="true"
                   />
-                  <span>
+                  <span className="store-status__copy">
                     {storeStatus.open ? (
                       <>
                         <span className="store-status__lead">Open now</span>

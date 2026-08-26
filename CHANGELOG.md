@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.74.1] -->
-<!-- Last reviewed: 2026-08-26 (v2.74.1 public hours open-now green) -->
+<!-- Line 1 release: ## [2.74.2] -->
+<!-- Last reviewed: 2026-08-26 (v2.74.2 hours status stays one line) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.74.2] - 2026-08-26
+
+User-facing theme: **Hours stay on one line** — Open now and closes-at no longer stack.
+
+Outside initiatives.
+
+### Fixed
+
+- **Public home hours** — inner Hours spans stay inline so **Open now, closes at 6 PM** does not wrap under a leading comma.
 
 ## [2.74.1] - 2026-08-26
 

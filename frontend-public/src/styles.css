@@ -487,6 +487,10 @@ main:has(.home) + .ft { margin-top: 0; }
   font-weight: 500;
 }
 
+.vrow .store-status span {
+  display: inline;
+}
+
 .vrow .status-dot {
   display: inline-block;
   width: 8px;
@@ -501,6 +505,7 @@ main:has(.home) + .ft { margin-top: 0; }
 }
 
 .vrow .store-status--open .store-status__lead {
+  display: inline;
   color: #2f8f4e;
 }
 

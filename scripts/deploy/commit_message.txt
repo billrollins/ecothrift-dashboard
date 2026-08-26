@@ -1,6 +1,5 @@
-fix: make public hours Open now green
+fix: keep public hours Open now on one line
 
-- Stop the Hours row gray rule from winning over the open-state dot
-- Color the Open now label green while the store is open
+- Stop .vrow span { display: block } from stacking the green Open now label over closes-at
 
-Release: v2.74.1
+Release: v2.74.2
