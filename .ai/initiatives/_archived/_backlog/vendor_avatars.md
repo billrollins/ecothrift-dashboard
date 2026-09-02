@@ -3,7 +3,7 @@
 <!-- Last updated: 2026-04-29 -->
 # Vendor avatars (upload + dashboard-wide display)
 
-**Status:** **Backlog** — parked under [`.ai/initiatives/_archived/_backlog/`](./). When ready to implement, follow [`.ai/protocols/initiative.md`](../../../protocols/initiative.md) (activate) and add a row to [`.ai/initiatives/_index.md`](../../_index.md).
+**Status:** **Backlog** — parked under [`.ai/initiatives/_archived/_backlog/`](./). When ready to implement, follow [`.ai/extended/initiatives.md`](../../../extended/initiatives.md) (activate) and add a row to [`.ai/initiatives/_index.md`](../../_index.md).
 
 ---
 

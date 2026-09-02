@@ -26,6 +26,8 @@ import Schedule from '@mui/icons-material/Schedule';
 import Print from '@mui/icons-material/Print';
 import Palette from '@mui/icons-material/Palette';
 import Email from '@mui/icons-material/Email';
+import Description from '@mui/icons-material/Description';
+import Checklist from '@mui/icons-material/Checklist';
 import type { ComponentType } from 'react';
 import type { SvgIconProps } from '@mui/material/SvgIcon';
 import type { NavIconKey } from './navTypes';
@@ -59,6 +61,8 @@ export const NAV_ICON_MAP: Record<NavIconKey, ComponentType<SvgIconProps>> = {
   print: Print,
   palette: Palette,
   email: Email,
+  documents: Description,
+  checklist: Checklist,
 };
 
 export function resolveNavIcon(key: NavIconKey): ComponentType<SvgIconProps> {

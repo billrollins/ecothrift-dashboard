@@ -77,6 +77,7 @@ import {
   useDeliveryAvailabilities,
 } from '../../hooks/usePOS';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { WorkCyclePill } from '../../components/routines/WorkCyclePill';
 import { useDeviceConfig } from '../../hooks/useDeviceConfig';
 import { useLocalPrintStatus } from '../../hooks/useLocalPrintStatus';
 import { useLookupCustomer } from '../../hooks/useEmployees';
@@ -1290,7 +1291,10 @@ export default function TerminalPage() {
                     flexShrink: 0,
                   }}
                 >
-                  <Typography variant="h6">Cart</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
+                    <Typography variant="h6">Cart</Typography>
+                    <WorkCyclePill />
+                  </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     {customer && (
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>

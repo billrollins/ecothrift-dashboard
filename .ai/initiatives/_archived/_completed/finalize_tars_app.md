@@ -120,7 +120,7 @@ Each phase is a digestible, independently testable block sized to finish in one 
 3. **Code** — backend, then frontend
 4. **Test** — Django tests + Vitest + `npm run build` green
 5. **Walkthrough** — Bill verifies against the phase acceptance list
-6. **Commit + push** — [`ship.md`](../../../protocols/ship.md) (semver + `CHANGELOG` + GitHub)
+6. **Commit + push** — [`ship-push-git.md`](../../../protocols/ship-push-git.md) (semver + `CHANGELOG` + GitHub)
 7. **Pull prod → local** — `scripts/deploy/0_pull_prod_to_local.bat`
 
 A phase is not done until step 7. Phase ordering is Bill's call; the cycle does not change.

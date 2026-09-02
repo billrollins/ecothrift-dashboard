@@ -28,6 +28,13 @@ import { getAppVersion } from '../../api/core.api';
 import logo from '../../assets/logo-full-360x120.png';
 import { dashboardPalette } from '../dashboard/dashboardCardStyles';
 import { RESTORATION_BENCH_PATH } from '../../pages/restoration/restorationRoutes';
+import { RoutinesNag } from '../routines/RoutinesNag';
+import { useNavBadgeCounts } from '../../hooks/useNavBadgeCounts';
+import { resolveNavItem } from '../../navigation/navResolve';
+import { navigateForNavItem } from '../../navigation/navUtils';
+import { NavWaitingBadge } from '../../navigation/NavWaitingBadge';
+
+const PROFILE_NAV_IDS = ['timeClock', 'routines'] as const;
 
 const DASHBOARD_BACKDROP = dashboardPalette.backdrop;
 
@@ -44,6 +51,12 @@ export default function MainLayout() {
   const isRestoration = location.pathname.startsWith('/restoration');
   const isRestorationBench = location.pathname === RESTORATION_BENCH_PATH;
   const isFieldMobile = isMobile && location.pathname.startsWith('/pos/deliveries/field');
+  // Routines and its Admin control room draw their own panes edge to edge.
+  const isRoutines = location.pathname.startsWith('/routines') || location.pathname.startsWith('/admin/routines');
+  const profileBadges = useNavBadgeCounts({ onlineSales: false });
+  const profileNavItems = PROFILE_NAV_IDS
+    .map((id) => resolveNavItem(id))
+    .filter((item): item is NonNullable<typeof item> => item != null);
 
   const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
   const handleMenuOpen = (e: React.MouseEvent<HTMLElement>) => setAnchorEl(e.currentTarget);
@@ -159,6 +172,11 @@ export default function MainLayout() {
                 </IconButton>
               )}
               <Box sx={{ flexGrow: 1 }} />
+              {user ? (
+                <Box sx={{ width: 44, height: 44, mr: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <RoutinesNag />
+                </Box>
+              ) : null}
               {user && (
                 <>
                   <Typography
@@ -191,6 +209,22 @@ export default function MainLayout() {
                         secondary={user.role}
                       />
                     </MenuItem>
+                    <Divider />
+                    {profileNavItems.map((item) => (
+                      <MenuItem
+                        key={item.id}
+                        onClick={() => {
+                          handleMenuClose();
+                          navigateForNavItem(navigate, item);
+                        }}
+                      >
+                        <ListItemIcon><item.Icon fontSize="small" /></ListItemIcon>
+                        <ListItemText primary={item.label} />
+                        <Box sx={{ width: 28, display: 'flex', justifyContent: 'flex-end' }}>
+                          <NavWaitingBadge count={profileBadges[item.id] ?? 0} />
+                        </Box>
+                      </MenuItem>
+                    ))}
                     <Divider />
                     <MenuItem
                       onClick={() => {
@@ -227,8 +261,8 @@ export default function MainLayout() {
             display: 'flex',
             flexDirection: 'column',
             overflowX: 'hidden',
-            overflowY: isRestorationBench ? 'hidden' : 'auto',
-            p: isFieldMobile
+            overflowY: isRestorationBench || isRoutines ? 'hidden' : 'auto',
+            p: isFieldMobile || isRoutines
               ? 0
               : isRestoration
                 ? { xs: 0.75, md: 1 }

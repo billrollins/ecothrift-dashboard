@@ -1,20 +1,18 @@
-import { Box, Grid, ListItemText, Menu, MenuItem } from '@mui/material';
+import { Box, Grid } from '@mui/material';
 import type { ReactNode } from 'react';
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import ShoppingBag from '@mui/icons-material/ShoppingBag';
 import PrecisionManufacturing from '@mui/icons-material/PrecisionManufacturing';
 import Handyman from '@mui/icons-material/Handyman';
-import WorkspacePremium from '@mui/icons-material/WorkspacePremium';
+import Storefront from '@mui/icons-material/Storefront';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { useQualityAudits } from '../../hooks/useQualityAudit';
 import type {
   DepartmentDailyMetric,
   DepartmentDailyWeek,
   DepartmentGoalKey,
   DepartmentMetrics,
 } from '../../types/pos.types';
-import type { QualityAudit } from '../../types/qualityAudit.types';
 import {
   DepartmentCardGrid,
   buyingGridValue,
@@ -23,7 +21,6 @@ import {
   processingWeekTotal,
   restorationGridValue,
   restorationWeekTotal,
-  retailCellAriaLabel,
   retailDayIsClickable,
   retailGoalCellState,
   retailGridValue,
@@ -62,44 +59,14 @@ interface CardConfig {
   getWeekAchieved?: (week: DepartmentDailyWeek) => boolean;
 }
 
-function canOpenQualityAudit(role: string | null | undefined): boolean {
-  return role === 'Admin' || role === 'Manager';
-}
-
-function formatSubmittedAt(iso: string | null | undefined): string {
-  if (!iso) return '-';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
 export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { isCompact } = useDashboardLayout();
   const isSuperuser = Boolean(user?.is_superuser);
-  const canOpenQa = canOpenQualityAudit(user?.role);
   const { buying, processing, restoration, retail, goals, daily_weeks } = metrics;
   const [openKey, setOpenKey] = useState<DepartmentGoalKey | null>(null);
   const [weekDetailKey, setWeekDetailKey] = useState<DepartmentGoalKey | null>(null);
-  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
-  const [menuAuditIds, setMenuAuditIds] = useState<number[]>([]);
-
-  const { data: submittedAudits } = useQualityAudits(
-    { status: 'submitted', limit: 100 },
-    { enabled: canOpenQa && menuAuditIds.length > 1 },
-  );
-
-  const menuAudits: QualityAudit[] = useMemo(() => {
-    if (!submittedAudits || menuAuditIds.length === 0) return [];
-    const byId = new Map(submittedAudits.map((a) => [a.id, a]));
-    return menuAuditIds.map((id) => byId.get(id)).filter(Boolean) as QualityAudit[];
-  }, [submittedAudits, menuAuditIds]);
 
   const todayIso = useMemo(() => {
     let latest = '';
@@ -110,26 +77,6 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
     }
     return latest;
   }, [daily_weeks]);
-
-  const formSlug = retail.form_slug || 'retail';
-
-  function openAudit(id: number) {
-    setMenuAnchor(null);
-    setMenuAuditIds([]);
-    navigate(`/admin/quality-audit/run/${formSlug}/${id}`);
-  }
-
-  function handleRetailCellClick(day: DepartmentDailyMetric, event: React.MouseEvent<HTMLElement>) {
-    if (!canOpenQa) return;
-    const ids = day.retail_audit_ids ?? [];
-    if (ids.length === 0) return;
-    if (ids.length === 1) {
-      openAudit(ids[0]);
-      return;
-    }
-    setMenuAuditIds(ids);
-    setMenuAnchor(event.currentTarget);
-  }
 
   const cards: CardConfig[] = [
     {
@@ -154,9 +101,6 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
     },
     {
       key: 'restoration',
-      // Items finished this week, matching the weekly goal it sits beside and
-      // the per-day completed counts in the grid below. Jobs still in flight are
-      // the note, not the headline — a weekly goal needs a weekly number.
       label: 'Restoration',
       kind: 'count',
       accent: dashboardPalette.violet,
@@ -169,13 +113,15 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
     },
     {
       key: 'retail',
-      label: 'Retail QA',
-      kind: 'grade',
-      accent: dashboardPalette.blue,
-      icon: <WorkspacePremium />,
-      actual: retail.ready && retail.last_grade ? retail.last_grade : '-',
-      placeholder: !retail.ready,
-      goalMet: retail.week_goal_met,
+      label: 'Retail',
+      kind: 'count',
+      accent: dashboardPalette.gold,
+      icon: <Storefront />,
+      actual: retail.average_grade ?? '-',
+      actualNote: retail.last_grade
+        ? `${retail.last_grade} on the last graded day · ${retail.week_audits} submitted`
+        : `${retail.week_audits} submitted this week`,
+      goalMet: retail.average_grade === 'A' || retail.average_grade === 'B',
       getValue: retailGridValue,
       getWeekTotal: retailWeekTotal,
       getCellState: retailGoalCellState,
@@ -193,52 +139,53 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
   return (
     <>
       <Grid container spacing={1.5} columns={12} sx={{ overflow: 'visible' }}>
-        {cards.map((card) => {
-          const isRetail = card.key === 'retail';
-          return (
-            <Grid
-              key={card.key}
-              size={{ xs: 12, sm: 6, md: 6, lg: 3 }}
-              sx={{ display: 'flex', minWidth: 0, p: 1, overflow: 'visible' }}
-            >
-              <Box sx={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0, display: 'flex' }}>
-                <DepartmentStatCard
-                  label={card.label}
-                  accent={card.accent}
-                  icon={card.icon}
-                  goalDisplay={formatDepartmentGoalValue(card.kind, goals[card.key]?.value ?? '')}
-                  actualDisplay={card.actual}
-                  actualNote={card.actualNote}
-                  placeholder={card.placeholder}
-                  goalMet={card.goalMet}
-                  onGoalClick={() => setOpenKey(card.key)}
-                  showWeekDetailButton={isCompact}
-                  onViewWeekDetail={() => setWeekDetailKey(card.key)}
-                  footer={
-                    <DepartmentCardGrid
-                      weeks={daily_weeks}
-                      getValue={card.getValue}
-                      getWeekTotal={card.getWeekTotal}
-                      getCellState={card.getCellState}
-                      getWeekAchieved={card.getWeekAchieved}
-                      todayIso={todayIso}
-                      onDayHeadsClick={isCompact ? () => setWeekDetailKey(card.key) : undefined}
-                      onCellClick={
-                        isRetail && canOpenQa
-                          ? (day, event) => handleRetailCellClick(day, event)
-                          : undefined
-                      }
-                      isCellClickable={
-                        isRetail && canOpenQa ? retailDayIsClickable : undefined
-                      }
-                      cellAriaLabel={isRetail ? retailCellAriaLabel : undefined}
-                    />
-                  }
-                />
-              </Box>
-            </Grid>
-          );
-        })}
+        {cards.map((card) => (
+          <Grid
+            key={card.key}
+            size={{ xs: 12, sm: 6, md: 6, lg: 3 }}
+            sx={{ display: 'flex', minWidth: 0, p: 1, overflow: 'visible' }}
+          >
+            <Box sx={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0, display: 'flex' }}>
+              <DepartmentStatCard
+                label={card.label}
+                accent={card.accent}
+                icon={card.icon}
+                goalDisplay={formatDepartmentGoalValue(card.kind, goals[card.key]?.value ?? '')}
+                actualDisplay={card.actual}
+                actualNote={card.actualNote}
+                placeholder={card.placeholder}
+                goalMet={card.goalMet}
+                onGoalClick={() => setOpenKey(card.key)}
+                showWeekDetailButton={isCompact}
+                onViewWeekDetail={() => setWeekDetailKey(card.key)}
+                footer={
+                  <DepartmentCardGrid
+                    weeks={daily_weeks}
+                    getValue={card.getValue}
+                    getWeekTotal={card.getWeekTotal}
+                    getCellState={card.getCellState}
+                    getWeekAchieved={card.getWeekAchieved}
+                    todayIso={todayIso}
+                    onDayHeadsClick={isCompact ? () => setWeekDetailKey(card.key) : undefined}
+                    onCellClick={
+                      card.key === 'retail'
+                        ? (day) => navigate(
+                            // Grades explains the letter. Everyone else lands on
+                            // their own routines, which is the only QA screen
+                            // they can open.
+                            isSuperuser
+                              ? `/admin/routines?view=grades&day=${day.date}`
+                              : '/routines',
+                          )
+                        : undefined
+                    }
+                    isCellClickable={card.key === 'retail' ? retailDayIsClickable : undefined}
+                  />
+                }
+              />
+            </Box>
+          </Grid>
+        ))}
       </Grid>
 
       {activeConfig && (
@@ -262,41 +209,8 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
           getCellState={weekDetailCard.getCellState}
           getWeekAchieved={weekDetailCard.getWeekAchieved}
           todayIso={todayIso}
-          onCellClick={
-            weekDetailCard.key === 'retail' && canOpenQa
-              ? (day, event) => handleRetailCellClick(day, event)
-              : undefined
-          }
-          isCellClickable={
-            weekDetailCard.key === 'retail' && canOpenQa ? retailDayIsClickable : undefined
-          }
-          cellAriaLabel={weekDetailCard.key === 'retail' ? retailCellAriaLabel : undefined}
         />
       ) : null}
-
-      <Menu
-        anchorEl={menuAnchor}
-        open={Boolean(menuAnchor)}
-        onClose={() => {
-          setMenuAnchor(null);
-          setMenuAuditIds([]);
-        }}
-      >
-        {menuAudits.length > 0
-          ? menuAudits.map((audit) => (
-              <MenuItem key={audit.id} onClick={() => openAudit(audit.id)} sx={{ minHeight: 44 }}>
-                <ListItemText
-                  primary={`Grade ${audit.overall_grade || '-'}`}
-                  secondary={formatSubmittedAt(audit.submitted_at)}
-                />
-              </MenuItem>
-            ))
-          : menuAuditIds.map((id) => (
-              <MenuItem key={id} onClick={() => openAudit(id)} sx={{ minHeight: 44 }}>
-                <ListItemText primary={`Audit #${id}`} />
-              </MenuItem>
-            ))}
-      </Menu>
     </>
   );
 }

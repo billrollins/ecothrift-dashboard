@@ -98,16 +98,16 @@ export function DepartmentGoalDialog({
   const saveMutation = useMutation({
     mutationFn: async () => {
       const trimmed = value.trim();
-      if (!trimmed) {
+      if (config.key !== 'retail' && !trimmed) {
         throw new Error('Enter a goal value.');
       }
       if (config.key === 'retail' && weekdays.length === 0) {
-        throw new Error('Choose at least one audit day.');
+        throw new Error('Choose at least one routine day.');
       }
       const count = Math.max(1, Math.min(20, Number.parseInt(auditsPerDay, 10) || 1));
       return upsertDashboardDepartmentGoal({
         department: config.key,
-        value: trimmed,
+        value: config.key === 'retail' ? String(count) : trimmed,
         description: description.trim(),
         ...(config.key === 'retail'
           ? {
@@ -167,6 +167,7 @@ export function DepartmentGoalDialog({
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: 1, overflow: 'visible' }}>
         {error && <Alert severity="error">{error}</Alert>}
 
+        {config.key !== 'retail' ? (
         <Box>
           <Typography
             variant="caption"
@@ -216,6 +217,7 @@ export function DepartmentGoalDialog({
             </Typography>
           )}
         </Box>
+        ) : null}
 
         {config.key === 'retail' ? (
           <>
@@ -233,13 +235,13 @@ export function DepartmentGoalDialog({
                   color: 'text.secondary',
                 }}
               >
-                Required Audit Days
+                Required Routine Days
               </Typography>
               {isSuperuser ? (
                 <ToggleButtonGroup
                   value={weekdays}
                   onChange={(_, next: number[]) => setWeekdays(next)}
-                  aria-label="Required Retail QA weekdays"
+                  aria-label="Required Retail routine weekdays"
                   size="small"
                   sx={{
                     width: '100%',
@@ -302,7 +304,7 @@ export function DepartmentGoalDialog({
             </Box>
 
             <TextField
-              label="Audits required per selected day"
+              label="Routines required per selected day"
               value={auditsPerDay}
               onChange={(e) => setAuditsPerDay(e.target.value.replace(/\D/g, '').slice(0, 2))}
               onBlur={() => {
@@ -316,14 +318,14 @@ export function DepartmentGoalDialog({
                 weekdays.length
                   ? `${weekdays.length} scheduled day${weekdays.length === 1 ? '' : 's'} × ${Number.parseInt(auditsPerDay, 10) || 1} = ${
                       weekdays.length * (Number.parseInt(auditsPerDay, 10) || 1)
-                    } audit${weekdays.length * (Number.parseInt(auditsPerDay, 10) || 1) === 1 ? '' : 's'} per full week`
+                    } routine${weekdays.length * (Number.parseInt(auditsPerDay, 10) || 1) === 1 ? '' : 's'} per full week`
                   : 'Choose days above to establish the weekly schedule.'
               }
             />
 
             <Alert severity="info" sx={{ py: 0.25 }}>
-              A scheduled day is achieved only when its audit count is met and its last submitted
-              grade meets the minimum grade. Completed days-and the full week once finished-turn gold.
+              A scheduled day turns gold when that day&apos;s completed routine count meets the
+              required number. The week turns gold once every scheduled day is done.
             </Alert>
           </>
         ) : null}
@@ -349,7 +351,7 @@ export function DepartmentGoalDialog({
             onClick={() => saveMutation.mutate()}
             disabled={
               saveMutation.isPending ||
-              !value.trim() ||
+              (config.key !== 'retail' && !value.trim()) ||
               (config.key === 'retail' && weekdays.length === 0)
             }
           >

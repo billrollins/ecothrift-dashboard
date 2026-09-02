@@ -2,17 +2,20 @@
 
 How agents navigate this repo. **Semver and release history live only at the repo root** — [`.version`](../.version) and [`CHANGELOG.md`](../CHANGELOG.md).
 
-## Load context (default)
+## Protocols
 
-Protocol: [`.ai/protocols/load-context.md`](protocols/load-context.md)
+A protocol is a trigger. **IF** it is `@`-mentioned **THEN** do only what that file says.
 
-1. [`.ai/context.md`](context.md) — product compass
-2. Repo root [`.version`](../.version)
-3. Top of [`CHANGELOG.md`](../CHANGELOG.md)
-4. [`.ai/initiatives/_index.md`](initiatives/_index.md)
-5. Active initiative file(s)
+| File | Trigger |
+|------|---------|
+| [`clean-up.md`](protocols/clean-up.md) | List junk; delete only what they paste back |
+| [`context-load.md`](protocols/context-load.md) | Orient, then ask |
+| [`initiative-create.md`](protocols/initiative-create.md) | Interview, then write a full initiative file |
+| [`initiative-review.md`](protocols/initiative-review.md) | Reconcile files with what shipped; you approve moves |
+| [`ship-push-git.md`](protocols/ship-push-git.md) | Docs, version, changelog, commit, GitHub |
+| [`ship-push-heroku.md`](protocols/ship-push-heroku.md) | Same as git, then Heroku |
 
-Then ask what is needed. No session block.
+Lifecycle after create: [`extended/initiatives.md`](extended/initiatives.md). Schema refresh: [`extended/sql/README.md`](extended/sql/README.md).
 
 ## What lives where
 
@@ -22,7 +25,7 @@ Then ask what is needed. No session block.
 | **`.ai/initiatives/`** | Bounded work: one file per initiative (plan + acceptance) |
 | **`.ai/extended/`** | Domain docs, on demand + [`extended/sql/`](extended/sql/README.md) |
 | **`.ai/reference/`** | TARS design/canon + bookkeeping recon |
-| **`.ai/protocols/`** | `load-context`, `ship`, `initiative`, `sql-schema` |
+| **`.ai/protocols/`** | `clean-up`, `context-load`, `initiative-create`, `initiative-review`, `ship-push-git`, `ship-push-heroku` |
 
 ## Not in `.ai`
 

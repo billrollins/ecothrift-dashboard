@@ -29,9 +29,9 @@ interface DepartmentCardGridProps {
   cellAriaLabel?: (day: DepartmentDailyMetric, value: string) => string;
 }
 
-/** True when a retail day cell can deep-link (has submitted audit ids). */
+/** True when a retail day cell has a grade to open. */
 export function retailDayIsClickable(day: DepartmentDailyMetric): boolean {
-  return !day.is_future && Array.isArray(day.retail_audit_ids) && day.retail_audit_ids.length > 0;
+  return !day.is_future && Boolean(day.retail);
 }
 
 function GridCell({
@@ -415,13 +415,14 @@ export function restorationWeekTotal(week: DepartmentDailyWeek): string {
   return String(sumDepartmentWeek(week, (day) => day.restoration));
 }
 
+/**
+ * The day's Retail QA letter. A letter, not a count: how much got submitted is
+ * not the question the card is asked, and a day where everything was done is
+ * an A whether that took three routines or six.
+ */
 export function retailGridValue(day: DepartmentDailyMetric): string {
   if (day.is_future) return '-';
-  const grade = day.retail ?? '-';
-  if (!day.retail_scheduled) return grade;
-  const count = day.retail_count ?? 0;
-  const required = day.retail_required ?? 0;
-  return day.retail_goal_met ? `${grade} ✓` : `${grade}·${count}/${required}`;
+  return day.retail || '-';
 }
 
 export function retailGoalCellState(
@@ -430,31 +431,21 @@ export function retailGoalCellState(
   if (!day.retail_scheduled || day.is_future) {
     return day.retail_scheduled ? 'scheduled' : undefined;
   }
-  return day.retail_goal_met ? 'achieved' : 'scheduled';
+  return day.retail_grade_met ? 'achieved' : 'scheduled';
 }
 
 export function retailWeekGoalAchieved(week: DepartmentDailyWeek): boolean {
   return Boolean(week.retail_week_goal_met);
 }
 
-/**
- * Retail QA week score under the week label.
- * Spec: LAST submitted grade in the week - never average, never highest.
- */
+/** The week's letter under the week label: the days and the cross-checks combined. */
 export function retailWeekTotal(week: DepartmentDailyWeek): string {
-  if (week.retail_week_grade) return week.retail_week_grade;
-  // Fallback if an older API payload omits retail_week_grade: last calendar day with a grade.
-  for (let i = week.days.length - 1; i >= 0; i -= 1) {
-    const day = week.days[i];
-    if (!day.is_future && day.retail) return day.retail;
-  }
-  return '-';
+  return week.retail_week_grade || '-';
 }
 
 export function retailCellAriaLabel(day: DepartmentDailyMetric, value: string): string {
-  const ids = day.retail_audit_ids ?? [];
-  const count = ids.length;
   const dateLabel = shortDate(day.date);
-  if (count === 0) return `${dateLabel} - ${value}`;
-  return `${dateLabel} - grade ${day.retail ?? value}, ${count} audit${count === 1 ? '' : 's'}`;
+  if (!day.retail) return `${dateLabel} - ${value}`;
+  const score = day.retail_score != null ? `, scored ${day.retail_score}` : '';
+  return `${dateLabel} - grade ${day.retail}${score}`;
 }

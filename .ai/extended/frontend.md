@@ -1,11 +1,11 @@
-<!-- Last updated: 2026-08-26 (public hours from online_sales.hours) -->
+<!-- Last updated: 2026-09-02 (Settings Retail QA tab; Routine Control Sections/Grades) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
 ## Tech Stack
 
 - **React 18.3**, **TypeScript 5.9**, **Vite 7**, **MUI v7**
-- Additional: TanStack React Query, React Router v7, notistack, date-fns, recharts, react-hook-form, @zxing/library
+- Additional: TanStack React Query, React Router v7, notistack, date-fns, recharts, react-hook-form, @zxing/library, react-pdf / pdfjs-dist
 
 ## Entry Point
 
@@ -32,7 +32,9 @@
 
 **Public routes:** `/login`, `/forgot-password`, `/reset-password`
 
-**Staff routes** (MainLayout): Dashboard; HR (**Time clock** in Essentials); **Buying** (auctions, watchlist, **vendors**, **orders**, preprocessing); Inventory (**Inbound:** receiving, processing); **Retail Floor** (Catalog workbench, quick reprice, floorplans, quality audit); POS (terminal, drawers, cash, transactions); **Studios** (Manager+: Label Studio, Floorplans, QA Forms, Blog Studio); **Admin** (Manager+: Users at `/admin/users` — Customers for Manager+, Employees tab Admin-only; Settings house at `/admin/settings` (System / Printing / Store / Assumptions / Permissions); Retail inbox Admin-only; Super Admin: **Time & payroll** `/admin/time-payroll`). Super Admin **Enhancements** `/admin/enhancement-requests` is a Restoration guest. Staff **Consignment** routes remain (`/consignment/*`) but are **hidden from sidebar**; **Consignee portal** (`/consignee/*`) unchanged.
+**Staff routes** (MainLayout): Dashboard; Essentials (**Dashboard** only); account menu (**Time clock**, **Routines** `/routines`); **Buying** (auctions, watchlist, **vendors**, **orders**, preprocessing); Inventory (**Inbound:** receiving, processing); **Retail Floor** (Catalog workbench, quick reprice, floorplans); POS (terminal, drawers, cash, transactions); **Studios** (Manager+: Label Studio, Floorplans, Blog Studio); **Admin** (Manager+: Users at `/admin/users` — Employees first and default for Admin, Customers via `?tab=customers`; Managers only see Customers; Settings house at `/admin/settings` (System / Printing / Store / Assumptions / Retail QA / Permissions); Retail inbox Admin-only; Super Admin: **Time & payroll** `/admin/time-payroll`, **Routines** (Routine Control) `/admin/routines` (`?view=routines|sections|grades`) — see `routines.md`). Super Admin **Enhancements** `/admin/enhancement-requests` is a Restoration guest. Staff **Consignment** routes remain (`/consignment/*`) but are **hidden from sidebar**; **Consignee portal** (`/consignee/*`) unchanged.
+
+**Users directory (`/admin/users`):** Employees scan identity → # → **Dept** → **Job** → Role → Type → Phone → Tenure → Access. Customers scan identity → # → Phone → **Notes** → Holds → Account → Since. Dept, job, role, type, phone, and notes save on the row (`InlineCell`); name and access still open the drawer.
 
 **HR — Time & payroll (`TimePayrollPage`, Super Admin):** No page title. One-line period toolbar (From/To, past periods, week/period/month chips, current-week hours). Content capped at **1680px**. Pending sits left of the **Payroll** total (`N` employees · `N` shifts). One card: tabs on the top edge — **Roster**, **By employee**, **Change requests**. **By employee**: Employee, # Shifts, Rate, Ind. weeks (stacked Mon–Sun lines), Time (Regular over Overtime), Payroll, plus a totals footer. OT uses a muted dash at zero and amber only at **≥ 1 h**. Hours and pay are computed from 2-decimal shift hours so `$` matches the printed hours. Pagination footer hides on a single page.
 
@@ -80,7 +82,7 @@ Staff catalog + order management: **`WebStorePage`** (`/admin/web-store`), **`We
 
 ### MainLayout
 
-- **Sidebar** (**252px**): workspace nav — pinned Essentials (Dashboard, Time clock) + workspaces (Buying → Processing → Restoration → Retail Floor → Cashier → Deliveries → Online Sales → Studios → Admin); logo, version footer. Waiting-work badges come from `useNavBadgeCounts` (Messages = `needs_reply`; Retail inbox = unread `MailMessage`; Parts Requests = live approvals / cancel asks / reviews) and roll up onto the workspace pip. **Overflow:** drawer paper and the nav scroll area use **`overflow-x: hidden`** (vertical scroll only); nav list is full-width with **`minWidth: 0`**; long labels **`noWrap`** + ellipsis (see **v2.2.4** `CHANGELOG`).
+- **Sidebar** (**252px**): workspace nav — pinned Essentials (Dashboard) + workspaces (Buying → Processing → Restoration → Retail Floor → Cashier → Deliveries → Online Sales → Studios → Admin); logo, version footer. Waiting-work badges come from `useNavBadgeCounts` (Messages = `needs_reply`; Retail inbox = unread `MailMessage`; Parts Requests = live approvals / cancel asks / reviews) and roll up onto the workspace pip. **Overflow:** drawer paper and the nav scroll area use **`overflow-x: hidden`** (vertical scroll only); nav list is full-width with **`minWidth: 0`**; long labels **`noWrap`** + ellipsis (see **v2.2.4** `CHANGELOG`).
 - **AppBar**: sticky, default color, user avatar + menu (logout)
 - **Outlet** for page content
 - Mobile: temporary drawer with hamburger toggle
@@ -123,13 +125,14 @@ Adding a staff nav link: one object in `navItemCatalog.ts` + assign its id to a 
 
 ## Theme
 
-`theme/index.ts` — MUI `createTheme`:
+Canonical staff colours: [`.ai/extended/brand.md`](brand.md). `theme/index.ts` — MUI `createTheme`:
 
-- **Primary**: `#2e7d32` (Eco green), light `#60ad5e`, dark `#005005`
+- **Primary**: `#2e7d32` (Eco green), light `#60ad5e`, dark `#1b5e20` (theme file still lists `#005005`; new UI uses `#1b5e20`)
 - **Secondary**: `#558b2f`
 - **Typography**: Inter, Roboto, Helvetica, Arial; h4/h5/h6 fontWeight 600
 - **Shape**: borderRadius 8
 - **Component overrides**: MuiButton (textTransform none, fontWeight 500), MuiCard (subtle shadow). **Buying grid snappiness (v2.13.1):** **`MuiIconButton`** and **`MuiCheckbox`** — **`defaultProps.disableRipple: true`**, **`styleOverrides.root.transition: 'none'`** — reduces perceived lag on checkbox / star / thumbs / archive interactions in **`AuctionListDesktop`**.
+- **Routines / Documents** chrome: `frontend/src/components/duty/tokens.ts` (`dutyColors`) — brand green for actions and pass; sage desk; ink is `#1a1f1c`, not navy.
 
 ## Nothing may shift the page (house rule)
 

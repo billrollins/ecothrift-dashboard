@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-13 (dropped missing inventory_summary.sql; schema.csv is committed) -->
+<!-- Last updated: 2026-08-27 (schema refresh lives here; sql-schema protocol removed) -->
 
 # SQL (`extended/sql/`)
 
@@ -12,7 +12,7 @@ PostgreSQL snippets for **pgAdmin**, **`psql`**, and automation. **[`cli.md`](cl
 | [`schema_columns_ecothrift.sql`](schema_columns_ecothrift.sql) | **`information_schema`** column listing for **`ecothrift`**. |
 | [`inventory_daily_migration.sql`](inventory_daily_migration.sql) | **v4** bulk interval reconstruction → flat columns **`prefix_suffix`**. Writes **[`daily_migration.csv`](daily_migration.csv)** via **`psql --csv`**. |
 | [`daily_migration.csv`](daily_migration.csv) | Generated report; gitignored unless you choose to commit snapshots. |
-| **`schema.csv`** | Generated snapshot (not hand-edited). **Intentionally committed.** Refresh via [`.ai/protocols/sql-schema.md`](../../protocols/sql-schema.md). |
+| **`schema.csv`** | Generated snapshot (not hand-edited). **Intentionally committed.** Refresh with the steps under **Update schema** below. |
 
 ---
 
@@ -80,8 +80,6 @@ WHERE NOT EXISTS (
 ---
 
 ## Update schema (AI + humans)
-
-Formal checklist: **[`.ai/protocols/sql-schema.md`](../../protocols/sql-schema.md)**.
 
 After **migrations**, **new models**, or whenever SQL needs an accurate column list:
 

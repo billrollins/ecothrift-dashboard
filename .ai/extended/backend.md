@@ -1,10 +1,10 @@
-<!-- Last updated: 2026-08-26 (capability catalog; IsManager removed) -->
+<!-- Last updated: 2026-09-02 (routines Retail QA + documents API) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
 ## Project Structure
 
-Django project with **8 apps** under `apps/`:
+Django project with apps under `apps/`:
 
 | App | Purpose |
 |-----|---------|
@@ -16,8 +16,15 @@ Django project with **8 apps** under `apps/`:
 | `apps.pos` | Registers, drawers, carts, receipts, cash management |
 | `apps.consignment` | Consignment agreements, items, payouts |
 | `apps.buying` | B-Stock auction intelligence: marketplaces, auctions, manifests, watchlist, bids, outcomes; `CategoryMapping`, **`ManifestTemplate`** (CSV header signature + column map); services **`ai_manifest_template`**, **`ai_key_mapping`**, **`manifest_upload`**; management commands `sweep_auctions`, `renormalize_manifest_rows`, `seed_category_mappings`, `seed_manifest_templates`, `seed_fast_cat_mappings`, `categorize_manifests`, `watch_auctions`; **`POST /api/buying/auctions/{id}/upload_manifest/`** (multipart CSV); **`POST …/map_fast_cat_batch/`**; **`DELETE …/manifest/`**; dev-only `POST /api/buying/token/` for JWT ingest |
+| `apps.webstore` | Public storefront + Online Sales staff APIs |
+| `apps.mailbox` | Microsoft Graph mail |
+| `apps.blog` | Blog Studio |
+| `apps.floorplan` | Floorplan builder |
+| `apps.labels` | Custom Label Studio |
+| `apps.routines` | Periodic / on-demand fill-in forms, Sections, Retail QA grades (`GET /api/routines/grades/`) |
+| `apps.documents` | PDF upload, field placement, assignment, flattened signed PDFs |
 
-Root URL prefixes: `api/auth/`, `api/accounts/`, `api/core/`, `api/hr/`, `api/inventory/`, `api/ai/`, `api/pos/`, `api/consignment/`, `api/buying/` (staff auction list/detail/summary, sweep, manifest rows, upload manifest, map fast-cat batch, delete manifest, watchlist; dev-only token ingest — see Buying section below).
+Root URL prefixes: `api/auth/`, `api/accounts/`, `api/core/`, `api/hr/`, `api/inventory/`, `api/ai/`, `api/pos/`, `api/consignment/`, `api/buying/`, `api/webstore/`, `api/mailbox/`, `api/blog/`, `api/floorplan/`, `api/labels/`, `api/routines/`, `api/documents/`.
 
 ---
 

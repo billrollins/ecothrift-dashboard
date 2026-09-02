@@ -30,7 +30,9 @@ export type NavIconKey =
   | 'schedule'
   | 'print'
   | 'palette'
-  | 'email';
+  | 'email'
+  | 'documents'
+  | 'checklist';
 
 export interface NavItemDef {
   id: string;

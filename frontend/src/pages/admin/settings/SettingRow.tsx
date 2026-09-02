@@ -7,7 +7,7 @@ import { updateSetting } from '../../../api/core.api';
 import type { SettingKind, SettingMeta } from './settingsRegistry';
 
 function displayValue(kind: SettingKind, value: unknown): string {
-  if (kind === 'percent') {
+  if (kind === 'percent' || kind === 'weight') {
     const n = Number(value);
     if (!Number.isFinite(n)) return '';
     return String(Math.round(n * 1000) / 10);
@@ -46,6 +46,27 @@ function parseEdit(kind: SettingKind, raw: string): { ok: true; value: unknown }
       return { ok: false, error: 'Enter a percent from 0 to 50.' };
     }
     return { ok: true, value: Math.round(n * 10) / 1000 };
+  }
+  if (kind === 'weight') {
+    const n = parseFloat(raw);
+    if (Number.isNaN(n) || n < 0 || n > 100) {
+      return { ok: false, error: 'Enter a percent from 0 to 100.' };
+    }
+    return { ok: true, value: Math.round(n * 10) / 1000 };
+  }
+  if (kind === 'score') {
+    const n = parseInt(raw, 10);
+    if (Number.isNaN(n) || n < 0 || n > 100) {
+      return { ok: false, error: 'Enter a whole score from 0 to 100.' };
+    }
+    return { ok: true, value: n };
+  }
+  if (kind === 'count') {
+    const n = parseInt(raw, 10);
+    if (Number.isNaN(n) || n < 0 || n > 999) {
+      return { ok: false, error: 'Enter a whole number from 0 to 999.' };
+    }
+    return { ok: true, value: n };
   }
   if (kind === 'raw') {
     const trimmed = raw.trim();
@@ -98,7 +119,8 @@ export function SettingRow({
     }
   };
 
-  const shown = meta.kind === 'percent' ? `${displayValue(meta.kind, value)}%` : displayValue(meta.kind, value);
+  const asPercent = meta.kind === 'percent' || meta.kind === 'weight';
+  const shown = asPercent ? `${displayValue(meta.kind, value)}%` : displayValue(meta.kind, value);
 
   return (
     <Box
@@ -123,7 +145,7 @@ export function SettingRow({
           <>
             <TextField
               size="small"
-              label={meta.kind === 'percent' ? 'Percent' : 'Value'}
+              label={asPercent ? 'Percent' : 'Value'}
               value={editValue}
               onChange={(e) => setEditValue(e.target.value)}
               sx={{ minWidth: 160, flex: 1 }}

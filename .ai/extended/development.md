@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-26 (public config hours) -->
+<!-- Last updated: 2026-08-27 (ship-push-git pointer) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -63,6 +63,14 @@ npm run dev
 | Hourly | `python manage.py scheduled_sweep` |
 
 `compute_daily_category_stats` refreshes SQL-backed `CategoryStats` (including `need_score_1to99`), invalidates the category-need cache, and (unless `--skip-recompute-open`) runs a full valuation pass for non-archived open/closing auctions with a future `end_time`. `scheduled_sweep` runs discovery then `recompute_active_auctions_lightweight`. **Removed:** the legacy nightly **`recompute_cost_pipeline`** — item costs use **`PurchaseOrder.est_shrink`** and **`recompute_all_item_costs`** for backfills only.
+
+## Heroku Scheduler (Routines)
+
+| Schedule | Command |
+|----------|---------|
+| Daily (after store-local midnight, e.g. 11:00 UTC) | `python manage.py materialize_routines` |
+
+Creates `RoutineRun` rows for the current America/Chicago store day. Closed Sunday and Monday (`apps/webstore/services/hours.py`) produce nothing. Use `--dry-run` to count matching routines. Replace the old `materialize_duties` dashboard job — it is not in the Procfile.
 
 ## Heroku Scheduler (Online Sales)
 
@@ -135,7 +143,7 @@ If **POS registers** or **supplemental drawer** rows are missing, run `python ma
 | `printserver/dev_print_label_test.bat` | Prints sample inventory labels **without** starting the print server (defaults to **Rollo Printer**). Pass `--dry-run` to write PNGs under `printserver/output/` instead. Example: `dev_print_label_test.bat --preset 3x2 --row 0` |
 | `printserver/dev_print_receipt_test.bat` | Renders a sample receipt to **PNG** under `printserver/output/` (no printer). Pass `--print` to also send to Windows (uses `receipt_printer` from settings or `--printer`). Optional JSON path (same shape as POST `/print/receipt` `receipt_data`). |
 
-**Commit message staging (for scripted commits):** write the next message in `scripts/deploy/commit_message.txt` (placeholder `---` until you replace it). See `.ai/protocols/ship.md`.
+**Commit message staging (for scripted commits):** write the next message in `scripts/deploy/commit_message.txt` (placeholder `---` until you replace it). See [`.ai/protocols/ship-push-git.md`](../protocols/ship-push-git.md).
 
 **Jupyter (DB1 / DB2 / DB3):** From repo root: `pip install -r workspace/notebooks/_shared/requirements-notebooks.txt` (and `jupyter` / `jupyterlab` as needed). Copy **`workspace/notebooks/_shared/config.example.py`** → **`config_local.py`** (gitignored) for multi-DB connection dicts aligned with root **`.env`**.
 

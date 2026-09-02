@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { AssumptionsPanel } from './settings/AssumptionsPanel';
 import { PermissionsPanel } from './settings/PermissionsPanel';
 import { PrintingPanel } from './settings/PrintingPanel';
+import { RetailQaPanel } from './settings/RetailQaPanel';
 import { parseSettingsTab, type SettingsTab } from './settings/settingsRegistry';
 import { StorePanel } from './settings/StorePanel';
 import { SystemPanel } from './settings/SystemPanel';
@@ -34,9 +35,11 @@ export default function SettingsPage() {
         <Tab value="printing" label="Printing" />
         <Tab value="store" label="Store" />
         <Tab value="assumptions" label="Assumptions" />
+        <Tab value="retail-qa" label="Retail QA" />
         {isAdmin ? <Tab value="permissions" label="Permissions" /> : null}
       </Tabs>
       {tab === 'assumptions' ? <AssumptionsPanel /> : null}
+      {tab === 'retail-qa' ? <RetailQaPanel /> : null}
       {tab === 'store' ? <StorePanel /> : null}
       {tab === 'printing' ? <PrintingPanel /> : null}
       {tab === 'permissions' && isAdmin ? <PermissionsPanel /> : null}

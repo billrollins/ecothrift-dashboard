@@ -4,27 +4,6 @@ import django.db.models.deletion
 from django.conf import settings
 from django.db import migrations, models
 
-from apps.pos.quality_audit_seed import retail_form_fields
-
-
-def seed_retail_form_and_backfill(apps, schema_editor):
-    QualityAuditForm = apps.get_model('pos', 'QualityAuditForm')
-    QualityAudit = apps.get_model('pos', 'QualityAudit')
-    fields = retail_form_fields()
-    fields.pop('created_by_id', None)
-    fields.pop('updated_by_id', None)
-    form, _ = QualityAuditForm.objects.get_or_create(
-        slug=fields['slug'],
-        defaults=fields,
-    )
-    QualityAudit.objects.filter(form__isnull=True).update(form=form)
-
-
-def remove_retail_form(apps, schema_editor):
-    QualityAuditForm = apps.get_model('pos', 'QualityAuditForm')
-    QualityAuditForm.objects.filter(slug='retail', is_system=True).delete()
-
-
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -80,5 +59,5 @@ class Migration(migrations.Migration):
             model_name='qualityaudit',
             index=models.Index(fields=['form', 'status', '-submitted_at'], name='pos_quality_form_id_5f1523_idx'),
         ),
-        migrations.RunPython(seed_retail_form_and_backfill, remove_retail_form),
+        migrations.RunPython(migrations.RunPython.noop, migrations.RunPython.noop),
     ]

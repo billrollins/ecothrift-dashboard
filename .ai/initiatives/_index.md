@@ -1,11 +1,11 @@
-<!-- Last updated: 2026-08-26 (admin_workspace_overhaul phases 1–3 shipped) -->
+<!-- Last updated: 2026-09-02 (v2.76.0 Routines + Retail QA) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not a session log.
 
-**Releases:** [`.version`](../../.version) + [`CHANGELOG.md`](../../CHANGELOG.md) only. Every GitHub push → semver + changelog ([`ship.md`](../protocols/ship.md)).
+**Releases:** [`.version`](../../.version) + [`CHANGELOG.md`](../../CHANGELOG.md) only. GitHub: [`ship-push-git.md`](../protocols/ship-push-git.md). Heroku: [`ship-push-heroku.md`](../protocols/ship-push-heroku.md).
 
-Lifecycle moves: [`.ai/protocols/initiative.md`](../protocols/initiative.md). **Human gate:** do not archive without explicit approval.
+**Create:** [`initiative-create.md`](../protocols/initiative-create.md). **Review:** [`initiative-review.md`](../protocols/initiative-review.md). Filing / moves: [`.ai/extended/initiatives.md`](../extended/initiatives.md). **Human gate:** do not archive without explicit approval.
 
 ---
 
@@ -13,6 +13,7 @@ Lifecycle moves: [`.ai/protocols/initiative.md`](../protocols/initiative.md). **
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
+| [routines_and_documents](./routines_and_documents.md) | **Active** | Routines + Retail QA shipped **v2.76.0**. Documents API in-tree; staff page parked for a later tune. |
 | [admin_workspace_overhaul](./admin_workspace_overhaul.md) | **Active** | Phases 1–3 shipped **v2.74.0**. Grants deferred. |
 | [universal_object_surfaces](./universal_object_surfaces.md) | **Design only** | Permissioned ObjectChip → ObjectSurface. No code scheduled. |
 
@@ -106,6 +107,6 @@ Name only. Details in each file.
 | **Completed** | Scope delivered; `_archived/_completed/`. |
 | **Abandoned** | Will not pursue; `_archived/_abandoned/`. |
 
-Create / move: [`initiative.md`](../protocols/initiative.md). Same pass updates this file and [`ARCHIVE.md`](./_archived/ARCHIVE.md).
+Create / move: [`extended/initiatives.md`](../extended/initiatives.md). Same pass updates this file and [`ARCHIVE.md`](./_archived/ARCHIVE.md).
 
 *Parent: [`.ai/context.md`](../context.md).*

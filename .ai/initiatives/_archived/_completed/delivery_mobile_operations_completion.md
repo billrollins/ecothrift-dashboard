@@ -363,5 +363,5 @@ Reference: `../../../reference/eco-field-demo.html`.
 - [`../../../extended/frontend.md`](../../../extended/frontend.md)
 - [`../../../extended/inventory-pipeline.md`](../../../extended/inventory-pipeline.md) — Receiving media behavior
 - [`../../../../docs/app_navigation_and_pages.md`](../../../../docs/app_navigation_and_pages.md)
-- [`../../../protocols/load-context.md`](../../../protocols/load-context.md)
+- [`../../../protocols/context-load.md`](../../../protocols/context-load.md)
 - [`../../../context.md`](../../../context.md)

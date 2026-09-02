@@ -30,7 +30,7 @@ describe('workspaceIdForDigit', () => {
     expect(workspaceIdForDigit(SLOT_C_WORKSPACES, '8')).toBe('studios');
   });
 
-  it('leaves 9 unused', () => {
+  it('leaves digit 9 unassigned', () => {
     expect(workspaceIdForDigit(SLOT_C_WORKSPACES, '9')).toBeNull();
   });
 
@@ -49,6 +49,7 @@ describe('workspaceIdForDigit', () => {
     expect(employeeSees).toHaveLength(6);
     expect(workspaceIdForDigit(employeeSees, '5')).toBe('storeSales');
     expect(workspaceIdForDigit(employeeSees, '6')).toBe('deliveries');
+    expect(workspaceIdForDigit(employeeSees, '9')).toBeNull();
     expect(workspaceIdForDigit(employeeSees, '7')).toBeNull();
   });
 });
@@ -76,6 +77,7 @@ describe('workspaceIdForKey', () => {
     expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'f')).toBe('retailFloor');
     expect(workspaceIdForKey(SLOT_C_WORKSPACES, 's')).toBe('studios');
     expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'a')).toBe('admin');
+    expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'l')).toBeNull();
   });
 
   it('assigns each digit to at most one workspace', () => {
@@ -167,19 +169,21 @@ describe('Studios and Admin placement', () => {
   const retailFloor = SLOT_C_NAV_GROUPS.find((g) => g.id === 'retailFloor');
   const onlineSales = SLOT_C_NAV_GROUPS.find((g) => g.id === 'onlineSales');
 
-  it('keeps Admin as Users, Retail inbox, Settings, and Time & payroll', () => {
-    expect(admin?.itemIds).toEqual(['users', 'retailInbox', 'settings', 'payrollHours']);
+  it('keeps Admin as Users, Retail inbox, Settings, Time & payroll, and Routines', () => {
+    expect(admin?.itemIds).toEqual(['users', 'retailInbox', 'settings', 'payrollHours', 'adminRoutines']);
+    expect(NAV_ITEM_CATALOG.adminRoutines?.superuserOnly).toBe(true);
     expect(admin?.guestItemIds ?? []).toEqual([]);
   });
 
   it('puts every studio under Studios', () => {
-    expect(studios?.itemIds).toEqual(['labelStudio', 'floorplans', 'qualityAuditForms', 'blogStudio']);
+    expect(studios?.itemIds).toEqual(['labelStudio', 'floorplans', 'blogStudio']);
+    expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'library')).toBeUndefined();
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'people')).toBeUndefined();
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'mail')).toBeUndefined();
   });
 
   it('keeps Floorplans on Retail Floor and Messages on Online Sales', () => {
-    expect(retailFloor?.itemIds).toEqual(['inventoryWorkbench', 'quickReprice', 'floorplans', 'qualityAudit']);
+    expect(retailFloor?.itemIds).toEqual(['inventoryWorkbench', 'quickReprice', 'floorplans']);
     expect(onlineSales?.itemIds).toContain('onlineSalesCustomers');
   });
 });
@@ -236,5 +240,7 @@ describe('glowColorForNavItem', () => {
   it('gives Essentials no letter colour', () => {
     expect(glowColorForNavItem('dashboard')).toBeUndefined();
     expect(glowColorForNavItem('timeClock')).toBeUndefined();
+    expect(glowColorForNavItem('routines')).toBeUndefined();
+    expect(glowColorForNavItem('documents')).toBeUndefined();
   });
 });

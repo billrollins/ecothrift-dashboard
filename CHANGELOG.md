@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.75.0] -->
-<!-- Last reviewed: 2026-08-26 (v2.75.0 public hours from settings) -->
+<!-- Line 1 release: ## [2.76.0] -->
+<!-- Last reviewed: 2026-09-02 (v2.76.0 Routines + Retail QA) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.76.0] - 2026-09-02
+
+User-facing theme: **Routines replace Quality Audit** — staff fill Open / Day / Close and section walks; the floor grades A–F.
+
+Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.md).
+
+### Removed
+
+- **Library** workspace (`/library/*`, `apps.library`) and the Quality Audit system (`QualityAudit` / `QualityAuditForm`, `/admin/quality-audit*`). Production tables `pos_qualityaudit` and `pos_qualityauditform` drop via `pos.0026_drop_quality_audit`.
+
+### Added
+
+- **Routines** (`/routines`, `/api/routines/`) — periodic and on-demand fill-in forms, pooled or per person, mockup-styled list, runner, superuser editor, app-bar nag, nav badge. `materialize_routines` replaces `materialize_duties`.
+- **Documents API** (`/api/documents/`) — PDF-only upload, field placement, assign-to-everyone, flatten + audit page. Staff routes and the account-menu link are unwired for this ship; pages stay in the repo for a later tune.
+- **Routine Control** (`/admin/routines`, Admin workspace, superuser) — every routine, retired ones too, with run history (performed, pass rate, open / overdue, last performed by, next due, who is assigned). Search, Active / Retired / All, health chips with counts (Overdue, No one assigned, Never run, Blocking), department and cadence filters, four sorts. Inspector saves Name / Schedule / Owner in place (Ctrl+S), and handles Retire (with Undo), Restore, and Delete forever. API: `GET /routines/routines/admin/`, `POST …/:id/restore/`, `DELETE …/:id/hard-delete/` (retired rows only).
+- **Retail QA program** — seven seeded routines that grade the floor A-F. Opener does Opening and signs off last night's Close; the closer signs off Opening and does Closing; the Day shift logs shelf checks, non-shelf checks, and projects. Everyone walks the section they keep and logs what they had to put right; on Tuesdays they cross-check somebody else's section, photo first, with a minimum number of items inspected. The owner's daily spot check draws two random checks and one section not yet checked this week. A day is half the checklists and half the spot check when one happened; a week is the daily average and the cross-checks. Daily walks are recorded but never scored.
+- **Sections** (`/api/routines/sections/`) — named areas of a department with an owner, ordered by drag, retired rather than deleted. Routine Control gained a **Sections** view with inline owner selects and a Coverage panel naming areas with no keeper and people with no area. `POST /runs/:id/cover/` hands an absent owner's walk to whoever takes it.
+- **Routine Control > Grades** — the week's letter with its figures, a Mon-Sat strip of day letters, the selected day taken apart (who did Open / Day / Close, on time or late), the cross-checks with their photos and findings, a tally grid per section, today's unclaimed walks with **Cover**, and checker gaps where an owner found what the auditor did not.
+- **Settings > Retail QA** — every number behind the grade: the owner spot check's weight, the daily average's weight in the week, credit for a late checklist, the A / B / C / D lines, the issue counts that step a category down, the items an audit must inspect, and how many checks a spot check draws.
+- **Work cycle pill** on the POS terminal cart header, opening the on-demand `retail.work_cycle` run.
+- **Clock-out guard** on the time clock — anything hard-due or due at clock-out is listed with **Do them now** and **Clock out anyway**. It warns; it never blocks.
+
+### Changed
+
+- **Users directory** — Employees: Dept (dropdown), Job (inline), Role, Type, and Phone save on the row; columns run identity → number → dept → job → role → type → phone → tenure → access. Customers: Notes is on the table; Phone and Notes save on the row; columns run identity → number → phone → notes → holds → account → since.
+- **Essentials** is Dashboard only. Time clock and Routines live in the account menu. Digit 9 and letter L are free.
+- **Routines** is a phone-first two-pane shell: My Routines / Catalog on the left, the same 9:20 phone render on the right, running the full height of the pane with no desk slab behind it. Bi-weekly trigger uses a next-due date and repeats every 14 days.
+- **Routine editor** is a single form sheet (Name, Schedule, Owner, Checklist) with two-line check cards carrying hint, unit, critical, and delete. Cancel and Save sit in a green-tinted pane header. **Copy for AI** puts the routine plus who can own it (departments and people with ids), a field guide, and reply rules on the clipboard; **Update from JSON** takes back what the AI returned (pasted or uploaded, prose around it tolerated, department and people names accepted), validates it, shows what would change, and fills the form for review before Save. `/routines/routines/assignees/` now carries each person's role and department.
+- **Routine lists** are two-line rows with a status tile on the left (overdue, blocking, today, in progress, passed, failed, or the routine's cadence), badges in a column, one pill verb and quiet icons on the right, and a filter box in the header. Lists and editor share one pane width so the phone never moves.
+- **Routines chrome** uses brand green (`#2e7d32`) for actions, the phone header, and mode pills on the bottom bar. Colour context lives in `.ai/extended/brand.md`.
+- **Deleted routines** leave the catalog, My Routines, and overdue nags. Delete is a retire (`is_active=false`); Routine Control restores or deletes for good.
+- **Dashboard Retail** card is the Retail QA letter: the day's letter in each cell, the week's letter under the label, and a click that opens Grades on that day for a superuser. The overdue-routines strip is not on the Dashboard; that rollup waits for a SuperAdmin Control Center.
+- **Routine nags have three levels.** *Remind at* starts the quiet one — badges and list tags. *Hard nag at* starts the app-bar alert, and can be set to **At clock-out** instead of a time, which keeps a routine off the app bar entirely and raises it on the time clock as the shift ends. *Counts as late* is separately chosen: as soon as the hard nag starts, at the end of the day (the default), or after N grace days. A 5:50pm close stays quiet all day and is not late until midnight.
+- Saving a routine (and opening Routines) materializes today's run so a new checklist shows up immediately.
+- Editing a routine updates open drafts, and submitting one removes it from pending lists immediately.
 
 ## [2.75.0] - 2026-08-26
 

@@ -140,9 +140,8 @@ class WebListingDetailPublicSerializer(WebListingListPublicSerializer):
 
     def get_hold_policy(self, obj):
         return (
-            'Request a hold online. Pay and pick up in store - no shipping, '
-            'delivery, or online payment. Holds confirmed by staff last until '
-            'store close the next business day. Final sale unless noted.'
+            'Holds confirmed by staff last until store close the next '
+            'business day. Final sale unless noted.'
         )
 
 

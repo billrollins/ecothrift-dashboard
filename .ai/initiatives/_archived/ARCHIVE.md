@@ -1,9 +1,9 @@
-<!-- Last updated: 2026-08-25 (finalize_tars_app + enhancement_requests completed) -->
+<!-- Last updated: 2026-08-27 (lifecycle pointer → extended/initiatives.md) -->
 
 <!-- NOTE: `_pending/tars_restoration_workspace.md` and `_pending/tars_full_instruction_wizard_guidance.md` are SUPERSEDED. TARS scope is `_completed/finalize_tars_app.md`. -->
 # Archive index — initiatives
 
-Files under **`.ai/initiatives/_archived/`** that are off the [main index](../_index.md). Lifecycle (create / activate / park / complete / abandon): [`.ai/protocols/initiative.md`](../../protocols/initiative.md). **Human gate:** do not archive without explicit approval.
+Files under **`.ai/initiatives/_archived/`** that are off the [main index](../_index.md). Filing: [`.ai/extended/initiatives.md`](../../extended/initiatives.md). **Human gate:** do not archive without explicit approval.
 
 ---
 
@@ -80,6 +80,7 @@ Files under **`.ai/initiatives/_archived/`** that are off the [main index](../_i
 
 | File | Summary | Archived |
 |------|---------|----------|
+| [documents_and_duties.md](./_abandoned/documents_and_duties.md) | Library + QA-in-library was the wrong product; replaced by **`routines_and_documents`**. | 2026-08-31 |
 | [inventory_intake_pipeline.md](./_abandoned/inventory_intake_pipeline.md) | Superseded by **`order_processing_pipeline_rebuild`**. | 2026-04-29 |
 
 ---

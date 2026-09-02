@@ -50,6 +50,8 @@ CATALOG: tuple[Capability, ...] = (
     Capability('restoration.bench:use', 'Restoration', 'Work the TARS bench and overview', STAFF, 'IsStaff on RestorationJob'),
     Capability('restoration.parts:request', 'Restoration', 'File a parts request', STAFF, 'IsStaff on parts orders'),
     Capability('hr.time_clock:use', 'People', 'Clock in, out, break; request a time change', STAFF, 'IsEmployee on TimeEntry'),
+    Capability('routines:perform', 'Routines', 'Fill in assigned routines', STAFF, 'IsStaff on runs / submissions'),
+    Capability('documents:perform', 'Documents', 'Sign, acknowledge, or read assigned documents', STAFF, 'IsStaff on recipients'),
     Capability('enhancements:file', 'Restoration', 'File an enhancement request from the floor', STAFF, 'IsStaff on EnhancementRequest'),
     Capability('floorplan:read', 'Studios', 'View floorplans', STAFF, 'FloorPlanViewSet GET → IsStaff'),
     # ── Manager+ (IsManagerOrAdmin) ───────────────────────────────────────
@@ -58,7 +60,6 @@ CATALOG: tuple[Capability, ...] = (
     Capability('consignment:manage', 'Consignment', 'Manage consignee accounts, items, payouts', MANAGER_PLUS, 'IsManagerOrAdmin on consignment viewsets'),
     Capability('online_sales:manage', 'Online Sales', 'Listings, holds, and shopper messages', MANAGER_PLUS, 'IsManagerOrAdmin on webstore staff viewsets'),
     Capability('labels:write', 'Studios', 'Create and edit label templates', MANAGER_PLUS, 'CustomLabelViewSet _STAFF_PERMS'),
-    Capability('quality_audit:run', 'Retail Floor', 'Start and review a quality audit', MANAGER_PLUS, 'QualityAuditViewSet; form GET is Manager+'),
     Capability('pos.register:write', 'POS', 'Create and edit registers', MANAGER_PLUS, 'RegisterViewSet writes'),
     Capability('pos.setup:write', 'POS', 'Edit store locations and POS setup', MANAGER_PLUS, 'WorkLocation writes; POS setup UI'),
     Capability('pos.override:use', 'POS', 'Manager override on a cart or sold-item action', MANAGER_PLUS, 'inline IsManagerOrAdmin in pos/views.py'),
@@ -80,9 +81,10 @@ CATALOG: tuple[Capability, ...] = (
     Capability('blog:write', 'Studios', 'Write and publish in Blog Studio', SUPER_ONLY, 'blog _STAFF_PERMS IsSuperAdmin'),
     Capability('restoration.parts:approve', 'Restoration', 'Approve, deny, buy, or set ETA on parts', SUPER_ONLY, 'parts approve/deny/purchase/eta'),
     Capability('enhancements:triage', 'Restoration', 'Set priority, status, and target date', SUPER_ONLY, 'EnhancementRequestViewSet.triage'),
-    Capability('quality_audit.forms:write', 'Studios', 'Create and edit QA form definitions', SUPER_ONLY, 'QualityAuditFormViewSet writes'),
     Capability('floorplan.kinds:write', 'Studios', 'Create and edit floorplan element kinds', SUPER_ONLY, 'FloorPlanElementKindViewSet writes'),
     Capability('dashboard.goals:write', 'Staff', 'Edit department sales goals', SUPER_ONLY, 'inline IsSuperAdmin on dashboard goals'),
+    Capability('routines:write', 'Routines', 'Create and edit routines', SUPER_ONLY, 'RoutineViewSet writes'),
+    Capability('documents:write', 'Documents', 'Upload PDFs, place fields, and assign', SUPER_ONLY, 'DocumentViewSet writes'),
     # ── Portals (not staff) ───────────────────────────────────────────────
     Capability('consignee.portal:use', 'Consignee', 'View own items, payouts, and summary', (HOLDER_CONSIGNEE,), 'IsConsignee on my_*'),
     Capability('customer.storefront:use', 'Customer', 'Shop, hold, and message from the storefront', (HOLDER_CUSTOMER,), 'inline IsCustomer after IsAuthenticated'),

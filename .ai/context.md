@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-26 (admin_workspace_overhaul shipped v2.74.0) -->
+<!-- Last updated: 2026-09-02 (v2.76.0 Routines + Retail QA; Documents UI parked) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -9,10 +9,11 @@ Full-stack business management for a thrift store in Omaha, NE. HR (time clock, 
 
 - **Current tag:** [`.version`](../.version) — do not duplicate semver here.
 - **What shipped / WIP:** [`CHANGELOG.md`](../CHANGELOG.md) (latest dated section + `[Unreleased]`).
-- **Pushes:** every GitHub push bumps semver ([`ship.md`](protocols/ship.md)). Prod shows `.version` via `GET /api/core/system/version/` and the sidebar footer.
+- **Pushes:** [`ship-push-git.md`](protocols/ship-push-git.md) bumps semver and pushes GitHub. [`ship-push-heroku.md`](protocols/ship-push-heroku.md) does that then Heroku. Prod shows `.version` via `GET /api/core/system/version/` and the sidebar footer.
 
 ## Active work
 
+- **ACTIVE (compass) — Routines and Documents:** [`routines_and_documents`](initiatives/routines_and_documents.md) — Routines + Retail QA shipped **v2.76.0**. Documents API is in-tree; staff routes are unwired until a later UI tune. Replaces abandoned [`documents_and_duties`](initiatives/_archived/_abandoned/documents_and_duties.md).
 - **ACTIVE — Admin workspace overhaul:** [`admin_workspace_overhaul`](initiatives/admin_workspace_overhaul.md) — Studios workspace, Settings house, capability catalog. Grants deferred.
 - **ACTIVE — Universal object surfaces:** [`universal_object_surfaces`](initiatives/universal_object_surfaces.md) — design only. No code scheduled.
 
@@ -22,29 +23,30 @@ Parked / shipped work lives in [`initiatives/_index.md`](initiatives/_index.md) 
 
 ## Hidden UI (`web_ui_cleanup`)
 
-Sidebar entries removed; direct URL still works if bookmarked.
+Sidebar entries removed. Consignment bookmarks still work. Documents routes are off until that UI is tuned.
 
 | Area | Hidden from nav | Routes |
 |------|-----------------|--------|
 | **Consignment (staff)** | Accounts, Items, Payouts (+ account detail) | `/consignment/accounts`, `/consignment/accounts/:id`, `/consignment/items`, `/consignment/payouts` |
+| **Documents** | Account-menu link off. Pages stay in `frontend/src/pages/documents/`. | `/documents*` unwired — catch-all goes to Dashboard. Rewire when the UI is tuned. |
 
-**HR (Essentials):** Time clock. **Admin:** Users (Customers + Employees tabs; Employees is Admin-only), Settings (System / Printing / Store / Assumptions / Permissions), Retail inbox (Admin), Time & payroll (superuser). **Studios:** Label Studio, Floorplans, QA Forms, Blog Studio. **Consignee portal** (`/consignee/*`) unchanged.
+**HR (account menu):** Time clock, Routines. Digit 9 and letter L are free. **Admin:** Users (Employees first and default for Admin, Customers second; Managers only see Customers), Settings (System / Printing / Store / Assumptions / Retail QA / Permissions), Retail inbox (Admin), Time & payroll (superuser), Routines / Routine Control (superuser — Routines, Sections, Grades). **Studios:** Label Studio, Floorplans, Blog Studio. **Consignee portal** (`/consignee/*`) unchanged.
 
 ## File Map
 
 ```
 ecothrift-dashboard/
 ├── ecothrift/              Django settings and root URLs
-├── apps/                   accounts, ai, core, hr, inventory, pos, consignment, buying, webstore, blog
+├── apps/                   accounts, ai, core, hr, inventory, pos, consignment, buying, webstore, blog, routines, documents
 ├── frontend/src/           Staff SPA (api, components, hooks, pages, App.tsx)
 ├── frontend-public/        Public storefront SPA
 ├── printserver/            Local FastAPI print server
 ├── scripts/                dev/start_dashboard.bat, start_mobile_dashboard.bat, start_website.bat
 ├── .ai/                    AI steering — see .ai/README.md
 │   ├── context.md          This compass
-│   ├── protocols/          load-context, ship, initiative, sql-schema
+│   ├── protocols/          clean-up, context-load, initiative-create, initiative-review, ship-push-git, ship-push-heroku
 │   ├── initiatives/        Plan + _archived/
-│   ├── extended/           Domain docs + sql/
+│   ├── extended/           Domain docs + sql/ + initiatives.md
 │   └── reference/          tars/ + bookkeeping_recon.md
 ├── .version                Single-line app semver (vMAJOR.MINOR.PATCH)
 ├── CHANGELOG.md            Version-level changelog
@@ -77,6 +79,10 @@ Load **on demand**. Do not read all at session start.
 | [`databases.md`](extended/databases.md) | Data | V1/V2/V3, `search_path`, `.env` DB keys |
 | [`development.md`](extended/development.md) | Dev ops | Setup, starters, environment, logging, Scheduler, Graph mail |
 | [`frontend.md`](extended/frontend.md) | Frontend | React + MUI, pages, routing, React Query |
+| [`brand.md`](extended/brand.md) | Brand | Staff hex, same-colour-same-meaning, token files |
+| [`initiatives.md`](extended/initiatives.md) | Initiatives | File layout, buckets, create / park / complete / abandon |
+| [`routines.md`](extended/routines.md) | Routines | Periodic / on-demand fill-in forms, pooled runs, nag |
+| [`documents.md`](extended/documents.md) | Documents | PDF upload, field placement, signing wizard, flatten |
 | [`inventory-pipeline.md`](extended/inventory-pipeline.md) | Inventory | PO processing, M3, preprocessing, Item Processor |
 | [`pos-system.md`](extended/pos-system.md) | POS | Registers, drawers, carts, terminal, receipts |
 | [`print-server.md`](extended/print-server.md) | Print | Local FastAPI — labels, receipts, drawer kick |
@@ -109,19 +115,24 @@ When you add, rename, or remove a file in `.ai/extended/`, update this table.
 2. Do **not** create documentation files unless asked (exception: this compass, initiatives, and extended files when the work changes them).
 3. Use timestamps (`YYYY-MM-DD`, America/Chicago) on docs you edit.
 4. Load `.ai/extended/<domain>.md` only when the task touches that domain.
-5. Substantial work maps to a **named initiative**. If unclear, ask. Do not archive an initiative without explicit approval.
+5. Substantial work maps to a **named initiative**. If unclear, ask. Filing rules: [`extended/initiatives.md`](extended/initiatives.md). Do not archive without explicit approval.
 6. Scratch files go in `workspace/`. Verify before changing; check lints after.
 
-**Maintain:** change a domain → update that extended file. New env key → `.env` / `.envprod` + the table in `development.md`. Release → [`ship.md`](protocols/ship.md).
+**Maintain:** change a domain → update that extended file. New env key → `.env` / `.envprod` + the table in `development.md`. **IF** the user attaches a protocol **THEN** run that protocol.
 
 ## Quick Reference
 
 | Need | Where |
 |------|-------|
 | Compass | `.ai/context.md` (this file) |
-| Load order | `.ai/protocols/load-context.md` |
-| Ship / bump / push | `.ai/protocols/ship.md` |
-| Initiative lifecycle | `.ai/protocols/initiative.md` |
+| Clean-up | `.ai/protocols/clean-up.md` — if given, list then delete the paste-back |
+| Load context | `.ai/protocols/context-load.md` — if given, do it |
+| Create initiative | `.ai/protocols/initiative-create.md` — if given, interview then write |
+| Review initiatives | `.ai/protocols/initiative-review.md` — if given, propose then apply the paste-back |
+| Ship to GitHub | `.ai/protocols/ship-push-git.md` — if given, do it |
+| Ship to Heroku | `.ai/protocols/ship-push-heroku.md` — if given, do it |
+| Schema snapshot | `.ai/extended/sql/README.md` — Update schema |
+| Initiative files | `.ai/extended/initiatives.md` |
 | Env names | `.ai/extended/development.md` |
 | Active plan | `.ai/initiatives/_index.md` |
 | Version | `.version` + `CHANGELOG.md` |

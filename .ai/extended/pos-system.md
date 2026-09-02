@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-26 (POS discount $/% + Google Review reason) -->
+<!-- Last updated: 2026-09-02 (Quality Audit dropped; work-cycle pill) -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -196,6 +196,6 @@ Hooks: `useRegisters`, `useDrawers` (accepts `options.enabled`), `useCarts` (acc
 
 ## Revenue Goals & Dashboard Metrics
 
-- **DashboardSalesGoal** / **DashboardDepartmentGoal** — weekly targets; CRUD under **`/api/pos/dashboard/`**. Retail QA adds `schedule = {weekdays: [0..6], audits_per_day: N}` (`pos.0019`) alongside the minimum grade in `value`.
-- **dashboard_metrics** (`GET /api/pos/dashboard/metrics/?weeks=`): sales run-rate (90-day chart, 14-week book), department cards (buying, processing, restoration, retail QA), cached 45s — **`apps/pos/services/dashboard_metrics.py`**. `weeks` defaults to **8** (clamped 2–12); cache key includes weeks. Retail QA daily/week progress is count + last submitted grade; days expose **`retail_audit_ids`**; retail block includes **`form_slug`**. No averaging/highest-grade selection. Daily/full-week success drives gold UI. Manager+ day cells deep-link into submitted audits.
-- **Quality Audit:** **`QualityAuditForm`** + **`QualityAudit`** (`updated_at`, migration **`pos.0025`**); **`GET/POST/PATCH/DELETE /api/pos/quality-audit-forms/`** + **`/api/pos/quality-audits/`** (draft DELETE; list `limit`) + **`…/submit/`** (Manager+). Grades use +/- bands in **`apps/pos/services/quality_audit.py`**. Hub shows drafts + submitted; wizard autosaves. Latest **`feeds_dashboard`** submit drives retail QA Actual. Recovery: **`finalize_stranded_qa_audits`**.
+- **DashboardSalesGoal** / **DashboardDepartmentGoal** — weekly targets; CRUD under **`/api/pos/dashboard/`**. Retail keeps `schedule = {weekdays: [0..6], audits_per_day: N}` (`pos.0019`) and drops the letter-grade `value`.
+- **dashboard_metrics** (`GET /api/pos/dashboard/metrics/?weeks=`): sales run-rate (90-day chart, 14-week book), department cards (buying, processing, restoration, retail routine completion), cached 45s — **`apps/pos/services/dashboard_metrics.py`**. `weeks` defaults to **8** (clamped 2–12). Retail daily/week progress is scheduled versus completed routine submissions; days expose **`retail_audit_ids`** (run ids). Gold when the day's count meets the schedule. Day cells deep-link to that run.
+- **Quality Audit removed.** Tables dropped by **`pos.0026_drop_quality_audit`**. Floor checklists live in **`apps.routines`**.

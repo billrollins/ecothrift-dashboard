@@ -4,21 +4,22 @@ Shared route data and hooks live in `frontend/src/navigation/`. The sidebar shel
 
 ## Lifecycle workspaces
 
-Pinned **Essentials:** Dashboard, Time clock.
+Pinned **Essentials:** Dashboard. Time clock and Routines live in the account menu (avatar). Documents stays in the catalog but is unwired until that UI is tuned.
 
 Workspaces (assigned digits; letter is the first letter of the short name):
 
 1. **Buying** (`1` / `B`) — Auctions, Watchlist, Vendors, Orders, Preprocessing
 2. **Processing** (`2` / `P`) — Receiving, Processing (Restorations is a guest link)
 3. **Restoration** (`3` / `R`) — Overview, Bench, Parts Requests (Enhancements is a superuser guest link)
-4. **Retail Floor** (`4` / `F`) — Catalog, Quick reprice, Floorplans, Quality audit
+4. **Retail Floor** (`4` / `F`) — Catalog, Quick reprice, Floorplans
 5. **Cashier** (`5` / `C`) — Terminal, Transactions, Drawers, Cash, Printables, POS setup
 6. **Deliveries** (`6` / `D`) — Schedule, Table
 7. **Online Sales** (`7` / `O`, Manager/Admin) — Listings, Holds, Messages
-8. **Studios** (`8` / `S`, Manager/Admin) — Label Studio, Floorplans, QA Forms (superuser), Blog Studio (superuser)
-9. **Admin** (`0` / `A`, Manager/Admin) — Users, Retail inbox (Admin), Settings, Time & payroll (superuser)
+8. **Studios** (`8` / `S`, Manager/Admin) — Label Studio, Floorplans, Blog Studio (superuser)
+9. *(free — digit 9 and letter L are unassigned)*
+10. **Admin** (`0` / `A`, Manager/Admin) — Users, Retail inbox (Admin), Settings, Time & payroll (superuser), Routines (superuser; Routine Control)
 
-The same digit always opens the same workspace. A key for a workspace the user cannot see does nothing. Superuser **Enhancements** lives as a Restoration guest item (`/admin/enhancement-requests`). **Users** is Manager+; its Employees tab renders for Admin only.
+The same digit always opens the same workspace. A key for a workspace the user cannot see does nothing. Superuser **Enhancements** lives as a Restoration guest item (`/admin/enhancement-requests`). **Users** is Manager+; Employees is first and default for Admin, Customers is `?tab=customers`. Managers only see Customers.
 
 Deprecated paths (`/online-sales/inbox`, `/online-sales/customers`, `/online-sales/sales`, `/admin/web-store`, …) keep
 working as redirects in `App.tsx` and deliberately have no catalog entry — the catalog only
@@ -52,9 +53,10 @@ orders are handled, not on a 30s poll.
 - **External URL** (bookmark, refresh, address bar): for routes shared across workspaces, select the **lowest lifecycle #** workspace (e.g. Inventory for `/inventory/manage-items`).
 - Manual workspace choice persists in `ecothrift.navC.workspace.v1`. Open the
   switcher (the trigger card under Essentials) and press the assigned digit
-  (`1`–`8`, `0` for Admin) or the highlighted first letter of a workspace
+  (`1`–`9`, `0` for Admin) or the highlighted first letter of a workspace
   short name to jump. An Employee's **5** (or **C**) is Cashier; **6** (or **D**)
-  is Deliveries. **8** / **S** and **0** / **A** do nothing for an Employee.
+  is Deliveries; **9** / **L** do nothing. **8** / **S** and **0** / **A** do
+  nothing for an Employee.
   Keys only listen while the menu is open, so they cannot steal a keystroke
   from a SKU scan or a price field. There is no Alt+digit shortcut.
 

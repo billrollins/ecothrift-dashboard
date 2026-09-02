@@ -116,6 +116,8 @@ INSTALLED_APPS = [
     'apps.blog',
     'apps.floorplan',
     'apps.labels',
+    'apps.routines',
+    'apps.documents',
 ]
 
 MIDDLEWARE = [

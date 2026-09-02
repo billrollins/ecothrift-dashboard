@@ -36,6 +36,9 @@ import {
 import { useTimeEntries } from '../../hooks/useTimeEntries';
 import { createModificationRequest } from '../../api/hr.api';
 import { useAuth } from '../../contexts/AuthContext';
+import { useMyRoutineRuns } from '../../hooks/useRoutines';
+import { runsBlockingClockOut } from '../../pages/routines/runIsDue';
+import { ClockOutRoutineGuard } from '../../components/routines/ClockOutRoutineGuard';
 import type { TimeEntry } from '../../types/hr.types';
 
 function formatHours(value: string | number | null | undefined): string {
@@ -206,6 +209,8 @@ export default function TimeClockPage() {
     reason: '',
   });
   const [modSubmitting, setModSubmitting] = useState(false);
+  const [guardOpen, setGuardOpen] = useState(false);
+  const myRoutines = useMyRoutineRuns();
 
   const isClockedIn = !!currentEntry;
   const onBreak = Boolean(currentEntry?.on_break);
@@ -240,8 +245,15 @@ export default function TimeClockPage() {
     }
   };
 
+  const owedRoutines = runsBlockingClockOut(myRoutines.data?.open);
+
   const handleClockOut = async () => {
     if (!currentEntry) return;
+    if (owedRoutines.length && !guardOpen) {
+      setGuardOpen(true);
+      return;
+    }
+    setGuardOpen(false);
     try {
       await clockOut.mutateAsync({ id: currentEntry.id });
       enqueueSnackbar('Clocked out', { variant: 'success' });
@@ -591,6 +603,13 @@ export default function TimeClockPage() {
         </DialogActions>
       </Dialog>
 
+      <ClockOutRoutineGuard
+        open={guardOpen}
+        runs={owedRoutines}
+        busy={clockOut.isPending}
+        onClose={() => setGuardOpen(false)}
+        onClockOut={() => void handleClockOut()}
+      />
     </Box>
   );
 }

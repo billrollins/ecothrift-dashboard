@@ -31,38 +31,31 @@ function week(overrides: Partial<DepartmentDailyWeek> = {}): DepartmentDailyWeek
   };
 }
 
-describe('Retail QA goal presentation', () => {
-  it('shows scheduled count progress and gold only when achieved', () => {
-    const pending = day({
-      retail: 'A',
-      retail_scheduled: true,
-      retail_count: 1,
-      retail_required: 2,
-      retail_goal_met: false,
-    });
-    expect(retailGridValue(pending)).toBe('A·1/2');
-    expect(retailGoalCellState(pending)).toBe('scheduled');
-
-    const achieved = { ...pending, retail_count: 2, retail_goal_met: true };
-    expect(retailGridValue(achieved)).toBe('A ✓');
-    expect(retailGoalCellState(achieved)).toBe('achieved');
+describe('Retail routine goal presentation', () => {
+  it('shows the day letter, and a dash where there is nothing to grade', () => {
+    expect(retailGridValue(day({ retail: 'B', retail_score: 84 }))).toBe('B');
+    expect(retailGridValue(day({ retail: null }))).toBe('-');
+    expect(retailGridValue(day({ retail: 'A', is_future: true }))).toBe('-');
   });
 
-  it('uses the backend last-grade week score and achievement flag', () => {
-    const result = week({
-      retail_week_grade: 'F',
-      retail_week_goal_met: true,
-    });
-    expect(retailWeekTotal(result)).toBe('F');
+  it('goes gold on a day that met the standard, amber-scheduled otherwise', () => {
+    const scheduled = day({ retail: 'C', retail_scheduled: true, retail_grade_met: false });
+    expect(retailGoalCellState(scheduled)).toBe('scheduled');
+    expect(retailGoalCellState({ ...scheduled, retail: 'A', retail_grade_met: true }))
+      .toBe('achieved');
+    expect(retailGoalCellState(day({ retail: 'A' }))).toBeUndefined();
+  });
+
+  it('puts the week letter under the week label', () => {
+    const result = week({ retail_week_grade: 'B', retail_week_goal_met: true });
+    expect(retailWeekTotal(result)).toBe('B');
+    expect(retailWeekTotal(week())).toBe('-');
     expect(retailWeekGoalAchieved(result)).toBe(true);
   });
 
-  it('marks a day clickable only when it has submitted audit ids', () => {
-    expect(retailDayIsClickable(day({ retail: 'B', retail_audit_ids: [17] }))).toBe(true);
-    expect(retailDayIsClickable(day({ retail: 'B', retail_audit_ids: [] }))).toBe(false);
+  it('marks a day clickable once it has a grade to open', () => {
+    expect(retailDayIsClickable(day({ retail: 'B' }))).toBe(true);
     expect(retailDayIsClickable(day({ retail: null }))).toBe(false);
-    expect(
-      retailDayIsClickable(day({ is_future: true, retail_audit_ids: [1] })),
-    ).toBe(false);
+    expect(retailDayIsClickable(day({ retail: 'B', is_future: true }))).toBe(false);
   });
 });

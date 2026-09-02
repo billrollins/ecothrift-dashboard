@@ -107,7 +107,7 @@ Alternative: single SPA branching on `window.location.hostname` — cheaper to w
 - [x] Staff can curate a web catalog (with photos); the public can browse it. *(Phase 2: `apps.webstore` + staff "Web store" CRUD + public shop/detail/cart)*
 - [x] Customers can complete an order (pickup or ship) and receive confirmation; staff can fulfill. *(Phase 3: public `/checkout` + `/order/:number`, `Order`/`OrderLine`, NE tax + flat ship, atomic stock reserve, staff "Web orders" status/payment mgmt. **Live charge stubbed** — `manual` provider records the order awaiting payment; swap to Helcim by config.)*
 - [x] SEO basics + old-URL redirects in place at launch. *(Phase 4: per-route title/description/canonical/OG/Twitter via `useSeo`, Store + Product JSON-LD, `robots.txt` + `sitemap.xml`, legacy Shopify 301s (`/products|/collections|/blogs|/pages|/cart|/account`) merged with the canonical-host redirect, route code-splitting, SVG favicon + theme-color, `noindex` on checkout/order/404. Optional Plausible analytics gated by `VITE_PLAUSIBLE_DOMAIN`.)*
-- [x] [`.ai/extended/frontend.md`](../../../extended/frontend.md) and [`.ai/context.md`](../../../context.md) updated as routes/architecture change; releases bumped per [`ship.md`](../../../protocols/ship.md). *(v2.26.0)*
+- [x] [`.ai/extended/frontend.md`](../../../extended/frontend.md) and [`.ai/context.md`](../../../context.md) updated as routes/architecture change; releases bumped per [`ship-push-git.md`](../../../protocols/ship-push-git.md). *(v2.26.0)*
 
 ---
 

@@ -10,8 +10,8 @@ export interface SlotCWorkspaceMeta {
   /** Color of the jump-letter chip. Unique per workspace so a glance finds the key. */
   shortcutColor: string;
   /**
-   * Digit pressed in the open switcher. Same key always opens this workspace
-   * when the user can see it. 1–8 are lifecycle + Studios; 0 is Admin / Settings.
+ * Digit pressed in the open switcher. Same key always opens this workspace
+ * when the user can see it. 1–8 are lifecycle + Studios; 0 is Admin. Digit 9 is free.
    */
   shortcutDigit?: number;
 }
@@ -24,7 +24,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'essentials',
     label: null,
-    itemIds: ['dashboard', 'timeClock'],
+    itemIds: ['dashboard'],
   },
   {
     id: 'buying',
@@ -46,7 +46,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'retailFloor',
     label: 'Retail Floor',
-    itemIds: ['inventoryWorkbench', 'quickReprice', 'floorplans', 'qualityAudit'],
+    itemIds: ['inventoryWorkbench', 'quickReprice', 'floorplans'],
   },
   {
     id: 'storeSales',
@@ -72,13 +72,13 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     id: 'studios',
     label: 'Studios',
     roles: ['Manager', 'Admin'],
-    itemIds: ['labelStudio', 'floorplans', 'qualityAuditForms', 'blogStudio'],
+    itemIds: ['labelStudio', 'floorplans', 'blogStudio'],
   },
   {
     id: 'admin',
     label: 'Admin',
     roles: ['Manager', 'Admin'],
-    itemIds: ['users', 'retailInbox', 'settings', 'payrollHours'],
+    itemIds: ['users', 'retailInbox', 'settings', 'payrollHours', 'adminRoutines'],
   },
 ];
 
@@ -129,7 +129,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     id: 'retailFloor',
     label: 'Retail Floor',
     shortLabel: 'Floor',
-    helper: 'Catalog, shelf, floorplans, and quality audit',
+    helper: 'Catalog, shelf, and floorplans',
     icon: 'storefront',
     shortcutColor: '#DB2777',
     shortcutDigit: 4,
@@ -165,7 +165,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     id: 'studios',
     label: 'Studios',
     shortLabel: 'Studios',
-    helper: 'Labels, floorplans, QA forms, and the blog',
+    helper: 'Labels, floorplans, and the blog',
     icon: 'palette',
     shortcutColor: '#C026D3',
     shortcutDigit: 8,

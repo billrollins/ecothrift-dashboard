@@ -14,6 +14,19 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Time clock',
     icon: 'schedule',
   },
+  routines: {
+    id: 'routines',
+    path: '/routines',
+    label: 'Routines',
+    icon: 'checklist',
+  },
+  documents: {
+    id: 'documents',
+    path: '/documents',
+    label: 'Documents',
+    icon: 'documents',
+    // Parked: pages exist, routes and account-menu link are off until a later tune.
+  },
   orders: {
     id: 'orders',
     path: '/inventory/orders',
@@ -160,7 +173,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'people',
     roles: ['Manager', 'Admin'],
   },
-  // Customers and staff share one workspace; the Employees tab inside is Admin-only.
+  // Employees is first and default for Admin; Managers only see Customers.
   users: {
     id: 'users',
     path: '/admin/users',
@@ -253,18 +266,12 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'assignmentTurnedIn',
     superuserOnly: true,
   },
-  qualityAudit: {
-    id: 'qualityAudit',
-    path: '/admin/quality-audit',
-    label: 'Quality Audit',
-    icon: 'factCheck',
-    roles: ['Manager', 'Admin'],
-  },
-  qualityAuditForms: {
-    id: 'qualityAuditForms',
-    path: '/admin/quality-audit/forms',
-    label: 'QA Forms',
-    icon: 'tune',
+  /** Routine Control: every routine with its history, quick edits, retire / restore / delete. */
+  adminRoutines: {
+    id: 'adminRoutines',
+    path: '/admin/routines',
+    label: 'Routines',
+    icon: 'checklist',
     superuserOnly: true,
   },
 };

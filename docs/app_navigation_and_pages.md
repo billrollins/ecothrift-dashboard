@@ -63,12 +63,12 @@ Intended story: *source → prep → ingest → restore → records → floor �
 
 | Order | Workspace id | Short label | Helper text (shown in selector) | Links in that workspace |
 |------:|--------------|-------------|----------------------------------|-------------------------|
-| — | `essentials` | — | — | Dashboard, Time clock |
+| — | `essentials` | — | — | Dashboard (Time clock and Routines are in the account menu) |
 | 1 | `buying` | Buying | Auctions, vendors, orders, and manifest prep | Auctions, Watchlist, Vendors, Orders, Preprocessing |
 | 2 | `processing` | Processing | Receive through close-out | Receiving, Processing, Finalization*, Disputes*, Restorations |
 | 3 | `restoration` | Restoration | Test, assemble, repair, salvage | TARS (new window), Parts requests (Manager+) |
 | 4 | `inventory` | Inventory | Catalog — products, check-ins, items | Catalog |
-| 5 | `retailFloor` | Floor | Shelf, floorplans, and quality audit | Quick reprice, Floorplans, Quality Audit (Manager+), QA Forms (Superuser) |
+| 5 | `retailFloor` | Floor | Shelf and floorplans | Catalog, Quick reprice, Floorplans |
 | 6 | `storeSales` | Sales | Register, drawers, and POS setup | Terminal, Transactions, Deliveries, Drawers, Cash Management, Printables, POS setup (Manager+) |
 | 7 | `admin` | Admin | Setup and access | Assumptions, Employees, Customers, Permissions, Settings, Label Studio, Blog studio, Time & payroll *(Admin group itself Manager+; items further gated)* |
 
@@ -125,9 +125,9 @@ Intended story: *source → prep → ingest → restore → records → floor �
 |------|----------|---------|-------|------------------|
 | Essentials, Buying, most Processing, Inventory, Sales (ops), Floorplans, Quick reprice, TARS, Restorations | Yes | Yes | Yes | — |
 | Admin workspace appears | No | Yes (subset) | Yes | — |
-| POS setup, Assumptions, Settings, Label Studio, Quality Audit hub, Parts requests | No | Yes | Yes | — |
+| POS setup, Assumptions, Settings, Label Studio, Parts requests | No | Yes | Yes | — |
 | Employees, Customers, Permissions | No | No | Yes | — |
-| Time & payroll, QA Forms, Blog Studio | No | No | No* | Yes |
+| Time & payroll, Routine Control, Blog Studio | No | No | No* | Yes |
 
 \*Admin **role** alone is not enough without `is_superuser` for those three.
 
@@ -141,7 +141,12 @@ Grouped the way the **current navbar** presents them. Paths are staff SPA routes
 
 | Page | Path | What it does |
 |------|------|----------------|
-| **Dashboard** | `/dashboard` | Store pulse: sales run-rate / weekly book, department cards (Buying, Processing, Restoration, Retail QA), who’s working. Manager-facing home. |
+| **Dashboard** | `/dashboard` | Store pulse: sales run-rate / weekly book, department cards (Buying, Processing, Restoration, Retail), who’s working. Manager-facing home. |
+
+Time clock and Routines are on the **account menu** (avatar), not the sidebar. Documents is unwired until a later UI tune.
+
+| Page | Path | What it does |
+|------|------|----------------|
 | **Time clock** | `/hr/time-clock` | Clock in/out/break, recent shifts, request modifications. Everyday employee entry point. |
 
 ### Buying workspace
@@ -189,9 +194,8 @@ Grouped the way the **current navbar** presents them. Paths are staff SPA routes
 | **Quick reprice** | `/inventory/quick-reprice` | Scan/SKU session to apply shelf discounts quickly. |
 | **Floorplans** | `/floor-ops/floorplans` | List of store floorplans. |
 | **Floorplan editor** | `/floor-ops/floorplans/:id/edit` | Full-screen SVG editor (walls, fixtures, print). Outside main chrome. |
-| **Quality Audit** | `/admin/quality-audit` | Hub to start floor QA forms; table of submitted audits with review. Feeds Dashboard **Retail QA** grade when form is marked dashboard-feeding. |
-| **QA wizard / review** | `/admin/quality-audit/run/:formSlug/:auditId` | Mobile-friendly checklist run; submitted audits open read-only. |
-| **QA Forms** | `/admin/quality-audit/forms` (+ editor) | Superuser: create/edit checklist form definitions. |
+| **Routines** | `/routines` | Account menu. Phone-first My Routines / Catalog; fill-in and live preview in a 9:20 frame. |
+| **Routine runner / editor** | `/routines/run/:id`, `/routines/run/new?routine=`, `/routines/new`, `/routines/catalog` | Staff fill a run; superuser authors in the left form with a live phone preview. Retail QA kinds (section tally, cross-check, owner spot check) carry their own runners instead of an authored checklist. |
 
 ### Store Sales workspace
 
@@ -216,10 +220,11 @@ Grouped the way the **current navbar** presents them. Paths are staff SPA routes
 | **Employees** | `/admin/users` | Admin: users, roles, pay-related fields. |
 | **Customers** | `/admin/customers` | Admin: customer list. |
 | **Permissions** | `/admin/permissions` | Admin: permission matrix UI. |
-| **Settings** | `/admin/settings` | Manager+: app settings. |
+| **Settings** | `/admin/settings` | Manager+: app settings. Tabs `?tab=` — System, Printing, Store, Assumptions, **Retail QA** (grade weights, letter lines, audit floors), Permissions (Admin only). |
 | **Label Studio** | `/admin/label-studio` (+ `/:id`) | Manager+: label template library and visual/PDF designer; print integration. |
 | **Blog Studio** | `/blog-studio` | Superuser TipTap blog CMS for the public site; **new window**. |
 | **Time & payroll** | `/admin/time-payroll` | Superuser: roster, payroll summary, time-change requests. |
+| **Routines** (Routine Control) | `/admin/routines` (`?id=` selects, `?view=sections\|grades`, `?day=`) | Superuser. **Routines**: every routine incl. retired, run stats, filters, quick edits, retire / restore / delete forever. **Sections**: areas of the floor and who keeps them, drag order, coverage gaps. **Grades**: the Retail QA week — day letters, the day taken apart, cross-checks with photos, tallies per section, walks to cover, checker gaps. |
 
 ### Hidden from nav (still reachable by URL)
 

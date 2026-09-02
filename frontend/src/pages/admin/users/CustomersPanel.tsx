@@ -1,11 +1,13 @@
 /**
  * The customer directory.
  *
- * Rows are two-line: who they are over how to reach them, then how much they
- * have actually done with us. Every state cell is always painted and only
- * changes colour and wording, so filtering never resizes a row.
+ * Scan left to right: who they are, their number, how to reach them, what we
+ * remember, then holds and whether the account can actually be reached.
+ * Phone and notes save on the row so a floor conversation does not need the
+ * drawer. Every state cell is always painted and only changes colour and
+ * wording, so filtering never resizes a row.
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Button,
@@ -31,6 +33,7 @@ import {
   PAGE_FILL_SX,
   noRowsSlot,
 } from '../../../components/common/gridChrome';
+import { InlineText } from '../../../components/users/InlineCell';
 import {
   PersonCell,
   StackCell,
@@ -39,7 +42,7 @@ import {
   relativeDay,
 } from '../../../components/users/userChrome';
 import type { Customer } from '../../../api/accounts.api';
-import { useCreateCustomer, useCustomers } from '../../../hooks/useEmployees';
+import { useCreateCustomer, useCustomers, useUpdateCustomer } from '../../../hooks/useEmployees';
 import { useIsMobileLayout } from '../../../hooks/useIsMobileLayout';
 import { formatPhone, maskPhoneInput, stripPhone } from '../../../utils/formatPhone';
 
@@ -56,6 +59,23 @@ const EMPTY_FORM = {
   phone: '',
   notes: '',
 };
+
+/** Fields that save on the row. A click here must not open the drawer. */
+const INLINE_FIELDS = new Set(['phone', 'notes']);
+
+type CustomerPatch = {
+  phone?: string;
+  notes?: string;
+};
+
+function applyCustomerPatch(customer: Customer, patch?: CustomerPatch): Customer {
+  if (!patch) return customer;
+  return {
+    ...customer,
+    phone: patch.phone ?? customer.phone,
+    notes: patch.notes ?? customer.notes,
+  };
+}
 
 function reachState(customer: Customer): { label: string; tone: 'good' | 'warn' | 'muted'; hint: string } {
   if (!customer.is_active) {
@@ -91,7 +111,7 @@ function CustomerMobileRow({
         textAlign: 'left',
         px: 1.5,
         py: 1.25,
-        minHeight: 84,
+        minHeight: 104,
         border: '1.5px solid',
         borderColor: customer.is_active ? 'divider' : 'warning.light',
         borderRadius: 2.5,
@@ -119,6 +139,14 @@ function CustomerMobileRow({
           {customer.phone ? ` · ${formatPhone(customer.phone)}` : ''}
         </Typography>
       </Stack>
+      <Typography
+        variant="caption"
+        color="text.disabled"
+        noWrap
+        sx={{ display: 'block', mt: 0.25, minHeight: 18 }}
+      >
+        {(customer.notes || '').trim() || 'No notes'}
+      </Typography>
     </Box>
   );
 }
@@ -131,7 +159,9 @@ export default function CustomersPanel({ onSelect }: Props) {
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>('1');
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState({ ...EMPTY_FORM });
+  const [patches, setPatches] = useState<Record<number, CustomerPatch>>({});
   const createCustomer = useCreateCustomer();
+  const updateCustomer = useUpdateCustomer();
 
   useEffect(() => {
     const t = window.setTimeout(() => setSearch(searchInput.trim()), 250);
@@ -144,79 +174,133 @@ export default function CustomersPanel({ onSelect }: Props) {
     ordering: 'customer_number',
   });
 
-  const rows = data?.results || [];
+  const rows = useMemo(
+    () => (data?.results || []).map((row) => applyCustomerPatch(row, patches[row.id])),
+    [data, patches],
+  );
 
-  const columns: GridColDef<Customer>[] = [
-    {
-      field: 'full_name',
-      headerName: 'Customer',
-      flex: 1.4,
-      minWidth: 230,
-      sortable: false,
-      renderCell: ({ row }) => (
-        <PersonCell
-          name={row.full_name}
-          secondary={row.email || 'No email'}
-          seed={row.email || String(row.id)}
-          muted={!row.is_active}
-        />
-      ),
+  const patchRow = useCallback((id: number, next: CustomerPatch) => {
+    setPatches((prev) => ({ ...prev, [id]: { ...prev[id], ...next } }));
+  }, []);
+
+  const revertRow = useCallback((id: number) => {
+    setPatches((prev) => {
+      const { [id]: _dropped, ...rest } = prev;
+      return rest;
+    });
+  }, []);
+
+  const saveCustomer = useCallback(
+    async (customer: Customer, payload: Record<string, unknown>, next: CustomerPatch) => {
+      patchRow(customer.id, next);
+      try {
+        await updateCustomer.mutateAsync({ id: customer.id, data: payload });
+      } catch {
+        revertRow(customer.id);
+        enqueueSnackbar('Could not save that change', { variant: 'error' });
+      }
     },
-    {
-      field: 'customer_number',
-      headerName: '#',
-      width: 96,
-      renderCell: ({ row }) => (
-        <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-          {row.customer_number}
-        </Typography>
-      ),
-    },
-    {
-      field: 'phone',
-      headerName: 'Phone',
-      width: 136,
-      renderCell: ({ row }) => (
-        <Typography variant="body2" color={row.phone ? 'text.primary' : 'text.disabled'}>
-          {row.phone ? formatPhone(row.phone) : '—'}
-        </Typography>
-      ),
-    },
-    {
-      field: 'email_verified',
-      headerName: 'Account',
-      width: 124,
-      sortable: false,
-      renderCell: ({ row }) => {
-        const state = reachState(row);
-        return <StateChip label={state.label} tone={state.tone} hint={state.hint} />;
-      },
-    },
-    {
-      field: 'holds_count',
-      headerName: 'Holds',
-      width: 128,
-      renderCell: ({ row }) => {
-        const holds = row.holds_count ?? 0;
-        return (
-          <StackCell
-            top={holds ? String(holds) : '—'}
-            bottom={holds ? relativeDay(row.last_hold_at) || 'on file' : 'none yet'}
+    [enqueueSnackbar, patchRow, revertRow, updateCustomer],
+  );
+
+  const columns: GridColDef<Customer>[] = useMemo(
+    () => [
+      {
+        field: 'full_name',
+        headerName: 'Customer',
+        flex: 1.4,
+        minWidth: 200,
+        sortable: false,
+        renderCell: ({ row }) => (
+          <PersonCell
+            name={row.full_name}
+            secondary={row.email || 'No email'}
+            seed={row.email || String(row.id)}
+            muted={!row.is_active}
           />
-        );
+        ),
       },
-    },
-    {
-      field: 'customer_since',
-      headerName: 'Since',
-      width: 124,
-      renderCell: ({ row }) => (
-        <Typography variant="body2" color="text.secondary">
-          {formatDay(row.customer_since) || '—'}
-        </Typography>
-      ),
-    },
-  ];
+      {
+        field: 'customer_number',
+        headerName: '#',
+        width: 92,
+        renderCell: ({ row }) => (
+          <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+            {row.customer_number}
+          </Typography>
+        ),
+      },
+      {
+        field: 'phone',
+        headerName: 'Phone',
+        width: 148,
+        renderCell: ({ row }) => (
+          <InlineText
+            ariaLabel={`Phone for ${row.full_name || row.email || 'customer'}`}
+            value={row.phone || ''}
+            placeholder="Phone"
+            display={maskPhoneInput}
+            parse={stripPhone}
+            onCommit={(next) => {
+              void saveCustomer(row, { phone: next }, { phone: next });
+            }}
+          />
+        ),
+      },
+      {
+        field: 'notes',
+        headerName: 'Notes',
+        flex: 1.8,
+        minWidth: 180,
+        sortable: false,
+        renderCell: ({ row }) => (
+          <InlineText
+            ariaLabel={`Notes for ${row.full_name || row.email || 'customer'}`}
+            value={row.notes || ''}
+            placeholder="Notes"
+            onCommit={(next) => {
+              void saveCustomer(row, { notes: next }, { notes: next });
+            }}
+          />
+        ),
+      },
+      {
+        field: 'holds_count',
+        headerName: 'Holds',
+        width: 100,
+        renderCell: ({ row }) => {
+          const holds = row.holds_count ?? 0;
+          return (
+            <StackCell
+              top={holds ? String(holds) : '—'}
+              bottom={holds ? relativeDay(row.last_hold_at) || 'on file' : 'none yet'}
+            />
+          );
+        },
+      },
+      {
+        field: 'email_verified',
+        headerName: 'Account',
+        width: 118,
+        sortable: false,
+        renderCell: ({ row }) => {
+          const state = reachState(row);
+          return <StateChip label={state.label} tone={state.tone} hint={state.hint} />;
+        },
+      },
+      {
+        field: 'customer_since',
+        headerName: 'Since',
+        width: 104,
+        renderCell: ({ row }) => (
+          <Typography variant="body2" color="text.secondary">
+            {formatDay(row.customer_since) || '—'}
+          </Typography>
+        ),
+      },
+    ],
+    [saveCustomer],
+  );
 
   const handleCreate = async () => {
     if (!createForm.first_name.trim() || !createForm.last_name.trim()) {
@@ -326,12 +410,22 @@ export default function CustomersPanel({ onSelect }: Props) {
             getRowId={(r) => r.id}
             loading={isLoading}
             disableRowSelectionOnClick
+            onCellClick={(params, event) => {
+              if (INLINE_FIELDS.has(params.field)) event.stopPropagation();
+            }}
             onRowClick={(params) => onSelect(params.row.id)}
             slots={noRowsSlot(
               search ? 'No customers match this search' : 'No customers yet',
               search ? 'Try an email address or a CUS- number.' : undefined,
             )}
-            sx={{ ...GRID_SX, cursor: 'pointer' }}
+            sx={{
+              ...GRID_SX,
+              cursor: 'pointer',
+              '& .MuiDataGrid-cell[data-field="phone"], & .MuiDataGrid-cell[data-field="notes"]': {
+                overflow: 'visible',
+                cursor: 'default',
+              },
+            }}
             {...GRID_PAGE_PROPS}
           />
         </Box>

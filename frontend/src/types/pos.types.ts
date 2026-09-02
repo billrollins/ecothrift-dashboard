@@ -256,9 +256,9 @@ export interface RestorationMetrics {
 
 export interface RetailMetrics {
   ready: boolean;
-  /** Legacy alias of ``last_grade`` - not a mean of letter grades. */
+  /** This week's letter: the daily average and the cross-checks combined. */
   average_grade: string | null;
-  /** Most recently submitted dashboard-feeding QA grade (overall). */
+  /** Letter for the most recent graded day. */
   last_grade: string | null;
   /** Slug of the form that feeds the dashboard (for deep links). */
   form_slug?: string | null;
@@ -284,6 +284,8 @@ export interface DepartmentDailyMetric {
   processing: string;
   restoration: number;
   retail: string | null;
+  /** The day's Retail QA score behind the letter, 0-100. */
+  retail_score?: number | null;
   retail_count?: number;
   retail_required?: number;
   retail_scheduled?: boolean;
@@ -301,10 +303,11 @@ export interface DepartmentDailyWeek {
   week_start: string;
   week_end: string;
   /**
-   * Retail QA week score: last submitted grade in that week (by submitted_at).
-   * Not average, not highest letter.
+   * The week's Retail QA letter: the daily average and the Tuesday cross-checks
+   * combined at the weights in Settings > Retail QA.
    */
   retail_week_grade?: string | null;
+  retail_week_score?: number | null;
   retail_week_audits?: number;
   retail_week_required?: number;
   retail_completed_days?: number;

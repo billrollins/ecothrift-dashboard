@@ -322,9 +322,11 @@ export default function ProductDetailPage() {
           )}
 
           <div className="pickupnote" style={{ marginTop: 22 }}>
-            <b>Request a hold</b> - pay and pick up at {STORE.retail.address}.{' '}
+            Request a hold online. Pay and pick up at {STORE.retail.address}.{' '}
             {/* POLICY_COPY_OK: negation prose */}
-            No shipping, delivery, or online payment. {listing.hold_policy || ''}
+            No shipping, delivery, or online payment.{' '}
+            {listing.hold_policy ||
+              'Holds confirmed by staff last until store close the next business day. Final sale unless noted.'}
           </div>
         </div>
       </div>

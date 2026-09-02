@@ -145,8 +145,8 @@ export default function DashboardPage() {
       >
         <SectionHeader
           title="Departments"
-          hintDesktop="Per-department weekly metrics. Tap a Retail QA day to open that audit."
-          hintMobile="Per-department weekly metrics. Tap a Retail QA day to open that audit."
+          hintDesktop="Per-department weekly metrics."
+          hintMobile="Per-department weekly metrics."
         />
         <DepartmentMetricCards metrics={metrics.department_metrics} />
       </Box>

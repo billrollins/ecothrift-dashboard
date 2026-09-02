@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-26 (capability catalog; StaffRoute; IsManager removed) -->
+<!-- Last updated: 2026-09-02 (Settings Retail QA tab) -->
 
 # Eco-Thrift Dashboard — Auth and Roles
 
@@ -158,7 +158,7 @@ hasRole(role) => roleRank(user.role) >= roleRank(role)
 
 - All staff routes
 - Settings house at `/admin/settings` (System, Printing, Store, Assumptions, Permissions)
-- `/admin/users` — Admin workspace. Manager+ reach the page; the **Employees** tab inside is Admin-only. Customers tab is Manager+.
+- `/admin/users` — Admin workspace. Manager+ reach the page; the **Employees** tab is first and the default for Admin. Managers only see Customers (`?tab=customers`).
 - Retail inbox (`/admin/retail-inbox`)
 - **Django model admin** (superuser, raw ORM UI): **`/db-admin/`** — separate prefix from React **`/admin/*`**
 - Consignment management (`/consignment/accounts`, `/consignment/items`, `/consignment/payouts`)
@@ -166,13 +166,13 @@ hasRole(role) => roleRank(user.role) >= roleRank(role)
 ### Manager
 
 - All staff routes except Admin-only pages (Retail inbox, Employees tab, Permissions tab)
-- Settings (System / Printing / Store / Assumptions), Users (Customers), Studios, Quality Audit, Online Sales (Messages)
+- Settings (System / Printing / Store / Assumptions / Retail QA), Users (Customers), Studios, Routines, Online Sales (Messages)
 - Consignment management
 - POS setup
 
 ### Employee
 
-- Dashboard, HR (**Time clock** only — clock in/out/break, My recent shifts, mod requests)
+- Dashboard, HR (**Time clock** only — clock in/out/break, My recent shifts, mod requests), Routines
 - Inventory (vendors, orders, processing, products, items)
 - POS (terminal, drawers, cash, transactions)
 - No consignment management, no admin, no Time & payroll

@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documents and duties, mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,75..125,400..800;1,75..125,400..700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#EAE9E1;
+  --card:#FFFFFF;
+  --ink:#1D2440;
+  --ink-60:rgba(29,36,64,.62);
+  --ink-40:rgba(29,36,64,.40);
+  --ink-15:rgba(29,36,64,.15);
+  --ink-08:rgba(29,36,64,.08);
+  --red:#C0301C;
+  --amber:#C88410;
+  --amber-bg:#F0C766;
+  --green:#2A6F4B;
+  --blue:#2F5FA8;
+  --violet:#6A3FA0;
+  --row:64px;
+  --font:"Archivo","Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  font-family:var(--font);
+  background:
+    repeating-linear-gradient(90deg,rgba(29,36,64,.035) 0 1px,transparent 1px 34px),
+    #DEDDD4;
+  color:var(--ink);
+  font-variant-numeric:tabular-nums;
+}
+
+/* ---------- page chrome ---------- */
+.page-head{
+  padding:28px 32px 20px;
+  border-bottom:1px solid var(--ink-15);
+  background:var(--paper);
+}
+.page-head h1{
+  margin:0;
+  font-size:26px;
+  font-weight:700;
+  font-stretch:88%;
+  letter-spacing:-.015em;
+}
+.page-head p{
+  margin:8px 0 0;
+  max-width:62ch;
+  font-size:14.5px;
+  line-height:1.55;
+  color:var(--ink-60);
+}
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:16px;align-items:center}
+.legend span{font-size:12.5px;color:var(--ink-60)}
+
+.strip{
+  display:flex;
+  gap:34px;
+  padding:34px 32px 60px;
+  overflow-x:auto;
+  align-items:flex-start;
+}
+.frame{flex:0 0 auto;width:390px}
+.frame-title{
+  font-size:15px;font-weight:700;font-stretch:88%;margin:0 0 3px;
+}
+.frame-note{
+  font-size:12.5px;line-height:1.5;color:var(--ink-60);margin:0 0 14px;min-height:38px;
+}
+.phone{
+  width:390px;height:812px;
+  border:9px solid var(--ink);
+  border-radius:34px;
+  overflow:hidden;
+  background:var(--paper);
+  box-shadow:0 18px 0 -8px rgba(29,36,64,.10);
+}
+.screen{display:flex;flex-direction:column;height:100%;font-size:15px}
+.scroll{flex:1;overflow-y:auto;overscroll-behavior:contain}
+.scroll::-webkit-scrollbar{width:0}
+
+/* ---------- tag chip (signature element) ---------- */
+.tag{
+  display:inline-flex;align-items:center;
+  height:22px;padding:0 9px 0 15px;
+  clip-path:polygon(8px 0,100% 0,100% 100%,8px 100%,0 50%);
+  font-size:11.5px;font-weight:700;font-stretch:92%;
+  letter-spacing:.01em;color:#fff;position:relative;white-space:nowrap;
+}
+.tag::before{
+  content:"";position:absolute;left:9px;top:50%;transform:translateY(-50%);
+  width:3.5px;height:3.5px;border-radius:50%;background:rgba(255,255,255,.75);
+}
+.tag.red{background:var(--red)}
+.tag.amber{background:var(--amber-bg);color:#4A3200}
+.tag.amber::before{background:rgba(74,50,0,.55)}
+.tag.green{background:var(--green)}
+.tag.blue{background:var(--blue)}
+.tag.violet{background:var(--violet)}
+.tag.plain{background:var(--ink-15);color:var(--ink-60)}
+.tag.plain::before{background:var(--ink-40)}
+
+/* ---------- app bar ---------- */
+.appbar{
+  padding:14px 16px 12px;background:var(--ink);color:#fff;flex:0 0 auto;
+}
+.appbar .row1{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.appbar h2{margin:0;font-size:18px;font-weight:700;font-stretch:88%;letter-spacing:-.01em}
+.appbar .sub{font-size:12.5px;color:rgba(255,255,255,.62);margin-top:2px}
+.badge{
+  min-width:26px;height:26px;border-radius:13px;background:var(--red);color:#fff;
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;padding:0 8px;
+}
+.back{
+  background:none;border:0;color:rgba(255,255,255,.8);font:inherit;font-size:13px;
+  padding:0;margin-bottom:6px;cursor:pointer;
+}
+
+/* ---------- generic bits ---------- */
+.group-head{
+  display:flex;align-items:baseline;justify-content:space-between;
+  padding:16px 16px 7px;font-size:12.5px;font-weight:700;font-stretch:92%;
+  color:var(--ink-60);position:sticky;top:0;background:var(--paper);z-index:2;
+}
+.group-head .count{font-weight:500}
+.card{
+  background:var(--card);border:1px solid var(--ink-15);border-radius:5px;
+  margin:0 12px 8px;padding:12px 13px;
+}
+.duty{display:block;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.duty:active{background:#FAFAF6}
+.duty .t{font-size:15.5px;font-weight:600;line-height:1.3}
+.duty .m{font-size:12.5px;color:var(--ink-60);margin-top:4px;line-height:1.45}
+.duty .foot{display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap}
+.duty.overdue{border-left:4px solid var(--red);padding-left:11px}
+.clears{font-size:11.5px;color:var(--ink-40)}
+
+/* blocking */
+.block{
+  margin:12px 12px 4px;border:2px solid var(--violet);border-radius:5px;
+  background:#F3EEFA;padding:14px 13px;
+}
+.block h3{margin:0;font-size:15.5px;font-weight:700}
+.block p{margin:6px 0 0;font-size:12.8px;line-height:1.5;color:var(--ink-60)}
+.block .locked{
+  display:flex;align-items:center;gap:6px;margin-top:10px;
+  font-size:11.5px;color:var(--violet);font-weight:600;
+}
+.btn{
+  display:block;width:100%;margin-top:11px;height:48px;border:0;border-radius:5px;
+  background:var(--ink);color:#fff;font:inherit;font-size:15px;font-weight:600;cursor:pointer;
+}
+.btn.violet{background:var(--violet)}
+.btn:disabled{background:var(--ink-15);color:var(--ink-40);cursor:default}
+
+/* ---------- checklist ---------- */
+.progwrap{padding:10px 16px 11px;background:var(--ink);flex:0 0 auto}
+.progbar{height:6px;border-radius:3px;background:rgba(255,255,255,.22);overflow:hidden}
+.progbar i{display:block;height:100%;background:#fff;width:0%;transition:width .18s ease}
+.progtext{display:flex;justify-content:space-between;font-size:12px;color:rgba(255,255,255,.7);margin-top:7px}
+.sec{
+  position:sticky;top:0;z-index:2;background:var(--paper);
+  padding:15px 16px 7px;font-size:12.5px;font-weight:700;color:var(--ink-60);
+  border-bottom:1px solid var(--ink-08);
+}
+.item{
+  background:var(--card);border-bottom:1px solid var(--ink-08);
+  padding:11px 14px 12px;min-height:var(--row);
+}
+.item .q{font-size:15.5px;line-height:1.3;font-weight:500;min-height:20px}
+.item .hint{font-size:12px;color:var(--ink-40);margin-top:3px;height:16px;overflow:hidden}
+.pf{display:flex;gap:8px;margin-top:9px}
+.pf button{
+  flex:1;height:46px;border-radius:5px;border:1.5px solid var(--ink-15);
+  background:#fff;font:inherit;font-size:14.5px;font-weight:600;color:var(--ink-60);cursor:pointer;
+}
+.pf button[data-on="pass"]{background:var(--green);border-color:var(--green);color:#fff}
+.pf button[data-on="fail"]{background:var(--red);border-color:var(--red);color:#fff}
+.pf button[data-on="na"]{background:var(--ink-15);border-color:transparent;color:var(--ink)}
+.pf .na{flex:0 0 62px}
+.numrow{display:flex;gap:8px;align-items:center;margin-top:9px}
+.numrow input{
+  flex:1;height:46px;border:1.5px solid var(--ink-15);border-radius:5px;
+  font:inherit;font-size:17px;font-weight:600;padding:0 12px;background:#fff;color:var(--ink);
+}
+.numrow .unit{font-size:13px;color:var(--ink-40);width:74px}
+.photo{
+  margin-top:9px;height:46px;border-radius:5px;border:1.5px dashed var(--ink-15);
+  background:#fff;width:100%;font:inherit;font-size:13.5px;font-weight:600;color:var(--ink-60);cursor:pointer;
+}
+.photo.done{border-style:solid;border-color:var(--green);color:var(--green);background:#F1F8F4}
+.flag{margin-top:9px}
+.bottombar{
+  flex:0 0 auto;padding:11px 14px calc(11px + env(safe-area-inset-bottom));
+  background:var(--card);border-top:1px solid var(--ink-15);
+}
+.bottombar .meta{font-size:12px;color:var(--ink-60);margin-bottom:9px;display:flex;justify-content:space-between}
+.bottombar .btn{margin-top:0}
+
+/* ---------- library ---------- */
+.searchwrap{padding:11px 12px 4px;background:var(--paper);position:sticky;top:0;z-index:3}
+.search{
+  width:100%;height:44px;border:1.5px solid var(--ink-15);border-radius:5px;background:#fff;
+  font:inherit;font-size:15px;padding:0 13px;color:var(--ink);
+}
+.search::placeholder{color:var(--ink-40)}
+.chips{display:flex;gap:7px;overflow-x:auto;padding:10px 12px 11px;background:var(--paper)}
+.chips::-webkit-scrollbar{height:0}
+.chip{
+  flex:0 0 auto;height:33px;padding:0 13px;border-radius:17px;border:1.5px solid var(--ink-15);
+  background:#fff;font:inherit;font-size:13.5px;font-weight:600;color:var(--ink-60);cursor:pointer;
+}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+.doc{
+  display:block;width:100%;text-align:left;background:var(--card);border:0;border-bottom:1px solid var(--ink-08);
+  padding:12px 14px;font:inherit;color:inherit;cursor:pointer;
+}
+.doc .t{font-size:15.5px;font-weight:600;line-height:1.3}
+.doc .m{font-size:12.3px;color:var(--ink-60);margin-top:4px}
+.doc .foot{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.empty{padding:34px 22px;text-align:center;color:var(--ink-60);font-size:13.5px;line-height:1.6}
+
+/* ---------- version history ---------- */
+.dochead{padding:15px 16px 14px;background:var(--card);border-bottom:1px solid var(--ink-15)}
+.dochead h3{margin:0;font-size:19px;font-weight:700;font-stretch:90%;line-height:1.25}
+.dochead .m{font-size:12.5px;color:var(--ink-60);margin-top:6px}
+.dochead .foot{display:flex;gap:6px;margin-top:11px;flex-wrap:wrap}
+.callout{
+  margin:12px;border:1.5px solid var(--violet);border-radius:5px;background:#F3EEFA;padding:12px 13px;
+}
+.callout h4{margin:0;font-size:14.5px;font-weight:700}
+.callout p{margin:6px 0 0;font-size:12.6px;line-height:1.5;color:var(--ink-60)}
+.vlist{margin:4px 0 0;padding:0 12px 16px;list-style:none}
+.ver{
+  background:var(--card);border:1px solid var(--ink-15);border-radius:5px;
+  padding:11px 13px;margin-bottom:8px;
+}
+.ver.current{border-color:var(--ink);border-width:1.5px}
+.ver .vtop{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.ver .vnum{font-size:14.5px;font-weight:700}
+.ver .vdate{font-size:12px;color:var(--ink-60);margin-top:3px}
+.ver .vchange{font-size:12.6px;color:var(--ink-60);margin-top:7px;line-height:1.45}
+.ver .vsig{font-size:12.2px;margin-top:9px;padding-top:9px;border-top:1px solid var(--ink-08)}
+.sig-ok{color:var(--green);font-weight:600}
+.sig-no{color:var(--red);font-weight:600}
+.linkrow{display:flex;gap:8px;margin-top:10px}
+.linkrow button{
+  flex:1;height:40px;border-radius:5px;border:1.5px solid var(--ink-15);background:#fff;
+  font:inherit;font-size:13.5px;font-weight:600;color:var(--ink);cursor:pointer;
+}
+
+/* ---------- manager ---------- */
+.seg{display:flex;padding:11px 12px;gap:0;background:var(--paper);position:sticky;top:0;z-index:3}
+.seg button{
+  flex:1;height:40px;border:1.5px solid var(--ink-15);background:#fff;font:inherit;font-size:14px;
+  font-weight:600;color:var(--ink-60);cursor:pointer;
+}
+.seg button:first-child{border-radius:5px 0 0 5px}
+.seg button:last-child{border-radius:0 5px 5px 0;border-left:0}
+.seg button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+.person{background:var(--card);border-bottom:1px solid var(--ink-08)}
+.person > .phead{
+  display:flex;align-items:center;gap:11px;padding:13px 14px;width:100%;
+  background:none;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer;
+}
+.avatar{
+  flex:0 0 38px;height:38px;border-radius:50%;background:var(--ink-08);color:var(--ink);
+  display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:700;
+}
+.person .pn{font-size:15.5px;font-weight:600;line-height:1.25}
+.person .pr{font-size:12.2px;color:var(--ink-60);margin-top:3px}
+.pcounts{margin-left:auto;display:flex;gap:5px;align-items:center}
+.caret{font-size:11px;color:var(--ink-40);width:12px;text-align:right}
+.pbody{display:none;padding:0 14px 13px 63px}
+.person.open .pbody{display:block}
+.pitem{
+  padding:9px 0;border-top:1px solid var(--ink-08);font-size:13.5px;line-height:1.35;
+  display:flex;gap:9px;align-items:flex-start;justify-content:space-between;
+}
+.pitem .pi-m{font-size:11.8px;color:var(--ink-60);margin-top:3px}
+.teamrow{
+  margin:12px;border:1.5px solid var(--red);border-radius:5px;background:#FBEEEC;padding:12px 13px;
+}
+.teamrow h4{margin:0;font-size:14.5px;font-weight:700;color:var(--red)}
+.teamrow p{margin:6px 0 0;font-size:12.5px;line-height:1.5;color:var(--ink-60)}
+.hr-note{padding:14px 16px 22px;font-size:12px;color:var(--ink-40);line-height:1.55}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Documents and duties</h1>
+  <p>Five phone views at true size. Everything reacts: tap the pass and fail targets, filter the library, open a person in the manager view. Nothing here has a “mark complete” control, because assignments close only when a submission or signature lands against them.</p>
+  <div class="legend">
+    <span class="tag red">Overdue</span>
+    <span class="tag amber">Due today</span>
+    <span class="tag blue">Scheduled</span>
+    <span class="tag green">Submitted</span>
+    <span class="tag violet">Signature</span>
+    <span>Status reads as a tag, the way stock does on the floor.</span>
+  </div>
+</header>
+
+<div class="strip">
+
+<!-- ============ 1. MY DUTIES ============ -->
+<div class="frame">
+  <p class="frame-title">My duties</p>
+  <p class="frame-note">Badge counts only what is open. The safety policy sits above everything and has no dismiss control.</p>
+  <div class="phone"><div class="screen">
+    <div class="appbar">
+      <div class="row1">
+        <div>
+          <h2>Your duties</h2>
+          <div class="sub">Rey Castellanos, Sales Floor</div>
+        </div>
+        <span class="badge">5</span>
+      </div>
+    </div>
+    <div class="scroll">
+
+      <div class="block">
+        <h3>Injury and safety policy, version 3</h3>
+        <p>Published 24 August by Hollis Grant. Your signature is against version 2, so it does not carry over. This stays on screen until it is signed.</p>
+        <div class="locked">Cannot be dismissed</div>
+        <button class="btn violet">Read and sign</button>
+      </div>
+
+      <div class="group-head">Overdue <span class="count">2</span></div>
+
+      <div class="card duty overdue">
+        <div class="t">Weekly section crosscheck</div>
+        <div class="m">Your assigned section is <strong>Books and media</strong>. Picked automatically on Tue 25 Aug at 5:02am and locked.</div>
+        <div class="foot">
+          <span class="tag red">4 days over</span>
+          <span class="clears">Was due Sat 29 Aug at close</span>
+        </div>
+      </div>
+
+      <div class="card duty overdue">
+        <div class="t">Steamer maintenance log</div>
+        <div class="m">Descale and water level check, back of house.</div>
+        <div class="foot">
+          <span class="tag red">1 day over</span>
+          <span class="clears">Hollis notified this morning</span>
+        </div>
+      </div>
+
+      <div class="group-head">Due today <span class="count">2</span></div>
+
+      <div class="card duty">
+        <div class="t">Opening checklist</div>
+        <div class="m">Anyone opening can complete it. Whoever submits is recorded.</div>
+        <div class="foot">
+          <span class="tag amber">By 10:30am</span>
+          <span class="clears">Clears when submitted</span>
+        </div>
+      </div>
+
+      <div class="card duty">
+        <div class="t">Daily section walk, Housewares</div>
+        <div class="m">Six checks, photo needed on any fail.</div>
+        <div class="foot">
+          <span class="tag amber">By close</span>
+          <span class="clears">Clears when submitted</span>
+        </div>
+      </div>
+
+      <div class="group-head">This week <span class="count">1</span></div>
+
+      <div class="card duty">
+        <div class="t">Donation intake and rejection guide</div>
+        <div class="m">Revised for the new mattress rule. Reading is tracked, no signature needed.</div>
+        <div class="foot">
+          <span class="tag blue">Sat 5 Sep</span>
+          <span class="clears">Week of 1 Sep</span>
+        </div>
+      </div>
+
+      <div class="group-head">Done this week <span class="count">6</span></div>
+      <div class="card duty">
+        <div class="t">Closing checklist</div>
+        <div class="m">Submitted Sat 30 Aug, 9:12pm. 22 of 22 passed.</div>
+        <div class="foot"><span class="tag green">Submitted</span></div>
+      </div>
+      <div class="hr-note">The store is closed Sunday and Monday, so nothing was scheduled for those days and nothing rolled into them.</div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============ 2. RUNNING A CHECKLIST ============ -->
+<div class="frame">
+  <p class="frame-title">Running a checklist</p>
+  <p class="frame-note">Scrolling list, one screen, thumb targets at 46px. Row heights are fixed so nothing moves when an answer changes.</p>
+  <div class="phone"><div class="screen">
+    <div class="appbar">
+      <button class="back">Back to duties</button>
+      <div class="row1">
+        <div>
+          <h2>Opening checklist</h2>
+          <div class="sub">Version 4, in use since 12 Aug</div>
+        </div>
+      </div>
+    </div>
+    <div class="progwrap">
+      <div class="progbar"><i id="prog"></i></div>
+      <div class="progtext"><span id="progleft">0 of 9 answered</span><span>Pass or fail</span></div>
+    </div>
+    <div class="scroll" id="clist">
+
+      <div class="sec">Front of house</div>
+
+      <div class="item" data-q>
+        <div class="q">Front door and windows unlocked and clear</div>
+        <div class="hint">Check the sandwich board is out</div>
+        <div class="pf"><button data-v="pass">Pass</button><button data-v="fail">Fail</button><button class="na" data-v="na">N/A</button></div>
+      </div>
+
+      <div class="item" data-q>
+        <div class="q">Till float counted</div>
+        <div class="hint">Should be 150.00</div>
+        <div class="numrow">
+          <input type="text" inputmode="decimal" value="150.00" aria-label="Till float">
+          <span class="unit">dollars</span>
+        </div>
+      </div>
+
+      <div class="item" data-q>
+        <div class="q">Card reader powered and paired</div>
+        <div class="hint">&nbsp;</div>
+        <div class="pf"><button data-v="pass">Pass</button><button data-v="fail">Fail</button><button class="na" data-v="na">N/A</button></div>
+      </div>
+
+      <div class="item" data-q>
+        <div class="q">Fitting rooms empty and reset</div>
+        <div class="hint">Strays go back on the rack, not the floor</div>
+        <div class="pf"><button data-v="pass">Pass</button><button data-v="fail">Fail</button><button class="na" data-v="na">N/A</button></div>
+      </div>
+
+      <div class="sec">Receiving</div>
+
+      <div class="item" data-q>
+        <div class="q">Donation door clear, no overnight drop-offs blocking it</div>
+        <div class="hint">Photo needed if anything was left</div>
+        <div class="pf"><button data-v="pass">Pass</button><button data-v="fail">Fail</button><button class="na" data-v="na">N/A</button></div>
+        <button class="photo">Add photo</button>
+      </div>
+
+      <div class="item" data-q>
+        <div class="q">Bale area below the line marked on the wall</div>
+        <div class="hint">Critical, a fail fails the whole checklist</div>
+        <div class="pf"><button data-v="pass">Pass</button><button data-v="fail">Fail</button></div>
+        <div class="flag"><span class="tag red">Critical item</span></div>
+      </div>
+
+      <div class="item" data-q>
+        <div class="q">Sorting tables cleared from last shift</div>
+        <div class="hint">&nbsp;</div>
+        <div class="pf"><button data-v="pass">Pass</button><button data-v="fail">Fail</button><button class="na" data-v="na">N/A</button></div>
+      </div>
+
+      <div class="sec">Back of house</div>
+
+      <div class="item" data-q>
+        <div class="q">Fire exits unobstructed</div>
+        <div class="hint">Critical, a fail fails the whole checklist</div>
+        <div class="pf"><button data-v="pass">Pass</button><button data-v="fail">Fail</button></div>
+        <div class="flag"><span class="tag red">Critical item</span></div>
+      </div>
+
+      <div class="item" data-q>
+        <div class="q">Staff room and toilet stocked</div>
+        <div class="hint">&nbsp;</div>
+        <div class="pf"><button data-v="pass">Pass</button><button data-v="fail">Fail</button><button class="na" data-v="na">N/A</button></div>
+      </div>
+
+      <div style="height:14px"></div>
+    </div>
+    <div class="bottombar">
+      <div class="meta"><span id="leftcount">9 left</span><span id="draft">Draft saved on this phone</span></div>
+      <button class="btn" id="submit" disabled>Answer everything to submit</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============ 3. DOCUMENT LIBRARY ============ -->
+<div class="frame">
+  <p class="frame-title">Document library</p>
+  <p class="frame-note">One list for everything. Tags say what a document can do rather than what bucket it sits in. Try the filters.</p>
+  <div class="phone"><div class="screen">
+    <div class="appbar">
+      <div class="row1">
+        <div>
+          <h2>Documents</h2>
+          <div class="sub"><span id="doccount">11</span> visible to you</div>
+        </div>
+      </div>
+    </div>
+    <div class="scroll">
+      <div class="searchwrap">
+        <input class="search" id="q" placeholder="Search titles and contents">
+      </div>
+      <div class="chips" id="chips">
+        <button class="chip" aria-pressed="true" data-f="all">All</button>
+        <button class="chip" aria-pressed="false" data-f="fill">Fill in</button>
+        <button class="chip" aria-pressed="false" data-f="sign">Sign</button>
+        <button class="chip" aria-pressed="false" data-f="print">Print</button>
+        <button class="chip" aria-pressed="false" data-f="floor">Sales floor</button>
+        <button class="chip" aria-pressed="false" data-f="recv">Receiving</button>
+        <button class="chip" aria-pressed="false" data-f="boh">Back of house</button>
+      </div>
+      <div id="doclist"></div>
+      <div class="hr-note">Your performance documents are not in this list. They appear only under your own record and your manager's.</div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============ 4. VERSION HISTORY ============ -->
+<div class="frame">
+  <p class="frame-title">Version history</p>
+  <p class="frame-note">Old versions stay readable. Signatures are pinned to the version signed, which is why version 2 does not satisfy version 3.</p>
+  <div class="phone"><div class="screen">
+    <div class="appbar">
+      <button class="back">Back to documents</button>
+      <div class="row1"><div><h2>Injury and safety policy</h2><div class="sub">Back of house, owned by Hollis Grant</div></div></div>
+    </div>
+    <div class="scroll">
+      <div class="dochead">
+        <h3>Version 3 is current</h3>
+        <div class="m">Published 24 Aug 2026. Signed by 4 of 6 staff.</div>
+        <div class="foot">
+          <span class="tag violet">Signature</span>
+          <span class="tag plain">Print</span>
+          <span class="tag plain">Rich text</span>
+          <span class="tag plain">Re-signed yearly</span>
+        </div>
+      </div>
+
+      <div class="callout">
+        <h4>You have not signed this version</h4>
+        <p>Your signature from 3 Feb 2026 is against version 2. Version 3 changed the sharps and broken glass handling, so it needs a fresh signature.</p>
+        <button class="btn violet">Read version 3 and sign</button>
+      </div>
+
+      <ul class="vlist">
+        <li class="ver current">
+          <div class="vtop"><span class="vnum">Version 3</span><span class="tag green">Current</span></div>
+          <div class="vdate">Published 24 Aug 2026 by Hollis Grant</div>
+          <div class="vchange">Added the sharps and broken glass procedure for donation sorting. Rewrote the lifting section after the July incident.</div>
+          <div class="vsig"><span class="sig-no">Not signed by you</span></div>
+          <div class="linkrow"><button>Read</button><button>Compare with v2</button></div>
+        </li>
+        <li class="ver">
+          <div class="vtop"><span class="vnum">Version 2</span><span class="tag plain">Superseded</span></div>
+          <div class="vdate">Published 12 Jan 2026 by Hollis Grant</div>
+          <div class="vchange">Added the ladder rule and the two-person lift threshold at 50 pounds.</div>
+          <div class="vsig"><span class="sig-ok">Signed by you 3 Feb 2026, 8:41am</span></div>
+          <div class="linkrow"><button>Read</button><button>Your signature</button></div>
+        </li>
+        <li class="ver">
+          <div class="vtop"><span class="vnum">Version 1</span><span class="tag plain">Superseded</span></div>
+          <div class="vdate">Published 4 Mar 2025 by Marguerite Boyd</div>
+          <div class="vchange">First version.</div>
+          <div class="vsig">You were not employed here yet</div>
+          <div class="linkrow"><button>Read</button></div>
+        </li>
+      </ul>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============ 5. MANAGER ACCOUNTABILITY ============ -->
+<div class="frame">
+  <p class="frame-title">Accountability</p>
+  <p class="frame-note">Built for chasing someone in person. Tap a name to see the actual items. Pooled duties show as a team miss, not a person's.</p>
+  <div class="phone"><div class="screen">
+    <div class="appbar">
+      <div class="row1">
+        <div><h2>Who owes what</h2><div class="sub">Monday 31 Aug, 8:15am</div></div>
+        <span class="badge">9</span>
+      </div>
+    </div>
+    <div class="scroll">
+      <div class="seg" id="seg">
+        <button aria-pressed="true" data-v="person">By person</button>
+        <button aria-pressed="false" data-v="dept">By department</button>
+      </div>
+
+      <div id="byperson">
+        <div class="teamrow">
+          <h4>Opening checklist missed, Sat 29 Aug</h4>
+          <p>This one is open to anyone on shift, so nobody personally owes it. Three people were rostered: Rey, Priya, Tobias.</p>
+        </div>
+
+        <div class="person" data-p>
+          <button class="phead">
+            <span class="avatar">RC</span>
+            <span><span class="pn">Rey Castellanos</span><span class="pr">Sales floor</span></span>
+            <span class="pcounts"><span class="tag red">2 over</span><span class="tag violet">Sign</span></span>
+            <span class="caret">▾</span>
+          </button>
+          <div class="pbody">
+            <div class="pitem"><span>Weekly section crosscheck, Books and media<span class="pi-m">Due Sat 29 Aug at close</span></span><span class="tag red">4 days</span></div>
+            <div class="pitem"><span>Steamer maintenance log<span class="pi-m">Due Sat 29 Aug</span></span><span class="tag red">1 day</span></div>
+            <div class="pitem"><span>Injury and safety policy v3<span class="pi-m">Blocking his app until signed</span></span><span class="tag violet">Sign</span></div>
+          </div>
+        </div>
+
+        <div class="person" data-p>
+          <button class="phead">
+            <span class="avatar">TN</span>
+            <span><span class="pn">Tobias Nkemelu</span><span class="pr">Donations and receiving</span></span>
+            <span class="pcounts"><span class="tag red">3 over</span></span>
+            <span class="caret">▾</span>
+          </button>
+          <div class="pbody">
+            <div class="pitem"><span>Textile bale log, three days missing<span class="pi-m">Wed, Thu, Fri last week</span></span><span class="tag red">6 days</span></div>
+            <div class="pitem"><span>Quarterly facilities inspection, dock area<span class="pi-m">Due Sat 27 Sep at close, not yet started</span></span><span class="tag blue">On time</span></div>
+          </div>
+        </div>
+
+        <div class="person" data-p>
+          <button class="phead">
+            <span class="avatar">PR</span>
+            <span><span class="pn">Priya Raman</span><span class="pr">Processing</span></span>
+            <span class="pcounts"><span class="tag amber">1 today</span></span>
+            <span class="caret">▾</span>
+          </button>
+          <div class="pbody">
+            <div class="pitem"><span>Daily section walk, Clothing<span class="pi-m">Due today at close</span></span><span class="tag amber">Today</span></div>
+          </div>
+        </div>
+
+        <div class="person" data-p>
+          <button class="phead">
+            <span class="avatar">MB</span>
+            <span><span class="pn">Marguerite Boyd</span><span class="pr">Processing</span></span>
+            <span class="pcounts"><span class="tag violet">Sign</span></span>
+            <span class="caret">▾</span>
+          </button>
+          <div class="pbody">
+            <div class="pitem"><span>Injury and safety policy v3<span class="pi-m">Published 24 Aug, signed v2 in February</span></span><span class="tag violet">Sign</span></div>
+          </div>
+        </div>
+
+        <div class="person" data-p>
+          <button class="phead">
+            <span class="avatar">DW</span>
+            <span><span class="pn">Dana Whitmore</span><span class="pr">Sales floor</span></span>
+            <span class="pcounts"><span class="tag green">Clear</span></span>
+            <span class="caret">▾</span>
+          </button>
+          <div class="pbody"><div class="pitem"><span>Nothing owed. Last submission Sat 30 Aug, closing checklist.</span></div></div>
+        </div>
+      </div>
+
+      <div id="bydept" style="display:none">
+        <div class="person" data-p>
+          <button class="phead">
+            <span class="avatar">DR</span>
+            <span><span class="pn">Donations and receiving</span><span class="pr">2 staff</span></span>
+            <span class="pcounts"><span class="tag red">4 over</span></span>
+            <span class="caret">▾</span>
+          </button>
+          <div class="pbody">
+            <div class="pitem"><span>Textile bale log<span class="pi-m">Tobias, three days missing</span></span><span class="tag red">6 days</span></div>
+            <div class="pitem"><span>Opening checklist<span class="pi-m">Sat 29 Aug, nobody submitted</span></span><span class="tag red">Team</span></div>
+          </div>
+        </div>
+        <div class="person" data-p>
+          <button class="phead">
+            <span class="avatar">SF</span>
+            <span><span class="pn">Sales floor</span><span class="pr">3 staff</span></span>
+            <span class="pcounts"><span class="tag red">2 over</span><span class="tag violet">1 sign</span></span>
+            <span class="caret">▾</span>
+          </button>
+          <div class="pbody">
+            <div class="pitem"><span>Weekly section crosscheck<span class="pi-m">Rey, Books and media</span></span><span class="tag red">4 days</span></div>
+            <div class="pitem"><span>Steamer maintenance log<span class="pi-m">Rey</span></span><span class="tag red">1 day</span></div>
+          </div>
+        </div>
+        <div class="person" data-p>
+          <button class="phead">
+            <span class="avatar">PC</span>
+            <span><span class="pn">Processing</span><span class="pr">2 staff</span></span>
+            <span class="pcounts"><span class="tag amber">1 today</span><span class="tag violet">1 sign</span></span>
+            <span class="caret">▾</span>
+          </button>
+          <div class="pbody">
+            <div class="pitem"><span>Daily section walk, Clothing<span class="pi-m">Priya, due at close</span></span><span class="tag amber">Today</span></div>
+            <div class="pitem"><span>Injury and safety policy v3<span class="pi-m">Marguerite</span></span><span class="tag violet">Sign</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="hr-note">Overdue counts stop climbing the moment a submission lands. There is no button here that clears someone else's item.</div>
+    </div>
+  </div></div>
+</div>
+
+</div>
+
+<script>
+/* ---- checklist ---- */
+(function(){
+  var list = document.getElementById('clist');
+  if(!list) return;
+  var items = list.querySelectorAll('[data-q]');
+  var total = items.length;
+
+  list.addEventListener('click', function(e){
+    var b = e.target.closest('.pf button');
+    if(b){
+      var grp = b.parentNode;
+      var was = b.getAttribute('data-on');
+      grp.querySelectorAll('button').forEach(function(x){x.removeAttribute('data-on')});
+      if(!was) b.setAttribute('data-on', b.getAttribute('data-v'));
+      update();
+      return;
+    }
+    var p = e.target.closest('.photo');
+    if(p){
+      p.classList.toggle('done');
+      p.textContent = p.classList.contains('done') ? 'Photo added, 8:22am' : 'Add photo';
+    }
+  });
+
+  function update(){
+    var done = 0;
+    items.forEach(function(it){
+      if(!it.querySelector('.pf')) { done++; return; }
+      if(it.querySelector('.pf button[data-on]')) done++;
+    });
+    var pct = Math.round(done/total*100);
+    document.getElementById('prog').style.width = pct + '%';
+    document.getElementById('progleft').textContent = done + ' of ' + total + ' answered';
+    document.getElementById('leftcount').textContent = (total-done) + ' left';
+    var btn = document.getElementById('submit');
+    var failed = list.querySelector('.pf button[data-on="fail"]');
+    if(done === total){
+      btn.disabled = false;
+      btn.textContent = failed ? 'Submit with 1 or more fails' : 'Submit opening checklist';
+    } else {
+      btn.disabled = true;
+      btn.textContent = 'Answer everything to submit';
+    }
+  }
+  update();
+})();
+
+/* ---- library ---- */
+(function(){
+  var docs = [
+    {t:'Opening checklist', m:'Sales floor. Anyone on shift. Daily.', tags:['fill'], dept:'floor', v:'v4'},
+    {t:'Closing checklist', m:'Sales floor. Anyone on shift. Daily.', tags:['fill'], dept:'floor', v:'v6'},
+    {t:'Weekly section crosscheck', m:'Random section, assigned Tuesdays, due Saturday at close.', tags:['fill'], dept:'floor', v:'v2'},
+    {t:'Daily section walk', m:'One per section. Photo needed on any fail.', tags:['fill'], dept:'floor', v:'v3'},
+    {t:'Donation intake and rejection guide', m:'What we take, what we turn away, how to say no kindly.', tags:['read'], dept:'recv', v:'v9'},
+    {t:'Textile bale log', m:'Weight, bale number, hauler. Every bale.', tags:['fill'], dept:'recv', v:'v1'},
+    {t:'Electrical item testing procedure', m:'PAT process before anything with a plug goes out.', tags:['read','print'], dept:'recv', v:'v2'},
+    {t:'Cash drawer count sheet', m:'Blank form for the safe. Printed, kept on paper.', tags:['print'], dept:'floor', v:'v3'},
+    {t:'Steamer maintenance log', m:'Descale, water, filter. Weekly.', tags:['fill'], dept:'boh', v:'v1'},
+    {t:'Quarterly facilities inspection', m:'Scored. Due the last operating day of the quarter.', tags:['fill'], dept:'boh', v:'v5'},
+    {t:'Injury and safety policy', m:'Signed on hire and again every year.', tags:['sign','print'], dept:'boh', v:'v3'},
+    {t:'Employee handbook', m:'Signed on hire and again every year.', tags:['sign'], dept:'boh', v:'v7'}
+  ];
+  var label = {fill:'Fill in', sign:'Sign', print:'Print', read:'Read only'};
+  var cls   = {fill:'blue', sign:'violet', print:'plain', read:'plain'};
+  var filter = 'all', term = '';
+  var listEl = document.getElementById('doclist');
+
+  function render(){
+    var out = docs.filter(function(d){
+      var okF = filter === 'all'
+        || (['fill','sign','print'].indexOf(filter) > -1 && d.tags.indexOf(filter) > -1)
+        || d.dept === filter;
+      var okT = !term || (d.t + ' ' + d.m).toLowerCase().indexOf(term) > -1;
+      return okF && okT;
+    });
+    document.getElementById('doccount').textContent = out.length;
+    if(!out.length){
+      listEl.innerHTML = '<div class="empty">Nothing matches that.<br>Clear the filter or ask a manager to add it.</div>';
+      return;
+    }
+    listEl.innerHTML = out.map(function(d){
+      return '<button class="doc"><div class="t">' + d.t + '</div><div class="m">' + d.m +
+        '</div><div class="foot">' + d.tags.map(function(x){
+          return '<span class="tag ' + cls[x] + '">' + label[x] + '</span>';
+        }).join('') + '<span class="tag plain">' + d.v + '</span></div></button>';
+    }).join('');
+  }
+
+  document.getElementById('chips').addEventListener('click', function(e){
+    var c = e.target.closest('.chip'); if(!c) return;
+    this.querySelectorAll('.chip').forEach(function(x){x.setAttribute('aria-pressed','false')});
+    c.setAttribute('aria-pressed','true');
+    filter = c.getAttribute('data-f');
+    render();
+  });
+  document.getElementById('q').addEventListener('input', function(){
+    term = this.value.trim().toLowerCase(); render();
+  });
+  render();
+})();
+
+/* ---- manager ---- */
+(function(){
+  document.querySelectorAll('[data-p] .phead').forEach(function(b){
+    b.addEventListener('click', function(){
+      var p = b.parentNode;
+      p.classList.toggle('open');
+      b.querySelector('.caret').textContent = p.classList.contains('open') ? '▴' : '▾';
+    });
+  });
+  var seg = document.getElementById('seg');
+  seg.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    seg.querySelectorAll('button').forEach(function(x){x.setAttribute('aria-pressed','false')});
+    b.setAttribute('aria-pressed','true');
+    var v = b.getAttribute('data-v');
+    document.getElementById('byperson').style.display = v === 'person' ? '' : 'none';
+    document.getElementById('bydept').style.display   = v === 'dept'   ? '' : 'none';
+  });
+})();
+</script>
+</body>
+</html>

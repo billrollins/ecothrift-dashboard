@@ -33,8 +33,21 @@ describe('settingsRegistry', () => {
 
   it('parses URL tabs and refuses Permissions to a Manager', () => {
     expect(parseSettingsTab('store', false)).toBe('store');
+    expect(parseSettingsTab('retail-qa', false)).toBe('retail-qa');
     expect(parseSettingsTab('permissions', false)).toBe('system');
     expect(parseSettingsTab('permissions', true)).toBe('permissions');
     expect(parseSettingsTab('nope', true)).toBe('system');
+  });
+
+  it('gathers every Retail QA key on its own tab', () => {
+    const keys = keysForTab('retail-qa', Object.keys(SETTINGS_REGISTRY));
+    expect(keys).toHaveLength(11);
+    expect(keys.every((key) => key.startsWith('retail_qa.'))).toBe(true);
+  });
+
+  it('edits weights as percents, letters as scores, and audit floors as counts', () => {
+    expect(metaForKey('retail_qa.owner_weight').kind).toBe('weight');
+    expect(metaForKey('retail_qa.grade_a').kind).toBe('score');
+    expect(metaForKey('retail_qa.audit_min_items').kind).toBe('count');
   });
 });

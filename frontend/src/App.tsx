@@ -22,9 +22,11 @@ import LoginPage from './pages/LoginPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import DashboardPage from './pages/DashboardPage';
+import RoutinesPage from './pages/routines/RoutinesPage';
 import TimeClockPage from './pages/hr/TimeClockPage';
 import TimePayrollPage from './pages/admin/TimePayrollPage';
 import EnhancementRequestsPage from './pages/admin/EnhancementRequestsPage';
+import AdminRoutinesPage from './pages/admin/routines/AdminRoutinesPage';
 import VendorListPage from './pages/inventory/VendorListPage';
 import VendorDetailPage from './pages/inventory/VendorDetailPage';
 import OrderListPage from './pages/inventory/OrderListPage';
@@ -67,10 +69,6 @@ import UsersPage from './pages/admin/users/UsersPage';
 import SettingsPage from './pages/admin/SettingsPage';
 import LabelStudioPage from './pages/admin/labelStudio/LabelStudioPage';
 import LabelDesignerPage from './pages/admin/labelStudio/LabelDesignerPage';
-import QualityAuditHubPage from './pages/admin/QualityAuditHubPage';
-import QualityAuditWizardPage from './pages/admin/QualityAuditWizardPage';
-import QualityAuditFormEditorPage from './pages/admin/QualityAuditFormEditorPage';
-import QualityAuditFormListPage from './pages/admin/QualityAuditFormListPage';
 import AuctionListPage from './pages/buying/AuctionListPage';
 import AuctionDetailPage from './pages/buying/AuctionDetailPage';
 import WatchlistPage from './pages/buying/WatchlistPage';
@@ -160,6 +158,11 @@ export default function App() {
         }
       >
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/routines" element={<RoutinesPage />} />
+        <Route path="/routines/catalog" element={<RoutinesPage />} />
+        <Route path="/routines/new" element={<SuperAdminRoute><RoutinesPage /></SuperAdminRoute>} />
+        <Route path="/routines/:id/edit" element={<SuperAdminRoute><RoutinesPage /></SuperAdminRoute>} />
+        <Route path="/routines/run/:id" element={<RoutinesPage />} />
         <Route path="/hr/time-clock" element={<TimeClockPage />} />
         <Route path="/hr/modification-requests" element={<Navigate to="/admin/time-payroll" replace />} />
         <Route path="/hr/time-history" element={<Navigate to="/hr/time-clock" replace />} />
@@ -318,6 +321,14 @@ export default function App() {
             </SuperAdminRoute>
           }
         />
+        <Route
+          path="/admin/routines"
+          element={
+            <SuperAdminRoute>
+              <AdminRoutinesPage />
+            </SuperAdminRoute>
+          }
+        />
         <Route path="/admin/payroll-hours" element={<Navigate to="/admin/time-payroll" replace />} />
         <Route
           path="/admin/settings"
@@ -346,50 +357,6 @@ export default function App() {
         <Route
           path="/admin/assumptions"
           element={<Navigate to="/admin/settings?tab=assumptions" replace />}
-        />
-        <Route
-          path="/admin/quality-audit"
-          element={
-            <ManagerRoute>
-              <QualityAuditHubPage />
-            </ManagerRoute>
-          }
-        />
-        <Route
-          path="/admin/quality-audit/run/:formSlug/:auditId"
-          element={
-            <ManagerRoute>
-              <QualityAuditWizardPage />
-            </ManagerRoute>
-          }
-        />
-        <Route
-          path="/admin/quality-audit/forms"
-          element={
-            <SuperAdminRoute>
-              <QualityAuditFormListPage />
-            </SuperAdminRoute>
-          }
-        />
-        <Route
-          path="/admin/quality-audit/forms/new"
-          element={
-            <SuperAdminRoute>
-              <QualityAuditFormEditorPage />
-            </SuperAdminRoute>
-          }
-        />
-        <Route
-          path="/admin/quality-audit/forms/:formId"
-          element={
-            <SuperAdminRoute>
-              <QualityAuditFormEditorPage />
-            </SuperAdminRoute>
-          }
-        />
-        <Route
-          path="/admin/quality-audit/retail/:auditId"
-          element={<Navigate to="/admin/quality-audit" replace />}
         />
       </Route>
 

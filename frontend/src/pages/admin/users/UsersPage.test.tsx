@@ -13,6 +13,10 @@ const state = vi.hoisted(() => ({
   employeeStats: null as null | Record<string, number>,
 }));
 
+vi.mock('../../../api/hr.api', () => ({
+  getDepartments: async () => ({ data: [] }),
+}));
+
 vi.mock('@mui/x-data-grid', () => ({
   DataGrid: ({
     rows,
@@ -84,20 +88,43 @@ describe('UsersPage', () => {
   it('paints the stats strip before any number arrives', () => {
     wrap();
     // Five tiles, every value an em-dash while the counts are still loading.
-    expect(screen.getByText('Customers', { selector: 'span' })).toBeInTheDocument();
+    expect(screen.getByText('On the clock')).toBeInTheDocument();
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('opens Employees by default for an Admin', () => {
+    wrap();
+    expect(screen.getByRole('tab', { name: 'Employees' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+  });
+
+  it('opens Customers from the URL', () => {
+    wrap('/admin/users?tab=customers');
+    expect(screen.getByRole('tab', { name: /Customers/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+  });
+
+  it('opens Customers when a customer is deep-linked', () => {
+    wrap('/admin/users?customer=12');
+    // Drawer covers the tablist; the customer strip is the proof of the tab.
+    expect(screen.getByText('active accounts')).toBeInTheDocument();
+    expect(screen.queryByText('On the clock')).not.toBeInTheDocument();
   });
 
   it('keeps the same strip height when the tab changes', async () => {
     const user = userEvent.setup();
-    state.customerStats = {
-      total: 10, active: 8, inactive: 2, verified: 4, verified_pct: 50,
-      new_this_month: 3, new_last_month: 1, holds_this_month: 5, needs_reply: 2,
+    state.employeeStats = {
+      active: 8, inactive: 2, admins: 1, managers: 2, employees: 5,
+      new_hires_90d: 1, no_password: 0, on_the_clock: 3,
     };
     const { container } = wrap();
     const before = stripHeight(container);
 
-    await user.click(screen.getByRole('tab', { name: 'Employees' }));
+    await user.click(screen.getByRole('tab', { name: /Customers/ }));
 
     expect(stripHeight(container)).toBe(before);
     expect(String(before)).toContain(String(STATS_STRIP_HEIGHT));

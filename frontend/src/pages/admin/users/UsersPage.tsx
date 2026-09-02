@@ -2,9 +2,9 @@
  * Everyone with an account, in one place.
  *
  * Customers and Employees are different people with different facts, so they
- * get their own tab rather than one merged list. Managers run the customer
- * side; only an Admin sees Employees, and that gate is fixed for the session,
- * so the tab bar never changes under anyone's hand.
+ * get their own tab rather than one merged list. Employees is first and the
+ * default for an Admin. Managers only see Customers. That gate is fixed for
+ * the session, so the tab bar never changes under anyone's hand.
  *
  * The stats strip is a fixed slot above the tabs. It swaps its numbers when the
  * tab changes but never its height, so the table below stays where it was.
@@ -32,23 +32,27 @@ export default function UsersPage() {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
-  const requestedTab: UsersTab = tabParam === 'employees' ? 'employees' : 'customers';
-  const tab: UsersTab = requestedTab === 'employees' && !canSeeEmployees ? 'customers' : requestedTab;
 
   const customerParam = Number(searchParams.get('customer') || '');
   const deepLinkedCustomer =
     Number.isFinite(customerParam) && customerParam > 0 ? customerParam : null;
 
+  const requestedTab: UsersTab =
+    deepLinkedCustomer || tabParam === 'customers' || !canSeeEmployees
+      ? 'customers'
+      : 'employees';
+  const tab: UsersTab = requestedTab;
+
   const [customerId, setCustomerId] = useState<number | null>(deepLinkedCustomer);
   const [employeeId, setEmployeeId] = useState<number | null>(null);
 
-  const customerStats = useCustomerStats({ enabled: tab === 'customers' });
-  const employeeStats = useEmployeeStats({ enabled: tab === 'employees' && canSeeEmployees });
+  const customerStats = useCustomerStats();
+  const employeeStats = useEmployeeStats({ enabled: canSeeEmployees });
 
   const setTab = (next: UsersTab) => {
     const nextParams = new URLSearchParams(searchParams);
-    if (next === 'customers') nextParams.delete('tab');
-    else nextParams.set('tab', next);
+    if (next === 'employees') nextParams.delete('tab');
+    else nextParams.set('tab', 'customers');
     nextParams.delete('customer');
     setSearchParams(nextParams, { replace: true });
   };
@@ -96,6 +100,13 @@ export default function UsersPage() {
           '& .MuiTab-root': { overflow: 'visible', minHeight: 48, pt: 1.25 },
         }}
       >
+        {canSeeEmployees ? (
+          <Tab
+            value="employees"
+            label="Employees"
+            sx={{ textTransform: 'none', fontWeight: 600 }}
+          />
+        ) : null}
         <Tab
           value="customers"
           sx={{ textTransform: 'none', fontWeight: 600 }}
@@ -112,13 +123,6 @@ export default function UsersPage() {
             </Badge>
           }
         />
-        {canSeeEmployees ? (
-          <Tab
-            value="employees"
-            label="Employees"
-            sx={{ textTransform: 'none', fontWeight: 600 }}
-          />
-        ) : null}
       </Tabs>
 
       {tab === 'customers' ? (

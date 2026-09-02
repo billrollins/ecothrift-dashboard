@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     RegisterViewSet, DrawerViewSet, SupplementalViewSet,
     BankTransactionViewSet, CartViewSet, ReceiptViewSet,
-    RevenueGoalViewSet, QualityAuditViewSet, QualityAuditFormViewSet,
+    RevenueGoalViewSet,
     DeliveryAvailabilityViewSet, DeliveryJobViewSet,
     DeliveryDayViewSet, DeliveryViewSet,
     dashboard_metrics, dashboard_alerts, dashboard_sales_goal,
@@ -35,8 +35,6 @@ router.register(r'bank-transactions', BankTransactionViewSet, basename='banktran
 router.register(r'carts', CartViewSet, basename='cart')
 router.register(r'receipts', ReceiptViewSet, basename='receipt')
 router.register(r'revenue-goals', RevenueGoalViewSet, basename='revenuegoal')
-router.register(r'quality-audits', QualityAuditViewSet, basename='qualityaudit')
-router.register(r'quality-audit-forms', QualityAuditFormViewSet, basename='qualityauditform')
 router.register(r'delivery-availabilities', DeliveryAvailabilityViewSet, basename='deliveryavailability')
 router.register(r'delivery-jobs', DeliveryJobViewSet, basename='deliveryjob')
 router.register(r'delivery-days', DeliveryDayViewSet, basename='deliveryday')

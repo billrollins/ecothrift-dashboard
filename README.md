@@ -88,10 +88,14 @@ Built different. Built fast. Built to last.
 |-----|---------|
 | [`.ai/context.md`](.ai/context.md) | Product compass (not a changelog). |
 | [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md) | Active / pending / completed initiatives. |
-| [`.ai/protocols/load-context.md`](.ai/protocols/load-context.md) | Start of work: load compass, version, changelog top, active initiative. |
-| [`.ai/protocols/ship.md`](.ai/protocols/ship.md) | Docs audit, semver bump, CHANGELOG, commit, `2_push_github.bat`, pull prod. |
-| [`.ai/protocols/initiative.md`](.ai/protocols/initiative.md) | Create / activate / park / complete / abandon an initiative. |
-| [`.ai/protocols/sql-schema.md`](.ai/protocols/sql-schema.md) | Refresh `.ai/extended/sql/schema.csv`. |
+| [`.ai/protocols/clean-up.md`](.ai/protocols/clean-up.md) | If given: list junk; delete only the paths you paste back. |
+| [`.ai/protocols/context-load.md`](.ai/protocols/context-load.md) | If given: read compass, version, changelog top, active initiative; then ask. |
+| [`.ai/protocols/initiative-create.md`](.ai/protocols/initiative-create.md) | If given: ask for missing fields, then write the initiative file. |
+| [`.ai/protocols/initiative-review.md`](.ai/protocols/initiative-review.md) | If given: reconcile Active/Pending/Backlog with what shipped; you approve moves. |
+| [`.ai/protocols/ship-push-git.md`](.ai/protocols/ship-push-git.md) | If given: docs, version, changelog, commit, push GitHub. |
+| [`.ai/protocols/ship-push-heroku.md`](.ai/protocols/ship-push-heroku.md) | If given: same as git, then push Heroku. |
+| [`.ai/extended/initiatives.md`](.ai/extended/initiatives.md) | How initiative files are parked, completed, abandoned. |
+| [`.ai/extended/sql/README.md`](.ai/extended/sql/README.md) | How to refresh `schema.csv`. |
 
 **Notebook research:** [`.ai/extended/development.md`](.ai/extended/development.md) (*Jupyter*); category work under **`workspace/notebooks/category-research/`**. **B-Stock / buying:** archived initiative [`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md). Detailed setup: [`.ai/extended/development.md`](.ai/extended/development.md).
 
