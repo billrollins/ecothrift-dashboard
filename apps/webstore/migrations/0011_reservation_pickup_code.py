@@ -42,7 +42,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # No db_index here — unique=True below creates the index (+ varchar_pattern_ops).
+        # No db_index here - unique=True below creates the index (+ varchar_pattern_ops).
         migrations.AddField(
             model_name='reservation',
             name='pickup_code',

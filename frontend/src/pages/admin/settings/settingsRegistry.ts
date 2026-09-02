@@ -1,7 +1,7 @@
 /**
  * One place that says what each AppSetting key is, where it lives, and how
  * to edit it. Keys not listed here fall through to System as raw JSON so
- * nothing becomes invisible. Receipt storefront keys are hidden — the print
+ * nothing becomes invisible. Receipt storefront keys are hidden - the print
  * server hardcodes them.
  */
 
@@ -137,6 +137,12 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
   'retail_qa.spot_check_count': {
     label: 'Checks drawn into a spot check',
     help: 'How many random checks from Open, Day, and Close land in the daily owner spot check, alongside one full section cross-check.',
+    tab: 'retail-qa',
+    kind: 'count',
+  },
+  'retail_qa.idle_prompt_minutes': {
+    label: 'Idle prompt after (minutes)',
+    help: 'Minutes with no cart on the register before it asks for a work cycle. Default 5.',
     tab: 'retail-qa',
     kind: 'count',
   },

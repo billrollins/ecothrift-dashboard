@@ -808,7 +808,7 @@ def write_restoration_outputs(job: RestorationJob, outputs: list[dict], *, user=
 
 @transaction.atomic
 def reject_restoration_job(job: RestorationJob, *, reason: str, user=None) -> RestorationJob:
-    """Send the item to Processing as rejected — no restoration attempted."""
+    """Send the item to Processing as rejected - no restoration attempted."""
 
     reason = (reason or '').strip()
     if not reason:
@@ -860,7 +860,7 @@ SALVAGE_PRODUCT_NUMBER = 'PRD-SALVAGE'
 
 
 def ensure_salvage_product():
-    """One catalog sink for parts that leave as salvage — never picked by staff."""
+    """One catalog sink for parts that leave as salvage - never picked by staff."""
 
     from apps.inventory.models import Product
 

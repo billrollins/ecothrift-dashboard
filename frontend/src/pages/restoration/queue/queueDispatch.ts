@@ -2,7 +2,7 @@
  * Where an Overview item can go next, and what to say when it cannot.
  *
  * Every row on a tab shows the same buttons. Blocked moves stay on the strip
- * with an explainer — never silent holes, and never extra lines on the card.
+ * with an explainer - never silent holes, and never extra lines on the card.
  */
 import type { RestorationJobDTO } from '../../../types/inventory.types';
 import { isReadyForBench, missingGrades, QUEUE_LISTS, type QueueListId } from './restorationQueueModel';

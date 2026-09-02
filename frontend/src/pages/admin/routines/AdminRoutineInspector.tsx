@@ -73,7 +73,7 @@ export function AdminRoutineInspector({
     if (!canSave) return;
     setError('');
     try {
-      await save.mutateAsync({ id: routine.id, data: settingsToPayload(settings) });
+      await save.mutateAsync({ id: routine.id, data: settingsToPayload(settings, { locked: system }) });
       enqueueSnackbar('Saved', { variant: 'success' });
     } catch {
       setError('Could not save. Check the owner and schedule fields.');
@@ -111,7 +111,7 @@ export function AdminRoutineInspector({
             ) : null}
             <RoutineHeaderIconButton
               label={authored
-                ? 'Open the checklist editor — sections, checks, and the phone preview'
+                ? 'Open the checklist editor - sections, checks, and the phone preview'
                 : 'This kind has its own runner. There is no checklist to author.'}
               icon={<ChecklistRtlRounded />}
               disabled={!authored}
@@ -152,20 +152,21 @@ export function AdminRoutineInspector({
               wide={wide}
               departments={departments}
               people={people}
+              locked={system}
             />
 
             <FormSection
               wide={wide}
               title="Lifecycle"
               description={system
-                ? 'Part of the Retail QA program. Retiring it stops it; it cannot be deleted, because the grade looks it up by name.'
+                ? 'Part of the Retail QA program. Rename, times, and who is assigned can move. Repeats, assignment, and the runner cannot. It cannot be retired or deleted.'
                 : routine.is_active
                   ? 'Live in the catalog and on the lists of everyone it is assigned to.'
                   : 'Hidden from staff. Every past run is kept until you delete it for good.'}
             >
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                 {routine.is_active ? (
-                  <LifecycleButton label="Retire" onClick={onRetire} disabled={busy} />
+                  system ? null : <LifecycleButton label="Retire" onClick={onRetire} disabled={busy} />
                 ) : (
                   <>
                     <LifecycleButton label="Restore" primary onClick={onRestore} disabled={busy} />
@@ -209,13 +210,13 @@ export function AdminRoutineInspector({
 
 function passRate(routine: AdminRoutine): string {
   const { done, passed } = routine.stats;
-  if (!done) return '—';
+  if (!done) return '--';
   return `${Math.round((passed / done) * 100)}%`;
 }
 
 function nextDueLabel(routine: AdminRoutine): { value: string; sub: string } {
   if (routine.trigger === 'on_demand') return { value: 'On demand', sub: 'Runs when someone starts it' };
-  if (!routine.is_active) return { value: '—', sub: 'Retired routines do not schedule' };
+  if (!routine.is_active) return { value: '--', sub: 'Retired routines do not schedule' };
   const at = routine.stats.next_due_at;
   if (!at) return { value: 'Nothing open', sub: 'Next run appears on its day' };
   return { value: friendlyStamp(at), sub: format(new Date(at), 'EEEE h:mmaaa') };

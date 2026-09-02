@@ -96,7 +96,7 @@ export function TarsHome({
           if (!finishJob) return;
           const id = finishJob.id;
           setFinishJob(null);
-          enqueueSnackbar('Sent to Done — waiting for Processing to check it in', {
+          enqueueSnackbar('Sent to Done - waiting for Processing to check it in', {
             variant: 'success',
           });
           completeJob.mutate(

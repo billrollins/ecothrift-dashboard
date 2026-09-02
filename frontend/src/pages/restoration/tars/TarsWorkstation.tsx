@@ -181,7 +181,7 @@ export function TarsWorkstation({ chrome = 'studio' }: { chrome?: 'studio' | 'da
   const [scanMessageDialog, setScanMessageDialog] = useState<{ title: string; message: string } | null>(null);
   // Home unless asked for otherwise. An active bench item pulls the view to
   // Bench a moment later; with nothing in progress, Home is the useful landing.
-  // Dashboard chrome is the bench page itself — it never hosts Home.
+  // Dashboard chrome is the bench page itself - it never hosts Home.
   const [studioLane, setStudioLane] = useState<StudioLane>(
     chrome === 'dashboard' || queryView === 'bench' ? 'bench' : 'home',
   );
@@ -767,7 +767,7 @@ export function TarsWorkstation({ chrome = 'studio' }: { chrome?: 'studio' | 'da
     setSelectedRowKey(null);
     setDoneOpen(false);
     setStudioLocation('home');
-    enqueueSnackbar('Sent to Done — waiting for Processing to check it in', { variant: 'success' });
+    enqueueSnackbar('Sent to Done - waiting for Processing to check it in', { variant: 'success' });
     focusScanInput();
     void flushWorkSessionSave();
     completeJob.mutate(
@@ -785,7 +785,7 @@ export function TarsWorkstation({ chrome = 'studio' }: { chrome?: 'studio' | 'da
       setSelectedRowKey(null);
       setRejectOpen(false);
       setStudioLocation('home');
-      enqueueSnackbar('Rejected — sent to Processing', { variant: 'info' });
+      enqueueSnackbar('Rejected - sent to Processing', { variant: 'info' });
       focusScanInput();
     } catch (err) {
       enqueueSnackbar(err instanceof Error ? err.message : 'Reject failed', { variant: 'error' });

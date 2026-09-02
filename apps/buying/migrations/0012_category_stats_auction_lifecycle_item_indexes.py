@@ -74,7 +74,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('category', models.CharField(db_index=True, max_length=200, unique=True)),
-                ('sell_through_rate', models.DecimalField(decimal_places=6, help_text='0–1; 0 when denominator is zero.', max_digits=8)),
+                ('sell_through_rate', models.DecimalField(decimal_places=6, help_text='0-1; 0 when denominator is zero.', max_digits=8)),
                 ('have_retail', models.DecimalField(decimal_places=2, default=0, max_digits=14)),
                 ('have_units', models.PositiveIntegerField(default=0)),
                 ('want_retail', models.DecimalField(decimal_places=2, default=0, max_digits=14)),

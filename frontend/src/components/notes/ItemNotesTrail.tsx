@@ -25,7 +25,7 @@ export function ItemNotesTrail({
 }: {
   notes: ItemNoteDTO[];
   loading?: boolean;
-  /** Sit inside a parent well — no second box. */
+  /** Sit inside a parent well - no second box. */
   embedded?: boolean;
   compact?: boolean;
   /** Fill a slot the caller already sized, instead of the standard reserved heights. */

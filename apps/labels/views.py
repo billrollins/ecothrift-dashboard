@@ -1,10 +1,10 @@
 """Custom Label Studio API (Manager+).
 
-  * ``CustomLabelViewSet`` — CRUD (delete = soft archive via ``is_active=False``).
-  * ``background`` / ``pdf`` upload actions — multipart to S3 (webstore/blog pattern).
-  * ``media`` — staff-only proxy: 302 → presigned S3 URL (or streams in local dev),
+  * ``CustomLabelViewSet`` - CRUD (delete = soft archive via ``is_active=False``).
+  * ``background`` / ``pdf`` upload actions - multipart to S3 (webstore/blog pattern).
+  * ``media`` - staff-only proxy: 302 → presigned S3 URL (or streams in local dev),
     used by the print dialog to fetch PDF/background bytes for the local print server.
-  * ``ai/propose-structure`` / ``ai/generate-background`` — AI Create for me (approval gate).
+  * ``ai/propose-structure`` / ``ai/generate-background`` - AI Create for me (approval gate).
 """
 from __future__ import annotations
 
@@ -113,7 +113,7 @@ class CustomLabelViewSet(viewsets.ModelViewSet):
         serializer.save(created_by=self.request.user)
 
     def perform_destroy(self, instance):
-        # Soft archive — printable history stays addressable.
+        # Soft archive - printable history stays addressable.
         instance.is_active = False
         instance.save(update_fields=['is_active', 'updated_at'])
         safe_purge_orphan_label_media()
@@ -236,7 +236,7 @@ class CustomLabelViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'], url_path=r'media/(?P<attr>background|pdf_file)')
     def media(self, request, pk=None, attr=None):
-        """Staff proxy for label media — always stream bytes (never 302 to S3).
+        """Staff proxy for label media - always stream bytes (never 302 to S3).
 
         The designer/print dialog fetch media with axios ``arraybuffer`` + JWT.
         A 302 to a presigned S3 URL fails in the browser (cross-origin XHR body
@@ -254,7 +254,7 @@ class CustomLabelViewSet(viewsets.ModelViewSet):
             handle,
             content_type=s3_file.content_type or 'application/octet-stream',
         )
-        # URL is stable per label (`…/media/background/`); never cache — replacing
+        # URL is stable per label (`…/media/background/`); never cache - replacing
         # the FK would otherwise keep serving the previous image for minutes.
         response['Cache-Control'] = 'private, no-store, no-cache, must-revalidate'
         response['Pragma'] = 'no-cache'

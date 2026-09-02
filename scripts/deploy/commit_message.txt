@@ -1,7 +1,8 @@
-feat: ship Routines and Retail QA on the routines engine
+feat: stabilize Retail QA with work cycles and idle prompts
 
-Release: v2.76.0
+Work cycle is its own kind with phone draft pickup. Idle registers
+are asked after a few minutes with no cart. Program routines can no
+longer be retired or have their trigger changed. Routine Control
+keeps one header. Authored leftovers are purged.
 
-Routines replace Library and Quality Audit. Staff fill Open / Day / Close
-and section walks; the floor grades A-F. Documents API stays in the tree
-with staff routes unwired. GitHub only — not Heroku.
+Release: v2.77.0

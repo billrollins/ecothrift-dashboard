@@ -121,7 +121,7 @@ class PoItemCostFormulaTests(TestCase):
         po_a.refresh_from_db()
         po_b.refresh_from_db()
         self.assertEqual(it.cost, po_b.compute_item_cost(Decimal("100.00")))
-        # Remaining items on po_a (none) — recompute still ran; no other lines on A
+        # Remaining items on po_a (none) - recompute still ran; no other lines on A
         items_a = Item.objects.filter(purchase_order=po_a)
         self.assertEqual(items_a.count(), 0)
 

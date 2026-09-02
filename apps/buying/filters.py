@@ -27,7 +27,7 @@ def cdt_today_window_utc():
 def filter_auction_text_search(queryset, value):
     """
     Split `value` on whitespace; each non-empty term must match
-    (title OR marketplace name) ILIKE %term% — AND across terms.
+    (title OR marketplace name) ILIKE %term% - AND across terms.
     """
     if value is None:
         return queryset
@@ -133,7 +133,7 @@ class AuctionFilter(django_filters.FilterSet):
 
     marketplace = django_filters.CharFilter(method='filter_marketplace')
     status = django_filters.CharFilter(field_name='status')
-    # Explicit parsing — BooleanFilter can miss some query-string serializations from clients.
+    # Explicit parsing - BooleanFilter can miss some query-string serializations from clients.
     has_manifest = django_filters.CharFilter(method='filter_has_manifest')
     thumbs_up = django_filters.BooleanFilter(method='filter_thumbs_up_for_user')
     today = django_filters.BooleanFilter(method='filter_today_end_cdt')

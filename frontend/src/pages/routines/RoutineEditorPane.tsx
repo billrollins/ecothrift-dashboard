@@ -36,8 +36,8 @@ const CONTROL_LABELS: Record<RoutineControl, string> = {
 };
 
 /**
- * A check is two lines on a desk — what to check over its hint, the answer
- * type over its unit — with critical and delete spanning both on the right.
+ * A check is two lines on a desk - what to check over its hint, the answer
+ * type over its unit - with critical and delete spanning both on the right.
  */
 const CHECK_COLUMNS_WIDE = '24px minmax(0, 1fr) 150px 36px 36px';
 const CHECK_COLUMNS_NARROW = '28px minmax(0, 1fr) 84px 40px';
@@ -84,6 +84,7 @@ export function RoutineEditorPane({
   // Kind is set by the seed, never in the editor: a section runner has no
   // checklist to author, so the phone previews it from a fixture instead.
   const kind: RoutineKind = existing.data?.kind ?? 'checklist';
+  const locked = Boolean(existing.data?.system_key);
   const [definition, setDefinition] = useState<RoutineDefinition>(emptyDefinition());
   const [error, setError] = useState('');
   const [jsonOpen, setJsonOpen] = useState(false);
@@ -111,8 +112,8 @@ export function RoutineEditorPane({
   const checkTotal = definition.sections.reduce((sum, section) => sum + section.checks.length, 0);
   const canSave = Boolean(title.trim()) && !save.isPending;
 
-  /** The form as a portable document — unsaved edits included, since that is what the user is looking at. */
-  const payload = settingsToPayload(settings);
+  /** The form as a portable document - unsaved edits included, since that is what the user is looking at. */
+  const payload = settingsToPayload(settings, { locked });
   const currentDoc: RoutineDoc = {
     format: ROUTINE_DOC_FORMAT,
     title,
@@ -142,16 +143,17 @@ export function RoutineEditorPane({
 
   function applyDoc(doc: RoutineDoc) {
     // The brief only carries the fields an outside model reasons about, so the
-    // nag moments keep whatever the form already had.
+    // nag moments keep whatever the form already had. Program routines also
+    // keep repeats and assignment, or the save would 400.
     setSettings((prev) => ({
       ...prev,
       title: doc.title,
       intro: doc.intro,
-      trigger: doc.trigger,
+      trigger: locked ? prev.trigger : doc.trigger,
       dueTime: doc.due_time,
       nextDue: doc.anchor_date || prev.nextDue,
       graceDays: String(doc.grace_days),
-      assignment: doc.assignment,
+      assignment: locked ? prev.assignment : doc.assignment,
       assignedRole: doc.assigned_role,
       assignedDepartment: doc.assigned_department ?? '',
       assignedUserIds: doc.assigned_user_ids,
@@ -160,7 +162,7 @@ export function RoutineEditorPane({
     }));
     setDefinition(doc.definition);
     setJsonOpen(false);
-    enqueueSnackbar('Form updated — check the phone, then Save', { variant: 'success' });
+    enqueueSnackbar('Form updated - check the phone, then Save', { variant: 'success' });
   }
 
   async function copyBrief() {
@@ -229,13 +231,13 @@ export function RoutineEditorPane({
           <>
             <RoutineHeaderIconButton
               label={editingId
-                ? 'Copy for AI — the routine plus instructions, ready to paste into a chat'
-                : 'Copy for AI — a blank routine plus instructions, so an AI can draft it for you'}
+                ? 'Copy for AI - the routine plus instructions, ready to paste into a chat'
+                : 'Copy for AI - a blank routine plus instructions, so an AI can draft it for you'}
               icon={<ContentCopyOutlined />}
               onClick={() => void copyBrief()}
             />
             <RoutineHeaderIconButton
-              label="Update from JSON — paste or upload what the AI returned"
+              label="Update from JSON - paste or upload what the AI returned"
               icon={<FileUploadOutlined />}
               onClick={() => setJsonOpen(true)}
             />
@@ -273,6 +275,7 @@ export function RoutineEditorPane({
             departments={departments.data ?? []}
             people={assignees.data ?? []}
             autoFocusTitle={!editingId}
+            locked={locked}
           />
 
           <FormSection
@@ -511,14 +514,14 @@ function CheckEditorRow({
         value={check.unit || ''}
         onChange={(e) => onPatch({ unit: e.target.value })}
         disabled={check.control !== 'number'}
-        placeholder={check.control === 'number' ? 'Unit' : '—'}
+        placeholder={check.control === 'number' ? 'Unit' : '-'}
         label={wide ? undefined : 'Unit'}
         size="small"
         fullWidth
         sx={{ ...fieldSx, gridArea: 'unit' }}
       />
       <Box sx={{ gridArea: 'crit', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-        <Tooltip title={check.critical ? 'Critical — one fail fails the run' : 'Mark critical'}>
+        <Tooltip title={check.critical ? 'Critical - one fail fails the run' : 'Mark critical'}>
           <Box
             component="button"
             type="button"

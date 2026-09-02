@@ -33,6 +33,11 @@ const GROUPS: Array<{ title: string; blurb: string; keys: string[] }> = [
       'retail_qa.spot_check_count',
     ],
   },
+  {
+    title: 'Register',
+    blurb: 'When an idle register asks for a work cycle. Dismissals are logged; they do not change the grade.',
+    keys: ['retail_qa.idle_prompt_minutes'],
+  },
 ];
 
 export function RetailQaPanel() {

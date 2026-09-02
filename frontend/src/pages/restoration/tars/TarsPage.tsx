@@ -1,7 +1,7 @@
 import { Box, Typography } from '@mui/material';
 import { TarsWorkstation } from './TarsWorkstation';
 
-/** Legacy fullscreen TARS Studio — parked at /restoration/tars-legacy. */
+/** Legacy fullscreen TARS Studio - parked at /restoration/tars-legacy. */
 export default function TarsPage() {
   return (
     <Box
@@ -31,7 +31,7 @@ export default function TarsPage() {
         }}
       >
         <Typography sx={{ fontSize: 12, fontWeight: 800, color: '#8a5200', textAlign: 'center' }}>
-          Legacy TARS Studio — Overview and Bench now live in the dashboard.
+          Legacy TARS Studio - Overview and Bench now live in the dashboard.
         </Typography>
       </Box>
       <Box sx={{ flex: 1, minHeight: 0, display: 'flex' }}>

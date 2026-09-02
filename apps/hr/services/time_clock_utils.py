@@ -39,7 +39,7 @@ def validate_shift_duration(
 
 
 def week_bounds(for_day: date | None = None) -> tuple[date, date]:
-    """Calendar week Mon–Sun containing for_day (local date)."""
+    """Calendar week Mon-Sun containing for_day (local date)."""
     d = for_day or timezone.localdate()
     monday = d - timedelta(days=d.weekday())
     sunday = monday + timedelta(days=6)
@@ -64,7 +64,7 @@ def _entry_hours(entry: TimeEntry, as_of: datetime | None = None) -> Decimal:
 
 
 def weekly_hours_for_employee(employee, as_of: datetime | None = None) -> Decimal:
-    """Sum hours for employee in the current calendar week (Mon–Sun)."""
+    """Sum hours for employee in the current calendar week (Mon-Sun)."""
     as_of = as_of or timezone.now()
     week_start, week_end = week_bounds(as_of.date())
     entries = TimeEntry.objects.filter(

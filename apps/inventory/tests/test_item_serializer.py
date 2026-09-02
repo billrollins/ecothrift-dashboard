@@ -1,4 +1,4 @@
-"""ItemSerializer — category + retail_value for Add Item / item detail panel."""
+"""ItemSerializer - category + retail_value for Add Item / item detail panel."""
 
 from decimal import Decimal
 

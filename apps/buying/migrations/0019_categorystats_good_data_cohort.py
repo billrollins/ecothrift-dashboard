@@ -14,7 +14,7 @@ class Migration(migrations.Migration):
             name='good_data_sample_size',
             field=models.PositiveIntegerField(
                 default=0,
-                help_text='Count of sold rows in the good-data cohort (sale, retail, cost each 0.01–9999).',
+                help_text='Count of sold rows in the good-data cohort (sale, retail, cost each 0.01-9999).',
             ),
         ),
         migrations.AddField(
@@ -73,7 +73,7 @@ class Migration(migrations.Migration):
             field=models.DecimalField(
                 decimal_places=6,
                 help_text=(
-                    '0–1; SUM(sold_for)/SUM(retail_value) for all-time sold rows where sold_for, '
+                    '0-1; SUM(sold_for)/SUM(retail_value) for all-time sold rows where sold_for, '
                     'retail_value, and cost are each between 0.01 and 9999; 0 when denominator is zero.'
                 ),
                 max_digits=8,

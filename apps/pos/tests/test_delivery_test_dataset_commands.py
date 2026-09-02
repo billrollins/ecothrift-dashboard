@@ -35,7 +35,7 @@ class DeliveryTestDatasetCommandTests(TestCase):
         self.assertTrue(any('8724 N 30th' in a for a in addresses))
         self.assertTrue(any('4610 S 24th' in a for a in addresses))
         self.assertTrue(any('12102 Blondo' in a for a in addresses))
-        # Seeded names look real — no [TEST] prefix.
+        # Seeded names look real - no [TEST] prefix.
         self.assertFalse(
             DeliveryJob.objects.filter(
                 test_dataset_id=first['dataset_id'],

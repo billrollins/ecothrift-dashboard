@@ -1,6 +1,6 @@
 """LLM router: provider/key resolution and per-provider completion routing.
 
-All HTTP/SDK traffic is mocked — no network calls. One routing test per provider
+All HTTP/SDK traffic is mocked - no network calls. One routing test per provider
 (anthropic SDK, xAI REST, Google REST) plus error normalization and purpose lookup.
 """
 

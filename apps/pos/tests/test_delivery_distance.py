@@ -123,7 +123,7 @@ class DeliveryMapsRouteTests(SimpleTestCase):
         body = mock_post.call_args[0][1]
         self.assertTrue(body.get('optimizeWaypointOrder'))
         self.assertEqual(body.get('travelMode'), 'DRIVE')
-        # Near-term / missing departure must be omitted — Routes rejects past times.
+        # Near-term / missing departure must be omitted - Routes rejects past times.
         self.assertNotIn('departureTime', body)
         headers = mock_post.call_args.kwargs.get('headers') or mock_post.call_args[1].get('headers')
         self.assertIn('optimizedIntermediateWaypointIndex', headers['X-Goog-FieldMask'])

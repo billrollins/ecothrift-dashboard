@@ -5,12 +5,13 @@ import type { AnyRoutineResponses, RoutineDefinition, RoutineKind } from '../../
 import { RoutinePhoneBar } from './RoutinePhoneBar';
 import { RoutineRunner } from './RoutineRunner';
 import { KindRunner } from './runners/KindRunner';
-import { PREVIEW_TAXONOMY, previewAudit, previewSpot, previewTally } from './runners/previewFixtures';
+import { PREVIEW_TAXONOMY, previewAudit, previewSpot, previewTally, previewWorkCycle } from './runners/previewFixtures';
 import { responsesFromDefinition } from './responsesFromDefinition';
 
 function previewResponses(kind: RoutineKind): AnyRoutineResponses {
   if (kind === 'section_tally') return previewTally();
   if (kind === 'section_audit') return previewAudit();
+  if (kind === 'work_cycle') return previewWorkCycle();
   return previewSpot();
 }
 

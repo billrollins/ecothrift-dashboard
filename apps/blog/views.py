@@ -1,8 +1,8 @@
 """Blog API.
 
-  * `BlogSeriesViewSet` / `BlogPostViewSet` — Super Admin CRUD for the Blog Studio.
+  * `BlogSeriesViewSet` / `BlogPostViewSet` - Super Admin CRUD for the Blog Studio.
   * Public read endpoints (`AllowAny`): live post list, detail-by-slug, active series.
-  * `blog_image` — public image proxy (keeps S3 private); `upload_blog_image` — Super Admin upload.
+  * `blog_image` - public image proxy (keeps S3 private); `upload_blog_image` - Super Admin upload.
 
 Public visibility flows through `BlogPost.objects.live()` everywhere.
 """
@@ -102,7 +102,7 @@ class BlogPostViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         instance = serializer.instance
-        # Slug lock: once a post has been published it owns a public URL — never let a
+        # Slug lock: once a post has been published it owns a public URL - never let a
         # later edit silently change it.
         if instance.published_at and 'slug' in serializer.validated_data:
             serializer.validated_data.pop('slug', None)

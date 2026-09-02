@@ -1,13 +1,13 @@
 """Slim checklist definition: five controls, server-derived results.
 
-`RoutineSubmission.responses` carries one of four shapes, chosen by
+`RoutineSubmission.responses` carries one of five shapes, chosen by
 `Routine.kind`. Only the first is authored in the editor; the others are fixed
 by their runner, which is why their definitions are left empty.
 
 `checklist`
     ``{template_version, sections: [{id, title, checks: [...]}]}``
     Plus ``verify: {run_id, result, note}`` when the routine verifies another
-    one — the opener signing off on how the closer left the store.
+    one - the opener signing off on how the closer left the store.
 
 `section_tally`
     ``{sections: [{section_id, section_name, counts: {<category>: n}, flags: [...], notes}]}``
@@ -19,6 +19,12 @@ by their runner, which is why their definitions are left empty.
 
 `owner_spot`
     ``{checks: [{routine_key, check_id, label, result}], audit: <section_audit>}``
+
+`work_cycle`
+    ``{mode: 'shelf'|'non_shelf'|'',
+    shelf: {section_id, section_name, counts, flags, photo, notes},
+    non_shelf: {done: [check_id...], notes}}``
+    On-demand log. Never scored. Non-shelf ticks come from Open + Close.
 
 Category keys come from `AUDIT_CATEGORIES` below so the phone, the score, and
 the Grades view all read the same taxonomy.

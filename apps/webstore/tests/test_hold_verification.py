@@ -97,7 +97,7 @@ class HoldVerificationTests(TestCase):
         staff = self.client.get('/api/webstore/reservations/')
         self.assertEqual(staff.status_code, 200)
         results = staff.json().get('results', staff.json())
-        # Pending holds are visible — stock is already reserved on the listing.
+        # Pending holds are visible - stock is already reserved on the listing.
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]['status'], 'pending_verification')
         self.assertEqual(results[0]['email'], 'guest-hold@example.com')
@@ -124,7 +124,7 @@ class HoldVerificationTests(TestCase):
             format='json',
         )
         res = Reservation.objects.get(status_token=r.json()['status_token'])
-        # Hold create already issued a confirmation — force a re-issue after
+        # Hold create already issued a confirmation - force a re-issue after
         # clearing the cooldown window so we know the plaintext code.
         HoldConfirmation.objects.filter(reservation=res).update(
             created_at=timezone.now() - timedelta(seconds=61),

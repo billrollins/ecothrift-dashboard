@@ -204,7 +204,7 @@ class CustomerPasswordTests(TestCase):
         user.refresh_from_db()
         self.assertTrue(user.check_password('brandnew1'))
 
-        # Unlock is single-use — further updates still need the current password.
+        # Unlock is single-use - further updates still need the current password.
         blocked = self.client.post(
             '/api/auth/customer/set-password/',
             {'password': 'another1'},

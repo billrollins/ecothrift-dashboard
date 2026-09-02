@@ -28,7 +28,7 @@ export function runGlyphIcon(glyph: RunGlyph): ReactElement {
   }
 }
 
-/** Icon for a catalog row's tile — says how often it comes round. */
+/** Icon for a catalog row's tile - says how often it comes round. */
 export function triggerGlyphIcon(trigger: RoutineTrigger | string): ReactElement {
   switch (trigger) {
     case 'daily': return <WbSunnyRounded />;

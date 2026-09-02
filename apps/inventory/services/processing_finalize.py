@@ -356,7 +356,7 @@ def _validate_bookmarks_and_terminal(order: PurchaseOrder) -> None:
     if order.items.filter(status__in=_TERMINAL_ITEM_STATUSES_FROZEN).exists():
         raise ValidationError({
             'detail': (
-                'Cannot build processing data — some items are sold, scrapped, or lost. '
+                'Cannot build processing data - some items are sold, scrapped, or lost. '
                 'Resolve inventory state before rebuilding.'
             ),
             'code': 'terminal_items_block',
@@ -932,7 +932,7 @@ def clear_processing_data_to_bookmarks_phase(order: PurchaseOrder) -> dict[str, 
     """Drop manifest/items/batches/build state and return to post-preprocessing bookmarks only.
 
     Does **not** change staging ``PreprocessingRow`` rows, and does **not**
-    recreate manifest lines or items — the operator uses **Create Processing Data** when ready.
+    recreate manifest lines or items - the operator uses **Create Processing Data** when ready.
     """
 
     _ensure_preprocessing_finalized(order)
@@ -957,7 +957,7 @@ def clear_processing_data_to_bookmarks_phase(order: PurchaseOrder) -> dict[str, 
     return {
         'detail': (
             'Removed manifest rows, processing items (non-terminal), batch groups, and processing-batch records. '
-            'Finalized preprocessing and bookmark rows are unchanged — tap Create Processing Data when you want canonical lines again.'
+            'Finalized preprocessing and bookmark rows are unchanged - tap Create Processing Data when you want canonical lines again.'
         ),
         'code': 'processing_data_cleared',
         'status': 'none',

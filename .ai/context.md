@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-02 (v2.76.0 Routines + Retail QA; Documents UI parked) -->
+<!-- Last updated: 2026-09-02 (v2.77.0 Retail QA stabilize) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,7 +13,7 @@ Full-stack business management for a thrift store in Omaha, NE. HR (time clock, 
 
 ## Active work
 
-- **ACTIVE (compass) — Routines and Documents:** [`routines_and_documents`](initiatives/routines_and_documents.md) — Routines + Retail QA shipped **v2.76.0**. Documents API is in-tree; staff routes are unwired until a later UI tune. Replaces abandoned [`documents_and_duties`](initiatives/_archived/_abandoned/documents_and_duties.md).
+- **ACTIVE (compass) — Routines and Documents:** [`routines_and_documents`](initiatives/routines_and_documents.md) — Routines + Retail QA shipped **v2.76.0**, stabilized in **v2.77.0**. Documents API is in-tree; staff routes are unwired until a later UI tune. Replaces abandoned [`documents_and_duties`](initiatives/_archived/_abandoned/documents_and_duties.md).
 - **ACTIVE — Admin workspace overhaul:** [`admin_workspace_overhaul`](initiatives/admin_workspace_overhaul.md) — Studios workspace, Settings house, capability catalog. Grants deferred.
 - **ACTIVE — Universal object surfaces:** [`universal_object_surfaces`](initiatives/universal_object_surfaces.md) — design only. No code scheduled.
 

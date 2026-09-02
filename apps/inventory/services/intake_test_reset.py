@@ -57,7 +57,7 @@ def fixture_meta_path() -> Path:
 
 
 def fallback_csv_paths() -> list[Path]:
-    # NOTE: workspace/ai-cleanup-grok/data/in/*.csv is deliberately NOT a fallback —
+    # NOTE: workspace/ai-cleanup-grok/data/in/*.csv is deliberately NOT a fallback -
     # that file is download-cleanup-csv export format (row_id/base_cost/...), which is
     # valid Grok input but invalid for upload-manifest.
     return [fixture_csv_path()]
@@ -70,7 +70,7 @@ def resolve_fixture_csv() -> Path | None:
     return None
 
 
-# Headers that identify a cleanup-CSV export (or Grok cleaned output) — never a raw
+# Headers that identify a cleanup-CSV export (or Grok cleaned output) - never a raw
 # vendor manifest. Reject fixtures carrying any of these.
 _CLEANUP_EXPORT_HEADER_MARKERS = frozenset({'row_id', 'base_cost', 'ideal_price', 'ai_title', 'ai_status'})
 
@@ -83,14 +83,14 @@ def validate_fixture_bytes(raw: bytes, *, path: Path, po: PurchaseOrder) -> None
     if markers:
         raise IntakeTestResetError(
             f'Fixture {path} looks like a cleanup-CSV export (headers include {markers}), '
-            'not a raw vendor manifest — refusing to upload it. Delete the file or replace '
+            'not a raw vendor manifest - refusing to upload it. Delete the file or replace '
             'it with the original BStock CSV.',
         )
     expected = po.manifest_row_count
     if expected and len(rows_data) != expected:
         raise IntakeTestResetError(
             f'Fixture {path} has {len(rows_data)} data row(s) but PO {po.order_number} '
-            f'expects {expected} — refusing stale/poisoned fixture. Delete the file or '
+            f'expects {expected} - refusing stale/poisoned fixture. Delete the file or '
             're-capture it (reset_intake_test_po --capture-fixture).',
         )
 

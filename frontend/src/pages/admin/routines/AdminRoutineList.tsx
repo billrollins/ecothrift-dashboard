@@ -1,5 +1,4 @@
 import { Box, Typography } from '@mui/material';
-import AddRounded from '@mui/icons-material/AddRounded';
 import ArchiveOutlined from '@mui/icons-material/ArchiveOutlined';
 import ChecklistRtlRounded from '@mui/icons-material/ChecklistRtlRounded';
 import UnarchiveOutlined from '@mui/icons-material/UnarchiveOutlined';
@@ -9,13 +8,11 @@ import { StatusTag } from '../../../components/duty/StatusTag';
 import { TaskRow, TaskRowAction, TaskRowIcon } from '../../../components/duty/TaskRow';
 import { dutyColors, thinScrollSx } from '../../../components/duty/tokens';
 import { triggerGlyphIcon } from '../../routines/routineGlyphs';
-import { RoutineHeaderIconButton, RoutinePaneHeader } from '../../routines/RoutinePaneHeader';
 import { AdminRoutineFilterBar } from './AdminRoutineFilterBar';
-import { AdminViewToggle, type AdminRoutineView } from './AdminViewToggle';
 import { baseRows, flagCounts, visibleRows, type AdminRoutineFilters } from './adminRoutineFilters';
 import { presentAdminRoutine } from './presentAdminRoutine';
 
-function summaryNote(rows: AdminRoutine[], shown: number): string {
+export function summaryNote(rows: AdminRoutine[], shown: number): string {
   const active = rows.filter((r) => r.is_active).length;
   const retired = rows.length - active;
   const overdue = rows.reduce((sum, r) => sum + (r.is_active ? r.stats.overdue : 0), 0);
@@ -34,11 +31,9 @@ export function AdminRoutineList({
   departments,
   selectedId,
   onSelect,
-  onNew,
   onEditChecklist,
   onRetire,
   onRestore,
-  onView,
   busyId,
 }: {
   rows: AdminRoutine[];
@@ -46,11 +41,9 @@ export function AdminRoutineList({
   error: boolean;
   filters: AdminRoutineFilters;
   onFilters: (next: AdminRoutineFilters) => void;
-  onView: (view: AdminRoutineView) => void;
   departments: Array<{ id: number; name: string }>;
   selectedId: number | null;
   onSelect: (id: number) => void;
-  onNew: () => void;
   onEditChecklist: (routine: AdminRoutine) => void;
   onRetire: (routine: AdminRoutine) => void;
   onRestore: (routine: AdminRoutine) => void;
@@ -70,31 +63,26 @@ export function AdminRoutineList({
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: dutyColors.paper }}>
-      <RoutinePaneHeader
-        tone="admin"
-        eyebrow="Admin · every department"
-        title="Routine Control"
-        note={note}
-        noteIsError={error}
-        actions={(
-          <RoutineHeaderIconButton
-            label="New routine"
-            icon={<AddRounded />}
-            onClick={onNew}
-          />
-        )}
-        below={(
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <AdminViewToggle view="routines" onChange={onView} />
-            <AdminRoutineFilterBar
-              filters={filters}
-              onChange={onFilters}
-              counts={counts}
-              departments={departments}
-            />
-          </Box>
-        )}
-      />
+      <Box sx={{ px: 2.5, pt: 1.5, pb: 1, borderBottom: `1px solid ${dutyColors.ink15}` }}>
+        <AdminRoutineFilterBar
+          filters={filters}
+          onChange={onFilters}
+          counts={counts}
+          departments={departments}
+        />
+        <Typography
+          noWrap
+          sx={{
+            mt: 1,
+            minHeight: 18,
+            fontSize: 12.5,
+            fontWeight: error ? 600 : 400,
+            color: error ? dutyColors.red : dutyColors.ink60,
+          }}
+        >
+          {note}
+        </Typography>
+      </Box>
 
       <Box sx={{ flex: 1, overflow: 'auto', pt: 1.5, pb: 2, ...thinScrollSx }}>
         {visible.length ? visible.map((routine) => {
@@ -126,13 +114,15 @@ export function AdminRoutineList({
                     onClick={() => onEditChecklist(routine)}
                   />
                   {routine.is_active ? (
-                    <TaskRowIcon
-                      label="Retire — hide from staff, keep the history"
-                      danger
-                      disabled={busy}
-                      icon={<ArchiveOutlined sx={{ fontSize: 17 }} />}
-                      onClick={() => onRetire(routine)}
-                    />
+                    routine.system_key ? null : (
+                      <TaskRowIcon
+                        label="Retire: hide from staff, keep the history"
+                        danger
+                        disabled={busy}
+                        icon={<ArchiveOutlined sx={{ fontSize: 17 }} />}
+                        onClick={() => onRetire(routine)}
+                      />
+                    )
                   ) : (
                     <TaskRowIcon
                       label="Restore to the catalog"

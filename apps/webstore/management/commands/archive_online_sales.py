@@ -6,7 +6,7 @@ Usage:
     python manage.py archive_online_sales --purge     # archive + delete abandoned
 
 Archiving is reversible and hides nothing from customers. `--purge` deletes
-holds that were abandoned before the customer ever proved their email — run it
+holds that were abandoned before the customer ever proved their email - run it
 only after a few days of `--dry-run` output looks right.
 """
 from django.core.management.base import BaseCommand

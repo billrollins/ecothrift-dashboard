@@ -626,7 +626,7 @@ def _normalize_override(raw: Any, *, user, now) -> dict[str, Any]:
 
 
 def decision_work_progress(_decision: dict[str, Any]) -> dict[str, Any]:
-    """Progress is informational only — it never gates finish."""
+    """Progress is informational only - it never gates finish."""
 
     return {
         'missing': [],

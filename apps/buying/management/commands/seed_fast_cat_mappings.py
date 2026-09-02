@@ -7,7 +7,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from apps.buying.models import CategoryMapping
 
-# Amazon (38 keys) — consultant-reviewed
+# Amazon (38 keys) - consultant-reviewed
 _AMZ_SEED: dict[str, str] = {
     'amz-accessories-guitar-accessories': 'Toys & games',
     'amz-accessories-guitar-strings': 'Toys & games',
@@ -49,7 +49,7 @@ _AMZ_SEED: dict[str, str] = {
     'amz-vehicles-die-cast': 'Toys & games',
 }
 
-# Target (273 keys) — beauty CSV fast_cat_key values → Health, beauty & personal care
+# Target (273 keys) - beauty CSV fast_cat_key values → Health, beauty & personal care
 _TGT_SEED: dict[str, str] = {
     'tgt-cosmetics-nail-care-ardell-health-and-beauty': 'Health, beauty & personal care',
     'tgt-cosmetics-nail-care-blush-health-and-beauty': 'Health, beauty & personal care',
@@ -327,7 +327,7 @@ _TGT_SEED: dict[str, str] = {
 }
 
 
-# Walmart (32 keys) — consultant-reviewed
+# Walmart (32 keys) - consultant-reviewed
 _WAL_SEED: dict[str, str] = {
     'wal-1-hour-photo': 'Electronics',
     'wal-automotive': 'Tools & hardware',

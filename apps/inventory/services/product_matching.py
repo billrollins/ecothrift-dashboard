@@ -4,9 +4,9 @@ Design: `.ai/extended/inventory-pipeline.md` (Final Decisions / product match). 
 are never created here; candidates may only point at products that already exist.
 
 Matchers, strongest first:
-    1. UPC exact            (score 100) — auto-selects ``final_matched_product`` when undecided
-    2. VendorProductRef     (score 90)  — vendor item number seen on prior orders
-    3. Exact title + brand  (score 80)  — case-insensitive
+    1. UPC exact            (score 100) - auto-selects ``final_matched_product`` when undecided
+    2. VendorProductRef     (score 90)  - vendor item number seen on prior orders
+    3. Exact title + brand  (score 80)  - case-insensitive
 
 Staff decisions (``match_source == 'staff'``) are never overridden, including an explicit
 staff "this is new" (null FK with staff source).
@@ -102,7 +102,7 @@ def generate_match_candidates_for_order(order: PurchaseOrder) -> dict[str, Any]:
             row_text[row.id] = (title, brand)
 
     # Batched lookups: ONE case-insensitive IN query per tier via Lower() annotations.
-    # NEVER per-miss queries — a 744-row PO against a 185k-product catalog must not run
+    # NEVER per-miss queries - a 744-row PO against a 185k-product catalog must not run
     # hundreds of un-indexed iexact scans (that was ~97s per run; this is 3 scans total).
     products_by_upc: dict[str, Product] = {}
     if row_upcs:

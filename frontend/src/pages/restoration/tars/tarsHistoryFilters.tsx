@@ -32,7 +32,7 @@ const DESK_LABELS: Record<(typeof DESK_HISTORY_FILTERS)[number], string> = {
   progress: 'Progress',
 };
 
-/** First click turns a chip on. The same chip again turns it off — all off is everything. */
+/** First click turns a chip on. The same chip again turns it off - all off is everything. */
 export function toggleHistoryFilter(
   current: TarsHistoryFilter,
   next: TarsHistoryFilter,

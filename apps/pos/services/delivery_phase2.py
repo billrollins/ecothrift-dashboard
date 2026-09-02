@@ -439,11 +439,11 @@ def departure_gates_ok(run: DeliveryRun) -> tuple[bool, str]:
         if not items or ready_n == 0:
             return (
                 False,
-                f'{name} is confirmed but not on the truck — remove from route, or reopen the truck to load it',
+                f'{name} is confirmed but not on the truck - remove from route, or reopen the truck to load it',
             )
         return (
             False,
-            f'{name} is only partially loaded — finish loading or unload before Start Deliveries',
+            f'{name} is only partially loaded - finish loading or unload before Start Deliveries',
         )
     if not truck_is_closed(run) and not run.departure_override:
         return False, 'Closed-door truck photo and truck closeout are required'
@@ -715,7 +715,7 @@ def scan_stop_item(
             return existing
     # Quantity-aware: allow up to quantity scans.
     if stop_item_scan_count(item) >= max(1, int(item.quantity or 1)) and not item.verification_skipped_at:
-        # Already fully verified — idempotent no-op via returning last scan.
+        # Already fully verified - idempotent no-op via returning last scan.
         last = item.scans.order_by('-scanned_at', '-id').first()
         if last:
             mark_item_loaded_when_verified(item, user=user)

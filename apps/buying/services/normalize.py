@@ -154,7 +154,7 @@ def _manifest_retail_to_dollars(raw: Any) -> Decimal | None:
     Heuristic: values without a decimal point that parse to an integer **≥ 1000** are treated
     as cents (divide by 100). Smaller whole numbers (e.g. ``40``, ``99``) are treated as whole
     dollars so existing string forms like ``\"40\"`` stay correct. Amounts **≥ 1000** dollars
-    expressed as whole dollars would be misread as cents—unlikely for typical unit retail.
+    expressed as whole dollars would be misread as cents-unlikely for typical unit retail.
     """
     if raw is None or raw == '':
         return None

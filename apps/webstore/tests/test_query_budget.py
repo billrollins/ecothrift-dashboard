@@ -72,7 +72,7 @@ class QueryBudgetTests(TestCase):
 
     def test_staff_conversations_query_budget(self):
         self.client.force_authenticate(self.mgr)
-        # List omits messages — no prefetch; pin against N+1 if serializer grows.
+        # List omits messages - no prefetch; pin against N+1 if serializer grows.
         with self.assertNumQueries(3):
             r = self.client.get('/api/webstore/conversations/')
         self.assertEqual(r.status_code, 200)

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.76.0] -->
-<!-- Last reviewed: 2026-09-02 (v2.76.0 Routines + Retail QA) -->
+<!-- Line 1 release: ## [2.77.0] -->
+<!-- Last reviewed: 2026-09-02 (v2.77.0 Retail QA stabilize) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.77.0] - 2026-09-02
+
+User-facing theme: **Retail QA settles in** — Work cycle is a real walk with phone pickup, idle registers get asked, and Routine Control stops swapping the page.
+
+Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.md).
+
+### Added
+
+- **Work cycle** is its own kind (`work_cycle`): shelf check (section + taxonomy counters) or non-shelf ticks from Opening and Closing. `GET /routines/routines/:id/` sends `runner` context; start POST accepts `mode`.
+- **Draft pickup.** `GET /runs/mine/` returns `drafts` and `idle_prompt_minutes`. `?draft=` resumes a submission. My Routines and the app-bar nag show **In progress**. The mine query polls every 15s and refetches on focus.
+- **Terminal idle prompt.** After `retail_qa.idle_prompt_minutes` (default 5) with no cart, the register asks Shelf / Non-shelf / Not now. Answers log `WorkCyclePrompt` (`POST /api/routines/work-cycle/prompt/`). The Work cycle pill stays.
+- **Dashboard and Grades activity.** Retail note lists work cycles and dismissed idle prompts. Grades gains a Work cycles band (six day tiles plus idle prompts). Work cycles do not change the letter.
+- Settings > Retail QA: idle prompt minutes.
+
+### Changed
+
+- **Cleanup** (`routines/0006_retail_qa_cleanup`): authored leftovers deleted; program titles lose dashes; Day is a before-you-leave list; `retail.work_cycle` flips to `kind=work_cycle`.
+- **Program routines are locked.** They cannot be retired. `trigger`, `assignment`, `subject_source`, `verifies`, `is_active`, and `kind` stay as seeded; only checklists may edit `definition`.
+- Owner spot check re-rolls an empty section the next time materialize runs after a section exists.
+- Routine Control is one persistent header. Sections and Grades sit in a centred column. `?id=` survives a view switch.
+- Em and en dashes removed from `frontend/src` and `apps` Python.
+
+### Documentation
+
+- Routines, POS, initiative record, and the navigation map updated for work-cycle pickup and the idle prompt.
 
 ## [2.76.0] - 2026-09-02
 

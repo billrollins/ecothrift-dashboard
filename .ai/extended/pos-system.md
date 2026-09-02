@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-02 (Quality Audit dropped; work-cycle pill) -->
+<!-- Last updated: 2026-09-02 (idle work-cycle prompt) -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -198,4 +198,5 @@ Hooks: `useRegisters`, `useDrawers` (accepts `options.enabled`), `useCarts` (acc
 
 - **DashboardSalesGoal** / **DashboardDepartmentGoal** — weekly targets; CRUD under **`/api/pos/dashboard/`**. Retail keeps `schedule = {weekdays: [0..6], audits_per_day: N}` (`pos.0019`) and drops the letter-grade `value`.
 - **dashboard_metrics** (`GET /api/pos/dashboard/metrics/?weeks=`): sales run-rate (90-day chart, 14-week book), department cards (buying, processing, restoration, retail routine completion), cached 45s — **`apps/pos/services/dashboard_metrics.py`**. `weeks` defaults to **8** (clamped 2–12). Retail daily/week progress is scheduled versus completed routine submissions; days expose **`retail_audit_ids`** (run ids). Gold when the day's count meets the schedule. Day cells deep-link to that run.
-- **Quality Audit removed.** Tables dropped by **`pos.0026_drop_quality_audit`**. Floor checklists live in **`apps.routines`**.
+- **Quality Audit removed.** Tables dropped by **`pos.0026_drop_quality_audit`**. Floor checklists live in **`apps.routines`**. Retail metrics add `today_work_cycles`, `week_work_cycles`, and `week_idle_dismissed`; work-cycle submissions are excluded from `week_audits`.
+- **Idle work-cycle prompt.** After `retail_qa.idle_prompt_minutes` (default 5) with no cart create / void / complete on that register, `WorkCyclePromptDialog` asks for a shelf or non-shelf check. Activity is stored in `localStorage` per register. Dismissals log `POST /api/routines/work-cycle/prompt/`. The Work cycle pill stays as the manual entry.

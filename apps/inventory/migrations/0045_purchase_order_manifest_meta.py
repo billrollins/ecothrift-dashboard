@@ -5,13 +5,13 @@ from django.db import migrations, models
 
 def forwards_fill_manifest_meta(apps, schema_editor):
     """
-    Backfill ids 316–319 only after verifying ``order_number``.
+    Backfill ids 316-319 only after verifying ``order_number``.
 
     Copies manifest_filename / manifest_uploaded_at from ``core_s3file`` when ``manifest_id`` is set.
     manifest_row_count from ``manifest_preview['row_count']`` (else 0).
     manifest_category_count from compute_category_count(preview headers, preview rows).
 
-    Legacy seeds may **undercount** categories vs a full-file scan — ``manifest_preview['rows']`` is only a sample.
+    Legacy seeds may **undercount** categories vs a full-file scan - ``manifest_preview['rows']`` is only a sample.
     """
 
     from apps.inventory.services.manifest_meta import compute_category_count

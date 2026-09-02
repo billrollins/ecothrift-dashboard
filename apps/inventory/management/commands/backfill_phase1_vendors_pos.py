@@ -179,11 +179,11 @@ def parse_description_metadata(description: str) -> dict[str, Any]:
     if of_idx != -1:
         tail = text[of_idx + 4 :]
         cut = len(tail)
-        for marker in (' Ext.', ' Ext ', ' — ', ' - Like ', ' (', '\n'):
+        for marker in (' Ext.', ' Ext ', ' - ', ' - Like ', ' (', '\n'):
             j = tail.find(marker)
             if j != -1 and j < cut:
                 cut = j
-        cat = tail[:cut].strip(' -—\t ')
+        cat = tail[:cut].strip(' --\t ')
         if len(cat) >= 3:
             out['category_text'] = cat
 
@@ -312,7 +312,7 @@ class Command(BaseCommand):
             if prefix not in V1_PREFIX_TO_VENDOR:
                 warn_prefix += 1
                 self.stdout.write(
-                    self.style.WARNING(f'Unknown V1 prefix for {onum!r} — using GEN')
+                    self.style.WARNING(f'Unknown V1 prefix for {onum!r} - using GEN')
                 )
                 prefix = 'GEN'
             vcode, vname = V1_PREFIX_TO_VENDOR[prefix]

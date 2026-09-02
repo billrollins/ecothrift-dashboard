@@ -18,7 +18,7 @@ TEMPLATE_CONTEXT_KEYS = (
 )
 
 DEFAULT_SIGNATURE = (
-    '<p>— {{staff_name}}<br>'
+    '<p>- {{staff_name}}<br>'
     'Eco-Thrift<br>'
     '8425 W Center Rd, Omaha, NE 68124</p>'
 )

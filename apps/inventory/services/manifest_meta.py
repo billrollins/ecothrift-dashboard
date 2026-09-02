@@ -1,4 +1,4 @@
-"""Manifest upload helpers — category column detection on raw CSV rows."""
+"""Manifest upload helpers - category column detection on raw CSV rows."""
 
 
 def compute_category_count(headers: list, rows_data: list) -> int | None:

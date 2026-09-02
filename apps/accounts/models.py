@@ -102,7 +102,7 @@ class EmployeeProfile(models.Model):
         ('mutual_agreement', 'Mutual Agreement'),
         ('layoff', 'Layoff / Reduction in Force'),
         ('termination_for_cause', 'Termination for Cause'),
-        ('termination_poor_performance', 'Termination – Poor Performance'),
+        ('termination_poor_performance', 'Termination - Poor Performance'),
         ('end_of_contract', 'End of Contract / Seasonal'),
         ('other', 'Other'),
     ]
@@ -247,7 +247,7 @@ class MagicLinkToken(models.Model):
     ]
     # Purposes that must work even when ONLINE_SALES_ACCOUNTS_ENABLED is false.
     VERIFY_PURPOSES = frozenset({PURPOSE_VERIFY_HOLD, PURPOSE_VERIFY_THREAD})
-    # Staff tokens never travel the customer consume path — see services/staff_password.py.
+    # Staff tokens never travel the customer consume path - see services/staff_password.py.
     STAFF_PURPOSES = frozenset({PURPOSE_STAFF_RESET_PASSWORD})
 
     email = models.EmailField(db_index=True)
@@ -255,7 +255,7 @@ class MagicLinkToken(models.Model):
     purpose = models.CharField(
         max_length=32, choices=PURPOSE_CHOICES, default=PURPOSE_SIGN_IN, db_index=True,
     )
-    # Opaque tokens — not FKs, so accounts stays free of a webstore dependency.
+    # Opaque tokens - not FKs, so accounts stays free of a webstore dependency.
     hold_token = models.CharField(max_length=48, blank=True, default='', db_index=True)
     thread_token = models.CharField(max_length=48, blank=True, default='', db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)

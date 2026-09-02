@@ -1,7 +1,7 @@
 /**
  * What restoration handed back: identity, the money as it stood, and where they said it goes.
  *
- * Every line has a reserved height and cannot shrink — a flex crush was stacking
+ * Every line has a reserved height and cannot shrink - a flex crush was stacking
  * the title on itself and looking like broken type.
  */
 import { Box, Typography } from '@mui/material';
@@ -77,10 +77,10 @@ export function ReceiveItemCard({ job, height }: { job: RestorationJobDTO; heigh
       </Typography>
 
       <Box sx={{ mt: 0.75, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.75, flexShrink: 0 }}>
-        <Fact label="Brand" value={job.brand?.trim() || '—'} />
-        <Fact label="Model" value={job.model?.trim() || '—'} />
-        <Fact label="Retail" value={retail > 0 ? `$${retail.toFixed(2)}` : '—'} mono />
-        <Fact label="Came in as" value={job.condition ? formatConditionLabel(job.condition) : '—'} />
+        <Fact label="Brand" value={job.brand?.trim() || '-'} />
+        <Fact label="Model" value={job.model?.trim() || '-'} />
+        <Fact label="Retail" value={retail > 0 ? `$${retail.toFixed(2)}` : '-'} mono />
+        <Fact label="Came in as" value={job.condition ? formatConditionLabel(job.condition) : '-'} />
       </Box>
 
       <Box sx={{ mt: 'auto', pt: 0.75, borderTop: '1px dashed #e8eee9', flexShrink: 0, minHeight: 36 }}>
@@ -129,7 +129,7 @@ function Fact({ label, value, mono }: { label: string; value: string; mono?: boo
           whiteSpace: 'nowrap',
           fontSize: '0.8rem',
           fontWeight: 800,
-          color: value === '—' ? '#94a3b8' : '#172033',
+          color: value === '-' ? '#94a3b8' : '#172033',
           fontFamily: mono ? 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' : undefined,
           fontVariantNumeric: mono ? 'tabular-nums' : undefined,
         }}

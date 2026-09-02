@@ -334,7 +334,7 @@ function HistoryLine({
 
 function formatWhen(iso: string): string {
   const date = new Date(iso);
-  if (!Number.isFinite(date.getTime())) return '—';
+  if (!Number.isFinite(date.getTime())) return '-';
   const now = new Date();
   const sameDay =
     date.getFullYear() === now.getFullYear() &&

@@ -42,7 +42,7 @@ from apps.inventory.models import Category, Item, Product, PurchaseOrder
 
 TAXONOMY_SET = frozenset(TAXONOMY_V1_CATEGORY_NAMES)
 BATCH_SIZE = 2000
-# Smaller bulk_update batches for remote DBs (e.g. Heroku) — large batches can appear to hang.
+# Smaller bulk_update batches for remote DBs (e.g. Heroku) - large batches can appear to hang.
 MAP_V1_BATCH_SIZE_REMOTE = 500
 V2_EXPORT_CHUNK = 400
 CSV_PREFIX = "v2_products_"
@@ -196,7 +196,7 @@ def _detect_csv_encoding(path: Path) -> str:
     return "utf-8"
 
 
-# V1 legacy "Department / Subcategory" — map department prefix (or full string when no slash) to
+# V1 legacy "Department / Subcategory" - map department prefix (or full string when no slash) to
 # taxonomy_v1. Ambiguous departments (e.g. Home & Decor spans kitchen/bedding) use a single best-fit.
 # Junk / unknown vendor codes → Mixed lots.
 DEPARTMENT_TO_TAXONOMY: dict[str, str] = {
@@ -423,7 +423,7 @@ class Command(BaseCommand):
             self.stdout.flush()
 
         self.stdout.write(
-            f"Pass 1: remap items with category — iterator chunk_size={bs}, bulk_update batch_size={bs}…"
+            f"Pass 1: remap items with category - iterator chunk_size={bs}, bulk_update batch_size={bs}…"
         )
         self.stdout.flush()
 
@@ -533,7 +533,7 @@ class Command(BaseCommand):
         self.stdout.write("Pass 4: build per-product category histogram (full V1 item scan)…")
         self.stdout.flush()
 
-        # Final item category per product (for Product.category mode) — one scan
+        # Final item category per product (for Product.category mode) - one scan
         product_item_cats: defaultdict[int, Counter[str]] = defaultdict(Counter)
         pass4_rows = 0
         for row in (

@@ -14,26 +14,26 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='processingrow',
             name='collapse_master',
-            field=models.ForeignKey(blank=True, help_text='P7 collapse: set on FOLLOWER rows pointing at the first (master) row of the group. Presentation + check-in distribution only — manifest lines untouched.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='collapse_members', to='inventory.processingrow'),
+            field=models.ForeignKey(blank=True, help_text='P7 collapse: set on FOLLOWER rows pointing at the first (master) row of the group. Presentation + check-in distribution only - manifest lines untouched.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='collapse_members', to='inventory.processingrow'),
         ),
         migrations.AlterField(
             model_name='manifestrow',
             name='ai_match_decision',
-            field=models.CharField(blank=True, choices=[('pending_review', 'Pending Review'), ('confirmed', 'Confirmed'), ('rejected', 'Rejected'), ('uncertain', 'Uncertain'), ('new_product', 'New Product')], default='', help_text='Deprecated — use PreprocessingRow match fields. Do not write.', max_length=20),
+            field=models.CharField(blank=True, choices=[('pending_review', 'Pending Review'), ('confirmed', 'Confirmed'), ('rejected', 'Rejected'), ('uncertain', 'Uncertain'), ('new_product', 'New Product')], default='', help_text='Deprecated - use PreprocessingRow match fields. Do not write.', max_length=20),
         ),
         migrations.AlterField(
             model_name='manifestrow',
             name='match_candidates',
-            field=models.JSONField(blank=True, default=list, help_text='Deprecated — use PreprocessingRow.match_candidates. Do not write.'),
+            field=models.JSONField(blank=True, default=list, help_text='Deprecated - use PreprocessingRow.match_candidates. Do not write.'),
         ),
         migrations.AlterField(
             model_name='manifestrow',
             name='match_status',
-            field=models.CharField(choices=[('pending', 'Pending'), ('matched', 'Matched'), ('new', 'New Product')], default='pending', help_text='Deprecated — match decisions live on preprocessing/processing rows. Do not write.', max_length=20),
+            field=models.CharField(choices=[('pending', 'Pending'), ('matched', 'Matched'), ('new', 'New Product')], default='pending', help_text='Deprecated - match decisions live on preprocessing/processing rows. Do not write.', max_length=20),
         ),
         migrations.AlterField(
             model_name='manifestrow',
             name='matched_product',
-            field=models.ForeignKey(blank=True, help_text='Deprecated — use ProcessingRow.matched_product / PreprocessingRow.final_matched_product. Do not write.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='matched_rows', to='inventory.product'),
+            field=models.ForeignKey(blank=True, help_text='Deprecated - use ProcessingRow.matched_product / PreprocessingRow.final_matched_product. Do not write.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='matched_rows', to='inventory.product'),
         ),
     ]

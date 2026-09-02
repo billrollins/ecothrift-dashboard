@@ -1,7 +1,7 @@
 """Seed the element kind catalog from the original hardcoded frontend palette.
 
 Slugs must stay byte-identical to frontend/src/features/floorplan/palette.ts
-(pre-v2.40 static PALETTE) — saved plan documents reference them.
+(pre-v2.40 static PALETTE) - saved plan documents reference them.
 """
 from django.db import migrations
 

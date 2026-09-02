@@ -89,7 +89,7 @@ describe('UsersPage', () => {
     wrap();
     // Five tiles, every value an em-dash while the counts are still loading.
     expect(screen.getByText('On the clock')).toBeInTheDocument();
-    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(4);
+    expect(screen.getAllByText('-').length).toBeGreaterThanOrEqual(4);
   });
 
   it('opens Employees by default for an Admin', () => {

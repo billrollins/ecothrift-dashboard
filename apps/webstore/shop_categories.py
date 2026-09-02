@@ -1,4 +1,4 @@
-"""Web-shop category list — mirrors ``apps.buying.taxonomy_v1.TAXONOMY_V1_CATEGORY_NAMES``.
+"""Web-shop category list - mirrors ``apps.buying.taxonomy_v1.TAXONOMY_V1_CATEGORY_NAMES``.
 
 Keep slugs in sync with ``frontend-public/src/data/content.ts`` → ``SHOP_CATEGORIES``.
 """

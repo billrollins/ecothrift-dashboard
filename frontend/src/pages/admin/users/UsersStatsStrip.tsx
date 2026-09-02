@@ -11,7 +11,7 @@ import type { CustomerStats, EmployeeStats } from '../../../api/accounts.api';
 
 export const STATS_STRIP_HEIGHT = 74;
 
-const NOT_YET = '—';
+const NOT_YET = '-';
 
 function num(value: number | null | undefined): string {
   return typeof value === 'number' && Number.isFinite(value) ? String(value) : NOT_YET;

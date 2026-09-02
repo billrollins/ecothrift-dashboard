@@ -21,7 +21,7 @@ import {
 
 /**
  * Paste or upload a routine document and land it on the form. Nothing is
- * saved here — Apply only fills the editor, so the phone preview shows the
+ * saved here - Apply only fills the editor, so the phone preview shows the
  * result and Save is still the moment of commitment.
  */
 export function RoutineJsonDialog({
@@ -69,7 +69,7 @@ export function RoutineJsonDialog({
       return {
         tone: dutyColors.ink40,
         head: fileName ? `Reading ${fileName}…` : 'Waiting for JSON',
-        lines: ['Paste the block your AI returned — prose around it is fine — or upload the file it saved.'],
+        lines: ['Paste the block your AI returned - prose around it is fine - or upload the file it saved.'],
       };
     }
     if (!result.ok) return { tone: dutyColors.red, head: 'Cannot read this yet', lines: [result.error] };
@@ -78,7 +78,7 @@ export function RoutineJsonDialog({
     }
     return {
       tone: dutyColors.brandDark,
-      head: `Ready — ${changes.length} change${changes.length === 1 ? '' : 's'}`,
+      head: `Ready - ${changes.length} change${changes.length === 1 ? '' : 's'}`,
       lines: [...changes, ...result.warnings.map((w) => `Note: ${w}`)],
     };
   })();

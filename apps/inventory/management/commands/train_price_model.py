@@ -238,7 +238,7 @@ class Command(BaseCommand):
 
         from sklearn.linear_model import Ridge
         self.stdout.write(self.style.WARNING(
-            '  LightGBM and XGBoost not found — using Ridge regression (lower accuracy).\n'
+            '  LightGBM and XGBoost not found - using Ridge regression (lower accuracy).\n'
             '  Install: pip install lightgbm  for better results.'
         ))
         return Ridge(alpha=1.0)
@@ -248,7 +248,7 @@ class Command(BaseCommand):
         labeled = df[df['category'] != 'unknown']
         if len(labeled) < 50:
             self.stdout.write(
-                f'  Skipping category model — only {len(labeled)} labeled items '
+                f'  Skipping category model - only {len(labeled)} labeled items '
                 '(need 50+).'
             )
             return

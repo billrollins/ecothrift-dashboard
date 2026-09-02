@@ -1,6 +1,6 @@
 """
 Management command to seed the database with initial data.
-Idempotent — safe to run multiple times.
+Idempotent - safe to run multiple times.
 """
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
@@ -181,12 +181,12 @@ class Command(BaseCommand):
             (
                 'po_default_est_shrink',
                 0.15,
-                'Default PurchaseOrder.est_shrink for new POs (0–1). Does not change existing POs.',
+                'Default PurchaseOrder.est_shrink for new POs (0-1). Does not change existing POs.',
             ),
             (
                 'pricing_shrinkage_factor',
                 0.15,
-                'Buying auction valuation: shrink applied to estimated revenue before profit (0–1). '
+                'Buying auction valuation: shrink applied to estimated revenue before profit (0-1). '
                 'See Admin → Assumptions; also `.ai/extended/backend.md` (Item acquisition vs buying valuation).',
             ),
             (
@@ -197,7 +197,7 @@ class Command(BaseCommand):
             (
                 'delivery_service_minutes_per_stop',
                 20,
-                'Delivery Field: assumed unload/service minutes per stop for ETA math (5–120).',
+                'Delivery Field: assumed unload/service minutes per stop for ETA math (5-120).',
             ),
             ('store_name', 'Eco-Thrift', 'Business name'),
             ('store_address', '8425 West Center Road, Omaha NE 68124', 'Store address'),
@@ -212,7 +212,7 @@ class Command(BaseCommand):
                     'close': '18:00',
                     'closed_weekdays': [0, 6],
                 },
-                'Online Sales hold expiry hours (Canfield Tue–Sat 9–6, closed Sun & Mon).',
+                'Online Sales hold expiry hours (Canfield Tue-Sat 9-6, closed Sun & Mon).',
             ),
         ]
 

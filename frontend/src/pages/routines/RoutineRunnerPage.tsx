@@ -6,6 +6,7 @@ import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import {
   useRoutine,
   useRoutineRun,
+  useRoutineSubmission,
   useSaveRoutineDraft,
   useStartRoutineSubmission,
   useSubmitRoutine,
@@ -26,8 +27,13 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
   const parsed = runId ?? (params.id === 'new' ? null : Number(params.id));
   const id = parsed && Number.isFinite(parsed) ? parsed : null;
   const routineId = Number(search.get('routine') || 0) || null;
+  const draftId = Number(search.get('draft') || 0) || null;
+  const startMode = search.get('mode') === 'shelf' || search.get('mode') === 'non_shelf'
+    ? search.get('mode') as 'shelf' | 'non_shelf'
+    : undefined;
   const runQuery = useRoutineRun(id);
   const routineQuery = useRoutine(id ? null : routineId);
+  const draftQuery = useRoutineSubmission(id ? null : draftId);
   const start = useStartRoutineSubmission();
   const saveDraft = useSaveRoutineDraft();
   const submit = useSubmitRoutine();
@@ -58,6 +64,13 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
     }
   }, [runQuery.data]);
 
+  useEffect(() => {
+    if (draftQuery.data) {
+      setSubmissionId(draftQuery.data.id);
+      setResponses(draftQuery.data.responses);
+    }
+  }, [draftQuery.data]);
+
   const finished = runQuery.data?.status === 'done';
 
   useEffect(() => {
@@ -66,10 +79,13 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
     if (!routine || responses || submissionId || starting.current) return;
     if (id && !runQuery.data) return;
     if (!id && !routineQuery.data) return;
+    if (draftId && !draftQuery.data && !draftQuery.isError) return;
+    if (draftId && draftQuery.data) return;
     starting.current = true;
     void start.mutateAsync({
       routine,
       run: runQuery.data?.id,
+      mode: startMode,
     }).then((row) => {
       setSubmissionId(row.id);
       setResponses(row.responses);
@@ -78,16 +94,18 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
       starting.current = false;
       setError('Could not start that routine.');
     });
-  }, [finished, id, responses, routineId, routineQuery.data, runQuery.data, start, submissionId]);
+  }, [draftId, draftQuery.data, draftQuery.isError, finished, id, responses, routineId, routineQuery.data, runQuery.data, start, startMode, submissionId]);
 
   const run = runQuery.data;
   const routine = routineQuery.data;
   const kind: RoutineKind = run?.kind || routine?.kind || 'checklist';
   const title = run?.title || routine?.title || 'Routine';
   const subject = run?.section_name || run?.subject || '';
-  const taxonomy = run?.taxonomy ?? null;
+  const taxonomy = run?.taxonomy ?? routine?.runner?.taxonomy ?? null;
   const verify = run?.verify ?? null;
   const minItems = run?.audit_min_items ?? DEFAULT_MIN_ITEMS;
+  const sections = run?.sections ?? routine?.runner?.sections ?? [];
+  const nonShelfChecks = routine?.runner?.non_shelf_checks ?? [];
   const blockers = runnerBlockers(kind, responses, minItems);
 
   function goBack() {
@@ -129,6 +147,9 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
   if ((id && runQuery.isLoading && !run) || (!id && routineQuery.isLoading && !routine)) {
     return <LoadingScreen message="Opening routine..." />;
   }
+  if (!id && draftId && draftQuery.isLoading && !draftQuery.data) {
+    return <LoadingScreen message="Opening draft..." />;
+  }
   if (id && runQuery.isError) {
     return <Alert severity="error">This routine is not available.</Alert>;
   }
@@ -152,6 +173,8 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
               taxonomy={taxonomy}
               verify={verify}
               minItems={minItems}
+              sections={sections}
+              nonShelfChecks={nonShelfChecks}
               readOnly
             />
           ) : (
@@ -177,6 +200,8 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
           taxonomy={taxonomy}
           verify={verify}
           minItems={minItems}
+          sections={sections}
+          nonShelfChecks={nonShelfChecks}
           onChange={(next) => {
             setResponses(next);
             queueDraft(next);

@@ -56,7 +56,7 @@ def _week_start_monday(day: date) -> date:
 def _day_range(start: date, end: date) -> tuple[datetime, datetime]:
     """Aware [start 00:00, end+1day 00:00) bounds for the active timezone.
 
-    Equivalent to ``field__date__gte=start, field__date__lte=end`` but sargable —
+    Equivalent to ``field__date__gte=start, field__date__lte=end`` but sargable -
     plain range filters use the datetime indexes instead of a per-row date cast.
     """
     tz = timezone.get_current_timezone()
@@ -103,7 +103,7 @@ def _day_payload(day: date, revenue: Decimal, items_sold: int) -> dict[str, str 
 
 
 def _monday_sunday_days(week_start_sunday: date) -> list[date]:
-    """Return Mon–Sun dates for a Sun–Sat week bucket."""
+    """Return Mon-Sun dates for a Sun-Sat week bucket."""
     monday = week_start_sunday + timedelta(days=1)
     return [monday + timedelta(days=i) for i in range(7)]
 
@@ -219,7 +219,7 @@ def _processing_on_shelf_aggregate(
     """Return range total (unique items) and per-day totals.
 
     ``total_start`` narrows the unique-item total to ``[total_start, end]`` while
-    ``by_day`` still spans ``[start, end]`` — one query serves both windows.
+    ``by_day`` still spans ``[start, end]`` - one query serves both windows.
     """
     if total_start is None:
         total_start = start
@@ -266,7 +266,7 @@ def _processing_on_shelf_aggregate(
         return bool(check_in_id and check_in_id in restoration_check_ins)
 
     # Unique-item total for [total_start, end]: shelf value comes from the item
-    # join, so it is identical on every history row for a given item — counting
+    # join, so it is identical on every history row for a given item - counting
     # each item once from the per-(day, item) rows matches a distinct-item scan.
     range_total = Decimal('0')
     counted_items: set[int] = set()
@@ -323,7 +323,7 @@ def _restoration_done_by_day(start: date, end: date) -> dict[date, int]:
 
 
 def _count_tars_actions(jobs, action_type: str) -> int:
-    """Count bench actions across work sessions — fully defensive against
+    """Count bench actions across work sessions - fully defensive against
     malformed work_session payloads (never raises)."""
 
     count = 0
@@ -449,9 +449,11 @@ def _retail_submissions_by_day(start: date, end: date) -> dict[date, dict[str, A
         submitted_at__isnull=False,
         submitted_at__date__gte=start,
         submitted_at__date__lte=end,
-    ).values_list('run_id', 'submitted_at')
+    ).values_list('run_id', 'submitted_at', 'routine__system_key')
     by_day: dict[date, dict[str, Any]] = {}
-    for run_id, submitted_at in rows:
+    for run_id, submitted_at, system_key in rows:
+        if system_key == 'retail.work_cycle':
+            continue
         local = timezone.localtime(submitted_at).date()
         bucket = by_day.setdefault(local, {'count': 0, 'audit_ids': []})
         bucket['count'] += 1
@@ -472,6 +474,34 @@ def _retail_submissions_by_day(start: date, end: date) -> dict[date, dict[str, A
         bucket['last_grade'] = graded['letter']
         bucket['score'] = graded['score']
     return by_day
+
+
+def _work_cycle_activity(week_start: date, today: date) -> dict[str, int]:
+    """Work cycles submitted and idle prompts dismissed this ISO week."""
+    from apps.routines.models import RoutineSubmission, WorkCyclePrompt
+
+    submitted = list(
+        RoutineSubmission.objects.filter(
+            routine__system_key='retail.work_cycle',
+            status=RoutineSubmission.STATUS_SUBMITTED,
+            submitted_at__isnull=False,
+            submitted_at__date__gte=week_start,
+            submitted_at__date__lte=today,
+        ).values_list('submitted_at', flat=True)
+    )
+    today_count = 0
+    week_count = 0
+    for submitted_at in submitted:
+        local = timezone.localtime(submitted_at).date()
+        week_count += 1
+        if local == today:
+            today_count += 1
+    idle = WorkCyclePrompt.objects.filter(
+        outcome=WorkCyclePrompt.OUTCOME_DISMISSED,
+        shown_at__date__gte=week_start,
+        shown_at__date__lte=today,
+    ).count()
+    return {'today': today_count, 'week': week_count, 'idle_dismissed': idle}
 
 
 def _week_label(week_start: date, this_week_start: date) -> str:
@@ -627,6 +657,7 @@ def build_department_metrics(
     retail_goal = goals.get(DashboardDepartmentGoal.RETAIL, {})
     retail_schedule = _normalize_retail_schedule(retail_goal.get('schedule'))
     retail_by_day = _retail_submissions_by_day(history_start, today)
+    work_cycle_counts = _work_cycle_activity(this_week_start, today)
     daily_weeks = _department_daily_weeks(
         today,
         buying_by_day=buying_by_day,
@@ -662,6 +693,9 @@ def build_department_metrics(
         'due_days': (current_retail_week or {}).get('retail_due_days', 0),
         'due_goal_met': (current_retail_week or {}).get('retail_due_goal_met', False),
         'week_goal_met': (current_retail_week or {}).get('retail_week_goal_met', False),
+        'today_work_cycles': work_cycle_counts['today'],
+        'week_work_cycles': work_cycle_counts['week'],
+        'week_idle_dismissed': work_cycle_counts['idle_dismissed'],
     }
 
     return {

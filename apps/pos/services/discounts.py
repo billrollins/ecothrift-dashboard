@@ -1,4 +1,4 @@
-"""POS cart discount amounts — dollar, percent, and the Google Review offer."""
+"""POS cart discount amounts - dollar, percent, and the Google Review offer."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ def parse_percent(raw) -> Decimal:
 
 
 def google_review_cap(amount: Decimal, base: Decimal) -> Decimal:
-    """5% of the chosen base, never more than $5 — the printed receipt offer."""
+    """5% of the chosen base, never more than $5 - the printed receipt offer."""
     if base <= 0:
         return Decimal('0.00')
     offer = min(_quantize(base * GOOGLE_REVIEW_PERCENT / 100), GOOGLE_REVIEW_MAX)

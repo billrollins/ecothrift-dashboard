@@ -50,7 +50,7 @@ def _err(msg: str) -> None:
 def _pct(el: dict, i: int, key: str, *, default: float, lo: float = 0, hi: float = 100) -> float:
     val = el.get(key, default)
     if not isinstance(val, (int, float)) or isinstance(val, bool) or not (lo <= val <= hi):
-        _err(f'elements[{i}].{key} must be a number {lo}–{hi}')
+        _err(f'elements[{i}].{key} must be a number {lo}-{hi}')
     return float(val)
 
 
@@ -109,7 +109,7 @@ def _clean_text(el: dict, i: int, seen_keys: set[str]) -> dict:
     clean['font'] = font
     size_pt = el.get('size_pt', 12)
     if not isinstance(size_pt, (int, float)) or isinstance(size_pt, bool) or not (4 <= size_pt <= 200):
-        _err(f'elements[{i}].size_pt must be a number 4–200')
+        _err(f'elements[{i}].size_pt must be a number 4-200')
     clean['size_pt'] = float(size_pt)
     align = el.get('align', 'left')
     if align not in ALLOWED_ALIGN:

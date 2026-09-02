@@ -1,4 +1,4 @@
-# Generated manually — ProcessingRow.search_string for workspace substring search.
+# Generated manually - ProcessingRow.search_string for workspace substring search.
 
 from django.db import migrations, models
 

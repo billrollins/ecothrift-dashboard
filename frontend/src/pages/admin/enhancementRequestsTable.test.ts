@@ -39,13 +39,13 @@ describe('enhancement request labels', () => {
     expect(areaWord('processing')).toBe('Processing');
     expect(statusWord('planned')).toBe('Planned');
     expect(priorityWord('high')).toBe('High');
-    expect(priorityWord('unset')).toBe('—');
+    expect(priorityWord('unset')).toBe('-');
   });
 
   it('keeps a who and when line, and a reserved target date', () => {
     expect(formatRequestWhen('2026-08-25T14:30:00Z')).toBe('2026-08-25 14:30');
     expect(whoWhenLine(request())).toBe('Mike Tars · 2026-08-25 14:30');
-    expect(targetDateLabel(request())).toBe('—');
+    expect(targetDateLabel(request())).toBe('-');
     expect(targetDateLabel(request({ target_date: '2026-09-01' }))).toBe('2026-09-01');
   });
 });

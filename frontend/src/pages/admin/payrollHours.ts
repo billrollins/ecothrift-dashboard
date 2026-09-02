@@ -36,7 +36,7 @@ export function splitWeeklyHours(total: number): { regular: number; overtime: nu
   return { regular: WEEKLY_HOUR_LIMIT, overtime: roundHours(hours - WEEKLY_HOUR_LIMIT) };
 }
 
-/** Regular / overtime for a payroll range, from completed hours grouped by Mon–Sun week. */
+/** Regular / overtime for a payroll range, from completed hours grouped by Mon-Sun week. */
 export function sumPeriodTime(weekHours: Iterable<number>): { regular: number; overtime: number } {
   let regular = 0;
   let overtime = 0;
@@ -63,14 +63,14 @@ export function mondaysCoveringRange(dateFrom: string, dateTo: string): string[]
   return weeks;
 }
 
-/** Compact Mon–Sun label for a column header: Aug 17–23 or Aug 31–Sep 6. */
+/** Compact Mon-Sun label for a column header: Aug 17-23 or Aug 31-Sep 6. */
 export function fmtWeekHeader(weekStart: string): string {
   const start = parseISO(weekStart);
   const end = endOfWeek(start, { weekStartsOn: 1 });
   if (start.getMonth() === end.getMonth()) {
-    return `${format(start, 'MMM d')}–${format(end, 'd')}`;
+    return `${format(start, 'MMM d')}-${format(end, 'd')}`;
   }
-  return `${format(start, 'MMM d')}–${format(end, 'MMM d')}`;
+  return `${format(start, 'MMM d')}-${format(end, 'MMM d')}`;
 }
 
 export type EmployeePayrollRow = {

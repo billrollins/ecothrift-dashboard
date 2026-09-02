@@ -402,7 +402,7 @@ class BatchRemapTests(ProcessingSplitTestBase):
 
     def test_delete_check_in_batch_deletes_orphaned_product(self):
         order, pr, _mr, _product_a, _product_b = self._crayons_order()
-        # New product created just for this batch — orphaned once its items go.
+        # New product created just for this batch - orphaned once its items go.
         r1 = self.client.post(
             f'/api/inventory/orders/{order.id}/processing-row-check-in/',
             {
@@ -429,7 +429,7 @@ class BatchRemapTests(ProcessingSplitTestBase):
 
     def test_delete_check_in_batch_keeps_referenced_product(self):
         order, pr, mr, product_a, _product_b = self._crayons_order()
-        # Referenced outside the batch's own row — must survive the batch delete.
+        # Referenced outside the batch's own row - must survive the batch delete.
         mr.matched_product = product_a
         mr.save(update_fields=['matched_product'])
         r1 = self.client.post(

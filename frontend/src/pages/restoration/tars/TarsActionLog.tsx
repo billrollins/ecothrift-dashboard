@@ -6,8 +6,8 @@
  * was read: the question someone actually opens this tab with is "what has
  * been done to this thing", and the answer was buried under bookkeeping.
  *
- * So: only actions, and only what distinguishes one from another — when, what
- * kind, what was done. No group headings — actions are on the item.
+ * So: only actions, and only what distinguishes one from another - when, what
+ * kind, what was done. No group headings - actions are on the item.
  *
  * Rows can be deleted here, because a log you cannot correct fills up with
  * things everyone knows are wrong and stops being read.
@@ -204,6 +204,6 @@ function RowButton({
 /** Time of day only. The date is noise on a log covering one shift. */
 function clockTime(iso: string): string {
   const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return '—';
+  if (Number.isNaN(at.getTime())) return '-';
   return at.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }

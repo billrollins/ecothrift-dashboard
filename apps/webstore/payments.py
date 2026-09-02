@@ -1,7 +1,7 @@
 """Provider-agnostic payment layer for web-store orders.
 
 The storefront does NOT use Stripe (owner decision, 2026-05-30). A real processor
-— most likely **Helcim** — will be wired later. Until then `ManualProvider` lets the
+- most likely **Helcim** - will be wired later. Until then `ManualProvider` lets the
 full order flow run end-to-end (cart → checkout → order placed → confirmation) with
 no online charge: the order is recorded as awaiting payment and staff arrange it
 (pay-in-store on pickup, or an invoice).
@@ -39,7 +39,7 @@ class ManualProvider(PaymentProvider):
         order.save(update_fields=['payment_provider', 'payment_status', 'updated_at'])
         if order.fulfillment == 'pickup':
             message = (
-                'Order received! Pay in store when you pick up — '
+                'Order received! Pay in store when you pick up - '
                 'we’ll email you when it’s ready.'
             )
         else:

@@ -2,7 +2,7 @@
 
 The three checklists ship with short placeholders on purpose. Open, Day, and
 Close are the store's own words and belong in the editor, not in a migration;
-what has to exist up front is the wiring — which routine verifies which, when
+what has to exist up front is the wiring - which routine verifies which, when
 each nags, and how the day is scored.
 """
 from datetime import time
@@ -92,7 +92,7 @@ def seed(apps, schema_editor):
 
     open_run = routine(
         'retail.open',
-        title='Retail — Opening',
+        title='Retail - Opening',
         intro='First hour of the day, and a look at how the store was left.',
         kind='checklist',
         definition=OPEN,
@@ -103,7 +103,7 @@ def seed(apps, schema_editor):
     )
     day_run = routine(
         'retail.day',
-        title='Retail — Day shift',
+        title='Retail - Day shift',
         intro='Shelf checks, non-shelf checks, projects. Nobody sits down.',
         kind='checklist',
         definition=DAY,
@@ -114,7 +114,7 @@ def seed(apps, schema_editor):
     )
     close_run = routine(
         'retail.close',
-        title='Retail — Closing',
+        title='Retail - Closing',
         intro='Leave it the way you want to find it.',
         kind='checklist',
         definition=CLOSE,
@@ -132,7 +132,7 @@ def seed(apps, schema_editor):
 
     routine(
         'retail.section_tally',
-        title='My section — daily check',
+        title='My section - daily check',
         intro='Walk your section and log what you had to put right.',
         kind='section_tally',
         definition=LOCKED,

@@ -5,7 +5,7 @@
  * component sits on the legacy studio Home so the two can never drift.
  *
  * Edits save as they are made. There is no Save button because there is nothing
- * to save at — leaving a field commits it. Success is silent: the value on the
+ * to save at - leaving a field commits it. Success is silent: the value on the
  * row is the confirmation, and a toast per field would be unreadable when
  * twenty items are being filled in. Only failures speak up.
  */
@@ -51,7 +51,7 @@ export function RestorationQueue({
   onOpenHistory?: (job: RestorationJobDTO, filter?: TarsHistoryFilter) => void;
   onOpenWork?: (job: RestorationJobDTO) => void;
   onDispatch: (job: RestorationJobDTO, target: DispatchTarget) => void;
-  /** Column name over the buttons. Always Dispatch — the buttons say the rest. */
+  /** Column name over the buttons. Always Dispatch - the buttons say the rest. */
   actionLabel?: string;
   emptyMessage?: string;
 }) {
@@ -159,7 +159,7 @@ const QUEUE_COLUMNS: ReadonlyArray<{ id: QueueSortField; label: string; center?:
 /**
  * The names of the card's sections, on the same tracks as the cards.
  *
- * Always rendered — empty lists keep the headers — so arriving items never
+ * Always rendered - empty lists keep the headers - so arriving items never
  * shove a new row in above the first card. Sticky so the names stay put
  * while the list scrolls; they start at the top of the scroller on load.
  * Clicking a name sorts the list; the arrow slot is always reserved so the

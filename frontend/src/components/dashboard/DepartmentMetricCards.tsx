@@ -118,9 +118,11 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
       accent: dashboardPalette.gold,
       icon: <Storefront />,
       actual: retail.average_grade ?? '-',
-      actualNote: retail.last_grade
-        ? `${retail.last_grade} on the last graded day · ${retail.week_audits} submitted`
-        : `${retail.week_audits} submitted this week`,
+      actualNote: [
+        retail.last_grade ? `${retail.last_grade} on the last graded day` : null,
+        `${retail.week_work_cycles ?? 0} work cycles this week`,
+        `${retail.week_idle_dismissed ?? 0} idle prompts dismissed`,
+      ].filter(Boolean).join(' · '),
       goalMet: retail.average_grade === 'A' || retail.average_grade === 'B',
       getValue: retailGridValue,
       getWeekTotal: retailWeekTotal,

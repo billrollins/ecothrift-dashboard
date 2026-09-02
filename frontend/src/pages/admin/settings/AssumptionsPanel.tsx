@@ -24,7 +24,7 @@ export function AssumptionsPanel() {
     <Box>
       <Alert severity="info" sx={{ mb: 2 }}>
         <strong>PO shrink</strong> drives item cost allocation; <strong>buying revenue shrink</strong>{' '}
-        reduces estimated auction revenue in valuation — related ideas, separate settings. Changing the
+        reduces estimated auction revenue in valuation - related ideas, separate settings. Changing the
         PO default does not retrofit existing POs.
       </Alert>
       <Card>
@@ -40,7 +40,7 @@ export function AssumptionsPanel() {
                 return (
                   <Box key={key} sx={{ py: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
                     <Typography variant="subtitle2" color="text.secondary">
-                      {metaForKey(key).label} — not in the database yet.
+                      {metaForKey(key).label} - not in the database yet.
                     </Typography>
                   </Box>
                 );

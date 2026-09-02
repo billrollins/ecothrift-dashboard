@@ -3,7 +3,7 @@
  *
  * Six sections, all of them always present. A brand-new hire with nothing but
  * an email shows the same sections at the same heights as someone with a full
- * file — empty fields read as an em-dash rather than disappearing, so the Send
+ * file - empty fields read as an em-dash rather than disappearing, so the Send
  * reset link button is always in the same place.
  */
 import { useEffect, useState } from 'react';

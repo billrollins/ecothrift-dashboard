@@ -1333,7 +1333,7 @@ class PreprocessingRedesignTests(TestCase):
         self.assertEqual(response.data.get('fields'), 'minimal')
         row = response.data['rows'][0]
         # Heavy JSON triples + final_* stay excluded; scalar ai_*/standard_* layer
-        # fields ARE included (2026-06-10 — table hover tooltips + AI condition reset).
+        # fields ARE included (2026-06-10 - table hover tooltips + AI condition reset).
         self.assertNotIn('final_title', row)
         self.assertNotIn('ai_status', row)
         self.assertNotIn('identifiers', row)

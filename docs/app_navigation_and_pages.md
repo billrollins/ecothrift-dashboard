@@ -195,13 +195,13 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. D
 | **Floorplans** | `/floor-ops/floorplans` | List of store floorplans. |
 | **Floorplan editor** | `/floor-ops/floorplans/:id/edit` | Full-screen SVG editor (walls, fixtures, print). Outside main chrome. |
 | **Routines** | `/routines` | Account menu. Phone-first My Routines / Catalog; fill-in and live preview in a 9:20 frame. |
-| **Routine runner / editor** | `/routines/run/:id`, `/routines/run/new?routine=`, `/routines/new`, `/routines/catalog` | Staff fill a run; superuser authors in the left form with a live phone preview. Retail QA kinds (section tally, cross-check, owner spot check) carry their own runners instead of an authored checklist. |
+| **Routine runner / editor** | `/routines/run/:id`, `/routines/run/new?routine=&draft=`, `/routines/new`, `/routines/catalog` | Staff fill a run; `?draft=` resumes an in-progress submission. Superuser authors in the left form with a live phone preview. Retail QA kinds (section tally, cross-check, owner spot check, work cycle) carry their own runners instead of an authored checklist. |
 
 ### Store Sales workspace
 
 | Page | Path | What it does |
 |------|------|----------------|
-| **Terminal** | `/pos/terminal` | Live POS register: cart, tender, discounts, delivery lines, checkout. |
+| **Terminal** | `/pos/terminal` | Live POS register: cart, tender, discounts, delivery lines, checkout. Idle registers are asked for a work cycle after a few minutes with no cart. |
 | **Transactions** | `/pos/transactions` | Historical completed sales / lookups. |
 | **Deliveries** | `/pos/deliveries` | Entry redirect into **Delivery Desk** (desktop) or **Delivery Field** (mobile) Days. |
 | **Delivery Desk** | `/pos/deliveries/desk/days`, `/desk/total`, `/desk/days/:dayId` | Office planning/review + live run/route/ETA monitor on day detail; never renders the Field driver wizard. |
@@ -220,11 +220,11 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. D
 | **Employees** | `/admin/users` | Admin: users, roles, pay-related fields. |
 | **Customers** | `/admin/customers` | Admin: customer list. |
 | **Permissions** | `/admin/permissions` | Admin: permission matrix UI. |
-| **Settings** | `/admin/settings` | Manager+: app settings. Tabs `?tab=` — System, Printing, Store, Assumptions, **Retail QA** (grade weights, letter lines, audit floors), Permissions (Admin only). |
+| **Settings** | `/admin/settings` | Manager+: app settings. Tabs `?tab=` — System, Printing, Store, Assumptions, **Retail QA** (grade weights, letter lines, audit floors, idle prompt minutes), Permissions (Admin only). |
 | **Label Studio** | `/admin/label-studio` (+ `/:id`) | Manager+: label template library and visual/PDF designer; print integration. |
 | **Blog Studio** | `/blog-studio` | Superuser TipTap blog CMS for the public site; **new window**. |
 | **Time & payroll** | `/admin/time-payroll` | Superuser: roster, payroll summary, time-change requests. |
-| **Routines** (Routine Control) | `/admin/routines` (`?id=` selects, `?view=sections\|grades`, `?day=`) | Superuser. **Routines**: every routine incl. retired, run stats, filters, quick edits, retire / restore / delete forever. **Sections**: areas of the floor and who keeps them, drag order, coverage gaps. **Grades**: the Retail QA week — day letters, the day taken apart, cross-checks with photos, tallies per section, walks to cover, checker gaps. |
+| **Routines** (Routine Control) | `/admin/routines` (`?id=` selects, `?view=sections\|grades`, `?day=`) | Superuser. One header for all three rooms; `?id=` survives a view switch. **Routines**: every routine incl. retired, run stats, filters, quick edits; program routines cannot be retired. **Sections**: areas of the floor and who keeps them, drag order, coverage gaps. **Grades**: the Retail QA week - day letters, the day taken apart, cross-checks with photos, tallies per section, work cycles, idle prompts, walks to cover, checker gaps. |
 
 ### Hidden from nav (still reachable by URL)
 

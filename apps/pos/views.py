@@ -96,7 +96,7 @@ def _customer_schedule_message(job: DeliveryJob) -> str:
         window = f' between {start} and {end}'
     return (
         f'Your delivery has now been scheduled for {day}{window}. '
-        'Please be home — we call the day of delivery and again when we arrive. '
+        'Please be home - we call the day of delivery and again when we arrive. '
         'Signature required; drop-off only (end of driveway / apartment lot).'
     )
 
@@ -951,11 +951,11 @@ class CartViewSet(viewsets.ModelViewSet):
             )
 
         if reason == REASON_GOOGLE_REVIEW and review_name:
-            description = f'Discount — {reason} ({review_name}, {review_stars} stars)'
+            description = f'Discount - {reason} ({review_name}, {review_stars} stars)'
         elif scope == 'line' and target_line is not None:
-            description = f'Discount — {reason} (on {target_line.description[:80]})'
+            description = f'Discount - {reason} (on {target_line.description[:80]})'
         else:
-            description = f'Discount — {reason}'
+            description = f'Discount - {reason}'
         if scope == 'line' and target_line is not None and reason == REASON_GOOGLE_REVIEW:
             description = f'{description} (on {target_line.description[:80]})'
         description = description[:300]
@@ -1094,7 +1094,7 @@ class CartViewSet(viewsets.ModelViewSet):
         )
         if availability is not None:
             date_label = availability.date.isoformat()
-            description = f'{label} — {items_delivered} — {customer_name} — {date_label}'[:300]
+            description = f'{label} - {items_delivered} - {customer_name} - {date_label}'[:300]
             job_status = DeliveryJob.STATUS_SCHEDULED
             scheduled_date = availability.date
             meta = {
@@ -1115,7 +1115,7 @@ class CartViewSet(viewsets.ModelViewSet):
                 'notes': notes,
             }
         else:
-            description = f'{label} — {items_delivered} — {customer_name} — schedule later'[:300]
+            description = f'{label} - {items_delivered} - {customer_name} - schedule later'[:300]
             job_status = DeliveryJob.STATUS_NEEDS_SCHEDULING
             scheduled_date = None
             meta = {
@@ -2054,7 +2054,7 @@ def delivery_stop_secure(request, pk: int):
 @api_view(['POST'])
 @perm_classes([IsAuthenticated, IsEmployee])
 def delivery_stop_call(request, pk: int):
-    """Legacy adapter — prefer /contact-attempt/ and /disposition/."""
+    """Legacy adapter - prefer /contact-attempt/ and /disposition/."""
     from apps.pos.services.delivery_run import add_call_attempt, serialize_run
 
     try:
@@ -2563,7 +2563,7 @@ def dashboard_metrics(request):
     """Dashboard: sales overview and department metric stat cards.
 
     Query params:
-        weeks: department daily-grid lookback (2–12, default 8).
+        weeks: department daily-grid lookback (2-12, default 8).
     """
     from apps.pos.services.dashboard_metrics import clamp_department_weeks, get_dashboard_metrics
 

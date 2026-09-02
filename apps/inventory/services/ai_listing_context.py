@@ -17,7 +17,7 @@ from apps.inventory.product_identity import identifier_value
 
 
 def _annotate_listing_category(qs):
-    """``Item`` has no ``category`` column — coalesce manifest row + product."""
+    """``Item`` has no ``category`` column - coalesce manifest row + product."""
 
     return qs.select_related('product', 'manifest_row').annotate(
         listing_category=Coalesce(

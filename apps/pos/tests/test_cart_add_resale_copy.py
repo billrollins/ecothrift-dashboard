@@ -1,4 +1,4 @@
-"""POST /pos/carts/:id/add-resale-copy/ — atomic duplicate + line with resale metadata."""
+"""POST /pos/carts/:id/add-resale-copy/ - atomic duplicate + line with resale metadata."""
 from decimal import Decimal
 
 from django.contrib.auth.models import Group

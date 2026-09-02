@@ -1,4 +1,4 @@
-"""Delivery day run wizard — start, load, calls, route/ETAs, proof, finish."""
+"""Delivery day run wizard - start, load, calls, route/ETAs, proof, finish."""
 
 from __future__ import annotations
 
@@ -397,7 +397,7 @@ def create_delivery_job(
 
 
 def _stop_is_routable(stop: DeliveryRunStop) -> bool:
-    """Confirmed, on-route, not held, not terminal — eligible for route / next-up."""
+    """Confirmed, on-route, not held, not terminal - eligible for route / next-up."""
     if stop.state in EXCLUDED_ROUTE_STATES:
         return False
     if stop.excluded_unconfirmed_at:
@@ -548,7 +548,7 @@ def set_phase(run: DeliveryRun, phase: str, *, user) -> DeliveryRun:
         raise ValueError(str(exc)) from exc
     # Phase 2 order: calls → load → truck → route → active → return
     if phase == DeliveryRun.PHASE_LOAD:
-        # Loading allowed while replies pending — no confirmation required.
+        # Loading allowed while replies pending - no confirmation required.
         pass
     if phase == DeliveryRun.PHASE_TRUCK:
         items_ok, items_msg = phase2.truck_close_items_ok(run)
@@ -588,7 +588,7 @@ def mark_loaded(
     loaded: bool = True,
     reason: str = '',
 ) -> DeliveryRunStop:
-    """Compatibility stop-level load — also mirrors onto stop items when present."""
+    """Compatibility stop-level load - also mirrors onto stop items when present."""
     # Phase 2: loading allowed for every same-day candidate while replies pending.
     note = (reason or '').strip()
     items = list(stop.stop_items.all())
@@ -614,7 +614,7 @@ def mark_loaded(
 
 
 def mark_secured(stop: DeliveryRunStop, *, user, secured: bool = True) -> DeliveryRunStop:
-    """Compatibility secure checkpoint — with stop items, secured mirrors item readiness."""
+    """Compatibility secure checkpoint - with stop items, secured mirrors item readiness."""
     items = list(stop.stop_items.all())
     if items:
         phase2.mirror_stop_load_state(stop)
@@ -652,7 +652,7 @@ def all_confirmed_loaded_and_secured(run: DeliveryRun) -> bool:
 
 
 def all_stops_loaded_and_secured(run: DeliveryRun) -> bool:
-    """Backward-compatible alias — gates on confirmed stops only."""
+    """Backward-compatible alias - gates on confirmed stops only."""
     return all_confirmed_loaded_and_secured(run)
 
 
@@ -967,7 +967,7 @@ def preview_insert_stop(
                 )
                 provisional = arrive.isoformat()
     else:
-        # Provider unavailable — single plan for append position (no N+2 loop).
+        # Provider unavailable - single plan for append position (no N+2 loop).
         trial = routable + [candidate]
         plan = plan_delivery_route_with_etas(
             [format_stop_address(s.job) for s in trial],
@@ -1038,7 +1038,7 @@ def commit_insert_stop(
     fully_loaded = bool(items) and all(phase2.stop_item_is_ready(i) for i in items)
     if not fully_loaded and run.truck_closed_at:
         raise ValueError(
-            'Truck is sealed — reopen it to add and load this delivery before departure'
+            'Truck is sealed - reopen it to add and load this delivery before departure'
         )
     preview = preview_insert_stop(run, stop_id, base_revision=None)
     target = int(position) if position is not None else int(preview['proposed_position'])
@@ -1373,7 +1373,7 @@ def update_return_checklist(
         stop.return_reconciled_by = user
         stop.state = DeliveryRunStop.STATE_FAILED
         fields.extend(['return_reconciled_at', 'return_reconciled_by', 'state'])
-        # Fail the job for reschedule — do not mutate inventory Item.status
+        # Fail the job for reschedule - do not mutate inventory Item.status
         job = stop.job
         if job.status == DeliveryJob.STATUS_SCHEDULED:
             job.status = DeliveryJob.STATUS_FAILED
@@ -1456,7 +1456,7 @@ def complete_stop(
         if not stop.contact_present_at:
             stop.contact_present_at = now
             stop.contact_present_by = user
-    # Field flow no longer requires a separate "items handed over" tap —
+    # Field flow no longer requires a separate "items handed over" tap -
     # stamp the audit field at completion when unset (override or normal).
     if not stop.delivered_at:
         stop.delivered_at = now
@@ -1646,7 +1646,7 @@ def customer_text_templates(stop: DeliveryRunStop) -> list[dict[str, str]]:
             if stop.eta_window_end_at
             else local + timedelta(minutes=20)
         )
-        eta = f'{local.strftime("%I:%M %p").lstrip("0")}–{end.strftime("%I:%M %p").lstrip("0")}'
+        eta = f'{local.strftime("%I:%M %p").lstrip("0")}-{end.strftime("%I:%M %p").lstrip("0")}'
 
     templates = [
         {
@@ -1654,7 +1654,7 @@ def customer_text_templates(stop: DeliveryRunStop) -> list[dict[str, str]]:
             'label': 'Day-of confirmation',
             'body': (
                 f'Hi {name}, this is Eco-Thrift. Your delivery is scheduled for {date_label}. '
-                'Please confirm someone will be home — we call the day of delivery and again when we arrive. '
+                'Please confirm someone will be home - we call the day of delivery and again when we arrive. '
                 'Signature required; drop-off only (end of driveway / apartment lot).'
             ),
         },
@@ -1673,7 +1673,7 @@ def customer_text_templates(stop: DeliveryRunStop) -> list[dict[str, str]]:
             'body': (
                 f'Hi {name}, Eco-Thrift delivery update'
                 + (f': new estimated window {eta}' if eta else ': we are running a bit behind')
-                + '. Thank you for your patience — we will call when we are close.'
+                + '. Thank you for your patience - we will call when we are close.'
             ),
         },
         {
@@ -1688,7 +1688,7 @@ def customer_text_templates(stop: DeliveryRunStop) -> list[dict[str, str]]:
             'key': 'completed',
             'label': 'Completed / thank you',
             'body': (
-                f'Hi {name}, Eco-Thrift has completed your delivery. Thank you — '
+                f'Hi {name}, Eco-Thrift has completed your delivery. Thank you - '
                 'please keep your receipt for warranty/policy details.'
             ),
         },
@@ -2180,7 +2180,7 @@ def _sync_job_cart_line_meta(job: DeliveryJob, *, notes: str | None = None) -> N
             'Delivery 5 miles or less' if job.tier == '5mi' else 'Delivery 5 to 10 miles'
         )
         line.description = (
-            f'{fee_label} — {job.items_delivered} — {job.customer_name} — '
+            f'{fee_label} - {job.items_delivered} - {job.customer_name} - '
             f'{job.scheduled_date.isoformat()}'
         )[:300]
     line.save(update_fields=['meta', 'description'])
@@ -2248,7 +2248,7 @@ def reschedule_job_from_run(
 
     if stop and (stop.loaded_at or run.status == DeliveryRun.STATUS_EN_ROUTE):
         raise ValueError(
-            'Cannot reschedule after load or en route — report an issue and reconcile return first'
+            'Cannot reschedule after load or en route - report an issue and reconcile return first'
         )
 
     new_date = availability.date
@@ -2406,7 +2406,7 @@ def allowed_actions_for_run(run: DeliveryRun) -> list[str]:
             ]
         )
         if not run.truck_closed_at:
-            # Never sealed, or reopened — allow load mutations again.
+            # Never sealed, or reopened - allow load mutations again.
             actions.extend(
                 [
                     'load',
@@ -2442,7 +2442,7 @@ def allowed_actions_for_run(run: DeliveryRun) -> list[str]:
         if ok:
             actions.append('begin_route')
     elif phase == DeliveryRun.PHASE_ACTIVE:
-        # No reorder/load after depart — local Edit must not mutate sealed route/load.
+        # No reorder/load after depart - local Edit must not mutate sealed route/load.
         actions.extend(
             [
                 'call',

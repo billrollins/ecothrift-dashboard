@@ -34,7 +34,7 @@ def build_system_prompt() -> str:
         'You map liquidation manifest category keys to canonical retail categories. '
         'You are categorizing THE KEY, not individual product rows. The key represents a category pattern. '
         'Map based on what the key string tells you. Use row context only to decipher opaque keys. '
-        'Respond with JSON only — a JSON array — no markdown fences.'
+        'Respond with JSON only - a JSON array - no markdown fences.'
     )
 
 
@@ -85,7 +85,7 @@ def _parse_json_array(text: str) -> list[dict[str, Any]]:
 
 BATCH_SIZE = 10
 
-# Sentinel from build_fast_cat_key when no category fields had values — never AI-map or count as unmapped.
+# Sentinel from build_fast_cat_key when no category fields had values - never AI-map or count as unmapped.
 _NO_KEY_SENTINEL = '__no_key__'
 
 

@@ -32,6 +32,9 @@ class RoutineSerializer(serializers.ModelSerializer):
         ]
 
     def validate_definition(self, value):
+        kind = getattr(self.instance, 'kind', None) or Routine.KIND_CHECKLIST
+        if kind != Routine.KIND_CHECKLIST:
+            return value or {}
         errors = validate_definition(value or {})
         if errors:
             raise serializers.ValidationError(errors)
@@ -64,6 +67,31 @@ class RoutineSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'anchor_date': 'Pick the next due date (today through today + 13).',
             })
+        if self.instance and self.instance.system_key:
+            locked = {
+                'trigger': self.instance.trigger,
+                'assignment': self.instance.assignment,
+                'subject_source': self.instance.subject_source,
+                'verifies': self.instance.verifies_id,
+                'is_active': self.instance.is_active,
+                'kind': self.instance.kind,
+            }
+            errors = {}
+            for field, current in locked.items():
+                if field not in attrs:
+                    continue
+                incoming = attrs[field]
+                if field == 'verifies':
+                    incoming = incoming.pk if incoming is not None else None
+                if incoming != current:
+                    errors[field] = 'Program routines keep this field as seeded.'
+            if (
+                'definition' in attrs
+                and self.instance.kind != Routine.KIND_CHECKLIST
+            ):
+                errors['definition'] = 'This routine is not authored. Its runner is fixed.'
+            if errors:
+                raise serializers.ValidationError(errors)
         return attrs
 
 

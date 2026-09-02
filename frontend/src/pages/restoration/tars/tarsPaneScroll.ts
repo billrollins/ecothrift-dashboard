@@ -1,6 +1,6 @@
 /**
  * Thin pill scrollbars for locked TARS panes.
- * Width never changes on hover — that would shift the grid.
+ * Width never changes on hover - that would shift the grid.
  */
 import { PANEL, RADIUS } from './studio/benchScale';
 

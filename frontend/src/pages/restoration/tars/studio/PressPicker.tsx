@@ -6,7 +6,7 @@
  * nothing. A quick tap leaves the options open, because a hand that has already
  * let go should not have to press again.
  *
- * The alternative — click to open, click to choose — doubles every input on a
+ * The alternative - click to open, click to choose - doubles every input on a
  * screen that is answered dozens of times an hour, standing up, mid-teardown.
  */
 import Box from '@mui/material/Box';
@@ -26,7 +26,7 @@ export type PressPaint = {
   onStrong: string;
   /** Closed-chip fade on a dark console. Omit on light fields. */
   bgcolorTo?: string;
-  /** Option on the light menu — dark ink, not the console's pale type. */
+  /** Option on the light menu - dark ink, not the console's pale type. */
   menuBgcolor?: string;
   menuBgcolorTo?: string;
   menuColor?: string;
@@ -110,7 +110,7 @@ export function PressPicker<T extends string | number>({
   value: T | undefined;
   options: readonly T[];
   format: (value: T) => string;
-  /** Shown muted when unanswered — the value the maths is using meanwhile. */
+  /** Shown muted when unanswered - the value the maths is using meanwhile. */
   placeholder: string;
   width?: number | string;
   height?: number | string;
@@ -118,18 +118,18 @@ export function PressPicker<T extends string | number>({
   ariaLabel: string;
   /** Action is a verb (Dispatch), not a stored answer. */
   variant?: 'field' | 'action' | 'key';
-  /** Menu drops a vertical list — right for named scales, not for $10/$20/$30. */
+  /** Menu drops a vertical list - right for named scales, not for $10/$20/$30. */
   layout?: 'row' | 'menu';
   /** Let the label sit on two lines inside a taller box, instead of clipping. */
   wrap?: boolean;
   /** Row options default to 40. Named verbs need more. */
   optionMinWidth?: number;
   fontSize?: number | string;
-  /** Sit inside a parent field — no own border or radius. */
+  /** Sit inside a parent field - no own border or radius. */
   embedded?: boolean;
   /** Colour for a chosen value. Unset keeps the yellow "needs a pick" wash. */
   paint?: (value: T) => PressPaint | undefined;
-  /** Blocked stays pressable — the host opens an explainer instead of committing. */
+  /** Blocked stays pressable - the host opens an explainer instead of committing. */
   optionTone?: (value: T) => 'ready' | 'blocked';
   /** Colour dot before the label. Overview Dispatch uses list accents. */
   optionDot?: (value: T) => string | undefined;

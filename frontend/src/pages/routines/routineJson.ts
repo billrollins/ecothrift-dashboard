@@ -63,13 +63,13 @@ export function buildAiBrief(
 ): string {
   const creating = mode === 'create';
   const departments = context.departments.length
-    ? context.departments.map((d) => `- ${d.id} — ${d.name}`)
+    ? context.departments.map((d) => `- ${d.id} - ${d.name}`)
     : ['- (none set up yet)'];
   const people = context.people.length
-    ? context.people.map((p) => `- ${p.id} — ${p.name}${p.role || p.department ? ` (${[p.role, p.department].filter(Boolean).join(', ')})` : ''}`)
+    ? context.people.map((p) => `- ${p.id} - ${p.name}${p.role || p.department ? ` (${[p.role, p.department].filter(Boolean).join(', ')})` : ''}`)
     : ['- (none)'];
   return [
-    `# Eco-Thrift routine — ${creating ? 'new routine' : 'edit'} brief`,
+    `# Eco-Thrift routine - ${creating ? 'new routine' : 'edit'} brief`,
     '',
     creating
       ? "You are drafting a new routine for Eco-Thrift's staff dashboard. A routine is a"
@@ -81,7 +81,7 @@ export function buildAiBrief(
     '',
     ...(creating ? [
       'This is the blank form with its defaults. The section and check in it are',
-      'placeholders — replace them. Anything I have already typed is kept below.',
+      'placeholders - replace them. Anything I have already typed is kept below.',
       '',
     ] : []),
     '```json',
@@ -99,32 +99,32 @@ export function buildAiBrief(
     'walk-through): `"assignment": "pooled"`, `"assigned_department": <that id>`,',
     '`"assigned_role": "Staff"`, `"assigned_user_ids": []`. Name people only when it must be them.',
     '',
-    'Departments (id — name):',
+    'Departments (id - name):',
     ...departments,
     '',
-    'People (id — name, role, department):',
+    'People (id - name, role, department):',
     ...people,
     '',
     '## Field guide',
     '',
-    '- `title` — shown at the top of the phone. Keep it short.',
-    '- `intro` — one line of context under the title. May be "".',
-    `- \`trigger\` — one of: ${TRIGGERS.join(', ')}.`,
-    '- `due_time` — "HH:MM", 24-hour. When the app-bar nag starts that day. The run is already on My Routines. Use 00:00 (or morning) to warn all day; use 17:50 so a close stays quiet until 5:50pm.',
-    '- `anchor_date` — "YYYY-MM-DD". Only used when trigger is `biweekly`: the next due date, repeating every 14 days. Otherwise `null`.',
-    '- `grace_days` — whole number 0–30. Days late before a run counts as overdue.',
-    '- `assignment` — `pooled` (one shared run; anyone on shift completes it) or `per_person` (everyone gets their own run).',
-    `- \`assigned_role\` — one of: ${ROLES.join(', ')}.`,
-    '- `assigned_department` — a department id from the list above, or `null`. The department name is also accepted.',
-    '- `assigned_user_ids` — list of people ids from the list above. Usually `[]`. Full names are also accepted.',
-    '- `subject_pool` — list of strings; each run draws one (an area, a till, a vehicle). Usually `[]`.',
-    '- `is_blocking` — `true` pins the routine at the top of everyone\'s list until it is done.',
-    '- `definition.sections[]` — ordered. Each is `{ id, title, checks[] }`. At least one section with at least one check.',
-    '- check — `{ id, label, control, hint, unit, critical }`',
-    `  - \`control\` — ${CONTROLS.map((c) => `\`${c}\``).join(', ')}. \`pass_fail\` offers Pass / Fail / N/A; \`pass_fail_strict\` offers Pass / Fail only.`,
-    '  - `hint` — optional one line under the label explaining how or why, or "".',
-    '  - `unit` — only for `number` checks (e.g. "°F", "kg"); otherwise "".',
-    '  - `critical` — `true` means a single fail fails the whole run.',
+    '- `title` - shown at the top of the phone. Keep it short.',
+    '- `intro` - one line of context under the title. May be "".',
+    `- \`trigger\` - one of: ${TRIGGERS.join(', ')}.`,
+    '- `due_time` - "HH:MM", 24-hour. When the app-bar nag starts that day. The run is already on My Routines. Use 00:00 (or morning) to warn all day; use 17:50 so a close stays quiet until 5:50pm.',
+    '- `anchor_date` - "YYYY-MM-DD". Only used when trigger is `biweekly`: the next due date, repeating every 14 days. Otherwise `null`.',
+    '- `grace_days` - whole number 0-30. Days late before a run counts as overdue.',
+    '- `assignment` - `pooled` (one shared run; anyone on shift completes it) or `per_person` (everyone gets their own run).',
+    `- \`assigned_role\` - one of: ${ROLES.join(', ')}.`,
+    '- `assigned_department` - a department id from the list above, or `null`. The department name is also accepted.',
+    '- `assigned_user_ids` - list of people ids from the list above. Usually `[]`. Full names are also accepted.',
+    '- `subject_pool` - list of strings; each run draws one (an area, a till, a vehicle). Usually `[]`.',
+    '- `is_blocking` - `true` pins the routine at the top of everyone\'s list until it is done.',
+    '- `definition.sections[]` - ordered. Each is `{ id, title, checks[] }`. At least one section with at least one check.',
+    '- check - `{ id, label, control, hint, unit, critical }`',
+    `  - \`control\` - ${CONTROLS.map((c) => `\`${c}\``).join(', ')}. \`pass_fail\` offers Pass / Fail / N/A; \`pass_fail_strict\` offers Pass / Fail only.`,
+    '  - `hint` - optional one line under the label explaining how or why, or "".',
+    '  - `unit` - only for `number` checks (e.g. "°F", "kg"); otherwise "".',
+    '  - `critical` - `true` means a single fail fails the whole run.',
     '',
     '## How to reply',
     '',
@@ -136,15 +136,15 @@ export function buildAiBrief(
       '5. Pick `control` per check: `pass_fail` for most things, `number` (with `unit`) for readings, `text` for something to write down, `photo` for proof. Mark `critical` only where one fail should fail the whole run.',
       '6. Set the owner from the lists above: the department the routine belongs to, `pooled` unless every person must do it themselves, named people only if I ask. Work out `trigger` and `due_time` from what the checklist is for. Opening that should nag all morning is 00:00 or store-open; closing that should stay quiet until 5:50 is 17:50.',
       '7. Labels are short imperatives ("Unlock front doors"). Put the how and why in `hint`.',
-      '8. Never use an em dash (—) or en dash (–) in title, intro, section titles, labels, or hints. Use a hyphen, comma, or period.',
+      '8. Never use an em dash (-) or en dash (-) in title, intro, section titles, labels, or hints. Use a hyphen, comma, or period.',
       '',
       '## What this routine should cover',
     ] : [
       '3. Keep the `id` of every section and check you retain, even if you edit or move it. Ids are how in-progress runs and history line up. Never renumber.',
       '4. New sections and checks get a fresh id: a lowercase slug such as `section-closing` or `check-back-door-locked`.',
-      '5. Change only what is asked for. Copy everything else through untouched — including the owner fields, unless I ask to reassign; then use ids from the lists above.',
+      '5. Change only what is asked for. Copy everything else through untouched - including the owner fields, unless I ask to reassign; then use ids from the lists above.',
       '6. Labels are short imperatives ("Unlock front doors"). Put the how and why in `hint`.',
-      '7. Never use an em dash (—) or en dash (–) in title, intro, section titles, labels, or hints. Use a hyphen, comma, or period. Keep an existing title that already has one only if I did not ask you to rename it.',
+      '7. Never use an em dash (-) or en dash (-) in title, intro, section titles, labels, or hints. Use a hyphen, comma, or period. Keep an existing title that already has one only if I did not ask you to rename it.',
       '',
       '## What I want changed',
     ]),
@@ -185,6 +185,17 @@ const slug = (value: string) =>
  * returns what changed still produces a whole routine. Anything malformed is a
  * hard error; anything we quietly fixed becomes a warning.
  */
+/** Fields a program routine must not send back. The grade keys on them. */
+export const SYSTEM_LOCKED_DOC_FIELDS = ['trigger', 'assignment'] as const;
+
+export function dropLockedDocFields(doc: RoutineDoc, current: RoutineDoc): RoutineDoc {
+  return {
+    ...doc,
+    trigger: current.trigger,
+    assignment: current.assignment,
+  };
+}
+
 export function parseRoutineDoc(
   raw: string,
   current: RoutineDoc,
@@ -198,7 +209,7 @@ export function parseRoutineDoc(
     value = JSON.parse(candidate);
   } catch (error) {
     const detail = error instanceof Error ? error.message.replace(/^JSON\.parse: /, '') : '';
-    return { ok: false, error: `That is not valid JSON${detail ? ` — ${detail}` : ''}.` };
+    return { ok: false, error: `That is not valid JSON${detail ? ` - ${detail}` : ''}.` };
   }
   if (!isRecord(value)) return { ok: false, error: 'Expected a JSON object at the top level.' };
 
@@ -207,7 +218,7 @@ export function parseRoutineDoc(
     'assigned_role', 'assigned_department', 'assigned_user_ids', 'subject_pool', 'is_blocking', 'definition',
   ];
   if (!known.some((key) => key in value)) {
-    return { ok: false, error: 'This does not look like a routine — none of the routine fields are present.' };
+    return { ok: false, error: 'This does not look like a routine - none of the routine fields are present.' };
   }
   if ('format' in value && value.format !== ROUTINE_DOC_FORMAT) {
     return { ok: false, error: `Unknown format "${String(value.format)}". Expected "${ROUTINE_DOC_FORMAT}".` };
@@ -432,7 +443,7 @@ function parseDefinition(input: unknown, errors: string[], warnings: string[]): 
       const hint = typeof checkRaw.hint === 'string' ? checkRaw.hint.trim() : '';
       let unit = typeof checkRaw.unit === 'string' ? checkRaw.unit.trim() : '';
       if (unit && control !== 'number') {
-        warnings.push(`Dropped the unit on "${label}" — only number checks carry one.`);
+        warnings.push(`Dropped the unit on "${label}" - only number checks carry one.`);
         unit = '';
       }
       checks.push({
@@ -463,7 +474,7 @@ export function summarizeChanges(
   context: BriefContext = EMPTY_BRIEF_CONTEXT,
 ): string[] {
   const lines: string[] = [];
-  const quote = (v: string) => `“${v || '—'}”`;
+  const quote = (v: string) => `“${v || '-'}”`;
   const deptName = (id: number | null) =>
     id === null ? 'none' : (context.departments.find((d) => d.id === id)?.name ?? `#${id}`);
   const personName = (id: number) => context.people.find((p) => p.id === id)?.name ?? `#${id}`;
@@ -474,7 +485,7 @@ export function summarizeChanges(
   const schedule: string[] = [];
   if (prev.trigger !== next.trigger) schedule.push(`${prev.trigger} → ${next.trigger}`);
   if (prev.due_time !== next.due_time) schedule.push(`due ${prev.due_time} → ${next.due_time}`);
-  if (prev.anchor_date !== next.anchor_date) schedule.push(`next due ${prev.anchor_date ?? '—'} → ${next.anchor_date ?? '—'}`);
+  if (prev.anchor_date !== next.anchor_date) schedule.push(`next due ${prev.anchor_date ?? '-'} → ${next.anchor_date ?? '-'}`);
   if (prev.grace_days !== next.grace_days) schedule.push(`grace ${prev.grace_days} → ${next.grace_days} days`);
   if (schedule.length) lines.push(`Schedule: ${schedule.join(', ')}`);
 

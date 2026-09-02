@@ -1,4 +1,4 @@
-"""Customer hold vocabulary contract — stages, invisible confirm, public timeline."""
+"""Customer hold vocabulary contract - stages, invisible confirm, public timeline."""
 from decimal import Decimal
 
 from django.contrib.auth.models import Group
@@ -144,7 +144,7 @@ class HoldStatusContractTests(TestCase):
             customer_name='N',
             email='n@example.com',
         )
-        add_staff_note(res, self.mgr, 'Internal only — never show')
+        add_staff_note(res, self.mgr, 'Internal only - never show')
         ReservationEvent.objects.create(
             reservation=res, kind='verified', from_status='pending_verification',
             to_status='requested',

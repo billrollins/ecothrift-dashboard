@@ -269,7 +269,7 @@ class MyConversationsTests(TestCase):
         conv.refresh_from_db()
         self.assertIsNotNone(conv.customer_deleted_at)
         self.assertEqual(conv.customer_unread, 0)
-        # Row is still there for staff — soft delete only.
+        # Row is still there for staff - soft delete only.
         self.assertTrue(Conversation.objects.filter(pk=conv.pk).exists())
         staff = self.client
         staff.force_authenticate(self.manager)

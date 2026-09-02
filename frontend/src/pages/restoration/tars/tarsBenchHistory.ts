@@ -2,7 +2,7 @@
  * One history for the bench: past actions plus the desk events that answer
  * why we priced like this and what took so long.
  *
- * The open action is not in this list — it already sits on top of the panel.
+ * The open action is not in this list - it already sits on top of the panel.
  */
 import type {
   ItemNoteDTO,
@@ -196,7 +196,7 @@ function eventTitle(event: RestorationTimelineEventDTO): string {
       return asText(p.name) ? `Cancel kept · ${asText(p.name)}` : 'Cancel kept';
     case 'grade.claimed': {
       const field = asText(p.field) === 'current' ? 'Current' : 'Original';
-      const grade = asText(p.grade) || '—';
+      const grade = asText(p.grade) || '-';
       return `${field} set to ${grade}`;
     }
     case 'plan.estimate_changed':
@@ -237,16 +237,16 @@ function eventDetail(event: RestorationTimelineEventDTO): string {
     case 'plan.estimate_changed': {
       const bits: string[] = [];
       if ('parts_from' in p || 'parts_to' in p) {
-        bits.push(`parts ${asMoney(p.parts_from) ?? '—'} → ${asMoney(p.parts_to) ?? '—'}`);
+        bits.push(`parts ${asMoney(p.parts_from) ?? '-'} → ${asMoney(p.parts_to) ?? '-'}`);
       }
       if ('minutes_from' in p || 'minutes_to' in p) {
-        bits.push(`mins ${p.minutes_from ?? '—'} → ${p.minutes_to ?? '—'}`);
+        bits.push(`mins ${p.minutes_from ?? '-'} → ${p.minutes_to ?? '-'}`);
       }
       return bits.join(' · ');
     }
     case 'note.queue_changed': {
-      const previous = asText(p.previous) || '—';
-      const next = asText(p.next) || '—';
+      const previous = asText(p.previous) || '-';
+      const next = asText(p.next) || '-';
       return `${previous} → ${next}`;
     }
     case 'note.added':
@@ -361,7 +361,7 @@ export function priceChangeDetail(previous: unknown, next: unknown): string {
     const fromKey = asPriceKey(before[grade]);
     const toKey = asPriceKey(after[grade]);
     if (fromKey === toKey) continue;
-    bits.push(`${grade} ${asMoney(before[grade]) ?? '—'} → ${asMoney(after[grade]) ?? '—'}`);
+    bits.push(`${grade} ${asMoney(before[grade]) ?? '-'} → ${asMoney(after[grade]) ?? '-'}`);
   }
   return bits.join(' · ');
 }
@@ -578,12 +578,12 @@ export function clearableHistoryLines(summary: ClearableHistorySummary): string[
   const lines: string[] = [];
   if (summary.notes > 0) {
     lines.push(
-      `${summary.notes} of your earlier notes — the current note stays`,
+      `${summary.notes} of your earlier notes - the current note stays`,
     );
   }
   if (summary.superseded > 0) {
     lines.push(
-      `${summary.superseded} earlier answer${summary.superseded === 1 ? '' : 's'} — the latest of each kind since the last sitting stays`,
+      `${summary.superseded} earlier answer${summary.superseded === 1 ? '' : 's'} - the latest of each kind since the last sitting stays`,
     );
   }
   return lines;

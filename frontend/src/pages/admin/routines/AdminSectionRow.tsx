@@ -18,8 +18,8 @@ const SELECT_SX = {
 };
 
 /**
- * One area of the floor, edited where it sits. A section is two facts — its
- * name and its keeper — so opening a dialog to change either would cost more
+ * One area of the floor, edited where it sits. A section is two facts - its
+ * name and its keeper - so opening a dialog to change either would cost more
  * than it is worth.
  */
 export function AdminSectionRow({
@@ -149,7 +149,7 @@ export function AdminSectionRow({
           />
         ) : (
           <TaskRowIcon
-            label="Retire — nobody is asked to check it again, history stays"
+            label="Retire - nobody is asked to check it again, history stays"
             danger
             disabled={busy}
             icon={<ArchiveOutlined sx={{ fontSize: 17 }} />}

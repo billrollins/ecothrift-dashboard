@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-02 (Settings Retail QA tab; Routine Control Sections/Grades) -->
+<!-- Last updated: 2026-09-02 (Routine Control one shell; work-cycle runner) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 

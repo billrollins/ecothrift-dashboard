@@ -27,6 +27,8 @@ DEFAULTS: dict[str, float] = {
     'audit_min_items': 20,
     # Random checks drawn into the owner's daily spot check.
     'spot_check_count': 2,
+    # Minutes with no cart on the register before the work-cycle prompt.
+    'idle_prompt_minutes': 5,
 }
 
 PREFIX = 'retail_qa.'

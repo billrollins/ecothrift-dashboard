@@ -551,7 +551,7 @@ function ManifestField({
   const editContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(null);
   const suppressBlurRef = useRef(false);
-  /** Prop value at the moment we set optimistic — used to detect external updates. */
+  /** Prop value at the moment we set optimistic - used to detect external updates. */
   const optimisticBaselineRef = useRef<string | null>(null);
   const layout = manifestFieldLayout(variant, multiline, emphasis);
   const rawValue = optimisticValue ?? value;
@@ -568,7 +568,7 @@ function ManifestField({
   useEffect(() => {
     setDraft(value);
     if (optimisticValue == null) return;
-    // Server echoes money as "30.00" while the pill may have saved "30" — compare numerically.
+    // Server echoes money as "30.00" while the pill may have saved "30" - compare numerically.
     const matches = currency ? moneyValuesEqual(value, optimisticValue) : value === optimisticValue;
     if (matches) {
       setOptimisticValue(null);
@@ -1374,7 +1374,7 @@ export function ProcessingActiveCard({
   const retailPriceLock = useRetailPriceLock();
   /**
    * Instant retail/price overlay (check-in parity). Manifest pills commit on save, but lock/%
-   * must update the sibling field immediately — not after the PATCH round-trip.
+   * must update the sibling field immediately - not after the PATCH round-trip.
    */
   const [moneyOverlay, setMoneyOverlay] = useState<{ retail?: string; price?: string } | null>(null);
   const priorCheckInsRef = useRef<HTMLDivElement | null>(null);

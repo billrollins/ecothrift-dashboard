@@ -3,7 +3,7 @@
 Architecture: workspace/ai-cleanup-grok/FABLE_REVIEW_offline_vs_webui_ai_cleanup.md
 § "Fable 5 verdict" (2026-06-10). Each batch is one small HTTP request: load N staging
 rows, one LLM call (routed by model slug), save ``PreprocessingRow.ai_*`` for those rows only. Never
-writes ``ManifestRow`` listing fields, never creates ``Product``/``Item`` rows —
+writes ``ManifestRow`` listing fields, never creates ``Product``/``Item`` rows -
 that was the legacy ``ai-cleanup-rows`` behavior this replaces.
 
 Cleaned marker: ``ai_reasoning != ''`` (shared with ``ai-cleanup-status`` and
@@ -38,7 +38,7 @@ from apps.inventory.prompts import CONDITION_VALUES
 # Web pool default 10 rows/batch (see frontend AI_CLEANUP_BATCH_SIZE); server cap 60 ids/request.
 MAX_BATCH_ROW_IDS = 60
 DEFAULT_BATCH_SIZE = 10
-# gemini-3.5-flash 10-row batches run ~30–35s; 5-row ~22s. Gunicorn allows 120s (Procfile).
+# gemini-3.5-flash 10-row batches run ~30-35s; 5-row ~22s. Gunicorn allows 120s (Procfile).
 ANTHROPIC_REQUEST_TIMEOUT_SECONDS = 45.0
 
 WEB_CLEANUP_REASONING = 'AI cleanup (web batch)'
@@ -210,11 +210,11 @@ def cleanup_batch_system_prompt() -> str:
     Anti-echo by construction: ideal_price/base_cost never reach the model; the prompt
     forbids outputting unit_retail or a fixed % of it. Pricing = the model's OWN
     market judgment shaped by depth (quantity), saleability drag, and retail-claim
-    skepticism — never margin math (owner rule). Gold examples teach those exact cases.
+    skepticism - never margin math (owner rule). Gold examples teach those exact cases.
     """
     return (
         'You price and clean liquidation manifest rows for a midwest thrift store. '
-        'Input: a JSON array of rows. Return ONLY a JSON array — one object per input row, '
+        'Input: a JSON array of rows. Return ONLY a JSON array - one object per input row, '
         'same order, never skip or merge rows, no markdown. Keys per object: row_id (copied '
         'exactly), title, brand, model, category, condition, retail_suspect, '
         'retail_suspect_reason, est_retail, m_resale, m_saleability, search_tags, low_confidence, '
@@ -223,25 +223,25 @@ def cleanup_batch_system_prompt() -> str:
         '- brand / model: extract from the data only; never invent; a UPC is not a model; "" if unknown.\n'
         '- category: copy one name character-for-character from the list below. Choose by the '
         f'item\'s primary function. "{MIXED_LOTS_UNCATEGORIZED}" is allowed ONLY when the item is '
-        'genuinely unidentifiable — any identifiable product has a real category.\n'
+        'genuinely unidentifiable - any identifiable product has a real category.\n'
         '- condition: the closest value from: ' + ', '.join(CONDITION_VALUES) + '. '
         'Keep the vendor\'s meaning unless the text contradicts it.\n'
         'You do NOT output a price. You output two scalers and a flag; the system computes '
         'price = unit_retail × m_resale × m_saleability × quantity and condition multipliers.\n'
-        '- retail_suspect: JSON boolean — true ONLY when unit_retail looks like a data error for '
+        '- retail_suspect: JSON boolean - true ONLY when unit_retail looks like a data error for '
         'this item (×10/×100 typo, absurd claim). retail_suspect_reason: short reason, or "". '
         'When unit_retail is blank there is nothing to suspect: output false.\n'
         '- est_retail: ONLY when the input row\'s unit_retail is blank (""), output a numeric '
         'string estimating the item\'s NEW/MSRP claimed retail in USD (e.g. "24.99"). This is a '
-        'retail CLAIM the scalers will be applied to — NOT a resale price, NOT what we should '
+        'retail CLAIM the scalers will be applied to - NOT a resale price, NOT what we should '
         'charge. When unit_retail is present, output "" (empty string).\n'
-        '- m_resale (number, 0.05–1.10): the fraction of CLAIMED retail this item type resells '
+        '- m_resale (number, 0.05-1.10): the fraction of CLAIMED retail this item type resells '
         'for at qty 1 in good condition. High-demand resale items (LEGO, popular brands) near '
-        '0.85–1.05; typical goods 0.30–0.60; luxury/decor with inflated markup 0.10–0.25.\n'
-        '- m_saleability (number, 0.05–1.00): thrift-channel fit. 1.00 = normal thrift item; '
+        '0.85-1.05; typical goods 0.30-0.60; luxury/decor with inflated markup 0.10-0.25.\n'
+        '- m_saleability (number, 0.05-1.00): thrift-channel fit. 1.00 = normal thrift item; '
         'industrial/commercial gear, bare parts, compatibility-locked accessories, items buyers '
-        'want a warranty for, used skin/oral/water-contact items: 0.10–0.50.\n'
-        '  No margin or profit math — judge the item, not our economics.\n'
+        'want a warranty for, used skin/oral/water-contact items: 0.10-0.50.\n'
+        '  No margin or profit math - judge the item, not our economics.\n'
         '- search_tags: array of 2-6 lowercase keywords.\n'
         '- low_confidence: JSON boolean; true when identity or price is a guess. '
         'low_confidence_reason: short reason, or "" when false.\n'
@@ -270,7 +270,7 @@ def cleanup_batch_system_prompt() -> str:
         '{"row_id": 4, "title": "Bic Soleil razors 4ct", "brand": "Bic", '
         '"quantity": 72, "unit_retail": "699.00"} -> {"row_id": 4, "title": "Bic Soleil Disposable Razors 4-Pack", '
         '"brand": "Bic", "model": "", "category": "Health, beauty & personal care", "condition": "new", '
-        '"retail_suspect": true, "retail_suspect_reason": "razor 4-pack listed at $699 — likely x100 typo", '
+        '"retail_suspect": true, "retail_suspect_reason": "razor 4-pack listed at $699 - likely x100 typo", '
         '"est_retail": "", "m_resale": 0.40, "m_saleability": 1.0, "search_tags": ["razor", "bic", "disposable"], '
         '"low_confidence": false, "low_confidence_reason": ""}  // flag bad retail; system skips pricing that row\n'
         '{"row_id": 5, "title": "Hamilton Beach 2-slice toaster black", "brand": "Hamilton Beach", '
@@ -284,8 +284,8 @@ def cleanup_batch_system_prompt() -> str:
 
 
 def build_cleanup_batch_payload(order: PurchaseOrder, rows: list[PreprocessingRow]) -> list[dict[str, Any]]:
-    """Per-row model input — same source fields as ``download-cleanup-csv`` (staging branch)."""
-    # NOTE: ideal_price/base_cost are deliberately NOT sent — they are the owner's margin
+    """Per-row model input - same source fields as ``download-cleanup-csv`` (staging branch)."""
+    # NOTE: ideal_price/base_cost are deliberately NOT sent - they are the owner's margin
     # math, not market facts, and the model echoes provided numbers (744/744 ideal_price
     # copies observed on PO 323, 2026-06-10). quantity IS sent: depth drives price.
     payload = []
@@ -363,7 +363,7 @@ def validate_cleanup_suggestion(
     # real retail; clamped to a sane band. Garbage ('n/a', absurd numbers) → ignored.
     est_retail: Decimal | None = None
     if unit_retail is None or unit_retail <= 0:
-        # Blank retail also means there's nothing to suspect — the flag would be noise.
+        # Blank retail also means there's nothing to suspect - the flag would be noise.
         retail_suspect = False
         candidate = parse_cleanup_price(suggestion.get('est_retail'))
         if candidate is not None and candidate > 0:
@@ -371,7 +371,7 @@ def validate_cleanup_suggestion(
 
     proposed_price: Decimal | None = None
     if retail_suspect:
-        # A bad retail (×10/×100 typo) would skew everything downstream — flag, don't price.
+        # A bad retail (×10/×100 typo) would skew everything downstream - flag, don't price.
         issues.append({
             'rule': 'RETAIL_SUSPECT',
             'reason': str(suggestion.get('retail_suspect_reason') or '').strip() or 'unit_retail looks wrong (possible typo)',
@@ -399,9 +399,9 @@ def validate_cleanup_suggestion(
             pricing['est_retail'] = str(est_retail)
         ai_status = {**ai_status, 'pricing': pricing}
 
-    reasoning = WEB_CLEANUP_REASONING + (' — low confidence' if low_confidence else '')
+    reasoning = WEB_CLEANUP_REASONING + (' - low confidence' if low_confidence else '')
     if est_retail is not None:
-        reasoning += f' [est. retail ${est_retail} — manifest had none]'
+        reasoning += f' [est. retail ${est_retail} - manifest had none]'
 
     return {
         'title': title,
@@ -418,7 +418,7 @@ def validate_cleanup_suggestion(
 
 
 def model_provider(model_id: str) -> str:
-    """Provider for a model id — delegates to the shared router (one implementation)."""
+    """Provider for a model id - delegates to the shared router (one implementation)."""
     from apps.core.services.llm_router import resolve_provider
 
     return resolve_provider(model_id)

@@ -91,7 +91,7 @@ export function queueListForStage(stage: string): QueueListId {
  * The spread between the best and worst a grade scale allows.
  *
  * Doing nothing is treated as the floor even when the item would really land
- * somewhere above it — this is a prioritising number, not an estimate. It says
+ * somewhere above it - this is a prioritising number, not an estimate. It says
  * how much is on the table, which is what decides whether an item is worth
  * picking up before another.
  */
@@ -166,7 +166,7 @@ export function hoursWaiting(job: RestorationJobDTO, now: Date = new Date()): nu
  */
 export function formatWaiting(job: RestorationJobDTO, now: Date = new Date()): string {
   const hours = hoursWaiting(job, now);
-  if (hours == null) return '—';
+  if (hours == null) return '-';
   if (hours < 1) return 'just in';
   if (hours < 24) return `${Math.floor(hours)}h`;
   const days = Math.floor(hours / 24);
@@ -325,7 +325,7 @@ export function sortQueue(
 /** Category, then brand. What the item is, under the name. */
 export function itemKindLine(job: RestorationJobDTO): string {
   const parts = [job.category, job.brand].filter((part) => Boolean(part?.trim()));
-  return parts.length > 0 ? parts.join(' · ') : '—';
+  return parts.length > 0 ? parts.join(' · ') : '-';
 }
 
 /** First name on the floor. Full name / email stays on the API. */
@@ -349,7 +349,7 @@ export function benchOwnerLine(
   >,
 ): BenchOwnerLine {
   if (job.stage !== 'bench') {
-    return { kind: 'none', label: '—', aria: 'Not on a bench' };
+    return { kind: 'none', label: '-', aria: 'Not on a bench' };
   }
   if (job.bench_ownership_ambiguous || job.bench_owner_id == null) {
     return { kind: 'unclaimed', label: 'Unclaimed', aria: 'Unclaimed bench' };

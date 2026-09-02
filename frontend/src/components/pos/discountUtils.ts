@@ -7,7 +7,7 @@ export const DISCOUNT_REASON_OTHER = 'Other';
 export const GOOGLE_REVIEW_PERCENT = 5;
 export const GOOGLE_REVIEW_MAX_DOLLARS = 5;
 
-/** Canfield listing — `!9m1!1b1` opens the reviews pane (same place as ecothrift.us). */
+/** Canfield listing - `!9m1!1b1` opens the reviews pane (same place as ecothrift.us). */
 export const GOOGLE_REVIEWS_URL =
   'https://www.google.com/maps/place/Eco-Thrift+-+Canfield/@41.2336219,-96.0442073,17z/data=!4m8!3m7!1s0x87938d8771cb8e6d:0x8b75ff46ec9d2adb!8m2!3d41.2336219!4d-96.0442073!9m1!1b1!16s%2Fg%2F11xw30bys8';
 

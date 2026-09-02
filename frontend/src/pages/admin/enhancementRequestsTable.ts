@@ -35,7 +35,7 @@ export function priorityWord(priority: EnhancementPriority): string {
   if (priority === 'high') return 'High';
   if (priority === 'medium') return 'Medium';
   if (priority === 'low') return 'Low';
-  return '—';
+  return '-';
 }
 
 export function formatRequestWhen(iso: string): string {
@@ -50,7 +50,7 @@ export function whoWhenLine(request: EnhancementRequestDTO): string {
 }
 
 export function targetDateLabel(request: EnhancementRequestDTO): string {
-  return request.target_date || '—';
+  return request.target_date || '-';
 }
 
 export function sortEnhancementRequests(rows: EnhancementRequestDTO[]): EnhancementRequestDTO[] {

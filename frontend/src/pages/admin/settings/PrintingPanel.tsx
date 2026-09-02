@@ -93,12 +93,12 @@ const actionSx = {
 } as const;
 
 function formatFileSize(bytes?: number): string {
-  if (!bytes) return '—';
+  if (!bytes) return '-';
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function formatReleasedAt(iso?: string): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   return new Date(iso).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
@@ -303,7 +303,7 @@ export function PrintingPanel() {
                 onChange={(e: SelectChangeEvent) => saveLabelPrinter.mutate(e.target.value)}
               >
                 <MenuItem value="">
-                  <em>(not set — uses system default)</em>
+                  <em>(not set - uses system default)</em>
                 </MenuItem>
                 {printers.map((p) => (
                   <MenuItem key={p.name} value={p.name}>
@@ -345,7 +345,7 @@ export function PrintingPanel() {
                 onChange={(e: SelectChangeEvent) => saveReceiptPrinter.mutate(e.target.value)}
               >
                 <MenuItem value="">
-                  <em>(not set — uses system default)</em>
+                  <em>(not set - uses system default)</em>
                 </MenuItem>
                 {printers.map((p) => (
                   <MenuItem key={p.name} value={p.name}>
@@ -534,7 +534,7 @@ export function PrintingPanel() {
                   gap: { xs: 2, md: 4 },
                 }}
               >
-                <SpecStat label="Version" value={latestVersion ? `v${latestVersion}` : '—'} />
+                <SpecStat label="Version" value={latestVersion ? `v${latestVersion}` : '-'} />
                 <SpecStat label="Size" value={formatFileSize(printServerRelease?.s3_file_info?.size)} />
                 <SpecStat label="Released" value={formatReleasedAt(printServerRelease?.released_at)} />
                 <SpecStat label="This workstation" value={workstationLine} warn={updateAvailable} />

@@ -1,4 +1,4 @@
-"""AI Create for me — structure proposal + xAI Grok Imagine background.
+"""AI Create for me - structure proposal + xAI Grok Imagine background.
 
 Structure: LLM proposes a validated ``definition`` JSON (variables + elements).
 Image: xAI ``/v1/images/generations`` returns base64 for user approval; S3 upload

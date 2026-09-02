@@ -1,7 +1,7 @@
 """Staff password reset: issue and consume a single-use emailed link.
 
 Deliberately separate from ``magic_link.consume_magic_link``. That path creates
-customer accounts, stamps email verification, and claims guest records — none of
+customer accounts, stamps email verification, and claims guest records - none of
 which may happen to an Admin, Manager, or Employee. The two flows share only the
 ``MagicLinkToken`` table.
 """

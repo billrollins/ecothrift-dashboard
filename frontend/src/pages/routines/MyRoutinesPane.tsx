@@ -9,7 +9,7 @@ import { TaskRow, TaskRowAction, TaskRowIcon } from '../../components/duty/TaskR
 import { dutyColors, thinScrollSx } from '../../components/duty/tokens';
 import { useAuth } from '../../hooks/useAuth';
 import { useMyRoutineRuns } from '../../hooks/useRoutines';
-import type { Routine, RoutineRun } from '../../api/routines.api';
+import type { Routine, RoutineDraft, RoutineRun } from '../../api/routines.api';
 import { groupRoutineRuns } from './groupRoutineRuns';
 import { RoutineListHeader } from './RoutineListHeader';
 import { matchesQuery } from './matchesQuery';
@@ -23,6 +23,17 @@ function runMeta(run: RoutineRun): string {
   const who = run.assignment === 'pooled' ? 'Anyone on shift' : (run.assigned_to_name || 'Assigned');
   const subject = run.section_name || run.subject;
   return `${when} · ${who}${subject ? ` · ${subject}` : ''}`;
+}
+
+function draftMeta(draft: RoutineDraft): string {
+  const when = draft.started_at ? format(parseISO(draft.started_at), 'EEE h:mma') : 'Started';
+  const mode = draft.mode === 'shelf'
+    ? 'Shelf check'
+    : draft.mode === 'non_shelf'
+      ? 'Non-shelf check'
+      : 'Started';
+  const section = draft.section_name ? ` · ${draft.section_name}` : '';
+  return `${mode}${section} · ${when}`;
 }
 
 function doneMeta(run: RoutineRun): string {
@@ -54,6 +65,10 @@ export function MyRoutinesPane({ desktop }: { desktop: boolean }) {
     navigate(`/routines/run/new?routine=${routine.id}`);
   }
 
+  function fillDraft(draft: RoutineDraft) {
+    navigate(draft.href);
+  }
+
   function editRoutine(routineId: number) {
     navigate(`/routines/${routineId}/edit`);
   }
@@ -65,6 +80,7 @@ export function MyRoutinesPane({ desktop }: { desktop: boolean }) {
   const done = filterRuns(grouped.done);
   const blocking = filterRuns(grouped.blocking);
   const onDemand = (data?.on_demand ?? []).filter((routine) => matchesQuery(query, routine.title, routine.intro));
+  const drafts = (data?.drafts ?? []).filter((draft) => matchesQuery(query, draft.routine_title, draft.section_name));
 
   function runRow(run: RoutineRun, group: 'blocking' | 'overdue' | 'today' | 'week' | 'done') {
     const view = presentRun(run, group);
@@ -143,6 +159,21 @@ export function MyRoutinesPane({ desktop }: { desktop: boolean }) {
             </Box>
           )}
         </Box>
+
+        <GroupHeader title="In progress" count={drafts.length} />
+        {drafts.length ? drafts.map((draft) => (
+          <TaskRow
+            key={draft.id}
+            title={draft.routine_title}
+            tone="brand"
+            glyph={triggerGlyphIcon('on_demand')}
+            onClick={() => fillDraft(draft)}
+            meta={draftMeta(draft)}
+            actions={(
+              <TaskRowAction label="Continue" primary onClick={() => fillDraft(draft)} />
+            )}
+          />
+        )) : none}
 
         <GroupHeader title="Overdue" count={overdue.length} />
         {overdue.length ? overdue.map((run) => runRow(run, 'overdue')) : none}

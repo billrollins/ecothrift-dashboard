@@ -5,7 +5,7 @@ Sync with workspace/notebooks/category-research/taxonomy_v1.example.json (catego
 
 from __future__ import annotations
 
-# Order matches taxonomy JSON index 1–19.
+# Order matches taxonomy JSON index 1-19.
 TAXONOMY_V1_CATEGORY_NAMES: tuple[str, ...] = (
     'Kitchen & dining',
     'Furniture',

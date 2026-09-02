@@ -3,6 +3,7 @@ import type {
   OwnerSpotResponses,
   SectionAuditResponses,
   SectionTallyResponses,
+  WorkCycleResponses,
 } from '../../../api/routines.api';
 
 /**
@@ -68,7 +69,7 @@ export function previewSpot(): OwnerSpotResponses {
     checks: [
       {
         routine_key: 'retail.open',
-        routine_title: 'Retail — Opening',
+        routine_title: 'Retail opening',
         check_id: 'sample-1',
         label: 'A check drawn from the opening list',
         control: 'pass_fail',
@@ -76,7 +77,7 @@ export function previewSpot(): OwnerSpotResponses {
       },
       {
         routine_key: 'retail.close',
-        routine_title: 'Retail — Closing',
+        routine_title: 'Retail closing',
         check_id: 'sample-2',
         label: 'A check drawn from the closing list',
         control: 'pass_fail',
@@ -84,5 +85,21 @@ export function previewSpot(): OwnerSpotResponses {
       },
     ],
     audit: previewAudit(),
+  };
+}
+
+export function previewWorkCycle(): WorkCycleResponses {
+  return {
+    mode: '',
+    shelf: {
+      section_id: null,
+      section_name: '',
+      counts: {},
+      flags: [],
+      photo: null,
+      photo_file_id: null,
+      notes: '',
+    },
+    non_shelf: { done: [], notes: '' },
   };
 }

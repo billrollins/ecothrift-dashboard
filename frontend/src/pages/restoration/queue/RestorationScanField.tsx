@@ -15,7 +15,7 @@ export function RestorationScanField({
   onChange: (value: string) => void;
   onSubmit: () => void;
   inputRef?: RefObject<HTMLInputElement | null>;
-  /** Fill the scoreboard strip — full height, right side. */
+  /** Fill the scoreboard strip - full height, right side. */
   fill?: boolean;
 }) {
   return (
@@ -86,7 +86,7 @@ export function shouldKeepHistoryDrawer(target: EventTarget | null): boolean {
   return target.closest('[role="dialog"], [role="menu"], [role="listbox"], .MuiPopper-root') != null;
 }
 
-/** True when focus should stay put — notes, prices, dialogs, open pickers. */
+/** True when focus should stay put - notes, prices, dialogs, open pickers. */
 export function isHeldScanFocus(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false;
   if (el.closest('[role="dialog"], [role="menu"], [role="listbox"], .MuiPopper-root, .MuiModal-root, [data-overview-history]')) {

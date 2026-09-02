@@ -72,8 +72,8 @@ export function TarsSendBackDialog({
         <JobNotesSlot jobId={open ? jobId ?? null : null} />
         <Typography variant="body2" sx={{ color: '#65748a', mb: 1.5, mt: 1.25, minHeight: 64 }}>
           {fromBench
-            ? 'Not a hold, and not a finish. The item goes back to the queue because you are not ready to do this yet. What you write is added to the item note as {Sent Back to Queue} — it does not replace it.'
-            : 'It goes back to the queue. What you write is added to the item note as {Sent Back to Queue} — it does not replace it.'}
+            ? 'Not a hold, and not a finish. The item goes back to the queue because you are not ready to do this yet. What you write is added to the item note as {Sent Back to Queue} - it does not replace it.'
+            : 'It goes back to the queue. What you write is added to the item note as {Sent Back to Queue} - it does not replace it.'}
         </Typography>
 
         <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>

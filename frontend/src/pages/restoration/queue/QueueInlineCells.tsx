@@ -3,7 +3,7 @@
  *
  * A queue gets worked twenty items at a time, so every extra click is paid
  * twenty times over. Focus selects what is there, typing replaces it, Tab moves
- * on and saves. There is no Save button because there is nothing to save at —
+ * on and saves. There is no Save button because there is nothing to save at -
  * leaving a field is the commit.
  *
  * A field being edited never accepts values from the server underneath the
@@ -27,7 +27,7 @@ export const NOTE_MIN_PAD_Y_PX = 6;
 export const NOTE_BORDER_PX = 1;
 export const NOTE_VISIBLE_LINES = 3;
 /**
- * The note box is always this tall — empty, two lines, or a novel. Growing
+ * The note box is always this tall - empty, two lines, or a novel. Growing
  * with the text would shove the row the hand is already travelling toward.
  */
 export const NOTE_HEIGHT_PX =
@@ -220,7 +220,7 @@ export function MoneyCell({
           aria-label={`${label} price`}
           disabled={disabled}
           value={draft}
-          placeholder="—"
+          placeholder="-"
           onFocus={(e) => {
             focused.current = true;
             e.currentTarget.select();

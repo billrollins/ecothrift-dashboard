@@ -5,7 +5,7 @@ Products: individual Product.save() so generate_product_number() applies (idempo
 ManifestRows: bulk_create in batches (no custom save on model).
 
 Recon (local ecothrift_v1 / ecothrift_v2): ~140.6K V1 + ~41.5K V2 products; ~107.7K + ~36.3K manifest rows.
-product_attrs has multiple rows per product_cde — pick one via LATERAL subquery.
+product_attrs has multiple rows per product_cde - pick one via LATERAL subquery.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from typing import Any
 import psycopg2
 from django.conf import settings
 from django.core.management.base import BaseCommand
-from django.db import IntegrityError  # noqa: F401 — kept for future retry logic
+from django.db import IntegrityError  # noqa: F401 - kept for future retry logic
 from psycopg2.extras import RealDictCursor
 
 from apps.inventory.management.command_db import (

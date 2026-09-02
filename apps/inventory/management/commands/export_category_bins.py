@@ -1,14 +1,14 @@
 """
 
-Export category-bin CSVs (Bins 1–3) using schema-qualified SQL — no SET search_path.
+Export category-bin CSVs (Bins 1-3) using schema-qualified SQL - no SET search_path.
 
 
 
-Uses Django's **default** database connection only. Bins 1–2 query **`public.*`** (V2-era
+Uses Django's **default** database connection only. Bins 1-2 query **`public.*`** (V2-era
 
 tables); Bin 3 queries **`ecothrift.*`**. Same Postgres database typically holds both
 
-schemas — no second DATABASES entry.
+schemas - no second DATABASES entry.
 
 
 
@@ -105,7 +105,7 @@ BIN_CONFIG = {
 
 class Command(BaseCommand):
 
-    help = 'Export category research CSVs for Bin 1–3 (see scripts/sql/*.sql).'
+    help = 'Export category research CSVs for Bin 1-3 (see scripts/sql/*.sql).'
 
 
 

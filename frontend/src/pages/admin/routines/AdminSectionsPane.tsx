@@ -21,9 +21,8 @@ import {
   useSaveSection,
   useSections,
 } from '../../../hooks/useRoutines';
-import { RoutineHeaderButton, RoutinePaneHeader } from '../../routines/RoutinePaneHeader';
+import { RoutineHeaderButton } from '../../routines/RoutinePaneHeader';
 import { AdminSectionRow } from './AdminSectionRow';
-import { AdminViewToggle, type AdminRoutineView } from './AdminViewToggle';
 import { coverageNote, sectionCoverage } from './sectionCoverage';
 
 /**
@@ -32,19 +31,17 @@ import { coverageNote, sectionCoverage } from './sectionCoverage';
  * an area nobody ever reports on.
  */
 export function AdminSectionsPane({
-  view,
-  onView,
   departments,
   people,
+  showRetired,
 }: {
-  view: AdminRoutineView;
-  onView: (view: AdminRoutineView) => void;
   departments: Array<{ id: number; name: string }>;
   people: RoutineAssignee[];
+  showRetired: boolean;
+  onShowRetired: (next: boolean) => void;
 }) {
   const { enqueueSnackbar } = useSnackbar();
   const [departmentId, setDepartmentId] = useState<number | null>(null);
-  const [showRetired, setShowRetired] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [adding, setAdding] = useState('');
 
@@ -118,56 +115,51 @@ export function AdminSectionsPane({
       : coverageNote(coverage, rows.filter((row) => row.is_active).length);
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: dutyColors.paper }}>
-      <RoutinePaneHeader
-        tone="admin"
-        eyebrow="Admin · floor plan"
-        title="Sections"
-        note={note}
-        noteIsError={sections.isError}
-        actions={(
-          <RoutineHeaderButton
-            label={showRetired ? 'Hide retired' : 'Show retired'}
-            variant="ghost"
-            onClick={() => setShowRetired((on) => !on)}
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: dutyColors.desk }}>
+      <Box sx={{ px: 2.5, pt: 1.5, pb: 1 }}>
+        <Typography
+          noWrap
+          sx={{
+            minHeight: 18,
+            fontSize: 12.5,
+            fontWeight: sections.isError ? 600 : 400,
+            color: sections.isError ? dutyColors.red : dutyColors.ink60,
+            mb: 1,
+          }}
+        >
+          {note}
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <TextField
+            select
+            size="small"
+            value={departmentId ?? ''}
+            onChange={(e) => setDepartmentId(Number(e.target.value) || null)}
+            sx={{ width: 220, ...LIGHT_FIELD }}
+          >
+            {departments.map((d) => (
+              <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            size="small"
+            placeholder="Add a section, then Enter"
+            value={adding}
+            onChange={(e) => setAdding(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') void addSection(); }}
+            disabled={departmentId == null}
+            sx={{ flex: 1, ...LIGHT_FIELD }}
           />
-        )}
-        below={(
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <AdminViewToggle view={view} onChange={onView} />
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <TextField
-                select
-                size="small"
-                value={departmentId ?? ''}
-                onChange={(e) => setDepartmentId(Number(e.target.value) || null)}
-                sx={{ width: 220, ...DARK_FIELD }}
-              >
-                {departments.map((d) => (
-                  <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                size="small"
-                placeholder="Add a section, then Enter"
-                value={adding}
-                onChange={(e) => setAdding(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') void addSection(); }}
-                disabled={departmentId == null}
-                sx={{ flex: 1, ...DARK_FIELD }}
-              />
-              <RoutineHeaderButton
-                label="Add"
-                variant="primary"
-                disabled={!adding.trim() || departmentId == null}
-                onClick={() => void addSection()}
-              />
-            </Box>
-          </Box>
-        )}
-      />
+          <RoutineHeaderButton
+            label="Add"
+            variant="primary"
+            disabled={!adding.trim() || departmentId == null}
+            onClick={() => void addSection()}
+          />
+        </Box>
+      </Box>
 
-      <Box sx={{ flex: 1, overflow: 'auto', pt: 1.5, pb: 2, ...thinScrollSx }}>
+      <Box sx={{ flex: 1, overflow: 'auto', pt: 0.5, pb: 2, ...thinScrollSx }}>
         <ColumnHeads />
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={order} strategy={verticalListSortingStrategy}>
@@ -214,18 +206,13 @@ export function AdminSectionsPane({
   );
 }
 
-const DARK_FIELD = {
+const LIGHT_FIELD = {
   '& .MuiInputBase-root': {
     height: 36,
     fontSize: 13,
-    color: '#fff',
-    bgcolor: 'rgba(255,255,255,0.06)',
+    bgcolor: dutyColors.card,
     borderRadius: '9px',
   },
-  '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.16)' },
-  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.30)' },
-  '& .MuiSvgIcon-root': { color: 'rgba(255,255,255,0.6)' },
-  '& input::placeholder': { color: 'rgba(255,255,255,0.45)', opacity: 1 },
 } as const;
 
 function ColumnHeads() {

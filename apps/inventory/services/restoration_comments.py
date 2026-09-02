@@ -1,7 +1,7 @@
 """Trash or revise a restoration comment from either ledger. Both rows go together.
 
 Only the author can trash or edit a comment, and only when every later action
-and later comment was written by them — or there is nothing later. Finished
+and later comment was written by them - or there is nothing later. Finished
 jobs stay open for comments; someone else's later work still locks them.
 """
 

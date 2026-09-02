@@ -1,5 +1,5 @@
 """
-Item Processor validation matrix — API-level tests.
+Item Processor validation matrix - API-level tests.
 
 Traceability: `.ai/extended/inventory-pipeline.md` (Item Processor workspace).
 """
@@ -140,7 +140,7 @@ class ProcessingValidationMatrixMarkCompleteTests(TestCase):
 
 
 class ProcessingWorkspaceAndMutationTests(TestCase):
-    """V-02, V-26–V-31 — workspace + processing mutations."""
+    """V-02, V-26-V-31 - workspace + processing mutations."""
 
     def setUp(self):
         self.client = APIClient()
@@ -302,7 +302,7 @@ class ProcessingWorkspaceAndMutationTests(TestCase):
         self.assertIsNotNone(row.get('product'))
 
     def test_processing_row_detail_query_count_bounded_no_manifest_bulk_load(self):
-        """Regression: row detail must use slim PO queryset — not prefetched manifest storm."""
+        """Regression: row detail must use slim PO queryset - not prefetched manifest storm."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 

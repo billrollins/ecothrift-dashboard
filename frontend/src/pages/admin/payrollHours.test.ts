@@ -52,7 +52,7 @@ describe('mondaysCoveringRange / fmtWeekHeader', () => {
   });
 
   it('labels a same-month week without repeating the month', () => {
-    expect(fmtWeekHeader('2026-08-17')).toBe('Aug 17–23');
+    expect(fmtWeekHeader('2026-08-17')).toBe('Aug 17-23');
   });
 });
 
@@ -67,7 +67,7 @@ describe('buildEmployeePayrollRows', () => {
       clock_in: `${partial.week_start}T09:00:00Z`,
       clock_out: `${partial.week_start}T18:00:00Z`,
       break_minutes: 0,
-      break_label: '—',
+      break_label: '-',
       on_break: false,
       pay_rate: '15.00',
       week_end: partial.week_start,

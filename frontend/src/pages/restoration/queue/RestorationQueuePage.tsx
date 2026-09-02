@@ -8,7 +8,7 @@
  * Processing to receive the item; destination can still be corrected.
  *
  * Header, tabs, and list are three distinct bands. The tabs sit on the list
- * panel the way tabs sit on a folder — selected one joins the surface below —
+ * panel the way tabs sit on a folder - selected one joins the surface below -
  * so you never have to guess which list you are looking at.
  */
 import Box from '@mui/material/Box';
@@ -314,7 +314,7 @@ export default function RestorationQueuePage() {
         }
       />
 
-      {/* Strip is always painted — scan stays put while the numbers load. */}
+      {/* Strip is always painted - scan stays put while the numbers load. */}
       <Box sx={{ minHeight: 74, maxHeight: 74, overflow: 'hidden', mb: 1.5, flexShrink: 0 }}>
         <TarsScoreboard
           board={scoreboard.data}
@@ -542,7 +542,7 @@ export default function RestorationQueuePage() {
             {
               onSuccess: () => {
                 enqueueSnackbar(
-                  isFix ? 'Finish corrected' : 'Sent to Done — waiting for Processing to check it in',
+                  isFix ? 'Finish corrected' : 'Sent to Done - waiting for Processing to check it in',
                   { variant: 'success' },
                 );
                 setDialog(null);

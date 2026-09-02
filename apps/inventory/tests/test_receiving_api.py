@@ -144,12 +144,12 @@ class ReceivingApiTests(TestCase):
         self.assertEqual(r.status_code, 200)
         ids = [row['id'] for row in r.data['results']]
         self.assertIn(self.po_eligible.id, ids)
-        self.assertIn(self.po_bad.id, ids)  # delivered — same as Processing picker
+        self.assertIn(self.po_bad.id, ids)  # delivered - same as Processing picker
         self.assertNotIn(po_ordered.id, ids)
         self.assertNotIn(po_cancelled.id, ids)
 
     def test_for_receiving_orders_by_milestone_dates(self):
-        """Null milestones first (not yet delivered/shipped/paid), then newest dates — matches Processing."""
+        """Null milestones first (not yet delivered/shipped/paid), then newest dates - matches Processing."""
         today = timezone.localdate()
         v = self.vendor
         common = {

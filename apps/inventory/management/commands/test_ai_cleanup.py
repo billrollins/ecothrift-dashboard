@@ -58,10 +58,10 @@ class Command(BaseCommand):
 
         mode_label = 'LIVE (saving results)' if save else 'DRY-RUN (results discarded)'
         self.stdout.write(self.style.MIGRATE_HEADING(
-            f'\nAI Cleanup Benchmark — {mode_label}'
+            f'\nAI Cleanup Benchmark - {mode_label}'
         ))
         self.stdout.write(f'  Order:      #{order.order_number} (ID {order.id})')
-        self.stdout.write(f'  Vendor:     {getattr(order.vendor, "name", "") or order.vendor_name_cache or "—"}')
+        self.stdout.write(f'  Vendor:     {getattr(order.vendor, "name", "") or order.vendor_name_cache or "-"}')
         self.stdout.write(f'  Total rows: {total_rows}')
         self.stdout.write(f'  Model:      {model_id}')
         self.stdout.write(f'  Batch size: {batch_size}')

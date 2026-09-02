@@ -216,7 +216,7 @@ export function TarsDoneDialog({
                   gap: 1,
                 }}
               >
-                <StatCard label="Item" value={itemLabel} detail={job.name || '—'} />
+                <StatCard label="Item" value={itemLabel} detail={job.name || '-'} />
                 <Box
                   sx={{
                     minHeight: STAT_HEIGHT,
@@ -273,9 +273,9 @@ export function TarsDoneDialog({
                       }}
                     >
                       <Typography variant="body2" fontWeight={900}>
-                        <Box component="span" sx={{ color: GRADE_ROLE.original.ink }}>{startingGrade || '—'}</Box>
+                        <Box component="span" sx={{ color: GRADE_ROLE.original.ink }}>{startingGrade || '-'}</Box>
                         {' → '}
-                        <Box component="span" sx={{ color: GRADE_ROLE.current.ink }}>{finalGrade || '—'}</Box>
+                        <Box component="span" sx={{ color: GRADE_ROLE.current.ink }}>{finalGrade || '-'}</Box>
                       </Typography>
                       <Typography variant="caption" sx={{ color: studio.inkMuted }}>
                         Click to edit
@@ -285,7 +285,7 @@ export function TarsDoneDialog({
                 </Box>
                 <StatCard
                   label="Value added"
-                  value={valueAdded == null ? '—' : `${valueAdded >= 0 ? '+' : ''}${usd(valueAdded)}`}
+                  value={valueAdded == null ? '-' : `${valueAdded >= 0 ? '+' : ''}${usd(valueAdded)}`}
                   detail={valueAdded == null ? 'Set grades to see value' : 'After parts and supplies'}
                 />
                 <StatCard

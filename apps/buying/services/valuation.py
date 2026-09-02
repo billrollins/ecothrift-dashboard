@@ -171,7 +171,7 @@ def _auction_need_from_mix(
     weights: dict[str, Decimal],
     stats: dict[str, CategoryStats],
 ) -> int:
-    """Weighted SUMPRODUCT of per-category need_score_1to99, clamped 1–99."""
+    """Weighted SUMPRODUCT of per-category need_score_1to99, clamped 1-99."""
     if not weights:
         return 50
     total = Decimal('0')
@@ -223,7 +223,7 @@ def recompute_auction_full(
     *,
     stats: dict[str, CategoryStats] | None = None,
 ) -> None:
-    """Full recompute: revenue from mix × CategoryStats recovery_rate; need_score = auction need 1–99."""
+    """Full recompute: revenue from mix × CategoryStats recovery_rate; need_score = auction need 1-99."""
     db = getattr(auction._state, 'db', None) or 'default'
     if stats is None:
         stats = load_category_stats_dict(using=db)

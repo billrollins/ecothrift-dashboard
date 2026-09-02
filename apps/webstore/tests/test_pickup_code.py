@@ -1,4 +1,4 @@
-"""Short pickup codes — generation, uniqueness, staff search, public gating."""
+"""Short pickup codes - generation, uniqueness, staff search, public gating."""
 from decimal import Decimal
 
 from django.contrib.auth.models import Group

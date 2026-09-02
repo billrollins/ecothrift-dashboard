@@ -1,4 +1,4 @@
-# Generated manually — ProcessingRow canonical links + queue denormalized fields.
+# Generated manually - ProcessingRow canonical links + queue denormalized fields.
 
 import django.db.models.deletion
 from django.db import migrations, models
@@ -169,7 +169,7 @@ class Migration(migrations.Migration):
                 blank=True,
                 db_index=True,
                 default='pending',
-                help_text='pending | partial | checked_in | disputed — mirrors Item aggregate for this row.',
+                help_text='pending | partial | checked_in | disputed - mirrors Item aggregate for this row.',
                 max_length=16,
             ),
         ),

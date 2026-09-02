@@ -10,13 +10,13 @@ export const studio = {
   panelBorder: '#8fa396',
   panelShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08)',
 
-  /** Body copy — same ink as receiving / dashboard, not washed slate. */
+  /** Body copy - same ink as receiving / dashboard, not washed slate. */
   ink: '#0f172a',
   /** Captions, waiting, scoreboard labels. AA on white. */
   inkMuted: '#334155',
   /** Unused tabs, placeholders. Still readable at 12px. */
   inkFaint: '#3d4d45',
-  /** Tiny uppercase field labels — sage so restoration still has a tell. */
+  /** Tiny uppercase field labels - sage so restoration still has a tell. */
   inkLabel: '#1b4d20',
   rule: '#b7c4b9',
 

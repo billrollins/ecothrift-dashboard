@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { auditBlockers, issuesFound, runnerBlockers, submitLabel } from './runnerStatus';
-import { previewAudit, previewSpot, previewTally } from './previewFixtures';
+import { previewAudit, previewSpot, previewTally, previewWorkCycle } from './previewFixtures';
 import type { RoutineResponses, SectionAuditResponses } from '../../../api/routines.api';
 
 function checklist(over: Partial<RoutineResponses> = {}): RoutineResponses {
@@ -78,6 +78,27 @@ describe('runnerBlockers for section kinds', () => {
   });
 });
 
+describe('runnerBlockers for a work cycle', () => {
+  it('asks for a mode, then a section or a tick', () => {
+    expect(runnerBlockers('work_cycle', previewWorkCycle(), 0)).toEqual([
+      'Pick shelf check or non-shelf check',
+    ]);
+    const shelf = previewWorkCycle();
+    shelf.mode = 'shelf';
+    expect(runnerBlockers('work_cycle', shelf, 0)).toEqual(['Pick the section you walked']);
+    shelf.shelf.section_id = 3;
+    expect(runnerBlockers('work_cycle', shelf, 0)).toEqual([]);
+
+    const other = previewWorkCycle();
+    other.mode = 'non_shelf';
+    expect(runnerBlockers('work_cycle', other, 0)).toEqual([
+      'Tick at least one check or write what you did',
+    ]);
+    other.non_shelf.notes = 'Wiped the glass.';
+    expect(runnerBlockers('work_cycle', other, 0)).toEqual([]);
+  });
+});
+
 describe('issuesFound', () => {
   it('adds up counts across every shape', () => {
     expect(issuesFound('section_audit', readyAudit({ counts: { reshelf: 3, clean: 2 } }))).toBe(5);
@@ -91,6 +112,11 @@ describe('issuesFound', () => {
     spot.checks[0].result = 'fail';
     spot.audit = readyAudit({ counts: { security: 2 } });
     expect(issuesFound('owner_spot', spot)).toBe(3);
+
+    const cycle = previewWorkCycle();
+    cycle.mode = 'shelf';
+    cycle.shelf.counts = { reshelf: 2, clean: 1 };
+    expect(issuesFound('work_cycle', cycle)).toBe(3);
   });
 });
 

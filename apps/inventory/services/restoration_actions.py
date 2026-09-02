@@ -1,7 +1,7 @@
 """What was done to an item, where the time went, and why.
 
 Every second on a bench belongs to exactly one action. An action is a single
-piece of work — inspecting, testing, repairing, assembling or salvaging —
+piece of work - inspecting, testing, repairing, assembling or salvaging -
 on the item as a whole. Grades are a money question, not a clock question.
 
 Three rules hold the log together:
@@ -62,7 +62,7 @@ def open_bench_action(job: RestorationJob, user=None) -> RestorationAction:
 
     An item arriving for the first time starts on an initial inspection. One
     coming back from a hold or from the queue starts on a fresh inspection of
-    its own, because picking a job back up is genuinely a new sitting — the
+    its own, because picking a job back up is genuinely a new sitting - the
     work before the break was finished when the item left.
 
     Both are on the item as a whole and both arrive already described, so the
@@ -302,7 +302,7 @@ def delete_action(
 def undo_last_action(job: RestorationJob, user=None) -> tuple[RestorationJob, RestorationAction]:
     """Take back the action just opened, giving its time to the one before it.
 
-    Undo is deletion aimed at the row the clock is on — the common case, and
+    Undo is deletion aimed at the row the clock is on - the common case, and
     the one worth a single button, because opening the wrong sitting is a
     mistake you notice a second later.
     """

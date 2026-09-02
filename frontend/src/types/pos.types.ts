@@ -266,6 +266,9 @@ export interface RetailMetrics {
   schedule: RetailQaGoalSchedule;
   grade_goal: string | null;
   week_audits: number;
+  today_work_cycles: number;
+  week_work_cycles: number;
+  week_idle_dismissed: number;
   week_required: number;
   completed_days: number;
   scheduled_days: number;

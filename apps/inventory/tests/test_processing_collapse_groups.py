@@ -163,7 +163,7 @@ class CollapseGroupTests(CollapseGroupTestBase):
             self.assertEqual(mr.quantity, r.quantity)
 
     def test_master_status_reflects_group_after_partial_fill(self):
-        """Fill-in-order fills the master first — its status must stay GROUP-partial,
+        """Fill-in-order fills the master first - its status must stay GROUP-partial,
         not own-row checked_in, or hide_checked_in would drop the whole group."""
         self.assertEqual(self._collapse().status_code, 200)
         resp = self._check_in(self.rows[0].id, 5)  # master's own 5 fully filled; group 5/15
@@ -181,7 +181,7 @@ class CollapseGroupTests(CollapseGroupTestBase):
         self.assertIn(self.rows[0].id, ids)
 
     def test_master_status_checked_in_when_group_full_via_member_only_touch(self):
-        """Second check-in allocates to members only (master already full) — the scoped
+        """Second check-in allocates to members only (master already full) - the scoped
         denorm must still pull the master in and flip it to checked_in."""
         self.assertEqual(self._collapse().status_code, 200)
         self.assertEqual(self._check_in(self.rows[0].id, 5).status_code, 200)
@@ -208,7 +208,7 @@ class CollapseGroupTests(CollapseGroupTestBase):
         self.assertEqual(row['status'], 'partial')
 
     def test_check_in_quantity_above_500_allowed(self):
-        """Owner ruling: no 500 cap — the UI confirms big runs instead of blocking them."""
+        """Owner ruling: no 500 cap - the UI confirms big runs instead of blocking them."""
         resp = self._check_in(self.rows[2].id, 501)  # uncollapsed row of 7 → 494 overage
         self.assertEqual(resp.status_code, 200, resp.data)
         self.assertEqual(resp.data['created_count'], 501)

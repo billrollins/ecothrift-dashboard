@@ -140,11 +140,11 @@ def _guard_transformable(row: ProcessingRow) -> None:
             'row_number', flat=True,
         ).first()
         raise ValueError(
-            f'Row {row.row_number} is a sub row of row {parent_rn} — '
+            f'Row {row.row_number} is a sub row of row {parent_rn} - '
             'transforms apply to the original row only (restart and redo to change shape).',
         )
     if row.collapse_master_id or ProcessingRow.objects.filter(collapse_master=row).exists():
-        raise ValueError(f'Row {row.row_number} is in a collapse group — uncollapse first.')
+        raise ValueError(f'Row {row.row_number} is in a collapse group - uncollapse first.')
 
 
 def _transform_product(row: ProcessingRow, data: dict) -> tuple[Product | None, int | None]:
@@ -272,7 +272,7 @@ def processing_break_apart_row(user, order: PurchaseOrder, data: dict) -> dict[s
         items_ct = len(attributed_items_for_processing_row(row))
         available = max(0, int(row.quantity or 0) - items_ct)
         # Expected is an ESTIMATE (owner ruling 2026-06-12): transforming more units
-        # than the manifest expected is allowed — the user may have received extra.
+        # than the manifest expected is allowed - the user may have received extra.
         # Expected simply re-derives from what they actually do (EXP - x + x*factor).
         over_expected = max(0, units - available)
         if not row.original_snapshot:
@@ -348,7 +348,7 @@ def processing_make_set_row(user, order: PurchaseOrder, data: dict) -> dict[str,
         )
         items_ct = len(attributed_items_for_processing_row(row))
         available = max(0, int(row.quantity or 0) - items_ct)
-        # Expected is an ESTIMATE — making more sets than the manifest expected is
+        # Expected is an ESTIMATE - making more sets than the manifest expected is
         # allowed (extra received); expected re-derives from what the user actually does.
         over_expected = max(0, consumed - available)
         if not row.original_snapshot:
@@ -458,12 +458,12 @@ def processing_restart_row(user, order: PurchaseOrder, data: dict) -> dict[str, 
         sold_ct = sum(1 for i in line_items if i.status == 'sold' or i.sold_at)
         if sold_ct:
             raise ValueError(
-                f'{sold_ct} item(s) on this line are sold — restart is blocked to protect sales history.',
+                f'{sold_ct} item(s) on this line are sold - restart is blocked to protect sales history.',
             )
         from apps.pos.models import CartLine
 
         if item_ids and CartLine.objects.filter(item_id__in=item_ids).exists():
-            raise ValueError('Items on this line are referenced by POS carts — restart is blocked.')
+            raise ValueError('Items on this line are referenced by POS carts - restart is blocked.')
 
         on_shelf = [i for i in line_items if i.status == 'on_shelf']
         created_pids = list(dict.fromkeys(

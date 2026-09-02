@@ -85,7 +85,7 @@ def clean_html(raw: str) -> str:
     return _strip_unapproved_classes(cleaned)
 
 
-# Blog-era name — same function.
+# Blog-era name - same function.
 clean_blog_html = clean_html
 
 

@@ -19,7 +19,7 @@ DEFAULT_MODEL = ai_model('AI_CHAT')
 
 
 class ModelListView(APIView):
-    """GET /api/ai/models/ — return curated list of available models."""
+    """GET /api/ai/models/ - return curated list of available models."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -27,7 +27,7 @@ class ModelListView(APIView):
 
 
 class ChatProxyView(APIView):
-    """POST /api/ai/chat/ — proxy a single chat completion via the LLM router.
+    """POST /api/ai/chat/ - proxy a single chat completion via the LLM router.
 
     Expects JSON body:
         model (str, optional): model id, defaults to AI_MODEL_AI_CHAT

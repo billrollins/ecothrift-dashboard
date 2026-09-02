@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import base64
 import re
+from datetime import datetime
+
 from django.core.files.base import ContentFile
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -18,14 +20,16 @@ from apps.core.models import S3File
 from .definition import merge_responses, score_responses, validate_definition
 from .grading import missing_owners, parse_week, week_grade
 from .kinds import (
+    floor_sections,
     initial_responses,
     merge_incoming,
+    non_shelf_checks,
     outcome,
     owned_sections,
     submit_blockers,
     verify_context,
 )
-from .models import Routine, RoutineRun, RoutineSubmission, Section
+from .models import Routine, RoutineRun, RoutineSubmission, Section, WorkCyclePrompt
 from .settings import retail_qa_settings
 from .taxonomy import taxonomy
 from .schedule import (
@@ -50,6 +54,10 @@ _DATA_URL = re.compile(r'^data:(image/[\w+.-]+);base64,(.+)$', re.DOTALL)
 
 
 def _sync_open_drafts(routine: Routine):
+    # Only checklists rebuild from a definition. The other kinds keep their
+    # runner shape; merging them against a checklist would wipe the draft.
+    if routine.kind != Routine.KIND_CHECKLIST:
+        return
     drafts = RoutineSubmission.objects.filter(
         routine=routine,
         status=RoutineSubmission.STATUS_DRAFT,
@@ -90,9 +98,32 @@ class RoutineViewSet(viewsets.ModelViewSet):
         _sync_open_drafts(routine)
         materialize_routines()
 
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.system_key:
+            return Response(
+                {'detail': 'Program routines cannot be retired.'},
+                status=400,
+            )
+        return super().destroy(request, *args, **kwargs)
+
     def perform_destroy(self, instance):
         instance.is_active = False
         instance.save(update_fields=['is_active', 'updated_at'])
+
+    def retrieve(self, request, *args, **kwargs):
+        routine = self.get_object()
+        data = RoutineSerializer(routine).data
+        if routine.kind == Routine.KIND_WORK_CYCLE:
+            data['runner'] = {
+                'taxonomy': taxonomy(),
+                'sections': [
+                    {'id': section.pk, 'name': section.name}
+                    for section in floor_sections(routine)
+                ],
+                'non_shelf_checks': non_shelf_checks(),
+            }
+        return Response(data)
 
     @action(detail=False, methods=['get'], url_path='admin')
     def admin(self, request):
@@ -300,12 +331,23 @@ class RoutineRunViewSet(viewsets.ReadOnlyModelViewSet):
                 or resolve_assignees(routine).filter(pk=request.user.pk).exists()
             ):
                 on_demand.append(routine)
+        drafts = list(
+            RoutineSubmission.objects.filter(
+                submitted_by=request.user,
+                status=RoutineSubmission.STATUS_DRAFT,
+                routine__is_active=True,
+            )
+            .select_related('routine')
+            .order_by('-started_at')
+        )
         return Response({
             'open': self._attach_progress(
                 open_rows, RoutineRunSerializer(open_rows, many=True).data, request.user,
             ),
             'done': RoutineRunSerializer(done_rows, many=True).data,
             'on_demand': RoutineSerializer(on_demand, many=True).data,
+            'drafts': [_draft_row(row) for row in drafts],
+            'idle_prompt_minutes': int(retail_qa_settings()['idle_prompt_minutes']),
         })
 
     @action(detail=True, methods=['post'])
@@ -413,6 +455,24 @@ class RoutineSubmissionViewSet(viewsets.ModelViewSet):
                     existing.responses = merged
                     existing.save(update_fields=['responses', 'updated_at'])
                 return Response(RoutineSubmissionSerializer(existing).data)
+        if not run_id:
+            existing = RoutineSubmission.objects.filter(
+                routine=routine,
+                run__isnull=True,
+                submitted_by=request.user,
+                status=RoutineSubmission.STATUS_DRAFT,
+            ).first()
+            if existing:
+                incoming_mode = request.data.get('mode')
+                if incoming_mode and existing.routine.kind == Routine.KIND_WORK_CYCLE:
+                    merged = merge_incoming(routine, None, {
+                        **(existing.responses or {}),
+                        'mode': incoming_mode,
+                    })
+                    if merged != existing.responses:
+                        existing.responses = merged
+                        existing.save(update_fields=['responses', 'updated_at'])
+                return Response(RoutineSubmissionSerializer(existing).data)
         if routine.kind == Routine.KIND_CHECKLIST:
             errors = validate_definition(routine.definition or {})
             if errors:
@@ -421,7 +481,9 @@ class RoutineSubmissionViewSet(viewsets.ModelViewSet):
             routine=routine,
             run=run,
             submitted_by=request.user,
-            responses=initial_responses(routine, run),
+            responses=initial_responses(
+                routine, run, mode=str(request.data.get('mode') or ''),
+            ),
         )
         return Response(RoutineSubmissionSerializer(submission).data, status=201)
 
@@ -518,6 +580,8 @@ def _extract_photos(responses, *, user, submission_id: int) -> dict:
             holders.append(section)
     if isinstance(responses.get('audit'), dict):
         holders.append(responses['audit'])
+    if isinstance(responses.get('shelf'), dict):
+        holders.append(responses['shelf'])
     if 'items_inspected' in responses:
         holders.append(responses)
     for holder in holders:
@@ -525,8 +589,72 @@ def _extract_photos(responses, *, user, submission_id: int) -> dict:
     return responses
 
 
+def _draft_row(submission: RoutineSubmission) -> dict:
+    responses = submission.responses if isinstance(submission.responses, dict) else {}
+    shelf = responses.get('shelf') if isinstance(responses.get('shelf'), dict) else {}
+    return {
+        'id': submission.pk,
+        'routine': submission.routine_id,
+        'routine_title': submission.routine.title,
+        'kind': submission.routine.kind,
+        'mode': responses.get('mode') or '',
+        'section_name': shelf.get('section_name') or '',
+        'started_at': submission.started_at,
+        'href': f'/routines/run/new?routine={submission.routine_id}&draft={submission.pk}',
+        'run': submission.run_id,
+    }
+
+
+class WorkCyclePromptView(APIView):
+    """`POST /api/routines/work-cycle/prompt/` - the register was idle; they answered."""
+
+    permission_classes = [IsAuthenticated, IsStaff]
+
+    def post(self, request):
+        outcome = str(request.data.get('outcome') or '')
+        allowed = {choice for choice, _label in WorkCyclePrompt.OUTCOME_CHOICES}
+        if outcome not in allowed:
+            return Response({'detail': 'Say whether they started a walk or dismissed.'}, status=400)
+        try:
+            idle_seconds = max(int(request.data.get('idle_seconds') or 0), 0)
+        except (TypeError, ValueError):
+            idle_seconds = 0
+        shown_at = request.data.get('shown_at')
+        try:
+            shown = datetime.fromisoformat(str(shown_at).replace('Z', '+00:00')) if shown_at else timezone.now()
+        except (TypeError, ValueError):
+            shown = timezone.now()
+        if timezone.is_naive(shown):
+            shown = timezone.make_aware(shown)
+        submission_id = request.data.get('submission')
+        submission = None
+        if submission_id:
+            submission = RoutineSubmission.objects.filter(
+                pk=submission_id, submitted_by=request.user,
+            ).first()
+        register_id = request.data.get('register')
+        from apps.pos.models import Register
+        register = Register.objects.filter(pk=register_id).first() if register_id else None
+        row = WorkCyclePrompt.objects.create(
+            user=request.user,
+            register=register,
+            shown_at=shown,
+            answered_at=timezone.now(),
+            idle_seconds=idle_seconds,
+            outcome=outcome,
+            submission=submission,
+        )
+        return Response({
+            'id': row.pk,
+            'outcome': row.outcome,
+            'idle_seconds': row.idle_seconds,
+            'shown_at': row.shown_at,
+            'answered_at': row.answered_at,
+        }, status=201)
+
+
 class RetailGradesView(APIView):
-    """`GET /api/routines/grades/?week=YYYY-Www` — the week, scored and itemised.
+    """`GET /api/routines/grades/?week=YYYY-Www` - the week, scored and itemised.
 
     Staff can read their own grade. A number people are held to should not be
     something only the people holding it can see.

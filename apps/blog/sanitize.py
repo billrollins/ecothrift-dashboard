@@ -1,4 +1,4 @@
-"""Blog HTML sanitization — re-exports the shared TipTap sanitizer."""
+"""Blog HTML sanitization - re-exports the shared TipTap sanitizer."""
 from apps.core.html_sanitize import (  # noqa: F401
     ALLOWED_ATTRIBUTES,
     ALLOWED_PROTOCOLS,

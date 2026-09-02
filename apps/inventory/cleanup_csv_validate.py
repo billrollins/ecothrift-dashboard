@@ -167,7 +167,7 @@ def validate_cleanup_row_values(
         if wc < 3 or wc > 15:
             reject_q(
                 'HARD_TITLE_LENGTH', 'title',
-                f'title word count must be 3–15 inclusive, got {wc}',
+                f'title word count must be 3-15 inclusive, got {wc}',
             )
 
     if category not in taxonomy_set:
@@ -290,7 +290,7 @@ def validate_cleanup_row_values(
         if price < low or price > high:
             soft.append(_emit_soft(
                 line, row_id, 'SOFT_PRICE_VS_RETAIL', 'proposed_price',
-                'outside 5%–150% of unit_retail band',
+                'outside 5%-150% of unit_retail band',
             ))
     if price is not None and ideal_price is not None and ideal_price > 0:
         low_i = ideal_price * Decimal('0.10')
@@ -298,7 +298,7 @@ def validate_cleanup_row_values(
         if price < low_i or price > high_i:
             soft.append(_emit_soft(
                 line, row_id, 'SOFT_PRICE_VS_IDEAL', 'proposed_price',
-                'outside 10%–200% of ideal_price band',
+                'outside 10%-200% of ideal_price band',
             ))
 
     desc_lc = (extra_description or '').lower()

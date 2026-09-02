@@ -198,7 +198,7 @@ function EmployeeMobileRow({ user, onSelect }: { user: User; onSelect: (id: numb
         muted={!user.is_active}
         trailing={
           <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto', flexShrink: 0 }}>
-            {user.employee?.employee_number || '—'}
+            {user.employee?.employee_number || '-'}
           </Typography>
         }
       />
@@ -343,7 +343,7 @@ export default function EmployeesPanel({ onSelect }: Props) {
             color={row.employee ? 'text.primary' : 'text.disabled'}
             sx={{ fontVariantNumeric: 'tabular-nums' }}
           >
-            {row.employee?.employee_number || '—'}
+            {row.employee?.employee_number || '-'}
           </Typography>
         ),
       },
@@ -460,7 +460,7 @@ export default function EmployeesPanel({ onSelect }: Props) {
         valueGetter: (_v, row) => row.employee?.hire_date || '',
         renderCell: ({ row }) => {
           const profile = row.employee;
-          if (!profile) return <StackCell top="—" bottom="no record" />;
+          if (!profile) return <StackCell top="-" bottom="no record" />;
           if (profile.termination_date) {
             return (
               <StackCell top="Left" bottom={formatDay(profile.termination_date) || 'date unknown'} />
@@ -468,7 +468,7 @@ export default function EmployeesPanel({ onSelect }: Props) {
           }
           return (
             <StackCell
-              top={tenureFrom(profile.hire_date) || '—'}
+              top={tenureFrom(profile.hire_date) || '-'}
               bottom={formatDay(profile.hire_date) || 'hire date unknown'}
             />
           );

@@ -1,4 +1,4 @@
-"""Audit: distribution of auction need_score (1–99) and priority."""
+"""Audit: distribution of auction need_score (1-99) and priority."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ def _percentile(sorted_vals: list[float], p: float) -> float | None:
 
 
 class Command(BaseCommand):
-    help = 'Print min/max/mean/percentiles for need_score and priority across Auction rows (1–99 scale).'
+    help = 'Print min/max/mean/percentiles for need_score and priority across Auction rows (1-99 scale).'
 
     def handle(self, *args, **options):
         qs = Auction.objects.all()

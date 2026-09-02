@@ -84,7 +84,7 @@ class Migration(migrations.Migration):
             name='DeliveryCallAttempt',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('result', models.CharField(choices=[('answered_will_be_there', 'Answered — will be there'), ('answered_not_available', 'Answered — not available'), ('no_answer', 'No answer'), ('voicemail_left', 'Voicemail left'), ('text_sent', 'Text sent'), ('wrong_number', 'Wrong number'), ('other', 'Other')], max_length=40)),
+                ('result', models.CharField(choices=[('answered_will_be_there', 'Answered - will be there'), ('answered_not_available', 'Answered - not available'), ('no_answer', 'No answer'), ('voicemail_left', 'Voicemail left'), ('text_sent', 'Text sent'), ('wrong_number', 'Wrong number'), ('other', 'Other')], max_length=40)),
                 ('note', models.CharField(blank=True, default='', max_length=300)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='delivery_call_attempts', to=settings.AUTH_USER_MODEL)),

@@ -1,4 +1,4 @@
-"""Homepage PUBLIC_SHELL stamp — featured grid with image floor."""
+"""Homepage PUBLIC_SHELL stamp - featured grid with image floor."""
 from __future__ import annotations
 
 from decimal import Decimal
@@ -114,7 +114,7 @@ class HomeShellTests(TestCase):
         self._make_listing(title='Plain 0')
         self._make_listing(title='Star item', featured=True)
         html = self.mw._build_home_shell_html()
-        # Shell stamps only the lead card — featured flag wins the sort.
+        # Shell stamps only the lead card - featured flag wins the sort.
         self.assertIn('Star item', html)
         self.assertNotIn('Plain 0', html)
 

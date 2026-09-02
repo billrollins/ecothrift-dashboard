@@ -1,8 +1,8 @@
 """Serializers for the blog.
 
 Two audiences:
-  * Staff (Blog Studio CRUD) — `BlogPostStaffSerializer` / `BlogSeriesSerializer` (Super Admin).
-  * Public site — `BlogPost{List,Detail}PublicSerializer` / `BlogSeriesPublicSerializer`.
+  * Staff (Blog Studio CRUD) - `BlogPostStaffSerializer` / `BlogSeriesSerializer` (Super Admin).
+  * Public site - `BlogPost{List,Detail}PublicSerializer` / `BlogSeriesPublicSerializer`.
 
 Image URLs always point at the host-agnostic proxy (`/api/blog/images/<id>/`) so S3 can
 stay private. Body HTML submitted by staff is sanitized on write (see `models.apply_body`).

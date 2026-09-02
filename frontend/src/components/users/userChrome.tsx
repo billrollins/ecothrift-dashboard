@@ -1,14 +1,14 @@
 /**
  * Shared parts for the Users surfaces.
  *
- * Both directories draw people the same way — an initials disc, the name over
- * one line of context — and both drawers stack the same fixed-height fact rows,
+ * Both directories draw people the same way - an initials disc, the name over
+ * one line of context - and both drawers stack the same fixed-height fact rows,
  * so a record with nothing in a field is the same size as one that is full.
  */
 import type { ReactNode } from 'react';
 import { Avatar, Box, Chip, Stack, Tooltip, Typography } from '@mui/material';
 
-export const DASH = '—';
+export const DASH = '-';
 
 /** Fact rows keep this height whether or not there is a value. */
 export const FACT_MIN_HEIGHT = 34;
@@ -94,7 +94,7 @@ export function PersonCell({
 
 /**
  * A state chip that is always present and only changes colour and wording.
- * Never conditionally rendered — that would resize the cell.
+ * Never conditionally rendered - that would resize the cell.
  */
 export function StateChip({
   label,

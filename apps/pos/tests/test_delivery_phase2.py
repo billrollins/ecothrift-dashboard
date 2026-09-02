@@ -328,7 +328,7 @@ class DeliveryPhase2GateTests(TestCase):
         )
 
     def _ready_item(self, item: DeliveryRunStopItem):
-        # Scan (or skip) marks the item loaded automatically — no per-item photo.
+        # Scan (or skip) marks the item loaded automatically - no per-item photo.
         phase2.scan_stop_item(item, user=self.user, scanned_code=item.sku)
         item.refresh_from_db()
         self.assertTrue(item.loaded_at)

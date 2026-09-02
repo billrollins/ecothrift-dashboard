@@ -13,7 +13,7 @@ const RetailInboxPage = lazy(() => import('./pages/mailbox/RetailInboxPage'));
 
 // Full-screen floorplan editor - lazy so the SVG editor bundle stays out of the main chunk.
 const FloorplanEditorPage = lazy(() => import('./pages/floorplan/FloorplanEditorPage'));
-// Legacy fullscreen TARS Studio — parked off the sidebar, still out of the main chunk.
+// Legacy fullscreen TARS Studio - parked off the sidebar, still out of the main chunk.
 const TarsPage = lazy(() => import('./pages/restoration/tars/TarsPage'));
 import FloorplanListPage from './pages/floorplan/FloorplanListPage';
 
@@ -414,7 +414,7 @@ export default function App() {
         }
       />
 
-      {/* Legacy fullscreen studio — no sidebar link; delete once the floor has moved. */}
+      {/* Legacy fullscreen studio - no sidebar link; delete once the floor has moved. */}
       <Route
         path="/restoration/tars-legacy"
         element={

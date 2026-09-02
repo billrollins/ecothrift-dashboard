@@ -33,7 +33,7 @@ def summarize_preprocessing_rows_aggregate(order, rows_qs, *, staging_row: bool 
     """Mirror summarize_preprocessing_rows output using DB aggregates + low-confidence count.
 
     ``staging_row=False`` for :class:`~apps.inventory.models.ManifestRow` querysets (no triple-layer
-    note columns — uses ``notes`` only).
+    note columns - uses ``notes`` only).
     """
     total_paid = order.total_cost or Decimal('0.00')
 
@@ -148,7 +148,7 @@ def preprocessing_status_counts_aggregate(order, prep_rows_qs):
 def manifest_status_counts_aggregate(order, manifest_qs):
     """Counts for preprocessing-status when viewing canonical ManifestRow (no staging)."""
     total_rows = manifest_qs.count()
-    # ManifestRow has no ai_title; prior code used getattr(...,'') — treat nonempty title as cleaned.
+    # ManifestRow has no ai_title; prior code used getattr(...,'') - treat nonempty title as cleaned.
     cleaned_rows = manifest_qs.exclude(title='').count()
     final_rows = manifest_qs.filter(pricing_stage='final').count()
     missing_price = manifest_qs.filter(final_price__isnull=True, proposed_price__isnull=True).count()

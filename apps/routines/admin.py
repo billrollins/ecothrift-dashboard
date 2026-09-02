@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Routine, RoutineRun, RoutineSubmission, Section
+from .models import Routine, RoutineRun, RoutineSubmission, Section, WorkCyclePrompt
 
 
 @admin.register(Section)
@@ -27,3 +27,9 @@ class RoutineRunAdmin(admin.ModelAdmin):
 class RoutineSubmissionAdmin(admin.ModelAdmin):
     list_display = ('routine', 'submitted_by', 'status', 'failed_count', 'submitted_at')
     list_filter = ('status',)
+
+
+@admin.register(WorkCyclePrompt)
+class WorkCyclePromptAdmin(admin.ModelAdmin):
+    list_display = ('user', 'register', 'outcome', 'idle_seconds', 'shown_at')
+    list_filter = ('outcome',)

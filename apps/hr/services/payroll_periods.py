@@ -1,9 +1,9 @@
-"""Biweekly payroll periods anchored to the last manual run (Jun 8–21, 2026)."""
+"""Biweekly payroll periods anchored to the last manual run (Jun 8-21, 2026)."""
 from datetime import date, timedelta
 
 from django.utils import timezone
 
-# Last payroll before biweekly cadence: Jun 8–21, 2026 (14 days inclusive).
+# Last payroll before biweekly cadence: Jun 8-21, 2026 (14 days inclusive).
 PAYROLL_ANCHOR_START = date(2026, 6, 8)
 PAYROLL_PERIOD_DAYS = 14
 
@@ -24,9 +24,9 @@ def payroll_period_bounds(for_day: date | None = None) -> tuple[date, date]:
 def payroll_period_label(start: date, end: date) -> str:
     if start.year == end.year:
         if start.month == end.month:
-            return f'{start.strftime("%b %d")} – {end.day}, {end.year}'
-        return f'{start.strftime("%b %d")} – {end.strftime("%b %d, %Y")}'
-    return f'{start.strftime("%b %d, %Y")} – {end.strftime("%b %d, %Y")}'
+            return f'{start.strftime("%b %d")} - {end.day}, {end.year}'
+        return f'{start.strftime("%b %d")} - {end.strftime("%b %d, %Y")}'
+    return f'{start.strftime("%b %d, %Y")} - {end.strftime("%b %d, %Y")}'
 
 
 def list_payroll_periods(count: int = 16, reference_date: date | None = None) -> list[dict]:

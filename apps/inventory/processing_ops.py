@@ -69,7 +69,7 @@ def _bulk_create_checked_in_items(items: list[Item]) -> list[Item]:
 
     The per-save PO cost recompute is skipped on purpose: ``compute_item_cost``
     depends only on fixed PO totals, so inserting items never changes existing
-    items' costs — callers set ``cost`` on each Item before calling.
+    items' costs - callers set ``cost`` on each Item before calling.
     Must run inside ``transaction.atomic()`` (the advisory lock is xact-scoped).
     """
     if not items:
@@ -224,7 +224,7 @@ def apply_item_updates(item, updates):
     return changed
 
 
-# Owner ruling (2026-06-11): no low per-action cap — staff confirm big check-ins in the
+# Owner ruling (2026-06-11): no low per-action cap - staff confirm big check-ins in the
 # UI ("type PRINT N") instead of being blocked. This ceiling is a fat-finger backstop
 # only; exceeding it is an explicit 400, never a silent clamp.
 MAX_CHECK_IN_QUANTITY = 10_000
@@ -478,7 +478,7 @@ def _check_in_processing_row(
         distinct_count = _mixed_product_row_distinct_count(row)
         if distinct_count >= 2 and _implicit_check_in_product_reuse(data):
             raise ValueError(
-                'Multiple products on this row — specify product in Detailed check-in.',
+                'Multiple products on this row - specify product in Detailed check-in.',
             )
 
     if latest_batch_product is not None:
@@ -634,7 +634,7 @@ def processing_row_check_in(user, order: PurchaseOrder, processing_row_id: int, 
     """Create real Product/Item rows from a ProcessingRow at physical check-in time.
 
     P7 collapse: a check-in on a group MASTER distributes quantity across the group in
-    row order — earlier rows fill first; any excess lands on the LAST row as overage.
+    row order - earlier rows fill first; any excess lands on the LAST row as overage.
     Followers reject direct check-in (the master owns the group).
     """
 
@@ -650,7 +650,7 @@ def processing_row_check_in(user, order: PurchaseOrder, processing_row_id: int, 
         )
         if row.collapse_master_id:
             master_num = ProcessingRow.objects.filter(pk=row.collapse_master_id).values_list('row_number', flat=True).first()
-            raise ValueError(f'Row {row.row_number} is collapsed into row {master_num} — check in on the master or uncollapse.')
+            raise ValueError(f'Row {row.row_number} is collapsed into row {master_num} - check in on the master or uncollapse.')
 
         member_ids = list(
             ProcessingRow.objects.select_for_update()
@@ -695,7 +695,7 @@ def processing_row_check_in(user, order: PurchaseOrder, processing_row_id: int, 
                     continue
                 member_data = {**data, 'quantity': alloc}
                 if shared_product_id is not None:
-                    # One product decision for the whole group — resolved on the first fill.
+                    # One product decision for the whole group - resolved on the first fill.
                     member_data['product_mode'] = 'existing'
                     member_data['product_id'] = shared_product_id
                 items, batch = _check_in_processing_row(
@@ -901,7 +901,7 @@ def processing_assign_shared_product(user, order: PurchaseOrder, data: dict) -> 
             checked_in_pid = primary_product_id_for_items(items)
             if checked_in_pid is not None and checked_in_pid != product_id:
                 raise ValueError(
-                    f'Row {row.row_number} already has checked-in units of a different product — '
+                    f'Row {row.row_number} already has checked-in units of a different product - '
                     'remap that batch first.',
                 )
             if row.matched_product_id != product_id:
@@ -920,7 +920,7 @@ def processing_assign_shared_product(user, order: PurchaseOrder, data: dict) -> 
 def processing_collapse_rows(user, order: PurchaseOrder, data: dict) -> dict:
     """P7 collapse: group ≥2 manifest-backed rows under the first (master) row.
 
-    Presentation + check-in distribution only — ManifestRows untouched, ProcessingRows
+    Presentation + check-in distribution only - ManifestRows untouched, ProcessingRows
     never merged. All attached products and prior check-ins from every row stay linked;
     row details come from the master (earliest row). Optional ``product_mode``
     'existing' (+product_id) or 'new' still forces one shared product on every row.
@@ -946,13 +946,13 @@ def processing_collapse_rows(user, order: PurchaseOrder, data: dict) -> dict:
                 raise ValueError('Only manifest-backed rows can be collapsed.')
             if row.split_parent_id or row.split_children.exists():
                 raise ValueError(
-                    f'Row {row.row_number} is part of a Break apart / Make set family — '
+                    f'Row {row.row_number} is part of a Break apart / Make set family - '
                     'restart the row before collapsing.',
                 )
             if row.collapse_master_id and row.collapse_master_id not in row_ids:
                 raise ValueError(f'Row {row.row_number} is already collapsed into another group.')
             if ProcessingRow.objects.filter(collapse_master=row).exclude(pk__in=row_ids).exists():
-                raise ValueError(f'Row {row.row_number} is the master of another group — uncollapse it first.')
+                raise ValueError(f'Row {row.row_number} is the master of another group - uncollapse it first.')
 
         master, *members = locked
 
@@ -985,7 +985,7 @@ def processing_collapse_rows(user, order: PurchaseOrder, data: dict) -> dict:
 
 
 def processing_uncollapse_rows(user, order: PurchaseOrder, data: dict) -> dict:
-    """Dissolve a collapse group (by master id) — rows return to individual display."""
+    """Dissolve a collapse group (by master id) - rows return to individual display."""
 
     raw = data.get('master_processing_row_id') or data.get('masterProcessingRowId')
     if raw in (None, '') or not str(raw).strip().isdigit():
@@ -1256,7 +1256,7 @@ def processing_row_set_product_decision(
         search_tags = normalize_search_tags(data.get('search_tags') or getattr(row, 'search_tags', None))
         matched = row.matched_product if row.matched_product_id else None
         if product_mode == 'edit' and matched is None:
-            raise ValueError('No linked product to edit — choose New product or Search catalog.')
+            raise ValueError('No linked product to edit - choose New product or Search catalog.')
 
         product = _resolve_product_for_processing(
             {
@@ -1370,12 +1370,12 @@ def delete_item_check_in(user, order: PurchaseOrder, item_check_in_id: int) -> d
             sold = [i for i in items if i.status == 'sold' or i.sold_at]
             if sold:
                 raise ValueError(
-                    f'{len(sold)} item(s) in this check-in are sold — delete is blocked.',
+                    f'{len(sold)} item(s) in this check-in are sold - delete is blocked.',
                 )
             from apps.pos.models import CartLine
 
             if CartLine.objects.filter(item_id__in=item_pks).exists():
-                raise ValueError('Items in this check-in are referenced by POS carts — delete is blocked.')
+                raise ValueError('Items in this check-in are referenced by POS carts - delete is blocked.')
 
             Item.objects.filter(pk__in=item_pks).delete()
             from apps.inventory.services.restoration import delete_restoration_job_if_removable
@@ -1411,7 +1411,7 @@ def delete_item_check_in(user, order: PurchaseOrder, item_check_in_id: int) -> d
 def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data: dict) -> dict:
     """Edit one prior ItemCheckIn in place (owner spec 2026-06-12).
 
-    Clicking a prior check-in EDITS that event — it never creates a new one:
+    Clicking a prior check-in EDITS that event - it never creates a new one:
     - ``quantity`` greater than current ADDS items (bulk, same product/defaults);
       smaller DELETES the newest items (sold / POS-cart items block the shrink).
     - ``condition`` / ``dispatch`` / ``price`` / ``retail`` / ``notes`` apply to
@@ -1636,7 +1636,7 @@ def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data
                 blocked = [i for i in to_remove if i.status == 'sold' or i.sold_at]
                 if blocked:
                     raise ValueError(
-                        f'{len(blocked)} item(s) that would be removed are sold — reduce quantity less or delete is blocked.',
+                        f'{len(blocked)} item(s) that would be removed are sold - reduce quantity less or delete is blocked.',
                     )
                 from apps.pos.models import CartLine
 

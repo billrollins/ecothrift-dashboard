@@ -1194,14 +1194,14 @@ export interface RestorationJobDTO {
   pending_notes: string;
   pending_storage_location: string;
   pending_started_at: string | null;
-  /** Set in the queue, before any work — distinct from where it actually went. */
+  /** Set in the queue, before any work - distinct from where it actually went. */
   intended_destination: RestorationIntendedDestination | '';
   /** Anything the person picking this up should know. Any staff member may write it. */
   queue_note: string;
   bench_disposition: RestorationBenchDisposition | '';
   /** The action currently open on this job. */
   current_action: number | null;
-  /** The grade the item arrived at — the datum every estimate is measured against. */
+  /** The grade the item arrived at - the datum every estimate is measured against. */
   starting_grade: string;
   final_grade: string;
   disposition_notes: string;
@@ -1282,7 +1282,7 @@ export interface RestorationScoreboardWindowDTO {
   value_added: string | null;
   items: number;
   items_measured: number;
-  /** Finished without a computable value — counted, never priced. */
+  /** Finished without a computable value - counted, never priced. */
   items_unmeasured: number;
 }
 

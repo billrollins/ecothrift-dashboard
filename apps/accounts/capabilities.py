@@ -6,7 +6,7 @@ Per-user extras are a later initiative. The capability *ids* are the schema
 that [`universal_object_surfaces`](.ai/initiatives/universal_object_surfaces.md)
 should reuse rather than inventing a parallel taxonomy.
 
-Holders are explicit — a Manager does not inherit an Admin-only row.
+Holders are explicit - a Manager does not inherit an Admin-only row.
 `Super Admin` means `user.is_superuser`, independent of group.
 """
 from __future__ import annotations

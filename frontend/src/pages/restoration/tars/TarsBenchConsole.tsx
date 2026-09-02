@@ -270,7 +270,7 @@ function ItemDetails({
             color: DECK.ink,
           }}
         >
-          {job.name || '—'}
+          {job.name || '-'}
         </Typography>
         <Box
           sx={{
@@ -298,7 +298,7 @@ function ItemDetails({
 }
 
 function Fact({ label, value }: { label: string; value?: string | null }) {
-  const text = value?.trim() || '—';
+  const text = value?.trim() || '-';
   return (
     <Box sx={{ minWidth: 0, minHeight: SLOT.factLabel + SLOT.factValue }}>
       <Typography
@@ -317,7 +317,7 @@ function Fact({ label, value }: { label: string; value?: string | null }) {
           ...TYPE.value,
           height: SLOT.factValue,
           lineHeight: '18px',
-          color: text === '—' ? DECK.faint : DECK.ink,
+          color: text === '-' ? DECK.faint : DECK.ink,
         }}
       >
         {text}
@@ -685,7 +685,7 @@ function GradePick({
         value={value || undefined}
         options={grades}
         format={(grade) => grade}
-        placeholder="—"
+        placeholder="-"
         width="100%"
         height={SLOT.picker}
         fontSize="14px"
@@ -720,7 +720,7 @@ function MoneyReadout({
 }) {
   const amount =
     value == null
-      ? '—'
+      ? '-'
       : signed && value > 0
         ? `+${fmtHeaderUsd(value)}`
         : fmtHeaderUsd(value);

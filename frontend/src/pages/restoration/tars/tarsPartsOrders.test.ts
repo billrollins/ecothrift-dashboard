@@ -115,7 +115,7 @@ describe('partsScenariosForGrade', () => {
 });
 
 describe('partsRangeByGrade', () => {
-  it('is one number when the paths agree and a min–max when they do not', () => {
+  it('is one number when the paths agree and a min-max when they do not', () => {
     expect(
       partsRangeByGrade([
         order({ id: 1, parts_cost: '12.00' }),

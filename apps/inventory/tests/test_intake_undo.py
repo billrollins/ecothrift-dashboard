@@ -269,7 +269,7 @@ class IntakeUndoTests(TestCase):
         self.assertEqual(r.final_title, 'F1')
 
     def test_finalize_allowed_with_linked_bookmarks(self):
-        """New-flow bookmarks are manifest-linked at creation — linkage must not block."""
+        """New-flow bookmarks are manifest-linked at creation - linkage must not block."""
         mr = ManifestRow.objects.create(
             purchase_order=self.order,
             row_number=1,

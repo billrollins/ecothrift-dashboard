@@ -1,7 +1,7 @@
 /**
  * The one thing that changes as the processor works: the check-in for whatever is in hand.
  *
- * Slots stay the same size when someone taps Salvage — only the copy inside them changes.
+ * Slots stay the same size when someone taps Salvage - only the copy inside them changes.
  */
 import { Box, TextField, Typography } from '@mui/material';
 import type { ReactNode } from 'react';

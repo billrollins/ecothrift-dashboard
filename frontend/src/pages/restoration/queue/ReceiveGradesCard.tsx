@@ -185,7 +185,7 @@ function GradeRow({
           color: price == null ? '#cbd5e1' : '#172033',
         }}
       >
-        {price == null ? '—' : `$${price.toFixed(2)}`}
+        {price == null ? '-' : `$${price.toFixed(2)}`}
       </Typography>
     </Box>
   );

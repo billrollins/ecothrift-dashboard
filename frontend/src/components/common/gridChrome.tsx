@@ -11,7 +11,7 @@ import { Stack, Typography } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material';
 
 /**
- * Fixed grid height. Prefer GRID_FILL_SX — a table that stops 300px short of
+ * Fixed grid height. Prefer GRID_FILL_SX - a table that stops 300px short of
  * the bottom of a shop-floor monitor is wasted rows.
  */
 export const GRID_HEIGHT = 520;

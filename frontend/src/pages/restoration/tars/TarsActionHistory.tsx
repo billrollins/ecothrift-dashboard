@@ -2,7 +2,7 @@
  * What you are doing, and what has already happened.
  *
  * The open action stays on top. Below it is one reserved detail row, then
- * two reserved filter rows, then the past — actions and desk events together.
+ * two reserved filter rows, then the past - actions and desk events together.
  */
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -250,10 +250,10 @@ function ActionDetail({
 }: {
   action: RestorationActionsDTO['results'][number] | null;
 }) {
-  const when = action ? formatClock(action.started_at) : '—';
-  const whoFull = action ? formatHistoryWho(action.created_by_name ?? '') : '—';
-  const who = action ? displayHistoryWho(action.created_by_name ?? '') : '—';
-  const kind = action ? categoryMeta(action.category).label : '—';
+  const when = action ? formatClock(action.started_at) : '-';
+  const whoFull = action ? formatHistoryWho(action.created_by_name ?? '') : '-';
+  const who = action ? displayHistoryWho(action.created_by_name ?? '') : '-';
+  const kind = action ? categoryMeta(action.category).label : '-';
 
   return (
     <Stack
@@ -508,13 +508,13 @@ function HistoryWords({
 
 function formatClock(iso: string): string {
   const date = new Date(iso);
-  if (!Number.isFinite(date.getTime())) return '—';
+  if (!Number.isFinite(date.getTime())) return '-';
   return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
 function formatWhen(iso: string): string {
   const date = new Date(iso);
-  if (!Number.isFinite(date.getTime())) return '—';
+  if (!Number.isFinite(date.getTime())) return '-';
   const now = new Date();
   const sameDay =
     date.getFullYear() === now.getFullYear() &&

@@ -13,7 +13,7 @@ TEMPLATES = [
             '<p>Pick up at {{ store_address }} by {{ pickup_by }}.</p>'
             '<p>View hold status: <a href="{{ hold_link }}">{{ hold_link }}</a></p>'
             '<p>Pay in store at pickup. No shipping, delivery, or online payment. '
-            'Items are typically final sale.</p><p>— Eco-Thrift</p>'
+            'Items are typically final sale.</p><p>- Eco-Thrift</p>'
         ),
     },
     {
@@ -51,7 +51,7 @@ TEMPLATES = [
         'name': 'Customer question reply',
         'subject': 'Re: {{ listing_title }}',
         'html_body': (
-            '<p>Hi {{ customer_name }},</p><p></p><p>— {{ staff_name }}<br>Eco-Thrift</p>'
+            '<p>Hi {{ customer_name }},</p><p></p><p>- {{ staff_name }}<br>Eco-Thrift</p>'
         ),
     },
 ]
@@ -68,7 +68,7 @@ def seed_templates(apps, schema_editor):
     AppSetting.objects.get_or_create(
         key='mailbox.email_signature',
         defaults={
-            'value': '<p>— {{staff_name}}<br>Eco-Thrift<br>'
+            'value': '<p>- {{staff_name}}<br>Eco-Thrift<br>'
                      '8425 W Center Rd, Omaha, NE 68124</p>',
             'description': 'HTML signature appended to Microsoft Graph mailbox replies.',
         },

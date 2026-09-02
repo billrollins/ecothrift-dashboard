@@ -2,7 +2,7 @@
  * One customer, whole.
  *
  * Profile you can edit, what they have actually done with us, and the customer
- * service actions. Every section renders whether or not it has content — a
+ * service actions. Every section renders whether or not it has content - a
  * person with no holds takes up the same room as a regular, so the buttons a
  * hand is travelling toward do not move when the rollup lands.
  */
@@ -220,7 +220,7 @@ export default function CustomerDetailDrawer({ customerId, open, onClose }: Prop
               {customer?.full_name || 'Customer'}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              {customer?.customer_number || '—'}
+              {customer?.customer_number || '-'}
             </Typography>
             <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mt: 0.75 }}>
               <Chip

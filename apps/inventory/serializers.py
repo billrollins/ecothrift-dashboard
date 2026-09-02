@@ -645,7 +645,7 @@ class PurchaseOrderDetailSerializer(PurchaseOrderSerializer):
 
 
 class PurchaseOrderDetailSurfaceSerializer(serializers.ModelSerializer):
-    """Order Detail GET only: scalar PO fields + denormalized manifest meta — no previews, URLs, stats."""
+    """Order Detail GET only: scalar PO fields + denormalized manifest meta - no previews, URLs, stats."""
 
     vendor_name = serializers.CharField(source='vendor_name_cache', read_only=True)
     vendor_code = serializers.CharField(source='vendor_code_cache', read_only=True)
@@ -786,7 +786,7 @@ class BatchGroupSerializer(serializers.ModelSerializer):
 
 
 def item_listing_category(obj: Item) -> str:
-    """Category for staff item APIs — Product category, then manifest fallback."""
+    """Category for staff item APIs - Product category, then manifest fallback."""
 
     if obj.product_id:
         prod = getattr(obj, 'product', None)
@@ -955,7 +955,7 @@ class ItemSerializer(serializers.ModelSerializer):
 
 
 class ItemPublicSerializer(serializers.ModelSerializer):
-    """Public-facing item info for customer scan — no cost, no internal fields."""
+    """Public-facing item info for customer scan - no cost, no internal fields."""
 
     estimated_retail_value = serializers.SerializerMethodField()
     savings_pct = serializers.SerializerMethodField()
@@ -1883,7 +1883,7 @@ class RestorationJobQueueDetailsSerializer(serializers.Serializer):
 
     Deliberately separate from the full patch path, which only accepts queued
     jobs. Scale and destination stay answerable while unfinished. The note
-    can still be written on Done — Processing has not taken the item yet.
+    can still be written on Done - Processing has not taken the item yet.
     """
 
     scale = serializers.CharField(required=False, allow_blank=True)

@@ -1,4 +1,4 @@
-"""Tests for intake PO repair helpers (316–319 rollout)."""
+"""Tests for intake PO repair helpers (316-319 rollout)."""
 
 from decimal import Decimal
 
@@ -116,7 +116,7 @@ class IntakePoRepairClassificationTests(TestCase):
     def test_manifest_row_count_snapshot_prefers_max_of_sources(self):
         self.po.manifest_row_count = 10
         preview = {'rows': [{'raw': {}} for _ in range(3)]}
-        # No manifest/processing rows yet — should take max(10, 3) = 10
+        # No manifest/processing rows yet - should take max(10, 3) = 10
         self.assertEqual(
             compute_manifest_row_count_snapshot(self.po, preview),
             10,

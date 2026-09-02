@@ -4,7 +4,7 @@ Use when Django ``save()`` paths did not run (e.g. after raw SQL, bulk imports, 
 snapshot). **Not** for routine operations: normal API and model saves keep ``Item.cost`` aligned
 when PO fields or line ``Item.retail_value`` / PO assignment change.
 
-See ``.ai/extended/backend.md`` — *Item acquisition cost (inventory)*.
+See ``.ai/extended/backend.md`` - *Item acquisition cost (inventory)*.
 """
 
 from django.core.management.base import BaseCommand
@@ -16,7 +16,7 @@ from apps.inventory.models import Item, PurchaseOrder
 class Command(BaseCommand):
     help = (
         'Backfill only: recompute Item.cost for every item on every PO that has items. '
-        'Use after migrations or data repair — not part of daily/Heroku jobs. '
+        'Use after migrations or data repair - not part of daily/Heroku jobs. '
         'Optional --database for production alias.'
     )
 

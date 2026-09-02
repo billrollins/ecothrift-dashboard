@@ -31,7 +31,7 @@ function WeeklyHoursLine({ total }: { total: number }) {
   if (total <= 0) {
     return (
       <Typography component="span" variant="body2" color="text.disabled" sx={NUM}>
-        —
+        -
       </Typography>
     );
   }
@@ -67,7 +67,7 @@ function IndWeeksCell({ weekStarts, weekHours }: { weekStarts: string[]; weekHou
             color="text.secondary"
             sx={{ minWidth: 72, ...NUM, whiteSpace: 'nowrap', flexShrink: 0 }}
           >
-            {week ? fmtWeekHeader(week) : '—'}
+            {week ? fmtWeekHeader(week) : '-'}
           </Typography>
           <WeeklyHoursLine total={week ? weekHours[week] ?? 0 : 0} />
         </Box>
@@ -114,7 +114,7 @@ function TimeLine({
           whiteSpace: 'nowrap',
         }}
       >
-        {empty ? '—' : fmtHours(value)}
+        {empty ? '-' : fmtHours(value)}
       </Typography>
     </Box>
   );
@@ -208,7 +208,7 @@ export function EmployeePayrollTable({
             </TableCell>
             <TableCell align="right">
               <Typography component="span" variant="body2" color="text.disabled">
-                —
+                -
               </Typography>
             </TableCell>
             <TableCell>

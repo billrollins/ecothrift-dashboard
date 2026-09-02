@@ -170,11 +170,11 @@ export function RetailPriceLockToggle({
   const title =
     locked ?
       pct != null
-        ? `Unlock — price follows retail at ${pctLabel}`
-        : 'Unlock — price no longer follows retail'
+        ? `Unlock - price follows retail at ${pctLabel}`
+        : 'Unlock - price no longer follows retail'
     : pct != null
-      ? `Lock — keep price at ${pctLabel} of retail`
-      : 'Lock — keep price as a percent of retail';
+      ? `Lock - keep price at ${pctLabel} of retail`
+      : 'Lock - keep price as a percent of retail';
 
   const iconPx = size === 'small' ? 16 : 20;
   const btnPx = size === 'small' ? 26 : 34;
@@ -237,7 +237,7 @@ export function RetailPricePctButton({
 
   const retailN = Number.parseFloat(String(retail ?? '').replace(/[$,\s]/g, ''));
   const retailOk = Number.isFinite(retailN) && retailN > 0;
-  // Allow edit whenever retail exists — even with no prior pct (user can set the first %).
+  // Allow edit whenever retail exists - even with no prior pct (user can set the first %).
   const canEdit = !disabled && retailOk;
 
   useEffect(() => {
@@ -302,8 +302,8 @@ export function RetailPricePctButton({
     : pct == null ?
       'Click to set price as a percent of retail'
     : isFallback ?
-      `Default ${label} of retail (no price yet) — click to edit`
-    : `Price is ${label} of retail — click to change`;
+      `Default ${label} of retail (no price yet) - click to edit`
+    : `Price is ${label} of retail - click to change`;
 
   const fontSize = size === 'small' ? '0.6875rem' : '0.8125rem';
   const minWidth = size === 'small' ? 36 : 44;

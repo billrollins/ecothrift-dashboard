@@ -235,7 +235,7 @@ CANNED_ACTION_DESCRIPTIONS = {
 
 def _assert_job_history_editable(job: RestorationJob) -> None:
     if job.stage in (RestorationJob.STAGE_DONE, RestorationJob.STAGE_RETURNED):
-        raise ValueError('This item is finished — its history words can no longer change.')
+        raise ValueError('This item is finished - its history words can no longer change.')
 
 
 def _void_words_event(event: RestorationTimelineEvent, actor=None) -> RestorationTimelineEvent:

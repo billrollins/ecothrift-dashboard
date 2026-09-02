@@ -78,6 +78,8 @@ import {
 } from '../../hooks/usePOS';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { WorkCyclePill } from '../../components/routines/WorkCyclePill';
+import { WorkCyclePromptDialog } from './WorkCyclePromptDialog';
+import { writeLastActivity } from './idlePrompt';
 import { useDeviceConfig } from '../../hooks/useDeviceConfig';
 import { useLocalPrintStatus } from '../../hooks/useLocalPrintStatus';
 import { useLookupCustomer } from '../../hooks/useEmployees';
@@ -337,6 +339,14 @@ export default function TerminalPage() {
     userId: user?.id,
   });
 
+  const markRegisterActivity = useCallback(() => {
+    if (registerId != null) writeLastActivity(registerId, new Date().toISOString());
+  }, [registerId]);
+
+  useEffect(() => {
+    markRegisterActivity();
+  }, [markRegisterActivity]);
+
   const createCartMutation = useCreateCart();
   const addItemMutation = useAddItemToCart();
   const addManualLineMutation = useAddManualLineToCart();
@@ -374,6 +384,7 @@ export default function TerminalPage() {
     try {
       const result = await createCartMutation.mutateAsync({ drawer: targetDrawerId });
       setCart(result as unknown as Cart);
+      markRegisterActivity();
     } catch (err: unknown) {
       const errData = (err as { response?: { data?: Record<string, unknown> } })?.response?.data;
       const msg =
@@ -384,7 +395,7 @@ export default function TerminalPage() {
           : 'Failed to create cart');
       enqueueSnackbar(msg, { variant: 'error' });
     }
-  }, [isRegister, managerDrawerId, createCartMutation, enqueueSnackbar]);
+  }, [isRegister, managerDrawerId, createCartMutation, enqueueSnackbar, markRegisterActivity]);
 
   const handleOpenDrawer = useCallback(async () => {
     if (registerId == null || typeof registerId !== 'number') return;
@@ -436,6 +447,7 @@ export default function TerminalPage() {
         const newCart = await createCartMutation.mutateAsync({ drawer: targetDrawerId });
         activeCart = newCart as unknown as Cart;
         setCart(activeCart);
+        markRegisterActivity();
       } catch {
         enqueueSnackbar('Failed to create cart', { variant: 'error' });
         return;
@@ -487,6 +499,7 @@ export default function TerminalPage() {
     commitCart,
     lookupCustomerMutation,
     enqueueSnackbar,
+    markRegisterActivity,
   ]);
 
   useEffect(() => {
@@ -536,6 +549,7 @@ export default function TerminalPage() {
           const newCart = await createCartMutation.mutateAsync({ drawer: targetDrawerId });
           activeCart = newCart as unknown as Cart;
           setCart(activeCart);
+          markRegisterActivity();
         } catch {
           enqueueSnackbar('Failed to create cart', { variant: 'error' });
           return;
@@ -567,6 +581,7 @@ export default function TerminalPage() {
       addManualLineMutation,
       commitCart,
       enqueueSnackbar,
+      markRegisterActivity,
     ],
   );
 
@@ -587,12 +602,13 @@ export default function TerminalPage() {
       const created = newCart as unknown as Cart;
       setCart(created);
       cartRef.current = created;
+      markRegisterActivity();
       return created;
     } catch {
       enqueueSnackbar('Failed to create cart', { variant: 'error' });
       return null;
     }
-  }, [cart, isRegister, managerDrawerId, createCartMutation, enqueueSnackbar]);
+  }, [cart, isRegister, managerDrawerId, createCartMutation, enqueueSnackbar, markRegisterActivity]);
 
   const handleOpenDiscountDialog = useCallback(() => {
     setDiscountDialogOpen(true);
@@ -952,6 +968,7 @@ export default function TerminalPage() {
     try {
       await voidCartMutation.mutateAsync(cart.id);
       enqueueSnackbar('Sale voided', { variant: 'info' });
+      markRegisterActivity();
       setCart(null);
       cartRef.current = null;
       setCustomer(null);
@@ -962,7 +979,7 @@ export default function TerminalPage() {
     } catch {
       enqueueSnackbar('Failed to void sale', { variant: 'error' });
     }
-  }, [cart, voidCartMutation, enqueueSnackbar]);
+  }, [cart, voidCartMutation, enqueueSnackbar, markRegisterActivity]);
 
   const handleComplete = useCallback(async () => {
     if (!cart || (cart.lines ?? []).length === 0) {
@@ -999,6 +1016,7 @@ export default function TerminalPage() {
       })) as unknown as Cart & { receipt?: { receipt_number: string }; completed_at?: string };
 
       enqueueSnackbar('Sale completed', { variant: 'success' });
+      markRegisterActivity();
 
       try {
         const shouldOpenDrawer = paymentMethod === 'cash' || paymentMethod === 'split';
@@ -1017,7 +1035,7 @@ export default function TerminalPage() {
     } catch {
       enqueueSnackbar('Failed to complete sale', { variant: 'error' });
     }
-  }, [cart, paymentMethod, cashTendered, cardAmount, completeCartMutation, enqueueSnackbar]);
+  }, [cart, paymentMethod, cashTendered, cardAmount, completeCartMutation, enqueueSnackbar, markRegisterActivity]);
 
   const changeDue = (() => {
     if (paymentMethod !== 'cash' && paymentMethod !== 'split') return 0;
@@ -2334,6 +2352,11 @@ export default function TerminalPage() {
         open={deviceSetupOpen}
         onClose={() => setDeviceSetupOpen(false)}
         onSaved={() => setDeviceSetupOpen(false)}
+      />
+
+      <WorkCyclePromptDialog
+        terminalState={terminalState}
+        registerId={registerId}
       />
     </Box>
   );

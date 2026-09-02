@@ -1,6 +1,6 @@
-"""publish_printserver — register a print server release directly via the ORM.
+"""publish_printserver - register a print server release directly via the ORM.
 
-Called by printserver/distribute.py — no HTTP, no credentials.
+Called by printserver/distribute.py - no HTTP, no credentials.
 
 Usage:
     python manage.py publish_printserver \

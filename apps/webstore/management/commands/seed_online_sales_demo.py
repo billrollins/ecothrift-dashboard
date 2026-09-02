@@ -1,4 +1,4 @@
-"""Idempotent Online Sales demo fixtures (Phase 0 F1–F9 + threads + customer).
+"""Idempotent Online Sales demo fixtures (Phase 0 F1-F9 + threads + customer).
 
 Usage:
     python manage.py seed_online_sales_demo
@@ -95,7 +95,7 @@ class Command(BaseCommand):
                 with_item=False,
             )
 
-            # F6 requested + confirmed on F1 (need qty — use F2 for second hold)
+            # F6 requested + confirmed on F1 (need qty - use F2 for second hold)
             if not Reservation.objects.filter(idempotency_key=f'{DEMO_PREFIX}f6-requested').exists():
                 create_hold(
                     listing=f1,
@@ -129,7 +129,7 @@ class Command(BaseCommand):
                 confirm_reservation(exp)
                 release_reservation(exp, 'expired')
 
-            # F8 held linked item for POS guard — another published linked listing
+            # F8 held linked item for POS guard - another published linked listing
             f8 = self._listing(
                 slug=f'{DEMO_PREFIX}f8-pos-guard',
                 title='Demo F8 POS Guard Item',
@@ -178,7 +178,7 @@ class Command(BaseCommand):
                     email=unread_email,
                     body='First message',
                 )
-                post_message(conv_unread, author_kind='customer', body='Follow-up — still interested!')
+                post_message(conv_unread, author_kind='customer', body='Follow-up - still interested!')
 
             resolved_email = 'demo.resolved@ecothrift.example'
             conv_res = Conversation.objects.filter(guest_email=resolved_email).first()

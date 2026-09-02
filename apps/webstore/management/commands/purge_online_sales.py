@@ -87,7 +87,7 @@ class Command(BaseCommand):
 
         if not options['yes']:
             self.stdout.write(self.style.WARNING(
-                'Dry run — nothing deleted. Re-run with --yes to purge.',
+                'Dry run - nothing deleted. Re-run with --yes to purge.',
             ))
             return
 
@@ -111,6 +111,6 @@ class Command(BaseCommand):
                 User.objects.filter(pk__in=[pk for pk, _email in customer_users]).delete()
 
         self.stdout.write(self.style.SUCCESS(
-            'Online Sales purged. Inventory Items were left untouched — '
+            'Online Sales purged. Inventory Items were left untouched - '
             'items at location=online_sales still appear under Listings -> To list.',
         ))

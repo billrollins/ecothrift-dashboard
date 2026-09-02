@@ -78,7 +78,7 @@ class CategoryMapping(models.Model):
 
 
 class PricingRule(models.Model):
-    """Per–canonical-category sell-through stats for auction valuation (Phase 5)."""
+    """Per-canonical-category sell-through stats for auction valuation (Phase 5)."""
 
     category = models.CharField(max_length=200, unique=True, db_index=True)
     sell_through_rate = models.DecimalField(
@@ -109,7 +109,7 @@ class CategoryStats(models.Model):
         max_digits=8,
         decimal_places=6,
         help_text=(
-            '0–1; SUM(sold_for)/SUM(retail_value) for all-time sold rows where sold_for, '
+            '0-1; SUM(sold_for)/SUM(retail_value) for all-time sold rows where sold_for, '
             'retail_value, and cost are each between 0.01 and 9999; 0 when denominator is zero.'
         ),
     )
@@ -131,7 +131,7 @@ class CategoryStats(models.Model):
     )
     good_data_sample_size = models.PositiveIntegerField(
         default=0,
-        help_text='Count of sold rows in the good-data cohort (sale, retail, cost each 0.01–9999).',
+        help_text='Count of sold rows in the good-data cohort (sale, retail, cost each 0.01-9999).',
     )
     avg_sold_price = models.DecimalField(
         max_digits=14,
@@ -162,7 +162,7 @@ class CategoryStats(models.Model):
     )
     need_score_1to99 = models.PositiveSmallIntegerField(
         default=50,
-        help_text='Min–max scaled need vs other taxonomy buckets (1–99); recomputed daily.',
+        help_text='Min-max scaled need vs other taxonomy buckets (1-99); recomputed daily.',
     )
 
     class Meta:
@@ -319,7 +319,7 @@ class Auction(models.Model):
     last_updated_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
-    # Phase 5 — auction valuation (computed fields populated in later steps)
+    # Phase 5 - auction valuation (computed fields populated in later steps)
     ai_category_estimates = models.JSONField(
         null=True,
         blank=True,
@@ -385,7 +385,7 @@ class Auction(models.Model):
     need_score = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
-        help_text='1–99 weighted mix of CategoryStats.need_score_1to99 for this auction.',
+        help_text='1-99 weighted mix of CategoryStats.need_score_1to99 for this auction.',
     )
     shrinkage_override = models.DecimalField(
         max_digits=5,
@@ -403,7 +403,7 @@ class Auction(models.Model):
     )
     priority = models.PositiveSmallIntegerField(
         default=50,
-        help_text='1–99; higher surfaces first when auto-ranked.',
+        help_text='1-99; higher surfaces first when auto-ranked.',
     )
     priority_override = models.BooleanField(
         default=False,

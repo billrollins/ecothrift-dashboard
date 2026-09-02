@@ -133,7 +133,7 @@ export function RestorationsToSetupPanel({ job, onSaved }: RestorationsToSetupPa
           {Array.isArray(job.valuation_requested_grades) && job.valuation_requested_grades.length
             ? `TARS does not agree with the grades (${job.valuation_requested_grades.join(', ')})`
             : 'TARS has a question'}
-          {job.valuation_request_notes ? ` — ${job.valuation_request_notes}` : ''}.
+          {job.valuation_request_notes ? ` - ${job.valuation_request_notes}` : ''}.
           Review and save when you have answered.
         </Alert>
       ) : null}

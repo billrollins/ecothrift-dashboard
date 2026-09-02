@@ -39,7 +39,7 @@ def build_processing_row_search_string(row: Any) -> str:
     """
     Compose ``ProcessingRow.search_string`` from bookmark columns and JSON blobs.
 
-    We intentionally omit ``ai_reasoning`` — long, noisy, low value for shelf search —
+    We intentionally omit ``ai_reasoning`` - long, noisy, low value for shelf search -
     documented here so omission is deliberate, not an oversight.
 
     Accepts a ``ProcessingRow`` instance or a mapping-like object with the same keys.

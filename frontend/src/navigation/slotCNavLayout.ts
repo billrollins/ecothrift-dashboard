@@ -11,7 +11,7 @@ export interface SlotCWorkspaceMeta {
   shortcutColor: string;
   /**
  * Digit pressed in the open switcher. Same key always opens this workspace
- * when the user can see it. 1–8 are lifecycle + Studios; 0 is Admin. Digit 9 is free.
+ * when the user can see it. 1-8 are lifecycle + Studios; 0 is Admin. Digit 9 is free.
    */
   shortcutDigit?: number;
 }
@@ -224,7 +224,7 @@ export function workspaceShortcutLetter(workspace: SlotCWorkspaceMeta): string {
  * Digit or first letter of a visible workspace's short name.
  *
  * Letters are case-insensitive. If two rows ever share a first letter, the
- * earlier one on the visible list wins — the same order the cards are drawn.
+ * earlier one on the visible list wins - the same order the cards are drawn.
  */
 export function workspaceIdForKey(
   visible: SlotCWorkspaceMeta[],

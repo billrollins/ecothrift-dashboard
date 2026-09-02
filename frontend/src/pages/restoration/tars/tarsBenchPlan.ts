@@ -2,14 +2,14 @@
  * The grade table's arithmetic.
  *
  * Ashley owns what each grade sells for. Mike owns how long the work takes.
- * Parts dollars come from the orders that target that grade — min to max
+ * Parts dollars come from the orders that target that grade - min to max
  * across paths, or one number when they agree. Each order is its own path.
  * The app does one subtraction and one division:
  *
  *     ( sells for this grade − Parts − min sells-for on the scale ) ÷ hours left
  *
- * Hours are minutes / 60. Only what is left counts. Minutes already spent —
- * looking or working — never enter this, because they cannot be recovered by
+ * Hours are minutes / 60. Only what is left counts. Minutes already spent -
+ * looking or working - never enter this, because they cannot be recovered by
  * any choice made now. They are counted in what the item *earned*, which is a
  * different question asked later.
  *
@@ -22,7 +22,7 @@ import type { TarsPartsRange } from './tarsPartsOrders';
 export interface TarsGradeEstimate {
   /** Minutes of work left to reach this grade. The only bench estimate. */
   minutes?: number;
-  /** Kept when old sessions still have it. Ignored — parts come from orders. */
+  /** Kept when old sessions still have it. Ignored - parts come from orders. */
   parts?: number;
 }
 
@@ -90,7 +90,7 @@ export function normalizeBenchPlan(value: unknown): TarsBenchPlan {
   };
 }
 
-/** Current if claimed, otherwise Original — the grade work is measured from. */
+/** Current if claimed, otherwise Original - the grade work is measured from. */
 export function currentGradeOf(plan: TarsBenchPlan): string {
   return plan.currentGrade || plan.startingGrade;
 }
@@ -162,8 +162,8 @@ export function minSellsFor(job: RestorationJobDTO, grades: string[]): number | 
 /**
  * One row's economics.
  *
- * A grade with no work left cannot produce a rate — dividing by zero hours
- * would report an infinite return on an item nobody has to touch — so its gain
+ * A grade with no work left cannot produce a rate - dividing by zero hours
+ * would report an infinite return on an item nobody has to touch - so its gain
  * is shown without one.
  */
 export function evaluateGrade(
@@ -238,7 +238,7 @@ export function buildGradeRows(
  * The row worth doing, or null when nothing is rated yet.
  *
  * Found rather than sorted to the top. The rows stay in scale order so a grade
- * is always in the same place on the screen — a table that rearranges itself
+ * is always in the same place on the screen - a table that rearranges itself
  * every time an estimate changes cannot be learned, and the one row that
  * matters is easier to mark than to move.
  */

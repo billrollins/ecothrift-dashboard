@@ -72,7 +72,7 @@ export function priceFromRetailPct(
 }
 
 export function formatLockPct(pct: number | null | undefined): string {
-  if (pct == null || !Number.isFinite(pct)) return '—';
+  if (pct == null || !Number.isFinite(pct)) return '-';
   const rounded = Math.round(pct * 10) / 10;
   return Number.isInteger(rounded) ? `${rounded}%` : `${rounded.toFixed(1)}%`;
 }

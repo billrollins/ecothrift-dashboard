@@ -52,7 +52,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='auction',
             name='priority',
-            field=models.PositiveSmallIntegerField(default=50, help_text='1–99; higher surfaces first when auto-ranked.'),
+            field=models.PositiveSmallIntegerField(default=50, help_text='1-99; higher surfaces first when auto-ranked.'),
         ),
         migrations.AddField(
             model_name='auction',

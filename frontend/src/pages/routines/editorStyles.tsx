@@ -27,8 +27,8 @@ export const titleFieldSx = {
 } as const;
 
 /**
- * A band of the form sheet. The head reads as one line on a desk — name, then
- * what the band is for — so the controls below get the full sheet width.
+ * A band of the form sheet. The head reads as one line on a desk - name, then
+ * what the band is for - so the controls below get the full sheet width.
  */
 export function FormSection({
   title,

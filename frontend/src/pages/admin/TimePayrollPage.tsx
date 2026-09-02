@@ -973,7 +973,7 @@ export default function TimePayrollPage() {
                   {employeeRows.length} employees
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Completed shifts · Mon–Sun weeks · 40 h before overtime
+                  Completed shifts · Mon-Sun weeks · 40 h before overtime
                 </Typography>
               </Box>
             </Stack>

@@ -214,7 +214,7 @@ def assign_delivery_to_day(*, job: DeliveryJob, day: DeliveryDay, user, reason: 
         and (old_stop.loaded_at or old_run.status == DeliveryRun.STATUS_EN_ROUTE)
     ):
         raise ValueError(
-            'Cannot move a loaded or en-route delivery to another day — '
+            'Cannot move a loaded or en-route delivery to another day - '
             'report an issue and reconcile the return first'
         )
 

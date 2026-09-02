@@ -5,10 +5,10 @@ Given a title, brand, and model string, returns the best matching
 inventory.Category record and a confidence score.
 
 THREE-TIER APPROACH (in order of preference):
-  1. Rule-based keyword matching — instant, no dependencies, explainable
-  2. ML classifier (TF-IDF + Logistic Regression) — trained on historical data
+  1. Rule-based keyword matching - instant, no dependencies, explainable
+  2. ML classifier (TF-IDF + Logistic Regression) - trained on historical data
      when enough labeled items exist. Requires scikit-learn (workspace/notebooks/_shared/requirements-notebooks.txt).
-  3. LLM fallback (Claude) — for ambiguous items when ML confidence is low.
+  3. LLM fallback (Claude) - for ambiguous items when ML confidence is low.
      Uses the existing ANTHROPIC_API_KEY from settings.
 
 Usage:
@@ -42,7 +42,7 @@ class CategoryResult:
 # ── Rule-based keyword map ─────────────────────────────────────────────────────
 # Each entry: (pattern_list, category_name, parent_name)
 # Patterns are matched against the normalized combined text: "{title} {brand} {model}".
-# Order matters — first match wins, so put more specific rules first.
+# Order matters - first match wins, so put more specific rules first.
 
 KEYWORD_RULES: list[tuple[list[str], str, str]] = [
     # Electronics > Laptops & Computers
@@ -326,7 +326,7 @@ def classify_item(
                 method='rules',
             )
         except Exception:
-            # DB not yet seeded — return result without ID
+            # DB not yet seeded - return result without ID
             return CategoryResult(
                 category_id=None,
                 category_name=category_name,

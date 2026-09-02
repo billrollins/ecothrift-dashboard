@@ -28,20 +28,18 @@ const STATUS_LABELS: Record<AdminStatusFilter, string> = {
 
 const FLAG_ORDER: AdminHealthFlag[] = ['overdue', 'unassigned', 'neverRun', 'blocking'];
 
-/** Fields on the ink header: white text, quiet borders, brand focus ring. */
-const darkSelectSx = {
+/** Fields on the list pane under the page header. */
+const lightSelectSx = {
   minWidth: 0,
   '& .MuiOutlinedInput-root': {
     height: 34,
     borderRadius: '9px',
     fontSize: 12.5,
     fontWeight: 600,
-    color: '#fff',
-    bgcolor: 'rgba(255,255,255,0.06)',
-    '& fieldset': { borderColor: 'rgba(255,255,255,0.18)' },
-    '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.4)' },
+    bgcolor: dutyColors.card,
+    '& fieldset': { borderColor: dutyColors.ink15 },
+    '&:hover fieldset': { borderColor: dutyColors.ink40 },
     '&.Mui-focused fieldset': { borderColor: dutyColors.brand, borderWidth: 1.5 },
-    '& .MuiSelect-icon': { color: 'rgba(255,255,255,0.6)' },
   },
 } as const;
 
@@ -75,7 +73,7 @@ export function AdminRoutineFilterBar({
             set({ department: raw === 'all' || raw === 'none' ? raw : Number(raw) });
           }}
           inputProps={{ 'aria-label': 'Department' }}
-          sx={{ ...darkSelectSx, width: 150 }}
+          sx={{ ...lightSelectSx, width: 150 }}
         >
           <MenuItem value="all">All departments</MenuItem>
           <MenuItem value="none">No department</MenuItem>
@@ -89,7 +87,7 @@ export function AdminRoutineFilterBar({
           value={filters.trigger}
           onChange={(e) => set({ trigger: e.target.value as 'all' | RoutineTrigger })}
           inputProps={{ 'aria-label': 'Repeats' }}
-          sx={{ ...darkSelectSx, width: 140 }}
+          sx={{ ...lightSelectSx, width: 140 }}
         >
           <MenuItem value="all">Any cadence</MenuItem>
           {Object.entries(TRIGGER_LABELS).map(([value, label]) => (
@@ -102,7 +100,7 @@ export function AdminRoutineFilterBar({
           value={filters.sort}
           onChange={(e) => set({ sort: e.target.value as AdminSort })}
           inputProps={{ 'aria-label': 'Sort' }}
-          sx={{ ...darkSelectSx, width: 160 }}
+          sx={{ ...lightSelectSx, width: 160 }}
         >
           {(Object.keys(SORT_LABELS) as AdminSort[]).map((value) => (
             <MenuItem key={value} value={value}>Sort: {SORT_LABELS[value]}</MenuItem>
@@ -116,7 +114,7 @@ export function AdminRoutineFilterBar({
           options={(Object.keys(STATUS_LABELS) as AdminStatusFilter[]).map((id) => ({ id, label: STATUS_LABELS[id] }))}
           onChange={(status) => set({ status })}
         />
-        <Box sx={{ width: 1, height: 22, bgcolor: 'rgba(255,255,255,0.14)', mx: 0.25 }} />
+        <Box sx={{ width: 1, height: 22, bgcolor: dutyColors.ink15, mx: 0.25 }} />
         {FLAG_ORDER.map((flag) => (
           <Chip
             key={flag}
@@ -179,7 +177,7 @@ function Segmented<T extends string>({
         height: 32,
         p: '3px',
         borderRadius: '9px',
-        bgcolor: 'rgba(255,255,255,0.10)',
+        bgcolor: dutyColors.ink08,
       }}
     >
       {options.map((option) => {
@@ -201,11 +199,11 @@ function Segmented<T extends string>({
               cursor: 'pointer',
               border: 'none',
               borderRadius: '7px',
-              color: selected ? '#fff' : 'rgba(255,255,255,0.68)',
+              color: selected ? '#fff' : dutyColors.ink60,
               bgcolor: selected ? dutyColors.brand : 'transparent',
-              boxShadow: selected ? '0 1px 3px rgba(0,0,0,0.35)' : 'none',
+              boxShadow: selected ? '0 1px 3px rgba(27,94,32,0.28)' : 'none',
               transition: 'background-color 120ms, color 120ms',
-              '&:hover': { color: '#fff', bgcolor: selected ? dutyColors.brandDark : 'rgba(255,255,255,0.08)' },
+              '&:hover': { color: selected ? '#fff' : dutyColors.ink, bgcolor: selected ? dutyColors.brandDark : dutyColors.ink08 },
             }}
           >
             {option.label}
@@ -249,11 +247,11 @@ function Chip({
         fontWeight: 700,
         cursor: 'pointer',
         borderRadius: 999,
-        border: `1px solid ${selected ? '#fff' : 'rgba(255,255,255,0.22)'}`,
-        color: selected ? dutyColors.ink : 'rgba(255,255,255,0.82)',
-        bgcolor: selected ? '#fff' : 'transparent',
+        border: `1px solid ${selected ? dutyColors.ink : dutyColors.ink15}`,
+        color: selected ? dutyColors.ink : dutyColors.ink60,
+        bgcolor: selected ? dutyColors.card : 'transparent',
         transition: 'background-color 120ms, color 120ms, border-color 120ms',
-        '&:hover': { borderColor: selected ? '#fff' : 'rgba(255,255,255,0.5)' },
+        '&:hover': { borderColor: selected ? dutyColors.ink : dutyColors.ink40 },
       }}
     >
       {children}
@@ -269,8 +267,8 @@ function Chip({
           borderRadius: 999,
           fontSize: 11.5,
           fontWeight: 800,
-          color: warm ? '#fff' : selected ? dutyColors.ink60 : 'rgba(255,255,255,0.7)',
-          bgcolor: warm ? dutyColors.red : selected ? dutyColors.ink08 : 'rgba(255,255,255,0.12)',
+          color: warm ? '#fff' : dutyColors.ink60,
+          bgcolor: warm ? dutyColors.red : dutyColors.ink08,
         }}
       >
         {count}

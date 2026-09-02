@@ -225,7 +225,7 @@ class PurchaseOrder(models.Model):
             MaxValueValidator(Decimal('0.9999')),
         ],
         help_text=(
-            'Estimated shrinkage fraction (0–1). Item cost allocates total_cost over expected '
+            'Estimated shrinkage fraction (0-1). Item cost allocates total_cost over expected '
             'recoverable retail: PO.retail_value × (1 - est_shrink). Changing this recomputes '
             'item costs for this PO.'
         ),
@@ -434,25 +434,25 @@ class ManifestRow(models.Model):
         null=True,
         blank=True,
         related_name='matched_rows',
-        help_text='Deprecated — use ProcessingRow.matched_product / PreprocessingRow.final_matched_product. Do not write.',
+        help_text='Deprecated - use ProcessingRow.matched_product / PreprocessingRow.final_matched_product. Do not write.',
     )
     match_status = models.CharField(
         max_length=20,
         choices=MATCH_STATUS_CHOICES,
         default='pending',
-        help_text='Deprecated — match decisions live on preprocessing/processing rows. Do not write.',
+        help_text='Deprecated - match decisions live on preprocessing/processing rows. Do not write.',
     )
     match_candidates = models.JSONField(
         default=list,
         blank=True,
-        help_text='Deprecated — use PreprocessingRow.match_candidates. Do not write.',
+        help_text='Deprecated - use PreprocessingRow.match_candidates. Do not write.',
     )
     ai_match_decision = models.CharField(
         max_length=20,
         choices=AI_MATCH_DECISION_CHOICES,
         blank=True,
         default='',
-        help_text='Deprecated — use PreprocessingRow match fields. Do not write.',
+        help_text='Deprecated - use PreprocessingRow match fields. Do not write.',
     )
     ai_reasoning = models.TextField(blank=True, default='')
     notes = models.TextField(blank=True, default='')
@@ -671,7 +671,7 @@ class ProcessingRow(models.Model):
         related_name='collapse_members',
         help_text=(
             'P7 collapse: set on FOLLOWER rows pointing at the first (master) row of the '
-            'group. Presentation + check-in distribution only — manifest lines untouched.'
+            'group. Presentation + check-in distribution only - manifest lines untouched.'
         ),
     )
     split_parent = models.ForeignKey(
@@ -709,7 +709,7 @@ class ProcessingRow(models.Model):
         blank=True,
         default='pending',
         db_index=True,
-        help_text='pending | partial | checked_in | disputed — mirrors Item aggregate for this row.',
+        help_text='pending | partial | checked_in | disputed - mirrors Item aggregate for this row.',
     )
     qty_dispositioned = models.PositiveIntegerField(default=0)
     distinct_product_count = models.PositiveIntegerField(
@@ -877,7 +877,7 @@ class ItemCheckIn(models.Model):
 
 
 class RestorationJob(models.Model):
-    """One restoration batch per ItemCheckIn — grade scale/values shared across qty."""
+    """One restoration batch per ItemCheckIn - grade scale/values shared across qty."""
 
     STAGE_QUEUED = 'queued'
     STAGE_SENT = 'sent'
@@ -963,7 +963,7 @@ class RestorationJob(models.Model):
         related_name='+',
     )
     # Queue context any staff member can fill in before the item reaches a
-    # bench — no role gate, because whoever is standing at a screen should be
+    # bench - no role gate, because whoever is standing at a screen should be
     # able to answer these.
     intended_destination = models.CharField(
         max_length=32,
@@ -1023,8 +1023,8 @@ class RestorationJob(models.Model):
         related_name='restoration_jobs_timer_running',
     )
     # Every second on the bench is either investigation or performance.
-    # Investigation belongs to the item — one teardown informs every grade at
-    # once — so only work time carries a grade. look_seconds + work_seconds is
+    # Investigation belongs to the item - one teardown informs every grade at
+    # once - so only work time carries a grade. look_seconds + work_seconds is
     # kept equal to active_seconds; see services/restoration_bench.py.
     timer_mode = models.CharField(
         max_length=8,
@@ -1047,7 +1047,7 @@ class RestorationJob(models.Model):
         blank=True,
         default='',
     )
-    # The grade the item arrived at — the datum every estimate is measured
+    # The grade the item arrived at - the datum every estimate is measured
     # against. Mirrored from work_session.decisionWork.condition.currentGrade.
     starting_grade = models.CharField(max_length=64, blank=True, default='')
     final_grade = models.CharField(max_length=64, blank=True, default='')
@@ -1055,8 +1055,8 @@ class RestorationJob(models.Model):
     spent_hours = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     spent_parts_cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     # Stamped at completion so later edits to a grade scale cannot rewrite what
-    # a finished job earned. Null means it could not be computed honestly —
-    # usually no starting grade — and the job is excluded from rate reporting.
+    # a finished job earned. Null means it could not be computed honestly -
+    # usually no starting grade - and the job is excluded from rate reporting.
     value_added = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     dispositioned_at = models.DateTimeField(null=True, blank=True)
     dispositioned_by = models.ForeignKey(
@@ -1066,7 +1066,7 @@ class RestorationJob(models.Model):
         blank=True,
         related_name='restoration_jobs_dispositioned',
     )
-    # Set when Processing has retagged/repriced a returned item — clears it from
+    # Set when Processing has retagged/repriced a returned item - clears it from
     # the Restoration Returns list. Null = still needs Processing handling.
     processing_handled_at = models.DateTimeField(null=True, blank=True)
     processing_handled_by = models.ForeignKey(
@@ -1131,7 +1131,7 @@ class RestorationAction(models.Model):
     much of it there was.
 
     Actions are never merged or reused across sittings of different work. A
-    pause and resume stays one action — the person did not do anything new — but
+    pause and resume stays one action - the person did not do anything new - but
     turning to a different grade, or to a different kind of work, opens a new
     one.
     """
@@ -1774,7 +1774,7 @@ class BatchGroup(models.Model):
 
 
 class Item(models.Model):
-    """Individual inventory item — the core entity that flows through the system."""
+    """Individual inventory item - the core entity that flows through the system."""
     SOURCE_CHOICES = [
         ('purchased', 'Purchased'),
         ('consignment', 'Consignment'),

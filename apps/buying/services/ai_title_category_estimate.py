@@ -177,7 +177,7 @@ def estimate_batch(auction_ids: list[int]) -> dict[str, Any]:
         "both, with minor companion shares.\n"
         "- Hyphens, slashes, and ampersands in titles map to the closest canonical category names.\n\n"
         "Worked example (pattern only; your output must still include all 19 category keys):\n"
-        "Title: '8 Pallets of Hair Care, Makeup, and Personal Care — 2,400 Units'\n"
+        "Title: '8 Pallets of Hair Care, Makeup, and Personal Care - 2,400 Units'\n"
         "→ Concentrate 80-90% in Health, beauty & personal care; reserve the remainder for Mixed "
         "lots & uncategorized and tiny companion categories.\n\n"
         "Output JSON array only (no prose, no markdown). One object per listing, in order, with "

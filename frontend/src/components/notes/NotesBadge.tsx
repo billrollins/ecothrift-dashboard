@@ -4,7 +4,7 @@ import Button from '@mui/material/Button';
 /** Fixed footprint so a count never shoves the row. */
 export const NOTES_BADGE_WIDTH = 44;
 export const NOTES_BADGE_HEIGHT = 28;
-/** Corner chip on the queue note — small enough that the note keeps the column. */
+/** Corner chip on the queue note - small enough that the note keeps the column. */
 export const NOTES_BADGE_COMPACT_WIDTH = 22;
 export const NOTES_BADGE_COMPACT_HEIGHT = 20;
 

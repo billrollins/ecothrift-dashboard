@@ -2,7 +2,7 @@
 
 `ecothrift.us`, `www.ecothrift.us`, and `dash.ecothrift.us` all resolve to the
 same Heroku app. The staff dashboard SPA must only answer on the dashboard host;
-the public hostnames get the public site (a holding page for now — Phase 0 of the
+the public hostnames get the public site (a holding page for now - Phase 0 of the
 ``public_website`` initiative). A single canonical public host is enforced with a
 301 redirect from the other (e.g. ``www`` -> apex).
 
@@ -30,7 +30,7 @@ _HOLDING_TEMPLATE = 'public/holding.html'
 _HOLD_SHELL_MARKER = '<!--PUBLIC_SHELL-->'
 _HOLD_PATH_RE = re.compile(r'^/hold/(?P<token>[\w-]+)/?$')
 
-# Homepage featured shell — avoid a DB hit on every public request.
+# Homepage featured shell - avoid a DB hit on every public request.
 _HOME_SHELL_TTL_SECONDS = 60
 _home_shell_cache: tuple[str, float] | None = None
 

@@ -4,7 +4,7 @@ export type RoutineTrigger = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quar
 export type RoutineAssignment = 'pooled' | 'per_person';
 export type RoutineControl = 'pass_fail' | 'pass_fail_strict' | 'number' | 'text' | 'photo';
 /** How the phone renders a run. Only `checklist` is authored in the editor. */
-export type RoutineKind = 'checklist' | 'section_tally' | 'section_audit' | 'owner_spot';
+export type RoutineKind = 'checklist' | 'section_tally' | 'section_audit' | 'owner_spot' | 'work_cycle';
 export type RoutineSubjectSource = 'pool' | 'my_section' | 'other_section';
 /** When an open run stops being merely open and starts counting against the day. */
 export type RoutineLateAfter = 'due_time' | 'end_of_day' | 'grace_days';
@@ -101,11 +101,41 @@ export interface OwnerSpotResponses {
   audit: SectionAuditResponses;
 }
 
+export interface WorkCycleShelf {
+  section_id: number | null;
+  section_name: string;
+  counts: AuditCounts;
+  flags: string[];
+  photo: string | null;
+  photo_file_id: number | null;
+  notes: string;
+}
+
+export interface WorkCycleResponses {
+  mode: 'shelf' | 'non_shelf' | '';
+  shelf: WorkCycleShelf;
+  non_shelf: { done: string[]; notes: string };
+}
+
+export interface NonShelfCheck {
+  routine_key: string;
+  routine_title: string;
+  check_id: string;
+  label: string;
+}
+
+export interface WorkCycleRunnerContext {
+  taxonomy: AuditTaxonomy;
+  sections: Array<{ id: number; name: string }>;
+  non_shelf_checks: NonShelfCheck[];
+}
+
 export type AnyRoutineResponses =
   | RoutineResponses
   | SectionTallyResponses
   | SectionAuditResponses
-  | OwnerSpotResponses;
+  | OwnerSpotResponses
+  | WorkCycleResponses;
 
 /** The category list the phone renders and the score reads, sent with each run. */
 export interface AuditTaxonomy {
@@ -155,6 +185,8 @@ export interface Routine {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  /** On GET /routines/:id/ when kind is work_cycle. */
+  runner?: WorkCycleRunnerContext;
 }
 
 export interface RoutineRun {
@@ -232,10 +264,24 @@ export interface RoutineSubmission {
   submitted_at: string | null;
 }
 
+export interface RoutineDraft {
+  id: number;
+  routine: number;
+  routine_title: string;
+  kind: RoutineKind;
+  mode: string;
+  section_name: string;
+  started_at: string;
+  href: string;
+  run: number | null;
+}
+
 export interface MyRoutines {
   open: RoutineRun[];
   done: RoutineRun[];
   on_demand: Routine[];
+  drafts: RoutineDraft[];
+  idle_prompt_minutes: number;
 }
 
 export function getMyRoutineRuns() {
@@ -430,14 +476,35 @@ export interface WeekGrade {
   settings: Record<string, number>;
   missing_owners: Array<{ run_id: number; owner_name: string; sections: string }>;
   taxonomy: AuditTaxonomy;
+  work_cycles: Array<{ date: string; shelf: number; non_shelf: number }>;
+  idle_prompts: Array<{
+    user_name: string | null;
+    shown_at: string;
+    idle_minutes: number;
+    outcome: 'shelf' | 'non_shelf' | 'dismissed';
+  }>;
 }
 
 export function getRetailGrades(week?: string) {
   return api.get<WeekGrade>('/routines/grades/', { params: { week } });
 }
 
-export function createRoutineSubmission(data: { routine: number; run?: number }) {
+export function getRoutineSubmission(id: number) {
+  return api.get<RoutineSubmission>(`/routines/submissions/${id}/`);
+}
+
+export function createRoutineSubmission(data: { routine: number; run?: number; mode?: string }) {
   return api.post<RoutineSubmission>('/routines/submissions/', data);
+}
+
+export function logWorkCyclePrompt(data: {
+  outcome: 'shelf' | 'non_shelf' | 'dismissed';
+  idle_seconds: number;
+  shown_at: string;
+  register?: number | null;
+  submission?: number | null;
+}) {
+  return api.post('/routines/work-cycle/prompt/', data);
 }
 
 export function patchRoutineSubmission(id: number, responses: AnyRoutineResponses) {

@@ -1,4 +1,4 @@
-"""Hold confirmation — 6-digit code + prefetch-safe link token."""
+"""Hold confirmation - 6-digit code + prefetch-safe link token."""
 from datetime import timedelta
 from decimal import Decimal
 

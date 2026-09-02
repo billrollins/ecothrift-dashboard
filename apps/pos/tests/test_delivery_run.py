@@ -1,4 +1,4 @@
-"""Delivery day wizard — calls confirmation, route/load gates, proof, return reconcile."""
+"""Delivery day wizard - calls confirmation, route/load gates, proof, return reconcile."""
 from datetime import time, timedelta
 from unittest.mock import patch
 

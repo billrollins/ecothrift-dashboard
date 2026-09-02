@@ -1,4 +1,4 @@
-"""Seed AppSetting key online_sales.hours (Canfield Tue–Sat 9–6, closed Sun & Mon).
+"""Seed AppSetting key online_sales.hours (Canfield Tue-Sat 9-6, closed Sun & Mon).
 
 Usage:
     python manage.py seed_online_sales_hours
@@ -25,7 +25,7 @@ class Command(BaseCommand):
         if created:
             self.stdout.write(self.style.SUCCESS(f'Created online_sales.hours: {payload}'))
             return
-        # Do not overwrite operator edits — only fill missing keys.
+        # Do not overwrite operator edits - only fill missing keys.
         value = row.value if isinstance(row.value, dict) else {}
         merged = {**payload, **value}
         if merged != value:

@@ -3,7 +3,7 @@
 Three ideas hold the whole thing up.
 
 **Doing the work is most of the grade.** Open, Day, and Close are pass/fail
-checklists, and what they score on is whether they happened on time — not what
+checklists, and what they score on is whether they happened on time - not what
 they found. A closing walk that turns up four problems is a good closing walk.
 Marking the day down for it would teach everyone to find nothing.
 
@@ -27,7 +27,7 @@ from django.utils import timezone
 
 from apps.webstore.services.hours import _local_now, is_open_day
 
-from .models import Routine, RoutineRun
+from .models import Routine, RoutineRun, RoutineSubmission, WorkCyclePrompt
 from .schedule import (
     SYSTEM_CLOSE,
     SYSTEM_CROSS_CHECK,
@@ -35,6 +35,7 @@ from .schedule import (
     SYSTEM_OPEN,
     SYSTEM_OWNER_SPOT,
     SYSTEM_TALLY,
+    SYSTEM_WORK_CYCLE,
     was_late,
     week_days,
 )
@@ -83,7 +84,7 @@ def score_run(run: RoutineRun, cfg: dict | None = None) -> float | None:
     kind = run.routine.kind
     if kind == Routine.KIND_CHECKLIST:
         return checklist_score(run, cfg)
-    if kind == Routine.KIND_SECTION_TALLY:
+    if kind in (Routine.KIND_SECTION_TALLY, Routine.KIND_WORK_CYCLE):
         # Counting your own mess is a record, not a report card.
         return None
     responses = run.submission.responses if run.submission_id else {}
@@ -325,8 +326,59 @@ def week_grade(monday: date, cfg: dict | None = None) -> dict:
         'cross_checks': cross_checks,
         'tallies': list(_tally_rows(days).values()),
         'calibration': _calibration(days, cross_checks, cfg),
+        'work_cycles': _work_cycles(days),
+        'idle_prompts': _idle_prompts(days),
         'settings': cfg,
     }
+
+
+def _work_cycles(days) -> list[dict]:
+    """Submitted work-cycle walks for the week, one tile per day."""
+    start, end = days[0], days[-1]
+    rows = RoutineSubmission.objects.filter(
+        routine__system_key=SYSTEM_WORK_CYCLE,
+        status=RoutineSubmission.STATUS_SUBMITTED,
+        submitted_at__isnull=False,
+        submitted_at__date__gte=start,
+        submitted_at__date__lte=end,
+    ).values_list('submitted_at', 'responses')
+    by_day = {
+        day.isoformat(): {'date': day.isoformat(), 'shelf': 0, 'non_shelf': 0}
+        for day in days
+    }
+    for submitted_at, responses in rows:
+        local = timezone.localtime(submitted_at).date().isoformat()
+        bucket = by_day.get(local)
+        if not bucket:
+            continue
+        mode = (responses or {}).get('mode')
+        if mode == 'shelf':
+            bucket['shelf'] += 1
+        elif mode == 'non_shelf':
+            bucket['non_shelf'] += 1
+    return [by_day[day.isoformat()] for day in days]
+
+
+def _idle_prompts(days) -> list[dict]:
+    """Every idle prompt shown this week, dismissed or started."""
+    start, end = days[0], days[-1]
+    rows = (
+        WorkCyclePrompt.objects.filter(
+            shown_at__date__gte=start,
+            shown_at__date__lte=end,
+        )
+        .select_related('user')
+        .order_by('-shown_at')
+    )
+    return [
+        {
+            'user_name': row.user.full_name if row.user_id else None,
+            'shown_at': row.shown_at,
+            'idle_minutes': round(row.idle_seconds / 60, 1),
+            'outcome': row.outcome,
+        }
+        for row in rows
+    ]
 
 
 def parse_week(raw: str | None) -> date:

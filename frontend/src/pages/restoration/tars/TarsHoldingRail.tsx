@@ -104,7 +104,7 @@ export function TarsHoldingRail({
                 }}
               >
                 {ready
-                  ? 'purchase in — ready to finish'
+                  ? 'purchase in - ready to finish'
                   : holdDisplayLabel(job.pending_reason)}
               </Typography>
             </Box>

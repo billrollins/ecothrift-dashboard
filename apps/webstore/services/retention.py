@@ -2,12 +2,12 @@
 
 Three tiers, one mechanism:
 
-* **Now** — open holds and threads needing a reply. Nothing here is aged out.
-* **Archived** — `archived_at` is set, so the row drops out of the staff queues
+* **Now** - open holds and threads needing a reply. Nothing here is aged out.
+* **Archived** - `archived_at` is set, so the row drops out of the staff queues
   but stays searchable forever. Presentation only: archiving never changes a
   status, never releases reserved stock, never emails anyone, and never hides
   anything from the customer's own view of their hold.
-* **Purged** — the row is deleted. Only ever holds that were abandoned before
+* **Purged** - the row is deleted. Only ever holds that were abandoned before
   the customer proved their email, because there is no business record behind
   them. Completed sales are never purged at any age.
 
@@ -55,7 +55,7 @@ def abandoned_hold_purge_days() -> int:
 def customer_history_days() -> int:
     """Released holds older than this drop off the customer's history view.
 
-    Picked-up holds are exempt — that is the customer's receipt.
+    Picked-up holds are exempt - that is the customer's receipt.
     """
     return _days('ONLINE_SALES_CUSTOMER_HISTORY_DAYS', 90)
 
@@ -121,7 +121,7 @@ def unarchive_conversation(conversation: Conversation) -> Conversation:
 def stale_released_holds(*, now=None) -> QuerySet[Reservation]:
     """Released holds past the archive window and not archived yet.
 
-    `updated_at` is the release moment for these statuses — there is no
+    `updated_at` is the release moment for these statuses - there is no
     dedicated released_at column, and the Released tab already sorts by it.
     """
     now = now or timezone.now()

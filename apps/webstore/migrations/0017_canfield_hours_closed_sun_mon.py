@@ -14,7 +14,7 @@ def update_hours(apps, schema_editor):
     value.setdefault('open', '09:00')
     value.setdefault('close', '18:00')
     row.value = value
-    row.description = 'Online Sales hold expiry hours (Canfield Tue–Sat 9–6, closed Sun & Mon).'
+    row.description = 'Online Sales hold expiry hours (Canfield Tue-Sat 9-6, closed Sun & Mon).'
     row.save(update_fields=['value', 'description'])
 
 
@@ -26,7 +26,7 @@ def revert_hours(apps, schema_editor):
     value = dict(row.value) if isinstance(row.value, dict) else {}
     value['closed_weekdays'] = [6]
     row.value = value
-    row.description = 'Online Sales hold expiry hours (Canfield Mon–Sat 9–6, closed Sunday).'
+    row.description = 'Online Sales hold expiry hours (Canfield Mon-Sat 9-6, closed Sunday).'
     row.save(update_fields=['value', 'description'])
 
 

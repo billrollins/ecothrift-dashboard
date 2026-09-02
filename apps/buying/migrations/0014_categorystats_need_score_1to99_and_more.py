@@ -31,7 +31,7 @@ class Migration(migrations.Migration):
             name='need_score_1to99',
             field=models.PositiveSmallIntegerField(
                 default=50,
-                help_text='Min–max scaled need vs other taxonomy buckets (1–99); recomputed daily.',
+                help_text='Min-max scaled need vs other taxonomy buckets (1-99); recomputed daily.',
             ),
         ),
         migrations.RunPython(_clamp_need_scores, migrations.RunPython.noop),
@@ -40,7 +40,7 @@ class Migration(migrations.Migration):
             name='need_score',
             field=models.PositiveSmallIntegerField(
                 blank=True,
-                help_text='1–99 weighted mix of CategoryStats.need_score_1to99 for this auction.',
+                help_text='1-99 weighted mix of CategoryStats.need_score_1to99 for this auction.',
                 null=True,
             ),
         ),

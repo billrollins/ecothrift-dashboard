@@ -23,7 +23,7 @@ export interface RunPresentation {
  * `inGroup` is the bucket the row is being drawn in. A badge is never shown
  * for the fact the group header already states (an "Overdue" chip inside the
  * Overdue group is noise), but the same fact *is* shown when the row sits
- * somewhere else — an overdue run pinned in Blocking still needs the word.
+ * somewhere else - an overdue run pinned in Blocking still needs the word.
  */
 export function presentRun(
   run: RoutineRun,

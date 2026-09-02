@@ -180,9 +180,9 @@ def _apply_manifest_rows_ordering(qs, ordering_param: str):
 
 def _apply_auction_list_visibility(request, queryset):
     """
-    Default: **live** auctions only — non-archived, ``open`` / ``closing`` with ``end_time`` in the future.
+    Default: **live** auctions only - non-archived, ``open`` / ``closing`` with ``end_time`` in the future.
 
-    ``completed=1``: **recently ended** — ``end_time`` in the last 7 days and not after ``now`` (clock-ended),
+    ``completed=1``: **recently ended** - ``end_time`` in the last 7 days and not after ``now`` (clock-ended),
     regardless of ``status`` (status may still be ``open`` until the next sweep/poll).
 
     ``archived=1``: archived auctions only (``archived_at`` set).
@@ -216,7 +216,7 @@ def _apply_auction_list_visibility(request, queryset):
 
 class WatchlistAuctionViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     """
-    GET /api/buying/watchlist/ — auctions the staff user is watching (WatchlistEntry).
+    GET /api/buying/watchlist/ - auctions the staff user is watching (WatchlistEntry).
 
     Default ordering: ``end_time`` ascending (soonest ending first).
     """
@@ -479,8 +479,8 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=['post', 'delete'], url_path='watchlist')
     def watchlist(self, request, pk=None):
         """
-        POST: idempotent add — always 200 with watchlist entry (create or existing).
-        DELETE: remove if present — always 204 (no 404).
+        POST: idempotent add - always 200 with watchlist entry (create or existing).
+        DELETE: remove if present - always 204 (no 404).
         """
         auction = self.get_object()
         if request.method == 'POST':
@@ -609,7 +609,7 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
         Recompute priority, need, and valuation from current local data (no B-Stock JWT).
 
         For a future \"full refresh\", also call sweep/enrich against B-Stock where token-backed
-        routes are re-enabled — not done here.
+        routes are re-enabled - not done here.
         """
         auction = self.get_object()
         recompute_auction_valuation(auction)
@@ -642,9 +642,9 @@ class SweepView(APIView):
     POST triggers pipeline.run_discovery (search API; no B-Stock JWT required).
 
     Optional query params:
-    - marketplace=<slug> — limit to one marketplace.
-    - run_ai=1|true|yes — run AI estimate on swept auctions, then lightweight recompute (default: off).
-    - defer_valuation=1|true|yes — discovery only; skip lightweight recompute and AI (fastest).
+    - marketplace=<slug> - limit to one marketplace.
+    - run_ai=1|true|yes - run AI estimate on swept auctions, then lightweight recompute (default: off).
+    - defer_valuation=1|true|yes - discovery only; skip lightweight recompute and AI (fastest).
     Default (no params): discovery + lightweight recompute, no AI (Refresh button path).
     enrich_detail stays False so this does not call auction.bstock.com (no token).
     """
@@ -705,7 +705,7 @@ class SweepView(APIView):
                     logger.info(
                         '[sweep] ai_estimate_done ms=%.1f considered=%s',
                         ai_ms,
-                        (ai_est or {}).get('considered', '—'),
+                        (ai_est or {}).get('considered', '-'),
                     )
                     summary['ai_estimate'] = ai_est
                 t_lw = time.perf_counter()

@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # 8425 West Center Road, Omaha NE 68124
 STORE_LAT = 41.2341862
 STORE_LON = -96.0436631
-STORE_LABEL = 'Eco-Thrift — 8425 West Center Road, Omaha NE 68124'
+STORE_LABEL = 'Eco-Thrift - 8425 West Center Road, Omaha NE 68124'
 # Stable address string for Maps URLs / Directions (matches Deliveries board).
 STORE_MAPS_ADDRESS = '8425 West Center Road, Omaha, NE 68124'
 # google.com/maps/dir allows up to 9 waypoints when origin + destination are set.
@@ -683,7 +683,7 @@ def _service_seconds() -> int:
         from apps.pos.services.delivery_settings import get_delivery_service_seconds
 
         return get_delivery_service_seconds()
-    except Exception:  # noqa: BLE001 — settings layer must never break routing
+    except Exception:  # noqa: BLE001 - settings layer must never break routing
         return SERVICE_SECONDS_PER_STOP
 
 

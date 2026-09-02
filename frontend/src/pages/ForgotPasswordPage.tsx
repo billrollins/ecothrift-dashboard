@@ -1,7 +1,7 @@
 /**
  * Ask for a reset link. That is the whole page.
  *
- * The token never comes back to the browser and is never typed by hand — it
+ * The token never comes back to the browser and is never typed by hand - it
  * arrives as a link in email and lands on /reset-password.
  */
 import { useState } from 'react';

@@ -43,7 +43,7 @@ def _to_int(v: Any) -> int | None:
 def _retail_value_from_listing(raw: dict[str, Any]) -> Decimal | None:
     """
     Extended retail from search listing (e.g. retailPrice). Values are dollars (float),
-    not cent-scaled — do not use _price_to_dollars (large integers would be misread).
+    not cent-scaled - do not use _price_to_dollars (large integers would be misread).
     """
     v = _first(
         raw,

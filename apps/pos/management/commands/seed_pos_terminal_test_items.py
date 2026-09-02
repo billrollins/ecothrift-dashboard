@@ -28,7 +28,7 @@ from apps.pos.models import CartLine
 
 SKU_PREFIX = 'POSTEST'
 SOLD_SKU = 'POSTESTSOLD'
-ITEM_NOTES = 'Seeded by seed_pos_terminal_test_items — POS cart scroll QA only.'
+ITEM_NOTES = 'Seeded by seed_pos_terminal_test_items - POS cart scroll QA only.'
 
 # Short distinct titles so cart lines are easy to tell apart while scrolling.
 LINE_TITLES = [
@@ -130,7 +130,7 @@ class Command(BaseCommand):
             raise CommandError('--count must be between 1 and 99.')
 
         if options['dry_run']:
-            self.stdout.write(self.style.WARNING('Dry run — no writes.'))
+            self.stdout.write(self.style.WARNING('Dry run - no writes.'))
             for n in range(1, count + 1):
                 self.stdout.write(f'  {_sku(n)}\t{_price_for(n)}\t{_title_for(n)}')
             self.stdout.write(f'  {SOLD_SKU}\t1.00\tPOS QA Sold Sample (resale path)')

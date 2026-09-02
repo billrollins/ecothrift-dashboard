@@ -1,4 +1,4 @@
-"""AI suggest-item example retrieval — must not reference nonexistent Item.category."""
+"""AI suggest-item example retrieval - must not reference nonexistent Item.category."""
 
 from decimal import Decimal
 

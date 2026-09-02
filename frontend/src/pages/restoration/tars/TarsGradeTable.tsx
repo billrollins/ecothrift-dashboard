@@ -2,7 +2,7 @@
  * Every grade the item could reach, in the order the scale lists them.
  *
  * Ashley's prices are given. Mike answers minutes. Parts dollars come from
- * the orders that target that grade — one number when the paths agree, a
+ * the orders that target that grade - one number when the paths agree, a
  * range when they do not. Each order is its own path.
  *
  * Rows never move. An earlier version sorted by rate, which meant the table
@@ -10,7 +10,7 @@
  * are reaching for should be where it was a second ago.
  *
  * Original and Current are claimed on the command deck. There is no per-grade
- * Work button — the table is prices and estimates only. Actions are on the
+ * Work button - the table is prices and estimates only. Actions are on the
  * item, not on a row.
  */
 import Box from '@mui/material/Box';

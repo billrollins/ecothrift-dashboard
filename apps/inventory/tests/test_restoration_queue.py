@@ -1,4 +1,4 @@
-"""Restoration queue — processing handoff, API, send validation."""
+"""Restoration queue - processing handoff, API, send validation."""
 
 from copy import deepcopy
 from decimal import Decimal
@@ -830,7 +830,7 @@ class RestorationJobApiTests(RestorationQueueTestBase):
 class RestorationGradeScaleTests(RestorationQueueTestBase):
     def setUp(self):
         super().setUp()
-        # Deterministic seed — migration 0070 may be absent under --keepdb.
+        # Deterministic seed - migration 0070 may be absent under --keepdb.
         for sort_order, (name, grades) in enumerate(TARS_GRADE_SCALES.items(), start=1):
             RestorationGradeScale.objects.get_or_create(
                 name=name,
@@ -1200,7 +1200,7 @@ class RestorationBenchWorkflowTests(RestorationQueueTestBase):
         results = pending.data['results'] if isinstance(pending.data, dict) else pending.data
         self.assertTrue(any(row['id'] == job_id for row in results))
 
-        # $0 is a real price for Repairable — still incomplete until Parts-only is set
+        # $0 is a real price for Repairable - still incomplete until Parts-only is set
         patch = self.client.patch(
             f'/api/inventory/restoration-jobs/{job_id}/',
             {
@@ -1643,7 +1643,7 @@ class RestorationBenchWorkflowTests(RestorationQueueTestBase):
             {
                 'disposition_type': 'untouched',
                 'reason': 'not_worth_it',
-                'notes': 'Preliminary look — not worth bench time',
+                'notes': 'Preliminary look - not worth bench time',
             },
             format='json',
         )
@@ -1722,7 +1722,7 @@ class RestorationBenchWorkflowTests(RestorationQueueTestBase):
         self.assertIsNone(job.returned_at)
 
     def test_mark_handled_rejects_queued_job_and_unmark_handled_works(self):
-        # Queued job — mark-handled must 400.
+        # Queued job - mark-handled must 400.
         order, pr, product = self._restoration_order(order_number='PO-REST-HANDLED')
         check_in = self._check_in_restoration(order, pr, product)
         queued_job = RestorationJob.objects.get(item_check_in_id=check_in.data['item_check_in_id'])
@@ -1731,7 +1731,7 @@ class RestorationBenchWorkflowTests(RestorationQueueTestBase):
         queued_job.refresh_from_db()
         self.assertIsNone(queued_job.processing_handled_at)
 
-        # Done-to-processing job — mark then unmark.
+        # Done-to-processing job - mark then unmark.
         job = self._sent_job()
         self.client.post(f'/api/inventory/restoration-jobs/{job.id}/check-in/')
         self.client.post(
@@ -1825,7 +1825,7 @@ class RestorationDispatchPathTests(RestorationQueueTestBase):
         job.save(update_fields=['scale', 'grade_values'])
         resp = self.client.post(
             f'/api/inventory/restoration-jobs/{job.id}/done/',
-            {'destination': 'processing', 'notes': 'Recalled — never priced'},
+            {'destination': 'processing', 'notes': 'Recalled - never priced'},
             format='json',
         )
         self.assertEqual(resp.status_code, 200, resp.data)

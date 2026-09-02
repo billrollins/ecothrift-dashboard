@@ -1,5 +1,5 @@
 /**
- * The Notes and Actions tabs of the receive dialog — the same pair the Finish form has,
+ * The Notes and Actions tabs of the receive dialog - the same pair the Finish form has,
  * so a job reads the same way on the bench and at the receiving desk.
  *
  * Both panes stay mounted so their queries do not refetch every time the tab changes.

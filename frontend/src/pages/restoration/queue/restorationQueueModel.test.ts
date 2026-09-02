@@ -136,7 +136,7 @@ describe('waiting time', () => {
 
   it('survives an unparseable date', () => {
     expect(hoursWaiting(job({ created_at: 'not a date' }), NOW)).toBeNull();
-    expect(formatWaiting(job({ created_at: 'not a date' }), NOW)).toBe('—');
+    expect(formatWaiting(job({ created_at: 'not a date' }), NOW)).toBe('-');
   });
 });
 
@@ -271,14 +271,14 @@ describe('presentation helpers', () => {
   it('keeps the line when category or brand is missing', () => {
     expect(itemKindLine(job({ brand: '' }))).toBe('Controllers');
     expect(itemKindLine(job({ category: '' }))).toBe('Microsoft');
-    expect(itemKindLine(job({ brand: '', category: '' }))).toBe('—');
+    expect(itemKindLine(job({ brand: '', category: '' }))).toBe('-');
   });
 
   it('names whose bench an item is on, and reserves a dash when it is not', () => {
     expect(benchOwnerGivenName('Mike Chen')).toBe('Mike');
     expect(benchOwnerLine(job({ stage: 'queued' }))).toEqual({
       kind: 'none',
-      label: '—',
+      label: '-',
       aria: 'Not on a bench',
     });
     expect(benchOwnerLine(job({

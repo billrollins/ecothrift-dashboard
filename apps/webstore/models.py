@@ -18,7 +18,7 @@ def _public_status_token() -> str:
     return secrets.token_urlsafe(24)
 
 
-# Unambiguous alphabet — no I, O, L, 0, 1.
+# Unambiguous alphabet - no I, O, L, 0, 1.
 _PICKUP_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
 
 
@@ -279,7 +279,7 @@ class Reservation(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
         null=True, blank=True, related_name='+',
     )
-    # Customer hide from History — separate from staff archive. Restore from
+    # Customer hide from History - separate from staff archive. Restore from
     # Account; never changes status or stock.
     customer_archived_at = models.DateTimeField(null=True, blank=True)
 
@@ -292,7 +292,7 @@ class Reservation(models.Model):
             models.Index(fields=['status', 'created_at']),
             models.Index(fields=['listing', 'status']),
             models.Index(fields=['archived_at', 'status']),
-            # Holds join to a customer by email, not by FK. Plain index only —
+            # Holds join to a customer by email, not by FK. Plain index only -
             # db_index=True would also build the varchar_pattern_ops twin.
             models.Index(fields=['email']),
         ]
@@ -358,7 +358,7 @@ class ReservationEvent(models.Model):
 
 
 class HoldConfirmation(models.Model):
-    """One confirmation attempt for a pending hold — code + link secrets, hashed."""
+    """One confirmation attempt for a pending hold - code + link secrets, hashed."""
 
     VIA_CODE = 'code'
     VIA_LINK = 'link'

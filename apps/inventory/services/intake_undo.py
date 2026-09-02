@@ -55,7 +55,7 @@ def _empty_preview(to_stage: str) -> dict[str, Any]:
 def _terminal_block_reason(order: PurchaseOrder) -> str | None:
     if order.items.filter(status__in=TERMINAL_ITEM_STATUSES).exists():
         return (
-            'Cannot undo — some generated items are sold, scrapped, or lost.'
+            'Cannot undo - some generated items are sold, scrapped, or lost.'
         )
     return None
 
@@ -177,7 +177,7 @@ def compute_undo_preview(order: PurchaseOrder, to_stage: str) -> dict[str, Any]:
         base['rows_to_update']['inventory_preprocessingrow'] = preprow_ct
         return base
 
-    # finalize — new-flow bookmarks are ALWAYS manifest-linked (finalize sets
+    # finalize - new-flow bookmarks are ALWAYS manifest-linked (finalize sets
     # manifest_row_id at creation), so linkage is not a danger signal. Physical
     # facts are: real Items (checked above) and check-in batches.
     if not bookmark_ct:
@@ -190,7 +190,7 @@ def compute_undo_preview(order: PurchaseOrder, to_stage: str) -> dict[str, Any]:
     if ItemCheckIn.objects.filter(purchase_order_id=order.pk).exists():
         return _blocked(
             base,
-            'Cannot undo finalize — check-in batches exist on this order.',
+            'Cannot undo finalize - check-in batches exist on this order.',
         )
     _ = linked_bm  # informational only since the intake redesign
     base['fields_to_null'] = ['finalized_at', 'review_saved_at']
@@ -256,7 +256,7 @@ def _apply_ai_cleanup(order: PurchaseOrder) -> None:
         bulk_clear_preprocess_ai_and_final_layers(pr_qs)
         # AI-estimated retail rewind: cleanup writes est_retail into staging
         # unit_retail for blank-retail rows (services/ai_cleanup.py). Reset those
-        # back to the manifest truth (None). Must run BEFORE ai_status is wiped —
+        # back to the manifest truth (None). Must run BEFORE ai_status is wiped -
         # the manifest-less subset is identified via ai_status.pricing.est_retail.
         pr_qs.filter(
             manifest_row__isnull=False,
@@ -287,7 +287,7 @@ def _apply_ai_cleanup(order: PurchaseOrder) -> None:
 
 def _apply_finalize(order: PurchaseOrder) -> None:
     # Since the intake redesign, final_* layers are written at cleanup-apply and review-PATCH
-    # time — finalize only READS them to project bookmarks. Rewinding therefore preserves
+    # time - finalize only READS them to project bookmarks. Rewinding therefore preserves
     # every Final Decisions edit (prices, matches, listing fields) and deletes bookmarks only.
     with transaction.atomic():
         locked = PurchaseOrder.objects.select_for_update().get(pk=order.pk)

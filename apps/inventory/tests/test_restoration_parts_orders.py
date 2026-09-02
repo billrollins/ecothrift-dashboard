@@ -1,4 +1,4 @@
-"""Named restoration parts orders — sequence, money, finish gate, alerts."""
+"""Named restoration parts orders - sequence, money, finish gate, alerts."""
 
 from datetime import timedelta
 from decimal import Decimal

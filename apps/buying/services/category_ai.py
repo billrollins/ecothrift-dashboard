@@ -27,7 +27,7 @@ def _default_model() -> str:
 def build_system_prompt() -> str:
     lines = [
         'You assign liquidation manifest line groups to exactly one of these 19 categories.',
-        'Respond with JSON only — no markdown fences.',
+        'Respond with JSON only - no markdown fences.',
         '',
     ]
     for i, name in enumerate(TAXONOMY_V1_CATEGORY_NAMES, start=1):
@@ -46,7 +46,7 @@ def build_user_prompt(
         'Here are sample lines (title | brand | condition):',
     ]
     for title, brand, cond in sample_lines:
-        parts.append(f'- {title or "—"} | {brand or "—"} | {cond or "—"}')
+        parts.append(f'- {title or "-"} | {brand or "-"} | {cond or "-"}')
     parts.append('')
     parts.append(
         'Respond with JSON only: '

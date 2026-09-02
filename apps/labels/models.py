@@ -2,13 +2,13 @@
 
 A ``CustomLabel`` is a persistent, printable label owned by staff:
 
-  * ``kind="pdf"``      — a saved PDF on S3, printed as-is × N copies.
-  * ``kind="template"`` — a structured definition (size, optional S3 background image,
+  * ``kind="pdf"``      - a saved PDF on S3, printed as-is × N copies.
+  * ``kind="template"`` - a structured definition (size, optional S3 background image,
     text elements bound to variables) rendered monochrome at print time.
 
 Definitions live in Postgres (``definition`` JSON, validated by
 ``apps.labels.definition.validate_definition``); media lives on S3 via ``core.S3File``
-(webstore/blog upload pattern). This catalog is parallel to — and does not replace —
+(webstore/blog upload pattern). This catalog is parallel to - and does not replace -
 the product price/QR label pipeline in ``printserver/services/label_printer.py``.
 """
 from __future__ import annotations

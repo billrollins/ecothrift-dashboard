@@ -6,7 +6,7 @@
  *
  * The description is the one thing this screen insists on. An action nobody
  * described is a hole in the record, so until it is filled in the buttons that
- * would move on are disabled and say why — the block is visible before it is
+ * would move on are disabled and say why - the block is visible before it is
  * hit, never after.
  */
 import Box from '@mui/material/Box';

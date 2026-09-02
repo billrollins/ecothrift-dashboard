@@ -106,7 +106,7 @@ class AuctionListSerializer(serializers.ModelSerializer):
         return 0
 
     def get_top_categories(self, obj: Auction) -> list[dict[str, float | str]]:
-        """Top 3 categories by % — prefer manifest distribution, else AI estimates."""
+        """Top 3 categories by % - prefer manifest distribution, else AI estimates."""
         raw = obj.manifest_category_distribution
         if not raw:
             raw = obj.ai_category_estimates

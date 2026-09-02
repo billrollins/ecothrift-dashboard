@@ -1,4 +1,4 @@
-"""TARS restoration queue — grade scales, job lifecycle helpers."""
+"""TARS restoration queue - grade scales, job lifecycle helpers."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ _SEED_SCALES: dict[str, list[str]] = {
     'Condition': ['New', 'Like-new', 'Good', 'Fair', 'Salvage'],
 }
 
-# Back-compat alias — prefer get_active_scales() for runtime validation.
+# Back-compat alias - prefer get_active_scales() for runtime validation.
 TARS_GRADE_SCALES = _SEED_SCALES
 
 RESTORATION_DISPATCH = 'restoration'
@@ -99,8 +99,8 @@ def normalize_grade_values(raw: Any) -> dict[str, float]:
 def empty_values_for_scale(_scale: str, prev: dict[str, float] | None = None) -> dict[str, float]:
     """Keep every recorded price when the scale changes.
 
-    Grades not on the new scale stay in the map so switching back — or
-    switching by accident — does not throw the numbers away. Completeness
+    Grades not on the new scale stay in the map so switching back - or
+    switching by accident - does not throw the numbers away. Completeness
     still only requires the current scale's grades.
     """
     prev = prev or {}
@@ -337,9 +337,9 @@ def request_restoration_valuation(
 ) -> RestorationJob:
     """TARS asks Processing to look at this item.
 
-    ``missing`` — fill blank grade prices (the original request).
-    ``disagree`` — Mike does not agree with the posted values; all grades.
-    ``question`` — a note for Processing; grades may be empty.
+    ``missing`` - fill blank grade prices (the original request).
+    ``disagree`` - Mike does not agree with the posted values; all grades.
+    ``question`` - a note for Processing; grades may be empty.
     """
     job = RestorationJob.objects.select_for_update().get(pk=job.pk)
     if job.stage in (
@@ -602,7 +602,7 @@ def delete_restoration_job_for_check_in(check_in: ItemCheckIn) -> None:
     if job is None:
         return
     if job.stage != RestorationJob.STAGE_QUEUED:
-        raise ValueError('Restoration job has already left the queue — change dispatch is blocked.')
+        raise ValueError('Restoration job has already left the queue - change dispatch is blocked.')
     job.delete()
 
 
@@ -613,7 +613,7 @@ def delete_restoration_job_if_removable(check_in: ItemCheckIn) -> None:
     if job is None:
         return
     if job.stage not in (RestorationJob.STAGE_QUEUED, RestorationJob.STAGE_SENT):
-        raise ValueError('Cannot delete check-in — restoration job is in progress.')
+        raise ValueError('Cannot delete check-in - restoration job is in progress.')
     job.delete()
 
 
@@ -744,7 +744,7 @@ def _ensure_check_in_for_item(item: Item, user) -> ItemCheckIn:
         return ItemCheckIn.objects.select_for_update().get(pk=item.check_in_id)
 
     if not item.purchase_order_id:
-        raise ValueError(f'{item.sku} has no purchase order — cannot queue for restoration.')
+        raise ValueError(f'{item.sku} has no purchase order - cannot queue for restoration.')
 
     from apps.inventory.models import ProcessingRow
     from apps.inventory.processing_ops import _sync_item_check_in_quantity

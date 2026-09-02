@@ -223,7 +223,7 @@ def ensure_thumbnail_for_attachment(
     high = att.s3_file
     thumb_key = thumb_key_for_high_res(high.key)
     if default_storage.exists(thumb_key):
-        # Orphan storage object from a prior partial run — link a new S3File row.
+        # Orphan storage object from a prior partial run - link a new S3File row.
         try:
             size = default_storage.size(thumb_key)
         except Exception:

@@ -1,4 +1,4 @@
-"""Create today's RoutineRun rows. Honour store hours (not Sun–Mon).
+"""Create today's RoutineRun rows. Honour store hours (not Sun-Mon).
 
     python manage.py materialize_routines
     python manage.py materialize_routines --dry-run

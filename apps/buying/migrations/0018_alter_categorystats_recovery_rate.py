@@ -13,6 +13,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='categorystats',
             name='recovery_rate',
-            field=models.DecimalField(decimal_places=6, help_text='0–1; SUM(sold_for)/SUM(retail_value) for qualifying sold rows, all-time; 0 when denominator is zero.', max_digits=8),
+            field=models.DecimalField(decimal_places=6, help_text='0-1; SUM(sold_for)/SUM(retail_value) for qualifying sold rows, all-time; 0 when denominator is zero.', max_digits=8),
         ),
     ]

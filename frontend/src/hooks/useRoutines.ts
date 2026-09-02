@@ -12,8 +12,10 @@ import {
   getRoutine,
   getRoutineAssignees,
   getRoutineRun,
+  getRoutineSubmission,
   getRoutines,
   getSections,
+  logWorkCyclePrompt,
   hardDeleteRoutine,
   patchRoutineSubmission,
   reorderSections,
@@ -36,7 +38,9 @@ export function useMyRoutineRuns() {
   return useQuery({
     queryKey: ['routines', 'mine'],
     queryFn: async () => (await getMyRoutineRuns()).data,
-    refetchInterval: 30_000,
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   });
 }
 
@@ -189,13 +193,42 @@ export function useCoverRun() {
   });
 }
 
+export function useRoutineSubmission(id: number | null) {
+  return useQuery({
+    queryKey: ['routines', 'submission', id],
+    queryFn: async () => (await getRoutineSubmission(id as number)).data,
+    enabled: id != null,
+  });
+}
+
 export function useStartRoutineSubmission() {
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { routine: number; run?: number }) => {
+    mutationFn: async (input: { routine: number; run?: number; mode?: string }) => {
       const { data } = await createRoutineSubmission(input);
       return data;
     },
     retry: false,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['routines', 'mine'] });
+    },
+  });
+}
+
+export function useLogWorkCyclePrompt() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      outcome: 'shelf' | 'non_shelf' | 'dismissed';
+      idle_seconds: number;
+      shown_at: string;
+      register?: number | null;
+      submission?: number | null;
+    }) => (await logWorkCyclePrompt(input)).data,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['routines'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard', 'metrics'] });
+    },
   });
 }
 
@@ -214,6 +247,7 @@ function takeSubmittedRunOffTheBoard(old: MyRoutines | undefined, submission: Ro
   const closed = runId == null ? undefined : old.open.find((row) => row.id === runId);
   return {
     ...old,
+    drafts: (old.drafts ?? []).filter((row) => row.id !== submission.id),
     open: runId == null ? old.open : old.open.filter((row) => row.id !== runId),
     done: closed
       ? [{

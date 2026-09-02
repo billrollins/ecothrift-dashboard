@@ -1,7 +1,7 @@
 /**
  * How the item in hand leaves the bench.
  *
- * Four command keys — Queue, Hold, Reject, Finish — in that order.
+ * Four command keys - Queue, Hold, Reject, Finish - in that order.
  */
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
@@ -64,7 +64,7 @@ export function TarsDispositionBar({
             component="button"
             type="button"
             disabled={busy}
-            aria-label={choice === 'done' && finishBlocked ? 'Finish blocked — parts are on order' : DISPATCH_LABELS[choice]}
+            aria-label={choice === 'done' && finishBlocked ? 'Finish blocked - parts are on order' : DISPATCH_LABELS[choice]}
             onClick={() => choose(choice)}
             sx={{
               ...TYPE.micro,

@@ -33,7 +33,7 @@ def forwards_dispute_backfill(apps, schema_editor):
                 'status': it.status,
             })
         for (po_id, dtype), payload_items in buckets.items():
-            title = f'Processing dispute ({dtype}) — {len(payload_items)} items'
+            title = f'Processing dispute ({dtype}) - {len(payload_items)} items'
             Dispute.objects.create(
                 purchase_order_id=po_id,
                 kind='processing',
@@ -51,7 +51,7 @@ def forwards_dispute_backfill(apps, schema_editor):
             if not po_id:
                 continue
             affected.add(po_id)
-            title = f'Processing dispute ({it.dispute_type}) — {getattr(it, "sku", "")}'
+            title = f'Processing dispute ({it.dispute_type}) - {getattr(it, "sku", "")}'
             Dispute.objects.create(
                 purchase_order_id=po_id,
                 kind='processing',

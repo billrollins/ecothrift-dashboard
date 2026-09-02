@@ -170,7 +170,7 @@ def print_server_releases(request):
 
 @api_view(['GET'])
 def print_server_version_public(request):
-    """Public (no auth) endpoint — returns current print server version for the /manage page."""
+    """Public (no auth) endpoint - returns current print server version for the /manage page."""
     release = PrintServerRelease.objects.filter(is_current=True).select_related('s3_file').first()
     if not release:
         return Response({'available': False})

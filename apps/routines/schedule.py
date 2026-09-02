@@ -127,7 +127,7 @@ def run_moments(run: RoutineRun) -> dict:
     """The three instants that drive nagging, from the run's day and its routine.
 
     Derived rather than stored so retiming a routine also retimes the runs that
-    are already open — the whole point of editing a due time mid-day.
+    are already open - the whole point of editing a due time mid-day.
 
     - `remind_at`: soft. Badges on the Routines link and in the list.
     - `nag_at`: hard. The app-bar alert. None means "when you clock out".
@@ -189,7 +189,7 @@ def cross_check_pairs(sections, week: int) -> dict[int, Section]:
     """Who audits which section this week: `{owner_id: section}`.
 
     The offset walks with the ISO week so the same two people are not paired
-    every Tuesday, and it never lands on your own aisle — the whole value of a
+    every Tuesday, and it never lands on your own aisle - the whole value of a
     cross-check is that the person did not put the stock there.
     """
     owners = section_owner_ids(sections)
@@ -336,9 +336,17 @@ def _upsert_run(routine: Routine, key: str, user, due, extras: dict) -> bool:
         current = run.section_id if field == 'section' else getattr(run, field)
         wanted = (value.pk if value else None) if field == 'section' else value
         # A drawn sample is fixed once written; rerolling it every refresh would
-        # let anyone shop for an easier audit.
+        # let anyone shop for an easier audit. An empty owner-spot sample is the
+        # exception: the run was born before any section existed, and it has to
+        # pick one up the next time materialize runs.
         if field == 'generated' and run.generated:
-            continue
+            hollow = (
+                routine.kind == Routine.KIND_OWNER_SPOT
+                and not (run.generated or {}).get('section_id')
+                and (value or {}).get('section_id')
+            )
+            if not hollow:
+                continue
         if current != wanted:
             setattr(run, field, value)
             changed.append('section_id' if field == 'section' else field)

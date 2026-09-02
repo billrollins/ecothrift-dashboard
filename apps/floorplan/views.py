@@ -83,7 +83,7 @@ class FloorPlanViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         if 'data' in request.data:
             serializer.save(revision=instance.revision + 1)
-            # References are current after a content save — sweep unused images.
+            # References are current after a content save - sweep unused images.
             purge_orphan_assets()
         else:
             serializer.save()

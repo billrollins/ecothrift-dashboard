@@ -1,4 +1,4 @@
-"""Central AI model resolution — knobs live in ``.env`` → ``ecothrift.settings``.
+"""Central AI model resolution - knobs live in ``.env`` → ``ecothrift.settings``.
 
 Every ``AI_MODEL_<PURPOSE>`` env var maps to a Django setting of the same name.
 Use ``ai_model('<PURPOSE>', override=...)`` in application code; pass per-request

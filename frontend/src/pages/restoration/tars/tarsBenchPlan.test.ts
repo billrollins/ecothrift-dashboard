@@ -42,7 +42,7 @@ describe('evaluateGrade', () => {
     expect(row.hasPartsRange).toBe(false);
   });
 
-  it('ignores a leftover parts estimate — minutes are the only bench guess', () => {
+  it('ignores a leftover parts estimate - minutes are the only bench guess', () => {
     const row = evaluateGrade(
       job(),
       plan({ estimates: { Working: { parts: 40, minutes: 30 } } }),
@@ -54,7 +54,7 @@ describe('evaluateGrade', () => {
     expect(row.rate).toBe(180);
   });
 
-  it('uses a min–max when two order paths disagree', () => {
+  it('uses a min-max when two order paths disagree', () => {
     const row = evaluateGrade(
       job(),
       plan({ estimates: { Working: { minutes: 30 } } }),

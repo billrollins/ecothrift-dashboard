@@ -211,7 +211,7 @@ DROP_PR_VENDOR_ITEM_SQL = """ALTER TABLE inventory_preprocessingrow DROP COLUMN 
 DROP_PR_CAT_SQL = """ALTER TABLE inventory_preprocessingrow DROP COLUMN IF EXISTS category CASCADE;"""
 DROP_ITM_CAT_SQL = """ALTER TABLE inventory_item DROP COLUMN IF EXISTS category CASCADE;"""
 
-# One CREATE INDEX statement per migration op (migration.atomic=False) — avoids
+# One CREATE INDEX statement per migration op (migration.atomic=False) - avoids
 # "cannot ALTER TABLE … pending trigger events" when GIN batches with other DDL.
 
 INV_MR_IDENT_GIN_SQL = """CREATE INDEX IF NOT EXISTS inv_mr_ident_gin ON inventory_manifestrow USING gin (identifiers);"""

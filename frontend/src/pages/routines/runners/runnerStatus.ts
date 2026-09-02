@@ -5,6 +5,7 @@ import type {
   RoutineResponses,
   SectionAuditResponses,
   SectionTallyResponses,
+  WorkCycleResponses,
 } from '../../../api/routines.api';
 import { failCount, unansweredCount } from '../scoring';
 
@@ -31,6 +32,15 @@ export function runnerBlockers(
     return tally.sections.length ? [] : ['You do not keep a section yet'];
   }
   if (kind === 'section_audit') return auditBlockers(responses as SectionAuditResponses, minItems);
+  if (kind === 'work_cycle') {
+    const cycle = responses as WorkCycleResponses;
+    if (cycle.mode !== 'shelf' && cycle.mode !== 'non_shelf') return ['Pick shelf check or non-shelf check'];
+    if (cycle.mode === 'shelf') {
+      return cycle.shelf.section_id ? [] : ['Pick the section you walked'];
+    }
+    const noted = Boolean(cycle.non_shelf.notes.trim());
+    return cycle.non_shelf.done.length || noted ? [] : ['Tick at least one check or write what you did'];
+  }
   const spot = responses as OwnerSpotResponses;
   const unanswered = (spot.checks || []).filter((check) => !check.result).length;
   return [
@@ -73,6 +83,11 @@ export function issuesFound(kind: RoutineKind, responses: AnyRoutineResponses | 
       .reduce((total, row) => total + sum(row.counts), 0);
   }
   if (kind === 'section_audit') return sum((responses as SectionAuditResponses).counts);
+  if (kind === 'work_cycle') {
+    const cycle = responses as WorkCycleResponses;
+    if (cycle.mode === 'shelf') return sum(cycle.shelf.counts);
+    return cycle.non_shelf.done.length;
+  }
   if (kind === 'owner_spot') {
     const spot = responses as OwnerSpotResponses;
     return sum(spot.audit?.counts) + spot.checks.filter((check) => check.result === 'fail').length;

@@ -1,5 +1,5 @@
 /**
- * Processing taking a Done restoration item — and any extra parts — back in.
+ * Processing taking a Done restoration item - and any extra parts - back in.
  *
  * The Receive tab is split: static above (what restoration handed over and the grade
  * ladder they were priced against) and the check-in for whatever is in hand below it.

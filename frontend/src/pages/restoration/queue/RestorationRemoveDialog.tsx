@@ -1,5 +1,5 @@
 /**
- * Send this item back to Processing's FROM desk — it leaves restoration.
+ * Send this item back to Processing's FROM desk - it leaves restoration.
  *
  * Untouched needs a reason. Worked needs the grade it actually reached. Notes
  * are optional either way. Confirm is the submit: this is hard to take back.

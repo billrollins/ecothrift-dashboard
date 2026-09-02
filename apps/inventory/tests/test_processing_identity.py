@@ -142,7 +142,7 @@ class WorkspaceListDetailTests(ProcessingIdentityTestBase):
         self.assertEqual(layers['price']['final'], '9.99')
         self.assertEqual(layers['unitRetail']['final'], '24.00')
 
-        # ManifestRow pricing fields are legacy — not used for layer hovers.
+        # ManifestRow pricing fields are legacy - not used for layer hovers.
         mr.proposed_price = Decimal('99.00')
         mr.final_price = Decimal('88.00')
         mr.save(update_fields=['proposed_price', 'final_price'])

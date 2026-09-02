@@ -70,7 +70,7 @@ describe('queueListForJob', () => {
 });
 
 describe('visible sets', () => {
-  it('shows Open, Hold, Finish on a queued row — Hold stays blocked', () => {
+  it('shows Open, Hold, Finish on a queued row - Hold stays blocked', () => {
     const queued = job({ stage: 'queued' });
     expect(targetsOf(queued)).toEqual(['bench', 'holding', 'done']);
     expect(dispatchOption(queued, ctx(), 'bench')?.label).toBe('Open');
@@ -86,7 +86,7 @@ describe('visible sets', () => {
 describe('Bench', () => {
   const onBench = job({ stage: 'bench' });
 
-  it('keeps Queue, Hold, Finish in that order — Open is the row', () => {
+  it('keeps Queue, Hold, Finish in that order - Open is the row', () => {
     expect(targetsOf(onBench)).toEqual(['queue', 'holding', 'done']);
     expect(dispatchOption(onBench, ctx(), 'queue')?.label).toBe('Queue');
     expect(dispatchOption(onBench, ctx(), 'holding')?.label).toBe('Hold');
@@ -134,7 +134,7 @@ describe('Queue', () => {
     expect(option?.explainer?.whyNot).toContain('stack of 3');
   });
 
-  it('blocks Hold — work has to start on the bench first', () => {
+  it('blocks Hold - work has to start on the bench first', () => {
     expect(toneOf(queued, 'holding')).toBe('blocked');
     expect(dispatchOption(queued, ctx(), 'holding')?.explainer?.whyNot).toMatch(/bench/i);
   });
@@ -163,7 +163,7 @@ describe('Holding', () => {
     expect(dispatchOption(held, ctx(), 'queue')?.label).toBe('Queue');
   });
 
-  it('is ready to Open even if unpriced — work already started', () => {
+  it('is ready to Open even if unpriced - work already started', () => {
     const unpriced = job({ stage: 'pending', grade_values: { Working: 20 } });
     expect(toneOf(unpriced, 'bench')).toBe('ready');
     expect(dispatchOption(unpriced, ctx(), 'bench')?.label).toBe('Open');

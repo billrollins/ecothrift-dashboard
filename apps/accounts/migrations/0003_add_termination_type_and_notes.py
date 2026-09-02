@@ -18,6 +18,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='employeeprofile',
             name='termination_type',
-            field=models.CharField(blank=True, choices=[('voluntary_resignation', 'Voluntary Resignation'), ('job_abandonment', 'Job Abandonment'), ('retirement', 'Retirement'), ('mutual_agreement', 'Mutual Agreement'), ('layoff', 'Layoff / Reduction in Force'), ('termination_for_cause', 'Termination for Cause'), ('termination_poor_performance', 'Termination – Poor Performance'), ('end_of_contract', 'End of Contract / Seasonal'), ('other', 'Other')], default='', max_length=40),
+            field=models.CharField(blank=True, choices=[('voluntary_resignation', 'Voluntary Resignation'), ('job_abandonment', 'Job Abandonment'), ('retirement', 'Retirement'), ('mutual_agreement', 'Mutual Agreement'), ('layoff', 'Layoff / Reduction in Force'), ('termination_for_cause', 'Termination for Cause'), ('termination_poor_performance', 'Termination - Poor Performance'), ('end_of_contract', 'End of Contract / Seasonal'), ('other', 'Other')], default='', max_length=40),
         ),
     ]

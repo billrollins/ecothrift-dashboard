@@ -1,40 +1,31 @@
 import { Box, Typography } from '@mui/material';
-import ChevronLeftRounded from '@mui/icons-material/ChevronLeftRounded';
-import ChevronRightRounded from '@mui/icons-material/ChevronRightRounded';
-import { parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { useSnackbar } from 'notistack';
 import { useEffect, useMemo, useState } from 'react';
 import type { AuditTaxonomy, GradeLetter } from '../../../api/routines.api';
 import { dutyColors, thinScrollSx } from '../../../components/duty/tokens';
 import { useCoverRun, useRetailGrades } from '../../../hooks/useRoutines';
-import {
-  RoutineHeaderIconButton,
-  RoutinePaneHeader,
-} from '../../routines/RoutinePaneHeader';
-import { AdminViewToggle, type AdminRoutineView } from './AdminViewToggle';
 import { GradeCalibration, GradeMissingOwners } from './GradeAttention';
 import { GradeCrossChecks } from './GradeCrossChecks';
 import { GradeDayBreakdown } from './GradeDayBreakdown';
 import { GradeTallies } from './GradeTallies';
 import { GradeWeekStrip } from './GradeWeekStrip';
 import { Figure, GradeBand, GradeCard, LetterChip } from './gradeParts';
-import { isFutureWeek, isoWeekKey, shiftWeek, weekLabel, weekNote } from './gradeWeek';
+import { weekLabel, weekNote } from './gradeWeek';
 
 /**
  * The retail letter grade and everything behind it, one week at a time.
  *
  * The order of this page is the order of an argument about a grade: the week,
  * then the day, then the audits, then the walks, then the two things somebody
- * has to act on. Nothing here is editable — the numbers that produce it live
+ * has to act on. Nothing here is editable - the numbers that produce it live
  * in Settings > Retail QA.
  */
 export function AdminGradesPane({
-  view,
-  onView,
+  week,
   openOn,
 }: {
-  view: AdminRoutineView;
-  onView: (view: AdminRoutineView) => void;
+  week: string;
   departments: Array<{ id: number; name: string }>;
   /** `YYYY-MM-DD` to land on, from a Dashboard cell click. */
   openOn?: string | null;
@@ -42,7 +33,6 @@ export function AdminGradesPane({
   const { enqueueSnackbar } = useSnackbar();
   const today = useMemo(() => new Date(), []);
   const asked = openOn && !Number.isNaN(Date.parse(openOn)) ? openOn : null;
-  const [week, setWeek] = useState(() => isoWeekKey(asked ? parseISO(asked) : new Date()));
   const [selected, setSelected] = useState<string | null>(asked);
   const [coveringId, setCoveringId] = useState<number | null>(null);
 
@@ -87,33 +77,31 @@ export function AdminGradesPane({
     }
   }
 
-  return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: dutyColors.paper }}>
-      <RoutinePaneHeader
-        tone="admin"
-        eyebrow="Admin · retail QA"
-        title="Grades"
-        note={weekNote(data, loading, grades.isError)}
-        noteIsError={grades.isError}
-        actions={(
-          <>
-            <RoutineHeaderIconButton
-              label="Previous week"
-              icon={<ChevronLeftRounded />}
-              onClick={() => setWeek((current) => shiftWeek(current, -1))}
-            />
-            <RoutineHeaderIconButton
-              label="Next week"
-              icon={<ChevronRightRounded />}
-              disabled={isFutureWeek(shiftWeek(week, 1), today)}
-              onClick={() => setWeek((current) => shiftWeek(current, 1))}
-            />
-          </>
-        )}
-        below={<AdminViewToggle view={view} onChange={onView} />}
-      />
+  const workDays = (() => {
+    const rows = (data?.work_cycles ?? []).slice(0, 6);
+    while (rows.length < 6) {
+      rows.push({ date: `empty-${rows.length}`, shelf: 0, non_shelf: 0 });
+    }
+    return rows;
+  })();
+  const idlePrompts = data?.idle_prompts ?? [];
 
+  return (
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: dutyColors.desk }}>
       <Box sx={{ flex: 1, overflowY: 'auto', pb: 3, ...thinScrollSx }}>
+        <Typography
+          noWrap
+          sx={{
+            px: 2.5,
+            pt: 1.5,
+            minHeight: 18,
+            fontSize: 12.5,
+            fontWeight: grades.isError ? 600 : 400,
+            color: grades.isError ? dutyColors.red : dutyColors.ink60,
+          }}
+        >
+          {weekNote(data, loading, grades.isError)}
+        </Typography>
         <Box sx={{ px: 2.5, pt: 2 }}>
           <GradeCard tone={data?.letter === 'F' ? 'warn' : 'plain'}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75, minHeight: 54 }}>
@@ -157,6 +145,49 @@ export function AdminGradesPane({
 
         <GradeBand title="Section walks" hint="Recorded, never scored. Where the work keeps coming back." />
         <GradeTallies tallies={data?.tallies ?? []} taxonomy={taxonomy} loading={loading} />
+
+        <GradeBand title="Work cycles" hint="Activity, not a score. Six days of walks and every idle prompt this week." />
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 1, mx: 2.5, mb: 1 }}>
+          {workDays.map((row) => (
+            <Box
+              key={row.date}
+              sx={{
+                minHeight: 72,
+                px: 1,
+                py: 1,
+                borderRadius: '12px',
+                bgcolor: dutyColors.card,
+                border: `1px solid ${dutyColors.ink08}`,
+              }}
+            >
+              <Typography noWrap sx={{ fontSize: 11, fontWeight: 700, color: dutyColors.ink40 }}>
+                {row.date.startsWith('empty') ? ' ' : format(parseISO(row.date), 'EEE')}
+              </Typography>
+              <Typography sx={{ fontSize: 15, fontWeight: 750, color: dutyColors.ink, fontVariantNumeric: 'tabular-nums' }}>
+                {row.shelf + row.non_shelf}
+              </Typography>
+              <Typography noWrap sx={{ fontSize: 11, color: dutyColors.ink40 }}>
+                {row.shelf} shelf · {row.non_shelf} other
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+        <GradeCard>
+          <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: dutyColors.ink, mb: 0.75 }}>
+            Idle prompts
+          </Typography>
+          <Box sx={{ minHeight: 56 }}>
+            {idlePrompts.length ? idlePrompts.map((row) => (
+              <Typography key={`${row.shown_at}-${row.user_name}`} noWrap sx={{ fontSize: 12.5, color: dutyColors.ink60 }}>
+                {row.user_name || 'Someone'} · {format(parseISO(row.shown_at), 'EEE h:mma')} · {row.idle_minutes} min · {row.outcome === 'dismissed' ? 'dismissed' : row.outcome === 'shelf' ? 'shelf' : 'non-shelf'}
+              </Typography>
+            )) : (
+              <Typography sx={{ fontSize: 12.5, color: dutyColors.ink40 }}>
+                No idle prompts this week.
+              </Typography>
+            )}
+          </Box>
+        </GradeCard>
 
         <GradeBand title="Owed today" hint="Section walks nobody has claimed. Take one and it moves to your list." />
         <GradeMissingOwners

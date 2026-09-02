@@ -1,4 +1,4 @@
-"""Repair intake pipeline POs 316–319 (manifest denorm + deterministic trains)."""
+"""Repair intake pipeline POs 316-319 (manifest denorm + deterministic trains)."""
 
 from django.core.management.base import BaseCommand, CommandError
 

@@ -10,7 +10,7 @@ import {
 
 const current: RoutineDoc = {
   format: ROUTINE_DOC_FORMAT,
-  title: 'Retail — Opening',
+  title: 'Retail - Opening',
   intro: 'Before doors open',
   trigger: 'daily',
   due_time: '10:30',
@@ -38,7 +38,7 @@ const current: RoutineDoc = {
 describe('buildAiBrief', () => {
   it('carries the current data, the field guide, and a place to type the ask', () => {
     const brief = buildAiBrief(current);
-    expect(brief).toContain('"title": "Retail — Opening"');
+    expect(brief).toContain('"title": "Retail - Opening"');
     expect(brief).toContain(ROUTINE_DOC_FORMAT);
     expect(brief).toContain('Keep the `id`');
     expect(brief.trimEnd().endsWith('## What I want changed')).toBe(true);
@@ -72,10 +72,10 @@ describe('extractJsonText', () => {
 
 describe('parseRoutineDoc', () => {
   it('merges a partial document over the current routine', () => {
-    const result = parseRoutineDoc('{"title":"Retail — Opening v2","grace_days":1}', current);
+    const result = parseRoutineDoc('{"title":"Retail - Opening v2","grace_days":1}', current);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.doc.title).toBe('Retail — Opening v2');
+    expect(result.doc.title).toBe('Retail - Opening v2');
     expect(result.doc.grace_days).toBe(1);
     expect(result.doc.trigger).toBe('daily');
     expect(result.doc.definition).toEqual(current.definition);
@@ -157,8 +157,8 @@ describe('parseRoutineDoc with people and departments', () => {
 
   it('lists departments and people in the brief with the pooled-department recipe', () => {
     const brief = buildAiBrief(current, 'create', context);
-    expect(brief).toContain('- 3 — Retail');
-    expect(brief).toContain('- 7 — Ana Reyes (Manager, Retail)');
+    expect(brief).toContain('- 3 - Retail');
+    expect(brief).toContain('- 7 - Ana Reyes (Manager, Retail)');
     expect(brief).toContain('"assigned_department": <that id>');
   });
 
@@ -199,7 +199,7 @@ describe('summarizeChanges', () => {
 
   it('counts checks by id and names the headline fields', () => {
     const next: RoutineDoc = structuredClone(current);
-    next.title = 'Retail — Opening v2';
+    next.title = 'Retail - Opening v2';
     next.trigger = 'weekly';
     next.definition.sections[0].checks[0].label = 'Unlock both doors';
     next.definition.sections[0].checks.push({ id: 'check-3', label: 'Lights', control: 'pass_fail' });

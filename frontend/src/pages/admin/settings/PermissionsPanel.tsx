@@ -97,7 +97,7 @@ export function PermissionsPanel() {
                               color: holds(row, col) ? 'success.main' : 'text.disabled',
                             }}
                           >
-                            {holds(row, col) ? <Check fontSize="small" /> : '—'}
+                            {holds(row, col) ? <Check fontSize="small" /> : '-'}
                           </Box>
                         ))}
                       </Box>
@@ -115,7 +115,7 @@ export function PermissionsPanel() {
               <CardContent>
                 <Typography variant="h6">{role}</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1, minHeight: 40 }}>
-                  {cap?.label ?? '—'}
+                  {cap?.label ?? '-'}
                 </Typography>
               </CardContent>
             </Card>

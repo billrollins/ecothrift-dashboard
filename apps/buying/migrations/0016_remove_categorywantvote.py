@@ -1,4 +1,4 @@
-# Generated manually — remove staff category want-vote feature.
+# Generated manually - remove staff category want-vote feature.
 
 from django.db import migrations
 

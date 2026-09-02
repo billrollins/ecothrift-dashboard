@@ -241,6 +241,37 @@ class DashboardMetricsTests(TestCase):
         self.assertTrue(retail['ready'])
         self.assertIsNone(retail['average_grade'])
         self.assertEqual(retail['week_audits'], 0)
+        self.assertEqual(retail['today_work_cycles'], 0)
+        self.assertEqual(retail['week_work_cycles'], 0)
+        self.assertEqual(retail['week_idle_dismissed'], 0)
+
+    def test_retail_work_cycles_are_counted_apart_from_audits(self):
+        from apps.routines.models import Routine, RoutineSubmission, WorkCyclePrompt
+
+        cycle = Routine.objects.get(system_key='retail.work_cycle')
+        cycle.kind = Routine.KIND_WORK_CYCLE
+        cycle.is_active = True
+        cycle.save(update_fields=['kind', 'is_active'])
+        RoutineSubmission.objects.create(
+            routine=cycle,
+            submitted_by=self.user,
+            status=RoutineSubmission.STATUS_SUBMITTED,
+            submitted_at=timezone.now(),
+            responses={'mode': 'shelf', 'shelf': {'section_id': 1, 'counts': {}}, 'non_shelf': {'done': [], 'notes': ''}},
+        )
+        WorkCyclePrompt.objects.create(
+            user=self.user,
+            shown_at=timezone.now(),
+            answered_at=timezone.now(),
+            idle_seconds=400,
+            outcome=WorkCyclePrompt.OUTCOME_DISMISSED,
+        )
+        payload = build_dashboard_metrics(self.today)
+        retail = payload['department_metrics']['retail']
+        self.assertEqual(retail['week_audits'], 0)
+        self.assertEqual(retail['week_work_cycles'], 1)
+        self.assertEqual(retail['today_work_cycles'], 1)
+        self.assertEqual(retail['week_idle_dismissed'], 1)
 
     def test_restoration_active_jobs_counts_active_stages(self):
         from apps.inventory.models import ItemCheckIn, RestorationJob

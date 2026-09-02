@@ -1,4 +1,4 @@
-"""Deterministic repairs for the four intake rollout POs (316–319).
+"""Deterministic repairs for the four intake rollout POs (316-319).
 
 Order of operations in apply path (see management command):
 1. Manifest denorm backfill (formerly `_backfill_manifest_denorm.py`)

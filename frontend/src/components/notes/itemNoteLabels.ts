@@ -16,7 +16,7 @@ export const ITEM_NOTE_SURFACE_LABELS: Record<ItemNoteSurface, string> = {
 
 export function formatNoteWhen(iso: string): string {
   const date = new Date(iso);
-  if (!Number.isFinite(date.getTime())) return '—';
+  if (!Number.isFinite(date.getTime())) return '-';
   return date.toLocaleString(undefined, {
     month: 'short',
     day: 'numeric',

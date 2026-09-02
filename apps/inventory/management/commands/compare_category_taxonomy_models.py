@@ -97,7 +97,7 @@ class Command(BaseCommand):
         run_dir = out_dir / f'run_{stamp}'
         run_dir.mkdir(parents=True, exist_ok=True)
 
-        # First batch only — sample user message for PROMPT_REVIEW
+        # First batch only - sample user message for PROMPT_REVIEW
         first_batch = rows[:batch_size]
         sample_payload = [row_dict_for_prompt(r, TAXONOMY_INPUT_FIELDS) for r in first_batch]
         sample_user = (

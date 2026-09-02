@@ -1,4 +1,4 @@
-"""What restoration earned — stamped value and the Overview scoreboard.
+"""What restoration earned - stamped value and the Overview scoreboard.
 
 Value added is frozen at completion, and where it cannot be computed honestly
 it stays null rather than guessing.

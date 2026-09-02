@@ -65,7 +65,7 @@ def build_category_need_rows() -> list[dict[str, Any]]:
 
     Raw need-score legs (``need_raw_*``) mirror ``category_stats_sql``:
     ``_unit_raw_leg(want_units, have_units)``, ``_retail_raw_leg(want_retail, have_retail)``,
-    combined average, then min–max scale to ``need_score_1to99`` (API uses
+    combined average, then min-max scale to ``need_score_1to99`` (API uses
     :func:`build_category_need_payload` for string serialization).
     """
     stats_map = {c.category: c for c in CategoryStats.objects.filter(category__in=TAXONOMY_V1_CATEGORY_NAMES)}

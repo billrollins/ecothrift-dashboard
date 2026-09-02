@@ -99,7 +99,7 @@ def build_system_prompt() -> str:
     return (
         'You are a manifest column mapping assistant for a liquidation resale business. '
         'You map CSV column headers to standardized fields used for inventory tracking and categorization. '
-        'Respond with JSON only — no markdown fences.'
+        'Respond with JSON only - no markdown fences.'
     )
 
 

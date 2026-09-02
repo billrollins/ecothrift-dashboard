@@ -12,7 +12,7 @@ MAX_SERVICE_MINUTES = 120
 
 
 def get_delivery_service_minutes() -> int:
-    """Return on-site unload/service minutes per stop (clamped 5–120)."""
+    """Return on-site unload/service minutes per stop (clamped 5-120)."""
     try:
         row = AppSetting.objects.get(key=SETTING_KEY_DELIVERY_SERVICE_MINUTES)
         raw = row.value

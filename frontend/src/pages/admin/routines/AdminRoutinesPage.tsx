@@ -1,8 +1,12 @@
 import { Box, Button, Typography, useMediaQuery, useTheme } from '@mui/material';
+import AddRounded from '@mui/icons-material/AddRounded';
+import ChevronLeftRounded from '@mui/icons-material/ChevronLeftRounded';
+import ChevronRightRounded from '@mui/icons-material/ChevronRightRounded';
 import TuneRounded from '@mui/icons-material/TuneRounded';
+import { parseISO } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getDepartments } from '../../../api/hr.api';
 import type { AdminRoutine } from '../../../api/routines.api';
@@ -14,12 +18,14 @@ import {
   useRestoreRoutine,
   useRoutineAssignees,
 } from '../../../hooks/useRoutines';
+import { RoutineHeaderButton, RoutineHeaderIconButton, RoutinePaneHeader } from '../../routines/RoutinePaneHeader';
 import { AdminGradesPane } from './AdminGradesPane';
 import { AdminRoutineInspector } from './AdminRoutineInspector';
 import { AdminRoutineList } from './AdminRoutineList';
 import { AdminSectionsPane } from './AdminSectionsPane';
-import { parseAdminView, type AdminRoutineView } from './AdminViewToggle';
+import { AdminViewToggle, parseAdminView, type AdminRoutineView } from './AdminViewToggle';
 import { DEFAULT_ADMIN_FILTERS, type AdminRoutineFilters } from './adminRoutineFilters';
+import { isFutureWeek, isoWeekKey, shiftWeek } from './gradeWeek';
 
 /** Same width as the Routines page panes, so the two rooms feel like one building. */
 const LIST_WIDTH = 'clamp(520px, 48%, 720px)';
@@ -43,6 +49,12 @@ export default function AdminRoutinesPage() {
 
   const [filters, setFilters] = useState<AdminRoutineFilters>(DEFAULT_ADMIN_FILTERS);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [showRetired, setShowRetired] = useState(false);
+  const today = useMemo(() => new Date(), []);
+  const asked = params.get('day');
+  const [week, setWeek] = useState(() => (
+    isoWeekKey(asked && !Number.isNaN(Date.parse(asked)) ? parseISO(asked) : new Date())
+  ));
 
   const rows = routines.data ?? [];
   const view = parseAdminView(params.get('view'));
@@ -58,7 +70,6 @@ export default function AdminRoutinesPage() {
 
   function setView(next: AdminRoutineView) {
     const search = new URLSearchParams(params);
-    search.delete('id');
     if (next === 'routines') search.delete('view');
     else search.set('view', next);
     setParams(search, { replace: false });
@@ -118,6 +129,40 @@ export default function AdminRoutinesPage() {
 
   const departmentOptions = (departments.data ?? []).map((d) => ({ id: d.id, name: d.name }));
 
+  const headerNote = view === 'routines'
+    ? (routines.isError ? 'Could not load routines.' : 'Every routine, including the program ones.')
+    : view === 'sections'
+      ? 'The floor plan behind the daily tally and the Tuesday cross-check.'
+      : 'The retail letter and the walks that produced it.';
+
+  const headerActions = view === 'routines' ? (
+    <RoutineHeaderIconButton
+      label="New routine"
+      icon={<AddRounded />}
+      onClick={() => navigate('/routines/new')}
+    />
+  ) : view === 'sections' ? (
+    <RoutineHeaderButton
+      label={showRetired ? 'Hide retired' : 'Show retired'}
+      variant="ghost"
+      onClick={() => setShowRetired((on) => !on)}
+    />
+  ) : (
+    <>
+      <RoutineHeaderIconButton
+        label="Previous week"
+        icon={<ChevronLeftRounded />}
+        onClick={() => setWeek((current) => shiftWeek(current, -1))}
+      />
+      <RoutineHeaderIconButton
+        label="Next week"
+        icon={<ChevronRightRounded />}
+        disabled={isFutureWeek(shiftWeek(week, 1), today)}
+        onClick={() => setWeek((current) => shiftWeek(current, 1))}
+      />
+    </>
+  );
+
   const list = (
     <AdminRoutineList
       rows={rows}
@@ -128,36 +173,12 @@ export default function AdminRoutinesPage() {
       departments={departmentOptions}
       selectedId={selectedId}
       onSelect={(id) => select(id)}
-      onNew={() => navigate('/routines/new')}
       onEditChecklist={(routine) => navigate(`/routines/${routine.id}/edit`)}
       onRetire={(routine) => void doRetire(routine)}
       onRestore={(routine) => void doRestore(routine)}
-      onView={setView}
       busyId={busyId}
     />
   );
-
-  if (view !== 'routines') {
-    return (
-      <Box sx={{ height: '100%', minHeight: 0, bgcolor: dutyColors.paper }}>
-        {view === 'sections' ? (
-          <AdminSectionsPane
-            view={view}
-            onView={setView}
-            departments={departmentOptions}
-            people={assignees.data ?? []}
-          />
-        ) : (
-          <AdminGradesPane
-            view={view}
-            onView={setView}
-            departments={departmentOptions}
-            openOn={params.get('day')}
-          />
-        )}
-      </Box>
-    );
-  }
 
   const inspector = selected ? (
     <AdminRoutineInspector
@@ -180,28 +201,58 @@ export default function AdminRoutinesPage() {
     />
   );
 
-  if (!desktop) {
-    return (
-      <Box sx={{ height: '100%', minHeight: 0, bgcolor: dutyColors.paper }}>
-        {selected ? inspector : list}
+  const centred = (
+    <Box sx={{ height: '100%', overflow: 'auto', bgcolor: dutyColors.desk }}>
+      <Box sx={{ maxWidth: 1040, mx: 'auto', height: '100%' }}>
+        {view === 'sections' ? (
+          <AdminSectionsPane
+            departments={departmentOptions}
+            people={assignees.data ?? []}
+            showRetired={showRetired}
+            onShowRetired={setShowRetired}
+          />
+        ) : (
+          <AdminGradesPane
+            week={week}
+            departments={departmentOptions}
+            openOn={params.get('day')}
+          />
+        )}
       </Box>
-    );
-  }
+    </Box>
+  );
 
   return (
-    <Box sx={{ display: 'flex', height: '100%', minHeight: 0, bgcolor: dutyColors.desk }}>
-      <Box
-        sx={{
-          flex: `0 0 ${LIST_WIDTH}`,
-          minWidth: 0,
-          minHeight: 0,
-          borderRight: `1px solid ${dutyColors.ink15}`,
-        }}
-      >
-        {list}
-      </Box>
-      <Box sx={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-        {inspector}
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, bgcolor: dutyColors.desk }}>
+      <RoutinePaneHeader
+        tone="admin"
+        eyebrow="Admin"
+        title="Routine Control"
+        note={headerNote}
+        noteIsError={view === 'routines' && routines.isError}
+        actions={headerActions}
+        below={<AdminViewToggle view={view} onChange={setView} />}
+      />
+      <Box sx={{ flex: 1, minHeight: 0 }}>
+        {view !== 'routines' ? centred : !desktop ? (
+          selected ? inspector : list
+        ) : (
+          <Box sx={{ display: 'flex', height: '100%', minHeight: 0, bgcolor: dutyColors.desk }}>
+            <Box
+              sx={{
+                flex: `0 0 ${LIST_WIDTH}`,
+                minWidth: 0,
+                minHeight: 0,
+                borderRight: `1px solid ${dutyColors.ink15}`,
+              }}
+            >
+              {list}
+            </Box>
+            <Box sx={{ flex: 1, minWidth: 0, minHeight: 0 }}>
+              {inspector}
+            </Box>
+          </Box>
+        )}
       </Box>
     </Box>
   );

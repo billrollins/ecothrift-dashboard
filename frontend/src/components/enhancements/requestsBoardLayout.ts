@@ -60,5 +60,5 @@ export function requestHeadline(request: EnhancementRequestDTO): string {
 /** Note count as a word, never a bare zero that reads like an error. */
 export function noteCountLabel(request: EnhancementRequestDTO): string {
   const count = request.notes.length;
-  return count === 0 ? '—' : String(count);
+  return count === 0 ? '-' : String(count);
 }

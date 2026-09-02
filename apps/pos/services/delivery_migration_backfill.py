@@ -60,7 +60,7 @@ def _exact_user_match(assigned_to: str) -> User | None:
 
 
 def _models(apps=None):
-    """Return model classes — historical when ``apps`` is provided."""
+    """Return model classes - historical when ``apps`` is provided."""
     if apps is None:
         from apps.pos.models import (
             CartLine,

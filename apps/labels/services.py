@@ -1,4 +1,4 @@
-"""Label Studio housekeeping — orphan S3 media cleanup."""
+"""Label Studio housekeeping - orphan S3 media cleanup."""
 from __future__ import annotations
 
 import logging

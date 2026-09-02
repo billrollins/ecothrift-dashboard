@@ -1,5 +1,5 @@
 /**
- * Scan finds an item. It does not check one in — except one rule that
+ * Scan finds an item. It does not check one in - except one rule that
  * trumps the rest: a queue item plus an empty bench goes on the bench.
  */
 import { lookupRestorationScan } from '../../api/inventory.api';

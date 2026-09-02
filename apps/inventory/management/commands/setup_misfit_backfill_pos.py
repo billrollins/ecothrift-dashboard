@@ -21,7 +21,7 @@ class Command(BaseCommand):
         )
         self.stdout.write(
             self.style.SUCCESS(
-                f"Vendor {'created' if created else 'exists'}: {vendor.code} — {vendor.name}"
+                f"Vendor {'created' if created else 'exists'}: {vendor.code} - {vendor.name}"
             )
         )
 
@@ -43,7 +43,7 @@ class Command(BaseCommand):
                     'to adjust profitability estimates upward.'
                 ),
                 'notes': (
-                    'BACKFILL:v1:misfit — Orphaned items from legacy V1 system '
+                    'BACKFILL:v1:misfit - Orphaned items from legacy V1 system '
                     '(Mar 2024 - Jul 2025). See data_backfill_initiative.md.'
                 ),
             },
@@ -72,7 +72,7 @@ class Command(BaseCommand):
                     'to adjust profitability estimates upward.'
                 ),
                 'notes': (
-                    'BACKFILL:v2:misfit — Orphaned items from V2 system '
+                    'BACKFILL:v2:misfit - Orphaned items from V2 system '
                     '(Aug 2025 - Mar 2026). See data_backfill_initiative.md.'
                 ),
             },

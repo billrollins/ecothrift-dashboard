@@ -5,7 +5,7 @@ import { AreaBadge } from './AreaBadge';
 const AREA_OPTIONS: EnhancementArea[] = ['restoration', 'processing'];
 
 /**
- * Area picker that always shows the colour badge — closed and open — so the
+ * Area picker that always shows the colour badge - closed and open - so the
  * two areas read the same way here as they do in the table.
  */
 export function AreaSelect({

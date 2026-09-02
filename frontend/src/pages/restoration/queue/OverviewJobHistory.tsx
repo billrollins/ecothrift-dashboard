@@ -1,7 +1,7 @@
 /**
  * What was done to the selected Overview row.
  *
- * A right drawer — off the flow, so the list never jumps. Slim enough that
+ * A right drawer - off the flow, so the list never jumps. Slim enough that
  * the queue still reads. Composer lives here; there is no second notes drawer.
  */
 import Close from '@mui/icons-material/Close';

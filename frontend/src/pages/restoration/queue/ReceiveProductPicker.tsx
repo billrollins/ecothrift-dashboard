@@ -1,5 +1,5 @@
 /**
- * Keep the current product, pick another, or start a blank one — same slot either way.
+ * Keep the current product, pick another, or start a blank one - same slot either way.
  *
  * Salvage additionals skip the catalog: the slot stays, the copy changes.
  */
@@ -25,7 +25,7 @@ import { emptyNewProductDraft, type ReceiveNewProductDraft } from './restoration
 
 export type ReceiveProductMode = 'keep' | 'existing' | 'new' | 'none';
 
-/** One identity row — keep / new / edit all fit so switching never moves a row. */
+/** One identity row - keep / new / edit all fit so switching never moves a row. */
 export const PRODUCT_SLOT_HEIGHT = 54;
 
 export interface ReceiveProductPickerProps {
@@ -256,7 +256,7 @@ export function ReceiveProductPicker({
         }}
       >
         {skipCatalog ? (
-          <SlotCopy>Leaving as salvage — no catalog. The part label is enough.</SlotCopy>
+          <SlotCopy>Leaving as salvage - no catalog. The part label is enough.</SlotCopy>
         ) : working === 'change' ? (
           <Box sx={{ height: '100%', display: 'flex', alignItems: 'center' }}>
             <ProductSearchAutocomplete
@@ -447,7 +447,7 @@ function ProductIdentityRow({
         </Typography>
       ) : (
         <>
-          <ProductFact label="Product #" value={number || '—'} mono />
+          <ProductFact label="Product #" value={number || '-'} mono />
           <ProductCell
             label="Title"
             value={title}
@@ -482,7 +482,7 @@ function ProductFact({ label, value, mono }: { label: string; value: string; mon
       <FieldCaption>{label}</FieldCaption>
       <Typography
         noWrap
-        title={value !== '—' ? value : undefined}
+        title={value !== '-' ? value : undefined}
         sx={{
           mt: 0.2,
           height: 32,
@@ -490,7 +490,7 @@ function ProductFact({ label, value, mono }: { label: string; value: string; mon
           alignItems: 'center',
           fontSize: '0.8rem',
           fontWeight: 800,
-          color: value === '—' ? '#94a3b8' : '#172033',
+          color: value === '-' ? '#94a3b8' : '#172033',
           fontFamily: mono ? 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' : undefined,
         }}
       >
@@ -515,7 +515,7 @@ function ProductCell({
   disabled?: boolean;
   onChange?: (value: string) => void;
 }) {
-  if (!editable) return <ProductFact label={label} value={value || '—'} />;
+  if (!editable) return <ProductFact label={label} value={value || '-'} />;
   const missing = Boolean(required && !value.trim());
   return (
     <Box sx={{ minWidth: 0 }}>

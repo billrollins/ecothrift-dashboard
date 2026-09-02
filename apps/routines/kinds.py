@@ -3,8 +3,8 @@
 A checklist is authored, so its answers are rebuilt from the definition every
 time it is touched. The three section kinds are not: their shape is fixed by
 their runner, so they are merged by trusting the client's payload and cleaning
-it against the taxonomy. Everything that decides a grade — counts, flags, the
-items-inspected floor — is re-derived here rather than taken on faith.
+it against the taxonomy. Everything that decides a grade - counts, flags, the
+items-inspected floor - is re-derived here rather than taken on faith.
 """
 from __future__ import annotations
 
@@ -18,7 +18,10 @@ SECTION_KINDS = (
     Routine.KIND_SECTION_TALLY,
     Routine.KIND_SECTION_AUDIT,
     Routine.KIND_OWNER_SPOT,
+    Routine.KIND_WORK_CYCLE,
 )
+
+WORK_CYCLE_MODES = ('shelf', 'non_shelf')
 
 
 def _section_names(ids) -> dict[int, str]:
@@ -112,7 +115,79 @@ def verify_context(run: RoutineRun) -> dict | None:
     }
 
 
-def initial_responses(routine: Routine, run: RoutineRun | None) -> dict:
+def non_shelf_checks() -> list[dict]:
+    """Every Open and Close check, labelled by the routine it came from.
+
+    Work cycle non-shelf is the leftover of those lists. Reading them live
+    means an edit to Opening or Closing is on the phone the next time someone
+    starts a walk, with no second list to keep in sync.
+    """
+    from .schedule import SYSTEM_CLOSE, SYSTEM_OPEN
+
+    out = []
+    for routine in Routine.objects.filter(
+        is_active=True,
+        system_key__in=(SYSTEM_OPEN, SYSTEM_CLOSE),
+    ).order_by('system_key'):
+        for section in (routine.definition or {}).get('sections') or []:
+            for check in section.get('checks') or []:
+                if not check.get('id'):
+                    continue
+                out.append({
+                    'routine_key': routine.system_key,
+                    'routine_title': routine.title,
+                    'check_id': str(check['id']),
+                    'label': check.get('label') or '',
+                })
+    return out
+
+
+def floor_sections(routine: Routine | None = None) -> list[Section]:
+    """Active sections the work-cycle shelf walk can pick, in floor order."""
+    qs = Section.objects.filter(is_active=True)
+    if routine is not None and routine.assigned_department_id:
+        qs = qs.filter(department_id=routine.assigned_department_id)
+    return list(qs.order_by('sort_order', 'name'))
+
+
+def _clean_shelf(raw: Any) -> dict:
+    raw = raw if isinstance(raw, dict) else {}
+    section_id = raw.get('section_id')
+    try:
+        section_id = int(section_id) if section_id not in (None, '') else None
+    except (TypeError, ValueError):
+        section_id = None
+    return {
+        'section_id': section_id,
+        'section_name': raw.get('section_name') or _section_names([section_id]).get(section_id, ''),
+        'counts': clean_counts(raw.get('counts')),
+        'flags': clean_flags(raw.get('flags')),
+        'photo': raw.get('photo') or None,
+        'photo_file_id': raw.get('photo_file_id'),
+        'notes': str(raw.get('notes') or ''),
+    }
+
+
+def _clean_work_cycle(raw: Any) -> dict:
+    raw = raw if isinstance(raw, dict) else {}
+    mode = raw.get('mode') or ''
+    if mode not in WORK_CYCLE_MODES:
+        mode = ''
+    done = raw.get('non_shelf', {}).get('done') if isinstance(raw.get('non_shelf'), dict) else []
+    if not isinstance(done, list):
+        done = []
+    notes = raw.get('non_shelf', {}).get('notes') if isinstance(raw.get('non_shelf'), dict) else ''
+    return {
+        'mode': mode,
+        'shelf': _clean_shelf(raw.get('shelf')),
+        'non_shelf': {
+            'done': [str(item) for item in done if item],
+            'notes': str(notes or ''),
+        },
+    }
+
+
+def initial_responses(routine: Routine, run: RoutineRun | None, *, mode: str = '') -> dict:
     if routine.kind == Routine.KIND_CHECKLIST:
         fresh = build_responses(routine.definition or {})
         if routine.verifies_id:
@@ -122,6 +197,8 @@ def initial_responses(routine: Routine, run: RoutineRun | None) -> dict:
         return _clean_tally({}, run)
     if routine.kind == Routine.KIND_SECTION_AUDIT:
         return _clean_audit({}, run.section_id if run else None)
+    if routine.kind == Routine.KIND_WORK_CYCLE:
+        return _clean_work_cycle({'mode': mode})
     checks = list((run.generated or {}).get('checks') or []) if run else []
     return {
         'checks': checks,
@@ -153,6 +230,8 @@ def merge_incoming(routine: Routine, run: RoutineRun | None, incoming: Any) -> d
         return _clean_tally(incoming, run)
     if routine.kind == Routine.KIND_SECTION_AUDIT:
         return _clean_audit(incoming, run.section_id if run else None)
+    if routine.kind == Routine.KIND_WORK_CYCLE:
+        return _clean_work_cycle(incoming)
     incoming = incoming if isinstance(incoming, dict) else {}
     # The drawn checks are the run's, not the submitter's: only results carry over.
     drawn = list((run.generated or {}).get('checks') or []) if run else []
@@ -195,6 +274,18 @@ def submit_blockers(routine: Routine, responses: dict, *, min_items: int) -> lis
         return []
     if routine.kind == Routine.KIND_SECTION_AUDIT:
         return _audit_blockers(responses, min_items)
+    if routine.kind == Routine.KIND_WORK_CYCLE:
+        mode = responses.get('mode')
+        if mode not in WORK_CYCLE_MODES:
+            return ['Pick shelf check or non-shelf check.']
+        if mode == 'shelf':
+            if not (responses.get('shelf') or {}).get('section_id'):
+                return ['Pick the section you walked.']
+            return []
+        non = responses.get('non_shelf') or {}
+        if not (non.get('done') or str(non.get('notes') or '').strip()):
+            return ['Tick at least one check or write what you did.']
+        return []
     problems = [
         f'Answer the {len(responses.get("checks") or [])} drawn checks.'
     ] if any(not (row.get('result') or '') for row in responses.get('checks') or []) else []
@@ -216,6 +307,12 @@ def outcome(routine: Routine, responses: dict) -> tuple[int, bool]:
         found = sum(sum(row.get('counts', {}).values()) for row in rows)
         flagged = any('safety' in (row.get('flags') or []) for row in rows)
         return found, flagged
+    if routine.kind == Routine.KIND_WORK_CYCLE:
+        if responses.get('mode') != 'shelf':
+            return 0, False
+        shelf = responses.get('shelf') or {}
+        found = sum((shelf.get('counts') or {}).values())
+        return found, 'safety' in (shelf.get('flags') or [])
     audit = responses if routine.kind == Routine.KIND_SECTION_AUDIT else (responses.get('audit') or {})
     found = sum((audit.get('counts') or {}).values())
     failed_checks = sum(

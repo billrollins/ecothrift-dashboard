@@ -126,7 +126,7 @@ class BreakApartTests(ProcessingTransformTestBase):
         self.assertIn('7.1', sub.search_string)
 
     def test_over_expected_allowed_expected_rederives(self):
-        # Expected is an estimate — breaking apart MORE than expected is allowed
+        # Expected is an estimate - breaking apart MORE than expected is allowed
         # (extra received); with nothing checked in it rewrites the row in place.
         order, _mr, pr = self._order_with_row(qty=10)
         resp = self._break_apart(order, {'processing_row_id': pr.id, 'units': 11, 'factor': 500})
@@ -195,12 +195,12 @@ class MakeSetTests(ProcessingTransformTestBase):
             'set_size': 500,
             'num_sets': 4,
             'product_mode': 'new',
-            'title': 'Prayer Candles — Box of 500',
+            'title': 'Prayer Candles - Box of 500',
         })
         self.assertEqual(resp.status_code, 200, resp.data)
         sub = ProcessingRow.objects.get(pk=resp.data['sub_processing_row_id'])
         self.assertIsNotNone(sub.matched_product_id)
-        self.assertEqual(sub.matched_product.title, 'Prayer Candles — Box of 500')
+        self.assertEqual(sub.matched_product.title, 'Prayer Candles - Box of 500')
         pr.refresh_from_db()
         self.assertEqual(pr.transforms[0]['created_product_id'], sub.matched_product_id)
         self.assertIsNone(pr.matched_product_id)  # root keeps its own (none) product
@@ -293,7 +293,7 @@ class RestartRowTests(ProcessingTransformTestBase):
             'set_size': 500,
             'num_sets': 4,
             'product_mode': 'new',
-            'title': 'Prayer Candles — Box of 500',
+            'title': 'Prayer Candles - Box of 500',
             'shelf_price': '150.00',
         })
         sub = ProcessingRow.objects.get(pk=resp.data['sub_processing_row_id'])

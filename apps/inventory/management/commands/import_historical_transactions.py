@@ -140,7 +140,7 @@ class Command(BaseCommand):
         self.stdout.write(f'Fetched {len(rows):,} rows from {source_db.upper()}.')
 
         if dry_run:
-            self.stdout.write(self.style.WARNING(f'DRY RUN — skipping {source_db.upper()} write.'))
+            self.stdout.write(self.style.WARNING(f'DRY RUN - skipping {source_db.upper()} write.'))
             return
 
         existing_ids = set(

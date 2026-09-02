@@ -33,7 +33,7 @@ class TimeEntrySerializer(serializers.ModelSerializer):
             'date': {'required': False},
             'clock_in': {'required': False},
         }
-        # Skip UniqueTogetherValidator — it requires employee/date/clock_in before
+        # Skip UniqueTogetherValidator - it requires employee/date/clock_in before
         # perform_create can auto-fill them. DB unique_together still applies on save.
         validators = []
 

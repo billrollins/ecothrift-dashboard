@@ -108,7 +108,7 @@ LEGACY_PRODUCTS_COLUMNS = {
 # Status mapping: old status values -> new Item.STATUS_CHOICES
 STATUS_MAP = {
     # TODO: update these once you see the actual status values in the old data
-    # Example patterns — adjust to match:
+    # Example patterns - adjust to match:
     'active': 'on_shelf',
     'available': 'on_shelf',
     'on shelf': 'on_shelf',
@@ -220,7 +220,7 @@ class Command(BaseCommand):
         skip_existing = options['skip_existing']
 
         if dry_run:
-            self.stdout.write(self.style.WARNING('DRY RUN — no changes will be written.\n'))
+            self.stdout.write(self.style.WARNING('DRY RUN - no changes will be written.\n'))
 
         # Validate that the schema config has been filled in
         self._check_schema_configured()
@@ -357,7 +357,7 @@ class Command(BaseCommand):
 
             if dry_run:
                 self.stdout.write(
-                    f'  [DRY] Would import item: {old_sku} — {new_item.title[:60]} @ ${price}'
+                    f'  [DRY] Would import item: {old_sku} - {new_item.title[:60]} @ ${price}'
                 )
                 stats['items_imported'] += 1
 
@@ -377,7 +377,7 @@ class Command(BaseCommand):
                                 note='Imported from legacy database',
                             )
                         )
-                self.stdout.write(f'  Imported items {i}–{i + len(batch)}...')
+                self.stdout.write(f'  Imported items {i}-{i + len(batch)}...')
 
             if history_to_create:
                 ItemHistory.objects.bulk_create(history_to_create, batch_size=1000)

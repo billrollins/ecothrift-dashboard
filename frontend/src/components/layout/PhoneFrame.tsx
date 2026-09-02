@@ -9,7 +9,7 @@ import type { ReactNode } from 'react';
  * frame instead of stretching it across the window.
  *
  * The frame fills the available height and takes its width from the aspect
- * ratio, so it is fixed for the life of the screen — nothing inside it can
+ * ratio, so it is fixed for the life of the screen - nothing inside it can
  * change the frame's size and shift the page.
  */
 export const PHONE_ASPECT_RATIO = '9 / 20';
@@ -91,7 +91,7 @@ export function PhoneFrame({
   deskBackground?: string;
   /** Run the device the full height of the pane: no gutter, no rounded shell. */
   flush?: boolean;
-  /** Dark stage behind a flush device — spotlight, not a desk slab. */
+  /** Dark stage behind a flush device - spotlight, not a desk slab. */
   stage?: boolean;
   children: ReactNode;
 }) {

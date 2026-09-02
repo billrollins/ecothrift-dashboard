@@ -2,7 +2,7 @@
  * Directory cells you can change without opening the row.
  *
  * Always the same 32px box. A 1px border is always there and only changes
- * colour, so hover and focus never shove the row. Clicks stay on the field —
+ * colour, so hover and focus never shove the row. Clicks stay on the field -
  * they do not open the detail drawer.
  *
  * A select commits as soon as the value changes. Text commits on Enter or
@@ -50,7 +50,7 @@ const SELECT_CHEVRON = `url("data:image/svg+xml,${encodeURIComponent(
 )}")`;
 
 /** Reserved slot when the row has no profile to edit. Same height as a field. */
-export function InlineEmpty({ children = '—' }: { children?: ReactNode }) {
+export function InlineEmpty({ children = '-' }: { children?: ReactNode }) {
   return (
     <Box
       sx={{
@@ -138,7 +138,7 @@ export function InlineText({
   value,
   onCommit,
   disabled = false,
-  placeholder = '—',
+  placeholder = '-',
   ariaLabel,
   display,
   parse,

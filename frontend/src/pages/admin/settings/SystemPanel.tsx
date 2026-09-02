@@ -37,7 +37,7 @@ export function SystemPanel() {
                 Version
               </Typography>
               <Typography variant="h5" fontWeight={600}>
-                {appVersion?.version ?? '—'}
+                {appVersion?.version ?? '-'}
               </Typography>
             </Box>
             <Box>
@@ -51,14 +51,14 @@ export function SystemPanel() {
                       month: 'long',
                       day: 'numeric',
                     })
-                  : '—'}
+                  : '-'}
               </Typography>
             </Box>
             <Box>
               <Typography variant="caption" color="text.secondary">
                 Description
               </Typography>
-              <Typography variant="body1">{appVersion?.description || '—'}</Typography>
+              <Typography variant="body1">{appVersion?.description || '-'}</Typography>
             </Box>
           </Box>
         </CardContent>

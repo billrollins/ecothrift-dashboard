@@ -40,7 +40,7 @@ export function TarsStudioShell({
   onScanSubmit: () => void;
   scanInputRef?: React.RefObject<HTMLInputElement | null>;
   noticeSlot?: ReactNode;
-  /** The ways the item in hand can leave. Bench only — Home has no item. */
+  /** The ways the item in hand can leave. Bench only - Home has no item. */
   actionSlot?: ReactNode;
   onBack: () => void;
   children: ReactNode;

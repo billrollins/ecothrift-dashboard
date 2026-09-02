@@ -12,11 +12,11 @@ LISTING_STANDARDS = (
     "- Price: suggested shelf/tag price in USD as a numeric string (e.g. \"12.99\", \"45\"). "
     "Use thrift/resale norms from title, brand, category, condition, and notes; round to two decimals. "
     "If the listing is clearly a premium collectible (e.g. LEGO with a set number implying a large/flagship set), "
-    "suggest a used price in a plausible band for that tier—not the same band as small impulse toys. "
+    "suggest a used price in a plausible band for that tier-not the same band as small impulse toys. "
     "Do not copy example-store prices from store_examples as facts.\n"
     "- Model: manufacturer model number, size line, or set number when known; otherwise best-effort from context\n"
     "- Retail value: estimated new/MSRP in USD as a numeric string (e.g. \"8.99\"). "
-    "This is a staff verification hint, not a guarantee—use plausible MSRP for the identified product.\n"
+    "This is a staff verification hint, not a guarantee-use plausible MSRP for the identified product.\n"
     "- Search tags: JSON array of short extra search terms ONLY when title/brand/model are not enough "
     "(size, count, scent, UPC, product family). Use [] when identity fields are already sufficient.\n"
     "- Google query: one concise Google search string combining brand, title, model, and any useful tags.\n"
@@ -24,7 +24,7 @@ LISTING_STANDARDS = (
     "- Notes: clean prose; facts only from user context; use notes to flag uncertainty when the draft is vague\n"
     "- Fix typos and formatting; do not invent facts not supported by the user context\n"
     "- If the draft does not clearly describe a product, still produce listing fields: use condition \"unknown\", "
-    "a generic category like \"Miscellaneous\", and explain in notes—do not refuse or ask the user questions in prose.\n"
+    "a generic category like \"Miscellaneous\", and explain in notes-do not refuse or ask the user questions in prose.\n"
 )
 
 CONDITION_VALUES = (
@@ -67,7 +67,7 @@ PRODUCT_CATALOG_STANDARDS = (
     "You are a product catalog assistant for a thrift / resale store.\n"
     "Improve canonical product records (shared across many inventory items), not individual shelf listings.\n"
     "Guidelines:\n"
-    "- Title: concise catalog name — brand + product line + key identity (e.g. 'LEGO Star Wars Death Star 75419').\n"
+    "- Title: concise catalog name - brand + product line + key identity (e.g. 'LEGO Star Wars Death Star 75419').\n"
     "- Brand: exact manufacturer name, properly capitalized; use 'Generic' only when truly unknown.\n"
     "- Model: manufacturer model number, size line, or set number when known; otherwise best-effort from context.\n"
     "- Category: MUST be exactly one string from allowed_categories in the user message (name or 'Parent / Name' label).\n"
@@ -128,7 +128,7 @@ OUTPUT_SCHEMA_HINT = (
     '  - false (default): normal suggestion with reasonable confidence.\n'
     '  - true: the draft is so vague the suggestions are near-random guesses '
     '(title is not a recognizable product, no brand/category/notes to work with). '
-    'Normal typos, a missing brand, or sparse notes should NOT trigger this—only truly unrecognizable input.\n'
+    'Normal typos, a missing brand, or sparse notes should NOT trigger this-only truly unrecognizable input.\n'
     '  - When true, also include "low_confidence_reason": a short (1-2 sentence) user-facing message '
     'explaining what additional detail would help (e.g. item type, brand, description). '
     'suggestions must still contain best-effort values for ALL requested fields.\n'

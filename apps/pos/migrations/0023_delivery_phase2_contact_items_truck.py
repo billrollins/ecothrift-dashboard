@@ -121,7 +121,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='deliverycallattempt',
             name='result',
-            field=models.CharField(blank=True, choices=[('answered_will_be_there', 'Answered — will be there'), ('answered_not_available', 'Answered — not available'), ('no_answer', 'No answer'), ('voicemail_left', 'Voicemail left'), ('text_sent', 'Text sent'), ('wrong_number', 'Wrong number'), ('other', 'Other')], default='', max_length=40),
+            field=models.CharField(blank=True, choices=[('answered_will_be_there', 'Answered - will be there'), ('answered_not_available', 'Answered - not available'), ('no_answer', 'No answer'), ('voicemail_left', 'Voicemail left'), ('text_sent', 'Text sent'), ('wrong_number', 'Wrong number'), ('other', 'Other')], default='', max_length=40),
         ),
         migrations.AlterField(
             model_name='deliveryrun',

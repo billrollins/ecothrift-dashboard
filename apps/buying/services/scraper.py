@@ -5,7 +5,7 @@ Search listings POST does not require auth. **Auction state** GET
 (``auction.bstock.com/v1/auctions``) works anonymously by default via
 ``get_auction_states_batch(auth=False)``. Other listing and shipment calls normally require a
 JWT; when ``JWT_BSTOCK_CALLS_DISABLED`` is True (ban prevention),
-**authenticated** calls are skipped—see each function's guard.
+**authenticated** calls are skipped-see each function's guard.
 
 When ``BUYING_SOCKS5_PROXY_ENABLED`` is True, **all** ``*.bstock.com`` requests
 made via ``_request_json`` use that SOCKS5 proxy (not only search). Dev opt-in

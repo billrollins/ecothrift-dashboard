@@ -27,7 +27,7 @@ class Migration(migrations.Migration):
                 ('weekdays', models.JSONField(blank=True, default=list)),
                 ('due_time', models.TimeField()),
                 ('grace_days', models.PositiveSmallIntegerField(default=0)),
-                ('assignment', models.CharField(choices=[('pooled', 'Pooled — anyone on the list can complete it'), ('per_person', 'Per person — each assignee owes their own')], default='pooled', max_length=20)),
+                ('assignment', models.CharField(choices=[('pooled', 'Pooled - anyone on the list can complete it'), ('per_person', 'Per person - each assignee owes their own')], default='pooled', max_length=20)),
                 ('assigned_role', models.CharField(blank=True, default='', max_length=40)),
                 ('subject_pool', models.JSONField(blank=True, default=list)),
                 ('is_blocking', models.BooleanField(default=False)),

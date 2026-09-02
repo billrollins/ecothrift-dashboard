@@ -164,7 +164,7 @@ class AiCleanupBatchTests(AiCleanupBatchTestBase):
         self.assertEqual(r2.ai_status.get('state'), 'soft_flagged')
 
     def test_retail_suspect_flags_row_without_pricing(self):
-        """A flagged retail typo must not produce a price — it would skew everything."""
+        """A flagged retail typo must not produce a price - it would skew everything."""
         r1 = self._staging_row(1)
         with self._patch_llm(lambda kwargs: [
             _suggestion(r1, retail_suspect=True, retail_suspect_reason='looks x100 off'),
@@ -500,7 +500,7 @@ class UploadManifestStateResetTests(AiCleanupBatchTestBase):
         self.assertEqual(resp.status_code, 409)
 
     def test_reupload_resets_flow_flags(self):
-        """New manifest restarts the pipeline — flags must not claim cleaned with no staging."""
+        """New manifest restarts the pipeline - flags must not claim cleaned with no staging."""
         self._staging_row(1)
         PurchaseOrder.objects.filter(pk=self.order.pk).update(
             preprocess_status='cleaned',

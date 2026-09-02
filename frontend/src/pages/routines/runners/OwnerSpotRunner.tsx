@@ -80,13 +80,21 @@ export function OwnerSpotRunner({
           </RunnerCard>
         )}
 
-        <SectionAuditFields
-          audit={responses.audit}
-          taxonomy={taxonomy}
-          minItems={minItems}
-          readOnly={readOnly}
-          onChange={(audit) => onChange?.({ ...responses, audit })}
-        />
+        {responses.audit?.section_id ? (
+          <SectionAuditFields
+            audit={responses.audit}
+            taxonomy={taxonomy}
+            minItems={minItems}
+            readOnly={readOnly}
+            onChange={(audit) => onChange?.({ ...responses, audit })}
+          />
+        ) : (
+          <RunnerCard>
+            <Typography sx={{ fontSize: 13, color: dutyColors.ink60 }}>
+              No sections set up yet. Add them in Routine Control, Sections.
+            </Typography>
+          </RunnerCard>
+        )}
       </RunnerBody>
     </Box>
   );

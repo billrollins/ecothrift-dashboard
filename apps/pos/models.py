@@ -407,7 +407,7 @@ class DashboardDepartmentGoal(models.Model):
 class HistoricalTransaction(models.Model):
     """Imported transaction records from DB1 and DB2 for historical revenue reporting.
 
-    No FK relationships — pure data import, no referential integrity required.
+    No FK relationships - pure data import, no referential integrity required.
     Populated by the import_historical_transactions management command.
     """
     SOURCE_CHOICES = [
@@ -432,7 +432,7 @@ class HistoricalTransaction(models.Model):
         ]
 
     def __str__(self):
-        return f'[{self.source_db.upper()}] {self.legacy_cart_id} — {self.sale_date} ${self.total}'
+        return f'[{self.source_db.upper()}] {self.legacy_cart_id} - {self.sale_date} ${self.total}'
 
 
 class DeliveryDay(models.Model):
@@ -536,7 +536,7 @@ class DeliveryDay(models.Model):
         return bool(self.is_active) and self.planning_disposition == self.DISPOSITION_PLANNED and not self.archived_at
 
 
-# Compatibility alias — prefer DeliveryDay in new code.
+# Compatibility alias - prefer DeliveryDay in new code.
 DeliveryAvailability = DeliveryDay
 
 
@@ -1015,8 +1015,8 @@ class DeliveryCallAttempt(models.Model):
     RESULT_WRONG_NUMBER = 'wrong_number'
     RESULT_OTHER = 'other'
     RESULT_CHOICES = [
-        (RESULT_ANSWERED_WILL_BE_THERE, 'Answered — will be there'),
-        (RESULT_ANSWERED_NOT_AVAILABLE, 'Answered — not available'),
+        (RESULT_ANSWERED_WILL_BE_THERE, 'Answered - will be there'),
+        (RESULT_ANSWERED_NOT_AVAILABLE, 'Answered - not available'),
         (RESULT_NO_ANSWER, 'No answer'),
         (RESULT_VOICEMAIL_LEFT, 'Voicemail left'),
         (RESULT_TEXT_SENT, 'Text sent'),

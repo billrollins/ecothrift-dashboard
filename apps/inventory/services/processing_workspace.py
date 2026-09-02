@@ -86,7 +86,7 @@ def item_disposition_ui(status: str) -> str:
 
 
 def derive_row_queue_status(items: list[Item]) -> str:
-    """pending | partial | checked_in | disputed — aligns with frontend processingWorkspaceFilters."""
+    """pending | partial | checked_in | disputed - aligns with frontend processingWorkspaceFilters."""
     if not items:
         return 'pending'
     dispositions = [item_disposition_ui(i.status) for i in items]
@@ -258,7 +258,7 @@ def push_shelf_price_to_bookmark(
     """Persist workspace-canonical shelf price on ``ProcessingRow`` before aligning ``Item.price``.
 
     P9 split families: several rows can share one manifest line, so the target row must be
-    pinned — by ``processing_row_id`` when the caller knows it, by ``item_id`` (resolved via
+    pinned - by ``processing_row_id`` when the caller knows it, by ``item_id`` (resolved via
     the row that claims the item) for item-level edits, else the family ROOT.
     """
     if manifest_row_id is None or price is None:
@@ -435,7 +435,7 @@ def split_family_attribution(
 
     Items are claimed by the row whose check-in batches created them; anything unclaimed
     (legacy build items, pre-split history) belongs to the family ROOT (split_parent null).
-    Lines with a single row are omitted — callers keep the all-line-items fast path.
+    Lines with a single row are omitted - callers keep the all-line-items fast path.
 
     Returns {manifest_row_id: {'claimed': {row_pk: set(item_ids)}, 'root_pk': int}}.
     """
@@ -477,7 +477,7 @@ def _items_for_family_row(row_pk: int, fam: dict[str, Any], line_items: list[Ite
 
 
 def attributed_items_for_processing_row(row: ProcessingRow) -> list[Item]:
-    """Items belonging to THIS row — family-aware when the manifest line is split (P9)."""
+    """Items belonging to THIS row - family-aware when the manifest line is split (P9)."""
     if row.manifest_row_id is None:
         if row.row_kind == ProcessingRow.ROW_KIND_ADDED:
             batch_map = _item_check_in_item_id_map([row.pk])
@@ -615,7 +615,7 @@ def _first_nonempty_str(*values: Any) -> str:
 
 
 def standardized_identity_from_bookmark_row(rw: dict[str, Any]) -> dict[str, Any]:
-    """Bookmark-only row fields from finalize — not product-coalesced."""
+    """Bookmark-only row fields from finalize - not product-coalesced."""
     ids = rw.get('identifiers')
     return {
         'title': str(rw.get('title') or '').strip(),
@@ -632,7 +632,7 @@ def coalesce_processing_row_identity(
     *,
     manifest_row: ManifestRow | None = None,
 ) -> dict[str, Any]:
-    """Product-wins identity for display only — never writes back to DB."""
+    """Product-wins identity for display only - never writes back to DB."""
 
     def tier(field: str) -> str:
         return _first_nonempty_str(
@@ -820,7 +820,7 @@ def _processing_row_layer_sources(
         }
 
     def price_layer() -> dict[str, str]:
-        # ManifestRow has no shelf price — only unit_retail (see unitRetail layer).
+        # ManifestRow has no shelf price - only unit_retail (see unitRetail layer).
         # proposed_price / final_price are PreprocessingRow staging fields.
         return {
             'manifest': '',
@@ -1091,7 +1091,7 @@ def serialize_processing_workspace_list_row_values(
     product: Product | None = None,
     same_product_peer_row_numbers: list[int] | None = None,
 ) -> dict[str, Any]:
-    """Slim list payload — queue table columns + UPC/SKU scan only."""
+    """Slim list payload - queue table columns + UPC/SKU scan only."""
     core = _workspace_row_core_fields(
         rw,
         dup_hint,
@@ -1189,7 +1189,7 @@ def refresh_processing_rows_denorm(
     if mr_ids:
         for it in Item.objects.filter(manifest_row_id__in=mr_ids).order_by('id'):
             items_by_mr[it.manifest_row_id].append(it)
-    # P9 split families: siblings share a manifest line — attribute its items per row.
+    # P9 split families: siblings share a manifest line - attribute its items per row.
     split_attr = split_family_attribution(oid, mr_ids)
 
     product_ids = {p.matched_product_id for p in prs if p.matched_product_id}
@@ -1251,7 +1251,7 @@ def refresh_processing_rows_denorm(
             pr.item_ids = []
             pr.list_dispatch = 'on_shelf'
             pr.list_sku = ''
-            # Only seed shelf_price when missing — never clobber a deliberate patch.
+            # Only seed shelf_price when missing - never clobber a deliberate patch.
             if pr.shelf_price is None:
                 pr.shelf_price = pr.final_price if pr.final_price is not None else pr.proposed_price
             # matched_product is preserved: ProcessingRow owns its decided match
@@ -1304,7 +1304,7 @@ def refresh_processing_rows_denorm(
     )
 
     # P7 collapse: a master row REPRESENTS its whole group while collapsed, and check-ins
-    # fill the master first — so its own-items status would read 'checked_in' while group
+    # fill the master first - so its own-items status would read 'checked_in' while group
     # units are still pending, dropping the group out of hide_checked_in / segment filters.
     # Override master queue_status from GROUP totals (qty fields stay per-row: the
     # fill-in-order allocator depends on them).
@@ -1327,7 +1327,7 @@ def refresh_processing_rows_denorm(
                 continue  # scoped refresh that didn't touch this group
             master = prs_by_pk.get(master_pk)
             if master is None:
-                # A member was touched but the master wasn't in scope — its status
+                # A member was touched but the master wasn't in scope - its status
                 # still depends on the group, so pull it into the update set.
                 master = ProcessingRow.objects.filter(pk=master_pk).first()
                 if master is None:
@@ -1864,7 +1864,7 @@ def build_processing_row_detail(order: PurchaseOrder, *, processing_row_id: int)
         'dispatch': location_to_dispatch(primary.location) if primary else base['dispatch'],
         'sku': primary.sku if primary else None,
     }
-    # P7 collapse: a master's detail covers the WHOLE group — combined rollup, every
+    # P7 collapse: a master's detail covers the WHOLE group - combined rollup, every
     # member's items, and every member's check-in batches (one check-in spanning rows
     # creates one batch per member). Per-row qty fields stay own-row; the client reads
     # collapsedGroup for combined displays.

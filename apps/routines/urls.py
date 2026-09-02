@@ -7,6 +7,7 @@ from .views import (
     RoutineSubmissionViewSet,
     RoutineViewSet,
     SectionViewSet,
+    WorkCyclePromptView,
 )
 
 router = DefaultRouter()
@@ -17,5 +18,6 @@ router.register(r'sections', SectionViewSet, basename='routinesection')
 
 urlpatterns = [
     path('grades/', RetailGradesView.as_view(), name='routine-grades'),
+    path('work-cycle/prompt/', WorkCyclePromptView.as_view(), name='work-cycle-prompt'),
     path('', include(router.urls)),
 ]

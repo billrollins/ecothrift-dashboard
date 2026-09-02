@@ -87,7 +87,7 @@ class Command(BaseCommand):
         conv = Conversation.objects.get(public_token=thread_token)
         reply = client.post(
             f'/api/webstore/conversations/{conv.id}/reply/',
-            {'body': 'Yes — we will stage it for you.'},
+            {'body': 'Yes - we will stage it for you.'},
             format='json',
         )
         assert reply.status_code == 200, reply.content
@@ -122,7 +122,7 @@ class Command(BaseCommand):
         )
         assert ml.status_code == 200, ml.content
         assert 'debug_token' not in ml.json(), 'the API must never return the raw token'
-        # Read the token from the DB — the response deliberately withholds it, so
+        # Read the token from the DB - the response deliberately withholds it, so
         # this walk stands in for the customer clicking the emailed link.
         from apps.accounts.models import MagicLinkToken
 

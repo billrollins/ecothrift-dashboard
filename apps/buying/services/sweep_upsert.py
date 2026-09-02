@@ -1,4 +1,4 @@
-"""Raw PostgreSQL upsert for buying sweep — preserves first_seen_at and staff JSON fields on conflict."""
+"""Raw PostgreSQL upsert for buying sweep - preserves first_seen_at and staff JSON fields on conflict."""
 
 from __future__ import annotations
 

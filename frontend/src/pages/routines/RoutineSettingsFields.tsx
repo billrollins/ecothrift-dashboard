@@ -85,23 +85,29 @@ export function settingsFromRoutine(routine: Routine, today: Date): RoutineSetti
 }
 
 /** The API fields these settings stand for. Checklist and active flag are the caller's. */
-export function settingsToPayload(settings: RoutineSettings): Partial<Routine> {
-  return {
+export function settingsToPayload(
+  settings: RoutineSettings,
+  opts?: { locked?: boolean },
+): Partial<Routine> {
+  const payload: Partial<Routine> = {
     title: settings.title,
     intro: settings.intro,
-    trigger: settings.trigger as Routine['trigger'],
     remind_time: settings.remindTime ? `${settings.remindTime}:00` : null,
     due_time: settings.dueAtClockOut ? null : `${settings.dueTime}:00`,
     late_after: settings.lateAfter,
     anchor_date: settings.trigger === 'biweekly' ? settings.nextDue : null,
     grace_days: Number(settings.graceDays) || 0,
-    assignment: settings.assignment as Routine['assignment'],
     assigned_role: settings.assignedRole,
     assigned_department: settings.assignedDepartment === '' ? null : settings.assignedDepartment,
     assigned_user_ids: settings.assignedUserIds,
     subject_pool: settings.subjectPool.split('\n').map((row) => row.trim()).filter(Boolean),
     is_blocking: settings.isBlocking,
   };
+  if (!opts?.locked) {
+    payload.trigger = settings.trigger as Routine['trigger'];
+    payload.assignment = settings.assignment as Routine['assignment'];
+  }
+  return payload;
 }
 
 export function sameSettings(a: RoutineSettings, b: RoutineSettings): boolean {
@@ -120,6 +126,7 @@ export function RoutineSettingsFields({
   departments,
   people,
   autoFocusTitle,
+  locked,
 }: {
   value: RoutineSettings;
   onChange: (patch: Partial<RoutineSettings>) => void;
@@ -127,6 +134,8 @@ export function RoutineSettingsFields({
   departments: Array<{ id: number; name: string }>;
   people: RoutineAssignee[];
   autoFocusTitle?: boolean;
+  /** Program routines: repeats and assignment stay as seeded. */
+  locked?: boolean;
 }) {
   const today = new Date();
   const biweekly = value.trigger === 'biweekly';
@@ -142,7 +151,7 @@ export function RoutineSettingsFields({
           <TextField
             value={value.title}
             onChange={(e) => onChange({ title: e.target.value })}
-            placeholder="Retail — Opening checklist"
+            placeholder="Retail opening checklist"
             fullWidth
             autoFocus={autoFocusTitle}
             sx={titleFieldSx}
@@ -171,6 +180,8 @@ export function RoutineSettingsFields({
             onChange={(e) => onChange({ trigger: e.target.value })}
             fullWidth
             size="small"
+            disabled={locked}
+            helperText={locked ? 'Program routines keep the repeat they shipped with.' : undefined}
             sx={fieldSx}
           >
             {TRIGGERS.map((trigger) => (
@@ -267,7 +278,10 @@ export function RoutineSettingsFields({
             onChange={(e) => onChange({ assignment: e.target.value })}
             fullWidth
             size="small"
-            helperText="Pooled shares one run. Per person gives everyone their own."
+            disabled={locked}
+            helperText={locked
+              ? 'Program routines keep pooled or per person as seeded.'
+              : 'Pooled shares one run. Per person gives everyone their own.'}
             sx={fieldSx}
           >
             <MenuItem value="pooled">Pooled</MenuItem>

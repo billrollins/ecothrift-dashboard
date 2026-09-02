@@ -5,7 +5,7 @@
 export const dutyColors = {
   paper: '#F3F6F3',
   desk: '#F4F7F5',
-  /** Deep sage stage behind the desktop phone — the wings, not the device. */
+  /** Deep sage stage behind the desktop phone - the wings, not the device. */
   stage: '#2e4636',
   stageGlow: '#3f5c46',
   card: '#FFFFFF',

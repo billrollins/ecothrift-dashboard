@@ -18,7 +18,7 @@ from dataclasses import dataclass
 
 from django.conf import settings
 
-from apps.core.ai_config import ai_model  # noqa: F401 — re-exported router API
+from apps.core.ai_config import ai_model  # noqa: F401 - re-exported router API
 from apps.core.services.llm_api_keys import (
     resolve_anthropic_api_key,
     resolve_google_api_key,
@@ -96,7 +96,7 @@ class LLMResult:
 
 
 def resolve_provider(model_id: str) -> str:
-    """anthropic | xai | google — by model id, unless AI_PROVIDER forces one."""
+    """anthropic | xai | google - by model id, unless AI_PROVIDER forces one."""
     raw = (getattr(settings, 'AI_PROVIDER', None) or 'auto').strip().lower()
     if raw in ('anthropic', 'xai', 'google'):
         return raw
@@ -484,7 +484,7 @@ def llm_complete(
                 success=True,
                 error=None,
             )
-        except Exception:  # noqa: BLE001 — usage logging must never fail a call
+        except Exception:  # noqa: BLE001 - usage logging must never fail a call
             logger.exception('AI usage logging failed for %s', log_source)
     return result
 

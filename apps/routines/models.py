@@ -60,8 +60,8 @@ class Routine(models.Model):
     ASSIGN_POOLED = 'pooled'
     ASSIGN_PER_PERSON = 'per_person'
     ASSIGN_CHOICES = [
-        (ASSIGN_POOLED, 'Pooled — anyone on the list can complete it'),
-        (ASSIGN_PER_PERSON, 'Per person — each assignee owes their own'),
+        (ASSIGN_POOLED, 'Pooled: anyone on the list can complete it'),
+        (ASSIGN_PER_PERSON, 'Per person: each assignee owes their own'),
     ]
 
     # When the run stops being merely open and starts counting against the day.
@@ -80,11 +80,13 @@ class Routine(models.Model):
     KIND_SECTION_TALLY = 'section_tally'
     KIND_SECTION_AUDIT = 'section_audit'
     KIND_OWNER_SPOT = 'owner_spot'
+    KIND_WORK_CYCLE = 'work_cycle'
     KIND_CHOICES = [
         (KIND_CHECKLIST, 'Checklist'),
         (KIND_SECTION_TALLY, 'Section tally'),
         (KIND_SECTION_AUDIT, 'Section cross-check'),
         (KIND_OWNER_SPOT, 'Owner spot check'),
+        (KIND_WORK_CYCLE, 'Work cycle'),
     ]
 
     SUBJECT_POOL = 'pool'
@@ -281,3 +283,54 @@ class RoutineSubmission(models.Model):
 
     def __str__(self):
         return f'{self.routine.title} #{self.pk}'
+
+
+class WorkCyclePrompt(models.Model):
+    """A cashier was idle on the register and the work-cycle prompt came up.
+
+    Dismissing it is allowed. The log is how long they sat and whether they
+    started a walk or just sent the prompt away.
+    """
+
+    OUTCOME_SHELF = 'shelf'
+    OUTCOME_NON_SHELF = 'non_shelf'
+    OUTCOME_DISMISSED = 'dismissed'
+    OUTCOME_CHOICES = [
+        (OUTCOME_SHELF, 'Started a shelf check'),
+        (OUTCOME_NON_SHELF, 'Started a non-shelf check'),
+        (OUTCOME_DISMISSED, 'Dismissed'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='work_cycle_prompts',
+    )
+    register = models.ForeignKey(
+        'pos.Register',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='work_cycle_prompts',
+    )
+    shown_at = models.DateTimeField()
+    answered_at = models.DateTimeField()
+    idle_seconds = models.PositiveIntegerField(default=0)
+    outcome = models.CharField(max_length=20, choices=OUTCOME_CHOICES)
+    submission = models.ForeignKey(
+        RoutineSubmission,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='work_cycle_prompts',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-shown_at']
+
+    def __str__(self):
+        who = self.user_id or 'unknown'
+        return f'{self.outcome} by {who} at {self.shown_at}'

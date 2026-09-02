@@ -41,7 +41,7 @@ describe('settingsRegistry', () => {
 
   it('gathers every Retail QA key on its own tab', () => {
     const keys = keysForTab('retail-qa', Object.keys(SETTINGS_REGISTRY));
-    expect(keys).toHaveLength(11);
+    expect(keys).toHaveLength(12);
     expect(keys.every((key) => key.startsWith('retail_qa.'))).toBe(true);
   });
 

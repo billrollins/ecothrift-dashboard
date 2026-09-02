@@ -1,4 +1,4 @@
-"""Item notes ledger — append, revise, void, fan-out, backfill, split/combine."""
+"""Item notes ledger - append, revise, void, fan-out, backfill, split/combine."""
 
 import importlib
 

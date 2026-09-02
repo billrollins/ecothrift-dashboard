@@ -2,7 +2,7 @@
 
 Separate from the curated store catalog (`apps.webstore`): this is editorial content
 (series + posts) shown on `ecothrift.us/blog`. Visibility for every public reader
-(list, detail, Home, sitemap) flows through one place — ``BlogPost.objects.live()`` —
+(list, detail, Home, sitemap) flows through one place - ``BlogPost.objects.live()`` -
 so scheduling logic can never drift between readers.
 """
 from __future__ import annotations

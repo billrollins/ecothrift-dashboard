@@ -154,7 +154,7 @@ describe('mergeBenchHistory', () => {
     expect(filterBenchHistory(rows, 'all')).toHaveLength(2);
   });
 
-  it('Actions keeps inspect–salvage and Non-actions keeps the desk map', () => {
+  it('Actions keeps inspect-salvage and Non-actions keeps the desk map', () => {
     const rows = mergeBenchHistory(
       [
         action({ id: 1, category: 'inspect', started_at: '2026-08-14T13:00:00Z' }),
@@ -229,8 +229,8 @@ describe('priceChangeDetail', () => {
   });
 
   it('treats a new price and a dropped price as changes', () => {
-    expect(priceChangeDetail({}, { Working: 25 })).toBe('Working — → $25');
-    expect(priceChangeDetail({ Custom: 10 }, {})).toBe('Custom $10 → —');
+    expect(priceChangeDetail({}, { Working: 25 })).toBe('Working - → $25');
+    expect(priceChangeDetail({ Custom: 10 }, {})).toBe('Custom $10 → -');
   });
 });
 
@@ -632,8 +632,8 @@ describe('summarizeClearableHistory', () => {
     expect(summary).toEqual({ notes: 1, superseded: 2 });
     expect(clearableHistoryTotal(summary)).toBe(3);
     expect(clearableHistoryLines(summary)).toEqual([
-      '1 of your earlier notes — the current note stays',
-      '2 earlier answers — the latest of each kind since the last sitting stays',
+      '1 of your earlier notes - the current note stays',
+      '2 earlier answers - the latest of each kind since the last sitting stays',
     ]);
   });
 });

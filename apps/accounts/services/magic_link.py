@@ -80,7 +80,7 @@ def _refresh_hold_verification_link(*, hold_token: str, email: str, request_ip: 
         status='pending_verification',
     ).first()
     if hold is None:
-        # Hold may already be verified/expired — still send them to the status page.
+        # Hold may already be verified/expired - still send them to the status page.
         return _resolve_hold_redirect(hold_token, email=email, relinked=True)
 
     from django.conf import settings as dj_settings
@@ -90,7 +90,7 @@ def _refresh_hold_verification_link(*, hold_token: str, email: str, request_ip: 
         confirm_link = f'{base}/api/webstore/holds/confirm/?t={plain_token}'
         send_hold_verification(hold, confirm_link=confirm_link, code=plain_code)
     except ConfirmationCooldown:
-        # A fresh code was just sent — still land them on the status page.
+        # A fresh code was just sent - still land them on the status page.
         pass
     except Exception:
         pass
@@ -163,7 +163,7 @@ def consume_magic_link(*, token: str, request_ip: str | None = None) -> ConsumeR
     if locked is None:
         raise ValidationError({'detail': 'Invalid or expired sign-in link.'})
 
-    # Hold-verify failure paths resolve forward — never a dead error page.
+    # Hold-verify failure paths resolve forward - never a dead error page.
     if locked.purpose == MagicLinkToken.PURPOSE_VERIFY_HOLD and locked.hold_token:
         if locked.used_at is not None:
             redirect = _resolve_hold_redirect(locked.hold_token, email=locked.email)

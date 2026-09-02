@@ -44,14 +44,14 @@ export function RestorationAddToQueueDialog({
       <DialogContent>
         <Stack spacing={0.75}>
           <Typography sx={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '0.85rem', color: studio.accentDark }}>
-            {item?.sku ?? '—'}
+            {item?.sku ?? '-'}
           </Typography>
           <Typography sx={{ fontWeight: 800, color: studio.ink }}>{item?.name || 'Unnamed item'}</Typography>
           <Typography sx={{ fontSize: '0.8rem', color: studio.inkMuted }}>
-            Location: {item?.location || '—'}
+            Location: {item?.location || '-'}
           </Typography>
           <Typography sx={{ fontSize: '0.8rem', color: studio.inkMuted }}>
-            Status: {item?.status || '—'}
+            Status: {item?.status || '-'}
           </Typography>
         </Stack>
       </DialogContent>

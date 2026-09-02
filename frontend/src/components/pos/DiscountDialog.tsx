@@ -386,7 +386,7 @@ export function DiscountDialog({ open, cart, pending, onClose, onSubmit }: Disco
                 <MenuItem value="ticket">Full ticket</MenuItem>
                 {itemLines.map((ln: CartLine) => (
                   <MenuItem key={ln.id} value={String(ln.id)}>
-                    Per line — {ln.description} ({formatDiscountCurrency(Number(ln.line_total))})
+                    Per line - {ln.description} ({formatDiscountCurrency(Number(ln.line_total))})
                   </MenuItem>
                 ))}
               </Select>

@@ -1,4 +1,4 @@
-"""Queue details — grade scale, values, note and destination.
+"""Queue details - grade scale, values, note and destination.
 
 Anyone can answer these, at any screen, for as long as the item is unfinished.
 The person who knows what an item is worth is often not the one who checked it

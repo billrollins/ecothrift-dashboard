@@ -1,4 +1,4 @@
-"""POST /pos/carts/:id/add-manual-line/ — lines without inventory items (pink tag / unscannable)."""
+"""POST /pos/carts/:id/add-manual-line/ - lines without inventory items (pink tag / unscannable)."""
 from decimal import Decimal
 
 from django.contrib.auth.models import Group

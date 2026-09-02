@@ -45,7 +45,7 @@ class Migration(migrations.Migration):
                 decimal_places=4,
                 default=Decimal('0.1500'),
                 help_text=(
-                    'Estimated shrinkage fraction (0–1). Item cost allocates total_cost over '
+                    'Estimated shrinkage fraction (0-1). Item cost allocates total_cost over '
                     'expected recoverable retail: PO.retail_value × (1 - est_shrink). Changing '
                     'this recomputes item costs for this PO.'
                 ),

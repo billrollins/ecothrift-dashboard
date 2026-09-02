@@ -5,7 +5,7 @@ export interface PageHeaderProps {
   subtitle?: string;
   action?: React.ReactNode;
   dense?: boolean;
-  /** One short title row — Overview and other shop-floor bands. */
+  /** One short title row - Overview and other shop-floor bands. */
   compact?: boolean;
 }
 

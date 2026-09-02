@@ -21,7 +21,7 @@ def resolve_google_api_key() -> str:
 
 
 def api_key_status() -> dict[str, dict[str, str | bool]]:
-    """Present/missing only — never returns secret values."""
+    """Present/missing only - never returns secret values."""
     return {
         "anthropic": {
             "ok": bool(resolve_anthropic_api_key()),

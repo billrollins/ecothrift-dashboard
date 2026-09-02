@@ -2,17 +2,20 @@ import { Alert } from '@mui/material';
 import type {
   AnyRoutineResponses,
   AuditTaxonomy,
+  NonShelfCheck,
   OwnerSpotResponses,
   RoutineKind,
   RoutineResponses,
   SectionAuditResponses,
   SectionTallyResponses,
   VerifyContext,
+  WorkCycleResponses,
 } from '../../../api/routines.api';
 import { RoutineRunner } from '../RoutineRunner';
 import { OwnerSpotRunner } from './OwnerSpotRunner';
 import { SectionAuditRunner } from './SectionAuditRunner';
 import { SectionTallyRunner } from './SectionTallyRunner';
+import { WorkCycleRunner } from './WorkCycleRunner';
 
 /**
  * One entry point for every routine shape. The page above stays ignorant of
@@ -28,6 +31,8 @@ export function KindRunner({
   minItems,
   onChange,
   readOnly,
+  sections,
+  nonShelfChecks,
 }: {
   kind: RoutineKind;
   title: string;
@@ -38,6 +43,8 @@ export function KindRunner({
   minItems: number;
   onChange?: (next: AnyRoutineResponses) => void;
   readOnly?: boolean;
+  sections?: Array<{ id: number; name: string }>;
+  nonShelfChecks?: NonShelfCheck[];
 }) {
   if (kind === 'checklist') {
     return (
@@ -63,6 +70,19 @@ export function KindRunner({
         taxonomy={taxonomy}
         readOnly={readOnly}
         onChange={onChange}
+      />
+    );
+  }
+  if (kind === 'work_cycle') {
+    return (
+      <WorkCycleRunner
+        title={title}
+        responses={responses as WorkCycleResponses}
+        taxonomy={taxonomy}
+        sections={sections ?? []}
+        nonShelfChecks={nonShelfChecks ?? []}
+        readOnly={readOnly}
+        onChange={onChange ? (next) => onChange(next) : undefined}
       />
     );
   }

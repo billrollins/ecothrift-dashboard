@@ -115,7 +115,7 @@ def record_processing_dispute_for_items(
     """Persist a processing dispute after item state mutation (one row per API call)."""
 
     ids = [it.pk for it in target_items]
-    title = f'Processing dispute ({dtype}) — {len(ids)} items'
+    title = f'Processing dispute ({dtype}) - {len(ids)} items'
     payload: dict[str, Any] = {
         'item_ids': ids,
         'dispute_type': dtype,

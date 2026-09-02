@@ -1,4 +1,4 @@
-"""Hold email confirmation — 6-digit code + prefetch-safe link token."""
+"""Hold email confirmation - 6-digit code + prefetch-safe link token."""
 from __future__ import annotations
 
 import hmac
@@ -161,7 +161,7 @@ def issue_confirmation(
 
 
 def _link_customer_account(reservation: Reservation) -> None:
-    """Stamp email verified + claim guest records — no session / JWT."""
+    """Stamp email verified + claim guest records - no session / JWT."""
     from apps.accounts.services.magic_link import (
         _get_or_create_customer,
         claim_guest_records,
@@ -281,7 +281,7 @@ def confirm_with_token(raw: str) -> TokenResult:
         return TokenResult(kind='expired', reservation=reservation)
 
     if reservation.status != 'pending_verification':
-        # Hold already advanced without this row — treat as success.
+        # Hold already advanced without this row - treat as success.
         return TokenResult(kind='already_confirmed', reservation=reservation)
 
     try:

@@ -51,7 +51,7 @@ class Command(BaseCommand):
         use_llm = not options['no_llm']
 
         if dry_run:
-            self.stdout.write(self.style.WARNING('DRY RUN — no changes will be written.\n'))
+            self.stdout.write(self.style.WARNING('DRY RUN - no changes will be written.\n'))
 
         stats: Counter = Counter()
         method_counts: Counter = Counter()
@@ -122,6 +122,6 @@ class Command(BaseCommand):
             self.stdout.write(f'  {method}: {count}')
         self.stdout.write('=' * 50)
         if dry_run:
-            self.stdout.write(self.style.WARNING('\nDRY RUN — run without --dry-run to commit.'))
+            self.stdout.write(self.style.WARNING('\nDRY RUN - run without --dry-run to commit.'))
         else:
             self.stdout.write(self.style.SUCCESS('\nBackfill complete.'))

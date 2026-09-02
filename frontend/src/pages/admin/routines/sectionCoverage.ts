@@ -11,7 +11,7 @@ export interface SectionCoverage {
 
 /**
  * The two ways a floor plan goes wrong: an area with no keeper, and a keeper
- * with no area. Both are quiet failures — the tally simply never appears — so
+ * with no area. Both are quiet failures - the tally simply never appears - so
  * the Sections view says them out loud.
  */
 export function sectionCoverage(

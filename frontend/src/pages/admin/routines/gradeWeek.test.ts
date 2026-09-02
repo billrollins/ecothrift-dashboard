@@ -28,6 +28,8 @@ function week(over: Partial<WeekGrade> = {}): WeekGrade {
     settings: {},
     missing_owners: [],
     taxonomy: { graded: [], recorded: [], flags: [], safety_flag: 'safety' },
+    work_cycles: [],
+    idle_prompts: [],
     ...over,
   };
 }

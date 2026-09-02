@@ -54,7 +54,7 @@ class PriceEstimate:
     estimated_price: Decimal
     low_estimate: Decimal
     high_estimate: Decimal
-    confidence: float          # 0.0 – 1.0
+    confidence: float          # 0.0 - 1.0
     method: str                # 'model' | 'heuristic'
     comparables: list[dict] = field(default_factory=list)
     notes: str = ''
@@ -104,7 +104,7 @@ def _heuristic_estimate(
     Returns (estimated, low, high).
     """
     if not retail_value or retail_value <= 0:
-        # No retail value — return a generic low-value estimate
+        # No retail value - return a generic low-value estimate
         return Decimal('5.00'), Decimal('1.00'), Decimal('15.00')
 
     multiplier = CONDITION_MULTIPLIERS.get(condition, 0.30)
@@ -144,7 +144,7 @@ def _find_comparables(
         sold_for__isnull=False,
     ).exclude(sold_for=0)
 
-    # Narrow by category first (Item has no category column — product / manifest row)
+    # Narrow by category first (Item has no category column - product / manifest row)
     if category_name:
         first = (category_name.split() or [''])[0]
         if first:

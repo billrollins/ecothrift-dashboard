@@ -1,4 +1,4 @@
-"""System email tests — mail.outbox + fail-soft behavior."""
+"""System email tests - mail.outbox + fail-soft behavior."""
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -62,7 +62,7 @@ class SystemEmailTests(TestCase):
             verified=False,
         )
         mail.outbox.clear()
-        # Email is scheduled with transaction.on_commit — execute callbacks here.
+        # Email is scheduled with transaction.on_commit - execute callbacks here.
         with self.captureOnCommitCallbacks(execute=True):
             verify_hold(res)
         self.assertEqual(len(mail.outbox), 1)
@@ -89,7 +89,7 @@ class SystemEmailTests(TestCase):
         client.force_authenticate(mgr)
         r = client.post(
             f'/api/webstore/conversations/{conv.id}/reply/',
-            {'body': 'Yes — come by tomorrow.'},
+            {'body': 'Yes - come by tomorrow.'},
             format='json',
         )
         self.assertEqual(r.status_code, 200)

@@ -838,7 +838,7 @@ def update_preprocessing_review_rows(order, rows_payload):
             raw_pid = row_data.get('final_matched_product')
             if raw_pid in (None, ''):
                 row.final_matched_product = None
-                # Explicit ``match_source: ''`` = REMOVE the match (back to undecided —
+                # Explicit ``match_source: ''`` = REMOVE the match (back to undecided -
                 # auto-matching may pick it up again). Default null = staff "new product".
                 if 'match_source' in row_data and row_data.get('match_source') == '':
                     row.match_source = ''
@@ -1291,7 +1291,7 @@ def sync_manifest_row_outputs_to_items(order, rows):
         if not product and row_items:
             product = row_items[0].product
         # Mixed-product rows (P4 split): row-level listing data is ambiguous across
-        # products — do not overwrite any single Product's identity fields.
+        # products - do not overwrite any single Product's identity fields.
         if len(distinct_pids) >= 2:
             product = None
         if product:
@@ -1352,7 +1352,7 @@ INVENTORY_CLEANUP_MODEL_OPTIONS = (
 
 def _inventory_cleanup_model_settings():
     # Resolve env-configured default at call time (not module import) so settings
-    # overrides — and .env edits between server restarts in tests — take effect.
+    # overrides - and .env edits between server restarts in tests - take effect.
     configured_cleanup_model = ai_model('INVENTORY_CLEANUP')
     models = [dict(m) for m in INVENTORY_CLEANUP_MODEL_OPTIONS]
     allowed_ids = {m['id'] for m in models}
@@ -2184,7 +2184,7 @@ class VendorViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_destroy(self, instance):
-        """Soft delete — set is_active=False."""
+        """Soft delete - set is_active=False."""
         instance.is_active = False
         instance.save()
 
@@ -2615,12 +2615,12 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='upload-manifest')
     def upload_manifest(self, request, pk=None):
-        """Upload a raw CSV/TSV manifest — S3 storage plus small JSON preview on the order only."""
+        """Upload a raw CSV/TSV manifest - S3 storage plus small JSON preview on the order only."""
         order = self.get_object()
         if order.finalized_at:
             return Response(
                 {
-                    'detail': 'Preprocessing is finalized — rewind finalize (timeline) before re-uploading a manifest.',
+                    'detail': 'Preprocessing is finalized - rewind finalize (timeline) before re-uploading a manifest.',
                     'code': 'finalized',
                 },
                 status=status.HTTP_409_CONFLICT,
@@ -2713,7 +2713,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 order.manifest_signature = sig
                 order.manifest_headers = list(headers)
                 # A new manifest restarts the pipeline: staging is deleted below, so the
-                # flow flags must reset too — otherwise the order claims standardized/
+                # flow flags must reset too - otherwise the order claims standardized/
                 # cleaned with zero staging rows (stale-state class bug).
                 order.preprocess_status = 'not_started'
                 order.standardized_at = None
@@ -2962,7 +2962,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             allowed_sides = {c[0] for c in ReceivingAttachment.SIDE_CHOICES}
             if pallet_number is None or pallet_number < 1 or pallet_number > 99:
                 return Response(
-                    {'detail': 'pallet_number (1–99) is required for pallet_side.', 'code': 'invalid_pallet'},
+                    {'detail': 'pallet_number (1-99) is required for pallet_side.', 'code': 'invalid_pallet'},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             if side not in allowed_sides:
@@ -3765,7 +3765,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             )
         bucket_lines = []
         for bid, b in manifest_field_metadata_payload()['buckets'].items():
-            sk = ', '.join(b['suggested_keys']) if b['suggested_keys'] else '(none listed — any ^[a-z][a-z0-9_]*$ sub-key)'
+            sk = ', '.join(b['suggested_keys']) if b['suggested_keys'] else '(none listed - any ^[a-z][a-z0-9_]*$ sub-key)'
             bucket_lines.append(
                 f'  - {bid}.<subkey>: {b["label"]}; suggested_keys (hints only): {sk}',
             )
@@ -3777,7 +3777,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             'Targets are either FLAT keys (see list below) or DOTTED `bucket.subkey` JSON buckets.\n'
             'The four bucket prefixes are fixed: identifiers, taxonomy, specifications, tracking. '
             'Sub-key strings must match the regex ^[a-z][a-z0-9_]*$. suggested_keys lists are autocomplete '
-            'hints only—not a whitelist; prefer them when the column obviously matches '
+            'hints only-not a whitelist; prefer them when the column obviously matches '
             '(e.g. UPC column → identifiers.upc), otherwise emit a sensible custom sub-key.\n'
             + '\n'.join(bucket_lines)
             + '\n\nFlat fields:\n'
@@ -4290,7 +4290,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             ai_cleanup_generation=F('ai_cleanup_generation') + 1,
         )
         if use_staging:
-            # Full layer clear (ai_* + final_* snapshot + match fields) — clearing only
+            # Full layer clear (ai_* + final_* snapshot + match fields) - clearing only
             # ai_* left the final_* snapshot and stale matches visible in Final Decisions
             # while the order claimed "not cleaned" (same stale-wipe class as the
             # finalize-rewind bug). Mirrors timeline undo "Before AI cleanup".
@@ -4299,7 +4299,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             bulk_clear_preprocess_ai_and_final_layers(pr_qs)
             # AI-estimated retail rewind: cleanup writes est_retail into staging
             # unit_retail for blank-retail rows (services/ai_cleanup.py). Reset those
-            # back to the manifest truth (None). Must run BEFORE ai_status is wiped —
+            # back to the manifest truth (None). Must run BEFORE ai_status is wiped -
             # the manifest-less subset is identified via ai_status.pricing.est_retail.
             pr_qs.filter(
                 manifest_row__isnull=False,
@@ -4380,7 +4380,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 {'error': 'anthropic library is not installed.'},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
-        except Exception as e:  # noqa: BLE001 — model/network failures are retryable per batch
+        except Exception as e:  # noqa: BLE001 - model/network failures are retryable per batch
             return Response(
                 {'detail': f'AI call failed: {e}', 'code': 'ai_call_failed', 'retryable': True},
                 status=status.HTTP_502_BAD_GATEWAY,
@@ -4407,7 +4407,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         terminal_count = order.items.filter(status__in=TERMINAL_ITEM_STATUSES).count()
         if terminal_count:
             return Response(
-                {'detail': 'Cannot clear manifest rows — some generated items are sold, scrapped, or lost.'},
+                {'detail': 'Cannot clear manifest rows - some generated items are sold, scrapped, or lost.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         items_deleted, _ = order.items.all().delete()
@@ -4490,7 +4490,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         ``unit_retail``, ``base_cost``, ``ideal_price``), then flattened text fields (``description`` …
         ``notes``), then JSON cells (``identifiers_json`` … ``search_tags_json``).
 
-        Omit ``title``, flat ``category`` / ``sku`` / ``upc``, and pricing-stage columns —
+        Omit ``title``, flat ``category`` / ``sku`` / ``upc``, and pricing-stage columns -
         offline tools infer from ``taxonomy_json`` / ``identifiers_json``; AI submits those via
         **upload-cleanup-csv** / **apply-cleanup-csv**.
         """
@@ -5490,7 +5490,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             return Response(
                 {
                     'detail': (
-                        'Cannot finalize — some items are sold, scrapped, or lost. '
+                        'Cannot finalize - some items are sold, scrapped, or lost. '
                         'Resolve inventory state before rebuilding manifest rows.'
                     ),
                 },
@@ -5683,7 +5683,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='match-products')
     def match_products(self, request, pk=None):
-        """Deprecated — manifest match writes removed (P6). Use Final Decisions or assign shared product."""
+        """Deprecated - manifest match writes removed (P6). Use Final Decisions or assign shared product."""
         return Response(
             {
                 'detail': (
@@ -5823,7 +5823,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 row.pricing_stage = 'draft'
             row.pricing_notes = (
                 f'AI estimate ({result.method}, {result.confidence:.0%} confidence). '
-                f'Range: ${result.low_estimate}–${result.high_estimate}.'
+                f'Range: ${result.low_estimate}-${result.high_estimate}.'
             )
             rows_to_update.append(row)
             updated += 1
@@ -6760,7 +6760,7 @@ class ProductViewSet(viewsets.ModelViewSet):
                 PRODUCT_CATALOG_STANDARDS
                 + '\n\n'
                 + 'If you return a suggestion for "category", it MUST be exactly one of these strings:\n'
-                + (category_lines or '- (no categories provided — omit category)')
+                + (category_lines or '- (no categories provided - omit category)')
                 + '\n\n'
                 + FEW_SHOT_SUGGEST_PRODUCT
                 + '\n'
@@ -7471,7 +7471,7 @@ class ItemViewSet(viewsets.ModelViewSet):
             from apps.inventory.processing_ops import processing_add_item
 
             payload = {**data, 'quantity': quantity}
-            # 'edit' = find-or-create from payload fields — same product resolution
+            # 'edit' = find-or-create from payload fields - same product resolution
             # (find_or_create_product_for_manual_item) the plain serializer path uses.
             payload.setdefault('product_mode', 'edit')
             if not payload.get('retail'):
@@ -8145,7 +8145,7 @@ def quick_reprice_view(request, pk):
     Body: {
         discount_type: 'percent' | 'fixed',
         discount_value: number,    # e.g. 25 for 25% or 5.00 for $5
-        min_price?: number         # floor — won't go below this (default 0.50)
+        min_price?: number         # floor - won't go below this (default 0.50)
     }
     Returns updated item data. Logs a price_change history event.
     """
@@ -8496,7 +8496,7 @@ def store_report_view(request):
         qs = on_shelf_qs.filter(price__gte=low)
         if high is not None:
             qs = qs.filter(price__lt=high)
-        label = f'${low}–${high}' if high else f'${low}+'
+        label = f'${low}-${high}' if high else f'${low}+'
         price_histogram.append({'range': label, 'count': qs.count()})
 
     return Response({
@@ -8528,7 +8528,7 @@ class RestorationJobViewSet(
     mixins.UpdateModelMixin,
     viewsets.GenericViewSet,
 ):
-    """Restoration queue jobs — one batch per ItemCheckIn."""
+    """Restoration queue jobs - one batch per ItemCheckIn."""
 
     serializer_class = RestorationJobSerializer
     permission_classes = [IsAuthenticated, IsStaff]
@@ -9269,7 +9269,7 @@ class RestorationJobViewSet(
         """Fill in the grade scale, values, note and destination for a queued item.
 
         Any staff member, at any screen, while the item is unfinished. On Done
-        the note can still be added — Processing has not taken the item yet.
+        the note can still be added - Processing has not taken the item yet.
         Scale, prices and destination stay locked once it is finished.
         """
 
@@ -9280,7 +9280,7 @@ class RestorationJobViewSet(
             job = RestorationJob.objects.select_for_update().get(pk=self.get_object().pk)
             if job.stage == RestorationJob.STAGE_RETURNED:
                 return Response(
-                    {'detail': 'This item is finished — its queue details can no longer change.'},
+                    {'detail': 'This item is finished - its queue details can no longer change.'},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             if job.stage == RestorationJob.STAGE_DONE:
@@ -9897,7 +9897,7 @@ class RestorationGradeScaleViewSet(
     mixins.CreateModelMixin,
     viewsets.GenericViewSet,
 ):
-    """Active restoration grade scales — list, create, and suggest from history."""
+    """Active restoration grade scales - list, create, and suggest from history."""
 
     permission_classes = [IsAuthenticated, IsStaff]
     pagination_class = None

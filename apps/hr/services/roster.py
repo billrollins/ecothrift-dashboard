@@ -1,4 +1,4 @@
-"""Super-admin time entry roster with weekly totals (Mon–Sun per employee)."""
+"""Super-admin time entry roster with weekly totals (Mon-Sun per employee)."""
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -14,7 +14,7 @@ def _break_label(entry: TimeEntry) -> str:
         return f'On break since {local.strftime("%I:%M %p").lstrip("0")}'
     mins = entry.break_minutes or 0
     if mins <= 0:
-        return '—'
+        return '-'
     hours, rem = divmod(mins, 60)
     if hours:
         return f'{hours}h {rem}m'
@@ -36,7 +36,7 @@ def shift_hours(entry: TimeEntry) -> Decimal:
 
 
 def _week_partition_totals(week_keys: set[tuple[int, date]]) -> dict[tuple[int, date], Decimal]:
-    """SUM(hours) per (employee, calendar week) — full Mon–Sun week, not running."""
+    """SUM(hours) per (employee, calendar week) - full Mon-Sun week, not running."""
     totals: dict[tuple[int, date], Decimal] = {}
     for employee_id, week_start in week_keys:
         week_end = week_start + timedelta(days=6)

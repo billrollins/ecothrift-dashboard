@@ -174,7 +174,7 @@ export function categoryChangeStartsNewSitting(
 
 /**
  * Enter files the open sitting and starts the next.
- * An empty description cannot move on — that is the same gate as the server.
+ * An empty description cannot move on - that is the same gate as the server.
  */
 export function fileCurrentActionPlan(
   current: { description: string },
@@ -192,7 +192,7 @@ export function fileCurrentActionPlan(
   return { describe, startNext: true, blockedReason: null };
 }
 
-/** Filed by the bench itself — populate is not enough; Enter has to run. */
+/** Filed by the bench itself - populate is not enough; Enter has to run. */
 export const CANNED_ACTION_DESCRIPTIONS = [
   'Initial item inspection',
   'Resume item from hold',

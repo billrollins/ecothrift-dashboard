@@ -187,7 +187,7 @@ class Command(BaseCommand):
 
         self.stdout.write(f'Fetched {len(rows):,} rows from DB2.')
         if dry_run:
-            self.stdout.write(self.style.WARNING('DRY RUN — skipping write.'))
+            self.stdout.write(self.style.WARNING('DRY RUN - skipping write.'))
             return
 
         existing_notes = _get_existing_notes_prefixes('db2')
@@ -233,7 +233,7 @@ class Command(BaseCommand):
 
         self.stdout.write(f'Fetched {len(rows):,} rows from DB1 (via {method}).')
         if dry_run:
-            self.stdout.write(self.style.WARNING('DRY RUN — skipping write.'))
+            self.stdout.write(self.style.WARNING('DRY RUN - skipping write.'))
             return
 
         existing_notes = _get_existing_notes_prefixes('db1')

@@ -1,7 +1,7 @@
 /**
  * What restoration earned, as one strip across the top of Home.
  *
- * TODAY / THIS WEEK / WEEKLY AVG. Everything is a fixed slot — no caption
+ * TODAY / THIS WEEK / WEEKLY AVG. Everything is a fixed slot - no caption
  * appears or disappears with the data, so the strip never changes height and
  * never pushes the queue below it around.
  */
@@ -13,7 +13,7 @@ import type { RestorationScoreboardDTO } from '../../../types/inventory.types';
 import { fmtUsd } from './tarsProfit';
 import { studio } from './studio/tarsStudioTheme';
 
-const NOT_YET = '—';
+const NOT_YET = '-';
 
 function money(raw: string | null | undefined): string {
   if (raw == null) return NOT_YET;

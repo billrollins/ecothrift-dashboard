@@ -18,7 +18,7 @@ const GLYPH: Record<TaskRowTone, { bg: string; fg: string }> = {
 /**
  * One row of a routine list: a status glyph, two lines of text, badges in
  * their own right-aligned column, and a fixed action strip. Density is the
- * point — a department of fifty has to stay scannable — so nothing here is
+ * point - a department of fifty has to stay scannable - so nothing here is
  * allowed to grow with content.
  */
 export function TaskRow({

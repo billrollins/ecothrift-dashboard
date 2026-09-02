@@ -2,12 +2,12 @@
 
 Two questions, one source of truth:
 
-* **Per job** — how much value did this job add? `value_added` is stamped at
+* **Per job** - how much value did this job add? `value_added` is stamped at
   completion so a later edit to a grade scale cannot rewrite what a finished job
   earned. Where it cannot be computed honestly it stays null and the job is
   excluded from every rate, counted instead as unmeasured.
 
-* **Across a window** — the scoreboard on the TARS home screen. Value added and
+* **Across a window** - the scoreboard on the TARS home screen. Value added and
   items finished per day, per week and over a trailing four weeks.
 """
 
@@ -72,7 +72,7 @@ def compute_value_added(
 
 
 def lowest_grade(grade_values: Any) -> str:
-    """The cheapest priced grade on the scale — the honest floor for arrival."""
+    """The cheapest priced grade on the scale - the honest floor for arrival."""
 
     if not isinstance(grade_values, dict):
         return ''
@@ -89,7 +89,7 @@ def lowest_grade(grade_values: Any) -> str:
 
 
 def starting_grade_from_session(session: Any) -> str:
-    """The datum Mike recorded — the grade the item arrived at.
+    """The datum Mike recorded - the grade the item arrived at.
 
     The bench writes `benchPlan.startingGrade`. The retired decision cockpit
     wrote it inside `decisionWork.condition`, and jobs it touched are still in

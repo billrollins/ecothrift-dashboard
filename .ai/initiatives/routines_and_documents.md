@@ -1,5 +1,5 @@
 <!-- initiative: slug=routines-and-documents status=active updated=2026-09-02 -->
-<!-- Last updated: 2026-09-02 -->
+<!-- Last updated: 2026-09-02 (v2.77.0 stabilize) -->
 
 # Initiative: Routines and Documents
 
@@ -28,7 +28,7 @@
 - Bi-weekly trigger (`anchor_date`). Saving a routine and opening `/mine/` materialize today's run.
 - Nav: Time clock + Routines in the account menu. Digit 9 and letter L stay free.
 - **Routine Control** (`/admin/routines`, superuser): every routine incl. retired, run stats, search / status / health chips / department / cadence / sort, inspector with quick edits (shared `RoutineSettingsFields`), Retire + Undo, Restore, Delete forever. API `admin/`, `restore/`, `hard-delete/`.
-- **Retail QA program**: nag hierarchy (`remind_time` / nullable `due_time` / `late_after`, `runUrgency`, clock-out guard), `Section` CRUD with owners, four routine kinds with purpose-built runners, seven seeded routines, `grading.py` with A-F letters, `GET /routines/grades/`, Settings > Retail QA, Routine Control > Sections and Grades, Dashboard Retail letters, POS work-cycle pill.
+- **Retail QA program**: nag hierarchy (`remind_time` / nullable `due_time` / `late_after`, `runUrgency`, clock-out guard), `Section` CRUD with owners, five routine kinds with purpose-built runners (including `work_cycle`), seven seeded routines, `grading.py` with A-F letters, `GET /routines/grades/`, Settings > Retail QA, Routine Control > Sections and Grades, Dashboard Retail letters, POS work-cycle pill and idle prompt.
 
 ## Later — Documents tune
 
@@ -59,6 +59,8 @@
 - Pinned Essentials: Dashboard only. Account menu: Time clock, Routines.
 
 ## Record
+
+**2026-09-02 — GitHub v2.77.0.** Retail QA stabilize: purge authored leftovers, lock program routines, Work cycle as its own kind with mobile draft pickup, terminal idle prompt, dashboard/grades activity figures, one Routine Control shell, no em/en dashes in ts/tsx/py. Not on Heroku.
 
 **2026-09-02 — GitHub v2.76.0.** Routines, Retail QA, and the Documents API (staff UI still unwired). Not on Heroku yet.
 

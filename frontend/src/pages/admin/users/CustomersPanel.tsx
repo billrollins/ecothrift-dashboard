@@ -272,7 +272,7 @@ export default function CustomersPanel({ onSelect }: Props) {
           const holds = row.holds_count ?? 0;
           return (
             <StackCell
-              top={holds ? String(holds) : '—'}
+              top={holds ? String(holds) : '-'}
               bottom={holds ? relativeDay(row.last_hold_at) || 'on file' : 'none yet'}
             />
           );
@@ -294,7 +294,7 @@ export default function CustomersPanel({ onSelect }: Props) {
         width: 104,
         renderCell: ({ row }) => (
           <Typography variant="body2" color="text.secondary">
-            {formatDay(row.customer_since) || '—'}
+            {formatDay(row.customer_since) || '-'}
           </Typography>
         ),
       },

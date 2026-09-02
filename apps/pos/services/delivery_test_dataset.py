@@ -49,7 +49,7 @@ class DeliveryDatasetError(Exception):
 
 
 def _require_seed_allowed():
-    """QA seed packs are local/DEBUG only — never create them in production."""
+    """QA seed packs are local/DEBUG only - never create them in production."""
     if settings.DEBUG:
         return
     raise DeliveryDatasetError(
@@ -394,12 +394,12 @@ def seed_dataset(
 
     today_day = make_day(
         base,
-        notes='Today — 5 zig-zag Omaha deliveries (1 item each, suboptimal order)',
+        notes='Today - 5 zig-zag Omaha deliveries (1 item each, suboptimal order)',
         prefer_date=True,
     )
-    past_day = make_day(base - timedelta(days=7), notes='Past — completed + failed return')
-    future_day_a = make_day(base + timedelta(days=7), notes='Future — two bookings')
-    future_day_b = make_day(base + timedelta(days=14), notes='Future — single booking')
+    past_day = make_day(base - timedelta(days=7), notes='Past - completed + failed return')
+    future_day_a = make_day(base + timedelta(days=7), notes='Future - two bookings')
+    future_day_b = make_day(base + timedelta(days=14), notes='Future - single booking')
 
     # Morning QA pack (relative to target date / today):
     # - Past: 2 deliveries (1 completed good, 1 failed/returned)
@@ -414,7 +414,7 @@ def seed_dataset(
             'address': '8724 N 30th St, Omaha, NE 68112',
             'is_apt': False,
             'unit': '',
-            'notes': 'Far north — gate code 4412',
+            'notes': 'Far north - gate code 4412',
             'items': [
                 {'description': 'Whirlpool washer', 'sku': 'WHR-WASH-01', 'quantity': 1, 'is_scannable': True},
             ],
@@ -427,7 +427,7 @@ def seed_dataset(
             'address': '4610 S 24th St, Omaha, NE 68107',
             'is_apt': False,
             'unit': '',
-            'notes': 'Far south — call on arrival',
+            'notes': 'Far south - call on arrival',
             'items': [
                 {'description': 'GE electric dryer', 'sku': 'GE-DRY-22', 'quantity': 1, 'is_scannable': True},
             ],
@@ -440,7 +440,7 @@ def seed_dataset(
             'address': '12102 Blondo St, Omaha, NE 68164',
             'is_apt': False,
             'unit': '',
-            'notes': 'Far northwest — basement walk-up',
+            'notes': 'Far northwest - basement walk-up',
             'items': [
                 {'description': 'Sofa', 'sku': 'SOF-210', 'quantity': 1, 'is_scannable': True},
             ],
@@ -453,7 +453,7 @@ def seed_dataset(
             'address': '15115 Q St, Omaha, NE 68137',
             'is_apt': False,
             'unit': '',
-            'notes': 'Far southwest — two-person carry',
+            'notes': 'Far southwest - two-person carry',
             'items': [
                 {'description': 'Frigidaire fridge', 'sku': 'FRI-RF-11', 'quantity': 1, 'is_scannable': True},
             ],
@@ -466,7 +466,7 @@ def seed_dataset(
             'address': '5202 Ames Ave, Omaha, NE 68104',
             'is_apt': False,
             'unit': '',
-            'notes': 'North central — side door',
+            'notes': 'North central - side door',
             'items': [
                 {'description': 'Microwave cart', 'sku': 'MW-CART-05', 'quantity': 1, 'is_scannable': True},
             ],
@@ -479,7 +479,7 @@ def seed_dataset(
             'address': '3110 Harney St, Omaha, NE 68131',
             'is_apt': False,
             'unit': '',
-            'notes': 'Delivered — customer signed at door',
+            'notes': 'Delivered - customer signed at door',
             'items': [
                 {'description': 'Washer', 'sku': 'PAST-W1', 'quantity': 1, 'is_scannable': True},
             ],
@@ -492,7 +492,7 @@ def seed_dataset(
             'address': '1402 N 16th St, Omaha, NE 68110',
             'is_apt': True,
             'unit': '2A',
-            'notes': 'No one home — returned to store',
+            'notes': 'No one home - returned to store',
             'items': [
                 {'description': 'Mattress', 'sku': 'PAST-M1', 'quantity': 1, 'is_scannable': True},
                 {'description': 'Box spring', 'sku': 'PAST-B1', 'quantity': 1, 'is_scannable': True},
@@ -519,7 +519,7 @@ def seed_dataset(
             'address': '5124 Underwood Ave, Omaha, NE 68132',
             'is_apt': False,
             'unit': '',
-            'notes': 'Park in driveway — dogs in backyard',
+            'notes': 'Park in driveway - dogs in backyard',
             'items': [
                 {'description': 'Washer', 'sku': 'FUT-W1', 'quantity': 1, 'is_scannable': True},
                 {'description': 'Laundry basket', 'sku': '', 'quantity': 1, 'is_scannable': False},
@@ -533,7 +533,7 @@ def seed_dataset(
             'address': '2555 S 135th Ave, Omaha, NE 68144',
             'is_apt': False,
             'unit': '',
-            'notes': 'Text on arrival — dining set needs two people',
+            'notes': 'Text on arrival - dining set needs two people',
             'items': [
                 {'description': 'Dining table', 'sku': 'FUT-T1', 'quantity': 1, 'is_scannable': True},
             ],
@@ -603,7 +603,7 @@ def seed_dataset(
         job=past_bad,
         position=1,
         state=DeliveryRunStop.STATE_FAILED,
-        hold_reason='No one home — returned to store',
+        hold_reason='No one home - returned to store',
         completed_at=None,
         contact_disposition=DeliveryRunStop.DISPOSITION_CONFIRMED,
         returned_unloaded_at=timezone.now() - timedelta(hours=1, minutes=10),

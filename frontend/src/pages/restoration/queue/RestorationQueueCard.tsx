@@ -2,7 +2,7 @@
  * One item, as a full-width row you can read across and edit in place.
  *
  * The row does two jobs at once. Read left to right it answers what the item
- * is, what it is worth and how long it has waited — enough to choose what to
+ * is, what it is worth and how long it has waited - enough to choose what to
  * pick up next. Every field in the middle is live, so the person who spots a
  * gap fills it where they stand instead of opening anything.
  *
@@ -52,7 +52,7 @@ export interface QueueEdit {
 
 /**
  * Wide enough for every field to sit on one line. Below this the row folds
- * into two, which is a layout change rather than a state change — the row is
+ * into two, which is a layout change rather than a state change - the row is
  * still a fixed shape for any given screen.
  *
  * Exported so the column headers sit on the same tracks as the cards.
@@ -95,7 +95,7 @@ export function RestorationQueueCard({
   onDispatch?: (job: RestorationJobDTO, option: DispatchOption) => void;
   /**
    * `row` is the overview list. `form` is the same fields, stacked, without
-   * Waiting or Dispatch — those belong to the list, not a single-item sheet.
+   * Waiting or Dispatch - those belong to the list, not a single-item sheet.
    */
   layout?: 'row' | 'form';
   /** Sits opposite at-stake on the form footer. Always reserve the slot. */
@@ -241,7 +241,7 @@ export function RestorationQueueCard({
               lineHeight: '18px',
             }}
           >
-            retail {job.retail ? fmtUsd(Number(job.retail)) : '—'}
+            retail {job.retail ? fmtUsd(Number(job.retail)) : '-'}
           </Typography>
         </Stack>
       </QueueSection>
@@ -363,7 +363,7 @@ export function RestorationQueueCard({
                 color: potential == null ? studio.inkFaint : studio.ink,
               }}
             >
-              {potential == null ? '—' : fmtUsd(potential)}
+              {potential == null ? '-' : fmtUsd(potential)}
             </Typography>
             <Typography sx={{ fontSize: '0.62rem', color: studio.inkLabel, fontWeight: 800, letterSpacing: 0.4 }}>
               AT STAKE
@@ -485,7 +485,7 @@ function QuickGradeForm({
                 color: retail == null ? studio.inkFaint : studio.ink,
               }}
             >
-              {retail == null ? '—' : fmtUsd(retail)}
+              {retail == null ? '-' : fmtUsd(retail)}
             </Typography>
           </Stack>
         </Stack>
@@ -645,7 +645,7 @@ function QuickGradeForm({
                   color: potential == null ? studio.inkFaint : studio.ink,
                 }}
               >
-                {potential == null ? '—' : fmtUsd(potential)}
+                {potential == null ? '-' : fmtUsd(potential)}
               </Typography>
               <Typography
                 sx={{

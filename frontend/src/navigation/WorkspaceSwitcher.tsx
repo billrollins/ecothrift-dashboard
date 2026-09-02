@@ -3,7 +3,7 @@
  * the user can open.
  *
  * The workspace cards used to sit in the sidebar all the time and ate a third
- * of it. They still exist — they just live in the menu, so the trigger can stay
+ * of it. They still exist - they just live in the menu, so the trigger can stay
  * one row and opening it never pushes the links below.
  *
  * Digits and first letters jump while the menu is open and do nothing the rest
