@@ -15,26 +15,34 @@ import {
   Divider,
   ListItemIcon,
   ListItemText,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import Logout from '@mui/icons-material/Logout';
 import Person from '@mui/icons-material/Person';
 import LockReset from '@mui/icons-material/LockReset';
+import TranslateOutlined from '@mui/icons-material/TranslateOutlined';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
 import ChangePasswordDialog from '../users/ChangePasswordDialog';
 import { Sidebar, SIDEBAR_WIDTH } from './Sidebar';
+import { PhoneTabBar } from './PhoneTabBar';
+import { phoneShellTitle, showsPhoneTabBar } from './phoneFirstRoutes';
 import { getAppVersion } from '../../api/core.api';
 import logo from '../../assets/logo-full-360x120.png';
+import logoIcon from '../../assets/logo-icon-32x32.png';
 import { dashboardPalette } from '../dashboard/dashboardCardStyles';
+import { dutyColors } from '../duty/tokens';
 import { RESTORATION_BENCH_PATH } from '../../pages/restoration/restorationRoutes';
+import { t } from '../../i18n/routines';
 import { RoutinesNag } from '../routines/RoutinesNag';
 import { useNavBadgeCounts } from '../../hooks/useNavBadgeCounts';
 import { resolveNavItem } from '../../navigation/navResolve';
 import { navigateForNavItem } from '../../navigation/navUtils';
 import { NavWaitingBadge } from '../../navigation/NavWaitingBadge';
 
-const PROFILE_NAV_IDS = ['timeClock', 'routines'] as const;
+const PROFILE_NAV_IDS = ['today', 'pay', 'routines'] as const;
 
 const DASHBOARD_BACKDROP = dashboardPalette.backdrop;
 
@@ -44,15 +52,21 @@ export default function MainLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [passwordOpen, setPasswordOpen] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, logout, setLanguage } = useAuth();
+  const lang = user?.language === 'es' ? 'es' : 'en';
   const navigate = useNavigate();
   const location = useLocation();
   const isDashboard = location.pathname === '/dashboard';
+  const isToday = location.pathname === '/today' || location.pathname.startsWith('/today/');
+  const isPay = location.pathname === '/pay' || location.pathname.startsWith('/hr/time-clock');
   const isRestoration = location.pathname.startsWith('/restoration');
   const isRestorationBench = location.pathname === RESTORATION_BENCH_PATH;
   const isFieldMobile = isMobile && location.pathname.startsWith('/pos/deliveries/field');
   // Routines and its Admin control room draw their own panes edge to edge.
   const isRoutines = location.pathname.startsWith('/routines') || location.pathname.startsWith('/admin/routines');
+  const isStaffRoutines = location.pathname.startsWith('/routines');
+  const isFloorDesk = !isMobile && (isDashboard || isToday || isPay || isStaffRoutines);
+  const isPhoneShell = isMobile && showsPhoneTabBar(location.pathname, location.search);
   const profileBadges = useNavBadgeCounts({ onlineSales: false });
   const profileNavItems = PROFILE_NAV_IDS
     .map((id) => resolveNavItem(id))
@@ -165,12 +179,28 @@ export default function MainLayout() {
               bgcolor: 'background.paper',
             }}
           >
-            <Toolbar>
+            <Toolbar
+              variant={isPhoneShell ? 'dense' : undefined}
+              sx={isPhoneShell ? { minHeight: 56, px: 1.5 } : undefined}
+            >
               {isMobile && (
-                <IconButton edge="start" onClick={handleDrawerToggle} sx={{ mr: 2 }}>
+                <IconButton edge="start" onClick={handleDrawerToggle} sx={{ mr: isPhoneShell ? 1 : 2 }}>
                   <MenuIcon />
                 </IconButton>
               )}
+              {isPhoneShell ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                  <Box
+                    component="img"
+                    src={logoIcon}
+                    alt=""
+                    sx={{ width: 32, height: 32, display: 'block' }}
+                  />
+                  <Typography variant="body2" fontWeight={800} noWrap>
+                    {phoneShellTitle(location.pathname, lang)}
+                  </Typography>
+                </Box>
+              ) : null}
               <Box sx={{ flexGrow: 1 }} />
               {user ? (
                 <Box sx={{ width: 44, height: 44, mr: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -182,7 +212,7 @@ export default function MainLayout() {
                   <Typography
                     variant="body2"
                     color="text.secondary"
-                    sx={{ mr: 1, display: { xs: 'none', sm: 'block' } }}
+                    sx={{ mr: 1, display: { xs: 'none', sm: isPhoneShell ? 'none' : 'block' } }}
                   >
                     {user.full_name}
                   </Typography>
@@ -227,6 +257,39 @@ export default function MainLayout() {
                     ))}
                     <Divider />
                     <MenuItem
+                      disableRipple
+                      sx={{ cursor: 'default', py: 1.25, pr: 2, alignItems: 'center' }}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <ListItemIcon><TranslateOutlined fontSize="small" /></ListItemIcon>
+                      <ListItemText primary={t('language', lang)} />
+                      <ToggleButtonGroup
+                        size="small"
+                        exclusive
+                        value={lang}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={(_, value) => {
+                          if (value === 'en' || value === 'es') void setLanguage(value);
+                        }}
+                        sx={{
+                          ml: 2,
+                          '& .MuiToggleButton-root': {
+                            px: 1.5,
+                            py: 0.5,
+                            minWidth: 44,
+                            lineHeight: 1.2,
+                          },
+                        }}
+                      >
+                        <ToggleButton value="en">
+                          {t('english', lang)}
+                        </ToggleButton>
+                        <ToggleButton value="es">
+                          {t('spanish', lang)}
+                        </ToggleButton>
+                      </ToggleButtonGroup>
+                    </MenuItem>
+                    <MenuItem
                       onClick={() => {
                         handleMenuClose();
                         setPasswordOpen(true);
@@ -262,7 +325,7 @@ export default function MainLayout() {
             flexDirection: 'column',
             overflowX: 'hidden',
             overflowY: isRestorationBench || isRoutines ? 'hidden' : 'auto',
-            p: isFieldMobile || isRoutines
+            p: isFieldMobile || isRoutines || isFloorDesk || (isPhoneShell && (isDashboard || isToday || isPay))
               ? 0
               : isRestoration
                 ? { xs: 0.75, md: 1 }
@@ -274,13 +337,20 @@ export default function MainLayout() {
                   background: DASHBOARD_BACKDROP,
                 }
               : {}),
-            bgcolor: isFieldMobile ? '#fff' : isDashboard ? DASHBOARD_BACKDROP : 'background.default',
+            bgcolor: isFieldMobile
+              ? '#fff'
+              : isDashboard
+                ? DASHBOARD_BACKDROP
+                : isFloorDesk
+                  ? dutyColors.paper
+                  : 'background.default',
           }}
         >
           <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <Outlet />
           </Box>
         </Box>
+        {isPhoneShell ? <PhoneTabBar /> : null}
       </Box>
     </Box>
   );

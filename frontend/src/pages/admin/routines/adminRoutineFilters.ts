@@ -63,7 +63,7 @@ export function baseRows(rows: AdminRoutine[], filters: AdminRoutineFilters): Ad
       routine.title,
       routine.intro,
       routine.assigned_department_name,
-      routine.assigned_role,
+      routine.audience_type,
       routine.stats.last_completed_by_name,
     )
   ));

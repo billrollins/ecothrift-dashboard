@@ -38,6 +38,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     phone = models.CharField(max_length=30, blank=True, default='')
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
+    language = models.CharField(
+        max_length=8,
+        choices=[('en', 'English'), ('es', 'Spanish')],
+        default='en',
+    )
     date_joined = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-02 (v2.77.0 Retail QA stabilize) -->
+<!-- Last updated: 2026-09-03 (v2.87.0 Floor pages) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not a session log.
@@ -13,7 +13,7 @@ Bounded work (hours–days), one `.md` per initiative. Not a session log.
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [routines_and_documents](./routines_and_documents.md) | **Active** | Routines + Retail QA shipped **v2.76.0**, stabilized **v2.77.0**. Documents API in-tree; staff page parked for a later tune. |
+| [routines_and_documents](./routines_and_documents.md) | **Active** | Routines + Retail QA through desk Home / Today / Pay / Routines shipped **v2.87.0** (GitHub, not Heroku). Documents API in-tree; staff page parked for a later tune. |
 | [admin_workspace_overhaul](./admin_workspace_overhaul.md) | **Active** | Phases 1–3 shipped **v2.74.0**. Grants deferred. |
 | [universal_object_surfaces](./universal_object_surfaces.md) | **Design only** | Permissioned ObjectChip → ObjectSurface. No code scheduled. |
 

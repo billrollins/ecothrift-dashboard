@@ -1,6 +1,7 @@
 import { Box, Typography } from '@mui/material';
 import ArchiveOutlined from '@mui/icons-material/ArchiveOutlined';
 import ChecklistRtlRounded from '@mui/icons-material/ChecklistRtlRounded';
+import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import UnarchiveOutlined from '@mui/icons-material/UnarchiveOutlined';
 import { useMemo } from 'react';
 import type { AdminRoutine } from '../../../api/routines.api';
@@ -34,6 +35,7 @@ export function AdminRoutineList({
   onEditChecklist,
   onRetire,
   onRestore,
+  onHardDelete,
   busyId,
 }: {
   rows: AdminRoutine[];
@@ -47,6 +49,7 @@ export function AdminRoutineList({
   onEditChecklist: (routine: AdminRoutine) => void;
   onRetire: (routine: AdminRoutine) => void;
   onRestore: (routine: AdminRoutine) => void;
+  onHardDelete: (routine: AdminRoutine) => void;
   /** Row whose retire / restore is in flight; its buttons wait. */
   busyId: number | null;
 }) {
@@ -124,12 +127,23 @@ export function AdminRoutineList({
                       />
                     )
                   ) : (
-                    <TaskRowIcon
-                      label="Restore to the catalog"
-                      disabled={busy}
-                      icon={<UnarchiveOutlined sx={{ fontSize: 17 }} />}
-                      onClick={() => onRestore(routine)}
-                    />
+                    <>
+                      <TaskRowIcon
+                        label="Restore to the catalog"
+                        disabled={busy}
+                        icon={<UnarchiveOutlined sx={{ fontSize: 17 }} />}
+                        onClick={() => onRestore(routine)}
+                      />
+                      {routine.system_key ? null : (
+                        <TaskRowIcon
+                          label="Delete forever: erase the routine and its history"
+                          danger
+                          disabled={busy}
+                          icon={<DeleteOutline sx={{ fontSize: 17 }} />}
+                          onClick={() => onHardDelete(routine)}
+                        />
+                      )}
+                    </>
                   )}
                 </>
               )}

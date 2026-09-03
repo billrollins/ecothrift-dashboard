@@ -83,5 +83,13 @@ def routine_stats(routines: list[Routine], *, now=None) -> dict[int, dict]:
             out[run.routine_id]['overdue'] += 1
 
     for routine in routines:
-        out[routine.pk]['assignee_count'] = resolve_assignees(routine).count()
+        if (
+            getattr(routine, 'audience_type', '') == Routine.AUDIENCE_SHIFT
+            and routine.assignment == Routine.ASSIGN_POOLED
+        ):
+            out[routine.pk]['assignee_count'] = 1 if (
+                getattr(routine, 'audience_all', False) or (routine.assigned_shifts or [])
+            ) else 0
+        else:
+            out[routine.pk]['assignee_count'] = resolve_assignees(routine).count()
     return out

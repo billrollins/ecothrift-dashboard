@@ -66,6 +66,8 @@ describe('buildEmployeePayrollRows', () => {
       date: partial.week_start,
       clock_in: `${partial.week_start}T09:00:00Z`,
       clock_out: `${partial.week_start}T18:00:00Z`,
+      shift: '',
+      shift_label: '',
       break_minutes: 0,
       break_label: '-',
       on_break: false,

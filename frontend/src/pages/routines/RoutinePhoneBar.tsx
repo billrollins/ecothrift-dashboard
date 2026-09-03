@@ -1,40 +1,44 @@
 import { Box, Button, Typography } from '@mui/material';
 import { dutyColors } from '../../components/duty/tokens';
+import { useAuth } from '../../hooks/useAuth';
+import { t } from '../../i18n/routines';
 
 export const ROUTINE_PHONE_BAR_HEIGHT = 64;
 
 export type RoutinePhoneBarMode = 'fill' | 'preview' | 'demo' | 'review' | 'idle';
 
+const PILL_KEYS: Record<Exclude<RoutinePhoneBarMode, 'fill'>, string> = {
+  preview: 'livePreview',
+  demo: 'demo',
+  review: 'submittedReadOnly',
+  idle: 'selectRoutine',
+};
+
 const MODE_PILL: Record<Exclude<RoutinePhoneBarMode, 'fill'>, {
-  label: string;
   bar: string;
   chip: string;
   ink: string;
   dot: string;
 }> = {
   preview: {
-    label: 'Live preview',
     bar: dutyColors.brandSoft,
     chip: '#fff',
     ink: dutyColors.brandDark,
     dot: dutyColors.brand,
   },
   demo: {
-    label: 'Demo',
     bar: dutyColors.brandSoft,
     chip: '#fff',
     ink: dutyColors.brandDark,
     dot: dutyColors.brand,
   },
   review: {
-    label: 'Submitted · read only',
     bar: dutyColors.brandTint,
     chip: '#fff',
     ink: dutyColors.brandDark,
     dot: dutyColors.brand,
   },
   idle: {
-    label: 'Select a routine',
     bar: dutyColors.paper,
     chip: '#fff',
     ink: dutyColors.ink60,
@@ -43,7 +47,10 @@ const MODE_PILL: Record<Exclude<RoutinePhoneBarMode, 'fill'>, {
 };
 
 function ModePill({ mode }: { mode: Exclude<RoutinePhoneBarMode, 'fill'> }) {
+  const { user } = useAuth();
+  const lang = user?.language === 'es' ? 'es' : 'en';
   const chrome = MODE_PILL[mode];
+  const label = t(PILL_KEYS[mode], lang);
   return (
     <Box
       sx={{
@@ -76,7 +83,7 @@ function ModePill({ mode }: { mode: Exclude<RoutinePhoneBarMode, 'fill'> }) {
           lineHeight: 1,
         }}
       >
-        {chrome.label}
+        {label}
       </Typography>
     </Box>
   );
@@ -97,6 +104,8 @@ export function RoutinePhoneBar({
   saveDisabled?: boolean;
   saving?: boolean;
 }) {
+  const { user } = useAuth();
+  const lang = user?.language === 'es' ? 'es' : 'en';
   const chrome = mode === 'fill' ? null : MODE_PILL[mode];
 
   return (
@@ -128,7 +137,7 @@ export function RoutinePhoneBar({
               bgcolor: dutyColors.card,
             }}
           >
-            Cancel
+            {t('cancel', lang)}
           </Button>
           <Button
             onClick={onSave}
@@ -144,10 +153,10 @@ export function RoutinePhoneBar({
               '&:disabled': { bgcolor: dutyColors.ink15, color: dutyColors.ink40 },
             }}
           >
-            {saveLabel || 'Save & close'}
+            {saveLabel || t('saveClose', lang)}
           </Button>
         </>
-      ) : mode === 'demo' || mode === 'review' ? (
+      ) : mode === 'review' ? (
         <>
           <Button
             onClick={onCancel}
@@ -161,7 +170,7 @@ export function RoutinePhoneBar({
               bgcolor: '#fff',
             }}
           >
-            {mode === 'review' ? 'Close' : 'Cancel'}
+            {t('close', lang)}
           </Button>
           <Box sx={{ flex: 1.2, display: 'flex', justifyContent: 'center' }}>
             <ModePill mode={mode} />

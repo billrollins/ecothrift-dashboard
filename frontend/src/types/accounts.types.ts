@@ -62,6 +62,7 @@ export interface User {
   is_staff: boolean;
   /** Django superuser ("Super Admin"). Gates owner-only tooling like the Blog Studio. */
   is_superuser: boolean;
+  language?: 'en' | 'es';
   date_joined: string;
   updated_at: string;
   /** Null until the account signs in for the first time. */

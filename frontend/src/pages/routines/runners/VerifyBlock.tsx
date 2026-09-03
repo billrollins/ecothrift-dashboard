@@ -1,6 +1,8 @@
 import { Box, TextField, Typography } from '@mui/material';
 import { format, parseISO } from 'date-fns';
-import type { RoutineVerifyResponse, VerifyContext } from '../../../api/routines.api';
+import type { RoutineVerifyResponse, VerifyCheckResponse, VerifyContext } from '../../../api/routines.api';
+import { useAuth } from '../../../hooks/useAuth';
+import { pick, t } from '../../../i18n/routines';
 import { dutyColors } from '../../../components/duty/tokens';
 import { ChoiceRow } from './ChoiceRow';
 import { RunnerBand, runnerFieldSx } from './runnerParts';
@@ -15,13 +17,20 @@ function lastShiftLine(context: VerifyContext): string {
   return `${who}, ${when}${fails}`;
 }
 
+function theirLine(row: VerifyCheckResponse, lang: string): string {
+  const said = row.their_result === 'pass'
+    ? t('pass', lang)
+    : row.their_result === 'fail'
+      ? t('fail', lang)
+      : row.their_result === 'na'
+        ? t('na', lang)
+        : '-';
+  return `${t('theySaid', lang)}: ${said}`;
+}
+
 /**
- * The handover. Every shift signs off the one before it, so a corner cut at
- * closing is somebody's problem by ten the next morning instead of nobody's
- * problem all week.
- *
- * A missing previous shift is not hidden. Saying "nobody completed it" and
- * still asking for a verdict is the point.
+ * The handover, check by check. Every shift confirms the last one, so a
+ * corner cut at closing is somebody's problem by ten the next morning.
  */
 export function VerifyBlock({
   context,
@@ -34,47 +43,67 @@ export function VerifyBlock({
   onChange: (next: RoutineVerifyResponse) => void;
   readOnly?: boolean;
 }) {
+  const { user } = useAuth();
+  const lang = user?.language === 'es' ? 'es' : 'en';
   const missing = !context.run_id;
+  const checks = value.checks?.length ? value.checks : context.checks || [];
+
+  function patchCheck(checkId: string, patch: Partial<VerifyCheckResponse>) {
+    onChange({
+      run_id: context.run_id,
+      checks: checks.map((row) => (row.check_id === checkId ? { ...row, ...patch } : row)),
+    });
+  }
+
   return (
     <>
-      <RunnerBand title="Before you start" hint={`Check the last ${context.routine_title}.`} />
-      <Box
-        sx={{
-          mx: 1.25,
-          mb: 0.75,
-          px: 1.5,
-          py: 1.25,
-          bgcolor: dutyColors.card,
-          border: `1px solid ${dutyColors.ink08}`,
-          borderLeft: `4px solid ${missing ? dutyColors.red : dutyColors.blue}`,
-          borderRadius: '10px',
-        }}
-      >
-        <Typography sx={{ fontSize: 15.5, fontWeight: 500, lineHeight: 1.3, color: dutyColors.ink }}>
-          Was it done to standard?
-        </Typography>
-        <Typography sx={{ fontSize: 12, color: missing ? dutyColors.red : dutyColors.ink40, mt: 0.35, minHeight: 16 }}>
+      <RunnerBand title={t('verifyPrev', lang)} hint={`${context.routine_title}. ${lastShiftLine(context)}`} />
+      <Box sx={{ mx: 1.25, mb: 0.5, minHeight: 18 }}>
+        <Typography sx={{ fontSize: 12, color: missing ? dutyColors.red : dutyColors.ink40 }}>
           {lastShiftLine(context)}
         </Typography>
-        <ChoiceRow
-          value={value.result}
-          disabled={readOnly}
-          passLabel="Yes"
-          failLabel="No"
-          onChange={(result) => onChange({ ...value, result, run_id: context.run_id })}
-        />
-        <TextField
-          value={value.note}
-          onChange={(e) => onChange({ ...value, note: e.target.value })}
-          disabled={readOnly || value.result !== 'fail'}
-          placeholder={value.result === 'fail' ? 'What was left undone?' : 'Say what was wrong, if it was'}
-          multiline
-          minRows={2}
-          fullWidth
-          size="small"
-          sx={{ mt: 1, ...runnerFieldSx }}
-        />
       </Box>
+      {checks.map((row) => (
+        <Box
+          key={row.check_id}
+          sx={{
+            mx: 1.25,
+            mb: 0.75,
+            px: 1.5,
+            py: 1.25,
+            bgcolor: dutyColors.card,
+            border: `1px solid ${dutyColors.ink08}`,
+            borderLeft: `4px solid ${missing ? dutyColors.red : dutyColors.blue}`,
+            borderRadius: '10px',
+          }}
+        >
+          <Typography sx={{ fontSize: 15, fontWeight: 500, lineHeight: 1.3, color: dutyColors.ink }}>
+            {pick(row, 'label', lang) || row.label}
+          </Typography>
+          <Typography sx={{ fontSize: 12, color: dutyColors.ink40, mt: 0.35, minHeight: 16 }}>
+            {theirLine(row, lang)}
+          </Typography>
+          <ChoiceRow
+            value={row.result}
+            disabled={readOnly}
+            allowNa
+            passLabel={t('pass', lang)}
+            failLabel={t('fail', lang)}
+            onChange={(result) => patchCheck(row.check_id, { result })}
+          />
+          <TextField
+            value={row.note}
+            onChange={(e) => patchCheck(row.check_id, { note: e.target.value })}
+            disabled={readOnly || row.result !== 'fail'}
+            placeholder={row.result === 'fail' ? t('yourCall', lang) : ' '}
+            multiline
+            minRows={2}
+            fullWidth
+            size="small"
+            sx={{ mt: 1, ...runnerFieldSx }}
+          />
+        </Box>
+      ))}
     </>
   );
 }

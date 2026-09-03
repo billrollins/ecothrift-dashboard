@@ -32,7 +32,8 @@ export type NavIconKey =
   | 'palette'
   | 'email'
   | 'documents'
-  | 'checklist';
+  | 'checklist'
+  | 'payments';
 
 export interface NavItemDef {
   id: string;

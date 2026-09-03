@@ -1,9 +1,9 @@
-<!-- initiative: slug=routines-and-documents status=active updated=2026-09-02 -->
-<!-- Last updated: 2026-09-02 (v2.77.0 stabilize) -->
+<!-- initiative: slug=routines-and-documents status=active updated=2026-09-03 -->
+<!-- Last updated: 2026-09-03 (v2.87.0 Floor pages) -->
 
 # Initiative: Routines and Documents
 
-**Status:** **Active** — Routines + Retail QA shipped **v2.76.0** (GitHub). Documents UI is parked for a later tune.
+**Status:** **Active** — Routines + Retail QA through desk Home / Today / Pay / Routines shipped **v2.87.0** (GitHub, not Heroku). Documents UI is parked for a later tune.
 
 **Objective:** Staff have **Routines** (periodic or on-demand fill-in forms, pooled or per person) as a phone-first page. **Documents** (PDF upload, field placement, signing wizard, flattened signed PDF) stay in the tree and get a UI pass before they go to prod.
 
@@ -59,6 +59,8 @@
 - Pinned Essentials: Dashboard only. Account menu: Time clock, Routines.
 
 ## Record
+
+**2026-09-03 — GitHub v2.87.0.** Floor pages: Home / Today / Pay / Routines share `FloorNav`. Shift on the punch, language, 52-item Open / Day / Close (`0008` reseeds definitions, does not wipe history), expire, audience, subject-pool removal, phone Dashboard / Today / Pay. Retail cells with no letter stay blank, not a miss. Not on Heroku.
 
 **2026-09-02 — GitHub v2.77.0.** Retail QA stabilize: purge authored leftovers, lock program routines, Work cycle as its own kind with mobile draft pickup, terminal idle prompt, dashboard/grades activity figures, one Routine Control shell, no em/en dashes in ts/tsx/py. Not on Heroku.
 

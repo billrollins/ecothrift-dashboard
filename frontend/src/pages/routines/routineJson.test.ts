@@ -16,11 +16,17 @@ const current: RoutineDoc = {
   due_time: '10:30',
   anchor_date: null,
   grace_days: 0,
+  expire_rule: 'never',
+  expire_count: 1,
+  expire_unit: 'hours',
+  expire_from_time: null,
   assignment: 'pooled',
-  assigned_role: 'Staff',
+  audience_type: 'person',
+  audience_all: false,
+  assigned_shifts: [],
+  assigned_department_ids: [3],
   assigned_department: 3,
   assigned_user_ids: [7, 9],
-  subject_pool: [],
   is_blocking: false,
   definition: {
     template_version: 1,
@@ -144,6 +150,19 @@ describe('parseRoutineDoc', () => {
     expect(result.doc.due_time).toBe('09:05');
     expect(result.doc.anchor_date).toBeNull();
   });
+
+  it('accepts the missed-if-not-done expire clock', () => {
+    const result = parseRoutineDoc(
+      '{"expire_rule":"after","expire_count":6,"expire_unit":"hours","expire_from_time":"8:30:00"}',
+      current,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.doc.expire_rule).toBe('after');
+    expect(result.doc.expire_count).toBe(6);
+    expect(result.doc.expire_unit).toBe('hours');
+    expect(result.doc.expire_from_time).toBe('08:30');
+  });
 });
 
 describe('parseRoutineDoc with people and departments', () => {
@@ -159,7 +178,7 @@ describe('parseRoutineDoc with people and departments', () => {
     const brief = buildAiBrief(current, 'create', context);
     expect(brief).toContain('- 3 - Retail');
     expect(brief).toContain('- 7 - Ana Reyes (Manager, Retail)');
-    expect(brief).toContain('"assigned_department": <that id>');
+    expect(brief).toContain('"audience_type": "person"');
   });
 
   it('resolves a department name and a person name to ids', () => {

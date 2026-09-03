@@ -25,17 +25,32 @@ export function friendlyStamp(iso: string | null | undefined, now: Date = new Da
   return date.getFullYear() === now.getFullYear() ? format(date, 'MMM d') : format(date, 'MMM d, yyyy');
 }
 
-/** Who owns it, shortest true description first: people, then department, then role. */
+/** Who the run is for: type, then All or the selection. */
 export function ownerLabel(routine: AdminRoutine): string {
-  const people = routine.assigned_user_ids.length;
-  if (people) return people === 1 ? '1 person' : `${people} people`;
-  if (routine.assigned_department_name) {
-    return routine.assigned_role && routine.assigned_role !== 'Staff'
-      ? `${routine.assigned_department_name} ${routine.assigned_role.toLowerCase()}s`
-      : routine.assigned_department_name;
+  const share = routine.assignment === 'pooled' ? 'one shared' : 'each';
+  if (routine.audience_all) {
+    if (routine.audience_type === 'shift') return `All shifts · ${share}`;
+    if (routine.audience_type === 'department') return `All departments · ${share}`;
+    return `All staff · ${share}`;
   }
-  if (routine.assigned_role) return routine.assigned_role === 'Staff' ? 'All staff' : `All ${routine.assigned_role.toLowerCase()}s`;
-  return 'Nobody';
+  if (routine.audience_type === 'shift') {
+    const n = (routine.assigned_shifts || []).length;
+    return n ? `${n} shift${n === 1 ? '' : 's'} · ${share}` : `No shift · ${share}`;
+  }
+  if (routine.audience_type === 'department') {
+    const ids = routine.assigned_department_ids || [];
+    if (ids.length === 1 && routine.assigned_department_name) {
+      return `${routine.assigned_department_name} · ${share}`;
+    }
+    return ids.length
+      ? `${ids.length} departments · ${share}`
+      : (routine.assigned_department_name
+        ? `${routine.assigned_department_name} · ${share}`
+        : `No department · ${share}`);
+  }
+  const people = routine.assigned_user_ids.length;
+  if (people) return `${people === 1 ? '1 person' : `${people} people`} · ${share}`;
+  return `Nobody · ${share}`;
 }
 
 export function cadenceLabel(routine: AdminRoutine): string {

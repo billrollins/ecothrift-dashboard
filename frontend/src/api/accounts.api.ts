@@ -32,6 +32,10 @@ export function getMe(): Promise<{ data: User }> {
   return api.get<User>('/auth/me/');
 }
 
+export function patchMe(data: { language: 'en' | 'es' }): Promise<{ data: User }> {
+  return api.patch<User>('/auth/me/', data);
+}
+
 export interface CapabilityRow {
   id: string;
   area: string;

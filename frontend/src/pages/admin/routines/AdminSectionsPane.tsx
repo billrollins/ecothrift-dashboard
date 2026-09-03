@@ -1,4 +1,4 @@
-import { Box, MenuItem, TextField, Typography } from '@mui/material';
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, TextField, Typography } from '@mui/material';
 import AddRounded from '@mui/icons-material/AddRounded';
 import {
   DndContext,
@@ -17,6 +17,7 @@ import { StatusTag } from '../../../components/duty/StatusTag';
 import { dutyColors, thinScrollSx } from '../../../components/duty/tokens';
 import {
   useDeleteSection,
+  useHardDeleteSection,
   useReorderSections,
   useSaveSection,
   useSections,
@@ -44,6 +45,7 @@ export function AdminSectionsPane({
   const [departmentId, setDepartmentId] = useState<number | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [adding, setAdding] = useState('');
+  const [pendingDelete, setPendingDelete] = useState<Section | null>(null);
 
   // Default to Retail, which is the department the QA program was built for.
   useEffect(() => {
@@ -58,6 +60,7 @@ export function AdminSectionsPane({
   });
   const save = useSaveSection();
   const retire = useDeleteSection();
+  const hardDelete = useHardDeleteSection();
   const reorder = useReorderSections();
 
   const rows = sections.data ?? [];
@@ -80,8 +83,9 @@ export function AdminSectionsPane({
     setBusyId(id);
     try {
       await work();
-    } catch {
-      enqueueSnackbar(failure, { variant: 'error' });
+    } catch (err) {
+      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+      enqueueSnackbar(typeof detail === 'string' && detail ? detail : failure, { variant: 'error' });
     } finally {
       setBusyId(null);
     }
@@ -189,6 +193,7 @@ export function AdminSectionsPane({
                   () => save.mutateAsync({ id: section.id, data: { is_active: true } }),
                   'Could not restore that section',
                 )}
+                onHardDelete={() => setPendingDelete(section)}
               />
             ))}
           </SortableContext>
@@ -202,6 +207,34 @@ export function AdminSectionsPane({
 
         <Gaps coverage={coverage} loading={sections.isLoading} />
       </Box>
+
+      <Dialog open={pendingDelete != null} onClose={() => setPendingDelete(null)}>
+        <DialogTitle>Delete {pendingDelete?.name} forever?</DialogTitle>
+        <DialogContent>
+          Finished tallies keep the name they were walked under. Open runs for this aisle go with it. There is no undo.
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPendingDelete(null)}>Keep</Button>
+          <Button
+            color="error"
+            disabled={pendingDelete != null && busyId === pendingDelete.id}
+            onClick={() => {
+              const section = pendingDelete;
+              if (!section) return;
+              void run(
+                section.id,
+                async () => {
+                  await hardDelete.mutateAsync(section.id);
+                  enqueueSnackbar(`${section.name} deleted forever`, { variant: 'success' });
+                },
+                'Could not delete that section',
+              ).finally(() => setPendingDelete(null));
+            }}
+          >
+            Delete forever
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
@@ -221,7 +254,7 @@ function ColumnHeads() {
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mx: 1.5, mb: 0.75, pl: 3, pr: 1 }}>
       <Typography sx={{ ...head, flex: 1 }}>Section</Typography>
       <Typography sx={{ ...head, width: 210, flexShrink: 0 }}>Owner</Typography>
-      <Box sx={{ width: 30, flexShrink: 0 }} />
+      <Box sx={{ width: 64, flexShrink: 0 }} />
     </Box>
   );
 }

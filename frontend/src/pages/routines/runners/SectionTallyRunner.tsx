@@ -1,15 +1,8 @@
 import { Box, Typography } from '@mui/material';
 import type { AuditTaxonomy, SectionTallyResponses } from '../../../api/routines.api';
 import { dutyColors } from '../../../components/duty/tokens';
-import {
-  CounterRow,
-  FlagChips,
-  NotesField,
-  PhotoButton,
-  RunnerBand,
-  RunnerBody,
-  RunnerHead,
-} from './runnerParts';
+import { RunnerBody, RunnerHead } from './runnerParts';
+import { SectionWalkFields, type WalkAction } from './SectionWalkFields';
 
 /**
  * The daily walk of your own sections.
@@ -25,12 +18,14 @@ export function SectionTallyRunner({
   taxonomy,
   onChange,
   readOnly,
+  reroll,
 }: {
   title: string;
   responses: SectionTallyResponses;
   taxonomy: AuditTaxonomy;
   onChange?: (next: SectionTallyResponses) => void;
   readOnly?: boolean;
+  reroll?: WalkAction;
 }) {
   const rows = responses.sections || [];
   const touched = rows.filter((row) => (
@@ -62,41 +57,26 @@ export function SectionTallyRunner({
 
         {rows.length ? rows.map((row, index) => (
           <Box key={row.section_id}>
-            <RunnerBand
+            <SectionWalkFields
               title={row.section_name}
               hint="What you had to put right this morning."
-            />
-            {taxonomy.graded.concat(taxonomy.recorded).map((category) => (
-              <CounterRow
-                key={category.key}
-                label={category.label}
-                value={row.counts[category.key] || 0}
-                disabled={readOnly}
-                onChange={(next) => patch(index, {
-                  counts: { ...row.counts, [category.key]: Math.max(next, 0) },
-                })}
-              />
-            ))}
-            <FlagChips
-              options={taxonomy.flags}
-              active={row.flags}
-              disabled={readOnly}
-              onToggle={(key) => patch(index, {
+              counts={row.counts}
+              flags={row.flags}
+              photo={row.photo}
+              notes={row.notes}
+              taxonomy={taxonomy}
+              readOnly={readOnly}
+              action={reroll}
+              onCount={(key, value) => patch(index, {
+                counts: { ...row.counts, [key]: Math.max(value, 0) },
+              })}
+              onFlag={(key) => patch(index, {
                 flags: row.flags.includes(key)
-                  ? row.flags.filter((f) => f !== key)
+                  ? row.flags.filter((item) => item !== key)
                   : [...row.flags, key],
               })}
-            />
-            <PhotoButton
-              photo={row.photo}
-              disabled={readOnly}
-              label="Photo, if something needs showing"
-              onPhoto={(dataUrl) => patch(index, { photo: dataUrl })}
-            />
-            <NotesField
-              value={row.notes}
-              disabled={readOnly}
-              onChange={(notes) => patch(index, { notes })}
+              onPhoto={(photo) => patch(index, { photo })}
+              onNotes={(notes) => patch(index, { notes })}
             />
           </Box>
         )) : (

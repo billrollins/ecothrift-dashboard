@@ -6,9 +6,12 @@ import {
   createSection,
   deleteRoutine,
   deleteSection,
+  discardRoutineDraft,
+  hardDeleteSection,
   getAdminRoutines,
   getMyRoutineRuns,
   getRetailGrades,
+  getTodayGlance,
   getRoutine,
   getRoutineAssignees,
   getRoutineRun,
@@ -19,12 +22,14 @@ import {
   hardDeleteRoutine,
   patchRoutineSubmission,
   reorderSections,
+  rerollRoutineSection,
   restoreRoutine,
   submitRoutineSubmission,
   updateRoutine,
   updateSection,
   type AnyRoutineResponses,
   type MyRoutines,
+  type TodayGlance,
   type Routine,
   type RoutineSubmission,
   type Section,
@@ -41,6 +46,28 @@ export function useMyRoutineRuns() {
     refetchInterval: 15_000,
     refetchOnWindowFocus: true,
     staleTime: 0,
+  });
+}
+
+export function useTodayGlance(enabled = true) {
+  return useQuery({
+    queryKey: ['routines', 'today'],
+    queryFn: async () => (await getTodayGlance()).data as TodayGlance,
+    enabled,
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+  });
+}
+
+export function useRerollSection() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => (await rerollRoutineSection(id)).data,
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ['routines', 'run', data.id] });
+      void queryClient.invalidateQueries({ queryKey: ['routines', 'mine'] });
+    },
   });
 }
 
@@ -165,6 +192,18 @@ export function useDeleteSection() {
   });
 }
 
+export function useHardDeleteSection() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await hardDeleteSection(id);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['routines'] });
+    },
+  });
+}
+
 export function useReorderSections() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -202,15 +241,28 @@ export function useRoutineSubmission(id: number | null) {
 }
 
 export function useStartRoutineSubmission() {
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: { routine: number; run?: number; mode?: string }) => {
       const { data } = await createRoutineSubmission(input);
       return data;
     },
     retry: false,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['routines', 'mine'] });
+  });
+}
+
+export function useDiscardRoutineDraft() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await discardRoutineDraft(id);
+    },
+    onSuccess: (_void, id) => {
+      queryClient.setQueryData(['routines', 'mine'], (old: MyRoutines | undefined) => (
+        old
+          ? { ...old, drafts: (old.drafts ?? []).filter((row) => row.id !== id) }
+          : old
+      ));
+      void queryClient.invalidateQueries({ queryKey: ['routines'] });
     },
   });
 }
@@ -233,10 +285,14 @@ export function useLogWorkCyclePrompt() {
 }
 
 export function useSaveRoutineDraft() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: { id: number; responses: AnyRoutineResponses }) => {
       const { data } = await patchRoutineSubmission(input.id, input.responses);
       return data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['routines', 'mine'] });
     },
   });
 }

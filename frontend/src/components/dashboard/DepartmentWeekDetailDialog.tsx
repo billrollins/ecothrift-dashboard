@@ -3,8 +3,12 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  IconButton,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
+import Close from '@mui/icons-material/Close';
 import type { DepartmentDailyMetric, DepartmentDailyWeek } from '../../types/pos.types';
 import { dashboardPalette } from './dashboardCardStyles';
 import { shortDate } from './dashboardFormatters';
@@ -124,10 +128,32 @@ export function DepartmentWeekDetailDialog({
   cellAriaLabel,
 }: DepartmentWeekDetailDialogProps) {
   const orderedWeeks = [...weeks].reverse();
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth fullScreen={false}>
-      <DialogTitle sx={{ pb: 1 }}>{label} - weekly detail</DialogTitle>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
+      <DialogTitle
+        sx={{
+          pb: 1,
+          ...(fullScreen
+            ? {
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 1,
+                minHeight: 52,
+              }
+            : {}),
+        }}
+      >
+        {label} - weekly detail
+        {fullScreen ? (
+          <IconButton onClick={onClose} aria-label="Close" sx={{ width: 40, height: 40 }}>
+            <Close />
+          </IconButton>
+        ) : null}
+      </DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minHeight: 0 }}>
           <Box sx={{ display: 'grid', gridTemplateColumns: '48px repeat(7, minmax(0, 1fr))', gap: 0.35 }}>

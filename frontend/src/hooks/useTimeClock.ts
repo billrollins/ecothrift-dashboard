@@ -2,10 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getCurrentEntry,
   createTimeEntry,
+  setTimeEntryShift,
   clockOut,
   startBreak,
   endBreak,
   getWeeklyHoursStatus,
+  getMyPay,
 } from '../api/hr.api';
 
 export function useCurrentEntry() {
@@ -30,10 +32,22 @@ export function useWeeklyHoursStatus() {
   });
 }
 
+export function useMyPay(count = 6) {
+  return useQuery({
+    queryKey: ['timeClock', 'myPay'],
+    queryFn: async () => {
+      const { data } = await getMyPay(count);
+      return data;
+    },
+    staleTime: 60_000,
+  });
+}
+
 function invalidateTimeClock(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ['timeClock'] });
   queryClient.invalidateQueries({ queryKey: ['timeEntries'] });
   queryClient.invalidateQueries({ queryKey: ['tars-bench-jobs'] });
+  queryClient.invalidateQueries({ queryKey: ['routines', 'today'] });
 }
 
 export function useClockIn() {
@@ -43,6 +57,18 @@ export function useClockIn() {
     mutationFn: async (data?: Record<string, unknown>) => {
       const { data: result } = await createTimeEntry(data ?? {});
       return result;
+    },
+    onSuccess: () => invalidateTimeClock(queryClient),
+  });
+}
+
+export function useSetShift() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, shift }: { id: number; shift: string }) => {
+      const { data } = await setTimeEntryShift(id, shift);
+      return data;
     },
     onSuccess: () => invalidateTimeClock(queryClient),
   });

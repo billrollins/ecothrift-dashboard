@@ -4,17 +4,20 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import {
+  useDiscardRoutineDraft,
   useRoutine,
   useRoutineRun,
   useRoutineSubmission,
   useSaveRoutineDraft,
+  useRerollSection,
   useStartRoutineSubmission,
   useSubmitRoutine,
 } from '../../hooks/useRoutines';
 import type { AnyRoutineResponses, RoutineKind } from '../../api/routines.api';
 import { RoutinePhoneBar } from './RoutinePhoneBar';
 import { KindRunner } from './runners/KindRunner';
-import { issuesFound, runnerBlockers, submitLabel } from './runners/runnerStatus';
+import { emptyAudit } from './runners/SectionAuditFields';
+import { issuesFound, resolveRunnerKind, runnerBlockers, submitLabel } from './runners/runnerStatus';
 
 const DRAFT_DEBOUNCE_MS = 600;
 const DEFAULT_MIN_ITEMS = 20;
@@ -36,7 +39,9 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
   const draftQuery = useRoutineSubmission(id ? null : draftId);
   const start = useStartRoutineSubmission();
   const saveDraft = useSaveRoutineDraft();
+  const discard = useDiscardRoutineDraft();
   const submit = useSubmitRoutine();
+  const reroll = useRerollSection();
   const [submissionId, setSubmissionId] = useState<number | null>(null);
   const [responses, setResponses] = useState<AnyRoutineResponses | null>(null);
   const [error, setError] = useState('');
@@ -98,7 +103,10 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
 
   const run = runQuery.data;
   const routine = routineQuery.data;
-  const kind: RoutineKind = run?.kind || routine?.kind || 'checklist';
+  const kind: RoutineKind = resolveRunnerKind(
+    run?.kind || routine?.kind || draftQuery.data?.kind || 'checklist',
+    responses,
+  );
   const title = run?.title || routine?.title || 'Routine';
   const subject = run?.section_name || run?.subject || '';
   const taxonomy = run?.taxonomy ?? routine?.runner?.taxonomy ?? null;
@@ -110,6 +118,18 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
 
   function goBack() {
     navigate('/routines');
+  }
+
+  async function handleCancel() {
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+    if (submissionId && !finished) {
+      try {
+        await discard.mutateAsync(submissionId);
+      } catch {
+        enqueueSnackbar('Could not discard that draft', { variant: 'error' });
+      }
+    }
+    goBack();
   }
 
   async function handleSave() {
@@ -138,7 +158,7 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') goBack();
+      if (event.key === 'Escape') void handleCancel();
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -206,14 +226,33 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
             setResponses(next);
             queueDraft(next);
           }}
+          reroll={kind === 'owner_spot' && id
+            ? {
+              onClick: () => {
+                void reroll.mutateAsync(id).then((row) => {
+                  setResponses((prev) => {
+                    if (!prev || !('audit' in prev)) return prev;
+                    return {
+                      ...prev,
+                      audit: emptyAudit(row.section, row.section_name || row.subject || ''),
+                    };
+                  });
+                }).catch((err: unknown) => {
+                  const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+                  enqueueSnackbar(typeof detail === 'string' ? detail : 'Could not pick another section.', { variant: 'error' });
+                });
+              },
+              disabled: !run?.can_reroll || reroll.isPending,
+            }
+            : undefined}
         />
       </Box>
       <RoutinePhoneBar
         mode="fill"
-        onCancel={goBack}
+        onCancel={() => void handleCancel()}
         onSave={() => void handleSave()}
         saveLabel={blockers.length ? 'Save & close' : submitLabel(kind, responses, minItems)}
-        saving={saveDraft.isPending || submit.isPending}
+        saving={saveDraft.isPending || submit.isPending || discard.isPending}
       />
     </Box>
   );

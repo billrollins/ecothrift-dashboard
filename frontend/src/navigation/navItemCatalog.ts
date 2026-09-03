@@ -8,11 +8,17 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Dashboard',
     icon: 'dashboard',
   },
-  timeClock: {
-    id: 'timeClock',
-    path: '/hr/time-clock',
-    label: 'Time clock',
-    icon: 'schedule',
+  today: {
+    id: 'today',
+    path: '/today',
+    label: 'Today',
+    icon: 'factCheck',
+  },
+  pay: {
+    id: 'pay',
+    path: '/pay',
+    label: 'Pay',
+    icon: 'payments',
   },
   routines: {
     id: 'routines',

@@ -1,18 +1,56 @@
 import { Box, Typography } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { dutyColors } from '../../components/duty/tokens';
-import type { AnyRoutineResponses, RoutineDefinition, RoutineKind } from '../../api/routines.api';
+import { useAuth } from '../../hooks/useAuth';
+import { t } from '../../i18n/routines';
+import type {
+  AnyRoutineResponses,
+  AuditTaxonomy,
+  OwnerSpotResponses,
+  RoutineDefinition,
+  RoutineKind,
+  SectionTallyResponses,
+} from '../../api/routines.api';
 import { RoutinePhoneBar } from './RoutinePhoneBar';
 import { RoutineRunner } from './RoutineRunner';
 import { KindRunner } from './runners/KindRunner';
-import { PREVIEW_TAXONOMY, previewAudit, previewSpot, previewTally, previewWorkCycle } from './runners/previewFixtures';
+import {
+  PREVIEW_TAXONOMY,
+  previewAudit,
+  previewSpot,
+  previewTally,
+  previewWorkCycle,
+} from './runners/previewFixtures';
 import { responsesFromDefinition } from './responsesFromDefinition';
 
-function previewResponses(kind: RoutineKind): AnyRoutineResponses {
-  if (kind === 'section_tally') return previewTally();
-  if (kind === 'section_audit') return previewAudit();
-  if (kind === 'work_cycle') return previewWorkCycle();
-  return previewSpot();
+const EMPTY_SECTIONS: Array<{ id: number; name: string }> = [];
+
+function pickOther(ids: number[], current: number | null): number | null {
+  const pool = current == null ? ids : ids.filter((id) => id !== current);
+  if (!pool.length) return current;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function tallyFor(id: number, name: string): SectionTallyResponses {
+  return {
+    sections: [{
+      section_id: id,
+      section_name: name,
+      counts: {},
+      flags: [],
+      photo: null,
+      photo_file_id: null,
+      notes: '',
+    }],
+  };
+}
+
+function spotFor(id: number | null, name: string): OwnerSpotResponses {
+  const base = previewSpot();
+  return {
+    ...base,
+    audit: previewAudit(name, id ?? 0),
+  };
 }
 
 export function RoutinePreview({
@@ -21,6 +59,8 @@ export function RoutinePreview({
   definition,
   kind = 'checklist',
   mode,
+  taxonomy,
+  sections = EMPTY_SECTIONS,
 }: {
   title: string;
   intro?: string;
@@ -28,10 +68,69 @@ export function RoutinePreview({
   /** Section kinds have no authored definition; they preview from a fixture. */
   kind?: RoutineKind;
   mode: 'preview' | 'demo';
+  taxonomy?: AuditTaxonomy | null;
+  sections?: Array<{ id: number; name: string }>;
 }) {
-  const navigate = useNavigate();
   const responses = responsesFromDefinition(definition);
   const empty = kind === 'checklist' && responses.sections.length === 0;
+  const floor = sections;
+  const idsKey = useMemo(() => floor.map((row) => row.id).join(','), [floor]);
+  const names = useMemo(
+    () => Object.fromEntries(floor.map((row) => [row.id, row.name])),
+    [idsKey],
+  );
+  const [sectionId, setSectionId] = useState<number | null>(null);
+  const [tally, setTally] = useState<SectionTallyResponses>(previewTally());
+  const [spot, setSpot] = useState<OwnerSpotResponses>(previewSpot());
+  const seededFor = useRef<number | null | undefined>(undefined);
+
+  useEffect(() => {
+    const ids = idsKey ? idsKey.split(',').map(Number) : [];
+    if (!ids.length) {
+      setSectionId(null);
+      setTally({ sections: [] });
+      setSpot(spotFor(null, ''));
+      return;
+    }
+    setSectionId((current) => (
+      current != null && ids.includes(current) ? current : pickOther(ids, null)
+    ));
+  }, [idsKey]);
+
+  useEffect(() => {
+    if (sectionId == null) {
+      seededFor.current = null;
+      return;
+    }
+    if (seededFor.current === sectionId) return;
+    seededFor.current = sectionId;
+    const name = names[sectionId] || '';
+    setTally(tallyFor(sectionId, name));
+    setSpot(spotFor(sectionId, name));
+  }, [sectionId, names]);
+
+  function reroll() {
+    const ids = idsKey ? idsKey.split(',').map(Number) : [];
+    const next = pickOther(ids, sectionId);
+    if (next == null) return;
+    seededFor.current = next;
+    setSectionId(next);
+    setTally(tallyFor(next, names[next] || ''));
+    setSpot((prev) => ({
+      ...prev,
+      audit: previewAudit(names[next] || '', next),
+    }));
+  }
+
+  const sectionKind = kind !== 'checklist' && kind !== 'work_cycle';
+  const liveTaxonomy = taxonomy || PREVIEW_TAXONOMY;
+  const previewResponses: AnyRoutineResponses = kind === 'section_tally'
+    ? tally
+    : kind === 'section_audit'
+      ? previewAudit(names[sectionId ?? 0] || 'Sample section', sectionId ?? 1)
+      : kind === 'work_cycle'
+        ? previewWorkCycle()
+        : spot;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, bgcolor: dutyColors.paper }}>
@@ -41,11 +140,19 @@ export function RoutinePreview({
             kind={kind}
             title={title || 'Routine'}
             subject={intro || ''}
-            responses={previewResponses(kind)}
-            taxonomy={PREVIEW_TAXONOMY}
+            responses={previewResponses}
+            taxonomy={liveTaxonomy}
             verify={null}
-            minItems={20}
-            readOnly
+            minItems={0}
+            readOnly={false}
+            sections={floor}
+            reroll={sectionKind && kind !== 'section_audit'
+              ? { onClick: reroll, disabled: idsKey.split(',').filter(Boolean).length < 2 }
+              : undefined}
+            onChange={(next) => {
+              if (kind === 'section_tally') setTally(next as SectionTallyResponses);
+              if (kind === 'owner_spot') setSpot(next as OwnerSpotResponses);
+            }}
           />
         ) : empty ? (
           <Box
@@ -76,15 +183,14 @@ export function RoutinePreview({
           />
         )}
       </Box>
-      <RoutinePhoneBar
-        mode={mode}
-        onCancel={mode === 'demo' ? () => navigate('/routines/catalog') : undefined}
-      />
+      <RoutinePhoneBar mode={mode} />
     </Box>
   );
 }
 
 export function RoutineIdlePhone() {
+  const { user } = useAuth();
+  const lang = user?.language === 'es' ? 'es' : 'en';
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, bgcolor: dutyColors.paper }}>
       <Box
@@ -112,9 +218,9 @@ export function RoutineIdlePhone() {
         >
           <Typography sx={{ fontSize: 24, fontWeight: 800, color: dutyColors.brand }}>✓</Typography>
         </Box>
-        <Typography sx={{ fontSize: 17, fontWeight: 700, color: dutyColors.ink }}>No routine open</Typography>
+        <Typography sx={{ fontSize: 17, fontWeight: 700, color: dutyColors.ink }}>{t('noRoutineOpen', lang)}</Typography>
         <Typography sx={{ mt: 0.75, fontSize: 13, color: dutyColors.ink60 }}>
-          Pick one on the left to fill it in.
+          {t('pickOneLeft', lang)}
         </Typography>
       </Box>
       <RoutinePhoneBar mode="idle" />

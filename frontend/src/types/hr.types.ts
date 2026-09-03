@@ -16,6 +16,9 @@ export interface TimeEntry {
   date: string;
   clock_in: string;
   clock_out: string | null;
+  shift: string;
+  shift_label: string;
+  shift_department: string;
   break_minutes: number;
   on_break: boolean;
   break_started_at: string | null;
@@ -92,6 +95,14 @@ export interface PayrollPeriod {
   is_current: boolean;
 }
 
+export interface MyPayPeriod extends PayrollPeriod {
+  shift_count: number;
+  total_hours: string;
+  approved_hours: string;
+  pending_hours: string;
+  total_pay: string;
+}
+
 export interface TimeEntryRosterRow {
   id: number;
   employee_id: number;
@@ -99,6 +110,8 @@ export interface TimeEntryRosterRow {
   date: string;
   clock_in: string | null;
   clock_out: string | null;
+  shift: string;
+  shift_label: string;
   break_minutes: number;
   break_label: string;
   on_break: boolean;

@@ -14,32 +14,61 @@ import type {
  * anyone from mistaking the preview for live data.
  */
 export const PREVIEW_TAXONOMY: AuditTaxonomy = {
+  groups: [
+    {
+      key: 'facing',
+      solution: 'fix_in_place',
+      label: 'Facing + tag',
+      items: [
+        { key: 'facing_blocking', label: 'Blocking or hiding items behind' },
+        { key: 'tag_facing', label: 'Tag not front-facing' },
+      ],
+    },
+    {
+      key: 'flags',
+      solution: 'flag',
+      label: 'Flags',
+      items: [
+        { key: 'safety', label: 'Safety issue, cannot fix alone' },
+        { key: 'overstocked', label: 'Section full or overstocked' },
+        { key: 'low_stock', label: 'Section low or empty' },
+      ],
+    },
+    {
+      key: 'just_do',
+      solution: 'just_do',
+      label: 'Just do',
+      items: [
+        { key: 'clean_dirty', label: 'Dirty or dusty but sellable' },
+        { key: 'hangers', label: 'Empty hangers on rack' },
+      ],
+    },
+    {
+      key: 'reshelf',
+      solution: 'reshelf_cart',
+      label: 'Reshelf cart',
+      items: [{ key: 'reshelf', label: 'Item in wrong section' }],
+    },
+  ],
   graded: [
-    { key: 'facing_blocking', label: 'Items blocking or hiding what is behind them' },
-    { key: 'facing_upright', label: 'Items I had to face or stand up' },
-    { key: 'facing_grouped', label: 'Items I had to group back with their like items' },
-    { key: 'tag_facing', label: 'Tags I had to turn to the front' },
-    { key: 'reshelf', label: 'Items I moved back to their own section' },
-    { key: 'reprep', label: 'Items I had to re-prep: cords, empty boxes, opened packaging' },
-    { key: 'security', label: 'High-theft items loose on the floor' },
-    { key: 'hangers', label: 'Empty hangers I pulled' },
+    { key: 'facing', label: 'Facing + tag' },
+    { key: 'reshelf', label: 'Reshelf cart' },
   ],
   recorded: [
-    { key: 'clean', label: 'Spots I had to clean: dust, trash on the floor or shelf' },
-    { key: 'reprice', label: 'Items needing a price look: not selling, wrong tag, missing tag' },
-    { key: 'tars', label: 'Items damaged or missing parts' },
+    { key: 'pr_cart', label: 'PR cart' },
+    { key: 'tars', label: 'TARS cart' },
   ],
   flags: [
-    { key: 'safety', label: 'Safety issue' },
+    { key: 'safety', label: 'Safety issue, cannot fix alone' },
     { key: 'overstocked', label: 'Section full or overstocked' },
     { key: 'low_stock', label: 'Section low or empty' },
   ],
   safety_flag: 'safety',
 };
 
-export function previewAudit(name = 'Sample section'): SectionAuditResponses {
+export function previewAudit(name = 'Sample section', sectionId = 1): SectionAuditResponses {
   return {
-    section_id: null,
+    section_id: sectionId,
     section_name: name,
     photo: null,
     photo_file_id: null,
@@ -50,17 +79,17 @@ export function previewAudit(name = 'Sample section'): SectionAuditResponses {
   };
 }
 
-export function previewTally(): SectionTallyResponses {
+export function previewTally(name = 'Sample section'): SectionTallyResponses {
   return {
-    sections: ['Sample section', 'Second sample'].map((name, index) => ({
-      section_id: -(index + 1),
+    sections: [{
+      section_id: -1,
       section_name: name,
       counts: {},
       flags: [],
       photo: null,
       photo_file_id: null,
       notes: '',
-    })),
+    }],
   };
 }
 
@@ -69,7 +98,7 @@ export function previewSpot(): OwnerSpotResponses {
     checks: [
       {
         routine_key: 'retail.open',
-        routine_title: 'Retail opening',
+        routine_title: 'Retail open',
         check_id: 'sample-1',
         label: 'A check drawn from the opening list',
         control: 'pass_fail',
@@ -77,7 +106,7 @@ export function previewSpot(): OwnerSpotResponses {
       },
       {
         routine_key: 'retail.close',
-        routine_title: 'Retail closing',
+        routine_title: 'Retail close',
         check_id: 'sample-2',
         label: 'A check drawn from the closing list',
         control: 'pass_fail',

@@ -3,6 +3,7 @@ from django.db import models
 from django.utils import timezone
 from decimal import Decimal
 
+from .shifts import SHIFT_CHOICES
 from .soft_delete import SoftDeleteManager
 
 
@@ -40,6 +41,7 @@ class TimeEntry(models.Model):
     date = models.DateField()
     clock_in = models.DateTimeField()
     clock_out = models.DateTimeField(null=True, blank=True)
+    shift = models.CharField(max_length=20, choices=SHIFT_CHOICES, blank=True, default='')
     break_minutes = models.IntegerField(default=0)
     on_break = models.BooleanField(default=False)
     break_started_at = models.DateTimeField(null=True, blank=True)

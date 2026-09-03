@@ -428,8 +428,8 @@ export function retailGridValue(day: DepartmentDailyMetric): string {
 export function retailGoalCellState(
   day: DepartmentDailyMetric,
 ): 'scheduled' | 'achieved' | undefined {
-  if (!day.retail_scheduled || day.is_future) {
-    return day.retail_scheduled ? 'scheduled' : undefined;
+  if (!day.retail_scheduled || day.is_future || !day.retail) {
+    return undefined;
   }
   return day.retail_grade_met ? 'achieved' : 'scheduled';
 }

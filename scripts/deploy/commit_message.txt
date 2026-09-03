@@ -1,8 +1,5 @@
-feat: stabilize Retail QA with work cycles and idle prompts
+feat: ship floor pages and keep retail letters mid-week
 
-Work cycle is its own kind with phone draft pickup. Idle registers
-are asked after a few minutes with no cart. Program routines can no
-longer be retired or have their trigger changed. Routine Control
-keeps one header. Authored leftovers are purged.
+Home, Today, Pay, and Routines share one desk band and the same four names as the phone. 0008 reseeds Open / Day / Close in place and does not wipe runs. A Retail day with no letter stays a dash, not a miss.
 
-Release: v2.77.0
+Release: v2.87.0

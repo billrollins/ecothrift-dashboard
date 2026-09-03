@@ -18,63 +18,70 @@ function checklist(over: Partial<RoutineResponses> = {}): RoutineResponses {
 }
 
 function readyAudit(over: Partial<SectionAuditResponses> = {}): SectionAuditResponses {
-  return { ...previewAudit(), photo: 'data:image/png;base64,x', items_inspected: 30, ...over };
+  return { ...previewAudit(), ...over };
 }
 
 describe('runnerBlockers for a checklist', () => {
   it('counts what is unanswered', () => {
-    expect(runnerBlockers('checklist', checklist(), 20)).toEqual(['1 left to answer']);
+    expect(runnerBlockers('checklist', checklist(), 0)).toEqual(['1 left to answer']);
   });
 
-  it('also wants the sign-off on the shift before', () => {
-    const withVerify = checklist({ verify: { run_id: 4, result: '', note: '' } });
+  it('also wants the last shift confirmed check by check', () => {
+    const withVerify = checklist({
+      verify: {
+        run_id: 4,
+        checks: [{ check_id: 'c43', label: 'Sign in', their_result: 'pass', result: '', note: '' }],
+      },
+    });
     withVerify.sections[0].checks[1].result = 'pass';
-    expect(runnerBlockers('checklist', withVerify, 20)).toEqual(['Sign off on the last shift']);
+    expect(runnerBlockers('checklist', withVerify, 0)).toEqual(['Confirm every check from the last shift']);
   });
 
   it('is clear once everything is answered', () => {
     const done = checklist();
     done.sections[0].checks[1].result = 'fail';
-    expect(runnerBlockers('checklist', done, 20)).toEqual([]);
-    expect(submitLabel('checklist', done, 20)).toBe('Submit with 1 fail');
+    expect(runnerBlockers('checklist', done, 0)).toEqual([]);
+    expect(submitLabel('checklist', done, 0)).toBe('Submit with 1 fail');
   });
 });
 
 describe('auditBlockers', () => {
-  it('asks for the photo before anything else', () => {
-    expect(auditBlockers(previewAudit(), 20)).toEqual([
-      'Photo of the section first',
-      'Inspect at least 20 items',
-    ]);
-  });
-
-  it('still refuses a glance at four items', () => {
-    expect(auditBlockers(readyAudit({ items_inspected: 4 }), 20)).toEqual(['Inspect at least 20 items']);
-  });
-
-  it('clears once both gates are past', () => {
-    expect(auditBlockers(readyAudit(), 20)).toEqual([]);
+  it('does not gate the walk on a photo or an item count', () => {
+    expect(auditBlockers(previewAudit())).toEqual([]);
+    expect(auditBlockers(readyAudit())).toEqual([]);
   });
 });
 
 describe('runnerBlockers for section kinds', () => {
   it('lets a tally through as soon as someone keeps a section', () => {
-    expect(runnerBlockers('section_tally', previewTally(), 20)).toEqual([]);
-    expect(runnerBlockers('section_tally', { sections: [] }, 20)).toEqual([
+    expect(previewTally().sections).toHaveLength(1);
+    expect(runnerBlockers('section_tally', previewTally(), 0)).toEqual([]);
+    expect(runnerBlockers('section_tally', { sections: [] }, 0)).toEqual([
       'You do not keep a section yet',
     ]);
   });
 
-  it('wants the drawn checks answered and the audit gated', () => {
+  it('wants the drawn checks answered', () => {
     const spot = previewSpot();
-    expect(runnerBlockers('owner_spot', spot, 20)).toEqual([
+    expect(runnerBlockers('owner_spot', spot, 0)).toEqual([
       '2 drawn checks left',
-      'Photo of the section first',
-      'Inspect at least 20 items',
     ]);
     spot.checks = spot.checks.map((check) => ({ ...check, result: 'pass' as const }));
-    spot.audit = readyAudit();
-    expect(runnerBlockers('owner_spot', spot, 20)).toEqual([]);
+    expect(runnerBlockers('owner_spot', spot, 0)).toEqual([]);
+  });
+});
+
+describe('resolveRunnerKind', () => {
+  it('does not score a work-cycle draft as a checklist', () => {
+    const cycle = previewWorkCycle();
+    expect(runnerBlockers('checklist', cycle, 0)).toEqual([
+      'Pick shelf check or non-shelf check',
+    ]);
+    expect(issuesFound('checklist', cycle)).toBe(0);
+  });
+
+  it('keeps a checklist draft as a checklist even if the kind is late', () => {
+    expect(runnerBlockers('work_cycle', checklist(), 0)).toEqual(['1 left to answer']);
   });
 });
 
@@ -104,8 +111,7 @@ describe('issuesFound', () => {
     expect(issuesFound('section_audit', readyAudit({ counts: { reshelf: 3, clean: 2 } }))).toBe(5);
 
     const tally = previewTally();
-    tally.sections[0].counts = { hangers: 4 };
-    tally.sections[1].counts = { reshelf: 1 };
+    tally.sections[0].counts = { hangers: 4, reshelf: 1 };
     expect(issuesFound('section_tally', tally)).toBe(5);
 
     const spot = previewSpot();
@@ -122,9 +128,8 @@ describe('issuesFound', () => {
 
 describe('submitLabel', () => {
   it('names the first blocker, then what will be recorded', () => {
-    expect(submitLabel('section_audit', previewAudit(), 20)).toBe('Photo of the section first');
-    expect(submitLabel('section_audit', readyAudit(), 20)).toBe('Submit · nothing found');
-    expect(submitLabel('section_audit', readyAudit({ counts: { reshelf: 2 } }), 20))
+    expect(submitLabel('section_audit', previewAudit(), 0)).toBe('Submit · nothing found');
+    expect(submitLabel('section_audit', readyAudit({ counts: { reshelf: 2 } }), 0))
       .toBe('Submit · 2 logged');
   });
 });

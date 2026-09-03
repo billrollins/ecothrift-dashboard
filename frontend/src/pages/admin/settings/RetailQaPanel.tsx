@@ -25,9 +25,8 @@ const GROUPS: Array<{ title: string; blurb: string; keys: string[] }> = [
   },
   {
     title: 'Cross-checks',
-    blurb: 'What an audit has to do before it counts, and how its findings score.',
+    blurb: 'How findings on a Tuesday walk score.',
     keys: [
-      'retail_qa.audit_min_items',
       'retail_qa.audit_minor_max',
       'retail_qa.audit_needs_work_max',
       'retail_qa.spot_check_count',

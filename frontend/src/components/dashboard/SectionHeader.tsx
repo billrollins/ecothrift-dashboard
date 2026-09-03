@@ -47,25 +47,38 @@ export function SectionHeader({ title, hint, hintDesktop, hintMobile, action }: 
   );
 
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'flex-end',
-        justifyContent: 'space-between',
-        gap: 1.5,
-        px: 0.25,
-        pt: 0.25,
-        pb: 0.15,
-      }}
-    >
-      {resolvedHint ? (
-        <Tooltip title={resolvedHint} arrow>
-          {label}
-        </Tooltip>
-      ) : (
-        label
-      )}
-      {action}
+    <Box sx={{ px: 0.25, pt: 0.25, pb: 0.15 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'flex-end',
+          justifyContent: 'space-between',
+          gap: 1.5,
+        }}
+      >
+        {resolvedHint && !isMobile ? (
+          <Tooltip title={resolvedHint} arrow>
+            {label}
+          </Tooltip>
+        ) : (
+          label
+        )}
+        {action}
+      </Box>
+      <Typography
+        variant="caption"
+        sx={{
+          display: { xs: 'block', md: 'none' },
+          mt: 0.5,
+          minHeight: 18,
+          fontSize: '0.75rem',
+          lineHeight: 1.2,
+          color: dashboardPalette.textOnBackdrop,
+          opacity: 0.78,
+        }}
+      >
+        {isMobile ? resolvedHint || '\u00a0' : '\u00a0'}
+      </Typography>
     </Box>
   );
 }

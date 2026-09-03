@@ -594,6 +594,7 @@ export default function TimePayrollPage() {
   const rosterColumns: GridColDef[] = [
     { field: 'date', headerName: 'Date', width: 112 },
     { field: 'employee_name', headerName: 'Employee', width: 200 },
+    { field: 'shift_label', headerName: 'Shift', width: 200 },
     { field: 'clock_in', headerName: 'Start', width: 130, valueFormatter: (v, row) => fmtClockCell(v as string | null, row.date as string) },
     { field: 'clock_out', headerName: 'Stop', width: 130, valueFormatter: (v, row) => fmtClockCell(v as string | null, row.date as string) },
     { field: 'break_label', headerName: 'Break', width: 112 },

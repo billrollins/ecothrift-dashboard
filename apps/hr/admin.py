@@ -10,8 +10,8 @@ class DepartmentAdmin(admin.ModelAdmin):
 
 @admin.register(TimeEntry)
 class TimeEntryAdmin(admin.ModelAdmin):
-    list_display = ('employee', 'date', 'clock_in', 'clock_out', 'total_hours', 'status')
-    list_filter = ('status', 'date')
+    list_display = ('employee', 'date', 'shift', 'clock_in', 'clock_out', 'total_hours', 'status')
+    list_filter = ('status', 'date', 'shift')
     search_fields = ('employee__email', 'employee__first_name', 'employee__last_name')
 
 

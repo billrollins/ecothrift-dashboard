@@ -1,9 +1,13 @@
 import { Box, useMediaQuery, useTheme } from '@mui/material';
 import { useState } from 'react';
 import { useLocation, useParams, useSearchParams } from 'react-router-dom';
-import { PhoneFrame } from '../../components/layout/PhoneFrame';
+import { dutyCardSx } from '../../components/duty/cards';
 import { dutyColors } from '../../components/duty/tokens';
+import { FloorPage } from '../../components/layout/FloorPage';
+import { PhoneFrame } from '../../components/layout/PhoneFrame';
+import { useAuth } from '../../hooks/useAuth';
 import { useRoutine } from '../../hooks/useRoutines';
+import { t } from '../../i18n/routines';
 import { CatalogPane } from './CatalogPane';
 import { MyRoutinesPane } from './MyRoutinesPane';
 import { emptyDefinition, RoutineEditorPane, type EditorPreview } from './RoutineEditorPane';
@@ -17,6 +21,8 @@ const PANE_WIDTH = 'clamp(500px, 46%, 680px)';
 export default function RoutinesPage() {
   const theme = useTheme();
   const desktop = useMediaQuery(theme.breakpoints.up('md'));
+  const { user } = useAuth();
+  const lang = user?.language === 'es' ? 'es' : 'en';
   const location = useLocation();
   const [params] = useSearchParams();
   const routeParams = useParams();
@@ -51,6 +57,8 @@ export default function RoutinesPage() {
       definition={preview.definition}
       kind={preview.kind}
       mode="preview"
+      taxonomy={preview.taxonomy}
+      sections={preview.sections}
     />
   ) : mode === 'demo' ? (
     <RoutinePreview
@@ -59,6 +67,8 @@ export default function RoutinesPage() {
       definition={demo.data?.definition}
       kind={demo.data?.kind}
       mode="demo"
+      taxonomy={demo.data?.runner?.taxonomy}
+      sections={demo.data?.runner?.sections}
     />
   ) : (
     <RoutineIdlePhone />
@@ -82,30 +92,38 @@ export default function RoutinesPage() {
   }
 
   return (
-    <Box sx={{ display: 'flex', height: '100%', minHeight: 0, bgcolor: dutyColors.desk }}>
+    <FloorPage title={t('routines', lang)} fill>
       <Box
         sx={{
-          // Lists and editor share one width, so switching between them never
-          // moves the phone. Rows get room for badges; the form stays a form.
-          flex: `0 0 ${PANE_WIDTH}`,
-          minWidth: 0,
+          ...dutyCardSx,
+          flex: 1,
           minHeight: 0,
-          borderRight: `1px solid ${dutyColors.ink15}`,
+          display: 'grid',
+          gridTemplateColumns: `${PANE_WIDTH} 1fr`,
+          overflow: 'hidden',
         }}
       >
-        {left}
-      </Box>
-      <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex' }}>
-        <PhoneFrame
-          framed
-          flush
-          stage
-          background={dutyColors.paper}
-          contentSx={{ overflow: 'hidden' }}
+        <Box
+          sx={{
+            minWidth: 0,
+            minHeight: 0,
+            borderRight: `1px solid ${dutyColors.ink15}`,
+          }}
         >
-          {phone}
-        </PhoneFrame>
+          {left}
+        </Box>
+        <Box sx={{ minWidth: 0, minHeight: 0, display: 'flex', p: 2 }}>
+          <PhoneFrame
+            framed
+            stage
+            inset
+            background={dutyColors.paper}
+            contentSx={{ overflow: 'hidden' }}
+          >
+            {phone}
+          </PhoneFrame>
+        </Box>
       </Box>
-    </Box>
+    </FloorPage>
   );
 }

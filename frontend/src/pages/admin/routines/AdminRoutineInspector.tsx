@@ -159,7 +159,7 @@ export function AdminRoutineInspector({
               wide={wide}
               title="Lifecycle"
               description={system
-                ? 'Part of the Retail QA program. Rename, times, and who is assigned can move. Repeats, assignment, and the runner cannot. It cannot be retired or deleted.'
+                ? 'Part of the Retail QA program. Rename and times can move. Repeats, type, share, and the runner cannot. It cannot be retired or deleted.'
                 : routine.is_active
                   ? 'Live in the catalog and on the lists of everyone it is assigned to.'
                   : 'Hidden from staff. Every past run is kept until you delete it for good.'}
@@ -251,7 +251,7 @@ function StatStrip({ routine, wide }: { routine: AdminRoutine; wide: boolean }) 
     {
       label: 'Assigned',
       value: stats.assignee_count === 0 ? 'Nobody' : `${stats.assignee_count}`,
-      sub: stats.assignee_count === 0 ? 'no one matches the owner rule' : `${ownerLabel(routine)} · ${routine.assignment === 'pooled' ? 'pooled' : 'per person'}`,
+      sub: stats.assignee_count === 0 ? 'no one matches the owner rule' : ownerLabel(routine),
       warn: stats.assignee_count === 0 && routine.is_active,
     },
   ];

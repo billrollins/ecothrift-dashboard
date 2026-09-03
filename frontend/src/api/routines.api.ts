@@ -2,25 +2,32 @@ import api from './client';
 
 export type RoutineTrigger = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'annual' | 'on_demand';
 export type RoutineAssignment = 'pooled' | 'per_person';
+export type RoutineAudienceType = 'person' | 'shift' | 'department';
 export type RoutineControl = 'pass_fail' | 'pass_fail_strict' | 'number' | 'text' | 'photo';
 /** How the phone renders a run. Only `checklist` is authored in the editor. */
 export type RoutineKind = 'checklist' | 'section_tally' | 'section_audit' | 'owner_spot' | 'work_cycle';
 export type RoutineSubjectSource = 'pool' | 'my_section' | 'other_section';
 /** When an open run stops being merely open and starts counting against the day. */
 export type RoutineLateAfter = 'due_time' | 'end_of_day' | 'grace_days';
+export type RoutineExpireRule = 'never' | 'end_of_day' | 'end_of_week' | 'after';
+export type RoutineExpireUnit = 'hours' | 'days' | 'weeks' | 'months';
 
 export interface RoutineCheckDef {
   id: string;
   label: string;
+  label_es?: string;
   control: RoutineControl;
   hint?: string;
+  hint_es?: string;
   unit?: string;
   critical?: boolean;
+  verify_prev?: boolean;
 }
 
 export interface RoutineSectionDef {
   id: string;
   title: string;
+  title_es?: string;
   checks: RoutineCheckDef[];
 }
 
@@ -38,11 +45,19 @@ export interface RoutineCheckResponse extends RoutineCheckDef {
   touched: boolean;
 }
 
-/** The sign-off on the shift before yours, when a routine verifies another. */
-export interface RoutineVerifyResponse {
-  run_id: number | null;
+export interface VerifyCheckResponse {
+  check_id: string;
+  label: string;
+  label_es?: string;
+  their_result: '' | 'pass' | 'fail' | 'na';
   result: '' | 'pass' | 'fail' | 'na';
   note: string;
+}
+
+/** The next shift confirms these checks from the last run. */
+export interface RoutineVerifyResponse {
+  run_id: number | null;
+  checks: VerifyCheckResponse[];
 }
 
 export interface RoutineResponses {
@@ -50,6 +65,7 @@ export interface RoutineResponses {
   sections: Array<{
     id: string;
     title: string;
+    title_es?: string;
     checks: RoutineCheckResponse[];
   }>;
   verify?: RoutineVerifyResponse;
@@ -120,8 +136,12 @@ export interface WorkCycleResponses {
 export interface NonShelfCheck {
   routine_key: string;
   routine_title: string;
+  section_id?: string;
+  section_title?: string;
+  section_title_es?: string;
   check_id: string;
   label: string;
+  label_es?: string;
 }
 
 export interface WorkCycleRunnerContext {
@@ -137,11 +157,26 @@ export type AnyRoutineResponses =
   | OwnerSpotResponses
   | WorkCycleResponses;
 
+export interface TaxonomyItem {
+  key: string;
+  label: string;
+  label_es?: string;
+}
+
+export interface TaxonomyGroup {
+  key: string;
+  solution: string;
+  label: string;
+  label_es?: string;
+  items: TaxonomyItem[];
+}
+
 /** The category list the phone renders and the score reads, sent with each run. */
 export interface AuditTaxonomy {
-  graded: Array<{ key: string; label: string }>;
-  recorded: Array<{ key: string; label: string }>;
-  flags: Array<{ key: string; label: string }>;
+  groups?: TaxonomyGroup[];
+  graded: TaxonomyItem[];
+  recorded: TaxonomyItem[];
+  flags: TaxonomyItem[];
   safety_flag: string;
 }
 
@@ -152,6 +187,7 @@ export interface VerifyContext {
   completed_at: string | null;
   completed_by_name: string | null;
   failed_count: number;
+  checks: VerifyCheckResponse[];
 }
 
 export interface Routine {
@@ -175,12 +211,19 @@ export interface Routine {
   due_time: string | null;
   late_after: RoutineLateAfter;
   grace_days: number;
+  expire_rule: RoutineExpireRule;
+  expire_count: number;
+  expire_unit: RoutineExpireUnit;
+  expire_from_time: string | null;
   assignment: RoutineAssignment;
+  audience_type: RoutineAudienceType;
+  audience_all: boolean;
+  assigned_shifts: string[];
+  assigned_department_ids: number[];
   assigned_role: string;
   assigned_department: number | null;
   assigned_department_name: string | null;
   assigned_user_ids: number[];
-  subject_pool: string[];
   is_blocking: boolean;
   is_active: boolean;
   created_at: string;
@@ -216,6 +259,7 @@ export interface RoutineRun {
   is_overdue: boolean;
   trigger: RoutineTrigger;
   assignment: RoutineAssignment;
+  audience_type: RoutineAudienceType;
   href: string;
   completed_at: string | null;
   completed_by: number | null;
@@ -233,6 +277,8 @@ export interface RoutineRun {
   taxonomy?: AuditTaxonomy | null;
   /** The audit floor, sent with the run because staff cannot read settings. */
   audit_min_items?: number;
+  /** Owner spot: another unseen aisle exists this week. */
+  can_reroll?: boolean;
   /** The shift this run signs off on, when the routine verifies another. */
   verify?: VerifyContext | null;
   /** The sections a daily tally covers, from /runs/:id/. */
@@ -244,13 +290,15 @@ export type RoutineRunDetail = RoutineRun & {
   taxonomy: AuditTaxonomy | null;
   verify: VerifyContext | null;
   sections: Array<{ id: number; name: string }>;
-  audit_min_items: number;
+  audit_min_items?: number;
+  can_reroll?: boolean;
 };
 
 export interface RoutineSubmission {
   id: number;
   routine: number;
   routine_title: string;
+  kind: RoutineKind;
   run: number | null;
   submitted_by: number | null;
   submitted_by_name: string | null;
@@ -284,8 +332,24 @@ export interface MyRoutines {
   idle_prompt_minutes: number;
 }
 
+export interface TodayGlance {
+  shift: string;
+  shift_label: string;
+  shift_department: string;
+  start_with: RoutineRun | null;
+  verify_of: string | null;
+  open: RoutineRun[];
+  drafts: RoutineDraft[];
+  on_demand: Routine[];
+  language: 'en' | 'es';
+}
+
 export function getMyRoutineRuns() {
   return api.get<MyRoutines>('/routines/runs/mine/');
+}
+
+export function getTodayGlance() {
+  return api.get<TodayGlance>('/routines/today/');
 }
 
 export function getRoutineRun(id: number) {
@@ -295,6 +359,11 @@ export function getRoutineRun(id: number) {
 /** Take an absent teammate's run so the aisle still gets walked. */
 export function coverRoutineRun(id: number) {
   return api.post<RoutineRun>(`/routines/runs/${id}/cover/`);
+}
+
+/** Pick a different unseen aisle on an open owner spot check. */
+export function rerollRoutineSection(id: number) {
+  return api.post<RoutineRunDetail>(`/routines/runs/${id}/reroll-section/`);
 }
 
 export function getRoutines() {
@@ -402,6 +471,11 @@ export function deleteSection(id: number) {
   return api.delete(`/routines/sections/${id}/`);
 }
 
+/** Gone for good. The server refuses unless the section is already retired. */
+export function hardDeleteSection(id: number) {
+  return api.delete(`/routines/sections/${id}/hard-delete/`);
+}
+
 export function reorderSections(ids: number[]) {
   return api.post<Section[]>('/routines/sections/reorder/', { ids });
 }
@@ -416,6 +490,7 @@ export interface DayPerformed {
   late: boolean;
   completed_by_name: string | null;
   title: string;
+  verify?: RoutineVerifyResponse | null;
 }
 
 export interface DayGrade {
@@ -513,4 +588,9 @@ export function patchRoutineSubmission(id: number, responses: AnyRoutineResponse
 
 export function submitRoutineSubmission(id: number, responses: AnyRoutineResponses) {
   return api.post<RoutineSubmission>(`/routines/submissions/${id}/submit/`, { responses });
+}
+
+/** Throw away an open draft. Cancel on the phone. */
+export function discardRoutineDraft(id: number) {
+  return api.delete(`/routines/submissions/${id}/`);
 }

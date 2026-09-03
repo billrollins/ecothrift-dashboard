@@ -81,6 +81,7 @@ export function PhoneFrame({
   deskBackground,
   flush,
   stage,
+  inset,
   children,
 }: {
   /** False on a real phone, where the page already owns the whole screen. */
@@ -93,6 +94,8 @@ export function PhoneFrame({
   flush?: boolean;
   /** Dark stage behind a flush device - spotlight, not a desk slab. */
   stage?: boolean;
+  /** Round the stage and keep a gutter so the phone sits inside a framed panel. */
+  inset?: boolean;
   children: ReactNode;
 }) {
   const { ref, width } = useMeasuredWidth(framed);
@@ -134,6 +137,8 @@ export function PhoneFrame({
         justifyContent: 'center',
         alignItems: 'stretch',
         p: flush ? 0 : 2,
+        borderRadius: inset ? '16px' : 0,
+        overflow: inset ? 'hidden' : undefined,
         background: stage
           ? 'radial-gradient(ellipse 75% 95% at 50% 40%, #3f5c46 0%, #2e4636 55%, #22352a 100%)'
           : (deskBackground ?? DESK_BACKDROP),

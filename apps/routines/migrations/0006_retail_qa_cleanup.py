@@ -46,9 +46,16 @@ TITLES = {
 
 def cleanup(apps, schema_editor):
     Routine = apps.get_model('routines', 'Routine')
+    RoutineSubmission = apps.get_model('routines', 'RoutineSubmission')
     AppSetting = apps.get_model('core', 'AppSetting')
 
-    Routine.objects.filter(system_key__isnull=True).delete()
+    leftovers = Routine.objects.filter(system_key__isnull=True)
+    leftover_ids = list(leftovers.values_list('pk', flat=True))
+    # Submissions protect the routine. History of authored leftovers goes with
+    # them; program rows and their runs stay.
+    RoutineSubmission.objects.filter(run__routine_id__in=leftover_ids).delete()
+    RoutineSubmission.objects.filter(routine_id__in=leftover_ids).delete()
+    leftovers.delete()
 
     AppSetting.objects.get_or_create(
         key='retail_qa.idle_prompt_minutes',

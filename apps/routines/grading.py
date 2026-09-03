@@ -40,18 +40,26 @@ from .schedule import (
     week_days,
 )
 from .settings import letter_for, retail_qa_settings
-from .taxonomy import GRADED, GRADED_KEYS, RECORDED_KEYS, SAFETY_CAP, SAFETY_FLAG
+from .taxonomy import (
+    GRADED,
+    GRADED_KEYS,
+    RECORDED_KEYS,
+    SAFETY_CAP,
+    SAFETY_FLAG,
+    group_sum,
+    rollup_counts,
+)
 
 PERFORMED_KEYS = (SYSTEM_OPEN, SYSTEM_DAY, SYSTEM_CLOSE)
 
 
 def _counts_score(counts: dict, cfg: dict) -> float:
-    """Mean of the graded categories, each stepped down by how many issues it drew."""
+    """Mean of the graded groups, each stepped down by the sum of its items."""
     minor = int(cfg['audit_minor_max'])
     needs_work = int(cfg['audit_needs_work_max'])
     points = []
     for key in GRADED_KEYS:
-        found = int(counts.get(key) or 0)
+        found = group_sum(counts or {}, key)
         if found == 0:
             points.append(100.0)
         elif found <= minor:
@@ -149,6 +157,10 @@ def _grade_day(day: date, found: dict[str, RoutineRun], cfg: dict) -> dict:
                 if key in runs and runs[key].completed_by_id else None
             ),
             'title': runs[key].routine.title if key in runs else key,
+            'verify': (
+                (runs[key].submission.responses or {}).get('verify')
+                if key in runs and runs[key].submission_id else None
+            ),
         }
         for key in PERFORMED_KEYS
     }
@@ -203,7 +215,7 @@ def _tally_rows(days) -> dict:
                 'walks': 0,
             })
             bucket['walks'] += 1
-            for key, value in (row.get('counts') or {}).items():
+            for key, value in rollup_counts(row.get('counts') or {}).items():
                 if key in GRADED_KEYS or key in RECORDED_KEYS:
                     bucket['counts'][key] = bucket['counts'].get(key, 0) + int(value or 0)
     return totals
@@ -234,7 +246,7 @@ def _cross_checks(days, cfg) -> list[dict]:
             'score': audit_score(responses or {}, cfg) if done else 0.0,
             'photo': (responses or {}).get('photo'),
             'items_inspected': (responses or {}).get('items_inspected') or 0,
-            'counts': (responses or {}).get('counts') or {},
+            'counts': rollup_counts((responses or {}).get('counts') or {}),
             'flags': (responses or {}).get('flags') or [],
             'notes': (responses or {}).get('notes') or '',
         })
@@ -265,8 +277,9 @@ def _calibration(days, cross_checks, cfg) -> list[dict]:
             continue
         audit = (spot.submission.responses or {}).get('audit') or {}
         gaps = []
+        owner_counts = rollup_counts(audit.get('counts') or {})
         for key, label in GRADED:
-            owner_found = int((audit.get('counts') or {}).get(key) or 0)
+            owner_found = int(owner_counts.get(key) or 0)
             checker_found = int((checked['counts'] or {}).get(key) or 0)
             if owner_found > 0 and checker_found == 0:
                 gaps.append({'key': key, 'label': label, 'owner': owner_found, 'checker': 0})

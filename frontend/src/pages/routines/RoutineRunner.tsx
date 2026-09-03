@@ -2,6 +2,8 @@ import { Box, Button, TextField, Typography } from '@mui/material';
 import { useEffect, useMemo, useState } from 'react';
 import type { RoutineCheckResponse, RoutineResponses, VerifyContext } from '../../api/routines.api';
 import { dutyColors, thinScrollSx } from '../../components/duty/tokens';
+import { useAuth } from '../../hooks/useAuth';
+import { pick } from '../../i18n/routines';
 import { VerifyBlock } from './runners/VerifyBlock';
 import { answeredCount, deriveResult, failCount, flattenChecks, unansweredCount } from './scoring';
 
@@ -22,7 +24,7 @@ function patchCheck(
 ): RoutineResponses {
   return {
     ...responses,
-    sections: responses.sections.map((section) => ({
+    sections: (responses.sections ?? []).map((section) => ({
       ...section,
       checks: section.checks.map((check) => (
         check.id === checkId ? { ...check, ...patch, touched: true } : check
@@ -53,14 +55,17 @@ export function RoutineRunner({
   hideFooter?: boolean;
   readOnly?: boolean;
 }) {
+  const { user } = useAuth();
+  const lang = user?.language === 'es' ? 'es' : 'en';
   const checks = useMemo(() => flattenChecks(responses), [responses]);
   const total = checks.length;
   const answered = answeredCount(responses);
   const left = unansweredCount(responses);
   const fails = failCount(responses);
   const signOff = verify && responses.verify ? responses.verify : null;
-  const owed = left + (signOff && !signOff.result ? 1 : 0);
-  const steps = total + (signOff ? 1 : 0);
+  const verifyLeft = (signOff?.checks ?? []).filter((row) => !row.result).length;
+  const owed = left + verifyLeft;
+  const steps = total + (signOff?.checks.length ?? 0);
   const pct = steps ? Math.round(((steps - owed) / steps) * 100) : 0;
 
   return (
@@ -138,7 +143,7 @@ export function RoutineRunner({
                 borderBottom: `1px solid ${dutyColors.ink15}`,
               }}
             >
-              {section.title}
+              {pick(section, 'title', lang) || section.title}
             </Box>
             {section.checks.map((check) => (
               <CheckRow
@@ -188,6 +193,8 @@ function CheckRow({
   onPatch: (patch: Partial<RoutineCheckResponse>) => void;
   readOnly?: boolean;
 }) {
+  const { user } = useAuth();
+  const lang = user?.language === 'es' ? 'es' : 'en';
   const patch = readOnly ? () => undefined : onPatch;
   const result = deriveResult(check);
   const rail = result === 'fail'
@@ -211,7 +218,7 @@ function CheckRow({
       }}
     >
       <Typography sx={{ fontSize: 15.5, fontWeight: 500, lineHeight: 1.3, minHeight: 20, color: dutyColors.ink }}>
-        {check.label}
+        {pick(check, 'label', lang) || check.label}
         {check.critical ? (
           <Box component="span" sx={{ ml: 1, color: dutyColors.red, fontSize: 12, fontWeight: 700 }}>
             Critical
@@ -219,7 +226,7 @@ function CheckRow({
         ) : null}
       </Typography>
       <Typography sx={{ fontSize: 12, color: dutyColors.ink40, mt: 0.35, height: 16, overflow: 'hidden' }}>
-        {check.hint || ' '}
+        {pick(check, 'hint', lang) || check.hint || ' '}
       </Typography>
       {check.control === 'pass_fail' || check.control === 'pass_fail_strict' ? (
         <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>

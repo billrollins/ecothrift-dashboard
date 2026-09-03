@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Department, TimeEntry, TimeEntryModificationRequest, SickLeaveBalance, SickLeaveRequest
+from .shifts import shift_department, shift_label
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -17,11 +18,14 @@ class DepartmentSerializer(serializers.ModelSerializer):
 class TimeEntrySerializer(serializers.ModelSerializer):
     employee_name = serializers.CharField(source='employee.full_name', read_only=True)
     approved_by_name = serializers.CharField(source='approved_by.full_name', read_only=True, default=None)
+    shift_label = serializers.SerializerMethodField()
+    shift_department = serializers.SerializerMethodField()
 
     class Meta:
         model = TimeEntry
         fields = [
             'id', 'employee', 'employee_name', 'date', 'clock_in', 'clock_out',
+            'shift', 'shift_label', 'shift_department',
             'break_minutes', 'on_break', 'break_started_at',
             'total_hours', 'status', 'approved_by',
             'approved_by_name', 'notes', 'created_at', 'updated_at',
@@ -36,6 +40,18 @@ class TimeEntrySerializer(serializers.ModelSerializer):
         # Skip UniqueTogetherValidator - it requires employee/date/clock_in before
         # perform_create can auto-fill them. DB unique_together still applies on save.
         validators = []
+
+    def _language(self):
+        request = self.context.get('request')
+        if request is not None:
+            return getattr(request.user, 'language', 'en') or 'en'
+        return 'en'
+
+    def get_shift_label(self, obj):
+        return shift_label(obj.shift, self._language()) if obj.shift else ''
+
+    def get_shift_department(self, obj):
+        return shift_department(obj.shift, self._language()) if obj.shift else ''
 
 
 class TimeEntrySummarySerializer(serializers.Serializer):
@@ -75,6 +91,14 @@ class PayrollPeriodSerializer(serializers.Serializer):
     is_current = serializers.BooleanField()
 
 
+class MyPayPeriodSerializer(PayrollPeriodSerializer):
+    shift_count = serializers.IntegerField()
+    total_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
+    approved_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
+    pending_hours = serializers.DecimalField(max_digits=8, decimal_places=2)
+    total_pay = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+
 class TimeEntryRosterSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     employee_id = serializers.IntegerField()
@@ -82,6 +106,8 @@ class TimeEntryRosterSerializer(serializers.Serializer):
     date = serializers.DateField()
     clock_in = serializers.DateTimeField(allow_null=True)
     clock_out = serializers.DateTimeField(allow_null=True)
+    shift = serializers.CharField(allow_blank=True)
+    shift_label = serializers.CharField()
     break_minutes = serializers.IntegerField()
     break_label = serializers.CharField()
     on_break = serializers.BooleanField()

@@ -20,7 +20,7 @@ export function deriveResult(check: RoutineCheckResponse): RoutineCheckResponse[
 }
 
 export function flattenChecks(responses: RoutineResponses | null): RoutineCheckResponse[] {
-  return responses?.sections.flatMap((section) => section.checks) ?? [];
+  return responses?.sections?.flatMap((section) => section.checks ?? []) ?? [];
 }
 
 export function unansweredCount(responses: RoutineResponses | null): number {

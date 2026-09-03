@@ -1,9 +1,9 @@
-import { Box, Alert, Grid, Typography } from '@mui/material';
+import { Box, Alert, Grid } from '@mui/material';
 import { LoadingScreen } from '../components/feedback/LoadingScreen';
 import { DepartmentMetricCards } from '../components/dashboard/DepartmentMetricCards';
-import { dashboardRaisedStatSx } from '../components/dashboard/dashboardCardStyles';
-import { formatDashboardCurrency } from '../components/dashboard/dashboardFormatters';
 import { SalesOverviewSection } from '../components/dashboard/SalesOverviewSection';
+import { dashboardPalette } from '../components/dashboard/dashboardCardStyles';
+import { DashboardPhone } from '../components/dashboard/phone/DashboardPhone';
 import { SectionHeader } from '../components/dashboard/SectionHeader';
 import { WeeklySalesList } from '../components/dashboard/WeeklySalesList';
 import {
@@ -12,9 +12,14 @@ import {
   dashboardGutterSx,
   useDashboardLayout,
 } from '../components/dashboard/useDashboardLayout';
+import { FloorPage } from '../components/layout/FloorPage';
+import { useAuth } from '../hooks/useAuth';
 import { useDashboardMetrics } from '../hooks/useDashboard';
+import { t } from '../i18n/routines';
 
 export default function DashboardPage() {
+  const { user } = useAuth();
+  const lang = user?.language === 'es' ? 'es' : 'en';
   const { data: metrics, isLoading, error } = useDashboardMetrics();
   const { isMobile } = useDashboardLayout();
 
@@ -30,31 +35,32 @@ export default function DashboardPage() {
     );
   }
 
+  if (isMobile) {
+    return <DashboardPhone metrics={metrics} />;
+  }
+
   return (
+    <FloorPage
+      title={t('home', lang)}
+      subtitle={t('homeSubtitle', lang)}
+      fill
+      contained={false}
+      bodyBg={dashboardPalette.backdrop}
+    >
     <Box
       sx={{
         flex: 1,
-        ...(isMobile
-          ? {
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 2,
-              height: 'auto',
-              minHeight: 'auto',
-            }
-          : {
-              display: 'grid',
-              gridTemplateRows: 'minmax(0, 1fr) auto',
-              height: '100%',
-              minHeight: 0,
-              gap: 2,
-            }),
+        display: 'grid',
+        gridTemplateRows: 'minmax(0, 1fr) auto',
+        height: '100%',
+        minHeight: 0,
+        gap: 2,
         overflow: 'visible',
       }}
     >
       <Box
         sx={{
-          ...(isMobile ? { minHeight: 'auto' } : { minHeight: 0 }),
+          minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
           gap: 1.25,
@@ -66,45 +72,14 @@ export default function DashboardPage() {
         <SectionHeader
           title="Sales"
           hint="Daily completed POS sales over 90 days, with weekly totals."
-          action={
-            isMobile ? (
-              <Box
-                sx={{
-                  px: 1.15,
-                  py: 0.65,
-                  borderRadius: 2,
-                  textAlign: 'right',
-                  ...dashboardRaisedStatSx,
-                }}
-              >
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  display="block"
-                  lineHeight={1}
-                  sx={{
-                    fontSize: '0.66rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.7,
-                    fontWeight: 700,
-                  }}
-                >
-                  Today&apos;s Sales
-                </Typography>
-                <Typography variant="subtitle2" fontWeight={800} lineHeight={1.35}>
-                  {formatDashboardCurrency(metrics.sales.today)}
-                </Typography>
-              </Box>
-            ) : undefined
-          }
         />
         <Grid
           container
           spacing={1.5}
           sx={{
-            ...(isMobile
-              ? { flex: 'none', minHeight: 'auto', height: 'auto' }
-              : { flex: 1, minHeight: 0, height: 0 }),
+            flex: 1,
+            minHeight: 0,
+            height: 0,
             overflow: 'visible',
           }}
         >
@@ -112,7 +87,8 @@ export default function DashboardPage() {
             size={{ xs: 12, md: 6 }}
             sx={{
               display: 'flex',
-              ...(isMobile ? { minHeight: 0 } : { minHeight: 0, height: '100%' }),
+              minHeight: 0,
+              height: '100%',
             }}
           >
             <SalesOverviewSection sales={metrics.sales} />
@@ -121,7 +97,8 @@ export default function DashboardPage() {
             size={{ xs: 12, md: 6 }}
             sx={{
               display: 'flex',
-              ...(isMobile ? { minHeight: 0 } : { minHeight: 0, height: '100%' }),
+              minHeight: 0,
+              height: '100%',
             }}
           >
             <WeeklySalesList
@@ -151,5 +128,6 @@ export default function DashboardPage() {
         <DepartmentMetricCards metrics={metrics.department_metrics} />
       </Box>
     </Box>
+    </FloorPage>
   );
 }

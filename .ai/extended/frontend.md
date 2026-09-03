@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-02 (Routine Control one shell; work-cycle runner) -->
+<!-- Last updated: 2026-09-03 (v2.87.0 Floor pages) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -6,6 +6,7 @@
 
 - **React 18.3**, **TypeScript 5.9**, **Vite 7**, **MUI v7**
 - Additional: TanStack React Query, React Router v7, notistack, date-fns, recharts, react-hook-form, @zxing/library, react-pdf / pdfjs-dist
+- Routine chrome (Today, Pay, staff lists, phone tab bar, runner) is bilingual via `frontend/src/i18n/routines.ts` (`t`, `pick`, `triggerLabel`) and `User.language`. No i18n library. The profile menu holds the EN / ES toggle (`setLanguage` → `PATCH /auth/me/`). Clock-in tiles and the Change menu live in `frontend/src/components/hr/ShiftPicker.tsx` (`ShiftPicker`, `ShiftMenu`, `ShiftChip`): department eyebrow, then the position name.
 
 ## Entry Point
 
@@ -32,7 +33,7 @@
 
 **Public routes:** `/login`, `/forgot-password`, `/reset-password`
 
-**Staff routes** (MainLayout): Dashboard; Essentials (**Dashboard** only); account menu (**Time clock**, **Routines** `/routines`); **Buying** (auctions, watchlist, **vendors**, **orders**, preprocessing); Inventory (**Inbound:** receiving, processing); **Retail Floor** (Catalog workbench, quick reprice, floorplans); POS (terminal, drawers, cash, transactions); **Studios** (Manager+: Label Studio, Floorplans, Blog Studio); **Admin** (Manager+: Users at `/admin/users` — Employees first and default for Admin, Customers via `?tab=customers`; Managers only see Customers; Settings house at `/admin/settings` (System / Printing / Store / Assumptions / Retail QA / Permissions); Retail inbox Admin-only; Super Admin: **Time & payroll** `/admin/time-payroll`, **Routines** (Routine Control) `/admin/routines` (`?view=routines|sections|grades`) — see `routines.md`). Super Admin **Enhancements** `/admin/enhancement-requests` is a Restoration guest. Staff **Consignment** routes remain (`/consignment/*`) but are **hidden from sidebar**; **Consignee portal** (`/consignee/*`) unchanged.
+**Staff routes** (MainLayout): Dashboard; Essentials (**Dashboard** only); account menu (**Today** `/today`, **Pay** `/pay`, **Routines** `/routines`, **Language** EN / ES). On phones (`down('md')`), Dashboard / Today / Pay / Routines list use a slim top bar (hamburger + title) + `PhoneTabBar` (Home / Today / Pay / Routines) sitting in the layout flow so the page ends at the top of the bar. Filling or demoing a routine replaces that bar with `RoutinePhoneBar` (demo shows the Demo chip only; pick another routine or leave). Staff `/routines` is My routines + Catalog (read/fill); add / edit / delete lives in Admin - Routines. **Today** is the punch plus the day's routines on every device (`TodayPhone` / `TodayDesk`). **Pay** is the hours/periods ledger (`PayPhone` / `PayDesk`). `/hr/time-clock` and `/hr/time-history` redirect to `/pay`. There is no Day at a glance dialog. Desk Home / Today / Pay / Routines share `FloorPage` (green band + `FloorNav` Home / Today / Pay / Routines, Settings for Manager+). On phones, `/dashboard` renders `DashboardPhone` (today hero, trend, this week, past weeks, department cards) instead of stacking the desktop widgets. **Buying** (auctions, watchlist, **vendors**, **orders**, preprocessing); Inventory (**Inbound:** receiving, processing); **Retail Floor** (Catalog workbench, quick reprice, floorplans); POS (terminal, drawers, cash, transactions); **Studios** (Manager+: Label Studio, Floorplans, Blog Studio); **Admin** (Manager+: Users at `/admin/users` — Employees first and default for Admin, Customers via `?tab=customers`; Managers only see Customers; Settings house at `/admin/settings` (System / Printing / Store / Assumptions / Retail QA / Permissions); Retail inbox Admin-only; Super Admin: **Time & payroll** `/admin/time-payroll`, **Routines** (Routine Control) `/admin/routines` (`?view=routines|sections|grades`) — see `routines.md`). Super Admin **Enhancements** `/admin/enhancement-requests` is a Restoration guest. Staff **Consignment** routes remain (`/consignment/*`) but are **hidden from sidebar**; **Consignee portal** (`/consignee/*`) unchanged.
 
 **Users directory (`/admin/users`):** Employees scan identity → # → **Dept** → **Job** → Role → Type → Phone → Tenure → Access. Customers scan identity → # → Phone → **Notes** → Holds → Account → Since. Dept, job, role, type, phone, and notes save on the row (`InlineCell`); name and access still open the drawer.
 
@@ -85,8 +86,14 @@ Staff catalog + order management: **`WebStorePage`** (`/admin/web-store`), **`We
 - **Sidebar** (**252px**): workspace nav — pinned Essentials (Dashboard) + workspaces (Buying → Processing → Restoration → Retail Floor → Cashier → Deliveries → Online Sales → Studios → Admin); logo, version footer. Waiting-work badges come from `useNavBadgeCounts` (Messages = `needs_reply`; Retail inbox = unread `MailMessage`; Parts Requests = live approvals / cancel asks / reviews) and roll up onto the workspace pip. **Overflow:** drawer paper and the nav scroll area use **`overflow-x: hidden`** (vertical scroll only); nav list is full-width with **`minWidth: 0`**; long labels **`noWrap`** + ellipsis (see **v2.2.4** `CHANGELOG`).
 - **AppBar**: sticky, default color, user avatar + menu (logout)
 - **Outlet** for page content
-- Mobile: temporary drawer with hamburger toggle
+- Mobile: temporary drawer with hamburger toggle. Phone-shell routes (`showsPhoneTabBar`: `/dashboard`, `/today`, `/pay`, Routines list/catalog) keep the hamburger, show logo + page title, and mount `PhoneTabBar` (Home / Today / Pay / Routines) as an in-flow footer. Fill / demo / edit hide it so `RoutinePhoneBar` can own the bottom.
 - Version in sidebar footer from `getAppVersion()` → `/api/core/system/version/`
+
+**Floor pages (desk):** `FloorPage` + `FloorPageBand` + `FloorNav` (`frontend/src/navigation/floorNav.ts`, `frontend/src/components/layout/FloorPage.tsx`). Band is one 60px row on the runner green gradient: title 20/800, optional inline subtitle or chips, `FloorNav` on the right. The nav is identical on every page (white pill = active); nothing hangs below it. Content column is `maxWidth: 1440` on `dutyColors.paper` except Dashboard, which keeps the olive body. Cards use `dutyCardSx` / `dutyHeroSx` / `ColumnCard`. Phone tabs reuse the same ids and Home / Today / Pay / Routines labels.
+
+**Today (`/today`):** Punch (clock in / break / clock out) plus Day at a glance. Phone is `TodayPhone`. Desk is `TodayDesk` (greeting in the band, punch + week bar left, glance grid right).
+
+**Pay (`/pay`):** This week hours, current and past biweekly periods from `GET /hr/time-entries/my_pay/`, recent shifts, and Request time change. Dollars stay behind a `••••` control; one tap reveals or hides all of them. The toggle is local `useState` and resets on every visit. The hourly rate is never shown. Desk uses a hero current period, `ColumnCard` past periods, and a restyled shifts DataGrid. No punch on Pay.
 
 ### Staff navigation (workspace sidebar, 2026-05-30)
 

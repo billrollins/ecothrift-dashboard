@@ -1,8 +1,11 @@
 import type {
   RoutineAssignment,
+  RoutineAudienceType,
   RoutineCheckDef,
   RoutineControl,
   RoutineDefinition,
+  RoutineExpireRule,
+  RoutineExpireUnit,
   RoutineSectionDef,
   RoutineTrigger,
 } from '../../api/routines.api';
@@ -24,19 +27,32 @@ export interface RoutineDoc {
   /** "YYYY-MM-DD"; only meaningful when trigger is biweekly. */
   anchor_date: string | null;
   grace_days: number;
+  expire_rule: RoutineExpireRule;
+  expire_count: number;
+  expire_unit: RoutineExpireUnit;
+  /** "HH:MM" or null. Hours start at; null is midnight. */
+  expire_from_time: string | null;
   assignment: RoutineAssignment;
-  assigned_role: string;
+  audience_type: RoutineAudienceType;
+  audience_all: boolean;
+  assigned_shifts: string[];
+  assigned_department_ids: number[];
   assigned_department: number | null;
   assigned_user_ids: number[];
-  subject_pool: string[];
   is_blocking: boolean;
   definition: RoutineDefinition;
 }
 
 export const TRIGGERS: RoutineTrigger[] = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'annual', 'on_demand'];
+export const EXPIRE_RULES: RoutineExpireRule[] = ['never', 'end_of_day', 'end_of_week', 'after'];
+export const EXPIRE_UNITS: RoutineExpireUnit[] = ['hours', 'days', 'weeks', 'months'];
 export const ASSIGNMENTS: RoutineAssignment[] = ['pooled', 'per_person'];
+export const AUDIENCE_TYPES: RoutineAudienceType[] = ['person', 'shift', 'department'];
 export const CONTROLS: RoutineControl[] = ['pass_fail', 'pass_fail_strict', 'number', 'text', 'photo'];
-export const ROLES = ['Staff', 'Employee', 'Manager', 'Admin'];
+export const SHIFT_CODES = [
+  'retail_open', 'retail_day', 'retail_close', 'retail_cs',
+  'processing', 'restoration', 'office',
+];
 
 /**
  * Who exists, so a model can pick an owner by id instead of guessing. The
@@ -90,14 +106,14 @@ export function buildAiBrief(
     '',
     '## Who can own it',
     '',
-    'Who gets a run is worked out in this order: named people (`assigned_user_ids`) if any;',
-    'otherwise everyone in `assigned_department` who holds `assigned_role` (`Staff` means any role).',
-    'With `assignment: "pooled"` that whole group shares ONE run and any one of them completes it;',
-    'with `"per_person"` each of them gets their own run.',
+    'Who gets a run is `audience_type` (person / shift / department), `audience_all`, then the list.',
+    '`assignment: "pooled"` is one shared run; `"per_person"` gives each match their own.',
+    'Shift routines only appear for someone clocked into a selected shift. Clocked out hides them.',
     '',
-    'So for a checklist one person from a department does each time (an opening, a closing, a',
-    'walk-through): `"assignment": "pooled"`, `"assigned_department": <that id>`,',
-    '`"assigned_role": "Staff"`, `"assigned_user_ids": []`. Name people only when it must be them.',
+    'A standing walk for named people: `"audience_type": "person"`, `"audience_all": false`,',
+    '`"assigned_user_ids": [<ids>]`. A shift checklist: `"audience_type": "shift"`,',
+    '`"assigned_shifts": ["retail_open"]`. All staff share one: `"audience_type": "person"`,',
+    '`"audience_all": true`, `"assignment": "pooled"`.',
     '',
     'Departments (id - name):',
     ...departments,
@@ -113,16 +129,23 @@ export function buildAiBrief(
     '- `due_time` - "HH:MM", 24-hour. When the app-bar nag starts that day. The run is already on My Routines. Use 00:00 (or morning) to warn all day; use 17:50 so a close stays quiet until 5:50pm.',
     '- `anchor_date` - "YYYY-MM-DD". Only used when trigger is `biweekly`: the next due date, repeating every 14 days. Otherwise `null`.',
     '- `grace_days` - whole number 0-30. Days late before a run counts as overdue.',
-    '- `assignment` - `pooled` (one shared run; anyone on shift completes it) or `per_person` (everyone gets their own run).',
-    `- \`assigned_role\` - one of: ${ROLES.join(', ')}.`,
-    '- `assigned_department` - a department id from the list above, or `null`. The department name is also accepted.',
-    '- `assigned_user_ids` - list of people ids from the list above. Usually `[]`. Full names are also accepted.',
-    '- `subject_pool` - list of strings; each run draws one (an area, a till, a vehicle). Usually `[]`.',
+    '- `expire_rule` - `never` (can still fill it late), `end_of_day`, `end_of_week`, or `after`. After this the run is Missed and cannot be filled.',
+    '- `expire_count` / `expire_unit` - used when expire_rule is `after`. Unit is hours, days, weeks, or months.',
+    '- `expire_from_time` - "HH:MM" or null. When the unit is hours, the clock that duration starts from. Null is midnight.',
+    '- `assignment` - `pooled` (one shared run) or `per_person` (everyone matching gets their own).',
+    `- \`audience_type\` - one of: ${AUDIENCE_TYPES.join(', ')}.`,
+    '- `audience_all` - `true` means All staff / All shifts / All departments for that type.',
+    `- \`assigned_shifts\` - shift codes when type is shift and All is off. One of: ${SHIFT_CODES.join(', ')}.`,
+    '- `assigned_department_ids` - department ids when type is department and All is off. Names are also accepted.',
+    '- `assigned_department` - first department id, or `null`. Kept so the section floor has one department.',
+    '- `assigned_user_ids` - people ids when type is person and All is off. Full names are also accepted.',
     '- `is_blocking` - `true` pins the routine at the top of everyone\'s list until it is done.',
-    '- `definition.sections[]` - ordered. Each is `{ id, title, checks[] }`. At least one section with at least one check.',
-    '- check - `{ id, label, control, hint, unit, critical }`',
+    '- `definition.sections[]` - ordered. Each is `{ id, title, title_es, checks[] }`. At least one section with at least one check.',
+    '- check - `{ id, label, label_es, control, hint, hint_es, unit, critical, verify_prev }`',
     `  - \`control\` - ${CONTROLS.map((c) => `\`${c}\``).join(', ')}. \`pass_fail\` offers Pass / Fail / N/A; \`pass_fail_strict\` offers Pass / Fail only.`,
     '  - `hint` - optional one line under the label explaining how or why, or "".',
+    '  - `label_es` / `hint_es` / `title_es` - Spanish copy. May be "".',
+    '  - `verify_prev` - `true` if the next shift has to confirm this check.',
     '  - `unit` - only for `number` checks (e.g. "°F", "kg"); otherwise "".',
     '  - `critical` - `true` means a single fail fails the whole run.',
     '',
@@ -134,7 +157,7 @@ export function buildAiBrief(
       '3. Give every section and check an id: a lowercase slug such as `section-front-of-house` or `check-unlock-front-doors`. Ids must be unique.',
       '4. Group checks into sections in the order staff would walk the building. Three to eight checks per section reads well on a phone.',
       '5. Pick `control` per check: `pass_fail` for most things, `number` (with `unit`) for readings, `text` for something to write down, `photo` for proof. Mark `critical` only where one fail should fail the whole run.',
-      '6. Set the owner from the lists above: the department the routine belongs to, `pooled` unless every person must do it themselves, named people only if I ask. Work out `trigger` and `due_time` from what the checklist is for. Opening that should nag all morning is 00:00 or store-open; closing that should stay quiet until 5:50 is 17:50.',
+      '6. Set the owner from the lists above: `audience_type`, `audience_all` or a list, and `pooled` unless every match must do it themselves. Work out `trigger` and `due_time` from what the checklist is for. Opening that should nag all morning is 00:00 or store-open; closing that should stay quiet until 5:50 is 17:50.',
       '7. Labels are short imperatives ("Unlock front doors"). Put the how and why in `hint`.',
       '8. Never use an em dash (-) or en dash (-) in title, intro, section titles, labels, or hints. Use a hyphen, comma, or period.',
       '',
@@ -186,13 +209,14 @@ const slug = (value: string) =>
  * hard error; anything we quietly fixed becomes a warning.
  */
 /** Fields a program routine must not send back. The grade keys on them. */
-export const SYSTEM_LOCKED_DOC_FIELDS = ['trigger', 'assignment'] as const;
+export const SYSTEM_LOCKED_DOC_FIELDS = ['trigger', 'assignment', 'audience_type'] as const;
 
 export function dropLockedDocFields(doc: RoutineDoc, current: RoutineDoc): RoutineDoc {
   return {
     ...doc,
     trigger: current.trigger,
     assignment: current.assignment,
+    audience_type: current.audience_type,
   };
 }
 
@@ -214,8 +238,10 @@ export function parseRoutineDoc(
   if (!isRecord(value)) return { ok: false, error: 'Expected a JSON object at the top level.' };
 
   const known: Array<keyof RoutineDoc> = [
-    'title', 'intro', 'trigger', 'due_time', 'anchor_date', 'grace_days', 'assignment',
-    'assigned_role', 'assigned_department', 'assigned_user_ids', 'subject_pool', 'is_blocking', 'definition',
+    'title', 'intro', 'trigger', 'due_time', 'anchor_date', 'grace_days',
+    'expire_rule', 'expire_count', 'expire_unit', 'expire_from_time', 'assignment',
+    'audience_type', 'audience_all', 'assigned_shifts', 'assigned_department_ids',
+    'assigned_department', 'assigned_user_ids', 'is_blocking', 'definition',
   ];
   if (!known.some((key) => key in value)) {
     return { ok: false, error: 'This does not look like a routine - none of the routine fields are present.' };
@@ -279,6 +305,38 @@ export function parseRoutineDoc(
     else errors.push('`grace_days` must be a whole number from 0 to 30.');
   }
 
+  let expireRule = current.expire_rule;
+  if ('expire_rule' in value) {
+    const v = value.expire_rule;
+    if (typeof v === 'string' && (EXPIRE_RULES as string[]).includes(v)) expireRule = v as RoutineExpireRule;
+    else errors.push(`\`expire_rule\` must be one of ${EXPIRE_RULES.join(', ')}.`);
+  }
+
+  let expireCount = current.expire_count;
+  if ('expire_count' in value) {
+    const v = Number(value.expire_count);
+    if (Number.isInteger(v) && v >= 1 && v <= 99) expireCount = v;
+    else errors.push('`expire_count` must be a whole number from 1 to 99.');
+  }
+
+  let expireUnit = current.expire_unit;
+  if ('expire_unit' in value) {
+    const v = value.expire_unit;
+    if (typeof v === 'string' && (EXPIRE_UNITS as string[]).includes(v)) expireUnit = v as RoutineExpireUnit;
+    else errors.push(`\`expire_unit\` must be one of ${EXPIRE_UNITS.join(', ')}.`);
+  }
+
+  let expireFrom = current.expire_from_time;
+  if ('expire_from_time' in value) {
+    const v = value.expire_from_time;
+    if (v === null || v === '') expireFrom = null;
+    else {
+      const m = typeof v === 'string' ? v.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/) : null;
+      if (m && Number(m[1]) < 24 && Number(m[2]) < 60) expireFrom = `${m[1].padStart(2, '0')}:${m[2]}`;
+      else errors.push('`expire_from_time` must be "HH:MM" or null.');
+    }
+  }
+
   let assignment = current.assignment;
   if ('assignment' in value) {
     const v = value.assignment;
@@ -286,15 +344,61 @@ export function parseRoutineDoc(
     else errors.push(`\`assignment\` must be ${ASSIGNMENTS.join(' or ')}.`);
   }
 
-  let role = current.assigned_role;
-  if ('assigned_role' in value) {
-    const v = value.assigned_role;
-    const match = typeof v === 'string' ? ROLES.find((r) => r.toLowerCase() === v.trim().toLowerCase()) : undefined;
-    if (match) role = match;
-    else errors.push(`\`assigned_role\` must be one of ${ROLES.join(', ')}.`);
+  let audienceType = current.audience_type;
+  if ('audience_type' in value) {
+    const v = value.audience_type;
+    if (typeof v === 'string' && (AUDIENCE_TYPES as string[]).includes(v)) audienceType = v as RoutineAudienceType;
+    else errors.push(`\`audience_type\` must be one of ${AUDIENCE_TYPES.join(', ')}.`);
+  }
+
+  let audienceAll = current.audience_all;
+  if ('audience_all' in value) {
+    const v = value.audience_all;
+    if (typeof v === 'boolean') audienceAll = v;
+    else errors.push('`audience_all` must be true or false.');
+  }
+
+  let assignedShifts = current.assigned_shifts;
+  if ('assigned_shifts' in value) {
+    const v = value.assigned_shifts;
+    if (!Array.isArray(v)) errors.push('`assigned_shifts` must be a list.');
+    else {
+      const cleaned: string[] = [];
+      v.forEach((entry) => {
+        const code = String(entry).trim();
+        if ((SHIFT_CODES as string[]).includes(code)) {
+          if (!cleaned.includes(code)) cleaned.push(code);
+        } else errors.push(`Unknown shift "${code}".`);
+      });
+      assignedShifts = cleaned;
+    }
   }
 
   const fold = (s: string) => s.trim().toLowerCase();
+
+  let departmentIds = current.assigned_department_ids;
+  if ('assigned_department_ids' in value) {
+    const v = value.assigned_department_ids;
+    if (!Array.isArray(v)) errors.push('`assigned_department_ids` must be a list.');
+    else {
+      const resolved: number[] = [];
+      v.forEach((entry) => {
+        if (typeof entry === 'number' || (typeof entry === 'string' && /^\d+$/.test(String(entry).trim()))) {
+          const id = Number(entry);
+          if (context.departments.length && !context.departments.some((d) => d.id === id)) {
+            errors.push(`No department has id ${id}.`);
+          } else if (!resolved.includes(id)) resolved.push(id);
+        } else if (typeof entry === 'string') {
+          const match = context.departments.find((d) => fold(d.name) === fold(entry));
+          if (match) {
+            if (!resolved.includes(match.id)) resolved.push(match.id);
+            warnings.push(`Matched department "${entry}" to ${match.name} (${match.id}).`);
+          } else errors.push(`No department called "${entry}".`);
+        } else errors.push('`assigned_department_ids` entries must be ids or names.');
+      });
+      departmentIds = resolved;
+    }
+  }
 
   let department = current.assigned_department;
   if ('assigned_department' in value) {
@@ -340,14 +444,6 @@ export function parseRoutineDoc(
     }
   }
 
-  let pool = current.subject_pool;
-  if ('subject_pool' in value) {
-    const v = value.subject_pool;
-    if (Array.isArray(v) && v.every((s) => typeof s === 'string')) {
-      pool = (v as string[]).map((s) => s.trim()).filter(Boolean);
-    } else errors.push('`subject_pool` must be a list of text.');
-  }
-
   let blocking = current.is_blocking;
   if ('is_blocking' in value) {
     const v = value.is_blocking;
@@ -359,6 +455,12 @@ export function parseRoutineDoc(
   if ('definition' in value) {
     const parsed = parseDefinition(value.definition, errors, warnings);
     if (parsed) definition = parsed;
+  }
+
+  if ('assigned_department_ids' in value) {
+    department = departmentIds[0] ?? null;
+  } else if ('assigned_department' in value && department != null && !departmentIds.includes(department)) {
+    departmentIds = [department];
   }
 
   if (errors.length) return { ok: false, error: errors.join(' ') };
@@ -374,11 +476,17 @@ export function parseRoutineDoc(
       due_time: dueTime,
       anchor_date: anchor,
       grace_days: grace,
+      expire_rule: expireRule,
+      expire_count: expireCount,
+      expire_unit: expireUnit,
+      expire_from_time: expireFrom,
       assignment,
-      assigned_role: role,
+      audience_type: audienceType,
+      audience_all: audienceAll,
+      assigned_shifts: assignedShifts,
+      assigned_department_ids: departmentIds,
       assigned_department: department,
       assigned_user_ids: userIds,
-      subject_pool: pool,
       is_blocking: blocking,
       definition,
     },
@@ -441,6 +549,8 @@ function parseDefinition(input: unknown, errors: string[], warnings: string[]): 
         errors.push(`"${label}" has an unknown control "${String(checkRaw.control)}".`);
       }
       const hint = typeof checkRaw.hint === 'string' ? checkRaw.hint.trim() : '';
+      const labelEs = typeof checkRaw.label_es === 'string' ? checkRaw.label_es.trim() : '';
+      const hintEs = typeof checkRaw.hint_es === 'string' ? checkRaw.hint_es.trim() : '';
       let unit = typeof checkRaw.unit === 'string' ? checkRaw.unit.trim() : '';
       if (unit && control !== 'number') {
         warnings.push(`Dropped the unit on "${label}" - only number checks carry one.`);
@@ -449,15 +559,19 @@ function parseDefinition(input: unknown, errors: string[], warnings: string[]): 
       checks.push({
         id: uniqueId(checkRaw.id, 'check', label, cIndex),
         label,
+        label_es: labelEs,
         control,
         hint,
+        hint_es: hintEs,
         unit,
         critical: checkRaw.critical === true,
+        verify_prev: checkRaw.verify_prev === true,
       });
     });
     sections.push({
       id: uniqueId(sectionRaw.id, 'section', title, sIndex),
       title: title || `Section ${sIndex + 1}`,
+      title_es: typeof sectionRaw.title_es === 'string' ? sectionRaw.title_es.trim() : '',
       checks,
     });
   });
@@ -487,11 +601,29 @@ export function summarizeChanges(
   if (prev.due_time !== next.due_time) schedule.push(`due ${prev.due_time} → ${next.due_time}`);
   if (prev.anchor_date !== next.anchor_date) schedule.push(`next due ${prev.anchor_date ?? '-'} → ${next.anchor_date ?? '-'}`);
   if (prev.grace_days !== next.grace_days) schedule.push(`grace ${prev.grace_days} → ${next.grace_days} days`);
+  if (prev.expire_rule !== next.expire_rule) schedule.push(`missed ${prev.expire_rule} → ${next.expire_rule}`);
+  if (prev.expire_count !== next.expire_count || prev.expire_unit !== next.expire_unit) {
+    schedule.push(`missed after ${prev.expire_count} ${prev.expire_unit} → ${next.expire_count} ${next.expire_unit}`);
+  }
+  if (prev.expire_from_time !== next.expire_from_time) {
+    schedule.push(`hours start ${prev.expire_from_time ?? 'midnight'} → ${next.expire_from_time ?? 'midnight'}`);
+  }
   if (schedule.length) lines.push(`Schedule: ${schedule.join(', ')}`);
 
   const owner: string[] = [];
   if (prev.assignment !== next.assignment) owner.push(`${prev.assignment} → ${next.assignment}`);
-  if (prev.assigned_role !== next.assigned_role) owner.push(`role ${prev.assigned_role} → ${next.assigned_role}`);
+  if (prev.audience_type !== next.audience_type) owner.push(`type ${prev.audience_type} → ${next.audience_type}`);
+  if (prev.audience_all !== next.audience_all) owner.push(next.audience_all ? 'All on' : 'All off');
+  if (!sameNumbers(prev.assigned_department_ids, next.assigned_department_ids)) {
+    owner.push(next.assigned_department_ids.length
+      ? `departments → ${next.assigned_department_ids.map(deptName).join(', ')}`
+      : 'no departments');
+  }
+  if (prev.assigned_shifts.join() !== next.assigned_shifts.join()) {
+    owner.push(next.assigned_shifts.length
+      ? `shifts → ${next.assigned_shifts.join(', ')}`
+      : 'no shifts');
+  }
   if (prev.assigned_department !== next.assigned_department) {
     owner.push(`department ${deptName(prev.assigned_department)} → ${deptName(next.assigned_department)}`);
   }
@@ -499,9 +631,6 @@ export function summarizeChanges(
     owner.push(next.assigned_user_ids.length
       ? `people → ${next.assigned_user_ids.map(personName).join(', ')}`
       : 'no named people');
-  }
-  if (prev.subject_pool.join('\n') !== next.subject_pool.join('\n')) {
-    owner.push(`subject pool ${prev.subject_pool.length} → ${next.subject_pool.length}`);
   }
   if (prev.is_blocking !== next.is_blocking) owner.push(next.is_blocking ? 'now blocking' : 'no longer blocking');
   if (owner.length) lines.push(`Owner: ${owner.join(', ')}`);

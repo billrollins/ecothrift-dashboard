@@ -128,12 +128,6 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'retail-qa',
     kind: 'count',
   },
-  'retail_qa.audit_min_items': {
-    label: 'Items an audit must inspect',
-    help: 'A cross-check cannot be submitted under this count. Zero issues on four items is a glance, not an audit.',
-    tab: 'retail-qa',
-    kind: 'count',
-  },
   'retail_qa.spot_check_count': {
     label: 'Checks drawn into a spot check',
     help: 'How many random checks from Open, Day, and Close land in the daily owner spot check, alongside one full section cross-check.',

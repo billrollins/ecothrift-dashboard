@@ -9,6 +9,34 @@ import type {
 } from '../../../api/routines.api';
 import { failCount, unansweredCount } from '../scoring';
 
+function hasChecklistSections(responses: AnyRoutineResponses | null): boolean {
+  const sections = (responses as RoutineResponses | null)?.sections;
+  return Array.isArray(sections) && sections.some((section) => Array.isArray(section?.checks));
+}
+
+/** A work-cycle payload has no check sections; scoring a checklist against it crashes. */
+export function isWorkCycleResponses(
+  responses: AnyRoutineResponses | null,
+): responses is WorkCycleResponses {
+  return Boolean(
+    responses
+    && typeof responses === 'object'
+    && !hasChecklistSections(responses)
+    && 'shelf' in responses
+    && 'non_shelf' in responses,
+  );
+}
+
+/** Prefer the payload when a draft arrives before the routine's kind does. */
+export function resolveRunnerKind(
+  kind: RoutineKind,
+  responses: AnyRoutineResponses | null,
+): RoutineKind {
+  if (hasChecklistSections(responses)) return 'checklist';
+  if (isWorkCycleResponses(responses)) return 'work_cycle';
+  return kind;
+}
+
 /**
  * Why the Submit button is not ready yet, in the order a person would fix
  * them. Mirrors `apps/routines/kinds.submit_blockers` so the phone never
@@ -20,41 +48,39 @@ export function runnerBlockers(
   minItems: number,
 ): string[] {
   if (!responses) return ['Loading'];
+  kind = resolveRunnerKind(kind, responses);
   if (kind === 'checklist') {
     const checklist = responses as RoutineResponses;
     const left = unansweredCount(checklist);
     const out = left > 0 ? [`${left} left to answer`] : [];
-    if (checklist.verify && !checklist.verify.result) out.push('Sign off on the last shift');
+    const verifyLeft = (checklist.verify?.checks ?? []).filter((row) => !row.result).length;
+    if (verifyLeft) out.push('Confirm every check from the last shift');
     return out;
   }
   if (kind === 'section_tally') {
     const tally = responses as SectionTallyResponses;
-    return tally.sections.length ? [] : ['You do not keep a section yet'];
+    return tally.sections?.length ? [] : ['You do not keep a section yet'];
   }
-  if (kind === 'section_audit') return auditBlockers(responses as SectionAuditResponses, minItems);
+  if (kind === 'section_audit') return auditBlockers(responses as SectionAuditResponses);
   if (kind === 'work_cycle') {
     const cycle = responses as WorkCycleResponses;
     if (cycle.mode !== 'shelf' && cycle.mode !== 'non_shelf') return ['Pick shelf check or non-shelf check'];
     if (cycle.mode === 'shelf') {
-      return cycle.shelf.section_id ? [] : ['Pick the section you walked'];
+      return cycle.shelf?.section_id ? [] : ['Pick the section you walked'];
     }
-    const noted = Boolean(cycle.non_shelf.notes.trim());
-    return cycle.non_shelf.done.length || noted ? [] : ['Tick at least one check or write what you did'];
+    const noted = Boolean((cycle.non_shelf?.notes || '').trim());
+    return cycle.non_shelf?.done?.length || noted ? [] : ['Tick at least one check or write what you did'];
   }
   const spot = responses as OwnerSpotResponses;
   const unanswered = (spot.checks || []).filter((check) => !check.result).length;
   return [
     ...(unanswered ? [`${unanswered} drawn check${unanswered === 1 ? '' : 's'} left`] : []),
-    ...auditBlockers(spot.audit, minItems),
+    ...auditBlockers(spot.audit),
   ];
 }
 
-export function auditBlockers(audit: SectionAuditResponses | null, minItems: number): string[] {
-  if (!audit) return ['Loading'];
-  const out: string[] = [];
-  if (!audit.photo) out.push('Photo of the section first');
-  if ((audit.items_inspected || 0) < minItems) out.push(`Inspect at least ${minItems} items`);
-  return out;
+export function auditBlockers(_audit: SectionAuditResponses | null): string[] {
+  return [];
 }
 
 /** The label on the Submit button: the next blocker, or what submitting will record. */
@@ -76,6 +102,7 @@ export function submitLabel(
 /** Total issues counted, across whichever shape this kind uses. */
 export function issuesFound(kind: RoutineKind, responses: AnyRoutineResponses | null): number {
   if (!responses) return 0;
+  kind = resolveRunnerKind(kind, responses);
   const sum = (counts: Record<string, number> | undefined) =>
     Object.values(counts || {}).reduce((total, n) => total + (Number(n) || 0), 0);
   if (kind === 'section_tally') {

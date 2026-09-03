@@ -3,8 +3,8 @@
 A checklist is authored, so its answers are rebuilt from the definition every
 time it is touched. The three section kinds are not: their shape is fixed by
 their runner, so they are merged by trusting the client's payload and cleaning
-it against the taxonomy. Everything that decides a grade - counts, flags, the
-items-inspected floor - is re-derived here rather than taken on faith.
+it against the taxonomy. Everything that decides a grade - counts and flags - is re-derived
+here rather than taken on faith.
 """
 from __future__ import annotations
 
@@ -83,8 +83,44 @@ def owned_sections(run: RoutineRun | None) -> list[Section]:
 _owned_sections = owned_sections
 
 
+def _prior_results(responses: dict | None) -> dict[str, str]:
+    found: dict[str, str] = {}
+    if not isinstance(responses, dict):
+        return found
+    for section in responses.get('sections') or []:
+        if not isinstance(section, dict):
+            continue
+        for check in section.get('checks') or []:
+            if isinstance(check, dict) and check.get('id'):
+                found[str(check['id'])] = str(check.get('result') or '')
+    return found
+
+
+def verify_checks_for(routine: Routine, previous_responses: dict | None = None) -> list[dict]:
+    """The checks the next shift confirms, in definition order."""
+    target = routine.verifies
+    if target is None:
+        return []
+    theirs = _prior_results(previous_responses)
+    out = []
+    for section in (target.definition or {}).get('sections') or []:
+        for check in section.get('checks') or []:
+            if not check.get('verify_prev') or not check.get('id'):
+                continue
+            check_id = str(check['id'])
+            out.append({
+                'check_id': check_id,
+                'label': check.get('label') or '',
+                'label_es': check.get('label_es') or '',
+                'their_result': theirs.get(check_id, ''),
+                'result': '',
+                'note': '',
+            })
+    return out
+
+
 def verify_context(run: RoutineRun) -> dict | None:
-    """The shift before this one, for the sign-off block at the top of a runner.
+    """The shift before this one, check by check.
 
     Only the last finished run counts. Handing someone a blank verify block
     when nothing was done is the point: an absent Close is a fact the opener
@@ -104,40 +140,46 @@ def verify_context(run: RoutineRun) -> dict | None:
         .order_by('-completed_at')
         .first()
     )
+    previous_responses = previous.submission.responses if previous and previous.submission_id else None
     return {
         'routine_title': target.title,
         'run_id': previous.pk if previous else None,
         'completed_at': previous.completed_at if previous else None,
         'completed_by_name': previous.completed_by.full_name if previous and previous.completed_by_id else None,
         'failed_count': previous.submission.failed_count if previous and previous.submission_id else 0,
-        'result': '',
-        'note': '',
+        'checks': verify_checks_for(run.routine, previous_responses),
     }
 
 
 def non_shelf_checks() -> list[dict]:
-    """Every Open and Close check, labelled by the routine it came from.
+    """Every Day check, labelled by the section it came from.
 
-    Work cycle non-shelf is the leftover of those lists. Reading them live
-    means an edit to Opening or Closing is on the phone the next time someone
-    starts a walk, with no second list to keep in sync.
+    Work cycle non-shelf is the leftover of the day list. Reading it live
+    means an edit to Day is on the phone the next time someone starts a walk.
     """
-    from .schedule import SYSTEM_CLOSE, SYSTEM_OPEN
+    from .schedule import SYSTEM_DAY
 
     out = []
     for routine in Routine.objects.filter(
         is_active=True,
-        system_key__in=(SYSTEM_OPEN, SYSTEM_CLOSE),
-    ).order_by('system_key'):
+        system_key=SYSTEM_DAY,
+    ).order_by('id'):
         for section in (routine.definition or {}).get('sections') or []:
+            section_id = str(section.get('id') or '')
+            section_title = section.get('title') or ''
+            section_title_es = section.get('title_es') or ''
             for check in section.get('checks') or []:
                 if not check.get('id'):
                     continue
                 out.append({
                     'routine_key': routine.system_key,
                     'routine_title': routine.title,
+                    'section_id': section_id,
+                    'section_title': section_title,
+                    'section_title_es': section_title_es,
                     'check_id': str(check['id']),
                     'label': check.get('label') or '',
+                    'label_es': check.get('label_es') or '',
                 })
     return out
 
@@ -191,7 +233,10 @@ def initial_responses(routine: Routine, run: RoutineRun | None, *, mode: str = '
     if routine.kind == Routine.KIND_CHECKLIST:
         fresh = build_responses(routine.definition or {})
         if routine.verifies_id:
-            fresh['verify'] = {'run_id': None, 'result': '', 'note': ''}
+            fresh['verify'] = {
+                'run_id': None,
+                'checks': verify_checks_for(routine),
+            }
         return fresh
     if routine.kind == Routine.KIND_SECTION_TALLY:
         return _clean_tally({}, run)
@@ -206,14 +251,25 @@ def initial_responses(routine: Routine, run: RoutineRun | None, *, mode: str = '
     }
 
 
-def _clean_verify(raw: Any) -> dict | None:
-    if not isinstance(raw, dict):
-        return None
-    result = str(raw.get('result') or '').lower()
+def _clean_verify(raw: Any, expected: list[dict]) -> dict:
+    raw = raw if isinstance(raw, dict) else {}
+    by_id = {
+        str(row.get('check_id')): row
+        for row in (raw.get('checks') or [])
+        if isinstance(row, dict) and row.get('check_id')
+    }
+    checks = []
+    for row in expected:
+        incoming = by_id.get(row['check_id']) or {}
+        result = str(incoming.get('result') or '').lower()
+        checks.append({
+            **row,
+            'result': result if result in ('pass', 'fail', 'na') else '',
+            'note': str(incoming.get('note') or ''),
+        })
     return {
         'run_id': raw.get('run_id'),
-        'result': result if result in ('pass', 'fail', 'na') else '',
-        'note': str(raw.get('note') or ''),
+        'checks': checks,
     }
 
 
@@ -223,8 +279,10 @@ def merge_incoming(routine: Routine, run: RoutineRun | None, incoming: Any) -> d
         # `merge_responses` rebuilds from the definition, which knows nothing
         # about the sign-off on the shift before; carry it across by hand.
         if routine.verifies_id:
-            verify = _clean_verify(incoming.get('verify') if isinstance(incoming, dict) else None)
-            merged['verify'] = verify or {'run_id': None, 'result': '', 'note': ''}
+            merged['verify'] = _clean_verify(
+                incoming.get('verify') if isinstance(incoming, dict) else None,
+                verify_checks_for(routine),
+            )
         return merged
     if routine.kind == Routine.KIND_SECTION_TALLY:
         return _clean_tally(incoming, run)
@@ -250,30 +308,26 @@ def merge_incoming(routine: Routine, run: RoutineRun | None, incoming: Any) -> d
     }
 
 
-def _audit_blockers(audit: dict, min_items: int) -> list[str]:
-    problems = []
-    if not audit.get('photo'):
-        problems.append('Take the wide shot of the section first.')
-    if audit.get('items_inspected', 0) < min_items:
-        problems.append(f'Inspect at least {min_items} items before submitting.')
-    return problems
-
-
-def submit_blockers(routine: Routine, responses: dict, *, min_items: int) -> list[str]:
+def submit_blockers(routine: Routine, responses: dict, *, min_items: int = 0) -> list[str]:
     """Reasons the server will not accept this submission yet."""
     if routine.kind == Routine.KIND_CHECKLIST:
         _failed, _critical, unanswered = score_responses(responses)
         problems = [f'Answer everything to submit. {len(unanswered)} left.'] if unanswered else []
         verify = responses.get('verify')
-        if isinstance(verify, dict) and not verify.get('result'):
-            problems.append('Say whether the shift before yours was done to standard.')
+        if isinstance(verify, dict):
+            unanswered = [
+                row for row in (verify.get('checks') or [])
+                if isinstance(row, dict) and not row.get('result')
+            ]
+            if unanswered:
+                problems.append('Confirm every check from the last shift.')
         return problems
     if routine.kind == Routine.KIND_SECTION_TALLY:
         if not responses.get('sections'):
             return ['You do not keep a section right now. Ask for one to be assigned.']
         return []
     if routine.kind == Routine.KIND_SECTION_AUDIT:
-        return _audit_blockers(responses, min_items)
+        return []
     if routine.kind == Routine.KIND_WORK_CYCLE:
         mode = responses.get('mode')
         if mode not in WORK_CYCLE_MODES:
@@ -289,7 +343,7 @@ def submit_blockers(routine: Routine, responses: dict, *, min_items: int) -> lis
     problems = [
         f'Answer the {len(responses.get("checks") or [])} drawn checks.'
     ] if any(not (row.get('result') or '') for row in responses.get('checks') or []) else []
-    return problems + _audit_blockers(responses.get('audit') or {}, min_items)
+    return problems
 
 
 def outcome(routine: Routine, responses: dict) -> tuple[int, bool]:

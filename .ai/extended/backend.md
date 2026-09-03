@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-02 (routines Retail QA + documents API) -->
+<!-- Last updated: 2026-09-03 (v2.87.0 Floor pages) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -96,10 +96,12 @@ Heroku Scheduler (minimum) and local parity: **`.ai/extended/development.md`** �
 
 | Model | Key Fields |
 |-------|------------|
-| **User** | email (unique), first_name, last_name, phone, is_active, is_staff, date_joined, updated_at; `role` property (first group), `roles` property (all groups as list) |
+| **User** | email (unique), first_name, last_name, phone, is_active, is_staff, **language** (`en`/`es`, default `en`), date_joined, updated_at; `role` property (first group), `roles` property (all groups as list) |
 | **EmployeeProfile** | user (1:1), employee_number, department (FK hr.Department), position, employment_type, pay_rate, hire_date, termination_date, **termination_type** (choices: voluntary_resignation, job_abandonment, retirement, layoff, etc.), **termination_notes**, work_location (FK core.WorkLocation) |
 | **ConsigneeProfile** | user (1:1), consignee_number, commission_rate, payout_method, status (active/paused/closed), join_date |
 | **CustomerProfile** | user (1:1), customer_number, customer_since |
+
+`GET`/`PATCH /api/auth/me/` — `PATCH` accepts `{ language: 'en' | 'es' }`.
 
 ### core
 
@@ -119,12 +121,12 @@ Heroku Scheduler (minimum) and local parity: **`.ai/extended/development.md`** �
 | Model | Key Fields |
 |-------|------------|
 | **Department** | name, location (FK core.WorkLocation), manager (FK User), is_active |
-| **TimeEntry** | employee (FK User), date, clock_in, clock_out, break_minutes, **on_break**, **break_started_at**, total_hours, status (pending/approved/flagged), approved_by, **deleted_at**, **deleted_by** — default manager excludes soft-deleted |
+| **TimeEntry** | employee (FK User), date, clock_in, clock_out, **shift** (`retail_open` / `retail_day` / `retail_close` / `retail_cs` under Retail, `processing` / `restoration` under Warehouse, `office` under Office; blank on manager payroll rows), break_minutes, **on_break**, **break_started_at**, total_hours, status (pending/approved/flagged), approved_by, **deleted_at**, **deleted_by** — default manager excludes soft-deleted. Serializer: `shift_label` (position) and `shift_department`. Roster `shift_label` is `Retail: Cashier - Open`. |
 | **SickLeaveBalance** | employee, year, hours_earned, hours_used; ANNUAL_CAP 56h |
 | **SickLeaveRequest** | employee, start_date, end_date, hours_requested, status (pending/approved/denied), reviewed_by |
 | **TimeEntryModificationRequest** | time_entry (FK TimeEntry), employee (FK User), requested_clock_in/out, requested_break_minutes, reason, status (pending/approved/denied), reviewed_by, review_note, **deleted_at**, **deleted_by** |
 
-**HR API (MVP):** `TimeEntryViewSet` — clock in/out, `start_break`/`end_break`, `weekly_status`, `roster`, `payroll`, `payroll_periods`, manager `bulk_delete` (soft); **`GET …/time-entries/` list** and **`summary`** default to the **current user** (managers may pass `?employee=`; detail/approve actions unchanged). **`GET …/roster/`** — shift rows with **`weekly_cumulative_hours`** = full-week partition sum (Mon–Sun per employee; same on every row in that week). **`GET …/payroll/`** — by-employee totals plus **`hours_this_week`** (completed shifts in current calendar week). **`TimeEntry.save`** sets **`date`** from **`clock_in`**; **`validate_shift_duration`** (max **16h** worked after breaks) on clock-out. `TimeEntryModificationRequestViewSet` — Super Admin `approve`, **`reject`**, `bulk_approve`, **`bulk_reject`**, `bulk_delete` (soft). **`purge_soft_deleted_hr`** management command hard-deletes after 30 days.
+**HR API (MVP):** `TimeEntryViewSet` — clock in/out (self clock-in requires `shift`), `POST …/set_shift/` on an open punch, `start_break`/`end_break`, `weekly_status`, **`GET …/my_pay/`** (signed-in employee’s own biweekly periods: hours, shift count, `total_pay`; no `pay_rate`, no `?employee=`), `roster` (includes `shift` / `shift_label` with department prefix), `payroll`, `payroll_periods`, manager `bulk_delete` (soft); **`GET …/time-entries/` list** and **`summary`** default to the **current user** (managers may pass `?employee=`; detail/approve actions unchanged). **`GET …/roster/`** — shift rows with **`weekly_cumulative_hours`** = full-week partition sum (Mon–Sun per employee; same on every row in that week). **`GET …/payroll/`** — by-employee totals plus **`hours_this_week`** (completed shifts in current calendar week). **`TimeEntry.save`** sets **`date`** from **`clock_in`**; **`validate_shift_duration`** (max **16h** worked after breaks) on clock-out. `TimeEntryModificationRequestViewSet` — Super Admin `approve`, **`reject`**, `bulk_approve`, **`bulk_reject`**, `bulk_delete` (soft). **`purge_soft_deleted_hr`** management command hard-deletes after 30 days.
 
 ### inventory
 

@@ -239,7 +239,7 @@ describe('glowColorForNavItem', () => {
 
   it('gives Essentials no letter colour', () => {
     expect(glowColorForNavItem('dashboard')).toBeUndefined();
-    expect(glowColorForNavItem('timeClock')).toBeUndefined();
+    expect(glowColorForNavItem('pay')).toBeUndefined();
     expect(glowColorForNavItem('routines')).toBeUndefined();
     expect(glowColorForNavItem('documents')).toBeUndefined();
   });

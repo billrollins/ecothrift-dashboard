@@ -8,6 +8,7 @@ import type {
   WeeklyHoursStatus,
   PayrollEmployeeRow,
   PayrollPeriod,
+  MyPayPeriod,
   TimeEntryRosterRow,
 } from '../types/hr.types';
 import api from './client';
@@ -21,6 +22,7 @@ export type {
   WeeklyHoursStatus,
   PayrollEmployeeRow,
   PayrollPeriod,
+  MyPayPeriod,
   TimeEntryRosterRow,
 };
 
@@ -58,6 +60,10 @@ export function updateTimeEntry(id: number, data: Record<string, unknown>): Prom
   return api.patch<TimeEntry>(`/hr/time-entries/${id}/`, data);
 }
 
+export function setTimeEntryShift(id: number, shift: string): Promise<{ data: TimeEntry }> {
+  return api.post<TimeEntry>(`/hr/time-entries/${id}/set_shift/`, { shift });
+}
+
 export function clockOut(id: number, breakMinutes?: number): Promise<{ data: TimeEntry }> {
   return api.post<TimeEntry>(`/hr/time-entries/${id}/clock_out/`, { break_minutes: breakMinutes });
 }
@@ -87,6 +93,10 @@ export function getPayrollHours(params: {
 
 export function getPayrollPeriods(count = 16): Promise<{ data: PayrollPeriod[] }> {
   return api.get<PayrollPeriod[]>('/hr/time-entries/payroll_periods/', { params: { count } });
+}
+
+export function getMyPay(count = 6): Promise<{ data: MyPayPeriod[] }> {
+  return api.get<MyPayPeriod[]>('/hr/time-entries/my_pay/', { params: { count } });
 }
 
 export function getTimeEntryRoster(params: {

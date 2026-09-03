@@ -1,4 +1,4 @@
-import { Box, Grid } from '@mui/material';
+import { Box, Grid, Stack } from '@mui/material';
 import type { ReactNode } from 'react';
 import { useMemo, useState } from 'react';
 import ShoppingBag from '@mui/icons-material/ShoppingBag';
@@ -36,6 +36,7 @@ import {
 } from './DepartmentGoalDialog';
 import { formatDashboardCurrency } from './dashboardFormatters';
 import { DepartmentWeekDetailDialog } from './DepartmentWeekDetailDialog';
+import { DepartmentCardPhone } from './phone/DepartmentCardPhone';
 import { dashboardPalette } from './dashboardCardStyles';
 import { useDashboardLayout } from './useDashboardLayout';
 
@@ -62,7 +63,7 @@ interface CardConfig {
 export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { isCompact } = useDashboardLayout();
+  const { isCompact, isMobile } = useDashboardLayout();
   const isSuperuser = Boolean(user?.is_superuser);
   const { buying, processing, restoration, retail, goals, daily_weeks } = metrics;
   const [openKey, setOpenKey] = useState<DepartmentGoalKey | null>(null);
@@ -138,8 +139,47 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
 
   const weekDetailCard = cards.find((c) => c.key === weekDetailKey) ?? null;
 
+  const currentWeek = daily_weeks.find((week) => week.is_current)
+    ?? daily_weeks.find((week) => week.days.some((day) => day.date === todayIso))
+    ?? daily_weeks[daily_weeks.length - 1]
+    ?? null;
+
+  const openRetailDay = (day: { date: string }) => {
+    navigate(
+      isSuperuser
+        ? `/admin/routines?view=grades&day=${day.date}`
+        : '/routines',
+    );
+  };
+
   return (
     <>
+      {isMobile ? (
+        <Stack spacing={1.5}>
+          {cards.map((card) => (
+            <DepartmentCardPhone
+              key={card.key}
+              label={card.label}
+              accent={card.accent}
+              icon={card.icon}
+              goalDisplay={formatDepartmentGoalValue(card.kind, goals[card.key]?.value ?? '')}
+              actualDisplay={card.actual}
+              actualNote={card.actualNote}
+              placeholder={card.placeholder}
+              goalMet={card.goalMet}
+              onGoalClick={() => setOpenKey(card.key)}
+              onViewHistory={() => setWeekDetailKey(card.key)}
+              historyLabel={`All ${daily_weeks.length} weeks`}
+              week={currentWeek}
+              getValue={card.getValue}
+              getCellState={card.getCellState}
+              todayIso={todayIso}
+              onCellClick={card.key === 'retail' ? openRetailDay : undefined}
+              isCellClickable={card.key === 'retail' ? retailDayIsClickable : undefined}
+            />
+          ))}
+        </Stack>
+      ) : (
       <Grid container spacing={1.5} columns={12} sx={{ overflow: 'visible' }}>
         {cards.map((card) => (
           <Grid
@@ -171,14 +211,7 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
                     onDayHeadsClick={isCompact ? () => setWeekDetailKey(card.key) : undefined}
                     onCellClick={
                       card.key === 'retail'
-                        ? (day) => navigate(
-                            // Grades explains the letter. Everyone else lands on
-                            // their own routines, which is the only QA screen
-                            // they can open.
-                            isSuperuser
-                              ? `/admin/routines?view=grades&day=${day.date}`
-                              : '/routines',
-                          )
+                        ? (day) => openRetailDay(day)
                         : undefined
                     }
                     isCellClickable={card.key === 'retail' ? retailDayIsClickable : undefined}
@@ -189,6 +222,7 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
           </Grid>
         ))}
       </Grid>
+      )}
 
       {activeConfig && (
         <DepartmentGoalDialog

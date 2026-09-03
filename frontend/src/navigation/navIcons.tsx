@@ -28,6 +28,7 @@ import Palette from '@mui/icons-material/Palette';
 import Email from '@mui/icons-material/Email';
 import Description from '@mui/icons-material/Description';
 import Checklist from '@mui/icons-material/Checklist';
+import PaymentsOutlined from '@mui/icons-material/PaymentsOutlined';
 import type { ComponentType } from 'react';
 import type { SvgIconProps } from '@mui/material/SvgIcon';
 import type { NavIconKey } from './navTypes';
@@ -63,6 +64,7 @@ export const NAV_ICON_MAP: Record<NavIconKey, ComponentType<SvgIconProps>> = {
   email: Email,
   documents: Description,
   checklist: Checklist,
+  payments: PaymentsOutlined,
 };
 
 export function resolveNavIcon(key: NavIconKey): ComponentType<SvgIconProps> {

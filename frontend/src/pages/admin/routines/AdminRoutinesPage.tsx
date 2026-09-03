@@ -176,6 +176,7 @@ export default function AdminRoutinesPage() {
       onEditChecklist={(routine) => navigate(`/routines/${routine.id}/edit`)}
       onRetire={(routine) => void doRetire(routine)}
       onRestore={(routine) => void doRestore(routine)}
+      onHardDelete={(routine) => void doHardDelete(routine)}
       busyId={busyId}
     />
   );

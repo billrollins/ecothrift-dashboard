@@ -1,3 +1,4 @@
+from datetime import date
 from django.db.models import Sum, Q, DecimalField
 from django.db.models.functions import Coalesce
 from django.utils import timezone
@@ -16,12 +17,13 @@ from .serializers import (
     DepartmentSerializer, TimeEntrySerializer, TimeEntrySummarySerializer,
     TimeEntryModificationRequestSerializer,
     WeeklyHoursStatusSerializer, PayrollEmployeeRowSerializer,
-    PayrollPeriodSerializer, TimeEntryRosterSerializer,
+    PayrollPeriodSerializer, MyPayPeriodSerializer, TimeEntryRosterSerializer,
     SickLeaveBalanceSerializer, SickLeaveRequestSerializer,
 )
 from .services.time_clock_utils import weekly_status_for_employee, week_bounds
 from .services.payroll_periods import list_payroll_periods
 from .services.roster import build_time_roster, shift_hours
+from .shifts import SHIFT_ORDER
 
 
 class DepartmentViewSet(viewsets.ModelViewSet):
@@ -90,6 +92,10 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
         ).exists():
             raise ValidationError({'detail': 'Already clocked in.'})
 
+        # Self clock-in needs a shift. A manager adding a payroll row may leave it blank.
+        if creating_open and target == user and not (serializer.validated_data.get('shift') or '').strip():
+            raise ValidationError({'shift': 'Say which shift you are working.'})
+
         now = timezone.now()
         defaults = {}
         if 'employee' not in serializer.validated_data:
@@ -101,6 +107,9 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
         if 'clock_in' not in serializer.validated_data:
             defaults['clock_in'] = now
         serializer.save(**defaults)
+        if creating_open:
+            from apps.routines.schedule import materialize_routines
+            materialize_routines()
 
     def perform_destroy(self, instance):
         """Soft-delete; hard purge after retention window via management command."""
@@ -119,6 +128,25 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
         now = timezone.now()
         qs.update(deleted_at=now, deleted_by=request.user)
         return Response({'deleted': count})
+
+    @action(detail=True, methods=['post'])
+    def set_shift(self, request, pk=None):
+        """Change the label on an open punch. Own row, or a manager."""
+        entry = self.get_object()
+        user = request.user
+        is_manager = user.role in ('Manager', 'Admin') or user.is_superuser
+        if entry.employee_id != user.pk and not is_manager:
+            return Response({'detail': 'Not your punch.'}, status=status.HTTP_403_FORBIDDEN)
+        if entry.clock_out:
+            return Response({'detail': 'That punch is already closed.'}, status=status.HTTP_400_BAD_REQUEST)
+        code = str(request.data.get('shift') or '').strip()
+        if code not in SHIFT_ORDER:
+            return Response({'detail': 'Pick a shift.'}, status=status.HTTP_400_BAD_REQUEST)
+        entry.shift = code
+        entry.save(update_fields=['shift', 'updated_at'])
+        from apps.routines.schedule import materialize_routines
+        materialize_routines()
+        return Response(TimeEntrySerializer(entry, context={'request': request}).data)
 
     @action(detail=True, methods=['post'])
     def clock_out(self, request, pk=None):
@@ -159,6 +187,38 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
         entry.finalize_open_break()
         entry.save(update_fields=['break_minutes', 'on_break', 'break_started_at', 'updated_at'])
         return Response(TimeEntrySerializer(entry).data)
+
+    @action(detail=False, methods=['get'])
+    def my_pay(self, request):
+        """The signed-in employee's own biweekly periods. Never takes ?employee=."""
+        try:
+            count = min(int(request.query_params.get('count', 6)), 26)
+        except (TypeError, ValueError):
+            count = 6
+        periods = list_payroll_periods(count=count)
+        profile = getattr(request.user, 'employee', None)
+        rate = Decimal(getattr(profile, 'pay_rate', 0) or 0)
+        first = date.fromisoformat(periods[-1]['date_from'])
+        last = date.fromisoformat(periods[0]['date_to'])
+        entries = list(TimeEntry.objects.filter(
+            employee=request.user, date__gte=first, date__lte=last,
+        ))
+        rows = []
+        for period in periods:
+            start = date.fromisoformat(period['date_from'])
+            end = date.fromisoformat(period['date_to'])
+            mine = [e for e in entries if start <= e.date <= end]
+            total = sum((shift_hours(e) for e in mine), Decimal('0'))
+            approved = sum((shift_hours(e) for e in mine if e.status == 'approved'), Decimal('0'))
+            rows.append({
+                **period,
+                'shift_count': len(mine),
+                'total_hours': total.quantize(Decimal('0.01')),
+                'approved_hours': approved.quantize(Decimal('0.01')),
+                'pending_hours': (total - approved).quantize(Decimal('0.01')),
+                'total_pay': (total * rate).quantize(Decimal('0.01')),
+            })
+        return Response(MyPayPeriodSerializer(rows, many=True).data)
 
     @action(detail=False, methods=['get'])
     def weekly_status(self, request):

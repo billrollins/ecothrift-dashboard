@@ -6,8 +6,8 @@ by their runner, which is why their definitions are left empty.
 
 `checklist`
     ``{template_version, sections: [{id, title, checks: [...]}]}``
-    Plus ``verify: {run_id, result, note}`` when the routine verifies another
-    one - the opener signing off on how the closer left the store.
+    Plus ``verify: {run_id, checks: [{check_id, result, note}]}`` when the
+    routine verifies another - one row per check the next shift confirms.
 
 `section_tally`
     ``{sections: [{section_id, section_name, counts: {<category>: n}, flags: [...], notes}]}``
@@ -24,7 +24,7 @@ by their runner, which is why their definitions are left empty.
     ``{mode: 'shelf'|'non_shelf'|'',
     shelf: {section_id, section_name, counts, flags, photo, notes},
     non_shelf: {done: [check_id...], notes}}``
-    On-demand log. Never scored. Non-shelf ticks come from Open + Close.
+    On-demand log. Never scored. Non-shelf ticks come from Day.
 
 Category keys come from `AUDIT_CATEGORIES` below so the phone, the score, and
 the Grades view all read the same taxonomy.
@@ -128,15 +128,19 @@ def build_responses(definition: dict[str, Any]) -> dict[str, Any]:
             checks_out.append({
                 'id': check.get('id'),
                 'label': check.get('label'),
+                'label_es': check.get('label_es') or '',
                 'control': control,
                 'hint': check.get('hint') or '',
+                'hint_es': check.get('hint_es') or '',
                 'unit': check.get('unit') or '',
                 'critical': bool(check.get('critical')),
+                'verify_prev': bool(check.get('verify_prev')),
                 **empty_check_values(control),
             })
         sections_out.append({
             'id': section.get('id'),
             'title': section.get('title'),
+            'title_es': section.get('title_es') or '',
             'checks': checks_out,
         })
     return {

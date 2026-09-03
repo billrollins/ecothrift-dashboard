@@ -1,5 +1,6 @@
 import { Box, MenuItem, Select, TextField, Tooltip, Typography } from '@mui/material';
 import ArchiveOutlined from '@mui/icons-material/ArchiveOutlined';
+import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import DragIndicatorRounded from '@mui/icons-material/DragIndicatorRounded';
 import UnarchiveOutlined from '@mui/icons-material/UnarchiveOutlined';
 import { useSortable } from '@dnd-kit/sortable';
@@ -30,6 +31,7 @@ export function AdminSectionRow({
   onOwner,
   onRetire,
   onRestore,
+  onHardDelete,
 }: {
   section: Section;
   people: RoutineAssignee[];
@@ -38,6 +40,7 @@ export function AdminSectionRow({
   onOwner: (owner: number | null) => void;
   onRetire: () => void;
   onRestore: () => void;
+  onHardDelete: () => void;
 }) {
   const sortable = useSortable({ id: section.id, disabled: !section.is_active });
   const [name, setName] = useState(section.name);
@@ -108,7 +111,7 @@ export function AdminSectionRow({
           if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
           if (e.key === 'Escape') setName(section.name);
         }}
-        disabled={busy || retired}
+        disabled={busy}
         size="small"
         sx={{ flex: 1, minWidth: 0, '& .MuiInputBase-root': SELECT_SX }}
       />
@@ -117,7 +120,7 @@ export function AdminSectionRow({
         value={section.owner == null ? '' : String(section.owner)}
         onChange={(e) => onOwner(e.target.value ? Number(e.target.value) : null)}
         displayEmpty
-        disabled={busy || retired}
+        disabled={busy}
         size="small"
         sx={{ width: 210, flexShrink: 0, ...SELECT_SX }}
         renderValue={(value) => (
@@ -139,14 +142,23 @@ export function AdminSectionRow({
         ))}
       </Select>
 
-      <Box sx={{ display: 'flex', flexShrink: 0 }}>
+      <Box sx={{ display: 'flex', flexShrink: 0, width: 64 }}>
         {retired ? (
-          <TaskRowIcon
-            label="Put this section back on the floor"
-            disabled={busy}
-            icon={<UnarchiveOutlined sx={{ fontSize: 17 }} />}
-            onClick={onRestore}
-          />
+          <>
+            <TaskRowIcon
+              label="Put this section back on the floor"
+              disabled={busy}
+              icon={<UnarchiveOutlined sx={{ fontSize: 17 }} />}
+              onClick={onRestore}
+            />
+            <TaskRowIcon
+              label="Delete forever: erase this aisle. Past runs keep their names."
+              danger
+              disabled={busy}
+              icon={<DeleteOutline sx={{ fontSize: 17 }} />}
+              onClick={onHardDelete}
+            />
+          </>
         ) : (
           <TaskRowIcon
             label="Retire - nobody is asked to check it again, history stays"

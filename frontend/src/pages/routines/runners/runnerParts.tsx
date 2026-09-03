@@ -82,7 +82,16 @@ export function RunnerBody({ children }: { children: ReactNode }) {
   );
 }
 
-export function RunnerBand({ title, hint }: { title: string; hint?: string }) {
+export function RunnerBand({
+  title,
+  hint,
+  action,
+}: {
+  title: string;
+  hint?: string;
+  /** Reserved when passed: the button stays put even when disabled. */
+  action?: { label: string; onClick: () => void; disabled?: boolean };
+}) {
   return (
     <Box
       sx={{
@@ -97,17 +106,38 @@ export function RunnerBand({ title, hint }: { title: string; hint?: string }) {
         borderBottom: `1px solid ${dutyColors.ink15}`,
       }}
     >
-      <Typography
-        sx={{
-          fontSize: 11.5,
-          fontWeight: 800,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          color: dutyColors.ink60,
-        }}
-      >
-        {title}
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minHeight: 22 }}>
+        <Typography
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            fontSize: 11.5,
+            fontWeight: 800,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: dutyColors.ink60,
+          }}
+        >
+          {title}
+        </Typography>
+        {action ? (
+          <Button
+            size="small"
+            disabled={action.disabled}
+            onClick={action.onClick}
+            sx={{
+              flex: '0 0 auto',
+              minWidth: 118,
+              py: 0.25,
+              fontSize: 11,
+              fontWeight: 700,
+              textTransform: 'none',
+            }}
+          >
+            {action.label}
+          </Button>
+        ) : null}
+      </Box>
       <Typography noWrap sx={{ fontSize: 11.5, color: dutyColors.ink40, minHeight: 16 }}>
         {hint || ' '}
       </Typography>

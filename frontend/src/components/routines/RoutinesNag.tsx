@@ -49,7 +49,7 @@ export function RoutinesNag() {
         ) : null}
       </Box>
       <Drawer anchor="right" open={open} onClose={() => setOpen(false)}>
-        <Box sx={{ width: 360, p: 2 }}>
+        <Box sx={{ width: 'min(360px, 100vw)', p: 2 }}>
           <Typography fontWeight={700} sx={{ mb: 1 }}>Routines</Typography>
           <Typography sx={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase', color: dutyColors.ink40, mb: 0.75 }}>
             Waiting

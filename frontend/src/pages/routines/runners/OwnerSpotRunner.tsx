@@ -1,48 +1,48 @@
 import { Box, Typography } from '@mui/material';
 import type { AuditTaxonomy, OwnerSpotResponses } from '../../../api/routines.api';
 import { dutyColors } from '../../../components/duty/tokens';
+import { emptyAudit, SectionAuditFields } from './SectionAuditFields';
 import { RunnerBand, RunnerBody, RunnerCard, RunnerHead } from './runnerParts';
-import { SectionAuditFields } from './SectionAuditFields';
 import { ChoiceRow } from './ChoiceRow';
 import { runnerBlockers } from './runnerStatus';
+import type { WalkAction } from './SectionWalkFields';
 
 /**
  * The owner's daily look: two checks pulled at random out of Open, Day, and
- * Close, then one section walked end to end.
- *
- * The sample is drawn when the run is created, not when it is opened, so it
- * cannot be refreshed until it lands on an easy pair.
+ * Close, then one section walked the same way as Daily Check and Tuesday.
  */
 export function OwnerSpotRunner({
   title,
   subject,
   responses,
   taxonomy,
-  minItems,
   onChange,
   readOnly,
+  reroll,
 }: {
   title: string;
   subject: string;
   responses: OwnerSpotResponses;
   taxonomy: AuditTaxonomy;
-  minItems: number;
   onChange?: (next: OwnerSpotResponses) => void;
   readOnly?: boolean;
+  reroll?: WalkAction;
 }) {
   const checks = responses.checks || [];
   const answered = checks.filter((check) => check.result).length;
-  const blockers = runnerBlockers('owner_spot', responses, minItems);
-  const steps = checks.length + 2;
-  const done = answered + (responses.audit?.photo ? 1 : 0)
-    + ((responses.audit?.items_inspected || 0) >= minItems ? 1 : 0);
+  const blockers = runnerBlockers('owner_spot', responses, 0);
+  const audit = responses.audit || emptyAudit(null, '');
+  const hasSection = Boolean(audit.section_id);
+  const action: WalkAction | undefined = reroll
+    ? { onClick: reroll.onClick, disabled: reroll.disabled || !hasSection }
+    : undefined;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', bgcolor: dutyColors.paper }}>
       <RunnerHead
         title={title}
-        subject={responses.audit?.section_name || subject}
-        progress={steps ? done / steps : 0}
+        subject={hasSection ? (audit.section_name || subject) : 'NO SECTIONS LEFT TO CHECK'}
+        progress={checks.length ? answered / checks.length : 1}
         progressLabel={blockers.length ? blockers[0] : 'Ready to submit'}
       />
       <RunnerBody>
@@ -80,20 +80,20 @@ export function OwnerSpotRunner({
           </RunnerCard>
         )}
 
-        {responses.audit?.section_id ? (
+        {hasSection ? (
           <SectionAuditFields
-            audit={responses.audit}
+            audit={audit}
             taxonomy={taxonomy}
-            minItems={minItems}
             readOnly={readOnly}
-            onChange={(audit) => onChange?.({ ...responses, audit })}
+            action={action}
+            onChange={(next) => onChange?.({ ...responses, audit: next })}
           />
         ) : (
-          <RunnerCard>
-            <Typography sx={{ fontSize: 13, color: dutyColors.ink60 }}>
-              No sections set up yet. Add them in Routine Control, Sections.
-            </Typography>
-          </RunnerCard>
+          <RunnerBand
+            title="NO SECTIONS LEFT TO CHECK"
+            hint="Every aisle has had a look this week."
+            action={action ? { label: 'Choose another', onClick: action.onClick, disabled: true } : undefined}
+          />
         )}
       </RunnerBody>
     </Box>

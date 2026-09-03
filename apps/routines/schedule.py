@@ -2,24 +2,23 @@
 from __future__ import annotations
 
 import calendar
-import hashlib
 import random
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
 
 from apps.webstore.services.hours import _local_now, is_open_day
 
-from .models import Routine, RoutineRun, Section
+from .models import Routine, RoutineRun, RoutineSubmission, Section
 from .settings import retail_qa_settings
 
 User = get_user_model()
 
 STAFF_GROUPS = ('Employee', 'Manager', 'Admin')
-ROLE_ALL_STAFF = 'Staff'
 
 # Seeded program routines, found by key rather than title so a rename is safe.
 SYSTEM_OPEN = 'retail.open'
@@ -158,14 +157,83 @@ def run_moments(run: RoutineRun) -> dict:
     return {'remind_at': remind_at, 'nag_at': nag_at, 'late_at': late_at}
 
 
-def subject_for(routine: Routine, period_key: str, user_id: int | None) -> str:
-    pool = [str(s).strip() for s in (routine.subject_pool or []) if str(s).strip()]
-    if not pool:
-        return ''
-    if len(pool) == 1:
-        return pool[0]
-    seed = f'{routine.pk}:{period_key}:{user_id or "pooled"}'.encode('utf-8')
-    return pool[int(hashlib.sha256(seed).hexdigest(), 16) % len(pool)]
+def _add_months(day: date, months: int) -> date:
+    month = day.month - 1 + months
+    year = day.year + month // 12
+    month = month % 12 + 1
+    last = calendar.monthrange(year, month)[1]
+    return date(year, month, min(day.day, last))
+
+
+def miss_at(run: RoutineRun):
+    """When an open run becomes missed and can no longer be filled. None = never."""
+    routine = run.routine
+    rule = routine.expire_rule or Routine.EXPIRE_NEVER
+    if rule == Routine.EXPIRE_NEVER:
+        return None
+    local_due = timezone.localtime(run.due_at)
+    tz = local_due.tzinfo
+    day = local_due.date()
+
+    def at_end(on: date) -> datetime:
+        return timezone.make_aware(datetime.combine(on, END_OF_DAY), tz)
+
+    if rule == Routine.EXPIRE_END_OF_DAY:
+        return at_end(day)
+    if rule == Routine.EXPIRE_END_OF_WEEK:
+        sunday = day + timedelta(days=(6 - day.weekday()))
+        return at_end(sunday)
+    count = max(int(routine.expire_count or 1), 1)
+    unit = routine.expire_unit or Routine.EXPIRE_UNIT_HOURS
+    if unit == Routine.EXPIRE_UNIT_HOURS:
+        start_clock = routine.expire_from_time or time(0, 0)
+        start = timezone.make_aware(datetime.combine(day, start_clock), tz)
+        return start + timedelta(hours=count)
+    if unit == Routine.EXPIRE_UNIT_DAYS:
+        return at_end(day + timedelta(days=count - 1))
+    if unit == Routine.EXPIRE_UNIT_WEEKS:
+        return at_end(day + timedelta(weeks=count - 1))
+    if unit == Routine.EXPIRE_UNIT_MONTHS:
+        return at_end(_add_months(day, count - 1))
+    return None
+
+
+def close_if_expired(run: RoutineRun, *, now=None) -> bool:
+    """Flip an open run to missed if its expire clock has passed. True if missed."""
+    if run.status == RoutineRun.STATUS_MISSED:
+        return True
+    if run.status != RoutineRun.STATUS_OPEN:
+        return False
+    when = miss_at(run)
+    if when is None or (now or _local_now()[0]) <= when:
+        return False
+    RoutineSubmission.objects.filter(
+        run=run, status=RoutineSubmission.STATUS_DRAFT,
+    ).delete()
+    run.status = RoutineRun.STATUS_MISSED
+    run.save(update_fields=['status'])
+    return True
+
+
+def expire_open_runs(*, now=None) -> int:
+    """Mark every open run past miss_at as missed. Returns how many flipped."""
+    now = now or _local_now()[0]
+    expired_ids = []
+    for run in RoutineRun.objects.filter(
+        status=RoutineRun.STATUS_OPEN,
+    ).select_related('routine'):
+        when = miss_at(run)
+        if when is not None and now > when:
+            expired_ids.append(run.pk)
+    if not expired_ids:
+        return 0
+    RoutineSubmission.objects.filter(
+        run_id__in=expired_ids,
+        status=RoutineSubmission.STATUS_DRAFT,
+    ).delete()
+    return RoutineRun.objects.filter(
+        pk__in=expired_ids, status=RoutineRun.STATUS_OPEN,
+    ).update(status=RoutineRun.STATUS_MISSED)
 
 
 def department_sections(routine: Routine):
@@ -240,15 +308,11 @@ def week_days(day: date) -> list[date]:
     return [monday + timedelta(days=offset) for offset in range(7)]
 
 
-def next_spot_section(routine: Routine, day: date) -> Section | None:
-    """The section the owner has not spot-checked yet this week.
-
-    Rotating in floor order means every aisle gets the owner's eye before any
-    aisle gets it twice. When the lap is finished the list opens up again.
-    """
-    sections = department_sections(routine)
-    if not sections:
-        return None
+def unseen_spot_sections(
+    routine: Routine, day: date, *, exclude_ids: list[int] | None = None,
+) -> list[Section]:
+    """Department sections with no owner-spot run this ISO week."""
+    skip = set(exclude_ids or [])
     seen = set(
         RoutineRun.objects.filter(
             routine__kind=Routine.KIND_OWNER_SPOT,
@@ -258,33 +322,111 @@ def next_spot_section(routine: Routine, day: date) -> Section | None:
         .exclude(period_key=day.isoformat())
         .values_list('section_id', flat=True)
     )
-    for section in sections:
-        if section.pk not in seen:
-            return section
-    return sections[0]
+    return [
+        section for section in department_sections(routine)
+        if section.pk not in seen and section.pk not in skip
+    ]
+
+
+def next_spot_section(routine: Routine, day: date) -> Section | None:
+    """A random section the owner has not spot-checked yet this week.
+
+    When every aisle has had a look, there is no wrap: the run is born
+    without a section.
+    """
+    leftover = unseen_spot_sections(routine, day)
+    if not leftover:
+        return None
+    return random.choice(leftover)
+
+
+def _staff_qs():
+    return User.objects.filter(is_active=True, groups__name__in=STAFF_GROUPS).distinct()
+
+
+def current_shift(user) -> str:
+    """The open punch's shift code, or blank when clocked out."""
+    from apps.hr.models import TimeEntry
+    entry = TimeEntry.objects.filter(employee=user, clock_out__isnull=True).first()
+    return (entry.shift if entry else '') or ''
+
+
+def audience_shift_codes(routine: Routine) -> list[str]:
+    from apps.hr.shifts import SHIFT_ORDER
+    raw = getattr(routine, 'assigned_shifts', None) or []
+    return [str(code) for code in raw if str(code) in SHIFT_ORDER]
+
+
+def audience_department_ids(routine: Routine) -> list[int]:
+    ids: list[int] = []
+    for value in getattr(routine, 'assigned_department_ids', None) or []:
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            continue
+        if number > 0 and number not in ids:
+            ids.append(number)
+    if not ids and getattr(routine, 'assigned_department_id', None):
+        ids.append(routine.assigned_department_id)
+    return ids
+
+
+def user_in_audience(routine: Routine, user, shift=None) -> bool:
+    """Whether this user matches the routine's person / shift / department rule."""
+    if routine.subject_source in (Routine.SUBJECT_MY_SECTION, Routine.SUBJECT_OTHER_SECTION):
+        return resolve_assignees(routine).filter(pk=user.pk).exists()
+    kind = getattr(routine, 'audience_type', None) or Routine.AUDIENCE_PERSON
+    everyone = bool(getattr(routine, 'audience_all', False))
+    if kind == Routine.AUDIENCE_SHIFT:
+        punch = current_shift(user) if shift is None else shift
+        if not punch:
+            return False
+        if everyone:
+            return True
+        return punch in audience_shift_codes(routine)
+    if not _staff_qs().filter(pk=user.pk).exists():
+        return False
+    if kind == Routine.AUDIENCE_DEPARTMENT:
+        if everyone:
+            return True
+        dept_id = getattr(getattr(user, 'employee', None), 'department_id', None)
+        return bool(dept_id) and dept_id in audience_department_ids(routine)
+    if everyone:
+        return True
+    return routine.assigned_users.filter(pk=user.pk, is_active=True).exists()
 
 
 def resolve_assignees(routine: Routine):
     if routine.subject_source in (Routine.SUBJECT_MY_SECTION, Routine.SUBJECT_OTHER_SECTION):
-        # Section work belongs to whoever keeps a section, whatever the role
-        # fields say. An owner list that drifts from the floor plan is a bug.
+        # Section work belongs to whoever keeps a section. An owner list that
+        # drifts from the floor plan is a bug.
         owners = section_owner_ids(department_sections(routine))
         return User.objects.filter(pk__in=owners, is_active=True)
-    qs = User.objects.filter(is_active=True, groups__name__in=STAFF_GROUPS)
+    kind = getattr(routine, 'audience_type', None) or Routine.AUDIENCE_PERSON
+    everyone = bool(getattr(routine, 'audience_all', False))
+    if kind == Routine.AUDIENCE_SHIFT:
+        from apps.hr.models import TimeEntry
+        punches = TimeEntry.objects.filter(clock_out__isnull=True).exclude(shift='')
+        if not everyone:
+            codes = audience_shift_codes(routine)
+            if not codes:
+                return User.objects.none()
+            punches = punches.filter(shift__in=codes)
+        return _staff_qs().filter(pk__in=list(punches.values_list('employee_id', flat=True)))
+    if kind == Routine.AUDIENCE_DEPARTMENT:
+        qs = _staff_qs()
+        if everyone:
+            return qs
+        ids = audience_department_ids(routine)
+        if not ids:
+            return User.objects.none()
+        return qs.filter(employee__department_id__in=ids)
+    if everyone:
+        return _staff_qs()
     named = list(routine.assigned_users.filter(is_active=True))
     if named:
         return User.objects.filter(pk__in=[u.pk for u in named])
-    if routine.assigned_department_id:
-        qs = qs.filter(employee__department_id=routine.assigned_department_id)
-    if routine.assigned_role and routine.assigned_role != ROLE_ALL_STAFF:
-        qs = qs.filter(groups__name=routine.assigned_role)
-    if (
-        not named
-        and not routine.assigned_department_id
-        and not routine.assigned_role
-    ):
-        return User.objects.none()
-    return qs.distinct()
+    return User.objects.none()
 
 
 def _run_extras(routine: Routine, day: date, key: str, user_id: int | None) -> dict:
@@ -308,20 +450,32 @@ def _run_extras(routine: Routine, day: date, key: str, user_id: int | None) -> d
         # One run covers everything this person keeps, so no single section.
         owned = [s.name for s in department_sections(routine) if s.owner_id == user_id]
         return {'section': None, 'subject': ', '.join(owned), 'generated': {}}
-    return {'section': None, 'subject': subject_for(routine, key, user_id), 'generated': {}}
+    return {'section': None, 'subject': '', 'generated': {}}
 
 
 def _upsert_run(routine: Routine, key: str, user, due, extras: dict) -> bool:
-    run, was_created = RoutineRun.objects.get_or_create(
-        routine=routine,
-        period_key=key,
-        assigned_to=user,
-        defaults={
-            'due_at': due,
-            'status': RoutineRun.STATUS_OPEN,
-            **extras,
-        },
-    )
+    # mine/ and today/ both materialize. After a fresh pull those two
+    # requests race get_or_create and one used to 500.
+    try:
+        with transaction.atomic():
+            run, was_created = RoutineRun.objects.get_or_create(
+                routine=routine,
+                period_key=key,
+                assigned_to=user,
+                defaults={
+                    'due_at': due,
+                    'status': RoutineRun.STATUS_OPEN,
+                    **extras,
+                },
+            )
+    except IntegrityError:
+        lookup = RoutineRun.objects.filter(routine=routine, period_key=key)
+        run = (
+            lookup.filter(assigned_to__isnull=True).get()
+            if user is None
+            else lookup.get(assigned_to=user)
+        )
+        was_created = False
     if was_created:
         return True
     if run.status != RoutineRun.STATUS_OPEN:
@@ -339,6 +493,12 @@ def _upsert_run(routine: Routine, key: str, user, due, extras: dict) -> bool:
         # let anyone shop for an easier audit. An empty owner-spot sample is the
         # exception: the run was born before any section existed, and it has to
         # pick one up the next time materialize runs.
+        pinned_spot = (
+            routine.kind == Routine.KIND_OWNER_SPOT
+            and (run.generated or {}).get('section_id')
+        )
+        if pinned_spot and field in ('generated', 'section', 'subject'):
+            continue
         if field == 'generated' and run.generated:
             hollow = (
                 routine.kind == Routine.KIND_OWNER_SPOT
@@ -357,6 +517,7 @@ def _upsert_run(routine: Routine, key: str, user, due, extras: dict) -> bool:
 
 def materialize_routines(day: date | None = None) -> int:
     local, cfg, tz = _local_now()
+    expire_open_runs(now=local)
     day = day or local.date()
     created = 0
     for routine in Routine.objects.filter(is_active=True).exclude(
@@ -410,38 +571,29 @@ def was_late(run: RoutineRun) -> bool:
 def user_can_see_run(run: RoutineRun, user) -> bool:
     if getattr(user, 'is_superuser', False):
         return True
-    if run.assigned_to_id == user.pk:
-        return True
+    if not user_in_audience(run.routine, user):
+        return False
     if run.assigned_to_id is None:
-        return resolve_assignees(run.routine).filter(pk=user.pk).exists()
-    return False
+        return True
+    return run.assigned_to_id == user.pk
 
 
 def mine_queryset(user):
     open_runs = (
         RoutineRun.objects.filter(status=RoutineRun.STATUS_OPEN, routine__is_active=True)
         .select_related('routine', 'assigned_to')
+        .prefetch_related('routine__assigned_users')
         .order_by('due_at', 'id')
     )
-    if getattr(user, 'is_superuser', False):
-        return open_runs
-    assigned_ids = list(
-        Routine.objects.filter(is_active=True).values_list('id', flat=True)
-    )
-    pooled_ids = [
-        routine.pk
-        for routine in Routine.objects.filter(
-            is_active=True,
-            assignment=Routine.ASSIGN_POOLED,
-        )
-        if resolve_assignees(routine).filter(pk=user.pk).exists()
+    punch = current_shift(user)
+    keep = [
+        run.pk for run in open_runs
+        if user_in_audience(run.routine, user, shift=punch)
+        and (run.assigned_to_id is None or run.assigned_to_id == user.pk)
     ]
-    return (
-        open_runs.filter(
-            Q(assigned_to=user) | Q(assigned_to__isnull=True, routine_id__in=pooled_ids),
-        )
-        if assigned_ids else RoutineRun.objects.none()
-    )
+    if not keep:
+        return RoutineRun.objects.none()
+    return open_runs.filter(pk__in=keep)
 
 
 def overdue_queryset(*, now=None):

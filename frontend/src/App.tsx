@@ -23,7 +23,8 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import RoutinesPage from './pages/routines/RoutinesPage';
-import TimeClockPage from './pages/hr/TimeClockPage';
+import TodayPage from './pages/routines/TodayPage';
+import PayPage from './pages/hr/PayPage';
 import TimePayrollPage from './pages/admin/TimePayrollPage';
 import EnhancementRequestsPage from './pages/admin/EnhancementRequestsPage';
 import AdminRoutinesPage from './pages/admin/routines/AdminRoutinesPage';
@@ -158,14 +159,16 @@ export default function App() {
         }
       >
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/today" element={<TodayPage />} />
         <Route path="/routines" element={<RoutinesPage />} />
         <Route path="/routines/catalog" element={<RoutinesPage />} />
         <Route path="/routines/new" element={<SuperAdminRoute><RoutinesPage /></SuperAdminRoute>} />
         <Route path="/routines/:id/edit" element={<SuperAdminRoute><RoutinesPage /></SuperAdminRoute>} />
         <Route path="/routines/run/:id" element={<RoutinesPage />} />
-        <Route path="/hr/time-clock" element={<TimeClockPage />} />
+        <Route path="/hr/time-clock" element={<Navigate to="/pay" replace />} />
+        <Route path="/pay" element={<PayPage />} />
         <Route path="/hr/modification-requests" element={<Navigate to="/admin/time-payroll" replace />} />
-        <Route path="/hr/time-history" element={<Navigate to="/hr/time-clock" replace />} />
+        <Route path="/hr/time-history" element={<Navigate to="/pay" replace />} />
         <Route path="/hr/employees" element={<Navigate to="/admin/users" replace />} />
         <Route path="/hr/employees/:id" element={<Navigate to="/admin/users" replace />} />
         <Route path="/hr/sick-leave" element={<Navigate to="/dashboard" replace />} />

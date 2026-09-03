@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import random
 import re
 from datetime import datetime
 
@@ -16,6 +17,8 @@ from rest_framework.views import APIView
 from apps.accounts.permissions import IsStaff, IsSuperAdmin
 from apps.core.files import save_upload, stream_s3
 from apps.core.models import S3File
+from apps.hr.models import TimeEntry
+from apps.hr.shifts import SHIFT_TO_SYSTEM_KEY, shift_department, shift_label
 
 from .definition import merge_responses, score_responses, validate_definition
 from .grading import missing_owners, parse_week, week_grade
@@ -34,13 +37,16 @@ from .settings import retail_qa_settings
 from .taxonomy import taxonomy
 from .schedule import (
     STAFF_GROUPS,
+    close_if_expired,
     cover_run,
     done_this_week_queryset,
     materialize_routines,
     mine_queryset,
     overdue_queryset,
-    resolve_assignees,
+    current_shift,
+    unseen_spot_sections,
     user_can_see_run,
+    user_in_audience,
 )
 from .serializers import (
     RoutineRunSerializer,
@@ -114,14 +120,14 @@ class RoutineViewSet(viewsets.ModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         routine = self.get_object()
         data = RoutineSerializer(routine).data
-        if routine.kind == Routine.KIND_WORK_CYCLE:
+        if routine.kind != Routine.KIND_CHECKLIST:
             data['runner'] = {
                 'taxonomy': taxonomy(),
                 'sections': [
                     {'id': section.pk, 'name': section.name}
                     for section in floor_sections(routine)
                 ],
-                'non_shelf_checks': non_shelf_checks(),
+                'non_shelf_checks': non_shelf_checks() if routine.kind == Routine.KIND_WORK_CYCLE else [],
             }
         return Response(data)
 
@@ -158,7 +164,9 @@ class RoutineViewSet(viewsets.ModelViewSet):
                 {'detail': 'Program routines cannot be deleted. Retiring one is enough to stop it.'},
                 status=400,
             )
+        RoutineSubmission.objects.filter(run__routine=routine).delete()
         RoutineSubmission.objects.filter(routine=routine).delete()
+        routine.runs.all().delete()
         routine.delete()
         return Response(status=204)
 
@@ -203,6 +211,10 @@ class SectionViewSet(viewsets.ModelViewSet):
     pagination_class = None
     queryset = Section.objects.select_related('department', 'owner')
 
+    # Superuser verbs that must reach a retired section: renaming it, changing
+    # its keeper, restoring it, or deleting it for good.
+    ADMIN_ACTIONS = ('update', 'partial_update', 'hard_delete')
+
     def get_permissions(self):
         if self.action in ('list', 'retrieve'):
             return [IsAuthenticated(), IsStaff()]
@@ -213,9 +225,11 @@ class SectionViewSet(viewsets.ModelViewSet):
         department = self.request.query_params.get('department')
         if department:
             qs = qs.filter(department_id=department)
-        if self.request.query_params.get('include_retired') != '1':
-            qs = qs.filter(is_active=True)
-        return qs
+        if self.request.query_params.get('include_retired') == '1':
+            return qs
+        if self.action in self.ADMIN_ACTIONS and self.request.user.is_superuser:
+            return qs
+        return qs.filter(is_active=True)
 
     def perform_create(self, serializer):
         section = serializer.save()
@@ -231,6 +245,22 @@ class SectionViewSet(viewsets.ModelViewSet):
         instance.is_active = False
         instance.save(update_fields=['is_active', 'updated_at'])
         materialize_routines()
+
+    @action(detail=True, methods=['delete'], url_path='hard-delete')
+    def hard_delete(self, request, pk=None):
+        """Gone for good. Only a retired section can go; past runs keep their names."""
+        section = self.get_object()
+        if section.is_active:
+            return Response(
+                {'detail': 'Retire this section before deleting it for good.'},
+                status=400,
+            )
+        # Open tallies for this aisle have nowhere to walk. Finished ones stay
+        # and drop the FK so the history is not pulled down with the aisle.
+        RoutineRun.objects.filter(section=section, status=RoutineRun.STATUS_OPEN).delete()
+        section.delete()
+        materialize_routines()
+        return Response(status=204)
 
     @action(detail=False, methods=['post'], url_path='reorder')
     def reorder(self, request):
@@ -270,8 +300,18 @@ class RoutineRunViewSet(viewsets.ReadOnlyModelViewSet):
         # Sent with the run: staff cannot read AppSetting, and the phone has to
         # enforce the same taxonomy and the same floor the server will.
         data['taxonomy'] = taxonomy() if run.routine.kind != Routine.KIND_CHECKLIST else None
-        data['audit_min_items'] = int(retail_qa_settings()['audit_min_items'])
         data['verify'] = verify_context(run)
+        if run.routine.kind == Routine.KIND_OWNER_SPOT:
+            try:
+                day = datetime.fromisoformat(run.period_key).date()
+            except ValueError:
+                day = timezone.localdate()
+            leftover = unseen_spot_sections(
+                run.routine, day, exclude_ids=[run.section_id] if run.section_id else [],
+            )
+            data['can_reroll'] = bool(leftover)
+        else:
+            data['can_reroll'] = False
         data['sections'] = [
             {'id': section.pk, 'name': section.name}
             for section in owned_sections(run)
@@ -322,24 +362,8 @@ class RoutineRunViewSet(viewsets.ReadOnlyModelViewSet):
         materialize_routines()
         open_rows = list(mine_queryset(request.user))
         done_rows = list(done_this_week_queryset(request.user))
-        on_demand = []
-        for routine in Routine.objects.filter(
-            is_active=True, trigger=Routine.TRIGGER_ON_DEMAND,
-        ).order_by('title'):
-            if (
-                request.user.is_superuser
-                or resolve_assignees(routine).filter(pk=request.user.pk).exists()
-            ):
-                on_demand.append(routine)
-        drafts = list(
-            RoutineSubmission.objects.filter(
-                submitted_by=request.user,
-                status=RoutineSubmission.STATUS_DRAFT,
-                routine__is_active=True,
-            )
-            .select_related('routine')
-            .order_by('-started_at')
-        )
+        on_demand = _on_demand_routines(request.user)
+        drafts = _on_demand_drafts(request.user)
         return Response({
             'open': self._attach_progress(
                 open_rows, RoutineRunSerializer(open_rows, many=True).data, request.user,
@@ -356,19 +380,71 @@ class RoutineRunViewSet(viewsets.ReadOnlyModelViewSet):
         run = get_object_or_404(RoutineRun, pk=pk, routine__is_active=True)
         if run.status != RoutineRun.STATUS_OPEN:
             return Response({'detail': 'That run is already closed.'}, status=400)
+        if close_if_expired(run):
+            return Response({'detail': 'This run is missed.'}, status=400)
         if run.assigned_to_id is None:
             return Response({'detail': 'A pooled run is already open to anyone.'}, status=400)
         if run.assigned_to_id == request.user.pk:
             return Response({'detail': 'That one is already yours.'}, status=400)
-        same_department = (
-            run.routine.assigned_department_id
-            and getattr(getattr(request.user, 'employee', None), 'department_id', None)
-            == run.routine.assigned_department_id
-        )
-        if not request.user.is_superuser and not same_department:
-            return Response({'detail': 'Only their department can cover this.'}, status=403)
+        if not request.user.is_superuser and not user_in_audience(run.routine, request.user):
+            return Response({'detail': 'This one is not yours to cover.'}, status=403)
+        if RoutineRun.objects.filter(
+            routine=run.routine,
+            period_key=run.period_key,
+            assigned_to=request.user,
+        ).exclude(pk=run.pk).exists():
+            return Response({'detail': 'You already have a run for this period.'}, status=400)
         cover_run(run, request.user)
         return Response(RoutineRunSerializer(run).data)
+
+    @action(detail=True, methods=['post'], url_path='reroll-section')
+    def reroll_section(self, request, pk=None):
+        """Pick a different unseen aisle for today's owner spot check."""
+        run = get_object_or_404(RoutineRun, pk=pk, routine__is_active=True)
+        if not request.user.is_superuser and not user_can_see_run(run, request.user):
+            return Response({'detail': 'Not assigned to you.'}, status=403)
+        if run.status != RoutineRun.STATUS_OPEN:
+            return Response({'detail': 'That run is already closed.'}, status=400)
+        if close_if_expired(run):
+            return Response({'detail': 'This run is missed.'}, status=400)
+        if run.routine.kind != Routine.KIND_OWNER_SPOT:
+            return Response({'detail': 'Only an owner spot check can change section.'}, status=400)
+        try:
+            day = datetime.fromisoformat(run.period_key).date()
+        except ValueError:
+            day = timezone.localdate()
+        leftover = unseen_spot_sections(
+            run.routine, day, exclude_ids=[run.section_id] if run.section_id else [],
+        )
+        if not leftover:
+            return Response({'detail': 'NO SECTIONS LEFT TO CHECK'}, status=400)
+        section = random.choice(leftover)
+        generated = dict(run.generated or {})
+        generated['section_id'] = section.pk
+        run.section = section
+        run.subject = section.name
+        run.generated = generated
+        run.save(update_fields=['section', 'subject', 'generated'])
+        for draft in RoutineSubmission.objects.filter(
+            run=run, status=RoutineSubmission.STATUS_DRAFT,
+        ):
+            responses = dict(draft.responses or {})
+            responses['audit'] = {
+                'section_id': section.pk,
+                'section_name': section.name,
+                'photo': None,
+                'photo_file_id': None,
+                'items_inspected': 0,
+                'counts': {},
+                'flags': [],
+                'notes': '',
+            }
+            draft.responses = responses
+            draft.save(update_fields=['responses', 'updated_at'])
+        data = RoutineRunSerializer(run).data
+        leftover = unseen_spot_sections(run.routine, day, exclude_ids=[section.pk])
+        data['can_reroll'] = bool(leftover)
+        return Response(data)
 
     @action(detail=False, methods=['get'], url_path='overdue-report')
     def overdue_report(self, request):
@@ -427,7 +503,7 @@ class RoutineRunViewSet(viewsets.ReadOnlyModelViewSet):
 class RoutineSubmissionViewSet(viewsets.ModelViewSet):
     serializer_class = RoutineSubmissionSerializer
     permission_classes = [IsAuthenticated, IsStaff]
-    http_method_names = ['get', 'post', 'patch', 'head', 'options']
+    http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
 
     def get_queryset(self):
         qs = RoutineSubmission.objects.select_related('routine', 'run', 'submitted_by')
@@ -446,6 +522,8 @@ class RoutineSubmissionViewSet(viewsets.ModelViewSet):
                 return Response({'detail': 'Not assigned to you.'}, status=403)
             if run.status != RoutineRun.STATUS_OPEN:
                 return Response({'detail': 'This run is already closed.'}, status=400)
+            if close_if_expired(run):
+                return Response({'detail': 'This run is missed.'}, status=400)
             existing = RoutineSubmission.objects.filter(
                 run=run, submitted_by=request.user, status=RoutineSubmission.STATUS_DRAFT,
             ).first()
@@ -500,6 +578,16 @@ class RoutineSubmissionViewSet(viewsets.ModelViewSet):
         submission.save(update_fields=['responses', 'updated_at'])
         return Response(RoutineSubmissionSerializer(submission).data)
 
+    def destroy(self, request, *args, **kwargs):
+        """Cancel: throw the draft away. A submitted row stays."""
+        submission = self.get_object()
+        if submission.status != RoutineSubmission.STATUS_DRAFT:
+            return Response({'detail': 'Submitted checklists cannot be discarded.'}, status=400)
+        if submission.submitted_by_id != request.user.pk:
+            return Response({'detail': 'Not your draft.'}, status=403)
+        submission.delete()
+        return Response(status=204)
+
     @action(detail=True, methods=['post'])
     def submit(self, request, pk=None):
         submission = self.get_object()
@@ -507,13 +595,13 @@ class RoutineSubmissionViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Already submitted.'}, status=400)
         if submission.submitted_by_id != request.user.pk:
             return Response({'detail': 'Not your draft.'}, status=403)
+        if submission.run_id and close_if_expired(submission.run):
+            return Response({'detail': 'This run is missed.'}, status=400)
         routine = submission.routine
         incoming = request.data.get('responses', submission.responses)
         responses = merge_incoming(routine, submission.run, incoming)
         responses = _extract_photos(responses, user=request.user, submission_id=submission.pk)
-        blockers = submit_blockers(
-            routine, responses, min_items=int(retail_qa_settings()['audit_min_items']),
-        )
+        blockers = submit_blockers(routine, responses)
         if blockers:
             return Response({'detail': blockers}, status=400)
         failed, critical = outcome(routine, responses)
@@ -589,6 +677,31 @@ def _extract_photos(responses, *, user, submission_id: int) -> dict:
     return responses
 
 
+def _on_demand_drafts(user):
+    """Drafts with no scheduled run. A due run already carries its own Continue."""
+    return list(
+        RoutineSubmission.objects.filter(
+            submitted_by=user,
+            status=RoutineSubmission.STATUS_DRAFT,
+            routine__is_active=True,
+            run__isnull=True,
+        )
+        .select_related('routine')
+        .order_by('-started_at')
+    )
+
+
+def _on_demand_routines(user):
+    punch = current_shift(user)
+    rows = []
+    for routine in Routine.objects.filter(
+        is_active=True, trigger=Routine.TRIGGER_ON_DEMAND,
+    ).order_by('title'):
+        if user_in_audience(routine, user, shift=punch):
+            rows.append(routine)
+    return rows
+
+
 def _draft_row(submission: RoutineSubmission) -> dict:
     responses = submission.responses if isinstance(submission.responses, dict) else {}
     shelf = responses.get('shelf') if isinstance(responses.get('shelf'), dict) else {}
@@ -600,7 +713,11 @@ def _draft_row(submission: RoutineSubmission) -> dict:
         'mode': responses.get('mode') or '',
         'section_name': shelf.get('section_name') or '',
         'started_at': submission.started_at,
-        'href': f'/routines/run/new?routine={submission.routine_id}&draft={submission.pk}',
+        'href': (
+            f'/routines/run/{submission.run_id}'
+            if submission.run_id
+            else f'/routines/run/new?routine={submission.routine_id}&draft={submission.pk}'
+        ),
         'run': submission.run_id,
     }
 
@@ -651,6 +768,57 @@ class WorkCyclePromptView(APIView):
             'shown_at': row.shown_at,
             'answered_at': row.answered_at,
         }, status=201)
+
+
+class TodayView(APIView):
+    """`GET /api/routines/today/` - Day at a glance for the current punch."""
+
+    permission_classes = [IsAuthenticated, IsStaff]
+
+    def get(self, request):
+        materialize_routines()
+        language = getattr(request.user, 'language', 'en') or 'en'
+        entry = TimeEntry.objects.filter(
+            employee=request.user, clock_out__isnull=True,
+        ).first()
+        shift = (entry.shift if entry else '') or ''
+        system_key = SHIFT_TO_SYSTEM_KEY.get(shift)
+        open_rows = list(mine_queryset(request.user))
+        start = None
+        if system_key:
+            start = next(
+                (
+                    row for row in open_rows
+                    if row.routine.system_key == system_key
+                    and row.status == RoutineRun.STATUS_OPEN
+                ),
+                None,
+            )
+        start_payload = None
+        verify_of = None
+        if start is not None:
+            start_payload = RoutineRunViewSet._attach_progress(
+                [start], RoutineRunSerializer([start], many=True).data, request.user,
+            )[0]
+            if start.routine.verifies_id:
+                verify_of = start.routine.verifies.title
+        rest = [
+            row for row in open_rows
+            if start is None or row.pk != start.pk
+        ]
+        return Response({
+            'shift': shift,
+            'shift_label': shift_label(shift, language) if shift else '',
+            'shift_department': shift_department(shift, language) if shift else '',
+            'start_with': start_payload,
+            'verify_of': verify_of,
+            'open': RoutineRunViewSet._attach_progress(
+                rest, RoutineRunSerializer(rest, many=True).data, request.user,
+            ),
+            'drafts': [_draft_row(row) for row in _on_demand_drafts(request.user)],
+            'on_demand': RoutineSerializer(_on_demand_routines(request.user), many=True).data,
+            'language': language,
+        })
 
 
 class RetailGradesView(APIView):

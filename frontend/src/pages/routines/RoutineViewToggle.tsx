@@ -1,5 +1,7 @@
 import { Box, Button } from '@mui/material';
 import { dutyColors } from '../../components/duty/tokens';
+import { useAuth } from '../../hooks/useAuth';
+import { t } from '../../i18n/routines';
 
 export function RoutineViewToggle({
   view,
@@ -8,6 +10,8 @@ export function RoutineViewToggle({
   view: 'mine' | 'catalog';
   onChange: (view: 'mine' | 'catalog') => void;
 }) {
+  const { user } = useAuth();
+  const lang = user?.language === 'es' ? 'es' : 'en';
   return (
     <Box
       sx={{
@@ -19,8 +23,8 @@ export function RoutineViewToggle({
       }}
     >
       {([
-        ['mine', 'My Routines'],
-        ['catalog', 'Catalog'],
+        ['mine', t('myRoutines', lang)],
+        ['catalog', t('catalog', lang)],
       ] as const).map(([id, label]) => {
         const selected = view === id;
         return (

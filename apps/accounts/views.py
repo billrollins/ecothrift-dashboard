@@ -188,15 +188,26 @@ def capability_catalog_view(request):
     return Response({'results': catalog_as_dicts()})
 
 
-@api_view(['GET'])
+@api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def me_view(request):
-    """Return current user data with profiles."""
+    """Return current user data with profiles. PATCH accepts language."""
     user = (
         User.objects.prefetch_related('groups')
         .select_related('employee', 'consignee', 'customer')
         .get(pk=request.user.pk)
     )
+    if request.method == 'PATCH':
+        language = str(request.data.get('language') or '').strip()
+        if language not in ('en', 'es'):
+            return Response({'detail': 'Language must be en or es.'}, status=status.HTTP_400_BAD_REQUEST)
+        user.language = language
+        user.save(update_fields=['language', 'updated_at'])
+        user = (
+            User.objects.prefetch_related('groups')
+            .select_related('employee', 'consignee', 'customer')
+            .get(pk=request.user.pk)
+        )
     serializer = UserSerializer(user)
     return Response(serializer.data)
 

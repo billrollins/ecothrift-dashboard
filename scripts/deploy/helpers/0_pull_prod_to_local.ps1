@@ -230,6 +230,12 @@ Write-Pull '[Migrate] Applying local migrations production has not seen...'
 $migrate = Invoke-Native -File $VenvPy -NativeArgs @('manage.py', 'migrate')
 $migrate.Output | Out-Host
 if ($migrate.ExitCode -ne 0) { throw 'migrate failed. Dumps kept. Schema is the prod snapshot - do not drop again.' }
+$left = Invoke-Native -File $VenvPy -NativeArgs @('manage.py', 'showmigrations', '--plan')
+$unapplied = @($left.Output | Where-Object { "$_" -match '\[\s\]' })
+if ($unapplied.Count -gt 0) {
+    $unapplied | Out-Host
+    throw 'migrate finished but unapplied migrations remain. Dumps kept.'
+}
 Write-Pull ''
 
 Write-Pull '[Check] manage.py check...'

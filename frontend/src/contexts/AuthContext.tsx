@@ -18,6 +18,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   hasRole: (role: User['role'] | null) => boolean;
+  setLanguage: (language: 'en' | 'es') => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -89,6 +90,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const setLanguage = useCallback(async (language: 'en' | 'es') => {
+    setUser((current) => (current ? { ...current, language } : current));
+    try {
+      const { data } = await accountsApi.patchMe({ language });
+      setUser(data as User);
+    } catch {
+      // Keep the optimistic language; the next /me/ will correct it.
+    }
+  }, []);
+
   const hasRole = useCallback(
     (role: User['role'] | null): boolean => {
       if (!user?.role || role == null) return false;
@@ -104,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     logout,
     hasRole,
+    setLanguage,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

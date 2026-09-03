@@ -1,6 +1,6 @@
 """Tests for dashboard metrics aggregation."""
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -272,6 +272,74 @@ class DashboardMetricsTests(TestCase):
         self.assertEqual(retail['week_work_cycles'], 1)
         self.assertEqual(retail['today_work_cycles'], 1)
         self.assertEqual(retail['week_idle_dismissed'], 1)
+
+    def _finish_checklist(self, system_key, day):
+        from apps.routines.models import Routine, RoutineRun, RoutineSubmission
+
+        routine = Routine.objects.get(system_key=system_key)
+        submitted_at = timezone.make_aware(datetime.combine(day, datetime.min.time().replace(hour=10)))
+        run = RoutineRun.objects.create(
+            routine=routine,
+            period_key=day.isoformat(),
+            due_at=timezone.make_aware(datetime.combine(day, datetime.min.time().replace(hour=18))),
+            status=RoutineRun.STATUS_DONE,
+        )
+        submission = RoutineSubmission.objects.create(
+            routine=routine,
+            run=run,
+            submitted_by=self.user,
+            status=RoutineSubmission.STATUS_SUBMITTED,
+            submitted_at=submitted_at,
+            responses={},
+        )
+        run.submission = submission
+        run.completed_at = submitted_at
+        run.completed_by = self.user
+        run.save(update_fields=['submission', 'completed_at', 'completed_by'])
+        return run
+
+    def test_retail_open_day_close_is_an_a_and_counts_three_audits(self):
+        thursday = date(2026, 9, 3)
+        for key in ('retail.open', 'retail.day', 'retail.close'):
+            self._finish_checklist(key, thursday)
+
+        payload = build_dashboard_metrics(thursday)
+        week = next(w for w in payload['department_metrics']['daily_weeks'] if w['is_current'])
+        day = next(d for d in week['days'] if d['date'] == thursday.isoformat())
+        retail = payload['department_metrics']['retail']
+
+        self.assertEqual(day['retail'], 'A')
+        self.assertEqual(day['retail_score'], 100.0)
+        self.assertEqual(retail['week_audits'], 3)
+        self.assertEqual(retail['today_work_cycles'], 0)
+        self.assertEqual(retail['week_work_cycles'], 0)
+
+    def test_retail_day_with_no_runs_stays_blank_not_f(self):
+        thursday = date(2026, 9, 3)
+        tuesday = date(2026, 9, 1)
+        for key in ('retail.open', 'retail.day', 'retail.close'):
+            self._finish_checklist(key, thursday)
+
+        payload = build_dashboard_metrics(thursday)
+        week = next(w for w in payload['department_metrics']['daily_weeks'] if w['is_current'])
+        empty = next(d for d in week['days'] if d['date'] == tuesday.isoformat())
+
+        self.assertIsNone(empty['retail'])
+        self.assertIsNone(empty['retail_score'])
+        self.assertNotEqual(empty['retail'], 'F')
+
+    def test_retail_week_letter_averages_only_graded_days(self):
+        thursday = date(2026, 9, 3)
+        for key in ('retail.open', 'retail.day', 'retail.close'):
+            self._finish_checklist(key, thursday)
+
+        payload = build_dashboard_metrics(thursday)
+        week = next(w for w in payload['department_metrics']['daily_weeks'] if w['is_current'])
+        retail = payload['department_metrics']['retail']
+
+        self.assertEqual(week['retail_week_grade'], 'A')
+        self.assertEqual(week['retail_week_score'], 100.0)
+        self.assertEqual(retail['average_grade'], 'A')
 
     def test_restoration_active_jobs_counts_active_stages(self):
         from apps.inventory.models import ItemCheckIn, RestorationJob

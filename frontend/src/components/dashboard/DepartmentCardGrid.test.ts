@@ -46,6 +46,19 @@ describe('Retail routine goal presentation', () => {
     expect(retailGoalCellState(day({ retail: 'A' }))).toBeUndefined();
   });
 
+  it('leaves an ungraded scheduled day neutral, not a miss', () => {
+    expect(retailGoalCellState(day({
+      retail: null,
+      retail_scheduled: true,
+      retail_grade_met: false,
+    }))).toBeUndefined();
+    expect(retailGoalCellState(day({
+      retail: null,
+      retail_scheduled: true,
+      is_future: true,
+    }))).toBeUndefined();
+  });
+
   it('puts the week letter under the week label', () => {
     const result = week({ retail_week_grade: 'B', retail_week_goal_met: true });
     expect(retailWeekTotal(result)).toBe('B');

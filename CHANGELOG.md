@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.77.0] -->
-<!-- Last reviewed: 2026-09-02 (v2.77.0 Retail QA stabilize) -->
+<!-- Line 1 release: ## [2.87.0] -->
+<!-- Last reviewed: 2026-09-03 (v2.87.0 Floor pages) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,183 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.87.0] - 2026-09-03
+
+User-facing theme: **One desk for the floor** - Home, Today, Pay, and Routines share one band and the same four names as the phone.
+
+Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.md).
+
+### Added
+
+- Desk `FloorNav` (Home / Today / Pay / Routines, Settings for Manager+) on every floor page.
+- Desk Pay: current period as the hero, past periods and recent shifts as duty cards, shift and status columns on the grid.
+
+### Changed
+
+- Home, Today, Pay, and Routines open with the same compact green band and the same nav. Content sits in a 1440 column on sage paper. Dashboard keeps its olive body under the band.
+- Desk Routines keeps the phone stage, inset in the shared shell. My Routines / Catalog stays at the top of the list.
+
+### Fixed
+
+- A Retail day with no letter stays a dash. It is not painted as a missed scheduled day. `0008_retail_program_v2` reseeds Open / Day / Close in place and does not delete runs.
+
+### Documentation
+
+- Floor pages: band, column, `FloorNav`, duty card recipe. Routines desk shell is `FloorPage`.
+
+## [2.86.0] - 2026-09-03
+
+User-facing theme: **Today is the punch on every screen** - desk Today clocks you in, desk Pay is the ledger.
+
+### Added
+
+- Desk Today (`/today`): greeting, shift punch, week hours, and the day's routines in two columns.
+- Desk Pay (`/pay`): this week, current and past periods with `••••`, and a recent-shifts grid. No punch.
+
+### Changed
+
+- Dashboard quick links and the profile menu open `/today` and `/pay` on desk and phone. The Day at a glance dialog is gone. `/hr/time-clock` and `/hr/time-history` redirect to Pay.
+- Catalog demo no longer has Cancel. Pick another routine or leave the page.
+
+### Fixed
+
+- Staying on a catalog demo no longer freezes the phone frame (`Maximum update depth exceeded` in `RoutinePreview`).
+
+### Documentation
+
+- Today owns the punch. Pay is the ledger. Same names on desk and phone; desk uses the width.
+
+## [2.85.0] - 2026-09-03
+
+User-facing theme: **Today is the punch, Pay is the ledger** — Home / Today / Pay / Routines on the phone.
+
+### Added
+
+- Today on a phone clocks you in, takes a break, and clocks you out above the day’s routines. The week-limit warning is a fixed colour-only line, not a pulsing banner.
+- Pay tab (`/pay`): this week, the current biweekly period, past periods, recent shifts, and Request time change. Dollars stay behind Show pay and reset when you leave the screen.
+
+### Changed
+
+- Phone tabs are Home / Today / Pay / Routines. `/hr/time-clock` on a phone opens Pay. Desktop Time clock and the desk Day at a glance dialog are unchanged.
+
+### Documentation
+
+- Phone Today owns the punch. Pay is a staff ledger over `GET /hr/time-entries/my_pay/`.
+
+## [2.84.0] - 2026-09-03
+
+User-facing theme: **Routines is just a list** — My routines and Catalog, no editing on the floor, and Spanish from the profile menu.
+
+### Changed
+
+- Staff Routines is My routines + Catalog. Add, edit, and delete stay in Admin - Routines. No filter, no "Assigned to me" eyebrow, no "This week" / "Done this week", and no "nothing blocking" placeholder.
+- Language (EN / ES) lives in the profile dropdown and is remembered on the user. Day at a glance no longer has its own toggle. Phone tab labels, the Routines list, and phone chrome follow that setting.
+
+### Documentation
+
+- Staff lists are read/fill only; language is set from the profile menu.
+
+## [2.83.0] - 2026-09-03
+
+User-facing theme: **Dashboard is a phone app now** — today's sales first, one scroll, a Home / Today / Clock / Routines / More bar. Desktop is unchanged.
+
+### Added
+
+- Phone shell on Dashboard, Today, Time clock, and the Routines list: hamburger + title, and an in-flow Home / Today / Clock / Routines bar. Filling or demoing a routine swaps that bar for save/cancel or the demo chip.
+- Purpose-built `/dashboard` phone layout: today hero, 4-week / 13-week trend, this-week list, past-week sheet, compact department cards. Day detail and week history open as bottom sheets.
+
+### Changed
+
+- Desktop dashboard still uses the 2-column Sales grid and department cards. Phone no longer stacks those widgets or the quick-link strip.
+
+### Documentation
+
+- MainLayout phone shell and Dashboard phone tree in frontend context.
+
+## [2.82.0] - 2026-09-03
+
+User-facing theme: **One walk for every aisle** — Daily Check, Tuesday, and Owner look the same; Owner also ticks a few Open / Day / Close checks.
+
+Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.md).
+
+### Changed
+
+- Section walks share one body: counters, optional photo, notes. No "how many items" question. No photo lock.
+- Owner spot picks a random aisle that has not been walked this week. When none are left: NO SECTIONS LEFT TO CHECK. Choose another picks a different unseen aisle.
+- Daily Check demo shows one real section (not two fake samples) and Choose another. The bar still says Demo.
+
+### Documentation
+
+- Routines: owner rotation no longer wraps; item floor removed.
+
+## [2.81.0] - 2026-09-03
+
+User-facing theme: **Owner is who, not a list of rooms** — the unused Subject pool box is gone.
+
+Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.md).
+
+### Removed
+
+- **Subject pool.** Authored list of areas/tills/vehicles that each run used to draw from. No routine used it. Section work still writes `RoutineRun.subject` from the floor plan. `subject_source` stays (`pool` now means a plain checklist).
+
+### Documentation
+
+- Routines: subject pool dropped from the model table and program writable list.
+
+## [2.80.0] - 2026-09-03
+
+User-facing theme: **Your day follows your punch** — Open, Day, and Close belong to the cashier shift, not to everyone in Retail.
+
+Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.md).
+
+### Changed
+
+- **Audience.** Owner is Type (person / shift / department), Share (one shared / each), then Who or All. Shift-typed routines hide when clocked out. My Day (mine, today, nags) uses the same rule; superusers no longer see every open run on their personal list.
+- Program: Open / Day / Close are shift + one shared on that punch. Work cycle is the four retail punches. Person-tied work still shows when clocked out.
+
+### Documentation
+
+- Routines: audience replaces role ∩ department.
+
+## [2.79.0] - 2026-09-03
+
+User-facing theme: **Missed stays missed** — a Wednesday Open cannot be filled on Thursday, while changing the air filter still can.
+
+Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.md).
+
+### Added
+
+- **Missed if not done.** Separate expire clock from Counts as late. `expire_rule` (`never` / `end_of_day` / `end_of_week` / `after`) plus count, unit, and optional hours-start time. Past `miss_at` flips the open run to `missed`; start / submit / cover return 400. New authored routines default to never.
+- Program clocks: Open expires 6 hours after 8:30am; Day, Close, owner spot, Tuesday cross-check, and my-section expire at the end of that day; Work cycle never expires.
+
+### Documentation
+
+- Routines: fourth instant `miss_at`, status `missed` is now written.
+
+## [2.78.0] - 2026-09-02
+
+User-facing theme: **Clock in, pick a shift, see the day** — seven tiles grouped Retail / Warehouse / Office, a bilingual Day at a glance, and the real 52-item Open / Day / Close lists.
+
+Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.md).
+
+### Added
+
+- **Shift on the punch.** `TimeEntry.shift` grouped Retail (Cashier Open / Day / Close, Customer Service), Warehouse (Processing, Restoration), Office (Management). Self clock-in requires it. `POST /hr/time-entries/{id}/set_shift/` changes an open punch. Serializer exposes `shift_label` and `shift_department`. Roster and Time & payroll show `Retail: Cashier - Open`. Clock-in uses quiet department tiles instead of a green button wall.
+- **Language.** `User.language` (`en` / `es`). `PATCH /auth/me/` plus an EN/ES toggle. Routine chrome and content use `frontend/src/i18n/routines.ts`.
+- **Day at a glance.** `GET /api/routines/today/` maps the current shift to the start-with checklist. Due today omits the other Open / Day / Close lists (an opener does not see Close). Dialog in MainLayout once per punch per device; `/today` and the account-menu **Today** item.
+- Per-check verify of the last shift (`verify_prev`). Work-cycle non-shelf ticks come from Day.
+- **Dashboard quick links.** Today, Time clock, Routines, and Settings as raised pills in the Sales header (desktop) or a strip above it (phone). Today (dashboard or account menu) always opens Day at a glance. Account menu otherwise unchanged.
+
+### Changed
+
+- Taxonomy is ordered groups with solutions and Spanish. Grades score by group. Just-do (dirty, trash, hangers) is never stored.
+- `0008_retail_program_v2` reseeds Open (31-41), Day (1-30), Close (42-52) in place. Titles: Retail open / Retail day / Retail close. Day nags at clock-out.
+- Due + in progress is one row: drafts on a scheduled run stay in the time bucket. In progress is on-demand drafts only.
+
+### Documentation
+
+- Routines, backend, frontend updated for shift, language, glance, and the new lists.
 
 ## [2.77.0] - 2026-09-02
 

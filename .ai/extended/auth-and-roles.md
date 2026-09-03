@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-02 (Settings Retail QA tab) -->
+<!-- Last updated: 2026-09-03 (v2.87.0 Floor pages) -->
 
 # Eco-Thrift Dashboard — Auth and Roles
 
@@ -172,7 +172,7 @@ hasRole(role) => roleRank(user.role) >= roleRank(role)
 
 ### Employee
 
-- Dashboard, HR (**Time clock** only — clock in/out/break, My recent shifts, mod requests), Routines
+- Dashboard, HR (**Today** punch at `/today`, **Pay** ledger at `/pay`), Routines
 - Inventory (vendors, orders, processing, products, items)
 - POS (terminal, drawers, cash, transactions)
 - No consignment management, no admin, no Time & payroll

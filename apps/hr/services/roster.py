@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from apps.hr.models import TimeEntry
 from apps.hr.services.time_clock_utils import _entry_hours, week_bounds
+from apps.hr.shifts import shift_label
 
 
 def _break_label(entry: TimeEntry) -> str:
@@ -78,6 +79,8 @@ def build_time_roster(date_from, date_to) -> list[dict]:
             'date': entry.date.isoformat(),
             'clock_in': entry.clock_in.isoformat() if entry.clock_in else None,
             'clock_out': entry.clock_out.isoformat() if entry.clock_out else None,
+            'shift': entry.shift or '',
+            'shift_label': shift_label(entry.shift, with_department=True) if entry.shift else '',
             'break_minutes': entry.break_minutes or 0,
             'break_label': _break_label(entry),
             'on_break': entry.on_break,

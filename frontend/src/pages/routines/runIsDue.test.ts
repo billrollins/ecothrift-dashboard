@@ -32,6 +32,7 @@ function stub(partial: Moments = {}): RoutineRun {
     is_overdue: false,
     trigger: 'daily',
     assignment: 'pooled',
+    audience_type: 'person',
     href: '/routines/run/1',
     completed_at: null,
     completed_by: null,

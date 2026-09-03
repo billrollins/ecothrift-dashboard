@@ -5,9 +5,9 @@ import type {
   WorkCycleResponses,
 } from '../../../api/routines.api';
 import { dutyColors } from '../../../components/duty/tokens';
+import { useAuth } from '../../../hooks/useAuth';
+import { pick } from '../../../i18n/routines';
 import {
-  CounterRow,
-  FlagChips,
   NotesField,
   PhotoButton,
   RunnerBand,
@@ -17,6 +17,7 @@ import {
   runnerFieldSx,
 } from './runnerParts';
 import { runnerBlockers } from './runnerStatus';
+import { TaxonomyCounters } from './TaxonomyCounters';
 
 export function emptyWorkCycle(): WorkCycleResponses {
   return {
@@ -55,6 +56,8 @@ export function WorkCycleRunner({
   onChange?: (next: WorkCycleResponses) => void;
   readOnly?: boolean;
 }) {
+  const { user } = useAuth();
+  const lang = user?.language === 'es' ? 'es' : 'en';
   const mode = responses.mode;
   const blockers = runnerBlockers('work_cycle', responses, 0);
   const shelf = responses.shelf;
@@ -84,7 +87,7 @@ export function WorkCycleRunner({
           />
           <ModeTile
             label="Non-shelf check"
-            hint="The leftover of Opening and Closing."
+            hint="The leftover of the day list."
             active={mode === 'non_shelf'}
             disabled={readOnly}
             onClick={() => pickMode('non_shelf')}
@@ -124,23 +127,17 @@ export function WorkCycleRunner({
                 </Typography>
               )}
             </RunnerCard>
-            {taxonomy.graded.concat(taxonomy.recorded).map((category) => (
-              <CounterRow
-                key={category.key}
-                label={category.label}
-                value={shelf.counts[category.key] || 0}
-                disabled={readOnly || !shelf.section_id}
-                onChange={(next) => onChange?.({
-                  ...responses,
-                  shelf: { ...shelf, counts: { ...shelf.counts, [category.key]: Math.max(next, 0) } },
-                })}
-              />
-            ))}
-            <FlagChips
-              options={taxonomy.flags}
-              active={shelf.flags}
+            <TaxonomyCounters
+              taxonomy={taxonomy}
+              counts={shelf.counts}
+              flags={shelf.flags}
               disabled={readOnly || !shelf.section_id}
-              onToggle={(key) => onChange?.({
+              language={lang}
+              onCount={(key, value) => onChange?.({
+                ...responses,
+                shelf: { ...shelf, counts: { ...shelf.counts, [key]: Math.max(value, 0) } },
+              })}
+              onFlag={(key) => onChange?.({
                 ...responses,
                 shelf: {
                   ...shelf,
@@ -166,50 +163,52 @@ export function WorkCycleRunner({
         {mode === 'non_shelf' ? (
           <>
             <RunnerBand title="What you put right" hint="Tick what you did. A note is enough if none of these fit." />
-            {nonShelfChecks.length ? nonShelfChecks.map((check) => {
-              const key = `${check.routine_key}:${check.check_id}`;
-              const on = done.has(key);
-              return (
-                <Box
-                  key={key}
-                  component="button"
-                  type="button"
-                  disabled={readOnly}
-                  onClick={() => {
-                    const next = new Set(done);
-                    if (on) next.delete(key);
-                    else next.add(key);
-                    onChange?.({
-                      ...responses,
-                      non_shelf: { ...responses.non_shelf, done: [...next] },
-                    });
-                  }}
-                  sx={{
-                    width: 'calc(100% - 20px)',
-                    mx: 1.25,
-                    mb: 0.75,
-                    px: 1.5,
-                    py: 1.15,
-                    textAlign: 'left',
-                    font: 'inherit',
-                    cursor: readOnly ? 'default' : 'pointer',
-                    borderRadius: '10px',
-                    border: `1px solid ${on ? dutyColors.brand : dutyColors.ink15}`,
-                    bgcolor: on ? dutyColors.brandTint : dutyColors.card,
-                  }}
-                >
-                  <Typography sx={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: dutyColors.ink40 }}>
-                    {check.routine_title}
-                  </Typography>
-                  <Typography sx={{ fontSize: 14.5, fontWeight: 600, color: dutyColors.ink }}>
-                    {check.label}
-                  </Typography>
-                </Box>
-              );
-            }) : (
+            {nonShelfChecks.length ? groupNonShelf(nonShelfChecks).map((group) => (
+              <Box key={group.id}>
+                <RunnerBand title={pick(group, 'title', lang) || group.title} />
+                {group.checks.map((check) => {
+                  const key = `${check.routine_key}:${check.check_id}`;
+                  const on = done.has(key);
+                  return (
+                    <Box
+                      key={key}
+                      component="button"
+                      type="button"
+                      disabled={readOnly}
+                      onClick={() => {
+                        const next = new Set(done);
+                        if (on) next.delete(key);
+                        else next.add(key);
+                        onChange?.({
+                          ...responses,
+                          non_shelf: { ...responses.non_shelf, done: [...next] },
+                        });
+                      }}
+                      sx={{
+                        width: 'calc(100% - 20px)',
+                        mx: 1.25,
+                        mb: 0.75,
+                        px: 1.5,
+                        py: 1.15,
+                        textAlign: 'left',
+                        font: 'inherit',
+                        cursor: readOnly ? 'default' : 'pointer',
+                        borderRadius: '10px',
+                        border: `1px solid ${on ? dutyColors.brand : dutyColors.ink15}`,
+                        bgcolor: on ? dutyColors.brandTint : dutyColors.card,
+                      }}
+                    >
+                      <Typography sx={{ fontSize: 14.5, fontWeight: 600, color: dutyColors.ink }}>
+                        {pick(check, 'label', lang) || check.label}
+                      </Typography>
+                    </Box>
+                  );
+                })}
+              </Box>
+            )) : (
               <RunnerCard>
                 <Typography sx={{ fontSize: 13, color: dutyColors.ink60 }}>
-                  Opening and Closing need checks before a non-shelf list can be built.
+                  Day needs checks before a non-shelf list can be built.
                 </Typography>
               </RunnerCard>
             )}
@@ -227,6 +226,27 @@ export function WorkCycleRunner({
       </RunnerBody>
     </Box>
   );
+}
+
+function groupNonShelf(checks: NonShelfCheck[]) {
+  const groups: Array<{ id: string; title: string; title_es: string; checks: NonShelfCheck[] }> = [];
+  const index = new Map<string, number>();
+  for (const check of checks) {
+    const id = check.section_id || check.routine_key;
+    let at = index.get(id);
+    if (at == null) {
+      at = groups.length;
+      index.set(id, at);
+      groups.push({
+        id,
+        title: check.section_title || check.routine_title,
+        title_es: check.section_title_es || '',
+        checks: [],
+      });
+    }
+    groups[at].checks.push(check);
+  }
+  return groups;
 }
 
 function ModeTile({

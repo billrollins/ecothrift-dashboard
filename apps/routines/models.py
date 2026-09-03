@@ -60,8 +60,17 @@ class Routine(models.Model):
     ASSIGN_POOLED = 'pooled'
     ASSIGN_PER_PERSON = 'per_person'
     ASSIGN_CHOICES = [
-        (ASSIGN_POOLED, 'Pooled: anyone on the list can complete it'),
-        (ASSIGN_PER_PERSON, 'Per person: each assignee owes their own'),
+        (ASSIGN_POOLED, 'One shared: anyone matching can complete it'),
+        (ASSIGN_PER_PERSON, 'Each: every match owes their own'),
+    ]
+
+    AUDIENCE_PERSON = 'person'
+    AUDIENCE_SHIFT = 'shift'
+    AUDIENCE_DEPARTMENT = 'department'
+    AUDIENCE_CHOICES = [
+        (AUDIENCE_PERSON, 'Person'),
+        (AUDIENCE_SHIFT, 'Shift'),
+        (AUDIENCE_DEPARTMENT, 'Department'),
     ]
 
     # When the run stops being merely open and starts counting against the day.
@@ -72,6 +81,29 @@ class Routine(models.Model):
         (LATE_DUE, 'As soon as the hard nag starts'),
         (LATE_END_OF_DAY, 'End of the day it was due'),
         (LATE_GRACE, 'After the grace days below'),
+    ]
+
+    # When an open run is marked missed and can no longer be filled.
+    # Counts as late is only the grade; this clock closes the run.
+    EXPIRE_NEVER = 'never'
+    EXPIRE_END_OF_DAY = 'end_of_day'
+    EXPIRE_END_OF_WEEK = 'end_of_week'
+    EXPIRE_AFTER = 'after'
+    EXPIRE_CHOICES = [
+        (EXPIRE_NEVER, 'Never (can still fill it late)'),
+        (EXPIRE_END_OF_DAY, 'End of that day'),
+        (EXPIRE_END_OF_WEEK, 'End of that week'),
+        (EXPIRE_AFTER, 'After a duration'),
+    ]
+    EXPIRE_UNIT_HOURS = 'hours'
+    EXPIRE_UNIT_DAYS = 'days'
+    EXPIRE_UNIT_WEEKS = 'weeks'
+    EXPIRE_UNIT_MONTHS = 'months'
+    EXPIRE_UNIT_CHOICES = [
+        (EXPIRE_UNIT_HOURS, 'Hours'),
+        (EXPIRE_UNIT_DAYS, 'Days'),
+        (EXPIRE_UNIT_WEEKS, 'Weeks'),
+        (EXPIRE_UNIT_MONTHS, 'Months'),
     ]
 
     # How the phone renders a run. Only `checklist` is authored in the editor;
@@ -93,7 +125,7 @@ class Routine(models.Model):
     SUBJECT_MY_SECTION = 'my_section'
     SUBJECT_OTHER_SECTION = 'other_section'
     SUBJECT_CHOICES = [
-        (SUBJECT_POOL, 'From the subject pool below'),
+        (SUBJECT_POOL, 'No section (plain checklist)'),
         (SUBJECT_MY_SECTION, 'The sections this person owns'),
         (SUBJECT_OTHER_SECTION, "Somebody else's section, rotating"),
     ]
@@ -138,7 +170,23 @@ class Routine(models.Model):
     )
     late_after = models.CharField(max_length=20, choices=LATE_CHOICES, default=LATE_END_OF_DAY)
     grace_days = models.PositiveSmallIntegerField(default=0)
+    expire_rule = models.CharField(max_length=20, choices=EXPIRE_CHOICES, default=EXPIRE_NEVER)
+    expire_count = models.PositiveSmallIntegerField(default=1)
+    expire_unit = models.CharField(
+        max_length=10, choices=EXPIRE_UNIT_CHOICES, default=EXPIRE_UNIT_HOURS,
+    )
+    expire_from_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text='When expire_unit is hours, the clock that duration starts from. Blank is midnight.',
+    )
     assignment = models.CharField(max_length=20, choices=ASSIGN_CHOICES, default=ASSIGN_POOLED)
+    audience_type = models.CharField(
+        max_length=20, choices=AUDIENCE_CHOICES, default=AUDIENCE_PERSON,
+    )
+    audience_all = models.BooleanField(default=False)
+    assigned_shifts = models.JSONField(default=list, blank=True)
+    assigned_department_ids = models.JSONField(default=list, blank=True)
     assigned_role = models.CharField(max_length=40, blank=True, default='')
     assigned_department = models.ForeignKey(
         'hr.Department',
@@ -152,7 +200,6 @@ class Routine(models.Model):
         blank=True,
         related_name='routines_assigned',
     )
-    subject_pool = models.JSONField(default=list, blank=True)
     is_blocking = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     created_by = models.ForeignKey(

@@ -113,6 +113,15 @@ export const dashboardRaisedStatSx = {
 
 
 
+/** Phone cards - one soft shadow, no hover lift. */
+export const dashboardPhoneCardSx = {
+  bgcolor: dashboardPalette.surface,
+  border: '1px solid',
+  borderColor: dashboardPalette.softBorder,
+  borderRadius: 4,
+  boxShadow: `0 8px 20px rgba(${DROP_SHADOW}, 0.22)`,
+} as const;
+
 /** Simple hover lift - shadow moves with the card via transform. */
 export const dashboardCardHoverLiftSx = {
   transition: 'transform 0.2s ease',

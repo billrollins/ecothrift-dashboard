@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-02 (v2.77.0 Retail QA stabilize) -->
+<!-- Last updated: 2026-09-03 (v2.87.0 Floor pages) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,7 +13,7 @@ Full-stack business management for a thrift store in Omaha, NE. HR (time clock, 
 
 ## Active work
 
-- **ACTIVE (compass) — Routines and Documents:** [`routines_and_documents`](initiatives/routines_and_documents.md) — Routines + Retail QA shipped **v2.76.0**, stabilized in **v2.77.0**. Documents API is in-tree; staff routes are unwired until a later UI tune. Replaces abandoned [`documents_and_duties`](initiatives/_archived/_abandoned/documents_and_duties.md).
+- **ACTIVE (compass) — Routines and Documents:** [`routines_and_documents`](initiatives/routines_and_documents.md) — Routines + Retail QA through desk Home / Today / Pay / Routines shipped **v2.87.0** (GitHub, not Heroku). Documents API is in-tree; staff routes are unwired until a later UI tune. Replaces abandoned [`documents_and_duties`](initiatives/_archived/_abandoned/documents_and_duties.md).
 - **ACTIVE — Admin workspace overhaul:** [`admin_workspace_overhaul`](initiatives/admin_workspace_overhaul.md) — Studios workspace, Settings house, capability catalog. Grants deferred.
 - **ACTIVE — Universal object surfaces:** [`universal_object_surfaces`](initiatives/universal_object_surfaces.md) — design only. No code scheduled.
 
@@ -30,7 +30,7 @@ Sidebar entries removed. Consignment bookmarks still work. Documents routes are 
 | **Consignment (staff)** | Accounts, Items, Payouts (+ account detail) | `/consignment/accounts`, `/consignment/accounts/:id`, `/consignment/items`, `/consignment/payouts` |
 | **Documents** | Account-menu link off. Pages stay in `frontend/src/pages/documents/`. | `/documents*` unwired — catch-all goes to Dashboard. Rewire when the UI is tuned. |
 
-**HR (account menu):** Time clock, Routines. Digit 9 and letter L are free. **Admin:** Users (Employees first and default for Admin, Customers second; Managers only see Customers), Settings (System / Printing / Store / Assumptions / Retail QA / Permissions), Retail inbox (Admin), Time & payroll (superuser), Routines / Routine Control (superuser — Routines, Sections, Grades). **Studios:** Label Studio, Floorplans, Blog Studio. **Consignee portal** (`/consignee/*`) unchanged.
+**HR (account menu):** Today (`/today` punch + day's routines), Pay (`/pay` ledger), Routines. Desk Home / Today / Pay / Routines share `FloorNav` (same names as the phone tab bar). Digit 9 and letter L are free. **Admin:** Users (Employees first and default for Admin, Customers second; Managers only see Customers), Settings (System / Printing / Store / Assumptions / Retail QA / Permissions), Retail inbox (Admin), Time & payroll (superuser), Routines / Routine Control (superuser — Routines, Sections, Grades). **Studios:** Label Studio, Floorplans, Blog Studio. **Consignee portal** (`/consignee/*`) unchanged.
 
 ## File Map
 

@@ -1,7 +1,15 @@
 import { Box, MenuItem, Stack, Switch, TextField, Typography } from '@mui/material';
 import { format } from 'date-fns';
-import type { Routine, RoutineAssignee, RoutineLateAfter } from '../../api/routines.api';
+import type {
+  Routine,
+  RoutineAssignee,
+  RoutineAudienceType,
+  RoutineExpireRule,
+  RoutineExpireUnit,
+  RoutineLateAfter,
+} from '../../api/routines.api';
 import { dutyColors } from '../../components/duty/tokens';
+import { SHIFT_OPTIONS } from '../../i18n/routines';
 import { FieldGrid, FormSection, fieldSx, titleFieldSx } from './editorStyles';
 import { biweeklyMaxDate, nextBiweeklyDate } from './nextBiweeklyDate';
 
@@ -15,7 +23,12 @@ export const TRIGGER_LABELS: Record<string, string> = {
   on_demand: 'On demand',
 };
 const TRIGGERS = Object.keys(TRIGGER_LABELS);
-export const ROLE_OPTIONS = ['Staff', 'Employee', 'Manager', 'Admin'];
+export const AUDIENCE_TYPES: RoutineAudienceType[] = ['person', 'shift', 'department'];
+const AUDIENCE_TYPE_LABELS: Record<RoutineAudienceType, string> = {
+  person: 'Person',
+  shift: 'Shift',
+  department: 'Department',
+};
 
 /**
  * Everything about a routine except its checklist, in the shape the form
@@ -35,12 +48,17 @@ export interface RoutineSettings {
   /** yyyy-MM-dd; only sent for bi-weekly. */
   nextDue: string;
   graceDays: string;
+  expireRule: RoutineExpireRule;
+  expireCount: string;
+  expireUnit: RoutineExpireUnit;
+  /** HH:mm. Hours start at; blank is midnight. */
+  expireFromTime: string;
   assignment: string;
-  assignedRole: string;
-  assignedDepartment: number | '';
+  audienceType: RoutineAudienceType;
+  audienceAll: boolean;
+  assignedShifts: string[];
+  assignedDepartmentIds: number[];
   assignedUserIds: number[];
-  /** One subject per line. */
-  subjectPool: string;
   isBlocking: boolean;
 }
 
@@ -55,11 +73,16 @@ export function defaultRoutineSettings(today: Date): RoutineSettings {
     lateAfter: 'end_of_day',
     nextDue: format(today, 'yyyy-MM-dd'),
     graceDays: '0',
+    expireRule: 'never',
+    expireCount: '1',
+    expireUnit: 'hours',
+    expireFromTime: '',
     assignment: 'pooled',
-    assignedRole: 'Staff',
-    assignedDepartment: '',
+    audienceType: 'person',
+    audienceAll: true,
+    assignedShifts: [],
+    assignedDepartmentIds: [],
     assignedUserIds: [],
-    subjectPool: '',
     isBlocking: false,
   };
 }
@@ -75,11 +98,18 @@ export function settingsFromRoutine(routine: Routine, today: Date): RoutineSetti
     lateAfter: routine.late_after,
     nextDue: nextBiweeklyDate(routine.anchor_date, today),
     graceDays: String(routine.grace_days),
+    expireRule: routine.expire_rule,
+    expireCount: String(routine.expire_count || 1),
+    expireUnit: routine.expire_unit,
+    expireFromTime: (routine.expire_from_time || '').slice(0, 5),
     assignment: routine.assignment,
-    assignedRole: routine.assigned_role || 'Staff',
-    assignedDepartment: routine.assigned_department ?? '',
+    audienceType: routine.audience_type,
+    audienceAll: routine.audience_all,
+    assignedShifts: routine.assigned_shifts || [],
+    assignedDepartmentIds: routine.assigned_department_ids?.length
+      ? routine.assigned_department_ids
+      : (routine.assigned_department ? [routine.assigned_department] : []),
     assignedUserIds: routine.assigned_user_ids || [],
-    subjectPool: (routine.subject_pool || []).join('\n'),
     isBlocking: routine.is_blocking,
   };
 }
@@ -97,15 +127,21 @@ export function settingsToPayload(
     late_after: settings.lateAfter,
     anchor_date: settings.trigger === 'biweekly' ? settings.nextDue : null,
     grace_days: Number(settings.graceDays) || 0,
-    assigned_role: settings.assignedRole,
-    assigned_department: settings.assignedDepartment === '' ? null : settings.assignedDepartment,
+    expire_rule: settings.expireRule,
+    expire_count: Math.max(Number(settings.expireCount) || 1, 1),
+    expire_unit: settings.expireUnit,
+    expire_from_time: settings.expireFromTime ? `${settings.expireFromTime}:00` : null,
+    audience_all: settings.audienceAll,
+    assigned_shifts: settings.assignedShifts,
+    assigned_department_ids: settings.assignedDepartmentIds,
+    assigned_department: settings.assignedDepartmentIds[0] ?? null,
     assigned_user_ids: settings.assignedUserIds,
-    subject_pool: settings.subjectPool.split('\n').map((row) => row.trim()).filter(Boolean),
     is_blocking: settings.isBlocking,
   };
   if (!opts?.locked) {
     payload.trigger = settings.trigger as Routine['trigger'];
     payload.assignment = settings.assignment as Routine['assignment'];
+    payload.audience_type = settings.audienceType;
   }
   return payload;
 }
@@ -262,85 +298,173 @@ export function RoutineSettingsFields({
               : 'Used only by the grace-days rule.'}
             sx={fieldSx}
           />
+          <TextField
+            select
+            label="Missed if not done"
+            value={value.expireRule}
+            onChange={(e) => onChange({ expireRule: e.target.value as RoutineExpireRule })}
+            size="small"
+            fullWidth
+            helperText="After this, the run is Missed and cannot be filled. Counts as late is only the grade."
+            sx={fieldSx}
+          >
+            <MenuItem value="never">Never (can still fill it late)</MenuItem>
+            <MenuItem value="end_of_day">End of that day</MenuItem>
+            <MenuItem value="end_of_week">End of that week</MenuItem>
+            <MenuItem value="after">After a duration</MenuItem>
+          </TextField>
+          <TextField
+            label="After count"
+            type="number"
+            value={value.expireCount}
+            onChange={(e) => onChange({ expireCount: e.target.value })}
+            size="small"
+            fullWidth
+            disabled={value.expireRule !== 'after'}
+            inputProps={{ min: 1, max: 99 }}
+            helperText={value.expireRule === 'after'
+              ? 'How many hours, days, weeks, or months.'
+              : 'Used only by After a duration.'}
+            sx={fieldSx}
+          />
+          <TextField
+            select
+            label="After unit"
+            value={value.expireUnit}
+            onChange={(e) => onChange({ expireUnit: e.target.value as RoutineExpireUnit })}
+            size="small"
+            fullWidth
+            disabled={value.expireRule !== 'after'}
+            helperText={value.expireRule === 'after'
+              ? 'Hours start at the time below. Days start at the end of the due day.'
+              : 'Used only by After a duration.'}
+            sx={fieldSx}
+          >
+            <MenuItem value="hours">Hours</MenuItem>
+            <MenuItem value="days">Days</MenuItem>
+            <MenuItem value="weeks">Weeks</MenuItem>
+            <MenuItem value="months">Months</MenuItem>
+          </TextField>
+          <TextField
+            label="Hours start at"
+            type="time"
+            value={value.expireFromTime}
+            onChange={(e) => onChange({ expireFromTime: e.target.value })}
+            size="small"
+            fullWidth
+            disabled={value.expireRule !== 'after' || value.expireUnit !== 'hours'}
+            InputLabelProps={{ shrink: true }}
+            helperText={value.expireRule === 'after' && value.expireUnit === 'hours'
+              ? 'Blank is midnight of the due day.'
+              : 'Used only when the duration is hours.'}
+            sx={fieldSx}
+          />
         </FieldGrid>
       </FormSection>
 
       <FormSection
         wide={wide}
         title="Owner"
-        description="Named people win over role and department."
+        description="Who the run is for: people, a shift, or a department. One shared is one run. Each gives everyone their own."
       >
         <FieldGrid wide={wide}>
           <TextField
             select
-            label="Assignment"
+            label="Type"
+            value={value.audienceType}
+            onChange={(e) => onChange({ audienceType: e.target.value as RoutineAudienceType })}
+            fullWidth
+            size="small"
+            disabled={locked}
+            helperText={locked
+              ? 'Program routines keep the type they shipped with.'
+              : 'Person is standing. Shift follows the punch. Department is home department.'}
+            sx={fieldSx}
+          >
+            {AUDIENCE_TYPES.map((kind) => (
+              <MenuItem key={kind} value={kind}>{AUDIENCE_TYPE_LABELS[kind]}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="Share"
             value={value.assignment}
             onChange={(e) => onChange({ assignment: e.target.value })}
             fullWidth
             size="small"
             disabled={locked}
             helperText={locked
-              ? 'Program routines keep pooled or per person as seeded.'
-              : 'Pooled shares one run. Per person gives everyone their own.'}
+              ? 'Program routines keep one shared or each as seeded.'
+              : value.audienceType === 'shift'
+                ? 'One shared: anyone on that punch. Each: everyone currently on it.'
+                : 'One shared: anyone matching can fill it. Each: everyone matching owes their own.'}
             sx={fieldSx}
           >
-            <MenuItem value="pooled">Pooled</MenuItem>
-            <MenuItem value="per_person">Per person</MenuItem>
+            <MenuItem value="pooled">One shared</MenuItem>
+            <MenuItem value="per_person">Each</MenuItem>
           </TextField>
-          <TextField
-            select
-            label="Role"
-            value={value.assignedRole}
-            onChange={(e) => onChange({ assignedRole: e.target.value })}
-            size="small"
-            fullWidth
-            sx={fieldSx}
-          >
-            {ROLE_OPTIONS.map((role) => (
-              <MenuItem key={role} value={role}>{role}</MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            select
-            label="Department"
-            value={value.assignedDepartment}
-            onChange={(e) => onChange({ assignedDepartment: e.target.value === '' ? '' : Number(e.target.value) })}
-            size="small"
-            fullWidth
-            sx={fieldSx}
-          >
-            <MenuItem value="">None</MenuItem>
-            {departments.map((dept) => (
-              <MenuItem key={dept.id} value={dept.id}>{dept.name}</MenuItem>
-            ))}
-          </TextField>
+          <Box sx={{ gridColumn: '1 / -1' }}>
+            <Toggle
+              label={value.audienceType === 'shift'
+                ? 'All shifts'
+                : value.audienceType === 'department'
+                  ? 'All departments'
+                  : 'All staff'}
+              hint={value.audienceType === 'shift'
+                ? 'Anyone clocked into any shift. Clocked out hides this routine.'
+                : value.audienceType === 'department'
+                  ? 'Anyone whose home department is set.'
+                  : 'Every Employee, Manager, and Admin.'}
+              checked={value.audienceAll}
+              disabled={locked}
+              onChange={(audienceAll) => onChange({ audienceAll })}
+            />
+          </Box>
           <TextField
             select
             SelectProps={{ multiple: true }}
-            label="People"
-            value={value.assignedUserIds}
-            onChange={(e) => onChange({ assignedUserIds: e.target.value as unknown as number[] })}
+            label="Who"
+            value={
+              value.audienceType === 'shift'
+                ? value.assignedShifts
+                : value.audienceType === 'department'
+                  ? value.assignedDepartmentIds
+                  : value.assignedUserIds
+            }
+            onChange={(e) => {
+              const raw = e.target.value as unknown as Array<string | number>;
+              if (value.audienceType === 'shift') {
+                onChange({ assignedShifts: raw.map(String) });
+              } else if (value.audienceType === 'department') {
+                onChange({ assignedDepartmentIds: raw.map(Number) });
+              } else {
+                onChange({ assignedUserIds: raw.map(Number) });
+              }
+            }}
             fullWidth
             size="small"
+            disabled={locked || value.audienceAll}
+            helperText={value.audienceAll
+              ? 'Used only when All is off.'
+              : value.audienceType === 'shift'
+                ? 'The clock-in tiles. Clocked out hides this routine.'
+                : value.audienceType === 'department'
+                  ? 'Standing HR department, not today\'s punch.'
+                  : 'Named people only.'}
             sx={fieldSx}
           >
-            {people.map((row) => (
-              <MenuItem key={row.id} value={row.id}>{row.full_name}</MenuItem>
-            ))}
+            {value.audienceType === 'shift'
+              ? SHIFT_OPTIONS.map((row) => (
+                <MenuItem key={row.key} value={row.key}>{row.en}</MenuItem>
+              ))
+              : value.audienceType === 'department'
+                ? departments.map((dept) => (
+                  <MenuItem key={dept.id} value={dept.id}>{dept.name}</MenuItem>
+                ))
+                : people.map((row) => (
+                  <MenuItem key={row.id} value={row.id}>{row.full_name}</MenuItem>
+                ))}
           </TextField>
-          <Box sx={{ gridColumn: '1 / -1' }}>
-            <TextField
-              label="Subject pool"
-              value={value.subjectPool}
-              onChange={(e) => onChange({ subjectPool: e.target.value })}
-              multiline
-              minRows={2}
-              fullWidth
-              size="small"
-              helperText="One area per line. Each run draws one."
-              sx={fieldSx}
-            />
-          </Box>
           <Box sx={{ gridColumn: '1 / -1' }}>
             <Toggle
               label="Blocking"
@@ -363,12 +487,14 @@ function Toggle({
   checked,
   onChange,
   tone = 'brand',
+  disabled,
 }: {
   label: string;
   hint: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   tone?: 'brand' | 'violet';
+  disabled?: boolean;
 }) {
   const on = tone === 'violet'
     ? { border: dutyColors.violet, bg: '#F3EEFA' }
@@ -391,7 +517,7 @@ function Toggle({
         <Typography sx={{ fontSize: 14, fontWeight: 700, color: dutyColors.ink }}>{label}</Typography>
         <Typography sx={{ fontSize: 11.5, color: dutyColors.ink60 }}>{hint}</Typography>
       </Box>
-      <Switch checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <Switch checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
     </Box>
   );
 }

@@ -1,4 +1,4 @@
-import { Box, IconButton, MenuItem, Stack, TextField, Tooltip } from '@mui/material';
+import { Box, Button, IconButton, MenuItem, Stack, TextField, Tooltip } from '@mui/material';
 import ContentCopyOutlined from '@mui/icons-material/ContentCopyOutlined';
 import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import FileUploadOutlined from '@mui/icons-material/FileUploadOutlined';
@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getDepartments } from '../../api/hr.api';
 import { useRoutine, useRoutineAssignees, useSaveRoutine } from '../../hooks/useRoutines';
-import type { RoutineCheckDef, RoutineControl, RoutineDefinition, RoutineKind } from '../../api/routines.api';
+import type { AuditTaxonomy, RoutineCheckDef, RoutineControl, RoutineDefinition, RoutineKind } from '../../api/routines.api';
 import { dutyColors, thinScrollSx } from '../../components/duty/tokens';
 import { DashedButton, FormSection, fieldSx } from './editorStyles';
 import { RoutineHeaderButton, RoutineHeaderIconButton, RoutinePaneHeader } from './RoutinePaneHeader';
@@ -49,7 +49,7 @@ export const emptyDefinition = (): RoutineDefinition => ({
   sections: [{
     id: 'section-1',
     title: 'Section 1',
-    checks: [{ id: 'check-1', label: 'Check 1', control: 'pass_fail', hint: '', unit: '', critical: false }],
+    checks: [{ id: 'check-1', label: 'Check 1', control: 'pass_fail', hint: '', hint_es: '', label_es: '', unit: '', critical: false, verify_prev: false }],
   }],
 });
 
@@ -59,6 +59,8 @@ export interface EditorPreview {
   definition: RoutineDefinition;
   /** Section kinds preview from a fixture; the editor never authors them. */
   kind?: RoutineKind;
+  taxonomy?: AuditTaxonomy | null;
+  sections?: Array<{ id: number; name: string }>;
 }
 
 export function RoutineEditorPane({
@@ -98,8 +100,15 @@ export function RoutineEditorPane({
   }, [existing.data]);
 
   useEffect(() => {
-    onPreviewChange?.({ title, intro, definition, kind });
-  }, [title, intro, definition, kind, onPreviewChange]);
+    onPreviewChange?.({
+      title,
+      intro,
+      definition,
+      kind,
+      taxonomy: existing.data?.runner?.taxonomy ?? null,
+      sections: existing.data?.runner?.sections ?? [],
+    });
+  }, [title, intro, definition, kind, existing.data?.runner, onPreviewChange]);
 
   const patchSettings = (patch: Partial<RoutineSettings>) => setSettings((prev) => ({ ...prev, ...patch }));
 
@@ -122,11 +131,17 @@ export function RoutineEditorPane({
     due_time: settings.dueTime,
     anchor_date: payload.anchor_date ?? null,
     grace_days: payload.grace_days ?? 0,
+    expire_rule: payload.expire_rule ?? 'never',
+    expire_count: payload.expire_count ?? 1,
+    expire_unit: payload.expire_unit ?? 'hours',
+    expire_from_time: payload.expire_from_time ? payload.expire_from_time.slice(0, 5) : null,
     assignment: settings.assignment as RoutineDoc['assignment'],
-    assigned_role: settings.assignedRole,
+    audience_type: settings.audienceType,
+    audience_all: settings.audienceAll,
+    assigned_shifts: settings.assignedShifts,
+    assigned_department_ids: settings.assignedDepartmentIds,
     assigned_department: payload.assigned_department ?? null,
     assigned_user_ids: settings.assignedUserIds,
-    subject_pool: payload.subject_pool ?? [],
     is_blocking: settings.isBlocking,
     definition,
   };
@@ -153,11 +168,16 @@ export function RoutineEditorPane({
       dueTime: doc.due_time,
       nextDue: doc.anchor_date || prev.nextDue,
       graceDays: String(doc.grace_days),
+      expireRule: doc.expire_rule,
+      expireCount: String(doc.expire_count),
+      expireUnit: doc.expire_unit,
+      expireFromTime: doc.expire_from_time || '',
       assignment: locked ? prev.assignment : doc.assignment,
-      assignedRole: doc.assigned_role,
-      assignedDepartment: doc.assigned_department ?? '',
+      audienceType: locked ? prev.audienceType : doc.audience_type,
+      audienceAll: doc.audience_all,
+      assignedShifts: doc.assigned_shifts,
+      assignedDepartmentIds: doc.assigned_department_ids,
       assignedUserIds: doc.assigned_user_ids,
-      subjectPool: doc.subject_pool.join('\n'),
       isBlocking: doc.is_blocking,
     }));
     setDefinition(doc.definition);
@@ -187,8 +207,11 @@ export function RoutineEditorPane({
         label: '',
         control: 'pass_fail',
         hint: '',
+        hint_es: '',
+        label_es: '',
         unit: '',
         critical: false,
+        verify_prev: false,
       });
     });
     setFocusCheckId(newId);
@@ -313,6 +336,16 @@ export function RoutineEditorPane({
                       fullWidth
                       sx={fieldSx}
                     />
+                    <TextField
+                      value={section.title_es || ''}
+                      onChange={(e) => edit((draft) => {
+                        draft.sections[sectionIndex].title_es = e.target.value;
+                      })}
+                      placeholder="Spanish title"
+                      size="small"
+                      fullWidth
+                      sx={fieldSx}
+                    />
                     <IconAction
                       label={definition.sections.length > 1 ? 'Remove section' : 'Keep at least one section'}
                       disabled={definition.sections.length <= 1}
@@ -366,8 +399,11 @@ export function RoutineEditorPane({
                       label: '',
                       control: 'pass_fail',
                       hint: '',
+                      hint_es: '',
+                      label_es: '',
                       unit: '',
                       critical: false,
+                      verify_prev: false,
                     }],
                   });
                 })}
@@ -443,6 +479,7 @@ function CheckEditorRow({
   };
 
   return (
+    <>
     <Box
       sx={{
         display: 'grid',
@@ -554,6 +591,33 @@ function CheckEditorRow({
         />
       </Box>
     </Box>
+    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr auto' }, gap: 1, mt: 1, px: 1 }}>
+      <TextField
+        value={check.label_es || ''}
+        onChange={(e) => onPatch({ label_es: e.target.value })}
+        placeholder="Spanish label"
+        size="small"
+        fullWidth
+        sx={fieldSx}
+      />
+      <TextField
+        value={check.hint_es || ''}
+        onChange={(e) => onPatch({ hint_es: e.target.value })}
+        placeholder="Spanish hint"
+        size="small"
+        fullWidth
+        sx={fieldSx}
+      />
+      <Button
+        size="small"
+        variant={check.verify_prev ? 'contained' : 'outlined'}
+        onClick={() => onPatch({ verify_prev: !check.verify_prev })}
+        sx={{ minHeight: 40, whiteSpace: 'nowrap' }}
+      >
+        Next shift confirms
+      </Button>
+    </Box>
+    </>
   );
 }
 

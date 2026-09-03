@@ -55,22 +55,34 @@ export function GradeDayBreakdown({ day }: { day: DayGrade | null }) {
         {keys.map((key) => {
           const row = day?.performed[key];
           const tag = row ? statusTag(row) : { label: 'No run', tone: 'plain' as const };
+          const checks = row?.verify?.checks ?? [];
           return (
-            <Box
-              key={key}
-              sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.6, minHeight: 30 }}
-            >
-              <Typography noWrap sx={{ flex: 1, minWidth: 0, fontSize: 13, color: dutyColors.ink }}>
-                {row?.title ?? key}
-              </Typography>
-              <Typography
-                noWrap
-                sx={{ width: 150, flexShrink: 0, fontSize: 12, color: dutyColors.ink40, textAlign: 'right' }}
-              >
-                {row?.completed_by_name ?? ''}
-              </Typography>
-              <Box sx={{ width: 84, flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
-                <StatusTag small label={tag.label} tone={tag.tone} />
+            <Box key={key} sx={{ py: 0.6 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minHeight: 30 }}>
+                <Typography noWrap sx={{ flex: 1, minWidth: 0, fontSize: 13, color: dutyColors.ink }}>
+                  {row?.title ?? key}
+                </Typography>
+                <Typography
+                  noWrap
+                  sx={{ width: 150, flexShrink: 0, fontSize: 12, color: dutyColors.ink40, textAlign: 'right' }}
+                >
+                  {row?.completed_by_name ?? ''}
+                </Typography>
+                <Box sx={{ width: 84, flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
+                  <StatusTag small label={tag.label} tone={tag.tone} />
+                </Box>
+              </Box>
+              <Box sx={{ pl: 0.25, minHeight: 18 }}>
+                {checks.length ? checks.map((check) => (
+                  <Typography key={check.check_id} sx={{ fontSize: 12, color: dutyColors.ink40, py: 0.1 }}>
+                    {check.label}
+                    {': '}
+                    {check.result || 'unanswered'}
+                    {check.their_result ? ` (they: ${check.their_result})` : ''}
+                  </Typography>
+                )) : (
+                  <Typography sx={{ fontSize: 12, color: dutyColors.ink15 }}>No verify on this list.</Typography>
+                )}
               </Box>
             </Box>
           );

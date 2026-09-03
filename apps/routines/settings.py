@@ -23,8 +23,6 @@ DEFAULTS: dict[str, float] = {
     # <= needs_work scores 50, beyond that 0.
     'audit_minor_max': 2,
     'audit_needs_work_max': 5,
-    # Fewer items than this is a glance, not an audit; the submit is refused.
-    'audit_min_items': 20,
     # Random checks drawn into the owner's daily spot check.
     'spot_check_count': 2,
     # Minutes with no cart on the register before the work-cycle prompt.

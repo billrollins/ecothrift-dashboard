@@ -23,9 +23,12 @@ class RoutineSerializer(serializers.ModelSerializer):
             'id', 'title', 'intro', 'icon', 'kind', 'system_key', 'verifies',
             'subject_source', 'definition', 'trigger', 'weekdays',
             'anchor_date', 'remind_time', 'due_time', 'late_after', 'grace_days',
-            'assignment', 'assigned_role',
+            'expire_rule', 'expire_count', 'expire_unit', 'expire_from_time',
+            'assignment', 'audience_type', 'audience_all',
+            'assigned_shifts', 'assigned_department_ids',
+            'assigned_role',
             'assigned_department', 'assigned_department_name', 'assigned_user_ids',
-            'subject_pool', 'is_blocking', 'is_active', 'created_at', 'updated_at',
+            'is_blocking', 'is_active', 'created_at', 'updated_at',
         ]
         read_only_fields = [
             'id', 'kind', 'system_key', 'assigned_department_name', 'created_at', 'updated_at',
@@ -40,27 +43,68 @@ class RoutineSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(errors)
         return value
 
-    def validate_subject_pool(self, value):
+    def validate_assigned_shifts(self, value):
         if not isinstance(value, list):
-            raise serializers.ValidationError('Sections must be a list.')
-        cleaned = [str(item).strip() for item in value]
-        if any(not item for item in cleaned):
-            raise serializers.ValidationError('Section names cannot be blank.')
-        if len(set(cleaned)) != len(cleaned):
-            raise serializers.ValidationError('Section names must be unique.')
+            raise serializers.ValidationError('Shifts must be a list.')
+        from apps.hr.shifts import SHIFT_ORDER
+        cleaned = []
+        for item in value:
+            code = str(item).strip()
+            if code not in SHIFT_ORDER:
+                raise serializers.ValidationError(f'Unknown shift {code}.')
+            if code not in cleaned:
+                cleaned.append(code)
         return cleaned
 
+    def validate_assigned_department_ids(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError('Departments must be a list.')
+        ids = []
+        for item in value:
+            try:
+                number = int(item)
+            except (TypeError, ValueError):
+                raise serializers.ValidationError('Department ids must be numbers.')
+            if number > 0 and number not in ids:
+                ids.append(number)
+        return ids
+
     def validate(self, attrs):
-        role = attrs.get('assigned_role', getattr(self.instance, 'assigned_role', ''))
-        dept = attrs.get('assigned_department', getattr(self.instance, 'assigned_department', None))
-        users = attrs.get('assigned_users', None)
-        if users is None and self.instance is not None:
-            users = self.instance.assigned_users.all()
-        has_users = bool(users)
-        if not role and not dept and not has_users:
-            raise serializers.ValidationError(
-                'Assign a person, a department, or a role.',
-            )
+        source = attrs.get(
+            'subject_source',
+            getattr(self.instance, 'subject_source', Routine.SUBJECT_POOL),
+        )
+        kind = attrs.get(
+            'audience_type',
+            getattr(self.instance, 'audience_type', Routine.AUDIENCE_PERSON),
+        )
+        everyone = attrs.get(
+            'audience_all',
+            getattr(self.instance, 'audience_all', False),
+        )
+        if source not in (Routine.SUBJECT_MY_SECTION, Routine.SUBJECT_OTHER_SECTION) and not everyone:
+            if kind == Routine.AUDIENCE_SHIFT:
+                shifts = attrs.get('assigned_shifts')
+                if shifts is None:
+                    shifts = getattr(self.instance, 'assigned_shifts', None) if self.instance else []
+                if not shifts:
+                    raise serializers.ValidationError('Pick a shift, or All shifts.')
+            elif kind == Routine.AUDIENCE_DEPARTMENT:
+                ids = attrs.get('assigned_department_ids')
+                if ids is None:
+                    ids = getattr(self.instance, 'assigned_department_ids', None) if self.instance else []
+                dept = attrs.get(
+                    'assigned_department',
+                    getattr(self.instance, 'assigned_department', None) if self.instance else None,
+                )
+                if not ids and not dept:
+                    raise serializers.ValidationError('Pick a department, or All departments.')
+            else:
+                users = attrs.get('assigned_users', None)
+                if users is None and self.instance is not None:
+                    users = self.instance.assigned_users.all()
+                if not users:
+                    raise serializers.ValidationError('Pick someone, or All staff.')
         trigger = attrs.get('trigger', getattr(self.instance, 'trigger', ''))
         anchor = attrs.get('anchor_date', getattr(self.instance, 'anchor_date', None))
         if trigger == Routine.TRIGGER_BIWEEKLY and not anchor:
@@ -71,6 +115,7 @@ class RoutineSerializer(serializers.ModelSerializer):
             locked = {
                 'trigger': self.instance.trigger,
                 'assignment': self.instance.assignment,
+                'audience_type': self.instance.audience_type,
                 'subject_source': self.instance.subject_source,
                 'verifies': self.instance.verifies_id,
                 'is_active': self.instance.is_active,
@@ -93,6 +138,24 @@ class RoutineSerializer(serializers.ModelSerializer):
             if errors:
                 raise serializers.ValidationError(errors)
         return attrs
+
+    def _sync_department(self, validated_data):
+        ids = validated_data.get('assigned_department_ids')
+        if ids is None:
+            return
+        if ids:
+            from apps.hr.models import Department
+            validated_data['assigned_department'] = Department.objects.filter(pk=ids[0]).first()
+        else:
+            validated_data['assigned_department'] = None
+
+    def create(self, validated_data):
+        self._sync_department(validated_data)
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        self._sync_department(validated_data)
+        return super().update(instance, validated_data)
 
 
 class SectionSerializer(serializers.ModelSerializer):
@@ -120,6 +183,7 @@ class RoutineRunSerializer(serializers.ModelSerializer):
     is_blocking = serializers.BooleanField(source='routine.is_blocking', read_only=True)
     trigger = serializers.CharField(source='routine.trigger', read_only=True)
     assignment = serializers.CharField(source='routine.assignment', read_only=True)
+    audience_type = serializers.CharField(source='routine.audience_type', read_only=True)
     kind = serializers.CharField(source='routine.kind', read_only=True)
     system_key = serializers.CharField(source='routine.system_key', read_only=True, default=None)
     section_name = serializers.CharField(source='section.name', read_only=True, default=None)
@@ -149,7 +213,7 @@ class RoutineRunSerializer(serializers.ModelSerializer):
             'id', 'routine', 'title', 'intro', 'period_key', 'subject', 'due_at',
             'remind_at', 'nag_at', 'late_at',
             'assigned_to', 'assigned_to_name', 'department_name', 'status',
-            'is_blocking', 'is_overdue', 'trigger', 'assignment', 'href',
+            'is_blocking', 'is_overdue', 'trigger', 'assignment', 'audience_type', 'href',
             'kind', 'system_key', 'section', 'section_name', 'generated',
             'completed_at', 'completed_by', 'completed_by_name', 'completed_late',
             'failed_count', 'has_critical_fail',
@@ -188,11 +252,12 @@ class RoutineSubmissionSerializer(serializers.ModelSerializer):
         source='submitted_by.full_name', read_only=True, default=None,
     )
     routine_title = serializers.CharField(source='routine.title', read_only=True)
+    kind = serializers.CharField(source='routine.kind', read_only=True)
 
     class Meta:
         model = RoutineSubmission
         fields = [
-            'id', 'routine', 'routine_title', 'run', 'submitted_by',
+            'id', 'routine', 'routine_title', 'kind', 'run', 'submitted_by',
             'submitted_by_name', 'status', 'responses', 'failed_count',
             'has_critical_fail', 'started_at', 'updated_at', 'submitted_at',
         ]

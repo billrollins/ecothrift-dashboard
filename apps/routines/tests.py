@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.db import IntegrityError
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -14,7 +15,8 @@ from apps.hr.models import Department
 
 from .definition import build_responses, merge_responses, score_responses, validate_definition
 from .grading import audit_score, day_grade, parse_week, score_run, week_grade
-from .kinds import outcome, submit_blockers
+from .kinds import non_shelf_checks, outcome, submit_blockers, verify_checks_for
+from .taxonomy import clean_counts, taxonomy
 from .models import Routine, RoutineRun, RoutineSubmission, Section, WorkCyclePrompt
 from .settings import letter_for, retail_qa_settings
 from .schedule import (
@@ -26,13 +28,16 @@ from .schedule import (
     SYSTEM_TALLY,
     SYSTEM_WORK_CYCLE,
     biweekly_period_start,
+    _upsert_run,
     due_at_for,
     is_overdue,
     materialize_routines,
+    miss_at,
+    next_spot_section,
     period_key_for,
     run_moments,
     should_run_on,
-    subject_for,
+    user_in_audience,
     was_late,
 )
 
@@ -145,13 +150,6 @@ class ScheduleTests(TestCase):
         due = due_at_for(routine, date(2026, 9, 1), tz=TZ)
         self.assertEqual(due.date(), date(2026, 9, 5))  # Saturday; Sunday closed
 
-    def test_subject_draw_is_deterministic(self):
-        routine = Routine(pk=7, subject_pool=['A', 'B', 'C'])
-        first = subject_for(routine, '2026-W36', 3)
-        second = subject_for(routine, '2026-W36', 3)
-        self.assertEqual(first, second)
-        self.assertIn(first, {'A', 'B', 'C'})
-
 
 class NagMomentTests(TestCase):
     """The three instants that decide how loud a run is allowed to get."""
@@ -232,7 +230,7 @@ class RoutineApiTests(APITestCase):
             trigger=Routine.TRIGGER_DAILY,
             due_time=time(17, 0),
             assignment=Routine.ASSIGN_POOLED,
-            assigned_role='Staff',
+            audience_all=True,
             is_blocking=True,
             created_by=self.owner,
         )
@@ -248,7 +246,7 @@ class RoutineApiTests(APITestCase):
             'trigger': 'biweekly',
             'due_time': '10:30:00',
             'assignment': 'pooled',
-            'assigned_role': 'Staff',
+            'audience_all': True,
         }, format='json')
         self.assertEqual(response.status_code, 400)
         created = self.client.post('/api/routines/routines/', {
@@ -258,7 +256,7 @@ class RoutineApiTests(APITestCase):
             'anchor_date': '2026-09-08',
             'due_time': '10:30:00',
             'assignment': 'pooled',
-            'assigned_role': 'Staff',
+            'audience_all': True,
         }, format='json')
         self.assertEqual(created.status_code, 201, created.data)
         self.assertEqual(created.data['anchor_date'], '2026-09-08')
@@ -271,7 +269,7 @@ class RoutineApiTests(APITestCase):
             'trigger': 'daily',
             'due_time': '17:00:00',
             'assignment': 'pooled',
-            'assigned_role': 'Staff',
+            'audience_all': True,
         }, format='json')
         self.assertEqual(response.status_code, 403)
 
@@ -297,6 +295,15 @@ class RoutineApiTests(APITestCase):
         self.assertEqual(run.due_at.astimezone(TZ).hour, 10)
         self.assertEqual(run.due_at.astimezone(TZ).minute, 30)
 
+    def test_a_create_race_does_not_500(self):
+        due = timezone.make_aware(datetime(2026, 9, 1, 17, 0), TZ)
+        extras = {'section': None, 'subject': '', 'generated': {}}
+        self.assertTrue(_upsert_run(self.routine, '2026-09-01', None, due, extras))
+        with patch.object(RoutineRun.objects, 'get_or_create', side_effect=IntegrityError('race')):
+            again = _upsert_run(self.routine, '2026-09-01', None, due, extras)
+        self.assertFalse(again)
+        self.assertEqual(RoutineRun.objects.filter(routine=self.routine).count(), 1)
+
     def test_saving_a_routine_creates_todays_run(self):
         self.client.force_authenticate(self.owner)
         with patch('apps.routines.schedule._local_now', return_value=self._open_tuesday_now()):
@@ -306,7 +313,7 @@ class RoutineApiTests(APITestCase):
                 'trigger': 'daily',
                 'due_time': '10:30:00',
                 'assignment': 'pooled',
-                'assigned_role': 'Staff',
+                'audience_all': True,
             }, format='json')
         self.assertEqual(response.status_code, 201, response.data)
         self.assertTrue(
@@ -359,9 +366,9 @@ class RoutineApiTests(APITestCase):
         self.assertEqual(second.status_code, 400)
 
     def test_superuser_can_start_a_pooled_run_they_are_not_assigned_to(self):
-        self.routine.assigned_department_id = None
-        self.routine.assigned_role = 'Employee'
-        self.routine.save(update_fields=['assigned_role'])
+        self.routine.audience_all = False
+        self.routine.save(update_fields=['audience_all'])
+        self.routine.assigned_users.set([self.employee])
         materialize_routines(date(2026, 9, 1))
         run = RoutineRun.objects.get()
         self.client.force_authenticate(self.owner)
@@ -546,7 +553,7 @@ class SectionRoutineTests(APITestCase):
             trigger=Routine.TRIGGER_DAILY,
             assignment=Routine.ASSIGN_PER_PERSON,
             assigned_department=self.department,
-            assigned_role='Staff',
+            assigned_department_ids=[self.department.pk],
             **fields,
         )
 
@@ -594,18 +601,19 @@ class SectionRoutineTests(APITestCase):
         run = RoutineRun.objects.get(routine=spot)
         drawn = run.generated['checks']
         self.assertEqual(len(drawn), 2)
-        self.assertEqual(run.section_id, self.sections[0].pk)
+        first_section = run.section_id
+        self.assertIn(first_section, {row.pk for row in self.sections})
 
         # A refresh must not reroll the sample somebody is halfway through.
         materialize_routines(date(2026, 9, 1))
         run.refresh_from_db()
         self.assertEqual(run.generated['checks'], drawn)
+        self.assertEqual(run.section_id, first_section)
 
         materialize_routines(date(2026, 9, 2))
-        self.assertEqual(
-            RoutineRun.objects.get(routine=spot, period_key='2026-09-02').section_id,
-            self.sections[1].pk,
-        )
+        second = RoutineRun.objects.get(routine=spot, period_key='2026-09-02')
+        self.assertIn(second.section_id, {row.pk for row in self.sections})
+        self.assertNotEqual(second.section_id, first_section)
 
     def test_owner_spot_picks_up_a_section_that_appeared_later(self):
         Section.objects.all().delete()
@@ -639,9 +647,14 @@ class SectionRoutineTests(APITestCase):
         materialize_routines(date(2026, 9, 1))
         run = RoutineRun.objects.get(assigned_to=self.sam)
 
-        self.client.force_authenticate(self.alex)
+        outsider = _staff('out@example.com')
+        self.client.force_authenticate(outsider)
         refused = self.client.post(f'/api/routines/runs/{run.pk}/cover/')
         self.assertEqual(refused.status_code, 403)
+
+        self.client.force_authenticate(self.alex)
+        already = self.client.post(f'/api/routines/runs/{run.pk}/cover/')
+        self.assertEqual(already.status_code, 400)
 
         self.client.force_authenticate(self.owner)
         covered = self.client.post(f'/api/routines/runs/{run.pk}/cover/')
@@ -651,6 +664,56 @@ class SectionRoutineTests(APITestCase):
 
         again = self.client.post(f'/api/routines/runs/{run.pk}/cover/')
         self.assertEqual(again.status_code, 400)
+
+    def test_spot_section_is_random_and_does_not_wrap(self):
+        Routine.objects.filter(system_key=SYSTEM_OPEN).update(
+            is_active=True, definition=DEFINITION,
+        )
+        spot = self._routine(title='Spot check', kind=Routine.KIND_OWNER_SPOT)
+        spot.assigned_users.set([self.owner])
+        day = date(2026, 9, 1)
+        picked = next_spot_section(spot, day)
+        self.assertIn(picked, self.sections)
+        for section in self.sections:
+            RoutineRun.objects.create(
+                routine=spot,
+                period_key=(day + timedelta(days=section.sort_order + 1)).isoformat(),
+                due_at=timezone.make_aware(datetime(2026, 9, 2, 17, 0), TZ),
+                assigned_to=self.owner,
+                section=section,
+                status=RoutineRun.STATUS_OPEN,
+            )
+        self.assertIsNone(next_spot_section(spot, day))
+
+    def test_reroll_section_picks_another_unseen_aisle(self):
+        Routine.objects.filter(system_key=SYSTEM_OPEN).update(
+            is_active=True, definition=DEFINITION,
+        )
+        spot = self._routine(title='Spot check', kind=Routine.KIND_OWNER_SPOT)
+        spot.assigned_users.set([self.owner])
+        materialize_routines(date(2026, 9, 1))
+        run = RoutineRun.objects.get(routine=spot)
+        first = run.section_id
+        self.client.force_authenticate(self.owner)
+        changed = self.client.post(f'/api/routines/runs/{run.pk}/reroll-section/')
+        self.assertEqual(changed.status_code, 200, changed.data)
+        run.refresh_from_db()
+        self.assertNotEqual(run.section_id, first)
+        self.assertIn(run.section_id, {row.pk for row in self.sections})
+
+        for section in self.sections:
+            if section.pk == run.section_id:
+                continue
+            RoutineRun.objects.create(
+                routine=spot,
+                period_key=f'2026-09-0{section.sort_order + 2}',
+                due_at=timezone.make_aware(datetime(2026, 9, 2, 17, 0), TZ),
+                assigned_to=self.owner,
+                section=section,
+                status=RoutineRun.STATUS_DONE,
+            )
+        refused = self.client.post(f'/api/routines/runs/{run.pk}/reroll-section/')
+        self.assertEqual(refused.status_code, 400)
 
 
 class SectionApiTests(APITestCase):
@@ -705,6 +768,48 @@ class SectionApiTests(APITestCase):
             'department': self.department.pk, 'name': 'Housewares',
         }, format='json')
         self.assertEqual(clash.status_code, 400)
+
+    def test_retired_section_can_be_edited_and_restored(self):
+        self.client.force_authenticate(self.owner)
+        self.client.delete(f'/api/routines/sections/{self.section.pk}/')
+        renamed = self.client.patch(
+            f'/api/routines/sections/{self.section.pk}/',
+            {'name': 'Linens', 'owner': None},
+            format='json',
+        )
+        self.assertEqual(renamed.status_code, 200, renamed.data)
+        self.assertEqual(renamed.data['name'], 'Linens')
+        self.assertIsNone(renamed.data['owner'])
+        self.assertFalse(renamed.data['is_active'])
+
+        restored = self.client.patch(
+            f'/api/routines/sections/{self.section.pk}/',
+            {'is_active': True},
+            format='json',
+        )
+        self.assertEqual(restored.status_code, 200, restored.data)
+        self.assertTrue(restored.data['is_active'])
+        self.assertEqual(len(self.client.get('/api/routines/sections/').data), 1)
+
+    def test_hard_delete_refuses_until_retired(self):
+        self.client.force_authenticate(self.owner)
+        blocked = self.client.delete(
+            f'/api/routines/sections/{self.section.pk}/hard-delete/',
+        )
+        self.assertEqual(blocked.status_code, 400)
+        self.assertTrue(Section.objects.filter(pk=self.section.pk).exists())
+
+        self.client.delete(f'/api/routines/sections/{self.section.pk}/')
+        gone = self.client.delete(
+            f'/api/routines/sections/{self.section.pk}/hard-delete/',
+        )
+        self.assertEqual(gone.status_code, 204)
+        self.assertFalse(Section.objects.filter(pk=self.section.pk).exists())
+        # The name is free again: a retired leftover used to block a new aisle.
+        again = self.client.post('/api/routines/sections/', {
+            'department': self.department.pk, 'name': 'Housewares',
+        }, format='json')
+        self.assertEqual(again.status_code, 201, again.data)
 
 
 class GradingTests(APITestCase):
@@ -789,12 +894,12 @@ class GradingTests(APITestCase):
 
     def test_a_clean_audit_scores_full_and_issues_step_it_down(self):
         self.assertEqual(audit_score(self._audit(), self.cfg), 100.0)
-        # One category with two issues: 75 there, 100 in the other seven.
+        # One graded group with two issues: 75 there, 100 in the other three.
         self.assertEqual(
-            audit_score(self._audit(counts={'reshelf': 2}), self.cfg), 96.9,
+            audit_score(self._audit(counts={'reshelf': 2}), self.cfg), 93.8,
         )
         self.assertEqual(
-            audit_score(self._audit(counts={'reshelf': 9}), self.cfg), 87.5,
+            audit_score(self._audit(counts={'reshelf': 9}), self.cfg), 75.0,
         )
 
     def test_recorded_categories_never_touch_the_score(self):
@@ -822,7 +927,7 @@ class GradingTests(APITestCase):
     def test_a_daily_tally_is_recorded_and_not_scored(self):
         tally = self._routine(SYSTEM_TALLY, kind=Routine.KIND_SECTION_TALLY)
         run = self._run(tally, self.TUESDAY, responses={'sections': [
-            {'section_id': self.housewares.pk, 'counts': {'hangers': 9}, 'flags': []},
+            {'section_id': self.housewares.pk, 'counts': {'reshelf': 9}, 'flags': []},
         ]})
         self.assertIsNone(score_run(run, self.cfg))
 
@@ -886,8 +991,8 @@ class GradingTests(APITestCase):
 
         week = week_grade(self.MONDAY, self.cfg)
         self.assertEqual(week['daily_average'], 100.0)
-        self.assertEqual(week['cross_check_average'], 87.5)
-        self.assertEqual(week['score'], 96.9)
+        self.assertEqual(week['cross_check_average'], 75.0)
+        self.assertEqual(week['score'], 93.8)
         self.assertEqual(week['letter'], 'A')
         self.assertEqual(week['cross_checks'][0]['auditor_name'], self.alex.full_name)
 
@@ -912,11 +1017,11 @@ class GradingTests(APITestCase):
             self._run(tally, day, responses={'sections': [{
                 'section_id': self.housewares.pk,
                 'section_name': 'Housewares',
-                'counts': {'hangers': count},
+                'counts': {'facing_blocking': count},
                 'flags': [],
             }]})
         rows = week_grade(self.MONDAY, self.cfg)['tallies']
-        self.assertEqual(rows[0]['counts']['hangers'], 7)
+        self.assertEqual(rows[0]['counts']['facing'], 7)
         self.assertEqual(rows[0]['walks'], 2)
 
     def test_calibration_shows_what_the_checker_walked_past(self):
@@ -977,7 +1082,7 @@ class RetailQaSettingsTests(TestCase):
         self.assertEqual(cfg['owner_weight'], 0.7)
         # Unparsable is the same as unset: the shipped default, not a crash.
         self.assertEqual(cfg['grade_a'], 90)
-        self.assertEqual(cfg['audit_min_items'], 20)
+        self.assertEqual(cfg['spot_check_count'], 2)
 
     def test_letters_follow_the_stored_boundaries(self):
         self.assertEqual(letter_for(89.9), 'B')
@@ -1004,6 +1109,14 @@ class SectionSubmitTests(APITestCase):
         Routine.objects.filter(system_key=SYSTEM_CROSS_CHECK).update(
             is_active=True, assigned_department=self.department, weekdays=[1],
         )
+        pinned = (
+            timezone.make_aware(datetime(2026, 9, 1, 12, 0), TZ),
+            {'closed_weekdays': [0, 6], 'timezone': 'America/Chicago'},
+            TZ,
+        )
+        clock = patch('apps.routines.schedule._local_now', return_value=pinned)
+        clock.start()
+        self.addCleanup(clock.stop)
         materialize_routines(self.DAY)
         self.run = RoutineRun.objects.get(
             routine__system_key=SYSTEM_CROSS_CHECK, assigned_to=self.sam,
@@ -1033,15 +1146,9 @@ class SectionSubmitTests(APITestCase):
     def test_the_draft_opens_on_the_section_it_was_assigned(self):
         self.assertEqual(self.run.section_id, Section.objects.get(name='Toys').pk)
 
-    def test_no_photo_no_submit(self):
-        refused = self._submit(items_inspected=30)
-        self.assertEqual(refused.status_code, 400)
-        self.assertIn('Take the wide shot of the section first.', refused.data['detail'])
-
-    def test_a_glance_at_four_items_is_not_an_audit(self):
-        refused = self._submit(photo='data:image/png;base64,iVBORw0KGgo=', items_inspected=4)
-        self.assertEqual(refused.status_code, 400)
-        self.assertIn('Inspect at least 20 items before submitting.', refused.data['detail'])
+    def test_a_walk_closes_without_a_photo_or_item_count(self):
+        done = self._submit(counts={'reshelf': 3, 'clean': 8}, flags=['low_stock'], notes='Back wall thin.')
+        self.assertEqual(done.status_code, 200, done.data)
 
     def test_a_real_audit_closes_the_run_and_scores(self):
         done = self._submit(
@@ -1054,8 +1161,8 @@ class SectionSubmitTests(APITestCase):
         self.assertEqual(done.status_code, 200, done.data)
         self.run.refresh_from_db()
         self.assertEqual(self.run.status, RoutineRun.STATUS_DONE)
-        # 3 reshelf scores 50 in that category; the churn count does not touch it.
-        self.assertEqual(score_run(self.run), 93.8)
+        # 3 reshelf scores 50 in that group; the other three groups stay 100.
+        self.assertEqual(score_run(self.run), 87.5)
         # The photo is stored and the data URL is replaced by its own URL.
         self.assertTrue(self.run.submission.responses['photo'].startswith('/api/routines/'))
 
@@ -1105,11 +1212,13 @@ class CleanupMigrationTests(TestCase):
             trigger=Routine.TRIGGER_DAILY,
             assigned_role='Staff',
         )
+        RoutineSubmission.objects.create(routine=leftover, responses={})
         import importlib
         from django.apps import apps
         cleanup = importlib.import_module('apps.routines.migrations.0006_retail_qa_cleanup').cleanup
         cleanup(apps, None)
         self.assertFalse(Routine.objects.filter(pk=leftover.pk).exists())
+        self.assertFalse(RoutineSubmission.objects.filter(routine=leftover).exists())
         opening = Routine.objects.get(system_key=SYSTEM_OPEN)
         self.assertEqual(opening.title, 'Retail opening')
         cycle = Routine.objects.get(system_key=SYSTEM_WORK_CYCLE)
@@ -1166,6 +1275,11 @@ class WorkCycleApiTests(APITestCase):
         self.assertIn('taxonomy', response.data.get('runner') or {})
         self.assertIn('non_shelf_checks', response.data['runner'])
 
+        spot = Routine.objects.get(system_key=SYSTEM_OWNER_SPOT)
+        spot_row = self.client.get(f'/api/routines/routines/{spot.pk}/')
+        self.assertEqual(spot_row.status_code, 200, spot_row.data)
+        self.assertIn('taxonomy', spot_row.data.get('runner') or {})
+
     def test_mine_lists_drafts(self):
         self.client.force_authenticate(self.staff)
         started = self.client.post('/api/routines/submissions/', {
@@ -1179,6 +1293,19 @@ class WorkCycleApiTests(APITestCase):
         self.assertTrue(any(row['id'] == started.data['id'] for row in drafts))
         self.assertGreaterEqual(mine.data.get('idle_prompt_minutes') or 0, 1)
 
+    def test_discard_draft_drops_it_from_mine(self):
+        self.client.force_authenticate(self.staff)
+        started = self.client.post('/api/routines/submissions/', {
+            'routine': self.cycle.pk,
+            'mode': 'shelf',
+        }, format='json')
+        self.assertEqual(started.status_code, 201, started.data)
+        gone = self.client.delete(f'/api/routines/submissions/{started.data["id"]}/')
+        self.assertEqual(gone.status_code, 204)
+        mine = self.client.get('/api/routines/runs/mine/')
+        drafts = mine.data.get('drafts') or []
+        self.assertFalse(any(row['id'] == started.data['id'] for row in drafts))
+
     def test_prompt_logs_a_dismissal(self):
         self.client.force_authenticate(self.staff)
         response = self.client.post('/api/routines/work-cycle/prompt/', {
@@ -1188,6 +1315,377 @@ class WorkCycleApiTests(APITestCase):
         }, format='json')
         self.assertEqual(response.status_code, 201, response.data)
         self.assertEqual(WorkCyclePrompt.objects.filter(outcome='dismissed').count(), 1)
+
+
+class TaxonomyV2Tests(TestCase):
+    def test_counts_store_items_and_score_by_group(self):
+        payload = taxonomy()
+        self.assertTrue(payload['groups'])
+        self.assertEqual([row['key'] for row in payload['graded']], [
+            'facing', 'reshelf', 'reprep', 'security',
+        ])
+        cleaned = clean_counts({
+            'facing_blocking': 2,
+            'hangers': 9,
+            'clean_dirty': 4,
+            'reshelf': 1,
+        })
+        self.assertEqual(cleaned['facing_blocking'], 2)
+        self.assertEqual(cleaned['reshelf'], 1)
+        self.assertNotIn('hangers', cleaned)
+        self.assertNotIn('clean_dirty', cleaned)
+
+    def test_non_shelf_reads_day_not_open(self):
+        checks = non_shelf_checks()
+        ids = {row['check_id'] for row in checks}
+        self.assertIn('d01', ids)
+        self.assertNotIn('o31', ids)
+        self.assertNotIn('c42', ids)
+
+
+class ProgramV2Tests(TestCase):
+    def test_open_day_close_are_the_52_items(self):
+        opening = Routine.objects.get(system_key=SYSTEM_OPEN)
+        day = Routine.objects.get(system_key=SYSTEM_DAY)
+        close = Routine.objects.get(system_key=SYSTEM_CLOSE)
+        self.assertEqual(opening.title, 'Retail open')
+        self.assertEqual(day.title, 'Retail day')
+        self.assertEqual(close.title, 'Retail close')
+        self.assertIsNone(day.due_time)
+        open_ids = [check['id'] for section in opening.definition['sections'] for check in section['checks']]
+        day_ids = [check['id'] for section in day.definition['sections'] for check in section['checks']]
+        close_ids = [check['id'] for section in close.definition['sections'] for check in section['checks']]
+        self.assertEqual(len(open_ids), 11)
+        self.assertEqual(len(day_ids), 30)
+        self.assertEqual(len(close_ids), 11)
+        self.assertTrue(any(
+            check['id'] == 'o31' and check.get('verify_prev')
+            for section in opening.definition['sections']
+            for check in section['checks']
+        ))
+        self.assertTrue(any(check.get('label_es') for section in day.definition['sections'] for check in section['checks']))
+
+
+class VerifyCheckTests(TestCase):
+    def test_every_verify_check_must_be_answered(self):
+        opening = Routine.objects.get(system_key=SYSTEM_OPEN)
+        expected = verify_checks_for(opening)
+        self.assertTrue(expected)
+        responses = {
+            'sections': opening.definition['sections'],
+            'verify': {'run_id': None, 'checks': [{**row, 'result': ''} for row in expected]},
+        }
+        # Fill the checklist so only verify is blocking.
+        for section in responses['sections']:
+            for check in section['checks']:
+                check['result'] = 'pass'
+                check['control'] = 'pass_fail'
+        problems = submit_blockers(opening, responses, min_items=20)
+        self.assertTrue(any('last shift' in item.lower() for item in problems))
+        responses['verify']['checks'] = [{**row, 'result': 'pass'} for row in expected]
+        self.assertEqual(submit_blockers(opening, responses, min_items=20), [])
+
+
+class TodayEndpointTests(APITestCase):
+    def setUp(self):
+        self.staff = _staff('today@example.com')
+        Routine.objects.filter(
+            system_key__in=(SYSTEM_OPEN, SYSTEM_DAY, SYSTEM_CLOSE, SYSTEM_WORK_CYCLE),
+        ).update(
+            is_active=True, assigned_role='Staff', assigned_department=None,
+        )
+
+    def test_open_shift_points_at_the_opening_run(self):
+        from apps.hr.models import TimeEntry
+        pinned = (
+            timezone.make_aware(datetime(2026, 9, 1, 12, 0), TZ),
+            {'closed_weekdays': [0, 6], 'timezone': 'America/Chicago'},
+            TZ,
+        )
+        self.client.force_authenticate(self.staff)
+        with patch('apps.routines.schedule._local_now', return_value=pinned):
+            materialize_routines(date(2026, 9, 1))
+            TimeEntry.objects.create(
+                employee=self.staff,
+                clock_in=pinned[0],
+                shift='retail_open',
+            )
+            response = self.client.get('/api/routines/today/')
+            mine = self.client.get('/api/routines/runs/mine/')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data['shift'], 'retail_open')
+        self.assertEqual(response.data['shift_label'], 'Cashier - Open')
+        self.assertEqual(response.data['shift_department'], 'Retail')
+        self.assertTrue(response.data['start_with'])
+        self.assertEqual(response.data['start_with']['system_key'], SYSTEM_OPEN)
+        self.assertTrue(response.data['verify_of'])
+        self.assertIn('href', response.data['start_with'])
+        self.assertIn(SYSTEM_OPEN, [row['system_key'] for row in mine.data['open']])
+        due_keys = [row['system_key'] for row in response.data['open']]
+        self.assertNotIn(SYSTEM_CLOSE, due_keys)
+        self.assertNotIn(SYSTEM_DAY, due_keys)
+        self.assertNotIn(SYSTEM_OPEN, due_keys)
+        self.assertTrue(any(row['system_key'] == SYSTEM_WORK_CYCLE for row in response.data['on_demand']))
+
+    def test_processing_has_no_start_with(self):
+        from apps.hr.models import TimeEntry
+        self.client.force_authenticate(self.staff)
+        TimeEntry.objects.create(
+            employee=self.staff,
+            clock_in=timezone.now(),
+            shift='processing',
+        )
+        response = self.client.get('/api/routines/today/')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertIsNone(response.data['start_with'])
+        due_keys = [row['system_key'] for row in response.data['open']]
+        self.assertNotIn(SYSTEM_OPEN, due_keys)
+        self.assertNotIn(SYSTEM_DAY, due_keys)
+        self.assertNotIn(SYSTEM_CLOSE, due_keys)
+        self.assertFalse(any(row['system_key'] == SYSTEM_WORK_CYCLE for row in response.data['on_demand']))
+
+    def test_clocked_out_hides_shift_checklists(self):
+        self.client.force_authenticate(self.staff)
+        pinned = (
+            timezone.make_aware(datetime(2026, 9, 1, 12, 0), TZ),
+            {'closed_weekdays': [0, 6], 'timezone': 'America/Chicago'},
+            TZ,
+        )
+        with patch('apps.routines.schedule._local_now', return_value=pinned):
+            materialize_routines(date(2026, 9, 1))
+            response = self.client.get('/api/routines/today/')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertIsNone(response.data['start_with'])
+        due_keys = [row['system_key'] for row in response.data['open']]
+        self.assertNotIn(SYSTEM_OPEN, due_keys)
+        self.assertNotIn(SYSTEM_DAY, due_keys)
+        self.assertNotIn(SYSTEM_CLOSE, due_keys)
+        self.assertFalse(any(row['system_key'] == SYSTEM_WORK_CYCLE for row in response.data['on_demand']))
+
+
+class MissExpireTests(APITestCase):
+    """Missed-if-not-done is a separate clock from Counts as late."""
+
+    def _unsaved(self, **routine_kwargs) -> RoutineRun:
+        fields = {
+            'trigger': Routine.TRIGGER_DAILY,
+            'due_time': time(10, 0),
+            'expire_rule': Routine.EXPIRE_NEVER,
+            **routine_kwargs,
+        }
+        routine = Routine(**fields)
+        due = due_at_for(routine, date(2026, 9, 2), tz=TZ)
+        return RoutineRun(routine=routine, due_at=due, status=RoutineRun.STATUS_OPEN)
+
+    def test_miss_at_never_end_of_day_and_six_hours(self):
+        self.assertIsNone(miss_at(self._unsaved()))
+        end = timezone.localtime(miss_at(self._unsaved(expire_rule=Routine.EXPIRE_END_OF_DAY)))
+        self.assertEqual(end.date(), date(2026, 9, 2))
+        self.assertEqual(end.time(), time(23, 59))
+        six = miss_at(self._unsaved(
+            expire_rule=Routine.EXPIRE_AFTER,
+            expire_count=6,
+            expire_unit=Routine.EXPIRE_UNIT_HOURS,
+            expire_from_time=time(8, 30),
+        ))
+        self.assertEqual(
+            timezone.localtime(six),
+            timezone.make_aware(datetime(2026, 9, 2, 14, 30), TZ),
+        )
+
+    def test_materialize_marks_an_expired_open_run_missed(self):
+        routine = Routine.objects.create(
+            title='Day walk',
+            definition=DEFINITION,
+            trigger=Routine.TRIGGER_DAILY,
+            due_time=time(10, 0),
+            audience_all=True,
+            expire_rule=Routine.EXPIRE_END_OF_DAY,
+        )
+        yesterday = timezone.localtime(timezone.now()).date() - timedelta(days=1)
+        due = timezone.make_aware(datetime.combine(yesterday, time(10, 0)), TZ)
+        run = RoutineRun.objects.create(
+            routine=routine,
+            due_at=due,
+            period_key=yesterday.isoformat(),
+            status=RoutineRun.STATUS_OPEN,
+        )
+        materialize_routines()
+        run.refresh_from_db()
+        self.assertEqual(run.status, RoutineRun.STATUS_MISSED)
+
+    def test_submit_after_expire_is_refused(self):
+        user = _staff('miss-submit@example.com')
+        routine = Routine.objects.create(
+            title='Close walk',
+            definition=DEFINITION,
+            trigger=Routine.TRIGGER_DAILY,
+            due_time=time(10, 0),
+            audience_all=True,
+            expire_rule=Routine.EXPIRE_END_OF_DAY,
+        )
+        yesterday = timezone.localtime(timezone.now()).date() - timedelta(days=1)
+        run = RoutineRun.objects.create(
+            routine=routine,
+            due_at=timezone.make_aware(datetime.combine(yesterday, time(10, 0)), TZ),
+            period_key=yesterday.isoformat(),
+            status=RoutineRun.STATUS_OPEN,
+        )
+        self.client.force_authenticate(user)
+        created = self.client.post('/api/routines/submissions/', {
+            'routine': routine.pk,
+            'run': run.pk,
+        }, format='json')
+        self.assertEqual(created.status_code, 400, created.data)
+        self.assertIn('missed', str(created.data['detail']).lower())
+        run.refresh_from_db()
+        self.assertEqual(run.status, RoutineRun.STATUS_MISSED)
+
+    def test_never_still_submits_the_next_week(self):
+        user = _staff('filter@example.com')
+        routine = Routine.objects.create(
+            title='Change air filter',
+            definition=DEFINITION,
+            trigger=Routine.TRIGGER_MONTHLY,
+            due_time=time(17, 0),
+            audience_all=True,
+            expire_rule=Routine.EXPIRE_NEVER,
+        )
+        last_week = timezone.localtime(timezone.now()).date() - timedelta(days=8)
+        run = RoutineRun.objects.create(
+            routine=routine,
+            due_at=timezone.make_aware(datetime.combine(last_week, time(17, 0)), TZ),
+            period_key=last_week.isoformat(),
+            status=RoutineRun.STATUS_OPEN,
+        )
+        self.client.force_authenticate(user)
+        created = self.client.post('/api/routines/submissions/', {
+            'routine': routine.pk,
+            'run': run.pk,
+        }, format='json')
+        self.assertEqual(created.status_code, 201, created.data)
+        responses = created.data['responses']
+        responses['sections'][0]['checks'][0]['result'] = 'pass'
+        responses['sections'][0]['checks'][1]['value'] = 4
+        submitted = self.client.post(
+            f'/api/routines/submissions/{created.data["id"]}/submit/',
+            {'responses': responses},
+            format='json',
+        )
+        self.assertEqual(submitted.status_code, 200, submitted.data)
+        run.refresh_from_db()
+        self.assertEqual(run.status, RoutineRun.STATUS_DONE)
+
+    def test_program_expire_rules(self):
+        opening = Routine.objects.get(system_key=SYSTEM_OPEN)
+        self.assertEqual(opening.expire_rule, Routine.EXPIRE_AFTER)
+        self.assertEqual(opening.expire_count, 6)
+        self.assertEqual(opening.expire_unit, Routine.EXPIRE_UNIT_HOURS)
+        self.assertEqual(opening.expire_from_time, time(8, 30))
+        for key in (SYSTEM_DAY, SYSTEM_CLOSE, SYSTEM_TALLY, SYSTEM_OWNER_SPOT, SYSTEM_CROSS_CHECK):
+            row = Routine.objects.get(system_key=key)
+            self.assertEqual(row.expire_rule, Routine.EXPIRE_END_OF_DAY, key)
+        cycle = Routine.objects.get(system_key=SYSTEM_WORK_CYCLE)
+        self.assertEqual(cycle.expire_rule, Routine.EXPIRE_NEVER)
+
+
+class AudienceTests(APITestCase):
+    """My Day follows person / shift / department, not standing Staff x department."""
+
+    def test_user_in_audience_person_shift_department(self):
+        from apps.accounts.models import EmployeeProfile
+        from apps.hr.models import TimeEntry
+        retail = Department.objects.create(name='Retail Ops')
+        named = _staff('named@example.com')
+        other = _staff('other@example.com')
+        EmployeeProfile.objects.create(
+            user=named, employee_number='N1', department=retail, hire_date=date(2026, 1, 1),
+        )
+        everyone = Routine(audience_type=Routine.AUDIENCE_PERSON, audience_all=True)
+        self.assertTrue(user_in_audience(everyone, named))
+        self.assertTrue(user_in_audience(everyone, other))
+        picked = Routine.objects.create(
+            title='Named walk',
+            definition=DEFINITION,
+            audience_type=Routine.AUDIENCE_PERSON,
+            audience_all=False,
+        )
+        picked.assigned_users.set([named])
+        self.assertTrue(user_in_audience(picked, named))
+        self.assertFalse(user_in_audience(picked, other))
+        shift_row = Routine(
+            audience_type=Routine.AUDIENCE_SHIFT,
+            audience_all=False,
+            assigned_shifts=['retail_open'],
+        )
+        self.assertFalse(user_in_audience(shift_row, named, shift=''))
+        self.assertTrue(user_in_audience(shift_row, named, shift='retail_open'))
+        self.assertFalse(user_in_audience(shift_row, named, shift='processing'))
+        dept_row = Routine(
+            audience_type=Routine.AUDIENCE_DEPARTMENT,
+            audience_all=False,
+            assigned_department_ids=[retail.pk],
+        )
+        self.assertTrue(user_in_audience(dept_row, named))
+        self.assertFalse(user_in_audience(dept_row, other))
+        TimeEntry.objects.create(
+            employee=named,
+            date=timezone.localtime(timezone.now()).date(),
+            clock_in=timezone.now(),
+            shift='retail_open',
+        )
+        self.assertTrue(user_in_audience(shift_row, named))
+
+    def test_clocked_out_superuser_does_not_see_shift_runs(self):
+        admin = _staff('boss@example.com', 'Admin', superuser=True)
+        person = Routine.objects.create(
+            title='Air filter',
+            definition=DEFINITION,
+            trigger=Routine.TRIGGER_DAILY,
+            due_time=time(17, 0),
+            audience_type=Routine.AUDIENCE_PERSON,
+            audience_all=True,
+        )
+        Routine.objects.exclude(pk=person.pk).exclude(
+            system_key__in=(SYSTEM_OPEN, SYSTEM_DAY, SYSTEM_CLOSE),
+        ).update(is_active=False)
+        Routine.objects.filter(
+            system_key__in=(SYSTEM_OPEN, SYSTEM_DAY, SYSTEM_CLOSE),
+        ).update(is_active=True)
+        pinned = (
+            timezone.make_aware(datetime(2026, 9, 1, 12, 0), TZ),
+            {'closed_weekdays': [0, 6], 'timezone': 'America/Chicago'},
+            TZ,
+        )
+        self.client.force_authenticate(admin)
+        with patch('apps.routines.schedule._local_now', return_value=pinned):
+            materialize_routines(date(2026, 9, 1))
+            mine = self.client.get('/api/routines/runs/mine/')
+        self.assertEqual(mine.status_code, 200, mine.data)
+        keys = [row['system_key'] for row in mine.data['open']]
+        self.assertIn(None, keys)
+        self.assertNotIn(SYSTEM_OPEN, keys)
+        self.assertNotIn(SYSTEM_DAY, keys)
+        self.assertNotIn(SYSTEM_CLOSE, keys)
+
+    def test_program_audience_rules(self):
+        opening = Routine.objects.get(system_key=SYSTEM_OPEN)
+        self.assertEqual(opening.audience_type, Routine.AUDIENCE_SHIFT)
+        self.assertEqual(opening.assigned_shifts, ['retail_open'])
+        self.assertFalse(opening.audience_all)
+        self.assertEqual(opening.assignment, Routine.ASSIGN_POOLED)
+        day = Routine.objects.get(system_key=SYSTEM_DAY)
+        self.assertEqual(day.assigned_shifts, ['retail_day'])
+        close = Routine.objects.get(system_key=SYSTEM_CLOSE)
+        self.assertEqual(close.assigned_shifts, ['retail_close'])
+        cycle = Routine.objects.get(system_key=SYSTEM_WORK_CYCLE)
+        self.assertEqual(cycle.audience_type, Routine.AUDIENCE_SHIFT)
+        self.assertEqual(cycle.assigned_shifts, [
+            'retail_open', 'retail_day', 'retail_close', 'retail_cs',
+        ])
+        spot = Routine.objects.get(system_key=SYSTEM_OWNER_SPOT)
+        self.assertEqual(spot.audience_type, Routine.AUDIENCE_PERSON)
+        self.assertFalse(spot.audience_all)
 
 
 class NoDashesTests(TestCase):

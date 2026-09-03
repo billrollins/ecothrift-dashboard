@@ -8,9 +8,7 @@ import { auditFindings, letterTone } from './gradeWeek';
 import { GradeCard, GradeEmpty } from './gradeParts';
 
 /**
- * The Tuesday audits, each with the wide shot that had to be taken before the
- * counters unlocked. The photo is the whole reason a zero can be trusted, so
- * it sits in the row rather than behind a click.
+ * The Tuesday audits. A photo sits in the row when someone took one.
  */
 export function GradeCrossChecks({
   rows,
@@ -62,7 +60,9 @@ export function GradeCrossChecks({
                   {' · '}
                   {format(parseISO(row.date), 'EEE MMM d')}
                   {' · '}
-                  {done ? `${row.items_inspected} items inspected` : 'no walk, scored zero'}
+                  {done
+                    ? (row.items_inspected ? `${row.items_inspected} items inspected` : 'walked')
+                    : 'no walk, scored zero'}
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.75, minHeight: 20 }}>
                   {row.flags.map((flag) => (
@@ -115,7 +115,7 @@ function Chip({ label, good }: { label: string; good?: boolean }) {
 
 function Thumb({ photo }: { photo: string | null }) {
   return (
-    <Tooltip title={photo ? 'The wide shot taken before the counters unlocked' : 'No photo on this audit'}>
+    <Tooltip title={photo ? 'The wide shot of the section' : 'No photo on this audit'}>
       <Box
         sx={{
           width: 76,

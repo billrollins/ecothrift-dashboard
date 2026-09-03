@@ -1,19 +1,15 @@
-import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from '@mui/material';
-import DeleteOutline from '@mui/icons-material/DeleteOutline';
-import EditOutlined from '@mui/icons-material/EditOutlined';
-import { useMemo, useState } from 'react';
+import { Box, Typography } from '@mui/material';
+import { useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { GroupHeader } from '../../components/duty/GroupHeader';
 import { StatusTag } from '../../components/duty/StatusTag';
-import { TaskRow, TaskRowAction, TaskRowIcon } from '../../components/duty/TaskRow';
+import { TaskRow, TaskRowAction } from '../../components/duty/TaskRow';
 import { dutyColors, thinScrollSx } from '../../components/duty/tokens';
 import { useAuth } from '../../hooks/useAuth';
-import { useDeleteRoutine, useRoutines } from '../../hooks/useRoutines';
+import { useRoutines } from '../../hooks/useRoutines';
+import { pick, t, triggerLabel } from '../../i18n/routines';
 import type { Routine } from '../../api/routines.api';
-import { useSnackbar } from 'notistack';
-import { groupCatalog } from './groupCatalog';
-import { matchesQuery } from './matchesQuery';
-import { TRIGGER_LABELS } from './RoutineEditorPane';
+import { UNASSIGNED_GROUP, groupCatalog } from './groupCatalog';
 import { RoutineListHeader } from './RoutineListHeader';
 import { triggerGlyphIcon } from './routineGlyphs';
 
@@ -25,118 +21,70 @@ function friendlyTime(hhmmss: string): string {
   return `${hour}:${String(m || 0).padStart(2, '0')}${suffix}`;
 }
 
-function routineMeta(routine: Routine): string {
-  const trigger = TRIGGER_LABELS[routine.trigger] ?? routine.trigger;
-  const who = routine.assignment === 'pooled' ? 'pooled' : 'per person';
+function routineMeta(routine: Routine, language: string): string {
+  const trigger = triggerLabel(routine.trigger, language);
+  const who = routine.assignment === 'pooled' ? t('oneShared', language) : t('each', language);
   const checks = (routine.definition?.sections ?? []).reduce((sum, s) => sum + (s.checks?.length ?? 0), 0);
-  const when = routine.trigger === 'on_demand' ? trigger : `${trigger} at ${friendlyTime(routine.due_time || '')}`;
-  return `${when} · ${who} · ${checks} check${checks === 1 ? '' : 's'}`;
+  const when = routine.trigger === 'on_demand'
+    ? trigger
+    : `${trigger} ${t('at', language)} ${friendlyTime(routine.due_time || '')}`;
+  const checkWord = checks === 1 ? t('check', language) : t('checks', language);
+  return `${when} · ${who} · ${checks} ${checkWord}`;
 }
 
-export function CatalogPane({ desktop: _desktop }: { desktop: boolean }) {
+export function CatalogPane({ desktop }: { desktop: boolean }) {
   const { user } = useAuth();
+  const lang = user?.language === 'es' ? 'es' : 'en';
   const navigate = useNavigate();
-  const { enqueueSnackbar } = useSnackbar();
   const [params] = useSearchParams();
   const selectedId = Number(params.get('view') || 0) || null;
   const catalog = useRoutines();
-  const remove = useDeleteRoutine();
-  const canEdit = Boolean(user?.is_superuser);
-  const [query, setQuery] = useState('');
-  const groups = useMemo(() => {
-    const filtered = (catalog.data ?? []).filter((routine) => routine.is_active && matchesQuery(
-      query,
-      routine.title,
-      routine.intro,
-      routine.assigned_department_name,
-    ));
-    return groupCatalog(filtered);
-  }, [catalog.data, query]);
-  const [pendingDelete, setPendingDelete] = useState<Routine | null>(null);
+  const groups = useMemo(
+    () => groupCatalog((catalog.data ?? []).filter((routine) => routine.is_active)),
+    [catalog.data],
+  );
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: dutyColors.paper }}>
       <RoutineListHeader
         view="catalog"
+        desktop={desktop}
         onView={(next) => navigate(next === 'catalog' ? '/routines/catalog' : '/routines')}
-        eyebrow="All departments"
-        note={catalog.isError ? 'Could not load the catalog.' : 'View, edit, or retire any routine.'}
-        noteIsError={catalog.isError}
-        canCreate={canEdit}
-        onCreate={() => navigate('/routines/new')}
-        query={query}
-        onQuery={setQuery}
+        error={catalog.isError ? t('couldNotLoad', lang) : undefined}
       />
       <Box sx={{ flex: 1, overflow: 'auto', pb: 2, ...thinScrollSx }}>
         {groups.length ? groups.map((group) => (
           <Box key={group.name}>
-            <GroupHeader title={group.name} count={group.routines.length} />
+            <GroupHeader
+              title={group.name === UNASSIGNED_GROUP ? t('unassigned', lang) : group.name}
+              count={group.routines.length}
+            />
             {group.routines.map((routine) => (
               <TaskRow
                 key={routine.id}
-                title={routine.title}
+                title={pick(routine, 'title', lang) || routine.title}
                 tone={routine.is_blocking ? 'violet' : 'brand'}
                 glyph={triggerGlyphIcon(routine.trigger)}
-                meta={routineMeta(routine)}
+                meta={routineMeta(routine, lang)}
                 selected={selectedId === routine.id}
                 onClick={() => navigate(`/routines/catalog?view=${routine.id}`)}
-                tags={routine.is_blocking ? <StatusTag small label="Blocking" tone="violet" /> : null}
+                tags={routine.is_blocking ? <StatusTag small label={t('blocking', lang)} tone="violet" /> : null}
                 actions={(
-                  <>
-                    <TaskRowAction
-                      label="View"
-                      primary={selectedId === routine.id}
-                      onClick={() => navigate(`/routines/catalog?view=${routine.id}`)}
-                    />
-                    <TaskRowIcon
-                      label="Edit routine"
-                      icon={<EditOutlined sx={{ fontSize: 17 }} />}
-                      disabled={!canEdit}
-                      onClick={() => navigate(`/routines/${routine.id}/edit`)}
-                    />
-                    <TaskRowIcon
-                      label="Delete routine"
-                      danger
-                      icon={<DeleteOutline sx={{ fontSize: 17 }} />}
-                      disabled={!canEdit}
-                      onClick={() => setPendingDelete(routine)}
-                    />
-                  </>
+                  <TaskRowAction
+                    label={t('view', lang)}
+                    primary={selectedId === routine.id}
+                    onClick={() => navigate(`/routines/catalog?view=${routine.id}`)}
+                  />
                 )}
               />
             ))}
           </Box>
         )) : (
           <Typography sx={{ px: 2.5, py: 2, fontSize: 12.5, color: dutyColors.ink40, minHeight: 20 }}>
-            {query.trim() ? 'Nothing matches that filter.' : 'None'}
+            {t('none', lang)}
           </Typography>
         )}
       </Box>
-      <Dialog open={Boolean(pendingDelete)} onClose={() => setPendingDelete(null)}>
-        <DialogTitle>Delete this routine?</DialogTitle>
-        <DialogContent>
-          {pendingDelete
-            ? `${pendingDelete.title} will leave the catalog and everyone's lists. You can restore it later from Admin.`
-            : ' '}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPendingDelete(null)}>Keep</Button>
-          <Button
-            color="error"
-            disabled={remove.isPending}
-            onClick={() => {
-              if (!pendingDelete) return;
-              void remove.mutateAsync(pendingDelete.id).then(() => {
-                enqueueSnackbar(`${pendingDelete.title} deleted`, { variant: 'success' });
-                setPendingDelete(null);
-                if (selectedId === pendingDelete.id) navigate('/routines/catalog');
-              }).catch(() => enqueueSnackbar('Could not delete that routine', { variant: 'error' }));
-            }}
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 }

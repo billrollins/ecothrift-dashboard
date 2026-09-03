@@ -12,9 +12,11 @@ import type {
   WorkCycleResponses,
 } from '../../../api/routines.api';
 import { RoutineRunner } from '../RoutineRunner';
+import { resolveRunnerKind } from './runnerStatus';
 import { OwnerSpotRunner } from './OwnerSpotRunner';
 import { SectionAuditRunner } from './SectionAuditRunner';
 import { SectionTallyRunner } from './SectionTallyRunner';
+import type { WalkAction } from './SectionWalkFields';
 import { WorkCycleRunner } from './WorkCycleRunner';
 
 /**
@@ -33,6 +35,7 @@ export function KindRunner({
   readOnly,
   sections,
   nonShelfChecks,
+  reroll,
 }: {
   kind: RoutineKind;
   title: string;
@@ -45,8 +48,10 @@ export function KindRunner({
   readOnly?: boolean;
   sections?: Array<{ id: number; name: string }>;
   nonShelfChecks?: NonShelfCheck[];
+  reroll?: WalkAction;
 }) {
-  if (kind === 'checklist') {
+  const resolved = resolveRunnerKind(kind, responses);
+  if (resolved === 'checklist') {
     return (
       <RoutineRunner
         title={title}
@@ -62,7 +67,7 @@ export function KindRunner({
   if (!taxonomy) {
     return <Alert severity="error" sx={{ m: 2 }}>This routine is missing its category list.</Alert>;
   }
-  if (kind === 'section_tally') {
+  if (resolved === 'section_tally') {
     return (
       <SectionTallyRunner
         title={title}
@@ -70,10 +75,11 @@ export function KindRunner({
         taxonomy={taxonomy}
         readOnly={readOnly}
         onChange={onChange}
+        reroll={reroll}
       />
     );
   }
-  if (kind === 'work_cycle') {
+  if (resolved === 'work_cycle') {
     return (
       <WorkCycleRunner
         title={title}
@@ -86,14 +92,13 @@ export function KindRunner({
       />
     );
   }
-  if (kind === 'section_audit') {
+  if (resolved === 'section_audit') {
     return (
       <SectionAuditRunner
         title={title}
         subject={subject}
         responses={responses as SectionAuditResponses}
         taxonomy={taxonomy}
-        minItems={minItems}
         readOnly={readOnly}
         onChange={onChange}
       />
@@ -105,9 +110,9 @@ export function KindRunner({
       subject={subject}
       responses={responses as OwnerSpotResponses}
       taxonomy={taxonomy}
-      minItems={minItems}
       readOnly={readOnly}
       onChange={onChange}
+      reroll={reroll}
     />
   );
 }
