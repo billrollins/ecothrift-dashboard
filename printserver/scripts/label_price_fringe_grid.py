@@ -50,7 +50,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Fringe label PNGs + price-stripe fit stats.")
     parser.add_argument(
         "--preset",
-        choices=("1.5x1", "3x2", "both"),
+        choices=("1.5x1", "3x2", "1.25x1.25", "both"),
         default="1.5x1",
         help="Label preset (default: 1.5x1 only). Use 'both' for 3x2 + 1.5x1.",
     )

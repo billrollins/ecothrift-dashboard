@@ -247,12 +247,16 @@ class CartLine(models.Model):
     LINE_KIND_MANUAL = 'manual'
     LINE_KIND_DISCOUNT = 'discount'
     LINE_KIND_DELIVERY = 'delivery'
+    LINE_KIND_ASSEMBLY = 'assembly'
     LINE_KIND_CHOICES = [
         (LINE_KIND_ITEM, 'Inventory item'),
         (LINE_KIND_MANUAL, 'Manual / unscannable'),
         (LINE_KIND_DISCOUNT, 'Discount / store credit'),
         (LINE_KIND_DELIVERY, 'Delivery fee'),
+        (LINE_KIND_ASSEMBLY, 'Assembly'),
     ]
+    SALE_LABEL_LABOR_DAY = 'labor_day'
+    SALE_LABEL_SUMMER = 'summer'
     line_kind = models.CharField(
         max_length=20,
         choices=LINE_KIND_CHOICES,
@@ -261,6 +265,8 @@ class CartLine(models.Model):
     )
     # Discount: {reason, scope, target_line_id?}. Delivery: {customer_name, phone, address, is_apt, unit, tier, fee}.
     meta = models.JSONField(default=dict, blank=True)
+    sale_label = models.CharField(max_length=20, blank=True, default='')
+    sale_percent = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0'))
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -269,8 +275,21 @@ class CartLine(models.Model):
     def __str__(self):
         return f'{self.description} x{self.quantity}'
 
+    def is_sale_eligible(self):
+        return self.line_kind in (self.LINE_KIND_ITEM, self.LINE_KIND_MANUAL)
+
+    @property
+    def list_total(self):
+        return (self.unit_price * self.quantity).quantize(Decimal('0.01'))
+
+    @property
+    def sale_savings(self):
+        return (self.list_total - self.line_total).quantize(Decimal('0.01'))
+
     def save(self, *args, **kwargs):
-        self.line_total = self.unit_price * self.quantity
+        pct = self.sale_percent if self.sale_percent is not None else Decimal('0')
+        factor = Decimal('1') - (pct / Decimal('100'))
+        self.line_total = (self.unit_price * self.quantity * factor).quantize(Decimal('0.01'))
         super().save(*args, **kwargs)
 
 

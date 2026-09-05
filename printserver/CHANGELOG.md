@@ -5,6 +5,13 @@ Run `python distribute.py` from this directory to build and publish a new releas
 
 ---
 
+## [1.5.1] — 2026-09-05
+
+### Added
+- **1.25×1.25 paper preset:** square stock at 203 DPI, selectable with `3x2` and `1.5x1` on the built-in `/` UI, `GET`/`PUT` `/settings`, and dashboard Settings.
+
+---
+
 ## [1.5.0] — 2026-08-26
 
 ### Changed

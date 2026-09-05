@@ -42,6 +42,7 @@ import { useUsers } from '../../hooks/useEmployees';
 import { useAuth } from '../../contexts/AuthContext';
 import { localPrintService } from '../../services/localPrintService';
 import type { Cart, CartLine } from '../../types/pos.types';
+import { receiptItemsFromCart } from '../../utils/posReceipt';
 import { format } from 'date-fns';
 import {
   getHistoricalRevenue,
@@ -55,12 +56,7 @@ function formatCurrency(value: string | number): string {
 
 function buildReceiptDataFromCart(cart: Cart): Record<string, unknown> {
   const completedAt = cart.completed_at ? new Date(cart.completed_at) : new Date(cart.created_at ?? 0);
-  const lines = (cart.lines ?? []).map((line: CartLine) => ({
-    name: line.description,
-    quantity: line.quantity,
-    unit_price: parseFloat(String(line.unit_price)),
-    line_total: parseFloat(String(line.line_total)),
-  }));
+  const lines = receiptItemsFromCart(cart);
   return {
     receipt_number: cart.receipt?.receipt_number ?? '',
     date: format(completedAt, 'yyyy-MM-dd'),

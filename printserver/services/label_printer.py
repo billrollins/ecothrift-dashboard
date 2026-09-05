@@ -462,7 +462,7 @@ def generate_label(
 ) -> Image.Image:
     """Two columns: (1) **⅓** width — top **half** price, bottom **half** QR; (2) **⅔** text + logo.
 
-    Same *proportions* for ``3x2`` and ``1.5x1`` (3:2 aspect): one code path; small stock is half-scale via ``fs``.
+    Same layout path for ``3x2``, ``1.5x1``, and ``1.25x1.25``; ``fs`` scales from the 3:2 reference (square stock is width-limited).
     QR target is derived from stripe width (same relative size on both presets), clamped to the lower cell.
 
     If ``price_fit_stats`` is a dict, it is filled with ``first_fit_scale`` (``float`` or ``None``) and

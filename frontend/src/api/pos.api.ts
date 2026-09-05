@@ -13,6 +13,7 @@ import type {
   DeliveryJob,
   DeliveryJobItem,
   DeliveryRun,
+  SaleMode,
 } from '../types/pos.types';
 import api from './client';
 
@@ -168,6 +169,35 @@ export function addManualLineToCart(
   body: { description: string; unit_price?: number | string; quantity?: number },
 ): Promise<{ data: Cart }> {
   return api.post<Cart>(`/pos/carts/${cartId}/add-manual-line/`, body);
+}
+
+export function addAssemblyToCart(
+  cartId: number,
+  body?: { quantity?: number },
+): Promise<{ data: Cart }> {
+  return api.post<Cart>(`/pos/carts/${cartId}/add-assembly/`, body ?? {});
+}
+
+export function setCartLineSale(
+  cartId: number,
+  lineId: number,
+  sale: 'summer' | 'labor_day' | 'none',
+): Promise<{ data: Cart }> {
+  return api.post<Cart>(`/pos/carts/${cartId}/lines/${lineId}/sale/`, { sale });
+}
+
+export function syncCartSale(cartId: number): Promise<{ data: Cart }> {
+  return api.post<Cart>(`/pos/carts/${cartId}/sync-sale/`, {});
+}
+
+export function getSaleMode(): Promise<{ data: SaleMode }> {
+  return api.get<SaleMode>('/pos/sale-mode/');
+}
+
+export function setLaborDayOverride(
+  override: boolean | null,
+): Promise<{ data: SaleMode }> {
+  return api.post<SaleMode>('/pos/sale-mode/', { override });
 }
 
 export interface GoogleReviewUsername {

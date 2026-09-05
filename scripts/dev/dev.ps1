@@ -213,8 +213,11 @@ else {
 # call covers both. Forgetting to migrate after a prod pull is the single most
 # common way this stack comes up broken.
 Push-Location $Root
+# Python stderr is a terminating ErrorRecord under Stop; capture it as text.
+$prevEap = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
 try {
-    $migrateCheck = & $python 'manage.py' 'migrate' '--check' 2>&1 | Out-String
+    $migrateCheck = & $python 'manage.py' 'migrate' '--check' 2>&1 | ForEach-Object { $_.ToString() } | Out-String
     $migrateRc = $LASTEXITCODE
 
     if ($migrateRc -eq 0) {
@@ -240,6 +243,7 @@ try {
     }
 }
 finally {
+    $ErrorActionPreference = $prevEap
     Pop-Location
 }
 

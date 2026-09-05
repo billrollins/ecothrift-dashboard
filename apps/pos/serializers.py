@@ -124,6 +124,9 @@ class BankTransactionSerializer(serializers.ModelSerializer):
 
 
 class CartLineSerializer(serializers.ModelSerializer):
+    list_total = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    sale_savings = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+
     class Meta:
         model = CartLine
         fields = [
@@ -131,12 +134,14 @@ class CartLineSerializer(serializers.ModelSerializer):
             'quantity', 'unit_price', 'line_total',
             'resale_source_sku', 'resale_source_item_id',
             'line_kind', 'meta',
+            'sale_label', 'sale_percent', 'list_total', 'sale_savings',
             'created_at',
         ]
         read_only_fields = [
             'id', 'line_total', 'created_at',
             'resale_source_sku', 'resale_source_item_id',
             'line_kind', 'meta',
+            'sale_label', 'sale_percent', 'list_total', 'sale_savings',
         ]
 
 

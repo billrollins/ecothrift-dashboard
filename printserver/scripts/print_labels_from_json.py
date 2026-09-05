@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from config import DEFAULT_LABEL_PRINTER
+from config import DEFAULT_LABEL_PRINTER, LABEL_SIZE_PRESETS
 
 
 def main() -> int:
@@ -39,7 +39,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--preset",
-        choices=("3x2", "1.5x1"),
+        choices=tuple(LABEL_SIZE_PRESETS),
         default="3x2",
         help="Label paper size in inches (default: 3x2 — same as DEFAULT_LABEL_SIZE_PRESET / Rollo 3×2 stock)",
     )

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-03 (v2.87.0 Floor pages) -->
+<!-- Last updated: 2026-09-05 (POS Labor Day / Summer Sale) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,7 +13,8 @@ Full-stack business management for a thrift store in Omaha, NE. HR (time clock, 
 
 ## Active work
 
-- **ACTIVE (compass) — Routines and Documents:** [`routines_and_documents`](initiatives/routines_and_documents.md) — Routines + Retail QA through desk Home / Today / Pay / Routines shipped **v2.87.0** (GitHub, not Heroku). Documents API is in-tree; staff routes are unwired until a later UI tune. Replaces abandoned [`documents_and_duties`](initiatives/_archived/_abandoned/documents_and_duties.md).
+- **ACTIVE (compass) — POS Labor Day and Summer Sale:** [`pos_labor_day_summer_sale`](initiatives/pos_labor_day_summer_sale.md) — Phase 1 shipped v2.88.0 (Labor Day 10%, Summer 50%, Assembly $35). Next: watch first sale week.
+- **ACTIVE — Routines and Documents:** [`routines_and_documents`](initiatives/routines_and_documents.md) — Routines + Retail QA through desk Home / Today / Pay / Routines shipped **v2.87.0** (GitHub, not Heroku). Documents API is in-tree; staff routes are unwired until a later UI tune. Replaces abandoned [`documents_and_duties`](initiatives/_archived/_abandoned/documents_and_duties.md).
 - **ACTIVE — Admin workspace overhaul:** [`admin_workspace_overhaul`](initiatives/admin_workspace_overhaul.md) — Studios workspace, Settings house, capability catalog. Grants deferred.
 - **ACTIVE — Universal object surfaces:** [`universal_object_surfaces`](initiatives/universal_object_surfaces.md) — design only. No code scheduled.
 

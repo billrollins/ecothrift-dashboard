@@ -1,5 +1,7 @@
-feat: ship floor pages and keep retail letters mid-week
+feat: Labor Day 10%, Summer 50%, and Assembly $35 at the register
 
-Home, Today, Pay, and Routines share one desk band and the same four names as the phone. 0008 reseeds Open / Day / Close in place and does not wipe runs. A Retail day with no letter stays a dash, not a miss.
+Labor Day runs itself Mon-Sat of Labor Day week with a header chip cashiers can toggle. Summer is one tap per line and stays 50% when Labor Day is off. Assembly is a $35 line; Assembly and Delivery never take a sale. CartLine keeps list price on unit_price and applies sale_percent into line_total (pos.0027); completing a sale writes the effective price to Item.sold_for and consignment sale_amount. Receipts print the sale price with a Labor Day / Summer suffix.
 
-Release: v2.87.0
+Also: print server 1.5.1 adds the 1.25x1.25 square label preset; flatten.py imports pymupdf; dev.ps1 stops treating migrate --check stderr as fatal.
+
+Release: v2.88.0

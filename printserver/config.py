@@ -1,11 +1,19 @@
-VERSION = "1.5.0"
-RELEASE_NOTES = "Receipts print as raw ESC/POS at full width instead of shrunken GDI text, with a rebuilt storefront header, policy footer, and a Google review coupon."
+VERSION = "1.5.1"
+RELEASE_NOTES = "Label paper presets now include 1.25″ × 1.25″ square stock alongside 3×2 and 1.5×1."
 
 # Default URL for the public version-check endpoint on the dashboard backend.
 # Users can override this in settings.json via the /manage page (useful for local dev).
 UPDATE_CHECK_URL = "https://dash.ecothrift.us/api/core/system/print-server-version-public/"
 
 CHANGELOG = """\
+## [1.5.1] — 2026-09-05
+
+### Added
+- **1.25×1.25 paper preset:** square stock at 203 DPI, selectable with ``3x2`` and ``1.5x1``
+  on the built-in ``/`` UI, ``GET``/``PUT`` ``/settings``, and dashboard Settings.
+
+---
+
 ## [1.5.0] — 2026-08-26
 
 ### Changed
@@ -477,6 +485,7 @@ LABEL_HEIGHT_INCHES = 1.25
 LABEL_SIZE_PRESETS: dict[str, tuple[float, float]] = {
     "3x2": (3.0, 2.0),
     "1.5x1": (1.5, 1.0),
+    "1.25x1.25": (1.25, 1.25),
 }
 DEFAULT_LABEL_SIZE_PRESET = "3x2"
 

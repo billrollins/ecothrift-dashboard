@@ -35,6 +35,7 @@ import {
 import type { SelectChangeEvent } from '@mui/material/Select';
 import AccessTime from '@mui/icons-material/AccessTime';
 import AccountBalance from '@mui/icons-material/AccountBalance';
+import Build from '@mui/icons-material/Build';
 import CancelOutlined from '@mui/icons-material/CancelOutlined';
 import Check from '@mui/icons-material/Check';
 import Delete from '@mui/icons-material/Delete';
@@ -42,6 +43,7 @@ import DeleteForever from '@mui/icons-material/DeleteForever';
 import Edit from '@mui/icons-material/Edit';
 import LocalShipping from '@mui/icons-material/LocalShipping';
 import Percent from '@mui/icons-material/Percent';
+import WbSunny from '@mui/icons-material/WbSunny';
 import PersonOff from '@mui/icons-material/PersonOff';
 import PersonOutline from '@mui/icons-material/PersonOutline';
 import PlayArrow from '@mui/icons-material/PlayArrow';
@@ -59,15 +61,21 @@ import DenominationCounter, {
 } from '../../components/forms/DenominationCounter';
 import { DeviceSetupDialog } from '../../components/pos/DeviceSetupDialog';
 import { DiscountDialog, type DiscountSubmitPayload } from '../../components/pos/DiscountDialog';
+import { SummerLinesDialog } from '../../components/pos/SummerLinesDialog';
 import {
   useRegisters,
   useDrawers,
   useCreateCart,
   useAddItemToCart,
   useAddManualLineToCart,
+  useAddAssemblyToCart,
   useAddDiscountToCart,
   useAddDeliveryToCart,
   useAddResaleCopyToCart,
+  useSetCartLineSale,
+  useSyncCartSale,
+  useSaleMode,
+  useSetLaborDayOverride,
   useUpdateCartLine,
   useRemoveCartLine,
   useCompleteCart,
@@ -94,6 +102,7 @@ import {
   parsePosAddItemError,
   snackbarVariantForPosAddItemError,
 } from '../../utils/posAddItemError';
+import { receiptItemsFromCart } from '../../utils/posReceipt';
 
 // ── Terminal state machine ─────────────────────────────────────────────────
 
@@ -177,12 +186,7 @@ function buildReceiptData(
     date: format(completedAt, 'yyyy-MM-dd'),
     time: format(completedAt, 'h:mm a'),
     cashier: (cart as { cashier_name?: string }).cashier_name ?? '',
-    items: (cart.lines ?? []).map((line: CartLine) => ({
-      name: line.description,
-      quantity: line.quantity,
-      unit_price: parseFloat(String(line.unit_price)),
-      line_total: parseFloat(String(line.line_total)),
-    })),
+    items: receiptItemsFromCart(cart),
     subtotal: parseFloat(String(cart.subtotal)),
     tax: parseFloat(String(cart.tax_amount)),
     total: parseFloat(String(cart.total)),
@@ -232,6 +236,8 @@ export default function TerminalPage() {
     sku?: string;
     title?: string;
   } | null>(null);
+  const [laborDayConfirmOpen, setLaborDayConfirmOpen] = useState(false);
+  const [summerDialogOpen, setSummerDialogOpen] = useState(false);
   const [unscannableDialogOpen, setUnscannableDialogOpen] = useState(false);
   const [manualDescription, setManualDescription] = useState(DEFAULT_MANUAL_LINE_TITLE);
   const [manualUnitPrice, setManualUnitPrice] = useState(DEFAULT_MANUAL_LINE_PRICE);
@@ -350,6 +356,11 @@ export default function TerminalPage() {
   const createCartMutation = useCreateCart();
   const addItemMutation = useAddItemToCart();
   const addManualLineMutation = useAddManualLineToCart();
+  const addAssemblyMutation = useAddAssemblyToCart();
+  const setLineSaleMutation = useSetCartLineSale();
+  const syncCartSaleMutation = useSyncCartSale();
+  const { data: saleMode } = useSaleMode();
+  const setLaborDayOverrideMutation = useSetLaborDayOverride();
   const addDiscountMutation = useAddDiscountToCart();
   const addDeliveryMutation = useAddDeliveryToCart();
   const { data: upcomingDeliverySlots = [], isFetching: deliverySlotsLoading } =
@@ -517,6 +528,56 @@ export default function TerminalPage() {
     setUnscannableDialogOpen(true);
   }, []);
 
+  const handleConfirmLaborDayToggle = useCallback(async () => {
+    const currentlyOn = Boolean(saleMode?.active);
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const inWindow = Boolean(
+      saleMode?.start && saleMode?.end && today >= saleMode.start && today <= saleMode.end,
+    );
+    const nextOverride: boolean | null = currentlyOn ? false : inWindow ? null : true;
+    try {
+      await setLaborDayOverrideMutation.mutateAsync(nextOverride);
+      if (cart) {
+        const updated = await syncCartSaleMutation.mutateAsync(cart.id);
+        commitCart(updated as unknown as Cart, { scroll: false });
+      }
+      setLaborDayConfirmOpen(false);
+    } catch {
+      enqueueSnackbar('Failed to update Labor Day sale', { variant: 'error' });
+    }
+  }, [
+    saleMode,
+    cart,
+    setLaborDayOverrideMutation,
+    syncCartSaleMutation,
+    commitCart,
+    enqueueSnackbar,
+  ]);
+
+  const handleSaveSummerLines = useCallback(
+    async (changes: { lineId: number; sale: 'summer' | 'none' }[]) => {
+      if (!cart) {
+        setSummerDialogOpen(false);
+        return;
+      }
+      try {
+        let latest: Cart = cart;
+        for (const change of changes) {
+          latest = (await setLineSaleMutation.mutateAsync({
+            cartId: cart.id,
+            lineId: change.lineId,
+            sale: change.sale,
+          })) as unknown as Cart;
+        }
+        if (changes.length) commitCart(latest, { scroll: false });
+        setSummerDialogOpen(false);
+      } catch {
+        enqueueSnackbar('Failed to update summer sale', { variant: 'error' });
+      }
+    },
+    [cart, setLineSaleMutation, commitCart, enqueueSnackbar],
+  );
+
   const handleSubmitManualLine = useCallback(
     async (e: FormEvent) => {
       e.preventDefault();
@@ -609,6 +670,17 @@ export default function TerminalPage() {
       return null;
     }
   }, [cart, isRegister, managerDrawerId, createCartMutation, enqueueSnackbar, markRegisterActivity]);
+
+  const handleAddAssembly = useCallback(async () => {
+    const activeCart = await ensureOpenCart();
+    if (!activeCart) return;
+    try {
+      const updated = await addAssemblyMutation.mutateAsync({ cartId: activeCart.id });
+      commitCart(updated as unknown as Cart);
+    } catch {
+      enqueueSnackbar('Failed to add assembly', { variant: 'error' });
+    }
+  }, [ensureOpenCart, addAssemblyMutation, commitCart, enqueueSnackbar]);
 
   const handleOpenDiscountDialog = useCallback(() => {
     setDiscountDialogOpen(true);
@@ -1470,10 +1542,14 @@ export default function TerminalPage() {
                                   {line.line_kind === 'delivery' && (
                                     <Chip size="small" label="Delivery" color="info" sx={{ height: 22 }} />
                                   )}
+                                  {line.line_kind === 'assembly' && (
+                                    <Chip size="small" label="Assembly" color="secondary" sx={{ height: 22 }} />
+                                  )}
                                   {(line.line_kind === 'manual' ||
                                     (line.item == null &&
                                       line.line_kind !== 'discount' &&
-                                      line.line_kind !== 'delivery')) && (
+                                      line.line_kind !== 'delivery' &&
+                                      line.line_kind !== 'assembly')) && (
                                     <Chip
                                       size="small"
                                       label="Pink tag"
@@ -1484,12 +1560,30 @@ export default function TerminalPage() {
                                       }}
                                     />
                                   )}
+                                  {line.sale_label === 'labor_day' && Number(line.sale_percent) > 0 && (
+                                    <Chip
+                                      size="small"
+                                      color="warning"
+                                      label={`${Number(line.sale_percent)}% Labor Day`}
+                                      sx={{ height: 22 }}
+                                    />
+                                  )}
+                                  {line.sale_label === 'summer' && (
+                                    <Chip
+                                      size="small"
+                                      color="success"
+                                      label={`${Number(line.sale_percent || 50)}% Summer`}
+                                      sx={{ height: 22 }}
+                                    />
+                                  )}
                                 </Box>
                               }
                               secondary={
                                 line.line_kind === 'delivery' && line.meta
                                   ? `${line.quantity} × ${formatCurrency(line.unit_price)} · ${String(line.meta.phone ?? '')} · ${String(line.meta.address ?? '')}${line.meta.is_apt ? ` Apt ${String(line.meta.unit ?? '')}` : ''}`
-                                  : `${line.quantity} × ${formatCurrency(line.unit_price)}`
+                                  : Number(line.sale_percent) > 0
+                                    ? `${line.quantity} × ${formatCurrency(line.unit_price)} → ${formatCurrency(line.line_total)}`
+                                    : `${line.quantity} × ${formatCurrency(line.unit_price)}`
                               }
                               slotProps={{ primary: { component: 'div' } }}
                             />
@@ -1513,6 +1607,25 @@ export default function TerminalPage() {
                   }}
                 >
                   <Stack spacing={0.5}>
+                    {Number(
+                      (cart?.lines ?? []).reduce(
+                        (sum, ln) => sum + Number(ln.sale_savings || 0),
+                        0,
+                      ),
+                    ) > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography color="success.main">Sale savings</Typography>
+                        <Typography color="success.main">
+                          −
+                          {formatCurrency(
+                            (cart?.lines ?? []).reduce(
+                              (sum, ln) => sum + Number(ln.sale_savings || 0),
+                              0,
+                            ),
+                          )}
+                        </Typography>
+                      </Box>
+                    )}
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Typography color="text.secondary">Subtotal</Typography>
                       <Typography>{formatCurrency(cart?.subtotal ?? 0)}</Typography>
@@ -1573,6 +1686,70 @@ export default function TerminalPage() {
                     gap: 1,
                   }}
                 >
+                  <Button
+                    onClick={handleAddAssembly}
+                    disabled={addAssemblyMutation.isPending}
+                    sx={{
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 0.75,
+                      py: 1.5,
+                      px: 1,
+                      minHeight: 96,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      border: '2px solid',
+                      borderColor: 'secondary.light',
+                      bgcolor: 'rgba(123, 31, 162, 0.08)',
+                      color: 'secondary.dark',
+                      '&:hover': {
+                        bgcolor: 'rgba(123, 31, 162, 0.16)',
+                        borderColor: 'secondary.main',
+                      },
+                    }}
+                  >
+                    <Build sx={{ fontSize: 28 }} />
+                    <Typography variant="subtitle2" fontWeight={700} lineHeight={1.15}>
+                      Assembly
+                    </Typography>
+                    <Typography variant="caption" sx={{ opacity: 0.85, lineHeight: 1.1 }}>
+                      $35
+                    </Typography>
+                  </Button>
+
+                  <Button
+                    onClick={() => setSummerDialogOpen(true)}
+                    disabled={!cart || setLineSaleMutation.isPending}
+                    sx={{
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 0.75,
+                      py: 1.5,
+                      px: 1,
+                      minHeight: 96,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      border: '2px solid',
+                      borderColor: 'success.light',
+                      bgcolor: 'rgba(46, 125, 50, 0.08)',
+                      color: 'success.dark',
+                      '&:hover': {
+                        bgcolor: 'rgba(46, 125, 50, 0.16)',
+                        borderColor: 'success.main',
+                      },
+                    }}
+                  >
+                    <WbSunny sx={{ fontSize: 28 }} />
+                    <Typography variant="subtitle2" fontWeight={700} lineHeight={1.15}>
+                      Summer
+                    </Typography>
+                    <Typography variant="caption" sx={{ opacity: 0.85, lineHeight: 1.1 }}>
+                      50% off
+                    </Typography>
+                  </Button>
+
                   <Button
                     onClick={handleOpenUnscannableDialog}
                     disabled={addManualLineMutation.isPending}
@@ -1807,6 +1984,23 @@ export default function TerminalPage() {
         subtitle={deviceLabel}
         action={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Chip
+              size="small"
+              clickable
+              onClick={() => setLaborDayConfirmOpen(true)}
+              label={
+                saleMode?.active
+                  ? `Labor Day Sale · ${Number(saleMode.percent || 10)}% off`
+                  : 'Labor Day off'
+              }
+              color={saleMode?.active ? 'warning' : 'default'}
+              variant={saleMode?.active ? 'filled' : 'outlined'}
+              title={
+                saleMode?.source === 'override'
+                  ? 'Manual override — click to toggle'
+                  : 'Calendar — click to toggle'
+              }
+            />
             <Chip
               size="small"
               label={printStatus.online ? 'Print server online' : 'Print server offline'}
@@ -2334,6 +2528,30 @@ export default function TerminalPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <SummerLinesDialog
+        open={summerDialogOpen}
+        cart={cart}
+        pending={setLineSaleMutation.isPending}
+        onClose={() => setSummerDialogOpen(false)}
+        onSave={handleSaveSummerLines}
+      />
+
+      <ConfirmDialog
+        open={laborDayConfirmOpen}
+        title={saleMode?.active ? 'Turn Labor Day sale off?' : 'Turn Labor Day sale on?'}
+        message={
+          saleMode?.active
+            ? 'Merchandise lines will return to list price. Summer-marked lines stay 50% off. Assembly and Delivery stay full price.'
+            : 'Eligible merchandise will be 10% off. Assembly and Delivery stay full price. Summer stays 50% if marked.'
+        }
+        confirmLabel={saleMode?.active ? 'Turn off' : 'Turn on'}
+        severity="info"
+        confirmColor="warning"
+        onConfirm={handleConfirmLaborDayToggle}
+        onCancel={() => setLaborDayConfirmOpen(false)}
+        loading={setLaborDayOverrideMutation.isPending || syncCartSaleMutation.isPending}
+      />
 
       {/* Void sale confirmation */}
       <ConfirmDialog

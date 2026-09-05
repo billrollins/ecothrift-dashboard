@@ -136,6 +136,9 @@ export interface BankTransaction {
   notes: string;
 }
 
+export type CartLineKind = 'item' | 'manual' | 'discount' | 'delivery' | 'assembly';
+export type SaleLabel = '' | 'labor_day' | 'summer';
+
 export interface CartLine {
   id: number;
   cart: number;
@@ -146,9 +149,24 @@ export interface CartLine {
   line_total: string;
   resale_source_sku?: string;
   resale_source_item_id?: number | null;
-  line_kind?: 'item' | 'manual' | 'discount' | 'delivery';
+  line_kind?: CartLineKind;
   meta?: Record<string, unknown>;
+  sale_label?: SaleLabel | string;
+  sale_percent?: string;
+  list_total?: string;
+  sale_savings?: string;
   created_at: string;
+}
+
+export interface SaleMode {
+  active: boolean;
+  source: 'calendar' | 'override';
+  start: string;
+  end: string;
+  percent: string;
+  override: boolean | null;
+  summer_percent: string;
+  assembly_price: string;
 }
 
 export interface Receipt {

@@ -64,7 +64,7 @@ export interface PdfCopiesRequest {
 }
 
 /** Persisted on the print server (`settings.json`); matches `PrinterSettings` in `printserver/models.py`. */
-export type LabelSizePreset = '3x2' | '1.5x1';
+export type LabelSizePreset = '3x2' | '1.5x1' | '1.25x1.25';
 
 export interface PrinterSettings {
   label_printer: string | null;

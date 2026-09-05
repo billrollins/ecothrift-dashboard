@@ -116,7 +116,7 @@ class DrawerControlRequest(BaseModel):
 class PrinterSettings(BaseModel):
     label_printer: str | None = None
     receipt_printer: str | None = None
-    label_size_preset: Literal["3x2", "1.5x1"] = "3x2"
+    label_size_preset: Literal["3x2", "1.5x1", "1.25x1.25"] = "3x2"
 
 
 # ---------------------------------------------------------------------------

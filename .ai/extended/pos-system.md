@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-02 (idle work-cycle prompt) -->
+<!-- Last updated: 2026-09-05 (Labor Day / Summer sale) -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -45,9 +45,14 @@
 ### CartLine
 
 - `cart`, `item` (inventory.Item, nullable), `description`, `quantity`, `unit_price`, `line_total`
+- `line_kind`: `item` | `manual` | `discount` | `delivery` | `assembly`
+- `sale_label` (`''` | `labor_day` | `summer`) and `sale_percent`. `unit_price` is list/shelf price. `save()` sets `line_total = unit_price × quantity × (1 − sale_percent/100)`.
+- Eligible for sale: `item` and `manual` only. Assembly, delivery, and discount never get a sale.
 - `line_total` auto-calculated on save
 - **`resale_source_sku` / `resale_source_item_id` (optional):** set when a line is created via the register **sold-SKU resale copy** flow (`POST .../add-resale-copy/`). Used for **staff-only** context: POS modal (cashier decision), **Transactions** detail dialog on `/pos/transactions`, inventory/DB views on the `Item`. **Do not** put internal resale provenance on **customer-facing** receipt payloads (printed receipt uses line `description` / product title only; print server unchanged).
 - **Manual / unscannable lines:** **`POST .../add-manual-line/`** with `description`, optional `unit_price` (default 0.50), optional `quantity` (default 1) — creates a line with **`item=null`** (no inventory row). Sale **complete** only marks `Item` records sold for lines with `item` set; void only reverts those lines.
+- **Assembly:** **`POST .../add-assembly/`** — `$35` `line_kind=assembly`; bumps quantity if an assembly line already exists. Never sale-discounted.
+- **Labor Day / Summer:** AppSetting `pos.labor_day_sale` `{override, start, end, percent}`. Default window = first Monday of September through +5 days (2026: 09-07..09-12). `GET/POST /api/pos/sale-mode/` (any authenticated user) reads mode / writes override. `POST .../lines/{id}/sale/` with `sale` `summer` | `labor_day` | `none`. `POST .../sync-sale/` re-applies Labor Day to eligible lines (summer stays). Complete writes `sold_for` as the effective sale unit price. Existing store-credit discount stacks on sale `line_total`.
 
 ### Receipt
 
@@ -155,6 +160,7 @@ The `useDeviceConfig` hook (`frontend/src/hooks/useDeviceConfig.ts`) reads/write
 - **Remove line**: Optimistic UI (line removed from local state immediately); calls `DELETE /pos/carts/{id}/lines/{line_id}/`; rolls back on error
 - **Void Sale**: Red "Void" button + `ConfirmDialog`; Manager/Admin only; calls `POST /pos/carts/{id}/void/`
 - **Cart list viewport**: Cart `Paper` fills leftover main height (md+); line list scrolls inside; subtotal/tax/total stay pinned under the list. After add-item / qty bump / manual line / resale copy / line edit, the **affected** line scrolls into view (`scrollIntoView({ block: 'nearest' })`). Seeded QA SKUs: `python manage.py seed_pos_terminal_test_items` (`POSTEST##`).
+- **Labor Day / Summer / Assembly**: Header chip shows Labor Day on/off (click to override). Buttons **Assembly · $35** and **Summer · 50%** (checkbox dialog of item/manual lines). Sale chips and sale-savings row on the cart. Receipts print the effective unit price and a ` (10% Labor Day)` / ` (50% Summer)` suffix.
 - **Discount / store credit**: `POST …/add-discount/` adds a negative `line_kind=discount` line. Body: `mode` `amount` (default) or `percent`, `amount` and/or `percent`, `reason`, optional `target_line_id`. Terminal dialog: reason first (In-store credit, Google Review, Other), `$`/`%` toggle with both values shown, apply **Full ticket** or **Per line**. Google Review autofills 5% / **Full ticket**, requires **username + stars**, and the server caps that offer at **$5**. Username typeahead is `GET /pos/carts/google-review-usernames/`. The same Google username cannot redeem again on any open or completed cart (voided sales do not count). Cannot exceed merchandise/delivery total.
 - **Delivery fee**: `POST …/add-delivery/` with `tier` `5mi` ($50) or `10mi` ($75); requires name/phone/address/`items_delivered`; Apt? requires Unit #; optional `availability_id` **or** `schedule_later` / omit date → `DeliveryJob` status `needs_scheduling` (nullable availability/date; migration `pos.0013`); optional `notes`. Address suggest `GET /pos/delivery/address-suggest/?q=` uses **US Census** geocoder (Nominatim fallback), returns distance to **8425 West Center Road** and recommended tier; over 10 mi → `too_far` (terminal popup, cannot add). After schedule-later, terminal shows Saturday / must-be-home reminder.
 - **Delivery scheduling**: `DeliveryAvailability` (date/times/crew/who) + `DeliveryJob`; APIs `/pos/delivery-availabilities/`, `/pos/delivery-jobs/` (`GET`/`POST`/`PATCH`); Dash page `/pos/deliveries` **Add delivery** (Manager): past sale lines, inventory SKU, or free-text; `POST /delivery-jobs/` creates cart-optional jobs (no fee line). Warns on `needs_scheduling`; Schedule dialog `PATCH` with `availability_id` (+ notes) returns `customer_schedule_message` / `just_scheduled`. Void cart or remove delivery line cancels active jobs (including needs_scheduling).

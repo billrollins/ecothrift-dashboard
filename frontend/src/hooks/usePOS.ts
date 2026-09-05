@@ -12,10 +12,15 @@ import {
   createCart,
   addItemToCart,
   addManualLineToCart,
+  addAssemblyToCart,
   addDiscountToCart,
   listGoogleReviewUsernames,
   addDeliveryToCart,
   addResaleCopyToCart,
+  setCartLineSale,
+  syncCartSale,
+  getSaleMode,
+  setLaborDayOverride,
   updateCartLine,
   removeCartLine,
   completeCart,
@@ -29,6 +34,7 @@ import {
   type Cart,
   type DeliveryAvailability,
 } from '../api/pos.api';
+import type { SaleMode } from '../types/pos.types';
 import type { PaginatedResponse } from '../types/common.types';
 
 type CartsQueryOptions = Pick<
@@ -228,6 +234,91 @@ export function useAddManualLineToCart() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['carts'] });
+    },
+  });
+}
+
+export function useAddAssemblyToCart() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      cartId,
+      quantity,
+    }: {
+      cartId: number;
+      quantity?: number;
+    }) => {
+      const { data } = await addAssemblyToCart(
+        cartId,
+        quantity !== undefined ? { quantity } : {},
+      );
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['carts'] });
+    },
+  });
+}
+
+export function useSetCartLineSale() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      cartId,
+      lineId,
+      sale,
+    }: {
+      cartId: number;
+      lineId: number;
+      sale: 'summer' | 'labor_day' | 'none';
+    }) => {
+      const { data } = await setCartLineSale(cartId, lineId, sale);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['carts'] });
+    },
+  });
+}
+
+export function useSyncCartSale() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (cartId: number) => {
+      const { data } = await syncCartSale(cartId);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['carts'] });
+    },
+  });
+}
+
+export function useSaleMode() {
+  return useQuery<SaleMode>({
+    queryKey: ['pos', 'sale-mode'],
+    queryFn: async () => {
+      const { data } = await getSaleMode();
+      return data;
+    },
+    refetchInterval: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
+}
+
+export function useSetLaborDayOverride() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (override: boolean | null) => {
+      const { data } = await setLaborDayOverride(override);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pos', 'sale-mode'] });
     },
   });
 }

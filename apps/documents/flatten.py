@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
-import fitz
+import pymupdf as fitz
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 

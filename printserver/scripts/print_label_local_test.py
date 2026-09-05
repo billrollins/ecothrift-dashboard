@@ -25,7 +25,7 @@ DEFAULT_E2E_JSON = REPO_ROOT / "workspace" / "testing" / "data" / "retag_e2e_10_
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from config import DEFAULT_LABEL_PRINTER
+from config import DEFAULT_LABEL_PRINTER, LABEL_SIZE_PRESETS
 
 
 def _load_rows(
@@ -64,7 +64,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--preset",
-        choices=("3x2", "1.5x1"),
+        choices=tuple(LABEL_SIZE_PRESETS),
         default="3x2",
         help="Label paper preset (default: 3x2)",
     )

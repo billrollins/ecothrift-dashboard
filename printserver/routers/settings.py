@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
-from config import VERSION
+from config import LABEL_SIZE_PRESETS, VERSION
 from models import PrinterSettings
 from services import settings_store
 
@@ -10,7 +10,7 @@ router = APIRouter(tags=["settings"])
 
 def _normalize_settings_payload(data: dict) -> dict:
     preset = data.get("label_size_preset") or "3x2"
-    if preset not in ("3x2", "1.5x1"):
+    if preset not in LABEL_SIZE_PRESETS:
         preset = "3x2"
     data = {**data, "label_size_preset": preset}
     return data
@@ -119,6 +119,7 @@ _SETTINGS_HTML = """\
     <select id="labelSizePreset">
       <option value="3x2">3&quot; × 2&quot; (testing / large)</option>
       <option value="1.5x1">1.5&quot; × 1&quot; (production)</option>
+      <option value="1.25x1.25">1.25&quot; × 1.25&quot; (square)</option>
     </select>
     <p class="printer-status" style="margin-top:4px">Controls thermal label dimensions (Eco-Thrift layout).</p>
 
@@ -194,7 +195,8 @@ async function load() {
     populateSelect("labelPrinter", "labelStatus", settings.label_printer);
     populateSelect("receiptPrinter", "receiptStatus", settings.receipt_printer);
     const sz = document.getElementById("labelSizePreset");
-    sz.value = settings.label_size_preset === "1.5x1" ? "1.5x1" : "3x2";
+    const known = [...sz.options].map((o) => o.value);
+    sz.value = known.includes(settings.label_size_preset) ? settings.label_size_preset : "3x2";
     document.getElementById("saveBtn").disabled = false;
     document.getElementById("testLabel").disabled = false;
     document.getElementById("testReceipt").disabled = false;

@@ -41,6 +41,14 @@ from .services.discounts import (
     list_google_review_usernames,
     resolve_discount_amount,
 )
+from .services.sale_mode import (
+    ASSEMBLY_PRICE,
+    apply_sale_to_line,
+    sale_mode_payload,
+    set_labor_day_override,
+    set_line_sale as apply_line_sale,
+    sync_cart_sale,
+)
 
 
 def _estimate_delivery_item_count(items_delivered: str, explicit=None) -> int:
@@ -705,7 +713,8 @@ class CartViewSet(viewsets.ModelViewSet):
             )
             if hasattr(CartLine, 'meta'):
                 create_kwargs['meta'] = meta
-            CartLine.objects.create(**create_kwargs)
+            line = CartLine.objects.create(**create_kwargs)
+            apply_sale_to_line(line)
 
         ItemScanHistory.objects.create(
             item=item,
@@ -765,7 +774,7 @@ class CartViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             new_item = duplicate_item_for_resale(request.user, src)
-            CartLine.objects.create(
+            line = CartLine.objects.create(
                 cart=cart,
                 item=new_item,
                 description=new_item.product.title,
@@ -775,6 +784,7 @@ class CartViewSet(viewsets.ModelViewSet):
                 resale_source_item_id=src.pk,
                 line_kind=CartLine.LINE_KIND_ITEM,
             )
+            apply_sale_to_line(line)
             ItemScanHistory.objects.create(
                 item=new_item,
                 ip_address=request.META.get('REMOTE_ADDR'),
@@ -838,7 +848,7 @@ class CartViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
-        CartLine.objects.create(
+        line = CartLine.objects.create(
             cart=cart,
             item=None,
             description=description,
@@ -846,8 +856,90 @@ class CartViewSet(viewsets.ModelViewSet):
             unit_price=unit_price,
             line_kind=CartLine.LINE_KIND_MANUAL,
         )
+        apply_sale_to_line(line)
 
         cart.recalculate()
+        cart = self.get_queryset().get(pk=cart.pk)
+        return Response(CartSerializer(cart).data)
+
+    @action(detail=True, methods=['post'], url_path='add-assembly')
+    def add_assembly(self, request, pk=None):
+        """Add or bump a $35 Assembly line (never sale-discounted)."""
+        cart = self.get_object()
+        if cart.status != 'open':
+            return Response(
+                {'detail': 'Cart is not open.', 'code': 'CART_NOT_OPEN'},
+                status=400,
+            )
+        qty_raw = request.data.get('quantity', 1)
+        try:
+            quantity = int(qty_raw)
+        except (TypeError, ValueError):
+            return Response(
+                {'detail': 'Invalid quantity.', 'code': 'INVALID_QUANTITY'},
+                status=400,
+            )
+        if quantity < 1:
+            return Response(
+                {'detail': 'quantity must be at least 1.', 'code': 'INVALID_QUANTITY'},
+                status=400,
+            )
+
+        existing = cart.lines.filter(line_kind=CartLine.LINE_KIND_ASSEMBLY).first()
+        if existing:
+            existing.quantity += quantity
+            existing.save()
+        else:
+            CartLine.objects.create(
+                cart=cart,
+                item=None,
+                description='Assembly',
+                quantity=quantity,
+                unit_price=ASSEMBLY_PRICE,
+                line_kind=CartLine.LINE_KIND_ASSEMBLY,
+            )
+
+        cart.recalculate()
+        cart = self.get_queryset().get(pk=cart.pk)
+        return Response(CartSerializer(cart).data)
+
+    @action(detail=True, methods=['post'], url_path='lines/(?P<line_id>[^/.]+)/sale')
+    def set_line_sale(self, request, pk=None, line_id=None):
+        """Mark a line summer / labor_day / none (none follows current Labor Day mode)."""
+        cart = self.get_object()
+        if cart.status != 'open':
+            return Response(
+                {'detail': 'Cart is not open.', 'code': 'CART_NOT_OPEN'},
+                status=400,
+            )
+        try:
+            line = cart.lines.get(id=line_id)
+        except CartLine.DoesNotExist:
+            return Response({'detail': 'Line not found.'}, status=404)
+        sale = request.data.get('sale')
+        try:
+            apply_line_sale(line, sale)
+        except ValueError as exc:
+            code = str(exc) if str(exc) in ('INVALID_TARGET', 'INVALID_SALE') else 'INVALID_SALE'
+            return Response(
+                {'detail': 'Cannot apply that sale to this line.' if code == 'INVALID_TARGET' else 'Invalid sale.',
+                 'code': code},
+                status=400,
+            )
+        cart.recalculate()
+        cart = self.get_queryset().get(pk=cart.pk)
+        return Response(CartSerializer(cart).data)
+
+    @action(detail=True, methods=['post'], url_path='sync-sale')
+    def sync_sale(self, request, pk=None):
+        """Re-apply Labor Day to eligible lines (summer lines stay)."""
+        cart = self.get_object()
+        if cart.status != 'open':
+            return Response(
+                {'detail': 'Cart is not open.', 'code': 'CART_NOT_OPEN'},
+                status=400,
+            )
+        sync_cart_sale(cart)
         cart = self.get_queryset().get(pk=cart.pk)
         return Response(CartSerializer(cart).data)
 
@@ -1279,7 +1371,8 @@ class CartViewSet(viewsets.ModelViewSet):
             item = line.item
             item.status = 'sold'
             item.sold_at = timezone.now()
-            item.sold_for = line.unit_price
+            qty = line.quantity or 1
+            item.sold_for = (line.line_total / qty).quantize(Decimal('0.01'))
             item.save()
 
             # Complete matching Online Sales reservation (pickup).
@@ -1300,7 +1393,7 @@ class CartViewSet(viewsets.ModelViewSet):
                 ci = item.consignment
                 ci.status = 'sold'
                 ci.sold_at = timezone.now()
-                ci.sale_amount = line.unit_price
+                ci.sale_amount = item.sold_for
                 rate = ci.agreement.commission_rate / Decimal('100')
                 ci.store_commission = (ci.sale_amount * rate).quantize(Decimal('0.01'))
                 ci.consignee_earnings = ci.sale_amount - ci.store_commission
@@ -1643,6 +1736,34 @@ class DeliveryJobViewSet(viewsets.ModelViewSet):
             payload['customer_schedule_message'] = _customer_schedule_message(job)
             payload['just_scheduled'] = True
         return Response(payload)
+
+
+@api_view(['GET', 'POST'])
+@perm_classes([IsAuthenticated])
+def sale_mode(request):
+    """Labor Day sale identity and override toggle."""
+    if request.method == 'GET':
+        return Response(sale_mode_payload())
+    if 'override' not in request.data:
+        return Response(
+            {'detail': 'override is required (true, false, or null).', 'code': 'OVERRIDE_REQUIRED'},
+            status=400,
+        )
+    raw = request.data.get('override')
+    if raw is None:
+        value = None
+    elif raw is True or raw == 'true':
+        value = True
+    elif raw is False or raw == 'false':
+        value = False
+    else:
+        return Response(
+            {'detail': 'override must be true, false, or null.', 'code': 'INVALID_OVERRIDE'},
+            status=400,
+        )
+    user = request.user if request.user.is_authenticated else None
+    set_labor_day_override(value, user=user)
+    return Response(sale_mode_payload())
 
 
 # ── Dashboard Metrics ─────────────────────────────────────────────────────────

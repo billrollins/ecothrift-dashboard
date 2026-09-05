@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.87.0] -->
-<!-- Last reviewed: 2026-09-03 (v2.87.0 Floor pages) -->
+<!-- Line 1 release: ## [2.88.0] -->
+<!-- Last reviewed: 2026-09-05 (v2.88.0 Labor Day / Summer sale) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,32 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.88.0] - 2026-09-05
+
+User-facing theme: **Labor Day at the register** - 10% off runs itself, Summer is one tap, Assembly is $35.
+
+Initiative: [`pos_labor_day_summer_sale`](./.ai/initiatives/pos_labor_day_summer_sale.md).
+
+### Added
+
+- POS Terminal Labor Day sale: date-driven 10% off merchandise (first Monday of September through that Saturday; 2026 = 09-07..09-12) with a header chip cashiers can toggle. `GET`/`POST /api/pos/sale-mode/`; AppSetting `pos.labor_day_sale`.
+- Summer 50% off on cashier-marked cart lines via the **Summer** button (`POST /api/pos/carts/{id}/lines/{line_id}/sale/`). Floor-marked; no backend item flag. Stays 50% when Labor Day is off.
+- **Assembly** button ($35): `line_kind=assembly`, `POST /api/pos/carts/{id}/add-assembly/`. Assembly and Delivery never take sale discounts.
+- `POST /api/pos/carts/{id}/sync-sale/` re-applies Labor Day to eligible lines after a toggle.
+- Print server 1.5.1: `1.25″ × 1.25″` square label preset on the local `/` UI, `/settings`, and dashboard Printing settings.
+
+### Changed
+
+- `CartLine` gains `sale_label` / `sale_percent` (`pos.0027`). `unit_price` stays list price; `line_total` applies the sale. Completing a sale writes the effective sale price to `Item.sold_for` and consignment `sale_amount`.
+- Receipts print the effective unit price and a ` (10% Labor Day)` / ` (50% Summer)` suffix on sale lines.
+
+### Fixed
+
+- `apps/documents/flatten.py` imports `pymupdf as fitz` (new PyMuPDF module name).
+- `scripts/dev/dev.ps1` no longer treats Python stderr from `migrate --check` as a terminating error.
 
 ---
 

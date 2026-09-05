@@ -324,6 +324,7 @@ export function PrintingPanel() {
               >
                 <MenuItem value="3x2">3″ × 2″ (testing / large)</MenuItem>
                 <MenuItem value="1.5x1">1.5″ × 1″ (production)</MenuItem>
+                <MenuItem value="1.25x1.25">1.25″ × 1.25″ (square)</MenuItem>
               </Select>
             </FormControl>
             <Button
