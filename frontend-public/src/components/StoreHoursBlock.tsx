@@ -1,4 +1,4 @@
-import { formatHolidayLine } from '../lib/hoursLabel'
+import { formatHolidayLine, hoursScheduleRows } from '../lib/hoursLabel'
 import type { StoreStatus } from '../lib/storeHours'
 import type { StoreHoursPublic } from '../api'
 
@@ -13,6 +13,13 @@ export default function StoreHoursBlock({
   hours?: StoreHoursPublic | null
 }) {
   const overrides = hours?.overrides || []
+  const schedule = hours
+    ? hoursScheduleRows({
+        open: hours.open,
+        close: hours.close,
+        closed_weekdays: hours.closed_weekdays,
+      })
+    : []
   return (
     <div className="vrow">
       <b>Hours</b>
@@ -33,22 +40,29 @@ export default function StoreHoursBlock({
             )}
           </span>
         </span>
-        <span className="vnear">{label}</span>
+        {schedule.length > 0 ? (
+          <div className="hours-sched">
+            {schedule.map((row) => (
+              <div key={row.days} className="hours-sched__row">
+                <span className="hours-sched__days">{row.days}</span>
+                <span className="hours-sched__time">{row.time}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <span className="hours-sched-fallback">{label}</span>
+        )}
         {overrides.length > 0 ? (
           <span className="holiday-hours">
             <span className="holiday-hours__tag">Holiday hours</span>
             {overrides.map((row) => (
               <span key={row.id} className="holiday-hours__line">
                 {formatHolidayLine(row)}
-                {row.note ? ` — ${row.note}` : ''}
               </span>
             ))}
             {hours?.resume_label ? (
               <span className="holiday-hours__resume">{hours.resume_label}</span>
             ) : null}
-            <span className="holiday-hours__note">
-              Holiday hours may differ from regular hours.
-            </span>
           </span>
         ) : null}
       </span>

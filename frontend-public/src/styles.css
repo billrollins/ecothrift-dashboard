@@ -531,37 +531,68 @@ main:has(.home) + .ft { margin-top: 0; }
 
 .vrow span { display: block; color: var(--ink); font-weight: 500; }
 
-.vrow .vnear { display: block; color: var(--muted); font-weight: 400; font-size: 13.5px; margin-top: 4px; }
+.vrow .vnear { display: block; color: var(--ink); font-weight: 500; font-size: 14px; margin-top: 4px; }
+
+.hours-sched { display: grid; gap: 3px; margin-top: 8px; }
+.hours-sched__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 16px;
+  align-items: baseline;
+}
+.vrow .hours-sched__days,
+.vrow .hours-sched__time {
+  display: inline;
+  color: var(--ink);
+  font-weight: 500;
+  font-size: 14.5px;
+}
+.vrow .hours-sched__time { text-align: right; font-variant-numeric: tabular-nums; }
+.vrow .hours-sched-fallback { display: block; color: var(--ink); font-weight: 500; font-size: 14.5px; margin-top: 6px; }
 
 .vrow a { font-weight: 600; }
 
 .vrow a:hover { color: var(--brand); }
 
-/* Warehouse block below the map card - room for a compact label | value row */
-
+/* Label | value rows. Labels are brand-green small caps; values are dark ink.
+   Hairline between rows so the card reads as a grouped list. */
+.vinfo .vrow,
 .visit-details .vrow {
-
   display: grid;
-
-  grid-template-columns: 5.25rem minmax(0, 1fr);
-
-  gap: 6px 18px;
-
+  grid-template-columns: 6.75rem minmax(0, 1fr);
+  gap: 4px 18px;
   align-items: start;
-
+  margin: 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
 }
 
-.visit-details .vrow b {
+.vinfo .vrow:first-of-type,
+.visit-details .vrow:first-of-type { border-top: 0; padding-top: 0; }
 
-  display: block;
+.visit--compact .vinfo .vrow { padding: 9px 0; }
 
+.vinfo .vrow > b,
+.visit-details .vrow > b {
   margin-bottom: 0;
-
-  padding-top: 2px;
-
+  padding-top: 3px;
+  color: var(--brand);
+  font-weight: 700;
+  font-size: 11.5px;
+  letter-spacing: .1em;
 }
 
-.visit-details .vrow span { grid-column: 2; }
+.vinfo .vrow > span,
+.visit-details .vrow > span {
+  grid-column: 2;
+  min-width: 0;
+  color: var(--ink);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+.vinfo .vrow a { color: var(--ink); text-decoration-color: var(--line2); text-underline-offset: 3px; }
+.vinfo .vrow a:hover { color: var(--brand); text-decoration-color: var(--brand); }
 
 
 
@@ -1747,12 +1778,14 @@ main:has(.home) + .ft { margin-top: 0; }
   color: #8a5a12;
   margin-bottom: 4px;
 }
-.holiday-hours__line, .holiday-hours__resume, .holiday-hours__note {
+.holiday-hours__line, .holiday-hours__resume {
   display: block;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--ink);
+  font-weight: 500;
+  padding-left: 12px;
 }
-.holiday-hours__note { color: var(--muted); margin-top: 4px; }
+.holiday-hours__resume { margin-top: 4px; }
 
 @keyframes ann-fade {
   from { opacity: 0; }

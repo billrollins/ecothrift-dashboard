@@ -68,7 +68,7 @@ describe('holidayHoursLine', () => {
         date_end: '2026-09-07',
         closed: true,
       }),
-    ).toBe('Mon, Sep 7 - Closed (Labor Day)');
+    ).toBe('Mon, Sep 7 (Labor Day): Closed.');
   });
 
   it('writes an early-close day', () => {
@@ -81,6 +81,20 @@ describe('holidayHoursLine', () => {
         open: '09:00',
         close: '15:00',
       }),
-    ).toBe('Thu, Dec 24 - 9 AM-3 PM (Christmas Eve)');
+    ).toBe('Thu, Dec 24 (Christmas Eve): 9 AM to 3 PM.');
+  });
+
+  it('puts the note after a comma, not another dash', () => {
+    expect(
+      holidayHoursLine({
+        label: 'Labor Day',
+        date_start: '2026-09-07',
+        date_end: '2026-09-07',
+        closed: false,
+        open: '09:00',
+        close: '18:00',
+        note: 'open for the Labor Day Sale kickoff',
+      }),
+    ).toBe('Mon, Sep 7 (Labor Day): 9 AM to 6 PM, open for the Labor Day Sale kickoff.');
   });
 });

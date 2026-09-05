@@ -86,21 +86,20 @@ def _short_date(day: date) -> str:
 
 
 def holiday_sentence(override) -> str:
-    """Dated customer line: 'Mon, Sep 7 - Closed (Labor Day)'."""
+    """Dated customer line: 'Mon, Sep 7 (Labor Day): 9 AM to 6 PM, note.'"""
     start = override.date_start
     end = override.date_end
-    if start == end:
-        when = _short_date(start)
-    else:
-        when = f'{_short_date(start)} - {_short_date(end)}'
+    when = _short_date(start) if start == end else f'{_short_date(start)} – {_short_date(end)}'
+    label = (override.label or '').strip()
+    head = f'{when} ({label})' if label else when
     if override.closed:
         hours = 'Closed'
     else:
-        hours = f'{_clock_label(override.open or "09:00")}-{_clock_label(override.close or "18:00")}'
-    label = (override.label or '').strip()
-    if label:
-        return f'{when} - {hours} ({label})'
-    return f'{when} - {hours}'
+        hours = f'{_clock_label(override.open or "09:00")} to {_clock_label(override.close or "18:00")}'
+    note = (getattr(override, 'note', None) or '').strip().rstrip('.')
+    if note:
+        return f'{head}: {hours}, {note}.'
+    return f'{head}: {hours}.'
 
 
 def _serialize_override(override) -> dict:

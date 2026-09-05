@@ -1,5 +1,4 @@
-feat: Dash announcements and holiday hours on the public site
+fix: make holiday hours and Visit store info scannable
 
-Managers write customer-facing announcements in Studios (rich text, gallery, placements, schedule, toggle, copy/duplicate from templates). Holiday and special hours live under Settings → Store as dated overrides. www shows a dismissible banner plus Home/Visit/Shop cards, and a Google-style Holiday hours block with explicit dates so customers know it is temporary. Hold expiry and the open/closed pill honor those overrides. Tokens {{holiday_hours}} {{regular_hours}} {{sale_end}} {{store_name}} resolve on the public payload.
-
-Release: v2.89.0
+Holiday lines are one dated sentence. Weekly hours are day | time.
+Visit and Home labels sit off the values. Release: v2.89.1.

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.89.0] -->
-<!-- Last reviewed: 2026-09-05 (v2.89.0 announcements + holiday hours) -->
+<!-- Line 1 release: ## [2.89.1] -->
+<!-- Last reviewed: 2026-09-05 (v2.89.1 hours card + Visit rows) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,19 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.89.1] - 2026-09-05
+
+User-facing theme: **Holiday hours you can scan** - one dated sentence, a two-column week, labels that stand off the values.
+
+Initiative: [`pos_labor_day_summer_sale`](./.ai/initiatives/pos_labor_day_summer_sale.md) Phase 2 polish.
+
+### Changed
+
+- Holiday line is `Mon, Sep 7 (Labor Day): 9 AM to 6 PM, note.` (`holiday_sentence` in `apps/webstore/services/hours.py`, same wording in `frontend-public/src/lib/hoursLabel.ts` and Dash `storeHours.ts`). Dropped the "Holiday hours may differ…" filler.
+- www `StoreHoursBlock` prints the weekly clock as day | time rows. Visit and Home store cards indent values from brand-green small-cap labels.
 
 ---
 

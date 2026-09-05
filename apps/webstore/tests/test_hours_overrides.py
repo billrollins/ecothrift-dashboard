@@ -49,7 +49,7 @@ def _ov(**kwargs):
 class HolidaySentenceTests(TestCase):
     def test_closed_single_day(self):
         ov = _ov()
-        self.assertEqual(holiday_sentence(ov), 'Mon, Sep 7 - Closed (Labor Day)')
+        self.assertEqual(holiday_sentence(ov), 'Mon, Sep 7 (Labor Day): Closed.')
 
     def test_early_close(self):
         ov = _ov(
@@ -60,7 +60,20 @@ class HolidaySentenceTests(TestCase):
             open='09:00',
             close='15:00',
         )
-        self.assertEqual(holiday_sentence(ov), 'Thu, Dec 24 - 9 AM-3 PM (Christmas Eve)')
+        self.assertEqual(holiday_sentence(ov), 'Thu, Dec 24 (Christmas Eve): 9 AM to 3 PM.')
+
+    def test_open_with_note(self):
+        ov = _ov(
+            label='Labor Day',
+            closed=False,
+            open='09:00',
+            close='18:00',
+            note='open for the Labor Day Sale kickoff',
+        )
+        self.assertEqual(
+            holiday_sentence(ov),
+            'Mon, Sep 7 (Labor Day): 9 AM to 6 PM, open for the Labor Day Sale kickoff.',
+        )
 
 
 class EffectiveDayTests(TestCase):

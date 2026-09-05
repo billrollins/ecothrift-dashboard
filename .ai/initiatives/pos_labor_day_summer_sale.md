@@ -1,5 +1,5 @@
 <!-- initiative: slug=pos-labor-day-summer-sale status=active updated=2026-09-05 -->
-<!-- Last updated: 2026-09-05 — Phase 2 shipped v2.89.0 -->
+<!-- Last updated: 2026-09-05 — hours card polish v2.89.1 -->
 
 # Initiative: POS Labor Day and Summer Sale → Customer-facing announcements and holiday hours
 
@@ -138,7 +138,7 @@ Acceptance (2A):
 **Display — copy Google's method so customers know it is temporary, not new hours:**
 - Weekly schedule stays visible and unchanged. Holiday days are **added lines**, not edits.
 - Each override line shows the **explicit date**: "Mon, Sep 7 — Closed (Labor Day)" or "Tue, Dec 24 — 9 AM–3 PM (Christmas Eve)". Never just a weekday name.
-- Header tag **"Holiday hours"** with an icon above the override lines; a small note: "Holiday hours may differ. Regular hours resume Tue, Sep 8."
+- Header tag **"Holiday hours"** above the override lines. Each line is `Mon, Sep 7 (Labor Day): 9 AM to 6 PM, note.` (or `…: Closed.`). Resume line only: "Regular hours resume Tue, Sep 8." No filler.
 - Status pill (`getStoreStatus`) uses the override: "Closed today for Labor Day, opens Tue at 9 AM" / "Open now, closing early today at 3 PM". Wording rules in `frontend-public/src/lib/storeHours.ts` + `hoursLabel.ts`.
 - Overrides show starting **7 days before** (TBD) and disappear the day after. Nothing to clean up.
 - `holiday`-kind announcement can auto-pull the sentence via token so banner and hours block match.
@@ -191,6 +191,7 @@ Candidates, not committed: Google Business Profile hours push; staff-facing Dash
 **2026-09-05 — Phase 1 coded.** Per-line `sale_label`/`sale_percent`, assembly kind, `pos.labor_day_sale` + `/api/pos/sale-mode/`, terminal chip/toggle/Assembly/Summer. Shipped **v2.88.0** same day.
 **2026-09-05 — Phase 2 drafted.** Owner asked for Dash-controlled www announcements (rich, toggle, copy/duplicate, photos/gallery) and holiday hours CRUD with Google-style dated display. Skeleton with TBDs; no code.
 **2026-09-05 — Phase 2 shipped v2.89.0.** Dash Announcements + holiday hours CRUD; www banner/cards/gallery; `effective_day` hours + hold expiry; dated Holiday hours display.
+**2026-09-05 — Hours card polish v2.89.1.** Holiday sentence `Mon, Sep 7 (Labor Day): 9 AM to 6 PM, note.`; two-column weekly schedule; Visit/Home label|value rows; dropped the filler line.
 
 ---
 

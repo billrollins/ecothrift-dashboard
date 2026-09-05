@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-05 (v2.89.0 announcements + holiday hours) -->
+<!-- Last updated: 2026-09-05 (v2.89.1 holiday_sentence) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -26,7 +26,7 @@ Django project with apps under `apps/`:
 
 Root URL prefixes: `api/auth/`, `api/accounts/`, `api/core/`, `api/hr/`, `api/inventory/`, `api/ai/`, `api/pos/`, `api/consignment/`, `api/buying/`, `api/webstore/`, `api/mailbox/`, `api/blog/`, `api/floorplan/`, `api/labels/`, `api/routines/`, `api/documents/`.
 
-**Webstore hours + announcements (v2.89.0):** Weekly clock stays AppSetting `online_sales.hours`. Dated exceptions are `StoreHoursOverride`; `apps/webstore/services/hours.py` `effective_day()` wins for hold expiry and `GET /api/webstore/config/` (`overrides`, `today`, `regular_label`, `resume_label`). Staff: `AnnouncementViewSet` + `StoreHoursOverrideViewSet` (`IsManagerOrAdmin`). Public: `GET /api/webstore/public/announcements/`, `GET /api/webstore/public/announcement-images/<id>/`. Tokens `{{holiday_hours}}` `{{regular_hours}}` `{{sale_end}}` `{{store_name}}` resolve in the public payload.
+**Webstore hours + announcements (v2.89.0 / v2.89.1):** Weekly clock stays AppSetting `online_sales.hours`. Dated exceptions are `StoreHoursOverride`; `apps/webstore/services/hours.py` `effective_day()` wins for hold expiry and `GET /api/webstore/config/` (`overrides`, `today`, `regular_label`, `resume_label`). `holiday_sentence()` is `Mon, Sep 7 (Labor Day): 9 AM to 6 PM, note.` Staff: `AnnouncementViewSet` + `StoreHoursOverrideViewSet` (`IsManagerOrAdmin`). Public: `GET /api/webstore/public/announcements/`, `GET /api/webstore/public/announcement-images/<id>/`. Tokens `{{holiday_hours}}` `{{regular_hours}}` `{{sale_end}}` `{{store_name}}` resolve in the public payload.
 
 ---
 

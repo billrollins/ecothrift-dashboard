@@ -130,16 +130,20 @@ export function holidayHoursLine(override: {
   closed: boolean;
   open?: string;
   close?: string;
+  note?: string;
 }): string {
   const when =
     override.date_start === override.date_end
       ? shortDate(override.date_start)
-      : `${shortDate(override.date_start)} - ${shortDate(override.date_end)}`;
+      : `${shortDate(override.date_start)} – ${shortDate(override.date_end)}`;
+  const label = (override.label || '').trim();
+  const head = label ? `${when} (${label})` : when;
   const hours = override.closed
     ? 'Closed'
-    : `${formatClockLabel(override.open || '09:00')}-${formatClockLabel(override.close || '18:00')}`;
-  const label = (override.label || '').trim();
-  return label ? `${when} - ${hours} (${label})` : `${when} - ${hours}`;
+    : `${formatClockLabel(override.open || '09:00')} to ${formatClockLabel(override.close || '18:00')}`;
+  const note = (override.note || '').trim().replace(/\.+$/, '');
+  if (note) return `${head}: ${hours}, ${note}.`;
+  return `${head}: ${hours}.`;
 }
 
 export function setDayOpen(hours: StoreHours, weekday: number, open: boolean): StoreHours {

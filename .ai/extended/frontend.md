@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-05 (v2.89.0 announcements + holiday hours) -->
+<!-- Last updated: 2026-09-05 (v2.89.1 hours card + Visit rows) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -75,7 +75,7 @@ Separate Vite + React 18.3 + TypeScript build for shoppers (`ecothrift.us` / `ww
 - **Prod:** `npm run build` → `frontend-public/dist`, collected under `STATIC_ROOT/site` (`base: '/static/site/'`). `PublicSiteMiddleware` serves `index.html` on public hosts.
 - **Routes:** `/` Home, `/shop` + `/shop/:slug` catalog, `/checkout`, `/order/:number`, `/blog` + `/blog/:slug`, `/visit`, `/sell`, `/404`.
 - **Stack:** React Router v7, shared design tokens in `styles.css`, `useSeo` + JSON-LD, client cart (`localStorage`), code-split lazy routes.
-- **API:** `AllowAny` `/api/webstore/catalog/*`, `checkout/`, `order-status/<number>/`, **`GET /api/webstore/config/`** — `hours` comes from AppSetting `online_sales.hours` (Python weekdays 0=Mon … 6=Sun) plus `overrides` / `today` / `resume_label` from `StoreHoursOverride`. Home, Visit, footer, checkout, holds, and account build the schedule line from that payload; `StoreHoursBlock` adds a dated **Holiday hours** sub-block when overrides are in the 7-day window. **`GET /api/webstore/public/announcements/`** feeds `AnnouncementBanner` (Layout, above `.hdr`), `AnnouncementCard` (Home / Visit / Shop), and `AnnouncementGallery`. Dash CRUD: `/announcements` (Studios, Manager+) and Settings → Store → Holiday & special hours.
+- **API:** `AllowAny` `/api/webstore/catalog/*`, `checkout/`, `order-status/<number>/`, **`GET /api/webstore/config/`** — `hours` comes from AppSetting `online_sales.hours` (Python weekdays 0=Mon … 6=Sun) plus `overrides` / `today` / `resume_label` from `StoreHoursOverride`. Home, Visit, footer, checkout, holds, and account build the schedule from that payload; `StoreHoursBlock` prints a two-column weekly grid plus dated **Holiday hours** lines (`Mon, Sep 7 (Labor Day): 9 AM to 6 PM, note.`) when overrides are in the 7-day window. Visit/Home `.vinfo` rows are label | value (brand-green small-cap labels). **`GET /api/webstore/public/announcements/`** feeds `AnnouncementBanner` (Layout, above `.hdr`), `AnnouncementCard` (Home / Visit / Shop), and `AnnouncementGallery`. Dash CRUD: `/announcements` (Studios, Manager+) and Settings → Store → Holiday & special hours.
 - Staff catalog + order management: **`WebStorePage`** (`/admin/web-store`), **`WebOrdersPage`** (`/admin/web-orders`) — Admin workspace, Manager/Admin.
 
 ## Layouts
