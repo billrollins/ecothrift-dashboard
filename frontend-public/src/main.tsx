@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { AuthProvider } from './auth'
 import { CartProvider } from './cart'
+import { AnnouncementsProvider } from './announcements'
 import { OnlineSalesConfigProvider } from './onlineSalesConfig'
 import './styles.css'
 
@@ -22,11 +23,13 @@ createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
       <OnlineSalesConfigProvider>
-        <AuthProvider>
-          <CartProvider>
-            <App />
-          </CartProvider>
-        </AuthProvider>
+        <AnnouncementsProvider>
+          <AuthProvider>
+            <CartProvider>
+              <App />
+            </CartProvider>
+          </AuthProvider>
+        </AnnouncementsProvider>
       </OnlineSalesConfigProvider>
     </BrowserRouter>
   </React.StrictMode>,

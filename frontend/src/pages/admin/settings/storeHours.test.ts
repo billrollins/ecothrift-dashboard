@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatHoursLabel, parseStoreHours, setDayOpen } from './storeHours';
+import { formatHoursLabel, holidayHoursLine, parseStoreHours, setDayOpen } from './storeHours';
 
 describe('parseStoreHours', () => {
   it('fills Canfield defaults when the value is missing', () => {
@@ -56,5 +56,31 @@ describe('setDayOpen', () => {
   it('closes Wednesday without changing row count of the week', () => {
     const next = setDayOpen(parseStoreHours(null), 2, false);
     expect(next.closed_weekdays).toEqual([0, 2, 6]);
+  });
+});
+
+describe('holidayHoursLine', () => {
+  it('writes a closed single day like Google', () => {
+    expect(
+      holidayHoursLine({
+        label: 'Labor Day',
+        date_start: '2026-09-07',
+        date_end: '2026-09-07',
+        closed: true,
+      }),
+    ).toBe('Mon, Sep 7 - Closed (Labor Day)');
+  });
+
+  it('writes an early-close day', () => {
+    expect(
+      holidayHoursLine({
+        label: 'Christmas Eve',
+        date_start: '2026-12-24',
+        date_end: '2026-12-24',
+        closed: false,
+        open: '09:00',
+        close: '15:00',
+      }),
+    ).toBe('Thu, Dec 24 - 9 AM-3 PM (Christmas Eve)');
   });
 });

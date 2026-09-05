@@ -1,11 +1,14 @@
 from django.contrib import admin
 
 from .models import (
+    Announcement,
+    AnnouncementImage,
     Conversation,
     Message,
     Order,
     OrderLine,
     Reservation,
+    StoreHoursOverride,
     WebListing,
     WebListingImage,
 )
@@ -83,6 +86,33 @@ class OrderLineInline(admin.TabularInline):
     readonly_fields = ['title', 'sku', 'unit_price', 'quantity', 'line_total']
     raw_id_fields = ['listing']
     can_delete = False
+
+
+@admin.register(StoreHoursOverride)
+class StoreHoursOverrideAdmin(admin.ModelAdmin):
+    list_display = ['label', 'date_start', 'date_end', 'closed', 'open', 'close', 'is_active']
+    list_filter = ['is_active', 'closed']
+    search_fields = ['label', 'note']
+
+
+class AnnouncementImageInline(admin.TabularInline):
+    model = AnnouncementImage
+    extra = 0
+    fields = ['s3_file', 'alt', 'sort_order']
+    raw_id_fields = ['s3_file']
+
+
+@admin.register(Announcement)
+class AnnouncementAdmin(admin.ModelAdmin):
+    list_display = [
+        'title', 'kind', 'style', 'is_active', 'is_template',
+        'priority', 'starts_at', 'ends_at',
+    ]
+    list_filter = ['kind', 'style', 'is_active', 'is_template']
+    search_fields = ['title', 'slug', 'body_text']
+    raw_id_fields = ['linked_hours_override', 'created_by', 'updated_by']
+    readonly_fields = ['slug', 'created_at', 'updated_at']
+    inlines = [AnnouncementImageInline]
 
 
 @admin.register(Order)

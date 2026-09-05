@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-05 (POS Labor Day / Summer Sale Phase 1) -->
+<!-- Last updated: 2026-09-05 (POS Labor Day / announcements + holiday hours) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not a session log.
@@ -13,7 +13,7 @@ Bounded work (hours–days), one `.md` per initiative. Not a session log.
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [pos_labor_day_summer_sale](./pos_labor_day_summer_sale.md) | **Phase 1** — shipped v2.88.0 | Labor Day 10% + Summer 50% + Assembly $35; Assembly/Delivery excluded. Compass. |
+| [pos_labor_day_summer_sale](./pos_labor_day_summer_sale.md) | **Phase 2** shipped v2.89.0 | Phase 1 POS sale + Phase 2 www announcements CRUD + holiday hours CRUD. Compass. |
 | [routines_and_documents](./routines_and_documents.md) | **Active** | Routines + Retail QA through desk Home / Today / Pay / Routines shipped **v2.87.0** (GitHub, not Heroku). Documents API in-tree; staff page parked for a later tune. |
 | [admin_workspace_overhaul](./admin_workspace_overhaul.md) | **Active** | Phases 1–3 shipped **v2.74.0**. Grants deferred. |
 | [universal_object_surfaces](./universal_object_surfaces.md) | **Design only** | Permissioned ObjectChip → ObjectSurface. No code scheduled. |

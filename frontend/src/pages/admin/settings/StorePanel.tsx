@@ -2,6 +2,7 @@ import { Box, Card, CardContent, Typography } from '@mui/material';
 import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
 import { metaForKey } from './settingsRegistry';
 import { SettingRow } from './SettingRow';
+import { HolidayHoursCard } from './HolidayHoursCard';
 import { StoreHoursEditor } from './StoreHoursEditor';
 import { settingByKey, useAppSettings } from './useAppSettings';
 
@@ -39,6 +40,7 @@ export function StorePanel() {
           <StoreHoursEditor value={hours?.value} />
         </CardContent>
       </Card>
+      <HolidayHoursCard />
     </Box>
   );
 }

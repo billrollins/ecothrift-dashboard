@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.88.0] -->
-<!-- Last reviewed: 2026-09-05 (v2.88.0 Labor Day / Summer sale) -->
+<!-- Line 1 release: ## [2.89.0] -->
+<!-- Last reviewed: 2026-09-05 (v2.89.0 announcements + holiday hours) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,25 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.89.0] - 2026-09-05
+
+User-facing theme: **Tell the store from Dash** - announcements and holiday hours land on www the same minute.
+
+Initiative: [`pos_labor_day_summer_sale`](./.ai/initiatives/pos_labor_day_summer_sale.md) Phase 2.
+
+### Added
+
+- Dash **Announcements** (Studios): rich-text CRUD, gallery, placements (banner / Home / Visit / Shop), schedule, toggle, templates, and **Copy from…** / duplicate. `Announcement` + `AnnouncementImage` (`webstore.0018`). `GET/POST /api/webstore/announcements/`, `toggle/`, `duplicate/`, image upload/reorder. Public `GET /api/webstore/public/announcements/`.
+- Settings → Store **Holiday & special hours**: dated open/closed overrides. `StoreHoursOverride` + `GET/POST /api/webstore/hours-overrides/`. Hold expiry and the public status pill honor overrides (including opening a normally closed Monday).
+- www **Holiday hours** block: weekly schedule stays put; dated lines plus "Regular hours resume …" so customers see a temporary exception, not new hours. JSON-LD `specialOpeningHoursSpecification`.
+- www announcement banner (dismissible), Home/Visit/Shop cards, and photo gallery. Tokens `{{holiday_hours}}`, `{{regular_hours}}`, `{{sale_end}}`, `{{store_name}}`.
+
+### Changed
+
+- `apps/webstore/services/hours.py` routes `is_open_day` / `close_on` / hold expiry through `effective_day()`. `GET /api/webstore/config/` hours payload adds `overrides`, `today`, `regular_label`, `resume_label`.
 
 ---
 

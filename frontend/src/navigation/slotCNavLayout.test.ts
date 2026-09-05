@@ -176,7 +176,7 @@ describe('Studios and Admin placement', () => {
   });
 
   it('puts every studio under Studios', () => {
-    expect(studios?.itemIds).toEqual(['labelStudio', 'floorplans', 'blogStudio']);
+    expect(studios?.itemIds).toEqual(['labelStudio', 'floorplans', 'announcements', 'blogStudio']);
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'library')).toBeUndefined();
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'people')).toBeUndefined();
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'mail')).toBeUndefined();

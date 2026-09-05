@@ -1,0 +1,48 @@
+.ann {
+  font-family: Manrope, system-ui, sans-serif;
+  color: #1a1f1c;
+}
+.ann--banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 10px 16px;
+  background: #fff4cc;
+  border-bottom: 3px solid #e5a011;
+}
+.ann--card {
+  padding: 16px 18px;
+  border: 1px solid #d8ddd9;
+  border-radius: 8px;
+  background: #fff;
+}
+.ann--sale { background: #18452d; color: #fff; border-color: #18452d; }
+.ann--sale.ann--card { background: #18452d; }
+.ann--info { background: #eef3f0; }
+.ann--warning { background: #fff4cc; }
+.ann--holiday { background: #f3ece2; border-color: #c4a574; }
+.ann--seasonal { background: #e8f2ea; }
+.ann__title { margin: 0 0 6px; font-size: 1.05rem; font-weight: 700; }
+.ann__body p { margin: 0 0 8px; }
+.ann__cta {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: #18452d;
+  color: #fff;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+.ann--sale .ann__cta { background: #fff; color: #18452d; }
+.ann__gallery { display: flex; gap: 8px; overflow-x: auto; margin-top: 10px; }
+.ann__gallery img { height: 88px; border-radius: 6px; object-fit: cover; }
+.ann-preview-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #5b635e;
+  margin: 16px 0 6px;
+}

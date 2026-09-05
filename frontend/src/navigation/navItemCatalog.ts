@@ -250,6 +250,13 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Restoration',
     icon: 'build',
   },
+  announcements: {
+    id: 'announcements',
+    path: '/announcements',
+    label: 'Announcements',
+    icon: 'campaign',
+    roles: ['Manager', 'Admin'],
+  },
   blogStudio: {
     id: 'blogStudio',
     path: '/blog-studio',

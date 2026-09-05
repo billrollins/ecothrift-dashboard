@@ -529,3 +529,176 @@ export function updateWebOrder(
 ): Promise<{ data: WebOrder }> {
   return api.patch(`/webstore/orders/${id}/`, data);
 }
+
+export type AnnouncementKind = 'promotion' | 'notice' | 'holiday' | 'event';
+export type AnnouncementStyle = 'sale' | 'info' | 'warning' | 'holiday' | 'seasonal';
+export type AnnouncementPlacement = 'banner' | 'home_hero' | 'home_card' | 'visit' | 'shop';
+export type AnnouncementStatus = 'live' | 'scheduled' | 'off' | 'expired' | 'template';
+
+export interface AnnouncementImage {
+  id: number;
+  alt: string;
+  sort_order: number;
+  url: string;
+  created_at: string;
+}
+
+export interface Announcement {
+  id: number;
+  title: string;
+  slug: string;
+  kind: AnnouncementKind;
+  style: AnnouncementStyle;
+  body_json: Record<string, unknown>;
+  body_html: string;
+  body_text: string;
+  cta_label: string;
+  cta_url: string;
+  placements: AnnouncementPlacement[];
+  priority: number;
+  dismissible: boolean;
+  is_active: boolean;
+  is_template: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+  linked_hours_override: number | null;
+  images: AnnouncementImage[];
+  status: AnnouncementStatus;
+  is_live: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AnnouncementWrite {
+  title?: string;
+  kind?: AnnouncementKind;
+  style?: AnnouncementStyle;
+  body_json?: Record<string, unknown>;
+  body_html?: string;
+  cta_label?: string;
+  cta_url?: string;
+  placements?: AnnouncementPlacement[];
+  priority?: number;
+  dismissible?: boolean;
+  is_active?: boolean;
+  is_template?: boolean;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  linked_hours_override?: number | null;
+}
+
+export function getAnnouncements(params?: {
+  status?: string;
+  q?: string;
+}): Promise<{ data: PaginatedResponse<Announcement> | Announcement[] }> {
+  return api.get('/webstore/announcements/', { params });
+}
+
+export function getAnnouncement(id: number): Promise<{ data: Announcement }> {
+  return api.get(`/webstore/announcements/${id}/`);
+}
+
+export function createAnnouncement(data: AnnouncementWrite): Promise<{ data: Announcement }> {
+  return api.post('/webstore/announcements/', data);
+}
+
+export function updateAnnouncement(
+  id: number,
+  data: AnnouncementWrite,
+): Promise<{ data: Announcement }> {
+  return api.patch(`/webstore/announcements/${id}/`, data);
+}
+
+export function deleteAnnouncement(id: number): Promise<unknown> {
+  return api.delete(`/webstore/announcements/${id}/`);
+}
+
+export function toggleAnnouncement(
+  id: number,
+  isActive?: boolean,
+): Promise<{ data: Announcement }> {
+  return api.post(`/webstore/announcements/${id}/toggle/`, isActive === undefined ? {} : { is_active: isActive });
+}
+
+export function duplicateAnnouncement(id: number): Promise<{ data: Announcement }> {
+  return api.post(`/webstore/announcements/${id}/duplicate/`);
+}
+
+export function uploadAnnouncementImage(
+  id: number,
+  file: File,
+  alt?: string,
+): Promise<{ data: AnnouncementImage }> {
+  const form = new FormData();
+  form.append('file', file);
+  if (alt) form.append('alt', alt);
+  return api.post(`/webstore/announcements/${id}/images/`, form, {
+    transformRequest: stripMultipartContentType,
+  });
+}
+
+export function deleteAnnouncementImage(announcementId: number, imageId: number): Promise<unknown> {
+  return api.delete(`/webstore/announcements/${announcementId}/images/${imageId}/`);
+}
+
+export function updateAnnouncementImageAlt(
+  announcementId: number,
+  imageId: number,
+  alt: string,
+): Promise<{ data: AnnouncementImage }> {
+  return api.patch(`/webstore/announcements/${announcementId}/images/${imageId}/`, { alt });
+}
+
+export function reorderAnnouncementImages(
+  announcementId: number,
+  order: number[],
+): Promise<{ data: Announcement }> {
+  return api.post(`/webstore/announcements/${announcementId}/images/reorder/`, { order });
+}
+
+export interface StoreHoursOverride {
+  id: number;
+  label: string;
+  date_start: string;
+  date_end: string;
+  closed: boolean;
+  open: string;
+  close: string;
+  note: string;
+  is_active: boolean;
+  sentence: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StoreHoursOverrideWrite {
+  label?: string;
+  date_start?: string;
+  date_end?: string;
+  closed?: boolean;
+  open?: string;
+  close?: string;
+  note?: string;
+  is_active?: boolean;
+}
+
+export function getHoursOverrides(): Promise<{ data: PaginatedResponse<StoreHoursOverride> | StoreHoursOverride[] }> {
+  return api.get('/webstore/hours-overrides/');
+}
+
+export function createHoursOverride(
+  data: StoreHoursOverrideWrite,
+): Promise<{ data: StoreHoursOverride }> {
+  return api.post('/webstore/hours-overrides/', data);
+}
+
+export function updateHoursOverride(
+  id: number,
+  data: StoreHoursOverrideWrite,
+): Promise<{ data: StoreHoursOverride }> {
+  return api.patch(`/webstore/hours-overrides/${id}/`, data);
+}
+
+export function deleteHoursOverride(id: number): Promise<unknown> {
+  return api.delete(`/webstore/hours-overrides/${id}/`);
+}

@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom'
+import AnnouncementCard from '../components/AnnouncementCard'
 import StoreHoursBlock from '../components/StoreHoursBlock'
+import { useAnnouncements } from '../announcements'
 import StoreMap from '../components/StoreMap'
 import { retailMapsDirectionsUrl, STORE, storeJsonLd } from '../data/content'
 import { usePublicHours } from '../lib/storeHours'
@@ -7,6 +9,7 @@ import { useJsonLd, useSeo } from '../useSeo'
 
 export default function VisitPage() {
   const { hours, status, label } = usePublicHours()
+  const visitAnnouncements = useAnnouncements('visit')
   useSeo({
     title: 'Visit',
     description: `Visit Eco-Thrift at ${STORE.retail.address}. Open ${label}.`,
@@ -24,6 +27,13 @@ export default function VisitPage() {
           </p>
         </div>
       </div>
+      {visitAnnouncements.length > 0 ? (
+        <div className="wrap" style={{ marginTop: 16 }}>
+          {visitAnnouncements.map((row) => (
+            <AnnouncementCard key={row.id} announcement={row} />
+          ))}
+        </div>
+      ) : null}
 
       <div className="section">
         <div className="wrap">
@@ -39,7 +49,7 @@ export default function VisitPage() {
                   {STORE.retail.address}
                 </span>
               </div>
-              <StoreHoursBlock status={status} label={label} />
+              <StoreHoursBlock status={status} label={label} hours={hours} />
               <div className="vrow">
                 <b>Phone</b>
                 <span>

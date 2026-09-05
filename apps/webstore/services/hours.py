@@ -1,11 +1,14 @@
 """Store hours for hold expiry (Canfield defaults via AppSetting)."""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.utils import timezone
+
+OVERRIDE_LOOKAHEAD_DAYS = 7
 
 DEFAULT_HOURS = {
     'timezone': 'America/Chicago',
@@ -38,7 +41,83 @@ def get_hours_config() -> dict:
     return dict(DEFAULT_HOURS)
 
 
-def public_hours_payload(cfg: dict | None = None) -> dict:
+@dataclass(frozen=True)
+class DayHours:
+    open: bool
+    open_hhmm: str
+    close_hhmm: str
+    override: object | None = None
+
+
+def _active_overrides():
+    from apps.webstore.models import StoreHoursOverride
+
+    try:
+        return list(StoreHoursOverride.objects.filter(is_active=True))
+    except Exception:
+        return []
+
+
+def _override_for(day: date, overrides) -> object | None:
+    for row in overrides:
+        if row.date_start <= day <= row.date_end:
+            return row
+    return None
+
+
+def effective_day(day: date, cfg: dict | None = None, overrides=None) -> DayHours:
+    """Hours for one calendar day. Active overrides win, including opening a closed weekday."""
+    cfg = cfg or get_hours_config()
+    if overrides is None:
+        overrides = _active_overrides()
+    open_hhmm = cfg.get('open') or DEFAULT_HOURS['open']
+    close_hhmm = cfg.get('close') or DEFAULT_HOURS['close']
+    ov = _override_for(day, overrides)
+    if ov is not None:
+        if ov.closed:
+            return DayHours(False, ov.open or open_hhmm, ov.close or close_hhmm, ov)
+        return DayHours(True, ov.open or open_hhmm, ov.close or close_hhmm, ov)
+    closed = set(cfg.get('closed_weekdays') or [6])
+    return DayHours(day.weekday() not in closed, open_hhmm, close_hhmm, None)
+
+
+def _short_date(day: date) -> str:
+    return day.strftime('%a, %b ') + str(day.day)
+
+
+def holiday_sentence(override) -> str:
+    """Dated customer line: 'Mon, Sep 7 - Closed (Labor Day)'."""
+    start = override.date_start
+    end = override.date_end
+    if start == end:
+        when = _short_date(start)
+    else:
+        when = f'{_short_date(start)} - {_short_date(end)}'
+    if override.closed:
+        hours = 'Closed'
+    else:
+        hours = f'{_clock_label(override.open or "09:00")}-{_clock_label(override.close or "18:00")}'
+    label = (override.label or '').strip()
+    if label:
+        return f'{when} - {hours} ({label})'
+    return f'{when} - {hours}'
+
+
+def _serialize_override(override) -> dict:
+    return {
+        'id': override.id,
+        'label': override.label,
+        'date_start': override.date_start.isoformat(),
+        'date_end': override.date_end.isoformat(),
+        'closed': bool(override.closed),
+        'open': override.open or '',
+        'close': override.close or '',
+        'note': override.note or '',
+        'sentence': holiday_sentence(override),
+    }
+
+
+def public_hours_payload(cfg: dict | None = None, today: date | None = None) -> dict:
     """Safe subset of store hours for the public /config/ payload."""
     cfg = cfg or get_hours_config()
     closed = [
@@ -46,12 +125,40 @@ def public_hours_payload(cfg: dict | None = None) -> dict:
         for n in (cfg.get('closed_weekdays') or [])
         if str(n).isdigit() and 0 <= int(n) <= 6
     ]
+    tz = ZoneInfo(cfg.get('timezone') or DEFAULT_HOURS['timezone'])
+    if today is None:
+        now = timezone.now()
+        today = now.astimezone(tz).date() if timezone.is_aware(now) else now.date()
+    overrides = _active_overrides()
+    window_end = today + timedelta(days=OVERRIDE_LOOKAHEAD_DAYS)
+    visible = [
+        ov for ov in overrides
+        if ov.date_end >= today and ov.date_start <= window_end
+    ]
+    visible.sort(key=lambda ov: (ov.date_start, ov.id))
+    today_hours = effective_day(today, cfg=cfg, overrides=overrides)
+    today_ov = today_hours.override
+    regular_label = format_hours_label(cfg)
+    resume_label = ''
+    if visible:
+        last_end = max(ov.date_end for ov in visible)
+        resume_label = f'Regular hours resume {_short_date(last_end + timedelta(days=1))}.'
     return {
         'timezone': cfg.get('timezone') or DEFAULT_HOURS['timezone'],
         'open': cfg.get('open') or DEFAULT_HOURS['open'],
         'close': cfg.get('close') or DEFAULT_HOURS['close'],
         'closed_weekdays': sorted(set(closed)),
-        'label': format_hours_label(cfg),
+        'label': regular_label,
+        'regular_label': regular_label,
+        'resume_label': resume_label,
+        'overrides': [_serialize_override(ov) for ov in visible],
+        'today': {
+            'is_override': today_ov is not None,
+            'label': getattr(today_ov, 'label', '') or '',
+            'closed': not today_hours.open,
+            'open': today_hours.open_hhmm,
+            'close': today_hours.close_hhmm,
+        },
     }
 
 
@@ -137,26 +244,27 @@ def _local_now(moment=None):
     return local, cfg, tz
 
 
-def is_open_day(day: date, *, cfg: dict | None = None) -> bool:
-    cfg = cfg or get_hours_config()
-    closed = set(cfg.get('closed_weekdays') or [6])
-    return day.weekday() not in closed
+def is_open_day(day: date, *, cfg: dict | None = None, overrides=None) -> bool:
+    return effective_day(day, cfg=cfg, overrides=overrides).open
 
 
-def close_on(day: date, *, cfg: dict | None = None, tz: ZoneInfo | None = None):
+def close_on(day: date, *, cfg: dict | None = None, tz: ZoneInfo | None = None, overrides=None):
     """Aware datetime for store close on `day`."""
     cfg = cfg or get_hours_config()
     if tz is None:
         tz = ZoneInfo(cfg.get('timezone') or 'America/Chicago')
-    close_t = _parse_hhmm(cfg.get('close') or '18:00')
+    hours = effective_day(day, cfg=cfg, overrides=overrides)
+    close_t = _parse_hhmm(hours.close_hhmm)
     naive = datetime.combine(day, close_t)
     return timezone.make_aware(naive, tz)
 
 
-def _next_open_day(start: date, *, cfg: dict, inclusive: bool = True) -> date:
+def _next_open_day(start: date, *, cfg: dict, inclusive: bool = True, overrides=None) -> date:
+    if overrides is None:
+        overrides = _active_overrides()
     day = start if inclusive else start + timedelta(days=1)
     for _ in range(21):
-        if is_open_day(day, cfg=cfg):
+        if is_open_day(day, cfg=cfg, overrides=overrides):
             return day
         day = day + timedelta(days=1)
     return start
@@ -168,8 +276,11 @@ def next_business_day_close_after(moment=None):
     Kept for staff `extend` and reopen fallbacks.
     """
     local, cfg, tz = _local_now(moment)
-    day = _next_open_day(local.date() + timedelta(days=1), cfg=cfg, inclusive=True)
-    return close_on(day, cfg=cfg, tz=tz)
+    overrides = _active_overrides()
+    day = _next_open_day(
+        local.date() + timedelta(days=1), cfg=cfg, inclusive=True, overrides=overrides,
+    )
+    return close_on(day, cfg=cfg, tz=tz, overrides=overrides)
 
 
 def provisional_expiry(moment=None):
@@ -181,18 +292,23 @@ def provisional_expiry(moment=None):
     - the moment is within ONLINE_SALES_PROVISIONAL_GRACE_MINUTES of close.
     """
     local, cfg, tz = _local_now(moment)
+    overrides = _active_overrides()
     grace = max(0, int(getattr(settings, 'ONLINE_SALES_PROVISIONAL_GRACE_MINUTES', 30)))
     today = local.date()
 
-    if not is_open_day(today, cfg=cfg):
-        day = _next_open_day(today + timedelta(days=1), cfg=cfg, inclusive=True)
-        return close_on(day, cfg=cfg, tz=tz)
+    if not is_open_day(today, cfg=cfg, overrides=overrides):
+        day = _next_open_day(
+            today + timedelta(days=1), cfg=cfg, inclusive=True, overrides=overrides,
+        )
+        return close_on(day, cfg=cfg, tz=tz, overrides=overrides)
 
-    today_close = close_on(today, cfg=cfg, tz=tz)
+    today_close = close_on(today, cfg=cfg, tz=tz, overrides=overrides)
     grace_cutoff = today_close - timedelta(minutes=grace)
     if local >= grace_cutoff:
-        day = _next_open_day(today + timedelta(days=1), cfg=cfg, inclusive=True)
-        return close_on(day, cfg=cfg, tz=tz)
+        day = _next_open_day(
+            today + timedelta(days=1), cfg=cfg, inclusive=True, overrides=overrides,
+        )
+        return close_on(day, cfg=cfg, tz=tz, overrides=overrides)
     return today_close
 
 
@@ -203,9 +319,14 @@ def confirmed_expiry(moment=None, open_days: int = 3):
     Example: Thu Aug 6 before close → Sat Aug 8 close.
     """
     local, cfg, tz = _local_now(moment)
+    overrides = _active_overrides()
     open_days = max(1, int(open_days))
     today = local.date()
-    today_close = close_on(today, cfg=cfg, tz=tz) if is_open_day(today, cfg=cfg) else None
+    today_close = (
+        close_on(today, cfg=cfg, tz=tz, overrides=overrides)
+        if is_open_day(today, cfg=cfg, overrides=overrides)
+        else None
+    )
 
     if today_close is not None and local < today_close:
         start = today
@@ -215,11 +336,10 @@ def confirmed_expiry(moment=None, open_days: int = 3):
     counted = 0
     day = start
     for _ in range(28):
-        if is_open_day(day, cfg=cfg):
+        if is_open_day(day, cfg=cfg, overrides=overrides):
             counted += 1
             if counted >= open_days:
-                return close_on(day, cfg=cfg, tz=tz)
+                return close_on(day, cfg=cfg, tz=tz, overrides=overrides)
         day = day + timedelta(days=1)
 
-    # Fallback: next business day close
     return next_business_day_close_after(local)

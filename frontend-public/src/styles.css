@@ -1679,3 +1679,95 @@ main:has(.home) + .ft { margin-top: 0; }
   .holdcard__media { width: 72px; height: 72px; }
   .holdcard__actions .btn { flex: 1 1 auto; }
 }
+
+.ann { font-family: var(--fbody); color: var(--ink); }
+.ann--banner {
+  min-height: var(--util-height);
+  background: #fff4cc;
+  border-bottom: 3px solid #e5a011;
+}
+.ann__banner-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 32px;
+}
+.ann--card {
+  margin: 12px 0;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.ann--sale { background: var(--brand); color: #fff; border-color: var(--brand); }
+.ann--info { background: var(--brand-tint); }
+.ann--warning { background: #fff4cc; }
+.ann--holiday { background: #f3ece2; border-color: #c4a574; }
+.ann--seasonal { background: #e8f2ea; }
+.ann__title { margin: 0 0 6px; font-size: 1.05rem; }
+.ann__body p { margin: 0 0 8px; }
+.ann__body--inline p { display: inline; margin: 0 0 0 8px; }
+.ann__cta {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--brand);
+  color: #fff;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+.ann--sale .ann__cta { background: #fff; color: var(--brand); }
+.ann__dismiss {
+  border: 0;
+  background: transparent;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  color: inherit;
+}
+.ann__gallery { display: flex; gap: 8px; overflow-x: auto; margin-top: 10px; scroll-snap-type: x mandatory; }
+.ann__thumb { border: 0; padding: 0; background: none; cursor: pointer; scroll-snap-align: start; }
+.ann__gallery img, .ann__thumb img { height: 88px; border-radius: 6px; object-fit: cover; }
+.ann__lightbox {
+  border: 0;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.75);
+  max-width: 90vw;
+}
+.ann__lightbox img { max-width: 80vw; max-height: 80vh; }
+.holiday-hours { display: block; margin-top: 8px; }
+.holiday-hours__tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8a5a12;
+  margin-bottom: 4px;
+}
+.holiday-hours__line, .holiday-hours__resume, .holiday-hours__note {
+  display: block;
+  font-size: 13px;
+  color: var(--ink);
+}
+.holiday-hours__note { color: var(--muted); margin-top: 4px; }
+
+@keyframes ann-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes ann-shimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+.ann--banner { animation: ann-fade 0.35s ease; }
+.ann--sale.ann--banner {
+  background-image: linear-gradient(90deg, #18452d, #246b45, #18452d);
+  background-size: 200% 100%;
+  animation: ann-fade 0.35s ease, ann-shimmer 6s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ann--banner, .ann--sale.ann--banner { animation: none; }
+}

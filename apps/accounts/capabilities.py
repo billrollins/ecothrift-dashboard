@@ -59,6 +59,8 @@ CATALOG: tuple[Capability, ...] = (
     Capability('users.customers:manage', 'People', 'Create and edit customer accounts', MANAGER_PLUS, 'CustomerViewSet IsManagerOrAdmin'),
     Capability('consignment:manage', 'Consignment', 'Manage consignee accounts, items, payouts', MANAGER_PLUS, 'IsManagerOrAdmin on consignment viewsets'),
     Capability('online_sales:manage', 'Online Sales', 'Listings, holds, and shopper messages', MANAGER_PLUS, 'IsManagerOrAdmin on webstore staff viewsets'),
+    Capability('announcements:manage', 'Studios', 'Create and edit customer-facing announcements', MANAGER_PLUS, 'AnnouncementViewSet IsManagerOrAdmin'),
+    Capability('hours.overrides:write', 'Settings', 'Create and edit holiday / special hours', MANAGER_PLUS, 'StoreHoursOverrideViewSet IsManagerOrAdmin'),
     Capability('labels:write', 'Studios', 'Create and edit label templates', MANAGER_PLUS, 'CustomLabelViewSet _STAFF_PERMS'),
     Capability('pos.register:write', 'POS', 'Create and edit registers', MANAGER_PLUS, 'RegisterViewSet writes'),
     Capability('pos.setup:write', 'POS', 'Edit store locations and POS setup', MANAGER_PLUS, 'WorkLocation writes; POS setup UI'),

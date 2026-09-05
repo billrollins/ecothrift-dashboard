@@ -7,7 +7,9 @@ import {
   type CategoryCount,
 } from '../api'
 import { useCart } from '../cart'
+import AnnouncementCard from '../components/AnnouncementCard'
 import ProductGrid from '../components/ProductGrid'
+import { useAnnouncements } from '../announcements'
 import { SHOP_CATEGORIES } from '../data/content'
 import { useSeo } from '../useSeo'
 
@@ -38,6 +40,7 @@ export default function ShopPage() {
   const [error, setError] = useState(false)
 
   const { add } = useCart()
+  const shopAnnouncements = useAnnouncements('shop')
 
   useEffect(() => {
     fetchCategories()
@@ -119,6 +122,9 @@ export default function ShopPage() {
       </aside>
 
       <div className="shopmain">
+        {shopAnnouncements.map((row) => (
+          <AnnouncementCard key={row.id} announcement={row} />
+        ))}
         <div className="shophead">
           <div>
             <h1 className="shoptitle">{activeCategoryName}</h1>

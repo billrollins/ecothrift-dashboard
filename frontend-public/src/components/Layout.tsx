@@ -6,6 +6,7 @@ import { useCart } from '../cart'
 import { retailMapsDirectionsUrl, STORE } from '../data/content'
 import { useStoreHoursLabel } from '../lib/storeHours'
 import { useOnlineSalesConfig } from '../onlineSalesConfig'
+import AnnouncementBanner from './AnnouncementBanner'
 import CartDrawer from './CartDrawer'
 
 const navClass = ({ isActive }: { isActive: boolean }) => (isActive ? 'on' : undefined)
@@ -35,6 +36,7 @@ export default function Layout() {
         </div>
       )}
 
+      <AnnouncementBanner />
       <header className="hdr">
         <div className="wrap">
           <Link className="logorow" to="/">

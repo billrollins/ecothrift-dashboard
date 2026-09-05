@@ -111,6 +111,37 @@ export function parseStoreHours(raw: unknown): StoreHours {
   };
 }
 
+function parseIsoDate(iso: string): Date {
+  const [year, month, day] = iso.slice(0, 10).split('-').map(Number);
+  return new Date(year, (month || 1) - 1, day || 1);
+}
+
+function shortDate(iso: string): string {
+  const date = parseIsoDate(iso);
+  const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
+  const month = date.toLocaleDateString('en-US', { month: 'short' });
+  return `${weekday}, ${month} ${date.getDate()}`;
+}
+
+export function holidayHoursLine(override: {
+  label: string;
+  date_start: string;
+  date_end: string;
+  closed: boolean;
+  open?: string;
+  close?: string;
+}): string {
+  const when =
+    override.date_start === override.date_end
+      ? shortDate(override.date_start)
+      : `${shortDate(override.date_start)} - ${shortDate(override.date_end)}`;
+  const hours = override.closed
+    ? 'Closed'
+    : `${formatClockLabel(override.open || '09:00')}-${formatClockLabel(override.close || '18:00')}`;
+  const label = (override.label || '').trim();
+  return label ? `${when} - ${hours} (${label})` : `${when} - ${hours}`;
+}
+
 export function setDayOpen(hours: StoreHours, weekday: number, open: boolean): StoreHours {
   const closed = new Set(hours.closed_weekdays);
   if (open) closed.delete(weekday);

@@ -9,6 +9,7 @@ import { ConsigneeLayout } from './components/layout/ConsigneeLayout';
 // Standalone full-screen page (its own window, outside MainLayout). Lazy-loaded so the
 // TipTap editor bundle never lands in the main staff chunk.
 const BlogStudioPage = lazy(() => import('./pages/blog/BlogStudioPage'));
+const AnnouncementEditorPage = lazy(() => import('./pages/announcements/AnnouncementEditorPage'));
 const RetailInboxPage = lazy(() => import('./pages/mailbox/RetailInboxPage'));
 
 // Full-screen floorplan editor - lazy so the SVG editor bundle stays out of the main chunk.
@@ -82,6 +83,7 @@ import OnlineSalesListingsPage from './pages/online-sales/OnlineSalesListingsPag
 import ListingStudioPage from './pages/online-sales/ListingStudioPage';
 import OnlineSalesHoldsPage from './pages/online-sales/OnlineSalesHoldsPage';
 import OnlineSalesMessagesPage from './pages/online-sales/OnlineSalesMessagesPage';
+import AnnouncementsPage from './pages/announcements/AnnouncementsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -338,6 +340,24 @@ export default function App() {
           element={
             <ManagerRoute>
               <SettingsPage />
+            </ManagerRoute>
+          }
+        />
+        <Route
+          path="/announcements"
+          element={
+            <ManagerRoute>
+              <AnnouncementsPage />
+            </ManagerRoute>
+          }
+        />
+        <Route
+          path="/announcements/:id"
+          element={
+            <ManagerRoute>
+              <Suspense fallback={<LoadingScreen message="Loading announcement…" />}>
+                <AnnouncementEditorPage />
+              </Suspense>
             </ManagerRoute>
           }
         />

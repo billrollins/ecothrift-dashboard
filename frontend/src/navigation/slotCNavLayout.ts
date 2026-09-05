@@ -72,7 +72,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     id: 'studios',
     label: 'Studios',
     roles: ['Manager', 'Admin'],
-    itemIds: ['labelStudio', 'floorplans', 'blogStudio'],
+    itemIds: ['labelStudio', 'floorplans', 'announcements', 'blogStudio'],
   },
   {
     id: 'admin',

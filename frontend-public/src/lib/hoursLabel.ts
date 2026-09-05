@@ -75,3 +75,36 @@ export const DEFAULT_HOURS_LABEL = formatHoursLabel({
   close: '18:00',
   closed_weekdays: [0, 6],
 })
+
+function parseIsoDate(iso: string): Date {
+  const [year, month, day] = iso.slice(0, 10).split('-').map(Number)
+  return new Date(year, (month || 1) - 1, day || 1)
+}
+
+function shortDate(iso: string): string {
+  const date = parseIsoDate(iso)
+  const weekday = date.toLocaleDateString('en-US', { weekday: 'short' })
+  const month = date.toLocaleDateString('en-US', { month: 'short' })
+  return `${weekday}, ${month} ${date.getDate()}`
+}
+
+export function formatHolidayLine(override: {
+  label: string
+  date_start: string
+  date_end: string
+  closed: boolean
+  open?: string
+  close?: string
+  sentence?: string
+}): string {
+  if (override.sentence) return override.sentence
+  const when =
+    override.date_start === override.date_end
+      ? shortDate(override.date_start)
+      : `${shortDate(override.date_start)} - ${shortDate(override.date_end)}`
+  const hours = override.closed
+    ? 'Closed'
+    : `${formatClockLabel(override.open || '09:00')}-${formatClockLabel(override.close || '18:00')}`
+  const label = (override.label || '').trim()
+  return label ? `${when} - ${hours} (${label})` : `${when} - ${hours}`
+}

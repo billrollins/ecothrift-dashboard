@@ -2,6 +2,8 @@
 from rest_framework import serializers
 
 from .models import (
+    Announcement,
+    AnnouncementImage,
     ChannelPublication,
     Conversation,
     Message,
@@ -9,6 +11,7 @@ from .models import (
     OrderLine,
     Reservation,
     ReservationEvent,
+    StoreHoursOverride,
     WebListing,
     WebListingImage,
 )
@@ -581,3 +584,128 @@ class OrderStaffSerializer(serializers.ModelSerializer):
             'subtotal', 'shipping', 'tax', 'total', 'item_count',
             'customer_note', 'lines', 'created_at', 'updated_at',
         ]
+
+
+class StoreHoursOverrideSerializer(serializers.ModelSerializer):
+    sentence = serializers.SerializerMethodField()
+
+    class Meta:
+        model = StoreHoursOverride
+        fields = [
+            'id', 'label', 'date_start', 'date_end', 'closed',
+            'open', 'close', 'note', 'is_active', 'sentence',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'sentence', 'created_at', 'updated_at']
+
+    def get_sentence(self, obj) -> str:
+        from apps.webstore.services.hours import holiday_sentence
+
+        return holiday_sentence(obj)
+
+    def validate(self, attrs):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        if self.instance:
+            instance = self.instance
+            for field, value in attrs.items():
+                setattr(instance, field, value)
+        else:
+            instance = StoreHoursOverride(**attrs)
+        try:
+            instance.clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict if hasattr(exc, 'message_dict') else exc.messages)
+        return attrs
+
+
+class AnnouncementImageSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AnnouncementImage
+        fields = ['id', 'alt', 'sort_order', 'url', 'created_at']
+        read_only_fields = ['id', 'url', 'created_at']
+
+    def get_url(self, obj) -> str:
+        return obj.url
+
+
+def _announcement_status(obj) -> str:
+    from django.utils import timezone
+
+    now = timezone.now()
+    if obj.is_template:
+        return 'template'
+    if not obj.is_active:
+        return 'off'
+    if obj.starts_at and obj.starts_at > now:
+        return 'scheduled'
+    if obj.ends_at and obj.ends_at < now:
+        return 'expired'
+    return 'live'
+
+
+class AnnouncementSerializer(serializers.ModelSerializer):
+    images = AnnouncementImageSerializer(many=True, read_only=True)
+    status = serializers.SerializerMethodField()
+    is_live = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Announcement
+        fields = [
+            'id', 'title', 'slug', 'kind', 'style',
+            'body_json', 'body_html', 'body_text',
+            'cta_label', 'cta_url', 'placements', 'priority',
+            'dismissible', 'is_active', 'is_template',
+            'starts_at', 'ends_at', 'linked_hours_override',
+            'images', 'status', 'is_live',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'slug', 'body_text', 'images', 'status', 'is_live',
+            'created_at', 'updated_at',
+        ]
+
+    def get_status(self, obj) -> str:
+        return _announcement_status(obj)
+
+    def get_is_live(self, obj) -> bool:
+        return obj.is_live()
+
+    def validate_placements(self, value):
+        allowed = set(Announcement.PLACEMENT_CHOICES)
+        if not isinstance(value, list):
+            raise serializers.ValidationError('placements must be a list.')
+        cleaned = []
+        for item in value:
+            if item not in allowed:
+                raise serializers.ValidationError(f'Unknown placement: {item}')
+            if item not in cleaned:
+                cleaned.append(item)
+        return cleaned
+
+    def _apply_body(self, instance, validated):
+        body_html = validated.pop('body_html', None)
+        body_json = validated.pop('body_json', None)
+        if body_html is not None or body_json is not None:
+            instance.apply_body(
+                body_html=body_html if body_html is not None else instance.body_html,
+                body_json=body_json if body_json is not None else instance.body_json,
+            )
+        return validated
+
+    def create(self, validated_data):
+        body_html = validated_data.pop('body_html', '')
+        body_json = validated_data.pop('body_json', None)
+        row = Announcement(**validated_data)
+        row.apply_body(body_html=body_html, body_json=body_json if body_json is not None else {})
+        row.save()
+        return row
+
+    def update(self, instance, validated_data):
+        validated_data = self._apply_body(instance, validated_data)
+        for key, value in validated_data.items():
+            setattr(instance, key, value)
+        instance.save()
+        return instance

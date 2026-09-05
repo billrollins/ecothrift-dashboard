@@ -22,8 +22,20 @@ from rest_framework.throttling import SimpleRateThrottle
 from apps.accounts.permissions import IsManagerOrAdmin
 from apps.core.models import S3File
 
-from .models import ChannelPublication, Conversation, Order, Reservation, WebListing, WebListingImage
+from .models import (
+    Announcement,
+    AnnouncementImage,
+    ChannelPublication,
+    Conversation,
+    Order,
+    Reservation,
+    StoreHoursOverride,
+    WebListing,
+    WebListingImage,
+)
 from .serializers import (
+    AnnouncementImageSerializer,
+    AnnouncementSerializer,
     ConversationStaffListSerializer,
     ConversationStaffSerializer,
     MessagePublicSerializer,
@@ -32,6 +44,7 @@ from .serializers import (
     ReservationEventSerializer,
     ReservationPublicSerializer,
     ReservationStaffSerializer,
+    StoreHoursOverrideSerializer,
     WebListingDetailPublicSerializer,
     WebListingImageSerializer,
     WebListingListPublicSerializer,
@@ -645,6 +658,194 @@ def public_config(request):
         'public_base_url': public_base,
         'hours': public_hours_payload(),
     })
+
+
+@api_view(['GET'])
+@perm_classes([AllowAny])
+def public_announcements(request):
+    from apps.webstore.services.announcements import (
+        live_announcements,
+        public_announcement_payload,
+        token_context,
+    )
+
+    ctx = token_context()
+    payload = [public_announcement_payload(row, ctx) for row in live_announcements()]
+    response = Response(payload)
+    response['Cache-Control'] = 'public, max-age=60'
+    return response
+
+
+def announcement_image(request, image_id):
+    try:
+        image = AnnouncementImage.objects.select_related('s3_file').get(pk=image_id)
+    except AnnouncementImage.DoesNotExist:
+        raise Http404('Image not found.')
+    key = image.s3_file.key
+    try:
+        url = default_storage.url(key)
+    except Exception:
+        url = None
+    if url and str(url).lower().startswith(('http://', 'https://')):
+        response = HttpResponseRedirect(url)
+        response['Cache-Control'] = 'public, max-age=300'
+        return response
+    try:
+        handle = default_storage.open(key, 'rb')
+    except (OSError, FileNotFoundError):
+        raise Http404('Image file missing.')
+    response = FileResponse(
+        handle, content_type=image.s3_file.content_type or 'application/octet-stream',
+    )
+    response['Cache-Control'] = 'public, max-age=300'
+    return response
+
+
+class StoreHoursOverrideViewSet(viewsets.ModelViewSet):
+    serializer_class = StoreHoursOverrideSerializer
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+
+    def get_queryset(self):
+        return StoreHoursOverride.objects.all().order_by('date_start', 'id')
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+
+class AnnouncementViewSet(viewsets.ModelViewSet):
+    serializer_class = AnnouncementSerializer
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+
+    def get_queryset(self):
+        qs = Announcement.objects.prefetch_related('images').select_related(
+            'linked_hours_override',
+        )
+        status = (self.request.query_params.get('status') or '').strip()
+        q = (self.request.query_params.get('q') or '').strip()
+        if q:
+            qs = qs.filter(Q(title__icontains=q) | Q(body_text__icontains=q))
+        if status:
+            now = timezone.now()
+            if status == 'template':
+                qs = qs.filter(is_template=True)
+            elif status == 'off':
+                qs = qs.filter(is_active=False, is_template=False)
+            elif status == 'scheduled':
+                qs = qs.filter(is_active=True, is_template=False, starts_at__gt=now)
+            elif status == 'expired':
+                qs = qs.filter(is_active=True, is_template=False, ends_at__lt=now)
+            elif status == 'live':
+                qs = (
+                    qs.filter(is_active=True, is_template=False)
+                    .filter(Q(starts_at__isnull=True) | Q(starts_at__lte=now))
+                    .filter(Q(ends_at__isnull=True) | Q(ends_at__gte=now))
+                )
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user, updated_by=self.request.user)
+
+    def perform_update(self, serializer):
+        serializer.save(updated_by=self.request.user)
+
+    @action(detail=True, methods=['post'], url_path='toggle')
+    def toggle(self, request, pk=None):
+        row = self.get_object()
+        if 'is_active' in request.data:
+            row.is_active = bool(request.data.get('is_active'))
+        else:
+            row.is_active = not row.is_active
+        row.updated_by = request.user
+        row.save(update_fields=['is_active', 'updated_by', 'updated_at'])
+        return Response(AnnouncementSerializer(row).data)
+
+    @action(detail=True, methods=['post'], url_path='duplicate')
+    def duplicate(self, request, pk=None):
+        src = self.get_object()
+        copy = Announcement.objects.create(
+            title=f'Copy of {src.title}'[:200],
+            kind=src.kind,
+            style=src.style,
+            body_json=src.body_json,
+            body_html=src.body_html,
+            body_text=src.body_text,
+            cta_label=src.cta_label,
+            cta_url=src.cta_url,
+            placements=list(src.placements or []),
+            priority=src.priority,
+            dismissible=src.dismissible,
+            is_active=False,
+            is_template=False,
+            starts_at=None,
+            ends_at=None,
+            linked_hours_override=src.linked_hours_override,
+            created_by=request.user,
+            updated_by=request.user,
+        )
+        for img in src.images.all():
+            AnnouncementImage.objects.create(
+                announcement=copy,
+                s3_file=img.s3_file,
+                alt=img.alt,
+                sort_order=img.sort_order,
+            )
+        copy = Announcement.objects.prefetch_related('images').get(pk=copy.pk)
+        return Response(AnnouncementSerializer(copy).data, status=201)
+
+    @action(detail=True, methods=['post'], url_path='images')
+    def add_image(self, request, pk=None):
+        row = self.get_object()
+        file = request.FILES.get('file')
+        if not file:
+            return Response({'detail': 'No file provided.'}, status=400)
+        ext = os.path.splitext(file.name or '')[1].lower() or '.jpg'
+        key = f'webstore/announcements/{row.id}/{uuid.uuid4().hex}{ext}'
+        saved_path = default_storage.save(key, file)
+        s3_file = S3File.objects.create(
+            key=saved_path,
+            filename=file.name or saved_path.split('/')[-1],
+            size=getattr(file, 'size', 0) or 0,
+            content_type=getattr(file, 'content_type', '') or '',
+            uploaded_by=request.user,
+        )
+        next_pos = (row.images.aggregate(m=Max('sort_order'))['m'] or 0) + 1
+        image = AnnouncementImage.objects.create(
+            announcement=row,
+            s3_file=s3_file,
+            alt=request.data.get('alt', ''),
+            sort_order=next_pos,
+        )
+        return Response(AnnouncementImageSerializer(image).data, status=201)
+
+    @action(detail=True, methods=['post'], url_path='images/reorder')
+    def reorder_images(self, request, pk=None):
+        row = self.get_object()
+        order = request.data.get('order') or []
+        for idx, image_id in enumerate(order):
+            AnnouncementImage.objects.filter(pk=image_id, announcement=row).update(sort_order=idx)
+        row = self.get_queryset().get(pk=row.pk)
+        return Response(AnnouncementSerializer(row).data)
+
+    @action(detail=True, methods=['patch', 'delete'], url_path=r'images/(?P<image_id>[0-9]+)')
+    def mutate_image(self, request, pk=None, image_id=None):
+        row = self.get_object()
+        image = get_object_or_404(AnnouncementImage, pk=image_id, announcement=row)
+        if request.method == 'PATCH':
+            alt = request.data.get('alt')
+            if alt is None:
+                return Response({'detail': 'alt is required.'}, status=400)
+            image.alt = str(alt)[:200]
+            image.save(update_fields=['alt'])
+            return Response(AnnouncementImageSerializer(image).data)
+        s3_file = image.s3_file
+        image.delete()
+        if not AnnouncementImage.objects.filter(s3_file=s3_file).exists():
+            try:
+                default_storage.delete(s3_file.key)
+            except Exception:
+                pass
+            s3_file.delete()
+        return Response(status=204)
 
 
 @api_view(['GET'])

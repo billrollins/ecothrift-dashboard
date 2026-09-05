@@ -33,18 +33,25 @@ export function OnlineSalesConfigProvider({ children }: { children: ReactNode })
 
   useEffect(() => {
     let active = true
-    fetchWebstoreConfig()
-      .then((data) => {
-        if (active) setConfig(data)
-      })
-      .catch(() => {
-        if (active) setConfig(DEFAULT_CONFIG)
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
+    const load = () =>
+      fetchWebstoreConfig()
+        .then((data) => {
+          if (active) setConfig(data)
+        })
+        .catch(() => {
+          if (active) setConfig(DEFAULT_CONFIG)
+        })
+        .finally(() => {
+          if (active) setLoading(false)
+        })
+    load()
+    const onVis = () => {
+      if (document.visibilityState === 'visible') load()
+    }
+    document.addEventListener('visibilitychange', onVis)
     return () => {
       active = false
+      document.removeEventListener('visibilitychange', onVis)
     }
   }, [])
 

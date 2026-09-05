@@ -77,6 +77,13 @@ export function storeJsonLd(hours?: {
   open?: string
   close?: string
   closed_weekdays?: number[]
+  overrides?: Array<{
+    date_start: string
+    date_end: string
+    closed: boolean
+    open?: string
+    close?: string
+  }>
 } | null) {
   const open = hours?.open ?? '09:00'
   const close = hours?.close ?? '18:00'
@@ -109,6 +116,13 @@ export function storeJsonLd(hours?: {
           },
         ]
       : [],
+    specialOpeningHoursSpecification: (hours?.overrides || []).map((row) => ({
+      '@type': 'OpeningHoursSpecification',
+      validFrom: row.date_start,
+      validThrough: row.date_end,
+      opens: row.closed ? '00:00' : row.open || open,
+      closes: row.closed ? '00:00' : row.close || close,
+    })),
     geo: {
       '@type': 'GeoCoordinates',
       latitude: STORE.retail.mapsLat,

@@ -8,7 +8,8 @@ import { useEffect, useState } from 'react'
 import type { StoreHoursPublic } from '../api'
 import { STORE } from '../data/content'
 import { useOnlineSalesConfig } from '../onlineSalesConfig'
-import { DEFAULT_HOURS_LABEL, formatHoursLabel } from './hoursLabel'
+import type { HoursOverridePublic } from '../api'
+import { DEFAULT_HOURS_LABEL, formatHolidayLine, formatHoursLabel } from './hoursLabel'
 
 export const DEFAULT_STORE_HOURS_PUBLIC: StoreHoursPublic = {
   timezone: STORE.retail.hoursConfig.timezone,
@@ -16,6 +17,7 @@ export const DEFAULT_STORE_HOURS_PUBLIC: StoreHoursPublic = {
   close: '18:00',
   closed_weekdays: [0, 6],
   label: DEFAULT_HOURS_LABEL,
+  overrides: [],
 }
 
 const DAY_NAMES = [
@@ -61,6 +63,10 @@ export function resolveHours(hours?: StoreHoursPublic | null): StoreHoursPublic 
     close,
     closed_weekdays,
     label: formatHoursLabel({ open, close, closed_weekdays }),
+    regular_label: hours?.regular_label,
+    resume_label: hours?.resume_label,
+    overrides: Array.isArray(hours?.overrides) ? hours.overrides : [],
+    today: hours?.today,
   }
 }
 
@@ -74,10 +80,17 @@ function parseHhmmToMinutes(hhmm: string): number {
   return hour * 60 + minute
 }
 
-function chicagoParts(now: Date, timeZone: string): { weekday: number; minutes: number } {
+function chicagoParts(now: Date, timeZone: string): {
+  weekday: number
+  minutes: number
+  ymd: string
+} {
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone,
     weekday: 'short',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
@@ -86,6 +99,9 @@ function chicagoParts(now: Date, timeZone: string): { weekday: number; minutes: 
   const weekdayToken = parts.find((p) => p.type === 'weekday')?.value ?? 'Sun'
   const hourRaw = parts.find((p) => p.type === 'hour')?.value ?? '00'
   const minuteRaw = parts.find((p) => p.type === 'minute')?.value ?? '00'
+  const year = parts.find((p) => p.type === 'year')?.value ?? '1970'
+  const month = parts.find((p) => p.type === 'month')?.value ?? '01'
+  const day = parts.find((p) => p.type === 'day')?.value ?? '01'
   const weekdayMap: Record<string, number> = {
     Sun: 0,
     Mon: 1,
@@ -102,7 +118,26 @@ function chicagoParts(now: Date, timeZone: string): { weekday: number; minutes: 
   return {
     weekday: weekdayMap[weekdayToken] ?? 0,
     minutes: hour * 60 + minute,
+    ymd: `${year}-${month}-${day}`,
   }
+}
+
+function overrideFor(ymd: string, overrides: HoursOverridePublic[]): HoursOverridePublic | undefined {
+  return overrides.find((row) => row.date_start <= ymd && ymd <= row.date_end)
+}
+
+function addDaysYmd(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split('-').map(Number)
+  const date = new Date(y, m - 1, d + days)
+  const yy = date.getFullYear()
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  return `${yy}-${mm}-${dd}`
+}
+
+function jsWeekdayFromYmd(ymd: string): number {
+  const [y, m, d] = ymd.split('-').map(Number)
+  return new Date(y, m - 1, d).getDay()
 }
 
 function formatClock(totalMinutes: number): string {
@@ -114,37 +149,76 @@ function formatClock(totalMinutes: number): string {
   return `${hour12}:${String(minute).padStart(2, '0')} ${suffix}`
 }
 
+function dayHours(
+  ymd: string,
+  jsWeekday: number,
+  resolved: StoreHoursPublic,
+): { open: boolean; openHhmm: string; closeHhmm: string; override?: HoursOverridePublic } {
+  const ov = overrideFor(ymd, resolved.overrides || [])
+  if (ov) {
+    return {
+      open: !ov.closed,
+      openHhmm: ov.open || resolved.open,
+      closeHhmm: ov.close || resolved.close,
+      override: ov,
+    }
+  }
+  const closedJs = new Set(resolved.closed_weekdays.map(pythonWeekdayToJs))
+  return {
+    open: !closedJs.has(jsWeekday),
+    openHhmm: resolved.open,
+    closeHhmm: resolved.close,
+  }
+}
+
+function nextOpen(
+  startYmd: string,
+  resolved: StoreHoursPublic,
+): { ymd: string; weekday: number; openHhmm: string } {
+  let ymd = startYmd
+  for (let i = 0; i < 14; i += 1) {
+    const weekday = jsWeekdayFromYmd(ymd)
+    const hours = dayHours(ymd, weekday, resolved)
+    if (hours.open) return { ymd, weekday, openHhmm: hours.openHhmm }
+    ymd = addDaysYmd(ymd, 1)
+  }
+  return { ymd: startYmd, weekday: jsWeekdayFromYmd(startYmd), openHhmm: resolved.open }
+}
+
 /** Pure status calculator - pass a Date for tests. */
 export function getStoreStatus(
   now: Date = new Date(),
   hours: StoreHoursPublic = DEFAULT_STORE_HOURS_PUBLIC,
 ): StoreStatus {
   const resolved = resolveHours(hours)
-  const { weekday, minutes } = chicagoParts(now, resolved.timezone)
-  const openMinutes = parseHhmmToMinutes(resolved.open)
-  const closeMinutes = parseHhmmToMinutes(resolved.close)
-  const closedJs = new Set(resolved.closed_weekdays.map(pythonWeekdayToJs))
-  const isOpenDay = (day: number) => !closedJs.has(day)
+  const { weekday, minutes, ymd } = chicagoParts(now, resolved.timezone)
+  const today = dayHours(ymd, weekday, resolved)
+  const openMinutes = parseHhmmToMinutes(today.openHhmm)
+  const closeMinutes = parseHhmmToMinutes(today.closeHhmm)
   const openLabel = formatClock(openMinutes)
   const closeLabel = formatClock(closeMinutes)
+  const holidayName = today.override?.label || ''
 
-  if (isOpenDay(weekday) && minutes >= openMinutes && minutes < closeMinutes) {
+  if (today.open && minutes >= openMinutes && minutes < closeMinutes) {
+    if (today.override && today.closeHhmm !== resolved.close) {
+      return { open: true, text: `Open now, closing early today at ${closeLabel}` }
+    }
     return { open: true, text: `Open now, closes at ${closeLabel}` }
   }
 
-  if (isOpenDay(weekday) && minutes < openMinutes) {
+  if (today.open && minutes < openMinutes) {
     return { open: false, text: `Closed, opens today at ${openLabel}` }
   }
 
-  let openDay = weekday
-  for (let offset = 1; offset <= 7; offset += 1) {
-    const day = (weekday + offset) % 7
-    if (isOpenDay(day)) {
-      openDay = day
-      break
+  const nxt = nextOpen(addDaysYmd(ymd, 1), resolved)
+  const nextLabel = formatClock(parseHhmmToMinutes(nxt.openHhmm))
+  if (today.override && !today.open) {
+    return {
+      open: false,
+      text: `Closed today for ${holidayName || 'holiday hours'}, opens ${DAY_NAMES[nxt.weekday]} at ${nextLabel}`,
     }
   }
-  return { open: false, text: `Closed, opens ${DAY_NAMES[openDay]} at ${openLabel}` }
+  return { open: false, text: `Closed, opens ${DAY_NAMES[nxt.weekday]} at ${nextLabel}` }
 }
 
 export function useStoreStatus(
@@ -152,7 +226,7 @@ export function useStoreStatus(
   pollMs = 60_000,
 ): StoreStatus {
   const resolved = resolveHours(hours)
-  const key = `${resolved.timezone}|${resolved.open}|${resolved.close}|${resolved.closed_weekdays.join(',')}`
+  const key = `${resolved.timezone}|${resolved.open}|${resolved.close}|${resolved.closed_weekdays.join(',')}|${(resolved.overrides || []).map((o) => o.id).join(',')}`
   const [status, setStatus] = useState<StoreStatus>(() => getStoreStatus(new Date(), resolved))
 
   useEffect(() => {
@@ -175,4 +249,12 @@ export function usePublicHours() {
   const hours = resolveHours(config.hours)
   const status = useStoreStatus(hours)
   return { hours, status, label: hours.label }
+}
+
+export function useHolidayNote() {
+  const { hours } = usePublicHours()
+  if (!hours.today?.is_override) return ''
+  const match = (hours.overrides || []).find((row) => row.label === hours.today?.label)
+  if (match) return formatHolidayLine(match)
+  return hours.today.label
 }

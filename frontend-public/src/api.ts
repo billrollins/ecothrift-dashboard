@@ -47,12 +47,63 @@ async function postJSON<T>(url: string, body: unknown = {}): Promise<T> {
 }
 
 /** Store hours from AppSetting `online_sales.hours`. Weekdays are Python: 0=Mon … 6=Sun. */
+export interface HoursOverridePublic {
+  id: number
+  label: string
+  date_start: string
+  date_end: string
+  closed: boolean
+  open: string
+  close: string
+  note: string
+  sentence?: string
+}
+
+export interface StoreHoursToday {
+  is_override: boolean
+  label: string
+  closed: boolean
+  open: string
+  close: string
+}
+
 export interface StoreHoursPublic {
   timezone: string
   open: string
   close: string
   closed_weekdays: number[]
   label: string
+  regular_label?: string
+  resume_label?: string
+  overrides?: HoursOverridePublic[]
+  today?: StoreHoursToday
+}
+
+export interface PublicAnnouncementImage {
+  id: number
+  alt: string
+  url: string
+  sort_order: number
+}
+
+export interface PublicAnnouncement {
+  id: number
+  title: string
+  slug: string
+  kind: string
+  style: string
+  body_html: string
+  cta_label: string
+  cta_url: string
+  placements: string[]
+  priority: number
+  dismissible: boolean
+  updated_at: string | null
+  images: PublicAnnouncementImage[]
+}
+
+export function fetchAnnouncements(): Promise<PublicAnnouncement[]> {
+  return getJSON<PublicAnnouncement[]>(`${BASE}/public/announcements/`)
 }
 
 export interface WebstoreConfig {

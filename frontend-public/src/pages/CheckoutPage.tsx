@@ -4,7 +4,7 @@ import { money, requestHold } from '../api'
 import { useAuth } from '../auth'
 import { useCart } from '../cart'
 import { STORE } from '../data/content'
-import { useStoreHoursLabel } from '../lib/storeHours'
+import { useHolidayNote, useStoreHoursLabel } from '../lib/storeHours'
 import { useSeo } from '../useSeo'
 
 function newIdempotencyKey() {
@@ -15,6 +15,7 @@ function newIdempotencyKey() {
 export default function CheckoutPage() {
   useSeo({ title: 'Request a hold', noindex: true })
   const hoursLabel = useStoreHoursLabel()
+  const holiday = useHolidayNote()
   const navigate = useNavigate()
   const { lines, subtotal, clear } = useCart()
   const { user, emailVerified } = useAuth()
@@ -138,7 +139,8 @@ export default function CheckoutPage() {
           <h3 className="fsec">Pickup policy</h3>
           <div className="pickupnote">
             <b>Pay and pick up in store</b> at {STORE.retail.name}, {STORE.retail.address}.{' '}
-            {hoursLabel}. No shipping, delivery, or online payment. {/* POLICY_COPY_OK */}
+            {hoursLabel}
+            {holiday ? ` ${holiday}.` : '.'} No shipping, delivery, or online payment. {/* POLICY_COPY_OK */}
             Tap the email link to keep your hold 3 open days, then come in any time with your
             code. Items are typically final sale.
           </div>

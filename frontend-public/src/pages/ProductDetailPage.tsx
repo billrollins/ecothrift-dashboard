@@ -9,12 +9,15 @@ import {
 } from '../api'
 import { useAuth } from '../auth'
 import { useCart } from '../cart'
+import { useHolidayNote, useStoreHoursLabel } from '../lib/storeHours'
 import { useOnlineSalesConfig } from '../onlineSalesConfig'
 import { SITE_URL, STORE } from '../data/content'
 import { useJsonLd, useSeo } from '../useSeo'
 import NotFoundPage from './NotFoundPage'
 
 export default function ProductDetailPage() {
+  const hoursLabel = useStoreHoursLabel()
+  const holiday = useHolidayNote()
   const { slug = '' } = useParams()
   const [listing, setListing] = useState<CatalogDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -326,7 +329,7 @@ export default function ProductDetailPage() {
             {/* POLICY_COPY_OK: negation prose */}
             No shipping, delivery, or online payment.{' '}
             {listing.hold_policy ||
-              'Holds confirmed by staff last until store close the next business day. Final sale unless noted.'}
+              `Holds confirmed by staff last until store close on an open day (${hoursLabel}${holiday ? `; ${holiday}` : ''}). Final sale unless noted.`}
           </div>
         </div>
       </div>

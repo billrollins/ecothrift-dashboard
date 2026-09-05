@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom'
 import { fetchCatalog, money, type CatalogItem } from '../api'
 import StoreMap from '../components/StoreMap'
 import { useCart } from '../cart'
+import AnnouncementCard from '../components/AnnouncementCard'
 import StoreHoursBlock from '../components/StoreHoursBlock'
+import { useAnnouncements } from '../announcements'
 import { retailMapsDirectionsUrl, STORE, storeJsonLd } from '../data/content'
 import { usePublicHours } from '../lib/storeHours'
 import { useOnlineSalesConfig } from '../onlineSalesConfig'
@@ -69,6 +71,8 @@ function FeaturedSlide({
 
 export default function HomePage() {
   const { hours, status, label } = usePublicHours()
+  const heroAnnouncements = useAnnouncements('home_hero')
+  const cardAnnouncements = useAnnouncements('home_card')
   useSeo({ description: STORE.metaDescription, path: '/' })
   useJsonLd(storeJsonLd(hours))
   const { config, loading: configLoading } = useOnlineSalesConfig()
@@ -139,6 +143,9 @@ export default function HomePage() {
             <p className="intro__note">
               Most of what we carry is on the floor at the Canfield store. {onlineNote}
             </p>
+            {heroAnnouncements.map((row) => (
+              <AnnouncementCard key={row.id} announcement={row} />
+            ))}
           </div>
 
           {showFeaturedPane && (
@@ -202,6 +209,16 @@ export default function HomePage() {
         </div>
       </section>
 
+      {cardAnnouncements.length > 0 ? (
+        <section className="section">
+          <div className="wrap">
+            {cardAnnouncements.map((row) => (
+              <AnnouncementCard key={row.id} announcement={row} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <section className="home__visit" aria-label="Visit the store">
         <div className="wrap">
           <div className="visit visit--compact">
@@ -212,7 +229,7 @@ export default function HomePage() {
                 <b>Address</b>
                 <span>{STORE.retail.address}</span>
               </div>
-              <StoreHoursBlock status={status} label={label} />
+              <StoreHoursBlock status={status} label={label} hours={hours} />
               <div className="vrow">
                 <b>Phone</b>
                 <span>

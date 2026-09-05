@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-03 (v2.87.0 Floor pages) -->
+<!-- Last updated: 2026-09-05 (v2.89.0 announcements + holiday hours) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -16,7 +16,7 @@ Django project with apps under `apps/`:
 | `apps.pos` | Registers, drawers, carts, receipts, cash management |
 | `apps.consignment` | Consignment agreements, items, payouts |
 | `apps.buying` | B-Stock auction intelligence: marketplaces, auctions, manifests, watchlist, bids, outcomes; `CategoryMapping`, **`ManifestTemplate`** (CSV header signature + column map); services **`ai_manifest_template`**, **`ai_key_mapping`**, **`manifest_upload`**; management commands `sweep_auctions`, `renormalize_manifest_rows`, `seed_category_mappings`, `seed_manifest_templates`, `seed_fast_cat_mappings`, `categorize_manifests`, `watch_auctions`; **`POST /api/buying/auctions/{id}/upload_manifest/`** (multipart CSV); **`POST …/map_fast_cat_batch/`**; **`DELETE …/manifest/`**; dev-only `POST /api/buying/token/` for JWT ingest |
-| `apps.webstore` | Public storefront + Online Sales staff APIs |
+| `apps.webstore` | Public storefront + Online Sales staff APIs; announcements + holiday hours overrides |
 | `apps.mailbox` | Microsoft Graph mail |
 | `apps.blog` | Blog Studio |
 | `apps.floorplan` | Floorplan builder |
@@ -25,6 +25,8 @@ Django project with apps under `apps/`:
 | `apps.documents` | PDF upload, field placement, assignment, flattened signed PDFs |
 
 Root URL prefixes: `api/auth/`, `api/accounts/`, `api/core/`, `api/hr/`, `api/inventory/`, `api/ai/`, `api/pos/`, `api/consignment/`, `api/buying/`, `api/webstore/`, `api/mailbox/`, `api/blog/`, `api/floorplan/`, `api/labels/`, `api/routines/`, `api/documents/`.
+
+**Webstore hours + announcements (v2.89.0):** Weekly clock stays AppSetting `online_sales.hours`. Dated exceptions are `StoreHoursOverride`; `apps/webstore/services/hours.py` `effective_day()` wins for hold expiry and `GET /api/webstore/config/` (`overrides`, `today`, `regular_label`, `resume_label`). Staff: `AnnouncementViewSet` + `StoreHoursOverrideViewSet` (`IsManagerOrAdmin`). Public: `GET /api/webstore/public/announcements/`, `GET /api/webstore/public/announcement-images/<id>/`. Tokens `{{holiday_hours}}` `{{regular_hours}}` `{{sale_end}}` `{{store_name}}` resolve in the public payload.
 
 ---
 

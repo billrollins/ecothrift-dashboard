@@ -553,6 +553,187 @@ class Order(models.Model):
         return sum(line.quantity for line in self.lines.all())
 
 
+class StoreHoursOverride(models.Model):
+    """Dated holiday / special hours. Wins over weekly AppSetting hours."""
+
+    label = models.CharField(max_length=120)
+    date_start = models.DateField()
+    date_end = models.DateField()
+    closed = models.BooleanField(default=False)
+    open = models.CharField(max_length=5, blank=True, default='09:00')
+    close = models.CharField(max_length=5, blank=True, default='18:00')
+    note = models.CharField(max_length=240, blank=True, default='')
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='hours_overrides_created',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['date_start', 'id']
+        indexes = [
+            models.Index(fields=['is_active', 'date_start', 'date_end']),
+        ]
+
+    def __str__(self):
+        return f'{self.label} {self.date_start}–{self.date_end}'
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if self.date_end and self.date_start and self.date_end < self.date_start:
+            raise ValidationError({'date_end': 'End date cannot be before start date.'})
+        if not self.is_active or not self.date_start or not self.date_end:
+            return
+        qs = StoreHoursOverride.objects.filter(
+            is_active=True,
+            date_start__lte=self.date_end,
+            date_end__gte=self.date_start,
+        )
+        if self.pk:
+            qs = qs.exclude(pk=self.pk)
+        if qs.exists():
+            other = qs.first()
+            raise ValidationError(
+                {'date_start': f'Overlaps active override "{other.label}" ({other.date_start}–{other.date_end}).'}
+            )
+
+
+class Announcement(models.Model):
+    """Customer-facing www announcement, edited in Dash."""
+
+    KIND_PROMOTION = 'promotion'
+    KIND_NOTICE = 'notice'
+    KIND_HOLIDAY = 'holiday'
+    KIND_EVENT = 'event'
+    KIND_CHOICES = [
+        (KIND_PROMOTION, 'Promotion'),
+        (KIND_NOTICE, 'Notice'),
+        (KIND_HOLIDAY, 'Holiday'),
+        (KIND_EVENT, 'Event'),
+    ]
+    STYLE_SALE = 'sale'
+    STYLE_INFO = 'info'
+    STYLE_WARNING = 'warning'
+    STYLE_HOLIDAY = 'holiday'
+    STYLE_SEASONAL = 'seasonal'
+    STYLE_CHOICES = [
+        (STYLE_SALE, 'Sale'),
+        (STYLE_INFO, 'Info'),
+        (STYLE_WARNING, 'Warning'),
+        (STYLE_HOLIDAY, 'Holiday'),
+        (STYLE_SEASONAL, 'Seasonal'),
+    ]
+    PLACEMENT_BANNER = 'banner'
+    PLACEMENT_HOME_HERO = 'home_hero'
+    PLACEMENT_HOME_CARD = 'home_card'
+    PLACEMENT_VISIT = 'visit'
+    PLACEMENT_SHOP = 'shop'
+    PLACEMENT_CHOICES = [
+        PLACEMENT_BANNER,
+        PLACEMENT_HOME_HERO,
+        PLACEMENT_HOME_CARD,
+        PLACEMENT_VISIT,
+        PLACEMENT_SHOP,
+    ]
+
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=220, unique=True, blank=True)
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES, default=KIND_PROMOTION)
+    style = models.CharField(max_length=20, choices=STYLE_CHOICES, default=STYLE_INFO)
+    body_json = models.JSONField(default=dict, blank=True)
+    body_html = models.TextField(blank=True, default='')
+    body_text = models.TextField(blank=True, default='')
+    cta_label = models.CharField(max_length=80, blank=True, default='')
+    cta_url = models.CharField(max_length=400, blank=True, default='')
+    placements = models.JSONField(default=list, blank=True)
+    priority = models.IntegerField(default=0)
+    dismissible = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=False)
+    is_template = models.BooleanField(default=False)
+    starts_at = models.DateTimeField(null=True, blank=True)
+    ends_at = models.DateTimeField(null=True, blank=True)
+    linked_hours_override = models.ForeignKey(
+        StoreHoursOverride, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='announcements',
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='announcements_created',
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='announcements_updated',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-priority', '-updated_at']
+        indexes = [
+            models.Index(fields=['is_active', 'is_template', 'starts_at', 'ends_at']),
+        ]
+
+    def __str__(self):
+        return self.title
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base = slugify(self.title)[:200] or 'announcement'
+            slug = base
+            suffix = 1
+            while Announcement.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f'{base}-{suffix}'
+                suffix += 1
+            self.slug = slug
+        super().save(*args, **kwargs)
+
+    def apply_body(self, *, body_html=None, body_json=None):
+        from apps.core.html_sanitize import clean_blog_html, html_to_text
+
+        if body_json is not None:
+            self.body_json = body_json
+        if body_html is not None:
+            self.body_html = clean_blog_html(body_html)
+            self.body_text = html_to_text(self.body_html)
+
+    def is_live(self, now=None) -> bool:
+        if self.is_template or not self.is_active:
+            return False
+        now = now or timezone.now()
+        if self.starts_at and now < self.starts_at:
+            return False
+        if self.ends_at and now > self.ends_at:
+            return False
+        return True
+
+
+class AnnouncementImage(models.Model):
+    """A photo on an announcement, backed by a `core.S3File`."""
+
+    announcement = models.ForeignKey(
+        Announcement, on_delete=models.CASCADE, related_name='images',
+    )
+    s3_file = models.ForeignKey(
+        'core.S3File', on_delete=models.CASCADE, related_name='announcement_images',
+    )
+    alt = models.CharField(max_length=200, blank=True, default='')
+    sort_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['sort_order', 'id']
+
+    def __str__(self):
+        return f'{self.announcement_id}:{self.s3_file_id}'
+
+    @property
+    def url(self) -> str:
+        return f'/api/webstore/public/announcement-images/{self.pk}/'
+
+
 class OrderLine(models.Model):
     """Legacy order line snapshot."""
 

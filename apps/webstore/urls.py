@@ -2,10 +2,13 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
+    AnnouncementViewSet,
     ConversationViewSet,
     OrderViewSet,
     ReservationViewSet,
+    StoreHoursOverrideViewSet,
     WebListingViewSet,
+    announcement_image,
     catalog_ask,
     checkout,
     confirm_hold_code,
@@ -17,6 +20,7 @@ from .views import (
     order_status,
     public_catalog,
     public_categories,
+    public_announcements,
     public_config,
     public_listing_detail,
     change_hold_email,
@@ -40,9 +44,17 @@ router.register(r'listings', WebListingViewSet, basename='weblisting')
 router.register(r'orders', OrderViewSet, basename='weborder')
 router.register(r'reservations', ReservationViewSet, basename='webreservation')
 router.register(r'conversations', ConversationViewSet, basename='webconversation')
+router.register(r'announcements', AnnouncementViewSet, basename='announcement')
+router.register(r'hours-overrides', StoreHoursOverrideViewSet, basename='hours-override')
 
 urlpatterns = [
     path('config/', public_config, name='webstore-public-config'),
+    path('public/announcements/', public_announcements, name='webstore-public-announcements'),
+    path(
+        'public/announcement-images/<int:image_id>/',
+        announcement_image,
+        name='webstore-announcement-image',
+    ),
     path('catalog/', public_catalog, name='webstore-public-catalog'),
     path('catalog/categories/', public_categories, name='webstore-public-categories'),
     path('catalog/<slug:slug>/ask/', catalog_ask, name='webstore-catalog-ask'),
