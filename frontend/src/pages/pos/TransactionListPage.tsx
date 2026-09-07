@@ -42,7 +42,7 @@ import { useUsers } from '../../hooks/useEmployees';
 import { useAuth } from '../../contexts/AuthContext';
 import { localPrintService } from '../../services/localPrintService';
 import type { Cart, CartLine } from '../../types/pos.types';
-import { receiptItemsFromCart } from '../../utils/posReceipt';
+import { buildReceiptData } from '../../utils/posReceipt';
 import { format } from 'date-fns';
 import {
   getHistoricalRevenue,
@@ -52,24 +52,6 @@ import {
 function formatCurrency(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num ?? 0);
-}
-
-function buildReceiptDataFromCart(cart: Cart): Record<string, unknown> {
-  const completedAt = cart.completed_at ? new Date(cart.completed_at) : new Date(cart.created_at ?? 0);
-  const lines = receiptItemsFromCart(cart);
-  return {
-    receipt_number: cart.receipt?.receipt_number ?? '',
-    date: format(completedAt, 'yyyy-MM-dd'),
-    time: format(completedAt, 'h:mm a'),
-    cashier: (cart as { cashier_name?: string }).cashier_name ?? '',
-    items: lines,
-    subtotal: parseFloat(String(cart.subtotal)),
-    tax: parseFloat(String(cart.tax_amount)),
-    total: parseFloat(String(cart.total)),
-    payment_method: cart.payment_method,
-    amount_tendered: cart.cash_tendered != null ? parseFloat(String(cart.cash_tendered)) : undefined,
-    change: cart.change_given != null ? parseFloat(String(cart.change_given)) : undefined,
-  };
 }
 
 const DB_COLORS: Record<string, string> = { db1: '#9e9e9e', db2: '#1976d2', db3: '#2e7d32' };
@@ -578,7 +560,7 @@ export default function TransactionListPage() {
                   size="small"
                   onClick={async () => {
                     try {
-                      const receiptData = buildReceiptDataFromCart(selectedCart);
+                      const receiptData = buildReceiptData(selectedCart);
                       await localPrintService.printReceipt(receiptData, false);
                       enqueueSnackbar('Receipt sent to printer', { variant: 'success' });
                     } catch {

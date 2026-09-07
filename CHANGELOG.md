@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.89.1] -->
-<!-- Last reviewed: 2026-09-05 (v2.89.1 hours card + Visit rows) -->
+<!-- Line 1 release: ## [2.90.0] -->
+<!-- Last reviewed: 2026-09-07 (v2.90.0 YOU SAVED receipt block) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,23 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.90.0] - 2026-09-07
+
+User-facing theme: **YOU SAVED under TOTAL** - Labor Day, Summer, and Google Review dollars in one block.
+
+Initiative: [`pos_labor_day_summer_sale`](./.ai/initiatives/pos_labor_day_summer_sale.md).
+
+### Added
+
+- `CartSerializer.savings` from `apps/pos/services/sale_mode.py` `cart_savings()`: groups `sale_savings` by sale label and discount lines by `meta.reason`.
+- Print server **1.6.0**: `receipt_data.savings` `{total, lines:[{label, amount}]}` prints a YOU SAVED block under TOTAL on ESC/POS, GDI text, and PNG. Header, item suffixes, policy, and Google Review coupon are unchanged.
+
+### Changed
+
+- Terminal, Transactions, and reprint all build receipts through `frontend/src/utils/posReceipt.ts` `buildReceiptData`, which sends `savings` plus legacy `you_saved` (now also under TOTAL on 1.6.0).
 
 ---
 

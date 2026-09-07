@@ -1,5 +1,5 @@
 <!-- initiative: slug=pos-labor-day-summer-sale status=active updated=2026-09-05 -->
-<!-- Last updated: 2026-09-05 — hours card polish v2.89.1 -->
+<!-- Last updated: 2026-09-07 — YOU SAVED receipt block v2.90.0 -->
 
 # Initiative: POS Labor Day and Summer Sale → Customer-facing announcements and holiday hours
 
@@ -192,6 +192,7 @@ Candidates, not committed: Google Business Profile hours push; staff-facing Dash
 **2026-09-05 — Phase 2 drafted.** Owner asked for Dash-controlled www announcements (rich, toggle, copy/duplicate, photos/gallery) and holiday hours CRUD with Google-style dated display. Skeleton with TBDs; no code.
 **2026-09-05 — Phase 2 shipped v2.89.0.** Dash Announcements + holiday hours CRUD; www banner/cards/gallery; `effective_day` hours + hold expiry; dated Holiday hours display.
 **2026-09-05 — Hours card polish v2.89.1.** Holiday sentence `Mon, Sep 7 (Labor Day): 9 AM to 6 PM, note.`; two-column weekly schedule; Visit/Home label|value rows; dropped the filler line.
+**2026-09-07 — Receipt YOU SAVED v2.90.0.** `Cart.savings` groups Labor Day / Summer / discount dollars; print server 1.6.0 prints the block under TOTAL. Header, coupon, and item suffixes unchanged.
 
 ---
 

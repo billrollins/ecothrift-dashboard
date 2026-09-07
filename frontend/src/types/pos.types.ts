@@ -178,6 +178,16 @@ export interface Receipt {
   created_at: string;
 }
 
+export interface CartSavingsLine {
+  label: string;
+  amount: string;
+}
+
+export interface CartSavings {
+  total: string;
+  lines: CartSavingsLine[];
+}
+
 export interface Cart {
   id: number;
   drawer: number;
@@ -197,6 +207,7 @@ export interface Cart {
   created_at: string;
   lines: CartLine[];
   receipt?: Receipt | null;
+  savings?: CartSavings;
 }
 
 export interface RevenueGoal {

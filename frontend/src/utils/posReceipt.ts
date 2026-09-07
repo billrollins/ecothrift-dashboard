@@ -1,3 +1,4 @@
+import { format } from 'date-fns';
 import type { Cart, CartLine } from '../types/pos.types';
 
 export function saleSuffix(line: CartLine): string {
@@ -27,4 +28,36 @@ export function receiptLineFromCartLine(line: CartLine): {
 
 export function receiptItemsFromCart(cart: Cart) {
   return (cart.lines ?? []).map(receiptLineFromCartLine);
+}
+
+export function buildReceiptData(cart: Cart): Record<string, unknown> {
+  const completedAt = cart.completed_at
+    ? new Date(cart.completed_at)
+    : cart.created_at
+      ? new Date(cart.created_at)
+      : new Date();
+  return {
+    receipt_number: cart.receipt?.receipt_number ?? '',
+    date: format(completedAt, 'yyyy-MM-dd'),
+    time: format(completedAt, 'h:mm a'),
+    cashier: cart.cashier_name ?? '',
+    items: receiptItemsFromCart(cart),
+    subtotal: parseFloat(String(cart.subtotal)),
+    tax: parseFloat(String(cart.tax_amount)),
+    total: parseFloat(String(cart.total)),
+    payment_method: cart.payment_method,
+    amount_tendered:
+      cart.cash_tendered != null ? parseFloat(String(cart.cash_tendered)) : undefined,
+    change: cart.change_given != null ? parseFloat(String(cart.change_given)) : undefined,
+    savings: cart.savings
+      ? {
+          total: parseFloat(cart.savings.total),
+          lines: cart.savings.lines.map((l) => ({ label: l.label, amount: parseFloat(l.amount) })),
+        }
+      : undefined,
+    you_saved:
+      cart.savings && parseFloat(cart.savings.total) > 0
+        ? parseFloat(cart.savings.total)
+        : undefined,
+  };
 }

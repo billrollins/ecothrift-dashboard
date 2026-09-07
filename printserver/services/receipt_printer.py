@@ -99,6 +99,34 @@ def _center_text(text: str) -> bytes:
     return CENTER + _line(text) + LEFT
 
 
+def _savings_rows(data: dict[str, Any]) -> tuple[float, list[tuple[str, float]]] | None:
+    """(total, [(label, amount)]) from receipt_data.savings, else legacy you_saved, else None."""
+    sav = data.get("savings")
+    if isinstance(sav, dict):
+        rows: list[tuple[str, float]] = []
+        for row in sav.get("lines") or []:
+            try:
+                amt = float(row.get("amount", 0))
+            except (TypeError, ValueError):
+                continue
+            if amt > 0:
+                rows.append((str(row.get("label", "Savings"))[:30], amt))
+        if not rows:
+            return None
+        try:
+            total = float(sav.get("total", sum(a for _, a in rows)))
+        except (TypeError, ValueError):
+            total = sum(a for _, a in rows)
+        return total, rows
+    if data.get("you_saved") is not None:
+        try:
+            ys = float(data["you_saved"])
+        except (TypeError, ValueError):
+            return None
+        return (ys, []) if ys > 0 else None
+    return None
+
+
 # cp437 box drawing — a framed coupon reads as a tear-off, not more fine print.
 _TEAR_LINE = ("- " * (W // 2)).rstrip()
 _BOX_INNER = W - 2
@@ -219,13 +247,6 @@ def format_receipt(data: dict[str, Any]) -> bytes:
 
     buf += _separator()
 
-    if data.get("you_saved") is not None:
-        try:
-            ys = float(data["you_saved"])
-            buf += _lr("You saved", f"${ys:.2f}")
-        except (TypeError, ValueError):
-            pass
-
     # --- Totals ---
     subtotal = data.get("subtotal", 0)
     tax = data.get("tax", 0)
@@ -237,6 +258,16 @@ def format_receipt(data: dict[str, Any]) -> bytes:
     buf += _lr("TOTAL", f"${total:.2f}")
     buf += NORMAL + BOLD_OFF
     buf += _separator()
+
+    sav = _savings_rows(data)
+    if sav:
+        total_saved, rows = sav
+        buf += REVERSE_ON + BOLD_ON
+        buf += _lr(" YOU SAVED", f"${total_saved:.2f} ")
+        buf += BOLD_OFF + REVERSE_OFF
+        for label, amt in rows:
+            buf += _lr(f"   {label}", f"${amt:.2f}")
+        buf += _separator()
 
     # --- Payment ---
     if data.get("payment_method"):
@@ -307,7 +338,13 @@ _TEST_DATA: dict[str, Any] = {
         {"name": "Widget", "quantity": 2, "unit_price": 4.99, "line_total": 9.98},
         {"name": "Gadget", "quantity": 1, "unit_price": 12.50, "line_total": 12.50},
     ],
-    "you_saved": 18.5,
+    "savings": {
+        "total": 18.50,
+        "lines": [
+            {"label": "Labor Day 10%", "amount": 10.00},
+            {"label": "Summer 50%", "amount": 8.50},
+        ],
+    },
     "subtotal": 22.48,
     "tax": 1.57,
     "total": 24.05,
@@ -382,13 +419,6 @@ def format_receipt_text(data: dict[str, Any]) -> str:
 
     lines.append("-" * W)
 
-    if data.get("you_saved") is not None:
-        try:
-            ys = float(data["you_saved"])
-            lines.append(_txt_lr("You saved", f"${ys:.2f}"))
-        except (TypeError, ValueError):
-            pass
-
     subtotal = data.get("subtotal", 0)
     tax = data.get("tax", 0)
     total = data.get("total", subtotal + tax)
@@ -397,6 +427,14 @@ def format_receipt_text(data: dict[str, Any]) -> str:
         lines.append(_txt_lr("Tax", f"${tax:.2f}"))
     lines.append(_txt_lr("TOTAL", f"${total:.2f}"))
     lines.append("-" * W)
+
+    sav = _savings_rows(data)
+    if sav:
+        total_saved, rows = sav
+        lines.append(_txt_lr("YOU SAVED", f"${total_saved:.2f}"))
+        for label, amt in rows:
+            lines.append(_txt_lr(f"   {label}", f"${amt:.2f}"))
+        lines.append("-" * W)
 
     if data.get("payment_method"):
         lines.append(_txt_lr("Payment", data["payment_method"]))
@@ -802,26 +840,6 @@ def render_receipt_to_image(
     draw.line([x0, y, x1, y], fill=t["rule"], width=lw1)
     y += 14 * S
 
-    # --- You saved ---
-    if data.get("you_saved") is not None:
-        try:
-            ys = float(data["you_saved"])
-            banner_h = 58 * S
-            _fill_rounded(draw, (x0, y, x1, y + banner_h), max(2, 8 * S), t["saved_bg"])
-            msg = f"YOU SAVED  ${ys:.2f}"
-            if theme_key == "emoji":
-                msg = f"💚 YOU SAVED  ${ys:.2f}  💚"
-            tw = _text_w(draw, msg, f_saved)
-            draw.text(
-                (x0 + (inner - tw) / 2, y + (banner_h - _text_h(f_saved)) // 2),
-                msg,
-                font=f_saved,
-                fill=t["saved_text"],
-            )
-            y += banner_h + 16 * S
-        except (TypeError, ValueError):
-            pass
-
     subtotal = float(data.get("subtotal", 0))
     tax = float(data.get("tax", 0) or 0)
     total = float(data.get("total", subtotal + tax))
@@ -843,6 +861,26 @@ def render_receipt_to_image(
         _lr_money("Tax", f"${tax:.2f}", f_sub, f_money)
     _lr_money("TOTAL", f"${total:.2f}", f_total_row_label, f_total, big=True)
     y += 8 * S
+
+    sav = _savings_rows(data)
+    if sav:
+        total_saved, rows = sav
+        banner_h = 58 * S
+        _fill_rounded(draw, (x0, y, x1, y + banner_h), max(2, 8 * S), t["saved_bg"])
+        msg = f"YOU SAVED  ${total_saved:.2f}"
+        if theme_key == "emoji":
+            msg = f"💚 YOU SAVED  ${total_saved:.2f}  💚"
+        tw = _text_w(draw, msg, f_saved)
+        draw.text(
+            (x0 + (inner - tw) / 2, y + (banner_h - _text_h(f_saved)) // 2),
+            msg,
+            font=f_saved,
+            fill=t["saved_text"],
+        )
+        y += banner_h + 10 * S
+        for label, amt in rows:
+            _lr_money(f"   {label}", f"${amt:.2f}", f_sub, f_money)
+        y += 6 * S
 
     draw.line([x0, y, x1, y], fill=t["rule"], width=lw1)
     y += 14 * S

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { receiptLineFromCartLine, saleSuffix } from './posReceipt';
-import type { CartLine } from '../types/pos.types';
+import { buildReceiptData, receiptLineFromCartLine, saleSuffix } from './posReceipt';
+import type { Cart, CartLine } from '../types/pos.types';
 
 function line(partial: Partial<CartLine>): CartLine {
   return {
@@ -36,5 +36,65 @@ describe('receiptLineFromCartLine', () => {
     expect(item.name).toBe('Lamp (10% Labor Day)');
     expect(item.unit_price).toBe(18);
     expect(item.line_total).toBe(36);
+  });
+});
+
+function cart(partial: Partial<Cart>): Cart {
+  return {
+    id: 1,
+    drawer: 1,
+    cashier: 1,
+    cashier_name: 'Bill',
+    customer: null,
+    status: 'completed',
+    subtotal: '22.48',
+    tax_rate: '0.0700',
+    tax_amount: '1.57',
+    total: '24.05',
+    payment_method: 'cash',
+    cash_tendered: '25.00',
+    change_given: '0.95',
+    card_amount: null,
+    completed_at: '2026-09-07T18:12:00Z',
+    created_at: '2026-09-07T18:00:00Z',
+    lines: [],
+    receipt: {
+      id: 1,
+      cart: 1,
+      receipt_number: 'R-20260907-014',
+      printed: true,
+      emailed: false,
+      created_at: '2026-09-07T18:12:00Z',
+    },
+    ...partial,
+  };
+}
+
+describe('buildReceiptData', () => {
+  it('passes numeric savings and you_saved when total is positive', () => {
+    const data = buildReceiptData(
+      cart({
+        savings: {
+          total: '6.50',
+          lines: [
+            { label: 'Labor Day 10%', amount: '4.00' },
+            { label: 'Google Review', amount: '2.50' },
+          ],
+        },
+      }),
+    );
+    expect(data.savings).toEqual({
+      total: 6.5,
+      lines: [
+        { label: 'Labor Day 10%', amount: 4 },
+        { label: 'Google Review', amount: 2.5 },
+      ],
+    });
+    expect(data.you_saved).toBe(6.5);
+  });
+
+  it('omits you_saved when savings total is zero', () => {
+    const data = buildReceiptData(cart({ savings: { total: '0.00', lines: [] } }));
+    expect(data.you_saved).toBeUndefined();
   });
 });

@@ -1,11 +1,24 @@
-VERSION = "1.5.1"
-RELEASE_NOTES = "Label paper presets now include 1.25″ × 1.25″ square stock alongside 3×2 and 1.5×1."
+VERSION = "1.6.0"
+RELEASE_NOTES = "Receipts show a YOU SAVED breakdown under TOTAL."
 
 # Default URL for the public version-check endpoint on the dashboard backend.
 # Users can override this in settings.json via the /manage page (useful for local dev).
 UPDATE_CHECK_URL = "https://dash.ecothrift.us/api/core/system/print-server-version-public/"
 
 CHANGELOG = """\
+## [1.6.0] — 2026-09-07
+
+### Added
+- **YOU SAVED block:** ``receipt_data.savings`` (``{total, lines:[{label, amount}]}``)
+  prints under TOTAL on ESC/POS, GDI text, and PNG. Breakdown lines are whatever
+  the dashboard sends (Labor Day, Summer, Google Review, etc.).
+
+### Changed
+- Legacy ``you_saved`` (a single number) now prints under TOTAL instead of above
+  Subtotal, so an un-updated dashboard still matches the new placement.
+
+---
+
 ## [1.5.1] — 2026-09-05
 
 ### Added

@@ -177,3 +177,39 @@ def sync_cart_sale(cart) -> None:
     for line in cart.lines.all():
         apply_sale_to_line(line, mode)
     cart.recalculate()
+
+
+def sale_display_label(line) -> str:
+    """Customer-facing name for a sale line. New sales: add one branch here."""
+    pct = line.sale_percent or Decimal('0')
+    pct_text = f'{int(pct)}' if pct == pct.to_integral_value() else f'{pct.normalize()}'
+    if line.sale_label == SALE_LABEL_LABOR_DAY:
+        return f'Labor Day {pct_text}%'
+    if line.sale_label == SALE_LABEL_SUMMER:
+        return f'Summer {pct_text}%'
+    return f'Sale {pct_text}%'
+
+
+def cart_savings(cart) -> dict:
+    """Group every dollar the customer did not pay, by source, in first-seen order.
+
+    Sale lines group by sale_display_label. Discount lines group by meta.reason
+    ('Other' or blank becomes 'Discount'). Amounts are positive Decimals as str.
+    """
+    buckets: dict[str, Decimal] = {}
+    for line in cart.lines.all():
+        if line.line_kind == CartLine.LINE_KIND_DISCOUNT:
+            reason = str((line.meta or {}).get('reason') or '').strip()
+            label = 'Discount' if reason in ('', 'Other') else reason[:32]
+            amount = -line.line_total
+        elif line.sale_label and line.sale_savings > 0:
+            label = sale_display_label(line)
+            amount = line.sale_savings
+        else:
+            continue
+        if amount <= 0:
+            continue
+        buckets[label] = buckets.get(label, Decimal('0')) + amount
+    lines = [{'label': k, 'amount': str(v.quantize(Decimal('0.01')))} for k, v in buckets.items()]
+    total = sum((v for v in buckets.values()), Decimal('0')).quantize(Decimal('0.01'))
+    return {'total': str(total), 'lines': lines}

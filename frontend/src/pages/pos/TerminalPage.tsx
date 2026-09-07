@@ -102,7 +102,7 @@ import {
   parsePosAddItemError,
   snackbarVariantForPosAddItemError,
 } from '../../utils/posAddItemError';
-import { receiptItemsFromCart } from '../../utils/posReceipt';
+import { buildReceiptData } from '../../utils/posReceipt';
 
 // ── Terminal state machine ─────────────────────────────────────────────────
 
@@ -175,26 +175,6 @@ function findAffectedCartLineId(prev: Cart | null, next: Cart): number | null {
     }
   }
   return nextLines[nextLines.length - 1]?.id ?? null;
-}
-
-function buildReceiptData(
-  cart: Cart & { receipt?: { receipt_number: string }; completed_at?: string },
-): Record<string, unknown> {
-  const completedAt = cart.completed_at ? new Date(cart.completed_at) : new Date();
-  return {
-    receipt_number: cart.receipt?.receipt_number ?? '',
-    date: format(completedAt, 'yyyy-MM-dd'),
-    time: format(completedAt, 'h:mm a'),
-    cashier: (cart as { cashier_name?: string }).cashier_name ?? '',
-    items: receiptItemsFromCart(cart),
-    subtotal: parseFloat(String(cart.subtotal)),
-    tax: parseFloat(String(cart.tax_amount)),
-    total: parseFloat(String(cart.total)),
-    payment_method: cart.payment_method,
-    amount_tendered:
-      cart.cash_tendered != null ? parseFloat(String(cart.cash_tendered)) : undefined,
-    change: cart.change_given != null ? parseFloat(String(cart.change_given)) : undefined,
-  };
 }
 
 // ── Component ──────────────────────────────────────────────────────────────

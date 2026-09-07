@@ -156,6 +156,7 @@ class CartSerializer(serializers.ModelSerializer):
     cashier_name = serializers.CharField(source='cashier.full_name', read_only=True, default=None)
     lines = CartLineSerializer(many=True, read_only=True)
     receipt = ReceiptSerializer(read_only=True)
+    savings = serializers.SerializerMethodField()
 
     class Meta:
         model = Cart
@@ -164,11 +165,16 @@ class CartSerializer(serializers.ModelSerializer):
             'status', 'subtotal', 'tax_rate', 'tax_amount', 'total',
             'payment_method', 'cash_tendered', 'change_given', 'card_amount',
             'completed_at', 'created_at',
-            'lines', 'receipt',
+            'lines', 'receipt', 'savings',
         ]
         read_only_fields = [
             'id', 'cashier', 'subtotal', 'tax_amount', 'total', 'tax_rate', 'created_at',
+            'savings',
         ]
+
+    def get_savings(self, obj):
+        from apps.pos.services.sale_mode import cart_savings
+        return cart_savings(obj)
 
 
 class RevenueGoalSerializer(serializers.ModelSerializer):

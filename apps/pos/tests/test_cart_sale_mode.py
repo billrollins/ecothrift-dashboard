@@ -299,3 +299,55 @@ class CartSaleModeAPITests(TestCase):
         line = r.data['lines'][0]
         self.assertEqual(line['sale_label'], 'labor_day')
         self.assertEqual(Decimal(str(line['line_total'])), Decimal('18.00'))
+
+    def test_savings_groups_sales_and_discounts(self):
+        self._set_override(True)
+        cid = self._open_cart()
+        self.client.post(
+            f'/api/pos/carts/{cid}/add-item/',
+            {'sku': self.item.sku},
+            format='json',
+        )
+        manual = self.client.post(
+            f'/api/pos/carts/{cid}/add-manual-line/',
+            {'description': 'Patio chair', 'unit_price': '20.00'},
+            format='json',
+        )
+        self.assertEqual(manual.status_code, 200, manual.content)
+        summer_id = next(ln['id'] for ln in manual.data['lines'] if ln['line_kind'] == 'manual')
+        summer = self.client.post(
+            f'/api/pos/carts/{cid}/lines/{summer_id}/sale/',
+            {'sale': 'summer'},
+            format='json',
+        )
+        self.assertEqual(summer.status_code, 200, summer.content)
+        disc = self.client.post(
+            f'/api/pos/carts/{cid}/add-discount/',
+            {
+                'mode': 'percent',
+                'percent': '5',
+                'reason': 'Google Review',
+                'google_review_username': 'qa',
+                'google_review_stars': 5,
+            },
+            format='json',
+        )
+        self.assertEqual(disc.status_code, 200, disc.content)
+        cart = self.client.get(f'/api/pos/carts/{cid}/')
+        self.assertEqual(cart.status_code, 200, cart.content)
+        labels = [row['label'] for row in cart.data['savings']['lines']]
+        self.assertEqual(labels, ['Labor Day 10%', 'Summer 50%', 'Google Review'])
+        amounts = [Decimal(str(row['amount'])) for row in cart.data['savings']['lines']]
+        self.assertEqual(sum(amounts, Decimal('0')), Decimal(str(cart.data['savings']['total'])))
+
+    def test_savings_empty_when_no_sale(self):
+        self._set_override(False)
+        cid = self._open_cart()
+        self.client.post(
+            f'/api/pos/carts/{cid}/add-item/',
+            {'sku': self.item.sku},
+            format='json',
+        )
+        cart = self.client.get(f'/api/pos/carts/{cid}/')
+        self.assertEqual(cart.status_code, 200, cart.content)
+        self.assertEqual(cart.data['savings'], {'total': '0.00', 'lines': []})

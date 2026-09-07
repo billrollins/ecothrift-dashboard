@@ -14,29 +14,11 @@ import { format } from 'date-fns';
 import { useSnackbar } from 'notistack';
 import { localPrintService } from '../../services/localPrintService';
 import type { Cart, CartLine } from '../../types/pos.types';
-import { receiptItemsFromCart } from '../../utils/posReceipt';
+import { buildReceiptData } from '../../utils/posReceipt';
 
 function formatCurrency(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num ?? 0);
-}
-
-function buildReceiptDataFromCart(cart: Cart): Record<string, unknown> {
-  const completedAt = cart.completed_at ? new Date(cart.completed_at) : new Date(cart.created_at ?? 0);
-  const lines = receiptItemsFromCart(cart);
-  return {
-    receipt_number: cart.receipt?.receipt_number ?? '',
-    date: format(completedAt, 'yyyy-MM-dd'),
-    time: format(completedAt, 'h:mm a'),
-    cashier: cart.cashier_name ?? '',
-    items: lines,
-    subtotal: parseFloat(String(cart.subtotal)),
-    tax: parseFloat(String(cart.tax_amount)),
-    total: parseFloat(String(cart.total)),
-    payment_method: cart.payment_method,
-    amount_tendered: cart.cash_tendered != null ? parseFloat(String(cart.cash_tendered)) : undefined,
-    change: cart.change_given != null ? parseFloat(String(cart.change_given)) : undefined,
-  };
 }
 
 type Props = {
@@ -140,7 +122,7 @@ export function TransactionDetailDialog({ open, cart, onClose }: Props) {
               sx={{ mt: 2, minHeight: 48 }}
               onClick={async () => {
                 try {
-                  const receiptData = buildReceiptDataFromCart(cart);
+                  const receiptData = buildReceiptData(cart);
                   await localPrintService.printReceipt(receiptData, false);
                   enqueueSnackbar('Receipt sent to printer', { variant: 'success' });
                 } catch {

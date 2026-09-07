@@ -1,0 +1,28 @@
+{
+  "store_name": "Eco-Thrift - Canfield",
+  "receipt_number": "R-20260907-014",
+  "date": "2026-09-07",
+  "time": "1:12 PM",
+  "cashier": "Bill",
+  "items": [
+    { "name": "Bookshelf, oak (10% Labor Day)", "quantity": 1, "unit_price": 40.50, "line_total": 40.50 },
+    { "name": "Patio chair set (50% Summer)", "quantity": 1, "unit_price": 30.00, "line_total": 30.00 },
+    { "name": "Pink Tag Item", "quantity": 1, "unit_price": 0.50, "line_total": 0.50 },
+    { "name": "Discount - Google Review", "quantity": 1, "unit_price": -3.55, "line_total": -3.55 }
+  ],
+  "subtotal": 67.45,
+  "tax": 4.72,
+  "total": 72.17,
+  "savings": {
+    "total": 38.05,
+    "lines": [
+      { "label": "Labor Day 10%", "amount": 4.50 },
+      { "label": "Summer 50%", "amount": 30.00 },
+      { "label": "Google Review", "amount": 3.55 }
+    ]
+  },
+  "payment_method": "Cash",
+  "amount_tendered": 80.0,
+  "change": 7.83,
+  "footer": "Var 15 — YOU SAVED breakdown under TOTAL"
+}
