@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-05 (v2.89.0 announcements + holiday hours) -->
+<!-- Last updated: 2026-09-07 (ship-print-server protocol) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -9,7 +9,7 @@ Full-stack business management for a thrift store in Omaha, NE. HR (time clock, 
 
 - **Current tag:** [`.version`](../.version) — do not duplicate semver here.
 - **What shipped / WIP:** [`CHANGELOG.md`](../CHANGELOG.md) (latest dated section + `[Unreleased]`).
-- **Pushes:** [`ship-push-git.md`](protocols/ship-push-git.md) bumps semver and pushes GitHub. [`ship-push-heroku.md`](protocols/ship-push-heroku.md) does that then Heroku. Prod shows `.version` via `GET /api/core/system/version/` and the sidebar footer.
+- **Pushes:** [`ship-push-git.md`](protocols/ship-push-git.md) bumps semver and pushes GitHub. [`ship-push-heroku.md`](protocols/ship-push-heroku.md) does that then Heroku. Prod shows `.version` via `GET /api/core/system/version/` and the sidebar footer. Print server exe: [`ship-print-server.md`](protocols/ship-print-server.md) (`VERSION` in `printserver/config.py`, not `.version`).
 
 ## Active work
 
@@ -45,7 +45,7 @@ ecothrift-dashboard/
 ├── scripts/                dev/start_dashboard.bat, start_mobile_dashboard.bat, start_website.bat
 ├── .ai/                    AI steering — see .ai/README.md
 │   ├── context.md          This compass
-│   ├── protocols/          clean-up, context-load, initiative-create, initiative-review, ship-push-git, ship-push-heroku
+│   ├── protocols/          clean-up, context-load, initiative-create, initiative-review, ship-push-git, ship-push-heroku, ship-print-server
 │   ├── initiatives/        Plan + _archived/
 │   ├── extended/           Domain docs + sql/ + initiatives.md
 │   └── reference/          tars/ + bookkeeping_recon.md
@@ -132,6 +132,7 @@ When you add, rename, or remove a file in `.ai/extended/`, update this table.
 | Review initiatives | `.ai/protocols/initiative-review.md` — if given, propose then apply the paste-back |
 | Ship to GitHub | `.ai/protocols/ship-push-git.md` — if given, do it |
 | Ship to Heroku | `.ai/protocols/ship-push-heroku.md` — if given, do it |
+| Ship print server | `.ai/protocols/ship-print-server.md` — if given, do it (S3 + Settings + this PC) |
 | Schema snapshot | `.ai/extended/sql/README.md` — Update schema |
 | Initiative files | `.ai/extended/initiatives.md` |
 | Env names | `.ai/extended/development.md` |

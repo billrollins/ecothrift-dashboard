@@ -14,6 +14,7 @@ A protocol is a trigger. **IF** it is `@`-mentioned **THEN** do only what that f
 | [`initiative-review.md`](protocols/initiative-review.md) | Reconcile files with what shipped; you approve moves |
 | [`ship-push-git.md`](protocols/ship-push-git.md) | Docs, version, changelog, commit, GitHub |
 | [`ship-push-heroku.md`](protocols/ship-push-heroku.md) | Same as git, then Heroku |
+| [`ship-print-server.md`](protocols/ship-print-server.md) | Build/upload print server; Settings download; install this PC |
 
 Lifecycle after create: [`extended/initiatives.md`](extended/initiatives.md). Schema refresh: [`extended/sql/README.md`](extended/sql/README.md).
 
@@ -25,7 +26,7 @@ Lifecycle after create: [`extended/initiatives.md`](extended/initiatives.md). Sc
 | **`.ai/initiatives/`** | Bounded work: one file per initiative (plan + acceptance) |
 | **`.ai/extended/`** | Domain docs, on demand + [`extended/sql/`](extended/sql/README.md) |
 | **`.ai/reference/`** | TARS design/canon + bookkeeping recon |
-| **`.ai/protocols/`** | `clean-up`, `context-load`, `initiative-create`, `initiative-review`, `ship-push-git`, `ship-push-heroku` |
+| **`.ai/protocols/`** | `clean-up`, `context-load`, `initiative-create`, `initiative-review`, `ship-push-git`, `ship-push-heroku`, `ship-print-server` |
 
 ## Not in `.ai`
 

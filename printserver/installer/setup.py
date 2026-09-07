@@ -135,12 +135,27 @@ def cleanup_legacy_prior(log: "callable[[str], None]") -> None:
             log(f"Could not remove {legacy_root}: {exc} — try Run as administrator")
 
 
-def do_install(auto_start: bool, log: "callable[[str], None]") -> bool:
+def do_install(
+    auto_start: bool,
+    log: "callable[[str], None]",
+    *,
+    open_browser: bool = True,
+) -> bool:
     try:
         # 1. Legacy V2 + stop anything on 8888 / frozen exe
         cleanup_legacy_prior(log)
 
-        # 2. Remove old install
+        # 2. Remove old install (keep settings.json so printer assignments survive)
+        settings_backup = None
+        existing_settings = INSTALL_DIR / "settings.json"
+        if existing_settings.is_file():
+            import tempfile
+            fd, tmp = tempfile.mkstemp(prefix="ps-settings-", suffix=".json")
+            os.close(fd)
+            shutil.copy2(existing_settings, tmp)
+            settings_backup = Path(tmp)
+            log("Keeping existing settings.json")
+
         if INSTALL_DIR.exists():
             log(f"Removing old installation at {INSTALL_DIR} ...")
             shutil.rmtree(INSTALL_DIR, ignore_errors=True)
@@ -148,6 +163,9 @@ def do_install(auto_start: bool, log: "callable[[str], None]") -> bool:
         # 3. Create install directory
         log(f"Creating {INSTALL_DIR} ...")
         INSTALL_DIR.mkdir(parents=True, exist_ok=True)
+        if settings_backup and settings_backup.exists():
+            shutil.copy2(settings_backup, INSTALL_DIR / "settings.json")
+            settings_backup.unlink(missing_ok=True)
 
         # 4. Copy exe
         if not SOURCE_EXE.exists():
@@ -181,12 +199,13 @@ def do_install(auto_start: bool, log: "callable[[str], None]") -> bool:
         import subprocess
         subprocess.Popen([str(dest)], creationflags=subprocess.CREATE_NO_WINDOW)
 
-        # 7. Wait briefly then open the management page in the default browser
-        import time, webbrowser, threading
-        def _open_browser():
-            time.sleep(2)
-            webbrowser.open("http://127.0.0.1:8888/manage")
-        threading.Thread(target=_open_browser, daemon=True).start()
+        # 7. Wait briefly then open the management page (GUI install only)
+        if open_browser:
+            import time, webbrowser, threading
+            def _open_browser():
+                time.sleep(2)
+                webbrowser.open("http://127.0.0.1:8888/manage")
+            threading.Thread(target=_open_browser, daemon=True).start()
 
         log("Done!")
         return True
@@ -369,13 +388,23 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--uninstall", action="store_true")
+    parser.add_argument("--install", action="store_true")
     args, _ = parser.parse_known_args()
+
+    if args.uninstall and args.install:
+        print("Use only one of --install or --uninstall.", file=sys.stderr)
+        sys.exit(2)
+
+    def _print_log(msg: str) -> None:
+        print(msg, flush=True)
 
     if args.uninstall:
         # Headless uninstall — called by the /manage/uninstall endpoint
-        def _noop_log(msg: str) -> None:
-            pass
-        do_uninstall(_noop_log)
-    else:
-        app = InstallerApp()
-        app.mainloop()
+        ok = do_uninstall(_print_log)
+        sys.exit(0 if ok else 1)
+    if args.install:
+        # Headless install — stops port 8888 + frozen exe, copies dist exe, starts it
+        ok = do_install(True, _print_log, open_browser=False)
+        sys.exit(0 if ok else 1)
+    app = InstallerApp()
+    app.mainloop()

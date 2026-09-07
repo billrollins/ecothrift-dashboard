@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.90.0] -->
-<!-- Last reviewed: 2026-09-07 (v2.90.0 YOU SAVED receipt block) -->
+<!-- Line 1 release: ## [2.90.1] -->
+<!-- Last reviewed: 2026-09-07 (v2.90.1 print-server public version AllowAny) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,26 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.90.1] - 2026-09-07
+
+User-facing theme: **Print-server /manage can see the current download again.**
+
+Initiative: outside initiatives.
+
+### Fixed
+
+- `GET /api/core/system/print-server-version-public/` is `@permission_classes([AllowAny])`. DRF default `IsAuthenticated` was returning 401, so `/manage` showed Available: Unreachable.
+
+### Changed
+
+- `manage.py publish_printserver` takes `--ps-version` (not `--version`) and updates an existing row instead of failing.
+
+### Documentation
+
+- Print-server ship is [`.ai/protocols/ship-print-server.md`](./.ai/protocols/ship-print-server.md): skip-if-done build, S3, local + Heroku Settings, this-PC install.
 
 ---
 

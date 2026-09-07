@@ -6,7 +6,7 @@ from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 
@@ -169,6 +169,7 @@ def print_server_releases(request):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def print_server_version_public(request):
     """Public (no auth) endpoint - returns current print server version for the /manage page."""
     release = PrintServerRelease.objects.filter(is_current=True).select_related('s3_file').first()

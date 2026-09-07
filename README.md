@@ -94,6 +94,7 @@ Built different. Built fast. Built to last.
 | [`.ai/protocols/initiative-review.md`](.ai/protocols/initiative-review.md) | If given: reconcile Active/Pending/Backlog with what shipped; you approve moves. |
 | [`.ai/protocols/ship-push-git.md`](.ai/protocols/ship-push-git.md) | If given: docs, version, changelog, commit, push GitHub. |
 | [`.ai/protocols/ship-push-heroku.md`](.ai/protocols/ship-push-heroku.md) | If given: same as git, then push Heroku. |
+| [`.ai/protocols/ship-print-server.md`](.ai/protocols/ship-print-server.md) | If given: build/upload print server, update Settings download, install this PC. |
 | [`.ai/extended/initiatives.md`](.ai/extended/initiatives.md) | How initiative files are parked, completed, abandoned. |
 | [`.ai/extended/sql/README.md`](.ai/extended/sql/README.md) | How to refresh `schema.csv`. |
 

@@ -1,5 +1,7 @@
-feat: print YOU SAVED under TOTAL with a sale breakdown
+fix: let /manage read the public print-server version
 
-Cart.savings groups Labor Day, Summer, and discount dollars so
-the receipt can show one block without rewriting the rest of the
-tape. Release: v2.90.0.
+AllowAny on print-server-version-public so the register check
+stops showing Unreachable. publish_printserver is idempotent
+and the ship-print-server protocol is in-repo.
+
+Release: v2.90.1

@@ -1,7 +1,20 @@
 # Eco-Thrift Print Server — Changelog
 
 All notable changes to the print server are documented here.
-Run `python distribute.py` from this directory to build and publish a new release.
+Ship: `.ai/protocols/ship-print-server.md`. Script: `python printserver/distribute.py --install-local`.
+
+---
+
+## [1.6.0] — 2026-09-07
+
+### Added
+- **YOU SAVED block:** `receipt_data.savings` (`{total, lines:[{label, amount}]}`)
+  prints under TOTAL on ESC/POS, GDI text, and PNG. Breakdown lines are whatever
+  the dashboard sends (Labor Day, Summer, Google Review, etc.).
+
+### Changed
+- Legacy `you_saved` (a single number) now prints under TOTAL instead of above
+  Subtotal, so an un-updated dashboard still matches the new placement.
 
 ---
 

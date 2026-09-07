@@ -17,5 +17,5 @@ echo.
 echo  Using Python: %PYTHON%
 echo.
 
-%PYTHON% distribute.py
+%PYTHON% distribute.py --install-local %*
 pause

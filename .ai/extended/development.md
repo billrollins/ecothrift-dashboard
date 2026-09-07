@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-27 (ship-push-git pointer) -->
+<!-- Last updated: 2026-09-07 (ship-print-server protocol) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -149,7 +149,7 @@ If **POS registers** or **supplemental drawer** rows are missing, run `python ma
 
 **B-Stock (production):** **`apps/buying/`** — `python manage.py sweep_auctions`, **`bstock_token`** (writes **`workspace/.bstock_token`**, gitignored; scraper prefers it over **`BSTOCK_AUTH_TOKEN`**). **`BUYING_REQUEST_DELAY_SECONDS`**, **`BSTOCK_MAX_RETRIES`**, **`BSTOCK_SEARCH_MAX_PAGES`** in root `.env`. **Manifests:** staff **CSV upload** in the React UI (`upload_manifest`); there is no order-process manifest download or `pull_manifests*` commands. Search listings POST is unauthenticated. Bookmarklet to copy JWT from the `elt` cookie: **`apps/buying/bookmarklet/bstock_elt_bookmarklet.md`**. Optional notebook exploration: **`workspace/notebooks/category-research/`**, **`workspace/notebooks/historical-data/`**, **`workspace/notebooks/bstock-scraper/Scraper/`** (package + **`examples/bstock_quickstart.ipynb`**). **AI usage log (all Claude call sites):** append-only **`workspace/logs/ai_usage.jsonl`** (gitignored); inspect directly or aggregate with your own tooling (**`scripts/ai/summarize_ai_usage.*`** is not in the repo).
 
-**Print server (V3):** AI-oriented notes in [`.ai/extended/print-server.md`](print-server.md). The Windows **installer** (`printserver/installer/setup.py`) removes legacy V2 artifacts before installing V3; optional IT batch: `printserver/installer/uninstall_legacy_prior.bat`. **Installer / S3 release version** is `VERSION` in [`printserver/config.py`](../../printserver/config.py) (not the same as repo root `.version`, which tracks the dashboard app). Build + upload: `printserver/distribute.bat`. For fast label/receipt iteration, use `printserver/dev_print_label_test.bat` and `printserver/dev_print_receipt_test.bat` (see table above).
+**Print server (V3):** AI-oriented notes in [`.ai/extended/print-server.md`](print-server.md). Ship a release with [`.ai/protocols/ship-print-server.md`](../protocols/ship-print-server.md) (`python printserver/distribute.py --install-local`; skip-if-done). The Windows **installer** (`printserver/installer/setup.py`) removes legacy V2 artifacts before installing V3; headless: `--install` / `--uninstall`. Optional IT batch: `printserver/installer/uninstall_legacy_prior.bat`. **Installer / S3 release version** is `VERSION` in [`printserver/config.py`](../../printserver/config.py) (not the same as repo root `.version`, which tracks the dashboard app). For fast label/receipt iteration, use `printserver/dev_print_label_test.bat` and `printserver/dev_print_receipt_test.bat` (see table above).
 
 ## Dev logging (local)
 

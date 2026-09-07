@@ -1,9 +1,9 @@
-<!-- Last updated: 2026-09-07 (YOU SAVED receipt block v2.90.0) -->
+<!-- Last updated: 2026-09-07 (ship-print-server protocol) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not a session log.
 
-**Releases:** [`.version`](../../.version) + [`CHANGELOG.md`](../../CHANGELOG.md) only. GitHub: [`ship-push-git.md`](../protocols/ship-push-git.md). Heroku: [`ship-push-heroku.md`](../protocols/ship-push-heroku.md).
+**Releases:** [`.version`](../../.version) + [`CHANGELOG.md`](../../CHANGELOG.md) only. GitHub: [`ship-push-git.md`](../protocols/ship-push-git.md). Heroku: [`ship-push-heroku.md`](../protocols/ship-push-heroku.md). Print server: [`ship-print-server.md`](../protocols/ship-print-server.md).
 
 **Create:** [`initiative-create.md`](../protocols/initiative-create.md). **Review:** [`initiative-review.md`](../protocols/initiative-review.md). Filing / moves: [`.ai/extended/initiatives.md`](../extended/initiatives.md). **Human gate:** do not archive without explicit approval.
 

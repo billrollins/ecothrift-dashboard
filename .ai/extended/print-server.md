@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-07 (YOU SAVED under TOTAL; print server 1.6.0) -->
+<!-- Last updated: 2026-09-07 (AllowAny on public version check) -->
 
 # Print Server — Extended Context
 
@@ -27,9 +27,9 @@ Printer assignment is **on the print server**, shared by all browsers on the PC.
 
 - Models: `PrintServerRelease`, `S3File` in `apps/core/models.py`
 - Authenticated: `/api/core/system/print-server-version/`, `print-server-releases/`
-- Public (no auth): `/api/core/system/print-server-version-public/` — default `UPDATE_CHECK_URL` in [`printserver/config.py`](../../printserver/config.py); `/manage/check-update` proxies this (no browser CORS).
+- Public (no auth): `/api/core/system/print-server-version-public/` — `@permission_classes([AllowAny])` so `/manage` can check without a JWT. Default `UPDATE_CHECK_URL` in [`printserver/config.py`](../../printserver/config.py); `/manage/check-update` proxies this (no browser CORS).
 
-Upload path pattern: `print-server/ecothrift-printserver-setup-v{VERSION}.exe` via [`printserver/distribute.py`](../../printserver/distribute.py) + `manage.py publish_printserver`.
+Upload path pattern: `print-server/ecothrift-printserver-setup-v{VERSION}.exe`. **Ship:** [`.ai/protocols/ship-print-server.md`](../protocols/ship-print-server.md) — skip-if-done build, S3, local + Heroku `PrintServerRelease`, and this-PC install. Script: [`printserver/distribute.py`](../../printserver/distribute.py) `--install-local`. Register: `manage.py publish_printserver` (idempotent). Silent install: `python printserver/installer/setup.py --install`. **Current release:** **1.6.0**.
 
 ## V2 vs V3 (migration)
 
@@ -62,7 +62,7 @@ Labels (GDI + Pillow), receipts (GDI text), cash drawer (ESC/POS). Built-in UI: 
 
 ## Custom labels (Label Studio, v1.4.1)
 
-[`printserver/routers/custom.py`](../../printserver/routers/custom.py) — **`POST /print/image-copies`** prints a base64 pre-rendered raster × N (dashboard renders templates at 203 DPI in the browser, `renderTemplate.ts`); **`POST /print/pdf-copies`** rasterizes a base64 PDF per page with **PyMuPDF** (grayscale, 203 DPI) and prints × N. Both use `resolve_printer(role="label")` + GDI `send_image`; copies capped at 100. v1.4.1 adds decoded 5 MiB image / 20 MiB PDF limits, a 10-page PDF cap, safe raster bounds, and `fit_to_printable=False` for pre-sized template images so designer dimensions remain physical dimensions. PDF fitting is unchanged pending physical driver smoke. **Current release:** **1.4.1** (distributed 2026-07-09). Dashboard: `/admin/label-studio` + `apps.labels` (`/api/labels/`, including AI Create propose/generate). Initiative: [`custom_label_studio.md`](../initiatives/_archived/_completed/custom_label_studio.md) (completed **v2.48.0**–**v2.48.2**).
+[`printserver/routers/custom.py`](../../printserver/routers/custom.py) — **`POST /print/image-copies`** prints a base64 pre-rendered raster × N (dashboard renders templates at 203 DPI in the browser, `renderTemplate.ts`); **`POST /print/pdf-copies`** rasterizes a base64 PDF per page with **PyMuPDF** (grayscale, 203 DPI) and prints × N. Both use `resolve_printer(role="label")` + GDI `send_image`; copies capped at 100. v1.4.1 adds decoded 5 MiB image / 20 MiB PDF limits, a 10-page PDF cap, safe raster bounds, and `fit_to_printable=False` for pre-sized template images so designer dimensions remain physical dimensions. PDF fitting is unchanged pending physical driver smoke. Label Studio shipped in **1.4.1** (distributed 2026-07-09). **Current print-server release:** **1.6.0**. Dashboard: `/admin/label-studio` + `apps.labels` (`/api/labels/`, including AI Create propose/generate). Initiative: [`custom_label_studio.md`](../initiatives/_archived/_completed/custom_label_studio.md) (completed **v2.48.0**–**v2.48.2**).
 
 ### Label Studio smoke (1.4.1)
 
