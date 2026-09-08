@@ -1,10 +1,10 @@
-<!-- Last updated: 2026-08-27 (schema refresh lives here; sql-schema protocol removed) -->
+<!-- Last updated: 2026-09-08 (local_shared) -->
 
 # SQL (`extended/sql/`)
 
 PostgreSQL snippets for **pgAdmin**, **`psql`**, and automation. **[`cli.md`](cli.md)** — terminal connection patterns.
 
-**Schema:** App tables live under **`ecothrift.*`** after a normal prod restore into **`ecothrift_v3`**. Django uses **`search_path=ecothrift`**; ad hoc SQL should still qualify **`ecothrift.`** when using raw **`psql`**. Legacy / V2-era tables may sit under **`public`** — see **[`../databases.md`](../databases.md)**.
+**Schema:** App tables live under **`ecothrift.*`** after a normal prod restore into **`local_shared`**. Django uses **`search_path=ecothrift`**; ad hoc SQL should still qualify **`ecothrift.`** when using raw **`psql`**. Legacy / V2-era tables may sit under **`public`** — see **[`../databases.md`](../databases.md)**.
 
 | File | Purpose |
 |------|---------|
@@ -83,14 +83,14 @@ WHERE NOT EXISTS (
 
 After **migrations**, **new models**, or whenever SQL needs an accurate column list:
 
-1. Run **[`schema_columns_ecothrift.sql`](schema_columns_ecothrift.sql)** against **local** **`ecothrift_v3`** (or the DB you are documenting).
+1. Run **[`schema_columns_ecothrift.sql`](schema_columns_ecothrift.sql)** against **local** **`local_shared`** (or the DB you are documenting).
 2. Write CSV output next to this README as **`schema.csv`** (overwrite).
 
 **Example — PowerShell** (repo root; fill connection flags from **`.env`** — see **`cli.md`**):
 
 ```powershell
 $env:PGPASSWORD = "<DATABASE_PASSWORD from .env>"
-psql -h localhost -p 5432 -U postgres -d ecothrift_v3 --csv -f ".ai/extended/sql/schema_columns_ecothrift.sql" -o ".ai/extended/sql/schema.csv"
+psql -h localhost -p 5432 -U postgres -d local_shared --csv -f ".ai/extended/sql/schema_columns_ecothrift.sql" -o ".ai/extended/sql/schema.csv"
 ```
 
 **AI agents:** perform that dump when the user asks to refresh schema, when **`apps/*/models.py`** or migrations changed and ad hoc SQL is in scope, or when **`schema.csv`** is missing/stale. Use **`cli.md`** for credentials (**never** invent hosts/passwords). Prefer **read-only** `SELECT` against **local** DB unless the user specifies otherwise.

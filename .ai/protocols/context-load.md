@@ -12,7 +12,8 @@
 4. Read [`.ai/initiatives/_index.md`](../initiatives/_index.md).
 5. Read each **Active** initiative file named there. Do not open `_archived/` unless the user asked about that archived work.
 6. Read terminal metadata (cwd, last command, running?). Do not dump full logs.
-7. **STOP.** Ask what they need. One question. Wait.
+7. Peek [`.ai/comm/inbox.md`](../comm/inbox.md). If **Status** is `pending`, tell them before asking for other work. Do not run the full comm protocol unless they said check messages.
+8. **STOP.** Ask what they need. One question. Wait.
 
 ## Do not
 

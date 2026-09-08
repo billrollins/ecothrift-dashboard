@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-06-23 (no active initiatives; HR MVP archived) -->
+<!-- Last updated: 2026-09-08 (check_comm protocol) -->
 ```
                     ╔═══════════════════════════════════════════════════════════╗
                     ║                                                           ║
@@ -90,6 +90,7 @@ Built different. Built fast. Built to last.
 | [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md) | Active / pending / completed initiatives. |
 | [`.ai/protocols/clean-up.md`](.ai/protocols/clean-up.md) | If given: list junk; delete only the paths you paste back. |
 | [`.ai/protocols/context-load.md`](.ai/protocols/context-load.md) | If given: read compass, version, changelog top, active initiative; then ask. |
+| [`.ai/protocols/check_comm.md`](.ai/protocols/check_comm.md) | If given: pickup parent inbox / write outbox. |
 | [`.ai/protocols/initiative-create.md`](.ai/protocols/initiative-create.md) | If given: ask for missing fields, then write the initiative file. |
 | [`.ai/protocols/initiative-review.md`](.ai/protocols/initiative-review.md) | If given: reconcile Active/Pending/Backlog with what shipped; you approve moves. |
 | [`.ai/protocols/ship-push-git.md`](.ai/protocols/ship-push-git.md) | If given: docs, version, changelog, commit, push GitHub. |

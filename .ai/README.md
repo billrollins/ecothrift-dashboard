@@ -10,6 +10,7 @@ A protocol is a trigger. **IF** it is `@`-mentioned **THEN** do only what that f
 |------|---------|
 | [`clean-up.md`](protocols/clean-up.md) | List junk; delete only what they paste back |
 | [`context-load.md`](protocols/context-load.md) | Orient, then ask |
+| [`check_comm.md`](protocols/check_comm.md) | Pickup parent inbox / write outbox |
 | [`initiative-create.md`](protocols/initiative-create.md) | Interview, then write a full initiative file |
 | [`initiative-review.md`](protocols/initiative-review.md) | Reconcile files with what shipped; you approve moves |
 | [`ship-push-git.md`](protocols/ship-push-git.md) | Docs, version, changelog, commit, GitHub |
@@ -23,10 +24,11 @@ Lifecycle after create: [`extended/initiatives.md`](extended/initiatives.md). Sc
 | Location | Role |
 |----------|------|
 | **`.ai/context.md`** | Compass — not a changelog |
+| **`.ai/comm/`** | Parent master AI — `inbox.md` from master, `outbox.md` to master (replace after read) |
 | **`.ai/initiatives/`** | Bounded work: one file per initiative (plan + acceptance) |
 | **`.ai/extended/`** | Domain docs, on demand + [`extended/sql/`](extended/sql/README.md) |
 | **`.ai/reference/`** | TARS design/canon + bookkeeping recon |
-| **`.ai/protocols/`** | `clean-up`, `context-load`, `initiative-create`, `initiative-review`, `ship-push-git`, `ship-push-heroku`, `ship-print-server` |
+| **`.ai/protocols/`** | `clean-up`, `context-load`, `check_comm`, `initiative-create`, `initiative-review`, `ship-push-git`, `ship-push-heroku`, `ship-print-server` |
 
 ## Not in `.ai`
 

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-07 (ship-print-server protocol) -->
+<!-- Last updated: 2026-09-08 (local_shared default) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -34,7 +34,7 @@ source venv/bin/activate       # macOS/Linux
 pip install -r requirements.txt
 
 # 3. Create the database
-psql -U postgres -c "CREATE DATABASE ecothrift_v3 OWNER postgres;"
+psql -U postgres -c "CREATE DATABASE local_shared OWNER postgres;"
 
 # 4. Run migrations
 python manage.py migrate
@@ -166,7 +166,7 @@ Defined in `.env` (gitignored):
 | `SECRET_KEY` | Django secret key | (generated) |
 | `DEBUG` | Debug mode | `True` |
 | `ENVIRONMENT` | Runtime environment label | `development` |
-| `DATABASE_NAME` | PostgreSQL database name | `ecothrift_v3` |
+| `DATABASE_NAME` | PostgreSQL database name | `local_shared` |
 | `DATABASE_USER` | PostgreSQL user | `postgres` |
 | `DATABASE_PASSWORD` | PostgreSQL password | `password` |
 | `DATABASE_HOST` | PostgreSQL host | `localhost` |
@@ -221,7 +221,7 @@ Defined in `.env` (gitignored):
 
 **Full SOCKS5 setup (all `BUYING_SOCKS5_*` vars):** See **[`.ai/extended/vpn-socks5.md`](vpn-socks5.md)**.
 
-**PostgreSQL schemas (local):** `DATABASE_*` points at **one** database (typically `ecothrift_v3`). Django sets `search_path=ecothrift` so models use **`ecothrift.*`**. The **`public`** schema in the same database may hold legacy/V2 data; category-bin exports query **`public.*`** and **`ecothrift.*`** with explicit names. **`scripts/deploy/0_pull_prod_to_local.bat`** is the one action for fresh prod data: it stops whatever is on ports 8000 / 5173 / 5174, replaces **schema `ecothrift` only** (not `public` / `darkhorse`), then `migrate`s whatever this checkout has that production has not. It does not start servers again. Timestamped dumps live in **`scripts/deploy/backups/`** (gitignored). Full off-box backup of every schema is **`1_backup_prod.bat`**. See the **Environment Variables** table above. Separate local archives **`ecothrift_v1`** (V1) and **`ecothrift_v2`** (V2 **`public`** only) are optional for historical tooling; see **`.ai/extended/databases.md`**.
+**PostgreSQL schemas (local):** `DATABASE_*` points at **one** database (typically `local_shared` — this machine’s copy of the shared Heroku DB). Django sets `search_path=ecothrift` so models use **`ecothrift.*`**. The **`public`** schema in the same database may hold legacy/V2 data; category-bin exports query **`public.*`** and **`ecothrift.*`** with explicit names. **`scripts/deploy/0_pull_prod_to_local.bat`** is the one action for fresh prod data: it stops whatever is on ports 8000 / 5173 / 5174, replaces **schema `ecothrift` only** (not `public` / `darkhorse`), then `migrate`s whatever this checkout has that production has not. It does not start servers again. Timestamped dumps live in **`scripts/deploy/backups/`** (gitignored). Full off-box backup of every schema is **`1_backup_prod.bat`**. See the **Environment Variables** table above. Separate local archives **`ecothrift_v1`** (V1) and **`ecothrift_v2`** (V2 **`public`** only) are optional for historical tooling; see **`.ai/extended/databases.md`**.
 
 ## Adding a New Feature
 

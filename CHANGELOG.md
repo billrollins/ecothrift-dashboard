@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.90.1] -->
-<!-- Last reviewed: 2026-09-07 (v2.90.1 print-server public version AllowAny) -->
+<!-- Line 1 release: ## [2.90.2] -->
+<!-- Last reviewed: 2026-09-08 (v2.90.2 local_shared + parent comm) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,23 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.90.2] - 2026-09-08
+
+User-facing theme: **Local shared-database name and parent-comm protocol only — no live shop or API change.**
+
+Initiative: outside initiatives.
+
+### Changed
+
+- Local Django / pull-script default database name is `local_shared` (this machine’s copy of the shared Heroku DB). Production still uses `DATABASE_URL` + schema `ecothrift`.
+
+### Documentation
+
+- Steering docs, SQL cli examples, and notebook `config.example.py` use `local_shared`.
+- Parent master comm: [`.ai/protocols/check_comm.md`](./.ai/protocols/check_comm.md) and [`.ai/comm/`](./.ai/comm/).
 
 ---
 

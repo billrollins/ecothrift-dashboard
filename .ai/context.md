@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-07 (ship-print-server protocol) -->
+<!-- Last updated: 2026-09-08 (local_shared + parent comm) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -45,7 +45,8 @@ ecothrift-dashboard/
 ├── scripts/                dev/start_dashboard.bat, start_mobile_dashboard.bat, start_website.bat
 ├── .ai/                    AI steering — see .ai/README.md
 │   ├── context.md          This compass
-│   ├── protocols/          clean-up, context-load, initiative-create, initiative-review, ship-push-git, ship-push-heroku, ship-print-server
+│   ├── protocols/          clean-up, context-load, check_comm, initiative-create, initiative-review, ship-push-git, ship-push-heroku, ship-print-server
+│   ├── comm/               Parent master AI — inbox.md (from master), outbox.md (to master)
 │   ├── initiatives/        Plan + _archived/
 │   ├── extended/           Domain docs + sql/ + initiatives.md
 │   └── reference/          tars/ + bookkeeping_recon.md
@@ -128,6 +129,7 @@ When you add, rename, or remove a file in `.ai/extended/`, update this table.
 | Compass | `.ai/context.md` (this file) |
 | Clean-up | `.ai/protocols/clean-up.md` — if given, list then delete the paste-back |
 | Load context | `.ai/protocols/context-load.md` — if given, do it |
+| Parent comm | `.ai/comm/` + `.ai/protocols/check_comm.md` — if given, pickup inbox / write outbox |
 | Create initiative | `.ai/protocols/initiative-create.md` — if given, interview then write |
 | Review initiatives | `.ai/protocols/initiative-review.md` — if given, propose then apply the paste-back |
 | Ship to GitHub | `.ai/protocols/ship-push-git.md` — if given, do it |

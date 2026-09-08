@@ -1,7 +1,7 @@
-fix: let /manage read the public print-server version
+docs: name the local shared DB and add parent comm
 
-AllowAny on print-server-version-public so the register check
-stops showing Unreachable. publish_printserver is idempotent
-and the ship-print-server protocol is in-repo.
+Release: v2.90.2
 
-Release: v2.90.1
+Local default database name is local_shared. Production still uses
+DATABASE_URL. Steering docs and pull/restore examples match. Parent
+master comm protocol lives under .ai/comm and check_comm.md.

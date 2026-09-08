@@ -9,7 +9,7 @@ $VenvPy = Join-Path $Root 'venv\Scripts\python.exe'
 $DevPs1 = Join-Path $Root 'scripts\dev\dev.ps1'
 
 $Db = @{
-    Name     = 'ecothrift_v3'
+    Name     = 'local_shared'
     User     = 'postgres'
     Password = 'password'
     Host     = 'localhost'

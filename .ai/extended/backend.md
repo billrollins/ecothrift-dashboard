@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-05 (v2.89.1 holiday_sentence) -->
+<!-- Last updated: 2026-09-08 (local_shared default) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -32,7 +32,7 @@ Root URL prefixes: `api/auth/`, `api/accounts/`, `api/core/`, `api/hr/`, `api/in
 
 ## Settings Highlights
 
-- **Database**: PostgreSQL (`ecothrift_v3` default)
+- **Database**: PostgreSQL (`local_shared` default)
 - **Auth**: `AUTH_USER_MODEL = 'accounts.User'`
 - **REST Framework**:
   - `DEFAULT_AUTHENTICATION_CLASSES`: `JWTAuthentication`
