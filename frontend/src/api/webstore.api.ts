@@ -1,12 +1,56 @@
 import api from './client';
 import type { PaginatedResponse } from '../types';
 
+export interface ListingImageCrop {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  derived?: boolean;
+}
+
+export type ListingImageSlot = 'full' | 'main' | 'grid' | 'thumb';
+
+export interface ListingImageCrops {
+  main?: ListingImageCrop;
+  grid?: ListingImageCrop;
+  thumb?: ListingImageCrop;
+}
+
+export interface ListingImageUrls {
+  full: string;
+  main: string;
+  grid: string;
+  thumb: string;
+}
+
 export interface WebListingImage {
   id: number;
   alt: string;
   position: number;
   url: string;
+  urls?: ListingImageUrls;
+  crops?: ListingImageCrops;
+  full_url?: string;
+  display_url?: string;
+  width?: number;
+  height?: number;
+  display_crop?: ListingImageCrop | null;
   created_at: string;
+}
+
+export function listingImageUrl(image: WebListingImage, slot: ListingImageSlot): string {
+  if (image.urls?.[slot]) return image.urls[slot];
+  if (slot === 'full') return image.full_url || image.url;
+  return image.display_url || image.urls?.main || image.url;
+}
+
+export function listingImageDisplayUrl(image: WebListingImage): string {
+  return listingImageUrl(image, 'main');
+}
+
+export function listingImageFullUrl(image: WebListingImage): string {
+  return listingImageUrl(image, 'full');
 }
 
 export interface ChannelPublication {
@@ -134,12 +178,17 @@ export function markFbPosted(
 
 export function uploadWebListingImage(
   id: number,
-  file: File,
-  alt?: string,
+  file: File | Blob,
+  altOrOptions?: string | { alt?: string; crop?: ListingImageCrop | null; crops?: ListingImageCrops | null },
 ): Promise<{ data: WebListingImage }> {
+  const opts =
+    typeof altOrOptions === 'string' ? { alt: altOrOptions } : altOrOptions || {};
   const form = new FormData();
-  form.append('file', file);
-  if (alt) form.append('alt', alt);
+  const filename = file instanceof File ? file.name : 'photo.jpg';
+  form.append('file', file, filename);
+  if (opts.alt) form.append('alt', opts.alt);
+  if (opts.crops) form.append('crops', JSON.stringify(opts.crops));
+  else if (opts.crop) form.append('crops', JSON.stringify({ main: opts.crop }));
   return api.post(`/webstore/listings/${id}/images/`, form, {
     transformRequest: stripMultipartContentType,
   });
@@ -162,6 +211,15 @@ export function updateWebListingImageAlt(
   alt: string,
 ): Promise<{ data: WebListingImage }> {
   return api.patch(`/webstore/listings/${listingId}/images/${imageId}/`, { alt });
+}
+
+export function reframeWebListingImage(
+  listingId: number,
+  imageId: number,
+  crops: ListingImageCrops | ListingImageCrop,
+): Promise<{ data: WebListingImage }> {
+  const payload = 'w' in crops && !('main' in crops) ? { crops: { main: crops } } : { crops };
+  return api.patch(`/webstore/listings/${listingId}/images/${imageId}/`, payload);
 }
 
 export function markWebListingSold(id: number): Promise<{ data: WebListing }> {
@@ -280,6 +338,7 @@ export type ReservationActionName =
   | 'cancel'
   | 'expire'
   | 'complete'
+  | 'undo-complete'
   | 'extend'
   | 'reopen'
   | 'archive'
@@ -399,6 +458,7 @@ export interface Conversation {
   customer: number | null;
   staff_owner: number | null;
   staff_owner_email: string | null;
+  staff_owner_name: string | null;
   staff_unread: number;
   customer_unread: number;
   last_message_at: string | null;
@@ -413,6 +473,7 @@ export interface ConversationParams {
   state?: string;
   has_hold?: string;
   listing?: number;
+  staff_owner?: number;
   ordering?: string;
   page?: number;
   /** '0' hides archived threads, '1' shows only them, omitted returns both. */
@@ -436,12 +497,16 @@ export function replyConversation(
   id: number,
   body: string,
   subject?: string,
+  notify: boolean = true,
 ): Promise<{ data: Conversation }> {
-  return api.post(`/webstore/conversations/${id}/reply/`, { body, subject });
+  return api.post(`/webstore/conversations/${id}/reply/`, { body, subject, notify });
 }
 
-export function assignConversation(id: number): Promise<{ data: Conversation }> {
-  return api.post(`/webstore/conversations/${id}/assign/`);
+export function assignConversation(
+  id: number,
+  clear?: boolean,
+): Promise<{ data: Conversation }> {
+  return api.post(`/webstore/conversations/${id}/assign/`, clear ? { clear: true } : {});
 }
 
 export function resolveConversation(id: number): Promise<{ data: Conversation }> {

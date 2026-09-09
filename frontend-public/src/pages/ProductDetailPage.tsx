@@ -2,11 +2,13 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   askAboutListing,
+  catalogImageUrl,
   fetchListing,
   money,
   rememberMyRequest,
   type CatalogDetail,
 } from '../api'
+import ListingLightbox from '../components/ListingLightbox'
 import { useAuth } from '../auth'
 import { useCart } from '../cart'
 import { useHolidayNote, useStoreHoursLabel } from '../lib/storeHours'
@@ -30,6 +32,7 @@ export default function ProductDetailPage() {
   const [askError, setAskError] = useState<string | null>(null)
   const [askDone, setAskDone] = useState(false)
   const [askNeedsVerify, setAskNeedsVerify] = useState(false)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
   const { config } = useOnlineSalesConfig()
   const { user, emailVerified } = useAuth()
 
@@ -52,7 +55,7 @@ export default function ProductDetailPage() {
       : undefined,
     path: `/shop/${slug}`,
     type: 'product',
-    image: listing?.images?.[0]?.url,
+    image: catalogImageUrl(listing?.images?.[0], 'main') ?? undefined,
     noindex: notFound,
   })
   useJsonLd(
@@ -64,9 +67,10 @@ export default function ProductDetailPage() {
           description: listing.description || `${listing.title} at Eco-Thrift.`,
           sku: listing.sku || undefined,
           category: listing.category_name || undefined,
-          image: (listing.images ?? []).map((im) =>
-            im.url.startsWith('http') ? im.url : `${SITE_URL}${im.url}`,
-          ),
+          image: (listing.images ?? []).map((im) => {
+            const src = catalogImageUrl(im, 'main') || im.url
+            return src.startsWith('http') ? src : `${SITE_URL}${src}`
+          }),
           offers: {
             '@type': 'Offer',
             price: listing.price,
@@ -141,11 +145,21 @@ export default function ProductDetailPage() {
 
       <div className="pdp">
         <div className="pdpgallery">
-          <div className="pdpmain">
-            {main ? <img src={main.url} alt={main.alt} /> : <span className="ph g3" />}
+          <button
+            type="button"
+            className="pdpmain"
+            onClick={() => main && setLightboxOpen(true)}
+            aria-label="View full photo"
+            disabled={!main}
+          >
+            {main ? (
+              <img src={catalogImageUrl(main, 'main') || main.url} alt={main.alt} />
+            ) : (
+              <span className="ph g3" />
+            )}
             {listing.on_sale && listing.available > 0 && <span className="badge sale">Sale</span>}
             {listing.available <= 0 && <span className="badge reserved">Reserved</span>}
-          </div>
+          </button>
           {images.length > 1 && (
             <div className="pdpthumbs">
               {images.map((img, i) => (
@@ -155,7 +169,7 @@ export default function ProductDetailPage() {
                   onClick={() => setActiveImage(i)}
                   aria-label={`View image ${i + 1}`}
                 >
-                  <img src={img.url} alt={img.alt} loading="lazy" />
+                  <img src={catalogImageUrl(img, 'thumb') || img.url} alt={img.alt} loading="lazy" />
                 </button>
               ))}
             </div>
@@ -210,7 +224,7 @@ export default function ProductDetailPage() {
                       slug: listing.slug,
                       title: listing.title,
                       price: parseFloat(listing.price),
-                      image: main?.url ?? null,
+                      image: catalogImageUrl(main, 'thumb') ?? main?.url ?? null,
                       stock: listing.stock,
                     },
                     qty,
@@ -333,6 +347,15 @@ export default function ProductDetailPage() {
           </div>
         </div>
       </div>
+      {lightboxOpen && images.length > 0 ? (
+        <ListingLightbox
+          images={images}
+          index={activeImage}
+          title={listing.title}
+          onClose={() => setLightboxOpen(false)}
+          onIndex={setActiveImage}
+        />
+      ) : null}
     </div>
   )
 }

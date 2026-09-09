@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-27 (lifecycle pointer → extended/initiatives.md) -->
+<!-- Last updated: 2026-09-08 (routines completed; split from routines_and_documents) -->
 
 <!-- NOTE: `_pending/tars_restoration_workspace.md` and `_pending/tars_full_instruction_wizard_guidance.md` are SUPERSEDED. TARS scope is `_completed/finalize_tars_app.md`. -->
 # Archive index — initiatives
@@ -13,6 +13,9 @@ Files under **`.ai/initiatives/_archived/`** that are off the [main index](../_i
 
 | File | Summary | Archived |
 |------|---------|----------|
+| [routines.md](./_completed/routines.md) | Routines + Retail QA + Floor pages. Shipped **v2.76.0–v2.87.0**. Split from `routines_and_documents`. | 2026-09-08 |
+| [admin_workspace_overhaul.md](./_completed/admin_workspace_overhaul.md) | Studios workspace, Settings house, capability catalog. Shipped **v2.74.0**. Grants deferred. | 2026-09-08 |
+| [pos_labor_day_summer_sale.md](./_completed/pos_labor_day_summer_sale.md) | POS Labor Day / Summer sale, www announcements + holiday hours, receipt YOU SAVED. Shipped **v2.88.0–v2.90.0**. | 2026-09-08 |
 | [finalize_tars_app.md](./_completed/finalize_tars_app.md) | Finalize TARS: queue, grade table, parts command center, hold story, inspect. Shipped **v2.71.0** (GitHub). | 2026-08-25 |
 | [enhancement_requests.md](./_completed/enhancement_requests.md) | Staff Requests sheet + superuser Enhancements board. Shipped **v2.71.0** (GitHub). | 2026-08-25 |
 | [online_sales_mvp.md](./_completed/online_sales_mvp.md) | Online Sales MVP: reserve online / pay in store; Customers workspace; verified holds; Graph mail; public shop go-live. Shipped **v2.62.0–v2.69.0**. | 2026-08-11 |
@@ -80,7 +83,7 @@ Files under **`.ai/initiatives/_archived/`** that are off the [main index](../_i
 
 | File | Summary | Archived |
 |------|---------|----------|
-| [documents_and_duties.md](./_abandoned/documents_and_duties.md) | Library + QA-in-library was the wrong product; replaced by **`routines_and_documents`**. | 2026-08-31 |
+| [documents_and_duties.md](./_abandoned/documents_and_duties.md) | Library + QA-in-library was the wrong product; replaced by **`routines`** + **`documents`**. | 2026-08-31 |
 | [inventory_intake_pipeline.md](./_abandoned/inventory_intake_pipeline.md) | Superseded by **`order_processing_pipeline_rebuild`**. | 2026-04-29 |
 
 ---

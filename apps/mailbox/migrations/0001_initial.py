@@ -8,12 +8,11 @@ TEMPLATES = [
         'name': 'Hold confirmed',
         'subject': 'Hold confirmed: {{ listing_title }}',
         'html_body': (
-            '<p>Hi {{ customer_name }},</p>'
             '<p>Your hold is confirmed for <strong>{{ listing_title }}</strong>.</p>'
             '<p>Pick up at {{ store_address }} by {{ pickup_by }}.</p>'
             '<p>View hold status: <a href="{{ hold_link }}">{{ hold_link }}</a></p>'
             '<p>Pay in store at pickup. No shipping, delivery, or online payment. '
-            'Items are typically final sale.</p><p>- Eco-Thrift</p>'
+            'Items are typically final sale.</p>'
         ),
     },
     {
@@ -21,8 +20,8 @@ TEMPLATES = [
         'name': 'Hold ready for pickup',
         'subject': 'Ready for pickup: {{ listing_title }}',
         'html_body': (
-            '<p>Hi {{ customer_name }},</p><p>Your hold for '
-            '<strong>{{ listing_title }}</strong> is ready for pickup at {{ store_address }}.</p>'
+            '<p>Your hold for <strong>{{ listing_title }}</strong> is ready '
+            'for pickup at {{ store_address }}.</p>'
             '<p>Please pick it up by {{ pickup_by }}. '
             '<a href="{{ hold_link }}">View hold status</a></p>'
         ),
@@ -32,8 +31,7 @@ TEMPLATES = [
         'name': 'Hold expiring soon',
         'subject': 'Your hold expires soon: {{ listing_title }}',
         'html_body': (
-            '<p>Hi {{ customer_name }},</p><p>Your hold for '
-            '<strong>{{ listing_title }}</strong> expires {{ pickup_by }}.</p>'
+            '<p>Your hold for <strong>{{ listing_title }}</strong> expires {{ pickup_by }}.</p>'
             '<p><a href="{{ hold_link }}">View hold status</a></p>'
         ),
     },
@@ -42,7 +40,7 @@ TEMPLATES = [
         'name': 'Hold declined',
         'subject': 'Update about {{ listing_title }}',
         'html_body': (
-            '<p>Hi {{ customer_name }},</p><p>We could not confirm your hold for '
+            '<p>We could not confirm your hold for '
             '<strong>{{ listing_title }}</strong>. Please reply if we can help find another item.</p>'
         ),
     },
@@ -50,9 +48,7 @@ TEMPLATES = [
         'key': 'customer_question_reply',
         'name': 'Customer question reply',
         'subject': 'Re: {{ listing_title }}',
-        'html_body': (
-            '<p>Hi {{ customer_name }},</p><p></p><p>- {{ staff_name }}<br>Eco-Thrift</p>'
-        ),
+        'html_body': '<p></p>',
     },
 ]
 

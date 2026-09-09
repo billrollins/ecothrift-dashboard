@@ -202,6 +202,10 @@ def post_message(
             locked.state = 'needs_reply'
         if bump_staff_unread and locked.state != 'pending_verification':
             locked.staff_unread = locked.staff_unread + 1
+        # A customer reply on an archived thread is new work - show it again.
+        if locked.archived_at is not None:
+            locked.archived_at = None
+            locked.archived_by = None
     elif author_kind == 'staff':
         locked.state = 'waiting_on_customer'
         locked.customer_unread = locked.customer_unread + 1
@@ -209,6 +213,8 @@ def post_message(
         if locked.customer_deleted_at is not None:
             locked.customer_deleted_at = None
     update_fields = ['state', 'last_message_at', 'staff_unread', 'customer_unread', 'updated_at']
+    if author_kind == 'customer':
+        update_fields.extend(['archived_at', 'archived_by'])
     if author_kind == 'staff':
         update_fields.append('customer_deleted_at')
     locked.save(update_fields=update_fields)
@@ -249,12 +255,15 @@ def resolve_conversation(conversation: Conversation) -> Conversation:
 def reopen_conversation(conversation: Conversation) -> Conversation:
     locked = Conversation.objects.select_for_update().get(pk=conversation.pk)
     locked.state = 'needs_reply'
-    locked.save(update_fields=['state', 'updated_at'])
+    locked.archived_at = None
+    locked.archived_by = None
+    locked.save(update_fields=['state', 'archived_at', 'archived_by', 'updated_at'])
     return locked
 
 
 @transaction.atomic
-def assign_conversation(conversation: Conversation, user) -> Conversation:
+def assign_conversation(conversation: Conversation, user=None) -> Conversation:
+    """Assign the thread to `user`. Pass None to unassign."""
     locked = Conversation.objects.select_for_update().get(pk=conversation.pk)
     locked.staff_owner = user
     locked.save(update_fields=['staff_owner', 'updated_at'])

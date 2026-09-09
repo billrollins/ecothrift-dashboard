@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.90.2] -->
-<!-- Last reviewed: 2026-09-08 (v2.90.2 local_shared + parent comm) -->
+<!-- Line 1 release: ## [2.91.0] -->
+<!-- Last reviewed: 2026-09-09 (v2.91.0 listing photos + messages) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,36 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.91.0] - 2026-09-09
+
+User-facing theme: **Listing photos you can frame, and Messages you can assign, resolve, and reply to without double-wrapped email.**
+
+Initiative: [`listing_photos`](./.ai/initiatives/listing_photos.md); Messages and hold undo are outside initiatives.
+
+### Added
+
+- Listing Studio drop / multi-select photos with a one-screen editor: Main 1600×1200 by default; Full / Grid / Thumb chips to change a crop. Grid and thumb follow main unless you change them.
+- Server slots: full (max 2048), main 1600×1200, grid 800×600, thumb 400×400. Click a studio tile or the shop listing photo to open the full image.
+- Listing copy autosave so photo work does not clear unsaved title, price, or Facebook fields.
+- Mark posted turns on when a Posted URL is entered, and the button looks different once posted.
+- Resolve asks first. After resolve, the list stays on All (or Needs reply after Undo) so the thread does not vanish under the default filter.
+- Reply can skip email: `POST …/conversations/<id>/reply/` takes `notify` (default true). The composer has **Email the customer** and **Post without email**.
+- **Undo Complete** on a hold that staff marked Complete by mistake (`POST /api/webstore/reservations/<id>/undo-complete/`). Restores the prior status and stock, deletes the pickup system line and completed event, sends no email. Register-linked sales stay completed - reverse those at POS. A real release (cancel / decline / no-show) still uses **Reopen hold** with a required internal note.
+
+### Changed
+
+- Public shop grid uses the 800×600 crop; the listing main image uses 1600×1200; cart and hold thumbs use 400×400.
+- Inquiry reply emails link to `/account/messages` when accounts are on, not `/shop`.
+- `POST …/conversations/<id>/assign/` accepts `{ "clear": true }` to unassign.
+
+### Fixed
+
+- Assign to me now shows an owner chip and Owner column, with Unassign and a Mine filter. The API already stored `staff_owner`; the panel never displayed it.
+- Staff reply emails no longer repeat `Hi …` and `- Eco-Thrift`. Seeded mailbox templates are body-only; `send_you_have_a_reply` still wraps once and strips a leftover greeting or sign-off.
+- Reopen after an accidental Resolve works even if the thread was archived. Reopen clears `archived_at`. A customer reply on an archived thread brings it back to the inbox.
 
 ---
 
@@ -51,7 +81,7 @@ Initiative: outside initiatives.
 
 User-facing theme: **YOU SAVED under TOTAL** - Labor Day, Summer, and Google Review dollars in one block.
 
-Initiative: [`pos_labor_day_summer_sale`](./.ai/initiatives/pos_labor_day_summer_sale.md).
+Initiative: [`pos_labor_day_summer_sale`](./.ai/initiatives/_archived/_completed/pos_labor_day_summer_sale.md).
 
 ### Added
 
@@ -68,7 +98,7 @@ Initiative: [`pos_labor_day_summer_sale`](./.ai/initiatives/pos_labor_day_summer
 
 User-facing theme: **Holiday hours you can scan** - one dated sentence, a two-column week, labels that stand off the values.
 
-Initiative: [`pos_labor_day_summer_sale`](./.ai/initiatives/pos_labor_day_summer_sale.md) Phase 2 polish.
+Initiative: [`pos_labor_day_summer_sale`](./.ai/initiatives/_archived/_completed/pos_labor_day_summer_sale.md) Phase 2 polish.
 
 ### Changed
 
@@ -81,7 +111,7 @@ Initiative: [`pos_labor_day_summer_sale`](./.ai/initiatives/pos_labor_day_summer
 
 User-facing theme: **Tell the store from Dash** - announcements and holiday hours land on www the same minute.
 
-Initiative: [`pos_labor_day_summer_sale`](./.ai/initiatives/pos_labor_day_summer_sale.md) Phase 2.
+Initiative: [`pos_labor_day_summer_sale`](./.ai/initiatives/_archived/_completed/pos_labor_day_summer_sale.md) Phase 2.
 
 ### Added
 
@@ -100,7 +130,7 @@ Initiative: [`pos_labor_day_summer_sale`](./.ai/initiatives/pos_labor_day_summer
 
 User-facing theme: **Labor Day at the register** - 10% off runs itself, Summer is one tap, Assembly is $35.
 
-Initiative: [`pos_labor_day_summer_sale`](./.ai/initiatives/pos_labor_day_summer_sale.md).
+Initiative: [`pos_labor_day_summer_sale`](./.ai/initiatives/_archived/_completed/pos_labor_day_summer_sale.md).
 
 ### Added
 
@@ -126,7 +156,7 @@ Initiative: [`pos_labor_day_summer_sale`](./.ai/initiatives/pos_labor_day_summer
 
 User-facing theme: **One desk for the floor** - Home, Today, Pay, and Routines share one band and the same four names as the phone.
 
-Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.md).
+Initiative: [`routines`](./.ai/initiatives/_archived/_completed/routines.md).
 
 ### Added
 
@@ -219,7 +249,7 @@ User-facing theme: **Dashboard is a phone app now** — today's sales first, one
 
 User-facing theme: **One walk for every aisle** — Daily Check, Tuesday, and Owner look the same; Owner also ticks a few Open / Day / Close checks.
 
-Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.md).
+Initiative: [`routines`](./.ai/initiatives/_archived/_completed/routines.md).
 
 ### Changed
 
@@ -235,7 +265,7 @@ Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.
 
 User-facing theme: **Owner is who, not a list of rooms** — the unused Subject pool box is gone.
 
-Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.md).
+Initiative: [`routines`](./.ai/initiatives/_archived/_completed/routines.md).
 
 ### Removed
 
@@ -249,7 +279,7 @@ Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.
 
 User-facing theme: **Your day follows your punch** — Open, Day, and Close belong to the cashier shift, not to everyone in Retail.
 
-Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.md).
+Initiative: [`routines`](./.ai/initiatives/_archived/_completed/routines.md).
 
 ### Changed
 
@@ -264,7 +294,7 @@ Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.
 
 User-facing theme: **Missed stays missed** — a Wednesday Open cannot be filled on Thursday, while changing the air filter still can.
 
-Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.md).
+Initiative: [`routines`](./.ai/initiatives/_archived/_completed/routines.md).
 
 ### Added
 
@@ -279,7 +309,7 @@ Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.
 
 User-facing theme: **Clock in, pick a shift, see the day** — seven tiles grouped Retail / Warehouse / Office, a bilingual Day at a glance, and the real 52-item Open / Day / Close lists.
 
-Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.md).
+Initiative: [`routines`](./.ai/initiatives/_archived/_completed/routines.md).
 
 ### Added
 
@@ -303,7 +333,7 @@ Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.
 
 User-facing theme: **Retail QA settles in** — Work cycle is a real walk with phone pickup, idle registers get asked, and Routine Control stops swapping the page.
 
-Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.md).
+Initiative: [`routines`](./.ai/initiatives/_archived/_completed/routines.md).
 
 ### Added
 
@@ -329,7 +359,7 @@ Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.
 
 User-facing theme: **Routines replace Quality Audit** — staff fill Open / Day / Close and section walks; the floor grades A–F.
 
-Initiative: [`routines_and_documents`](./.ai/initiatives/routines_and_documents.md).
+Initiative: [`routines`](./.ai/initiatives/_archived/_completed/routines.md).
 
 ### Removed
 
@@ -413,7 +443,7 @@ Outside initiatives.
 
 User-facing theme: **Rooms that stay put** — Studios, Catalog on the Floor, and one Settings house with a real permissions catalog.
 
-Initiative: [`admin_workspace_overhaul`](.ai/initiatives/admin_workspace_overhaul.md).
+Initiative: [`admin_workspace_overhaul`](.ai/initiatives/_archived/_completed/admin_workspace_overhaul.md).
 
 ### Added
 

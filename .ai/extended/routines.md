@@ -1,7 +1,7 @@
-<!-- Last updated: 2026-09-03 (v2.87.0 Floor pages) -->
+<!-- Last updated: 2026-09-08 (initiative → completed routines) -->
 # Routines
 
-Periodic and on-demand fill-in forms. Initiative: [`routines_and_documents`](../initiatives/routines_and_documents.md).
+Periodic and on-demand fill-in forms. Initiative: [`routines`](../initiatives/_archived/_completed/routines.md) (completed).
 
 ## App
 

@@ -9,13 +9,15 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import User
 from apps.core.models import S3File
-from apps.webstore.models import Reservation, WebListing, WebListingImage
+from apps.webstore.models import Message, Reservation, WebListing, WebListingImage
 from apps.webstore.services import hold_status
+from apps.webstore.services.conversations import _SYSTEM_STATUS_COPY
 from apps.webstore.services.reservations import (
     complete_reservation,
     release_reservation,
     reopen_reservation,
     stage_reservation,
+    undo_complete_reservation,
 )
 from apps.webstore.tests.helpers import make_verified_hold
 
@@ -169,6 +171,71 @@ class ReopenReservationTests(TestCase):
             reopen_reservation(res, user=self.mgr, note='Undo the sale')
         self.assertIn('completed', str(ctx.exception).lower())
 
+    def test_undo_complete_restores_hold_and_erases_pickup_trail(self):
+        res = make_verified_hold(
+            listing=_listing('undo-complete'),
+            quantity=1,
+            customer_name='Ada',
+            email='ada@example.com',
+        )
+        stage_reservation(res, user=self.mgr)
+        complete_reservation(res, user=self.mgr)
+        listing = res.listing
+        listing.refresh_from_db()
+        self.assertEqual(listing.on_hand, 0)
+        self.assertEqual(listing.status, 'sold')
+        conv = res.conversation
+        pickup = _SYSTEM_STATUS_COPY['completed']
+        self.assertTrue(
+            Message.objects.filter(conversation=conv, author_kind='system', body=pickup).exists(),
+        )
+
+        mail.outbox.clear()
+        undone = undo_complete_reservation(res, user=self.mgr)
+
+        self.assertEqual(undone.status, 'ready_for_pickup')
+        self.assertIsNone(undone.completed_at)
+        self.assertFalse(undone.events.filter(kind='completed').exists())
+        self.assertFalse(undone.events.filter(kind='reopened').exists())
+        self.assertFalse(
+            Message.objects.filter(conversation=conv, author_kind='system', body=pickup).exists(),
+        )
+        self.assertEqual(len(mail.outbox), 0)
+        listing.refresh_from_db()
+        self.assertEqual(listing.on_hand, 1)
+        self.assertEqual(listing.reserved, 1)
+        self.assertEqual(listing.status, 'published')
+
+    def test_undo_complete_refuses_register_sale(self):
+        from django.utils import timezone
+
+        from apps.core.models import WorkLocation
+        from apps.pos.models import Cart, Drawer, Register
+
+        res = make_verified_hold(
+            listing=_listing('undo-pos'),
+            quantity=1,
+            customer_name='Ada',
+            email='ada@example.com',
+        )
+        location = WorkLocation.objects.create(name='Undo POS')
+        register = Register.objects.create(location=location, name='R1', code='UNDO-R1')
+        drawer = Drawer.objects.create(
+            register=register,
+            date=timezone.now().date(),
+            current_cashier=self.mgr,
+            opened_by=self.mgr,
+            opened_at=timezone.now(),
+            status='open',
+        )
+        cart = Cart.objects.create(drawer=drawer, cashier=self.mgr, status='completed')
+        complete_reservation(res, user=self.mgr, pos_cart=cart)
+        with self.assertRaises(ValidationError) as ctx:
+            undo_complete_reservation(res, user=self.mgr)
+        self.assertIn('register', str(ctx.exception).lower())
+        res.refresh_from_db()
+        self.assertEqual(res.status, 'completed')
+
     def test_reopen_emails_customer_and_posts_system_message(self):
         res = self._cancelled_hold(slug='reopen-email')
         mail.outbox.clear()
@@ -239,6 +306,18 @@ class ReopenEndpointTests(TestCase):
         self.assertEqual(event.note, 'Found the right size')
         self.assertEqual(event.from_status, 'declined')
         self.assertEqual(event.to_status, 'confirmed')
+
+    def test_undo_complete_endpoint(self):
+        listing = _listing('undo-api')
+        res = make_verified_hold(
+            listing=listing, quantity=1, customer_name='Ada', email='ada@example.com',
+        )
+        self.client.force_authenticate(self.mgr)
+        self.client.post(f'/api/webstore/reservations/{res.id}/complete/')
+        r = self.client.post(f'/api/webstore/reservations/{res.id}/undo-complete/')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.json()['status'], 'requested')
+        self.assertIsNone(r.json()['completed_at'])
 
     def test_reopen_is_staff_gated(self):
         r = self.client.post(

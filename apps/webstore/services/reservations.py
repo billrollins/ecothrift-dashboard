@@ -517,6 +517,66 @@ def complete_reservation(reservation: Reservation, user=None, pos_cart=None) -> 
     return locked
 
 
+@transaction.atomic
+def undo_complete_reservation(reservation: Reservation, user=None) -> Reservation:
+    """Undo a staff Complete misclick. No email. Erase the complete trail.
+
+    Register sales stay completed - reverse those at POS, not here.
+    """
+    locked = Reservation.objects.select_for_update().select_related('listing').get(
+        pk=reservation.pk,
+    )
+    if locked.status != 'completed':
+        raise ValidationError({'detail': f'Cannot undo complete from status {locked.status}.'})
+    if locked.pos_cart_id:
+        raise ValidationError({
+            'detail': 'This sale closed at the register. Reverse it there, not here.',
+        })
+
+    completed_event = (
+        locked.events.filter(kind='completed').order_by('-id').first()
+    )
+    prev = (completed_event.from_status if completed_event else '') or 'requested'
+    if prev not in ('requested', 'confirmed', 'ready_for_pickup'):
+        prev = 'requested'
+
+    listing = WebListing.objects.select_for_update().get(pk=locked.listing_id)
+    listing.reserved = listing.reserved + locked.quantity
+    listing.on_hand = listing.on_hand + locked.quantity
+    listing.sync_stock_mirror()
+    update_fields = ['reserved', 'on_hand', 'stock', 'updated_at']
+    if listing.status == 'sold':
+        listing.status = 'published'
+        update_fields.append('status')
+    listing.save(update_fields=update_fields)
+
+    locked.status = prev
+    locked.completed_at = None
+    locked.completed_by = None
+    locked.archived_at = None
+    locked.archived_by = None
+    locked.save(update_fields=[
+        'status', 'completed_at', 'completed_by',
+        'archived_at', 'archived_by', 'updated_at',
+    ])
+
+    if completed_event is not None:
+        completed_event.delete()
+
+    from apps.webstore.models import Conversation, Message
+    from apps.webstore.services.conversations import _SYSTEM_STATUS_COPY
+
+    conv = Conversation.objects.filter(reservation_id=locked.pk).first()
+    if conv is not None:
+        pickup_copy = _SYSTEM_STATUS_COPY.get('completed') or ''
+        if pickup_copy:
+            Message.objects.filter(
+                conversation=conv, author_kind='system', body=pickup_copy,
+            ).delete()
+
+    return locked
+
+
 def active_holds_for_item(item_id: int):
     return Reservation.objects.filter(
         item_id=item_id,

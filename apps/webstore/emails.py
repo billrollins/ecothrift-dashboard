@@ -10,6 +10,7 @@ is locked out and nothing else will tell them, so it raises.
 from __future__ import annotations
 
 import logging
+import re
 from email.utils import formataddr
 from typing import TYPE_CHECKING
 
@@ -369,6 +370,30 @@ def send_hold_released(reservation: 'Reservation') -> bool:
     )
 
 
+_GREETING_RE = re.compile(
+    r'^(?:hi|hello)\s+[^,\n]+,\s*\n+',
+    re.IGNORECASE,
+)
+_TRAILING_SIGNOFF_RE = re.compile(
+    r'\n+(?:[-–—]\s*(?:eco-thrift|.+)?|eco-thrift)\s*$',
+    re.IGNORECASE,
+)
+
+
+def _unwrap_reply_body(reply_body: str) -> str:
+    """Drop a leading greeting and trailing dash sign-off so the wrapper is the only one."""
+    text = (reply_body or '').strip()
+    if not text:
+        return ''
+    text = _GREETING_RE.sub('', text, count=1).strip()
+    while True:
+        nxt = _TRAILING_SIGNOFF_RE.sub('', text).strip()
+        if nxt == text:
+            break
+        text = nxt
+    return text
+
+
 def send_you_have_a_reply(
     conversation: 'Conversation',
     *,
@@ -380,21 +405,23 @@ def send_you_have_a_reply(
     if not email:
         return False
     title = conversation.listing.title if conversation.listing_id else 'your request'
+    inner = _unwrap_reply_body(reply_body)
     if conversation.reservation_id:
         try:
             link = f'{_public_base()}/hold/{conversation.reservation.status_token}'
         except Exception:
             link = f'{_public_base()}/shop'
+        cta = f'View the conversation: {link}'
+    elif bool(getattr(settings, 'ONLINE_SALES_ACCOUNTS_ENABLED', True)):
+        link = f'{_public_base()}/account/messages'
+        cta = f'Sign in to reply: {link}'
     else:
         link = f'{_public_base()}/shop'
+        cta = f'Shop: {link}'
     body = (
         f'Hi {conversation.guest_name or "there"},\n\n'
-        + (
-            f'{reply_body.strip()}\n\n'
-            if reply_body.strip()
-            else f'Eco-Thrift replied about “{title}”.\n\n'
-        )
-        + f'View the conversation: {link}\n\n'
+        + (f'{inner}\n\n' if inner else f'Eco-Thrift replied about "{title}".\n\n')
+        + f'{cta}\n\n'
         f'- Eco-Thrift\n{PICKUP_ADDRESS} · {PICKUP_PHONE}'
     )
     marker, headers = _thread_headers(conversation)

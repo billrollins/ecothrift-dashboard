@@ -11,14 +11,24 @@ from .models import (
     StoreHoursOverride,
     WebListing,
     WebListingImage,
+    WebListingImageVariant,
 )
+
+
+class WebListingImageVariantInline(admin.TabularInline):
+    model = WebListingImageVariant
+    extra = 0
+    fields = ['slot', 's3_file', 'width', 'height']
+    raw_id_fields = ['s3_file']
+    readonly_fields = ['width', 'height']
 
 
 class WebListingImageInline(admin.TabularInline):
     model = WebListingImage
     extra = 0
-    fields = ['s3_file', 'alt', 'position']
+    fields = ['s3_file', 'alt', 'position', 'width', 'height']
     raw_id_fields = ['s3_file']
+    readonly_fields = ['width', 'height']
 
 
 @admin.register(WebListing)

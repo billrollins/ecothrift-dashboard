@@ -59,6 +59,7 @@ from .services.reservations import (
     release_reservation,
     reopen_reservation,
     stage_reservation,
+    undo_complete_reservation,
 )
 
 PAGE_SIZE_DEFAULT = 24
@@ -121,7 +122,7 @@ class WebListingViewSet(viewsets.ModelViewSet):
     queryset = (
         WebListing.objects
         .select_related('category', 'item')
-        .prefetch_related('images__s3_file', 'channel_publications')
+        .prefetch_related('images__s3_file', 'images__variants__s3_file', 'channel_publications')
         .all()
     )
     serializer_class = WebListingSerializer
@@ -276,27 +277,29 @@ class WebListingViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='images')
     def add_image(self, request, pk=None):
+        from apps.webstore.services.listing_photos import (
+            ListingPhotoError,
+            parse_crops_payload,
+            save_listing_photo,
+        )
+
         listing = self.get_object()
         file = request.FILES.get('file')
         if not file:
             return Response({'detail': 'No file provided.'}, status=400)
-        ext = os.path.splitext(file.name or '')[1].lower() or '.jpg'
-        key = f'webstore/listings/{listing.id}/{uuid.uuid4().hex}{ext}'
-        saved_path = default_storage.save(key, file)
-        s3_file = S3File.objects.create(
-            key=saved_path,
-            filename=file.name or saved_path.split('/')[-1],
-            size=getattr(file, 'size', 0) or 0,
-            content_type=getattr(file, 'content_type', '') or '',
-            uploaded_by=request.user,
-        )
-        next_pos = (listing.images.aggregate(m=Max('position'))['m'] or 0) + 1
-        image = WebListingImage.objects.create(
-            listing=listing,
-            s3_file=s3_file,
-            alt=request.data.get('alt', ''),
-            position=next_pos,
-        )
+        raw = file.read()
+        try:
+            crops = parse_crops_payload(request.data.get('crops') or request.data.get('crop'))
+            image = save_listing_photo(
+                listing=listing,
+                raw=raw,
+                filename=file.name or 'photo.jpg',
+                user=request.user,
+                alt=request.data.get('alt', ''),
+                crops=crops,
+            )
+        except ListingPhotoError as exc:
+            return Response({'detail': exc.detail, 'code': exc.code}, status=400)
         return Response(WebListingImageSerializer(image).data, status=201)
 
     @action(detail=True, methods=['post'], url_path='images/reorder')
@@ -310,22 +313,39 @@ class WebListingViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['patch', 'delete'], url_path=r'images/(?P<image_id>[0-9]+)')
     def delete_image(self, request, pk=None, image_id=None):
+        from apps.webstore.services.listing_photos import (
+            ListingPhotoError,
+            delete_listing_photo,
+            parse_crops_payload,
+            reframe_listing_photo,
+        )
+
         listing = self.get_object()
-        image = get_object_or_404(WebListingImage, pk=image_id, listing=listing)
+        image = get_object_or_404(
+            WebListingImage.objects.select_related('s3_file').prefetch_related('variants__s3_file'),
+            pk=image_id,
+            listing=listing,
+        )
         if request.method == 'PATCH':
-            alt = request.data.get('alt')
-            if alt is None:
-                return Response({'detail': 'alt is required.'}, status=400)
-            image.alt = str(alt)[:200]
-            image.save(update_fields=['alt'])
+            has_alt = 'alt' in request.data
+            has_crops = 'crops' in request.data or 'crop' in request.data
+            if not has_alt and not has_crops:
+                return Response({'detail': 'alt or crops is required.'}, status=400)
+            if has_alt:
+                image.alt = str(request.data.get('alt'))[:200]
+                image.save(update_fields=['alt'])
+            if has_crops:
+                try:
+                    crops = parse_crops_payload(
+                        request.data.get('crops', request.data.get('crop')),
+                    )
+                    if crops is None:
+                        return Response({'detail': 'crops is required.'}, status=400)
+                    image = reframe_listing_photo(image, crops=crops, user=request.user)
+                except ListingPhotoError as exc:
+                    return Response({'detail': exc.detail, 'code': exc.code}, status=400)
             return Response(WebListingImageSerializer(image).data)
-        s3_file = image.s3_file
-        image.delete()
-        try:
-            default_storage.delete(s3_file.key)
-        except Exception:
-            pass
-        s3_file.delete()
+        delete_listing_photo(image)
         return Response(status=204)
 
 
@@ -447,6 +467,12 @@ class ReservationViewSet(
     @action(detail=True, methods=['post'], url_path='complete')
     def complete(self, request, pk=None):
         reservation = complete_reservation(self.get_object(), user=request.user)
+        return Response(ReservationStaffSerializer(reservation).data)
+
+    @action(detail=True, methods=['post'], url_path='undo-complete')
+    def undo_complete(self, request, pk=None):
+        """Undo a staff Complete misclick. No email. Register sales stay put."""
+        reservation = undo_complete_reservation(self.get_object(), user=request.user)
         return Response(ReservationStaffSerializer(reservation).data)
 
     @action(detail=True, methods=['post'], url_path='archive')
@@ -584,21 +610,31 @@ class ConversationViewSet(
     def reply(self, request, pk=None):
         from apps.webstore.emails import send_you_have_a_reply
         from apps.webstore.services.conversations import post_message
-        body = (request.data or {}).get('body') or ''
-        subject = (request.data or {}).get('subject') or ''
+        data = request.data or {}
+        body = data.get('body') or ''
+        subject = data.get('subject') or ''
+        notify = data.get('notify', True)
+        if isinstance(notify, str):
+            notify = notify.strip() not in _FALSY
         conv = self.get_object()
         post_message(conv, author_kind='staff', body=body, author_user=request.user)
         conv = self.get_queryset().select_related('listing', 'reservation').get(pk=conv.pk)
-        try:
-            send_you_have_a_reply(conv, reply_body=body, subject_override=subject)
-        except Exception:
-            pass
+        if notify:
+            try:
+                send_you_have_a_reply(conv, reply_body=body, subject_override=subject)
+            except Exception:
+                pass
         return Response(ConversationStaffSerializer(conv).data)
 
     @action(detail=True, methods=['post'], url_path='assign')
     def assign(self, request, pk=None):
         from apps.webstore.services.conversations import assign_conversation
-        conv = assign_conversation(self.get_object(), request.user)
+        data = request.data or {}
+        clear = data.get('clear', False)
+        if isinstance(clear, str):
+            clear = clear.strip() in _TRUTHY
+        owner = None if clear else request.user
+        conv = assign_conversation(self.get_object(), owner)
         return Response(ConversationStaffSerializer(conv).data)
 
     @action(detail=True, methods=['post'], url_path='resolve')
@@ -958,12 +994,21 @@ def public_categories(request):
     return Response({'total': total, 'categories': categories})
 
 
-def listing_image(request, image_id):
+def listing_image(request, image_id, slot='full'):
+    from apps.webstore.services.listing_photos import resolve_slot_file
+
     try:
-        image = WebListingImage.objects.select_related('s3_file').get(pk=image_id)
+        image = (
+            WebListingImage.objects.select_related('s3_file')
+            .prefetch_related('variants__s3_file')
+            .get(pk=image_id)
+        )
     except WebListingImage.DoesNotExist:
         raise Http404('Image not found.')
-    key = image.s3_file.key
+    s3 = resolve_slot_file(image, slot)
+    if s3 is None:
+        raise Http404('Image file missing.')
+    key = s3.key
     try:
         url = default_storage.url(key)
     except Exception:
@@ -977,10 +1022,21 @@ def listing_image(request, image_id):
     except (OSError, FileNotFoundError):
         raise Http404('Image file missing.')
     response = FileResponse(
-        handle, content_type=image.s3_file.content_type or 'application/octet-stream',
+        handle, content_type=s3.content_type or 'application/octet-stream',
     )
     response['Cache-Control'] = 'public, max-age=300'
     return response
+
+
+def listing_image_display(request, image_id):
+    return listing_image(request, image_id, slot='main')
+
+
+def listing_image_slot(request, image_id, slot):
+    allowed = {'full', 'main', 'grid', 'thumb', 'display'}
+    if slot not in allowed:
+        raise Http404('Image not found.')
+    return listing_image(request, image_id, slot=slot)
 
 
 @api_view(['POST'])

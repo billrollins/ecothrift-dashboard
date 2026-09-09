@@ -17,20 +17,48 @@ from .models import (
 )
 
 
-def _image_url(image_id) -> str:
-    return f'/api/webstore/images/{image_id}/'
+def _image_url(image_id, slot: str = 'full') -> str:
+    if slot == 'full':
+        return f'/api/webstore/images/{image_id}/'
+    return f'/api/webstore/images/{image_id}/{slot}/'
+
+
+def _image_urls(image_id) -> dict:
+    return {
+        'full': _image_url(image_id, 'full'),
+        'main': _image_url(image_id, 'main'),
+        'grid': _image_url(image_id, 'grid'),
+        'thumb': _image_url(image_id, 'thumb'),
+    }
 
 
 class WebListingImageSerializer(serializers.ModelSerializer):
     url = serializers.SerializerMethodField()
+    urls = serializers.SerializerMethodField()
+    crops = serializers.SerializerMethodField()
 
     class Meta:
         model = WebListingImage
-        fields = ['id', 'alt', 'position', 'url', 'created_at']
-        read_only_fields = ['id', 'url', 'created_at']
+        fields = [
+            'id', 'alt', 'position', 'url', 'urls', 'crops',
+            'width', 'height', 'created_at',
+        ]
+        read_only_fields = [
+            'id', 'url', 'urls', 'crops',
+            'width', 'height', 'created_at',
+        ]
 
     def get_url(self, obj) -> str:
         return _image_url(obj.id)
+
+    def get_urls(self, obj) -> dict:
+        return _image_urls(obj.id)
+
+    def get_crops(self, obj) -> dict:
+        out = {}
+        for variant in obj.variants.all():
+            out[variant.slot] = variant.crop
+        return out
 
 
 class ChannelPublicationSerializer(serializers.ModelSerializer):
@@ -122,7 +150,11 @@ class WebListingListPublicSerializer(serializers.ModelSerializer):
         if not first:
             return None
         im = first[0]
-        return {'url': _image_url(im.id), 'alt': im.alt or obj.title}
+        return {
+            'url': _image_url(im.id, 'grid'),
+            'alt': im.alt or obj.title,
+            'urls': _image_urls(im.id),
+        }
 
 
 class WebListingDetailPublicSerializer(WebListingListPublicSerializer):
@@ -137,7 +169,12 @@ class WebListingDetailPublicSerializer(WebListingListPublicSerializer):
 
     def get_images(self, obj):
         return [
-            {'id': im.id, 'url': _image_url(im.id), 'alt': im.alt or obj.title}
+            {
+                'id': im.id,
+                'url': _image_url(im.id, 'main'),
+                'alt': im.alt or obj.title,
+                'urls': _image_urls(im.id),
+            }
             for im in obj.images.all()
         ]
 
@@ -380,7 +417,11 @@ class ReservationPublicSerializer(serializers.ModelSerializer):
         if not images:
             return None
         im = images[0]
-        return {'url': _image_url(im.id), 'alt': im.alt or obj.listing.title}
+        return {
+            'url': _image_url(im.id, 'thumb'),
+            'alt': im.alt or obj.listing.title,
+            'urls': _image_urls(im.id),
+        }
 
     def get_listing_category_slug(self, obj):
         cat = getattr(obj.listing, 'category', None) if obj.listing_id else None
@@ -495,28 +536,43 @@ class ReservationPublicSerializer(serializers.ModelSerializer):
         return payload
 
 
+def _staff_owner_name(owner) -> str | None:
+    if owner is None:
+        return None
+    first = (getattr(owner, 'first_name', None) or '').strip()
+    if first:
+        return first
+    return getattr(owner, 'email', None) or None
+
+
 class ConversationStaffListSerializer(serializers.ModelSerializer):
     """Inbox list - no message bodies (fetch on retrieve)."""
 
     listing_title = serializers.CharField(source='listing.title', read_only=True, default=None)
     reservation_id = serializers.IntegerField(read_only=True, allow_null=True)
     staff_owner_email = serializers.EmailField(source='staff_owner.email', read_only=True, default=None)
+    staff_owner_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Conversation
         fields = [
             'id', 'public_token', 'state', 'listing', 'listing_title', 'reservation_id',
             'guest_name', 'guest_email', 'guest_phone', 'customer',
-            'staff_owner', 'staff_owner_email', 'staff_unread', 'customer_unread',
+            'staff_owner', 'staff_owner_email', 'staff_owner_name',
+            'staff_unread', 'customer_unread',
             'last_message_at', 'created_at', 'updated_at', 'archived_at',
         ]
         read_only_fields = fields
+
+    def get_staff_owner_name(self, obj) -> str | None:
+        return _staff_owner_name(obj.staff_owner)
 
 
 class ConversationStaffSerializer(serializers.ModelSerializer):
     listing_title = serializers.CharField(source='listing.title', read_only=True, default=None)
     reservation_id = serializers.IntegerField(read_only=True, allow_null=True)
     staff_owner_email = serializers.EmailField(source='staff_owner.email', read_only=True, default=None)
+    staff_owner_name = serializers.SerializerMethodField()
     messages = MessagePublicSerializer(many=True, read_only=True)
 
     class Meta:
@@ -524,10 +580,14 @@ class ConversationStaffSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'public_token', 'state', 'listing', 'listing_title', 'reservation_id',
             'guest_name', 'guest_email', 'guest_phone', 'customer',
-            'staff_owner', 'staff_owner_email', 'staff_unread', 'customer_unread',
+            'staff_owner', 'staff_owner_email', 'staff_owner_name',
+            'staff_unread', 'customer_unread',
             'last_message_at', 'created_at', 'updated_at', 'archived_at', 'messages',
         ]
         read_only_fields = fields
+
+    def get_staff_owner_name(self, obj) -> str | None:
+        return _staff_owner_name(obj.staff_owner)
 
 
 class OrderLineSerializer(serializers.ModelSerializer):

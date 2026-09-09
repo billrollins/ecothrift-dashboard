@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-07 (ship-print-server protocol) -->
+<!-- Last updated: 2026-09-09 (listing_photos four slots) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not a session log.
@@ -13,9 +13,8 @@ Bounded work (hours–days), one `.md` per initiative. Not a session log.
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [pos_labor_day_summer_sale](./pos_labor_day_summer_sale.md) | **Phase 2** shipped v2.89.0 | Receipt YOU SAVED **v2.90.0**. Compass. |
-| [routines_and_documents](./routines_and_documents.md) | **Active** | Routines + Retail QA through desk Home / Today / Pay / Routines shipped **v2.87.0** (GitHub, not Heroku). Documents API in-tree; staff page parked for a later tune. |
-| [admin_workspace_overhaul](./admin_workspace_overhaul.md) | **Active** | Phases 1–3 shipped **v2.74.0**. Grants deferred. |
+| [documents](./documents.md) | **Phase 1** | Company-wide read / accept. Individually assigned read / accept / sign. Staff UI still unwired. |
+| [listing_photos](./listing_photos.md) | **Active** | Four slots, single-screen editor, lightbox, autosave, Mark posted. |
 | [universal_object_surfaces](./universal_object_surfaces.md) | **Design only** | Permissioned ObjectChip → ObjectSurface. No code scheduled. |
 
 ---
@@ -55,6 +54,9 @@ Not started / future; not scheduled.
 
 Name only. Details in each file.
 
+- [routines](./_archived/_completed/routines.md)
+- [admin_workspace_overhaul](./_archived/_completed/admin_workspace_overhaul.md)
+- [pos_labor_day_summer_sale](./_archived/_completed/pos_labor_day_summer_sale.md)
 - [finalize_tars_app](./_archived/_completed/finalize_tars_app.md)
 - [enhancement_requests](./_archived/_completed/enhancement_requests.md)
 - [online_sales_mvp](./_archived/_completed/online_sales_mvp.md)

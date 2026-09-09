@@ -1,7 +1,9 @@
-<!-- Last updated: 2026-09-01 -->
+<!-- Last updated: 2026-09-08 (initiative → documents; two assignment kinds) -->
 # Documents
 
-PDF signing and acknowledgement. Initiative: [`routines_and_documents`](../initiatives/routines_and_documents.md). **Staff UI is parked** — API and page files stay; routes and the account-menu link are off until a later tune.
+PDF read, accept, and sign. Initiative: [`documents`](../initiatives/documents.md). **Staff UI is parked** — API and page files stay; routes and the account-menu link are off until Phase 1.
+
+**Assignment kinds (product):** company-wide = read only or accepted (no signature). Individually assigned = read only, accepted check, or signed. In-tree `audience` `everyone` / `person` maps to those kinds; `role` / `department` are not a first-class kind.
 
 ## App
 

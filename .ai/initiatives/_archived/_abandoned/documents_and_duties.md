@@ -1,14 +1,14 @@
-<!-- Archived 2026-08-31: disposition=abandoned — Library + QA-in-library was the wrong product; replaced by routines_and_documents -->
+<!-- Archived 2026-08-31: disposition=abandoned — Library + QA-in-library was the wrong product; replaced by routines + documents -->
 <!-- initiative: slug=documents-and-duties status=abandoned updated=2026-08-31 -->
 <!-- Last updated: 2026-08-31 -->
 
 # Initiative: Documents and routine duties
 
-**Status:** **Abandoned** — replaced by [`routines_and_documents`](../../routines_and_documents.md).
+**Status:** **Abandoned** — replaced by [`routines`](../_completed/routines.md) (completed) and [`documents`](../../documents.md).
 
 **Objective:** Staff get one place for every operating document and one engine that serves the duties those documents describe. A superuser writes a policy, SOP, checklist, audit, or log once, assigns it on a schedule, and the person responsible gets a nag they cannot dismiss until the work is done. Overdue work is visible so it can be chased in person. Today none of this exists: Retail QA is a one-off feature in `apps/pos`, Forms Studio edits only QA forms, and every policy, SOP, sign, and log lives outside the app.
 
-**Compass:** This file is the compass. [`admin_workspace_overhaul`](./admin_workspace_overhaul.md) is delivered except deferred grants; [`universal_object_surfaces`](./universal_object_surfaces.md) stays design-only.
+**Compass:** This file is the compass. [`admin_workspace_overhaul`](../_completed/admin_workspace_overhaul.md) is delivered except deferred grants; [`universal_object_surfaces`](../../universal_object_surfaces.md) stays design-only.
 
 ---
 
@@ -135,5 +135,5 @@ Acceptance:
 
 - Existing QA to absorb: `apps/pos/models.py` (`QualityAuditForm`, `QualityAudit`), `apps/pos/views.py`
 - Signature pad to reuse: `frontend/src/components/pos/delivery/SignaturePad.tsx`
-- Nav rules: [`admin_workspace_overhaul`](./admin_workspace_overhaul.md)
+- Nav rules: [`admin_workspace_overhaul`](../_completed/admin_workspace_overhaul.md)
 - Index: [`_index.md`](./_index.md)

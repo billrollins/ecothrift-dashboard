@@ -4,7 +4,10 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
+  Chip,
   Divider,
+  FormControlLabel,
   IconButton,
   InputAdornment,
   MenuItem,
@@ -21,7 +24,9 @@ import Search from '@mui/icons-material/Search';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
 import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
+import { useAuth } from '../../../contexts/AuthContext';
 import {
   useConversation,
   useConversationActions,
@@ -57,11 +62,12 @@ type Props = {
   onThreadChange?: (conversationId: number | null) => void;
 };
 
-type Filter = 'needs_reply' | 'has_hold' | 'resolved' | 'archived' | '';
+type Filter = 'needs_reply' | 'has_hold' | 'resolved' | 'archived' | 'mine' | '';
 
 const FILTERS: Array<{ id: Filter; label: string }> = [
   { id: 'needs_reply', label: 'Needs reply' },
   { id: 'has_hold', label: 'Has hold' },
+  { id: 'mine', label: 'Mine' },
   { id: 'resolved', label: 'Resolved' },
   { id: '', label: 'All' },
   { id: 'archived', label: 'Archived' },
@@ -72,10 +78,15 @@ const EMPTY_COPY: Record<Filter, string> = {
   has_hold: 'No threads attached to a hold',
   resolved: 'Nothing resolved yet',
   archived: 'Nothing archived yet',
+  mine: 'Nothing assigned to you',
   '': 'No conversations yet',
 };
 
-function conversationListParams(filter: Filter, search: string): ConversationParams {
+function conversationListParams(
+  filter: Filter,
+  search: string,
+  staffId?: number | null,
+): ConversationParams {
   const base: ConversationParams = {
     ordering: '-last_message_at',
     archived: '0',
@@ -85,6 +96,7 @@ function conversationListParams(filter: Filter, search: string): ConversationPar
   if (filter === 'resolved') return { ...base, state: 'resolved' };
   if (filter === 'has_hold') return { ...base, has_hold: '1' };
   if (filter === 'archived') return { ...base, archived: '1' };
+  if (filter === 'mine' && staffId) return { ...base, staff_owner: staffId };
   return base;
 }
 
@@ -171,7 +183,8 @@ export default function MessagesPanel({
   const isMobile = useOnlineSalesMobile();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
+  const { enqueueSnackbar, closeSnackbar } = useSnackbar();
+  const { user } = useAuth();
   const [filter, setFilter] = useState<Filter>(
     initialSearch || initialThreadId ? '' : 'needs_reply',
   );
@@ -181,6 +194,8 @@ export default function MessagesPanel({
   const [reply, setReply] = useState('');
   const [subject, setSubject] = useState('');
   const [templateKey, setTemplateKey] = useState('');
+  const [notifyEmail, setNotifyEmail] = useState(true);
+  const [confirmResolve, setConfirmResolve] = useState(false);
 
   useEffect(() => {
     const next = (initialSearch || '').trim();
@@ -206,22 +221,22 @@ export default function MessagesPanel({
   }, [searchInput]);
 
   const listParams = useMemo(
-    () => conversationListParams(filter, search),
-    [filter, search],
+    () => conversationListParams(filter, search, user?.id),
+    [filter, search, user?.id],
   );
 
   // Warm the other filter buckets so toggling feels instant (no blank flash).
   useEffect(() => {
     for (const f of FILTERS) {
       if (f.id === filter) continue;
-      const params = conversationListParams(f.id, search);
+      const params = conversationListParams(f.id, search, user?.id);
       void queryClient.prefetchQuery({
         queryKey: ['webConversations', params],
         queryFn: async () => (await getConversations(params)).data,
         staleTime: 20_000,
       });
     }
-  }, [filter, search, queryClient]);
+  }, [filter, search, queryClient, user?.id]);
 
   const { data, isLoading, isFetching, isError, isPlaceholderData } =
     useConversations(listParams);
@@ -242,7 +257,7 @@ export default function MessagesPanel({
       pickup_by: '',
       store_address: '8425 W Center Rd, Omaha, NE 68124',
       hold_link: '',
-      staff_name: '',
+      staff_name: user?.first_name || '',
     };
     const fill = (value: string) => value.replace(
       /\{\{\s*([a-z_]+)\s*\}\}/g,
@@ -298,6 +313,17 @@ export default function MessagesPanel({
       ),
     },
     {
+      field: 'staff_owner_name',
+      headerName: 'Owner',
+      width: 110,
+      sortable: false,
+      renderCell: ({ row }) => (
+        <Typography variant="body2" color={row.staff_owner_name ? 'text.primary' : 'text.disabled'}>
+          {row.staff_owner_name || 'Unassigned'}
+        </Typography>
+      ),
+    },
+    {
       field: 'reservation_id',
       headerName: 'Hold',
       width: 100,
@@ -337,13 +363,73 @@ export default function MessagesPanel({
         id: selectedId,
         body: reply.trim(),
         subject: subject.trim() || undefined,
+        notify: notifyEmail,
       });
       setReply('');
       setSubject('');
       setTemplateKey('');
-      enqueueSnackbar('Reply sent', { variant: 'success' });
+      enqueueSnackbar(notifyEmail ? 'Reply sent' : 'Posted without email', { variant: 'success' });
     } catch {
       enqueueSnackbar('Could not send reply', { variant: 'error' });
+    }
+  };
+
+  const assignThread = async () => {
+    if (!selected) return;
+    const mine = selected.staff_owner != null && selected.staff_owner === user?.id;
+    try {
+      await actions.assign.mutateAsync({ id: selected.id, clear: mine });
+      enqueueSnackbar(mine ? 'Unassigned' : 'Assigned to you', { variant: 'success' });
+    } catch {
+      enqueueSnackbar(mine ? 'Could not unassign' : 'Could not assign', { variant: 'error' });
+    }
+  };
+
+  const reopenThread = async () => {
+    if (!selected) return;
+    try {
+      await actions.reopen.mutateAsync(selected.id);
+      if (filter === 'resolved' || filter === 'archived') setFilter('needs_reply');
+      enqueueSnackbar('Reopened', { variant: 'success' });
+    } catch {
+      enqueueSnackbar('Could not reopen', { variant: 'error' });
+    }
+  };
+
+  const resolveThread = async () => {
+    if (!selected) return;
+    try {
+      await actions.resolve.mutateAsync(selected.id);
+      setConfirmResolve(false);
+      if (filter === 'needs_reply' || filter === 'has_hold' || filter === 'mine') {
+        setFilter('');
+      }
+      enqueueSnackbar('Resolved', {
+        variant: 'success',
+        action: (key) => (
+          <Button
+            color="inherit"
+            size="small"
+            onClick={() => {
+              closeSnackbar(key);
+              void (async () => {
+                try {
+                  await actions.reopen.mutateAsync(selected.id);
+                  setFilter('needs_reply');
+                  enqueueSnackbar('Reopened', { variant: 'success' });
+                } catch {
+                  enqueueSnackbar('Could not reopen', { variant: 'error' });
+                }
+              })();
+            }}
+          >
+            Undo
+          </Button>
+        ),
+      });
+    } catch {
+      setConfirmResolve(false);
+      enqueueSnackbar('Could not resolve', { variant: 'error' });
     }
   };
 
@@ -356,6 +442,16 @@ export default function MessagesPanel({
       });
     } catch {
       enqueueSnackbar('Could not archive', { variant: 'error' });
+    }
+  };
+
+  const unarchiveThread = async () => {
+    if (!selected) return;
+    try {
+      await actions.unarchive.mutateAsync(selected.id);
+      enqueueSnackbar('Unarchived', { variant: 'success' });
+    } catch {
+      enqueueSnackbar('Could not unarchive', { variant: 'error' });
     }
   };
 
@@ -428,7 +524,18 @@ export default function MessagesPanel({
                   ) : null}
                 </Box>
               </Stack>
-              <ThreadStateChip state={selected.state} />
+              <Stack spacing={0.75} alignItems="flex-end">
+                <ThreadStateChip state={selected.state} />
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={
+                    selected.staff_owner_name
+                      ? `Assigned to ${selected.staff_owner_name}`
+                      : 'Unassigned'
+                  }
+                />
+              </Stack>
             </Stack>
             <Stack direction="row" spacing={0.75} sx={{ mt: 1.5 }} flexWrap="wrap" useFlexGap>
               {selected.reservation_id && onOpenHold ? (
@@ -451,25 +558,27 @@ export default function MessagesPanel({
               ) : null}
             </Stack>
             <Stack direction="row" spacing={0.75} sx={{ mt: 1.5 }} flexWrap="wrap" useFlexGap>
-              <Button size="small" onClick={() => actions.assign.mutateAsync(selected.id)}>
-                Assign to me
+              <Button size="small" onClick={assignThread} disabled={actions.assign.isPending}>
+                {selected.staff_owner != null && selected.staff_owner === user?.id
+                  ? 'Unassign'
+                  : 'Assign to me'}
               </Button>
               {selected.state === 'resolved' ? (
-                <Button size="small" onClick={() => actions.reopen.mutateAsync(selected.id)}>
+                <Button size="small" onClick={reopenThread} disabled={actions.reopen.isPending}>
                   Reopen
                 </Button>
               ) : (
-                <Button size="small" onClick={() => actions.resolve.mutateAsync(selected.id)}>
+                <Button size="small" onClick={() => setConfirmResolve(true)}>
                   Resolve
                 </Button>
               )}
               {selected.archived_at ? (
-                <Button size="small" onClick={() => actions.unarchive.mutateAsync(selected.id)}>
+                <Button size="small" onClick={unarchiveThread} disabled={actions.unarchive.isPending}>
                   Unarchive
                 </Button>
               ) : (
                 selected.state === 'resolved' && (
-                  <Button size="small" onClick={archiveThread}>
+                  <Button size="small" onClick={archiveThread} disabled={actions.archive.isPending}>
                     Archive
                   </Button>
                 )
@@ -537,6 +646,7 @@ export default function MessagesPanel({
                 value={subject}
                 onChange={(event) => setSubject(event.target.value)}
                 placeholder="New reply about this item"
+                disabled={!notifyEmail}
                 sx={{ flex: 1.4 }}
                 fullWidth={isMobile}
               />
@@ -551,6 +661,21 @@ export default function MessagesPanel({
               onChange={(e) => setReply(e.target.value)}
               fullWidth
             />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={notifyEmail}
+                  onChange={(e) => setNotifyEmail(e.target.checked)}
+                  size="small"
+                />
+              }
+              label="Email the customer"
+            />
+            {!selected.reservation_id && !selected.customer ? (
+              <Typography variant="caption" color="text.secondary">
+                This customer has no account or hold page. Without an email they will not see this reply.
+              </Typography>
+            ) : null}
             <Button
               variant="contained"
               size={isMobile ? 'large' : 'medium'}
@@ -558,7 +683,7 @@ export default function MessagesPanel({
               disabled={!reply.trim() || actions.reply.isPending}
               sx={{ alignSelf: isMobile ? 'stretch' : 'flex-start' }}
             >
-              Send reply
+              {notifyEmail ? 'Send reply' : 'Post without email'}
             </Button>
           </Stack>
         </>
@@ -683,6 +808,17 @@ export default function MessagesPanel({
       )}
 
       {showThread && threadPane}
+
+      <ConfirmDialog
+        open={confirmResolve}
+        title="Resolve this thread?"
+        message="The customer can still reply. You can reopen it from All or Resolved."
+        confirmLabel="Resolve"
+        severity="info"
+        loading={actions.resolve.isPending}
+        onConfirm={resolveThread}
+        onCancel={() => setConfirmResolve(false)}
+      />
     </Box>
   );
 }

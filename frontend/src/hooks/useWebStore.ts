@@ -25,6 +25,7 @@ import {
   markWebListingSold,
   pauseWebListing,
   publishWebListing,
+  reframeWebListingImage,
   reopenConversation,
   reorderWebListingImage,
   replyConversation,
@@ -110,12 +111,23 @@ export function useDeleteWebListing() {
 export function useUploadWebListingImage() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, file, alt }: { id: number; file: File; alt?: string }) => {
-      const { data } = await uploadWebListingImage(id, file, alt);
+    mutationFn: async ({
+      id,
+      file,
+      alt,
+      crop,
+      crops,
+    }: {
+      id: number;
+      file: File | Blob;
+      alt?: string;
+      crop?: { x: number; y: number; w: number; h: number } | null;
+      crops?: { main?: { x: number; y: number; w: number; h: number }; grid?: { x: number; y: number; w: number; h: number }; thumb?: { x: number; y: number; w: number; h: number } } | null;
+    }) => {
+      const { data } = await uploadWebListingImage(id, file, { alt, crop, crops });
       return data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['webListings'] });
       queryClient.invalidateQueries({ queryKey: ['webListings', variables.id] });
     },
   });
@@ -128,7 +140,6 @@ export function useDeleteWebListingImage() {
       await deleteWebListingImage(listingId, imageId);
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['webListings'] });
       queryClient.invalidateQueries({ queryKey: ['webListings', variables.listingId] });
     },
   });
@@ -142,7 +153,6 @@ export function useReorderWebListingImage() {
       return data;
     },
     onSuccess: (listing) => {
-      queryClient.invalidateQueries({ queryKey: ['webListings'] });
       queryClient.invalidateQueries({ queryKey: ['webListings', listing.id] });
     },
   });
@@ -164,7 +174,29 @@ export function useUpdateWebListingImageAlt() {
       return data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['webListings'] });
+      queryClient.invalidateQueries({ queryKey: ['webListings', variables.listingId] });
+    },
+  });
+}
+
+export function useReframeWebListingImage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      listingId,
+      imageId,
+      crop,
+      crops,
+    }: {
+      listingId: number;
+      imageId: number;
+      crop?: { x: number; y: number; w: number; h: number };
+      crops?: { main?: { x: number; y: number; w: number; h: number }; grid?: { x: number; y: number; w: number; h: number }; thumb?: { x: number; y: number; w: number; h: number } };
+    }) => {
+      const { data } = await reframeWebListingImage(listingId, imageId, crops || crop || { x: 0, y: 0, w: 1, h: 1 });
+      return data;
+    },
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['webListings', variables.listingId] });
     },
   });
@@ -409,12 +441,22 @@ export function useConversationActions() {
   };
   return {
     reply: useMutation({
-      mutationFn: async ({ id, body, subject }: { id: number; body: string; subject?: string }) =>
-        (await replyConversation(id, body, subject)).data,
+      mutationFn: async ({
+        id,
+        body,
+        subject,
+        notify = true,
+      }: {
+        id: number;
+        body: string;
+        subject?: string;
+        notify?: boolean;
+      }) => (await replyConversation(id, body, subject, notify)).data,
       onSuccess: invalidate,
     }),
     assign: useMutation({
-      mutationFn: async (id: number) => (await assignConversation(id)).data,
+      mutationFn: async ({ id, clear }: { id: number; clear?: boolean }) =>
+        (await assignConversation(id, clear)).data,
       onSuccess: invalidate,
     }),
     resolve: useMutation({

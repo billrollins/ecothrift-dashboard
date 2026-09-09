@@ -150,12 +150,18 @@ class WebListing(models.Model):
 
 
 class WebListingImage(models.Model):
-    """A photo attached to a `WebListing`, backed by a `core.S3File`."""
+    """A photo attached to a `WebListing`.
+
+    `s3_file` is the full JPEG (max 2048px edge, any aspect) used by the
+    gallery lightbox. Cropped shop surfaces live on `WebListingImageVariant`.
+    """
 
     listing = models.ForeignKey(WebListing, on_delete=models.CASCADE, related_name='images')
     s3_file = models.ForeignKey(
         'core.S3File', on_delete=models.CASCADE, related_name='web_listing_images',
     )
+    width = models.PositiveIntegerField(default=0)
+    height = models.PositiveIntegerField(default=0)
     alt = models.CharField(max_length=200, blank=True, default='')
     position = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -165,6 +171,36 @@ class WebListingImage(models.Model):
 
     def __str__(self):
         return f'{self.listing_id}:{self.s3_file_id}'
+
+
+class WebListingImageVariant(models.Model):
+    """A named crop of a listing photo (main / grid / thumb)."""
+
+    SLOT_CHOICES = [
+        ('main', 'Main'),
+        ('grid', 'Grid'),
+        ('thumb', 'Thumb'),
+    ]
+
+    image = models.ForeignKey(
+        WebListingImage, on_delete=models.CASCADE, related_name='variants',
+    )
+    slot = models.CharField(max_length=12, choices=SLOT_CHOICES)
+    s3_file = models.ForeignKey(
+        'core.S3File',
+        on_delete=models.CASCADE,
+        related_name='web_listing_image_variants',
+    )
+    crop = models.JSONField(null=True, blank=True)
+    width = models.PositiveIntegerField(default=0)
+    height = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = [('image', 'slot')]
+        ordering = ['image_id', 'slot']
+
+    def __str__(self):
+        return f'{self.image_id}:{self.slot}'
 
 
 class ChannelPublication(models.Model):

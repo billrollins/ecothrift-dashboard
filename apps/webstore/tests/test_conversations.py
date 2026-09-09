@@ -8,6 +8,8 @@ from rest_framework.test import APIClient
 from apps.accounts.models import User
 from apps.core.models import S3File
 from apps.webstore.models import Conversation, Message, Reservation, WebListing, WebListingImage
+from apps.webstore.services.conversations import post_message
+from apps.webstore.services.retention import archive_conversation
 from apps.webstore.tests.helpers import make_verified_hold
 from apps.webstore.services.reservations import confirm_reservation, release_reservation
 
@@ -193,6 +195,16 @@ class ConversationAPITests(TestCase):
         assigned = self.client.post(f'/api/webstore/conversations/{conv_id}/assign/')
         self.assertEqual(assigned.status_code, 200)
         self.assertEqual(assigned.json()['staff_owner'], self.manager.id)
+        self.assertEqual(assigned.json()['staff_owner_name'], 'Msg')
+
+        cleared = self.client.post(
+            f'/api/webstore/conversations/{conv_id}/assign/',
+            {'clear': True},
+            format='json',
+        )
+        self.assertEqual(cleared.status_code, 200)
+        self.assertIsNone(cleared.json()['staff_owner'])
+        self.assertIsNone(cleared.json()['staff_owner_name'])
 
         resolved = self.client.post(f'/api/webstore/conversations/{conv_id}/resolve/')
         self.assertEqual(resolved.status_code, 200)
@@ -201,6 +213,42 @@ class ConversationAPITests(TestCase):
         reopened = self.client.post(f'/api/webstore/conversations/{conv_id}/reopen/')
         self.assertEqual(reopened.status_code, 200)
         self.assertEqual(reopened.json()['state'], 'needs_reply')
+
+    def test_reopen_clears_archive(self):
+        res = make_verified_hold(
+            listing=self.listing, quantity=1, customer_name='Ada', email='ada@example.com',
+            customer_note='Need help',
+        )
+        conv = res.conversation
+        self.client.force_authenticate(self.manager)
+        self.client.post(f'/api/webstore/conversations/{conv.id}/resolve/')
+        archive_conversation(conv, user=self.manager)
+        conv.refresh_from_db()
+        self.assertIsNotNone(conv.archived_at)
+
+        reopened = self.client.post(f'/api/webstore/conversations/{conv.id}/reopen/')
+        self.assertEqual(reopened.status_code, 200)
+        self.assertEqual(reopened.json()['state'], 'needs_reply')
+        self.assertIsNone(reopened.json()['archived_at'])
+        conv.refresh_from_db()
+        self.assertIsNone(conv.archived_at)
+
+    def test_customer_reply_unarchives(self):
+        res = make_verified_hold(
+            listing=self.listing, quantity=1, customer_name='Ada', email='ada@example.com',
+            customer_note='Need help',
+        )
+        conv = res.conversation
+        self.client.force_authenticate(self.manager)
+        self.client.post(f'/api/webstore/conversations/{conv.id}/resolve/')
+        archive_conversation(conv, user=self.manager)
+        conv.refresh_from_db()
+        self.assertIsNotNone(conv.archived_at)
+
+        post_message(conv, author_kind='customer', body='Still there?')
+        conv.refresh_from_db()
+        self.assertEqual(conv.state, 'needs_reply')
+        self.assertIsNone(conv.archived_at)
 
     def test_anonymous_cannot_list_conversations(self):
         r = self.client.get('/api/webstore/conversations/')

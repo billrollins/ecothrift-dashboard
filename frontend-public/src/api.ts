@@ -122,6 +122,23 @@ export interface CatalogImage {
   id?: number
   url: string
   alt: string
+  full_url?: string
+  urls?: {
+    full?: string
+    main?: string
+    grid?: string
+    thumb?: string
+  }
+}
+
+export function catalogImageUrl(
+  image: CatalogImage | null | undefined,
+  slot: 'full' | 'main' | 'grid' | 'thumb' = 'main',
+): string | null {
+  if (!image) return null
+  if (image.urls?.[slot]) return image.urls[slot] ?? null
+  if (slot === 'full') return image.full_url || image.url
+  return image.url
 }
 
 export interface CatalogItem {

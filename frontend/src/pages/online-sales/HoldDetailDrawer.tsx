@@ -21,6 +21,7 @@ import Close from '@mui/icons-material/Close';
 import OpenInNew from '@mui/icons-material/OpenInNew';
 import { useSnackbar } from 'notistack';
 import { useNavigate } from 'react-router-dom';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import {
   useAddReservationNote,
@@ -100,9 +101,9 @@ const REASON_COPY: Record<ReasonAction, { title: string; help: string; label: st
   reopen: {
     title: 'Reopen hold',
     help:
-      'Internal note - required, and never shown to the customer. Availability is '
-      + 're-checked first; the hold comes back active, so pull the item or Complete '
-      + 'at the counter when they arrive.',
+      'Puts the item back on hold. Required internal note - never shown to the '
+      + 'customer. The release stays on the timeline. Pull the item again before '
+      + 'they come in.',
     label: 'Internal note',
   },
 };
@@ -185,6 +186,7 @@ export default function HoldDetailDrawer({
   const [reasonOpen, setReasonOpen] = useState(false);
   const [reasonAction, setReasonAction] = useState<ReasonAction>('decline');
   const [reasonText, setReasonText] = useState('');
+  const [confirmUndoComplete, setConfirmUndoComplete] = useState(false);
 
   const run = async (act: ReservationActionName, reason?: string) => {
     if (!reservation) return;
@@ -208,6 +210,9 @@ export default function HoldDetailDrawer({
         enqueueSnackbar('Marked ready for pickup', { variant: 'success' });
       } else if (act === 'complete') {
         enqueueSnackbar('Hold completed', { variant: 'success' });
+      } else if (act === 'undo-complete') {
+        enqueueSnackbar('Complete undone - hold is active again', { variant: 'success' });
+        onReopened?.();
       } else if (act === 'extend') {
         enqueueSnackbar('Hold extended', { variant: 'success' });
       } else {
@@ -272,6 +277,7 @@ export default function HoldDetailDrawer({
 
   const isTerminal = ['completed', 'declined', 'expired', 'cancelled'].includes(status);
   const canReopen = ['declined', 'expired', 'cancelled'].includes(status);
+  const canUndoComplete = status === 'completed' && !reservation?.pos_cart;
 
   return (
     <>
@@ -448,11 +454,34 @@ export default function HoldDetailDrawer({
                 </Paper>
               )}
 
+              {canUndoComplete && (
+                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+                  <ActionGroup
+                    label="Undo Complete"
+                    hint="Misclick only. No email. The pickup line is removed."
+                  >
+                    <Button
+                      variant="contained"
+                      color="warning"
+                      size="large"
+                      disabled={busy}
+                      onClick={() => setConfirmUndoComplete(true)}
+                    >
+                      Undo Complete
+                    </Button>
+                  </ActionGroup>
+                </Paper>
+              )}
+              {status === 'completed' && reservation.pos_cart ? (
+                <Alert severity="info">
+                  This sale closed at the register. Reverse it there, not here.
+                </Alert>
+              ) : null}
               {canReopen && (
                 <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
                   <ActionGroup
                     label="Bring it back"
-                    hint="Reopens only if the item is still available."
+                    hint="Puts the item back on hold. Internal note required."
                   >
                     <Button
                       variant="contained"
@@ -774,6 +803,20 @@ export default function HoldDetailDrawer({
           </Button>
         </DialogActions>
       </Dialog>
+
+      <ConfirmDialog
+        open={confirmUndoComplete}
+        title="Undo Complete?"
+        message="The hold goes back as it was. No email is sent. The pickup line is removed."
+        confirmLabel="Undo Complete"
+        severity="warning"
+        loading={busy}
+        onConfirm={() => {
+          setConfirmUndoComplete(false);
+          void run('undo-complete');
+        }}
+        onCancel={() => setConfirmUndoComplete(false)}
+      />
     </>
   );
 }

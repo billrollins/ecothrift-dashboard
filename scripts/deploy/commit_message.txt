@@ -1,7 +1,8 @@
-docs: name the local shared DB and add parent comm
+feat: frame listing photos and own Messages without double-wrapped replies
 
-Release: v2.90.2
+Release: v2.91.0
 
-Local default database name is local_shared. Production still uses
-DATABASE_URL. Steering docs and pull/restore examples match. Parent
-master comm protocol lives under .ai/comm and check_comm.md.
+Listing Studio stores a full image plus main, grid, and thumb crops, autosaves
+copy, and marks posted from a Facebook URL. Messages show the owner, confirm
+resolve, and can post without email. Hold Undo Complete reverses a staff
+Complete misclick.

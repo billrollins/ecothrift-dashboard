@@ -96,6 +96,55 @@ class SystemEmailTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn('New reply', mail.outbox[0].subject)
         self.assertEqual(mail.outbox[0].to, ['guest@example.com'])
+        self.assertEqual(mail.outbox[0].body.lower().count('hi '), 1)
+        self.assertEqual(mail.outbox[0].body.count('- Eco-Thrift'), 1)
+
+    def test_reply_strips_wrapped_greeting_and_signoff(self):
+        listing = _listing('wrap-lamp')
+        conv = open_inquiry(
+            listing=listing,
+            name='Bill',
+            email='bill@example.com',
+            body='Still available?',
+            verified=True,
+        )
+        mail.outbox.clear()
+        send_you_have_a_reply(
+            conv,
+            reply_body='Hi Bill,\n\nWe have it.\n\n- Eco-Thrift',
+        )
+        self.assertEqual(len(mail.outbox), 1)
+        body = mail.outbox[0].body
+        self.assertEqual(body.lower().count('hi '), 1)
+        self.assertEqual(body.count('- Eco-Thrift'), 1)
+        self.assertIn('We have it.', body)
+        self.assertNotIn('Hi Bill,\n\nHi Bill', body)
+
+    def test_reply_notify_false_sends_no_email(self):
+        listing = _listing('quiet-lamp')
+        conv = open_inquiry(
+            listing=listing,
+            name='Guest',
+            email='quiet@example.com',
+            body='Still available?',
+            verified=True,
+        )
+        mail.outbox.clear()
+        group, _ = Group.objects.get_or_create(name='Manager')
+        mgr = User.objects.create_user(
+            email='quiet-mgr@example.com', first_name='Q', last_name='M', password='x',
+        )
+        mgr.groups.add(group)
+        client = APIClient()
+        client.force_authenticate(mgr)
+        r = client.post(
+            f'/api/webstore/conversations/{conv.id}/reply/',
+            {'body': 'Noted on the floor.', 'notify': False},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(r.json()['state'], 'waiting_on_customer')
 
     def test_mail_failure_does_not_block_confirm(self):
         listing = _listing('fail-lamp')

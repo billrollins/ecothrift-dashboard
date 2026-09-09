@@ -1,13 +1,14 @@
-<!-- initiative: slug=pos-labor-day-summer-sale status=active updated=2026-09-05 -->
-<!-- Last updated: 2026-09-07 — YOU SAVED receipt block v2.90.0 -->
+<!-- initiative: slug=pos-labor-day-summer-sale status=completed updated=2026-09-08 -->
+<!-- Archived 2026-09-08: disposition=completed shipped v2.88.0–v2.90.0 (sale terminal, www announcements + holiday hours, YOU SAVED) -->
+<!-- Last updated: 2026-09-08 (completed → _completed/; Phase 3 stays out) -->
 
 # Initiative: POS Labor Day and Summer Sale → Customer-facing announcements and holiday hours
 
-**Status:** **Active** — Phase 1 shipped **v2.88.0**. Phase 2 shipped **v2.89.0** (2026-09-05).
+**Status:** **Completed** (2026-09-08) — Phase 1 **v2.88.0**, Phase 2 **v2.89.0** / **v2.89.1**, receipt YOU SAVED **v2.90.0**. Phase 3 candidates were never committed.
 
 **Objective:** Run a store promotion end to end. Phase 1: cashiers ring it on POS Terminal. Phase 2: the owner tells customers about it (and about holiday hours) from Dash, on the public **www** site, without a developer.
 
-**Compass:** this file is the compass.
+**Compass:** retired. Remaining Active work is on [`.ai/context.md`](../../context.md).
 
 ---
 
@@ -193,14 +194,15 @@ Candidates, not committed: Google Business Profile hours push; staff-facing Dash
 **2026-09-05 — Phase 2 shipped v2.89.0.** Dash Announcements + holiday hours CRUD; www banner/cards/gallery; `effective_day` hours + hold expiry; dated Holiday hours display.
 **2026-09-05 — Hours card polish v2.89.1.** Holiday sentence `Mon, Sep 7 (Labor Day): 9 AM to 6 PM, note.`; two-column weekly schedule; Visit/Home label|value rows; dropped the filler line.
 **2026-09-07 — Receipt YOU SAVED v2.90.0.** `Cart.savings` groups Labor Day / Summer / discount dollars; print server 1.6.0 prints the block under TOTAL. Header, coupon, and item suffixes unchanged.
+**2026-09-08 — Completed.** Owner retired the file. Phase 3 (Google hours, staff Dash announcements, analytics, recurring floating holidays, SMS/email) stays out.
 
 ---
 
 ## See also
 
-- Index: [`_index.md`](./_index.md)
-- Prior POS discount/delivery: [`_archived/_completed/pos_discount_and_delivery.md`](./_archived/_completed/pos_discount_and_delivery.md)
-- Online sales MVP (public site, `public_config`, hours): [`_archived/_completed/online_sales_mvp.md`](./_archived/_completed/online_sales_mvp.md)
-- Domain: [`.ai/extended/pos-system.md`](../extended/pos-system.md), [`.ai/extended/frontend.md`](../extended/frontend.md)
+- Index: [`_index.md`](../_index.md)
+- Prior POS discount/delivery: [`pos_discount_and_delivery.md`](./pos_discount_and_delivery.md)
+- Online sales MVP (public site, `public_config`, hours): [`online_sales_mvp.md`](./online_sales_mvp.md)
+- Domain: [`.ai/extended/pos-system.md`](../../extended/pos-system.md), [`.ai/extended/frontend.md`](../../extended/frontend.md)
 - Existing hours code: `apps/webstore/services/hours.py`, `frontend-public/src/lib/storeHours.ts`, `frontend/src/pages/admin/settings/StoreHoursEditor.tsx`
 - Rich content precedent: `apps/blog` (`sanitize.py`, `BlogImage`, `BlogStudioPage`)

@@ -215,7 +215,8 @@ describe('HoldDetailDrawer', () => {
     });
   }, 15_000);
 
-  it('hides action bar for completed holds', () => {
+  it('offers Undo Complete on a staff-completed hold, not Reopen', async () => {
+    const user = userEvent.setup();
     drawerState.detail = {
       reservation: { ...baseReservation, status: 'completed', status_display: 'Completed' },
       events: [],
@@ -226,6 +227,32 @@ describe('HoldDetailDrawer', () => {
     expect(screen.queryByRole('button', { name: 'Reopen hold' })).not.toBeInTheDocument();
     expect(screen.queryByText('Actions')).not.toBeInTheDocument();
     expect(screen.getByText('Money')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Undo Complete' })).toHaveClass(
+      'MuiButton-containedWarning',
+    );
+    await user.click(screen.getByRole('button', { name: 'Undo Complete' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Undo Complete' }));
+    expect(drawerState.actionMutate).toHaveBeenCalledWith({
+      id: 5,
+      action: 'undo-complete',
+    });
+  }, 15_000);
+
+  it('does not offer Undo Complete when the sale closed at POS', () => {
+    drawerState.detail = {
+      reservation: {
+        ...baseReservation,
+        status: 'completed',
+        status_display: 'Completed',
+        pos_cart: 88,
+      },
+      events: [],
+      thread: null,
+    };
+    wrap(<HoldDetailDrawer reservationId={5} open onClose={() => {}} />);
+    expect(screen.queryByRole('button', { name: 'Undo Complete' })).not.toBeInTheDocument();
+    expect(screen.getByText(/closed at the register/i)).toBeInTheDocument();
   });
 
   it('offers Reopen on a cancelled hold and nothing else', () => {

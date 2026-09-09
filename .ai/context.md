@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-08 (local_shared + parent comm) -->
+<!-- Last updated: 2026-09-09 (listing photos ship; dead reference link) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -13,10 +13,11 @@ Full-stack business management for a thrift store in Omaha, NE. HR (time clock, 
 
 ## Active work
 
-- **ACTIVE (compass) — POS Labor Day and Summer Sale:** [`pos_labor_day_summer_sale`](initiatives/pos_labor_day_summer_sale.md) — Phase 1 shipped v2.88.0. Phase 2 shipped v2.89.0: Dash announcements + holiday hours on www.
-- **ACTIVE — Routines and Documents:** [`routines_and_documents`](initiatives/routines_and_documents.md) — Routines + Retail QA through desk Home / Today / Pay / Routines shipped **v2.87.0** (GitHub, not Heroku). Documents API is in-tree; staff routes are unwired until a later UI tune. Replaces abandoned [`documents_and_duties`](initiatives/_archived/_abandoned/documents_and_duties.md).
-- **ACTIVE — Admin workspace overhaul:** [`admin_workspace_overhaul`](initiatives/admin_workspace_overhaul.md) — Studios workspace, Settings house, capability catalog. Grants deferred.
+- **ACTIVE (compass) — Documents:** [`documents`](initiatives/documents.md) — Company-wide (read / accept) vs individually assigned (read / accept / sign). API in-tree; staff UI unwired. Split from [`routines_and_documents`](initiatives/_archived/_completed/routines.md).
+- **ACTIVE — Listing photos:** [`listing_photos`](initiatives/listing_photos.md) — full + main/grid/thumb slots; Listing Studio editor, public lightbox, autosave, Mark posted.
 - **ACTIVE — Universal object surfaces:** [`universal_object_surfaces`](initiatives/universal_object_surfaces.md) — design only. No code scheduled.
+
+Routines + Retail QA shipped **v2.87.0** (GitHub, not Heroku): [`routines`](initiatives/_archived/_completed/routines.md).
 
 TARS and enhancement requests shipped **v2.71.0** (GitHub, not Heroku): [`finalize_tars_app`](initiatives/_archived/_completed/finalize_tars_app.md), [`enhancement_requests`](initiatives/_archived/_completed/enhancement_requests.md). Domain: [`extended/restoration.md`](extended/restoration.md).
 
@@ -48,8 +49,7 @@ ecothrift-dashboard/
 │   ├── protocols/          clean-up, context-load, check_comm, initiative-create, initiative-review, ship-push-git, ship-push-heroku, ship-print-server
 │   ├── comm/               Parent master AI — inbox.md (from master), outbox.md (to master)
 │   ├── initiatives/        Plan + _archived/
-│   ├── extended/           Domain docs + sql/ + initiatives.md
-│   └── reference/          tars/ + bookkeeping_recon.md
+│   └── extended/           Domain docs + sql/ + initiatives.md
 ├── .version                Single-line app semver (vMAJOR.MINOR.PATCH)
 ├── CHANGELOG.md            Version-level changelog
 ├── .env                    Local config (gitignored)
@@ -97,7 +97,7 @@ When you add, rename, or remove a file in `.ai/extended/`, update this table.
 
 ## Known Issues
 
-- **Inventory — acquisition cost:** `Item.retail_value` is vendor/manifest retail. `Item.cost` is allocated per PO using `PurchaseOrder.est_shrink` and listing retail. Retag floor stock can have null cost — see [`reference/bookkeeping_recon.md`](reference/bookkeeping_recon.md).
+- **Inventory — acquisition cost:** `Item.retail_value` is vendor/manifest retail. `Item.cost` is allocated per PO using `PurchaseOrder.est_shrink` and listing retail. Retag floor stock can have null cost — see Item acquisition cost in [`extended/backend.md`](extended/backend.md).
 - **Buying — `DELETE manifest` edge case:** wrong-marketplace CSV can leave misleading `CategoryMapping` prefixes after rows are removed.
 - **`anthropic` package** must be in the venv for AI features (lazy import).
 - Recharts ResponsiveContainer may log a width/height warning on first render (cosmetic).

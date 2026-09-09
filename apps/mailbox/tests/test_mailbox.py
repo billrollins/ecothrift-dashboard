@@ -11,7 +11,7 @@ from apps.core.models import AppSetting
 from apps.webstore.models import Conversation, Message
 
 from apps.mailbox.backends import GraphEmailBackend
-from apps.mailbox.models import MailMessage
+from apps.mailbox.models import EmailTemplate, MailMessage
 from apps.mailbox.services import classify_inbound, sync_mailbox
 
 
@@ -37,6 +37,17 @@ def _payload(message_id='graph-1', *, sender='outside@example.com'):
         'internetMessageHeaders': [{'name': 'X-Test', 'value': '1'}],
         'attachments': [],
     }
+
+
+class SeededTemplateTests(TestCase):
+    def test_seeded_templates_are_body_only(self):
+        rows = list(EmailTemplate.objects.filter(active=True))
+        self.assertGreaterEqual(len(rows), 5)
+        for row in rows:
+            lower = row.html_body.lower()
+            self.assertNotIn('hi {{ customer_name }}', lower)
+            self.assertNotIn('- eco-thrift', lower)
+            self.assertNotIn('- {{ staff_name }}', lower)
 
 
 class ClassificationTests(TestCase):

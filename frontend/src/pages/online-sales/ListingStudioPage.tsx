@@ -1,10 +1,11 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { SxProps, Theme } from '@mui/material';
 import {
   Alert,
   Box,
   Button,
+  Chip,
   FormControlLabel,
   Grid,
   IconButton,
@@ -14,20 +15,29 @@ import {
   Stack,
   Switch,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import ArrowBack from '@mui/icons-material/ArrowBack';
-import ArrowDownward from '@mui/icons-material/ArrowDownward';
-import ArrowUpward from '@mui/icons-material/ArrowUpward';
+import CheckCircle from '@mui/icons-material/CheckCircle';
 import ContentCopy from '@mui/icons-material/ContentCopy';
-import Delete from '@mui/icons-material/Delete';
 import MoreVert from '@mui/icons-material/MoreVert';
-import PhotoCamera from '@mui/icons-material/PhotoCamera';
 import { useSnackbar } from 'notistack';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { ImageViewerDialog } from '../../components/common/ImageViewerDialog';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { formatCurrency } from '../../utils/format';
+import {
+  listingImageDisplayUrl,
+  listingImageFullUrl,
+  type WebListingImage,
+} from '../../api/webstore.api';
 import { ListingStatusChip } from './presentation';
+import { ListingPhotoDropzone } from './photos/ListingPhotoDropzone';
+import { ListingPhotoEditorDialog } from './photos/ListingPhotoEditorDialog';
+import { ListingPhotoGrid } from './photos/ListingPhotoGrid';
+import { useListingDraft } from './useListingDraft';
 import {
   useArchiveWebListing,
   useCategoryOptions,
@@ -40,9 +50,7 @@ import {
   usePublishWebListing,
   useReorderWebListingImage,
   useRestoreWebListing,
-  useUpdateWebListing,
   useUpdateWebListingImageAlt,
-  useUploadWebListingImage,
   useWebListing,
   useWebstoreConfig,
 } from '../../hooks/useWebStore';
@@ -55,6 +63,20 @@ const CONDITION_OPTIONS = [
   { value: 'fair', label: 'Fair' },
 ];
 
+function formatPostedAt(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function saveChipLabel(state: string, lastSavedAt: Date | null): string | null {
+  if (state === 'unsaved') return 'Unsaved';
+  if (state === 'saving') return 'Saving…';
+  if (state === 'error') return 'Save failed';
+  if (state === 'saved' && lastSavedAt) {
+    return `Saved ${lastSavedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+  }
+  return null;
+}
+
 export default function ListingStudioPage() {
   const { id } = useParams();
   const listingId = Number(id);
@@ -63,8 +85,6 @@ export default function ListingStudioPage() {
   const { data: listing, isLoading, isError } = useWebListing(Number.isFinite(listingId) ? listingId : null);
   const { data: categories } = useCategoryOptions();
   const { data: config } = useWebstoreConfig();
-  const updateListing = useUpdateWebListing();
-  const uploadImage = useUploadWebListingImage();
   const deleteImage = useDeleteWebListingImage();
   const reorderImages = useReorderWebListingImage();
   const updateImageAlt = useUpdateWebListingImageAlt();
@@ -76,51 +96,54 @@ export default function ListingStudioPage() {
   const markSold = useMarkWebListingSold();
   const genFb = useGenerateFbCopy();
   const markFb = useMarkFbPosted();
+  const draft = useListingDraft(listing);
+  const { form, setField, flush, saveState, lastSavedAt } = draft;
 
-  const [form, setForm] = useState({
-    title: '',
-    sku: '',
-    description: '',
-    condition: 'good',
-    price: '',
-    compare_at_price: '',
-    on_hand: '1',
-    category: '',
-    featured: false,
-    return_policy: 'final_sale',
-    fb_title: '',
-    fb_body: '',
-    fb_posted_url: '',
-  });
-  const [saving, setSaving] = useState(false);
   const [altDrafts, setAltDrafts] = useState<Record<number, string>>({});
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmSold, setConfirmSold] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const [queue, setQueue] = useState<File[]>([]);
+  const [reframe, setReframe] = useState<WebListingImage | null>(null);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const lastAutoPostedUrl = useRef('');
 
   useEffect(() => {
     if (!listing) return;
-    setForm({
-      title: listing.title || '',
-      sku: listing.sku || '',
-      description: listing.description || '',
-      condition: listing.condition || 'good',
-      price: listing.price || '',
-      compare_at_price: listing.compare_at_price || '',
-      on_hand: String(listing.on_hand ?? 1),
-      category: listing.category != null ? String(listing.category) : '',
-      featured: Boolean(listing.featured),
-      return_policy: listing.return_policy || 'final_sale',
-      fb_title: listing.fb_title || '',
-      fb_body: listing.fb_body || '',
-      fb_posted_url: listing.fb_posted_url || '',
+    setAltDrafts((prev) => {
+      const next: Record<number, string> = {};
+      for (const im of listing.images) {
+        next[im.id] = prev[im.id] !== undefined ? prev[im.id] : im.alt || '';
+      }
+      return next;
     });
-    const nextAlts: Record<number, string> = {};
-    for (const im of listing.images) {
-      nextAlts[im.id] = im.alt || '';
-    }
-    setAltDrafts(nextAlts);
   }, [listing]);
+
+  const debouncedPostedUrl = useDebouncedValue(form.fb_posted_url.trim(), 800);
+
+  const markPosted = async (url: string, opts?: { silentIfSame?: boolean }) => {
+    if (!listing) return;
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    if (opts?.silentIfSame && trimmed === (listing.fb_posted_url || '')) return;
+    if (trimmed === lastAutoPostedUrl.current && trimmed === (listing.fb_posted_url || '')) return;
+    try {
+      const updated = await markFb.mutateAsync({ id: listing.id, url: trimmed });
+      lastAutoPostedUrl.current = trimmed;
+      draft.acceptPostedUrl(updated.fb_posted_url);
+      enqueueSnackbar('Marked posted', { variant: 'success' });
+    } catch {
+      enqueueSnackbar('Could not mark posted', { variant: 'error' });
+    }
+  };
+
+  useEffect(() => {
+    if (!listing || !debouncedPostedUrl) return;
+    if (debouncedPostedUrl === (listing.fb_posted_url || '')) return;
+    void markPosted(debouncedPostedUrl, { silentIfSame: true });
+    // markPosted closes over listing; debounce value is the trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedPostedUrl, listing?.id, listing?.fb_posted_url]);
 
   if (isLoading) return <LoadingScreen />;
   if (isError || !listing) {
@@ -134,49 +157,17 @@ export default function ListingStudioPage() {
     );
   }
 
-  const setField = (key: keyof typeof form, value: string | boolean) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
-
   const publicBase = (config?.public_base_url || 'https://ecothrift.us').replace(/\/$/, '');
   const publicUrl = listing.slug ? `${publicBase}/shop/${listing.slug}` : null;
+  const images = listing.images;
+  const chip = saveChipLabel(saveState, lastSavedAt);
+  const posted = Boolean(listing.fb_posted_at);
+  const viewerImage = viewerIndex != null ? images[viewerIndex] ?? null : null;
 
   const save = async () => {
-    setSaving(true);
-    try {
-      await updateListing.mutateAsync({
-        id: listing.id,
-        data: {
-          title: form.title,
-          sku: form.sku,
-          description: form.description,
-          condition: form.condition,
-          price: form.price || '0',
-          compare_at_price: form.compare_at_price || null,
-          on_hand: Number(form.on_hand) || 1,
-          category: form.category ? Number(form.category) : null,
-          featured: form.featured,
-          return_policy: form.return_policy,
-          fb_title: form.fb_title,
-          fb_body: form.fb_body,
-        },
-      });
-      enqueueSnackbar('Saved', { variant: 'success' });
-    } catch {
-      enqueueSnackbar('Save failed', { variant: 'error' });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const onUpload = async (file?: File | null) => {
-    if (!file) return;
-    try {
-      await uploadImage.mutateAsync({ id: listing.id, file });
-      enqueueSnackbar('Photo uploaded', { variant: 'success' });
-    } catch {
-      enqueueSnackbar('Upload failed', { variant: 'error' });
-    }
+    const ok = await flush();
+    if (ok) enqueueSnackbar('Saved', { variant: 'success' });
+    else enqueueSnackbar('Save failed', { variant: 'error' });
   };
 
   const moveImage = async (imageId: number, direction: -1 | 1) => {
@@ -233,7 +224,6 @@ export default function ListingStudioPage() {
   };
 
   const readiness = listing.readiness_errors || [];
-  const images = listing.images;
 
   return (
     <Box sx={{ pb: 6 }}>
@@ -254,13 +244,28 @@ export default function ListingStudioPage() {
               Listing Studio
             </Typography>
             <ListingStatusChip status={listing.status} />
+            {chip ? (
+              <Chip
+                size="small"
+                label={chip}
+                color={
+                  saveState === 'error'
+                    ? 'error'
+                    : saveState === 'unsaved'
+                      ? 'warning'
+                      : saveState === 'saved'
+                        ? 'success'
+                        : 'default'
+                }
+              />
+            ) : null}
           </Stack>
           <Typography variant="body2" color="text.secondary">
             {listing.item_sku ? `Linked item ${listing.item_sku}` : 'Manual listing, no inventory item'}
           </Typography>
         </Box>
-        <Button variant="outlined" onClick={save} disabled={saving}>
-          {saving ? 'Saving…' : 'Save'}
+        <Button variant="outlined" onClick={() => void save()}>
+          {saveState === 'saving' ? 'Saving…' : 'Save'}
         </Button>
         {listing.status === 'archived' ? (
           <Button variant="contained" onClick={() => restore.mutateAsync(listing.id)}>
@@ -274,7 +279,7 @@ export default function ListingStudioPage() {
           <Button
             variant="contained"
             onClick={async () => {
-              await save();
+              await flush();
               try {
                 await publish.mutateAsync(listing.id);
                 enqueueSnackbar('Published', { variant: 'success' });
@@ -290,8 +295,6 @@ export default function ListingStudioPage() {
             Publish
           </Button>
         ) : null}
-        {/* Sold / Archive / Delete live behind the overflow so nobody clips
-            Delete while reaching for Publish. */}
         <IconButton aria-label="More actions" onClick={(e) => setMenuAnchor(e.currentTarget)}>
           <MoreVert />
         </IconButton>
@@ -345,7 +348,6 @@ export default function ListingStudioPage() {
         </Alert>
       )}
 
-      {/* Two paired rows so sibling cards share a baseline on md+ */}
       <Grid container spacing={2.5} alignItems="stretch">
         <Grid size={{ xs: 12, md: 7 }} sx={{ display: 'flex' }}>
           <StudioSection title="Details">
@@ -430,21 +432,32 @@ export default function ListingStudioPage() {
           <StudioSection title="Shop preview">
             {images[0] ? (
               <Box
-                component="img"
-                src={images[0].url}
-                alt={altDrafts[images[0].id] || form.title || 'Listing photo'}
+                component="button"
+                type="button"
+                onClick={() => setViewerIndex(0)}
+                aria-label="View full cover photo"
                 sx={{
+                  display: 'block',
                   width: '100%',
-                  height: 180,
-                  objectFit: 'cover',
+                  p: 0,
+                  border: 0,
                   borderRadius: 1.5,
+                  overflow: 'hidden',
+                  cursor: 'pointer',
                   bgcolor: 'action.hover',
                 }}
-              />
+              >
+                <Box
+                  component="img"
+                  src={listingImageDisplayUrl(images[0])}
+                  alt={altDrafts[images[0].id] || form.title || 'Listing photo'}
+                  sx={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', display: 'block' }}
+                />
+              </Box>
             ) : (
               <Box
                 sx={{
-                  height: 180,
+                  aspectRatio: '4 / 3',
                   borderRadius: 1.5,
                   border: '1px dashed',
                   borderColor: 'divider',
@@ -525,91 +538,25 @@ export default function ListingStudioPage() {
         <Grid size={{ xs: 12, md: 7 }} sx={{ display: 'flex' }}>
           <StudioSection
             title="Photos"
-            caption="The first photo is the one shoppers see in the grid. Alt text keeps the listing accessible."
+            caption="Drop or select photos. Frame the main photo; grid and thumbnail follow it unless you change them."
           >
-            <Button component="label" startIcon={<PhotoCamera />} variant="outlined" sx={{ alignSelf: 'flex-start' }}>
-              Upload photo
-              <input
-                hidden
-                type="file"
-                accept="image/*"
-                onChange={(e) => onUpload(e.target.files?.[0])}
-              />
-            </Button>
-            {images.length === 0 && (
-              <Typography variant="body2" color="text.secondary">
-                No photos yet - a listing cannot publish without one.
-              </Typography>
-            )}
-            <Stack spacing={1.5}>
-              {images.map((im, index) => (
-                <Stack
-                  key={im.id}
-                  direction={{ xs: 'column', sm: 'row' }}
-                  spacing={1.5}
-                  alignItems={{ sm: 'flex-start' }}
-                  sx={{ p: 1.25, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}
-                >
-                  <Box
-                    component="img"
-                    src={im.url}
-                    alt={altDrafts[im.id] || listing.title}
-                    sx={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 1, flexShrink: 0 }}
-                  />
-                  <Stack spacing={1} sx={{ flex: 1, minWidth: 0 }}>
-                    <Stack direction="row" spacing={0.5} alignItems="center">
-                      <IconButton
-                        size="small"
-                        aria-label="Move photo up"
-                        disabled={index === 0 || reorderImages.isPending}
-                        onClick={() => moveImage(im.id, -1)}
-                      >
-                        <ArrowUpward fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        aria-label="Move photo down"
-                        disabled={index === images.length - 1 || reorderImages.isPending}
-                        onClick={() => moveImage(im.id, 1)}
-                      >
-                        <ArrowDownward fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        aria-label="Delete photo"
-                        onClick={() => deleteImage.mutateAsync({ listingId: listing.id, imageId: im.id })}
-                      >
-                        <Delete fontSize="small" />
-                      </IconButton>
-                      <Typography variant="caption" color="text.secondary">
-                        Position {index + 1}
-                        {index === 0 ? ' · cover' : ''}
-                      </Typography>
-                    </Stack>
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
-                      <TextField
-                        label="Alt text"
-                        size="small"
-                        value={altDrafts[im.id] ?? ''}
-                        onChange={(e) =>
-                          setAltDrafts((prev) => ({ ...prev, [im.id]: e.target.value }))
-                        }
-                        fullWidth
-                      />
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        disabled={updateImageAlt.isPending}
-                        onClick={() => saveAlt(im.id)}
-                        sx={{ flexShrink: 0 }}
-                      >
-                        Save alt
-                      </Button>
-                    </Stack>
-                  </Stack>
-                </Stack>
-              ))}
-            </Stack>
+            <ListingPhotoDropzone onFiles={setQueue} />
+            <ListingPhotoGrid
+              images={images}
+              altDrafts={altDrafts}
+              title={form.title}
+              busy={reorderImages.isPending}
+              onOpen={setViewerIndex}
+              onReframe={setReframe}
+              onMove={moveImage}
+              onDelete={(imageId) =>
+                void deleteImage.mutateAsync({ listingId: listing.id, imageId })
+              }
+              onAltChange={(imageId, alt) =>
+                setAltDrafts((prev) => ({ ...prev, [imageId]: alt }))
+              }
+              onSaveAlt={(imageId) => void saveAlt(imageId)}
+            />
           </StudioSection>
         </Grid>
 
@@ -624,11 +571,10 @@ export default function ListingStudioPage() {
                 variant="outlined"
                 onClick={async () => {
                   const updated = await genFb.mutateAsync(listing.id);
-                  setForm((prev) => ({
-                    ...prev,
-                    fb_title: updated.fb_title,
-                    fb_body: updated.fb_body,
-                  }));
+                  draft.replaceFields(
+                    { fb_title: updated.fb_title, fb_body: updated.fb_body },
+                    { saved: true },
+                  );
                 }}
               >
                 Generate copy
@@ -643,16 +589,19 @@ export default function ListingStudioPage() {
               >
                 Copy all
               </Button>
-              <Button
-                size="small"
-                variant="contained"
-                onClick={async () => {
-                  await markFb.mutateAsync({ id: listing.id, url: form.fb_posted_url });
-                  enqueueSnackbar('Marked posted', { variant: 'success' });
-                }}
-              >
-                Mark posted
-              </Button>
+              <Tooltip title={posted ? listing.fb_posted_url || 'Posted' : 'Save the Facebook post URL'}>
+                <Button
+                  size="small"
+                  variant={posted ? 'contained' : 'outlined'}
+                  color={posted ? 'success' : 'primary'}
+                  startIcon={posted ? <CheckCircle /> : undefined}
+                  onClick={() => void markPosted(form.fb_posted_url)}
+                >
+                  {posted && listing.fb_posted_at
+                    ? `Posted ${formatPostedAt(listing.fb_posted_at)}`
+                    : 'Mark posted'}
+                </Button>
+              </Tooltip>
             </Stack>
             <TextField
               label="Post headline"
@@ -675,12 +624,41 @@ export default function ListingStudioPage() {
               label="Posted URL"
               value={form.fb_posted_url}
               onChange={(e) => setField('fb_posted_url', e.target.value)}
+              onBlur={() => void markPosted(form.fb_posted_url, { silentIfSame: true })}
               fullWidth
               size="small"
+              helperText="Adding a URL marks the listing posted."
             />
           </StudioSection>
         </Grid>
       </Grid>
+
+      <ListingPhotoEditorDialog
+        open={queue.length > 0 || Boolean(reframe)}
+        listingId={listing.id}
+        files={reframe ? [] : queue}
+        reframe={reframe}
+        onClose={() => {
+          setQueue([]);
+          setReframe(null);
+        }}
+      />
+      <ImageViewerDialog
+        open={viewerImage != null}
+        onClose={() => setViewerIndex(null)}
+        src={viewerImage ? listingImageFullUrl(viewerImage) : null}
+        alt={viewerImage ? altDrafts[viewerImage.id] || listing.title : ''}
+        title={listing.title}
+        positionLabel={
+          viewerImage && viewerIndex != null ? `${viewerIndex + 1} / ${images.length}` : null
+        }
+        onPrev={() => setViewerIndex((i) => (i != null && i > 0 ? i - 1 : i))}
+        onNext={() =>
+          setViewerIndex((i) => (i != null && i < images.length - 1 ? i + 1 : i))
+        }
+        hasPrev={viewerIndex != null && viewerIndex > 0}
+        hasNext={viewerIndex != null && viewerIndex < images.length - 1}
+      />
 
       <ConfirmDialog
         open={confirmDelete}
