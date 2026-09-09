@@ -1,4 +1,5 @@
 """CardX record-only credit surcharge on cart complete."""
+from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth.models import Group
@@ -9,12 +10,12 @@ from rest_framework.test import APIClient
 from apps.accounts.models import User
 from apps.core.models import AppSetting, WorkLocation
 from apps.inventory.models import Category, Item, Product
-from apps.pos.models import Drawer, Register
+from apps.pos.models import Cart, Drawer, Register
 from apps.pos.services.card_surcharge import surcharge_for
 from apps.pos.services.sale_mode import set_labor_day_override
 
 
-class CartCardSurchargeAPITests(TestCase):
+class _CartCardSurchargeFixtures:
     def setUp(self):
         self.client = APIClient()
         group, _ = Group.objects.get_or_create(name='Employee')
@@ -75,6 +76,8 @@ class CartCardSurchargeAPITests(TestCase):
     def _complete(self, cid, payload):
         return self.client.post(f'/api/pos/carts/{cid}/complete/', payload, format='json')
 
+
+class CartCardSurchargeAPITests(_CartCardSurchargeFixtures, TestCase):
     def test_credit_adds_three_percent(self):
         cid, cart = self._open_cart_with_item()
         total = Decimal(cart['total'])
@@ -229,3 +232,122 @@ class CartCardSurchargeAPITests(TestCase):
         })
         self.assertEqual(r.status_code, 200, r.content)
         self.assertEqual(Decimal(r.data['card_surcharge_amount']), extra)
+
+
+class CartCardTypeFixAPITests(_CartCardSurchargeFixtures, TestCase):
+    def _set_card_type(self, cid, card_type):
+        return self.client.post(
+            f'/api/pos/carts/{cid}/card-type/',
+            {'card_type': card_type},
+            format='json',
+        )
+
+    def _complete_card(self, card_type='credit', payment_method='card', card_base=None):
+        cid, cart = self._open_cart_with_item()
+        total = Decimal(cart['total'])
+        base = card_base if card_base is not None else total
+        extra = surcharge_for(base, Decimal('0.03')) if card_type == 'credit' else Decimal('0.00')
+        payload = {
+            'payment_method': payment_method,
+            'card_amount': str(base),
+            'card_type': card_type,
+            'card_charged_total': str(base + extra),
+        }
+        if payment_method == 'split':
+            payload['cash_tendered'] = str(total - base)
+        r = self._complete(cid, payload)
+        self.assertEqual(r.status_code, 200, r.content)
+        return cid, r.data
+
+    def test_credit_to_debit_zeroes_surcharge(self):
+        cid, cart = self._complete_card('credit')
+        total = Decimal(cart['total'])
+        r = self._set_card_type(cid, 'debit')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.data['card_type'], 'debit')
+        self.assertEqual(Decimal(r.data['card_surcharge_amount']), Decimal('0.00'))
+        self.assertEqual(Decimal(r.data['card_charged_total']), Decimal(cart['card_amount']))
+        self.assertEqual(Decimal(r.data['card_charged_total']), total)
+        self.assertEqual(Decimal(r.data['total']), total)
+        self.assertIsNotNone(r.data['card_type_fixed_at'])
+        self.assertEqual(r.data['card_type_fixed_by_name'], self.user.full_name)
+        self.assertIsNotNone(r.data['card_type_fix_deadline'])
+
+    def test_debit_to_credit_adds_three_percent(self):
+        cid, cart = self._complete_card('debit')
+        total = Decimal(cart['total'])
+        extra = surcharge_for(total, Decimal('0.03'))
+        r = self._set_card_type(cid, 'credit')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.data['card_type'], 'credit')
+        self.assertEqual(Decimal(r.data['card_surcharge_amount']), extra)
+        self.assertEqual(Decimal(r.data['card_charged_total']), total + extra)
+        self.assertEqual(Decimal(r.data['total']), total)
+        self.assertEqual(r.data['card_type_fixed_by_name'], self.user.full_name)
+
+    def test_cash_cart_is_400(self):
+        cid, cart = self._open_cart_with_item()
+        done = self._complete(cid, {
+            'payment_method': 'cash',
+            'cash_tendered': cart['total'],
+        })
+        self.assertEqual(done.status_code, 200, done.content)
+        r = self._set_card_type(cid, 'credit')
+        self.assertEqual(r.status_code, 400)
+        self.assertIsNone(done.data['card_type_fix_deadline'])
+
+    def test_voided_cart_is_400(self):
+        cid, _ = self._complete_card('credit')
+        Cart.objects.filter(pk=cid).update(status='voided')
+        r = self._set_card_type(cid, 'debit')
+        self.assertEqual(r.status_code, 400)
+
+    def test_same_type_is_400(self):
+        cid, _ = self._complete_card('credit')
+        r = self._set_card_type(cid, 'credit')
+        self.assertEqual(r.status_code, 400)
+
+    def test_split_recomputes_card_portion_only(self):
+        cid, opened = self._open_cart_with_item()
+        total = Decimal(opened['total'])
+        card_base = (total * Decimal('0.60')).quantize(Decimal('0.01'))
+        extra = surcharge_for(card_base, Decimal('0.03'))
+        done = self._complete(cid, {
+            'payment_method': 'split',
+            'cash_tendered': str(total - card_base),
+            'card_amount': str(card_base),
+            'card_type': 'credit',
+            'card_charged_total': str(card_base + extra),
+        })
+        self.assertEqual(done.status_code, 200, done.content)
+        self.assertEqual(Decimal(done.data['card_surcharge_amount']), extra)
+        r = self._set_card_type(cid, 'debit')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(Decimal(r.data['card_surcharge_amount']), Decimal('0.00'))
+        self.assertEqual(Decimal(r.data['card_charged_total']), card_base)
+        self.assertEqual(Decimal(r.data['total']), total)
+        self.assertEqual(Decimal(r.data['card_amount']), card_base)
+
+    def test_past_window_403_employee_200_superuser(self):
+        cid, _ = self._complete_card('credit')
+        Cart.objects.filter(pk=cid).update(
+            completed_at=timezone.now() - timedelta(minutes=16),
+        )
+        r = self._set_card_type(cid, 'debit')
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(r.data['code'], 'CARD_TYPE_FIX_LOCKED')
+
+        group, _ = Group.objects.get_or_create(name='Employee')
+        superuser = User.objects.create_superuser(
+            email='bill-rollins@example.com',
+            first_name='Bill',
+            last_name='Rollins',
+            password='test-pass-123',
+        )
+        superuser.groups.add(group)
+        self.client.force_authenticate(user=superuser)
+        r2 = self._set_card_type(cid, 'debit')
+        self.assertEqual(r2.status_code, 200, r2.content)
+        self.assertEqual(r2.data['card_type'], 'debit')
+        self.assertEqual(r2.data['card_type_fixed_by_name'], 'Bill Rollins')
+        self.assertEqual(Decimal(r2.data['card_surcharge_amount']), Decimal('0.00'))

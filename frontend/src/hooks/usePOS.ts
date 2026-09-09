@@ -26,6 +26,7 @@ import {
   completeCart,
   getCartCardPreview,
   voidCart,
+  setCartCardType,
   createRegister,
   updateRegister,
   deleteRegister,
@@ -35,7 +36,7 @@ import {
   type Cart,
   type DeliveryAvailability,
 } from '../api/pos.api';
-import type { CardPreview, SaleMode } from '../types/pos.types';
+import type { CardPreview, Cart as PosCart, SaleMode } from '../types/pos.types';
 import type { PaginatedResponse } from '../types/common.types';
 
 type CartsQueryOptions = Pick<
@@ -574,6 +575,28 @@ export function useVoidCart() {
     mutationFn: async (cartId: number) => {
       const { data } = await voidCart(cartId);
       return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['carts'] });
+      queryClient.invalidateQueries({ queryKey: ['drawers'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
+export function useSetCartCardType() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      cartId,
+      card_type,
+    }: {
+      cartId: number;
+      card_type: 'credit' | 'debit';
+    }) => {
+      const { data } = await setCartCardType(cartId, card_type);
+      return data as unknown as PosCart;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['carts'] });

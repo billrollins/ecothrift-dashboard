@@ -173,6 +173,8 @@ class ReceiptSerializer(serializers.ModelSerializer):
 
 class CartSerializer(serializers.ModelSerializer):
     cashier_name = serializers.CharField(source='cashier.full_name', read_only=True, default=None)
+    card_type_fixed_by_name = serializers.SerializerMethodField()
+    card_type_fix_deadline = serializers.SerializerMethodField()
     lines = CartLineSerializer(many=True, read_only=True)
     receipt = ReceiptSerializer(read_only=True)
     savings = serializers.SerializerMethodField()
@@ -185,6 +187,8 @@ class CartSerializer(serializers.ModelSerializer):
             'payment_method', 'cash_tendered', 'change_given', 'card_amount',
             'card_type', 'card_surcharge_rate', 'card_surcharge_amount',
             'card_charged_total',
+            'card_type_fixed_at', 'card_type_fixed_by', 'card_type_fixed_by_name',
+            'card_type_fix_deadline',
             'completed_at', 'created_at',
             'lines', 'receipt', 'savings',
         ]
@@ -192,12 +196,23 @@ class CartSerializer(serializers.ModelSerializer):
             'id', 'cashier', 'subtotal', 'tax_amount', 'total', 'tax_rate', 'created_at',
             'card_type', 'card_surcharge_rate', 'card_surcharge_amount',
             'card_charged_total',
+            'card_type_fixed_at', 'card_type_fixed_by', 'card_type_fixed_by_name',
+            'card_type_fix_deadline',
             'savings',
         ]
 
     def get_savings(self, obj):
         from apps.pos.services.sale_mode import cart_savings
         return cart_savings(obj)
+
+    def get_card_type_fixed_by_name(self, obj):
+        user = getattr(obj, 'card_type_fixed_by', None)
+        return user.full_name if user else None
+
+    def get_card_type_fix_deadline(self, obj):
+        from apps.pos.services.card_surcharge import card_type_fix_deadline
+        deadline = card_type_fix_deadline(obj)
+        return deadline.isoformat() if deadline else None
 
 
 class RevenueGoalSerializer(serializers.ModelSerializer):

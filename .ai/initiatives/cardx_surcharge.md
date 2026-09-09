@@ -1,9 +1,9 @@
 <!-- initiative: slug=cardx-surcharge status=active updated=2026-09-09 -->
-<!-- Last updated: 2026-09-09 (one-window + drawer both) -->
+<!-- Last updated: 2026-09-09 (Phase 5 fix card type) -->
 
 # Initiative: CardX credit surcharge
 
-**Status:** **Active** — Phases 1–4 implemented. Phase 5 (fix card type) stays after launch.
+**Status:** **Active** — Phases 1–5 implemented.
 
 **Objective:** Cashiers can complete card and split sales by keying the POS pre-surcharge amount into CardX and matching the machine's approved total to one of two server-computed buttons. The POS records a 3% credit surcharge (not debit, prepaid, or cash) without adding it to sale revenue, and prints the breakdown on the store receipt.
 
@@ -21,7 +21,6 @@ A cashier on POS Terminal taps Card or Split, keys the displayed amount into Car
 
 - POS talking to CardX over a cable or API
 - Taxing or folding surcharge into `Cart.total`, item `sold_for`, consignment, or drawer cash math
-- Manager "fix card type" correction (Phase 5, after launch)
 - No-sale open-drawer button on the Terminal
 
 ---
@@ -65,10 +64,16 @@ Acceptance:
 - [x] Drawer close / drawer payload shows card sales and credit surcharges
 - [x] Daily sales payload includes `card_surcharge_total`
 
-### Phase 5 — Optional correction
-Manager-only fix card type after launch.
+### Phase 5 — Fix card type after the sale
+Staff can correct Surcharged vs CardX didn't ask from Transactions for 15 minutes, then superuser-only. Always reprints.
 **Gated by:** Phase 1.
-Detail when Phase 1 is built.
+
+Acceptance:
+- [x] `POST /api/pos/carts/{id}/card-type/` recomputes surcharge from stored `card_amount`; stamps `card_type_fixed_at` / `card_type_fixed_by`
+- [x] Employee can fix within 15 minutes of `completed_at`; after that 403 `CARD_TYPE_FIX_LOCKED` unless `is_superuser`
+- [x] Transactions **Fix card type** sits next to Void; two buttons **Change to CARDX DIDN'T ASK and print receipt** / **Change to SURCHARGED and print receipt**; current choice tagged and disabled
+- [x] Cash and voided carts rejected; same type rejected; split recomputes the card portion only
+- [x] Breakdown shows "Card type fixed by {name} · {time}"
 
 ---
 
@@ -78,6 +83,7 @@ Detail when Phase 1 is built.
 - [x] Phase 2 Terminal match
 - [x] Phase 3 receipt + drawer kick
 - [x] Phase 4 reporting
+- [x] Phase 5 fix card type
 - [x] Out-of-scope items stay out
 
 ---
@@ -91,6 +97,8 @@ Detail when Phase 1 is built.
 **2026-09-09 — Shipped v2.92.0 + print-server 1.7.0.** `card-preview` excludes the cart list filters (a `payment_method=card` query was 404ing the open cart). Print-server 1.7.0 is on S3 and is the Settings download on local and prod.
 
 **2026-09-09 — One window + drawer both pins.** Card amount is auto-filled (card = total, split = total − cash). `CardTenderDialog` is one window from `cardx-one-window.html` (no APPROVED line). Print-server 1.8.0 pulses both drawer pins in the receipt RAW job; Settings → Printing has Drawer pin + Open drawer.
+
+**2026-09-09 — Phase 5 fix card type (v2.94.0).** Transactions **Fix card type** next to Void. Two stacked "Change to … and print receipt" buttons. 15-minute window from `completed_at`, then Bill Rollins (`is_superuser`) only. `POST …/card-type/` + `card_type_fixed_at` / `card_type_fixed_by` (migration `pos.0029`). Receipt reprints after a successful change.
 
 ---
 

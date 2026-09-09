@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
 
@@ -9,6 +10,7 @@ from apps.core.models import AppSetting
 
 SETTING_KEY_CARD_SURCHARGE = 'pos.card_surcharge'
 DEFAULT_SURCHARGE_PERCENT = Decimal('3')
+CARD_TYPE_FIX_WINDOW_MINUTES = 15
 MONEY = Decimal('0.01')
 RATE = Decimal('0.0001')
 
@@ -144,6 +146,18 @@ def preview_payload(card_base: Decimal) -> dict[str, Any]:
         'with_surcharge': str(totals['with_surcharge']),
         'surcharge_amount': str(totals['surcharge_amount']),
     }
+
+
+def card_type_fix_deadline(cart) -> datetime | None:
+    """``completed_at + 15 min`` for completed card/split sales; else None."""
+    if getattr(cart, 'status', None) != 'completed':
+        return None
+    if getattr(cart, 'payment_method', None) not in ('card', 'split'):
+        return None
+    completed_at = getattr(cart, 'completed_at', None)
+    if completed_at is None:
+        return None
+    return completed_at + timedelta(minutes=CARD_TYPE_FIX_WINDOW_MINUTES)
 
 
 def drawer_card_totals(drawer) -> dict[str, Decimal]:

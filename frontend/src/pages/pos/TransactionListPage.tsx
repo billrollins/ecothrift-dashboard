@@ -43,6 +43,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { localPrintService } from '../../services/localPrintService';
 import type { Cart, CartLine } from '../../types/pos.types';
 import { CartCardBreakdown } from '../../components/pos/CartCardBreakdown';
+import { CardTypeFixControls } from '../../components/pos/CardTypeFixControls';
 import { buildReceiptData } from '../../utils/posReceipt';
 import { format } from 'date-fns';
 import {
@@ -562,7 +563,7 @@ export default function TransactionListPage() {
                   <CartCardBreakdown cart={selectedCart} />
                 </Box>
               </Box>
-              <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
+              <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
                 <Button
                   variant="outlined"
                   size="small"
@@ -578,6 +579,10 @@ export default function TransactionListPage() {
                 >
                   Reprint receipt
                 </Button>
+                <CardTypeFixControls
+                  cart={selectedCart}
+                  onUpdated={(updated) => setSelectedCart(updated)}
+                />
                 {canVoid && selectedCart.status !== 'voided' && (
                   <Button
                     variant="outlined"

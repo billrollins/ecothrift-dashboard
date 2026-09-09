@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-09 (CardX one-window + auto card amount) -->
+<!-- Last updated: 2026-09-09 (CardX Phase 5 fix card type) -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -39,9 +39,9 @@
 - **Payment methods**: `cash` | `card` | `split`
 - Belongs to `Drawer`, `cashier`; optional `customer`
 - `subtotal`, `tax_rate`, `tax_amount`, `total`, `payment_method`, `cash_tendered`, `change_given`, `card_amount`, `completed_at`
-- **CardX surcharge (record-only):** `card_type` (`''` | `credit` | `debit`), `card_surcharge_rate` (4dp, e.g. `0.0300`), `card_surcharge_amount`, `card_charged_total` (`card_amount` + surcharge). Not part of `total`, not taxed, not in drawer `expected_cash`. Setting `pos.card_surcharge` = `{enabled, percent}` (percent is 3 for 3%). Service: `apps/pos/services/card_surcharge.py` (`ROUND_HALF_UP`).
+- **CardX surcharge (record-only):** `card_type` (`''` | `credit` | `debit`), `card_surcharge_rate` (4dp, e.g. `0.0300`), `card_surcharge_amount`, `card_charged_total` (`card_amount` + surcharge). After-sale correction stamps `card_type_fixed_at` / `card_type_fixed_by`. Not part of `total`, not taxed, not in drawer `expected_cash`. Setting `pos.card_surcharge` = `{enabled, percent}` (percent is 3 for 3%). Service: `apps/pos/services/card_surcharge.py` (`ROUND_HALF_UP`). `CARD_TYPE_FIX_WINDOW_MINUTES = 15`.
 - `recalculate()` updates subtotal/tax/total from lines (queries `CartLine` by `cart_id` so totals never read a stale `prefetch_related` cache on `cart.lines`)
-- `cashier`, `subtotal`, `tax_amount`, `total`, `tax_rate`, `card_type`, `card_surcharge_rate`, `card_surcharge_amount`, `card_charged_total` are **read-only** in `CartSerializer` (server-set)
+- `cashier`, `subtotal`, `tax_amount`, `total`, `tax_rate`, `card_type`, `card_surcharge_rate`, `card_surcharge_amount`, `card_charged_total`, `card_type_fixed_at`, `card_type_fixed_by`, `card_type_fixed_by_name`, `card_type_fix_deadline` are **read-only** in `CartSerializer` (server-set)
 
 ### CartLine
 
@@ -95,6 +95,7 @@ Denomination counts (JSON) are used at each step for reconciliation.
    - Handles consignment items (commission, consignee earnings)
    - Creates Receipt with auto-generated receipt number
 6. **Card preview** — `GET /pos/carts/{id}/card-preview/?payment_method=&card_amount=` returns `{enabled, percent, rate, card_base, no_surcharge, with_surcharge, surcharge_amount}` for the Terminal match buttons.
+7. **Fix card type** — `POST /pos/carts/{id}/card-type/` with `{card_type: credit|debit}` on a completed card/split sale. Recomputes surcharge from stored `card_amount` via `apply_card_surcharge`. 400 if not completed, cash, invalid/same type. 403 `CARD_TYPE_FIX_LOCKED` after 15 minutes unless `is_superuser`. Stamps `card_type_fixed_at` / `card_type_fixed_by`. Does not change `total`, `sold_for`, or drawer cash.
 
 ---
 
@@ -170,7 +171,7 @@ The `useDeviceConfig` hook (`frontend/src/hooks/useDeviceConfig.ts`) reads/write
 - **Delivery Desk + Field (v2.56 / Phase 2):** `/pos/deliveries` redirects by experience preference. **Field** (`/pos/deliveries/field/days/:dayId`) owns Start Today and the ordered day: **calls → load → truck → route → active → return** (`FieldRunShell`). Contact attempts (`call_placed` / `composer_opened` / `text_marked_sent`) are separate from stop **dispositions**; departure requires confirmed/rescheduled/cancelled/excluded resolution plus item verify/load/photo + truck close (or manager override). **Desk** day detail shows read-only `DeskDayLiveMonitor` (no wizard). Canonical APIs: `/api/pos/delivery-days/{id}/run/` + `start-run/`, stop contact/disposition/item endpoints. Legacy board `/pos/deliveries/legacy` is a one-release escape hatch. Phase 3 still owns provider-proven ETAs, signature rebuild, SMS polish. (Older unified board notes: `pos.0017`–`pos.0018`; Phase 2 schema `pos.0023`.). Job PATCH `completed` blocked while open-run stop incomplete. APIs under `/pos/delivery-runs/` and `/pos/delivery-stops/` (+ `report-issue`, job `reschedule`, `append-address`, events/`next_action`/`allowed_actions` on run payload).
 - **Printables**: static HTML under `frontend/public/pos/` (appliance policy EN+es-MX, sell log, delivery driver log) + Cashier nav **Printables** (`/pos/printables`).
 - **Complete sale**: Disabled if cart has no items; validates payment amounts; rejects negative total. Card amount is never typed: **card** = cart total; **split** = total minus cash (read-only Card line). Split with blank cash or cash covering the total is blocked. Cash completes immediately. Card/split opens one-window `CardTenderDialog` (TYPE THIS INTO CARDX amount + YES rule, then CARDX DIDN'T ASK / SURCHARGED buttons from `card-preview`). Disabled `pos.card_surcharge` skips the dialog and posts `card_type: debit`. Then `POST /pos/carts/{id}/complete/`; `printReceipt(..., open_drawer)` for cash/split. Drawer kick failure does not fail the receipt; the Terminal warns “Receipt printed but the drawer did not open”.
-- **Transactions:** Payment filter includes Credit / Debit (`card_type`). Detail shows card type, surcharge, card total.
+- **Transactions:** Payment filter includes Credit / Debit (`card_type`). Detail shows card type, surcharge, card total, and a "Card type fixed by {name} · {time}" stamp. **Fix card type** (next to Void) is available for 15 minutes after `completed_at` for any employee; after that only a superuser. The dialog has two stacked **Change to … and print receipt** buttons (current choice tagged Current). A successful change reprints the receipt.
 
 ---
 
@@ -190,17 +191,17 @@ The `useDeviceConfig` hook (`frontend/src/hooks/useDeviceConfig.ts`) reads/write
 
 - Default `statusFilter` is `'all'` (shows both completed and voided)
 - Filters: receipt number search, cashier dropdown, status (All / Completed / Voided), date range
-- Actions per row: reprint receipt, void (Manager+)
+- Actions per row: reprint receipt, fix card type (15 min then superuser), void (Manager+)
 
 ---
 
 ## API & Hooks
 
 ### `pos.api.ts`
-Functions: `getRegisters`, `getDrawers`, `openDrawer`, `drawerHandoff`, `drawerTakeover`, `closeDrawer`, `reopenDrawer`, `cashDrop`, `getSupplemental`, `drawFromSupplemental`, `returnToSupplemental`, `auditSupplemental`, `getSupplementalTransactions`, `getBankTransactions`, `createBankTransaction`, `updateBankTransaction`, `completeBankTransaction`, `createCart`, `updateCart`, `getCart`, `addItemToCart`, `updateCartLine`, `removeCartLine`, `completeCart`, `voidCart`, `getCarts`, `getDashboardMetrics`, `getDashboardAlerts`
+Functions: `getRegisters`, `getDrawers`, `openDrawer`, `drawerHandoff`, `drawerTakeover`, `closeDrawer`, `reopenDrawer`, `cashDrop`, `getSupplemental`, `drawFromSupplemental`, `returnToSupplemental`, `auditSupplemental`, `getSupplementalTransactions`, `getBankTransactions`, `createBankTransaction`, `updateBankTransaction`, `completeBankTransaction`, `createCart`, `updateCart`, `getCart`, `addItemToCart`, `updateCartLine`, `removeCartLine`, `completeCart`, `getCartCardPreview`, `voidCart`, `setCartCardType`, `getCarts`, `getDashboardMetrics`, `getDashboardAlerts`
 
 ### `usePOS.ts`
-Hooks: `useRegisters`, `useDrawers` (accepts `options.enabled`), `useCarts` (accepts `options.enabled`), `useOpenDrawer`, `useCloseDrawer`, `useReopenDrawer`, `useDrawerHandoff`, `useDrawerTakeover`, `useCreateCart`, `useAddItemToCart`, `useUpdateCartLine`, `useRemoveCartLine`, `useCompleteCart`, `useVoidCart`
+Hooks: `useRegisters`, `useDrawers` (accepts `options.enabled`), `useCarts` (accepts `options.enabled`), `useOpenDrawer`, `useCloseDrawer`, `useReopenDrawer`, `useDrawerHandoff`, `useDrawerTakeover`, `useCreateCart`, `useAddItemToCart`, `useUpdateCartLine`, `useRemoveCartLine`, `useCompleteCart`, `useCardPreview`, `useVoidCart`, `useSetCartCardType`, `useCardTypeFixWindow`
 
 ---
 

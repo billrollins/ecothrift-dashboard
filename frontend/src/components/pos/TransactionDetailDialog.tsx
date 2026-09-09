@@ -15,6 +15,7 @@ import { useSnackbar } from 'notistack';
 import { localPrintService } from '../../services/localPrintService';
 import type { Cart, CartLine } from '../../types/pos.types';
 import { CartCardBreakdown } from './CartCardBreakdown';
+import { CardTypeFixControls } from './CardTypeFixControls';
 import { buildReceiptData } from '../../utils/posReceipt';
 
 function formatCurrency(value: string | number): string {
@@ -26,10 +27,11 @@ type Props = {
   open: boolean;
   cart: Cart | null;
   onClose: () => void;
+  onCartUpdated?: (cart: Cart) => void;
 };
 
 /** Full-screen mobile-friendly receipt / transaction detail. */
-export function TransactionDetailDialog({ open, cart, onClose }: Props) {
+export function TransactionDetailDialog({ open, cart, onClose, onCartUpdated }: Props) {
   const { enqueueSnackbar } = useSnackbar();
   const receiptLabel = cart?.receipt?.receipt_number ?? (cart ? `#${cart.id}` : '-');
 
@@ -136,6 +138,9 @@ export function TransactionDetailDialog({ open, cart, onClose }: Props) {
             >
               Reprint receipt
             </Button>
+            <Box sx={{ mt: 1 }}>
+              <CardTypeFixControls cart={cart} fullWidth onUpdated={onCartUpdated} />
+            </Box>
           </Box>
         )}
       </DialogContent>

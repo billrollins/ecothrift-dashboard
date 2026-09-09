@@ -1,4 +1,5 @@
 import { Box, Typography } from '@mui/material';
+import { format } from 'date-fns';
 import type { Cart } from '../../types/pos.types';
 
 function formatCurrency(value: string | number | null | undefined): string {
@@ -29,6 +30,14 @@ export function CartCardBreakdown({ cart }: { cart: Cart }) {
       {cart.card_charged_total != null && (
         <Typography variant="body2" color="text.secondary">
           Card total: {formatCurrency(cart.card_charged_total)}
+        </Typography>
+      )}
+      {cart.card_type_fixed_at && (
+        <Typography variant="body2" color="text.secondary">
+          Card type fixed
+          {cart.card_type_fixed_by_name ? ` by ${cart.card_type_fixed_by_name}` : ''}
+          {' · '}
+          {format(new Date(cart.card_type_fixed_at), 'PPp')}
         </Typography>
       )}
     </Box>

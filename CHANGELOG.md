@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.93.0] -->
-<!-- Last reviewed: 2026-09-09 (v2.93.0 CardX one-window + drawer both pins) -->
+<!-- Line 1 release: ## [2.94.0] -->
+<!-- Last reviewed: 2026-09-09 (v2.94.0 CardX Phase 5 fix card type) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,20 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.94.0] - 2026-09-09
+
+User-facing theme: **Cashiers can fix a sale they marked Surcharged vs CardX didn't ask, for 15 minutes, and the receipt reprints.**
+
+Initiative: [`cardx_surcharge`](./.ai/initiatives/cardx_surcharge.md).
+
+### Added
+
+- Transactions **Fix card type** next to Void on completed card/split sales. Two stacked buttons: **Change to CARDX DIDN'T ASK and print receipt** and **Change to SURCHARGED and print receipt**. The current choice is tagged Current and disabled. After a successful change the receipt reprints.
+- `POST /api/pos/carts/<id>/card-type/` recomputes the record-only surcharge from the stored card amount. Stamps `card_type_fixed_at` / `card_type_fixed_by` (migration `pos/0029_cart_card_type_fixed`). Employees have 15 minutes from `completed_at`; after that only a superuser (Bill Rollins). Cash and voided sales are rejected.
+- Cart detail shows a muted "Card type fixed by {name} · {time}" line. The button caption counts down, then locks with "Ask Bill Rollins to change it."
 
 ---
 

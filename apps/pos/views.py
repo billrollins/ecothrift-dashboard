@@ -549,7 +549,7 @@ class CartViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return Cart.objects.select_related(
-            'drawer', 'cashier', 'receipt',
+            'drawer', 'cashier', 'receipt', 'card_type_fixed_by',
         ).prefetch_related('lines').all()
 
     def perform_create(self, serializer):
@@ -1358,6 +1358,86 @@ class CartViewSet(viewsets.ModelViewSet):
         except CardSurchargeError as exc:
             return Response({'detail': str(exc)}, status=400)
         return Response(preview_payload(card_base))
+
+    @action(detail=True, methods=['post'], url_path='card-type', filter_backends=[])
+    def set_card_type(self, request, pk=None):
+        """Correct card_type on a completed card/split sale and recompute surcharge."""
+        from apps.pos.services.card_surcharge import (
+            CardSurchargeError,
+            apply_card_surcharge,
+            card_type_fix_deadline,
+        )
+
+        cart = self.get_object()
+        if cart.status != 'completed':
+            return Response(
+                {'detail': 'Only completed sales can change card type.'},
+                status=400,
+            )
+        if cart.payment_method == 'cash':
+            return Response(
+                {'detail': 'Cash sales have no card type.'},
+                status=400,
+            )
+        if cart.payment_method not in ('card', 'split'):
+            return Response(
+                {'detail': 'Only card or split sales can change card type.'},
+                status=400,
+            )
+
+        card_type = (request.data.get('card_type') or '').strip()
+        if card_type not in ('credit', 'debit'):
+            return Response(
+                {'detail': 'card_type must be credit or debit.'},
+                status=400,
+            )
+        if card_type == cart.card_type:
+            return Response(
+                {'detail': 'card_type is already set to that value.'},
+                status=400,
+            )
+
+        now = timezone.now()
+        deadline = card_type_fix_deadline(cart)
+        locked = deadline is None or now > deadline
+        if locked and not request.user.is_superuser:
+            return Response(
+                {
+                    'detail': (
+                        'This sale is past the 15 minute window. '
+                        'Ask Bill Rollins to change it.'
+                    ),
+                    'code': 'CARD_TYPE_FIX_LOCKED',
+                },
+                status=403,
+            )
+
+        try:
+            surcharge_fields = apply_card_surcharge(
+                payment_method=cart.payment_method,
+                card_type=card_type,
+                cart_total=cart.total,
+                card_amount=cart.card_amount,
+            )
+        except CardSurchargeError as exc:
+            return Response({'detail': str(exc)}, status=400)
+
+        cart.card_type = surcharge_fields['card_type']
+        cart.card_surcharge_rate = surcharge_fields['card_surcharge_rate']
+        cart.card_surcharge_amount = surcharge_fields['card_surcharge_amount']
+        cart.card_charged_total = surcharge_fields['card_charged_total']
+        cart.card_type_fixed_at = now
+        cart.card_type_fixed_by = request.user
+        cart.save(update_fields=[
+            'card_type',
+            'card_surcharge_rate',
+            'card_surcharge_amount',
+            'card_charged_total',
+            'card_type_fixed_at',
+            'card_type_fixed_by',
+        ])
+        cart = self.get_queryset().get(pk=cart.pk)
+        return Response(CartSerializer(cart).data)
 
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):

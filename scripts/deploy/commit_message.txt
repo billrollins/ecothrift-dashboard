@@ -1,18 +1,8 @@
-feat: one-window CardX tender and pulse both drawer pins
+feat: fix card type after a CardX sale and reprint
 
-Release: v2.93.0
+Release: v2.94.0
 
-POS:
-- Card amount is auto-filled (card = total, split = total minus cash).
-  No typed card field; split blocks when cash is blank or covers the total.
-- CardTenderDialog is one window: TYPE THIS INTO CARDX, YES if asked,
-  CARDX DIDN'T ASK / SURCHARGED. Atkinson Hyperlegible. Arrow/1/2/Esc.
-- Terminal warns if a cash/split receipt prints but the drawer did not open.
-
-Print server 1.8.0:
-- drawer_pin 0 | 1 | both (default both). Longer kick pulse (60/120).
-- Kick bytes prepended to the receipt RAW job.
-- POST /drawer/control accepts optional pin. Settings > Printing has
-  Drawer pin + Open drawer.
-
-Docs: CHANGELOG 2.93.0, pos-system, print-server, cardx_surcharge.
+Cashiers can correct Surcharged vs CardX didn't ask from Transactions
+for 15 minutes, then only a superuser. Two buttons change the type and
+print the receipt. Server recomputes the record-only surcharge and
+stamps who/when (pos.0029).

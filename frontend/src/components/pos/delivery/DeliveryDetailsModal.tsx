@@ -807,6 +807,7 @@ export function DeliveryDetailsModal({
         open={Boolean(txnCart)}
         cart={txnCart}
         onClose={() => setTxnCart(null)}
+        onCartUpdated={setTxnCart}
       />
 
       <Dialog

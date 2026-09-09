@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-09 (cardx one-window) -->
+<!-- Last updated: 2026-09-09 (cardx Phase 5) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not a session log.
@@ -16,7 +16,7 @@ Bounded work (hours–days), one `.md` per initiative. Not a session log.
 | [documents](./documents.md) | **Phase 1** | Company-wide read / accept. Individually assigned read / accept / sign. Staff UI still unwired. |
 | [listing_photos](./listing_photos.md) | **Active** | Four slots, single-screen editor, lightbox, autosave, Mark posted. |
 | [universal_object_surfaces](./universal_object_surfaces.md) | **Design only** | Permissioned ObjectChip → ObjectSurface. No code scheduled. |
-| [cardx_surcharge](./cardx_surcharge.md) | **Phase 2** | Record-only 3% credit surcharge: one-window CardX match, auto card amount, receipt breakdown, drawer kick both pins. |
+| [cardx_surcharge](./cardx_surcharge.md) | **Phase 5** | Record-only 3% credit surcharge: one-window CardX match, 15-min fix card type + reprint, then superuser. |
 
 ---
 

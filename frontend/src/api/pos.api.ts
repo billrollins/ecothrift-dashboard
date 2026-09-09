@@ -724,6 +724,13 @@ export function voidCart(cartId: number): Promise<{ data: Cart }> {
   return api.post<Cart>(`/pos/carts/${cartId}/void/`);
 }
 
+export function setCartCardType(
+  cartId: number,
+  card_type: 'credit' | 'debit',
+): Promise<{ data: Cart }> {
+  return api.post<Cart>(`/pos/carts/${cartId}/card-type/`, { card_type });
+}
+
 export function getCarts(params?: Record<string, unknown>): Promise<{ data: PaginatedResponse<Cart> }> {
   return api.get<PaginatedResponse<Cart>>('/pos/carts/', { params });
 }

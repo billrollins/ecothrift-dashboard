@@ -221,6 +221,10 @@ export interface Cart {
   card_surcharge_rate?: string;
   card_surcharge_amount?: string;
   card_charged_total?: string | null;
+  card_type_fixed_at?: string | null;
+  card_type_fixed_by?: number | null;
+  card_type_fixed_by_name?: string | null;
+  card_type_fix_deadline?: string | null;
   completed_at: string | null;
   created_at: string;
   lines: CartLine[];

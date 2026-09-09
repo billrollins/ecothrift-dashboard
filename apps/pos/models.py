@@ -219,6 +219,14 @@ class Cart(models.Model):
     card_surcharge_rate = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal('0'))
     card_surcharge_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
     card_charged_total = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    card_type_fixed_at = models.DateTimeField(null=True, blank=True)
+    card_type_fixed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='card_type_fixed_carts',
+    )
     completed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
