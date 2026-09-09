@@ -5,6 +5,18 @@ Ship: `.ai/protocols/ship-print-server.md`. Script: `python printserver/distribu
 
 ---
 
+## [1.8.0] — 2026-09-09
+
+### Added
+- **Drawer pin `both`:** `drawer_pin` accepts `0` (pin 2), `1` (pin 5), or `both` (pulse pin 2 then pin 5). Default is `both`. Selectable on `/` and via `GET`/`PUT` `/settings`.
+- **`POST /drawer/control` pin:** optional `pin` overrides the saved setting for a test kick.
+
+### Changed
+- Kick pulse is `60` / `120` (2 ms units → 120 ms on / 240 ms off).
+- `POST /print/receipt` with `open_drawer` prepends the kick bytes to the receipt RAW job so the pulse is not a second spooler job. Kick build failure still leaves `drawer_opened: false` and prints the receipt.
+
+---
+
 ## [1.7.0] — 2026-09-09
 
 ### Added

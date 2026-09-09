@@ -25,6 +25,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { getPrintServerVersion } from '../../../api/core.api';
 import { localPrintService } from '../../../services/localPrintService';
 import type {
+  DrawerPin,
   HealthResponse,
   LabelSizePreset,
   PrinterInfo,
@@ -91,6 +92,12 @@ const actionSx = {
     borderColor: 'grey.300',
   },
 } as const;
+
+function drawerPinValue(settings?: PrinterSettings): DrawerPin {
+  const pin = settings?.drawer_pin;
+  if (pin === 0 || pin === 1 || pin === 'both') return pin;
+  return 'both';
+}
 
 function formatFileSize(bytes?: number): string {
   if (!bytes) return '-';
@@ -193,6 +200,7 @@ export function PrintingPanel() {
         label_printer: name || null,
         receipt_printer: psSettings?.receipt_printer ?? null,
         label_size_preset: psSettings?.label_size_preset ?? '3x2',
+        drawer_pin: drawerPinValue(psSettings),
       }),
     onSuccess: () => {
       refetchPsSettings();
@@ -206,6 +214,7 @@ export function PrintingPanel() {
         label_printer: psSettings?.label_printer ?? null,
         receipt_printer: name || null,
         label_size_preset: psSettings?.label_size_preset ?? '3x2',
+        drawer_pin: drawerPinValue(psSettings),
       }),
     onSuccess: () => {
       refetchPsSettings();
@@ -219,6 +228,7 @@ export function PrintingPanel() {
         label_printer: psSettings?.label_printer ?? null,
         receipt_printer: psSettings?.receipt_printer ?? null,
         label_size_preset: preset,
+        drawer_pin: drawerPinValue(psSettings),
       }),
     onSuccess: () => {
       refetchPsSettings();
@@ -245,8 +255,23 @@ export function PrintingPanel() {
     onError: () => enqueueSnackbar('Test receipt failed', { variant: 'error' }),
   });
 
+  const saveDrawerPin = useMutation({
+    mutationFn: (pin: DrawerPin) =>
+      localPrintService.updateSettings({
+        label_printer: psSettings?.label_printer ?? null,
+        receipt_printer: psSettings?.receipt_printer ?? null,
+        label_size_preset: psSettings?.label_size_preset ?? '3x2',
+        drawer_pin: pin,
+      }),
+    onSuccess: () => {
+      refetchPsSettings();
+      enqueueSnackbar('Drawer pin saved', { variant: 'success' });
+    },
+    onError: () => enqueueSnackbar('Failed to save drawer pin', { variant: 'error' }),
+  });
+
   const testDrawer = useMutation({
-    mutationFn: () => localPrintService.openCashDrawer(),
+    mutationFn: () => localPrintService.openCashDrawer(drawerPinValue(psSettings)),
     onSuccess: (r) =>
       enqueueSnackbar(r.success ? 'Drawer opened' : r.error ?? r.message, {
         variant: r.success ? 'success' : 'error',
@@ -337,7 +362,17 @@ export function PrintingPanel() {
               Test
             </Button>
           </Box>
-          <Box sx={assignmentRowSx}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: {
+                xs: '1fr',
+                sm: 'minmax(0, 1fr) minmax(140px, 180px) minmax(140px, 180px) minmax(140px, 180px)',
+              },
+              gap: 2,
+              alignItems: 'stretch',
+            }}
+          >
             <FormControl fullWidth disabled={!isServerOnline} sx={solidFieldSx}>
               <InputLabel>Receipt printer</InputLabel>
               <Select
@@ -354,6 +389,22 @@ export function PrintingPanel() {
                     {p.is_default ? ' (System Default)' : ''}
                   </MenuItem>
                 ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth disabled={!isServerOnline} sx={solidFieldSx}>
+              <InputLabel>Drawer pin</InputLabel>
+              <Select
+                value={String(drawerPinValue(psSettings))}
+                label="Drawer pin"
+                onChange={(e: SelectChangeEvent) => {
+                  const raw = e.target.value;
+                  const pin: DrawerPin = raw === '1' ? 1 : raw === '0' ? 0 : 'both';
+                  saveDrawerPin.mutate(pin);
+                }}
+              >
+                <MenuItem value="both">Both</MenuItem>
+                <MenuItem value="0">Pin 2</MenuItem>
+                <MenuItem value="1">Pin 5</MenuItem>
               </Select>
             </FormControl>
             <Button

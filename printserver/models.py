@@ -107,6 +107,7 @@ class TestReceiptRequest(BaseModel):
 class DrawerControlRequest(BaseModel):
     action: str = "open"
     printer_name: str | None = None
+    pin: Literal[0, 1, "both"] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +118,7 @@ class PrinterSettings(BaseModel):
     label_printer: str | None = None
     receipt_printer: str | None = None
     label_size_preset: Literal["3x2", "1.5x1", "1.25x1.25"] = "3x2"
-    drawer_pin: Literal[0, 1] = 0
+    drawer_pin: Literal[0, 1, "both"] = "both"
 
 
 # ---------------------------------------------------------------------------

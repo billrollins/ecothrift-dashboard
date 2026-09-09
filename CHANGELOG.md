@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.92.0] -->
-<!-- Last reviewed: 2026-09-09 (v2.92.0 CardX surcharge + whole-picture photos) -->
+<!-- Line 1 release: ## [2.93.0] -->
+<!-- Last reviewed: 2026-09-09 (v2.93.0 CardX one-window + drawer both pins) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,21 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.93.0] - 2026-09-09
+
+User-facing theme: **Card sales open one CardX window with the amount already filled in; cash receipts pulse both drawer pins in the same print job.**
+
+Initiative: [`cardx_surcharge`](./.ai/initiatives/cardx_surcharge.md).
+
+### Changed
+
+- POS Terminal no longer has a **Card amount** field. Card charges the cart total. Split: cashier types cash; the card portion is `total − cash` and shown as a read-only **Card:** line. Cash that covers the total on Split is blocked (switch to Cash).
+- `CardTenderDialog` is one window: TYPE THIS INTO CARDX, press YES if asked, then **CARDX DIDN'T ASK** or **SURCHARGED**. Cancel voids on CardX. Arrow keys / 1 / 2 / Esc; hint row hidden on touch-only stations. Atkinson Hyperlegible.
+- Print server **1.8.0**: `drawer_pin` is `0` / `1` / `both` (default both). Kick bytes ride in the receipt RAW job. Settings → Printing has a Drawer pin select next to **Open drawer**. `/drawer/control` accepts optional `pin`.
+- Terminal warns if a cash/split receipt prints but `drawer_opened` is false.
 
 ---
 

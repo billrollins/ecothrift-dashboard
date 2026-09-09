@@ -1,11 +1,29 @@
-VERSION = "1.7.0"
-RELEASE_NOTES = "Credit-card surcharge lines on receipts; cash-drawer kick cannot fail a print."
+VERSION = "1.8.0"
+RELEASE_NOTES = "Pulse both drawer pins in the receipt job; pin selectable as both / 2 / 5."
 
 # Default URL for the public version-check endpoint on the dashboard backend.
 # Users can override this in settings.json via the /manage page (useful for local dev).
 UPDATE_CHECK_URL = "https://dash.ecothrift.us/api/core/system/print-server-version-public/"
 
 CHANGELOG = """\
+## [1.8.0] — 2026-09-09
+
+### Added
+- **Drawer pin ``both``:** ``drawer_pin`` accepts ``0`` (pin 2), ``1`` (pin 5),
+  or ``both`` (pulse pin 2 then pin 5). Default is ``both``. Selectable on
+  ``/`` and via ``GET``/``PUT`` ``/settings``.
+- **``POST /drawer/control`` pin:** optional ``pin`` overrides the saved
+  setting for a test kick.
+
+### Changed
+- Kick pulse is ``60`` / ``120`` (2 ms units → 120 ms on / 240 ms off).
+- ``POST /print/receipt`` with ``open_drawer`` prepends the kick bytes to
+  the receipt RAW job so the pulse is not a second spooler job. Kick
+  build failure still leaves ``drawer_opened: false`` and prints the
+  receipt.
+
+---
+
 ## [1.7.0] — 2026-09-09
 
 ### Added
@@ -526,6 +544,6 @@ RECEIPT_WIDTH_CHARS = 48  # 80mm thermal printers ≈ 48 chars at standard font
 # while Pillow rasterizes at higher resolution.
 RECEIPT_RENDER_SCALE = 3
 
-DRAWER_PIN = 0  # 0 = pin 2 (most common), 1 = pin 5
-DRAWER_ON_MS = 25
-DRAWER_OFF_MS = 250
+DRAWER_PIN = "both"  # 0 = pin 2, 1 = pin 5, "both" = pulse pin 2 then pin 5
+DRAWER_ON_MS = 60
+DRAWER_OFF_MS = 120

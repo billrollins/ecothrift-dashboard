@@ -1,26 +1,18 @@
-feat: record the CardX credit surcharge at POS and keep whole listing photos
+feat: one-window CardX tender and pulse both drawer pins
 
-Release: v2.92.0
+Release: v2.93.0
 
-CardX surcharge (record-only, initiative cardx_surcharge):
-- Cart.card_type / card_surcharge_rate / card_surcharge_amount /
-  card_charged_total; migration pos/0028_cart_card_surcharge.
-- apps/pos/services/card_surcharge.py: pos.card_surcharge setting,
-  ROUND_HALF_UP, expected totals, drawer card totals.
-- POST carts/<id>/complete/ requires card_type on card/split, rejects it
-  on cash, rejects a mismatched card_charged_total; coerces cash fields.
-- GET carts/<id>/card-preview/ (filter backends off for this action).
-- Terminal CardTenderDialog: KEY INTO CARD MACHINE then two-button match.
-- Settings > Store CardSurchargeEditor; Transactions Credit/Debit filter
-  and CartCardBreakdown; drawer + dashboard card_surcharge_total.
-- buildReceiptData sends card fields; print server 1.7.0 prints them and
-  isolates the drawer kick from receipt success (drawer_pin setting).
+POS:
+- Card amount is auto-filled (card = total, split = total minus cash).
+  No typed card field; split blocks when cash is blank or covers the total.
+- CardTenderDialog is one window: TYPE THIS INTO CARDX, YES if asked,
+  CARDX DIDN'T ASK / SURCHARGED. Atkinson Hyperlegible. Arrow/1/2/Esc.
+- Terminal warns if a cash/split receipt prints but the drawer did not open.
 
-Listing photos follow-up:
-- Derived slots letterbox the whole picture instead of a center 4:3 cover.
-- Public shop uses the full file with contain; resolve_slot_file skips
-  missing S3 objects.
-- backfill_listing_image_variants --regenerate rebuilds every slot.
+Print server 1.8.0:
+- drawer_pin 0 | 1 | both (default both). Longer kick pulse (60/120).
+- Kick bytes prepended to the receipt RAW job.
+- POST /drawer/control accepts optional pin. Settings > Printing has
+  Drawer pin + Open drawer.
 
-Docs: CHANGELOG 2.92.0, cardx_surcharge initiative, context, _index,
-pos-system, print-server, backend, frontend.
+Docs: CHANGELOG 2.93.0, pos-system, print-server, cardx_surcharge.

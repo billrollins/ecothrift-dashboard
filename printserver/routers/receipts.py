@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter
 
 from models import PrintResponse, ReceiptPrintRequest, TestReceiptRequest
-from services.drawer_service import kick_drawer
+from services.drawer_service import build_kick_bytes
 from services.printer_manager import resolve_printer, send_raw
 from services.receipt_printer import format_receipt, format_test_receipt
 
@@ -16,18 +16,18 @@ async def print_receipt(req: ReceiptPrintRequest):
     drawer_opened = None
     try:
         printer = resolve_printer(req.printer_name, role="receipt")
-        send_raw(printer, "Receipt", format_receipt(req.receipt_data))
+        payload = format_receipt(req.receipt_data)
+        if req.open_drawer:
+            try:
+                payload = build_kick_bytes() + payload
+                drawer_opened = True
+            except Exception as exc:
+                logger.warning("Drawer kick bytes failed; printing receipt without kick: %s", exc)
+                drawer_opened = False
+        send_raw(printer, "Receipt", payload)
     except Exception as exc:
         logger.exception("Receipt print failed")
         return PrintResponse(success=False, message="Receipt print failed", error=str(exc))
-
-    if req.open_drawer:
-        try:
-            kick_drawer(printer)
-            drawer_opened = True
-        except Exception as exc:
-            logger.warning("Drawer kick failed after receipt print: %s", exc)
-            drawer_opened = False
 
     return PrintResponse(
         success=True,

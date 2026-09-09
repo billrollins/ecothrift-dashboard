@@ -15,7 +15,7 @@ async def drawer_control(req: DrawerControlRequest):
     try:
         printer = resolve_printer(req.printer_name, role="receipt")
         if req.action == "open":
-            kick_drawer(printer)
+            kick_drawer(printer, pin=req.pin)
             return PrintResponse(success=True, message=f"Cash drawer opened via {printer}")
         return PrintResponse(success=False, message=f"Unknown action: {req.action}")
     except Exception as exc:

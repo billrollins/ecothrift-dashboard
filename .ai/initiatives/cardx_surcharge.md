@@ -1,5 +1,5 @@
 <!-- initiative: slug=cardx-surcharge status=active updated=2026-09-09 -->
-<!-- Last updated: 2026-09-09 -->
+<!-- Last updated: 2026-09-09 (one-window + drawer both) -->
 
 # Initiative: CardX credit surcharge
 
@@ -38,14 +38,15 @@ Acceptance:
 - [x] `GET …/card-preview/` returns server-computed no-surcharge and with-surcharge totals
 - [x] Disabled setting yields 0 surcharge
 
-### Phase 2 — Terminal two-step match
-KEY INTO CARD MACHINE, then two total-match buttons.
+### Phase 2 — Terminal one-window match
+TYPE THIS INTO CARDX plus CARDX DIDN'T ASK / SURCHARGED. Card amount is auto-filled.
 **Gated by:** Phase 1.
 
 Acceptance:
 - [x] Card/split opens `CardTenderDialog`; cash does not
-- [x] Buttons show server preview amounts; neither match cancels
-- [x] Disabled setting skips step 2 and posts `card_type: debit`
+- [x] Buttons show server preview amounts; cancel voids on CardX
+- [x] Disabled setting skips the dialog and posts `card_type: debit`
+- [x] Card amount is cart total; split card amount is total minus cash (not typed)
 
 ### Phase 3 — Receipt + drawer kick
 Print server 1.7.0 prints the card breakdown; drawer kick cannot fail a receipt.
@@ -88,6 +89,8 @@ Detail when Phase 1 is built.
 **2026-09-09 — Implemented Phases 1–4.** Cart fields + `card-preview` + complete validation; Terminal `CardTenderDialog`; receipt payload and print-server 1.7.0 lines; drawer kick isolated from receipt success; drawer/dashboard surcharge totals. Phase 5 (fix card type) not built.
 
 **2026-09-09 — Shipped v2.92.0 + print-server 1.7.0.** `card-preview` excludes the cart list filters (a `payment_method=card` query was 404ing the open cart). Print-server 1.7.0 is on S3 and is the Settings download on local and prod.
+
+**2026-09-09 — One window + drawer both pins.** Card amount is auto-filled (card = total, split = total − cash). `CardTenderDialog` is one window from `cardx-one-window.html` (no APPROVED line). Print-server 1.8.0 pulses both drawer pins in the receipt RAW job; Settings → Printing has Drawer pin + Open drawer.
 
 ---
 

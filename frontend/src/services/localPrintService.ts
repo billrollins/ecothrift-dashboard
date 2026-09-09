@@ -67,11 +67,13 @@ export interface PdfCopiesRequest {
 /** Persisted on the print server (`settings.json`); matches `PrinterSettings` in `printserver/models.py`. */
 export type LabelSizePreset = '3x2' | '1.5x1' | '1.25x1.25';
 
+export type DrawerPin = 0 | 1 | 'both';
+
 export interface PrinterSettings {
   label_printer: string | null;
   receipt_printer: string | null;
   label_size_preset: LabelSizePreset;
-  drawer_pin?: 0 | 1;
+  drawer_pin?: DrawerPin;
 }
 
 class LocalPrintService {
@@ -260,10 +262,13 @@ class LocalPrintService {
   // Cash drawer
   // ---------------------------------------------------------------------------
 
-  async openCashDrawer(): Promise<LocalPrintResponse> {
+  async openCashDrawer(pin?: DrawerPin): Promise<LocalPrintResponse> {
     return this.request<LocalPrintResponse>('/drawer/control', {
       method: 'POST',
-      body: JSON.stringify({ action: 'open' }),
+      body: JSON.stringify({
+        action: 'open',
+        ...(pin !== undefined ? { pin } : {}),
+      }),
     }, this.printTimeout);
   }
 

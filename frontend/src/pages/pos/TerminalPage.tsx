@@ -153,6 +153,10 @@ function formatCurrency(value: string | number | null | undefined): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
 }
 
+function moneyCents(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 /** New line id, else a line whose qty/price/total changed, else the last line. */
 function findAffectedCartLineId(prev: Cart | null, next: Cart): number | null {
   const prevLines = prev?.lines ?? [];
@@ -205,7 +209,6 @@ export default function TerminalPage() {
   const [skuInput, setSkuInput] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [cashTendered, setCashTendered] = useState('');
-  const [cardAmount, setCardAmount] = useState('');
   const [cardTenderOpen, setCardTenderOpen] = useState(false);
   const [cardPreview, setCardPreview] = useState<CardPreview | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -1028,7 +1031,6 @@ export default function TerminalPage() {
       cartRef.current = null;
       setCustomer(null);
       setCashTendered('');
-      setCardAmount('');
       setVoidConfirmOpen(false);
       setEditingLineId(null);
     } catch {
@@ -1051,7 +1053,7 @@ export default function TerminalPage() {
           shouldOpenDrawer,
         );
         if (shouldOpenDrawer && printed.drawer_opened === false) {
-          console.warn('Cash drawer kick did not confirm after receipt print.');
+          enqueueSnackbar('Receipt printed but the drawer did not open', { variant: 'warning' });
         }
       } catch {
         enqueueSnackbar('Receipt print failed. Print server may be offline.', {
@@ -1063,7 +1065,6 @@ export default function TerminalPage() {
       cartRef.current = null;
       setCustomer(null);
       setCashTendered('');
-      setCardAmount('');
       setCardTenderOpen(false);
       setCardPreview(null);
     },
@@ -1097,26 +1098,29 @@ export default function TerminalPage() {
     }
     const total = parseFloat(cart.total) || 0;
     const cash = parseFloat(cashTendered) || 0;
-    const card = parseFloat(cardAmount) || 0;
+    const cardDue =
+      paymentMethod === 'split' ? moneyCents(Math.max(0, total - cash)) : total;
 
     if (paymentMethod === 'cash' && cash < total) {
       enqueueSnackbar('Cash tendered is less than total', { variant: 'error' });
       return;
     }
-    if (paymentMethod === 'card' && card < total) {
-      enqueueSnackbar('Card amount is less than total', { variant: 'error' });
-      return;
-    }
-    if (paymentMethod === 'split' && cash + card < total) {
-      enqueueSnackbar('Combined payment is less than total', { variant: 'error' });
-      return;
+    if (paymentMethod === 'split') {
+      if (!cashTendered.trim()) {
+        enqueueSnackbar('Enter the cash portion first.', { variant: 'error' });
+        return;
+      }
+      if (cash >= total) {
+        enqueueSnackbar('Cash covers the total — switch to Cash.', { variant: 'error' });
+        return;
+      }
     }
 
     const payload: Record<string, unknown> = { payment_method: paymentMethod };
     if (paymentMethod === 'cash' || paymentMethod === 'split')
       payload.cash_tendered = cashTendered ? parseFloat(cashTendered) : 0;
     if (paymentMethod === 'card' || paymentMethod === 'split')
-      payload.card_amount = cardAmount ? parseFloat(cardAmount) : total;
+      payload.card_amount = cardDue;
 
     if (paymentMethod === 'cash') {
       await postComplete(payload);
@@ -1141,7 +1145,7 @@ export default function TerminalPage() {
     } catch {
       enqueueSnackbar('Could not load card totals from the server.', { variant: 'error' });
     }
-  }, [cart, paymentMethod, cashTendered, cardAmount, postComplete, enqueueSnackbar]);
+  }, [cart, paymentMethod, cashTendered, postComplete, enqueueSnackbar]);
 
   const changeDue = (() => {
     if (paymentMethod !== 'cash' && paymentMethod !== 'split') return 0;
@@ -1921,17 +1925,10 @@ export default function TerminalPage() {
                     Change: {formatCurrency(changeDue)}
                   </Typography>
                 )}
-                {(paymentMethod === 'card' || paymentMethod === 'split') && (
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Card amount"
-                    type="number"
-                    value={cardAmount}
-                    onChange={(e) => setCardAmount(e.target.value)}
-                    slotProps={{ input: { inputProps: { min: 0, step: 0.01 } } }}
-                    sx={{ mb: 2 }}
-                  />
+                {paymentMethod === 'split' && (
+                  <Typography variant="body2" fontWeight={600} sx={{ mb: 2 }}>
+                    Card: {formatCurrency(moneyCents(Math.max(0, (parseFloat(cart?.total ?? '0') || 0) - (parseFloat(cashTendered) || 0))))}
+                  </Typography>
                 )}
 
                 <Button
@@ -2614,7 +2611,9 @@ export default function TerminalPage() {
             payload.cash_tendered = cashTendered ? parseFloat(cashTendered) : 0;
           }
           if (paymentMethod === 'card' || paymentMethod === 'split') {
-            payload.card_amount = cardAmount ? parseFloat(cardAmount) : total;
+            const cash = parseFloat(cashTendered) || 0;
+            payload.card_amount =
+              paymentMethod === 'split' ? moneyCents(Math.max(0, total - cash)) : total;
           }
           void postComplete({ ...payload, card_type, card_charged_total });
         }}

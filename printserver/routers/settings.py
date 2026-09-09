@@ -12,14 +12,10 @@ def _normalize_settings_payload(data: dict) -> dict:
     preset = data.get("label_size_preset") or "3x2"
     if preset not in LABEL_SIZE_PRESETS:
         preset = "3x2"
-    pin = data.get("drawer_pin", 0)
-    try:
-        pin_i = int(pin)
-    except (TypeError, ValueError):
-        pin_i = 0
-    if pin_i not in (0, 1):
-        pin_i = 0
-    data = {**data, "label_size_preset": preset, "drawer_pin": pin_i}
+    from services.drawer_service import normalize_drawer_pin
+
+    pin = normalize_drawer_pin(data.get("drawer_pin", "both"))
+    data = {**data, "label_size_preset": preset, "drawer_pin": pin}
     return data
 
 
@@ -30,7 +26,7 @@ async def get_settings():
         label_printer=data.get("label_printer"),
         receipt_printer=data.get("receipt_printer"),
         label_size_preset=data["label_size_preset"],
-        drawer_pin=data.get("drawer_pin", 0),
+        drawer_pin=data.get("drawer_pin", "both"),
     )
 
 
@@ -44,7 +40,7 @@ async def update_settings(body: PrinterSettings):
         label_printer=updated.get("label_printer"),
         receipt_printer=updated.get("receipt_printer"),
         label_size_preset=merged["label_size_preset"],
-        drawer_pin=merged.get("drawer_pin", 0),
+        drawer_pin=merged.get("drawer_pin", "both"),
     )
 
 
@@ -134,10 +130,11 @@ _SETTINGS_HTML = """\
 
     <label for="drawerPin">Cash drawer pin</label>
     <select id="drawerPin">
-      <option value="0">Pin 2 (most common)</option>
+      <option value="both">Both (pin 2 then pin 5)</option>
+      <option value="0">Pin 2</option>
       <option value="1">Pin 5</option>
     </select>
-    <p class="printer-status" style="margin-top:4px">Used when opening the drawer after a cash receipt. Plug in, press Open Drawer, flip the pin if it does not pop.</p>
+    <p class="printer-status" style="margin-top:4px">Used when opening the drawer after a cash receipt. Both pulses both pins. Plug in, press Open Drawer, pick a single pin if it does not pop.</p>
 
     <div class="btn-row">
       <button class="btn-primary" id="saveBtn" disabled>Save</button>
@@ -213,7 +210,9 @@ async function load() {
     const sz = document.getElementById("labelSizePreset");
     const known = [...sz.options].map((o) => o.value);
     sz.value = known.includes(settings.label_size_preset) ? settings.label_size_preset : "3x2";
-    document.getElementById("drawerPin").value = settings.drawer_pin === 1 ? "1" : "0";
+    const pin = settings.drawer_pin;
+    document.getElementById("drawerPin").value =
+      pin === 1 || pin === "1" ? "1" : pin === 0 || pin === "0" ? "0" : "both";
     document.getElementById("saveBtn").disabled = false;
     document.getElementById("testLabel").disabled = false;
     document.getElementById("testReceipt").disabled = false;
@@ -228,7 +227,10 @@ document.getElementById("saveBtn").addEventListener("click", async () => {
     label_printer: document.getElementById("labelPrinter").value || null,
     receipt_printer: document.getElementById("receiptPrinter").value || null,
     label_size_preset: document.getElementById("labelSizePreset").value,
-    drawer_pin: parseInt(document.getElementById("drawerPin").value, 10),
+    drawer_pin: (function () {
+      const v = document.getElementById("drawerPin").value;
+      return v === "both" ? "both" : parseInt(v, 10);
+    })(),
   };
   try {
     const res = await fetch(BASE + "/settings", {
@@ -260,8 +262,12 @@ document.getElementById("testReceipt").addEventListener("click", async () => {
 
 document.getElementById("testDrawer").addEventListener("click", async () => {
   try {
+    const pinVal = document.getElementById("drawerPin").value;
     const res = await fetch(BASE + "/drawer/control", { method: "POST",
-      headers: {"Content-Type": "application/json"}, body: JSON.stringify({action: "open"}) });
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({
+        action: "open",
+        pin: pinVal === "both" ? "both" : parseInt(pinVal, 10),
+      }) });
     const data = await res.json();
     toast(data.success ? "Drawer opened" : data.error || data.message, data.success ? "success" : "error");
   } catch { toast("Request failed", "error"); }
