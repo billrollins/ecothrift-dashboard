@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-09 (listing photos ship; dead reference link) -->
+<!-- Last updated: 2026-09-09 (cardx_surcharge active) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -16,6 +16,7 @@ Full-stack business management for a thrift store in Omaha, NE. HR (time clock, 
 - **ACTIVE (compass) — Documents:** [`documents`](initiatives/documents.md) — Company-wide (read / accept) vs individually assigned (read / accept / sign). API in-tree; staff UI unwired. Split from [`routines_and_documents`](initiatives/_archived/_completed/routines.md).
 - **ACTIVE — Listing photos:** [`listing_photos`](initiatives/listing_photos.md) — full + main/grid/thumb slots; Listing Studio editor, public lightbox, autosave, Mark posted.
 - **ACTIVE — Universal object surfaces:** [`universal_object_surfaces`](initiatives/universal_object_surfaces.md) — design only. No code scheduled.
+- **ACTIVE — CardX credit surcharge:** [`cardx_surcharge`](initiatives/cardx_surcharge.md) — record-only 3% credit surcharge on POS (CardX total match, receipt, drawer kick). Not the compass.
 
 Routines + Retail QA shipped **v2.87.0** (GitHub, not Heroku): [`routines`](initiatives/_archived/_completed/routines.md).
 

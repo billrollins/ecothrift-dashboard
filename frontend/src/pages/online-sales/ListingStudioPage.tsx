@@ -538,7 +538,7 @@ export default function ListingStudioPage() {
         <Grid size={{ xs: 12, md: 7 }} sx={{ display: 'flex' }}>
           <StudioSection
             title="Photos"
-            caption="Drop or select photos. Frame the main photo; grid and thumbnail follow it unless you change them."
+            caption="Drop or select photos. The whole picture is kept by default; frame a slot only when you want to crop."
           >
             <ListingPhotoDropzone onFiles={setQueue} />
             <ListingPhotoGrid

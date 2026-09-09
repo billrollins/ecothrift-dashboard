@@ -42,6 +42,7 @@ import { useUsers } from '../../hooks/useEmployees';
 import { useAuth } from '../../contexts/AuthContext';
 import { localPrintService } from '../../services/localPrintService';
 import type { Cart, CartLine } from '../../types/pos.types';
+import { CartCardBreakdown } from '../../components/pos/CartCardBreakdown';
 import { buildReceiptData } from '../../utils/posReceipt';
 import { format } from 'date-fns';
 import {
@@ -264,7 +265,11 @@ export default function TransactionListPage() {
     if (dateTo) p.date_to = dateTo;
     if (committedReceipt) p.receipt_number = committedReceipt;
     if (cashierFilter) p.cashier = cashierFilter;
-    if (paymentFilter) p.payment_method = paymentFilter;
+    if (paymentFilter === 'credit' || paymentFilter === 'debit') {
+      p.card_type = paymentFilter;
+    } else if (paymentFilter) {
+      p.payment_method = paymentFilter;
+    }
     return p;
   }, [
     dateFrom,
@@ -461,6 +466,8 @@ export default function TransactionListPage() {
               <MenuItem value="cash">Cash</MenuItem>
               <MenuItem value="card">Card</MenuItem>
               <MenuItem value="split">Split</MenuItem>
+              <MenuItem value="credit">Credit</MenuItem>
+              <MenuItem value="debit">Debit</MenuItem>
             </Select>
           </FormControl>
         </Grid>
@@ -552,6 +559,7 @@ export default function TransactionListPage() {
                       <> · Cash {formatCurrency(selectedCart.cash_tendered)} + Card {formatCurrency(selectedCart.card_amount)}</>
                     )}
                   </Typography>
+                  <CartCardBreakdown cart={selectedCart} />
                 </Box>
               </Box>
               <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>

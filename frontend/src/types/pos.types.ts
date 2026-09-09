@@ -3,6 +3,18 @@
  */
 export type PaymentMethod = 'cash' | 'card' | 'split';
 
+export type CardType = '' | 'credit' | 'debit';
+
+export interface CardPreview {
+  enabled: boolean;
+  percent: string;
+  rate: string;
+  card_base: string;
+  no_surcharge: string;
+  with_surcharge: string;
+  surcharge_amount: string;
+}
+
 /**
  * Device type for POS device identity (persisted in localStorage).
  */
@@ -94,6 +106,8 @@ export interface Drawer {
   cash_sales_total: string;
   expected_cash: string | null;
   variance: string | null;
+  card_sales_total?: string;
+  card_surcharge_total?: string;
   handoffs: DrawerHandoff[];
   drops: CashDrop[];
 }
@@ -203,6 +217,10 @@ export interface Cart {
   cash_tendered: string | null;
   change_given: string | null;
   card_amount: string | null;
+  card_type?: CardType;
+  card_surcharge_rate?: string;
+  card_surcharge_amount?: string;
+  card_charged_total?: string | null;
   completed_at: string | null;
   created_at: string;
   lines: CartLine[];
@@ -222,6 +240,7 @@ export interface WeeklyDayMetric {
   day: string;
   revenue: string;
   items_sold: number;
+  card_surcharge_total?: string;
   goal?: string;
 }
 

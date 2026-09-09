@@ -30,4 +30,7 @@ class CartFilter(filters.FilterSet):
 
     class Meta:
         model = Cart
-        fields = ['drawer', 'cashier', 'payment_method', 'receipt_number', 'date_from', 'date_to', 'status']
+        fields = [
+            'drawer', 'cashier', 'payment_method', 'card_type',
+            'receipt_number', 'date_from', 'date_to', 'status',
+        ]

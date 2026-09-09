@@ -191,6 +191,11 @@ class Cart(models.Model):
         ('card', 'Card'),
         ('split', 'Split'),
     ]
+    CARD_TYPES = [
+        ('', ''),
+        ('credit', 'Credit'),
+        ('debit', 'Debit'),
+    ]
 
     drawer = models.ForeignKey(Drawer, on_delete=models.CASCADE, related_name='carts')
     cashier = models.ForeignKey(
@@ -210,6 +215,10 @@ class Cart(models.Model):
     cash_tendered = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     change_given = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     card_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    card_type = models.CharField(max_length=10, choices=CARD_TYPES, blank=True, default='')
+    card_surcharge_rate = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal('0'))
+    card_surcharge_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
+    card_charged_total = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

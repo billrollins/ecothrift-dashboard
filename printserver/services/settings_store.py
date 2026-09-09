@@ -28,6 +28,7 @@ _DEFAULTS: dict[str, Any] = {
     # URL to the public version-check endpoint on the dashboard backend.
     # Example: https://yourdomain.com/api/core/system/print-server-version-public/
     "update_check_url": "",
+    "drawer_pin": 0,  # 0 = pin 2 (most common), 1 = pin 5
 }
 
 

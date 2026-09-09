@@ -10,11 +10,11 @@ Usage:
 from django.core.management.base import BaseCommand
 
 from apps.webstore.models import WebListingImage
-from apps.webstore.services.listing_photos import SLOTS, SLOT_SPECS, backfill_listing_image
+from apps.webstore.services.listing_photos import SLOTS, backfill_listing_image
 
 
 class Command(BaseCommand):
-    help = 'Create missing listing photo slots; --regenerate rebuilds wrong sizes.'
+    help = 'Create missing listing photo slots; --regenerate rebuilds every slot.'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -26,7 +26,7 @@ class Command(BaseCommand):
         parser.add_argument(
             '--regenerate',
             action='store_true',
-            help='Rebuild any slot whose stored size does not match the spec.',
+            help='Rebuild every slot (letterbox defaults, keep staff frames).',
         )
         parser.add_argument(
             '--dry-run',
@@ -48,15 +48,7 @@ class Command(BaseCommand):
         for image in qs:
             slots = {v.slot: v for v in image.variants.all()}
             missing = any(slot not in slots for slot in SLOTS)
-            wrong = False
-            if regenerate:
-                wrong = any(
-                    slots.get(slot) is None
-                    or slots[slot].width != spec['width']
-                    or slots[slot].height != spec['height']
-                    for slot, spec in SLOT_SPECS.items()
-                )
-            if missing or wrong:
+            if missing or regenerate:
                 to_run.append(image)
         if options['dry_run']:
             self.stdout.write(f'Would backfill {len(to_run)} listing image(s).')

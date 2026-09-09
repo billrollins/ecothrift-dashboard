@@ -61,6 +61,8 @@ class DrawerSerializer(serializers.ModelSerializer):
     closed_by_name = serializers.CharField(source='closed_by.full_name', read_only=True, default=None)
     handoffs = DrawerHandoffSerializer(many=True, read_only=True)
     drops = CashDropSerializer(many=True, read_only=True)
+    card_sales_total = serializers.SerializerMethodField()
+    card_surcharge_total = serializers.SerializerMethodField()
 
     class Meta:
         model = Drawer
@@ -72,9 +74,26 @@ class DrawerSerializer(serializers.ModelSerializer):
             'closed_by', 'closed_by_name', 'closed_at',
             'closing_count', 'closing_total',
             'cash_sales_total', 'expected_cash', 'variance',
+            'card_sales_total', 'card_surcharge_total',
             'handoffs', 'drops',
         ]
         read_only_fields = ['id']
+
+    def get_card_sales_total(self, obj):
+        from apps.pos.services.card_surcharge import drawer_card_totals
+        cached = getattr(obj, '_card_totals', None)
+        if cached is None:
+            cached = drawer_card_totals(obj)
+            obj._card_totals = cached
+        return str(cached['card_sales_total'])
+
+    def get_card_surcharge_total(self, obj):
+        from apps.pos.services.card_surcharge import drawer_card_totals
+        cached = getattr(obj, '_card_totals', None)
+        if cached is None:
+            cached = drawer_card_totals(obj)
+            obj._card_totals = cached
+        return str(cached['card_surcharge_total'])
 
 
 class SupplementalDrawerSerializer(serializers.ModelSerializer):
@@ -164,11 +183,15 @@ class CartSerializer(serializers.ModelSerializer):
             'id', 'drawer', 'cashier', 'cashier_name', 'customer',
             'status', 'subtotal', 'tax_rate', 'tax_amount', 'total',
             'payment_method', 'cash_tendered', 'change_given', 'card_amount',
+            'card_type', 'card_surcharge_rate', 'card_surcharge_amount',
+            'card_charged_total',
             'completed_at', 'created_at',
             'lines', 'receipt', 'savings',
         ]
         read_only_fields = [
             'id', 'cashier', 'subtotal', 'tax_amount', 'total', 'tax_rate', 'created_at',
+            'card_type', 'card_surcharge_rate', 'card_surcharge_amount',
+            'card_charged_total',
             'savings',
         ]
 

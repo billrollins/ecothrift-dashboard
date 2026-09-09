@@ -13,15 +13,27 @@ router = APIRouter(prefix="/print", tags=["receipts"])
 
 @router.post("/receipt", response_model=PrintResponse)
 async def print_receipt(req: ReceiptPrintRequest):
+    drawer_opened = None
     try:
         printer = resolve_printer(req.printer_name, role="receipt")
         send_raw(printer, "Receipt", format_receipt(req.receipt_data))
-        if req.open_drawer:
-            kick_drawer(printer)
-        return PrintResponse(success=True, message=f"Receipt sent to {printer}")
     except Exception as exc:
         logger.exception("Receipt print failed")
         return PrintResponse(success=False, message="Receipt print failed", error=str(exc))
+
+    if req.open_drawer:
+        try:
+            kick_drawer(printer)
+            drawer_opened = True
+        except Exception as exc:
+            logger.warning("Drawer kick failed after receipt print: %s", exc)
+            drawer_opened = False
+
+    return PrintResponse(
+        success=True,
+        message=f"Receipt sent to {printer}",
+        drawer_opened=drawer_opened,
+    )
 
 
 @router.post("/test-receipt", response_model=PrintResponse)

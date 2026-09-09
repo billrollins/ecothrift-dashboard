@@ -24,6 +24,7 @@ import {
   updateCartLine,
   removeCartLine,
   completeCart,
+  getCartCardPreview,
   voidCart,
   createRegister,
   updateRegister,
@@ -34,7 +35,7 @@ import {
   type Cart,
   type DeliveryAvailability,
 } from '../api/pos.api';
-import type { SaleMode } from '../types/pos.types';
+import type { CardPreview, SaleMode } from '../types/pos.types';
 import type { PaginatedResponse } from '../types/common.types';
 
 type CartsQueryOptions = Pick<
@@ -526,6 +527,21 @@ export function useRemoveCartLine() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['carts'] });
     },
+  });
+}
+
+export function useCardPreview(
+  cartId: number | undefined,
+  params?: { card_amount?: string | number; payment_method?: string },
+  options?: { enabled?: boolean },
+) {
+  return useQuery<CardPreview>({
+    queryKey: ['cart-card-preview', cartId, params],
+    queryFn: async () => {
+      const { data } = await getCartCardPreview(cartId as number, params);
+      return data;
+    },
+    enabled: options?.enabled !== false && cartId != null,
   });
 }
 

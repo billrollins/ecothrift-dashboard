@@ -35,6 +35,7 @@ export interface LocalPrintResponse {
   message: string;
   output?: string;
   error?: string;
+  drawer_opened?: boolean | null;
 }
 
 export interface LocalPrintBatchResponse {
@@ -70,6 +71,7 @@ export interface PrinterSettings {
   label_printer: string | null;
   receipt_printer: string | null;
   label_size_preset: LabelSizePreset;
+  drawer_pin?: 0 | 1;
 }
 
 class LocalPrintService {

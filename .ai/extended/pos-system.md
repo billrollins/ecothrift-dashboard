@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-07 (YOU SAVED receipt block) -->
+<!-- Last updated: 2026-09-09 (CardX credit surcharge) -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -39,8 +39,9 @@
 - **Payment methods**: `cash` | `card` | `split`
 - Belongs to `Drawer`, `cashier`; optional `customer`
 - `subtotal`, `tax_rate`, `tax_amount`, `total`, `payment_method`, `cash_tendered`, `change_given`, `card_amount`, `completed_at`
+- **CardX surcharge (record-only):** `card_type` (`''` | `credit` | `debit`), `card_surcharge_rate` (4dp, e.g. `0.0300`), `card_surcharge_amount`, `card_charged_total` (`card_amount` + surcharge). Not part of `total`, not taxed, not in drawer `expected_cash`. Setting `pos.card_surcharge` = `{enabled, percent}` (percent is 3 for 3%). Service: `apps/pos/services/card_surcharge.py` (`ROUND_HALF_UP`).
 - `recalculate()` updates subtotal/tax/total from lines (queries `CartLine` by `cart_id` so totals never read a stale `prefetch_related` cache on `cart.lines`)
-- `cashier`, `subtotal`, `tax_amount`, `total`, `tax_rate` are **read-only** in `CartSerializer` (server-set)
+- `cashier`, `subtotal`, `tax_amount`, `total`, `tax_rate`, `card_type`, `card_surcharge_rate`, `card_surcharge_amount`, `card_charged_total` are **read-only** in `CartSerializer` (server-set)
 
 ### CartLine
 
@@ -73,7 +74,7 @@
 2. **Handoff** — `POST /pos/drawers/{id}/handoff/` with `incoming_cashier`, `count`, `counted_total`; updates `current_cashier`
 3. **Takeover** — `POST /pos/drawers/{id}/takeover/` with optional `count`, `counted_total`, `notes`; incoming cashier claims drawer
 4. **Drops** — `POST /pos/drawers/{id}/drop/` with `amount`, `total`; records cash removed
-5. **Close** — `POST /pos/drawers/{id}/close/` with `closing_count`, `closing_total`; sets status `closed`, computes `expected_cash` and `variance`
+5. **Close** — `POST /pos/drawers/{id}/close/` with `closing_count`, `closing_total`; sets status `closed`, computes `expected_cash` and `variance`. Drawer payload also has read-only `card_sales_total` and `card_surcharge_total` (completed carts; surcharge is never in expected cash).
 6. **Reopen** — `POST /pos/drawers/{id}/reopen/` — Manager/Admin only; sets status back to `open`; optional `cashier` body param to reassign
 
 Denomination counts (JSON) are used at each step for reconciliation.
@@ -87,11 +88,13 @@ Denomination counts (JSON) are used at each step for reconciliation.
 3. **Update line** — `PATCH /pos/carts/{id}/lines/{line_id}/` — updates `quantity`, `description`, and/or `unit_price`; recalculates
 4. **Remove line** — `DELETE /pos/carts/{id}/lines/{line_id}/` — removes line; recalculates
    - Lines 3 and 4 are served by the single `manage_line` action (`url_path='lines/(?P<line_id>[^/.]+)'`) which dispatches on HTTP method
-5. **Complete** — `POST /pos/carts/{id}/complete/` with `payment_method`, `cash_tendered`, `card_amount`:
-   - Updates drawer `cash_sales_total` for cash/split
+5. **Complete** — `POST /pos/carts/{id}/complete/` with `payment_method`, `cash_tendered`, `card_amount`; card/split also require `card_type` (`credit` | `debit`) and may send `card_charged_total` (must match the server). Cash rejects a set `card_type`. `payment_method` is validated against `Cart.PAYMENT_METHODS`.
+   - Server computes surcharge from `pos.card_surcharge` on the card portion only
+   - Updates drawer `cash_sales_total` for cash/split (surcharge excluded)
    - Marks items `sold` (sold_at, sold_for)
    - Handles consignment items (commission, consignee earnings)
    - Creates Receipt with auto-generated receipt number
+6. **Card preview** — `GET /pos/carts/{id}/card-preview/?payment_method=&card_amount=` returns `{enabled, percent, rate, card_base, no_surcharge, with_surcharge, surcharge_amount}` for the Terminal match buttons.
 
 ---
 
@@ -111,7 +114,7 @@ Custom `django-filters` FilterSet on Cart. Handles:
 - `?status=completed` → completed carts only
 - `?status=voided` → voided carts only
 - `?status=all` → both completed and voided (for transactions page)
-- `?drawer=`, `?cashier=`, `?payment_method=`, `?receipt_number=` (icontains on receipt number), `?date_from=`, `?date_to=`
+- `?drawer=`, `?cashier=`, `?payment_method=`, `?card_type=`, `?receipt_number=` (icontains on receipt number), `?date_from=`, `?date_to=`
 
 ---
 
@@ -166,7 +169,8 @@ The `useDeviceConfig` hook (`frontend/src/hooks/useDeviceConfig.ts`) reads/write
 - **Delivery scheduling**: `DeliveryAvailability` (date/times/crew/who) + `DeliveryJob`; APIs `/pos/delivery-availabilities/`, `/pos/delivery-jobs/` (`GET`/`POST`/`PATCH`); Dash page `/pos/deliveries` **Add delivery** (Manager): past sale lines, inventory SKU, or free-text; `POST /delivery-jobs/` creates cart-optional jobs (no fee line). Warns on `needs_scheduling`; Schedule dialog `PATCH` with `availability_id` (+ notes) returns `customer_schedule_message` / `just_scheduled`. Void cart or remove delivery line cancels active jobs (including needs_scheduling).
 - **Delivery Desk + Field (v2.56 / Phase 2):** `/pos/deliveries` redirects by experience preference. **Field** (`/pos/deliveries/field/days/:dayId`) owns Start Today and the ordered day: **calls → load → truck → route → active → return** (`FieldRunShell`). Contact attempts (`call_placed` / `composer_opened` / `text_marked_sent`) are separate from stop **dispositions**; departure requires confirmed/rescheduled/cancelled/excluded resolution plus item verify/load/photo + truck close (or manager override). **Desk** day detail shows read-only `DeskDayLiveMonitor` (no wizard). Canonical APIs: `/api/pos/delivery-days/{id}/run/` + `start-run/`, stop contact/disposition/item endpoints. Legacy board `/pos/deliveries/legacy` is a one-release escape hatch. Phase 3 still owns provider-proven ETAs, signature rebuild, SMS polish. (Older unified board notes: `pos.0017`–`pos.0018`; Phase 2 schema `pos.0023`.). Job PATCH `completed` blocked while open-run stop incomplete. APIs under `/pos/delivery-runs/` and `/pos/delivery-stops/` (+ `report-issue`, job `reschedule`, `append-address`, events/`next_action`/`allowed_actions` on run payload).
 - **Printables**: static HTML under `frontend/public/pos/` (appliance policy EN+es-MX, sell log, delivery driver log) + Cashier nav **Printables** (`/pos/printables`).
-- **Complete sale**: Disabled if cart has no items; validates payment amounts; rejects negative total; calls `POST /pos/carts/{id}/complete/`; triggers `localPrintService.printReceipt()` with cash drawer auto-open for cash/split
+- **Complete sale**: Disabled if cart has no items; validates payment amounts; rejects negative total. Cash completes immediately. Card/split opens `CardTenderDialog`: step 1 shows `KEY INTO CARD MACHINE` plus “If CardX asks Apply surcharge?, press YES.”; step 2 is two server-computed total buttons (debit / credit). Disabled `pos.card_surcharge` skips step 2 and posts `card_type: debit`. Then `POST /pos/carts/{id}/complete/`; `printReceipt(..., open_drawer)` for cash/split. Drawer kick failure does not fail the receipt (`drawer_opened` is logged only).
+- **Transactions:** Payment filter includes Credit / Debit (`card_type`). Detail shows card type, surcharge, card total.
 
 ---
 
@@ -203,6 +207,6 @@ Hooks: `useRegisters`, `useDrawers` (accepts `options.enabled`), `useCarts` (acc
 ## Revenue Goals & Dashboard Metrics
 
 - **DashboardSalesGoal** / **DashboardDepartmentGoal** — weekly targets; CRUD under **`/api/pos/dashboard/`**. Retail keeps `schedule = {weekdays: [0..6], audits_per_day: N}` (`pos.0019`) and drops the letter-grade `value`.
-- **dashboard_metrics** (`GET /api/pos/dashboard/metrics/?weeks=`): sales run-rate (90-day chart, 14-week book), department cards (buying, processing, restoration, retail routine completion), cached 45s — **`apps/pos/services/dashboard_metrics.py`**. `weeks` defaults to **8** (clamped 2–12). Retail daily/week progress is scheduled versus completed routine submissions; days expose **`retail_audit_ids`** (run ids). Gold when the day's count meets the schedule. Day cells deep-link to that run.
+- **dashboard_metrics** (`GET /api/pos/dashboard/metrics/?weeks=`): sales run-rate (90-day chart, 14-week book), department cards (buying, processing, restoration, retail routine completion), cached 45s — **`apps/pos/services/dashboard_metrics.py`**. Weekly day rows include **`card_surcharge_total`**. `weeks` defaults to **8** (clamped 2–12). Retail daily/week progress is scheduled versus completed routine submissions; days expose **`retail_audit_ids`** (run ids). Gold when the day's count meets the schedule. Day cells deep-link to that run.
 - **Quality Audit removed.** Tables dropped by **`pos.0026_drop_quality_audit`**. Floor checklists live in **`apps.routines`**. Retail metrics add `today_work_cycles`, `week_work_cycles`, and `week_idle_dismissed`; work-cycle submissions are excluded from `week_audits`.
 - **Idle work-cycle prompt.** After `retail_qa.idle_prompt_minutes` (default 5) with no cart create / void / complete on that register, `WorkCyclePromptDialog` asks for a shelf or non-shelf check. Activity is stored in `localStorage` per register. Dismissals log `POST /api/routines/work-cycle/prompt/`. The Work cycle pill stays as the manual entry.

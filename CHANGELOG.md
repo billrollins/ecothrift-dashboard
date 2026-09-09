@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.91.0] -->
-<!-- Last reviewed: 2026-09-09 (v2.91.0 listing photos + messages) -->
+<!-- Line 1 release: ## [2.92.0] -->
+<!-- Last reviewed: 2026-09-09 (v2.92.0 CardX surcharge + whole-picture photos) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,34 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.92.0] - 2026-09-09
+
+User-facing theme: **Card sales record the CardX 3% credit surcharge and print it on the receipt; listing photos keep the whole picture by default.**
+
+Initiative: [`cardx_surcharge`](./.ai/initiatives/cardx_surcharge.md); listing photo follow-up is [`listing_photos`](./.ai/initiatives/listing_photos.md).
+
+### Added
+
+- POS Terminal **Card** / **Split** opens a two-step card dialog: KEY INTO CARD MACHINE shows the pre-surcharge amount (press YES if CardX asks to apply the surcharge), then the cashier taps whichever total the machine approved — no surcharge (debit) or +3% (credit). "Neither" cancels so the sale can be voided on the machine. Cash never sees the prompt.
+- `Cart.card_type`, `card_surcharge_rate`, `card_surcharge_amount`, `card_charged_total` (migration `pos/0028_cart_card_surcharge`). The surcharge is record-only: not in `total`, tax, `sold_for`, consignment, or drawer expected cash.
+- `GET /api/pos/carts/<id>/card-preview/?payment_method=&card_amount=` returns the server-computed totals for the match buttons. Complete rejects a `card_charged_total` that does not match the server math, requires `card_type` on card/split, and rejects it on cash.
+- Setting `pos.card_surcharge` (`{enabled, percent}`) with an Admin → Settings → Store editor. Disabled skips the match step and records debit.
+- Transactions: **Credit / Debit** filter (`card_type`) and a card breakdown on the transaction detail. Drawer payload gains `card_sales_total` and `card_surcharge_total`; dashboard daily rows gain `card_surcharge_total`.
+- Receipt payload (`buildReceiptData`) sends `card_type`, `card_amount`, `card_surcharge`, `card_charged_total`, `card_surcharge_percent`. Print server **1.7.0** prints base, 3% line, charged total, and a disclosure for credit; `Card (Debit)` only for debit. Cash/split receipts still request the drawer kick; a failed kick returns `drawer_opened: false` instead of failing the receipt.
+
+### Changed
+
+- Listing photo slots keep the **whole picture** by default (letterboxed on a light fill) instead of a center 4:3 cover that chopped portrait shots. Staff crops still apply when set. `backfill_listing_image_variants --regenerate` rebuilds every slot with the new default.
+- Public shop grid, listing page, gallery thumbs, and hold thumbs use the `full` file; the shop fits it with `contain`.
+- `resolve_slot_file` skips variants whose S3 object is missing and falls back to the next slot.
+
+### Fixed
+
+- Split-cash change math no longer subtracts a string from a `Decimal` on complete (`cash_tendered`, `change_given`, `card_amount` are coerced).
+- `card-preview` no longer 404s when `payment_method=card` is in the query string (the cart list filter was being applied to a single-cart action).
 
 ---
 

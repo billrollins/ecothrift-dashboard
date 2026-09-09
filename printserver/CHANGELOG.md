@@ -5,6 +5,17 @@ Ship: `.ai/protocols/ship-print-server.md`. Script: `python printserver/distribu
 
 ---
 
+## [1.7.0] — 2026-09-09
+
+### Added
+- **Card surcharge block:** `receipt_data.card_type` / `card_amount` / `card_surcharge` / `card_charged_total` / `card_surcharge_percent` print after payment on ESC/POS, GDI text, and PNG.
+- **Drawer pin setting:** `drawer_pin` in `settings.json` (0 = pin 2, 1 = pin 5), editable on `/`.
+
+### Changed
+- `POST /print/receipt` isolates the cash-drawer kick from the receipt try. Kick failure logs a warning and sets `drawer_opened: false` without failing the receipt.
+
+---
+
 ## [1.6.0] — 2026-09-07
 
 ### Added

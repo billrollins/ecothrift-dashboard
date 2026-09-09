@@ -1,11 +1,28 @@
-VERSION = "1.6.0"
-RELEASE_NOTES = "Receipts show a YOU SAVED breakdown under TOTAL."
+VERSION = "1.7.0"
+RELEASE_NOTES = "Credit-card surcharge lines on receipts; cash-drawer kick cannot fail a print."
 
 # Default URL for the public version-check endpoint on the dashboard backend.
 # Users can override this in settings.json via the /manage page (useful for local dev).
 UPDATE_CHECK_URL = "https://dash.ecothrift.us/api/core/system/print-server-version-public/"
 
 CHANGELOG = """\
+## [1.7.0] — 2026-09-09
+
+### Added
+- **Card surcharge block:** ``receipt_data.card_type`` / ``card_amount`` /
+  ``card_surcharge`` / ``card_charged_total`` / ``card_surcharge_percent``
+  print after payment on ESC/POS, GDI text, and PNG. Credit shows base,
+  3% line, charged total, and a disclosure. Debit shows Card (Debit) only.
+- **Drawer pin setting:** ``drawer_pin`` in ``settings.json`` (0 = pin 2,
+  1 = pin 5), editable on the built-in ``/`` UI next to Open Drawer.
+
+### Changed
+- ``POST /print/receipt`` isolates the cash-drawer kick from the receipt
+  ``try``. A kick failure logs a warning and sets ``drawer_opened: false``
+  without marking the receipt as failed.
+
+---
+
 ## [1.6.0] — 2026-09-07
 
 ### Added

@@ -179,6 +179,12 @@ class Command(BaseCommand):
         settings_data = [
             ('tax_rate', 0.07, 'Sales tax rate (7.0% for Omaha, NE)'),
             (
+                'pos.card_surcharge',
+                {'enabled': True, 'percent': 3},
+                'POS credit-card surcharge recorded from CardX (enabled + percent). '
+                'Must match the CardX program rate. Not added to sale revenue.',
+            ),
+            (
                 'po_default_est_shrink',
                 0.15,
                 'Default PurchaseOrder.est_shrink for new POs (0-1). Does not change existing POs.',

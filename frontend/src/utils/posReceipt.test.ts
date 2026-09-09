@@ -55,6 +55,10 @@ function cart(partial: Partial<Cart>): Cart {
     cash_tendered: '25.00',
     change_given: '0.95',
     card_amount: null,
+    card_type: '',
+    card_surcharge_rate: '0.0000',
+    card_surcharge_amount: '0.00',
+    card_charged_total: null,
     completed_at: '2026-09-07T18:12:00Z',
     created_at: '2026-09-07T18:00:00Z',
     lines: [],
@@ -96,5 +100,25 @@ describe('buildReceiptData', () => {
   it('omits you_saved when savings total is zero', () => {
     const data = buildReceiptData(cart({ savings: { total: '0.00', lines: [] } }));
     expect(data.you_saved).toBeUndefined();
+  });
+
+  it('passes card surcharge fields for a credit sale', () => {
+    const data = buildReceiptData(
+      cart({
+        payment_method: 'card',
+        cash_tendered: null,
+        change_given: null,
+        card_amount: '100.00',
+        card_type: 'credit',
+        card_surcharge_rate: '0.0300',
+        card_surcharge_amount: '3.00',
+        card_charged_total: '103.00',
+      }),
+    );
+    expect(data.card_amount).toBe(100);
+    expect(data.card_type).toBe('credit');
+    expect(data.card_surcharge).toBe(3);
+    expect(data.card_charged_total).toBe(103);
+    expect(data.card_surcharge_percent).toBe(3);
   });
 });

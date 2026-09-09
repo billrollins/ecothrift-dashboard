@@ -25,6 +25,7 @@ export type SettingKind =
   // A whole number of things, zero allowed.
   | 'count'
   | 'hours'
+  | 'surcharge'
   | 'hidden'
   | 'raw';
 
@@ -73,6 +74,13 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     help: 'Open days and times. Online Sales hold expiry uses the same clock.',
     tab: 'store',
     kind: 'hours',
+  },
+  'pos.card_surcharge': {
+    label: 'Credit card surcharge',
+    help:
+      'Record-only CardX surcharge on credit (not debit, prepaid, or cash). Percent must match the CardX program rate. Not added to sale revenue or tax.',
+    tab: 'store',
+    kind: 'surcharge',
   },
   'retail_qa.owner_weight': {
     label: "Owner spot check weight",

@@ -85,6 +85,7 @@ import {
   useDeliveryAvailabilities,
 } from '../../hooks/usePOS';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { CardTenderDialog } from '../../components/pos/CardTenderDialog';
 import { WorkCyclePill } from '../../components/routines/WorkCyclePill';
 import { WorkCyclePromptDialog } from './WorkCyclePromptDialog';
 import { writeLastActivity } from './idlePrompt';
@@ -92,10 +93,10 @@ import { useDeviceConfig } from '../../hooks/useDeviceConfig';
 import { useLocalPrintStatus } from '../../hooks/useLocalPrintStatus';
 import { useLookupCustomer } from '../../hooks/useEmployees';
 import { useAuth } from '../../contexts/AuthContext';
-import { updateCart, getCarts, suggestDeliveryAddresses } from '../../api/pos.api';
+import { updateCart, getCarts, getCartCardPreview, suggestDeliveryAddresses } from '../../api/pos.api';
 import type { DeliveryAddressSuggestion } from '../../api/pos.api';
 import { localPrintService } from '../../services/localPrintService';
-import type { Cart, CartLine, Drawer, PaymentMethod, POSDeviceConfig } from '../../types/pos.types';
+import type { CardPreview, Cart, CartLine, Drawer, PaymentMethod, POSDeviceConfig } from '../../types/pos.types';
 import type { DenominationBreakdown } from '../../types/pos.types';
 import type { Customer } from '../../api/accounts.api';
 import {
@@ -205,6 +206,8 @@ export default function TerminalPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [cashTendered, setCashTendered] = useState('');
   const [cardAmount, setCardAmount] = useState('');
+  const [cardTenderOpen, setCardTenderOpen] = useState(false);
+  const [cardPreview, setCardPreview] = useState<CardPreview | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [openDrawerDialog, setOpenDrawerDialog] = useState(false);
   const [openingCount, setOpeningCount] = useState<DenominationBreakdown>(EMPTY_BREAKDOWN);
@@ -1033,6 +1036,60 @@ export default function TerminalPage() {
     }
   }, [cart, voidCartMutation, enqueueSnackbar, markRegisterActivity]);
 
+  const finishCompletedSale = useCallback(
+    async (
+      completedCart: Cart,
+      method: PaymentMethod,
+    ) => {
+      enqueueSnackbar('Sale completed', { variant: 'success' });
+      markRegisterActivity();
+
+      try {
+        const shouldOpenDrawer = method === 'cash' || method === 'split';
+        const printed = await localPrintService.printReceipt(
+          buildReceiptData(completedCart),
+          shouldOpenDrawer,
+        );
+        if (shouldOpenDrawer && printed.drawer_opened === false) {
+          console.warn('Cash drawer kick did not confirm after receipt print.');
+        }
+      } catch {
+        enqueueSnackbar('Receipt print failed. Print server may be offline.', {
+          variant: 'warning',
+        });
+      }
+
+      setCart(null);
+      cartRef.current = null;
+      setCustomer(null);
+      setCashTendered('');
+      setCardAmount('');
+      setCardTenderOpen(false);
+      setCardPreview(null);
+    },
+    [enqueueSnackbar, markRegisterActivity],
+  );
+
+  const postComplete = useCallback(
+    async (payload: Record<string, unknown>) => {
+      if (!cart) return;
+      try {
+        const completedCart = (await completeCartMutation.mutateAsync({
+          cartId: cart.id,
+          data: payload,
+        })) as unknown as Cart;
+        await finishCompletedSale(completedCart, payload.payment_method as PaymentMethod);
+      } catch (err: unknown) {
+        const detail =
+          err && typeof err === 'object' && 'response' in err
+            ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+            : undefined;
+        enqueueSnackbar(detail || 'Failed to complete sale', { variant: 'error' });
+      }
+    },
+    [cart, completeCartMutation, enqueueSnackbar, finishCompletedSale],
+  );
+
   const handleComplete = useCallback(async () => {
     if (!cart || (cart.lines ?? []).length === 0) {
       enqueueSnackbar('Add at least one item before completing the sale.', { variant: 'warning' });
@@ -1055,39 +1112,36 @@ export default function TerminalPage() {
       return;
     }
 
-    try {
-      const payload: Record<string, unknown> = { payment_method: paymentMethod };
-      if (paymentMethod === 'cash' || paymentMethod === 'split')
-        payload.cash_tendered = cashTendered ? parseFloat(cashTendered) : 0;
-      if (paymentMethod === 'card' || paymentMethod === 'split')
-        payload.card_amount = cardAmount ? parseFloat(cardAmount) : total;
+    const payload: Record<string, unknown> = { payment_method: paymentMethod };
+    if (paymentMethod === 'cash' || paymentMethod === 'split')
+      payload.cash_tendered = cashTendered ? parseFloat(cashTendered) : 0;
+    if (paymentMethod === 'card' || paymentMethod === 'split')
+      payload.card_amount = cardAmount ? parseFloat(cardAmount) : total;
 
-      const completedCart = (await completeCartMutation.mutateAsync({
-        cartId: cart.id,
-        data: payload,
-      })) as unknown as Cart & { receipt?: { receipt_number: string }; completed_at?: string };
-
-      enqueueSnackbar('Sale completed', { variant: 'success' });
-      markRegisterActivity();
-
-      try {
-        const shouldOpenDrawer = paymentMethod === 'cash' || paymentMethod === 'split';
-        await localPrintService.printReceipt(buildReceiptData(completedCart), shouldOpenDrawer);
-      } catch {
-        enqueueSnackbar('Receipt print failed. Print server may be offline.', {
-          variant: 'warning',
-        });
-      }
-
-      setCart(null);
-      cartRef.current = null;
-      setCustomer(null);
-      setCashTendered('');
-      setCardAmount('');
-    } catch {
-      enqueueSnackbar('Failed to complete sale', { variant: 'error' });
+    if (paymentMethod === 'cash') {
+      await postComplete(payload);
+      return;
     }
-  }, [cart, paymentMethod, cashTendered, cardAmount, completeCartMutation, enqueueSnackbar, markRegisterActivity]);
+
+    try {
+      const { data: preview } = await getCartCardPreview(cart.id, {
+        payment_method: paymentMethod,
+        card_amount: payload.card_amount as number,
+      });
+      if (!preview.enabled) {
+        await postComplete({
+          ...payload,
+          card_type: 'debit',
+          card_charged_total: preview.no_surcharge,
+        });
+        return;
+      }
+      setCardPreview(preview);
+      setCardTenderOpen(true);
+    } catch {
+      enqueueSnackbar('Could not load card totals from the server.', { variant: 'error' });
+    }
+  }, [cart, paymentMethod, cashTendered, cardAmount, postComplete, enqueueSnackbar]);
 
   const changeDue = (() => {
     if (paymentMethod !== 'cash' && paymentMethod !== 'split') return 0;
@@ -2543,6 +2597,27 @@ export default function TerminalPage() {
         onConfirm={handleVoidSale}
         onCancel={() => setVoidConfirmOpen(false)}
         loading={voidCartMutation.isPending}
+      />
+
+      <CardTenderDialog
+        open={cardTenderOpen}
+        preview={cardPreview}
+        pending={completeCartMutation.isPending}
+        onCancel={() => {
+          setCardTenderOpen(false);
+          setCardPreview(null);
+        }}
+        onConfirm={({ card_type, card_charged_total }) => {
+          const total = parseFloat(cart?.total ?? '0') || 0;
+          const payload: Record<string, unknown> = { payment_method: paymentMethod };
+          if (paymentMethod === 'cash' || paymentMethod === 'split') {
+            payload.cash_tendered = cashTendered ? parseFloat(cashTendered) : 0;
+          }
+          if (paymentMethod === 'card' || paymentMethod === 'split') {
+            payload.card_amount = cardAmount ? parseFloat(cardAmount) : total;
+          }
+          void postComplete({ ...payload, card_type, card_charged_total });
+        }}
       />
 
       {/* Device setup dialog - always available so users can reconfigure at any time */}

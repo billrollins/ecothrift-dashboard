@@ -29,8 +29,6 @@ import {
 } from '../../../hooks/useWebStore';
 import {
   WHOLE_PCT,
-  centerAspectPct,
-  centerSquarePct,
   getEditedJpeg,
   getRotatedJpeg,
   pctToApiCrop,
@@ -65,9 +63,9 @@ const SLOT_ASPECT: Record<SlotId, number | undefined> = {
 
 const SLOT_CAPTION: Record<SlotId, string> = {
   full: 'Gallery photo (any aspect). This is what people see when they click the listing photo.',
-  main: 'Main photo on the listing: 1600 × 1200, 4:3.',
-  grid: 'Shop grid: 800 × 600, 4:3. Defaults to the main frame.',
-  thumb: 'Thumbnail: 400 × 400. Defaults to the center of the main frame.',
+  main: 'Main photo on the listing: 1600 × 1200. Defaults to the whole picture.',
+  grid: 'Shop grid: 800 × 600. Defaults to the whole picture.',
+  thumb: 'Thumbnail: 400 × 400. Defaults to the whole picture.',
 };
 
 function toCropState(rect: PctRect): CropState {
@@ -83,12 +81,12 @@ function deriveRects(draft: CropDraft, imageAspect: number): Record<SlotId, PctR
   const main =
     draft.touched.main && draft.custom.main
       ? draft.custom.main
-      : centerAspectPct(full, 4 / 3, imageAspect);
+      : { ...full };
   const grid = draft.touched.grid && draft.custom.grid ? draft.custom.grid : { ...main };
   const thumb =
     draft.touched.thumb && draft.custom.thumb
       ? draft.custom.thumb
-      : centerSquarePct(main, imageAspect);
+      : { ...main };
   return { full, main, grid, thumb };
 }
 

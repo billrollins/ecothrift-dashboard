@@ -45,6 +45,16 @@ describe('settingsRegistry', () => {
     expect(keys.every((key) => key.startsWith('retail_qa.'))).toBe(true);
   });
 
+  it('puts card surcharge on Store next to tax', () => {
+    expect(metaForKey('pos.card_surcharge').tab).toBe('store');
+    expect(metaForKey('pos.card_surcharge').kind).toBe('surcharge');
+    expect(keysForTab('store', Object.keys(SETTINGS_REGISTRY))).toEqual([
+      'tax_rate',
+      'online_sales.hours',
+      'pos.card_surcharge',
+    ]);
+  });
+
   it('edits weights as percents, letters as scores, and audit floors as counts', () => {
     expect(metaForKey('retail_qa.owner_weight').kind).toBe('weight');
     expect(metaForKey('retail_qa.grade_a').kind).toBe('score');

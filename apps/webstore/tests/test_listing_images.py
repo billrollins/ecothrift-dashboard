@@ -122,13 +122,25 @@ class ListingImageSlotTests(TestCase):
             self.assertEqual(stored.size, (spec['width'], spec['height']))
         main = body['crops']['main']
         grid = body['crops']['grid']
+        self.assertEqual((main['x'], main['y'], main['w'], main['h']), (0, 0, 2048, 1365))
         self.assertEqual((main['x'], main['y'], main['w'], main['h']), (grid['x'], grid['y'], grid['w'], grid['h']))
+        self.assertTrue(main['derived'])
         self.assertTrue(grid['derived'])
         thumb = body['crops']['thumb']
         self.assertTrue(thumb['derived'])
-        self.assertEqual(thumb['w'], thumb['h'])
-        self.assertGreaterEqual(thumb['x'], main['x'])
-        self.assertLessEqual(thumb['x'] + thumb['w'], main['x'] + main['w'])
+        self.assertEqual((thumb['x'], thumb['y'], thumb['w'], thumb['h']), (0, 0, 2048, 1365))
+
+    def test_portrait_defaults_keep_the_whole_picture(self):
+        r = self._upload(_jpeg_bytes(900, 1600))
+        self.assertEqual(r.status_code, 201, r.content)
+        body = r.json()
+        self.assertEqual((body['crops']['main']['w'], body['crops']['main']['h']), (900, 1600))
+        self.assertTrue(body['crops']['main']['derived'])
+        image = WebListingImage.objects.prefetch_related('variants__s3_file').get(pk=body['id'])
+        main = _open_stored(_variant(image, 'main').s3_file.key)
+        self.assertEqual(main.size, (1600, 1200))
+        corner = main.getpixel((4, 4))
+        self.assertLess(sum(abs(corner[i] - c) for i, c in enumerate((238, 242, 240))), 40)
 
     def test_explicit_grid_and_thumb_survive_main_reframe(self):
         created = self._upload(
@@ -228,11 +240,11 @@ class ListingImageSlotTests(TestCase):
         self.assertEqual(catalog.status_code, 200, catalog.content)
         self.assertEqual(detail.status_code, 200, detail.content)
         self.assertEqual(hold_r.status_code, 200, hold_r.content)
-        self.assertTrue(catalog.json()['results'][0]['image']['url'].endswith(f'/images/{image_id}/grid/'))
+        self.assertTrue(catalog.json()['results'][0]['image']['url'].endswith(f'/images/{image_id}/'))
         public_im = detail.json()['images'][0]
-        self.assertTrue(public_im['url'].endswith('/main/'))
+        self.assertTrue(public_im['url'].endswith(f'/images/{image_id}/'))
         self.assertTrue(public_im['urls']['full'].endswith(f'/images/{image_id}/'))
-        self.assertTrue(hold_r.json()['listing_image']['url'].endswith('/thumb/'))
+        self.assertTrue(hold_r.json()['listing_image']['url'].endswith(f'/images/{image_id}/'))
 
     def test_backfill_regenerate(self):
         raw = _jpeg_bytes(1600, 1200)

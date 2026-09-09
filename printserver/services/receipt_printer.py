@@ -127,6 +127,40 @@ def _savings_rows(data: dict[str, Any]) -> tuple[float, list[tuple[str, float]]]
     return None
 
 
+CARD_SURCHARGE_DISCLOSURE = "Surcharge applies to credit cards only, not debit or cash."
+
+
+def _as_money(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _card_payment_rows(data: dict[str, Any]) -> list[tuple[str, str | None, bool]]:
+    """Card tender lines: (label, amount or None, bold). Disclosure has no amount."""
+    card_type = str(data.get("card_type") or "").strip().lower()
+    if card_type not in ("credit", "debit"):
+        return []
+    label = "Credit" if card_type == "credit" else "Debit"
+    rows: list[tuple[str, str | None, bool]] = []
+    card_amt = _as_money(data.get("card_amount"))
+    if card_amt is not None:
+        rows.append((f"Card ({label})", f"${card_amt:.2f}", False))
+    surcharge = _as_money(data.get("card_surcharge")) or 0.0
+    if card_type == "credit" and surcharge > 0:
+        pct = _as_money(data.get("card_surcharge_percent"))
+        pct_s = f"{pct:g}" if pct is not None else "3"
+        rows.append((f"Credit card surcharge {pct_s}%", f"${surcharge:.2f}", False))
+        charged = _as_money(data.get("card_charged_total"))
+        if charged is not None:
+            rows.append(("Card total charged", f"${charged:.2f}", True))
+    rows.append((CARD_SURCHARGE_DISCLOSURE, None, False))
+    return rows
+
+
 # cp437 box drawing — a framed coupon reads as a tear-off, not more fine print.
 _TEAR_LINE = ("- " * (W // 2)).rstrip()
 _BOX_INNER = W - 2
@@ -276,6 +310,14 @@ def format_receipt(data: dict[str, Any]) -> bytes:
         buf += _lr("Tendered", f"${data['amount_tendered']:.2f}")
     if data.get("change") is not None:
         buf += _lr("Change", f"${data['change']:.2f}")
+    for label, amount, bold in _card_payment_rows(data):
+        if amount is None:
+            for wrapped in _wrap_chars(label):
+                buf += _line(wrapped)
+        elif bold:
+            buf += BOLD_ON + _lr(label, amount) + BOLD_OFF
+        else:
+            buf += _lr(label, amount)
 
     buf += _separator("=")
 
@@ -442,6 +484,11 @@ def format_receipt_text(data: dict[str, Any]) -> str:
         lines.append(_txt_lr("Tendered", f"${data['amount_tendered']:.2f}"))
     if data.get("change") is not None:
         lines.append(_txt_lr("Change", f"${data['change']:.2f}"))
+    for label, amount, _bold in _card_payment_rows(data):
+        if amount is None:
+            lines.extend(_wrap_chars(label))
+        else:
+            lines.append(_txt_lr(label, amount))
 
     lines.append("=" * W)
     footer = data.get("footer", "Thank you for shopping at Eco-Thrift!")
@@ -896,6 +943,13 @@ def render_receipt_to_image(
         _lr_money("Tendered", f"${float(data['amount_tendered']):.2f}", f_sub, f_money)
     if data.get("change") is not None:
         _lr_money("Change", f"${float(data['change']):.2f}", f_sub, f_money)
+    for label, amount, bold in _card_payment_rows(data):
+        if amount is None:
+            for ln in _wrap_text(label, f_small, draw, inner):
+                draw.text((x0, y), ln, font=f_small, fill=t["muted"])
+                y += _text_h(f_small) + 2 * S
+        else:
+            _lr_money(label, amount, f_total if bold else f_sub, f_money)
 
     y += 10 * S
     footer = data.get("footer", "Thank you for shopping at Eco-Thrift!")

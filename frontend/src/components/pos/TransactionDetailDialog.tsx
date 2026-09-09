@@ -14,6 +14,7 @@ import { format } from 'date-fns';
 import { useSnackbar } from 'notistack';
 import { localPrintService } from '../../services/localPrintService';
 import type { Cart, CartLine } from '../../types/pos.types';
+import { CartCardBreakdown } from './CartCardBreakdown';
 import { buildReceiptData } from '../../utils/posReceipt';
 
 function formatCurrency(value: string | number): string {
@@ -114,6 +115,7 @@ export function TransactionDetailDialog({ open, cart, onClose }: Props) {
                       </>
                     )}
                 </Typography>
+                <CartCardBreakdown cart={cart} />
               </Box>
             </Box>
             <Button

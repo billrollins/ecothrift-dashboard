@@ -117,6 +117,7 @@ class PrinterSettings(BaseModel):
     label_printer: str | None = None
     receipt_printer: str | None = None
     label_size_preset: Literal["3x2", "1.5x1", "1.25x1.25"] = "3x2"
+    drawer_pin: Literal[0, 1] = 0
 
 
 # ---------------------------------------------------------------------------
@@ -128,3 +129,4 @@ class PrintResponse(BaseModel):
     message: str
     output: str | None = None
     error: str | None = None
+    drawer_opened: bool | None = None

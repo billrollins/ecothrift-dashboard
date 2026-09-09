@@ -49,6 +49,20 @@ export function buildReceiptData(cart: Cart): Record<string, unknown> {
     amount_tendered:
       cart.cash_tendered != null ? parseFloat(String(cart.cash_tendered)) : undefined,
     change: cart.change_given != null ? parseFloat(String(cart.change_given)) : undefined,
+    card_amount: cart.card_amount != null ? parseFloat(String(cart.card_amount)) : undefined,
+    card_type: cart.card_type || undefined,
+    card_surcharge:
+      cart.card_surcharge_amount != null
+        ? parseFloat(String(cart.card_surcharge_amount))
+        : undefined,
+    card_charged_total:
+      cart.card_charged_total != null
+        ? parseFloat(String(cart.card_charged_total))
+        : undefined,
+    card_surcharge_percent:
+      cart.card_surcharge_rate != null
+        ? parseFloat(String(cart.card_surcharge_rate)) * 100
+        : undefined,
     savings: cart.savings
       ? {
           total: parseFloat(cart.savings.total),

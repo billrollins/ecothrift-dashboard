@@ -1,5 +1,5 @@
 <!-- initiative: slug=listing_photos status=active updated=2026-09-09 -->
-<!-- Last updated: 2026-09-09 (single-screen editor) -->
+<!-- Last updated: 2026-09-09 (whole-picture default) -->
 
 # Initiative: Listing photos
 
@@ -13,7 +13,7 @@
 
 ## Finish line
 
-A staff member drops or multi-selects photos and frames them on one screen: **main** (1600 × 1200, 4:3) by default, with **full** / **grid** / **thumb** chips when they need a different crop. Grid and thumb follow main unless changed. Shoppers see those slots on the matching surfaces. Clicking the listing main photo opens the full image in a lightbox. Listing copy autosaves. Pasting a Facebook posted URL marks the listing posted.
+A staff member drops or multi-selects photos and frames them on one screen. The whole picture is kept by default; **full** / **main** / **grid** / **thumb** chips crop only when they ask. Clicking the listing photo opens the full image in a lightbox. Listing copy autosaves. Pasting a Facebook posted URL marks the listing posted.
 
 ---
 
@@ -46,6 +46,8 @@ A staff member drops or multi-selects photos and frames them on one screen: **ma
 **2026-09-09 — Single-screen editor.** Replaced the three-step Next flow (dead Apply on the last step) with one crop box and Full / Main / Grid / Thumb chips.
 
 **2026-09-09 — Shipped v2.91.0.** Acceptance complete. Stays Active until archived.
+
+**2026-09-09 — Whole picture default.** Center 4:3 cover was chopping portrait product shots. Derived slots now letterbox the full image; the public shop uses the full file with contain.
 
 ---
 

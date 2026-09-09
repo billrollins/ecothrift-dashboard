@@ -1335,9 +1335,39 @@ class CartViewSet(viewsets.ModelViewSet):
         cart = self.get_queryset().get(pk=cart.pk)
         return Response(CartSerializer(cart).data)
 
+    @action(detail=True, methods=['get'], url_path='card-preview', filter_backends=[])
+    def card_preview(self, request, pk=None):
+        """Server-computed CardX totals for the two-button match step."""
+        from apps.pos.services.card_surcharge import (
+            CardSurchargeError,
+            preview_payload,
+            resolve_card_base,
+        )
+
+        cart = self.get_object()
+        payment_method = request.query_params.get('payment_method', 'card')
+        allowed = {choice[0] for choice in Cart.PAYMENT_METHODS}
+        if payment_method not in allowed:
+            return Response({'detail': 'Invalid payment method.'}, status=400)
+        try:
+            card_base = resolve_card_base(
+                payment_method=payment_method if payment_method != 'cash' else 'card',
+                cart_total=cart.total,
+                card_amount=request.query_params.get('card_amount'),
+            )
+        except CardSurchargeError as exc:
+            return Response({'detail': str(exc)}, status=400)
+        return Response(preview_payload(card_base))
+
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
         """Complete a cart (finalize sale)."""
+        from apps.pos.services.card_surcharge import (
+            CardSurchargeError,
+            _as_decimal,
+            apply_card_surcharge,
+        )
+
         cart = self.get_object()
         if cart.status != 'open':
             return Response({'detail': 'Cart is not open.'}, status=400)
@@ -1348,10 +1378,30 @@ class CartViewSet(viewsets.ModelViewSet):
             )
 
         payment_method = request.data.get('payment_method', 'cash')
+        allowed = {choice[0] for choice in Cart.PAYMENT_METHODS}
+        if payment_method not in allowed:
+            return Response({'detail': 'Invalid payment method.'}, status=400)
+
+        card_type = (request.data.get('card_type') or '').strip()
+        try:
+            surcharge_fields = apply_card_surcharge(
+                payment_method=payment_method,
+                card_type=card_type,
+                cart_total=cart.total,
+                card_amount=request.data.get('card_amount'),
+                client_charged_total=request.data.get('card_charged_total'),
+            )
+        except CardSurchargeError as exc:
+            return Response({'detail': str(exc)}, status=400)
+
         cart.payment_method = payment_method
-        cart.cash_tendered = request.data.get('cash_tendered')
-        cart.change_given = request.data.get('change_given')
-        cart.card_amount = request.data.get('card_amount')
+        cart.cash_tendered = _as_decimal(request.data.get('cash_tendered'))
+        cart.change_given = _as_decimal(request.data.get('change_given'))
+        cart.card_amount = _as_decimal(request.data.get('card_amount'))
+        cart.card_type = surcharge_fields['card_type']
+        cart.card_surcharge_rate = surcharge_fields['card_surcharge_rate']
+        cart.card_surcharge_amount = surcharge_fields['card_surcharge_amount']
+        cart.card_charged_total = surcharge_fields['card_charged_total']
         cart.status = 'completed'
         cart.completed_at = timezone.now()
         cart.save()

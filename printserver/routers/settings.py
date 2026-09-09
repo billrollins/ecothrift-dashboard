@@ -12,7 +12,14 @@ def _normalize_settings_payload(data: dict) -> dict:
     preset = data.get("label_size_preset") or "3x2"
     if preset not in LABEL_SIZE_PRESETS:
         preset = "3x2"
-    data = {**data, "label_size_preset": preset}
+    pin = data.get("drawer_pin", 0)
+    try:
+        pin_i = int(pin)
+    except (TypeError, ValueError):
+        pin_i = 0
+    if pin_i not in (0, 1):
+        pin_i = 0
+    data = {**data, "label_size_preset": preset, "drawer_pin": pin_i}
     return data
 
 
@@ -23,19 +30,21 @@ async def get_settings():
         label_printer=data.get("label_printer"),
         receipt_printer=data.get("receipt_printer"),
         label_size_preset=data["label_size_preset"],
+        drawer_pin=data.get("drawer_pin", 0),
     )
 
 
 @router.put("/settings", response_model=PrinterSettings)
 async def update_settings(body: PrinterSettings):
     cur = settings_store.get_all()
-    merged = {**cur, **body.model_dump()}
+    merged = {**cur, **body.model_dump(exclude_unset=True)}
     merged = _normalize_settings_payload(merged)
     updated = settings_store.update(merged)
     return PrinterSettings(
         label_printer=updated.get("label_printer"),
         receipt_printer=updated.get("receipt_printer"),
         label_size_preset=merged["label_size_preset"],
+        drawer_pin=merged.get("drawer_pin", 0),
     )
 
 
@@ -123,6 +132,13 @@ _SETTINGS_HTML = """\
     </select>
     <p class="printer-status" style="margin-top:4px">Controls thermal label dimensions (Eco-Thrift layout).</p>
 
+    <label for="drawerPin">Cash drawer pin</label>
+    <select id="drawerPin">
+      <option value="0">Pin 2 (most common)</option>
+      <option value="1">Pin 5</option>
+    </select>
+    <p class="printer-status" style="margin-top:4px">Used when opening the drawer after a cash receipt. Plug in, press Open Drawer, flip the pin if it does not pop.</p>
+
     <div class="btn-row">
       <button class="btn-primary" id="saveBtn" disabled>Save</button>
     </div>
@@ -197,6 +213,7 @@ async function load() {
     const sz = document.getElementById("labelSizePreset");
     const known = [...sz.options].map((o) => o.value);
     sz.value = known.includes(settings.label_size_preset) ? settings.label_size_preset : "3x2";
+    document.getElementById("drawerPin").value = settings.drawer_pin === 1 ? "1" : "0";
     document.getElementById("saveBtn").disabled = false;
     document.getElementById("testLabel").disabled = false;
     document.getElementById("testReceipt").disabled = false;
@@ -211,6 +228,7 @@ document.getElementById("saveBtn").addEventListener("click", async () => {
     label_printer: document.getElementById("labelPrinter").value || null,
     receipt_printer: document.getElementById("receiptPrinter").value || null,
     label_size_preset: document.getElementById("labelSizePreset").value,
+    drawer_pin: parseInt(document.getElementById("drawerPin").value, 10),
   };
   try {
     const res = await fetch(BASE + "/settings", {

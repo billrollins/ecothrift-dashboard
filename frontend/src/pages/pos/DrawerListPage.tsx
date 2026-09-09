@@ -399,6 +399,15 @@ export default function DrawerListPage() {
             {selectedDrawer && (
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 Expected cash (opening + sales − drops): {formatCurrency(expectedCash(selectedDrawer))}
+                {selectedDrawer.card_sales_total != null && (
+                  <>
+                    <br />
+                    Card sales: {formatCurrency(selectedDrawer.card_sales_total)}
+                    {' · '}
+                    Credit surcharges: {formatCurrency(selectedDrawer.card_surcharge_total ?? 0)}
+                    {' '}(not in expected cash)
+                  </>
+                )}
               </Typography>
             )}
             <DenominationCounter

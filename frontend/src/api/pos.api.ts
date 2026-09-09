@@ -14,6 +14,7 @@ import type {
   DeliveryJobItem,
   DeliveryRun,
   SaleMode,
+  CardPreview,
 } from '../types/pos.types';
 import api from './client';
 
@@ -710,6 +711,13 @@ export function removeCartLine(cartId: number, lineId: number): Promise<{ data: 
 
 export function completeCart(cartId: number, data: Record<string, unknown>): Promise<{ data: Cart }> {
   return api.post<Cart>(`/pos/carts/${cartId}/complete/`, data);
+}
+
+export function getCartCardPreview(
+  cartId: number,
+  params?: { card_amount?: string | number; payment_method?: string },
+): Promise<{ data: CardPreview }> {
+  return api.get<CardPreview>(`/pos/carts/${cartId}/card-preview/`, { params });
 }
 
 export function voidCart(cartId: number): Promise<{ data: Cart }> {

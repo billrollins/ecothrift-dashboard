@@ -79,6 +79,20 @@ def _daily_sales_series(start: date, end: date) -> dict[date, Decimal]:
     return {row['completed_at__date']: _dec(row['total']) for row in rows}
 
 
+def _daily_surcharge_series(start: date, end: date) -> dict[date, Decimal]:
+    start_dt, end_dt = _day_range(start, end)
+    rows = (
+        Cart.objects.filter(
+            status='completed',
+            completed_at__gte=start_dt,
+            completed_at__lt=end_dt,
+        )
+        .values('completed_at__date')
+        .annotate(total=Sum('card_surcharge_amount'))
+    )
+    return {row['completed_at__date']: _dec(row['total']) for row in rows}
+
+
 def _daily_items_sold_series(start: date, end: date) -> dict[date, int]:
     start_dt, end_dt = _day_range(start, end)
     rows = (
@@ -93,12 +107,18 @@ def _daily_items_sold_series(start: date, end: date) -> dict[date, int]:
     return {row['cart__completed_at__date']: int(row['total'] or 0) for row in rows}
 
 
-def _day_payload(day: date, revenue: Decimal, items_sold: int) -> dict[str, str | int]:
+def _day_payload(
+    day: date,
+    revenue: Decimal,
+    items_sold: int,
+    card_surcharge_total: Decimal = Decimal('0'),
+) -> dict[str, str | int]:
     return {
         'date': day.isoformat(),
         'day': day.strftime('%A'),
         'revenue': _str_dec(revenue),
         'items_sold': items_sold,
+        'card_surcharge_total': _str_dec(card_surcharge_total),
     }
 
 
@@ -119,6 +139,7 @@ def build_sales_metrics(today: date | None = None) -> dict[str, Any]:
     revenue_start = min(earliest_week_start, ninety_start - timedelta(days=27))
     revenue_by_day = _daily_sales_series(revenue_start, today)
     items_by_day = _daily_items_sold_series(revenue_start, today)
+    surcharge_by_day = _daily_surcharge_series(revenue_start, today)
 
     daily_last_90_days = []
     for offset in range(89, -1, -1):
@@ -153,7 +174,7 @@ def build_sales_metrics(today: date | None = None) -> dict[str, Any]:
             items = items_by_day.get(day, 0)
             week_total += rev
             week_items_sold += items
-            days.append(_day_payload(day, rev, items))
+            days.append(_day_payload(day, rev, items, surcharge_by_day.get(day, Decimal('0'))))
         weekly_last_14_weeks.append({
             'week_start': week_start.isoformat(),
             'week_end': week_end.isoformat(),

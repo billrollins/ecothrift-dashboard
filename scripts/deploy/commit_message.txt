@@ -1,8 +1,26 @@
-feat: frame listing photos and own Messages without double-wrapped replies
+feat: record the CardX credit surcharge at POS and keep whole listing photos
 
-Release: v2.91.0
+Release: v2.92.0
 
-Listing Studio stores a full image plus main, grid, and thumb crops, autosaves
-copy, and marks posted from a Facebook URL. Messages show the owner, confirm
-resolve, and can post without email. Hold Undo Complete reverses a staff
-Complete misclick.
+CardX surcharge (record-only, initiative cardx_surcharge):
+- Cart.card_type / card_surcharge_rate / card_surcharge_amount /
+  card_charged_total; migration pos/0028_cart_card_surcharge.
+- apps/pos/services/card_surcharge.py: pos.card_surcharge setting,
+  ROUND_HALF_UP, expected totals, drawer card totals.
+- POST carts/<id>/complete/ requires card_type on card/split, rejects it
+  on cash, rejects a mismatched card_charged_total; coerces cash fields.
+- GET carts/<id>/card-preview/ (filter backends off for this action).
+- Terminal CardTenderDialog: KEY INTO CARD MACHINE then two-button match.
+- Settings > Store CardSurchargeEditor; Transactions Credit/Debit filter
+  and CartCardBreakdown; drawer + dashboard card_surcharge_total.
+- buildReceiptData sends card fields; print server 1.7.0 prints them and
+  isolates the drawer kick from receipt success (drawer_pin setting).
+
+Listing photos follow-up:
+- Derived slots letterbox the whole picture instead of a center 4:3 cover.
+- Public shop uses the full file with contain; resolve_slot_file skips
+  missing S3 objects.
+- backfill_listing_image_variants --regenerate rebuilds every slot.
+
+Docs: CHANGELOG 2.92.0, cardx_surcharge initiative, context, _index,
+pos-system, print-server, backend, frontend.

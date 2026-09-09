@@ -151,7 +151,7 @@ class WebListingListPublicSerializer(serializers.ModelSerializer):
             return None
         im = first[0]
         return {
-            'url': _image_url(im.id, 'grid'),
+            'url': _image_url(im.id, 'full'),
             'alt': im.alt or obj.title,
             'urls': _image_urls(im.id),
         }
@@ -171,7 +171,7 @@ class WebListingDetailPublicSerializer(WebListingListPublicSerializer):
         return [
             {
                 'id': im.id,
-                'url': _image_url(im.id, 'main'),
+                'url': _image_url(im.id, 'full'),
                 'alt': im.alt or obj.title,
                 'urls': _image_urls(im.id),
             }
@@ -418,7 +418,7 @@ class ReservationPublicSerializer(serializers.ModelSerializer):
             return None
         im = images[0]
         return {
-            'url': _image_url(im.id, 'thumb'),
+            'url': _image_url(im.id, 'full'),
             'alt': im.alt or obj.listing.title,
             'urls': _image_urls(im.id),
         }

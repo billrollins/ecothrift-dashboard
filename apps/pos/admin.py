@@ -45,8 +45,8 @@ class BankTransactionAdmin(admin.ModelAdmin):
 
 @admin.register(Cart)
 class CartAdmin(admin.ModelAdmin):
-    list_display = ('id', 'cashier', 'status', 'total', 'payment_method', 'created_at')
-    list_filter = ('status', 'payment_method')
+    list_display = ('id', 'cashier', 'status', 'total', 'payment_method', 'card_type', 'created_at')
+    list_filter = ('status', 'payment_method', 'card_type')
 
 
 @admin.register(CartLine)

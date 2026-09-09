@@ -33,12 +33,13 @@ SLOT_SPECS = {
     'thumb': {'width': 400, 'height': 400, 'aspect': 1.0, 'quality': 78},
 }
 SLOT_FALLBACK = {
-    'full': ('full',),
+    'full': ('full', 'main', 'grid', 'thumb'),
     'display': ('main', 'full'),
     'main': ('main', 'full'),
     'grid': ('grid', 'main', 'full'),
     'thumb': ('thumb', 'main', 'full'),
 }
+SLOT_FILL = (238, 242, 240)
 
 
 class ListingPhotoError(ValueError):
@@ -190,6 +191,38 @@ def _crops_equal(a: dict | None, b: dict | None) -> bool:
     return all(int(a.get(k, -1)) == int(b.get(k, -2)) for k in ('x', 'y', 'w', 'h'))
 
 
+def _is_full_rect(rect: dict | None, width: int, height: int) -> bool:
+    if not rect or width < 1 or height < 1:
+        return False
+    return (
+        int(rect.get('x', -1)) == 0
+        and int(rect.get('y', -1)) == 0
+        and int(rect.get('w', -1)) == width
+        and int(rect.get('h', -1)) == height
+    )
+
+
+def _is_default_cover(rect: dict | None, width: int, height: int) -> bool:
+    return _crops_equal(rect, _center_aspect(width, height, 4 / 3))
+
+
+def _render_slot(full: Image.Image, rect: dict, spec: dict, *, contain: bool) -> bytes:
+    cropped = full.crop(_crop_tuple(rect))
+    if cropped.mode != 'RGB':
+        cropped = cropped.convert('RGB')
+    tw, th = spec['width'], spec['height']
+    if not contain:
+        sized = cropped.resize((tw, th), Image.Resampling.LANCZOS)
+        return encode_jpeg(sized, quality=spec['quality'])
+    canvas = Image.new('RGB', (tw, th), SLOT_FILL)
+    scale = min(tw / cropped.width, th / cropped.height)
+    nw = max(1, int(round(cropped.width * scale)))
+    nh = max(1, int(round(cropped.height * scale)))
+    fitted = cropped.resize((nw, nh), Image.Resampling.LANCZOS)
+    canvas.paste(fitted, ((tw - nw) // 2, (th - nh) // 2))
+    return encode_jpeg(canvas, quality=spec['quality'])
+
+
 def derive_default_crops(
     full_w: int,
     full_h: int,
@@ -200,7 +233,7 @@ def derive_default_crops(
         main = _normalize_crop(requested['main'], full_w, full_h, fallback_aspect=4 / 3)
         main_derived = False
     else:
-        main = _center_aspect(full_w, full_h, 4 / 3)
+        main = {'x': 0, 'y': 0, 'w': max(1, full_w), 'h': max(1, full_h)}
         main_derived = True
     if 'grid' in requested:
         grid = _normalize_crop(requested['grid'], full_w, full_h, fallback_aspect=4 / 3)
@@ -211,6 +244,9 @@ def derive_default_crops(
     if 'thumb' in requested:
         thumb = _normalize_crop(requested['thumb'], full_w, full_h, fallback_aspect=1.0)
         thumb_derived = False
+    elif main_derived:
+        thumb = dict(main)
+        thumb_derived = True
     else:
         thumb = _center_square_in_rect(main)
         thumb_derived = True
@@ -242,9 +278,8 @@ def prepare_variants(
     out: dict[str, tuple[bytes, dict[str, Any]]] = {}
     for slot, spec in SLOT_SPECS.items():
         rect = rects[slot]
-        cropped = full.crop(_crop_tuple(rect))
-        sized = cropped.resize((spec['width'], spec['height']), Image.Resampling.LANCZOS)
-        out[slot] = (encode_jpeg(sized, quality=spec['quality']), rect)
+        contain = bool(rect.get('derived', True))
+        out[slot] = (_render_slot(full, rect, spec, contain=contain), rect)
     full_bytes = encode_jpeg(full, quality=FULL_QUALITY)
     return full_bytes, fw, fh, out
 
@@ -290,16 +325,30 @@ def _variant_map(image: WebListingImage) -> dict[str, WebListingImageVariant]:
     return {v.slot: v for v in image.variants.select_related('s3_file').all()}
 
 
+def _usable_file(sf: S3File | None) -> S3File | None:
+    if sf is None or not sf.key:
+        return None
+    try:
+        if not default_storage.exists(sf.key):
+            return None
+    except Exception:
+        logger.warning('listing_photos exists check failed key=%s', sf.key, exc_info=True)
+        return sf
+    return sf
+
+
 def resolve_slot_file(image: WebListingImage, slot: str) -> S3File | None:
     slot = slot or 'full'
     variants = _variant_map(image)
     for key in SLOT_FALLBACK.get(slot, (slot, 'full')):
         if key == 'full':
-            return image.s3_file
-        variant = variants.get(key)
-        if variant and variant.s3_file_id:
-            return variant.s3_file
-    return image.s3_file
+            found = _usable_file(image.s3_file)
+        else:
+            variant = variants.get(key)
+            found = _usable_file(variant.s3_file if variant and variant.s3_file_id else None)
+        if found is not None:
+            return found
+    return _usable_file(image.s3_file)
 
 
 def _write_variants(
@@ -470,13 +519,7 @@ def _needs_backfill(image: WebListingImage, regenerate: bool) -> bool:
     variants = _variant_map(image)
     if any(slot not in variants for slot in SLOTS):
         return True
-    if not regenerate:
-        return False
-    for slot, spec in SLOT_SPECS.items():
-        v = variants[slot]
-        if v.width != spec['width'] or v.height != spec['height']:
-            return True
-    return False
+    return bool(regenerate)
 
 
 def backfill_listing_image(
@@ -508,14 +551,17 @@ def backfill_listing_image(
         crop = variant.crop if isinstance(variant.crop, dict) else None
         if not crop:
             continue
-        if slot == 'main' or not crop.get('derived', True):
-            requested[slot] = crop
+        if crop.get('derived', True):
+            continue
+        if _is_default_cover(crop, fw, fh) or _is_full_rect(crop, fw, fh):
+            continue
+        requested[slot] = crop
     rects = derive_default_crops(fw, fh, requested or None)
     slot_data: dict[str, tuple[bytes, dict[str, Any]]] = {}
     for slot, spec in SLOT_SPECS.items():
-        cropped = full.crop(_crop_tuple(rects[slot]))
-        sized = cropped.resize((spec['width'], spec['height']), Image.Resampling.LANCZOS)
-        slot_data[slot] = (encode_jpeg(sized, quality=spec['quality']), rects[slot])
+        rect = rects[slot]
+        contain = bool(rect.get('derived', True))
+        slot_data[slot] = (_render_slot(full, rect, spec, contain=contain), rect)
 
     slots_to_write = list(SLOTS) if regenerate else [
         slot for slot in SLOTS

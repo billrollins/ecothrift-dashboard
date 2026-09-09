@@ -55,7 +55,7 @@ export default function ProductDetailPage() {
       : undefined,
     path: `/shop/${slug}`,
     type: 'product',
-    image: catalogImageUrl(listing?.images?.[0], 'main') ?? undefined,
+    image: catalogImageUrl(listing?.images?.[0], 'full') ?? undefined,
     noindex: notFound,
   })
   useJsonLd(
@@ -68,7 +68,7 @@ export default function ProductDetailPage() {
           sku: listing.sku || undefined,
           category: listing.category_name || undefined,
           image: (listing.images ?? []).map((im) => {
-            const src = catalogImageUrl(im, 'main') || im.url
+            const src = catalogImageUrl(im, 'full') || im.url
             return src.startsWith('http') ? src : `${SITE_URL}${src}`
           }),
           offers: {
@@ -153,7 +153,7 @@ export default function ProductDetailPage() {
             disabled={!main}
           >
             {main ? (
-              <img src={catalogImageUrl(main, 'main') || main.url} alt={main.alt} />
+              <img src={catalogImageUrl(main, 'full') || main.url} alt={main.alt} />
             ) : (
               <span className="ph g3" />
             )}
@@ -169,7 +169,7 @@ export default function ProductDetailPage() {
                   onClick={() => setActiveImage(i)}
                   aria-label={`View image ${i + 1}`}
                 >
-                  <img src={catalogImageUrl(img, 'thumb') || img.url} alt={img.alt} loading="lazy" />
+                  <img src={catalogImageUrl(img, 'full') || img.url} alt={img.alt} loading="lazy" />
                 </button>
               ))}
             </div>
@@ -224,7 +224,7 @@ export default function ProductDetailPage() {
                       slug: listing.slug,
                       title: listing.title,
                       price: parseFloat(listing.price),
-                      image: catalogImageUrl(main, 'thumb') ?? main?.url ?? null,
+                      image: catalogImageUrl(main, 'full') ?? main?.url ?? null,
                       stock: listing.stock,
                     },
                     qty,

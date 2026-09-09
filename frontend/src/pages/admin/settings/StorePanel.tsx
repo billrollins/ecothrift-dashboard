@@ -2,6 +2,7 @@ import { Box, Card, CardContent, Typography } from '@mui/material';
 import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
 import { metaForKey } from './settingsRegistry';
 import { SettingRow } from './SettingRow';
+import { CardSurchargeEditor } from './CardSurchargeEditor';
 import { HolidayHoursCard } from './HolidayHoursCard';
 import { StoreHoursEditor } from './StoreHoursEditor';
 import { settingByKey, useAppSettings } from './useAppSettings';
@@ -9,6 +10,7 @@ import { settingByKey, useAppSettings } from './useAppSettings';
 export function StorePanel() {
   const { data: settings, isLoading } = useAppSettings();
   const tax = settingByKey(settings, 'tax_rate');
+  const surcharge = settingByKey(settings, 'pos.card_surcharge');
   const hours = settingByKey(settings, 'online_sales.hours');
 
   if (isLoading && !settings) return <LoadingScreen message="Loading store settings..." />;
@@ -26,6 +28,23 @@ export function StorePanel() {
             />
           ) : (
             <Typography color="text.secondary">Sales tax rate is not in the database yet.</Typography>
+          )}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent>
+          <Typography variant="subtitle1" sx={{ mb: 0.5 }}>
+            {metaForKey('pos.card_surcharge').label}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {metaForKey('pos.card_surcharge').help}
+          </Typography>
+          {surcharge ? (
+            <CardSurchargeEditor key={JSON.stringify(surcharge.value)} value={surcharge.value} />
+          ) : (
+            <Typography color="text.secondary">
+              Credit card surcharge is not in the database yet.
+            </Typography>
           )}
         </CardContent>
       </Card>
