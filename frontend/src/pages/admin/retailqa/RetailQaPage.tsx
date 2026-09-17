@@ -17,13 +17,14 @@ import {
   useQaWeek,
 } from '../../../hooks/useRetailQa';
 import { isoWeekKey, shiftWeek, weekMonday } from '../routines/gradeWeek';
-import { displayName } from './commandCenter';
+import { displayName, shortName } from './commandCenter';
 import { CALM_BOARD, CALM_DATE, CALM_PEOPLE, CALM_SPOTS, CALM_TILES, CALM_WEEK } from './calmFixture';
 import { CALLIN_BOARD, PROBLEM_BOARD, PROBLEM_DATE, PROBLEM_PEOPLE, PROBLEM_SPOTS, PROBLEM_TILES, PROBLEM_WEEK, SCROLL_BOARD } from './problemFixture';
 import { CommandHeader } from './CommandHeader';
 import { IssuesBar } from './IssuesBar';
 import { RoutinesCard } from './RoutinesCard';
 import { ScheduleCard } from './ScheduleCard';
+import { NudgePopover } from './NudgePopover';
 import { ScoreDialog } from './ScoreDialog';
 import { SummaryDialogs } from './SummaryDialogs';
 import { WeekRoutinesModal } from './WeekRoutinesModal';
@@ -53,6 +54,8 @@ export default function RetailQaPage() {
   const undoCallIn = useUndoQaCallIn();
   const nudge = useQaNudge();
   const [callInOverlay, setCallInOverlay] = useState(false);
+  const [nudgeTarget, setNudgeTarget] = useState<{ runId: number; anchor: HTMLElement } | null>(null);
+  const [nudgeStamp, setNudgeStamp] = useState<Record<number, string>>({});
   const data = fixtureName === 'calm' ? CALM_WEEK : fixture ? PROBLEM_WEEK : weekQuery.data;
   const board = fixtureName === 'scroll'
     ? SCROLL_BOARD
@@ -121,15 +124,15 @@ export default function RetailQaPage() {
   }
 
   async function copyNudge(runId: number) {
-    if (fixture) return;
     const job = (board?.jobs ?? []).find((row) => row.run_id === runId);
     const text = job
-      ? `${displayName(job.title, 'routine')} is ${job.status.toLowerCase()}${job.due_label ? `. Due ${job.due_label}` : ''}.`
+      ? `${displayName(job.title, 'routine')} is ${job.status.toLowerCase()}${job.due_label ? `. ${job.due_label}` : ''}.`
       : 'Please finish this routine.';
     try {
       await navigator.clipboard.writeText(text);
-      await nudge.mutateAsync({ run: runId, message: text });
-      enqueueSnackbar('Copied', { variant: 'success' });
+      if (!fixture) await nudge.mutateAsync({ run: runId, message: text });
+      setNudgeStamp((prev) => ({ ...prev, [runId]: format(new Date(), 'HH:mm') }));
+      setNudgeTarget(null);
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       enqueueSnackbar(typeof detail === 'string' ? detail : 'Could not copy that nudge', { variant: 'error' });
@@ -174,10 +177,14 @@ export default function RetailQaPage() {
 
   if (!fixture && weekQuery.isLoading && !data) return <LoadingScreen message="Loading Command Center..." />;
 
-  const issues = board?.issues ?? [];
+  const issues = (board?.issues ?? []).map((row) => (
+    row.run_id && nudgeStamp[row.run_id] ? { ...row, nudged_at: nudgeStamp[row.run_id] } : row
+  ));
   const alerts = issues.filter((row) => row.severity === 'red' || row.severity === 'amber').length;
   const weekNumber = week.includes('-W') ? `W${week.split('-W')[1]}` : week;
-  const jobs = board?.jobs ?? [];
+  const jobs = (board?.jobs ?? []).map((row) => (
+    row.run_id && nudgeStamp[row.run_id] ? { ...row, nudged_at: nudgeStamp[row.run_id] } : row
+  ));
   const staff = board?.staff ?? [];
 
   return (
@@ -219,7 +226,7 @@ export default function RetailQaPage() {
             jobs={jobs}
             onCallIn={(id) => void markCalledIn(id)}
             onReassign={() => document.getElementById('rtBody')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-            onNudge={(id) => void copyNudge(id)}
+            onNudge={(id, el) => setNudgeTarget({ runId: id, anchor: el })}
             onOpenCross={() => setDrawer('cross')}
             onDoSpot={() => board?.spot?.run_id && runnerReturn(board.spot.run_id)}
           />
@@ -228,7 +235,7 @@ export default function RetailQaPage() {
             jobs={jobs}
             people={assignees.data ?? []}
             onAssign={(runId, userId) => void assignRun(runId, userId)}
-            onNudge={(id) => void copyNudge(id)}
+            onNudge={(id, el) => setNudgeTarget({ runId: id, anchor: el })}
             onWeekView={() => setWeekOpen(true)}
           />
         </main>
@@ -260,6 +267,18 @@ export default function RetailQaPage() {
         weekData={data}
         board={board}
         posOnTask={data?.pos_on_task || board?.pos_on_task}
+      />
+      <NudgePopover
+        anchor={nudgeTarget?.anchor ?? null}
+        owner={shortName((jobs.find((row) => row.run_id === nudgeTarget?.runId)?.owner?.name) || 'Owner')}
+        message={(() => {
+          const job = jobs.find((row) => row.run_id === nudgeTarget?.runId);
+          return job
+            ? `${displayName(job.title, 'routine')} is ${job.status.toLowerCase()}${job.due_label ? `. ${job.due_label}` : ''}.`
+            : 'Please finish this routine.';
+        })()}
+        onCopy={() => nudgeTarget && void copyNudge(nudgeTarget.runId)}
+        onClose={() => setNudgeTarget(null)}
       />
       <WeekRoutinesModal open={weekOpen} onClose={() => setWeekOpen(false)} week={week} />
     </div>

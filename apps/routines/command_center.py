@@ -1001,6 +1001,10 @@ def today_payload(day: date, *, now: datetime | None = None) -> dict:
     spot = spot_payload(day, day_row)
     cross = cross_payload(day, week, due=due)
     nudges = latest_nudges([job['run_id'] for job in jobs if job.get('run_id')])
+    for job in jobs:
+        nudge = nudges.get(job.get('run_id'))
+        if nudge:
+            job['nudged_at'] = serialize_nudge(nudge)['at_label']
     issues = build_issues(
         day=day,
         open_day=open_day,

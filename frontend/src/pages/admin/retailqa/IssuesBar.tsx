@@ -17,7 +17,7 @@ export function IssuesBar({
   jobs: QaJob[];
   onCallIn: (personId: number) => void;
   onReassign: () => void;
-  onNudge: (runId: number) => void;
+  onNudge: (runId: number, el: HTMLElement) => void;
   onOpenCross: () => void;
   onDoSpot: () => void;
 }) {
@@ -38,7 +38,10 @@ export function IssuesBar({
                 <span className="ic"><QaIcon name={row.icon} /></span>
                 <span className="nowrap">{row.sentence}</span>
                 {row.action === 'nudge' && row.run_id ? (
-                  <button type="button" className={`act always ${tone || 'warn'}`} onClick={() => onNudge(row.run_id as number)}>Nudge</button>
+                  <span className="end">
+                    {row.nudged_at ? <span className="nudged">Nudged {row.nudged_at}</span> : null}
+                    <button type="button" className={`act always ${tone || 'warn'}`} onClick={(event) => onNudge(row.run_id as number, event.currentTarget)}>Nudge</button>
+                  </span>
                 ) : null}
                 {row.action === 'call_in' && row.person_id ? (
                   <button type="button" className={`act always ${tone || 'warn'}`} onClick={() => onCallIn(row.person_id as number)}>Called in</button>

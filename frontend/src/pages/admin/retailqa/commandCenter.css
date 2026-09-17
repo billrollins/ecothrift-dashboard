@@ -201,4 +201,10 @@
 .cc-page-dialog .week-grid th,.cc-page-dialog .week-grid td{text-align:center}
 .cc-page-dialog .week-grid th:first-child,.cc-page-dialog .week-grid td:first-child{text-align:left}
 
+.cc-page .nudge-pop,.cc-page-dialog .nudge-pop{display:flex;flex-direction:column;gap:8px;color:#22271f}
+.cc-page .nudge-pop b,.cc-page-dialog .nudge-pop b{font-size:13px;font-weight:600}
+.cc-page .nudge-pop p,.cc-page-dialog .nudge-pop p{margin:0;font-size:13px;color:#5b6356}
+.cc-page .nudge-pop button,.cc-page-dialog .nudge-pop button{align-self:flex-end;border:1px solid #cfd3c9;background:#fff;border-radius:6px;padding:3px 10px;font-size:12.5px}
+.cc-page .nudged{font-size:11.5px;color:#8e948a;white-space:nowrap}
+
 .cc-page .hide{display:none!important}

@@ -17,7 +17,7 @@ export function RoutinesCard({
   jobs: QaJob[];
   people: RoutineAssignee[];
   onAssign: (runId: number, userId: number | '') => void;
-  onNudge: (runId: number) => void;
+  onNudge: (runId: number, el: HTMLElement) => void;
   onWeekView: () => void;
 }) {
   const done = jobs.filter((job) => jobChip(job.status, job.owner) === 'done').length;
@@ -56,7 +56,7 @@ function RoutineGroup({
   jobs: QaJob[];
   people: RoutineAssignee[];
   onAssign: (runId: number, userId: number | '') => void;
-  onNudge: (runId: number) => void;
+  onNudge: (runId: number, el: HTMLElement) => void;
 }) {
   const allDone = jobs.length > 0 && jobs.every((job) => jobChip(job.status, job.owner) === 'done');
   const [open, setOpen] = useState(!allDone);
@@ -127,12 +127,13 @@ function RoutineGroup({
               </span>
               <span className="time nowrap">{jobTimeLabel(job)}</span>
               <span className="end">
+                {job.nudged_at ? <span className="nudged">Nudged {job.nudged_at}</span> : null}
                 {chip !== 'done' && chip !== 'unas' ? (
                   <button
                     type="button"
                     className={`act ${chip === 'over' || chip === 'miss' ? 'warn' : ''}`}
-                    onClick={() => {
-                      if (chip === 'over' && job.run_id) onNudge(job.run_id);
+                    onClick={(event) => {
+                      if (chip === 'over' && job.run_id) onNudge(job.run_id, event.currentTarget);
                       else if (job.run_id) setReassignId(job.run_id);
                     }}
                   >
