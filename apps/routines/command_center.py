@@ -588,7 +588,7 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
                 'title': section.name,
                 'run_id': None,
                 'section_id': section.pk,
-                'owner': _person(section.owner),
+                'owner': None if status == STATUS_UNASSIGNED else _person(section.owner),
                 'due_at': due_at,
                 'due_label': due_label,
                 'hard_label': '',
@@ -607,13 +607,16 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
             section, run=run, status=status,
             day=day, now=now, tz=tz, punches=punches, call_ins=call_ins,
         )
+        shown = None if status == STATUS_UNASSIGNED else (
+            _person(run.assigned_to) if run.assigned_to_id else _person(section.owner)
+        )
         jobs.append({
             'group': 'section',
             'key': SYSTEM_TALLY,
             'title': section.name,
             'run_id': run.pk,
             'section_id': section.pk,
-            'owner': _person(run.assigned_to) if run.assigned_to_id else _person(section.owner),
+            'owner': shown,
             'due_at': due_at,
             'due_label': due_label,
             'hard_label': '',
@@ -684,7 +687,7 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
 
 
 def section_due_state(section, *, run, status, day, now, tz, punches, call_ins):
-    """Person-owned: due = punch-in + 60. Unassigned at the red Late trigger."""
+    """Due = punch + 60. Off/called-in Unassigned at once. Late trigger only if scheduled."""
     if status == STATUS_DONE:
         done = f'Done {clock_hhmm(run.completed_at)}' if run and run.completed_at else 'Done'
         return (run.due_at if run else None), done, status
@@ -695,9 +698,11 @@ def section_due_state(section, *, run, status, day, now, tz, punches, call_ins):
         return None, '', STATUS_UNASSIGNED
     punch = punches.get(owner.pk)
     assignment = assignment_for(owner.pk, day)
-    start = at_clock(day, assignment.shift.time_in, tz) if assignment else None
+    if assignment is None:
+        return None, '', STATUS_UNASSIGNED
+    start = at_clock(day, assignment.shift.time_in, tz)
     if punch is None:
-        if start and now >= start + timedelta(minutes=LATE_RED_MINUTES):
+        if now >= start + timedelta(minutes=LATE_RED_MINUTES):
             return None, '', STATUS_UNASSIGNED
         return None, 'Due after clock-in', STATUS_NOT_TALLIED if status != STATUS_UNASSIGNED else status
     due = punch.clock_in + timedelta(minutes=SECTION_DUE_AFTER_PUNCH_MINUTES)
@@ -944,7 +949,7 @@ def build_issues(
         })
 
     called = [row for row in staff if row['status'] == STATUS_CALLED_IN]
-    unassigned = [job for job in jobs if job['status'] == STATUS_UNASSIGNED and job.get('run_id')]
+    unassigned = [job for job in jobs if job['status'] == STATUS_UNASSIGNED]
     for job in jobs:
         if job.get('group') != 'shift' or job.get('shift_people'):
             continue
@@ -964,7 +969,7 @@ def build_issues(
             'nudged_at': None,
             'can_act': True,
         })
-    if called and unassigned:
+    if unassigned:
         count = len(unassigned)
         issues.append({
             'id': 'call-in-unassigned',
@@ -972,10 +977,10 @@ def build_issues(
             'severity': 'amber',
             'sentence': f'{count} routine{"s" if count != 1 else ""} need{"s" if count == 1 else ""} a new owner',
             'action': 'reassign',
-            'person_id': called[0]['id'],
-            'person_name': called[0]['name'],
+            'person_id': called[0]['id'] if called else None,
+            'person_name': called[0]['name'] if called else None,
             'run_id': None,
-            'call_in_id': called[0].get('call_in_id'),
+            'call_in_id': called[0].get('call_in_id') if called else None,
             'nudged_at': None,
             'can_act': True,
         })
@@ -1239,7 +1244,7 @@ def undo_call_in(row: QaCallIn, *, now: datetime | None = None) -> None:
         row.delete()
 
 
-def assign_run(*, run: RoutineRun, user) -> RoutineRun:
+def assign_run(*, run: RoutineRun, user, marked_by=None) -> RoutineRun:
     if run.routine.system_key == SYSTEM_WORK_CYCLE:
         raise ValueError('Work cycles are not assigned from this board.')
     run.assigned_to = user
@@ -1250,4 +1255,12 @@ def assign_run(*, run: RoutineRun, user) -> RoutineRun:
         if section.owner_id != user.pk:
             section.owner = user
             section.save(update_fields=['owner', 'updated_at'])
+    if user is not None:
+        title = getattr(run.routine, 'title', '') or 'This routine'
+        QaNudge.objects.create(
+            run=run,
+            created_by=marked_by,
+            source='assign',
+            message=f'{title} was assigned to you.',
+        )
     return run

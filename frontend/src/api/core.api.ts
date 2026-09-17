@@ -44,6 +44,10 @@ export function updateSetting(key: string, data: Record<string, unknown>): Promi
   return api.patch<Setting>(`/core/settings/${encodeURIComponent(key)}/`, data);
 }
 
+export function createSetting(data: { key: string; value: unknown; description?: string }): Promise<{ data: Setting }> {
+  return api.post<Setting>('/core/settings/', data);
+}
+
 // App version endpoint
 export interface AppVersion {
   version: string;

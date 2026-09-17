@@ -41,7 +41,7 @@ describe('settingsRegistry', () => {
 
   it('gathers every Retail QA key on its own tab', () => {
     const keys = keysForTab('retail-qa', Object.keys(SETTINGS_REGISTRY));
-    expect(keys).toHaveLength(11);
+    expect(keys).toHaveLength(33);
     expect(keys.every((key) => key.startsWith('retail_qa.'))).toBe(true);
   });
 
@@ -55,9 +55,13 @@ describe('settingsRegistry', () => {
     ]);
   });
 
-  it('edits weights as percents, letters as scores, and audit floors as counts', () => {
-    expect(metaForKey('retail_qa.owner_weight').kind).toBe('weight');
+  it('edits tails, weekdays, ladders, and letter scores on Retail QA', () => {
+    expect(metaForKey('retail_qa.cross_full_tail').kind).toBe('tail');
+    expect(metaForKey('retail_qa.cross_check_weekday').kind).toBe('weekday');
+    expect(metaForKey('retail_qa.verify_ladder').kind).toBe('ladder');
+    expect(metaForKey('retail_qa.severity_groups').kind).toBe('severity_groups');
     expect(metaForKey('retail_qa.grade_a').kind).toBe('score');
     expect(metaForKey('retail_qa.spot_check_count').kind).toBe('count');
+    expect(metaForKey('retail_qa.section_check_weekdays').kind).toBe('weekdays');
   });
 });

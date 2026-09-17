@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { Box, Button, TextField, Typography } from '@mui/material';
+import { Box, Button, Chip, MenuItem, TextField, Typography } from '@mui/material';
 import Save from '@mui/icons-material/Save';
 import { useSnackbar } from 'notistack';
 import { useQueryClient } from '@tanstack/react-query';
-import { updateSetting } from '../../../api/core.api';
+import { createSetting, updateSetting } from '../../../api/core.api';
 import type { SettingKind, SettingMeta } from './settingsRegistry';
+
+const WEEKDAY_CHIPS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const DEFAULT_SECTION_DAYS = [false, true, true, true, true, true, false];
 
 function displayValue(kind: SettingKind, value: unknown): string {
   if (kind === 'percent' || kind === 'weight') {
@@ -12,8 +15,17 @@ function displayValue(kind: SettingKind, value: unknown): string {
     if (!Number.isFinite(n)) return '';
     return String(Math.round(n * 1000) / 10);
   }
-  if (kind === 'raw') {
+  if (kind === 'raw' || kind === 'ladder' || kind === 'severity_groups') {
     return typeof value === 'string' ? value : JSON.stringify(value ?? '');
+  }
+  if (kind === 'weekday') {
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const n = Number(value);
+    return Number.isInteger(n) && n >= 0 && n <= 6 ? days[n] : String(value ?? '');
+  }
+  if (kind === 'weekdays') {
+    const flags = Array.isArray(value) ? value : DEFAULT_SECTION_DAYS;
+    return WEEKDAY_CHIPS.filter((_, index) => flags[index]).join(', ') || 'None';
   }
   return String(value ?? '');
 }
@@ -68,6 +80,43 @@ function parseEdit(kind: SettingKind, raw: string): { ok: true; value: unknown }
     }
     return { ok: true, value: n };
   }
+  if (kind === 'tail') {
+    const n = parseFloat(raw);
+    if (Number.isNaN(n) || n <= 0 || n >= 1) {
+      return { ok: false, error: 'Enter a probability between 0 and 1, not including the ends.' };
+    }
+    return { ok: true, value: n };
+  }
+  if (kind === 'weekday') {
+    const n = parseInt(raw, 10);
+    if (Number.isNaN(n) || n < 0 || n > 6) {
+      return { ok: false, error: 'Enter 0 (Monday) through 6 (Sunday).' };
+    }
+    return { ok: true, value: n };
+  }
+  if (kind === 'seconds') {
+    const n = parseInt(raw, 10);
+    if (Number.isNaN(n) || n < 1 || n > 3600) {
+      return { ok: false, error: 'Enter seconds from 1 to 3600.' };
+    }
+    return { ok: true, value: n };
+  }
+  if (kind === 'ratio') {
+    const n = parseFloat(raw);
+    if (Number.isNaN(n) || n < -10 || n > 10) {
+      return { ok: false, error: 'Enter a number from -10 to 10.' };
+    }
+    return { ok: true, value: n };
+  }
+  if (kind === 'ladder' || kind === 'severity_groups') {
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return { ok: false, error: 'Must be a list.' };
+      return { ok: true, value: parsed };
+    } catch {
+      return { ok: false, error: 'JSON is not valid.' };
+    }
+  }
   if (kind === 'raw') {
     const trimmed = raw.trim();
     if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
@@ -99,7 +148,7 @@ export function SettingRow({
   const [editValue, setEditValue] = useState('');
 
   const startEdit = () => {
-    setEditValue(displayValue(meta.kind, value));
+    setEditValue(meta.kind === 'weekday' ? String(value ?? 1) : displayValue(meta.kind, value));
     setEditing(true);
   };
 
@@ -122,6 +171,58 @@ export function SettingRow({
   const asPercent = meta.kind === 'percent' || meta.kind === 'weight';
   const shown = asPercent ? `${displayValue(meta.kind, value)}%` : displayValue(meta.kind, value);
 
+  if (meta.kind === 'weekdays') {
+    const flags = (Array.isArray(value) && value.length === 7 ? value : DEFAULT_SECTION_DAYS).map(Boolean);
+    const saveDays = async (next: boolean[]) => {
+      try {
+        try {
+          await updateSetting(settingKey, { value: next });
+        } catch {
+          await createSetting({ key: settingKey, value: next, description: meta.help });
+        }
+        queryClient.invalidateQueries({ queryKey: ['settings'] });
+        enqueueSnackbar('Setting saved', { variant: 'success' });
+      } catch {
+        enqueueSnackbar('Failed to save setting', { variant: 'error' });
+      }
+    };
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'flex-start',
+          gap: 2,
+          py: 2,
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+        }}
+      >
+        <Box sx={{ flex: '1 1 200px' }}>
+          <Typography variant="subtitle1">{meta.label}</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {description || meta.help}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, flex: '1 1 240px' }}>
+          {WEEKDAY_CHIPS.map((label, index) => (
+            <Chip
+              key={label}
+              label={label}
+              size="small"
+              color={flags[index] ? 'primary' : 'default'}
+              variant={flags[index] ? 'filled' : 'outlined'}
+              onClick={() => {
+                const next = flags.map((on, day) => (day === index ? !on : on));
+                void saveDays(next);
+              }}
+            />
+          ))}
+        </Box>
+      </Box>
+    );
+  }
+
   return (
     <Box
       sx={{
@@ -143,14 +244,29 @@ export function SettingRow({
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: '1 1 240px' }}>
         {editing ? (
           <>
-            <TextField
-              size="small"
-              label={asPercent ? 'Percent' : 'Value'}
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              sx={{ minWidth: 160, flex: 1 }}
-              type={meta.kind === 'raw' ? 'text' : 'number'}
-            />
+            {meta.kind === 'weekday' ? (
+              <TextField
+                select
+                size="small"
+                label="Weekday"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                sx={{ minWidth: 160, flex: 1 }}
+              >
+                {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day, index) => (
+                  <MenuItem key={day} value={String(index)}>{day}</MenuItem>
+                ))}
+              </TextField>
+            ) : (
+              <TextField
+                size="small"
+                label={asPercent ? 'Percent' : 'Value'}
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                sx={{ minWidth: 160, flex: 1 }}
+                type={meta.kind === 'raw' || meta.kind === 'ladder' || meta.kind === 'severity_groups' ? 'text' : 'number'}
+              />
+            )}
             <Button size="small" variant="contained" startIcon={<Save />} onClick={() => void save()}>
               Save
             </Button>

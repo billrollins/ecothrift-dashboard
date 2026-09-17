@@ -85,9 +85,19 @@ def _renormalize(parts: list[tuple[float, float]]) -> float | None:
     return round(sum(weight * score for weight, score in present) / total_w, 1)
 
 
+def section_checks_required(day: date, cfg: dict | None = None) -> bool:
+    """True when retail_qa.section_check_weekdays is on for this weekday."""
+    from .settings import SECTION_CHECK_WEEKDAYS
+
+    flags = (cfg or retail_qa_settings()).get('section_check_weekdays') or SECTION_CHECK_WEEKDAYS
+    if not isinstance(flags, list) or len(flags) < 7:
+        flags = SECTION_CHECK_WEEKDAYS
+    return bool(flags[day.weekday()])
+
+
 def expected_parts(day: date) -> tuple[set[str], set[int]]:
-    """Performed keys due today, plus section ids whose owner is on shift."""
-    from apps.hr.models import Shift, ShiftAssignment
+    """Performed keys due today, plus every active section on required weekdays."""
+    from apps.hr.models import Shift
 
     shifts = list(Shift.objects.filter(is_active=True))
     keys = {
@@ -95,14 +105,7 @@ def expected_parts(day: date) -> tuple[set[str], set[int]]:
         for key, punch in PUNCH_FOR_KEY.items()
         if any(row.punch_code == punch and row.runs_on(day) for row in shifts)
     }
-    owners = {section.pk: section.owner_id for section in _active_sections() if section.owner_id}
-    on_shift: set[int] = set()
-    if owners:
-        rows = ShiftAssignment.objects.filter(
-            employee_id__in=set(owners.values()), shift__is_active=True,
-        ).select_related('shift')
-        on_shift = {row.employee_id for row in rows if row.runs_on(day)}
-    sections = {section_id for section_id, owner_id in owners.items() if owner_id in on_shift}
+    sections = {section.pk for section in _active_sections()} if section_checks_required(day) else set()
     return keys, sections
 
 
@@ -698,7 +701,7 @@ def grade_day(day: date, ctx: dict | None = None, *, project: bool = False) -> d
     )
     checklists = {row['key']: row for row in doing['routines'] if row['key'] in PERFORMED_KEYS}
     spot = owner['spots'][0] if owner['spots'] else None
-    graded = open_day and bool(runs)
+    graded = bool(runs)
     return {
         'date': day.isoformat(),
         'open_day': open_day,
@@ -1066,7 +1069,7 @@ def _week_cross(daily: list[dict], *, due: date | None, today: date, project: bo
 def _assemble_week(ctx: dict, *, project: bool = False) -> dict:
     monday = ctx['monday']
     cfg = ctx['cfg']
-    days = [day for day in week_days(monday) if is_open_day(day)]
+    days = week_days(monday)
     daily = [grade_day(day, ctx, project=project) for day in days]
     doing = _mean_or_none(row['thirds']['doing'] for row in daily if row['graded'] or project)
     owner = _mean_or_none(row['thirds']['owner'] for row in daily if row['thirds']['owner'] is not None)

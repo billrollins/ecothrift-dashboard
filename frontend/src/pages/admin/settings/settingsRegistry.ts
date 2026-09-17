@@ -27,7 +27,16 @@ export type SettingKind =
   | 'hours'
   | 'surcharge'
   | 'hidden'
-  | 'raw';
+  | 'raw'
+  // Probability in (0, 1) for tails.
+  | 'tail'
+  // 0=Mon … 6=Sun.
+  | 'weekday'
+  | 'weekdays'
+  | 'seconds'
+  | 'ratio'
+  | 'ladder'
+  | 'severity_groups';
 
 export interface SettingMeta {
   label: string;
@@ -82,23 +91,179 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'store',
     kind: 'surcharge',
   },
-  'retail_qa.owner_weight': {
-    label: "Owner spot check weight",
-    help: "Share of the day's grade the spot check carries when one happens. The checklists carry the rest, and the whole day when there is no spot check.",
+  'retail_qa.baseline_window': {
+    label: 'Baseline window',
+    help: 'How many recent tallies (and unflagged cross-checks) build a section baseline.',
     tab: 'retail-qa',
-    kind: 'weight',
+    kind: 'count',
   },
-  'retail_qa.weekly_daily_weight': {
-    label: 'Daily average weight in the week',
-    help: 'Share of the weekly grade that comes from the daily grades. The remainder comes from the Tuesday cross-checks.',
+  'retail_qa.baseline_shrink': {
+    label: 'Baseline shrink',
+    help: 'Blend a thin section toward the store: n / (n + this).',
     tab: 'retail-qa',
-    kind: 'weight',
+    kind: 'count',
   },
-  'retail_qa.late_credit': {
-    label: 'Credit for a late checklist',
-    help: 'What Open, Day, or Close still earns when it was done, but after its deadline. Done on time is always full credit.',
+  'retail_qa.warmup_section': {
+    label: 'Section warm-up',
+    help: 'A section below this many tallies is still warming up.',
     tab: 'retail-qa',
-    kind: 'weight',
+    kind: 'count',
+  },
+  'retail_qa.warmup_store': {
+    label: 'Store warm-up',
+    help: 'The store below this many tallies is still warming up.',
+    tab: 'retail-qa',
+    kind: 'count',
+  },
+  'retail_qa.cross_full_tail': {
+    label: 'Cross-check full tail',
+    help: 'Tail at or above this scores 100 on a cross-check.',
+    tab: 'retail-qa',
+    kind: 'tail',
+  },
+  'retail_qa.cross_zero_tail': {
+    label: 'Cross-check zero tail',
+    help: 'Tail at or below this scores 0 on a cross-check.',
+    tab: 'retail-qa',
+    kind: 'tail',
+  },
+  'retail_qa.verify_ladder': {
+    label: 'Verify ladder',
+    help: 'Score for how many verify items were found not done.',
+    tab: 'retail-qa',
+    kind: 'ladder',
+  },
+  'retail_qa.cross_check_weekday': {
+    label: 'Cross-check weekday',
+    help: '0=Mon … 6=Sun. Moves to the next open day if the store is closed.',
+    tab: 'retail-qa',
+    kind: 'weekday',
+  },
+  'retail_qa.owner_ladder': {
+    label: 'Owner leftover ladder',
+    help: 'Residual R (leftover as a fraction of a normal day) to score.',
+    tab: 'retail-qa',
+    kind: 'ladder',
+  },
+  'retail_qa.owner_grace': {
+    label: 'Owner grace items',
+    help: 'Items ignored before leftover starts counting.',
+    tab: 'retail-qa',
+    kind: 'count',
+  },
+  'retail_qa.owner_divisor_floor': {
+    label: 'Owner divisor floor',
+    help: 'R never divides by less than this, so a quiet aisle is not punished for one extra item.',
+    tab: 'retail-qa',
+    kind: 'count',
+  },
+  'retail_qa.spot_check_count': {
+    label: 'Checks drawn into a spot check',
+    help: 'How many random checks from Open, Day, and Close land in the daily owner spot check, alongside one full section walk.',
+    tab: 'retail-qa',
+    kind: 'count',
+  },
+  'retail_qa.severity_groups': {
+    label: 'Severity groups',
+    help: 'Name, check weight, and how much leftover each group adds to R.',
+    tab: 'retail-qa',
+    kind: 'severity_groups',
+  },
+  'retail_qa.safety_cap': {
+    label: 'Safety cap',
+    help: 'A safety flag cannot score above this.',
+    tab: 'retail-qa',
+    kind: 'score',
+  },
+  'retail_qa.flag_window': {
+    label: 'Flag window',
+    help: 'Trailing audits (or weeks) a checker flag looks at.',
+    tab: 'retail-qa',
+    kind: 'count',
+  },
+  'retail_qa.flag_z': {
+    label: 'Low-findings z',
+    help: 'Low-findings flag when trailing z is below this.',
+    tab: 'retail-qa',
+    kind: 'ratio',
+  },
+  'retail_qa.flag_min_expected': {
+    label: 'Low-findings minimum expected',
+    help: 'Low-findings flag only when expected findings reach this.',
+    tab: 'retail-qa',
+    kind: 'count',
+  },
+  'retail_qa.flag_followup_r': {
+    label: 'Owner follow-up R',
+    help: 'Owner leftover above this counts against the checker who just walked the aisle.',
+    tab: 'retail-qa',
+    kind: 'ratio',
+  },
+  'retail_qa.flag_min_seconds': {
+    label: 'Minimum seconds per section',
+    help: 'A cross-check faster than this many seconds per section is flagged.',
+    tab: 'retail-qa',
+    kind: 'seconds',
+  },
+  'retail_qa.flag_batch_minutes': {
+    label: 'Batch window (minutes)',
+    help: 'Own tally and cross-check submitted within this many minutes is flagged.',
+    tab: 'retail-qa',
+    kind: 'count',
+  },
+  'retail_qa.flag_rubber_stamp_window': {
+    label: 'Rubber-stamp window',
+    help: 'All-confirmed verifications before a rubber-stamp flag can fire.',
+    tab: 'retail-qa',
+    kind: 'count',
+  },
+  'retail_qa.idle_prompt_minutes': {
+    label: 'Idle prompt after (minutes)',
+    help: 'Minutes with no cart on the register before it asks for a work cycle. Default 5.',
+    tab: 'retail-qa',
+    kind: 'count',
+  },
+  'retail_qa.idle_stretch_minutes': {
+    label: 'Idle stretch (minutes)',
+    help: 'Idle stretches longer than this are listed next to cashier names. They do not change the grade.',
+    tab: 'retail-qa',
+    kind: 'count',
+  },
+  'retail_qa.weight_spot': {
+    label: 'Spot weight',
+    help: 'Share of the week grade that comes from owner spot walks. Default 60.',
+    tab: 'retail-qa',
+    kind: 'count',
+  },
+  'retail_qa.weight_do': {
+    label: 'Do weight',
+    help: 'Share of the week grade that comes from routines done over expected. Default 25.',
+    tab: 'retail-qa',
+    kind: 'count',
+  },
+  'retail_qa.weight_cross': {
+    label: 'Cross weight',
+    help: 'Share of the week grade that comes from cross-checks after the due date. Default 15.',
+    tab: 'retail-qa',
+    kind: 'count',
+  },
+  'retail_qa.walk_floor': {
+    label: 'Walks to keep the week uncapped',
+    help: 'Fewer than this many spot walks caps the week at B. Zero walks caps at C.',
+    tab: 'retail-qa',
+    kind: 'count',
+  },
+  'retail_qa.section_due_after_punch_minutes': {
+    label: 'Section check due after punch (minutes)',
+    help: 'Minutes after an owner punches in before their section check is due.',
+    tab: 'retail-qa',
+    kind: 'count',
+  },
+  'retail_qa.section_check_weekdays': {
+    label: 'Section checks required',
+    help: 'Days a section check is required. Default is every open day (Tue–Sat).',
+    tab: 'retail-qa',
+    kind: 'weekdays',
   },
   'retail_qa.grade_a': {
     label: 'A at or above',
@@ -123,30 +288,6 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     help: 'Lowest score that still earns a D. Anything below this is an F.',
     tab: 'retail-qa',
     kind: 'score',
-  },
-  'retail_qa.audit_minor_max': {
-    label: 'Issues that still score 75',
-    help: 'Up to this many issues in one graded cross-check category scores 75 for that category.',
-    tab: 'retail-qa',
-    kind: 'count',
-  },
-  'retail_qa.audit_needs_work_max': {
-    label: 'Issues that still score 50',
-    help: 'Up to this many issues in one graded category scores 50. Beyond it, the category scores 0.',
-    tab: 'retail-qa',
-    kind: 'count',
-  },
-  'retail_qa.spot_check_count': {
-    label: 'Checks drawn into a spot check',
-    help: 'How many random checks from Open, Day, and Close land in the daily owner spot check, alongside one full section cross-check.',
-    tab: 'retail-qa',
-    kind: 'count',
-  },
-  'retail_qa.idle_prompt_minutes': {
-    label: 'Idle prompt after (minutes)',
-    help: 'Minutes with no cart on the register before it asks for a work cycle. Default 5.',
-    tab: 'retail-qa',
-    kind: 'count',
   },
   store_name: {
     label: 'Store name',

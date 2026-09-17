@@ -15,6 +15,7 @@ from apps.routines.flags import test_low_findings, test_speed
 from apps.routines.grading import residual_parts, verify_score
 from apps.routines.models import (
     QaCallIn,
+    QaNudge,
     Routine,
     RoutineRun,
     RoutineSubmission,
@@ -122,6 +123,7 @@ class SettingsValidationTests(TestCase):
         self.assertEqual(cfg['weight_spot'], 60)
         self.assertEqual(cfg['weight_do'], 25)
         self.assertEqual(cfg['weight_cross'], 15)
+        self.assertEqual(cfg['section_check_weekdays'], [False, True, True, True, True, True, False])
         self.assertNotIn('owner_weight', cfg)
 
     def test_ladder_must_ascend_and_scores_descend(self):
@@ -626,6 +628,65 @@ class CommandCenterTests(APITestCase):
             day=day, now=after, tz=TZ, punches={self.sam.pk: punch}, call_ins=set(),
         )
         self.assertEqual(label, 'Due 09:30')
+
+    def test_off_owner_unassigned_at_store_open_and_all_sections_count(self):
+        from apps.routines.command_center import build_jobs
+        from apps.routines.grading import expected_parts
+        from apps.webstore.services.hours import get_hours_config
+        thursday = date(2026, 9, 17)
+        david = _staff('david@example.com')
+        david.first_name = 'David'
+        david.save(update_fields=['first_name'])
+        Section.objects.filter(pk=self.section.pk).update(owner=david)
+        extras = []
+        for name in ('Books', 'Media', 'Toys', 'Seasonal'):
+            extras.append(Section.objects.create(
+                department=self.department, name=name, owner=self.sam,
+            ))
+        keys, sections = expected_parts(thursday)
+        self.assertEqual(len(sections), 5)
+        now = timezone.make_aware(datetime.combine(thursday, time(9, 0)), TZ)
+        jobs = build_jobs(thursday, {'date': thursday.isoformat()}, now=now, tz=TZ, hours_cfg=get_hours_config())
+        section_jobs = [row for row in jobs if row['group'] == 'section']
+        self.assertEqual(len(section_jobs), 5)
+        self.assertTrue(all(row['status'] != 'Done' for row in section_jobs))
+        david_job = next(row for row in section_jobs if row['title'] == 'Housewares')
+        self.assertEqual(david_job['status'], 'Unassigned')
+        self.assertIsNone(david_job['owner'])
+
+    def test_scheduled_section_owner_stays_theirs_until_thirty(self):
+        from apps.routines.command_center import STATUS_NOT_TALLIED, STATUS_UNASSIGNED, section_due_state
+        day = date(2026, 9, 16)
+        start = timezone.make_aware(datetime.combine(day, time(8, 30)), TZ)
+        twenty = start + timedelta(minutes=20)
+        due, label, status = section_due_state(
+            self.section, run=None, status=STATUS_NOT_TALLIED,
+            day=day, now=twenty, tz=TZ, punches={}, call_ins=set(),
+        )
+        self.assertEqual(status, STATUS_NOT_TALLIED)
+        self.assertEqual(label, 'Due after clock-in')
+        thirty = start + timedelta(minutes=30)
+        due, label, status = section_due_state(
+            self.section, run=None, status=STATUS_NOT_TALLIED,
+            day=day, now=thirty, tz=TZ, punches={}, call_ins=set(),
+        )
+        self.assertEqual(status, STATUS_UNASSIGNED)
+
+    def test_assign_run_creates_assign_nudge(self):
+        from apps.routines.command_center import assign_run
+        day = date(2026, 9, 16)
+        run = RoutineRun.objects.create(
+            routine=self.tally,
+            period_key=day.isoformat(),
+            assigned_to=None,
+            section=self.section,
+            due_at=timezone.make_aware(datetime.combine(day, time(14, 0)), TZ),
+            status=RoutineRun.STATUS_OPEN,
+        )
+        assign_run(run=run, user=self.sam, marked_by=self.mgr)
+        row = QaNudge.objects.get(run=run)
+        self.assertEqual(row.source, 'assign')
+        self.assertEqual(row.created_by_id, self.mgr.pk)
 
     def test_scheduled_owner_stays_due_until_they_punch(self):
         from apps.routines.command_center import build_jobs
