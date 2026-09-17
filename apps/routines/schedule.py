@@ -13,8 +13,8 @@ from django.utils import timezone
 
 from apps.webstore.services.hours import _local_now, is_open_day
 
-from .models import Routine, RoutineRun, RoutineSubmission, Section
-from .settings import retail_qa_settings
+from .models import QaCallIn, Routine, RoutineRun, RoutineSubmission, Section
+from .settings import LATE_RED_MINUTES, retail_qa_settings
 
 User = get_user_model()
 
@@ -54,11 +54,32 @@ def period_key_for(routine: Routine, day: date) -> str:
     return day.isoformat()
 
 
+def cross_check_day_for(day: date, *, hours_cfg: dict | None = None, qa_cfg: dict | None = None) -> date | None:
+    """First open day on or after this week's configured cross-check weekday."""
+    from .settings import retail_qa_settings
+
+    qa_cfg = qa_cfg or retail_qa_settings()
+    monday = day - timedelta(days=day.weekday())
+    try:
+        weekday = int(qa_cfg.get('cross_check_weekday', 1))
+    except (TypeError, ValueError):
+        weekday = 1
+    weekday = min(max(weekday, 0), 6)
+    candidate = monday + timedelta(days=weekday)
+    for _ in range(7):
+        if is_open_day(candidate, cfg=hours_cfg):
+            return candidate
+        candidate += timedelta(days=1)
+    return None
+
+
 def should_run_on(routine: Routine, day: date, *, cfg: dict | None = None) -> bool:
     if routine.trigger == Routine.TRIGGER_ON_DEMAND:
         return False
     if not is_open_day(day, cfg=cfg):
         return False
+    if routine.system_key == SYSTEM_CROSS_CHECK:
+        return day == cross_check_day_for(day, hours_cfg=cfg)
     if routine.trigger == Routine.TRIGGER_BIWEEKLY:
         return biweekly_period_start(routine.anchor_date, day) is not None
     if routine.trigger in (
@@ -112,9 +133,19 @@ def period_end_day(routine: Routine, day: date, *, cfg: dict | None = None) -> d
     return _last_open_day_on_or_before(last, day, cfg=cfg)
 
 
+DAY_DEFAULT = time(14, 0)
+
+
 def due_at_for(routine: Routine, day: date, *, tz: ZoneInfo, cfg: dict | None = None) -> datetime:
-    """The run's anchor instant. A clock-out routine anchors at the end of its day."""
-    clock = routine.due_time or END_OF_DAY
+    """The run's anchor instant. Open follows store hours. Day defaults to 14:00."""
+    if routine.system_key == SYSTEM_OPEN:
+        from apps.webstore.services.hours import _parse_hhmm, effective_day, get_hours_config
+        hours = effective_day(day, cfg=cfg or get_hours_config())
+        clock = _parse_hhmm(hours.open_hhmm) or time(8, 30)
+    elif routine.system_key == SYSTEM_DAY:
+        clock = routine.due_time or DAY_DEFAULT
+    else:
+        clock = routine.due_time or END_OF_DAY
     naive = datetime.combine(period_end_day(routine, day, cfg=cfg), clock)
     return timezone.make_aware(naive, tz)
 
@@ -187,6 +218,10 @@ def miss_at(run: RoutineRun):
     unit = routine.expire_unit or Routine.EXPIRE_UNIT_HOURS
     if unit == Routine.EXPIRE_UNIT_HOURS:
         start_clock = routine.expire_from_time or time(0, 0)
+        if routine.system_key == SYSTEM_OPEN:
+            from apps.webstore.services.hours import _parse_hhmm, effective_day, get_hours_config
+            hours = effective_day(day, cfg=get_hours_config())
+            start_clock = _parse_hhmm(hours.open_hhmm) or start_clock
         start = timezone.make_aware(datetime.combine(day, start_clock), tz)
         return start + timedelta(hours=count)
     if unit == Routine.EXPIRE_UNIT_DAYS:
@@ -295,6 +330,7 @@ def draw_spot_checks(period_key: str, count: int) -> list[dict]:
                     'check_id': str(check['id']),
                     'label': check.get('label') or '',
                     'control': check.get('control') or 'pass_fail',
+                    'severity': 'security' if check.get('critical') else 'standard',
                     'result': '',
                 })
     if not pool:
@@ -308,36 +344,177 @@ def week_days(day: date) -> list[date]:
     return [monday + timedelta(days=offset) for offset in range(7)]
 
 
+def _section_ids_walked(day: date) -> set[int]:
+    """Sections that already have a done tally or cross-check today."""
+    found: set[int] = set()
+    audits = RoutineRun.objects.filter(
+        routine__system_key=SYSTEM_CROSS_CHECK,
+        period_key=day.isoformat(),
+        status=RoutineRun.STATUS_DONE,
+        section_id__isnull=False,
+    ).values_list('section_id', flat=True)
+    found.update(audits)
+    tallies = RoutineRun.objects.filter(
+        routine__system_key=SYSTEM_TALLY,
+        period_key=day.isoformat(),
+        status=RoutineRun.STATUS_DONE,
+        submission__isnull=False,
+    ).select_related('submission')
+    for run in tallies:
+        for row in (run.submission.responses or {}).get('sections') or []:
+            if row.get('section_id'):
+                found.add(int(row['section_id']))
+    return found
+
+
+def spotted_section_ids(day: date, *, exclude_run_id: int | None = None) -> set[int]:
+    qs = RoutineRun.objects.filter(
+        routine__kind=Routine.KIND_OWNER_SPOT,
+        period_key=day.isoformat(),
+        section_id__isnull=False,
+    )
+    if exclude_run_id:
+        qs = qs.exclude(pk=exclude_run_id)
+    return set(qs.values_list('section_id', flat=True))
+
+
+def _section_owner_missed(section: Section, day: date) -> bool:
+    """Called in, or 30 minutes past shift start with no punch."""
+    from apps.hr.models import ShiftAssignment, TimeEntry
+    if not section.owner_id:
+        return False
+    if QaCallIn.objects.filter(employee_id=section.owner_id, date=day).exists():
+        return True
+    if TimeEntry.objects.filter(date=day, employee_id=section.owner_id).exists():
+        return False
+    assignment = next(
+        (
+            row for row in ShiftAssignment.objects.filter(
+                employee_id=section.owner_id, shift__is_active=True,
+            ).select_related('shift')
+            if row.runs_on(day)
+        ),
+        None,
+    )
+    if assignment is None:
+        return False
+    tz = timezone.get_current_timezone()
+    start = timezone.make_aware(datetime.combine(day, assignment.shift.time_in), tz)
+    return timezone.now() >= start + timedelta(minutes=LATE_RED_MINUTES)
+
+
+def eligible_spot_sections(
+    routine: Routine, day: date, *, exclude_ids: list[int] | None = None,
+) -> list[Section]:
+    """Sections whose owner check is done today, or the owner called in / never punched."""
+    skip = set(exclude_ids or [])
+    walked = _section_ids_walked(day)
+    already = spotted_section_ids(day)
+    out = []
+    for section in department_sections(routine):
+        if section.pk in already or section.pk in skip:
+            continue
+        if section.pk in walked or _section_owner_missed(section, day):
+            out.append(section)
+    return out
+
+
 def unseen_spot_sections(
     routine: Routine, day: date, *, exclude_ids: list[int] | None = None,
 ) -> list[Section]:
-    """Department sections with no owner-spot run this ISO week."""
-    skip = set(exclude_ids or [])
-    seen = set(
-        RoutineRun.objects.filter(
-            routine__kind=Routine.KIND_OWNER_SPOT,
-            period_key__in=[d.isoformat() for d in week_days(day)],
-            section__isnull=False,
-        )
-        .exclude(period_key=day.isoformat())
-        .values_list('section_id', flat=True)
-    )
-    return [
-        section for section in department_sections(routine)
-        if section.pk not in seen and section.pk not in skip
-    ]
+    """Back-compat name: the tallied-only pool, not the old week-uniqueness list."""
+    return eligible_spot_sections(routine, day, exclude_ids=exclude_ids)
 
 
 def next_spot_section(routine: Routine, day: date) -> Section | None:
-    """A random section the owner has not spot-checked yet this week.
-
-    When every aisle has had a look, there is no wrap: the run is born
-    without a section.
-    """
-    leftover = unseen_spot_sections(routine, day)
+    leftover = eligible_spot_sections(routine, day)
     if not leftover:
         return None
     return random.choice(leftover)
+
+
+def tally_context_for_section(section: Section, day: date) -> dict:
+    """Who walked this aisle today and when, for the spot header and residual."""
+    audit = (
+        RoutineRun.objects.filter(
+            routine__system_key=SYSTEM_CROSS_CHECK,
+            period_key=day.isoformat(),
+            status=RoutineRun.STATUS_DONE,
+            section=section,
+        )
+        .select_related('completed_by')
+        .order_by('-completed_at')
+        .first()
+    )
+    tally = None
+    for run in RoutineRun.objects.filter(
+        routine__system_key=SYSTEM_TALLY,
+        period_key=day.isoformat(),
+        status=RoutineRun.STATUS_DONE,
+        submission__isnull=False,
+    ).select_related('completed_by', 'submission').order_by('-completed_at'):
+        ids = [
+            row.get('section_id')
+            for row in (run.submission.responses or {}).get('sections') or []
+        ]
+        if section.pk in ids:
+            tally = run
+            break
+    source = audit or tally
+    if source is None:
+        return {}
+    when = source.completed_at
+    hours = None
+    if when:
+        hours = max((timezone.now() - when).total_seconds() / 3600.0, 0.0)
+    return {
+        'tally_run_id': source.pk,
+        'tallied_at': when.isoformat() if when else None,
+        'tallied_by': source.completed_by.full_name if source.completed_by_id else None,
+        'hours_since_tally': None if hours is None else round(hours, 3),
+    }
+
+
+def apply_spot_section(run: RoutineRun, section: Section, day: date, *, from_section=None) -> None:
+    generated = dict(run.generated or {})
+    generated.update(tally_context_for_section(section, day))
+    generated['section_id'] = section.pk
+    switches = list(generated.get('switches') or [])
+    if from_section is not None:
+        switches.append({
+            'at': timezone.now().isoformat(),
+            'from_section': from_section.pk if hasattr(from_section, 'pk') else from_section,
+            'to_section': section.pk,
+        })
+        generated['switches'] = switches
+    run.section = section
+    run.subject = section.name
+    run.generated = generated
+    run.save(update_fields=['section', 'subject', 'generated'])
+
+
+def maybe_draw_spot(run: RoutineRun) -> str:
+    """Lazy draw. Returns waiting | ready."""
+    if run.routine.kind != Routine.KIND_OWNER_SPOT:
+        return 'ready'
+    if run.status != RoutineRun.STATUS_OPEN:
+        return 'ready' if run.section_id else 'waiting'
+    try:
+        day = datetime.fromisoformat(run.period_key).date()
+    except ValueError:
+        day = timezone.localdate()
+    if run.section_id:
+        generated = dict(run.generated or {})
+        if generated.get('tally_run_id') and generated.get('hours_since_tally') is None:
+            generated.update(tally_context_for_section(run.section, day))
+            run.generated = generated
+            run.save(update_fields=['generated'])
+        return 'ready'
+    section = next_spot_section(run.routine, day)
+    if section is None:
+        return 'waiting'
+    apply_spot_section(run, section, day)
+    return 'ready'
 
 
 def _staff_qs():
@@ -404,6 +581,12 @@ def resolve_assignees(routine: Routine):
         return User.objects.filter(pk__in=owners, is_active=True)
     kind = getattr(routine, 'audience_type', None) or Routine.AUDIENCE_PERSON
     everyone = bool(getattr(routine, 'audience_all', False))
+    if getattr(routine, 'shift_id', None) and routine.shift and routine.shift.punch_code:
+        from apps.hr.models import TimeEntry
+        punches = TimeEntry.objects.filter(
+            clock_out__isnull=True, shift=routine.shift.punch_code,
+        )
+        return _staff_qs().filter(pk__in=list(punches.values_list('employee_id', flat=True)))
     if kind == Routine.AUDIENCE_SHIFT:
         from apps.hr.models import TimeEntry
         punches = TimeEntry.objects.filter(clock_out__isnull=True).exclude(shift='')
@@ -436,14 +619,13 @@ def _run_extras(routine: Routine, day: date, key: str, user_id: int | None) -> d
         section = pairs.get(user_id)
         return {'section': section, 'subject': section.name if section else '', 'generated': {}}
     if routine.kind == Routine.KIND_OWNER_SPOT:
-        section = next_spot_section(routine, day)
         cfg = retail_qa_settings()
         return {
-            'section': section,
-            'subject': section.name if section else '',
+            'section': None,
+            'subject': '',
             'generated': {
                 'checks': draw_spot_checks(key, int(cfg['spot_check_count'])),
-                'section_id': section.pk if section else None,
+                'switches': [],
             },
         }
     if routine.subject_source == Routine.SUBJECT_MY_SECTION:
@@ -471,7 +653,7 @@ def _upsert_run(routine: Routine, key: str, user, due, extras: dict) -> bool:
     except IntegrityError:
         lookup = RoutineRun.objects.filter(routine=routine, period_key=key)
         run = (
-            lookup.filter(assigned_to__isnull=True).get()
+            lookup.filter(assigned_to__isnull=True, unassign_key='').get()
             if user is None
             else lookup.get(assigned_to=user)
         )
@@ -493,20 +675,13 @@ def _upsert_run(routine: Routine, key: str, user, due, extras: dict) -> bool:
         # let anyone shop for an easier audit. An empty owner-spot sample is the
         # exception: the run was born before any section existed, and it has to
         # pick one up the next time materialize runs.
-        pinned_spot = (
-            routine.kind == Routine.KIND_OWNER_SPOT
-            and (run.generated or {}).get('section_id')
-        )
+        pinned_spot = routine.kind == Routine.KIND_OWNER_SPOT
         if pinned_spot and field in ('generated', 'section', 'subject'):
+            # The sample is drawn once. The section is drawn lazily when
+            # something has been tallied, not on every materialize.
             continue
         if field == 'generated' and run.generated:
-            hollow = (
-                routine.kind == Routine.KIND_OWNER_SPOT
-                and not (run.generated or {}).get('section_id')
-                and (value or {}).get('section_id')
-            )
-            if not hollow:
-                continue
+            continue
         if current != wanted:
             setattr(run, field, value)
             changed.append('section_id' if field == 'section' else field)
@@ -520,6 +695,7 @@ def materialize_routines(day: date | None = None) -> int:
     expire_open_runs(now=local)
     day = day or local.date()
     created = 0
+    skipped = _called_in_ids(day)
     for routine in Routine.objects.filter(is_active=True).exclude(
         trigger=Routine.TRIGGER_ON_DEMAND,
     ).select_related('assigned_department'):
@@ -536,12 +712,19 @@ def materialize_routines(day: date | None = None) -> int:
                 created += 1
             continue
         for user in assignees:
+            if user.pk in skipped and routine.system_key != SYSTEM_WORK_CYCLE:
+                continue
             extras = _run_extras(routine, day, key, user.pk)
             if routine.subject_source == Routine.SUBJECT_OTHER_SECTION and not extras['section']:
                 continue
             if _upsert_run(routine, key, user, due, extras):
                 created += 1
     return created
+
+
+def _called_in_ids(day: date) -> set[int]:
+    from .models import QaCallIn
+    return set(QaCallIn.objects.filter(date=day).values_list('employee_id', flat=True))
 
 
 def cover_run(run: RoutineRun, user) -> None:

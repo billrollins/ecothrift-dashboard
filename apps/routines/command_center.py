@@ -557,9 +557,9 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
         status = routine_live_status(run, day=day, now=now, tz=tz, hours_cfg=hours_cfg)
         due_at = run.due_at if run else None
         due_label = clock_hhmm(run.due_at) if run else ''
-        if run and run.routine.system_key == SYSTEM_OPEN:
+        if run:
             due_at = due_at_for(run.routine, day, tz=tz, cfg=hours_cfg)
-            due_label = clock_hhmm(due_at)
+            due_label = f'Due {clock_hhmm(due_at)}'
         if status == STATUS_DONE:
             due_label = f'Done {clock_hhmm(run.completed_at)}' if run and run.completed_at else 'Done'
         code = punch_code_for_routine(run.routine) if run else ''

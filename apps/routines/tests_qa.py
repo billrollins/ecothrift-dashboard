@@ -23,6 +23,7 @@ from apps.routines.models import (
 )
 from apps.routines.schedule import (
     SYSTEM_CROSS_CHECK,
+    SYSTEM_DAY,
     SYSTEM_OPEN,
     SYSTEM_OWNER_SPOT,
     SYSTEM_TALLY,
@@ -596,6 +597,23 @@ class CommandCenterTests(APITestCase):
             cfg={'open': '08:30', 'close': '18:00', 'closed_weekdays': [0, 6]},
         )
         self.assertEqual(timezone.localtime(due).time(), time(8, 30))
+
+    def test_retail_day_defaults_to_fourteen_when_no_due_time(self):
+        from apps.routines.schedule import due_at_for
+        day_routine, _ = Routine.objects.update_or_create(
+            system_key=SYSTEM_DAY,
+            defaults={
+                'title': 'Retail day',
+                'kind': Routine.KIND_CHECKLIST,
+                'trigger': Routine.TRIGGER_DAILY,
+                'is_active': True,
+                'due_time': None,
+            },
+        )
+        day_routine.due_time = None
+        day_routine.save(update_fields=['due_time'])
+        due = due_at_for(day_routine, date(2026, 9, 16), tz=TZ)
+        self.assertEqual(timezone.localtime(due).time(), time(14, 0))
 
     def test_call_in_falls_back_to_the_other_person_on_the_shift(self):
         from apps.hr.shifts import SHIFT_RETAIL_OPEN

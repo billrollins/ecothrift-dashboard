@@ -60,6 +60,8 @@ export interface RoutineSettings {
   assignedDepartmentIds: number[];
   assignedUserIds: number[];
   isBlocking: boolean;
+  shiftLocked: boolean;
+  shiftName: string;
 }
 
 export function defaultRoutineSettings(today: Date): RoutineSettings {
@@ -84,6 +86,8 @@ export function defaultRoutineSettings(today: Date): RoutineSettings {
     assignedDepartmentIds: [],
     assignedUserIds: [],
     isBlocking: false,
+    shiftLocked: false,
+    shiftName: '',
   };
 }
 
@@ -93,8 +97,8 @@ export function settingsFromRoutine(routine: Routine, today: Date): RoutineSetti
     intro: routine.intro,
     trigger: routine.trigger,
     remindTime: (routine.remind_time || '').slice(0, 5),
-    dueTime: (routine.due_time || '17:00:00').slice(0, 5),
-    dueAtClockOut: routine.due_time == null,
+    dueTime: (routine.due_time || (routine.system_key === 'retail.day' ? '14:00:00' : '17:00:00')).slice(0, 5),
+    dueAtClockOut: routine.due_time == null && routine.system_key !== 'retail.day',
     lateAfter: routine.late_after,
     nextDue: nextBiweeklyDate(routine.anchor_date, today),
     graceDays: String(routine.grace_days),
@@ -111,6 +115,8 @@ export function settingsFromRoutine(routine: Routine, today: Date): RoutineSetti
       : (routine.assigned_department ? [routine.assigned_department] : []),
     assignedUserIds: routine.assigned_user_ids || [],
     isBlocking: routine.is_blocking,
+    shiftLocked: Boolean(routine.shift_locked),
+    shiftName: routine.shift_name || '',
   };
 }
 
@@ -367,6 +373,11 @@ export function RoutineSettingsFields({
         title="Owner"
         description="Who the run is for: people, a shift, or a department. One shared is one run. Each gives everyone their own."
       >
+        {value.shiftLocked && value.shiftName ? (
+          <Typography sx={{ fontSize: 13, mb: 1 }}>
+            Shift: {value.shiftName}
+          </Typography>
+        ) : null}
         <FieldGrid wide={wide}>
           <TextField
             select

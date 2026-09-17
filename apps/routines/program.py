@@ -127,7 +127,7 @@ PROGRAM_TITLES = {
 
 PROGRAM_TIMES = {
     'retail.open': {'remind_time': time(9, 0), 'due_time': time(10, 0)},
-    'retail.day': {'remind_time': time(12, 0), 'due_time': None},
+    'retail.day': {'remind_time': time(12, 0), 'due_time': time(14, 0)},
     'retail.close': {'remind_time': time(17, 50), 'due_time': time(18, 0)},
 }
 

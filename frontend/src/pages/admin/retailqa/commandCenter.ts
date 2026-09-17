@@ -169,6 +169,7 @@ export function jobTimeLabel(job: Pick<QaJob, 'status' | 'due_label' | 'complete
   }
   const label = job.due_label || '';
   if (!label && job.owner) return 'Due after clock-in';
+  if (label.includes('23:59')) return job.key === 'retail.day' ? 'Due 14:00' : label.replace('23:59', '14:00');
   if (label === 'Due after clock-in' || label.startsWith('Due')) return label;
   if (/^\d{1,2}:\d{2}/.test(label)) return `Due ${label.slice(0, 5)}`;
   return label;
