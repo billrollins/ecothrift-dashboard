@@ -64,6 +64,7 @@ export default function MainLayout() {
   const isFieldMobile = isMobile && location.pathname.startsWith('/pos/deliveries/field');
   // Routines and its Admin control room draw their own panes edge to edge.
   const isRoutines = location.pathname.startsWith('/routines') || location.pathname.startsWith('/admin/routines');
+  const isRetailQa = location.pathname.startsWith('/admin/retail-qa');
   const isStaffRoutines = location.pathname.startsWith('/routines');
   const isFloorDesk = !isMobile && (isDashboard || isToday || isPay || isStaffRoutines);
   const isPhoneShell = isMobile && showsPhoneTabBar(location.pathname, location.search);
@@ -324,8 +325,8 @@ export default function MainLayout() {
             display: 'flex',
             flexDirection: 'column',
             overflowX: 'hidden',
-            overflowY: isRestorationBench || isRoutines ? 'hidden' : 'auto',
-            p: isFieldMobile || isRoutines || isFloorDesk || (isPhoneShell && (isDashboard || isToday || isPay))
+            overflowY: isRestorationBench || isRoutines || isRetailQa ? 'hidden' : 'auto',
+            p: isFieldMobile || isRoutines || isRetailQa || isFloorDesk || (isPhoneShell && (isDashboard || isToday || isPay))
               ? 0
               : isRestoration
                 ? { xs: 0.75, md: 1 }
@@ -337,16 +338,18 @@ export default function MainLayout() {
                   background: DASHBOARD_BACKDROP,
                 }
               : {}),
-            bgcolor: isFieldMobile
-              ? '#fff'
-              : isDashboard
-                ? DASHBOARD_BACKDROP
-                : isFloorDesk
-                  ? dutyColors.paper
-                  : 'background.default',
+            bgcolor: isRetailQa
+              ? '#f4f5f6'
+              : isFieldMobile
+                ? '#fff'
+                : isDashboard
+                  ? DASHBOARD_BACKDROP
+                  : isFloorDesk
+                    ? dutyColors.paper
+                    : 'background.default',
           }}
         >
-          <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: isRetailQa ? 'hidden' : undefined }}>
             <Outlet />
           </Box>
         </Box>
