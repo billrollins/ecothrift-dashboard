@@ -22,6 +22,7 @@ import { CommandHeader } from './CommandHeader';
 import { IssuesBar } from './IssuesBar';
 import { RoutinesCard } from './RoutinesCard';
 import { ScheduleCard } from './ScheduleCard';
+import { ScoreDialog } from './ScoreDialog';
 import { SummaryDialogs } from './SummaryDialogs';
 import { WeekRoutinesModal } from './WeekRoutinesModal';
 import './commandCenter.css';
@@ -58,6 +59,7 @@ export default function RetailQaPage() {
         : todayQuery.data;
 
   const [weekOpen, setWeekOpen] = useState(false);
+  const [scoreOpen, setScoreOpen] = useState(false);
   const [drawer, setDrawer] = useState<'spot' | 'cross' | 'people' | null>(null);
 
   const tiles = useMemo(
@@ -133,7 +135,10 @@ export default function RetailQaPage() {
         if (event.key === 'Escape') setWeekOpen(false);
         return;
       }
-      if (event.key === 'Escape') setDrawer(null);
+      if (event.key === 'Escape') {
+        setScoreOpen(false);
+        setDrawer(null);
+      }
       if (event.key === 'ArrowLeft') moveWeek(-1);
       if (event.key === 'ArrowRight') moveWeek(1);
       const num = Number(event.key);
@@ -171,6 +176,7 @@ export default function RetailQaPage() {
         sectionTotal={fixture && fixtureName !== 'calm' ? 23 : fixtureName === 'calm' ? 17 : undefined}
         drawer={drawer}
         onDrawer={setDrawer}
+        onScore={() => setScoreOpen(true)}
         onMoveWeek={moveWeek}
         onSelectDay={(next) => setDay(next, week)}
       />
@@ -210,6 +216,20 @@ export default function RetailQaPage() {
         fixturePeople={fixture ? (fixtureName === 'calm' ? CALM_PEOPLE : PROBLEM_PEOPLE) : undefined}
         onDoSpot={() => board?.spot?.run_id && runnerReturn(board.spot.run_id)}
         onOpenRun={(runId) => runnerReturn(runId)}
+      />
+      <ScoreDialog
+        open={scoreOpen}
+        onClose={() => setScoreOpen(false)}
+        weekNumber={weekNumber}
+        weekLetter={data?.letter ?? null}
+        projectedLetter={data?.projected?.letter}
+        weekThirds={data?.thirds ?? { doing: null, owner: null, cross: null }}
+        weekItems={Array.isArray(data?.score_items) ? data.score_items : data?.score_items?.week ?? board?.score_items?.week ?? []}
+        dayItems={board?.score_items?.day ?? []}
+        tiles={tiles}
+        weekData={data}
+        board={board}
+        posOnTask={data?.pos_on_task || board?.pos_on_task}
       />
       <WeekRoutinesModal open={weekOpen} onClose={() => setWeekOpen(false)} week={week} />
     </div>

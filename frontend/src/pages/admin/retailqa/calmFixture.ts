@@ -57,6 +57,12 @@ export const CALM_WEEK: QaWeek = {
   open_today: true,
   alerts: { unassigned_cross_checks: 0, sections_without_owner: 0, checker_flags: 0, safety_flags: 0, total: 2 },
   tiles: CALM_TILES,
+  score_items: ['Retail open not done Wed Sep 16', "Michael's section check not done Wed Sep 16"],
+  pos_on_task: 'POS on-task 78% · 11 work cycles · 3 idle prompts dismissed',
+  cashier_activity: [
+    { id: 1, name: 'Carrie Rollins', cycles: 6, idle_stretches: 1, on_task: 84 },
+    { id: 2, name: 'David Kilduff', cycles: 5, idle_stretches: 2, on_task: 71 },
+  ],
   cross_diagnostics: [
     { section: 'David', owner: 'David Kilduff', checker: 'Michael Frieze', result: 'Issues found', items_fixed: 6, flag: 'Owner not maintaining.' },
   ],
@@ -96,6 +102,11 @@ export const CALM_BOARD: QaToday = {
     ],
     score: 100,
   },
+  score_items: {
+    week: ['Retail open not done Wed Sep 16', "Michael's section check not done Wed Sep 16"],
+    day: ['Retail open not done Wed Sep 16'],
+  },
+  pos_on_task: 'POS on-task 78% · 11 work cycles · 3 idle prompts dismissed',
   checklists: [],
   sections: [],
 };

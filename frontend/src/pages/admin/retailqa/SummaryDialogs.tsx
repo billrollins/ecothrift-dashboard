@@ -156,7 +156,7 @@ export function SummaryDialogs({
   );
 }
 
-function BoardDialog({
+export function BoardDialog({
   open,
   onClose,
   title,

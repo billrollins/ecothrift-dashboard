@@ -27,6 +27,7 @@ export function CommandHeader({
   sectionTotal,
   drawer,
   onDrawer,
+  onScore,
   onMoveWeek,
   onSelectDay,
 }: {
@@ -47,6 +48,7 @@ export function CommandHeader({
   sectionTotal?: number;
   drawer: DrawerId;
   onDrawer: (id: DrawerId) => void;
+  onScore: () => void;
   onMoveWeek: (delta: number) => void;
   onSelectDay: (next: string) => void;
 }) {
@@ -76,14 +78,14 @@ export function CommandHeader({
           </div>
           <button type="button" className="arrow" aria-label="Next week" onClick={() => onMoveWeek(1)}>›</button>
         </div>
-        <div className="hero">
+        <button type="button" className="hero" onClick={onScore}>
           <div className={`big ${letterClass(weekLetter)}`}>{weekLetter ?? '—'}</div>
           <div className="cap"><b>Week grade</b><span>so far</span></div>
-        </div>
+        </button>
         <div className="stats">
-          <div className="stat"><b>{scoreText(weekThirds.owner)}</b><span>Spot 60%</span></div>
-          <div className="stat"><b>{scoreText(weekThirds.doing)}</b><span>Do 25%</span></div>
-          <div className="stat"><b>{scoreText(weekThirds.cross)}</b><span>Cross 15%</span></div>
+          <button type="button" className="stat" onClick={onScore}><b>{scoreText(weekThirds.owner)}</b><span>Spot 60%</span></button>
+          <button type="button" className="stat" onClick={onScore}><b>{scoreText(weekThirds.doing)}</b><span>Do 25%</span></button>
+          <button type="button" className="stat" onClick={onScore}><b>{scoreText(weekThirds.cross)}</b><span>Cross 15%</span></button>
         </div>
         <div className="proj">
           <span className="txt">If the rest is done<br />this week</span>
