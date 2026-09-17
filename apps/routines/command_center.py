@@ -172,6 +172,22 @@ def assignment_for(user_id: int, day: date) -> ShiftAssignment | None:
     return None
 
 
+def owner_start_on(user_id: int, day: date, tz) -> datetime | None:
+    """Clock-in start if this person is on today's roster or a one-day override."""
+    assignment = assignment_for(user_id, day)
+    if assignment:
+        return at_clock(day, assignment.shift.time_in, tz)
+    override = (
+        QaDayOverride.objects.filter(employee_id=user_id, date=day)
+        .select_related('shift')
+        .first()
+    )
+    if override is None:
+        return None
+    clock = override.time_in or override.shift.time_in
+    return at_clock(day, clock, tz) if clock else None
+
+
 def shift_end_on(shift: Shift, day: date, tz) -> datetime:
     if shift.time_out <= shift.time_in:
         return at_clock(day + timedelta(days=1), shift.time_out, tz)
@@ -685,9 +701,12 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
                     break
         if run is None:
             status = STATUS_UNASSIGNED if not section.owner_id else STATUS_NOT_TALLIED
-            due_at, due_label, status = section_due_state(
+            due_at, due_label, status, owner_late = section_due_state(
                 section, run=None, status=STATUS_DONE if tallied else status,
                 day=day, now=now, tz=tz, punches=punches, call_ins=call_ins,
+            )
+            shown, owner_state = section_owner_view(
+                section, run=None, status=status, punches=punches,
             )
             jobs.append({
                 'group': 'section',
@@ -695,7 +714,9 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
                 'title': section.name,
                 'run_id': None,
                 'section_id': section.pk,
-                'owner': None if status == STATUS_UNASSIGNED else _person(section.owner),
+                'owner': shown,
+                'owner_state': owner_state,
+                'owner_late': owner_late,
                 'due_at': due_at,
                 'due_label': due_label,
                 'hard_label': '',
@@ -710,12 +731,12 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
         status = routine_live_status(run, day=day, now=now, tz=tz, hours_cfg=hours_cfg)
         if tallied:
             status = STATUS_DONE
-        due_at, due_label, status = section_due_state(
+        due_at, due_label, status, owner_late = section_due_state(
             section, run=run, status=status,
             day=day, now=now, tz=tz, punches=punches, call_ins=call_ins,
         )
-        shown = None if status == STATUS_UNASSIGNED else (
-            _person(run.assigned_to) if run.assigned_to_id else _person(section.owner)
+        shown, owner_state = section_owner_view(
+            section, run=run, status=status, punches=punches,
         )
         jobs.append({
             'group': 'section',
@@ -724,6 +745,8 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
             'run_id': run.pk,
             'section_id': section.pk,
             'owner': shown,
+            'owner_state': owner_state,
+            'owner_late': owner_late,
             'due_at': due_at,
             'due_label': due_label,
             'hard_label': '',
@@ -793,35 +816,49 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
     return jobs
 
 
+def section_owner_view(section, *, run, status, punches) -> tuple[dict | None, str | None]:
+    """Keep the owner on the row unless the three Unassigned cases already fired."""
+    if status == STATUS_UNASSIGNED:
+        return None, None
+    person = run.assigned_to if run and run.assigned_to_id else section.owner
+    if person is None:
+        return None, None
+    state = 'in' if person.pk in punches else 'scheduled'
+    return _person(person), state
+
+
 def section_due_state(section, *, run, status, day, now, tz, punches, call_ins):
-    """Due = punch + 60. Off/called-in Unassigned at once. Late trigger only if scheduled."""
+    """Keep the owner unless called in, not scheduled today, or removed from today.
+
+    Late is a schedule problem: the row stays theirs with Due after clock-in.
+    """
     if status == STATUS_DONE:
         done = f'Done {clock_hhmm(run.completed_at)}' if run and run.completed_at else 'Done'
-        return (run.due_at if run else None), done, status
+        return (run.due_at if run else None), done, status, False
     owner = section.owner
     if owner is None:
-        return None, '', STATUS_UNASSIGNED
-    if owner.pk in call_ins:
-        return None, '', STATUS_UNASSIGNED
+        return None, '', STATUS_UNASSIGNED, False
+    if owner.pk in call_ins or owner.pk in excluded_ids(day):
+        return None, '', STATUS_UNASSIGNED, False
+    start = owner_start_on(owner.pk, day, tz)
+    if start is None:
+        return None, '', STATUS_UNASSIGNED, False
+    keep = STATUS_NOT_TALLIED if status in (STATUS_DUE, STATUS_NOT_TALLIED, STATUS_UNASSIGNED) else status
     punch = punches.get(owner.pk)
-    assignment = assignment_for(owner.pk, day)
-    if assignment is None:
-        return None, '', STATUS_UNASSIGNED
-    start = at_clock(day, assignment.shift.time_in, tz)
     if punch is None:
-        if now >= start + timedelta(minutes=LATE_RED_MINUTES):
-            return None, '', STATUS_UNASSIGNED
-        return None, 'Due after clock-in', STATUS_NOT_TALLIED if status != STATUS_UNASSIGNED else status
+        late = now >= start + timedelta(minutes=LATE_AMBER_MINUTES)
+        return None, 'Due after clock-in', keep, late
     due = punch.clock_in + timedelta(minutes=SECTION_DUE_AFTER_PUNCH_MINUTES)
     if timezone.is_naive(due):
         due = timezone.make_aware(due, tz)
     label = f'Due {clock_hhmm(due)}'
     if now < due:
-        return due, label, STATUS_NOT_TALLIED if status in (STATUS_DUE, STATUS_NOT_TALLIED) else status
+        return due, label, keep, False
+    assignment = assignment_for(owner.pk, day)
     end = shift_end_on(assignment.shift, day, tz) if assignment else None
     if end and now >= end:
-        return due, label, STATUS_MISSED
-    return due, label, STATUS_OVERDUE
+        return due, label, STATUS_MISSED, False
+    return due, label, STATUS_OVERDUE, False
 
 
 def owner_check_gate(*, section, day: date, now: datetime | None = None) -> dict:

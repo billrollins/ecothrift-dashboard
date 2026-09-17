@@ -136,6 +136,7 @@ function RoutineGroup({
               </span>
               <span className="time">
                 <span className="due nowrap">{jobTimeLabel(job)}</span>
+                {job.owner_late ? <span className="owner-late">Owner late</span> : null}
                 {nudgeLabel(job.nudged_at) ? <span className="nudged">{nudgeLabel(job.nudged_at)}</span> : null}
               </span>
               <span className="end">

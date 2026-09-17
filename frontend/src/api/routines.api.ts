@@ -757,6 +757,7 @@ export interface QaJob {
   section_id: number | null;
   owner: NamedPerson | null;
   owner_state?: 'scheduled' | 'in' | null;
+  owner_late?: boolean;
   due_at: string | null;
   due_label: string;
   hard_label?: string;

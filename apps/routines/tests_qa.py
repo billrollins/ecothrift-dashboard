@@ -338,7 +338,7 @@ class CommandCenterTests(APITestCase):
     def setUp(self):
         self.mgr = _staff('mgr@example.com', 'Manager')
         self.sam = _staff('sam@example.com')
-        self.department = Department.objects.create(name='Retail')
+        self.department, _ = Department.objects.get_or_create(name='Retail')
         self.shift = Shift.objects.create(
             name='Retail Open',
             department=self.department,
@@ -603,34 +603,37 @@ class CommandCenterTests(APITestCase):
         self.assertEqual(severity, 'red')
 
     def test_section_due_after_clock_in_and_unassigned_at_thirty(self):
-        from apps.routines.command_center import STATUS_NOT_TALLIED, STATUS_UNASSIGNED, section_due_state
+        from apps.routines.command_center import STATUS_NOT_TALLIED, section_due_state
         from apps.routines.settings import LATE_AMBER_MINUTES, LATE_RED_MINUTES
         day = date(2026, 9, 16)
         start = timezone.make_aware(datetime.combine(day, time(8, 30)), TZ)
         amber = start + timedelta(minutes=LATE_AMBER_MINUTES)
-        due, label, status = section_due_state(
+        due, label, status, late = section_due_state(
             self.section, run=None, status=STATUS_NOT_TALLIED,
             day=day, now=amber, tz=TZ, punches={}, call_ins=set(),
         )
         self.assertEqual(label, 'Due after clock-in')
         self.assertEqual(status, STATUS_NOT_TALLIED)
+        self.assertTrue(late)
         red = start + timedelta(minutes=LATE_RED_MINUTES)
-        due, label, status = section_due_state(
+        due, label, status, late = section_due_state(
             self.section, run=None, status=STATUS_NOT_TALLIED,
             day=day, now=red, tz=TZ, punches={}, call_ins=set(),
         )
-        self.assertEqual(status, STATUS_UNASSIGNED)
+        self.assertEqual(status, STATUS_NOT_TALLIED)
+        self.assertTrue(late)
         punch = TimeEntry(
             employee=self.sam,
             date=day,
             clock_in=timezone.make_aware(datetime.combine(day, time(8, 30)), TZ),
         )
         after = timezone.make_aware(datetime.combine(day, time(9, 0)), TZ)
-        due, label, status = section_due_state(
+        due, label, status, late = section_due_state(
             self.section, run=None, status=STATUS_NOT_TALLIED,
             day=day, now=after, tz=TZ, punches={self.sam.pk: punch}, call_ins=set(),
         )
         self.assertEqual(label, 'Due 09:30')
+        self.assertFalse(late)
 
     def test_off_owner_unassigned_at_store_open_and_all_sections_count(self):
         from apps.routines.command_center import build_jobs
@@ -658,20 +661,52 @@ class CommandCenterTests(APITestCase):
         self.assertIsNone(david_job['owner'])
 
     def test_scheduled_section_owner_stays_theirs_until_thirty(self):
-        from apps.routines.command_center import STATUS_NOT_TALLIED, STATUS_UNASSIGNED, section_due_state
+        from apps.routines.command_center import STATUS_NOT_TALLIED, section_due_state
         day = date(2026, 9, 16)
         start = timezone.make_aware(datetime.combine(day, time(8, 30)), TZ)
         twenty = start + timedelta(minutes=20)
-        due, label, status = section_due_state(
+        due, label, status, late = section_due_state(
             self.section, run=None, status=STATUS_NOT_TALLIED,
             day=day, now=twenty, tz=TZ, punches={}, call_ins=set(),
         )
         self.assertEqual(status, STATUS_NOT_TALLIED)
         self.assertEqual(label, 'Due after clock-in')
+        self.assertTrue(late)
         thirty = start + timedelta(minutes=30)
-        due, label, status = section_due_state(
+        due, label, status, late = section_due_state(
             self.section, run=None, status=STATUS_NOT_TALLIED,
             day=day, now=thirty, tz=TZ, punches={}, call_ins=set(),
+        )
+        self.assertEqual(status, STATUS_NOT_TALLIED)
+        self.assertTrue(late)
+
+    def test_late_section_owner_stays_named_on_the_job(self):
+        from apps.routines.command_center import build_jobs
+        from apps.webstore.services.hours import get_hours_config
+        day = date(2026, 9, 16)
+        now = timezone.make_aware(datetime.combine(day, time(10, 0)), TZ)
+        jobs = build_jobs(day, {'date': day.isoformat()}, now=now, tz=TZ, hours_cfg=get_hours_config())
+        row = next(job for job in jobs if job['group'] == 'section' and job['title'] == 'Housewares')
+        self.assertEqual(row['status'], 'Not tallied')
+        self.assertEqual(row['owner']['id'], self.sam.pk)
+        self.assertEqual(row['owner_state'], 'scheduled')
+        self.assertTrue(row['owner_late'])
+        self.assertEqual(row['due_label'], 'Due after clock-in')
+
+    def test_removed_or_called_in_owner_unassigns(self):
+        from apps.routines.command_center import STATUS_NOT_TALLIED, STATUS_UNASSIGNED, section_due_state
+        day = date(2026, 9, 16)
+        now = timezone.make_aware(datetime.combine(day, time(10, 0)), TZ)
+        due, label, status, late = section_due_state(
+            self.section, run=None, status=STATUS_NOT_TALLIED,
+            day=day, now=now, tz=TZ, punches={}, call_ins={self.sam.pk},
+        )
+        self.assertEqual(status, STATUS_UNASSIGNED)
+        self.assertFalse(late)
+        QaDayExclusion.objects.create(employee=self.sam, date=day, marked_by=self.mgr)
+        due, label, status, late = section_due_state(
+            self.section, run=None, status=STATUS_NOT_TALLIED,
+            day=day, now=now, tz=TZ, punches={}, call_ins=set(),
         )
         self.assertEqual(status, STATUS_UNASSIGNED)
 

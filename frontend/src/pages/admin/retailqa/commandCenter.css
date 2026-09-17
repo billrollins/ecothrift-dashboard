@@ -172,6 +172,7 @@
 .cc-page .routines .owner.scheduled{color:var(--ink2)}
 .cc-page .routines .time{color:var(--ink2);font-size:12.5px;display:flex;flex-direction:column;justify-content:center;line-height:1.15;min-width:0}
 .cc-page .routines .time .nudged,.cc-page .issues .nudged{display:block;font-size:11.5px;color:var(--ink3);white-space:nowrap;font-weight:500}
+.cc-page .routines .time .owner-late{display:block;font-size:11.5px;color:var(--warn-text);white-space:nowrap;font-weight:500}
 .cc-page .routines .end{display:flex;gap:8px;align-items:center;justify-content:flex-end}
 .cc-page .row.grp-done{grid-template-columns:1fr auto;color:var(--good-text);cursor:pointer;height:36px}
 .cc-page .bar{height:4px;background:var(--line);border-radius:2px;margin-top:10px;overflow:hidden;flex:none}
