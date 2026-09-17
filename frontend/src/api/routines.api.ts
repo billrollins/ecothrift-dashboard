@@ -879,7 +879,9 @@ export interface QaToday {
       owner: NamedPerson | null;
       checker: NamedPerson | null;
       status: QaStatusWord;
-      items_fixed: number;
+      status_label?: string;
+      tone?: 'grey' | 'bad' | '';
+      items_fixed: number | null;
       score: number | null;
       notes: string;
     }>;

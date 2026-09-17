@@ -951,41 +951,83 @@ def spot_payload(day: date, day_row: dict) -> dict:
 
 
 def cross_payload(day: date, week: dict, *, due: date | None) -> dict:
-    rows = week.get('cross_checks') or []
-    total = len(rows)
-    done_rows = [row for row in rows if row.get('status') == 'done']
-    missing = []
-    for row in rows:
-        if row.get('status') == 'done':
-            continue
-        missing.append({
-            'run_id': row.get('run_id'),
-            'section_id': row.get('section_id'),
-            'section_name': row.get('section_name') or '',
-            'owner': row.get('section_owner'),
-            'checker': row.get('checker') or row.get('auditor_name'),
-        })
+    from .grading import _active_sections
+    today = timezone.localdate()
+    monday = this_monday(day)
+    period_keys = {item.isoformat() for item in week_days(monday)}
+    audits = {
+        row.get('section_id'): row
+        for row in (week.get('cross_checks') or [])
+        if row.get('section_id')
+    }
+    assigned = {
+        run.section_id: run
+        for run in RoutineRun.objects.filter(
+            routine__system_key=SYSTEM_CROSS_CHECK,
+            period_key__in=period_keys,
+            section_id__isnull=False,
+        ).select_related('assigned_to', 'section')
+    }
+    before_due = bool(due and today < due)
+    due_label = f'Due {short_day(due)}' if due else 'Due'
     table = []
-    for row in done_rows:
-        found = int(row.get('found') or 0)
-        flags = row.get('flags') or []
-        issues = found > 0 or bool(flags) or (row.get('score') or 100) < 100
+    missing = []
+    done = 0
+    for section in _active_sections():
+        audit = audits.get(section.pk)
+        run = assigned.get(section.pk)
+        owner = (audit or {}).get('section_owner') or _person(section.owner)
+        checker = (audit or {}).get('checker')
+        if not checker and run is not None:
+            checker = _person(run.assigned_to)
+        run_id = (audit or {}).get('run_id') or (run.pk if run else None)
+        if audit and audit.get('status') == 'done':
+            found = int(audit.get('found') or 0)
+            flags = audit.get('flags') or []
+            issues = found > 0 or bool(flags) or (audit.get('score') or 100) < 100
+            status = STATUS_ISSUES_FOUND if issues else STATUS_VALIDATED
+            table.append({
+                'run_id': run_id,
+                'section_id': section.pk,
+                'section_name': section.name,
+                'owner': owner,
+                'checker': checker,
+                'status': status,
+                'status_label': status,
+                'tone': '',
+                'items_fixed': found,
+                'score': audit.get('score'),
+                'notes': audit.get('notes') or '',
+            })
+            done += 1
+            continue
+        status = STATUS_DUE if before_due else STATUS_NOT_DONE
+        label = due_label if before_due else STATUS_NOT_DONE
         table.append({
-            'run_id': row.get('run_id'),
-            'section_id': row.get('section_id'),
-            'section_name': row.get('section_name') or '',
-            'owner': row.get('section_owner'),
-            'checker': row.get('checker') or {'id': None, 'name': row.get('auditor_name')},
-            'status': STATUS_ISSUES_FOUND if issues else STATUS_VALIDATED,
-            'items_fixed': found,
-            'score': row.get('score'),
-            'notes': row.get('notes') or '',
+            'run_id': run_id,
+            'section_id': section.pk,
+            'section_name': section.name,
+            'owner': owner,
+            'checker': checker,
+            'status': status,
+            'status_label': label,
+            'tone': 'grey' if before_due else 'bad',
+            'items_fixed': None,
+            'score': None,
+            'notes': '',
+        })
+        missing.append({
+            'run_id': run_id,
+            'section_id': section.pk,
+            'section_name': section.name,
+            'owner': owner,
+            'checker': checker,
         })
     return {
         'due': due.isoformat() if due else None,
         'due_label': short_day(due) if due else '',
-        'total': total,
-        'done': len(done_rows),
+        'total': len(table),
+        'done': done,
         'missing': missing,
         'rows': table,
         'score': (week.get('thirds') or {}).get('cross'),

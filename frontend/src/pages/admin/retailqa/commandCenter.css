@@ -191,6 +191,8 @@
 .cc-page-dialog .cc-dialog-table td{padding:7px 8px 7px 0;border-bottom:1px solid #e2e4dd;white-space:nowrap}
 .cc-page-dialog .cc-dialog-table tr:last-child td{border-bottom:0}
 .cc-page-dialog .cc-dialog-table .r{text-align:right}
+.cc-page-dialog .tone-grey{color:#8e948a}
+.cc-page-dialog .tone-bad{color:#b01f14;font-weight:600}
 .cc-page-dialog .cc-dialog-table a{color:#22271f;text-decoration:none;border-bottom:1px solid transparent}
 .cc-page-dialog .cc-dialog-table a:hover{border-bottom-color:#5b6356}
 .cc-page-dialog .walk-now{border:0;background:transparent;color:#22271f;padding:0;font:inherit;border-bottom:1px solid transparent}

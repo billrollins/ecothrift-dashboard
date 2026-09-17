@@ -54,6 +54,7 @@ export function SummaryDialogs({
             {tiles.filter((tile) => tile.open).map((tile) => {
               const spot = spots.find((row) => row.date === tile.date);
               const day = `${tile.weekday} ${format(parseISO(tile.date), 'd')}`;
+              const dueWord = `Due ${format(parseISO(tile.date), 'EEE MMM d')}`;
               if (spot) {
                 return (
                   <tr key={tile.date}>
@@ -67,36 +68,42 @@ export function SummaryDialogs({
                   </tr>
                 );
               }
-              if (tile.date === today) {
-                const canWalk = ready.length > 0;
+              if (tile.date > today || tile.is_future || tile.date === today) {
+                const canWalk = tile.date === today && ready.length > 0;
                 return (
                   <tr key={tile.date}>
                     <td>{day}</td>
-                    <td colSpan={3} style={{ color: ccTokens.ink3 }}>
-                      {ready.length ? `Not done yet · ${ready.join(', ')} are ready` : 'Not done yet'}
-                    </td>
-                    <td className="r">
-                      <span title={canWalk ? ready.join(', ') : 'No section is ready'}>
-                        <button
-                          type="button"
-                          className="walk-now"
-                          disabled={!canWalk}
-                          onClick={onDoSpot}
-                        >
-                          Walk now
-                        </button>
-                      </span>
-                    </td>
+                    <td colSpan={tile.date === today ? 2 : 3} className="tone-grey">{dueWord}</td>
+                    {tile.date === today ? (
+                      <td className="r">
+                        <span title={canWalk ? ready.join(', ') : 'No section is ready'}>
+                          <button type="button" className="walk-now" disabled={!canWalk} onClick={onDoSpot}>
+                            Walk now
+                          </button>
+                        </span>
+                      </td>
+                    ) : (
+                      <td />
+                    )}
                   </tr>
                 );
               }
               return (
                 <tr key={tile.date}>
                   <td>{day}</td>
-                  <td colSpan={4} style={{ color: ccTokens.ink3 }}>{tile.is_future || tile.date > today ? '·' : 'Not done'}</td>
+                  <td colSpan={4} className="tone-bad">Not done</td>
                 </tr>
               );
             })}
+            {spots.length ? (
+              <tr>
+                <td colSpan={3}>Combined score</td>
+                <td className="r">
+                  {Math.round(spots.reduce((sum, row) => sum + (row.spot_score ?? 0), 0) / spots.length)}
+                </td>
+                <td />
+              </tr>
+            ) : null}
           </tbody>
         </table>
         <div className="cc-dialog-note">{WALK_FLOOR} walks this week keep the grade uncapped.</div>
@@ -106,24 +113,35 @@ export function SummaryDialogs({
         <table className="cc-dialog-table">
           <thead>
             <tr>
-              <th>Section</th><th>Owner</th><th>Checker</th><th>Result</th>
+              <th>Section</th><th>Owner</th><th>Checker</th><th>Status</th>
               <th className="r">Items fixed</th><th className="r">Score</th><th></th>
             </tr>
           </thead>
           <tbody>
             {(cross?.rows ?? []).map((row) => (
-              <tr key={row.run_id ?? row.section_name}>
+              <tr key={row.run_id ?? row.section_id ?? row.section_name}>
                 <td>{displayName(row.section_name, 'auto')}</td>
                 <td>{row.owner?.name || '—'}</td>
                 <td>{typeof row.checker === 'string' ? row.checker : row.checker?.name || '—'}</td>
-                <td>{row.status}</td>
-                <td className="r">{row.items_fixed}</td>
+                <td className={row.tone === 'grey' ? 'tone-grey' : row.tone === 'bad' ? 'tone-bad' : ''}>
+                  {row.status_label || row.status}
+                </td>
+                <td className="r">{row.items_fixed ?? '—'}</td>
                 <td className="r">{row.score ?? '—'}</td>
                 <td className="r">
-                  {row.run_id ? <a href="#" onClick={(event) => { event.preventDefault(); onOpenRun(row.run_id as number); }}>View</a> : null}
+                  {row.run_id && row.status !== 'Due' && row.status !== 'Not done' ? (
+                    <a href="#" onClick={(event) => { event.preventDefault(); onOpenRun(row.run_id as number); }}>View</a>
+                  ) : null}
                 </td>
               </tr>
             ))}
+            {(cross?.done ?? 0) > 0 ? (
+              <tr>
+                <td colSpan={5}>Combined score</td>
+                <td className="r">{cross?.score ?? '—'}</td>
+                <td />
+              </tr>
+            ) : null}
           </tbody>
         </table>
         {flags.map((row) => (

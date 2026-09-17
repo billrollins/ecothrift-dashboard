@@ -710,6 +710,21 @@ class CommandCenterTests(APITestCase):
         )
         self.assertEqual(status, STATUS_UNASSIGNED)
 
+    def test_cross_payload_lists_every_section_before_any_are_done(self):
+        from apps.routines.command_center import cross_payload
+        monday = date(2026, 9, 14)
+        due = date(2026, 9, 20)
+        payload = cross_payload(monday, {'cross_checks': [], 'thirds': {'cross': None}}, due=due)
+        housewares = next(row for row in payload['rows'] if row['section_name'] == 'Housewares')
+        self.assertEqual(housewares['status_label'], 'Due Sun Sep 20')
+        self.assertEqual(housewares['tone'], 'grey')
+        self.assertEqual(housewares['owner']['id'], self.sam.pk)
+        self.assertEqual(payload['done'], 0)
+        late = cross_payload(monday, {'cross_checks': [], 'thirds': {'cross': None}}, due=date(2026, 9, 16))
+        late_row = next(row for row in late['rows'] if row['section_name'] == 'Housewares')
+        self.assertEqual(late_row['status_label'], 'Not done')
+        self.assertEqual(late_row['tone'], 'bad')
+
     def test_assign_run_creates_assign_nudge(self):
         from apps.routines.command_center import assign_run
         day = date(2026, 9, 16)
