@@ -230,6 +230,7 @@ export default function RetailQaPage() {
             onNudge={(id, el) => setNudgeTarget({ runId: id, anchor: el })}
             onOpenCross={() => setSummary('cross')}
             onDoSpot={() => board?.spot?.run_id && runnerReturn(board.spot.run_id)}
+            onOpenShifts={() => navigate('/admin/shifts')}
             closedLabel={closedLabel}
           />
           <RoutinesCard

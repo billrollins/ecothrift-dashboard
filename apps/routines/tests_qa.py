@@ -22,6 +22,7 @@ from apps.routines.models import (
     SectionObservation,
 )
 from apps.routines.schedule import (
+    SYSTEM_CLOSE,
     SYSTEM_CROSS_CHECK,
     SYSTEM_DAY,
     SYSTEM_OPEN,
@@ -647,6 +648,8 @@ class CommandCenterTests(APITestCase):
         self.assertEqual(open_job['owner']['id'], self.sam.pk)
         self.assertEqual(open_job['owner_state'], 'scheduled')
         self.assertEqual(open_job['status'], 'Due')
+        run.refresh_from_db()
+        self.assertIsNone(run.assigned_to_id)
         TimeEntry.objects.create(
             employee=self.sam,
             date=day,
@@ -658,6 +661,116 @@ class CommandCenterTests(APITestCase):
         self.assertEqual(open_job['owner_state'], 'in')
         self.assertNotEqual(open_job['status'], 'Unassigned')
         self.assertEqual(run.pk, open_job['run_id'])
+
+    def _cashier_pair(self, name, punch, key, title, due, hard):
+        shift = Shift.objects.create(
+            name=name,
+            department=self.department,
+            punch_code=punch,
+            time_in=time(8, 30),
+            time_out=time(15, 0),
+            weekdays=[1, 2, 3, 4, 5],
+        )
+        ShiftAssignment.objects.create(
+            employee=self.sam, shift=shift, weekdays=[1, 2, 3, 4, 5],
+        )
+        routine, _ = Routine.objects.update_or_create(
+            system_key=key,
+            defaults={
+                'title': title,
+                'kind': Routine.KIND_CHECKLIST,
+                'trigger': Routine.TRIGGER_DAILY,
+                'is_active': True,
+                'due_time': due,
+                'hard_time': hard,
+                'shift': shift,
+                'shift_locked': True,
+            },
+        )
+        routine.shift = shift
+        routine.shift_locked = True
+        routine.due_time = due
+        routine.hard_time = hard
+        routine.save(update_fields=['shift', 'shift_locked', 'due_time', 'hard_time'])
+        return shift, routine
+
+    def test_three_cashier_jobs_are_scheduled_without_punches(self):
+        from apps.routines.command_center import build_jobs
+        from apps.webstore.services.hours import get_hours_config
+        day = date(2026, 9, 16)
+        self.open.shift = self.shift
+        self.open.shift_locked = True
+        self.open.save(update_fields=['shift', 'shift_locked'])
+        _, day_routine = self._cashier_pair(
+            'Cashier - Day', 'retail_day', SYSTEM_DAY, 'Retail day', time(14, 0), time(15, 0),
+        )
+        _, close_routine = self._cashier_pair(
+            'Cashier - Close', 'retail_close', SYSTEM_CLOSE, 'Retail close', time(18, 0), time(19, 0),
+        )
+        for routine in (self.open, day_routine, close_routine):
+            RoutineRun.objects.create(
+                routine=routine,
+                period_key=day.isoformat(),
+                assigned_to=None,
+                due_at=timezone.make_aware(datetime.combine(day, routine.due_time), TZ),
+                status=RoutineRun.STATUS_OPEN,
+            )
+        now = timezone.make_aware(datetime.combine(day, time(8, 0)), TZ)
+        jobs = build_jobs(day, {'date': day.isoformat()}, now=now, tz=TZ, hours_cfg=get_hours_config())
+        shift_jobs = [row for row in jobs if row['group'] == 'shift']
+        self.assertEqual(len(shift_jobs), 3)
+        for job in shift_jobs:
+            self.assertEqual(job['owner_state'], 'scheduled', job['title'])
+            self.assertIsNotNone(job['owner'])
+            self.assertNotEqual(job['status'], 'Unassigned')
+
+    def test_empty_locked_shift_raises_open_shifts_issue(self):
+        from apps.routines.command_center import build_issues, build_jobs
+        from apps.webstore.services.hours import get_hours_config
+        day = date(2026, 9, 16)
+        close = Shift.objects.create(
+            name='Cashier - Close',
+            department=self.department,
+            punch_code='retail_close',
+            time_in=time(17, 0),
+            time_out=time(18, 0),
+            weekdays=[1, 2, 3, 4, 5],
+        )
+        routine, _ = Routine.objects.update_or_create(
+            system_key=SYSTEM_CLOSE,
+            defaults={
+                'title': 'Retail close',
+                'kind': Routine.KIND_CHECKLIST,
+                'trigger': Routine.TRIGGER_DAILY,
+                'is_active': True,
+                'due_time': time(18, 0),
+                'hard_time': time(19, 0),
+                'shift': close,
+                'shift_locked': True,
+            },
+        )
+        routine.shift = close
+        routine.shift_locked = True
+        routine.save(update_fields=['shift', 'shift_locked'])
+        RoutineRun.objects.create(
+            routine=routine,
+            period_key=day.isoformat(),
+            assigned_to=None,
+            due_at=timezone.make_aware(datetime.combine(day, time(18, 0)), TZ),
+            status=RoutineRun.STATUS_OPEN,
+        )
+        now = timezone.make_aware(datetime.combine(day, time(10, 0)), TZ)
+        hours = get_hours_config()
+        jobs = build_jobs(day, {'date': day.isoformat()}, now=now, tz=TZ, hours_cfg=hours)
+        issues = build_issues(
+            day=day, open_day=True, staff=[], jobs=jobs, spot={'done': True},
+            cross={'due': None, 'total': 0, 'done': 0}, nudges={}, now=now, tz=TZ,
+            hours_cfg=hours, today=day,
+        )
+        empty = [row for row in issues if row['type'] == 'empty_shift']
+        self.assertTrue(empty)
+        self.assertEqual(empty[0]['action'], 'open_shifts')
+        self.assertIn('nobody scheduled today', empty[0]['sentence'])
 
     def test_retail_open_due_uses_routine_time_not_store_hours(self):
         from apps.routines.schedule import due_at_for

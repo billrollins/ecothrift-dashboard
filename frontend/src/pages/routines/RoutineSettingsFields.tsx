@@ -407,11 +407,26 @@ export function RoutineSettingsFields({
         title="Owner"
         description="Who the run is for: people, a shift, or a department. One shared is one run. Each gives everyone their own."
       >
-        {value.shiftLocked && value.shiftName ? (
-          <Typography sx={{ fontSize: 13, mb: 1 }}>
-            Shift: {value.shiftName}
-          </Typography>
-        ) : null}
+        {value.shiftLocked ? (
+          <Box
+            sx={{
+              mb: 2,
+              px: 1.5,
+              py: 1.25,
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 1,
+              bgcolor: 'action.hover',
+            }}
+          >
+            <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
+              Tied to {value.shiftName || 'this shift'}
+            </Typography>
+            <Typography sx={{ fontSize: 12.5, color: 'text.secondary', mt: 0.25 }}>
+              Owner is whoever is punched in on that shift, then whoever is scheduled. This cannot be reassigned here.
+            </Typography>
+          </Box>
+        ) : (
         <FieldGrid wide={wide}>
           <TextField
             select
@@ -510,6 +525,9 @@ export function RoutineSettingsFields({
                   <MenuItem key={row.id} value={row.id}>{row.full_name}</MenuItem>
                 ))}
           </TextField>
+        </FieldGrid>
+        )}
+        <FieldGrid wide={wide}>
           <Box sx={{ gridColumn: '1 / -1' }}>
             <Toggle
               label="Blocking"

@@ -11,6 +11,7 @@ export function IssuesBar({
   onNudge,
   onOpenCross,
   onDoSpot,
+  onOpenShifts,
   closedLabel,
 }: {
   issues: QaIssue[];
@@ -21,6 +22,7 @@ export function IssuesBar({
   onNudge: (runId: number, el: HTMLElement) => void;
   onOpenCross: () => void;
   onDoSpot: () => void;
+  onOpenShifts: () => void;
   closedLabel?: string | null;
 }) {
   const rows = groupIssues(issues, staff, jobs);
@@ -56,6 +58,9 @@ export function IssuesBar({
                 ) : null}
                 {row.action === 'do_spot' ? (
                   <button type="button" className={`act always ${tone || 'warn'}`} onClick={onDoSpot}>Walk</button>
+                ) : null}
+                {row.action === 'open_shifts' ? (
+                  <button type="button" className={`act always ${tone || 'warn'}`} onClick={onOpenShifts}>Open Shifts</button>
                 ) : null}
               </div>
             );

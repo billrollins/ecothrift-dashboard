@@ -731,14 +731,15 @@ export type QaIssueType =
   | 'call_in_unassigned'
   | 'overdue_routine'
   | 'cross_overdue'
-  | 'no_spot';
+  | 'no_spot'
+  | 'empty_shift';
 
 export interface QaIssue {
   id: string;
   type: QaIssueType;
   severity: 'red' | 'amber' | 'grey';
   sentence: string;
-  action: 'call_in' | 'reassign' | 'nudge' | 'open_cross' | 'do_spot';
+  action: 'call_in' | 'reassign' | 'nudge' | 'open_cross' | 'do_spot' | 'open_shifts';
   person_id: number | null;
   person_name: string | null;
   run_id: number | null;

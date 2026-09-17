@@ -31,7 +31,7 @@ from .grading import (
     week_grade,
     week_label,
 )
-from .models import QaCallIn, QaNudge, RoutineRun, Section
+from .models import QaCallIn, QaNudge, Routine, RoutineRun, Section
 from .schedule import (
     SYSTEM_CLOSE,
     SYSTEM_CROSS_CHECK,
@@ -182,7 +182,35 @@ def miss_boundary(run: RoutineRun, day: date, tz, hours_cfg=None) -> datetime:
         row = assignment_for(run.assigned_to_id, day)
         if row:
             return shift_end_on(row.shift, day, tz)
+    shift = locked_shift_for(getattr(run, 'routine', None))
+    if shift:
+        return shift_end_on(shift, day, tz)
     return close_on(day, cfg=hours_cfg, tz=tz)
+
+
+def locked_shift_for(routine) -> Shift | None:
+    if routine is None:
+        return None
+    if getattr(routine, 'shift_id', None):
+        return routine.shift
+    code = punch_code_for_routine(routine)
+    if not code:
+        return None
+    return Shift.objects.filter(is_active=True, punch_code=code).first()
+
+
+def resolve_shift_owner(routine, day: date, *, punches: dict, call_ins: set[int]):
+    """Punched on the locked shift, else scheduled (grey), else nobody.
+
+    Does not persist assigned_to for a scheduled-only name.
+    """
+    punched = [user for user in punched_on_code(day, punch_code_for_routine(routine)) if user.pk not in call_ins]
+    scheduled = scheduled_for_routine(routine, day, call_ins)
+    if punched:
+        return punched[0], 'in', scheduled
+    if scheduled:
+        return scheduled[0], 'scheduled', scheduled
+    return None, None, scheduled
 
 
 def routine_due_at(run: RoutineRun | None, day: date, tz, hours_cfg=None):
@@ -603,45 +631,35 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
         run = RoutineRun.objects.filter(
             routine__system_key=key, period_key=day.isoformat(),
         ).select_related('assigned_to', 'completed_by', 'routine', 'routine__shift').first()
-        if run and run.assigned_to_id is None:
-            code = punch_code_for_routine(run.routine)
-            people = punched_on_code(day, code)
-            if people:
-                run.assigned_to = people[0]
-                run.unassign_key = ''
-                run.save(update_fields=['assigned_to', 'unassign_key'])
+        routine = run.routine if run else Routine.objects.filter(system_key=key).select_related('shift').first()
+        owner, owner_state, scheduled = resolve_shift_owner(
+            routine, day, punches=punches, call_ins=call_ins,
+        )
+        if run and owner is not None and owner_state == 'in' and run.assigned_to_id != owner.pk:
+            run.assigned_to = owner
+            run.unassign_key = ''
+            run.save(update_fields=['assigned_to', 'unassign_key'])
+        if run and owner is None and run.assigned_to_id and run.assigned_to_id not in call_ins:
+            owner = run.assigned_to
+            owner_state = 'in' if owner.pk in punches else 'scheduled'
         status = routine_live_status(run, day=day, now=now, tz=tz, hours_cfg=hours_cfg)
         due_at = routine_due_at(run, day, tz, hours_cfg) if run else None
         hard_at = routine_hard_at(run, day, tz, hours_cfg) if run else None
         due_label = f'Due {clock_hhmm(due_at)}' if due_at else ''
         if status == STATUS_DONE:
             due_label = f'Done {clock_hhmm(run.completed_at)}' if run and run.completed_at else 'Done'
-        code = punch_code_for_routine(run.routine) if run else ''
         shift_people = [
             {'id': user.pk, 'name': user.full_name, 'full_name': user.full_name}
-            for user in punched_on_code(day, code)
+            for user in scheduled
         ]
-        scheduled = scheduled_for_routine(run.routine if run else None, day, call_ins)
-        for user in scheduled:
-            if not any(item['id'] == user.pk for item in shift_people):
-                shift_people.append({
-                    'id': user.pk,
-                    'name': user.full_name,
-                    'full_name': user.full_name,
-                })
-        owner = run.assigned_to if run and run.assigned_to_id else None
-        owner_state = None
-        if owner is None and scheduled:
-            punched_ids = set(punches)
-            owner = next((user for user in scheduled if user.pk in punched_ids), scheduled[0])
         if owner:
-            owner_state = 'in' if owner.pk in punches else 'scheduled'
             if status == STATUS_UNASSIGNED:
                 if due_at is not None and now >= due_at:
                     boundary = miss_boundary(run, day, tz, hours_cfg) if run else now
                     status = STATUS_MISSED if now >= boundary else STATUS_OVERDUE
                 else:
                     status = STATUS_DUE
+        shift = locked_shift_for(routine)
         jobs.append({
             'group': 'shift',
             'key': key,
@@ -658,6 +676,8 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
             'status': status,
             'closed': False,
             'can_close': False,
+            'shift_id': shift.pk if shift else None,
+            'shift_name': shift.name if shift else '',
             'shift_people': shift_people,
         })
     return jobs
@@ -925,6 +945,25 @@ def build_issues(
 
     called = [row for row in staff if row['status'] == STATUS_CALLED_IN]
     unassigned = [job for job in jobs if job['status'] == STATUS_UNASSIGNED and job.get('run_id')]
+    for job in jobs:
+        if job.get('group') != 'shift' or job.get('shift_people'):
+            continue
+        if not job.get('shift_name') and not job.get('shift_id'):
+            continue
+        name = job.get('shift_name') or job.get('title') or 'This shift'
+        issues.append({
+            'id': f'empty-shift-{job.get("key") or job.get("shift_id") or job["title"]}',
+            'type': 'empty_shift',
+            'severity': 'amber',
+            'sentence': f'{name} has nobody scheduled today',
+            'action': 'open_shifts',
+            'person_id': None,
+            'person_name': None,
+            'run_id': job.get('run_id'),
+            'call_in_id': None,
+            'nudged_at': None,
+            'can_act': True,
+        })
     if called and unassigned:
         count = len(unassigned)
         issues.append({
