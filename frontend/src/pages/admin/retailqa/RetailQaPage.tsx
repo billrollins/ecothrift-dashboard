@@ -179,7 +179,7 @@ export default function RetailQaPage() {
     row.run_id && nudgeStamp[row.run_id] ? { ...row, nudged_at: nudgeStamp[row.run_id] } : row
   ));
   const alerts = issues.filter((row) => row.severity === 'red' || row.severity === 'amber').length;
-  const weekNumber = week.includes('-W') ? `W${week.split('-W')[1]}` : week;
+  const weekNumber = week.includes('-W') ? `Week ${Number(week.split('-W')[1])}` : week;
   const jobs = (board?.jobs ?? []).map((row) => (
     row.run_id && nudgeStamp[row.run_id] ? { ...row, nudged_at: nudgeStamp[row.run_id] } : row
   ));
