@@ -236,6 +236,7 @@ export default function RetailQaPage() {
         <ScheduleCard
             date={date}
             staff={staff}
+            off={board?.off}
             people={assignees.data ?? []}
             onCallIn={(id) => void markCalledIn(id)}
             onClearCallIn={(id) => void clearCalledIn(id)}
