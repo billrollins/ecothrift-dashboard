@@ -18,6 +18,7 @@ import {
 } from '../../../hooks/useRetailQa';
 import { isoWeekKey, shiftWeek, weekMonday } from '../routines/gradeWeek';
 import { displayName, shortName } from './commandCenter';
+import { commandKeyAction } from './commandKeys';
 import { CALM_BOARD, CALM_DATE, CALM_PEOPLE, CALM_SPOTS, CALM_TILES, CALM_WEEK } from './calmFixture';
 import { CALLIN_BOARD, PROBLEM_BOARD, PROBLEM_DATE, PROBLEM_PEOPLE, PROBLEM_SPOTS, PROBLEM_TILES, PROBLEM_WEEK, SCROLL_BOARD } from './problemFixture';
 import { CommandHeader } from './CommandHeader';
@@ -156,24 +157,21 @@ export default function RetailQaPage() {
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      const target = event.target as HTMLElement | null;
-      if (target && target.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return;
-      if (weekOpen) {
-        if (event.key === 'Escape') setWeekOpen(false);
-        return;
-      }
-      if (event.key === 'Escape') {
+      const action = commandKeyAction(event);
+      if (!action) return;
+      if (action.type === 'escape') {
+        setWeekOpen(false);
         setScoreOpen(false);
         setDrawer(null);
+        return;
       }
-      if (event.key === 'ArrowLeft') moveWeek(-1);
-      if (event.key === 'ArrowRight') moveWeek(1);
-      const num = Number(event.key);
-      if (num >= 1 && num <= 7 && tiles[num - 1]) setDay(tiles[num - 1].date, week);
+      if (weekOpen || scoreOpen || drawer) return;
+      if (action.type === 'week') moveWeek(action.delta);
+      if (action.type === 'day' && tiles[action.index]) setDay(tiles[action.index].date, week);
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [tiles, week, date, weekOpen]);
+  }, [tiles, week, date, weekOpen, scoreOpen, drawer]);
 
   if (!fixture && weekQuery.isLoading && !data) return <LoadingScreen message="Loading Command Center..." />;
 
