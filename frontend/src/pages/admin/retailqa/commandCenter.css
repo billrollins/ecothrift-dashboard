@@ -153,8 +153,8 @@
 .cc-page .schedule .time{color:var(--ink2);font-size:12.5px;white-space:nowrap;overflow:visible;min-width:7.6em}
 .cc-page .schedule .st{justify-self:end;display:flex;align-items:center;gap:6px}
 
-.cc-page .issues{flex:0 0 auto;max-height:34%;min-height:0;overflow:hidden}
-.cc-page .issues .scroll{flex:1 1 auto;min-height:88px}
+.cc-page .issues{flex:0 1 auto;max-height:34%;min-height:0;overflow:hidden}
+.cc-page .issues .scroll{flex:1 1 auto;min-height:0}
 .cc-page .routines{flex:1 1 auto;min-height:0}
 .cc-page .issues .row{grid-template-columns:20px 1fr auto;height:44px;font-weight:500}
 .cc-page .issues .row .ic{color:var(--ink2);display:grid;place-items:center}
