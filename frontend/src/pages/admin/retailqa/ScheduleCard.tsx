@@ -1,6 +1,7 @@
 import { format, parseISO } from 'date-fns';
 import type { QaStaffRow } from '../../../api/routines.api';
-import { CHIP_LABEL, DEPT_ICON, displayName, scheduleGroups, scheduleSummary, shortName, staffChip } from './commandCenter';
+import { DEPT_ICON, displayName, scheduleGroups, scheduleSummary, shortName, staffChip } from './commandCenter';
+import { QaChip } from './QaChip';
 import { QaIcon } from './QaIcons';
 
 export function ScheduleCard({
@@ -40,10 +41,7 @@ export function ScheduleCard({
                       {chip === 'late' ? (
                         <button type="button" className="act warn" onClick={() => onCallIn(row.id)}>Called in</button>
                       ) : null}
-                      <span className={`chip ${chip}`}>
-                        <QaIcon name={chip === 'in' || chip === 'call' ? (chip === 'in' ? 'check' : 'person') : 'clock'} />
-                        {CHIP_LABEL[chip]}
-                      </span>
+                      <QaChip kind={chip} />
                     </span>
                   </div>
                 );

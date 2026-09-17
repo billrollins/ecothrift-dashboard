@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import type { QaJob, RoutineAssignee } from '../../../api/routines.api';
-import { barTone, CHIP_ICON, CHIP_LABEL, displayName, jobChip, jobTimeLabel, shortName } from './commandCenter';
+import { barTone, displayName, jobChip, jobTimeLabel, shortName } from './commandCenter';
+import { QaChip } from './QaChip';
 import { QaIcon } from './QaIcons';
 
 export function RoutinesCard({
@@ -135,10 +136,7 @@ function RoutineGroup({
                     {chip === 'over' ? 'Nudge' : 'Reassign'}
                   </button>
                 ) : null}
-                <span className={`chip ${chip}`}>
-                  <QaIcon name={CHIP_ICON[chip]} />
-                  {CHIP_LABEL[chip]}
-                </span>
+                <QaChip kind={chip} />
               </span>
             </div>
           );
