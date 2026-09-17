@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import type { QaJob, RoutineAssignee } from '../../../api/routines.api';
-import { CHIP_LABEL, displayName, jobChip, jobTimeLabel, shortName } from './commandCenter';
+import { barTone, CHIP_ICON, CHIP_LABEL, displayName, jobChip, jobTimeLabel, shortName } from './commandCenter';
+import { QaIcon } from './QaIcons';
 
 export function RoutinesCard({
   date,
@@ -22,7 +23,7 @@ export function RoutinesCard({
   const needed = jobs.length;
   const sections = jobs.filter((job) => job.group === 'section');
   const shifts = jobs.filter((job) => job.group === 'shift');
-  const pct = needed ? Math.round((100 * done) / needed) : 0;
+  const bar = barTone(jobs);
 
   return (
     <section className="card routines">
@@ -30,11 +31,11 @@ export function RoutinesCard({
         Routines · {format(parseISO(date), 'EEE MMM d')}
         <span>
           <span className="sum">{needed ? `${done} of ${needed} done` : ''}</span>
-          {' \u00a0 '}
+          {' \u00a0\u00a0 '}
           <a href="#" onClick={(event) => { event.preventDefault(); onWeekView(); }}>Week view</a>
         </span>
       </h2>
-      {needed ? <div className="bar"><i style={{ width: `${pct}%` }} /></div> : null}
+      {needed ? <div className={`bar ${bar.tone}`}><i style={{ width: `${bar.pct}%` }} /></div> : null}
       <div className="scroll" id="rtBody">
         <RoutineGroup title="Section checks" jobs={sections} people={people} onAssign={onAssign} onNudge={onNudge} />
         <RoutineGroup title="Open / Day / Close" jobs={shifts} people={people} onAssign={onAssign} onNudge={onNudge} />
@@ -75,7 +76,9 @@ function RoutineGroup({
               if (event.key === 'Enter' || event.key === ' ') setOpen(true);
             }}
           >
-            <span>All {jobs.length} done</span>
+            <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <QaIcon name="check" /> All {jobs.length} done
+            </span>
             <span>▸</span>
           </div>
         </div>
@@ -86,15 +89,15 @@ function RoutineGroup({
     <>
       <div className="grp">
         {title}
-        <span>{done} of {jobs.length}</span>
+        <span className="cnt">{done} of {jobs.length}</span>
       </div>
       <div className="rows">
         {jobs.map((job, index) => {
           const chip = jobChip(job.status, job.owner);
-          const unassigned = chip === 'unas';
+          const unassigned = chip === 'unas' && !job.owner;
           const pool = job.shift_people?.length ? job.shift_people : people;
           return (
-            <div className="row" key={`${job.key}-${job.run_id ?? job.section_id ?? index}`}>
+            <div className={`row${chip === 'over' || chip === 'miss' || chip === 'unas' ? ' s-warn' : ''}`} key={`${job.key}-${job.run_id ?? job.section_id ?? index}`}>
               <span className="name nowrap">{displayName(job.title, 'routine')}</span>
               <span className="owner nowrap" title={job.owner?.name || ''}>
                 {(unassigned || reassignId === job.run_id) && job.run_id ? (
@@ -123,7 +126,7 @@ function RoutineGroup({
                 {chip !== 'done' && chip !== 'unas' ? (
                   <button
                     type="button"
-                    className="act green"
+                    className={`act ${chip === 'over' || chip === 'miss' ? 'warn' : ''}`}
                     onClick={() => {
                       if (chip === 'over' && job.run_id) onNudge(job.run_id);
                       else if (job.run_id) setReassignId(job.run_id);
@@ -132,7 +135,10 @@ function RoutineGroup({
                     {chip === 'over' ? 'Nudge' : 'Reassign'}
                   </button>
                 ) : null}
-                <span className={`chip ${chip}`}>{CHIP_LABEL[chip]}</span>
+                <span className={`chip ${chip}`}>
+                  <QaIcon name={CHIP_ICON[chip]} />
+                  {CHIP_LABEL[chip]}
+                </span>
               </span>
             </div>
           );

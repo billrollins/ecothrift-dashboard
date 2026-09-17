@@ -116,13 +116,35 @@ export function staffChip(status: string | undefined): keyof typeof CHIP_LABEL {
   return 'exp';
 }
 
+export const CHIP_ICON: Record<keyof typeof CHIP_LABEL, 'check' | 'clock' | 'alert' | 'person'> = {
+  in: 'check',
+  exp: 'clock',
+  late: 'clock',
+  call: 'person',
+  done: 'check',
+  due: 'clock',
+  over: 'alert',
+  miss: 'alert',
+  unas: 'alert',
+};
+
 export function jobChip(status: string | undefined, owner?: { name?: string } | null): keyof typeof CHIP_LABEL {
   const word = qaStatusWord(status);
   if (word === 'Done') return 'done';
   if (word === 'Overdue') return 'over';
   if (word === 'Missed') return 'miss';
-  if (word === 'Unassigned' && !owner) return 'unas';
+  if (!owner) return 'unas';
   return 'due';
+}
+
+export function barTone(jobs: Array<{ status: string; owner?: { name?: string } | null }>) {
+  const chips = jobs.map((job) => jobChip(job.status, job.owner));
+  const done = chips.filter((chip) => chip === 'done').length;
+  const needed = jobs.length;
+  const pct = needed ? Math.round((100 * done) / needed) : 0;
+  if (!needed || pct === 100) return { pct, tone: 'ok' as const };
+  if (chips.some((chip) => chip === 'miss' || chip === 'unas')) return { pct, tone: '' as const };
+  return { pct, tone: 'warn' as const };
 }
 
 export function letterClass(letter: GradeLetter | null | undefined) {
