@@ -368,6 +368,22 @@ class CommandCenterTests(APITestCase):
         self.assertEqual(status_word('own_part'), 'Due')
         self.assertEqual(status_word('Done'), 'Done')
 
+    def test_week_payload_includes_section_check_days(self):
+        from apps.routines.command_center import week_payload
+        monday = date(2026, 9, 14)
+        RoutineRun.objects.create(
+            routine=self.tally,
+            period_key='2026-09-15',
+            assigned_to=self.sam,
+            due_at=timezone.make_aware(datetime.combine(date(2026, 9, 15), time(10, 0)), TZ),
+            status=RoutineRun.STATUS_DONE,
+        )
+        payload = week_payload(monday)
+        row = next((item for item in payload['section_checks'] if item['id'] == self.sam.pk), None)
+        self.assertIsNotNone(row)
+        self.assertEqual(len(row['days']), 7)
+        self.assertIn(row['days'][1], ('done', 'due', 'missed', 'none'))
+
     def test_fresh_week_tiles_use_spot_and_cross_dashes(self):
         from apps.routines.command_center import week_payload
         monday = date(2026, 9, 14)

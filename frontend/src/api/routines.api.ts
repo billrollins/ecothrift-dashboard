@@ -622,6 +622,7 @@ export interface PersonWeekRow {
   spot_average: number | null;
   open_flags: number;
   on_task?: number | null;
+  section_days?: Array<'done' | 'due' | 'missed' | 'none'>;
 }
 
 export function getRoutineSubmission(id: number) {

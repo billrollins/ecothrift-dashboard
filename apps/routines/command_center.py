@@ -1068,6 +1068,17 @@ def week_payload(monday: date) -> dict:
         'score_items': score_items_for_week(week),
         'pos_on_task': pos_on_task_line(week),
         'projected': week.get('projected'),
+        'section_checks': [
+            {
+                'id': row['id'],
+                'name': row['name'],
+                'days': row.get('section_days') or ['none'] * 7,
+                'done': row.get('done'),
+                'assigned': row.get('assigned'),
+                'on_task': row.get('on_task'),
+            }
+            for row in (week.get('people') or [])
+        ],
     }
 
 

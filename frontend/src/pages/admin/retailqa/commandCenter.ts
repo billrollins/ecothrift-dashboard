@@ -324,7 +324,16 @@ function formatRoutineIssue(issue: QaIssue, jobs: QaJob[]) {
 export function peopleDots(
   days: DayGrade[] | undefined,
   personId: number,
+  sectionDays?: Array<'done' | 'due' | 'missed' | 'none' | string>,
 ): Array<'ok' | 'miss' | 'due' | ''> {
+  if (sectionDays && sectionDays.length === 7) {
+    return sectionDays.map((status) => {
+      if (status === 'done') return 'ok';
+      if (status === 'missed') return 'miss';
+      if (status === 'due') return 'due';
+      return '';
+    });
+  }
   const byDate = new Map((days ?? []).map((row) => [row.date, row]));
   const monday = days?.[0]?.date;
   if (!monday) return ['', '', '', '', '', '', ''];

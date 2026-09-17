@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CALM_ISSUES, CALM_JOBS, CALM_STAFF } from './calmFixture';
-import { displayName, formatShiftRange, groupIssues, jobTimeLabel, scheduleSummary, shortName, tileClass } from './commandCenter';
+import { displayName, formatShiftRange, groupIssues, jobTimeLabel, peopleDots, scheduleSummary, shortName, tileClass } from './commandCenter';
 
 describe('displayName', () => {
   it('maps routine keys, punch codes, and department keys', () => {
@@ -68,6 +68,14 @@ describe('groupIssues', () => {
     ));
     const rows = groupIssues([], staff, []);
     expect(rows[0].sentence).toBe('Michael F. is 1 h 40 min late for Restoration.');
+  });
+});
+
+describe('peopleDots', () => {
+  it('maps week payload section-check days onto dialog dots', () => {
+    expect(peopleDots([], 1, ['none', 'done', 'due', 'missed', 'none', 'due', 'none'])).toEqual([
+      '', 'ok', 'due', 'miss', '', 'due', '',
+    ]);
   });
 });
 

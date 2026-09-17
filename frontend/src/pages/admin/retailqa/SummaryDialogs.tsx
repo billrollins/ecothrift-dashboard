@@ -137,7 +137,7 @@ export function SummaryDialogs({
             {(fixturePeople ?? people).map((row) => {
               const dots = fixturePeople
                 ? (row as typeof fixturePeople[number]).dots
-                : peopleDots(weekData?.days, row.id);
+                : peopleDots(weekData?.days, row.id, row.section_days);
               return (
                 <tr key={row.id}>
                   <td>{row.name}</td>
