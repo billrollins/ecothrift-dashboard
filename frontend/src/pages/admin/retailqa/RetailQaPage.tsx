@@ -1,4 +1,4 @@
-import { addDays, format, parseISO } from 'date-fns';
+import { addDays, format } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
@@ -16,11 +16,12 @@ import {
 } from '../../../hooks/useRetailQa';
 import { isoWeekKey, shiftWeek, weekMonday } from '../routines/gradeWeek';
 import { displayName } from './commandCenter';
-import { CALM_BOARD, CALM_DATE, CALM_TILES, CALM_WEEK } from './calmFixture';
+import { CALM_BOARD, CALM_DATE, CALM_PEOPLE, CALM_SPOTS, CALM_TILES, CALM_WEEK } from './calmFixture';
 import { CommandHeader } from './CommandHeader';
 import { IssuesBar } from './IssuesBar';
 import { RoutinesCard } from './RoutinesCard';
 import { ScheduleCard } from './ScheduleCard';
+import { SummaryDialogs } from './SummaryDialogs';
 import { WeekRoutinesModal } from './WeekRoutinesModal';
 import './commandCenter.css';
 
@@ -165,12 +166,6 @@ export default function RetailQaPage() {
         onMoveWeek={moveWeek}
         onSelectDay={(next) => setDay(next, week)}
       />
-      {!fixture && date !== today ? (
-        <div className="day-banner">
-          <span>Viewing {format(parseISO(date), 'EEE MMM d')}. You are not on today.</span>
-          <button type="button" onClick={() => setDay(today)}>Back to today</button>
-        </div>
-      ) : null}
       <div className="body">
         <ScheduleCard date={date} staff={staff} onCallIn={(id) => void markCalledIn(id)} />
         <main className="col-right">
@@ -194,6 +189,20 @@ export default function RetailQaPage() {
           />
         </main>
       </div>
+      <SummaryDialogs
+        open={drawer}
+        onClose={() => setDrawer(null)}
+        week={week}
+        today={fixture ? CALM_DATE : today}
+        tiles={tiles}
+        board={board}
+        weekData={data}
+        spots={fixture ? CALM_SPOTS : spotsQuery.data?.spots ?? []}
+        people={peopleQuery.data?.people ?? []}
+        fixturePeople={fixture ? CALM_PEOPLE : undefined}
+        onDoSpot={() => board?.spot?.run_id && runnerReturn(board.spot.run_id)}
+        onOpenRun={(runId) => runnerReturn(runId)}
+      />
       <WeekRoutinesModal open={weekOpen} onClose={() => setWeekOpen(false)} week={week} />
     </div>
   );
