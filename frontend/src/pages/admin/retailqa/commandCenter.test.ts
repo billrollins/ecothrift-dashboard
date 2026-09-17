@@ -105,6 +105,6 @@ describe('labels', () => {
         ? { ...row, clocked_in: false, status: 'Late' as const, late_minutes: 100 }
         : row
     ));
-    expect(scheduleSummary(staff)).toBe('4 of 5 in · 1 late');
+    expect(scheduleSummary(staff)).toBe('4 of 6 in · 1 late');
   });
 });
