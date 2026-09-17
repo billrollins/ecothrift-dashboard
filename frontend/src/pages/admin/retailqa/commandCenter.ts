@@ -13,7 +13,18 @@ export const CHIP_LABEL: Record<string, string> = {
   unas: 'Unassigned',
 };
 
-export const DEPT_ORDER = ['Retail', 'Retail Operations', 'Processing', 'Restoration', 'Office', 'Warehouse'];
+export const DEPT_ORDER = ['Retail', 'Retail Operations', 'Processing', 'Restoration', 'Office', 'Warehouse', 'Donations', 'Ecommerce'];
+
+export const DEPT_ICON: Record<string, 'cart' | 'box' | 'tool' | 'home'> = {
+  Retail: 'cart',
+  'Retail Operations': 'cart',
+  Processing: 'box',
+  Restoration: 'tool',
+  Office: 'home',
+  Warehouse: 'box',
+  Donations: 'box',
+  Ecommerce: 'cart',
+};
 
 const ROUTINE_NAMES: Record<string, string> = {
   'retail.open': 'Retail open',
@@ -167,9 +178,12 @@ export function scheduleGroups(staff: QaStaffRow[]) {
 export function scheduleSummary(staff: QaStaffRow[]) {
   const on = staff.filter((row) => qaStatusWord(row.status) !== 'Off');
   const later = on.filter((row) => qaStatusWord(row.status) === 'Expected' && !row.clocked_in);
+  const late = on.filter((row) => qaStatusWord(row.status) === 'Late');
   const dueNow = on.filter((row) => !later.includes(row));
-  const inn = dueNow.filter((row) => row.clocked_in || qaStatusWord(row.status) === 'In').length;
-  return later.length ? `${inn} of ${dueNow.length} in · ${later.length} later` : `${inn} of ${dueNow.length} in`;
+  const inn = dueNow.filter((row) => qaStatusWord(row.status) === 'In' || (row.clocked_in && qaStatusWord(row.status) !== 'Late')).length;
+  if (late.length) return `${inn} of ${dueNow.length} in · ${late.length} late`;
+  if (later.length) return `${inn} of ${dueNow.length} in · ${later.length} later`;
+  return `${inn} of ${dueNow.length} in`;
 }
 
 export type BoardIssue = {

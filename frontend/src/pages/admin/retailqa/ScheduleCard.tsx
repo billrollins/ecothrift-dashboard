@@ -1,6 +1,7 @@
 import { format, parseISO } from 'date-fns';
 import type { QaStaffRow } from '../../../api/routines.api';
-import { CHIP_LABEL, displayName, scheduleGroups, scheduleSummary, shortName, staffChip } from './commandCenter';
+import { CHIP_LABEL, DEPT_ICON, displayName, scheduleGroups, scheduleSummary, shortName, staffChip } from './commandCenter';
+import { QaIcon } from './QaIcons';
 
 export function ScheduleCard({
   date,
@@ -12,33 +13,42 @@ export function ScheduleCard({
   onCallIn: (personId: number) => void;
 }) {
   const groups = scheduleGroups(staff);
+  const late = staff.some((row) => staffChip(row.status) === 'late');
   return (
     <aside className="card schedule">
       <h2>
         Schedule · {format(parseISO(date), 'EEE MMM d')}
-        <span className="sum">{scheduleSummary(staff)}</span>
+        <span className={`sum${late ? ' warn' : ''}`}>{scheduleSummary(staff)}</span>
       </h2>
       <div className="scroll" id="schedRows">
         {groups.map((group) => (
           <div key={group.department}>
-            <div className="grp">{displayName(group.department, 'dept')}</div>
-            {group.rows.map((row) => {
-              const chip = staffChip(row.status);
-              const time = row.time_in && row.time_out ? `${row.time_in} to ${row.time_out}` : '';
-              return (
-                <div className="row" key={row.id}>
-                  <span className="name nowrap" title={row.name}>{shortName(row.name)}</span>
-                  <span className="shift nowrap">{displayName(row.shift_name, 'shift')}</span>
-                  <span className="time">{time}</span>
-                  <span className="st">
-                    {chip === 'late' ? (
-                      <button type="button" className="act red" onClick={() => onCallIn(row.id)}>Called in</button>
-                    ) : null}
-                    <span className={`chip ${chip}`}>{CHIP_LABEL[chip]}</span>
-                  </span>
-                </div>
-              );
-            })}
+            <div className="grp">
+              <QaIcon name={DEPT_ICON[displayName(group.department, 'dept')] || 'home'} />
+              {displayName(group.department, 'dept')}
+            </div>
+            <div className="rows">
+              {group.rows.map((row) => {
+                const chip = staffChip(row.status);
+                const time = row.time_in && row.time_out ? `${row.time_in} to ${row.time_out}` : '';
+                return (
+                  <div className={`row${chip === 'late' ? ' s-warn' : ''}`} key={row.id}>
+                    <span className="name nowrap" title={row.name}>{shortName(row.name)}</span>
+                    <span className="meta nowrap">{displayName(row.shift_name, 'shift')}</span>
+                    <span className="time nowrap">{time}</span>
+                    <span className="st">
+                      {chip === 'late' ? (
+                        <button type="button" className="act warn" onClick={() => onCallIn(row.id)}>Called in</button>
+                      ) : null}
+                      <span className={`chip ${chip}`}>
+                        <QaIcon name={chip === 'in' || chip === 'call' ? (chip === 'in' ? 'check' : 'person') : 'clock'} />
+                        {CHIP_LABEL[chip]}
+                      </span>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         ))}
       </div>
