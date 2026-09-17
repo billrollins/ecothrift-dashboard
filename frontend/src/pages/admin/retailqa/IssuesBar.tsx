@@ -11,6 +11,7 @@ export function IssuesBar({
   onNudge,
   onOpenCross,
   onDoSpot,
+  closedLabel,
 }: {
   issues: QaIssue[];
   staff: QaStaffRow[];
@@ -20,6 +21,7 @@ export function IssuesBar({
   onNudge: (runId: number, el: HTMLElement) => void;
   onOpenCross: () => void;
   onDoSpot: () => void;
+  closedLabel?: string | null;
 }) {
   const rows = groupIssues(issues, staff, jobs);
   const red = rows.some((row) => row.severity === 'red');
@@ -27,9 +29,9 @@ export function IssuesBar({
     <section className="card issues">
       <h2>
         Needs your attention
-        {rows.length ? <span className={`pill${red ? '' : ' warn'}`}>{rows.length}</span> : null}
+        {!closedLabel && rows.length ? <span className={`pill${red ? '' : ' warn'}`}>{rows.length}</span> : null}
       </h2>
-      {rows.length ? (
+      {closedLabel ? <div className="empty-closed">{closedLabel}</div> : rows.length ? (
         <div className="scroll rows">
           {rows.map((row) => {
             const tone = row.severity === 'red' ? 'bad' : row.severity === 'amber' ? 'warn' : '';

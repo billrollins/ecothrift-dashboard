@@ -12,6 +12,7 @@ export function RoutinesCard({
   onAssign,
   onNudge,
   onWeekView,
+  closedLabel,
 }: {
   date: string;
   jobs: QaJob[];
@@ -19,6 +20,7 @@ export function RoutinesCard({
   onAssign: (runId: number, userId: number | '') => void;
   onNudge: (runId: number, el: HTMLElement) => void;
   onWeekView: () => void;
+  closedLabel?: string | null;
 }) {
   const done = jobs.filter((job) => jobChip(job.status, job.owner) === 'done').length;
   const needed = jobs.length;
@@ -36,10 +38,16 @@ export function RoutinesCard({
           <a href="#" onClick={(event) => { event.preventDefault(); onWeekView(); }}>Week view</a>
         </span>
       </h2>
-      {needed ? <div className={`bar ${bar.tone}`}><i style={{ width: `${bar.pct}%` }} /></div> : null}
+      {needed && !closedLabel ? <div className={`bar ${bar.tone}`}><i style={{ width: `${bar.pct}%` }} /></div> : null}
       <div className="scroll" id="rtBody">
-        <RoutineGroup title="Section checks" jobs={sections} people={people} onAssign={onAssign} onNudge={onNudge} />
-        <RoutineGroup title="Open / Day / Close" jobs={shifts} people={people} onAssign={onAssign} onNudge={onNudge} />
+        {closedLabel ? <div className="empty-closed">{closedLabel}</div> : null}
+        {!closedLabel && !needed ? <div className="empty-closed">No routines today</div> : null}
+        {!closedLabel ? (
+          <>
+            <RoutineGroup title="Section checks" jobs={sections} people={people} onAssign={onAssign} onNudge={onNudge} />
+            <RoutineGroup title="Open / Day / Close" jobs={shifts} people={people} onAssign={onAssign} onNudge={onNudge} />
+          </>
+        ) : null}
       </div>
     </section>
   );

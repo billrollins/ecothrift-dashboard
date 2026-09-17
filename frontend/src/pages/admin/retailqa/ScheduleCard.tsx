@@ -8,10 +8,12 @@ export function ScheduleCard({
   date,
   staff,
   onCallIn,
+  closedLabel,
 }: {
   date: string;
   staff: QaStaffRow[];
   onCallIn: (personId: number) => void;
+  closedLabel?: string | null;
 }) {
   const groups = scheduleGroups(staff);
   const late = staff.some((row) => staffChip(row.status) === 'late');
@@ -19,10 +21,12 @@ export function ScheduleCard({
     <aside className="card schedule">
       <h2>
         Schedule · {format(parseISO(date), 'EEE MMM d')}
-        <span className={`sum${late ? ' warn' : ''}`}>{scheduleSummary(staff)}</span>
+        <span className={`sum${late ? ' warn' : ''}`}>{closedLabel ? '' : scheduleSummary(staff)}</span>
       </h2>
       <div className="scroll" id="schedRows">
-        {groups.map((group) => (
+        {closedLabel ? <div className="empty-closed">{closedLabel}</div> : null}
+        {!closedLabel && !groups.length ? <div className="empty-closed">No one scheduled</div> : null}
+        {!closedLabel && groups.map((group) => (
           <div key={group.department}>
             <div className="grp">
               <QaIcon name={DEPT_ICON[displayName(group.department, 'dept')] || 'home'} />

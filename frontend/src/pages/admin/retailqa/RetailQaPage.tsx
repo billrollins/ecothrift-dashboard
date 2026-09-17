@@ -184,6 +184,9 @@ export default function RetailQaPage() {
     row.run_id && nudgeStamp[row.run_id] ? { ...row, nudged_at: nudgeStamp[row.run_id] } : row
   ));
   const staff = board?.staff ?? [];
+  const closedLabel = board && board.open === false
+    ? (board.closed_label || `Store closed ${format(parseISO(date), 'EEE MMM d')}`)
+    : '';
 
   return (
     <div className="cc-page">
@@ -216,7 +219,7 @@ export default function RetailQaPage() {
         </div>
       ) : null}
       <div className="body">
-        <ScheduleCard date={date} staff={staff} onCallIn={(id) => void markCalledIn(id)} />
+        <ScheduleCard date={date} staff={staff} onCallIn={(id) => void markCalledIn(id)} closedLabel={closedLabel} />
         <main className="col-right">
           <IssuesBar
             issues={issues}
@@ -227,6 +230,7 @@ export default function RetailQaPage() {
             onNudge={(id, el) => setNudgeTarget({ runId: id, anchor: el })}
             onOpenCross={() => setDrawer('cross')}
             onDoSpot={() => board?.spot?.run_id && runnerReturn(board.spot.run_id)}
+            closedLabel={closedLabel}
           />
           <RoutinesCard
             date={date}
@@ -235,6 +239,7 @@ export default function RetailQaPage() {
             onAssign={(runId, userId) => void assignRun(runId, userId)}
             onNudge={(id, el) => setNudgeTarget({ runId: id, anchor: el })}
             onWeekView={() => setWeekOpen(true)}
+            closedLabel={closedLabel}
           />
         </main>
       </div>

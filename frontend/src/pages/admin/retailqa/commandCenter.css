@@ -88,7 +88,7 @@
 .cc-page .tile.g-c{background:#f5eedc} .cc-page .tile.g-c .l{color:var(--warn-text)}
 .cc-page .tile.g-f{background:#fbe3e0} .cc-page .tile.g-f .l{color:var(--bad)}
 .cc-page .tile.proj{background:#f4f3ee} .cc-page .tile.proj .l{color:var(--ink3);font-weight:600}
-.cc-page .tile.closed{background:rgba(201,169,122,.18);color:rgba(255,255,255,.7);cursor:default}
+.cc-page .tile.closed{background:rgba(201,169,122,.18);color:rgba(255,255,255,.7);cursor:pointer}
 .cc-page .tile.closed .d{color:rgba(255,255,255,.7)} .cc-page .tile.closed .l{font-size:12.5px;font-weight:500;color:var(--kraft)}
 .cc-page .tile.sel{box-shadow:0 0 0 3px #fff,0 6px 16px rgba(0,0,0,.25)}
 .cc-page .tile .today{font-size:10.5px;font-weight:600;color:#fff;background:var(--good);padding:1px 7px;border-radius:999px}
@@ -162,6 +162,7 @@
 .cc-page .issues .row .ic{color:var(--ink2);display:grid;place-items:center}
 .cc-page .issues .row.s-bad .ic{color:var(--bad)} .cc-page .issues .row.s-warn .ic{color:var(--warn-text)}
 .cc-page .issues .empty{display:flex;align-items:center;gap:8px;background:var(--good-tint);color:var(--good-text);border-radius:8px;padding:10px 12px;margin-top:8px;font-weight:500}
+.cc-page .empty-closed{color:var(--ink2);padding:12px 4px;font-weight:500}
 
 .cc-page .routines .row{grid-template-columns:200px 1fr 190px 180px}
 .cc-page .routines .owner{color:var(--ink)}
