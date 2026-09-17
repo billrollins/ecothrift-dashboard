@@ -76,13 +76,13 @@
 .cc-page .gear{width:32px;height:32px;border:0;background:rgba(255,255,255,.12);color:#fff;border-radius:8px;display:grid;place-items:center;flex:none;align-self:center}
 .cc-page .gear:hover{background:rgba(255,255,255,.18)}
 
-.cc-page .week{margin-top:12px}
+.cc-page .week{margin-top:12px;overflow:visible}
 .cc-page .tiles{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
-.cc-page .tile{border-radius:10px;height:84px;padding:9px 12px;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;background:#fff;color:var(--ink);position:relative}
+.cc-page .tile{border-radius:10px;height:84px;padding:9px 12px;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;background:#fff;color:var(--ink);position:relative;overflow:visible}
 .cc-page .tile:hover{filter:brightness(.97)}
-.cc-page .tile .d{font-size:12.5px;font-weight:500;color:var(--ink2);display:flex;justify-content:space-between;align-items:center;white-space:nowrap}
+.cc-page .tile .d{font-size:12.5px;font-weight:500;color:var(--ink2);display:flex;justify-content:space-between;align-items:center;white-space:nowrap;line-height:1.15}
 .cc-page .tile .l{font-size:30px;font-weight:700;line-height:1}
-.cc-page .tile .n{font-size:11.5px;color:var(--ink2);white-space:nowrap}
+.cc-page .tile .n{font-size:11.5px;color:var(--ink2);white-space:nowrap;line-height:1.15}
 .cc-page .tile.g-a{background:#dfeedb} .cc-page .tile.g-a .l{color:var(--good)}
 .cc-page .tile.g-b{background:#ebf3e6} .cc-page .tile.g-b .l{color:var(--good)}
 .cc-page .tile.g-c{background:#f5eedc} .cc-page .tile.g-c .l{color:var(--warn-text)}
