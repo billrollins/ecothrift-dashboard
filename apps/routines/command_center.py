@@ -50,6 +50,7 @@ from .settings import (
     CALL_IN_UNDO_SECONDS,
     LATE_AMBER_MINUTES,
     LATE_RED_MINUTES,
+    NUDGE_UNSEEN_MINUTES,
     SECTION_DUE_AFTER_PUNCH_MINUTES,
     SPOT_ISSUE_HOURS_AFTER_OPEN,
     SPOT_ISSUE_HOURS_BEFORE_CLOSE,
@@ -275,12 +276,22 @@ def fire_hard_deadline_nudges(day: date, *, now: datetime, tz, hours_cfg=None) -
         if QaNudge.objects.filter(run=run, source='auto').exists():
             continue
         title = performed_title(key, run)
-        QaNudge.objects.create(
+        create_nudge(
             run=run,
             created_by=None,
             source='auto',
             message=f'{title} is past its hard deadline ({clock_hhmm(hard)}).',
         )
+
+
+def create_nudge(*, run, message='', created_by=None, source='manual', employee=None) -> QaNudge:
+    return QaNudge.objects.create(
+        run=run,
+        created_by=created_by,
+        source=source,
+        message=message,
+        employee=employee or run.assigned_to,
+    )
 
 
 def latest_nudges(run_ids: list[int]) -> dict[int, QaNudge]:
@@ -313,16 +324,55 @@ def serialize_call_in(row: QaCallIn) -> dict:
     }
 
 
-def serialize_nudge(row: QaNudge) -> dict:
+def serialize_nudge(row: QaNudge, *, now: datetime | None = None) -> dict:
     local = timezone.localtime(row.created_at)
+    now = now or timezone.now()
+    ack_label = f'Nudged {local.strftime("%H:%M")}'
+    if row.acked_at and row.ack_kind == 'heard':
+        ack_label = f'Heard {timezone.localtime(row.acked_at).strftime("%H:%M")}'
+    elif row.acked_at and row.ack_kind == 'not_me':
+        ack_label = 'Not me'
+    elif not row.acked_at and (now - row.created_at).total_seconds() >= NUDGE_UNSEEN_MINUTES * 60:
+        ack_label = 'Not seen'
     return {
         'id': row.pk,
         'run_id': row.run_id,
         'created_by': _person(row.created_by),
         'created_at': row.created_at,
         'at_label': local.strftime('%H:%M'),
+        'ack_label': ack_label,
         'message': row.message or '',
+        'source': row.source,
+        'employee': _person(row.employee) if row.employee_id else None,
+        'acked_at': row.acked_at,
+        'ack_kind': row.ack_kind or '',
+        'acked_by_device': row.acked_by_device or '',
     }
+
+
+def pending_nudges_for(user, *, now: datetime | None = None) -> list[QaNudge]:
+    now = now or timezone.now()
+    day = timezone.localtime(now).date()
+    hours_cfg = get_hours_config()
+    tz = ZoneInfo(hours_cfg.get('timezone') or 'America/Chicago')
+    fire_hard_deadline_nudges(day, now=now, tz=tz, hours_cfg=hours_cfg)
+    return list(
+        QaNudge.objects.filter(employee=user, acked_at__isnull=True).select_related(
+            'run', 'created_by', 'employee',
+        ).order_by('created_at')
+    )
+
+
+def ack_nudge(row: QaNudge, *, kind: str, device: str, now: datetime | None = None) -> QaNudge:
+    if kind not in ('heard', 'not_me'):
+        raise ValueError('Ack must be heard or not_me.')
+    if row.acked_at:
+        return row
+    row.acked_at = now or timezone.now()
+    row.ack_kind = kind
+    row.acked_by_device = (device or 'Browser')[:80]
+    row.save(update_fields=['acked_at', 'ack_kind', 'acked_by_device'])
+    return row
 
 
 def staff_status(
@@ -1060,17 +1110,40 @@ def build_issues(
             severity = 'amber'
             issue_type = 'overdue_routine'
         nudge = nudges.get(job['run_id'])
+        packed = serialize_nudge(nudge, now=now) if nudge else None
+        unseen = bool(nudge and not nudge.acked_at and packed and packed['ack_label'] == 'Not seen')
         issues.append({
             'id': f'routine-{job["run_id"]}',
             'type': issue_type,
             'severity': severity,
             'sentence': sentence,
-            'action': 'nudge',
+            'action': 're_nudge' if unseen else 'nudge',
             'person_id': (job.get('owner') or {}).get('id'),
             'person_name': (job.get('owner') or {}).get('name'),
             'run_id': job['run_id'],
             'call_in_id': None,
-            'nudged_at': serialize_nudge(nudge)['at_label'] if nudge else None,
+            'nudged_at': packed['ack_label'] if packed else None,
+            'can_act': True,
+        })
+
+    for nudge in nudges.values():
+        if nudge.ack_kind != 'not_me' or not nudge.acked_at:
+            continue
+        raw_name = (nudge.employee.full_name if nudge.employee_id else '') or 'Someone'
+        parts = raw_name.split()
+        name = f'{parts[0]} {parts[-1][0]}.' if len(parts) >= 2 else raw_name
+        device = nudge.acked_by_device or 'a device'
+        issues.append({
+            'id': f'nudge-not-me-{nudge.pk}',
+            'type': 'nudge_not_me',
+            'severity': 'red',
+            'sentence': f"Nudge to {name} was answered 'not me' on {device}.",
+            'action': 're_nudge',
+            'person_id': nudge.employee_id,
+            'person_name': name,
+            'run_id': nudge.run_id,
+            'call_in_id': None,
+            'nudged_at': 'Not me',
             'can_act': True,
         })
 
@@ -1165,7 +1238,7 @@ def today_payload(day: date, *, now: datetime | None = None) -> dict:
     for job in jobs:
         nudge = nudges.get(job.get('run_id'))
         if nudge:
-            job['nudged_at'] = serialize_nudge(nudge)['at_label']
+            job['nudged_at'] = serialize_nudge(nudge, now=now)['ack_label']
     issues = build_issues(
         day=day,
         open_day=open_day,
@@ -1349,10 +1422,11 @@ def assign_run(*, run: RoutineRun, user, marked_by=None) -> RoutineRun:
             section.save(update_fields=['owner', 'updated_at'])
     if user is not None:
         title = getattr(run.routine, 'title', '') or 'This routine'
-        QaNudge.objects.create(
+        create_nudge(
             run=run,
             created_by=marked_by,
             source='assign',
+            employee=user,
             message=f'{title} was assigned to you.',
         )
     return run

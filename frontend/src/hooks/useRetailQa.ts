@@ -4,8 +4,10 @@ import {
   createQaCallIn,
   createQaExclude,
   createQaLeftEarly,
+  ackQaNudge,
   createQaNudge,
   createQaOverride,
+  getPendingQaNudges,
   getQaCrossChecks,
   getQaHistory,
   getQaMine,
@@ -98,6 +100,24 @@ export function useQaOverride() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createQaOverride,
+    onSuccess: () => invalidateQa(queryClient),
+  });
+}
+
+export function usePendingQaNudges(enabled = true) {
+  return useQuery({
+    queryKey: ['routines', 'qa', 'nudges', 'pending'],
+    queryFn: async () => (await getPendingQaNudges()).data,
+    refetchInterval: 15_000,
+    enabled,
+  });
+}
+
+export function useAckQaNudge() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, kind, device }: { id: number; kind: 'heard' | 'not_me'; device: string }) =>
+      ackQaNudge(id, { kind, device }),
     onSuccess: () => invalidateQa(queryClient),
   });
 }

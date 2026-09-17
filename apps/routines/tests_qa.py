@@ -986,6 +986,41 @@ class CommandCenterTests(APITestCase):
         run.refresh_from_db()
         self.assertIsNone(run.assigned_to_id)
 
+    def test_pending_ack_heard_clears_and_manager_sees_heard(self):
+        from apps.routines.command_center import create_nudge
+        day = timezone.localdate()
+        run = self._open_run(day)
+        create_nudge(run=run, message='Please start Retail open.', employee=self.sam)
+        self.client.force_authenticate(self.sam)
+        first = self.client.get('/api/routines/qa/nudges/pending/')
+        self.assertEqual(first.status_code, 200, first.data)
+        self.assertGreaterEqual(len(first.data['nudges']), 1)
+        for row in first.data['nudges']:
+            ack = self.client.post(
+                f'/api/routines/qa/nudges/{row["id"]}/ack/',
+                {'kind': 'heard', 'device': 'Browser'},
+                format='json',
+            )
+            self.assertEqual(ack.status_code, 200, ack.data)
+        second = self.client.get('/api/routines/qa/nudges/pending/')
+        self.assertEqual(second.data['nudges'], [])
+        from apps.routines.command_center import today_payload
+        board = today_payload(day)
+        labels = [row.get('nudged_at') for row in board['jobs'] if row.get('run_id') == run.pk]
+        self.assertTrue(any(label and str(label).startswith('Heard') for label in labels))
+
+    def test_unseen_nudge_after_fifteen_minutes(self):
+        from apps.routines.command_center import create_nudge, serialize_nudge
+        day = date(2026, 9, 16)
+        run = self._open_run(day)
+        row = create_nudge(run=run, message='x', employee=self.sam)
+        QaNudge.objects.filter(pk=row.pk).update(
+            created_at=timezone.now() - timedelta(minutes=16),
+        )
+        row.refresh_from_db()
+        packed = serialize_nudge(row, now=timezone.now())
+        self.assertEqual(packed['ack_label'], 'Not seen')
+
 
 class ScoringEngineTests(TestCase):
     def test_zero_walk_week_with_everything_else_done_shows_c(self):

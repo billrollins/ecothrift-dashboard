@@ -27,12 +27,16 @@ from .grading import (
     week_grade,
 )
 from .command_center import (
+    ack_nudge,
     apply_call_in,
     apply_exclusion,
     apply_left_early,
     apply_override,
     assign_run,
     clear_call_in,
+    create_nudge,
+    pending_nudges_for,
+    serialize_nudge,
     today_payload,
     week_payload,
 )
@@ -469,22 +473,39 @@ class QaNudgeView(APIView):
     def post(self, request):
         run = get_object_or_404(RoutineRun, pk=request.data.get('run'))
         message = str(request.data.get('message') or '').strip()
-        row = QaNudge.objects.create(
+        row = create_nudge(
             run=run,
             created_by=request.user,
+            source='manual',
             message=message,
         )
-        local = timezone.localtime(row.created_at)
-        return Response({
-            'ok': True,
-            'nudge': {
-                'id': row.pk,
-                'run_id': run.pk,
-                'created_at': row.created_at,
-                'at_label': local.strftime('%H:%M'),
-                'message': row.message,
-            },
-        })
+        return Response({'ok': True, 'nudge': serialize_nudge(row)})
+
+
+class QaPendingNudgesView(APIView):
+    permission_classes = [IsAuthenticated, IsStaff]
+
+    def get(self, request):
+        rows = pending_nudges_for(request.user)
+        return Response({'nudges': [serialize_nudge(row) for row in rows]})
+
+
+class QaAckNudgeView(APIView):
+    permission_classes = [IsAuthenticated, IsStaff]
+
+    def post(self, request, pk):
+        row = get_object_or_404(QaNudge, pk=pk)
+        if row.employee_id and row.employee_id != request.user.pk:
+            return Response({'detail': 'That nudge is not for you.'}, status=403)
+        try:
+            ack_nudge(
+                row,
+                kind=str(request.data.get('kind') or ''),
+                device=str(request.data.get('device') or 'Browser'),
+            )
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=400)
+        return Response({'ok': True, 'nudge': serialize_nudge(row)})
 
 
 class QaSpotsView(APIView):
@@ -682,6 +703,7 @@ class QaMineView(APIView):
 
     def get(self, request):
         materialize_routines()
+        pending_nudges_for(request.user)
         monday = parse_week(request.query_params.get('week'))
         week = week_grade(monday)
         user = request.user

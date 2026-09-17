@@ -740,7 +740,7 @@ export interface QaIssue {
   type: QaIssueType;
   severity: 'red' | 'amber' | 'grey';
   sentence: string;
-  action: 'call_in' | 'reassign' | 'nudge' | 'open_cross' | 'do_spot' | 'open_shifts' | 'clear_call_in';
+  action: 'call_in' | 'reassign' | 'nudge' | 'open_cross' | 'do_spot' | 'open_shifts' | 'clear_call_in' | 're_nudge';
   person_id: number | null;
   person_name: string | null;
   run_id: number | null;
@@ -808,7 +808,13 @@ export interface QaNudgeRow {
   created_by?: NamedPerson | null;
   created_at: string;
   at_label: string;
+  ack_label?: string;
   message: string;
+  source?: string;
+  employee?: NamedPerson | null;
+  acked_at?: string | null;
+  ack_kind?: string;
+  acked_by_device?: string;
 }
 
 export interface QaSectionRow {
@@ -997,6 +1003,14 @@ export function createQaOverride(data: {
 
 export function createQaNudge(data: { run: number; message?: string }) {
   return api.post<{ ok: boolean; nudge: QaNudgeRow }>('/routines/qa/nudge/', data);
+}
+
+export function getPendingQaNudges() {
+  return api.get<{ nudges: QaNudgeRow[] }>('/routines/qa/nudges/pending/');
+}
+
+export function ackQaNudge(id: number, data: { kind: 'heard' | 'not_me'; device: string }) {
+  return api.post<{ ok: boolean; nudge: QaNudgeRow }>(`/routines/qa/nudges/${id}/ack/`, data);
 }
 
 export function getQaSpots(params?: { week?: string; section?: number; person?: number }) {

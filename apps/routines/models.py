@@ -732,6 +732,16 @@ class QaNudge(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     message = models.TextField(blank=True, default='')
     source = models.CharField(max_length=16, default='manual')
+    employee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='qa_nudges_received',
+    )
+    acked_at = models.DateTimeField(null=True, blank=True)
+    acked_by_device = models.CharField(max_length=80, blank=True, default='')
+    ack_kind = models.CharField(max_length=16, blank=True, default='')
 
     class Meta:
         ordering = ['-created_at']

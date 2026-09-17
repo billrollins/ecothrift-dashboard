@@ -41,6 +41,7 @@ import { useNavBadgeCounts } from '../../hooks/useNavBadgeCounts';
 import { resolveNavItem } from '../../navigation/navResolve';
 import { navigateForNavItem } from '../../navigation/navUtils';
 import { NavWaitingBadge } from '../../navigation/NavWaitingBadge';
+import { NudgeBlockingDialog } from '../routines/NudgeBlockingDialog';
 
 const PROFILE_NAV_IDS = ['today', 'pay', 'routines'] as const;
 
@@ -355,6 +356,7 @@ export default function MainLayout() {
         </Box>
         {isPhoneShell ? <PhoneTabBar /> : null}
       </Box>
+      {user ? <NudgeBlockingDialog /> : null}
     </Box>
   );
 }

@@ -82,8 +82,11 @@ function issueMenu(
     onRemove: (personId: number) => void;
   },
 ): RowMenuItem[] {
-  if (row.action === 'nudge' && row.run_id) {
-    return [{ label: 'Nudge', onClick: () => handlers.onNudge(row.run_id as number, document.body) }];
+  if ((row.action === 'nudge' || row.action === 're_nudge') && row.run_id) {
+    return [{
+      label: row.action === 're_nudge' ? 'Re-nudge' : 'Nudge',
+      onClick: () => handlers.onNudge(row.run_id as number, document.body),
+    }];
   }
   if (row.action === 'call_in' && row.person_id) {
     const items: RowMenuItem[] = [
