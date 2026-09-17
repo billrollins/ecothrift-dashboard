@@ -11,12 +11,20 @@ export const PROBLEM_TILES = CALM_TILES;
 export const PROBLEM_SPOTS = CALM_SPOTS;
 export const PROBLEM_PEOPLE = CALM_PEOPLE;
 
-export const PROBLEM_STAFF: QaStaffRow[] = [
-  ...CALM_STAFF.map((row) => (
-    row.id === 5
-      ? { ...row, clocked_in: false, arrival: null, status: 'Late' as const, late_minutes: 100, late_severity: 'amber' as const, expected_not_in: true }
-      : row
-  )),
+const LATE_MICHAEL: QaStaffRow = {
+  ...CALM_STAFF.find((row) => row.id === 5) as QaStaffRow,
+  clocked_in: false,
+  arrival: null,
+  status: 'Late',
+  late_minutes: 100,
+  late_severity: 'amber',
+  expected_not_in: true,
+};
+
+export const PROBLEM_STAFF: QaStaffRow[] = CALM_STAFF.map((row) => (row.id === 5 ? LATE_MICHAEL : row));
+
+export const SCROLL_STAFF: QaStaffRow[] = [
+  ...PROBLEM_STAFF,
   { id: 7, name: 'Priya Natarajan', role: '', department: 'Donations', shift_name: 'Dock', time_in: '10:00', time_out: '18:00', clocked_in: true, arrival: '10:01', expected_not_in: false, on_roster: true, status: 'In' },
   { id: 8, name: 'Tom Okafor', role: '', department: 'Donations', shift_name: 'Dock', time_in: '10:00', time_out: '18:00', clocked_in: true, arrival: '09:58', expected_not_in: false, on_roster: true, status: 'In' },
   { id: 9, name: 'Lena Brandt', role: '', department: 'Donations', shift_name: 'Sorting', time_in: '11:00', time_out: '19:00', clocked_in: false, arrival: null, expected_not_in: false, on_roster: true, status: 'Expected' },
@@ -57,6 +65,7 @@ export const PROBLEM_BOARD: QaToday = {
 
 export const SCROLL_BOARD: QaToday = {
   ...PROBLEM_BOARD,
+  staff: SCROLL_STAFF,
   jobs: SCROLL_JOBS,
   doing: { done: 4, needed: 12, score: 88, routines: [] },
 };

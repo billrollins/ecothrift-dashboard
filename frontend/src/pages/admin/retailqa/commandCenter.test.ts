@@ -72,4 +72,13 @@ describe('labels', () => {
   it('summarizes who is in', () => {
     expect(scheduleSummary(CALM_STAFF)).toBe('5 of 5 in · 1 later');
   });
+
+  it('counts a late person separately', () => {
+    const staff = CALM_STAFF.map((row) => (
+      row.id === 5
+        ? { ...row, clocked_in: false, status: 'Late' as const, late_minutes: 100 }
+        : row
+    ));
+    expect(scheduleSummary(staff)).toBe('4 of 5 in · 1 late');
+  });
 });

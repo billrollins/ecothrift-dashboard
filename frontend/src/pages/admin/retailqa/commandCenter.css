@@ -42,7 +42,7 @@
 
 .cc-page .band{background:var(--brand-deep);color:#fff;border-radius:var(--r);padding:16px 18px;box-shadow:var(--sh-band);flex:none}
 .cc-page .band-top{--row:44px;display:grid;grid-template-columns:repeat(7,1fr);align-items:center;gap:8px;height:var(--row);margin-bottom:4px}
-.cc-page .band-top > *{height:var(--row);min-width:0}
+.cc-page .band-top > *{height:var(--row);min-width:0;overflow:hidden}
 .cc-page .band-top .store{grid-column:1}
 .cc-page .band-top .weeknav{grid-column:2 / span 2}
 .cc-page .band-top .hero{grid-column:4}
@@ -153,7 +153,8 @@
 .cc-page .schedule .time{color:var(--ink2);font-size:12.5px}
 .cc-page .schedule .st{justify-self:end;display:flex;align-items:center;gap:6px}
 
-.cc-page .issues{flex:0 1 auto;max-height:34%;min-height:0}
+.cc-page .issues{flex:0 0 auto;max-height:34%;min-height:0;overflow:hidden}
+.cc-page .issues .scroll{flex:1 1 auto;min-height:88px}
 .cc-page .routines{flex:1 1 auto;min-height:0}
 .cc-page .issues .row{grid-template-columns:20px 1fr auto;height:44px;font-weight:500}
 .cc-page .issues .row .ic{color:var(--ink2);display:grid;place-items:center}

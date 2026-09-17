@@ -40,10 +40,10 @@ export default function RetailQaPage() {
   const week = fixture
     ? (fixtureName === 'calm' ? CALM_WEEK.week : PROBLEM_WEEK.week)
     : params.get('week') || isoWeekKey(new Date(`${date}T12:00:00`));
-  const weekQuery = useQaWeek(week);
-  const todayQuery = useQaToday(date);
-  const peopleQuery = useQaPeople(fixture ? undefined : week);
-  const spotsQuery = useQaSpots(fixture ? {} : { week });
+  const weekQuery = useQaWeek(fixture ? null : week);
+  const todayQuery = useQaToday(fixture ? null : date);
+  const peopleQuery = useQaPeople(week, !fixture);
+  const spotsQuery = useQaSpots(fixture ? { enabled: false } : { week });
   const assignees = useRoutineAssignees();
   const assign = useAssignQaBoard();
   const callIn = useQaCallIn();
