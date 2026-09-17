@@ -16,7 +16,7 @@ import {
 } from '../../../hooks/useRetailQa';
 import { isoWeekKey, shiftWeek, weekMonday } from '../routines/gradeWeek';
 import { displayName } from './commandCenter';
-import { CALM_BOARD, CALM_DATE, CALM_PEOPLE, CALM_SPOTS, CALM_TILES, CALM_WEEK } from './calmFixture';
+import { CALM_BOARD, CALM_DATE, CALM_TILES, CALM_WEEK } from './calmFixture';
 import { CommandHeader } from './CommandHeader';
 import { IssuesBar } from './IssuesBar';
 import { RoutinesCard } from './RoutinesCard';
@@ -158,15 +158,12 @@ export default function RetailQaPage() {
         projectedLetter={data?.projected?.letter}
         weekData={data}
         board={board}
-        spots={fixture ? CALM_SPOTS : spotsQuery.data?.spots ?? []}
-        people={fixture ? CALM_PEOPLE : peopleQuery.data?.people ?? []}
-        fixture={fixture}
+        sectionDone={fixture ? 7 : undefined}
+        sectionTotal={fixture ? 23 : undefined}
         drawer={drawer}
         onDrawer={setDrawer}
         onMoveWeek={moveWeek}
         onSelectDay={(next) => setDay(next, week)}
-        onDoSpot={() => board?.spot?.run_id && runnerReturn(board.spot.run_id)}
-        onOpenRun={(runId) => runnerReturn(runId)}
       />
       {!fixture && date !== today ? (
         <div className="day-banner">
