@@ -16,7 +16,7 @@ export const FLAG_LABELS: Record<string, string> = {
 
 export function thirdsLine(thirds?: GradeThirds | null) {
   if (!thirds) return '—';
-  return `Doing ${thirds.doing ?? '—'} · Cross ${thirds.cross ?? '—'} · Owner ${thirds.owner ?? '—'}`;
+  return `Spot ${thirds.owner ?? '—'} · Do ${thirds.doing ?? '—'} · Cross ${thirds.cross ?? '—'}`;
 }
 
 export function ThirdsStrip({
@@ -32,9 +32,9 @@ export function ThirdsStrip({
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
       <LetterChip letter={letter} size="lg" />
       <Box sx={{ display: 'flex', gap: 2 }}>
-        <Figure label="Doing" value={thirds?.doing != null ? String(thirds.doing) : '--'} />
+        <Figure label="Spot" value={thirds?.owner != null ? String(thirds.owner) : '--'} />
+        <Figure label="Do" value={thirds?.doing != null ? String(thirds.doing) : '--'} />
         <Figure label="Cross" value={thirds?.cross != null ? String(thirds.cross) : '--'} />
-        <Figure label="Owner" value={thirds?.owner != null ? String(thirds.owner) : '--'} />
       </Box>
       {projected ? (
         <Typography sx={{ fontSize: 12.5, color: dutyColors.ink60 }}>

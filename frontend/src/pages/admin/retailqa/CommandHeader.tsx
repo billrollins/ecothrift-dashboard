@@ -7,7 +7,7 @@ import { QaIcon } from './QaIcons';
 
 const WALK_FLOOR = 3;
 
-type DrawerId = 'spot' | 'cross' | 'people' | null;
+type SummaryId = 'spot' | 'cross' | 'people' | null;
 
 export function CommandHeader({
   store,
@@ -25,8 +25,8 @@ export function CommandHeader({
   board,
   sectionDone,
   sectionTotal,
-  drawer,
-  onDrawer,
+  summary,
+  onSummary,
   onScore,
   onMoveWeek,
   onSelectDay,
@@ -46,8 +46,8 @@ export function CommandHeader({
   board?: QaToday;
   sectionDone?: number;
   sectionTotal?: number;
-  drawer: DrawerId;
-  onDrawer: (id: DrawerId) => void;
+  summary: SummaryId;
+  onSummary: (id: SummaryId) => void;
   onScore: () => void;
   onMoveWeek: (delta: number) => void;
   onSelectDay: (next: string) => void;
@@ -109,7 +109,7 @@ export function CommandHeader({
           ))}
         </div>
         <div className="badges">
-          <button type="button" className={`badge${drawer === 'spot' ? ' open' : ''}`} onClick={() => onDrawer(drawer === 'spot' ? null : 'spot')}>
+          <button type="button" className={`badge${summary === 'spot' ? ' open' : ''}`} onClick={() => onSummary(summary === 'spot' ? null : 'spot')}>
             <span className="k">Spot walks</span>
             <span className={`v ${walks < WALK_FLOOR ? 'warn' : 'ok'}`}>
               {walks} of {WALK_FLOOR} this week
@@ -121,7 +121,7 @@ export function CommandHeader({
             </span>
             <span className="ch">›</span>
           </button>
-          <button type="button" className={`badge${drawer === 'cross' ? ' open' : ''}`} onClick={() => onDrawer(drawer === 'cross' ? null : 'cross')}>
+          <button type="button" className={`badge${summary === 'cross' ? ' open' : ''}`} onClick={() => onSummary(summary === 'cross' ? null : 'cross')}>
             <span className="k">Cross-checks</span>
             <span className={`v ${cross && cross.done === cross.total && cross.total ? 'ok' : ''}`}>
               {cross
@@ -130,7 +130,7 @@ export function CommandHeader({
             </span>
             <span className="ch">›</span>
           </button>
-          <button type="button" className={`badge${drawer === 'people' ? ' open' : ''}`} onClick={() => onDrawer(drawer === 'people' ? null : 'people')}>
+          <button type="button" className={`badge${summary === 'people' ? ' open' : ''}`} onClick={() => onSummary(summary === 'people' ? null : 'people')}>
             <span className="k">Section checks this week</span>
             <span className="v">{counts.done} of {counts.total} done</span>
             <span className="ch">›</span>

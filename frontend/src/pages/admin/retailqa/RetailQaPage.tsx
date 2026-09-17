@@ -70,7 +70,7 @@ export default function RetailQaPage() {
 
   const [weekOpen, setWeekOpen] = useState(false);
   const [scoreOpen, setScoreOpen] = useState(false);
-  const [drawer, setDrawer] = useState<'spot' | 'cross' | 'people' | null>(null);
+  const [summary, setSummary] = useState<'spot' | 'cross' | 'people' | null>(null);
 
   const tiles = useMemo(
     () => (fixture
@@ -162,16 +162,16 @@ export default function RetailQaPage() {
       if (action.type === 'escape') {
         setWeekOpen(false);
         setScoreOpen(false);
-        setDrawer(null);
+        setSummary(null);
         return;
       }
-      if (weekOpen || scoreOpen || drawer) return;
+      if (weekOpen || scoreOpen || summary) return;
       if (action.type === 'week') moveWeek(action.delta);
       if (action.type === 'day' && tiles[action.index]) setDay(tiles[action.index].date, week);
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [tiles, week, date, weekOpen, scoreOpen, drawer]);
+  }, [tiles, week, date, weekOpen, scoreOpen, summary]);
 
   if (!fixture && weekQuery.isLoading && !data) return <LoadingScreen message="Loading Command Center..." />;
 
@@ -206,8 +206,8 @@ export default function RetailQaPage() {
         board={board}
         sectionDone={fixture && fixtureName !== 'calm' ? 7 : fixtureName === 'calm' ? 3 : undefined}
         sectionTotal={fixture && fixtureName !== 'calm' ? 23 : fixtureName === 'calm' ? 17 : undefined}
-        drawer={drawer}
-        onDrawer={setDrawer}
+        summary={summary}
+        onSummary={setSummary}
         onScore={() => setScoreOpen(true)}
         onMoveWeek={moveWeek}
         onSelectDay={(next) => setDay(next, week)}
@@ -228,7 +228,7 @@ export default function RetailQaPage() {
             onCallIn={(id) => void markCalledIn(id)}
             onReassign={() => document.getElementById('rtBody')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
             onNudge={(id, el) => setNudgeTarget({ runId: id, anchor: el })}
-            onOpenCross={() => setDrawer('cross')}
+            onOpenCross={() => setSummary('cross')}
             onDoSpot={() => board?.spot?.run_id && runnerReturn(board.spot.run_id)}
             closedLabel={closedLabel}
           />
@@ -244,8 +244,8 @@ export default function RetailQaPage() {
         </main>
       </div>
       <SummaryDialogs
-        open={drawer}
-        onClose={() => setDrawer(null)}
+        open={summary}
+        onClose={() => setSummary(null)}
         week={week}
         today={fixture ? date : today}
         tiles={tiles}

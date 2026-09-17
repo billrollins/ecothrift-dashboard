@@ -665,7 +665,7 @@ def _mean_or_none(values):
     return None if not present else round(mean(present), 1)
 
 
-def _combine_thirds(
+def _blend_weights(
     doing: float | None,
     cross: float | None,
     owner: float | None,
@@ -693,7 +693,7 @@ def grade_day(day: date, ctx: dict | None = None, *, project: bool = False) -> d
     doing = _doing_for_day(day, runs, project=project)
     cross = _cross_for_day(day, runs, cfg, ctx['bases'], project=project)
     owner = _owner_for_day(day, runs, cfg, ctx['bases'], project=project)
-    score, letter = _combine_thirds(
+    score, letter = _blend_weights(
         doing['score'], None, owner['score'], cfg, include_cross=False,
     )
     checklists = {row['key']: row for row in doing['routines'] if row['key'] in PERFORMED_KEYS}
@@ -1075,7 +1075,7 @@ def _assemble_week(ctx: dict, *, project: bool = False) -> dict:
     due = cross_check_day_for(monday)
     cross = _week_cross(daily, due=due, today=today, project=project)
     include_cross = cross is not None
-    score, _letter = _combine_thirds(doing, cross, owner, cfg, include_cross=include_cross)
+    score, _letter = _blend_weights(doing, cross, owner, cfg, include_cross=include_cross)
     walks = sum(1 for row in daily if row['thirds']['owner'] is not None)
     if project:
         remaining = max(int(cfg.get('walk_floor', WALK_FLOOR)) - walks, 0)
@@ -1089,7 +1089,7 @@ def _assemble_week(ctx: dict, *, project: bool = False) -> dict:
         else:
             project_cross = None
             include_cross = False
-        score, _letter = _combine_thirds(doing, project_cross, owner, cfg, include_cross=include_cross)
+        score, _letter = _blend_weights(doing, project_cross, owner, cfg, include_cross=include_cross)
         walks = max(walks, int(cfg.get('walk_floor', WALK_FLOOR)))
     score, letter = _walk_cap(score, walks, cfg)
     open_days = week_days(monday)
