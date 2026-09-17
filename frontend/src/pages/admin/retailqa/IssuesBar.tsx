@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import type { QaIssue, QaJob, QaStaffRow } from '../../../api/routines.api';
 import { groupIssues, nudgeLabel } from './commandCenter';
+import { ItemsMenu, type RowMenuItem } from './ItemsMenu';
 import { QaIcon } from './QaIcons';
-import { RowActionMenu, type RowMenuItem } from './RowActionMenu';
 
 export function IssuesBar({
   issues,
@@ -51,11 +52,10 @@ export function IssuesBar({
                   {nudgeLabel(row.nudged_at) ? <span className="nudged">{nudgeLabel(row.nudged_at)}</span> : null}
                 </span>
                 {items.length ? (
-                  <RowActionMenu
+                  <IssueAction
                     label={items[0].label}
                     items={items}
                     tone={tone || 'warn'}
-                    always
                     title={nudgeLabel(row.nudged_at) || undefined}
                   />
                 ) : null}
@@ -67,6 +67,36 @@ export function IssuesBar({
         <div className="empty"><QaIcon name="check" />Nothing needs attention right now.</div>
       )}
     </section>
+  );
+}
+
+function IssueAction({
+  label,
+  items,
+  tone,
+  title,
+}: {
+  label: string;
+  items: RowMenuItem[];
+  tone?: string;
+  title?: string;
+}) {
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  return (
+    <>
+      <button
+        type="button"
+        className={`act always ${tone || ''}`.trim()}
+        title={title}
+        onClick={(event) => {
+          event.stopPropagation();
+          setAnchor(event.currentTarget);
+        }}
+      >
+        {label}
+      </button>
+      <ItemsMenu anchor={anchor} onClose={() => setAnchor(null)} items={items} />
+    </>
   );
 }
 

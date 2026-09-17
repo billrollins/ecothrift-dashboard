@@ -2,9 +2,9 @@ import { format, parseISO } from 'date-fns';
 import type { QaStaffRow, RoutineAssignee } from '../../../api/routines.api';
 import { DEPT_ICON, displayName, formatShiftRange, scheduleGroups, scheduleSummary, shortName, staffChip } from './commandCenter';
 import { AddPersonPopover } from './AddPersonPopover';
-import { QaChip } from './QaChip';
+import { ChipMenu } from './QaChip';
 import { QaIcon } from './QaIcons';
-import { RowActionMenu, type RowMenuItem } from './RowActionMenu';
+import type { RowMenuItem } from './ItemsMenu';
 
 export function ScheduleCard({
   date,
@@ -62,15 +62,7 @@ export function ScheduleCard({
                     <span className="meta nowrap">{displayName(row.shift_name, 'shift')}</span>
                     <span className="time">{time}</span>
                     <span className="st">
-                      {items.length ? (
-                        <RowActionMenu
-                          label={items[0].label}
-                          items={items}
-                          tone={chip === 'late' ? 'warn' : ''}
-                          always={chip === 'late' || chip === 'call'}
-                        />
-                      ) : null}
-                      <QaChip kind={chip} />
+                      <ChipMenu kind={chip} items={items} />
                     </span>
                   </div>
                 );
