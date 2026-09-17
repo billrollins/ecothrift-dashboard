@@ -339,7 +339,7 @@ export default function MainLayout() {
                 }
               : {}),
             bgcolor: isRetailQa
-              ? '#f4f5f6'
+              ? '#f1f2ee'
               : isFieldMobile
                 ? '#fff'
                 : isDashboard

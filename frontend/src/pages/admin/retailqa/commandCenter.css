@@ -1,7 +1,18 @@
 .cc-page{
-  --bg:#f4f5f6; --card:#fff; --line:#e6e8ea; --ink:#1e2327; --ink2:#5f6b74; --ink3:#9aa4ab;
-  --green:#2e7d32; --green-bg:#e8f3e9; --amber:#b26a00; --amber-bg:#fff4e0; --red:#c62828; --red-bg:#fdecec;
-  --radius:10px; --font: Inter, "Segoe UI", system-ui, sans-serif;
+  --bg:#f1f2ee; --card:#fff; --line:#e2e4dd; --line2:#cfd3c9;
+  --ink:#22271f; --ink2:#5b6356; --ink3:#8e948a;
+  --brand:#4a7a45; --brand-deep:#3a5a3d; --brand-deeper:#2f4a32;
+  --kraft:#b8955f; --kraft-tint:#eadfcc; --kraft-deep:#6b5335;
+  --good:#4a8a47; --good-tint:#e4efe1; --good-text:#2f6a30;
+  --warn:#c98a1e; --warn-tint:#f7edd6; --warn-text:#8a5d13;
+  --bad:#d92b1f; --bad-tint:#fbe3e0; --bad-text:#b01f14;
+  --neu:#8e948a; --neu-tint:#edeee9;
+  --r:12px; --r-sm:8px;
+  --sh-card:0 1px 2px rgba(34,39,31,.06), 0 1px 1px rgba(34,39,31,.04);
+  --sh-band:0 6px 20px rgba(47,74,50,.22);
+  --font: Inter, "Segoe UI", system-ui, sans-serif;
+  --green:var(--good); --green-bg:var(--good-tint); --amber:var(--warn); --amber-bg:var(--warn-tint); --red:var(--bad); --red-bg:var(--bad-tint);
+  --radius:var(--r);
   --appbar-h:64px;
   box-sizing:border-box;
   width:100%;
