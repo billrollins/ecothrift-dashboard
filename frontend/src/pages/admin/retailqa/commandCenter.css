@@ -162,7 +162,8 @@
 .cc-page .issues .empty{display:flex;align-items:center;gap:8px;background:var(--good-tint);color:var(--good-text);border-radius:8px;padding:10px 12px;margin-top:8px;font-weight:500}
 
 .cc-page .routines .row{grid-template-columns:200px 1fr 190px 180px}
-.cc-page .routines .owner{color:var(--ink2)}
+.cc-page .routines .owner{color:var(--ink)}
+.cc-page .routines .owner.scheduled{color:var(--ink2)}
 .cc-page .routines .time{color:var(--ink2);font-size:12.5px}
 .cc-page .routines .end{display:flex;gap:8px;align-items:center;justify-content:flex-end}
 .cc-page .row.grp-done{grid-template-columns:1fr auto;color:var(--good-text);cursor:pointer;height:36px}

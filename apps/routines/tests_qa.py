@@ -1,0 +1,699 @@
+"""Retail QA v2: baseline math, residual examples, flags, settings."""
+from datetime import date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
+
+from django.contrib.auth.models import Group
+from django.contrib.auth import get_user_model
+from django.test import TestCase
+from django.utils import timezone
+from rest_framework.test import APITestCase
+
+from apps.core.models import AppSetting
+from apps.hr.models import Department, Shift, ShiftAssignment, TimeEntry
+from apps.routines.baseline import baseline_from_counts, fit_count_dist, log10_tail_score, tail_probs
+from apps.routines.flags import test_low_findings, test_speed
+from apps.routines.grading import residual_parts, verify_score
+from apps.routines.models import (
+    QaCallIn,
+    Routine,
+    RoutineRun,
+    RoutineSubmission,
+    Section,
+    SectionObservation,
+)
+from apps.routines.schedule import (
+    SYSTEM_CROSS_CHECK,
+    SYSTEM_OPEN,
+    SYSTEM_OWNER_SPOT,
+    SYSTEM_TALLY,
+    cross_check_day_for,
+    eligible_spot_sections,
+    maybe_draw_spot,
+)
+from apps.routines.settings import (
+    letter_for,
+    retail_qa_settings,
+    score_ladder,
+    validate_retail_qa_bundle,
+    validate_retail_qa_value,
+)
+from apps.webstore.services.hours import is_open_day
+
+User = get_user_model()
+TZ = ZoneInfo('America/Chicago')
+
+
+def _staff(email, role='Employee', *, superuser=False):
+    group, _ = Group.objects.get_or_create(name=role)
+    user = User.objects.create_user(
+        email=email, password='x', first_name=role, last_name=email.split('@')[0],
+        is_staff=True, is_superuser=superuser,
+    )
+    user.groups.add(group)
+    return user
+
+
+class BaselineMathTests(TestCase):
+    def test_poisson_when_variance_at_or_below_mean(self):
+        dist = fit_count_dist(4, 4)
+        self.assertEqual(dist['family'], 'poisson')
+        tails = tail_probs(4, dist)
+        self.assertGreater(tails['tail'], 0.2)
+
+    def test_negative_binomial_when_overdispersed(self):
+        dist = fit_count_dist(4, 12)
+        self.assertEqual(dist['family'], 'nb')
+        self.assertGreater(dist['r'], 0)
+        self.assertGreater(dist['p'], 0)
+
+    def test_zero_on_a_lumpy_aisle_still_scores_full(self):
+        dist = fit_count_dist(1, 1)
+        tails = tail_probs(0, dist)
+        self.assertGreaterEqual(tails['tail'], 0.025)
+        self.assertEqual(log10_tail_score(tails['tail'], 0.025, 0.002), 100.0)
+
+    def test_shrink_blends_a_thin_section_toward_the_store(self):
+        cfg = retail_qa_settings()
+        base = baseline_from_counts([10], [2, 2, 2, 2, 2], cfg)
+        self.assertLess(base['mean'], 10)
+        self.assertGreater(base['mean'], 2)
+
+    def test_warm_up_before_enough_tallies(self):
+        cfg = retail_qa_settings()
+        base = baseline_from_counts([1, 2], [1, 2, 1], cfg)
+        self.assertTrue(base['warm'])
+
+
+class ResidualTests(TestCase):
+    def setUp(self):
+        self.cfg = retail_qa_settings()
+
+    def test_normal_ten_found_two_right_after_is_full(self):
+        parts = residual_parts(found=2, mean=10, hours_since_tally=0, open_hours=9, cfg=self.cfg)
+        self.assertEqual(parts['count_score'], 100)
+
+    def test_normal_ten_found_five_is_sixty(self):
+        parts = residual_parts(found=5, mean=10, hours_since_tally=0, open_hours=9, cfg=self.cfg)
+        self.assertEqual(parts['count_score'], 60)
+
+    def test_normal_one_found_one_is_full(self):
+        parts = residual_parts(found=1, mean=1, hours_since_tally=0, open_hours=9, cfg=self.cfg)
+        self.assertEqual(parts['count_score'], 100)
+
+    def test_normal_one_found_two_is_sixty(self):
+        parts = residual_parts(found=2, mean=1, hours_since_tally=0, open_hours=9, cfg=self.cfg)
+        self.assertEqual(parts['count_score'], 60)
+
+    def test_verify_ladder(self):
+        self.assertEqual(verify_score(0, self.cfg), 100)
+        self.assertEqual(verify_score(1, self.cfg), 85)
+        self.assertEqual(verify_score(2, self.cfg), 60)
+        self.assertEqual(verify_score(3, self.cfg), 30)
+        self.assertEqual(verify_score(4, self.cfg), 0)
+
+
+class SettingsValidationTests(TestCase):
+    def test_defaults_fill_new_keys(self):
+        cfg = retail_qa_settings()
+        self.assertEqual(cfg['spot_check_count'], 3)
+        self.assertEqual(cfg['baseline_window'], 100)
+        self.assertEqual(cfg['weight_spot'], 60)
+        self.assertEqual(cfg['weight_do'], 25)
+        self.assertEqual(cfg['weight_cross'], 15)
+        self.assertNotIn('owner_weight', cfg)
+
+    def test_ladder_must_ascend_and_scores_descend(self):
+        with self.assertRaises(ValueError):
+            validate_retail_qa_value('verify_ladder', [
+                {'cutoff': 2, 'score': 100},
+                {'cutoff': 1, 'score': 50},
+            ])
+        with self.assertRaises(ValueError):
+            validate_retail_qa_value('owner_ladder', [
+                {'cutoff': 0.1, 'score': 50},
+                {'cutoff': 0.5, 'score': 80},
+            ])
+
+    def test_tails_and_letters_cross_check(self):
+        cfg = retail_qa_settings()
+        cfg['cross_zero_tail'] = 0.03
+        cfg['cross_full_tail'] = 0.02
+        self.assertTrue(validate_retail_qa_bundle(cfg))
+
+    def test_letters_still_cut_the_same(self):
+        self.assertEqual(letter_for(90), 'A')
+        self.assertEqual(letter_for(89.9), 'B')
+        self.assertEqual(letter_for(50), 'F')
+
+    def test_score_ladder_helper(self):
+        self.assertEqual(score_ladder(0.10, retail_qa_settings()['owner_ladder']), 100)
+        self.assertEqual(score_ladder(1.01, retail_qa_settings()['owner_ladder']), 0)
+
+
+class SpotPoolTests(TestCase):
+    def setUp(self):
+        self.department = Department.objects.create(name='Retail')
+        self.sam = _staff('sam@example.com')
+        self.owner = _staff('owner@example.com', 'Admin', superuser=True)
+        self.section = Section.objects.create(
+            department=self.department, name='Housewares', owner=self.sam,
+        )
+        self.tally, _ = Routine.objects.update_or_create(
+            system_key=SYSTEM_TALLY,
+            defaults={
+                'title': 'Tally',
+                'kind': Routine.KIND_SECTION_TALLY,
+                'trigger': Routine.TRIGGER_DAILY,
+                'assignment': Routine.ASSIGN_PER_PERSON,
+                'subject_source': Routine.SUBJECT_MY_SECTION,
+                'assigned_department': self.department,
+                'is_active': True,
+            },
+        )
+        self.spot, _ = Routine.objects.update_or_create(
+            system_key=SYSTEM_OWNER_SPOT,
+            defaults={
+                'title': 'Spot',
+                'kind': Routine.KIND_OWNER_SPOT,
+                'trigger': Routine.TRIGGER_DAILY,
+                'assignment': Routine.ASSIGN_PER_PERSON,
+                'is_active': True,
+            },
+        )
+        self.spot.assigned_users.set([self.owner])
+        self.day = date(2026, 9, 1)
+
+    def _done_tally(self):
+        run = RoutineRun.objects.create(
+            routine=self.tally,
+            period_key=self.day.isoformat(),
+            due_at=timezone.make_aware(datetime(2026, 9, 1, 18, 0), TZ),
+            assigned_to=self.sam,
+            status=RoutineRun.STATUS_DONE,
+        )
+        submission = RoutineSubmission.objects.create(
+            routine=self.tally, run=run, status=RoutineSubmission.STATUS_SUBMITTED,
+            responses={'sections': [{'section_id': self.section.pk, 'counts': {}, 'flags': []}]},
+            submitted_at=timezone.make_aware(datetime(2026, 9, 1, 14, 0), TZ),
+        )
+        run.submission = submission
+        run.completed_at = submission.submitted_at
+        run.completed_by = self.sam
+        run.save()
+        return run
+
+    def test_empty_pool_until_something_is_tallied(self):
+        self.assertEqual(eligible_spot_sections(self.spot, self.day), [])
+        self._done_tally()
+        self.assertEqual([row.pk for row in eligible_spot_sections(self.spot, self.day)], [self.section.pk])
+
+    def test_lazy_draw_waits_then_picks(self):
+        run = RoutineRun.objects.create(
+            routine=self.spot,
+            period_key=self.day.isoformat(),
+            due_at=timezone.make_aware(datetime(2026, 9, 1, 18, 0), TZ),
+            assigned_to=self.owner,
+            generated={'checks': [], 'switches': []},
+        )
+        self.assertEqual(maybe_draw_spot(run), 'waiting')
+        self._done_tally()
+        self.assertEqual(maybe_draw_spot(run), 'ready')
+        run.refresh_from_db()
+        self.assertEqual(run.section_id, self.section.pk)
+        self.assertTrue((run.generated or {}).get('tally_run_id'))
+
+
+class CrossCheckWeekdayTests(TestCase):
+    def test_moves_to_the_next_open_day(self):
+        tuesday = date(2026, 9, 1)
+        self.assertTrue(is_open_day(tuesday) or not is_open_day(tuesday))
+        chosen = cross_check_day_for(tuesday, qa_cfg={'cross_check_weekday': 1})
+        self.assertIsNotNone(chosen)
+        self.assertTrue(is_open_day(chosen))
+
+
+class ShiftRosterTests(APITestCase):
+    def setUp(self):
+        self.mgr = _staff('mgr@example.com', 'Manager')
+        self.sam = _staff('sam@example.com')
+        self.department = Department.objects.create(name='Retail')
+        self.shift = Shift.objects.create(
+            name='Retail Day',
+            department=self.department,
+            time_in=time(10, 0),
+            time_out=time(17, 0),
+            weekdays=[1, 2, 3, 4, 5],
+        )
+
+    def test_manager_can_assign_a_shift(self):
+        self.client.force_authenticate(self.mgr)
+        created = self.client.post('/api/hr/shift-assignments/', {
+            'employee': self.sam.pk, 'shift': self.shift.pk,
+        }, format='json')
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertEqual(created.data['weekdays'], [])
+        self.assertTrue(self.shift.runs_on(date(2026, 9, 1)))
+        self.assertFalse(self.shift.runs_on(date(2026, 8, 31)))
+
+    def test_person_days_limit_who_is_on_today(self):
+        assignment = ShiftAssignment.objects.create(
+            employee=self.sam, shift=self.shift, weekdays=[5],
+        )
+        saturday = date(2026, 9, 5)
+        tuesday = date(2026, 9, 1)
+        self.assertTrue(assignment.runs_on(saturday))
+        self.assertFalse(assignment.runs_on(tuesday))
+        self.client.force_authenticate(self.mgr)
+        sat = self.client.get('/api/routines/qa/today/', {'date': saturday.isoformat()})
+        tue = self.client.get('/api/routines/qa/today/', {'date': tuesday.isoformat()})
+        self.assertEqual(sat.status_code, 200, sat.data)
+        self.assertEqual(tue.status_code, 200, tue.data)
+        self.assertTrue(any(row['id'] == self.sam.pk for row in sat.data['staff']))
+        self.assertFalse(any(row['id'] == self.sam.pk for row in tue.data['staff']))
+
+
+class FlagSpeedTests(TestCase):
+    def setUp(self):
+        self.sam = _staff('sam@example.com')
+        self.department = Department.objects.create(name='Retail')
+        self.section = Section.objects.create(department=self.department, name='Toys')
+        self.audit, _ = Routine.objects.update_or_create(
+            system_key=SYSTEM_CROSS_CHECK,
+            defaults={
+                'title': 'Cross',
+                'kind': Routine.KIND_SECTION_AUDIT,
+                'trigger': Routine.TRIGGER_DAILY,
+                'is_active': True,
+            },
+        )
+
+    def test_a_ten_second_audit_is_too_fast(self):
+        start = timezone.now() - timedelta(seconds=10)
+        run = RoutineRun.objects.create(
+            routine=self.audit,
+            period_key=timezone.localdate().isoformat(),
+            due_at=timezone.now(),
+            section=self.section,
+            status=RoutineRun.STATUS_DONE,
+            completed_by=self.sam,
+            completed_at=timezone.now(),
+        )
+        sub = RoutineSubmission.objects.create(
+            routine=self.audit, run=run, submitted_by=self.sam,
+            status=RoutineSubmission.STATUS_SUBMITTED,
+            started_at=start, submitted_at=timezone.now(),
+        )
+        RoutineSubmission.objects.filter(pk=sub.pk).update(started_at=start)
+        run.submission = sub
+        run.save(update_fields=['submission'])
+        hit = test_speed(self.sam.pk, retail_qa_settings(), timezone.now())
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit['kind'], 'speed')
+
+
+class CommandCenterTests(APITestCase):
+    def setUp(self):
+        self.mgr = _staff('mgr@example.com', 'Manager')
+        self.sam = _staff('sam@example.com')
+        self.department = Department.objects.create(name='Retail')
+        self.shift = Shift.objects.create(
+            name='Retail Open',
+            department=self.department,
+            punch_code='retail_open',
+            time_in=time(8, 30),
+            time_out=time(15, 0),
+            weekdays=[1, 2, 3, 4, 5],
+        )
+        ShiftAssignment.objects.create(employee=self.sam, shift=self.shift)
+        self.open, _ = Routine.objects.update_or_create(
+            system_key=SYSTEM_OPEN,
+            defaults={
+                'title': 'Retail open',
+                'kind': Routine.KIND_CHECKLIST,
+                'trigger': Routine.TRIGGER_DAILY,
+                'is_active': True,
+                'due_time': time(9, 0),
+            },
+        )
+        self.tally, _ = Routine.objects.update_or_create(
+            system_key=SYSTEM_TALLY,
+            defaults={
+                'title': 'Section walk',
+                'kind': Routine.KIND_SECTION_TALLY,
+                'trigger': Routine.TRIGGER_DAILY,
+                'is_active': True,
+                'due_time': time(14, 0),
+            },
+        )
+        self.section = Section.objects.create(
+            department=self.department, name='Housewares', owner=self.sam,
+        )
+
+    def _today(self):
+        return date(2026, 9, 16)
+
+    def _open_run(self, day, assigned=None):
+        return RoutineRun.objects.create(
+            routine=self.open,
+            period_key=day.isoformat(),
+            assigned_to=assigned or self.sam,
+            due_at=timezone.make_aware(datetime.combine(day, time(9, 0)), TZ),
+            status=RoutineRun.STATUS_OPEN,
+        )
+
+    def test_status_word_never_returns_raw_keys(self):
+        from apps.routines.command_center import status_word
+        self.assertEqual(status_word('not_started'), 'Due')
+        self.assertEqual(status_word('own_part'), 'Due')
+        self.assertEqual(status_word('Done'), 'Done')
+
+    def test_fresh_week_tiles_use_spot_and_cross_dashes(self):
+        from apps.routines.command_center import week_payload
+        monday = date(2026, 9, 14)
+        payload = week_payload(monday)
+        self.assertEqual(len(payload['tiles']), 7)
+        for tile in payload['tiles']:
+            self.assertIsNone(tile['spot'])
+        due = payload['cross_check_due']
+        for tile in payload['tiles']:
+            if due and tile['date'] >= due:
+                continue
+            self.assertIsNone(tile['cross'])
+
+    def test_call_in_unassigns_and_undo_restores(self):
+        day = timezone.localdate()
+        run = self._open_run(day)
+        tally = RoutineRun.objects.create(
+            routine=self.tally,
+            period_key=day.isoformat(),
+            assigned_to=self.sam,
+            due_at=timezone.make_aware(datetime.combine(day, time(14, 0)), TZ),
+            status=RoutineRun.STATUS_OPEN,
+        )
+        self.client.force_authenticate(self.mgr)
+        created = self.client.post('/api/routines/qa/call-in/', {
+            'user': self.sam.pk, 'date': day.isoformat(),
+        }, format='json')
+        self.assertEqual(created.status_code, 200, created.data)
+        run.refresh_from_db()
+        tally.refresh_from_db()
+        self.assertIsNone(run.assigned_to_id)
+        self.assertIsNone(tally.assigned_to_id)
+        call_id = created.data['call_in']['id']
+        undone = self.client.delete(f'/api/routines/qa/call-in/{call_id}/')
+        self.assertEqual(undone.status_code, 200, undone.data)
+        run.refresh_from_db()
+        tally.refresh_from_db()
+        self.assertEqual(run.assigned_to_id, self.sam.pk)
+        self.assertEqual(tally.assigned_to_id, self.sam.pk)
+
+    def test_past_day_cannot_be_called_in(self):
+        from apps.routines.command_center import apply_call_in
+        with self.assertRaises(ValueError):
+            apply_call_in(
+                employee=self.sam,
+                day=date(2026, 9, 1),
+                marked_by=self.mgr,
+                today=date(2026, 9, 16),
+            )
+
+    def test_late_severity_stays_amber_until_thirty(self):
+        from apps.routines.command_center import staff_status
+        start = timezone.make_aware(datetime(2026, 9, 16, 8, 30), TZ)
+        now = start + timedelta(minutes=20)
+        status, minutes, severity = staff_status(
+            punch=None, called_in=False, start=start, now=now, on_roster=True,
+        )
+        self.assertEqual(status, 'Late')
+        self.assertEqual(minutes, 20)
+        self.assertEqual(severity, 'amber')
+        later = start + timedelta(minutes=31)
+        status, minutes, severity = staff_status(
+            punch=None, called_in=False, start=start, now=later, on_roster=True,
+        )
+        self.assertEqual(severity, 'red')
+
+    def test_overdue_becomes_missed_after_shift_end(self):
+        from apps.routines.command_center import routine_live_status
+        day = date(2026, 9, 16)
+        run = self._open_run(day)
+        mid = timezone.make_aware(datetime.combine(day, time(10, 0)), TZ)
+        after = timezone.make_aware(datetime.combine(day, time(15, 30)), TZ)
+        self.assertEqual(routine_live_status(run, day=day, now=mid, tz=TZ), 'Overdue')
+        self.assertEqual(routine_live_status(run, day=day, now=after, tz=TZ), 'Missed')
+
+    def test_persisted_missed_stays_overdue_before_shift_end(self):
+        from apps.routines.command_center import routine_live_status
+        day = date(2026, 9, 16)
+        run = self._open_run(day)
+        run.status = RoutineRun.STATUS_MISSED
+        run.save(update_fields=['status'])
+        mid = timezone.make_aware(datetime.combine(day, time(10, 0)), TZ)
+        self.assertEqual(routine_live_status(run, day=day, now=mid, tz=TZ), 'Overdue')
+
+    def test_closed_monday_omits_open_day_close(self):
+        from apps.routines.command_center import build_jobs
+        monday = date(2026, 9, 14)
+        now = timezone.make_aware(datetime.combine(monday, time(10, 0)), TZ)
+        jobs = build_jobs(monday, {}, now=now, tz=TZ, hours_cfg=None)
+        self.assertFalse(any(job['group'] == 'shift' for job in jobs))
+        self.assertFalse(any('.' in job['title'] for job in jobs))
+
+    def test_punch_after_call_in_shows_in(self):
+        from apps.routines.command_center import build_staff
+        day = date(2026, 9, 16)
+        QaCallIn.objects.create(employee=self.sam, date=day, marked_by=self.mgr)
+        TimeEntry.objects.create(
+            employee=self.sam,
+            date=day,
+            clock_in=timezone.make_aware(datetime.combine(day, time(9, 10)), TZ),
+        )
+        now = timezone.make_aware(datetime.combine(day, time(10, 0)), TZ)
+        staff = build_staff(day, now=now, tz=TZ, today=day)
+        row = next(item for item in staff if item['id'] == self.sam.pk)
+        self.assertEqual(row['status'], 'In')
+        self.assertTrue(QaCallIn.objects.filter(employee=self.sam, date=day).exists())
+
+    def test_today_alerts_match_red_and_amber_issues(self):
+        from apps.routines.command_center import today_payload
+        day = date(2026, 9, 16)
+        self._open_run(day)
+        now = timezone.make_aware(datetime.combine(day, time(10, 0)), TZ)
+        payload = today_payload(day, now=now)
+        counted = sum(1 for row in payload['issues'] if row['severity'] in ('red', 'amber'))
+        self.assertEqual(payload['alerts']['total'], counted)
+        for job in payload['jobs']:
+            self.assertNotIn(job['status'], {'not_started', 'own_part', 'open'})
+
+    def test_employee_cannot_open_the_board(self):
+        self.client.force_authenticate(self.sam)
+        response = self.client.get('/api/routines/qa/today/')
+        self.assertIn(response.status_code, (403, 401))
+
+    def test_late_sentence_uses_minutes_then_hours_then_expected(self):
+        from apps.routines.command_center import format_late_sentence
+        self.assertEqual(
+            format_late_sentence('Sam', 25, 'Cashier - Open', '08:30'),
+            'Sam is 25 min late for Cashier - Open.',
+        )
+        self.assertEqual(
+            format_late_sentence('Sam', 90, 'Cashier - Open', '08:30'),
+            'Sam is 1 h 30 min late for Cashier - Open.',
+        )
+        self.assertEqual(
+            format_late_sentence('Sam', 308, 'Cashier - Open', '08:30'),
+            'Sam: Expected 08:30, not in',
+        )
+
+    def test_staff_status_stays_expected_until_fifteen(self):
+        from apps.routines.command_center import staff_status
+        from apps.routines.settings import LATE_AMBER_MINUTES, LATE_RED_MINUTES
+        start = timezone.make_aware(datetime(2026, 9, 16, 8, 30), TZ)
+        early = start + timedelta(minutes=LATE_AMBER_MINUTES - 1)
+        status, minutes, severity = staff_status(
+            punch=None, called_in=False, start=start, now=early, on_roster=True,
+        )
+        self.assertEqual(status, 'Expected')
+        self.assertIsNone(severity)
+        amber = start + timedelta(minutes=LATE_AMBER_MINUTES)
+        status, minutes, severity = staff_status(
+            punch=None, called_in=False, start=start, now=amber, on_roster=True,
+        )
+        self.assertEqual(severity, 'amber')
+        red = start + timedelta(minutes=LATE_RED_MINUTES)
+        status, minutes, severity = staff_status(
+            punch=None, called_in=False, start=start, now=red, on_roster=True,
+        )
+        self.assertEqual(severity, 'red')
+
+    def test_section_due_after_clock_in_and_unassigned_at_thirty(self):
+        from apps.routines.command_center import STATUS_NOT_TALLIED, STATUS_UNASSIGNED, section_due_state
+        from apps.routines.settings import LATE_AMBER_MINUTES, LATE_RED_MINUTES
+        day = date(2026, 9, 16)
+        start = timezone.make_aware(datetime.combine(day, time(8, 30)), TZ)
+        amber = start + timedelta(minutes=LATE_AMBER_MINUTES)
+        due, label, status = section_due_state(
+            self.section, run=None, status=STATUS_NOT_TALLIED,
+            day=day, now=amber, tz=TZ, punches={}, call_ins=set(),
+        )
+        self.assertEqual(label, 'Due after clock-in')
+        self.assertEqual(status, STATUS_NOT_TALLIED)
+        red = start + timedelta(minutes=LATE_RED_MINUTES)
+        due, label, status = section_due_state(
+            self.section, run=None, status=STATUS_NOT_TALLIED,
+            day=day, now=red, tz=TZ, punches={}, call_ins=set(),
+        )
+        self.assertEqual(status, STATUS_UNASSIGNED)
+        punch = TimeEntry(
+            employee=self.sam,
+            date=day,
+            clock_in=timezone.make_aware(datetime.combine(day, time(8, 30)), TZ),
+        )
+        after = timezone.make_aware(datetime.combine(day, time(9, 0)), TZ)
+        due, label, status = section_due_state(
+            self.section, run=None, status=STATUS_NOT_TALLIED,
+            day=day, now=after, tz=TZ, punches={self.sam.pk: punch}, call_ins=set(),
+        )
+        self.assertEqual(label, 'Due 09:30')
+
+    def test_scheduled_owner_stays_due_until_they_punch(self):
+        from apps.routines.command_center import build_jobs
+        from apps.webstore.services.hours import get_hours_config
+        day = date(2026, 9, 16)
+        self.open.shift = self.shift
+        self.open.assigned_shifts = ['retail_open']
+        self.open.save(update_fields=['shift', 'assigned_shifts'])
+        run = RoutineRun.objects.create(
+            routine=self.open,
+            period_key=day.isoformat(),
+            assigned_to=None,
+            due_at=timezone.make_aware(datetime.combine(day, time(8, 30)), TZ),
+            status=RoutineRun.STATUS_OPEN,
+        )
+        now = timezone.make_aware(datetime.combine(day, time(8, 0)), TZ)
+        hours = get_hours_config()
+        jobs = build_jobs(day, {'date': day.isoformat()}, now=now, tz=TZ, hours_cfg=hours)
+        open_job = next(row for row in jobs if row['key'] == SYSTEM_OPEN)
+        self.assertEqual(open_job['owner']['id'], self.sam.pk)
+        self.assertEqual(open_job['owner_state'], 'scheduled')
+        self.assertEqual(open_job['status'], 'Due')
+        TimeEntry.objects.create(
+            employee=self.sam,
+            date=day,
+            clock_in=timezone.make_aware(datetime.combine(day, time(8, 5)), TZ),
+            shift='retail_open',
+        )
+        jobs = build_jobs(day, {'date': day.isoformat()}, now=now, tz=TZ, hours_cfg=hours)
+        open_job = next(row for row in jobs if row['key'] == SYSTEM_OPEN)
+        self.assertEqual(open_job['owner_state'], 'in')
+        self.assertNotEqual(open_job['status'], 'Unassigned')
+        self.assertEqual(run.pk, open_job['run_id'])
+
+    def test_retail_open_due_follows_store_open(self):
+        from apps.routines.schedule import due_at_for
+        due = due_at_for(
+            self.open, date(2026, 9, 16), tz=TZ,
+            cfg={'open': '08:30', 'close': '18:00', 'closed_weekdays': [0, 6]},
+        )
+        self.assertEqual(timezone.localtime(due).time(), time(8, 30))
+
+    def test_call_in_falls_back_to_the_other_person_on_the_shift(self):
+        from apps.hr.shifts import SHIFT_RETAIL_OPEN
+        from apps.routines.command_center import apply_call_in
+        day = timezone.localdate()
+        self.shift.punch_code = SHIFT_RETAIL_OPEN
+        self.shift.save(update_fields=['punch_code'])
+        self.open.shift = self.shift
+        self.open.save(update_fields=['shift'])
+        other = _staff('other@example.com')
+        TimeEntry.objects.create(
+            employee=other,
+            date=day,
+            clock_in=timezone.make_aware(datetime.combine(day, time(8, 40)), TZ),
+            shift=SHIFT_RETAIL_OPEN,
+        )
+        run = self._open_run(day)
+        apply_call_in(employee=self.sam, day=day, marked_by=self.mgr, today=day)
+        run.refresh_from_db()
+        self.assertEqual(run.assigned_to_id, other.pk)
+
+    def test_owner_check_gate_blocks_until_done_or_missed(self):
+        from apps.routines.command_center import owner_check_gate
+        day = date(2026, 9, 16)
+        now = timezone.make_aware(datetime.combine(day, time(8, 40)), TZ)
+        gate = owner_check_gate(section=self.section, day=day, now=now)
+        self.assertFalse(gate['allowed'])
+        self.assertIn("isn't done yet", gate['message'])
+        later = timezone.make_aware(datetime.combine(day, time(9, 5)), TZ)
+        gate = owner_check_gate(section=self.section, day=day, now=later)
+        self.assertTrue(gate['allowed'])
+        self.assertEqual(gate['reason'], 'missed')
+
+    def test_clock_tiles_include_a_created_shift(self):
+        Shift.objects.create(
+            name='Floor Lead',
+            department=self.department,
+            time_in=time(10, 0),
+            time_out=time(18, 0),
+            weekdays=[2],
+            punch_code='floor_lead',
+        )
+        self.client.force_authenticate(self.sam)
+        response = self.client.get('/api/hr/shifts/clock_tiles/')
+        self.assertEqual(response.status_code, 200, response.data)
+        names = [row['name'] for row in response.data]
+        self.assertIn('Floor Lead', names)
+
+
+class ScoringEngineTests(TestCase):
+    def test_empty_spot_renormalizes_and_zero_walks_cap_at_c(self):
+        from apps.routines.grading import _combine_thirds, _walk_cap
+        cfg = retail_qa_settings()
+        score, letter = _combine_thirds(100.0, None, None, cfg, include_cross=False)
+        self.assertEqual(score, 100.0)
+        self.assertEqual(letter, 'A')
+        capped, cap_letter = _walk_cap(score, 0, cfg)
+        self.assertEqual(cap_letter, 'C')
+        blend, _ = _combine_thirds(100.0, None, 100.0, cfg, include_cross=False)
+        self.assertEqual(blend, 100.0)
+
+    def test_cross_stays_out_before_the_due_date(self):
+        from apps.routines.grading import _week_cross
+        daily = [{'cross': {'audits': [{'status': 'open'}]}}]
+        self.assertIsNone(_week_cross(daily, due=date(2026, 9, 20), today=date(2026, 9, 16), project=False))
+        self.assertIsNone(_week_cross(daily, due=date(2026, 9, 20), today=date(2026, 9, 16), project=True))
+        self.assertEqual(_week_cross(daily, due=date(2026, 9, 16), today=date(2026, 9, 16), project=False), 0.0)
+
+    def test_expected_persists_and_ignores_a_later_call_in(self):
+        from apps.routines.grading import compute_expected, expected_for_day
+        from apps.routines.models import QaDayExpected
+        day = timezone.localdate()
+        department = Department.objects.create(name='Expected Desk')
+        owner = _staff('expect-owner@example.com')
+        shift = Shift.objects.create(
+            name='Desk Day',
+            department=department,
+            time_in=time(8, 0),
+            time_out=time(16, 0),
+            weekdays=list(range(7)),
+            punch_code='retail_day',
+        )
+        ShiftAssignment.objects.create(employee=owner, shift=shift)
+        Section.objects.create(department=department, name='Desk', owner=owner)
+        first = expected_for_day(day)
+        self.assertGreaterEqual(first, 1)
+        QaCallIn.objects.create(employee=owner, date=day, marked_by=owner)
+        self.assertEqual(compute_expected(day), first)
+        self.assertEqual(expected_for_day(day), first)
+        self.assertEqual(QaDayExpected.objects.get(date=day).expected, first)
+
+    def test_seed_cashier_shifts_is_idempotent(self):
+        from apps.routines.shift_seed import seed_cashier_shifts
+        first = seed_cashier_shifts()
+        second = seed_cashier_shifts()
+        self.assertTrue(any('Cashier - Open' in row for row in first))
+        self.assertTrue(all('kept' in row or 'locked' in row for row in second))
+        self.assertEqual(
+            Shift.objects.filter(name__in=('Cashier - Open', 'Cashier - Day', 'Cashier - Close')).count(),
+            3,
+        )

@@ -100,7 +100,10 @@ function RoutineGroup({
           return (
             <div className={`row${chip === 'over' || chip === 'miss' || chip === 'unas' ? ' s-warn' : ''}`} key={`${job.key}-${job.run_id ?? job.section_id ?? index}`}>
               <span className="name nowrap">{displayName(job.title, 'routine')}</span>
-              <span className="owner nowrap" title={job.owner?.name || ''}>
+              <span
+                className={`owner nowrap${job.owner_state === 'scheduled' ? ' scheduled' : ''}`}
+                title={job.owner_state === 'scheduled' ? 'scheduled' : (job.owner?.name || '')}
+              >
                 {(unassigned || reassignId === job.run_id) && job.run_id ? (
                   <select
                     className="assign"
