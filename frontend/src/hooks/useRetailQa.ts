@@ -2,7 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   assignQaBoard,
   createQaCallIn,
+  createQaExclude,
+  createQaLeftEarly,
   createQaNudge,
+  createQaOverride,
   getQaCrossChecks,
   getQaHistory,
   getQaMine,
@@ -71,6 +74,30 @@ export function useUndoQaCallIn() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: undoQaCallIn,
+    onSuccess: () => invalidateQa(queryClient),
+  });
+}
+
+export function useQaLeftEarly() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createQaLeftEarly,
+    onSuccess: () => invalidateQa(queryClient),
+  });
+}
+
+export function useQaExclude() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createQaExclude,
+    onSuccess: () => invalidateQa(queryClient),
+  });
+}
+
+export function useQaOverride() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createQaOverride,
     onSuccess: () => invalidateQa(queryClient),
   });
 }

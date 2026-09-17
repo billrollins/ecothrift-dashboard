@@ -6,6 +6,7 @@ export const CHIP_LABEL: Record<string, string> = {
   exp: 'Expected',
   late: 'Late',
   call: 'Called in',
+  left: 'Left',
   done: 'Done',
   due: 'Due',
   over: 'Overdue',
@@ -118,14 +119,16 @@ export function staffChip(status: string | undefined): keyof typeof CHIP_LABEL {
   if (word === 'Expected') return 'exp';
   if (word === 'Late') return 'late';
   if (word === 'Called in') return 'call';
+  if (word === 'Left') return 'left';
   return 'exp';
 }
 
-export const CHIP_ICON: Record<keyof typeof CHIP_LABEL, 'check' | 'clock' | 'alert' | 'person'> = {
+export const CHIP_ICON: Record<keyof typeof CHIP_LABEL, 'check' | 'clock' | 'alert' | 'person' | 'door'> = {
   in: 'check',
   exp: 'clock',
   late: 'clock',
   call: 'person',
+  left: 'door',
   done: 'check',
   due: 'clock',
   over: 'alert',

@@ -718,6 +718,7 @@ export type QaStatusWord =
   | 'In'
   | 'Late'
   | 'Called in'
+  | 'Left'
   | 'Unassigned'
   | 'Off'
   | 'Closed'
@@ -739,7 +740,7 @@ export interface QaIssue {
   type: QaIssueType;
   severity: 'red' | 'amber' | 'grey';
   sentence: string;
-  action: 'call_in' | 'reassign' | 'nudge' | 'open_cross' | 'do_spot' | 'open_shifts';
+  action: 'call_in' | 'reassign' | 'nudge' | 'open_cross' | 'do_spot' | 'open_shifts' | 'clear_call_in';
   person_id: number | null;
   person_name: string | null;
   run_id: number | null;
@@ -787,6 +788,7 @@ export interface QaStaffRow {
   call_in_id?: number | null;
   can_call_in?: boolean;
   called_in?: boolean;
+  added?: boolean;
 }
 
 export interface QaCallInRow {
@@ -973,6 +975,24 @@ export function createQaCallIn(data: { user: number; date: string }) {
 
 export function undoQaCallIn(id: number) {
   return api.delete<{ ok: boolean }>(`/routines/qa/call-in/${id}/`);
+}
+
+export function createQaLeftEarly(data: { user: number; date: string }) {
+  return api.post<{ ok: boolean }>('/routines/qa/left-early/', data);
+}
+
+export function createQaExclude(data: { user: number; date: string }) {
+  return api.post<{ ok: boolean; id: number }>('/routines/qa/exclude/', data);
+}
+
+export function createQaOverride(data: {
+  user: number;
+  date: string;
+  shift: number;
+  time_in?: string;
+  time_out?: string;
+}) {
+  return api.post<{ ok: boolean; id: number }>('/routines/qa/override/', data);
 }
 
 export function createQaNudge(data: { run: number; message?: string }) {

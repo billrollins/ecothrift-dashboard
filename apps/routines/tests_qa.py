@@ -15,6 +15,8 @@ from apps.routines.flags import test_low_findings, test_speed
 from apps.routines.grading import residual_parts, verify_score
 from apps.routines.models import (
     QaCallIn,
+    QaDayExclusion,
+    QaDayOverride,
     QaNudge,
     Routine,
     RoutineRun,
@@ -443,12 +445,13 @@ class CommandCenterTests(APITestCase):
         self.assertIsNone(run.assigned_to_id)
         self.assertIsNone(tally.assigned_to_id)
         call_id = created.data['call_in']['id']
-        undone = self.client.delete(f'/api/routines/qa/call-in/{call_id}/')
-        self.assertEqual(undone.status_code, 200, undone.data)
+        cleared = self.client.delete(f'/api/routines/qa/call-in/{call_id}/')
+        self.assertEqual(cleared.status_code, 200, cleared.data)
         run.refresh_from_db()
         tally.refresh_from_db()
-        self.assertEqual(run.assigned_to_id, self.sam.pk)
-        self.assertEqual(tally.assigned_to_id, self.sam.pk)
+        self.assertFalse(QaCallIn.objects.filter(pk=call_id).exists())
+        self.assertIsNone(run.assigned_to_id)
+        self.assertIsNone(tally.assigned_to_id)
 
     def test_past_day_cannot_be_called_in(self):
         from apps.routines.command_center import apply_call_in
@@ -908,6 +911,80 @@ class CommandCenterTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
         names = [row['name'] for row in response.data]
         self.assertIn('Floor Lead', names)
+
+    def test_override_feeds_scheduled_for_routine_and_clears_gap(self):
+        from apps.routines.command_center import build_issues, build_jobs, scheduled_for_routine
+        from apps.webstore.services.hours import get_hours_config
+        day = date(2026, 9, 16)
+        close = Shift.objects.create(
+            name='Cashier - Close',
+            department=self.department,
+            punch_code='retail_close',
+            time_in=time(17, 0),
+            time_out=time(18, 0),
+            weekdays=[1, 2, 3, 4, 5],
+        )
+        routine, _ = Routine.objects.update_or_create(
+            system_key=SYSTEM_CLOSE,
+            defaults={
+                'title': 'Retail close',
+                'kind': Routine.KIND_CHECKLIST,
+                'trigger': Routine.TRIGGER_DAILY,
+                'is_active': True,
+                'due_time': time(18, 0),
+                'shift': close,
+                'shift_locked': True,
+            },
+        )
+        routine.shift = close
+        routine.shift_locked = True
+        routine.save(update_fields=['shift', 'shift_locked'])
+        RoutineRun.objects.create(
+            routine=routine, period_key=day.isoformat(), assigned_to=None,
+            due_at=timezone.make_aware(datetime.combine(day, time(18, 0)), TZ),
+            status=RoutineRun.STATUS_OPEN,
+        )
+        self.assertEqual(scheduled_for_routine(routine, day, set()), [])
+        QaDayOverride.objects.create(employee=self.sam, date=day, shift=close, marked_by=self.mgr)
+        people = scheduled_for_routine(routine, day, set())
+        self.assertEqual([row.pk for row in people], [self.sam.pk])
+        now = timezone.make_aware(datetime.combine(day, time(10, 0)), TZ)
+        hours = get_hours_config()
+        jobs = build_jobs(day, {'date': day.isoformat()}, now=now, tz=TZ, hours_cfg=hours)
+        issues = build_issues(
+            day=day, open_day=True, staff=[], jobs=jobs, spot={'done': True},
+            cross={'due': None, 'total': 0, 'done': 0}, nudges={}, now=now, tz=TZ,
+            hours_cfg=hours, today=day,
+        )
+        self.assertFalse(any(row['type'] == 'empty_shift' and 'Close' in row['sentence'] for row in issues))
+
+    def test_exclusion_drops_scheduled_and_reopens_gap(self):
+        from apps.routines.command_center import scheduled_for_routine
+        day = date(2026, 9, 16)
+        self.open.shift = self.shift
+        self.open.save(update_fields=['shift'])
+        self.assertEqual([row.pk for row in scheduled_for_routine(self.open, day, set())], [self.sam.pk])
+        QaDayExclusion.objects.create(employee=self.sam, date=day, marked_by=self.mgr)
+        self.assertEqual(scheduled_for_routine(self.open, day, set()), [])
+
+    def test_left_early_clocks_out_and_unassigns(self):
+        from apps.routines.command_center import apply_left_early
+        day = date(2026, 9, 16)
+        run = self._open_run(day)
+        TimeEntry.objects.create(
+            employee=self.sam,
+            date=day,
+            clock_in=timezone.make_aware(datetime.combine(day, time(8, 30)), TZ),
+            shift='retail_open',
+        )
+        apply_left_early(
+            employee=self.sam, day=day,
+            now=timezone.make_aware(datetime.combine(day, time(11, 0)), TZ),
+        )
+        entry = TimeEntry.objects.get(employee=self.sam, date=day)
+        self.assertIsNotNone(entry.clock_out)
+        run.refresh_from_db()
+        self.assertIsNone(run.assigned_to_id)
 
 
 class ScoringEngineTests(TestCase):

@@ -31,7 +31,7 @@ from .grading import (
     week_grade,
     week_label,
 )
-from .models import QaCallIn, QaNudge, Routine, RoutineRun, Section
+from .models import QaCallIn, QaDayExclusion, QaDayOverride, QaNudge, Routine, RoutineRun, Section
 from .schedule import (
     SYSTEM_CLOSE,
     SYSTEM_CROSS_CHECK,
@@ -74,6 +74,7 @@ STATUS_NOT_TALLIED = 'Not tallied'
 STATUS_IN = 'In'
 STATUS_LATE = 'Late'
 STATUS_CALLED_IN = 'Called in'
+STATUS_LEFT = 'Left'
 STATUS_UNASSIGNED = 'Unassigned'
 STATUS_OFF = 'Off'
 STATUS_CLOSED = 'Closed'
@@ -101,7 +102,7 @@ def status_word(raw: str | None) -> str:
         return STATUS_DUE
     if raw in (
         STATUS_DONE, STATUS_EXPECTED, STATUS_DUE, STATUS_OVERDUE, STATUS_MISSED,
-        STATUS_NOT_TALLIED, STATUS_IN, STATUS_LATE, STATUS_CALLED_IN, STATUS_UNASSIGNED,
+        STATUS_NOT_TALLIED, STATUS_IN, STATUS_LATE, STATUS_CALLED_IN, STATUS_LEFT, STATUS_UNASSIGNED,
         STATUS_OFF, STATUS_CLOSED, STATUS_PROJECTED, STATUS_NOT_DONE, STATUS_VALIDATED,
         STATUS_ISSUES_FOUND,
     ):
@@ -333,6 +334,8 @@ def staff_status(
     on_roster: bool,
 ) -> tuple[str, int | None, str | None]:
     """Return (status, late_minutes, late_severity)."""
+    if punch and punch.clock_out:
+        return STATUS_LEFT, None, None
     if punch:
         return STATUS_IN, None, None
     if called_in:
@@ -375,29 +378,54 @@ def punch_code_for_routine(routine) -> str:
     return codes[0] if codes else ''
 
 
+def excluded_ids(day: date) -> set[int]:
+    return set(QaDayExclusion.objects.filter(date=day).values_list('employee_id', flat=True))
+
+
+def left_ids(day: date) -> set[int]:
+    clocked_out = set(
+        TimeEntry.objects.filter(date=day, clock_out__isnull=False).values_list('employee_id', flat=True)
+    )
+    still_in = set(
+        TimeEntry.objects.filter(date=day, clock_out__isnull=True).values_list('employee_id', flat=True)
+    )
+    return clocked_out - still_in
+
+
 def scheduled_for_routine(routine, day: date, call_ins: set[int]) -> list:
-    """People on this routine's shift today, minus anyone who called in."""
+    """People on this routine's shift today, plus overrides, minus call-ins / exclusions / left."""
     if routine is None:
         return []
+    blocked = set(call_ins) | excluded_ids(day) | left_ids(day)
     seen: set[int] = set()
     people = []
+    shift_ids = set()
+    if getattr(routine, 'shift_id', None):
+        shift_ids.add(routine.shift_id)
+    code = punch_code_for_routine(routine)
     if getattr(routine, 'shift_id', None):
         rows = ShiftAssignment.objects.filter(
             shift_id=routine.shift_id,
         ).select_related('employee', 'shift')
         for row in rows:
-            if row.runs_on(day) and row.employee_id not in call_ins and row.employee_id not in seen:
+            if row.runs_on(day) and row.employee_id not in blocked and row.employee_id not in seen:
                 seen.add(row.employee_id)
                 people.append(row.employee)
-    code = punch_code_for_routine(routine)
     if code:
         rows = ShiftAssignment.objects.filter(
             shift__is_active=True, shift__punch_code=code,
         ).select_related('employee', 'shift')
         for row in rows:
-            if row.runs_on(day) and row.employee_id not in call_ins and row.employee_id not in seen:
+            shift_ids.add(row.shift_id)
+            if row.runs_on(day) and row.employee_id not in blocked and row.employee_id not in seen:
                 seen.add(row.employee_id)
                 people.append(row.employee)
+    for row in QaDayOverride.objects.filter(date=day).select_related('employee', 'shift'):
+        match = (row.shift_id in shift_ids) or (code and row.shift.punch_code == code)
+        if not match or row.employee_id in blocked or row.employee_id in seen:
+            continue
+        seen.add(row.employee_id)
+        people.append(row.employee)
     return people
 
 
@@ -417,9 +445,44 @@ def build_staff(day: date, *, now: datetime, tz, today: date) -> list[dict]:
         for row in TimeEntry.objects.filter(date=day).select_related('employee')
     }
     call_ins = {row.employee_id: row for row in call_in_rows(day)}
+    skipped = excluded_ids(day)
     allowed = can_call_in_on(day, today=today)
     scheduled: list[dict] = []
     seen: set[int] = set()
+
+    def row_for(*, user, shift, time_in, time_out, on_roster, added=False):
+        punch = punches.get(user.pk)
+        start = at_clock(day, time_in, tz) if time_in else None
+        status, late_minutes, late_severity = staff_status(
+            punch=punch,
+            called_in=user.pk in call_ins,
+            start=start,
+            now=now,
+            on_roster=on_roster,
+        )
+        call = call_ins.get(user.pk)
+        in_now = bool(punch) and punch.clock_out is None
+        return {
+            'id': user.pk,
+            'name': user.full_name,
+            'role': getattr(user, 'role', '') or '',
+            'department': shift.department.name if shift else '',
+            'shift_id': shift.pk if shift else None,
+            'shift_name': shift.name if shift else '',
+            'time_in': time_in.strftime('%H:%M') if time_in else '',
+            'time_out': time_out.strftime('%H:%M') if time_out else '',
+            'clocked_in': in_now,
+            'arrival': punch.clock_in if punch else None,
+            'expected_not_in': punch is None and status != STATUS_CALLED_IN,
+            'on_roster': on_roster,
+            'status': status,
+            'late_minutes': late_minutes,
+            'late_severity': late_severity,
+            'call_in_id': call.pk if call else None,
+            'can_call_in': allowed and status in (STATUS_EXPECTED, STATUS_LATE),
+            'called_in': status == STATUS_CALLED_IN,
+            'added': added,
+        }
 
     for assignment in ShiftAssignment.objects.filter(
         shift__is_active=True,
@@ -427,47 +490,39 @@ def build_staff(day: date, *, now: datetime, tz, today: date) -> list[dict]:
         if not assignment.runs_on(day):
             continue
         user = assignment.employee
-        if user.pk in seen:
+        if user.pk in seen or user.pk in skipped:
             continue
         seen.add(user.pk)
-        punch = punches.get(user.pk)
-        start = at_clock(day, assignment.shift.time_in, tz)
-        status, late_minutes, late_severity = staff_status(
-            punch=punch,
-            called_in=user.pk in call_ins,
-            start=start,
-            now=now,
+        scheduled.append(row_for(
+            user=user, shift=assignment.shift,
+            time_in=assignment.shift.time_in, time_out=assignment.shift.time_out,
             on_roster=True,
-        )
-        call = call_ins.get(user.pk)
-        scheduled.append({
-            'id': user.pk,
-            'name': user.full_name,
-            'role': getattr(user, 'role', '') or '',
-            'department': assignment.shift.department.name,
-            'shift_id': assignment.shift_id,
-            'shift_name': assignment.shift.name,
-            'time_in': assignment.shift.time_in.strftime('%H:%M'),
-            'time_out': assignment.shift.time_out.strftime('%H:%M'),
-            'clocked_in': bool(punch),
-            'arrival': punch.clock_in if punch else None,
-            'expected_not_in': punch is None and status != STATUS_CALLED_IN,
-            'on_roster': True,
-            'status': status,
-            'late_minutes': late_minutes,
-            'late_severity': late_severity,
-            'call_in_id': call.pk if call else None,
-            'can_call_in': allowed and status in (STATUS_EXPECTED, STATUS_LATE),
-            'called_in': status == STATUS_CALLED_IN,
-        })
+        ))
+
+    for override in QaDayOverride.objects.filter(date=day).select_related(
+        'employee', 'shift', 'shift__department',
+    ):
+        user = override.employee
+        if user.pk in seen or user.pk in skipped:
+            continue
+        seen.add(user.pk)
+        scheduled.append(row_for(
+            user=user, shift=override.shift,
+            time_in=override.time_in or override.shift.time_in,
+            time_out=override.time_out or override.shift.time_out,
+            on_roster=True, added=True,
+        ))
 
     for employee_id, punch in punches.items():
-        if employee_id in seen:
+        if employee_id in seen or employee_id in skipped:
             continue
         user = punch.employee
         seen.add(user.pk)
-        call = call_ins.get(user.pk)
         code = punch.shift or ''
+        status, late_minutes, late_severity = staff_status(
+            punch=punch, called_in=False, start=None, now=now, on_roster=False,
+        )
+        call = call_ins.get(user.pk)
         scheduled.append({
             'id': user.pk,
             'name': user.full_name,
@@ -477,16 +532,17 @@ def build_staff(day: date, *, now: datetime, tz, today: date) -> list[dict]:
             'shift_name': shift_label(code) if code else '',
             'time_in': '',
             'time_out': '',
-            'clocked_in': True,
+            'clocked_in': punch.clock_out is None,
             'arrival': punch.clock_in,
             'expected_not_in': False,
             'on_roster': False,
-            'status': STATUS_IN,
-            'late_minutes': None,
-            'late_severity': None,
+            'status': status,
+            'late_minutes': late_minutes,
+            'late_severity': late_severity,
             'call_in_id': call.pk if call else None,
             'can_call_in': False,
             'called_in': False,
+            'added': False,
         })
 
     rank = {
@@ -494,7 +550,8 @@ def build_staff(day: date, *, now: datetime, tz, today: date) -> list[dict]:
         STATUS_EXPECTED: 1,
         STATUS_CALLED_IN: 2,
         STATUS_IN: 3,
-        STATUS_OFF: 4,
+        STATUS_LEFT: 4,
+        STATUS_OFF: 5,
     }
     scheduled.sort(key=lambda row: (rank.get(row['status'], 9), row['name'] or ''))
     return scheduled
@@ -1187,6 +1244,34 @@ def week_payload(monday: date) -> dict:
     }
 
 
+def unassign_open_runs(*, employee, day: date) -> list[dict]:
+    """Clear this person's open QA runs; shift jobs fall back to the next punch."""
+    cleared = []
+    runs = list(
+        RoutineRun.objects.filter(
+            period_key=day.isoformat(),
+            assigned_to=employee,
+            routine__system_key__in=CALL_IN_KEYS,
+            status=RoutineRun.STATUS_OPEN,
+        ).select_related('routine', 'routine__shift')
+    )
+    for run in runs:
+        cleared.append({
+            'run_id': run.pk,
+            'assigned_to_id': employee.pk,
+            'unassign_key': run.unassign_key or '',
+        })
+        fallback = None
+        if run.routine.system_key in PERFORMED or getattr(run.routine, 'shift_id', None):
+            code = punch_code_for_routine(run.routine)
+            others = punched_on_code(day, code, exclude_id=employee.pk)
+            fallback = others[0] if others else None
+        run.assigned_to = fallback
+        run.unassign_key = '' if run.routine.system_key in PERFORMED else f'u{run.pk}'
+        run.save(update_fields=['assigned_to', 'unassign_key'])
+    return cleared
+
+
 def apply_call_in(*, employee, day: date, marked_by, today: date | None = None) -> QaCallIn:
     today = today or timezone.localdate()
     if not can_call_in_on(day, today=today):
@@ -1194,30 +1279,8 @@ def apply_call_in(*, employee, day: date, marked_by, today: date | None = None) 
     if QaCallIn.objects.filter(employee=employee, date=day).exists():
         raise ValueError('That person is already marked called in.')
     assignment = assignment_for(employee.pk, day)
-    cleared = []
     with transaction.atomic():
-        runs = list(
-            RoutineRun.objects.filter(
-                period_key=day.isoformat(),
-                assigned_to=employee,
-                routine__system_key__in=CALL_IN_KEYS,
-                status=RoutineRun.STATUS_OPEN,
-            ).select_related('routine', 'routine__shift')
-        )
-        for run in runs:
-            cleared.append({
-                'run_id': run.pk,
-                'assigned_to_id': employee.pk,
-                'unassign_key': run.unassign_key or '',
-            })
-            fallback = None
-            if run.routine.system_key in PERFORMED or getattr(run.routine, 'shift_id', None):
-                code = punch_code_for_routine(run.routine)
-                others = punched_on_code(day, code, exclude_id=employee.pk)
-                fallback = others[0] if others else None
-            run.assigned_to = fallback
-            run.unassign_key = '' if run.routine.system_key in PERFORMED else f'u{run.pk}'
-            run.save(update_fields=['assigned_to', 'unassign_key'])
+        cleared = unassign_open_runs(employee=employee, day=day)
         return QaCallIn.objects.create(
             employee=employee,
             date=day,
@@ -1227,21 +1290,50 @@ def apply_call_in(*, employee, day: date, marked_by, today: date | None = None) 
         )
 
 
+def clear_call_in(row: QaCallIn) -> None:
+    """Delete the flag. Assignments stay as they are."""
+    row.delete()
+
+
 def undo_call_in(row: QaCallIn, *, now: datetime | None = None) -> None:
+    clear_call_in(row)
+
+
+def apply_left_early(*, employee, day: date, now: datetime | None = None) -> int:
     now = now or timezone.now()
-    age = (now - row.created_at).total_seconds()
-    if age > CALL_IN_UNDO_SECONDS:
-        raise ValueError('That call-in can no longer be undone.')
+    closed = 0
     with transaction.atomic():
-        for item in row.cleared or []:
-            run = RoutineRun.objects.filter(pk=item.get('run_id')).first()
-            if run is None:
-                continue
-            user = User.objects.filter(pk=item.get('assigned_to_id')).first()
-            run.assigned_to = user
-            run.unassign_key = item.get('unassign_key') or ''
-            run.save(update_fields=['assigned_to', 'unassign_key'])
-        row.delete()
+        for entry in TimeEntry.objects.filter(employee=employee, date=day, clock_out__isnull=True):
+            entry.clock_out = now
+            if hasattr(entry, 'compute_total_hours'):
+                entry.total_hours = entry.compute_total_hours()
+            entry.save()
+            closed += 1
+        unassign_open_runs(employee=employee, day=day)
+    return closed
+
+
+def apply_exclusion(*, employee, day: date, marked_by) -> QaDayExclusion:
+    row, _ = QaDayExclusion.objects.get_or_create(
+        employee=employee, date=day, defaults={'marked_by': marked_by},
+    )
+    unassign_open_runs(employee=employee, day=day)
+    return row
+
+
+def apply_override(*, employee, day: date, shift, time_in=None, time_out=None, marked_by=None) -> QaDayOverride:
+    row, created = QaDayOverride.objects.get_or_create(
+        employee=employee,
+        date=day,
+        shift=shift,
+        defaults={'time_in': time_in, 'time_out': time_out, 'marked_by': marked_by},
+    )
+    if not created:
+        row.time_in = time_in
+        row.time_out = time_out
+        row.marked_by = marked_by
+        row.save(update_fields=['time_in', 'time_out', 'marked_by'])
+    return row
 
 
 def assign_run(*, run: RoutineRun, user, marked_by=None) -> RoutineRun:

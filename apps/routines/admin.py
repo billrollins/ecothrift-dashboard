@@ -1,6 +1,21 @@
 from django.contrib import admin
 
-from .models import Routine, RoutineRun, RoutineSubmission, Section, WorkCyclePrompt
+from .models import (
+    CheckerFlag,
+    QaCallIn,
+    QaDayExclusion,
+    QaDayOverride,
+    QaNudge,
+    Routine,
+    RoutineRun,
+    RoutineSubmission,
+    Section,
+    SectionAssignmentEvent,
+    SectionBaselineSnapshot,
+    SectionObservation,
+    WeekScoreSnapshot,
+    WorkCyclePrompt,
+)
 
 
 @admin.register(Section)
@@ -33,3 +48,52 @@ class RoutineSubmissionAdmin(admin.ModelAdmin):
 class WorkCyclePromptAdmin(admin.ModelAdmin):
     list_display = ('user', 'register', 'outcome', 'idle_seconds', 'shown_at')
     list_filter = ('outcome',)
+
+
+@admin.register(SectionObservation)
+class SectionObservationAdmin(admin.ModelAdmin):
+    list_display = ('section', 'kind', 'total', 'actor', 'observed_at', 'in_baseline')
+    list_filter = ('kind', 'in_baseline')
+
+
+@admin.register(CheckerFlag)
+class CheckerFlagAdmin(admin.ModelAdmin):
+    list_display = ('user', 'kind', 'status', 'raised_at')
+    list_filter = ('kind', 'status')
+
+
+@admin.register(SectionAssignmentEvent)
+class SectionAssignmentEventAdmin(admin.ModelAdmin):
+    list_display = ('section', 'kind', 'user', 'for_date', 'at')
+    list_filter = ('kind',)
+
+
+@admin.register(SectionBaselineSnapshot)
+class SectionBaselineSnapshotAdmin(admin.ModelAdmin):
+    list_display = ('section', 'week_monday', 'mean', 'n', 'warm')
+
+
+@admin.register(WeekScoreSnapshot)
+class WeekScoreSnapshotAdmin(admin.ModelAdmin):
+    list_display = ('week_monday', 'letter', 'score', 'doing', 'cross', 'owner')
+
+
+@admin.register(QaCallIn)
+class QaCallInAdmin(admin.ModelAdmin):
+    list_display = ('employee', 'date', 'shift', 'marked_by', 'created_at')
+    list_filter = ('date',)
+
+
+@admin.register(QaNudge)
+class QaNudgeAdmin(admin.ModelAdmin):
+    list_display = ('run', 'created_by', 'created_at')
+
+
+@admin.register(QaDayOverride)
+class QaDayOverrideAdmin(admin.ModelAdmin):
+    list_display = ('employee', 'date', 'shift', 'marked_by', 'created_at')
+
+
+@admin.register(QaDayExclusion)
+class QaDayExclusionAdmin(admin.ModelAdmin):
+    list_display = ('employee', 'date', 'marked_by', 'created_at')

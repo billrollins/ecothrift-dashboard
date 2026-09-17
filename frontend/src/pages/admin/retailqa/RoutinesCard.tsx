@@ -4,6 +4,7 @@ import type { QaJob, RoutineAssignee } from '../../../api/routines.api';
 import { barTone, displayName, jobChip, jobTimeLabel, nudgeLabel, shortName } from './commandCenter';
 import { QaChip } from './QaChip';
 import { QaIcon } from './QaIcons';
+import { RowActionMenu } from './RowActionMenu';
 
 export function RoutinesCard({
   date,
@@ -139,17 +140,15 @@ function RoutineGroup({
                 {nudgeLabel(job.nudged_at) ? <span className="nudged">{nudgeLabel(job.nudged_at)}</span> : null}
               </span>
               <span className="end">
-                {chip !== 'done' && chip !== 'unas' ? (
-                  <button
-                    type="button"
-                    className={`act ${chip === 'over' || chip === 'miss' ? 'warn' : ''}`}
-                    onClick={(event) => {
-                      if (chip === 'over' && job.run_id) onNudge(job.run_id, event.currentTarget);
-                      else if (job.run_id) setReassignId(job.run_id);
-                    }}
-                  >
-                    {chip === 'over' ? 'Nudge' : 'Reassign'}
-                  </button>
+                {chip !== 'done' && chip !== 'unas' && job.run_id ? (
+                  <RowActionMenu
+                    label={chip === 'over' || chip === 'hard' || chip === 'miss' ? 'Nudge' : 'Reassign'}
+                    tone={chip === 'over' || chip === 'hard' || chip === 'miss' ? 'warn' : ''}
+                    items={[
+                      { label: 'Nudge', onClick: () => onNudge(job.run_id as number, document.body) },
+                      { label: 'Reassign', onClick: () => setReassignId(job.run_id) },
+                    ]}
+                  />
                 ) : null}
                 <QaChip kind={chip} title={nudgeLabel(job.nudged_at) || undefined} />
               </span>

@@ -2,19 +2,21 @@ import { addDays, format, parseISO } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
-import { Button } from '@mui/material';
 import type { QaDayTile } from '../../../api/routines.api';
 import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
 import { useRoutineAssignees } from '../../../hooks/useRoutines';
 import {
   useAssignQaBoard,
   useQaCallIn,
-  useUndoQaCallIn,
+  useQaExclude,
+  useQaLeftEarly,
   useQaNudge,
+  useQaOverride,
   useQaPeople,
   useQaSpots,
   useQaToday,
   useQaWeek,
+  useUndoQaCallIn,
 } from '../../../hooks/useRetailQa';
 import { isoWeekKey, shiftWeek, weekMonday } from '../routines/gradeWeek';
 import { displayName, shortName } from './commandCenter';
@@ -33,7 +35,7 @@ import './commandCenter.css';
 
 export default function RetailQaPage() {
   const navigate = useNavigate();
-  const { enqueueSnackbar, closeSnackbar } = useSnackbar();
+  const { enqueueSnackbar } = useSnackbar();
   const [params, setParams] = useSearchParams();
   const fixtureName = params.get('fixture');
   const fixture = fixtureName === 'calm' || fixtureName === 'problem' || fixtureName === 'scroll' || fixtureName === 'callin' || fixtureName === 'hard';
@@ -53,6 +55,9 @@ export default function RetailQaPage() {
   const assign = useAssignQaBoard();
   const callIn = useQaCallIn();
   const undoCallIn = useUndoQaCallIn();
+  const leftEarly = useQaLeftEarly();
+  const exclude = useQaExclude();
+  const override = useQaOverride();
   const nudge = useQaNudge();
   const [callInOverlay, setCallInOverlay] = useState(false);
   const [nudgeTarget, setNudgeTarget] = useState<{ runId: number; anchor: HTMLElement } | null>(null);
@@ -99,31 +104,78 @@ export default function RetailQaPage() {
   }
 
   async function markCalledIn(personId: number) {
-    const undo = (id?: number) => (
-      <Button
-        color="inherit"
-        size="small"
-        onClick={() => {
-          if (fixture) setCallInOverlay(false);
-          else if (id) void undoCallIn.mutateAsync(id).catch(() => undefined);
-          closeSnackbar();
-        }}
-      >
-        Undo
-      </Button>
-    );
     if (fixture) {
       setCallInOverlay(true);
-      enqueueSnackbar('Called in', { action: () => undo(), autoHideDuration: 10000 });
+      enqueueSnackbar('Called in');
       return;
     }
     try {
-      const result = await callIn.mutateAsync({ user: personId, date });
-      enqueueSnackbar('Called in', { action: () => undo(result.data.call_in.id), autoHideDuration: 10000 });
+      await callIn.mutateAsync({ user: personId, date });
+      enqueueSnackbar('Called in');
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       enqueueSnackbar(typeof detail === 'string' ? detail : 'Could not mark called in', { variant: 'error' });
     }
+  }
+
+  async function clearCalledIn(personId: number) {
+    const row = (board?.staff ?? []).find((item) => item.id === personId);
+    if (fixture) {
+      setCallInOverlay(false);
+      return;
+    }
+    if (!row?.call_in_id) return;
+    try {
+      await undoCallIn.mutateAsync(row.call_in_id);
+      enqueueSnackbar('Call-in cleared');
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      enqueueSnackbar(typeof detail === 'string' ? detail : 'Could not clear that call-in', { variant: 'error' });
+    }
+  }
+
+  async function markLeftEarly(personId: number) {
+    if (fixture) return;
+    try {
+      await leftEarly.mutateAsync({ user: personId, date });
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      enqueueSnackbar(typeof detail === 'string' ? detail : 'Could not mark left early', { variant: 'error' });
+    }
+  }
+
+  async function removeFromToday(personId: number) {
+    if (fixture) return;
+    try {
+      await exclude.mutateAsync({ user: personId, date });
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      enqueueSnackbar(typeof detail === 'string' ? detail : 'Could not remove that person', { variant: 'error' });
+    }
+  }
+
+  async function addPerson(input: { user: number; shift: number; time_in: string; time_out: string }) {
+    if (fixture) return;
+    try {
+      await override.mutateAsync({ ...input, date });
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      enqueueSnackbar(typeof detail === 'string' ? detail : 'Could not add that person', { variant: 'error' });
+    }
+  }
+
+  function nudgePerson(personId: number) {
+    const owned = (board?.jobs ?? []).filter((job) => job.owner?.id === personId && job.run_id && job.status !== 'Done');
+    const anchor = document.getElementById('schedRows') || document.body;
+    if (!owned.length) {
+      enqueueSnackbar('No open routine to nudge', { variant: 'info' });
+      return;
+    }
+    if (owned.length === 1) {
+      setNudgeTarget({ runId: owned[0].run_id as number, anchor });
+      return;
+    }
+    void Promise.all(owned.map((job) => copyNudge(job.run_id as number))).catch(() => undefined);
   }
 
   async function copyNudge(runId: number) {
@@ -219,7 +271,18 @@ export default function RetailQaPage() {
         </div>
       ) : null}
       <div className="body">
-        <ScheduleCard date={date} staff={staff} onCallIn={(id) => void markCalledIn(id)} closedLabel={closedLabel} />
+        <ScheduleCard
+            date={date}
+            staff={staff}
+            people={assignees.data ?? []}
+            onCallIn={(id) => void markCalledIn(id)}
+            onClearCallIn={(id) => void clearCalledIn(id)}
+            onLeftEarly={(id) => void markLeftEarly(id)}
+            onRemove={(id) => void removeFromToday(id)}
+            onNudgePerson={nudgePerson}
+            onAddPerson={(input) => void addPerson(input)}
+            closedLabel={closedLabel}
+          />
         <main className="col-right">
           <IssuesBar
             issues={issues}
@@ -231,6 +294,7 @@ export default function RetailQaPage() {
             onOpenCross={() => setSummary('cross')}
             onDoSpot={() => board?.spot?.run_id && runnerReturn(board.spot.run_id)}
             onOpenShifts={() => navigate('/admin/shifts')}
+            onRemove={(id) => void removeFromToday(id)}
             closedLabel={closedLabel}
           />
           <RoutinesCard

@@ -142,6 +142,7 @@
 .cc-page .chip.exp{background:var(--neu-tint);color:var(--ink2);font-weight:500}
 .cc-page .chip.late{background:var(--warn);color:#fff}
 .cc-page .chip.call{background:var(--bad-tint);color:var(--bad-text)}
+.cc-page .chip.left{background:var(--neu-tint);color:var(--ink3);font-weight:500}
 .cc-page .chip.done{background:transparent;color:var(--good-text)}
 .cc-page .chip.due{background:var(--neu-tint);color:var(--ink2);font-weight:500}
 .cc-page .chip.over{background:var(--warn);color:#fff}

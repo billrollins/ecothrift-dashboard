@@ -652,6 +652,72 @@ class QaCallIn(models.Model):
         return f'{self.employee_id} {self.date}'
 
 
+class QaDayOverride(models.Model):
+    """One-day extra person on a shift. Does not write the shift template."""
+
+    employee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='qa_day_overrides',
+    )
+    date = models.DateField()
+    shift = models.ForeignKey(
+        'hr.Shift',
+        on_delete=models.CASCADE,
+        related_name='qa_day_overrides',
+    )
+    time_in = models.TimeField(null=True, blank=True)
+    time_out = models.TimeField(null=True, blank=True)
+    marked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='qa_day_overrides_marked',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['employee', 'date', 'shift'],
+                name='routines_qa_override_person_day_shift',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.employee_id} {self.date} {self.shift_id}'
+
+
+class QaDayExclusion(models.Model):
+    """Drop a person from today's expected list without touching ShiftAssignment."""
+
+    employee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='qa_day_exclusions',
+    )
+    date = models.DateField()
+    marked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='qa_day_exclusions_marked',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['employee', 'date'], name='routines_qa_exclusion_person_day'),
+        ]
+
+    def __str__(self):
+        return f'{self.employee_id} {self.date}'
+
+
 class QaNudge(models.Model):
     """Copy-only nudge log so the issues bar can say who was nudged, and when."""
 
