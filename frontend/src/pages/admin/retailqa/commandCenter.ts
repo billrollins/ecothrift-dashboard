@@ -194,36 +194,58 @@ export type BoardIssue = {
   person_id: number | null;
   run_id: number | null;
   can_act: boolean;
+  icon: 'person' | 'clip' | 'walk' | 'alert';
 };
+
+export function formatLateMinutes(mins: number) {
+  const safe = Math.max(0, Math.round(mins));
+  if (safe < 60) return `${safe} min`;
+  const hours = Math.floor(safe / 60);
+  const rest = safe % 60;
+  return rest ? `${hours} h ${rest} min` : `${hours} h`;
+}
+
+export function lateSentence(row: QaStaffRow) {
+  const dept = displayName(row.department, 'dept') || 'their shift';
+  return `${shortName(row.name)} is ${formatLateMinutes(row.late_minutes ?? 0)} late for ${dept}.`;
+}
+
+function issueIcon(type: QaIssue['type'] | 'late-group'): BoardIssue['icon'] {
+  if (type === 'late' || type === 'late-group') return 'person';
+  if (type === 'no_spot') return 'walk';
+  if (type === 'cross_overdue') return 'alert';
+  return 'clip';
+}
 
 export function groupIssues(issues: QaIssue[], staff: QaStaffRow[], jobs: QaJob[]): BoardIssue[] {
   const late = issues.filter((row) => row.type === 'late');
   const rest = issues.filter((row) => row.type !== 'late');
   const notIn = staff.filter((row) => qaStatusWord(row.status) === 'Late');
   const out: BoardIssue[] = [];
-  if (notIn.length) {
+  if (notIn.length >= 2) {
     const red = notIn.some((row) => row.late_severity === 'red');
     out.push({
       id: 'expected-not-in',
       severity: red ? 'red' : 'amber',
-      sentence: notIn.length === 1
-        ? `${shortName(notIn[0].name)} expected, not in`
-        : `${notIn.length} people expected, not in`,
+      sentence: `${notIn.length} people expected, not in`,
       action: null,
-      person_id: notIn.length === 1 ? notIn[0].id : null,
+      person_id: null,
       run_id: null,
       can_act: false,
+      icon: 'person',
     });
-  } else if (late.length === 1) {
-    const row = late[0];
+  } else if (notIn.length === 1) {
+    const row = notIn[0];
+    const issue = late.find((item) => item.person_id === row.id) ?? late[0];
     out.push({
-      id: row.id,
-      severity: row.severity,
-      sentence: row.sentence,
-      action: row.action,
-      person_id: row.person_id,
-      run_id: row.run_id,
-      can_act: row.can_act,
+      id: issue?.id || `late-${row.id}`,
+      severity: row.late_severity === 'red' || issue?.severity === 'red' ? 'red' : 'amber',
+      sentence: lateSentence(row),
+      action: issue?.action ?? 'call_in',
+      person_id: row.id,
+      run_id: issue?.run_id ?? null,
+      can_act: issue?.can_act ?? true,
+      icon: 'person',
     });
   }
 
@@ -236,6 +258,7 @@ export function groupIssues(issues: QaIssue[], staff: QaStaffRow[], jobs: QaJob[
       person_id: issue.person_id,
       run_id: issue.run_id,
       can_act: issue.can_act,
+      icon: issueIcon(issue.type),
     });
   }
   return out;
