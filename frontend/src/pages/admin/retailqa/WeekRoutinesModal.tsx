@@ -1,11 +1,11 @@
-import { Box, Dialog, DialogContent, DialogTitle, FormControl, InputLabel, MenuItem, Select, Tooltip, Typography } from '@mui/material';
 import { addDays, format, parseISO } from 'date-fns';
 import { useMemo, useState } from 'react';
 import type { RoutineRun } from '../../../api/routines.api';
-import { dutyColors } from '../../../components/duty/tokens';
 import { useQaRoutines } from '../../../hooks/useRetailQa';
 import { weekMonday } from '../routines/gradeWeek';
+import { displayName, shortName } from './commandCenter';
 import { qaStatusWord } from './qaStatus';
+import { BoardDialog } from './SummaryDialogs';
 
 export function WeekRoutinesModal({
   open,
@@ -46,91 +46,67 @@ export function WeekRoutinesModal({
   }, [rows]);
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg">
-      <DialogTitle>Routines this week</DialogTitle>
-      <DialogContent>
-        <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Type</InputLabel>
-            <Select label="Type" value={kind} onChange={(e) => setKind(e.target.value)}>
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="checklist">Checklist</MenuItem>
-              <MenuItem value="section_tally">Tally</MenuItem>
-              <MenuItem value="section_audit">Cross-check</MenuItem>
-              <MenuItem value="owner_spot">Owner spot</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 140 }}>
-            <InputLabel>Status</InputLabel>
-            <Select label="Status" value={status} onChange={(e) => setStatus(e.target.value)}>
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="open">Open</MenuItem>
-              <MenuItem value="done">Done</MenuItem>
-              <MenuItem value="missed">Missed</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 160 }}>
-            <InputLabel>Person</InputLabel>
-            <Select label="Person" value={person} onChange={(e) => setPerson(e.target.value)}>
-              <MenuItem value="">All</MenuItem>
-              {people.map(([id, name]) => (
-                <MenuItem key={id} value={id}>{name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Box>
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 1.4fr) repeat(7, minmax(0, 1fr))', gap: 0.5 }}>
-          <Box />
-          {days.map((day) => (
-            <Typography key={day.toISOString()} sx={{ fontSize: 11, fontWeight: 700, color: dutyColors.ink40, textAlign: 'center' }}>
-              {format(day, 'EEE d')}
-            </Typography>
-          ))}
+    <BoardDialog open={open} onClose={onClose} title="Routines this week">
+      <div className="week-filters">
+        <label>
+          Type
+          <select value={kind} onChange={(event) => setKind(event.target.value)}>
+            <option value="">All</option>
+            <option value="checklist">Checklist</option>
+            <option value="section_tally">Tally</option>
+            <option value="section_audit">Cross-check</option>
+            <option value="owner_spot">Owner spot</option>
+          </select>
+        </label>
+        <label>
+          Status
+          <select value={status} onChange={(event) => setStatus(event.target.value)}>
+            <option value="">All</option>
+            <option value="open">Open</option>
+            <option value="done">Done</option>
+            <option value="missed">Missed</option>
+          </select>
+        </label>
+        <label>
+          Person
+          <select value={person} onChange={(event) => setPerson(event.target.value)}>
+            <option value="">All</option>
+            {people.map(([id, name]) => (
+              <option key={id} value={id}>{name}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <table className="cc-dialog-table week-grid">
+        <thead>
+          <tr>
+            <th>Routine</th>
+            {days.map((day) => (
+              <th key={day.toISOString()}>{format(day, 'EEE d')}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
           {grouped.map(([key, runs]) => (
-            <RoutineWeekRow key={key} title={runs[0].title} section={runs[0].section_name} runs={runs} days={days} />
+            <tr key={key}>
+              <td>{displayName(runs[0].title, 'routine')}{runs[0].section_name ? ` · ${runs[0].section_name}` : ''}</td>
+              {days.map((day) => {
+                const iso = format(day, 'yyyy-MM-dd');
+                const run = runs.find((row) => row.period_key === iso);
+                const word = run ? qaStatusWord(run.status) : '';
+                const dot = word === 'Done' ? 'ok' : word === 'Missed' ? 'miss' : word ? 'due' : '';
+                const who = run?.completed_by_name || run?.assigned_to_name || '';
+                const tip = run
+                  ? `${word}${run.completed_at ? ` ${format(parseISO(run.completed_at), 'HH:mm')}` : ''}${who ? ` by ${shortName(who)}` : ''}`
+                  : '';
+                return (
+                  <td key={iso} title={tip}>{dot ? <i className={`dot ${dot}`} /> : null}</td>
+                );
+              })}
+            </tr>
           ))}
-        </Box>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function RoutineWeekRow({
-  title,
-  section,
-  runs,
-  days,
-}: {
-  title: string;
-  section?: string | null;
-  runs: RoutineRun[];
-  days: Date[];
-}) {
-  return (
-    <>
-      <Typography sx={{ fontSize: 12.5, fontWeight: 650, py: 0.4 }}>
-        {title}{section ? ` · ${section}` : ''}
-      </Typography>
-      {days.map((day) => {
-        const key = format(day, 'yyyy-MM-dd');
-        const run = runs.find((row) => row.period_key === key);
-        const status = run ? qaStatusWord(run.status) : '';
-        const color = status === 'Done'
-          ? dutyColors.brand
-          : status === 'Missed' ? dutyColors.red
-            : status === 'Overdue' || run?.is_overdue ? dutyColors.amberBg
-              : status ? dutyColors.ink40 : dutyColors.ink08;
-        const tip = run
-          ? `${status || qaStatusWord(run.status)}${run.completed_at ? ` ${format(parseISO(run.completed_at), 'HH:mm')}` : ''}${run.completed_by_name ? ` by ${run.completed_by_name}` : ''}`
-          : 'No run';
-        return (
-          <Tooltip key={key} title={tip}>
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 0.6 }}>
-              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: color }} />
-            </Box>
-          </Tooltip>
-        );
-      })}
-    </>
+        </tbody>
+      </table>
+    </BoardDialog>
   );
 }
