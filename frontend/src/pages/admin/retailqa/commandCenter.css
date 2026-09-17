@@ -70,9 +70,9 @@
 .cc-page .stat{display:flex;flex-direction:column;justify-content:center;line-height:1;padding-left:12px;border:0;border-left:1px solid rgba(255,255,255,.18);height:var(--row);background:transparent;color:#fff;width:100%;text-align:left}
 .cc-page .stat b{font-size:22px;font-weight:600}
 .cc-page .stat span{font-size:11px;color:rgba(255,255,255,.65);margin-top:4px;white-space:nowrap}
-.cc-page .proj{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-left:8px;min-width:0}
-.cc-page .proj .txt{font-size:11.5px;color:rgba(255,255,255,.8);line-height:1.2;white-space:nowrap;min-width:0}
-.cc-page .proj b{font-size:22px;color:#cfe3b8;line-height:1;font-weight:600}
+.cc-page .band-top .proj{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-left:8px;min-width:0}
+.cc-page .band-top .proj .txt{font-size:11.5px;color:rgba(255,255,255,.8);line-height:1.2;white-space:nowrap;min-width:0}
+.cc-page .band-top .proj b{font-size:22px;color:#cfe3b8;line-height:1;font-weight:600}
 .cc-page .gear{width:32px;height:32px;border:0;background:rgba(255,255,255,.12);color:#fff;border-radius:8px;display:grid;place-items:center;flex:none;align-self:center}
 .cc-page .gear:hover{background:rgba(255,255,255,.18)}
 
@@ -87,7 +87,7 @@
 .cc-page .tile.g-b{background:#ebf3e6} .cc-page .tile.g-b .l{color:var(--good)}
 .cc-page .tile.g-c{background:#f5eedc} .cc-page .tile.g-c .l{color:var(--warn-text)}
 .cc-page .tile.g-f{background:#fbe3e0} .cc-page .tile.g-f .l{color:var(--bad)}
-.cc-page .tile.proj{background:#f4f3ee} .cc-page .tile.proj .l{color:var(--ink3);font-weight:600}
+.cc-page .tile.projected{background:#f4f3ee} .cc-page .tile.projected .l{color:var(--ink3);font-weight:600}
 .cc-page .tile.closed{background:rgba(201,169,122,.18);color:rgba(255,255,255,.7);cursor:pointer}
 .cc-page .tile.closed .d{color:rgba(255,255,255,.7)} .cc-page .tile.closed .l{font-size:12.5px;font-weight:500;color:var(--kraft)}
 .cc-page .tile.sel{box-shadow:0 0 0 3px #fff,0 6px 16px rgba(0,0,0,.25)}
@@ -155,8 +155,8 @@
 .cc-page .schedule .time{color:var(--ink2);font-size:12.5px;white-space:nowrap;overflow:visible;min-width:7.6em}
 .cc-page .schedule .st{justify-self:end;display:flex;align-items:center;gap:6px}
 
-.cc-page .issues{flex:0 1 auto;max-height:34%;min-height:0;overflow:hidden}
-.cc-page .issues .scroll{flex:1 1 auto;min-height:0}
+.cc-page .issues{flex:0 0 auto;max-height:34%;min-height:0;height:auto;overflow:hidden}
+.cc-page .issues .scroll{flex:0 1 auto;min-height:0;max-height:100%}
 .cc-page .routines{flex:1 1 auto;min-height:0}
 .cc-page .issues .row{grid-template-columns:20px 1fr auto;height:44px;font-weight:500}
 .cc-page .issues .row .ic{color:var(--ink2);display:grid;place-items:center}
@@ -164,7 +164,7 @@
 .cc-page .issues .empty{display:flex;align-items:center;gap:8px;background:var(--good-tint);color:var(--good-text);border-radius:8px;padding:10px 12px;margin-top:8px;font-weight:500}
 .cc-page .empty-closed{color:var(--ink2);padding:12px 4px;font-weight:500}
 
-.cc-page .routines .row{grid-template-columns:200px 1fr 190px 180px}
+.cc-page .routines .row{grid-template-columns:minmax(110px,1.2fr) minmax(72px,1fr) minmax(84px,auto) minmax(92px,auto);gap:8px}
 .cc-page .routines .owner{color:var(--ink)}
 .cc-page .routines .owner.scheduled{color:var(--ink2)}
 .cc-page .routines .time{color:var(--ink2);font-size:12.5px}

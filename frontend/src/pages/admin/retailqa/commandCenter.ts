@@ -90,7 +90,7 @@ export function tileClass(
   const grade = closed
     ? ''
     : opts?.projected
-      ? ' proj'
+      ? ' projected'
       : opts?.letter
         ? ` g-${opts.letter.toLowerCase()}`
         : '';
