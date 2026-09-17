@@ -78,15 +78,16 @@ export function SummaryDialogs({
                       {ready.length ? `Not done yet · ${ready.join(', ')} are ready` : 'Not done yet'}
                     </td>
                     <td className="r">
-                      <button
-                        type="button"
-                        className="walk-now"
-                        disabled={!canWalk}
-                        title={canWalk ? ready.join(', ') : 'No section is ready'}
-                        onClick={onDoSpot}
-                      >
-                        Walk now
-                      </button>
+                      <span title={canWalk ? ready.join(', ') : 'No section is ready'}>
+                        <button
+                          type="button"
+                          className="walk-now"
+                          disabled={!canWalk}
+                          onClick={onDoSpot}
+                        >
+                          Walk now
+                        </button>
+                      </span>
                     </td>
                   </tr>
                 );
@@ -153,7 +154,12 @@ export function SummaryDialogs({
                 <tr key={row.id}>
                   <td>{row.name}</td>
                   {dots.map((dot, index) => (
-                    <td key={index}>{dot ? <i className={`dot ${dot}`} /> : null}</td>
+                    <td
+                      key={index}
+                      title={dot === 'ok' ? 'Done' : dot === 'miss' ? 'Missed' : dot === 'due' ? 'Due' : ''}
+                    >
+                      {dot ? <i className={`dot ${dot}`} /> : null}
+                    </td>
                   ))}
                   <td className="r">{row.done} of {row.assigned}</td>
                   <td className="r">{row.on_task == null ? '—' : `${Math.round(row.on_task)}%`}</td>
