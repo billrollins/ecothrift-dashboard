@@ -186,4 +186,15 @@ describe('labels', () => {
     ));
     expect(scheduleSummary(rows)).toBe('4 of 6 in · 1 late');
   });
+
+  it('keeps called-in people in the expected count', () => {
+    const rows = [
+      { ...SAMPLE_STAFF[0], clocked_in: false, status: 'Late' as const },
+      { ...SAMPLE_STAFF[1], clocked_in: false, status: 'Late' as const },
+      { ...SAMPLE_STAFF[2], clocked_in: false, status: 'Late' as const },
+      { ...SAMPLE_STAFF[3], clocked_in: false, status: 'Called in' as const },
+      { ...SAMPLE_STAFF[4], clocked_in: false, status: 'Called in' as const },
+    ];
+    expect(scheduleSummary(rows)).toBe('0 of 5 in · 3 late · 2 called in');
+  });
 });

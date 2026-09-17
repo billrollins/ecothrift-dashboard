@@ -236,17 +236,17 @@ export function scheduleGroups(staff: QaStaffRow[]) {
 }
 
 export function scheduleSummary(staff: QaStaffRow[]) {
-  const on = staff.filter((row) => {
+  const expected = staff.filter((row) => qaStatusWord(row.status) !== 'Off');
+  const late = expected.filter((row) => qaStatusWord(row.status) === 'Late').length;
+  const called = expected.filter((row) => qaStatusWord(row.status) === 'Called in').length;
+  const inn = expected.filter((row) => {
     const word = qaStatusWord(row.status);
-    return word !== 'Off' && word !== 'Called in';
-  });
-  const late = on.filter((row) => qaStatusWord(row.status) === 'Late');
-  const inn = on.filter((row) => {
-    const word = qaStatusWord(row.status);
-    return word === 'In' || (row.clocked_in && word !== 'Late');
+    return word === 'In' || (row.clocked_in && word !== 'Late' && word !== 'Called in');
   }).length;
-  if (late.length) return `${inn} of ${on.length} in · ${late.length} late`;
-  return `${inn} of ${on.length} in`;
+  const parts = [`${inn} of ${expected.length} in`];
+  if (late) parts.push(`${late} late`);
+  if (called) parts.push(`${called} called in`);
+  return parts.join(' · ');
 }
 
 export type BoardIssue = {
