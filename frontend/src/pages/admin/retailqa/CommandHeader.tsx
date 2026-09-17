@@ -1,9 +1,7 @@
-import { Link } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
 import type { GradeLetter, GradeThirds, QaDayTile, QaToday, QaWeek } from '../../../api/routines.api';
 import { weekRangeLabel } from '../routines/gradeWeek';
 import { letterClass, scoreText, sectionWeekCounts, tileClass, tileNote, walkDots } from './commandCenter';
-import { QaIcon } from './QaIcons';
 
 const WALK_FLOOR = 3;
 
@@ -90,9 +88,6 @@ export function CommandHeader({
         <div className="proj">
           <span className="txt">If the rest is done<br />this week</span>
           <b>{projectedLetter ?? '—'}</b>
-          <Link className="gear" to="/admin/shifts" title="Shifts" aria-label="Shifts">
-            <QaIcon name="gear" />
-          </Link>
         </div>
       </div>
 
