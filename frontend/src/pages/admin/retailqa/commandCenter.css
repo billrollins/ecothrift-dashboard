@@ -158,7 +158,8 @@
 .cc-page .issues{flex:0 0 auto;max-height:34%;min-height:0;height:auto;overflow:hidden}
 .cc-page .issues .scroll{flex:0 1 auto;min-height:0;max-height:100%}
 .cc-page .routines{flex:1 1 auto;min-height:0}
-.cc-page .issues .row{grid-template-columns:20px 1fr auto;height:44px;font-weight:500}
+.cc-page .issues .row{grid-template-columns:20px minmax(0,1fr) auto;min-height:44px;height:auto;padding:6px 0;font-weight:500}
+.cc-page .issues .row .nowrap{white-space:normal;overflow:visible;text-overflow:unset;line-height:1.25}
 .cc-page .issues .row .ic{color:var(--ink2);display:grid;place-items:center}
 .cc-page .issues .row.s-bad .ic{color:var(--bad)} .cc-page .issues .row.s-warn .ic{color:var(--warn-text)}
 .cc-page .issues .empty{display:flex;align-items:center;gap:8px;background:var(--good-tint);color:var(--good-text);border-radius:8px;padding:10px 12px;margin-top:8px;font-weight:500}
