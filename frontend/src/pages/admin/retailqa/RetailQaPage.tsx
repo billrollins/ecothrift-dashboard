@@ -17,6 +17,7 @@ import {
 import { isoWeekKey, shiftWeek, weekMonday } from '../routines/gradeWeek';
 import { displayName } from './commandCenter';
 import { CALM_BOARD, CALM_DATE, CALM_PEOPLE, CALM_SPOTS, CALM_TILES, CALM_WEEK } from './calmFixture';
+import { PROBLEM_BOARD, PROBLEM_DATE, PROBLEM_PEOPLE, PROBLEM_SPOTS, PROBLEM_TILES, PROBLEM_WEEK, SCROLL_BOARD } from './problemFixture';
 import { CommandHeader } from './CommandHeader';
 import { IssuesBar } from './IssuesBar';
 import { RoutinesCard } from './RoutinesCard';
@@ -29,14 +30,15 @@ export default function RetailQaPage() {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const [params, setParams] = useSearchParams();
-  const fixture = params.get('fixture') === 'calm';
+  const fixtureName = params.get('fixture');
+  const fixture = fixtureName === 'calm' || fixtureName === 'problem' || fixtureName === 'scroll';
   const today = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
   const asked = params.get('day');
   const date = fixture
-    ? CALM_DATE
+    ? (fixtureName === 'calm' ? CALM_DATE : PROBLEM_DATE)
     : asked && !Number.isNaN(Date.parse(asked)) ? asked : today;
   const week = fixture
-    ? CALM_WEEK.week
+    ? (fixtureName === 'calm' ? CALM_WEEK.week : PROBLEM_WEEK.week)
     : params.get('week') || isoWeekKey(new Date(`${date}T12:00:00`));
   const weekQuery = useQaWeek(week);
   const todayQuery = useQaToday(date);
@@ -46,22 +48,28 @@ export default function RetailQaPage() {
   const assign = useAssignQaBoard();
   const callIn = useQaCallIn();
   const nudge = useQaNudge();
-  const data = fixture ? CALM_WEEK : weekQuery.data;
-  const board = fixture ? CALM_BOARD : todayQuery.data;
+  const data = fixtureName === 'calm' ? CALM_WEEK : fixture ? PROBLEM_WEEK : weekQuery.data;
+  const board = fixtureName === 'scroll'
+    ? SCROLL_BOARD
+    : fixtureName === 'problem'
+      ? PROBLEM_BOARD
+      : fixtureName === 'calm'
+        ? CALM_BOARD
+        : todayQuery.data;
 
   const [weekOpen, setWeekOpen] = useState(false);
   const [drawer, setDrawer] = useState<'spot' | 'cross' | 'people' | null>(null);
 
   const tiles = useMemo(
     () => (fixture
-      ? CALM_TILES
+      ? (fixtureName === 'calm' ? CALM_TILES : PROBLEM_TILES)
       : data?.tiles?.length ? data.tiles : fallbackTiles(week, today, data?.cross_check_due)),
-    [data, week, today, fixture],
+    [data, week, today, fixture, fixtureName],
   );
 
   function setDay(next: string, nextWeek?: string) {
     const search = new URLSearchParams(params);
-    if (fixture) search.set('fixture', 'calm');
+    if (fixtureName) search.set('fixture', fixtureName);
     search.set('week', nextWeek || isoWeekKey(new Date(`${next}T12:00:00`)));
     search.set('day', next);
     setParams(search);
@@ -152,15 +160,15 @@ export default function RetailQaPage() {
         week={week}
         weekNumber={weekNumber}
         date={date}
-        today={fixture ? CALM_DATE : today}
+        today={fixture ? date : today}
         tiles={tiles}
         weekLetter={data?.letter ?? null}
         weekThirds={data?.thirds ?? { doing: null, owner: null, cross: null }}
         projectedLetter={data?.projected?.letter}
         weekData={data}
         board={board}
-        sectionDone={fixture ? 7 : undefined}
-        sectionTotal={fixture ? 23 : undefined}
+        sectionDone={fixture && fixtureName !== 'calm' ? 7 : fixtureName === 'calm' ? 3 : undefined}
+        sectionTotal={fixture && fixtureName !== 'calm' ? 23 : fixtureName === 'calm' ? 17 : undefined}
         drawer={drawer}
         onDrawer={setDrawer}
         onMoveWeek={moveWeek}
@@ -193,13 +201,13 @@ export default function RetailQaPage() {
         open={drawer}
         onClose={() => setDrawer(null)}
         week={week}
-        today={fixture ? CALM_DATE : today}
+        today={fixture ? date : today}
         tiles={tiles}
         board={board}
         weekData={data}
-        spots={fixture ? CALM_SPOTS : spotsQuery.data?.spots ?? []}
+        spots={fixture ? (fixtureName === 'calm' ? CALM_SPOTS : PROBLEM_SPOTS) : spotsQuery.data?.spots ?? []}
         people={peopleQuery.data?.people ?? []}
-        fixturePeople={fixture ? CALM_PEOPLE : undefined}
+        fixturePeople={fixture ? (fixtureName === 'calm' ? CALM_PEOPLE : PROBLEM_PEOPLE) : undefined}
         onDoSpot={() => board?.spot?.run_id && runnerReturn(board.spot.run_id)}
         onOpenRun={(runId) => runnerReturn(runId)}
       />

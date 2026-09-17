@@ -43,6 +43,10 @@ const SHIFT_NAMES: Record<string, string> = {
   processing: 'Processing',
   restoration: 'Restoration',
   office: 'Management',
+  dock: 'Dock',
+  sorting: 'Sorting',
+  listings: 'Listings',
+  shipping: 'Shipping',
 };
 
 const DEPT_NAMES: Record<string, string> = {
