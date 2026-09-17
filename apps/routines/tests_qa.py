@@ -680,6 +680,33 @@ class CommandCenterTests(APITestCase):
 
 
 class ScoringEngineTests(TestCase):
+    def test_zero_walk_week_with_everything_else_done_shows_c(self):
+        from apps.routines.grading import _combine_thirds, _walk_cap
+        from apps.routines.settings import WEIGHT_CROSS, WEIGHT_DO, WEIGHT_SPOT
+        cfg = retail_qa_settings()
+        self.assertEqual((WEIGHT_SPOT, WEIGHT_DO, WEIGHT_CROSS), (60, 25, 15))
+        score, _letter = _combine_thirds(100.0, 100.0, None, cfg, include_cross=True)
+        _capped, letter = _walk_cap(score, 0, cfg)
+        self.assertEqual(letter, 'C')
+
+    def test_day_with_no_walk_shows_do_only_and_spot_dash(self):
+        from apps.routines.grading import _combine_thirds
+        cfg = retail_qa_settings()
+        score, letter = _combine_thirds(92.0, None, None, cfg, include_cross=False)
+        self.assertEqual(score, 92.0)
+        self.assertIsNotNone(letter)
+        self.assertIsNone(_combine_thirds(None, None, None, cfg, include_cross=False)[0])
+
+    def test_week_grade_equals_spot_do_blend_before_cross_due(self):
+        from apps.routines.grading import _combine_thirds, _week_cross
+        cfg = retail_qa_settings()
+        daily = [{'cross': {'audits': [{'status': 'open'}]}}]
+        self.assertIsNone(_week_cross(daily, due=date(2026, 9, 20), today=date(2026, 9, 16), project=False))
+        blend, _ = _combine_thirds(88.0, None, 91.0, cfg, include_cross=False)
+        with_cross, _ = _combine_thirds(88.0, 100.0, 91.0, cfg, include_cross=True)
+        self.assertNotEqual(blend, with_cross)
+        self.assertEqual(blend, _combine_thirds(88.0, 50.0, 91.0, cfg, include_cross=False)[0])
+
     def test_empty_spot_renormalizes_and_zero_walks_cap_at_c(self):
         from apps.routines.grading import _combine_thirds, _walk_cap
         cfg = retail_qa_settings()

@@ -160,6 +160,12 @@ export function scoreText(value: number | null | undefined) {
   return value == null ? '—' : String(Math.round(value));
 }
 
+export function tileNote(tile: { open: boolean; is_future?: boolean; doing?: number | null; spot?: number | null }) {
+  if (!tile.open) return '\u00a0';
+  if (tile.is_future) return 'Projected';
+  return `Do ${scoreText(tile.doing)} · Spot ${scoreText(tile.spot)}`;
+}
+
 export function jobTimeLabel(job: Pick<QaJob, 'status' | 'due_label' | 'completed_label' | 'owner'>) {
   const chip = jobChip(job.status, job.owner);
   if (chip === 'done') {

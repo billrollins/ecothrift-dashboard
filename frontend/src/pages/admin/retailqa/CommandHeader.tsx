@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
 import type { GradeLetter, GradeThirds, QaDayTile, QaToday, QaWeek } from '../../../api/routines.api';
 import { weekRangeLabel } from '../routines/gradeWeek';
-import { letterClass, scoreText, sectionWeekCounts, tileClass, walkDots } from './commandCenter';
+import { letterClass, scoreText, sectionWeekCounts, tileClass, tileNote, walkDots } from './commandCenter';
 import { QaIcon } from './QaIcons';
 
 const WALK_FLOOR = 3;
@@ -155,11 +155,7 @@ function DayTile({
   const closed = !tile.open;
   const isToday = tile.date === today || tile.is_today;
   const letter = tile.is_future ? tile.projected_letter : tile.letter;
-  const note = closed
-    ? '\u00a0'
-    : tile.is_future
-      ? 'Projected'
-      : `Do ${scoreText(tile.doing)} · Spot ${scoreText(tile.spot)}`;
+  const note = tileNote(tile);
   return (
     <div
       className={tileClass(closed, selected, { letter, projected: tile.is_future && !closed })}

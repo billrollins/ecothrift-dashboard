@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CALM_ISSUES, CALM_JOBS, CALM_STAFF } from './calmFixture';
-import { displayName, formatShiftRange, groupIssues, jobTimeLabel, peopleDots, scheduleSummary, shortName, tileClass } from './commandCenter';
+import { displayName, formatShiftRange, groupIssues, jobTimeLabel, peopleDots, scheduleSummary, shortName, tileClass, tileNote } from './commandCenter';
 
 describe('displayName', () => {
   it('maps routine keys, punch codes, and department keys', () => {
@@ -17,6 +17,12 @@ describe('displayName', () => {
     expect(displayName('retail.open')).not.toMatch(/[.]/);
     expect(displayName('office')).not.toBe('office');
     expect(displayName('restoration')).not.toBe('restoration');
+  });
+});
+
+describe('tileNote', () => {
+  it('shows Do only and a Spot dash when the day has no walk', () => {
+    expect(tileNote({ open: true, is_future: false, doing: 92, spot: null })).toBe('Do 92 · Spot —');
   });
 });
 
