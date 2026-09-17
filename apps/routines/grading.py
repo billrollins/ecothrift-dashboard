@@ -1058,6 +1058,8 @@ def _walk_cap(score: float | None, walks: int, cfg: dict) -> tuple[float | None,
 
 def _week_cross(daily: list[dict], *, due: date | None, today: date, project: bool) -> float | None:
     audits = [audit for row in daily for audit in row['cross']['audits']]
+    if not project:
+        audits = [row for row in audits if row.get('status') != 'projected']
     if not audits:
         return None
     if due and today < due:
@@ -1066,20 +1068,46 @@ def _week_cross(daily: list[dict], *, due: date | None, today: date, project: bo
     return round(100.0 * done / len(audits), 1)
 
 
+def _day_of(row: dict) -> date:
+    return date.fromisoformat(row['date'])
+
+
+def _doing_for_week(daily: list[dict], *, today: date, project: bool) -> float | None:
+    """Actual doing scores for past and today. Future open days are 100 only when projecting."""
+    scores = []
+    for row in daily:
+        day = _day_of(row)
+        if day <= today and row.get('graded'):
+            if row['thirds']['doing'] is not None:
+                scores.append(row['thirds']['doing'])
+        elif project and day > today and row.get('open_day'):
+            scores.append(100.0)
+    return _mean_or_none(scores)
+
+
+def _owner_for_week(daily: list[dict], *, today: date) -> tuple[float | None, int]:
+    """Completed walks only. Future / projected spots do not overwrite scored days."""
+    scores = [
+        row['thirds']['owner']
+        for row in daily
+        if row['thirds']['owner'] is not None and _day_of(row) <= today
+    ]
+    return _mean_or_none(scores), len(scores)
+
+
 def _assemble_week(ctx: dict, *, project: bool = False) -> dict:
     monday = ctx['monday']
     cfg = ctx['cfg']
-    days = week_days(monday)
-    daily = [grade_day(day, ctx, project=project) for day in days]
-    doing = _mean_or_none(row['thirds']['doing'] for row in daily if row['graded'] or project)
-    owner = _mean_or_none(row['thirds']['owner'] for row in daily if row['thirds']['owner'] is not None)
     from .schedule import cross_check_day_for
     today = timezone.localdate()
+    days = week_days(monday)
+    daily = [grade_day(day, ctx, project=project and day > today) for day in days]
+    doing = _doing_for_week(daily, today=today, project=project)
+    owner, walks = _owner_for_week(daily, today=today)
     due = cross_check_day_for(monday)
-    cross = _week_cross(daily, due=due, today=today, project=project)
+    cross = _week_cross(daily, due=due, today=today, project=False)
     include_cross = cross is not None
     score, _letter = _blend_weights(doing, cross, owner, cfg, include_cross=include_cross)
-    walks = sum(1 for row in daily if row['thirds']['owner'] is not None)
     if project:
         remaining = max(int(cfg.get('walk_floor', WALK_FLOOR)) - walks, 0)
         if remaining and owner is None:
@@ -1087,8 +1115,8 @@ def _assemble_week(ctx: dict, *, project: bool = False) -> dict:
         elif remaining:
             owner = round(((owner or 0) * walks + 100.0 * remaining) / (walks + remaining), 1)
         if due and today >= due:
-            project_cross = 100.0 if cross is None else cross
-            include_cross = True
+            project_cross = cross
+            include_cross = cross is not None
         else:
             project_cross = None
             include_cross = False

@@ -1103,6 +1103,28 @@ class ScoringEngineTests(TestCase):
         self.assertIsNone(_week_cross(daily, due=date(2026, 9, 20), today=date(2026, 9, 16), project=True))
         self.assertEqual(_week_cross(daily, due=date(2026, 9, 16), today=date(2026, 9, 16), project=False), 0.0)
 
+    def test_projection_keeps_scored_days_and_fills_only_the_rest(self):
+        from apps.routines.grading import _blend_weights, _doing_for_week, _owner_for_week, _walk_cap
+        cfg = retail_qa_settings()
+        daily = [
+            {'date': '2026-09-15', 'graded': True, 'open_day': True, 'thirds': {'doing': 0.0, 'owner': None}},
+            {'date': '2026-09-16', 'graded': True, 'open_day': True, 'thirds': {'doing': 0.0, 'owner': None}},
+            {'date': '2026-09-17', 'graded': True, 'open_day': True, 'thirds': {'doing': 40.0, 'owner': 20.0}},
+            {'date': '2026-09-18', 'graded': False, 'open_day': True, 'thirds': {'doing': None, 'owner': None}},
+            {'date': '2026-09-19', 'graded': False, 'open_day': True, 'thirds': {'doing': None, 'owner': None}},
+        ]
+        today = date(2026, 9, 17)
+        doing = _doing_for_week(daily, today=today, project=True)
+        owner, walks = _owner_for_week(daily, today=today)
+        self.assertEqual(doing, 48.0)
+        self.assertEqual(owner, 20.0)
+        self.assertEqual(walks, 1)
+        remaining = 2
+        owner = round((20.0 * 1 + 100.0 * remaining) / (1 + remaining), 1)
+        score, _ = _blend_weights(doing, None, owner, cfg, include_cross=False)
+        _capped, letter = _walk_cap(score, 3, cfg)
+        self.assertNotEqual(letter, 'A')
+
     def test_expected_persists_and_ignores_a_later_call_in(self):
         from apps.routines.grading import compute_expected, expected_for_day
         from apps.routines.models import QaDayExpected
