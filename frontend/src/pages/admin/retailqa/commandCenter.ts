@@ -179,6 +179,20 @@ export function dueClock(label: string) {
   return match ? match[1] : label.replace(/^Due\s+/i, '');
 }
 
+export function clockHHMM(raw: string | null | undefined) {
+  if (!raw) return '';
+  const match = /(\d{1,2}):(\d{2})/.exec(raw);
+  if (!match) return '';
+  return `${match[1].padStart(2, '0')}:${match[2]}`;
+}
+
+export function formatShiftRange(timeIn: string | null | undefined, timeOut: string | null | undefined) {
+  const start = clockHHMM(timeIn);
+  const end = clockHHMM(timeOut);
+  if (!start || !end) return '';
+  return `${start} to ${end}`;
+}
+
 export function scheduleGroups(staff: QaStaffRow[]) {
   const on = staff.filter((row) => qaStatusWord(row.status) !== 'Off');
   const buckets = new Map<string, QaStaffRow[]>();

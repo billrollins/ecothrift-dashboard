@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CALM_ISSUES, CALM_JOBS, CALM_STAFF } from './calmFixture';
-import { displayName, groupIssues, jobTimeLabel, scheduleSummary, shortName, tileClass } from './commandCenter';
+import { displayName, formatShiftRange, groupIssues, jobTimeLabel, scheduleSummary, shortName, tileClass } from './commandCenter';
 
 describe('displayName', () => {
   it('maps routine keys, punch codes, and department keys', () => {
@@ -24,6 +24,13 @@ describe('tileClass', () => {
   it('marks a closed tile selected', () => {
     expect(tileClass(true, true)).toBe('tile closed sel');
     expect(tileClass(false, true)).toBe('tile sel');
+  });
+});
+
+describe('formatShiftRange', () => {
+  it('prints 08:30 to 15:00 from stored clocks', () => {
+    expect(formatShiftRange('08:30', '15:00')).toBe('08:30 to 15:00');
+    expect(formatShiftRange('8:30:00', '15:00:00')).toBe('08:30 to 15:00');
   });
 });
 

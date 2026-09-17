@@ -105,7 +105,7 @@
 .cc-page .dots i{width:7px;height:7px;border-radius:50%;background:#dccfbb}
 .cc-page .dots i.on{background:var(--good)} .cc-page .dots i.off{background:transparent;border:1px solid #dccfbb}
 
-.cc-page .body{display:grid;grid-template-columns:480px 1fr;gap:16px;margin-top:16px;flex:1;min-height:0;align-items:stretch}
+.cc-page .body{display:grid;grid-template-columns:580px minmax(0,1fr);gap:16px;margin-top:16px;flex:1;min-height:0;align-items:stretch}
 .cc-page .col-right{display:flex;flex-direction:column;gap:16px;min-height:0}
 .cc-page .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 18px 10px;box-shadow:var(--sh-card);display:flex;flex-direction:column;min-height:0}
 .cc-page .scroll{overflow:auto;flex:1;min-height:0;margin:0 -8px;padding:0 8px;scrollbar-width:thin}
@@ -150,7 +150,7 @@
 .cc-page .schedule .row{grid-template-columns:130px 150px 1fr 90px;padding-left:22px;margin-left:0}
 .cc-page .schedule .row::before{left:10px}
 .cc-page .schedule .grp{margin-left:0}
-.cc-page .schedule .time{color:var(--ink2);font-size:12.5px}
+.cc-page .schedule .time{color:var(--ink2);font-size:12.5px;white-space:nowrap;overflow:visible;min-width:7.6em}
 .cc-page .schedule .st{justify-self:end;display:flex;align-items:center;gap:6px}
 
 .cc-page .issues{flex:0 0 auto;max-height:34%;min-height:0;overflow:hidden}

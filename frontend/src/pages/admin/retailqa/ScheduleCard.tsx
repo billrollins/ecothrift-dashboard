@@ -1,6 +1,6 @@
 import { format, parseISO } from 'date-fns';
 import type { QaStaffRow } from '../../../api/routines.api';
-import { DEPT_ICON, displayName, scheduleGroups, scheduleSummary, shortName, staffChip } from './commandCenter';
+import { DEPT_ICON, displayName, formatShiftRange, scheduleGroups, scheduleSummary, shortName, staffChip } from './commandCenter';
 import { QaChip } from './QaChip';
 import { QaIcon } from './QaIcons';
 
@@ -31,12 +31,12 @@ export function ScheduleCard({
             <div className="rows">
               {group.rows.map((row) => {
                 const chip = staffChip(row.status);
-                const time = row.time_in && row.time_out ? `${row.time_in} to ${row.time_out}` : '';
+                const time = formatShiftRange(row.time_in, row.time_out);
                 return (
                   <div className={`row${chip === 'late' ? ' s-warn' : ''}`} key={row.id}>
                     <span className="name nowrap" title={row.name}>{shortName(row.name)}</span>
                     <span className="meta nowrap">{displayName(row.shift_name, 'shift')}</span>
-                    <span className="time nowrap">{time}</span>
+                    <span className="time">{time}</span>
                     <span className="st">
                       {chip === 'late' ? (
                         <button type="button" className="act warn" onClick={() => onCallIn(row.id)}>Called in</button>
