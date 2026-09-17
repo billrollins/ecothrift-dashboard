@@ -10,7 +10,7 @@ class Section(models.Model):
     """A named area of a department that one person keeps.
 
     Free-form on purpose: the floor is re-cut often, so a section is a name and
-    an owner, not a fixed identifier tied to fixtures or inventory.
+    an owner, not a fixed identifier tied to a floorplan object or inventory.
     """
 
     department = models.ForeignKey(

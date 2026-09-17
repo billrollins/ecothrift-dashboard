@@ -20,7 +20,6 @@ export function SummaryDialogs({
   weekData,
   spots,
   people,
-  fixturePeople,
   onDoSpot,
   onOpenRun,
 }: {
@@ -33,7 +32,6 @@ export function SummaryDialogs({
   weekData?: QaWeek;
   spots: Array<SpotScoreCard & { date: string }>;
   people: PersonWeekRow[];
-  fixturePeople?: Array<PersonWeekRow & { dots: ReadonlyArray<string> }>;
   onDoSpot: () => void;
   onOpenRun: (runId: number) => void;
 }) {
@@ -146,10 +144,8 @@ export function SummaryDialogs({
             </tr>
           </thead>
           <tbody>
-            {(fixturePeople ?? people).map((row) => {
-              const dots = fixturePeople
-                ? (row as typeof fixturePeople[number]).dots
-                : peopleDots(weekData?.days, row.id, row.section_days);
+            {people.map((row) => {
+              const dots = peopleDots(weekData?.days, row.id, row.section_days);
               return (
                 <tr key={row.id}>
                   <td>{row.name}</td>

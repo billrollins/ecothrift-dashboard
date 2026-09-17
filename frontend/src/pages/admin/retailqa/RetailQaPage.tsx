@@ -21,8 +21,6 @@ import {
 import { isoWeekKey, shiftWeek, weekMonday } from '../routines/gradeWeek';
 import { displayName, shortName } from './commandCenter';
 import { commandKeyAction } from './commandKeys';
-import { CALM_BOARD, CALM_DATE, CALM_PEOPLE, CALM_SPOTS, CALM_TILES, CALM_WEEK } from './calmFixture';
-import { ADDED_BOARD, CALLIN_BOARD, HARD_BOARD, LEFT_BOARD, PROBLEM_BOARD, PROBLEM_DATE, PROBLEM_PEOPLE, PROBLEM_SPOTS, PROBLEM_TILES, PROBLEM_WEEK, SCHEDULED_BOARD, SCROLL_BOARD, THURSDAY_BOARD, THURSDAY_TILES } from './problemFixture';
 import { CommandHeader } from './CommandHeader';
 import { IssuesBar } from './IssuesBar';
 import { RoutinesCard } from './RoutinesCard';
@@ -37,22 +35,14 @@ export default function RetailQaPage() {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const [params, setParams] = useSearchParams();
-  const fixtureName = params.get('fixture');
-  const fixture = Boolean(fixtureName && [
-    'calm', 'problem', 'scroll', 'callin', 'hard', 'scheduled', 'thursday', 'left', 'added', 'nudge',
-  ].includes(fixtureName));
   const today = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
   const asked = params.get('day');
-  const date = fixture
-    ? (fixtureName === 'calm' ? CALM_DATE : fixtureName === 'thursday' ? '2026-09-17' : PROBLEM_DATE)
-    : asked && !Number.isNaN(Date.parse(asked)) ? asked : today;
-  const week = fixture
-    ? (fixtureName === 'calm' ? CALM_WEEK.week : PROBLEM_WEEK.week)
-    : params.get('week') || isoWeekKey(new Date(`${date}T12:00:00`));
-  const weekQuery = useQaWeek(fixture ? null : week);
-  const todayQuery = useQaToday(fixture ? null : date);
-  const peopleQuery = useQaPeople(week, !fixture);
-  const spotsQuery = useQaSpots(fixture ? { enabled: false } : { week });
+  const date = asked && !Number.isNaN(Date.parse(asked)) ? asked : today;
+  const week = params.get('week') || isoWeekKey(new Date(`${date}T12:00:00`));
+  const weekQuery = useQaWeek(week);
+  const todayQuery = useQaToday(date);
+  const peopleQuery = useQaPeople(week);
+  const spotsQuery = useQaSpots({ week });
   const assignees = useRoutineAssignees();
   const assign = useAssignQaBoard();
   const callIn = useQaCallIn();
@@ -61,53 +51,28 @@ export default function RetailQaPage() {
   const exclude = useQaExclude();
   const override = useQaOverride();
   const nudge = useQaNudge();
-  const [callInOverlay, setCallInOverlay] = useState(false);
   const [nudgeTarget, setNudgeTarget] = useState<{ runId: number; anchor: HTMLElement } | null>(null);
   const [nudgeStamp, setNudgeStamp] = useState<Record<number, string>>({});
-  const data = fixtureName === 'calm' ? CALM_WEEK : fixture ? PROBLEM_WEEK : weekQuery.data;
-  const board = fixtureName === 'scroll'
-    ? SCROLL_BOARD
-    : fixtureName === 'callin' || (fixtureName === 'problem' && callInOverlay)
-      ? CALLIN_BOARD
-      : fixtureName === 'hard'
-        ? HARD_BOARD
-        : fixtureName === 'scheduled'
-          ? SCHEDULED_BOARD
-          : fixtureName === 'thursday'
-            ? THURSDAY_BOARD
-            : fixtureName === 'left'
-              ? LEFT_BOARD
-              : fixtureName === 'added'
-                ? ADDED_BOARD
-                : fixtureName === 'nudge'
-                  ? HARD_BOARD
-                  : fixtureName === 'problem'
-                    ? PROBLEM_BOARD
-                    : fixtureName === 'calm'
-                      ? CALM_BOARD
-                      : todayQuery.data;
+  const data = weekQuery.data;
+  const board = todayQuery.data;
 
   const [weekOpen, setWeekOpen] = useState(false);
   const [scoreOpen, setScoreOpen] = useState(false);
   const [summary, setSummary] = useState<'spot' | 'cross' | 'people' | null>(null);
 
   const tiles = useMemo(
-    () => (fixture
-      ? (fixtureName === 'calm' ? CALM_TILES : fixtureName === 'thursday' ? THURSDAY_TILES : PROBLEM_TILES)
-      : data?.tiles?.length ? data.tiles : fallbackTiles(week, today, data?.cross_check_due)),
-    [data, week, today, fixture, fixtureName],
+    () => (data?.tiles?.length ? data.tiles : fallbackTiles(week, today, data?.cross_check_due)),
+    [data, week, today],
   );
 
   function setDay(next: string, nextWeek?: string) {
     const search = new URLSearchParams(params);
-    if (fixtureName) search.set('fixture', fixtureName);
     search.set('week', nextWeek || isoWeekKey(new Date(`${next}T12:00:00`)));
     search.set('day', next);
     setParams(search);
   }
 
   function moveWeek(delta: number) {
-    if (fixture) return;
     const nextWeek = shiftWeek(week, delta);
     const monday = weekMonday(nextWeek);
     const selected = new Date(`${date}T12:00:00`);
@@ -116,11 +81,6 @@ export default function RetailQaPage() {
   }
 
   async function markCalledIn(personId: number) {
-    if (fixture) {
-      setCallInOverlay(true);
-      enqueueSnackbar('Called in');
-      return;
-    }
     try {
       await callIn.mutateAsync({ user: personId, date });
       enqueueSnackbar('Called in');
@@ -132,10 +92,6 @@ export default function RetailQaPage() {
 
   async function clearCalledIn(personId: number) {
     const row = (board?.staff ?? []).find((item) => item.id === personId);
-    if (fixture) {
-      setCallInOverlay(false);
-      return;
-    }
     if (!row?.call_in_id) return;
     try {
       await undoCallIn.mutateAsync(row.call_in_id);
@@ -147,7 +103,6 @@ export default function RetailQaPage() {
   }
 
   async function markLeftEarly(personId: number) {
-    if (fixture) return;
     try {
       await leftEarly.mutateAsync({ user: personId, date });
     } catch (err: unknown) {
@@ -157,7 +112,6 @@ export default function RetailQaPage() {
   }
 
   async function removeFromToday(personId: number) {
-    if (fixture) return;
     try {
       await exclude.mutateAsync({ user: personId, date });
     } catch (err: unknown) {
@@ -167,7 +121,6 @@ export default function RetailQaPage() {
   }
 
   async function addPerson(input: { user: number; shift: number; time_in: string; time_out: string }) {
-    if (fixture) return;
     try {
       await override.mutateAsync({ ...input, date });
     } catch (err: unknown) {
@@ -197,7 +150,7 @@ export default function RetailQaPage() {
       : 'Please finish this routine.';
     try {
       await navigator.clipboard.writeText(text);
-      if (!fixture) await nudge.mutateAsync({ run: runId, message: text });
+      await nudge.mutateAsync({ run: runId, message: text });
       setNudgeStamp((prev) => ({ ...prev, [runId]: format(new Date(), 'HH:mm') }));
       setNudgeTarget(null);
     } catch (err: unknown) {
@@ -212,7 +165,6 @@ export default function RetailQaPage() {
   }
 
   async function assignRun(runId: number, userId: number | '') {
-    if (fixture) return;
     try {
       await assign.mutateAsync({ date, kind: 'run', run: runId, user: userId === '' ? null : userId });
     } catch (err: unknown) {
@@ -239,7 +191,7 @@ export default function RetailQaPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, [tiles, week, date, weekOpen, scoreOpen, summary]);
 
-  if (!fixture && weekQuery.isLoading && !data) return <LoadingScreen message="Loading Command Center..." />;
+  if (weekQuery.isLoading && !data) return <LoadingScreen message="Loading Command Center..." />;
 
   const issues = (board?.issues ?? []).map((row) => (
     row.run_id && nudgeStamp[row.run_id] ? { ...row, nudged_at: nudgeStamp[row.run_id] } : row
@@ -261,22 +213,20 @@ export default function RetailQaPage() {
         week={week}
         weekNumber={weekNumber}
         date={date}
-        today={fixture ? date : today}
+        today={today}
         tiles={tiles}
         weekLetter={data?.letter ?? null}
         weekThirds={data?.thirds ?? { doing: null, owner: null, cross: null }}
         projectedLetter={data?.projected?.letter}
         weekData={data}
         board={board}
-        sectionDone={fixtureName === 'thursday' ? 0 : fixture && fixtureName !== 'calm' ? 7 : fixtureName === 'calm' ? 3 : undefined}
-        sectionTotal={fixtureName === 'thursday' ? 5 : fixture && fixtureName !== 'calm' ? 23 : fixtureName === 'calm' ? 17 : undefined}
         summary={summary}
         onSummary={setSummary}
         onScore={() => setScoreOpen(true)}
         onMoveWeek={moveWeek}
         onSelectDay={(next) => setDay(next, week)}
       />
-      {!fixture && date !== today ? (
+      {date !== today ? (
         <div className="not-today">
           <span>Viewing {format(parseISO(date), 'EEE MMM d')}. You are not on today.</span>
           <button type="button" onClick={() => setDay(today)}>Back to today</button>
@@ -324,13 +274,12 @@ export default function RetailQaPage() {
         open={summary}
         onClose={() => setSummary(null)}
         week={week}
-        today={fixture ? date : today}
+        today={today}
         tiles={tiles}
         board={board}
         weekData={data}
-        spots={fixture ? (fixtureName === 'calm' ? CALM_SPOTS : PROBLEM_SPOTS) : spotsQuery.data?.spots ?? []}
+        spots={spotsQuery.data?.spots ?? []}
         people={peopleQuery.data?.people ?? []}
-        fixturePeople={fixture ? (fixtureName === 'calm' ? CALM_PEOPLE : PROBLEM_PEOPLE) : undefined}
         onDoSpot={() => board?.spot?.run_id && runnerReturn(board.spot.run_id)}
         onOpenRun={(runId) => runnerReturn(runId)}
       />

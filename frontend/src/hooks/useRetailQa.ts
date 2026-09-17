@@ -39,20 +39,18 @@ function invalidateQa(queryClient: ReturnType<typeof useQueryClient>) {
   void queryClient.invalidateQueries({ queryKey: ['routines', 'qa'] });
 }
 
-export function useQaWeek(week: string | null) {
+export function useQaWeek(week: string) {
   return useQuery({
     queryKey: ['routines', 'qa', 'week', week],
-    queryFn: async () => (await getQaWeek(week ?? undefined)).data,
-    enabled: Boolean(week),
+    queryFn: async () => (await getQaWeek(week)).data,
   });
 }
 
-export function useQaToday(date: string | null) {
+export function useQaToday(date: string) {
   return useQuery({
     queryKey: ['routines', 'qa', 'today', date],
-    queryFn: async () => (await getQaToday(date ?? undefined)).data,
+    queryFn: async () => (await getQaToday(date)).data,
     refetchInterval: 30_000,
-    enabled: Boolean(date),
   });
 }
 
