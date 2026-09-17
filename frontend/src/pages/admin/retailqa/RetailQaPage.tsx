@@ -1,4 +1,4 @@
-import { addDays, format } from 'date-fns';
+import { addDays, format, parseISO } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
@@ -180,6 +180,12 @@ export default function RetailQaPage() {
         onMoveWeek={moveWeek}
         onSelectDay={(next) => setDay(next, week)}
       />
+      {!fixture && date !== today ? (
+        <div className="not-today">
+          <span>Viewing {format(parseISO(date), 'EEE MMM d')}. You are not on today.</span>
+          <button type="button" onClick={() => setDay(today)}>Back to today</button>
+        </div>
+      ) : null}
       <div className="body">
         <ScheduleCard date={date} staff={staff} onCallIn={(id) => void markCalledIn(id)} />
         <main className="col-right">
