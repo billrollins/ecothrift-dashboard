@@ -338,6 +338,9 @@ function formatRoutineIssue(issue: QaIssue, jobs: QaJob[]) {
   if (issue.type !== 'overdue_routine') return issue.sentence;
   const job = jobs.find((row) => row.run_id === issue.run_id);
   if (!job) return issue.sentence;
+  if (job.urgency === 'hard' || job.urgency === 'missed' || job.status === 'Missed') {
+    return issue.sentence;
+  }
   const clock = dueClock(job.due_label || '');
   const title = displayName(job.title, 'routine');
   if (job.group === 'section') {

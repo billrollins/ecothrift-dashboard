@@ -1,5 +1,5 @@
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDeviceConfig } from '../../hooks/useDeviceConfig';
 import { useAckQaNudge, usePendingQaNudges } from '../../hooks/useRetailQa';
@@ -11,14 +11,26 @@ function deviceLabel(config: { registerName?: string } | null) {
 
 export function NudgeBlockingDialog() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const preview = params.get('fixture') === 'nudge';
   const { user, logout } = useAuth();
   const { config } = useDeviceConfig();
-  const pending = usePendingQaNudges(Boolean(user));
+  const pending = usePendingQaNudges(Boolean(user) && !preview);
   const ack = useAckQaNudge();
-  const rows = pending.data?.nudges ?? [];
+  const rows = preview
+    ? [{
+      id: 1,
+      run_id: 21,
+      created_by: { id: 9, name: 'Bill Rollins' },
+      created_at: '2026-09-16T10:00:00',
+      at_label: '10:00',
+      message: 'Retail open is past its hard deadline (10:00).',
+    }]
+    : pending.data?.nudges ?? [];
   const first = user?.first_name?.trim() || 'me';
 
   async function respond(kind: 'heard' | 'not_me', row?: QaNudgeRow) {
+    if (preview) return;
     const targets = row ? [row] : rows;
     for (const item of targets) {
       await ack.mutateAsync({ id: item.id, kind, device: deviceLabel(config) });

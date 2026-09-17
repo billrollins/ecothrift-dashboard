@@ -143,6 +143,100 @@ export const HARD_BOARD: QaToday = {
     run_id: 21,
     created_at: '2026-09-16T10:00:00',
     at_label: '10:00',
+    ack_label: 'Nudged 10:00',
     message: 'Retail open is past its hard deadline (10:00).',
+    source: 'auto',
   }],
+};
+
+export const SCHEDULED_JOBS: QaJob[] = [
+  { group: 'shift', key: 'retail.open', title: 'Retail open', run_id: 21, section_id: null, owner: person(1, 'Carrie Rollins'), owner_state: 'scheduled', due_at: null, due_label: 'Due 09:00', status: 'Due', closed: false, can_close: false },
+  { group: 'shift', key: 'retail.day', title: 'Retail day', run_id: 22, section_id: null, owner: person(3, 'Ashley Kilduff'), owner_state: 'scheduled', due_at: null, due_label: 'Due 14:00', status: 'Due', closed: false, can_close: false },
+  { group: 'shift', key: 'retail.close', title: 'Retail close', run_id: 23, section_id: null, owner: person(2, 'David Kilduff'), owner_state: 'scheduled', due_at: null, due_label: 'Due 18:00', status: 'Due', closed: false, can_close: false },
+];
+
+export const SCHEDULED_BOARD: QaToday = {
+  ...CALM_BOARD,
+  staff: CALM_STAFF.map((row) => (
+    [1, 2, 3].includes(row.id)
+      ? { ...row, clocked_in: false, arrival: null, status: 'Expected' as const, expected_not_in: true }
+      : row
+  )),
+  jobs: SCHEDULED_JOBS,
+  issues: [],
+};
+
+export const THURSDAY_JOBS: QaJob[] = [
+  { group: 'section', key: 'retail.section_tally', title: 'Housewares', run_id: 31, section_id: 1, owner: null, due_at: null, due_label: '', status: 'Unassigned', closed: false, can_close: false },
+  { group: 'section', key: 'retail.section_tally', title: 'Books', run_id: 32, section_id: 2, owner: person(1, 'Carrie Rollins'), due_at: null, due_label: 'Due after clock-in', status: 'Not tallied', closed: false, can_close: false },
+  { group: 'section', key: 'retail.section_tally', title: 'Media', run_id: 33, section_id: 3, owner: person(3, 'Ashley Kilduff'), due_at: null, due_label: 'Due after clock-in', status: 'Not tallied', closed: false, can_close: false },
+  { group: 'section', key: 'retail.section_tally', title: 'Toys', run_id: 34, section_id: 4, owner: person(4, 'Maria Kilduff'), due_at: null, due_label: 'Due after clock-in', status: 'Not tallied', closed: false, can_close: false },
+  { group: 'section', key: 'retail.section_tally', title: 'Seasonal', run_id: 35, section_id: 5, owner: person(5, 'Michael Frieze'), due_at: null, due_label: 'Due after clock-in', status: 'Not tallied', closed: false, can_close: false },
+];
+
+export const THURSDAY_TILES = CALM_TILES.map((tile) => ({
+  ...tile,
+  is_today: tile.date === '2026-09-17',
+  is_future: tile.date > '2026-09-17',
+}));
+
+export const THURSDAY_BOARD: QaToday = {
+  ...CALM_BOARD,
+  date: '2026-09-17',
+  jobs: THURSDAY_JOBS,
+  issues: [{
+    id: 'needs-owner',
+    type: 'call_in_unassigned',
+    severity: 'amber',
+    sentence: '1 routine needs a new owner',
+    action: 'reassign',
+    person_id: null,
+    person_name: null,
+    run_id: null,
+    call_in_id: null,
+    nudged_at: null,
+    can_act: true,
+  }],
+};
+
+export const LEFT_STAFF: QaStaffRow[] = CALM_STAFF.map((row) => (
+  row.id === 1
+    ? { ...row, clocked_in: false, status: 'Left' as const, expected_not_in: false }
+    : row
+));
+
+export const LEFT_BOARD: QaToday = {
+  ...CALM_BOARD,
+  staff: LEFT_STAFF,
+  jobs: SCHEDULED_JOBS,
+  issues: [],
+};
+
+export const ADDED_STAFF: QaStaffRow[] = [
+  ...CALM_STAFF,
+  {
+    id: 12,
+    name: 'Pat Nguyen',
+    role: '',
+    department: 'Retail',
+    shift_name: 'Cashier - Close',
+    time_in: '17:00',
+    time_out: '18:00',
+    clocked_in: false,
+    arrival: null,
+    expected_not_in: true,
+    on_roster: true,
+    status: 'Expected',
+    added: true,
+  },
+];
+
+export const ADDED_BOARD: QaToday = {
+  ...CALM_BOARD,
+  staff: ADDED_STAFF,
+  jobs: [
+    ...SCHEDULED_JOBS.slice(0, 2),
+    { ...SCHEDULED_JOBS[2], owner: person(12, 'Pat Nguyen'), owner_state: 'scheduled' },
+  ],
+  issues: [],
 };

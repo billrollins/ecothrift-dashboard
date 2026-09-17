@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CALM_ISSUES, CALM_JOBS, CALM_STAFF } from './calmFixture';
+import { HARD_ISSUES, HARD_JOBS, PROBLEM_STAFF } from './problemFixture';
 import { displayName, formatShiftRange, groupIssues, jobTimeLabel, nudgeLabel, peopleDots, scheduleSummary, shortName, tileClass, tileNote } from './commandCenter';
 
 describe('displayName', () => {
@@ -79,6 +80,11 @@ describe('groupIssues', () => {
   it('keeps nudged_at on routine issues', () => {
     const rows = groupIssues(CALM_ISSUES, CALM_STAFF, CALM_JOBS);
     expect(rows[0].nudged_at).toBe(CALM_ISSUES[0].nudged_at);
+  });
+
+  it('keeps hard-deadline issue copy', () => {
+    const rows = groupIssues(HARD_ISSUES, PROBLEM_STAFF, HARD_JOBS);
+    expect(rows.some((row) => /hard deadline/.test(row.sentence))).toBe(true);
   });
 });
 

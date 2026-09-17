@@ -22,7 +22,7 @@ import { isoWeekKey, shiftWeek, weekMonday } from '../routines/gradeWeek';
 import { displayName, shortName } from './commandCenter';
 import { commandKeyAction } from './commandKeys';
 import { CALM_BOARD, CALM_DATE, CALM_PEOPLE, CALM_SPOTS, CALM_TILES, CALM_WEEK } from './calmFixture';
-import { CALLIN_BOARD, HARD_BOARD, PROBLEM_BOARD, PROBLEM_DATE, PROBLEM_PEOPLE, PROBLEM_SPOTS, PROBLEM_TILES, PROBLEM_WEEK, SCROLL_BOARD } from './problemFixture';
+import { ADDED_BOARD, CALLIN_BOARD, HARD_BOARD, LEFT_BOARD, PROBLEM_BOARD, PROBLEM_DATE, PROBLEM_PEOPLE, PROBLEM_SPOTS, PROBLEM_TILES, PROBLEM_WEEK, SCHEDULED_BOARD, SCROLL_BOARD, THURSDAY_BOARD, THURSDAY_TILES } from './problemFixture';
 import { CommandHeader } from './CommandHeader';
 import { IssuesBar } from './IssuesBar';
 import { RoutinesCard } from './RoutinesCard';
@@ -38,11 +38,13 @@ export default function RetailQaPage() {
   const { enqueueSnackbar } = useSnackbar();
   const [params, setParams] = useSearchParams();
   const fixtureName = params.get('fixture');
-  const fixture = fixtureName === 'calm' || fixtureName === 'problem' || fixtureName === 'scroll' || fixtureName === 'callin' || fixtureName === 'hard';
+  const fixture = Boolean(fixtureName && [
+    'calm', 'problem', 'scroll', 'callin', 'hard', 'scheduled', 'thursday', 'left', 'added', 'nudge',
+  ].includes(fixtureName));
   const today = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
   const asked = params.get('day');
   const date = fixture
-    ? (fixtureName === 'calm' ? CALM_DATE : PROBLEM_DATE)
+    ? (fixtureName === 'calm' ? CALM_DATE : fixtureName === 'thursday' ? '2026-09-17' : PROBLEM_DATE)
     : asked && !Number.isNaN(Date.parse(asked)) ? asked : today;
   const week = fixture
     ? (fixtureName === 'calm' ? CALM_WEEK.week : PROBLEM_WEEK.week)
@@ -69,11 +71,21 @@ export default function RetailQaPage() {
       ? CALLIN_BOARD
       : fixtureName === 'hard'
         ? HARD_BOARD
-        : fixtureName === 'problem'
-          ? PROBLEM_BOARD
-          : fixtureName === 'calm'
-            ? CALM_BOARD
-            : todayQuery.data;
+        : fixtureName === 'scheduled'
+          ? SCHEDULED_BOARD
+          : fixtureName === 'thursday'
+            ? THURSDAY_BOARD
+            : fixtureName === 'left'
+              ? LEFT_BOARD
+              : fixtureName === 'added'
+                ? ADDED_BOARD
+                : fixtureName === 'nudge'
+                  ? HARD_BOARD
+                  : fixtureName === 'problem'
+                    ? PROBLEM_BOARD
+                    : fixtureName === 'calm'
+                      ? CALM_BOARD
+                      : todayQuery.data;
 
   const [weekOpen, setWeekOpen] = useState(false);
   const [scoreOpen, setScoreOpen] = useState(false);
@@ -81,7 +93,7 @@ export default function RetailQaPage() {
 
   const tiles = useMemo(
     () => (fixture
-      ? (fixtureName === 'calm' ? CALM_TILES : PROBLEM_TILES)
+      ? (fixtureName === 'calm' ? CALM_TILES : fixtureName === 'thursday' ? THURSDAY_TILES : PROBLEM_TILES)
       : data?.tiles?.length ? data.tiles : fallbackTiles(week, today, data?.cross_check_due)),
     [data, week, today, fixture, fixtureName],
   );
@@ -256,8 +268,8 @@ export default function RetailQaPage() {
         projectedLetter={data?.projected?.letter}
         weekData={data}
         board={board}
-        sectionDone={fixture && fixtureName !== 'calm' ? 7 : fixtureName === 'calm' ? 3 : undefined}
-        sectionTotal={fixture && fixtureName !== 'calm' ? 23 : fixtureName === 'calm' ? 17 : undefined}
+        sectionDone={fixtureName === 'thursday' ? 0 : fixture && fixtureName !== 'calm' ? 7 : fixtureName === 'calm' ? 3 : undefined}
+        sectionTotal={fixtureName === 'thursday' ? 5 : fixture && fixtureName !== 'calm' ? 23 : fixtureName === 'calm' ? 17 : undefined}
         summary={summary}
         onSummary={setSummary}
         onScore={() => setScoreOpen(true)}
