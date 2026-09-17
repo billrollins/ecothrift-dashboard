@@ -216,14 +216,17 @@ export function scheduleGroups(staff: QaStaffRow[]) {
 }
 
 export function scheduleSummary(staff: QaStaffRow[]) {
-  const on = staff.filter((row) => qaStatusWord(row.status) !== 'Off');
-  const later = on.filter((row) => qaStatusWord(row.status) === 'Expected' && !row.clocked_in);
+  const on = staff.filter((row) => {
+    const word = qaStatusWord(row.status);
+    return word !== 'Off' && word !== 'Called in';
+  });
   const late = on.filter((row) => qaStatusWord(row.status) === 'Late');
-  const dueNow = on.filter((row) => !later.includes(row));
-  const inn = dueNow.filter((row) => qaStatusWord(row.status) === 'In' || (row.clocked_in && qaStatusWord(row.status) !== 'Late')).length;
-  if (late.length) return `${inn} of ${dueNow.length} in · ${late.length} late`;
-  if (later.length) return `${inn} of ${dueNow.length} in · ${later.length} later`;
-  return `${inn} of ${dueNow.length} in`;
+  const inn = on.filter((row) => {
+    const word = qaStatusWord(row.status);
+    return word === 'In' || (row.clocked_in && word !== 'Late');
+  }).length;
+  if (late.length) return `${inn} of ${on.length} in · ${late.length} late`;
+  return `${inn} of ${on.length} in`;
 }
 
 export type BoardIssue = {

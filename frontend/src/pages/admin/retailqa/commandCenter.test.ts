@@ -77,7 +77,12 @@ describe('labels', () => {
   });
 
   it('summarizes who is in', () => {
-    expect(scheduleSummary(CALM_STAFF)).toBe('5 of 5 in · 1 later');
+    expect(scheduleSummary(CALM_STAFF)).toBe('5 of 6 in');
+  });
+
+  it('counts expected people in the denominator and treats later as a qualifier', () => {
+    const later = CALM_STAFF.map((row) => ({ ...row, clocked_in: false, status: 'Expected' as const }));
+    expect(scheduleSummary(later)).toBe('0 of 6 in');
   });
 
   it('counts a late person separately', () => {
