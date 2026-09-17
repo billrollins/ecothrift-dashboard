@@ -872,15 +872,12 @@ def build_issues(
     called = [row for row in staff if row['status'] == STATUS_CALLED_IN]
     unassigned = [job for job in jobs if job['status'] == STATUS_UNASSIGNED and job.get('run_id')]
     if called and unassigned:
-        names = called[0]['name']
-        extra = len(called) - 1
-        who = names if extra <= 0 else f'{names} and {extra} other{"s" if extra != 1 else ""}'
         count = len(unassigned)
         issues.append({
             'id': 'call-in-unassigned',
             'type': 'call_in_unassigned',
             'severity': 'amber',
-            'sentence': f'{who} called in. {count} routine{"s" if count != 1 else ""} need a new owner.',
+            'sentence': f'{count} routine{"s" if count != 1 else ""} need{"s" if count == 1 else ""} a new owner',
             'action': 'reassign',
             'person_id': called[0]['id'],
             'person_name': called[0]['name'],

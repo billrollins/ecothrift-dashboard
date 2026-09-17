@@ -2,12 +2,14 @@ import { addDays, format, parseISO } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
+import { Button } from '@mui/material';
 import type { QaDayTile } from '../../../api/routines.api';
 import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
 import { useRoutineAssignees } from '../../../hooks/useRoutines';
 import {
   useAssignQaBoard,
   useQaCallIn,
+  useUndoQaCallIn,
   useQaNudge,
   useQaPeople,
   useQaSpots,
@@ -17,7 +19,7 @@ import {
 import { isoWeekKey, shiftWeek, weekMonday } from '../routines/gradeWeek';
 import { displayName } from './commandCenter';
 import { CALM_BOARD, CALM_DATE, CALM_PEOPLE, CALM_SPOTS, CALM_TILES, CALM_WEEK } from './calmFixture';
-import { PROBLEM_BOARD, PROBLEM_DATE, PROBLEM_PEOPLE, PROBLEM_SPOTS, PROBLEM_TILES, PROBLEM_WEEK, SCROLL_BOARD } from './problemFixture';
+import { CALLIN_BOARD, PROBLEM_BOARD, PROBLEM_DATE, PROBLEM_PEOPLE, PROBLEM_SPOTS, PROBLEM_TILES, PROBLEM_WEEK, SCROLL_BOARD } from './problemFixture';
 import { CommandHeader } from './CommandHeader';
 import { IssuesBar } from './IssuesBar';
 import { RoutinesCard } from './RoutinesCard';
@@ -29,10 +31,10 @@ import './commandCenter.css';
 
 export default function RetailQaPage() {
   const navigate = useNavigate();
-  const { enqueueSnackbar } = useSnackbar();
+  const { enqueueSnackbar, closeSnackbar } = useSnackbar();
   const [params, setParams] = useSearchParams();
   const fixtureName = params.get('fixture');
-  const fixture = fixtureName === 'calm' || fixtureName === 'problem' || fixtureName === 'scroll';
+  const fixture = fixtureName === 'calm' || fixtureName === 'problem' || fixtureName === 'scroll' || fixtureName === 'callin';
   const today = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
   const asked = params.get('day');
   const date = fixture
@@ -48,15 +50,19 @@ export default function RetailQaPage() {
   const assignees = useRoutineAssignees();
   const assign = useAssignQaBoard();
   const callIn = useQaCallIn();
+  const undoCallIn = useUndoQaCallIn();
   const nudge = useQaNudge();
+  const [callInOverlay, setCallInOverlay] = useState(false);
   const data = fixtureName === 'calm' ? CALM_WEEK : fixture ? PROBLEM_WEEK : weekQuery.data;
   const board = fixtureName === 'scroll'
     ? SCROLL_BOARD
-    : fixtureName === 'problem'
-      ? PROBLEM_BOARD
-      : fixtureName === 'calm'
-        ? CALM_BOARD
-        : todayQuery.data;
+    : fixtureName === 'callin' || (fixtureName === 'problem' && callInOverlay)
+      ? CALLIN_BOARD
+      : fixtureName === 'problem'
+        ? PROBLEM_BOARD
+        : fixtureName === 'calm'
+          ? CALM_BOARD
+          : todayQuery.data;
 
   const [weekOpen, setWeekOpen] = useState(false);
   const [scoreOpen, setScoreOpen] = useState(false);
@@ -87,9 +93,27 @@ export default function RetailQaPage() {
   }
 
   async function markCalledIn(personId: number) {
-    if (fixture) return;
+    const undo = (id?: number) => (
+      <Button
+        color="inherit"
+        size="small"
+        onClick={() => {
+          if (fixture) setCallInOverlay(false);
+          else if (id) void undoCallIn.mutateAsync(id).catch(() => undefined);
+          closeSnackbar();
+        }}
+      >
+        Undo
+      </Button>
+    );
+    if (fixture) {
+      setCallInOverlay(true);
+      enqueueSnackbar('Called in', { action: () => undo(), autoHideDuration: 10000 });
+      return;
+    }
     try {
-      await callIn.mutateAsync({ user: personId, date });
+      const result = await callIn.mutateAsync({ user: personId, date });
+      enqueueSnackbar('Called in', { action: () => undo(result.data.call_in.id), autoHideDuration: 10000 });
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       enqueueSnackbar(typeof detail === 'string' ? detail : 'Could not mark called in', { variant: 'error' });

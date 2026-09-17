@@ -69,3 +69,38 @@ export const SCROLL_BOARD: QaToday = {
   jobs: SCROLL_JOBS,
   doing: { done: 4, needed: 12, score: 88, routines: [] },
 };
+
+export const CALLIN_STAFF: QaStaffRow[] = PROBLEM_STAFF.map((row) => (
+  row.id === 5
+    ? { ...row, clocked_in: false, status: 'Called in' as const, late_minutes: null, late_severity: null, expected_not_in: false }
+    : row
+));
+
+export const CALLIN_JOBS: QaJob[] = PROBLEM_JOBS.map((job) => (
+  job.owner?.id === 5
+    ? { ...job, owner: null, owner_state: null, status: 'Unassigned' as const, due_label: '' }
+    : job
+));
+
+export const CALLIN_ISSUES: QaIssue[] = [
+  {
+    id: 'call-in-unassigned',
+    type: 'call_in_unassigned',
+    severity: 'amber',
+    sentence: '1 routine needs a new owner',
+    action: 'reassign',
+    person_id: 5,
+    person_name: 'Michael Frieze',
+    run_id: null,
+    call_in_id: 1,
+    nudged_at: null,
+    can_act: true,
+  },
+];
+
+export const CALLIN_BOARD: QaToday = {
+  ...PROBLEM_BOARD,
+  staff: CALLIN_STAFF,
+  jobs: CALLIN_JOBS,
+  issues: CALLIN_ISSUES,
+};
