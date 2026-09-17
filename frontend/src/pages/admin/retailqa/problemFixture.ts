@@ -104,3 +104,45 @@ export const CALLIN_BOARD: QaToday = {
   jobs: CALLIN_JOBS,
   issues: CALLIN_ISSUES,
 };
+
+export const HARD_JOBS: QaJob[] = PROBLEM_JOBS.map((job) => (
+  job.key === 'retail.open'
+    ? {
+      ...job,
+      due_label: 'Due 09:00',
+      hard_label: '10:00',
+      urgency: 'hard' as const,
+      status: 'Overdue' as const,
+      nudged_at: '10:00',
+    }
+    : job
+));
+
+export const HARD_ISSUES: QaIssue[] = [
+  {
+    id: 'routine-21',
+    type: 'overdue_routine',
+    severity: 'red',
+    sentence: 'Retail open is past its hard deadline (10:00).',
+    action: 'nudge',
+    person_id: 1,
+    person_name: 'Carrie Rollins',
+    run_id: 21,
+    call_in_id: null,
+    nudged_at: '10:00',
+    can_act: true,
+  },
+];
+
+export const HARD_BOARD: QaToday = {
+  ...PROBLEM_BOARD,
+  jobs: HARD_JOBS,
+  issues: HARD_ISSUES,
+  nudges: [{
+    id: 1,
+    run_id: 21,
+    created_at: '2026-09-16T10:00:00',
+    at_label: '10:00',
+    message: 'Retail open is past its hard deadline (10:00).',
+  }],
+};

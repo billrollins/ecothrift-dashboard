@@ -20,6 +20,7 @@ export function fakeRoutine(overrides: Partial<Routine> = {}): Routine {
     anchor_date: null,
     remind_time: null,
     due_time: '10:30:00',
+    hard_time: null,
     late_after: 'end_of_day',
     grace_days: 0,
     expire_rule: 'never',

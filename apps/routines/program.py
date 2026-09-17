@@ -126,9 +126,9 @@ PROGRAM_TITLES = {
 }
 
 PROGRAM_TIMES = {
-    'retail.open': {'remind_time': time(9, 0), 'due_time': time(10, 0)},
-    'retail.day': {'remind_time': time(12, 0), 'due_time': time(14, 0)},
-    'retail.close': {'remind_time': time(17, 50), 'due_time': time(18, 0)},
+    'retail.open': {'remind_time': time(9, 0), 'due_time': time(9, 0), 'hard_time': time(10, 0)},
+    'retail.day': {'remind_time': time(14, 0), 'due_time': time(14, 0), 'hard_time': time(15, 0)},
+    'retail.close': {'remind_time': time(18, 0), 'due_time': time(18, 0), 'hard_time': time(19, 0)},
 }
 
 # Missed if not done. Separate from Counts as late.
@@ -201,16 +201,20 @@ PROGRAM_AUDIENCE = {
 
 def apply_program(Routine) -> None:
     """Retitle and reseed the three checklists on an already-migrated Routine model."""
+    names = {field.name for field in Routine._meta.fields}
     for key, definition in PROGRAM_DEFINITIONS.items():
         title, intro = PROGRAM_TITLES[key]
         times = PROGRAM_TIMES[key]
-        Routine.objects.filter(system_key=key).update(
-            title=title,
-            intro=intro,
-            definition=definition,
-            remind_time=times['remind_time'],
-            due_time=times['due_time'],
-        )
+        payload = {
+            'title': title,
+            'intro': intro,
+            'definition': definition,
+            'remind_time': times['remind_time'],
+            'due_time': times['due_time'],
+        }
+        if 'hard_time' in names:
+            payload['hard_time'] = times.get('hard_time')
+        Routine.objects.filter(system_key=key).update(**payload)
     _maybe_apply_expire(Routine)
     _maybe_apply_audience(Routine)
 

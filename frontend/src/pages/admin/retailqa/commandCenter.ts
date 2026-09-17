@@ -9,6 +9,7 @@ export const CHIP_LABEL: Record<string, string> = {
   done: 'Done',
   due: 'Due',
   over: 'Overdue',
+  hard: 'Overdue',
   miss: 'Missed',
   unas: 'Unassigned',
 };
@@ -128,26 +129,32 @@ export const CHIP_ICON: Record<keyof typeof CHIP_LABEL, 'check' | 'clock' | 'ale
   done: 'check',
   due: 'clock',
   over: 'alert',
+  hard: 'alert',
   miss: 'alert',
   unas: 'alert',
 };
 
-export function jobChip(status: string | undefined, owner?: { name?: string } | null): keyof typeof CHIP_LABEL {
+export function jobChip(
+  status: string | undefined,
+  owner?: { name?: string } | null,
+  urgency?: QaJob['urgency'],
+): keyof typeof CHIP_LABEL {
   const word = qaStatusWord(status);
   if (word === 'Done') return 'done';
+  if (urgency === 'hard') return 'hard';
   if (word === 'Overdue') return 'over';
   if (word === 'Missed') return 'miss';
   if (!owner) return 'unas';
   return 'due';
 }
 
-export function barTone(jobs: Array<{ status: string; owner?: { name?: string } | null }>) {
-  const chips = jobs.map((job) => jobChip(job.status, job.owner));
+export function barTone(jobs: Array<{ status: string; owner?: { name?: string } | null; urgency?: QaJob['urgency'] }>) {
+  const chips = jobs.map((job) => jobChip(job.status, job.owner, job.urgency));
   const done = chips.filter((chip) => chip === 'done').length;
   const needed = jobs.length;
   const pct = needed ? Math.round((100 * done) / needed) : 0;
   if (!needed || pct === 100) return { pct, tone: 'ok' as const };
-  if (chips.some((chip) => chip === 'miss' || chip === 'unas')) return { pct, tone: '' as const };
+  if (chips.some((chip) => chip === 'miss' || chip === 'unas' || chip === 'hard')) return { pct, tone: '' as const };
   return { pct, tone: 'warn' as const };
 }
 

@@ -1,3 +1,5 @@
+from datetime import date
+
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
@@ -16,22 +18,25 @@ class RoutineSerializer(serializers.ModelSerializer):
         source='assigned_users', many=True, queryset=User.objects.all(),
         required=False,
     )
+    shift_name = serializers.CharField(source='shift.name', read_only=True, default=None)
 
     class Meta:
         model = Routine
         fields = [
             'id', 'title', 'intro', 'icon', 'kind', 'system_key', 'verifies',
             'subject_source', 'definition', 'trigger', 'weekdays',
-            'anchor_date', 'remind_time', 'due_time', 'late_after', 'grace_days',
+            'anchor_date', 'remind_time', 'due_time', 'hard_time', 'late_after', 'grace_days',
             'expire_rule', 'expire_count', 'expire_unit', 'expire_from_time',
             'assignment', 'audience_type', 'audience_all',
             'assigned_shifts', 'assigned_department_ids',
             'assigned_role',
             'assigned_department', 'assigned_department_name', 'assigned_user_ids',
+            'shift', 'shift_name', 'shift_locked',
             'is_blocking', 'is_active', 'created_at', 'updated_at',
         ]
         read_only_fields = [
-            'id', 'kind', 'system_key', 'assigned_department_name', 'created_at', 'updated_at',
+            'id', 'kind', 'system_key', 'assigned_department_name',
+            'shift_name', 'shift_locked', 'created_at', 'updated_at',
         ]
 
     def validate_definition(self, value):
@@ -70,6 +75,9 @@ class RoutineSerializer(serializers.ModelSerializer):
         return ids
 
     def validate(self, attrs):
+        if self.instance and getattr(self.instance, 'shift_locked', False) and 'shift' in attrs:
+            if attrs.get('shift') != self.instance.shift:
+                raise serializers.ValidationError('This routine is locked to its shift.')
         source = attrs.get(
             'subject_source',
             getattr(self.instance, 'subject_source', Routine.SUBJECT_POOL),
@@ -206,6 +214,8 @@ class RoutineRunSerializer(serializers.ModelSerializer):
     has_critical_fail = serializers.BooleanField(
         source='submission.has_critical_fail', read_only=True, default=False,
     )
+    seconds_taken = serializers.SerializerMethodField()
+    owner_check = serializers.SerializerMethodField()
 
     class Meta:
         model = RoutineRun
@@ -215,8 +225,9 @@ class RoutineRunSerializer(serializers.ModelSerializer):
             'assigned_to', 'assigned_to_name', 'department_name', 'status',
             'is_blocking', 'is_overdue', 'trigger', 'assignment', 'audience_type', 'href',
             'kind', 'system_key', 'section', 'section_name', 'generated',
+            'owner_check',
             'completed_at', 'completed_by', 'completed_by_name', 'completed_late',
-            'failed_count', 'has_critical_fail',
+            'failed_count', 'has_critical_fail', 'seconds_taken',
         ]
         read_only_fields = fields
 
@@ -245,6 +256,23 @@ class RoutineRunSerializer(serializers.ModelSerializer):
         employee = getattr(obj.assigned_to, 'employee', None) if obj.assigned_to_id else None
         dept = getattr(employee, 'department', None)
         return getattr(dept, 'name', None)
+
+    def get_owner_check(self, obj):
+        from .command_center import owner_check_gate
+        from .schedule import SYSTEM_CROSS_CHECK, SYSTEM_OWNER_SPOT
+        if obj.routine.system_key not in (SYSTEM_CROSS_CHECK, SYSTEM_OWNER_SPOT):
+            return None
+        try:
+            day = date.fromisoformat(obj.period_key)
+        except (TypeError, ValueError):
+            return None
+        return owner_check_gate(section=obj.section, day=day)
+
+    def get_seconds_taken(self, obj):
+        submission = obj.submission
+        if not submission or not submission.started_at or not submission.submitted_at:
+            return None
+        return round((submission.submitted_at - submission.started_at).total_seconds(), 1)
 
 
 class RoutineSubmissionSerializer(serializers.ModelSerializer):

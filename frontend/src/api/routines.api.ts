@@ -211,8 +211,10 @@ export interface Routine {
   anchor_date: string | null;
   /** Soft nag. Null starts at the top of the day. */
   remind_time: string | null;
-  /** Hard nag. Null means the nag waits for clock-out. */
+  /** When the run becomes overdue (amber). Null means the nag waits for clock-out. */
   due_time: string | null;
+  /** Hard deadline: red stripe and an automatic nudge. */
+  hard_time: string | null;
   late_after: RoutineLateAfter;
   grace_days: number;
   expire_rule: RoutineExpireRule;
@@ -755,6 +757,8 @@ export interface QaJob {
   owner_state?: 'scheduled' | 'in' | null;
   due_at: string | null;
   due_label: string;
+  hard_label?: string;
+  urgency?: 'due' | 'overdue' | 'hard' | 'missed' | null;
   completed_label?: string;
   nudged_at?: string | null;
   status: QaStatusWord;

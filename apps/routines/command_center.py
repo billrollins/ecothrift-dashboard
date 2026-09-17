@@ -42,6 +42,7 @@ from .schedule import (
     SYSTEM_WORK_CYCLE,
     cross_check_day_for,
     due_at_for,
+    hard_at_for,
     maybe_draw_spot,
     week_days,
 )
@@ -184,6 +185,35 @@ def miss_boundary(run: RoutineRun, day: date, tz, hours_cfg=None) -> datetime:
     return close_on(day, cfg=hours_cfg, tz=tz)
 
 
+def routine_due_at(run: RoutineRun | None, day: date, tz, hours_cfg=None):
+    if run is None:
+        return None
+    if getattr(run, 'routine', None):
+        return due_at_for(run.routine, day, tz=tz, cfg=hours_cfg)
+    due = run.due_at
+    if due is not None and timezone.is_naive(due):
+        due = timezone.make_aware(due, tz)
+    return due
+
+
+def routine_hard_at(run: RoutineRun | None, day: date, tz, hours_cfg=None):
+    if run is None or not getattr(run, 'routine', None):
+        return None
+    return hard_at_for(run.routine, day, tz=tz, cfg=hours_cfg)
+
+
+def job_urgency(status: str, *, hard, now) -> str | None:
+    if status == STATUS_DUE:
+        return 'due'
+    if status == STATUS_MISSED:
+        return 'missed'
+    if status == STATUS_OVERDUE:
+        if hard is not None and now >= hard:
+            return 'hard'
+        return 'overdue'
+    return None
+
+
 def routine_live_status(run: RoutineRun | None, *, day: date, now: datetime, tz, hours_cfg=None) -> str:
     if run is None:
         return STATUS_UNASSIGNED
@@ -191,15 +221,37 @@ def routine_live_status(run: RoutineRun | None, *, day: date, now: datetime, tz,
         return STATUS_DONE
     if run.assigned_to_id is None:
         return STATUS_UNASSIGNED
-    due = run.due_at
-    if due is not None and timezone.is_naive(due):
-        due = timezone.make_aware(due, tz)
+    due = routine_due_at(run, day, tz, hours_cfg)
     boundary = miss_boundary(run, day, tz, hours_cfg)
     if due is not None and now < due:
         return STATUS_DUE
     if now < boundary:
         return STATUS_OVERDUE
     return STATUS_MISSED
+
+
+def fire_hard_deadline_nudges(day: date, *, now: datetime, tz, hours_cfg=None) -> None:
+    """Write one auto nudge per open Open/Day/Close run that has passed hard_time."""
+    for key in PERFORMED:
+        run = RoutineRun.objects.filter(
+            routine__system_key=key, period_key=day.isoformat(),
+        ).select_related('routine', 'assigned_to').first()
+        if run is None or run.status == RoutineRun.STATUS_DONE:
+            continue
+        hard = routine_hard_at(run, day, tz, hours_cfg)
+        if hard is None or now < hard:
+            continue
+        if now >= miss_boundary(run, day, tz, hours_cfg):
+            continue
+        if QaNudge.objects.filter(run=run, source='auto').exists():
+            continue
+        title = performed_title(key, run)
+        QaNudge.objects.create(
+            run=run,
+            created_by=None,
+            source='auto',
+            message=f'{title} is past its hard deadline ({clock_hhmm(hard)}).',
+        )
 
 
 def latest_nudges(run_ids: list[int]) -> dict[int, QaNudge]:
@@ -511,6 +563,8 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
                 'owner': _person(section.owner),
                 'due_at': due_at,
                 'due_label': due_label,
+                'hard_label': '',
+                'urgency': job_urgency(STATUS_DONE if tallied else status, hard=None, now=now),
                 'completed_label': clock_hhmm(run.completed_at) if run and run.completed_at else '',
                 'status': STATUS_DONE if tallied else status,
                 'closed': section.pk in closed,
@@ -534,6 +588,8 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
             'owner': _person(run.assigned_to) if run.assigned_to_id else _person(section.owner),
             'due_at': due_at,
             'due_label': due_label,
+            'hard_label': '',
+            'urgency': job_urgency(status, hard=None, now=now),
             'completed_label': clock_hhmm(run.completed_at) if run.completed_at else '',
             'status': status,
             'closed': section.pk in closed,
@@ -555,11 +611,9 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
                 run.unassign_key = ''
                 run.save(update_fields=['assigned_to', 'unassign_key'])
         status = routine_live_status(run, day=day, now=now, tz=tz, hours_cfg=hours_cfg)
-        due_at = run.due_at if run else None
-        due_label = clock_hhmm(run.due_at) if run else ''
-        if run:
-            due_at = due_at_for(run.routine, day, tz=tz, cfg=hours_cfg)
-            due_label = f'Due {clock_hhmm(due_at)}'
+        due_at = routine_due_at(run, day, tz, hours_cfg) if run else None
+        hard_at = routine_hard_at(run, day, tz, hours_cfg) if run else None
+        due_label = f'Due {clock_hhmm(due_at)}' if due_at else ''
         if status == STATUS_DONE:
             due_label = f'Done {clock_hhmm(run.completed_at)}' if run and run.completed_at else 'Done'
         code = punch_code_for_routine(run.routine) if run else ''
@@ -598,6 +652,8 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
             'owner_state': owner_state,
             'due_at': due_at,
             'due_label': due_label,
+            'hard_label': clock_hhmm(hard_at) if hard_at else '',
+            'urgency': job_urgency(status, hard=hard_at, now=now),
             'completed_label': clock_hhmm(run.completed_at) if run and run.completed_at else '',
             'status': status,
             'closed': False,
@@ -843,8 +899,6 @@ def build_issues(
     hours_cfg,
     today: date,
 ) -> list[dict]:
-    if not open_day:
-        return []
     issues: list[dict] = []
 
     for row in staff:
@@ -890,14 +944,19 @@ def build_issues(
     for job in jobs:
         if job['status'] not in (STATUS_OVERDUE, STATUS_MISSED) or not job.get('run_id'):
             continue
-        due = job.get('due_label') or ''
-        if job['status'] == STATUS_OVERDUE:
-            sentence = f'{job["title"]} was due {due} and is not started.' if due else f'{job["title"]} is overdue.'
+        due_hhmm = clock_hhmm(job.get('due_at')) if job.get('due_at') else ''
+        hard_hhmm = job.get('hard_label') or ''
+        if job['status'] == STATUS_MISSED:
+            sentence = f'{job["title"]} was missed.'
+            severity = 'red'
+            issue_type = 'overdue_routine'
+        elif job.get('urgency') == 'hard':
+            sentence = f'{job["title"]} is past its hard deadline ({hard_hhmm}).' if hard_hhmm else f'{job["title"]} is past its hard deadline.'
             severity = 'red'
             issue_type = 'overdue_routine'
         else:
-            sentence = f'{job["title"]} was missed.'
-            severity = 'red'
+            sentence = f'{job["title"]} was due {due_hhmm} and is not started.' if due_hhmm else f'{job["title"]} is overdue.'
+            severity = 'amber'
             issue_type = 'overdue_routine'
         nudge = nudges.get(job['run_id'])
         issues.append({
@@ -997,6 +1056,7 @@ def today_payload(day: date, *, now: datetime | None = None) -> dict:
     due = cross_check_day_for(day, hours_cfg=hours_cfg)
     staff = build_staff(day, now=now, tz=tz, today=today)
     off = build_off(day, staff)
+    fire_hard_deadline_nudges(day, now=now, tz=tz, hours_cfg=hours_cfg)
     jobs = build_jobs(day, day_row, now=now, tz=tz, hours_cfg=hours_cfg)
     spot = spot_payload(day, day_row)
     cross = cross_payload(day, week, due=due)

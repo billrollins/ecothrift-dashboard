@@ -20,7 +20,7 @@ import { isoWeekKey, shiftWeek, weekMonday } from '../routines/gradeWeek';
 import { displayName, shortName } from './commandCenter';
 import { commandKeyAction } from './commandKeys';
 import { CALM_BOARD, CALM_DATE, CALM_PEOPLE, CALM_SPOTS, CALM_TILES, CALM_WEEK } from './calmFixture';
-import { CALLIN_BOARD, PROBLEM_BOARD, PROBLEM_DATE, PROBLEM_PEOPLE, PROBLEM_SPOTS, PROBLEM_TILES, PROBLEM_WEEK, SCROLL_BOARD } from './problemFixture';
+import { CALLIN_BOARD, HARD_BOARD, PROBLEM_BOARD, PROBLEM_DATE, PROBLEM_PEOPLE, PROBLEM_SPOTS, PROBLEM_TILES, PROBLEM_WEEK, SCROLL_BOARD } from './problemFixture';
 import { CommandHeader } from './CommandHeader';
 import { IssuesBar } from './IssuesBar';
 import { RoutinesCard } from './RoutinesCard';
@@ -36,7 +36,7 @@ export default function RetailQaPage() {
   const { enqueueSnackbar, closeSnackbar } = useSnackbar();
   const [params, setParams] = useSearchParams();
   const fixtureName = params.get('fixture');
-  const fixture = fixtureName === 'calm' || fixtureName === 'problem' || fixtureName === 'scroll' || fixtureName === 'callin';
+  const fixture = fixtureName === 'calm' || fixtureName === 'problem' || fixtureName === 'scroll' || fixtureName === 'callin' || fixtureName === 'hard';
   const today = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
   const asked = params.get('day');
   const date = fixture
@@ -62,11 +62,13 @@ export default function RetailQaPage() {
     ? SCROLL_BOARD
     : fixtureName === 'callin' || (fixtureName === 'problem' && callInOverlay)
       ? CALLIN_BOARD
-      : fixtureName === 'problem'
-        ? PROBLEM_BOARD
-        : fixtureName === 'calm'
-          ? CALM_BOARD
-          : todayQuery.data;
+      : fixtureName === 'hard'
+        ? HARD_BOARD
+        : fixtureName === 'problem'
+          ? PROBLEM_BOARD
+          : fixtureName === 'calm'
+            ? CALM_BOARD
+            : todayQuery.data;
 
   const [weekOpen, setWeekOpen] = useState(false);
   const [scoreOpen, setScoreOpen] = useState(false);
@@ -184,9 +186,7 @@ export default function RetailQaPage() {
     row.run_id && nudgeStamp[row.run_id] ? { ...row, nudged_at: nudgeStamp[row.run_id] } : row
   ));
   const staff = board?.staff ?? [];
-  const closedLabel = board && board.open === false
-    ? (board.closed_label || `Store closed ${format(parseISO(date), 'EEE MMM d')}`)
-    : '';
+  const closedLabel = null;
 
   return (
     <div className="cc-page">

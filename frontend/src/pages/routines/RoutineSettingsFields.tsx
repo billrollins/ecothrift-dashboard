@@ -30,6 +30,10 @@ const AUDIENCE_TYPE_LABELS: Record<RoutineAudienceType, string> = {
   department: 'Department',
 };
 
+function isOpenDayClose(key: string | null | undefined) {
+  return key === 'retail.open' || key === 'retail.day' || key === 'retail.close';
+}
+
 /**
  * Everything about a routine except its checklist, in the shape the form
  * holds it. The Catalog editor and Admin's quick edit both fill these fields.
@@ -40,8 +44,10 @@ export interface RoutineSettings {
   trigger: string;
   /** HH:mm. Soft nag; blank starts at the top of the day. */
   remindTime: string;
-  /** HH:mm. Hard nag; blank means the nag waits for clock-out. */
+  /** HH:mm. When the run becomes overdue. */
   dueTime: string;
+  /** HH:mm. Hard deadline for Open / Day / Close. */
+  hardTime: string;
   /** Blank `dueTime` is a deliberate choice, so the form holds it separately. */
   dueAtClockOut: boolean;
   lateAfter: RoutineLateAfter;
@@ -62,6 +68,7 @@ export interface RoutineSettings {
   isBlocking: boolean;
   shiftLocked: boolean;
   shiftName: string;
+  systemKey: string;
 }
 
 export function defaultRoutineSettings(today: Date): RoutineSettings {
@@ -71,6 +78,7 @@ export function defaultRoutineSettings(today: Date): RoutineSettings {
     trigger: 'daily',
     remindTime: '',
     dueTime: '17:00',
+    hardTime: '',
     dueAtClockOut: false,
     lateAfter: 'end_of_day',
     nextDue: format(today, 'yyyy-MM-dd'),
@@ -88,6 +96,7 @@ export function defaultRoutineSettings(today: Date): RoutineSettings {
     isBlocking: false,
     shiftLocked: false,
     shiftName: '',
+    systemKey: '',
   };
 }
 
@@ -98,7 +107,13 @@ export function settingsFromRoutine(routine: Routine, today: Date): RoutineSetti
     trigger: routine.trigger,
     remindTime: (routine.remind_time || '').slice(0, 5),
     dueTime: (routine.due_time || (routine.system_key === 'retail.day' ? '14:00:00' : '17:00:00')).slice(0, 5),
-    dueAtClockOut: routine.due_time == null && routine.system_key !== 'retail.day',
+    hardTime: (routine.hard_time || (
+      routine.system_key === 'retail.open' ? '10:00:00'
+        : routine.system_key === 'retail.day' ? '15:00:00'
+          : routine.system_key === 'retail.close' ? '19:00:00'
+            : ''
+    )).slice(0, 5),
+    dueAtClockOut: routine.due_time == null && routine.system_key !== 'retail.day' && !isOpenDayClose(routine.system_key),
     lateAfter: routine.late_after,
     nextDue: nextBiweeklyDate(routine.anchor_date, today),
     graceDays: String(routine.grace_days),
@@ -117,6 +132,7 @@ export function settingsFromRoutine(routine: Routine, today: Date): RoutineSetti
     isBlocking: routine.is_blocking,
     shiftLocked: Boolean(routine.shift_locked),
     shiftName: routine.shift_name || '',
+    systemKey: routine.system_key || '',
   };
 }
 
@@ -130,6 +146,7 @@ export function settingsToPayload(
     intro: settings.intro,
     remind_time: settings.remindTime ? `${settings.remindTime}:00` : null,
     due_time: settings.dueAtClockOut ? null : `${settings.dueTime}:00`,
+    hard_time: settings.hardTime ? `${settings.hardTime}:00` : null,
     late_after: settings.lateAfter,
     anchor_date: settings.trigger === 'biweekly' ? settings.nextDue : null,
     grace_days: Number(settings.graceDays) || 0,
@@ -181,6 +198,7 @@ export function RoutineSettingsFields({
 }) {
   const today = new Date();
   const biweekly = value.trigger === 'biweekly';
+  const odc = isOpenDayClose(value.systemKey);
   return (
     <>
       <FormSection
@@ -255,27 +273,43 @@ export function RoutineSettingsFields({
             sx={fieldSx}
           />
           <TextField
-            label="Hard nag at"
+            label={odc ? 'Due at' : 'Hard nag at'}
             type="time"
             value={value.dueTime}
             onChange={(e) => onChange({ dueTime: e.target.value })}
             size="small"
             fullWidth
-            disabled={value.dueAtClockOut}
+            disabled={!odc && value.dueAtClockOut}
             InputLabelProps={{ shrink: true }}
-            helperText={value.dueAtClockOut
-              ? 'The time clock asks for it on the way out.'
-              : 'The app-bar alert. Nothing else interrupts anyone.'}
+            helperText={odc
+              ? 'Amber overdue starts here.'
+              : value.dueAtClockOut
+                ? 'The time clock asks for it on the way out.'
+                : 'The app-bar alert. Nothing else interrupts anyone.'}
             sx={fieldSx}
           />
-          <Box sx={{ gridColumn: '1 / -1' }}>
-            <Toggle
-              label="Nag at clock-out instead"
-              hint="For work that has all day: the alert waits until someone tries to leave."
-              checked={value.dueAtClockOut}
-              onChange={(dueAtClockOut) => onChange({ dueAtClockOut })}
+          {odc ? (
+            <TextField
+              label="Hard deadline"
+              type="time"
+              value={value.hardTime}
+              onChange={(e) => onChange({ hardTime: e.target.value })}
+              size="small"
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+              helperText="Red stripe, red chip, and an automatic nudge."
+              sx={fieldSx}
             />
-          </Box>
+          ) : (
+            <Box sx={{ gridColumn: '1 / -1' }}>
+              <Toggle
+                label="Nag at clock-out instead"
+                hint="For work that has all day: the alert waits until someone tries to leave."
+                checked={value.dueAtClockOut}
+                onChange={(dueAtClockOut) => onChange({ dueAtClockOut })}
+              />
+            </Box>
+          )}
           <TextField
             select
             label="Counts as late"

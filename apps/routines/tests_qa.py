@@ -272,6 +272,23 @@ class ShiftRosterTests(APITestCase):
         self.assertTrue(any(row['id'] == self.sam.pk for row in sat.data['staff']))
         self.assertFalse(any(row['id'] == self.sam.pk for row in tue.data['staff']))
 
+    def test_empty_days_keep_the_person_assigned(self):
+        assignment = ShiftAssignment.objects.create(
+            employee=self.sam, shift=self.shift, weekdays=[],
+        )
+        self.assertEqual(assignment.weekday_list(), [])
+        self.assertFalse(assignment.runs_on(date(2026, 9, 1)))
+        self.assertFalse(assignment.runs_on(date(2026, 9, 5)))
+        self.client.force_authenticate(self.mgr)
+        patched = self.client.patch(
+            f'/api/hr/shift-assignments/{assignment.pk}/',
+            {'weekdays': []},
+            format='json',
+        )
+        self.assertEqual(patched.status_code, 200, patched.data)
+        self.assertEqual(patched.data['weekdays'], [])
+        self.assertEqual(ShiftAssignment.objects.filter(pk=assignment.pk).count(), 1)
+
 
 class FlagSpeedTests(TestCase):
     def setUp(self):
@@ -325,7 +342,9 @@ class CommandCenterTests(APITestCase):
             time_out=time(15, 0),
             weekdays=[1, 2, 3, 4, 5],
         )
-        ShiftAssignment.objects.create(employee=self.sam, shift=self.shift)
+        ShiftAssignment.objects.create(
+            employee=self.sam, shift=self.shift, weekdays=[1, 2, 3, 4, 5],
+        )
         self.open, _ = Routine.objects.update_or_create(
             system_key=SYSTEM_OPEN,
             defaults={
@@ -334,8 +353,12 @@ class CommandCenterTests(APITestCase):
                 'trigger': Routine.TRIGGER_DAILY,
                 'is_active': True,
                 'due_time': time(9, 0),
+                'hard_time': time(10, 0),
             },
         )
+        self.open.due_time = time(9, 0)
+        self.open.hard_time = time(10, 0)
+        self.open.save(update_fields=['due_time', 'hard_time'])
         self.tally, _ = Routine.objects.update_or_create(
             system_key=SYSTEM_TALLY,
             defaults={
@@ -491,6 +514,36 @@ class CommandCenterTests(APITestCase):
         self.assertEqual(row['status'], 'In')
         self.assertTrue(QaCallIn.objects.filter(employee=self.sam, date=day).exists())
 
+    def test_open_at_hard_time_is_red_with_auto_nudge(self):
+        from apps.routines.command_center import today_payload
+        from apps.routines.models import QaNudge
+        day = date(2026, 9, 16)
+        self._open_run(day)
+        now = timezone.make_aware(datetime.combine(day, time(10, 15)), TZ)
+        payload = today_payload(day, now=now)
+        job = next(row for row in payload['jobs'] if row['key'] == SYSTEM_OPEN)
+        self.assertEqual(job['status'], 'Overdue')
+        self.assertEqual(job['urgency'], 'hard')
+        self.assertEqual(job['hard_label'], '10:00')
+        self.assertTrue(QaNudge.objects.filter(run_id=job['run_id'], source='auto').exists())
+        self.assertTrue(job.get('nudged_at'))
+        self.assertTrue(any(row.get('at_label') for row in payload['nudges']))
+        issue = next(row for row in payload['issues'] if row.get('run_id') == job['run_id'])
+        self.assertEqual(issue['severity'], 'red')
+        self.assertEqual(issue['sentence'], 'Retail open is past its hard deadline (10:00).')
+
+    def test_open_between_due_and_hard_is_amber(self):
+        from apps.routines.command_center import today_payload
+        day = date(2026, 9, 16)
+        self._open_run(day)
+        now = timezone.make_aware(datetime.combine(day, time(9, 30)), TZ)
+        payload = today_payload(day, now=now)
+        job = next(row for row in payload['jobs'] if row['key'] == SYSTEM_OPEN)
+        self.assertEqual(job['urgency'], 'overdue')
+        issue = next(row for row in payload['issues'] if row.get('run_id') == job['run_id'])
+        self.assertEqual(issue['severity'], 'amber')
+        self.assertEqual(issue['sentence'], 'Retail open was due 09:00 and is not started.')
+
     def test_today_alerts_match_red_and_amber_issues(self):
         from apps.routines.command_center import today_payload
         day = date(2026, 9, 16)
@@ -606,13 +659,17 @@ class CommandCenterTests(APITestCase):
         self.assertNotEqual(open_job['status'], 'Unassigned')
         self.assertEqual(run.pk, open_job['run_id'])
 
-    def test_retail_open_due_follows_store_open(self):
+    def test_retail_open_due_uses_routine_time_not_store_hours(self):
         from apps.routines.schedule import due_at_for
+        self.open.due_time = time(10, 0)
         due = due_at_for(
             self.open, date(2026, 9, 16), tz=TZ,
             cfg={'open': '08:30', 'close': '18:00', 'closed_weekdays': [0, 6]},
         )
-        self.assertEqual(timezone.localtime(due).time(), time(8, 30))
+        self.assertEqual(timezone.localtime(due).time(), time(10, 0))
+        self.open.due_time = None
+        due = due_at_for(self.open, date(2026, 9, 16), tz=TZ)
+        self.assertEqual(timezone.localtime(due).time(), time(9, 0))
 
     def test_retail_day_defaults_to_fourteen_when_no_due_time(self):
         from apps.routines.schedule import due_at_for

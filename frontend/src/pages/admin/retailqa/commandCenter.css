@@ -145,6 +145,7 @@
 .cc-page .chip.done{background:transparent;color:var(--good-text)}
 .cc-page .chip.due{background:var(--neu-tint);color:var(--ink2);font-weight:500}
 .cc-page .chip.over{background:var(--warn);color:#fff}
+.cc-page .chip.hard{background:var(--bad);color:#fff}
 .cc-page .chip.miss{background:var(--bad);color:#fff}
 .cc-page .chip.unas{background:var(--bad);color:#fff}
 

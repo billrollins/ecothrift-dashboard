@@ -1,4 +1,4 @@
-"""Materialize routine runs. Honour store hours (closed Sunday and Monday)."""
+"""Materialize routine runs. Store hours do not decide whether a routine runs."""
 from __future__ import annotations
 
 import calendar
@@ -11,7 +11,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from apps.webstore.services.hours import _local_now, is_open_day
+from apps.webstore.services.hours import _local_now
 
 from .models import QaCallIn, Routine, RoutineRun, RoutineSubmission, Section
 from .settings import LATE_RED_MINUTES, retail_qa_settings
@@ -55,7 +55,7 @@ def period_key_for(routine: Routine, day: date) -> str:
 
 
 def cross_check_day_for(day: date, *, hours_cfg: dict | None = None, qa_cfg: dict | None = None) -> date | None:
-    """First open day on or after this week's configured cross-check weekday."""
+    """This week's configured cross-check weekday."""
     from .settings import retail_qa_settings
 
     qa_cfg = qa_cfg or retail_qa_settings()
@@ -65,18 +65,11 @@ def cross_check_day_for(day: date, *, hours_cfg: dict | None = None, qa_cfg: dic
     except (TypeError, ValueError):
         weekday = 1
     weekday = min(max(weekday, 0), 6)
-    candidate = monday + timedelta(days=weekday)
-    for _ in range(7):
-        if is_open_day(candidate, cfg=hours_cfg):
-            return candidate
-        candidate += timedelta(days=1)
-    return None
+    return monday + timedelta(days=weekday)
 
 
 def should_run_on(routine: Routine, day: date, *, cfg: dict | None = None) -> bool:
     if routine.trigger == Routine.TRIGGER_ON_DEMAND:
-        return False
-    if not is_open_day(day, cfg=cfg):
         return False
     if routine.system_key == SYSTEM_CROSS_CHECK:
         return day == cross_check_day_for(day, hours_cfg=cfg)
@@ -102,50 +95,47 @@ def should_run_on(routine: Routine, day: date, *, cfg: dict | None = None) -> bo
     return True
 
 
-def _last_open_day_on_or_before(last: date, floor: date, *, cfg: dict | None = None) -> date:
-    day = last
-    for _ in range(21):
-        if day <= floor:
-            return floor
-        if is_open_day(day, cfg=cfg):
-            return day
-        day = day - timedelta(days=1)
-    return floor
-
-
 def period_end_day(routine: Routine, day: date, *, cfg: dict | None = None) -> date:
     trigger = routine.trigger
     if trigger == Routine.TRIGGER_DAILY:
         return day
     if trigger == Routine.TRIGGER_BIWEEKLY:
-        start = biweekly_period_start(routine.anchor_date, day)
-        last = start or day
-        return _last_open_day_on_or_before(last, last - timedelta(days=6), cfg=cfg)
+        return biweekly_period_start(routine.anchor_date, day) or day
     if trigger == Routine.TRIGGER_WEEKLY:
-        last = day + timedelta(days=6 - day.weekday())
-    elif trigger == Routine.TRIGGER_MONTHLY:
-        last = date(day.year, day.month, calendar.monthrange(day.year, day.month)[1])
-    elif trigger == Routine.TRIGGER_QUARTERLY:
+        return day + timedelta(days=6 - day.weekday())
+    if trigger == Routine.TRIGGER_MONTHLY:
+        return date(day.year, day.month, calendar.monthrange(day.year, day.month)[1])
+    if trigger == Routine.TRIGGER_QUARTERLY:
         end_month = ((day.month - 1) // 3 + 1) * 3
-        last = date(day.year, end_month, calendar.monthrange(day.year, end_month)[1])
-    else:
-        last = date(day.year, 12, 31)
-    return _last_open_day_on_or_before(last, day, cfg=cfg)
+        return date(day.year, end_month, calendar.monthrange(day.year, end_month)[1])
+    return date(day.year, 12, 31)
 
 
 DAY_DEFAULT = time(14, 0)
+HARD_DEFAULTS = {
+    SYSTEM_OPEN: time(10, 0),
+    SYSTEM_DAY: time(15, 0),
+    SYSTEM_CLOSE: time(19, 0),
+}
 
 
 def due_at_for(routine: Routine, day: date, *, tz: ZoneInfo, cfg: dict | None = None) -> datetime:
-    """The run's anchor instant. Open follows store hours. Day defaults to 14:00."""
+    """The run's due instant. Day defaults to 14:00. Open defaults to 09:00."""
     if routine.system_key == SYSTEM_OPEN:
-        from apps.webstore.services.hours import _parse_hhmm, effective_day, get_hours_config
-        hours = effective_day(day, cfg=cfg or get_hours_config())
-        clock = _parse_hhmm(hours.open_hhmm) or time(8, 30)
+        clock = routine.due_time or time(9, 0)
     elif routine.system_key == SYSTEM_DAY:
         clock = routine.due_time or DAY_DEFAULT
     else:
         clock = routine.due_time or END_OF_DAY
+    naive = datetime.combine(period_end_day(routine, day, cfg=cfg), clock)
+    return timezone.make_aware(naive, tz)
+
+
+def hard_at_for(routine: Routine, day: date, *, tz: ZoneInfo, cfg: dict | None = None) -> datetime | None:
+    """Hard deadline. None when the routine has no hard clock."""
+    clock = getattr(routine, 'hard_time', None) or HARD_DEFAULTS.get(routine.system_key)
+    if clock is None:
+        return None
     naive = datetime.combine(period_end_day(routine, day, cfg=cfg), clock)
     return timezone.make_aware(naive, tz)
 
@@ -172,7 +162,12 @@ def run_moments(run: RoutineRun) -> dict:
         return timezone.make_aware(datetime.combine(on or day, clock), tz)
 
     remind_at = at(routine.remind_time) if routine.remind_time else at(time(0, 0))
-    nag_at = run.due_at if routine.due_time else None
+    if getattr(routine, 'hard_time', None):
+        nag_at = at(routine.hard_time)
+    elif routine.due_time:
+        nag_at = run.due_at
+    else:
+        nag_at = None
     if routine.late_after == Routine.LATE_DUE:
         late_at = nag_at or at(END_OF_DAY)
     elif routine.late_after == Routine.LATE_GRACE:
@@ -217,11 +212,9 @@ def miss_at(run: RoutineRun):
     count = max(int(routine.expire_count or 1), 1)
     unit = routine.expire_unit or Routine.EXPIRE_UNIT_HOURS
     if unit == Routine.EXPIRE_UNIT_HOURS:
-        start_clock = routine.expire_from_time or time(0, 0)
-        if routine.system_key == SYSTEM_OPEN:
-            from apps.webstore.services.hours import _parse_hhmm, effective_day, get_hours_config
-            hours = effective_day(day, cfg=get_hours_config())
-            start_clock = _parse_hhmm(hours.open_hhmm) or start_clock
+        start_clock = routine.expire_from_time or (
+            time(9, 0) if routine.system_key == SYSTEM_OPEN else time(0, 0)
+        )
         start = timezone.make_aware(datetime.combine(day, start_clock), tz)
         return start + timedelta(hours=count)
     if unit == Routine.EXPIRE_UNIT_DAYS:

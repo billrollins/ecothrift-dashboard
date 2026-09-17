@@ -22,7 +22,7 @@ export function RoutinesCard({
   onWeekView: () => void;
   closedLabel?: string | null;
 }) {
-  const done = jobs.filter((job) => jobChip(job.status, job.owner) === 'done').length;
+  const done = jobs.filter((job) => jobChip(job.status, job.owner, job.urgency) === 'done').length;
   const needed = jobs.length;
   const sections = jobs.filter((job) => job.group === 'section');
   const shifts = jobs.filter((job) => job.group === 'shift');
@@ -66,11 +66,11 @@ function RoutineGroup({
   onAssign: (runId: number, userId: number | '') => void;
   onNudge: (runId: number, el: HTMLElement) => void;
 }) {
-  const allDone = jobs.length > 0 && jobs.every((job) => jobChip(job.status, job.owner) === 'done');
+  const allDone = jobs.length > 0 && jobs.every((job) => jobChip(job.status, job.owner, job.urgency) === 'done');
   const [open, setOpen] = useState(!allDone);
   const [reassignId, setReassignId] = useState<number | null>(null);
   if (!jobs.length) return null;
-  const done = jobs.filter((job) => jobChip(job.status, job.owner) === 'done').length;
+  const done = jobs.filter((job) => jobChip(job.status, job.owner, job.urgency) === 'done').length;
   if (allDone && !open) {
     return (
       <>
@@ -102,11 +102,12 @@ function RoutineGroup({
       </div>
       <div className="rows">
         {jobs.map((job, index) => {
-          const chip = jobChip(job.status, job.owner);
+          const chip = jobChip(job.status, job.owner, job.urgency);
           const unassigned = chip === 'unas' && !job.owner;
           const pool = job.shift_people?.length ? job.shift_people : people;
+          const stripe = chip === 'hard' || chip === 'miss' || chip === 'unas' ? ' s-bad' : chip === 'over' ? ' s-warn' : '';
           return (
-            <div className={`row${chip === 'over' || chip === 'miss' || chip === 'unas' ? ' s-warn' : ''}`} key={`${job.key}-${job.run_id ?? job.section_id ?? index}`}>
+            <div className={`row${stripe}`} key={`${job.key}-${job.run_id ?? job.section_id ?? index}`}>
               <span className="name nowrap">{displayName(job.title, 'routine')}</span>
               <span
                 className={`owner nowrap${job.owner_state === 'scheduled' ? ' scheduled' : ''}`}

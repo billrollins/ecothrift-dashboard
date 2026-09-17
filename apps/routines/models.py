@@ -166,7 +166,12 @@ class Routine(models.Model):
     due_time = models.TimeField(
         null=True,
         blank=True,
-        help_text='Hard nag: the app-bar alert. Blank means the nag waits for clock-out.',
+        help_text='When the run becomes overdue (amber). Blank means the nag waits for clock-out.',
+    )
+    hard_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text='Hard deadline: red stripe, red chip, and an automatic nudge.',
     )
     late_after = models.CharField(max_length=20, choices=LATE_CHOICES, default=LATE_END_OF_DAY)
     grace_days = models.PositiveSmallIntegerField(default=0)
@@ -186,6 +191,14 @@ class Routine(models.Model):
     )
     audience_all = models.BooleanField(default=False)
     assigned_shifts = models.JSONField(default=list, blank=True)
+    shift = models.ForeignKey(
+        'hr.Shift',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='routines',
+    )
+    shift_locked = models.BooleanField(default=False)
     assigned_department_ids = models.JSONField(default=list, blank=True)
     assigned_role = models.CharField(max_length=40, blank=True, default='')
     assigned_department = models.ForeignKey(
@@ -269,6 +282,12 @@ class RoutineRun(models.Model):
         related_name='routine_runs_completed',
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    unassign_key = models.CharField(
+        max_length=32,
+        blank=True,
+        default='',
+        help_text='Keeps more than one unassigned per-person run unique for a day.',
+    )
 
     class Meta:
         ordering = ['due_at', 'id']
@@ -279,7 +298,7 @@ class RoutineRun(models.Model):
                 name='routines_run_period_user',
             ),
             models.UniqueConstraint(
-                fields=['routine', 'period_key'],
+                fields=['routine', 'period_key', 'unassign_key'],
                 condition=Q(assigned_to__isnull=True),
                 name='routines_run_period_pooled',
             ),
@@ -381,3 +400,289 @@ class WorkCyclePrompt(models.Model):
     def __str__(self):
         who = self.user_id or 'unknown'
         return f'{self.outcome} by {who} at {self.shown_at}'
+
+
+class SectionObservation(models.Model):
+    """One section walk folded into a row the baseline and flags can query."""
+
+    KIND_TALLY = 'tally'
+    KIND_AUDIT = 'audit'
+    KIND_SPOT = 'spot'
+    KIND_WALK = 'walk'
+    KIND_CHOICES = [
+        (KIND_TALLY, 'Section tally'),
+        (KIND_AUDIT, 'Cross-check'),
+        (KIND_SPOT, 'Owner spot'),
+        (KIND_WALK, 'Work-cycle walk'),
+    ]
+
+    section = models.ForeignKey(Section, on_delete=models.CASCADE, related_name='observations')
+    observed_at = models.DateTimeField()
+    kind = models.CharField(max_length=12, choices=KIND_CHOICES)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='section_observations',
+    )
+    run = models.ForeignKey(
+        RoutineRun, on_delete=models.SET_NULL, null=True, blank=True, related_name='observations',
+    )
+    submission = models.ForeignKey(
+        RoutineSubmission, on_delete=models.SET_NULL, null=True, blank=True, related_name='observations',
+    )
+    items_inspected = models.PositiveIntegerField(default=0)
+    count_facing = models.PositiveIntegerField(default=0)
+    count_reshelf = models.PositiveIntegerField(default=0)
+    count_reprep = models.PositiveIntegerField(default=0)
+    count_security = models.PositiveIntegerField(default=0)
+    total = models.PositiveIntegerField(default=0)
+    safety = models.BooleanField(default=False)
+    hours_since_tally = models.FloatField(null=True, blank=True)
+    tally_run = models.ForeignKey(
+        RoutineRun,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='spot_observations',
+    )
+    in_baseline = models.BooleanField(default=True)
+    excluded_reason = models.CharField(max_length=80, blank=True, default='')
+
+    class Meta:
+        ordering = ['-observed_at']
+        indexes = [
+            models.Index(fields=['section', 'kind', 'observed_at']),
+            models.Index(fields=['actor', 'kind', 'observed_at']),
+            models.Index(fields=['in_baseline', 'kind']),
+        ]
+
+    def __str__(self):
+        return f'{self.kind} {self.section_id} @ {self.observed_at}'
+
+
+class CheckerFlag(models.Model):
+    KIND_LOW_FINDINGS = 'low_findings'
+    KIND_OWNER_FOLLOWUP = 'owner_followup'
+    KIND_SPEED = 'speed'
+    KIND_BATCH = 'batch'
+    KIND_PAIRING = 'pairing'
+    KIND_RUBBER_STAMP = 'rubber_stamp'
+    KIND_CHOICES = [
+        (KIND_LOW_FINDINGS, 'Low trailing findings'),
+        (KIND_OWNER_FOLLOWUP, 'Owner follow-up'),
+        (KIND_SPEED, 'Too fast'),
+        (KIND_BATCH, 'Batch submit'),
+        (KIND_PAIRING, 'Pairing'),
+        (KIND_RUBBER_STAMP, 'Rubber-stamp verify'),
+    ]
+
+    STATUS_OPEN = 'open'
+    STATUS_ACKNOWLEDGED = 'acknowledged'
+    STATUS_CLEARED = 'cleared'
+    STATUS_ESCALATED = 'escalated'
+    STATUS_CHOICES = [
+        (STATUS_OPEN, 'Open'),
+        (STATUS_ACKNOWLEDGED, 'Acknowledged'),
+        (STATUS_CLEARED, 'Cleared'),
+        (STATUS_ESCALATED, 'Escalated'),
+    ]
+    ACTIVE_STATUSES = (STATUS_OPEN, STATUS_ACKNOWLEDGED, STATUS_ESCALATED)
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='checker_flags',
+    )
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES)
+    raised_at = models.DateTimeField()
+    window_start = models.DateField()
+    window_end = models.DateField()
+    evidence = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_OPEN)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='checker_flags_reviewed',
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    note = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['-raised_at']
+        indexes = [
+            models.Index(fields=['user', 'status', 'kind']),
+        ]
+
+    def __str__(self):
+        return f'{self.kind} {self.user_id} {self.status}'
+
+
+class SectionAssignmentEvent(models.Model):
+    KIND_OWNER = 'owner'
+    KIND_CROSS_CHECKER = 'cross_checker'
+    KIND_CLOSED_FOR_DAY = 'closed_for_day'
+    KIND_REOPENED = 'reopened'
+    KIND_CHOICES = [
+        (KIND_OWNER, 'Section owner'),
+        (KIND_CROSS_CHECKER, 'Cross-checker'),
+        (KIND_CLOSED_FOR_DAY, 'Closed for the day'),
+        (KIND_REOPENED, 'Reopened'),
+    ]
+
+    section = models.ForeignKey(Section, on_delete=models.CASCADE, related_name='assignment_events')
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='section_assignment_events',
+    )
+    for_date = models.DateField()
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='section_assignments_made',
+    )
+    at = models.DateTimeField(auto_now_add=True)
+    previous_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+
+    class Meta:
+        ordering = ['-at']
+        indexes = [
+            models.Index(fields=['section', 'for_date', 'kind']),
+        ]
+
+    def __str__(self):
+        return f'{self.kind} {self.section_id} {self.for_date}'
+
+
+class SectionBaselineSnapshot(models.Model):
+    """The baseline a past week was scored under, so an old letter can be explained."""
+
+    section = models.ForeignKey(Section, on_delete=models.CASCADE, related_name='baseline_snapshots')
+    week_monday = models.DateField()
+    n = models.PositiveIntegerField(default=0)
+    mean = models.FloatField(default=0)
+    var = models.FloatField(default=0)
+    warm = models.BooleanField(default=True)
+    store_mean = models.FloatField(default=0)
+    store_var = models.FloatField(default=0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['section', 'week_monday'], name='routines_baseline_section_week',
+            ),
+        ]
+        ordering = ['-week_monday']
+
+    def __str__(self):
+        return f'{self.section_id} {self.week_monday}'
+
+
+class WeekScoreSnapshot(models.Model):
+    """Frozen week score plus the settings that produced it."""
+
+    week_monday = models.DateField(unique=True)
+    score = models.FloatField(null=True, blank=True)
+    letter = models.CharField(max_length=1, blank=True, default='')
+    doing = models.FloatField(null=True, blank=True)
+    cross = models.FloatField(null=True, blank=True)
+    owner = models.FloatField(null=True, blank=True)
+    settings = models.JSONField(default=dict, blank=True)
+    payload = models.JSONField(default=dict, blank=True)
+    finalized_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-week_monday']
+
+    def __str__(self):
+        return f'{self.week_monday} {self.letter}'
+
+
+class QaCallIn(models.Model):
+    """QA-only absence flag. A later punch shows In; assignments stay cleared."""
+
+    employee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='qa_call_ins',
+    )
+    date = models.DateField()
+    shift = models.ForeignKey(
+        'hr.Shift',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='qa_call_ins',
+    )
+    marked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='qa_call_ins_marked',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    cleared = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Runs this action unassigned, so a 10s undo can put them back.',
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['employee', 'date'], name='routines_qa_callin_person_day'),
+        ]
+
+    def __str__(self):
+        return f'{self.employee_id} {self.date}'
+
+
+class QaNudge(models.Model):
+    """Copy-only nudge log so the issues bar can say who was nudged, and when."""
+
+    run = models.ForeignKey(RoutineRun, on_delete=models.CASCADE, related_name='nudges')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='qa_nudges',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    message = models.TextField(blank=True, default='')
+    source = models.CharField(max_length=16, default='manual')
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.run_id} {self.created_at}'
+
+
+class QaDayExpected(models.Model):
+    """Frozen Do denominator for a day. Call-ins must not shrink it later."""
+
+    date = models.DateField(unique=True)
+    expected = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date']
+
+    def __str__(self):
+        return f'{self.date} expected {self.expected}'
