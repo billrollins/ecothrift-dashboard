@@ -1,5 +1,5 @@
 import type { QaIssue, QaJob, QaStaffRow } from '../../../api/routines.api';
-import { groupIssues } from './commandCenter';
+import { groupIssues, nudgeLabel } from './commandCenter';
 import { QaIcon } from './QaIcons';
 
 export function IssuesBar({
@@ -38,12 +38,12 @@ export function IssuesBar({
             return (
               <div className={`row${tone ? ` s-${tone}` : ''}`} key={row.id}>
                 <span className="ic"><QaIcon name={row.icon} /></span>
-                <span className="nowrap">{row.sentence}</span>
+                <span>
+                  <span className="nowrap">{row.sentence}</span>
+                  {nudgeLabel(row.nudged_at) ? <span className="nudged">{nudgeLabel(row.nudged_at)}</span> : null}
+                </span>
                 {row.action === 'nudge' && row.run_id ? (
-                  <span className="end">
-                    {row.nudged_at ? <span className="nudged">Nudged {row.nudged_at}</span> : null}
-                    <button type="button" className={`act always ${tone || 'warn'}`} onClick={(event) => onNudge(row.run_id as number, event.currentTarget)}>Nudge</button>
-                  </span>
+                  <button type="button" className={`act always ${tone || 'warn'}`} title={nudgeLabel(row.nudged_at) || undefined} onClick={(event) => onNudge(row.run_id as number, event.currentTarget)}>Nudge</button>
                 ) : null}
                 {row.action === 'call_in' && row.person_id ? (
                   <button type="button" className={`act always ${tone || 'warn'}`} onClick={() => onCallIn(row.person_id as number)}>Called in</button>

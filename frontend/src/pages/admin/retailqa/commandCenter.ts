@@ -252,7 +252,14 @@ export type BoardIssue = {
   run_id: number | null;
   can_act: boolean;
   icon: 'person' | 'clip' | 'walk' | 'alert';
+  nudged_at: string | null;
 };
+
+export function nudgeLabel(stamp: string | null | undefined) {
+  if (!stamp) return '';
+  if (/^(Nudged|Heard|Not seen)\b/i.test(stamp)) return stamp;
+  return `Nudged ${stamp}`;
+}
 
 export function formatLateMinutes(mins: number) {
   const safe = Math.max(0, Math.round(mins));
@@ -290,6 +297,7 @@ export function groupIssues(issues: QaIssue[], staff: QaStaffRow[], jobs: QaJob[
       run_id: null,
       can_act: false,
       icon: 'person',
+      nudged_at: null,
     });
   } else if (notIn.length === 1) {
     const row = notIn[0];
@@ -303,6 +311,7 @@ export function groupIssues(issues: QaIssue[], staff: QaStaffRow[], jobs: QaJob[
       run_id: issue?.run_id ?? null,
       can_act: issue?.can_act ?? true,
       icon: 'person',
+      nudged_at: issue?.nudged_at ?? null,
     });
   }
 
@@ -316,6 +325,7 @@ export function groupIssues(issues: QaIssue[], staff: QaStaffRow[], jobs: QaJob[
       run_id: issue.run_id,
       can_act: issue.can_act,
       icon: issueIcon(issue.type),
+      nudged_at: issue.nudged_at ?? null,
     });
   }
   return out;

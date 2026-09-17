@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CALM_ISSUES, CALM_JOBS, CALM_STAFF } from './calmFixture';
-import { displayName, formatShiftRange, groupIssues, jobTimeLabel, peopleDots, scheduleSummary, shortName, tileClass, tileNote } from './commandCenter';
+import { displayName, formatShiftRange, groupIssues, jobTimeLabel, nudgeLabel, peopleDots, scheduleSummary, shortName, tileClass, tileNote } from './commandCenter';
 
 describe('displayName', () => {
   it('maps routine keys, punch codes, and department keys', () => {
@@ -74,6 +74,20 @@ describe('groupIssues', () => {
     ));
     const rows = groupIssues([], staff, []);
     expect(rows[0].sentence).toBe('Michael F. is 1 h 40 min late for Restoration.');
+  });
+
+  it('keeps nudged_at on routine issues', () => {
+    const rows = groupIssues(CALM_ISSUES, CALM_STAFF, CALM_JOBS);
+    expect(rows[0].nudged_at).toBe(CALM_ISSUES[0].nudged_at);
+  });
+});
+
+describe('nudgeLabel', () => {
+  it('prefixes a clock and leaves Heard / Not seen alone', () => {
+    expect(nudgeLabel('08:55')).toBe('Nudged 08:55');
+    expect(nudgeLabel('Heard 09:02')).toBe('Heard 09:02');
+    expect(nudgeLabel('Not seen')).toBe('Not seen');
+    expect(nudgeLabel(null)).toBe('');
   });
 });
 

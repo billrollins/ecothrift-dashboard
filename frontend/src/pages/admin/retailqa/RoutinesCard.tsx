@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import type { QaJob, RoutineAssignee } from '../../../api/routines.api';
-import { barTone, displayName, jobChip, jobTimeLabel, shortName } from './commandCenter';
+import { barTone, displayName, jobChip, jobTimeLabel, nudgeLabel, shortName } from './commandCenter';
 import { QaChip } from './QaChip';
 import { QaIcon } from './QaIcons';
 
@@ -134,9 +134,11 @@ function RoutineGroup({
                   </select>
                 ) : job.owner?.name ? shortName(job.owner.name) : ''}
               </span>
-              <span className="time nowrap">{jobTimeLabel(job)}</span>
+              <span className="time">
+                <span className="due nowrap">{jobTimeLabel(job)}</span>
+                {nudgeLabel(job.nudged_at) ? <span className="nudged">{nudgeLabel(job.nudged_at)}</span> : null}
+              </span>
               <span className="end">
-                {job.nudged_at ? <span className="nudged">Nudged {job.nudged_at}</span> : null}
                 {chip !== 'done' && chip !== 'unas' ? (
                   <button
                     type="button"
@@ -149,7 +151,7 @@ function RoutineGroup({
                     {chip === 'over' ? 'Nudge' : 'Reassign'}
                   </button>
                 ) : null}
-                <QaChip kind={chip} />
+                <QaChip kind={chip} title={nudgeLabel(job.nudged_at) || undefined} />
               </span>
             </div>
           );
