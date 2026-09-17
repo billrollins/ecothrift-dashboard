@@ -70,13 +70,24 @@ export function SummaryDialogs({
                 );
               }
               if (tile.date === today) {
+                const canWalk = ready.length > 0;
                 return (
                   <tr key={tile.date}>
                     <td>{day}</td>
                     <td colSpan={3} style={{ color: ccTokens.ink3 }}>
                       {ready.length ? `Not done yet · ${ready.join(', ')} are ready` : 'Not done yet'}
                     </td>
-                    <td className="r"><a href="#" onClick={(event) => { event.preventDefault(); onDoSpot(); }}>Walk now</a></td>
+                    <td className="r">
+                      <button
+                        type="button"
+                        className="walk-now"
+                        disabled={!canWalk}
+                        title={canWalk ? ready.join(', ') : 'No section is ready'}
+                        onClick={onDoSpot}
+                      >
+                        Walk now
+                      </button>
+                    </td>
                   </tr>
                 );
               }
