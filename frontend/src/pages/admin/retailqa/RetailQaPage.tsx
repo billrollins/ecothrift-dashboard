@@ -196,7 +196,6 @@ export default function RetailQaPage() {
   const issues = (board?.issues ?? []).map((row) => (
     row.run_id && nudgeStamp[row.run_id] ? { ...row, nudged_at: nudgeStamp[row.run_id] } : row
   ));
-  const alerts = issues.filter((row) => row.severity === 'red' || row.severity === 'amber').length;
   const weekNumber = week.includes('-W') ? `Week ${Number(week.split('-W')[1])}` : week;
   const jobs = (board?.jobs ?? []).map((row) => (
     row.run_id && nudgeStamp[row.run_id] ? { ...row, nudged_at: nudgeStamp[row.run_id] } : row
@@ -209,7 +208,6 @@ export default function RetailQaPage() {
       <CommandHeader
         store={board?.store || data?.store || 'Eco-Thrift'}
         openToday={data?.open_today ?? Boolean(board?.open)}
-        alerts={board?.alerts.total ?? alerts}
         week={week}
         weekNumber={weekNumber}
         date={date}

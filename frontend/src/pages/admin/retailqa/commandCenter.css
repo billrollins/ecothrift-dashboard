@@ -51,7 +51,6 @@
 .cc-page .store{display:flex;flex-direction:column;justify-content:center;line-height:1.1}
 .cc-page .store h1{margin:0;font-size:19px;font-weight:600;letter-spacing:-.01em;white-space:nowrap}
 .cc-page .store .sub{color:rgba(255,255,255,.7);font-size:12px;display:flex;gap:8px;align-items:center;margin-top:3px;white-space:nowrap}
-.cc-page .store .alert-pill{background:var(--bad);color:#fff;font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px}
 .cc-page .weeknav{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.12);border-radius:10px;height:var(--row);padding:0 4px}
 .cc-page .weeknav .arrow{width:32px;height:32px;border:0;background:transparent;color:#fff;border-radius:8px;font-size:20px;line-height:1;flex:none}
 .cc-page .weeknav .arrow:hover{background:rgba(255,255,255,.16)}

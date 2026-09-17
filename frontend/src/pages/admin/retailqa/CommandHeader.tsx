@@ -10,7 +10,6 @@ type SummaryId = 'spot' | 'cross' | 'people' | null;
 export function CommandHeader({
   store,
   openToday,
-  alerts,
   week,
   weekNumber,
   date,
@@ -31,7 +30,6 @@ export function CommandHeader({
 }: {
   store: string;
   openToday: boolean;
-  alerts: number;
   week: string;
   weekNumber: string;
   date: string;
@@ -65,7 +63,6 @@ export function CommandHeader({
           <h1>{store}</h1>
           <div className="sub">
             {openToday ? 'Open today' : 'Closed today'}
-            {alerts > 0 ? <span className="alert-pill">{alerts} alert{alerts === 1 ? '' : 's'}</span> : null}
           </div>
         </div>
         <div className="weeknav">
