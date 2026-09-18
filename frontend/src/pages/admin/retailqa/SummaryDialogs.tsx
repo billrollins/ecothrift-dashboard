@@ -3,7 +3,7 @@ import { addDays, format, parseISO } from 'date-fns';
 import type { PersonWeekRow, QaDayTile, QaToday, QaWeek, SpotScoreCard } from '../../../api/routines.api';
 import { ccTokens } from '../../../theme';
 import { weekMonday } from '../routines/gradeWeek';
-import { displayName, peopleDots } from './commandCenter';
+import { displayName, peopleDots, sectionCheckDoneLabel } from './commandCenter';
 import { QaIcon } from './QaIcons';
 
 const WALK_FLOOR = 3;
@@ -51,7 +51,7 @@ export function SummaryDialogs({
             <tr><th>Day</th><th>Section</th><th>By</th><th className="r">Score</th><th></th></tr>
           </thead>
           <tbody>
-            {tiles.filter((tile) => tile.open).map((tile) => {
+            {tiles.filter((tile) => tile.graded ?? tile.open).map((tile) => {
               const spot = spots.find((row) => row.date === tile.date);
               const day = `${tile.weekday} ${format(parseISO(tile.date), 'd')}`;
               const dueWord = `Due ${format(parseISO(tile.date), 'EEE MMM d')}`;
@@ -153,35 +153,48 @@ export function SummaryDialogs({
       </BoardDialog>
 
       <BoardDialog open={open === 'people'} onClose={onClose} title="Section checks this week">
-        <table className="cc-dialog-table">
-          <thead>
-            <tr>
-              <th>Person</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th>
-              <th className="r">Done</th>
-              <th className="r" title="POS on-task">On-task</th>
-            </tr>
-          </thead>
-          <tbody>
-            {people.map((row) => {
-              const dots = peopleDots(weekData?.days, row.id, row.section_days);
-              return (
-                <tr key={row.id}>
-                  <td>{row.name}</td>
-                  {dots.map((dot, index) => (
-                    <td
-                      key={index}
-                      title={dot === 'ok' ? 'Done' : dot === 'miss' ? 'Missed' : dot === 'due' ? 'Due' : ''}
-                    >
-                      {dot ? <i className={`dot ${dot}`} /> : null}
-                    </td>
-                  ))}
-                  <td className="r">{row.done} of {row.assigned}</td>
-                  <td className="r">{row.on_task == null ? '—' : `${Math.round(row.on_task)}%`}</td>
+        {people.length ? (
+          <>
+            <table className="cc-dialog-table">
+              <thead>
+                <tr>
+                  <th>Person</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th>
+                  <th className="r">Done</th>
+                  <th className="r" title="POS on-task">On-task</th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {people.map((row) => {
+                  const dots = peopleDots(weekData?.days, row.id, row.section_days);
+                  return (
+                    <tr key={row.id}>
+                      <td>{row.name}</td>
+                      {dots.map((dot, index) => (
+                        <td
+                          key={index}
+                          title={dot === 'ok' ? 'Done' : dot === 'miss' ? 'Missed' : dot === 'due' ? 'Due today' : 'Not expected'}
+                        >
+                          {dot ? <i className={`dot ${dot}`} /> : null}
+                        </td>
+                      ))}
+                      <td className="r">{sectionCheckDoneLabel(row)}</td>
+                      <td className="r">
+                        {row.on_task == null
+                          ? <span title="No POS activity">—</span>
+                          : `${Math.round(row.on_task)}%`}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <div className="cc-dialog-note">
+              A missing dot means not expected, a hollow dot means due today, red means missed, green means done.
+            </div>
+          </>
+        ) : (
+          <div className="cc-dialog-note">No one owns a section.</div>
+        )}
       </BoardDialog>
     </>
   );

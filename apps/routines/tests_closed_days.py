@@ -95,3 +95,7 @@ class ClosedDayScoringTests(APITestCase):
         tiles = week_tiles(monday, {}, today=monday, due=None)
         tile = next(row for row in tiles if row['date'] == monday.isoformat())
         self.assertFalse(tile['open'])
+        self.assertTrue(tile['graded'])
+        sunday = next(row for row in tiles if row['weekday'] == 'Sun')
+        self.assertFalse(sunday['open'])
+        self.assertFalse(sunday['graded'])

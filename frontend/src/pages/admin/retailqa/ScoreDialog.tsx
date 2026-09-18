@@ -51,7 +51,7 @@ export function ScoreDialog({
   posOnTask?: string;
 }) {
   const [scope, setScope] = useState('week');
-  const openDays = tiles.filter((tile) => tile.open);
+  const openDays = tiles.filter((tile) => tile.graded ?? tile.open);
   const selectedDay = openDays.find((tile) => tile.date === scope);
   const dayRow = weekData?.days?.find((row) => row.date === scope);
   const thirds = selectedDay

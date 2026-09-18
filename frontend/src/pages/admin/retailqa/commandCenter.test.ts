@@ -67,6 +67,10 @@ describe('tileNote', () => {
   it('shows Do only and a Spot dash when the day has no walk', () => {
     expect(tileNote({ open: true, is_future: false, doing: 92, spot: null })).toBe('Do 92 · Spot —');
   });
+
+  it('labels a graded closed day as Closed · Reset', () => {
+    expect(tileNote({ open: false, graded: true, doing: 80, spot: null })).toBe('Closed · Reset');
+  });
 });
 
 describe('tileClass', () => {

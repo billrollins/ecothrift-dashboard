@@ -25,7 +25,9 @@ from apps.webstore.services.hours import (
 
 from .grading import (
     closed_section_ids,
+    day_expected,
     day_grade,
+    day_is_graded,
     expected_parts,
     section_owner_people,
     this_monday,
@@ -1500,6 +1502,8 @@ def week_tiles(monday: date, week: dict, *, today: date, due: date | None) -> li
         day = monday + timedelta(days=offset)
         row = by_date.get(day.isoformat())
         open_day = is_open_day(day)
+        expected = day_expected(day)
+        graded = day_is_graded(day)
         spot_score = None if row is None else (row.get('thirds') or {}).get('owner')
         doing = None if row is None else (row.get('thirds') or {}).get('doing')
         letter = None if row is None else row.get('letter')
@@ -1509,8 +1513,10 @@ def week_tiles(monday: date, week: dict, *, today: date, due: date | None) -> li
             'date': day.isoformat(),
             'weekday': day.strftime('%a'),
             'open': open_day,
+            'graded': graded,
+            'expected': expected,
             'letter': letter,
-            'projected_letter': projected_letter if future and open_day else None,
+            'projected_letter': projected_letter if future and graded else None,
             'doing': doing,
             'spot': spot_score,
             'cross': cross,
@@ -1532,6 +1538,8 @@ def today_payload(day: date, *, now: datetime | None = None) -> dict:
     if day_row is None:
         day_row = day_grade(day)
     open_day = is_open_day(day)
+    expected = day_expected(day)
+    graded = day_is_graded(day)
     hours = effective_day(day, cfg=hours_cfg)
     due = cross_check_day_for(day, hours_cfg=hours_cfg)
     staff = build_staff(day, now=now, tz=tz, today=today)
@@ -1562,7 +1570,9 @@ def today_payload(day: date, *, now: datetime | None = None) -> dict:
     return {
         'date': day.isoformat(),
         'open': open_day,
-        'closed_label': closed_label(day),
+        'graded': graded,
+        'expected': expected,
+        'closed_label': None if graded else closed_label(day),
         'hours': {'open': hours.open_hhmm, 'close': hours.close_hhmm},
         'cross_check_due': due.isoformat() if due else None,
         'week': {

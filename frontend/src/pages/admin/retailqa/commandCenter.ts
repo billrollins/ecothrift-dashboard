@@ -60,24 +60,29 @@ export function displayName(raw: string | null | undefined, kind: 'auto' | 'rout
   return value;
 }
 
+export function tileCounts(tile: { open?: boolean; graded?: boolean }) {
+  return tile.graded ?? Boolean(tile.open);
+}
+
 export function tileClass(
   closed: boolean,
   selected: boolean,
-  opts?: { letter?: GradeLetter | null; projected?: boolean },
+  opts?: { letter?: GradeLetter | null; projected?: boolean; graded?: boolean },
 ) {
-  const grade = closed
+  const idle = closed && !opts?.graded;
+  const grade = idle
     ? ''
     : opts?.projected
       ? ' projected'
       : opts?.letter
         ? ` g-${opts.letter.toLowerCase()}`
         : '';
-  return `tile${closed ? ' closed' : ''}${grade}${selected ? ' sel' : ''}`;
+  return `tile${idle ? ' closed' : ''}${grade}${selected ? ' sel' : ''}`;
 }
 
-export function walkDots(tiles: Array<{ open: boolean; spot?: number | null }>) {
+export function walkDots(tiles: Array<{ open?: boolean; graded?: boolean; spot?: number | null }>) {
   return tiles.map((tile) => {
-    if (!tile.open) return 'off' as const;
+    if (!tileCounts(tile)) return 'off' as const;
     if (tile.spot != null) return 'on' as const;
     return '' as const;
   });
@@ -161,7 +166,14 @@ export function bandWeightLabel(
   return excluded ? `${name} —` : `${name} ${formatWeight(weight)}%`;
 }
 
-export function tileNote(tile: { open: boolean; is_future?: boolean; doing?: number | null; spot?: number | null }) {
+export function tileNote(tile: {
+  open: boolean;
+  graded?: boolean;
+  is_future?: boolean;
+  doing?: number | null;
+  spot?: number | null;
+}) {
+  if (!tile.open && tileCounts(tile)) return 'Closed · Reset';
   if (!tile.open) return '\u00a0';
   if (tile.is_future) return 'Projected';
   return `Do ${scoreText(tile.doing)} · Spot ${scoreText(tile.spot)}`;

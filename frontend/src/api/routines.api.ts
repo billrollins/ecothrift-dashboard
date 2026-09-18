@@ -712,10 +712,18 @@ export interface QaWeek {
   }>;
 }
 
+export interface QaExpected {
+  section_checks: boolean;
+  open_day_close: boolean;
+  walk_possible: boolean;
+}
+
 export interface QaDayTile {
   date: string;
   weekday: string;
   open: boolean;
+  graded?: boolean;
+  expected?: QaExpected;
   letter: GradeLetter | null;
   projected_letter: GradeLetter | null;
   doing: number | null;
@@ -862,8 +870,10 @@ export interface QaSectionRow {
 export interface QaToday {
   date: string;
   open: boolean;
+  graded?: boolean;
+  expected?: QaExpected;
   store: string;
-  closed_label?: string;
+  closed_label?: string | null;
   hours?: { open: string; close: string };
   cross_check_due?: string | null;
   week: {

@@ -164,9 +164,17 @@ export default function RetailQaPage() {
     navigate(`/routines/run/${runId}?return=${encodeURIComponent(back)}`);
   }
 
-  async function assignRun(runId: number, userId: number | '') {
+  async function assignJob(job: { group: string; run_id: number | null; section_id: number | null }, userId: number | '') {
     try {
-      await assign.mutateAsync({ date, kind: 'run', run: runId, user: userId === '' ? null : userId });
+      if (job.group === 'section' && job.section_id) {
+        await assign.mutateAsync({
+          date, kind: 'owner', section: job.section_id, user: userId === '' ? null : userId,
+        });
+      } else if (job.run_id) {
+        await assign.mutateAsync({
+          date, kind: 'run', run: job.run_id, user: userId === '' ? null : userId,
+        });
+      }
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       enqueueSnackbar(typeof detail === 'string' ? detail : 'Could not assign that routine', { variant: 'error' });
@@ -201,7 +209,9 @@ export default function RetailQaPage() {
     row.run_id && nudgeStamp[row.run_id] ? { ...row, nudged_at: nudgeStamp[row.run_id] } : row
   ));
   const staff = board?.staff ?? [];
-  const closedLabel = null;
+  const closedLabel = board && !(board.graded ?? board.open)
+    ? (board.closed_label || 'Store closed')
+    : null;
 
   return (
     <div className="cc-page">
@@ -262,7 +272,7 @@ export default function RetailQaPage() {
             date={date}
             jobs={jobs}
             people={assignees.data ?? []}
-            onAssign={(runId, userId) => void assignRun(runId, userId)}
+            onAssign={(job, userId) => void assignJob(job, userId)}
             onNudge={(id, el) => setNudgeTarget({ runId: id, anchor: el })}
             onWeekView={() => setWeekOpen(true)}
             closedLabel={closedLabel}
@@ -322,6 +332,7 @@ function fallbackTiles(week: string, today: string, due?: string | null): QaDayT
       date: iso,
       weekday: format(day, 'EEE'),
       open: true,
+      graded: true,
       letter: null,
       projected_letter: null,
       doing: null,

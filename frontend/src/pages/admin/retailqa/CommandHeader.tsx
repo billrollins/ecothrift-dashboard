@@ -1,7 +1,7 @@
 import { format, parseISO } from 'date-fns';
 import type { GradeLetter, GradeThirds, QaDayTile, QaToday, QaWeek } from '../../../api/routines.api';
 import { weekRangeLabel } from '../routines/gradeWeek';
-import { bandWeightLabel, letterClass, scoreText, sectionWeekCounts, tileClass, tileNote, walkDots } from './commandCenter';
+import { bandWeightLabel, letterClass, scoreText, sectionWeekCounts, tileClass, tileCounts, tileNote, walkDots } from './commandCenter';
 
 const WALK_FLOOR = 3;
 
@@ -48,7 +48,7 @@ export function CommandHeader({
   onMoveWeek: (delta: number) => void;
   onSelectDay: (next: string) => void;
 }) {
-  const walks = tiles.filter((tile) => tile.open && tile.spot != null).length;
+  const walks = tiles.filter((tile) => tileCounts(tile) && tile.spot != null).length;
   const dots = walkDots(tiles);
   const cross = board?.cross;
   const dueWord = (cross?.due_label || '').split(' ')[0] || '';
@@ -160,12 +160,14 @@ function DayTile({
   onSelect: () => void;
 }) {
   const closed = !tile.open;
+  const graded = tileCounts(tile);
+  const idleClosed = closed && !graded;
   const isToday = tile.date === today || tile.is_today;
   const letter = tile.is_future ? tile.projected_letter : tile.letter;
   const note = tileNote(tile);
   return (
     <div
-      className={tileClass(closed, selected, { letter, projected: tile.is_future && !closed })}
+      className={tileClass(closed, selected, { letter, projected: tile.is_future && graded, graded })}
       onClick={() => onSelect()}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') onSelect();
@@ -177,7 +179,7 @@ function DayTile({
         <span>{tile.weekday} {format(parseISO(tile.date), 'd')}</span>
         {isToday ? <span className="today">Today</span> : null}
       </div>
-      {closed ? (
+      {idleClosed ? (
         <div className="l">Closed</div>
       ) : tile.is_future ? (
         <div className="l">{letter ?? 'A'}</div>

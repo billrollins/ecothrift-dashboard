@@ -17,7 +17,7 @@ export function RoutinesCard({
   date: string;
   jobs: QaJob[];
   people: RoutineAssignee[];
-  onAssign: (runId: number, userId: number | '') => void;
+  onAssign: (job: QaJob, userId: number | '') => void;
   onNudge: (runId: number, el: HTMLElement) => void;
   onWeekView: () => void;
   closedLabel?: string | null;
@@ -63,12 +63,12 @@ function RoutineGroup({
   title: string;
   jobs: QaJob[];
   people: RoutineAssignee[];
-  onAssign: (runId: number, userId: number | '') => void;
+  onAssign: (job: QaJob, userId: number | '') => void;
   onNudge: (runId: number, el: HTMLElement) => void;
 }) {
   const allDone = jobs.length > 0 && jobs.every((job) => jobChip(job.status, job.owner, job.urgency) === 'done');
   const [open, setOpen] = useState(!allDone);
-  const [reassignId, setReassignId] = useState<number | null>(null);
+  const [reassignKey, setReassignKey] = useState<string | null>(null);
   if (!jobs.length) return null;
   const done = jobs.filter((job) => jobChip(job.status, job.owner, job.urgency) === 'done').length;
   if (allDone && !open) {
@@ -106,22 +106,26 @@ function RoutineGroup({
           const unassigned = chip === 'unas' && !job.owner;
           const pool = job.shift_people?.length ? job.shift_people : people;
           const stripe = chip === 'hard' || chip === 'miss' || chip === 'unas' ? ' s-bad' : chip === 'over' ? ' s-warn' : '';
+          const rowKey = job.section_id != null ? `s${job.section_id}` : `r${job.run_id ?? index}`;
+          const canAssign = Boolean(
+            (unassigned || reassignKey === rowKey) && (job.section_id || job.run_id),
+          );
           return (
             <div className={`row${stripe}`} key={`${job.key}-${job.run_id ?? job.section_id ?? index}`}>
               <span className="name nowrap">{displayName(job.title, 'routine')}</span>
               <span
-                className={`owner nowrap${job.owner_state === 'scheduled' ? ' scheduled' : ''}`}
+                className={`owner nowrap${job.owner_state === 'scheduled' || job.owner_state === 'pool' ? ' scheduled' : ''}`}
                 title={job.owner_state === 'scheduled' || job.owner_state === 'pool' ? (job.owner_state || '') : (job.owner?.name || '')}
               >
-                {(unassigned || reassignId === job.run_id) && job.run_id ? (
+                {canAssign ? (
                   <select
                     className="assign"
                     defaultValue=""
                     onChange={(event) => {
                       const value = Number(event.target.value);
                       if (value) {
-                        onAssign(job.run_id as number, value);
-                        setReassignId(null);
+                        onAssign(job, value);
+                        setReassignKey(null);
                       }
                     }}
                   >
@@ -132,7 +136,9 @@ function RoutineGroup({
                       </option>
                     ))}
                   </select>
-                ) : job.owner?.name ? (job.owner_state === 'pool' || job.owner.id == null ? job.owner.name : shortName(job.owner.name)) : ''}
+                ) : job.owner?.name ? (
+                  job.owner_state === 'pool' || job.owner.id == null ? job.owner.name : shortName(job.owner.name)
+                ) : ''}
               </span>
               <span className="time">
                 <span className="due nowrap">{jobTimeLabel(job)}</span>
@@ -144,10 +150,12 @@ function RoutineGroup({
                   kind={chip}
                   title={nudgeLabel(job.nudged_at) || undefined}
                   items={
-                    chip !== 'done' && chip !== 'unas' && job.run_id
+                    chip !== 'done' && chip !== 'unas' && (job.run_id || job.section_id)
                       ? [
-                          { label: 'Nudge', onClick: () => onNudge(job.run_id as number, document.body) },
-                          { label: 'Reassign', onClick: () => setReassignId(job.run_id) },
+                          ...(job.run_id
+                            ? [{ label: 'Nudge', onClick: () => onNudge(job.run_id as number, document.body) }]
+                            : []),
+                          { label: 'Reassign', onClick: () => setReassignKey(rowKey) },
                         ]
                       : []
                   }
