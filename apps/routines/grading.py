@@ -1195,16 +1195,31 @@ def _day_of(row: dict) -> date:
 
 
 def _doing_for_week(daily: list[dict], *, today: date, project: bool) -> float | None:
-    """Actual doing scores for past and today. Future open days are 100 only when projecting."""
-    scores = []
+    """Done over expected across open days. Not a mean of daily scores."""
+    done = 0
+    needed = 0
     for row in daily:
+        if not row.get('open_day'):
+            continue
         day = _day_of(row)
-        if day <= today and row.get('graded'):
-            if row['thirds']['doing'] is not None:
-                scores.append(row['thirds']['doing'])
-        elif project and day > today and row.get('open_day'):
-            scores.append(100.0)
-    return _mean_or_none(scores)
+        doing = row.get('doing') or {}
+        day_needed = doing.get('needed')
+        day_done = doing.get('done')
+        if day_needed is None:
+            continue
+        if day > today:
+            if project:
+                done += day_needed
+                needed += day_needed
+            continue
+        if project and day == today:
+            done += day_needed
+        else:
+            done += day_done or 0
+        needed += day_needed
+    if needed <= 0:
+        return None
+    return round(100.0 * min(done, needed) / needed, 1)
 
 
 def _owner_for_week(daily: list[dict], *, today: date) -> tuple[float | None, int]:
@@ -1228,8 +1243,7 @@ def _assemble_week(ctx: dict, *, project: bool = False) -> dict:
     owner, walks = _owner_for_week(daily, today=today)
     due = cross_check_day_for(monday)
     cross = _week_cross(daily, due=due, today=today, project=False)
-    include_cross = cross is not None
-    score, _letter = _blend_weights(doing, cross, owner, cfg, include_cross=include_cross)
+    spot_w, do_w, cross_w = _weights(cfg)
     if project:
         remaining = max(int(cfg.get('walk_floor', WALK_FLOOR)) - walks, 0)
         if remaining and owner is None:
@@ -1238,13 +1252,21 @@ def _assemble_week(ctx: dict, *, project: bool = False) -> dict:
             owner = round(((owner or 0) * walks + 100.0 * remaining) / (walks + remaining), 1)
         if due and today >= due:
             project_cross = cross
-            include_cross = cross is not None
         else:
             project_cross = None
-            include_cross = False
-        score, _letter = _blend_weights(doing, project_cross, owner, cfg, include_cross=include_cross)
+        blended = combine_weighted([
+            ('spot', spot_w, owner),
+            ('do', do_w, doing),
+            ('cross', cross_w, project_cross),
+        ])
         walks = max(walks, int(cfg.get('walk_floor', WALK_FLOOR)))
-    score, letter = _walk_cap(score, walks, cfg)
+    else:
+        blended = combine_weighted([
+            ('spot', spot_w, owner),
+            ('do', do_w, doing),
+            ('cross', cross_w, cross),
+        ])
+    score, letter = _walk_cap(blended['score'], walks, cfg)
     open_days = week_days(monday)
     activity = _cashier_activity(open_days)
     return {
@@ -1252,6 +1274,8 @@ def _assemble_week(ctx: dict, *, project: bool = False) -> dict:
         'monday': monday.isoformat(),
         'score': score,
         'letter': letter,
+        'weights': blended['weights'],
+        'excluded': blended['excluded'],
         'thirds': {'doing': doing, 'cross': cross, 'owner': owner},
         'daily_average': doing,
         'cross_check_average': cross,
