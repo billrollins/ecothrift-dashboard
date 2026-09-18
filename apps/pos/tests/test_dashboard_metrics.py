@@ -236,10 +236,13 @@ class DashboardMetricsTests(TestCase):
         self.assertEqual(payload['department_metrics']['processing']['week'], '40.00')
 
     def test_retail_counts_submitted_routines(self):
+        from apps.routines.grading import this_monday, week_grade
+
         payload = build_dashboard_metrics(self.today)
         retail = payload['department_metrics']['retail']
+        graded = week_grade(this_monday(self.today))
         self.assertTrue(retail['ready'])
-        self.assertIsNone(retail['average_grade'])
+        self.assertEqual(retail['average_grade'], graded['letter'])
         self.assertEqual(retail['week_audits'], 0)
         self.assertEqual(retail['today_work_cycles'], 0)
         self.assertEqual(retail['week_work_cycles'], 0)

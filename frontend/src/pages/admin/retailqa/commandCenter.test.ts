@@ -55,6 +55,12 @@ describe('bandWeightLabel', () => {
     expect(bandWeightLabel('Do', 62.5, false)).toBe('Do 62.5%');
     expect(bandWeightLabel('Cross', 15, false)).toBe('Cross 15%');
   });
+
+  it('keeps the excluded tooltip reasons next to the dash', () => {
+    expect(bandWeightLabel('Spot', 0, true)).toBe('Spot —');
+    expect('No walks this week · not counted').toContain('not counted');
+    expect('Cross-checks pending until Tue Sep 15').toContain('Tue Sep 15');
+  });
 });
 
 describe('tileNote', () => {

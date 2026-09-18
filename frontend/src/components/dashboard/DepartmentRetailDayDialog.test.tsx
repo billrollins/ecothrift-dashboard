@@ -7,7 +7,9 @@ import type { RetailDaySummary } from '../../api/routines.api';
 import {
   DepartmentRetailDayDialog,
   contributionSegments,
+  crossPastDueDetail,
   crossPendingLabel,
+  formatCardWeight,
   formatGradeScale,
   goalThreshold,
   letterTileTone,
@@ -43,10 +45,12 @@ const mixedDay: RetailDaySummary = {
   date: '2026-09-15',
   open: true,
   letter: 'B',
-  score: 72.1,
+  score: 84.8,
   goal_letter: 'B',
-  goal_met: false,
+  goal_met: true,
   grade_scale: scale,
+  weights: { spot: 70.59, do: 29.41 },
+  excluded: [],
   do: {
     score: 70,
     section_checks: { done: 3, expected: 5 },
@@ -59,6 +63,13 @@ const mixedDay: RetailDaySummary = {
     due: 5,
     due_date: '2026-09-15',
     state: 'pending',
+  },
+  cross_info: {
+    done: 0,
+    due: 5,
+    due_date: '2026-09-15',
+    state: 'pending',
+    done_on_this_day: 0,
   },
 };
 
@@ -98,17 +109,43 @@ describe('DepartmentRetailDayDialog', () => {
     expect(screen.getByTestId('retail-do-card')).toHaveAttribute('data-tone', 'amber');
   });
 
-  it('sizes contribution segments so scored points sum to the score', () => {
+  it('sizes day contribution segments so scored points sum to the score', () => {
     const segments = contributionSegments(
       mixedDay,
       goalThreshold(mixedDay.goal_letter, mixedDay.grade_scale),
+      'day',
     );
-    expect(scoredContributionTotal(segments)).toBeCloseTo(mixedDay.score ?? 0);
-    expect(scoredContributionTotal(segments)).toBeCloseTo(91 * 0.6 + 70 * 0.25);
+    expect(segments.map((row) => row.key)).toEqual(['spot', 'do']);
+    expect(scoredContributionTotal(segments)).toBeCloseTo(91 * 0.7059 + 70 * 0.2941, 1);
+    expect(Math.round(scoredContributionTotal(segments) * 10) / 10).toBe(mixedDay.score);
     renderDialog(mixedDay);
     expect(screen.getByTestId('retail-contribution-bar')).toBeInTheDocument();
     expect(screen.getByTestId('retail-contribution-bar').querySelector('[data-segment="cross"]'))
-      .toHaveAttribute('data-pending', 'true');
+      .toBeNull();
+    expect(screen.getByTestId('retail-cross-card')).toHaveAttribute('data-weight', '');
+    expect(screen.getByText('Cross · this week')).toBeInTheDocument();
+    expect(screen.queryByText(/Cross · \d/)).not.toBeInTheDocument();
+  });
+
+  it('drops Spot from the day bar when there was no walk', () => {
+    const noWalk: RetailDaySummary = {
+      ...mixedDay,
+      score: 80,
+      weights: { spot: 0, do: 100 },
+      excluded: ['spot'],
+      spot: { score: null, walks: { done: 0, min_for_week: 3 }, state: 'none' },
+      do: {
+        score: 80,
+        section_checks: { done: 4, expected: 5 },
+        open_day_close: { done: 3, expected: 3 },
+      },
+    };
+    const segments = contributionSegments(noWalk, 81, 'day');
+    expect(segments.map((row) => row.key)).toEqual(['do']);
+    expect(scoredContributionTotal(segments)).toBeCloseTo(80);
+    renderDialog(noWalk);
+    expect(screen.getByText('Spot not counted · no walk that day')).toBeInTheDocument();
+    expect(formatCardWeight('Spot', 0, true)).toBe('Spot —');
   });
 
   it('reads footer scale text from the payload, not a constant', () => {
@@ -139,15 +176,95 @@ describe('DepartmentRetailDayDialog', () => {
   });
 
   it('renders week totals on the same cards', () => {
+    const weekData: RetailDaySummary = {
+      week: '2026-W38',
+      open: true,
+      letter: 'A',
+      score: 95,
+      goal_letter: 'B',
+      goal_met: true,
+      grade_scale: scale,
+      weights: { spot: 60, do: 25, cross: 15 },
+      excluded: [],
+      do: {
+        score: 90,
+        section_checks: { done: 18, expected: 40 },
+        open_day_close: { done: 9, expected: 15 },
+      },
+      spot: { score: 88, walks: { done: 3, min_for_week: 3 }, state: 'done' },
+      cross: {
+        score: 100,
+        done: 5,
+        due: 5,
+        due_date: '2026-09-15',
+        state: 'live',
+      },
+    };
+    const segments = contributionSegments(weekData, 81, 'week');
+    expect(segments).toHaveLength(3);
+    renderDialog(weekData, 'week');
+    expect(screen.getByText('Sep 14 to Sep 20, 2026')).toBeInTheDocument();
+    expect(screen.getByText('Goal B · met')).toBeInTheDocument();
+    expect(spotDetailLine({ score: 88, walks: { done: 3, min_for_week: 3 }, state: 'done' }, 'week'))
+      .toBe('3 walks · avg 88');
+    expect(screen.getByText('3 walks · avg 88')).toBeInTheDocument();
+    expect(screen.getByText(/18 of 40 section checks/)).toBeInTheDocument();
+    expect(screen.getByText(/9 of 15 open\/day\/close/)).toBeInTheDocument();
+    expect(screen.getByTestId('retail-letter-tile')).toHaveTextContent('A');
+  });
+
+  it('hatches pending Cross at 15 on the week bar', () => {
+    const weekPending: RetailDaySummary = {
+      week: '2026-W38',
+      open: true,
+      letter: 'B',
+      score: 84.8,
+      goal_letter: 'B',
+      goal_met: true,
+      grade_scale: scale,
+      weights: { spot: 70.59, do: 29.41, cross: 0 },
+      excluded: ['cross'],
+      do: {
+        score: 70,
+        section_checks: { done: 18, expected: 40 },
+        open_day_close: { done: 9, expected: 15 },
+      },
+      spot: { score: 91, walks: { done: 3, min_for_week: 3 }, state: 'done' },
+      cross: {
+        score: null,
+        done: 0,
+        due: 5,
+        due_date: '2026-09-15',
+        state: 'pending',
+      },
+    };
+    const segments = contributionSegments(weekPending, 81, 'week');
+    expect(segments).toHaveLength(3);
+    expect(segments.find((row) => row.key === 'cross')).toMatchObject({
+      pending: true,
+      points: 15,
+    });
+  });
+
+  it('tints week Cross red once past due and incomplete', () => {
+    expect(crossPastDueDetail({
+      score: 40,
+      done: 2,
+      due: 5,
+      due_date: '2026-09-15',
+      state: 'live',
+    })).toBe('2 of 5 done · 3 not done');
     renderDialog(
       {
         week: '2026-W38',
         open: true,
-        letter: 'A',
-        score: 95,
+        letter: 'C',
+        score: 70,
         goal_letter: 'B',
-        goal_met: true,
+        goal_met: false,
         grade_scale: scale,
+        weights: { spot: 60, do: 25, cross: 15 },
+        excluded: [],
         do: {
           score: 90,
           section_checks: { done: 18, expected: 40 },
@@ -155,8 +272,8 @@ describe('DepartmentRetailDayDialog', () => {
         },
         spot: { score: 88, walks: { done: 3, min_for_week: 3 }, state: 'done' },
         cross: {
-          score: 100,
-          done: 5,
+          score: 40,
+          done: 2,
           due: 5,
           due_date: '2026-09-15',
           state: 'live',
@@ -164,11 +281,7 @@ describe('DepartmentRetailDayDialog', () => {
       },
       'week',
     );
-    expect(screen.getByText('Sep 14 to Sep 20, 2026')).toBeInTheDocument();
-    expect(screen.getByText('Goal B · met')).toBeInTheDocument();
-    expect(spotDetailLine({ score: 88, walks: { done: 3, min_for_week: 3 }, state: 'done' }, 'week'))
-      .toBe('3 walks · avg 88');
-    expect(screen.getByText('3 walks · avg 88')).toBeInTheDocument();
-    expect(screen.getByText('18 of 40 section checks · 9 of 15 open/day/close')).toBeInTheDocument();
+    expect(screen.getByTestId('retail-cross-card')).toHaveAttribute('data-tone', 'red');
+    expect(screen.getByText('2 of 5 done · 3 not done')).toBeInTheDocument();
   });
 });

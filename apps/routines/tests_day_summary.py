@@ -21,6 +21,17 @@ class DaySummaryStateTests(TestCase):
         self.assertTrue(payload['open'])
         self.assertEqual(payload['spot']['state'], 'not_yet')
 
+    def test_day_payload_carries_weights_and_cross_info(self):
+        payload = day_summary_for_date(date(2026, 9, 16), today=date(2026, 9, 18))
+        self.assertIn('weights', payload)
+        self.assertIn('excluded', payload)
+        self.assertIn('cross_info', payload)
+        self.assertNotIn('cross', payload)
+        self.assertIn('done_on_this_day', payload['cross_info'])
+        self.assertIn('spot', payload['excluded'])
+        self.assertEqual(payload['weights'].get('do'), 100.0)
+        self.assertNotIn('cross', payload['weights'])
+
     def test_grade_scale_matches_settings(self):
         payload = day_summary_for_date(date(2026, 9, 16), today=date(2026, 9, 18))
         cfg = retail_qa_settings()

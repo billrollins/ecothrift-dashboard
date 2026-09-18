@@ -1246,7 +1246,7 @@ class ScoringEngineTests(TestCase):
         today = date(2026, 9, 17)
         doing = _doing_for_week(daily, today=today, project=True)
         owner, walks = _owner_for_week(daily, today=today, project=True)
-        self.assertEqual(doing, 48.0)
+        self.assertEqual(doing, 60.0)
         self.assertEqual(owner, 73.3)
         self.assertEqual(walks, 3)
         result = combine_weighted([('spot', 60, owner), ('do', 25, doing)])
