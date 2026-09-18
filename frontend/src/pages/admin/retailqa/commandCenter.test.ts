@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { QaIssue, QaJob, QaStaffRow } from '../../../api/routines.api';
-import { displayName, formatShiftRange, groupIssues, jobTimeLabel, nudgeLabel, peopleDots, scheduleGroups, scheduleSummary, shortName, tileClass, tileNote } from './commandCenter';
+import { bandWeightLabel, displayName, formatShiftRange, groupIssues, jobTimeLabel, nudgeLabel, peopleDots, scheduleGroups, scheduleSummary, sectionCheckDoneLabel, shortName, tileClass, tileNote } from './commandCenter';
 
 function person(id: number, name: string) {
   return { id, name };
@@ -46,6 +46,14 @@ describe('displayName', () => {
     expect(displayName('retail.open')).not.toMatch(/[.]/);
     expect(displayName('office')).not.toBe('office');
     expect(displayName('restoration')).not.toBe('restoration');
+  });
+});
+
+describe('bandWeightLabel', () => {
+  it('shows a dash instead of a percent when the third is excluded', () => {
+    expect(bandWeightLabel('Spot', 60, true)).toBe('Spot —');
+    expect(bandWeightLabel('Do', 62.5, false)).toBe('Do 62.5%');
+    expect(bandWeightLabel('Cross', 15, false)).toBe('Cross 15%');
   });
 });
 
@@ -141,6 +149,12 @@ describe('peopleDots', () => {
     expect(peopleDots([], 1, ['none', 'done', 'due', 'missed', 'none', 'due', 'none'])).toEqual([
       '', 'ok', 'due', 'miss', '', 'due', '',
     ]);
+  });
+
+  it('a person with 2 done, 1 missed, 1 due today reads 2 of 3 · 1 due today and has four dots', () => {
+    const days = ['none', 'done', 'done', 'missed', 'due', 'none', 'none'];
+    expect(sectionCheckDoneLabel({ done: 2, assigned: 3, due_today: 1 })).toBe('2 of 3 · 1 due today');
+    expect(peopleDots([], 1, days).filter(Boolean)).toHaveLength(4);
   });
 });
 

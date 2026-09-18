@@ -539,6 +539,12 @@ export interface GradeThirds {
   owner: number | null;
 }
 
+export interface GradeWeights {
+  spot?: number;
+  do?: number;
+  cross?: number;
+}
+
 export interface DoingRoutineRow {
   key: string;
   title: string;
@@ -566,6 +572,8 @@ export interface DayGrade {
   graded: boolean;
   score: number | null;
   letter: GradeLetter | null;
+  weights?: GradeWeights;
+  excluded?: string[];
   thirds?: GradeThirds;
   doing?: { done: number; needed: number; score: number | null; routines: DoingRoutineRow[] };
   cross?: {
@@ -675,7 +683,15 @@ export interface QaWeek {
   score: number | null;
   letter: GradeLetter | null;
   thirds: GradeThirds;
-  projected?: GradeThirds & { score: number | null; letter: GradeLetter | null };
+  weights?: GradeWeights;
+  excluded?: string[];
+  excluded_reasons?: Record<string, string>;
+  projected?: GradeThirds & {
+    score: number | null;
+    letter: GradeLetter | null;
+    weights?: GradeWeights;
+    excluded?: string[];
+  };
   days: DayGrade[];
   store: string;
   today: string;
@@ -705,6 +721,8 @@ export interface QaDayTile {
   doing: number | null;
   spot: number | null;
   cross: number | null;
+  weights?: GradeWeights;
+  excluded?: string[];
   is_today: boolean;
   is_future: boolean;
 }
@@ -996,6 +1014,15 @@ export interface RetailDaySummary {
   goal_letter: string | null;
   goal_met: boolean;
   grade_scale?: RetailGradeScale;
+  weights?: { spot?: number; do?: number; cross?: number };
+  excluded?: string[];
+  cross_info?: {
+    done: number;
+    due: number;
+    due_date: string | null;
+    state: RetailCrossState | 'done';
+    done_on_this_day: number;
+  } | null;
   do: {
     score: number | null;
     section_checks: RetailSummaryCounts;

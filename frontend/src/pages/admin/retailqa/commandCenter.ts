@@ -16,19 +16,6 @@ export const CHIP_LABEL: Record<string, string> = {
   unas: 'Unassigned',
 };
 
-export const DEPT_ORDER = ['Retail', 'Retail Operations', 'Processing', 'Restoration', 'Office', 'Warehouse', 'Donations', 'Ecommerce'];
-
-export const DEPT_ICON: Record<string, 'cart' | 'box' | 'tool' | 'home'> = {
-  Retail: 'cart',
-  'Retail Operations': 'cart',
-  Processing: 'box',
-  Restoration: 'tool',
-  Office: 'home',
-  Warehouse: 'box',
-  Donations: 'box',
-  Ecommerce: 'cart',
-};
-
 const ROUTINE_NAMES: Record<string, string> = {
   'retail.open': 'Retail open',
   'retail.day': 'Retail day',
@@ -52,14 +39,6 @@ const SHIFT_NAMES: Record<string, string> = {
   shipping: 'Shipping',
 };
 
-const DEPT_NAMES: Record<string, string> = {
-  retail: 'Retail',
-  warehouse: 'Warehouse',
-  office: 'Office',
-  processing: 'Processing',
-  restoration: 'Restoration',
-};
-
 export function displayName(raw: string | null | undefined, kind: 'auto' | 'routine' | 'shift' | 'dept' = 'auto') {
   const value = (raw || '').trim();
   if (!value) return '';
@@ -71,10 +50,6 @@ export function displayName(raw: string | null | undefined, kind: 'auto' | 'rout
   }
   if (kind === 'shift' || kind === 'auto') {
     const hit = SHIFT_NAMES[value] || SHIFT_NAMES[underscored];
-    if (hit) return hit;
-  }
-  if (kind === 'dept' || kind === 'auto') {
-    const hit = DEPT_NAMES[value] || DEPT_NAMES[underscored];
     if (hit) return hit;
   }
   if (value.includes('.') || (/^[a-z][a-z0-9._]*$/.test(value))) {
@@ -173,6 +148,19 @@ export function scoreText(value: number | null | undefined) {
   return value == null ? '—' : String(Math.round(value));
 }
 
+export function formatWeight(value: number | null | undefined): string {
+  if (value == null) return '';
+  return Number.isInteger(value) ? String(value) : String(value);
+}
+
+export function bandWeightLabel(
+  name: string,
+  weight: number | null | undefined,
+  excluded: boolean,
+): string {
+  return excluded ? `${name} —` : `${name} ${formatWeight(weight)}%`;
+}
+
 export function tileNote(tile: { open: boolean; is_future?: boolean; doing?: number | null; spot?: number | null }) {
   if (!tile.open) return '\u00a0';
   if (tile.is_future) return 'Projected';
@@ -217,22 +205,34 @@ export function scheduleGroups(staff: QaStaffRow[]) {
   const on = staff.filter((row) => qaStatusWord(row.status) !== 'Off');
   const buckets = new Map<string, QaStaffRow[]>();
   for (const row of on) {
-    const name = displayName(row.department, 'dept') || 'Office';
-    const list = buckets.get(name) ?? [];
+    const key = row.department_slug || 'unscheduled';
+    const list = buckets.get(key) ?? [];
     list.push(row);
-    buckets.set(name, list);
+    buckets.set(key, list);
   }
-  const names = [...buckets.keys()].sort((a, b) => {
-    const ai = DEPT_ORDER.indexOf(a);
-    const bi = DEPT_ORDER.indexOf(b);
-    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi) || a.localeCompare(b);
+  const keys = [...buckets.keys()].sort((a, b) => {
+    const left = buckets.get(a)![0];
+    const right = buckets.get(b)![0];
+    const as = left.department_sort ?? 99;
+    const bs = right.department_sort ?? 99;
+    return as - bs || (left.department || a).localeCompare(right.department || b);
   });
-  return names.map((department) => ({
-    department,
-    rows: (buckets.get(department) ?? []).slice().sort((a, b) => (
+  return keys.flatMap((slug) => {
+    const rows = (buckets.get(slug) ?? []).slice().sort((a, b) => (
       (a.time_in || '99').localeCompare(b.time_in || '99') || a.name.localeCompare(b.name)
-    )),
-  }));
+    ));
+    const sample = rows[0];
+    const inactive = sample?.department_active === false;
+    if (inactive && !rows.some((row) => row.on_roster)) return [];
+    const icon = sample?.department_icon || 'none';
+    return [{
+      department: sample?.department || displayName(slug, 'dept') || 'Unscheduled',
+      slug,
+      icon,
+      inactive,
+      rows,
+    }];
+  });
 }
 
 export function scheduleSummary(staff: QaStaffRow[]) {
@@ -276,7 +276,7 @@ export function formatLateMinutes(mins: number) {
 }
 
 export function lateSentence(row: QaStaffRow) {
-  const dept = displayName(row.department, 'dept') || 'their shift';
+  const dept = row.department || displayName(row.department_slug, 'dept') || 'their shift';
   return `${shortName(row.name)} is ${formatLateMinutes(row.late_minutes ?? 0)} late for ${dept}.`;
 }
 
@@ -351,6 +351,16 @@ function formatRoutineIssue(issue: QaIssue, jobs: QaJob[]) {
   }
   const owner = job.owner?.name ? ` Owner ${shortName(job.owner.name)}` : '';
   return `${title} was due ${clock} and is not started.${owner}`;
+}
+
+export function sectionCheckDoneLabel(row: {
+  done: number;
+  assigned: number;
+  due_today?: number;
+}): string {
+  const text = `${row.done} of ${row.assigned}`;
+  const due = row.due_today ?? 0;
+  return due ? `${text} · ${due} due today` : text;
 }
 
 export function peopleDots(

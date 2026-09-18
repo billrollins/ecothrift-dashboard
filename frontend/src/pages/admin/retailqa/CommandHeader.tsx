@@ -1,7 +1,7 @@
 import { format, parseISO } from 'date-fns';
 import type { GradeLetter, GradeThirds, QaDayTile, QaToday, QaWeek } from '../../../api/routines.api';
 import { weekRangeLabel } from '../routines/gradeWeek';
-import { letterClass, scoreText, sectionWeekCounts, tileClass, tileNote, walkDots } from './commandCenter';
+import { bandWeightLabel, letterClass, scoreText, sectionWeekCounts, tileClass, tileNote, walkDots } from './commandCenter';
 
 const WALK_FLOOR = 3;
 
@@ -78,9 +78,24 @@ export function CommandHeader({
           <div className="cap"><b>Week grade</b><span>so far</span></div>
         </button>
         <div className="stats">
-          <button type="button" className="stat" onClick={onScore}><b>{scoreText(weekThirds.owner)}</b><span>Spot 60%</span></button>
-          <button type="button" className="stat" onClick={onScore}><b>{scoreText(weekThirds.doing)}</b><span>Do 25%</span></button>
-          <button type="button" className="stat" onClick={onScore}><b>{scoreText(weekThirds.cross)}</b><span>Cross 15%</span></button>
+          {(['spot', 'do', 'cross'] as const).map((key) => {
+            const score = key === 'spot' ? weekThirds.owner : key === 'do' ? weekThirds.doing : weekThirds.cross;
+            const label = key === 'spot' ? 'Spot' : key === 'do' ? 'Do' : 'Cross';
+            const excluded = Boolean(weekData?.excluded?.includes(key));
+            const reason = weekData?.excluded_reasons?.[key] || '';
+            return (
+              <button
+                key={key}
+                type="button"
+                className="stat"
+                onClick={onScore}
+                title={excluded ? reason : undefined}
+              >
+                <b>{excluded ? '—' : scoreText(score)}</b>
+                <span>{bandWeightLabel(label, weekData?.weights?.[key] ?? { spot: 60, do: 25, cross: 15 }[key], excluded)}</span>
+              </button>
+            );
+          })}
         </div>
         <div className="proj">
           <span className="txt">If the rest is done<br />this week</span>
