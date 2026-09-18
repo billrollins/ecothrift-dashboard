@@ -19,7 +19,7 @@ function demo(kind: 'section_tally' | 'section_audit' | 'owner_spot', sections =
   return render(
     <MemoryRouter>
       <RoutinePreview
-        title="My section daily check"
+        title="Section check"
         definition={null}
         kind={kind}
         mode="demo"
@@ -67,7 +67,7 @@ describe('Demo chrome', () => {
     render(
       <MemoryRouter>
         <RoutinePreview
-          title="Work cycle"
+          title="Register activity"
           definition={null}
           kind="work_cycle"
           mode="demo"
@@ -91,29 +91,30 @@ describe('Tuesday demo', () => {
 });
 
 describe('Owner spot walk', () => {
-  it('shows the shared walk and Choose another on a named aisle', () => {
+  it('shows the shared walk and Switch on a named aisle', () => {
     demo('owner_spot');
     expect(screen.getByText('Demo')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Choose another' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Switch' })).toBeInTheDocument();
     expect(screen.queryByText('How many items did you look at')).not.toBeInTheDocument();
     expect(screen.getByText('Drawn at random today')).toBeInTheDocument();
   });
 
-  it('titles an empty week NO SECTIONS LEFT TO CHECK and keeps the Choose another slot', () => {
+  it('waits when nothing has been tallied yet', () => {
     const empty = previewSpot();
     empty.audit = previewAudit('', 0);
     empty.checks = empty.checks.map((check) => ({ ...check, result: 'pass' as const }));
     render(
       <OwnerSpotRunner
-        title="Owner spot check"
+        title="Spot walk"
         subject=""
         responses={empty}
         taxonomy={PREVIEW_TAXONOMY}
+        spotState="waiting"
         reroll={{ onClick: () => undefined, disabled: true }}
       />,
     );
-    expect(screen.getAllByText('NO SECTIONS LEFT TO CHECK').length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: 'Choose another' })).toBeDisabled();
+    expect(screen.getAllByText('Nothing tallied yet, check back later').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Switch' })).toBeDisabled();
     expect(screen.queryByText('How many items did you look at')).not.toBeInTheDocument();
   });
 });

@@ -55,7 +55,7 @@ export function WeekRoutinesModal({
             <option value="checklist">Checklist</option>
             <option value="section_tally">Tally</option>
             <option value="section_audit">Cross-check</option>
-            <option value="owner_spot">Owner spot</option>
+            <option value="owner_spot">Spot walk</option>
           </select>
         </label>
         <label>

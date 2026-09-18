@@ -117,8 +117,8 @@ class Routine(models.Model):
         (KIND_CHECKLIST, 'Checklist'),
         (KIND_SECTION_TALLY, 'Section tally'),
         (KIND_SECTION_AUDIT, 'Section cross-check'),
-        (KIND_OWNER_SPOT, 'Owner spot check'),
-        (KIND_WORK_CYCLE, 'Work cycle'),
+        (KIND_OWNER_SPOT, 'Spot walk'),
+        (KIND_WORK_CYCLE, 'Register activity'),
     ]
 
     SUBJECT_POOL = 'pool'

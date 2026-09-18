@@ -65,9 +65,9 @@ User = get_user_model()
 PERFORMED = (SYSTEM_OPEN, SYSTEM_DAY, SYSTEM_CLOSE)
 CALL_IN_KEYS = (SYSTEM_OPEN, SYSTEM_DAY, SYSTEM_CLOSE, SYSTEM_TALLY, SYSTEM_CROSS_CHECK)
 PERFORMED_TITLES = {
-    SYSTEM_OPEN: 'Retail open',
-    SYSTEM_DAY: 'Retail day',
-    SYSTEM_CLOSE: 'Retail close',
+    SYSTEM_OPEN: 'Opening checklist',
+    SYSTEM_DAY: 'Midday checklist',
+    SYSTEM_CLOSE: 'Closing checklist',
 }
 
 STATUS_DONE = 'Done'
@@ -196,9 +196,9 @@ def shift_owner_payload(owner, owner_state: str | None, scheduled: list):
 
 def performed_title(key: str, run=None) -> str:
     title = getattr(getattr(run, 'routine', None), 'title', '') or ''
-    if title and '.' not in title:
+    if title:
         return title
-    return PERFORMED_TITLES.get(key, title or key)
+    return PERFORMED_TITLES.get(key, key)
 
 
 def assignments_for(user_id: int, day: date) -> list[ShiftAssignment]:
@@ -1259,11 +1259,7 @@ def score_items_for_day(day_row: dict) -> list[str]:
         status = status_word(row.get('status'))
         if status in (STATUS_DONE, STATUS_PROJECTED):
             continue
-        title = {
-            SYSTEM_OPEN: 'Retail open',
-            SYSTEM_DAY: 'Retail day',
-            SYSTEM_CLOSE: 'Retail close',
-        }.get(row.get('key') or '', row.get('title') or row.get('key') or 'Routine')
+        title = row.get('title') or PERFORMED_TITLES.get(row.get('key') or '', 'Routine')
         if status == STATUS_MISSED:
             items.append(f'{title} missed {stamp}')
         else:
@@ -1474,11 +1470,19 @@ def build_issues(
 
     threshold = spot_issue_at(day, tz, hours_cfg)
     if not spot.get('done') and now >= threshold:
+        spot_title = (
+            Routine.objects.filter(system_key=SYSTEM_OWNER_SPOT)
+            .values_list('title', flat=True)
+            .first()
+            or 'Spot walk'
+        )
         issues.append({
             'id': 'no-spot',
             'type': 'no_spot',
             'severity': 'amber' if day >= today else 'grey',
-            'sentence': 'No owner spot check yet today.' if day == today else f'No owner spot check on {short_day(day)}.',
+            'sentence': (
+                f'No {spot_title} yet today.' if day == today else f'No {spot_title} on {short_day(day)}.'
+            ),
             'action': 'do_spot',
             'person_id': None,
             'person_name': None,
@@ -1728,7 +1732,7 @@ def apply_override(*, employee, day: date, shift, time_in=None, time_out=None, m
 
 def assign_run(*, run: RoutineRun, user, marked_by=None) -> RoutineRun:
     if run.routine.system_key == SYSTEM_WORK_CYCLE:
-        raise ValueError('Work cycles are not assigned from this board.')
+        raise ValueError('Register activity is not assigned from this board.')
     with transaction.atomic():
         if user is None:
             run.assigned_to = None

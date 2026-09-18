@@ -1265,9 +1265,9 @@ class ProgramV2Tests(TestCase):
         opening = Routine.objects.get(system_key=SYSTEM_OPEN)
         day = Routine.objects.get(system_key=SYSTEM_DAY)
         close = Routine.objects.get(system_key=SYSTEM_CLOSE)
-        self.assertEqual(opening.title, 'Retail open')
-        self.assertEqual(day.title, 'Retail day')
-        self.assertEqual(close.title, 'Retail close')
+        self.assertEqual(opening.title, 'Opening checklist')
+        self.assertEqual(day.title, 'Midday checklist')
+        self.assertEqual(close.title, 'Closing checklist')
         self.assertIsNone(day.due_time)
         open_ids = [check['id'] for section in opening.definition['sections'] for check in section['checks']]
         day_ids = [check['id'] for section in day.definition['sections'] for check in section['checks']]

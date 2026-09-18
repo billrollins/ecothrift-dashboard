@@ -112,16 +112,32 @@ CLOSE_DEFINITION = _definition([
 
 PROGRAM_TITLES = {
     'retail.open': (
-        'Retail open',
+        'Opening checklist',
         'First hour of the day, and a look at how the store was left.',
     ),
     'retail.day': (
-        'Retail day',
+        'Midday checklist',
         'Front, trash, restrooms, aisles, back stock. The work of the day.',
     ),
     'retail.close': (
-        'Retail close',
+        'Closing checklist',
         'Leave it the way you want to find it.',
+    ),
+    'retail.section_tally': (
+        'Section check',
+        'Walk your section and log what you had to put right.',
+    ),
+    'retail.section_audit': (
+        'Cross-check',
+        "Somebody else's section, counted the way you would want yours counted.",
+    ),
+    'retail.owner_spot': (
+        'Spot walk',
+        'Two checks at random and one section, top to bottom.',
+    ),
+    'retail.work_cycle': (
+        'Register activity',
+        'Log a shelf check or a non-shelf check, then carry on.',
     ),
 }
 
@@ -200,20 +216,17 @@ PROGRAM_AUDIENCE = {
 
 
 def apply_program(Routine) -> None:
-    """Retitle and reseed the three checklists on an already-migrated Routine model."""
+    """Retitle program routines and reseed the three checklists."""
     names = {field.name for field in Routine._meta.fields}
-    for key, definition in PROGRAM_DEFINITIONS.items():
-        title, intro = PROGRAM_TITLES[key]
-        times = PROGRAM_TIMES[key]
-        payload = {
-            'title': title,
-            'intro': intro,
-            'definition': definition,
-            'remind_time': times['remind_time'],
-            'due_time': times['due_time'],
-        }
-        if 'hard_time' in names:
-            payload['hard_time'] = times.get('hard_time')
+    for key, (title, intro) in PROGRAM_TITLES.items():
+        payload = {'title': title, 'intro': intro}
+        if key in PROGRAM_DEFINITIONS:
+            times = PROGRAM_TIMES[key]
+            payload['definition'] = PROGRAM_DEFINITIONS[key]
+            payload['remind_time'] = times['remind_time']
+            payload['due_time'] = times['due_time']
+            if 'hard_time' in names:
+                payload['hard_time'] = times.get('hard_time')
         Routine.objects.filter(system_key=key).update(**payload)
     _maybe_apply_expire(Routine)
     _maybe_apply_audience(Routine)

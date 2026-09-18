@@ -33,9 +33,9 @@ const SAMPLE_ISSUES: QaIssue[] = [
 
 describe('displayName', () => {
   it('maps routine keys, punch codes, and department keys', () => {
-    expect(displayName('retail.open', 'routine')).toBe('Retail open');
-    expect(displayName('retail.day', 'routine')).toBe('Retail day');
-    expect(displayName('retail.close', 'routine')).toBe('Retail close');
+    expect(displayName('retail.open', 'routine')).toBe('Opening checklist');
+    expect(displayName('retail.day', 'routine')).toBe('Midday checklist');
+    expect(displayName('retail.close', 'routine')).toBe('Closing checklist');
     expect(displayName('office', 'shift')).toBe('Office');
     expect(displayName('restoration', 'shift')).toBe('Restoration');
     expect(displayName('office', 'dept')).toBe('Office');

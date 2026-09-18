@@ -17,12 +17,14 @@ export const CHIP_LABEL: Record<string, string> = {
 };
 
 const ROUTINE_NAMES: Record<string, string> = {
-  'retail.open': 'Retail open',
-  'retail.day': 'Retail day',
-  'retail.close': 'Retail close',
+  'retail.open': 'Opening checklist',
+  'retail.day': 'Midday checklist',
+  'retail.close': 'Closing checklist',
   'retail.section_tally': 'Section check',
   'retail.owner_spot': 'Spot walk',
+  'retail.section_audit': 'Cross-check',
   'retail.cross_check': 'Cross-check',
+  'retail.work_cycle': 'Register activity',
 };
 
 const SHIFT_NAMES: Record<string, string> = {

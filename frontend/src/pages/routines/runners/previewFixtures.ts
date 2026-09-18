@@ -98,7 +98,7 @@ export function previewSpot(): OwnerSpotResponses {
     checks: [
       {
         routine_key: 'retail.open',
-        routine_title: 'Retail open',
+        routine_title: 'Opening checklist',
         check_id: 'sample-1',
         label: 'A check drawn from the opening list',
         control: 'pass_fail',

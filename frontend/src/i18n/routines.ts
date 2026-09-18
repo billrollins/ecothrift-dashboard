@@ -19,7 +19,7 @@ export const STRINGS: Record<string, { en: string; es: string }> = {
   startWith: { en: 'Start with', es: 'Empieza con' },
   dueToday: { en: 'Due today', es: 'Para hoy' },
   inProgress: { en: 'In progress', es: 'En curso' },
-  workCycle: { en: 'Work cycle', es: 'Ciclo de trabajo' },
+  workCycle: { en: 'Register activity', es: 'Actividad de caja' },
   nothingDue: { en: 'Nothing waiting.', es: 'Nada pendiente.' },
   nothingInProgress: { en: 'Nothing in progress.', es: 'Nada en curso.' },
   continue: { en: 'Continue', es: 'Continuar' },

@@ -46,7 +46,7 @@ export function WorkCyclePill() {
             }}
           >
             <LoopRounded />
-            Work cycle
+            {routine.title || 'Register activity'}
           </Box>
         </Tooltip>
       ) : null}

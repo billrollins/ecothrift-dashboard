@@ -1,14 +1,11 @@
 import { Box, Button, Typography, useMediaQuery, useTheme } from '@mui/material';
 import AddRounded from '@mui/icons-material/AddRounded';
-import ChevronLeftRounded from '@mui/icons-material/ChevronLeftRounded';
-import ChevronRightRounded from '@mui/icons-material/ChevronRightRounded';
 import TuneRounded from '@mui/icons-material/TuneRounded';
-import { parseISO } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { getDepartments } from '../../../api/hr.api';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { getDepartments, mergeCurrentDepartments } from '../../../api/hr.api';
 import type { AdminRoutine } from '../../../api/routines.api';
 import { dutyColors } from '../../../components/duty/tokens';
 import {
@@ -19,16 +16,20 @@ import {
   useRoutineAssignees,
 } from '../../../hooks/useRoutines';
 import { RoutineHeaderButton, RoutineHeaderIconButton, RoutinePaneHeader } from '../../routines/RoutinePaneHeader';
-import { AdminGradesPane } from './AdminGradesPane';
 import { AdminRoutineInspector } from './AdminRoutineInspector';
 import { AdminRoutineList } from './AdminRoutineList';
 import { AdminSectionsPane } from './AdminSectionsPane';
 import { AdminViewToggle, parseAdminView, type AdminRoutineView } from './AdminViewToggle';
 import { DEFAULT_ADMIN_FILTERS, type AdminRoutineFilters } from './adminRoutineFilters';
-import { isFutureWeek, isoWeekKey, shiftWeek } from './gradeWeek';
 
 /** Same width as the Routines page panes, so the two rooms feel like one building. */
 const LIST_WIDTH = 'clamp(520px, 48%, 720px)';
+
+function sectionsNote(rows: AdminRoutine[] | undefined) {
+  const tally = rows?.find((row) => row.system_key === 'retail.section_tally')?.title || 'Section check';
+  const cross = rows?.find((row) => row.system_key === 'retail.section_audit')?.title || 'Cross-check';
+  return `The floor plan behind the ${tally} and the ${cross}.`;
+}
 
 export default function AdminRoutinesPage() {
   const theme = useTheme();
@@ -50,11 +51,14 @@ export default function AdminRoutinesPage() {
   const [filters, setFilters] = useState<AdminRoutineFilters>(DEFAULT_ADMIN_FILTERS);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [showRetired, setShowRetired] = useState(false);
-  const today = useMemo(() => new Date(), []);
-  const asked = params.get('day');
-  const [week, setWeek] = useState(() => (
-    isoWeekKey(asked && !Number.isNaN(Date.parse(asked)) ? parseISO(asked) : new Date())
-  ));
+
+  if (params.get('view') === 'grades') {
+    const day = params.get('day');
+    const to = day
+      ? `/admin/retail-qa?day=${encodeURIComponent(day)}`
+      : '/admin/retail-qa';
+    return <Navigate to={to} replace />;
+  }
 
   const rows = routines.data ?? [];
   const view = parseAdminView(params.get('view'));
@@ -127,13 +131,22 @@ export default function AdminRoutinesPage() {
     }
   }
 
-  const departmentOptions = (departments.data ?? []).map((d) => ({ id: d.id, name: d.name }));
+  const departmentOptions = useMemo(() => (
+    mergeCurrentDepartments(
+      departments.data ?? [],
+      (routines.data ?? []).flatMap((row) => [
+        { id: row.assigned_department, name: row.assigned_department_name },
+        ...(row.assigned_department_ids || []).map((id) => ({
+          id,
+          name: row.assigned_department_name,
+        })),
+      ]),
+    ).map((d) => ({ id: d.id, name: d.name, slug: d.slug }))
+  ), [departments.data, routines.data]);
 
   const headerNote = view === 'routines'
     ? (routines.isError ? 'Could not load routines.' : 'Every routine, including the program ones.')
-    : view === 'sections'
-      ? 'The floor plan behind the daily tally and the Tuesday cross-check.'
-      : 'The retail letter and the walks that produced it.';
+    : sectionsNote(routines.data);
 
   const headerActions = view === 'routines' ? (
     <RoutineHeaderIconButton
@@ -141,26 +154,12 @@ export default function AdminRoutinesPage() {
       icon={<AddRounded />}
       onClick={() => navigate('/routines/new')}
     />
-  ) : view === 'sections' ? (
+  ) : (
     <RoutineHeaderButton
       label={showRetired ? 'Hide retired' : 'Show retired'}
       variant="ghost"
       onClick={() => setShowRetired((on) => !on)}
     />
-  ) : (
-    <>
-      <RoutineHeaderIconButton
-        label="Previous week"
-        icon={<ChevronLeftRounded />}
-        onClick={() => setWeek((current) => shiftWeek(current, -1))}
-      />
-      <RoutineHeaderIconButton
-        label="Next week"
-        icon={<ChevronRightRounded />}
-        disabled={isFutureWeek(shiftWeek(week, 1), today)}
-        onClick={() => setWeek((current) => shiftWeek(current, 1))}
-      />
-    </>
   );
 
   const list = (
@@ -205,20 +204,12 @@ export default function AdminRoutinesPage() {
   const centred = (
     <Box sx={{ height: '100%', overflow: 'auto', bgcolor: dutyColors.desk }}>
       <Box sx={{ maxWidth: 1040, mx: 'auto', height: '100%' }}>
-        {view === 'sections' ? (
-          <AdminSectionsPane
-            departments={departmentOptions}
-            people={assignees.data ?? []}
-            showRetired={showRetired}
-            onShowRetired={setShowRetired}
-          />
-        ) : (
-          <AdminGradesPane
-            week={week}
-            departments={departmentOptions}
-            openOn={params.get('day')}
-          />
-        )}
+        <AdminSectionsPane
+          departments={departmentOptions}
+          people={assignees.data ?? []}
+          showRetired={showRetired}
+          onShowRetired={setShowRetired}
+        />
       </Box>
     </Box>
   );

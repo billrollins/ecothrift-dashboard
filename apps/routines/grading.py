@@ -60,9 +60,9 @@ PUNCH_FOR_KEY = {
     SYSTEM_CLOSE: 'retail_close',
 }
 PERFORMED_TITLES = {
-    SYSTEM_OPEN: 'Retail open',
-    SYSTEM_DAY: 'Retail day',
-    SYSTEM_CLOSE: 'Retail close',
+    SYSTEM_OPEN: 'Opening checklist',
+    SYSTEM_DAY: 'Midday checklist',
+    SYSTEM_CLOSE: 'Closing checklist',
 }
 
 
@@ -526,7 +526,7 @@ def _doing_for_day(day: date, runs: list[RoutineRun], *, project: bool = False) 
         if finished:
             done += 1
             status = 'done' if project and status not in ('done', 'late') else status
-        title = (run.routine.title if run and run.routine.title and '.' not in run.routine.title else PERFORMED_TITLES[key])
+        title = (run.routine.title if run and run.routine.title else PERFORMED_TITLES[key])
         routines.append({
             'key': key,
             'title': title,

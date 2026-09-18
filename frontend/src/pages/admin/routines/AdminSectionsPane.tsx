@@ -36,7 +36,7 @@ export const SECTION_CHECK_KEY = 'retail_qa.section_check_weekdays';
 export const SECTION_CHECK_HELP = 'Every section gets an owner check on these days, open or closed.';
 
 /**
- * The floor plan behind the daily tally and the Tuesday cross-check. Every
+ * The floor plan behind the Section check and the Cross-check. Every
  * section here becomes somebody's standing job, so an area with no owner is
  * an area nobody ever reports on.
  */
