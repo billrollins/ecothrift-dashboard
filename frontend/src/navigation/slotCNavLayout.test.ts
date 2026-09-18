@@ -169,8 +169,10 @@ describe('Studios and Admin placement', () => {
   const retailFloor = SLOT_C_NAV_GROUPS.find((g) => g.id === 'retailFloor');
   const onlineSales = SLOT_C_NAV_GROUPS.find((g) => g.id === 'onlineSales');
 
-  it('keeps Admin as Users, Retail inbox, Settings, Time & payroll, and Routines', () => {
-    expect(admin?.itemIds).toEqual(['users', 'retailInbox', 'settings', 'payrollHours', 'adminRoutines']);
+  it('keeps Admin as Users, Departments, Shifts, Routines, Command Center, Time & payroll, and Settings', () => {
+    expect(admin?.itemIds).toEqual([
+      'users', 'departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'settings',
+    ]);
     expect(NAV_ITEM_CATALOG.adminRoutines?.superuserOnly).toBe(true);
     expect(admin?.guestItemIds ?? []).toEqual([]);
   });
@@ -185,6 +187,46 @@ describe('Studios and Admin placement', () => {
   it('keeps Floorplans on Retail Floor and Messages on Online Sales', () => {
     expect(retailFloor?.itemIds).toEqual(['inventoryWorkbench', 'quickReprice', 'floorplans']);
     expect(onlineSales?.itemIds).toContain('onlineSalesCustomers');
+  });
+});
+
+describe('Command Center placement', () => {
+  const storeSales = SLOT_C_NAV_GROUPS.find((g) => g.id === 'storeSales');
+  const admin = SLOT_C_NAV_GROUPS.find((g) => g.id === 'admin');
+
+  it('sits in Cashiers behind the divider, and in Admin after Routines', () => {
+    expect(storeSales?.guestItemIds).toEqual(['retailQa']);
+    expect(storeSales?.itemIds).not.toContain('retailQa');
+    expect(admin?.itemIds).toEqual([
+      'users', 'departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'settings',
+    ]);
+    expect(NAV_ITEM_CATALOG.retailQa?.label).toBe('Command Center');
+    expect(NAV_ITEM_CATALOG.retailQa?.roles).toEqual(['Manager', 'Admin']);
+    expect(NAV_ITEM_CATALOG.retailQa?.path).toBe('/admin/retail-qa');
+  });
+
+  it('shows a Manager the page after the Cashier list', () => {
+    const groups = resolveNavGroups({ role: 'Manager', is_superuser: false }, SLOT_C_NAV_GROUPS);
+    const group = groups.find((g) => g.id === 'storeSales');
+    expect(group?.guestItems.map((item) => item.id)).toEqual(['retailQa']);
+  });
+
+  it('leaves an Employee neither the page nor the divider above it', () => {
+    const groups = resolveNavGroups({ role: 'Employee', is_superuser: false }, SLOT_C_NAV_GROUPS);
+    const group = groups.find((g) => g.id === 'storeSales');
+    expect(group?.items.map((item) => item.id)).not.toContain('retailQa');
+    expect(group?.guestItems).toEqual([]);
+  });
+
+  it('opens Admin when the Command Center URL is entered', () => {
+    const groups = resolveNavGroups(
+      { role: 'Admin', is_superuser: true },
+      SLOT_C_NAV_GROUPS,
+    );
+    const workspaces = groups.filter((g) => g.id !== 'essentials');
+    const isActive = (item: { path: string; pathAliases?: string[] }) =>
+      navItemIsActive('/admin/retail-qa', '', '', item);
+    expect(resolveWorkspaceForRoute(workspaces, SLOT_C_WORKSPACES, isActive)).toBe('admin');
   });
 });
 
@@ -226,6 +268,9 @@ describe('glowColorForNavItem', () => {
   it('uses the workspace letter colour for a native page', () => {
     expect(glowColorForNavItem('receiving')).toBe(processing);
     expect(glowColorForNavItem('auctions')).toBe(buying);
+    expect(glowColorForNavItem('retailQa')).toBe(
+      SLOT_C_WORKSPACES.find((w) => w.id === 'admin')!.shortcutColor,
+    );
   });
 
   it('uses the home workspace colour for a guest shortcut', () => {

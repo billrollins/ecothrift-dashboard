@@ -132,7 +132,11 @@ function RoutineGroup({
                     <option value="">Assign owner</option>
                     {pool.map((person) => (
                       <option key={person.id} value={person.id}>
-                        {person.full_name || person.name}
+                        {'full_name' in person && person.full_name
+                          ? person.full_name
+                          : 'name' in person && person.name
+                            ? person.name
+                            : String(person.id)}
                       </option>
                     ))}
                   </select>

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-09 (cardx Phase 5) -->
+<!-- Last updated: 2026-09-18 (scoring v2 + departments GitHub) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not a session log.
@@ -17,6 +17,8 @@ Bounded work (hours–days), one `.md` per initiative. Not a session log.
 | [listing_photos](./listing_photos.md) | **Active** | Four slots, single-screen editor, lightbox, autosave, Mark posted. |
 | [universal_object_surfaces](./universal_object_surfaces.md) | **Design only** | Permissioned ObjectChip → ObjectSurface. No code scheduled. |
 | [cardx_surcharge](./cardx_surcharge.md) | **Phase 5** | Record-only 3% credit surcharge: one-window CardX match, 15-min fix card type + reprint, then superuser. |
+| [retail_qa_scoring_v2](./retail_qa_scoring_v2.md) | **Phase 5** | Command Center, staff QA, frozen past days. Shipped GitHub **v2.95.0**. Not Heroku. |
+| [departments_admin](./departments_admin.md) | **Phase 1** | Directory + hub. Shipped GitHub **v2.95.0**. Not Heroku. |
 
 ---
 

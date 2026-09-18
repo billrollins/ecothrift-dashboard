@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import (
     WorkLocation,
     AppSetting,
+    AppSettingHistory,
     S3File,
     PrintServerRelease,
     EnhancementRequest,
@@ -23,6 +24,25 @@ class AppSettingSerializer(serializers.ModelSerializer):
         model = AppSetting
         fields = ['id', 'key', 'value', 'description', 'updated_by', 'updated_by_name', 'updated_at']
         read_only_fields = ['id', 'updated_at']
+
+    def validate(self, attrs):
+        key = attrs.get('key') or getattr(self.instance, 'key', '')
+        if str(key).startswith('retail_qa.') and 'value' in attrs:
+            from apps.routines.settings import (
+                retail_qa_settings,
+                validate_retail_qa_bundle,
+                validate_retail_qa_value,
+            )
+            name = key[len('retail_qa.'):]
+            try:
+                attrs['value'] = validate_retail_qa_value(name, attrs['value'])
+            except ValueError as exc:
+                raise serializers.ValidationError({'value': str(exc)})
+            trial = {**retail_qa_settings(), name: attrs['value']}
+            errors = validate_retail_qa_bundle(trial)
+            if errors:
+                raise serializers.ValidationError({'value': errors[0]})
+        return attrs
 
 
 class S3FileSerializer(serializers.ModelSerializer):

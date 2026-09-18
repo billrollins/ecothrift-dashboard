@@ -5,8 +5,8 @@ import ShoppingBag from '@mui/icons-material/ShoppingBag';
 import PrecisionManufacturing from '@mui/icons-material/PrecisionManufacturing';
 import Handyman from '@mui/icons-material/Handyman';
 import Storefront from '@mui/icons-material/Storefront';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { isoWeekKey } from '../../pages/admin/routines/gradeWeek';
 import type {
   DepartmentDailyMetric,
   DepartmentDailyWeek,
@@ -21,6 +21,7 @@ import {
   processingWeekTotal,
   restorationGridValue,
   restorationWeekTotal,
+  retailCellAriaLabel,
   retailDayIsClickable,
   retailGoalCellState,
   retailGridValue,
@@ -36,6 +37,7 @@ import {
 } from './DepartmentGoalDialog';
 import { formatDashboardCurrency } from './dashboardFormatters';
 import { DepartmentWeekDetailDialog } from './DepartmentWeekDetailDialog';
+import { DepartmentRetailDayDialog, type RetailSummaryMode } from './DepartmentRetailDayDialog';
 import { DepartmentCardPhone } from './phone/DepartmentCardPhone';
 import { dashboardPalette } from './dashboardCardStyles';
 import { useDashboardLayout } from './useDashboardLayout';
@@ -62,12 +64,13 @@ interface CardConfig {
 
 export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const { isCompact, isMobile } = useDashboardLayout();
   const isSuperuser = Boolean(user?.is_superuser);
+  const canOpenCommandCenter = ['Admin', 'Manager'].includes(user?.role || '');
   const { buying, processing, restoration, retail, goals, daily_weeks } = metrics;
   const [openKey, setOpenKey] = useState<DepartmentGoalKey | null>(null);
   const [weekDetailKey, setWeekDetailKey] = useState<DepartmentGoalKey | null>(null);
+  const [summary, setSummary] = useState<{ mode: RetailSummaryMode; date?: string; week?: string } | null>(null);
 
   const todayIso = useMemo(() => {
     let latest = '';
@@ -115,16 +118,16 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
     {
       key: 'retail',
       label: 'Retail',
-      kind: 'count',
+      kind: 'grade',
       accent: dashboardPalette.gold,
       icon: <Storefront />,
       actual: retail.average_grade ?? '-',
-      actualNote: [
+      actualNote: retail.note || [
         retail.last_grade ? `${retail.last_grade} on the last graded day` : null,
         `${retail.week_work_cycles ?? 0} work cycles this week`,
         `${retail.week_idle_dismissed ?? 0} idle prompts dismissed`,
       ].filter(Boolean).join(' · '),
-      goalMet: retail.average_grade === 'A' || retail.average_grade === 'B',
+      goalMet: Boolean(retail.week_goal_met),
       getValue: retailGridValue,
       getWeekTotal: retailWeekTotal,
       getCellState: retailGoalCellState,
@@ -145,11 +148,15 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
     ?? null;
 
   const openRetailDay = (day: { date: string }) => {
-    navigate(
-      isSuperuser
-        ? `/admin/routines?view=grades&day=${day.date}`
-        : '/routines',
-    );
+    setSummary({ mode: 'day', date: day.date });
+  };
+
+  const openRetailWeek = () => {
+    const weekStart = currentWeek?.week_start;
+    const week = weekStart
+      ? isoWeekKey(new Date(`${weekStart}T12:00:00`))
+      : isoWeekKey(new Date());
+    setSummary({ mode: 'week', week });
   };
 
   return (
@@ -168,6 +175,7 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
               placeholder={card.placeholder}
               goalMet={card.goalMet}
               onGoalClick={() => setOpenKey(card.key)}
+              onActualClick={card.key === 'retail' ? openRetailWeek : undefined}
               onViewHistory={() => setWeekDetailKey(card.key)}
               historyLabel={`All ${daily_weeks.length} weeks`}
               week={currentWeek}
@@ -176,6 +184,7 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
               todayIso={todayIso}
               onCellClick={card.key === 'retail' ? openRetailDay : undefined}
               isCellClickable={card.key === 'retail' ? retailDayIsClickable : undefined}
+              cellAriaLabel={card.key === 'retail' ? retailCellAriaLabel : undefined}
             />
           ))}
         </Stack>
@@ -198,6 +207,7 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
                 placeholder={card.placeholder}
                 goalMet={card.goalMet}
                 onGoalClick={() => setOpenKey(card.key)}
+                onActualClick={card.key === 'retail' ? openRetailWeek : undefined}
                 showWeekDetailButton={isCompact}
                 onViewWeekDetail={() => setWeekDetailKey(card.key)}
                 footer={
@@ -215,6 +225,7 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
                         : undefined
                     }
                     isCellClickable={card.key === 'retail' ? retailDayIsClickable : undefined}
+                    cellAriaLabel={card.key === 'retail' ? retailCellAriaLabel : undefined}
                   />
                 }
               />
@@ -245,8 +256,20 @@ export function DepartmentMetricCards({ metrics }: DepartmentMetricCardsProps) {
           getCellState={weekDetailCard.getCellState}
           getWeekAchieved={weekDetailCard.getWeekAchieved}
           todayIso={todayIso}
+          onCellClick={weekDetailCard.key === 'retail' ? (day) => openRetailDay(day) : undefined}
+          isCellClickable={weekDetailCard.key === 'retail' ? retailDayIsClickable : undefined}
+          cellAriaLabel={weekDetailCard.key === 'retail' ? retailCellAriaLabel : undefined}
         />
       ) : null}
+
+      <DepartmentRetailDayDialog
+        open={summary !== null}
+        onClose={() => setSummary(null)}
+        mode={summary?.mode ?? 'day'}
+        date={summary?.date}
+        week={summary?.week}
+        showCommandCenterLink={canOpenCommandCenter}
+      />
     </>
   );
 }

@@ -15,6 +15,8 @@ const state = vi.hoisted(() => ({
 
 vi.mock('../../../api/hr.api', () => ({
   getDepartments: async () => ({ data: [] }),
+  mergeCurrentDepartment: (list: unknown[]) => list,
+  mergeCurrentDepartments: (list: unknown[]) => list,
 }));
 
 vi.mock('@mui/x-data-grid', () => ({

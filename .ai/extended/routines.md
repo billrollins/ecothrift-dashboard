@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-16 (Grades pane retired) -->
+<!-- Last updated: 2026-09-18 (frozen expected + Command Center ship) -->
 # Routines
 
 Periodic and on-demand fill-in forms. Initiative: [`routines`](../initiatives/_archived/_completed/routines.md) (completed).
@@ -33,7 +33,7 @@ The three section kinds keep an empty `definition`; the editor hides the Checkli
 
 ## Schedule
 
-`apps/routines/schedule.py` uses `apps/webstore/services/hours.py` (`is_open_day`). Closed Sunday and Monday produce nothing. Period keys: `2026-09-01`, `2026-W36`, `2026-09-08` (bi-weekly window start), `2026-09`, `2026-Q3`, `2026`. Weekly / monthly / quarterly / annual are due on the last open day of the period. Bi-weekly is due on the window start (`anchor_date`, then every 14 days); if that day is closed, the last open day on or before it. Subject draws are deterministic on `(routine, period, user)`.
+`apps/routines/schedule.py` uses `apps/webstore/services/hours.py` (`is_open_day`). Closed Sunday produces nothing. Monday follows `retail_qa.section_check_weekdays` (on by default after `0019`). Period keys: `2026-09-01`, `2026-W36`, `2026-09-08` (bi-weekly window start), `2026-09`, `2026-Q3`, `2026`. Weekly / monthly / quarterly / annual are due on the last open day of the period. Bi-weekly is due on the window start (`anchor_date`, then every 14 days); if that day is closed, the last open day on or before it. Subject draws are deterministic on `(routine, period, user)`.
 
 `python manage.py materialize_routines` (Heroku Scheduler; replaces `materialize_duties`). Saving a routine, and `GET /api/routines/runs/mine/`, also materialize today's open-day runs so a new checklist appears without waiting for cron. Saving a definition rebuilds open drafts onto the new checks and keeps answers for surviving ids.
 
@@ -93,7 +93,7 @@ Seven routines seeded by `routines/0005_seed_retail_qa`, cleaned by `0006`, and 
 
 **Runners** (`pages/routines/runners/`). `KindRunner` dispatches on `kind`. Checklists gain a per-check `VerifyBlock` when `verifies` is set. `TaxonomyCounters` groups counters under solution headers; just-do is a reminder row. `WorkCycleRunner` non-shelf ticks group by Day section. The editor has Spanish label/hint/title and **Next shift confirms**. `runnerStatus.ts` mirrors the server's blockers.
 
-**Grading** (`grading.py`). Day and week use the same three thirds. **Doing** is checklists done (late still counts) plus active sections that were tallied or cross-checked, over the sections not closed for the day. **Cross** is the verify ladder (how many last-shift items were not done) averaged with Tuesday-style section audits scored from a Negative Binomial / Poisson baseline (mid-p tail, log10-linear between `cross_full_tail` and `cross_zero_tail`). A routine with no `verifies` is omitted from Cross, so Cross can be N/A. **Owner** is leftover on the daily spot: expected new items from the section mean × hours since tally / open hours, residual R, plus severity R-add; no spot that day is 100, not a zero. The day/week letter is the mean of the thirds that exist. Remaining open work this week is projected as 100. Past weeks freeze `WeekScoreSnapshot.settings` and `SectionBaselineSnapshot`. Register activity stays activity, not a score.
+**Grading** (`grading.py`). Day and week use Spot / Do / Cross at `retail_qa.weight_*`; a third with zero expected (or no walk) is excluded and the rest renormalize to 100. **Do** is section checks plus Open/Day/Close over that day's expected. A past day reads `QaDayExpected` (never live weekdays). Zero expected excludes Do; when Spot is also out the day is ungraded — tile **Closed** (or **—** if the store is open), no letter, never A+. Setting flips apply today and future only. **Spot** is the owner walk leftover (R + severity); no walk that day is excluded, not 100. **Cross** is the weekly verify + section-audit tail; it is week context on a day dialog. Remaining open work this week is projected as 100. Past weeks freeze `WeekScoreSnapshot.settings` and `SectionBaselineSnapshot`. Register activity stays activity, not a score.
 
 **Settings > Retail QA** (`?tab=retail-qa`) edits the `retail_qa.*` keys: baseline window/shrink/warm-up, tails, verify and owner ladders, severity groups, checker-flag thresholds, letter cutoffs, idle prompt. Kinds include `tail`, `weekday`, `ladder`, `severity_groups`, `seconds`, `score`, and `count`. Superuser Preview rescores the current week in memory. Changes write `AppSettingHistory`. `retail_qa_settings()` fills shipped defaults for anything unset or unparsable. Open hours reuse `online_sales.hours`.
 

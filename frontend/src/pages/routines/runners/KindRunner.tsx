@@ -5,6 +5,7 @@ import type {
   NonShelfCheck,
   OwnerSpotResponses,
   RoutineKind,
+  SpotScoreCard,
   RoutineResponses,
   SectionAuditResponses,
   SectionTallyResponses,
@@ -36,6 +37,9 @@ export function KindRunner({
   sections,
   nonShelfChecks,
   reroll,
+  spotState,
+  tallyLine,
+  scoreCard,
 }: {
   kind: RoutineKind;
   title: string;
@@ -49,6 +53,9 @@ export function KindRunner({
   sections?: Array<{ id: number; name: string }>;
   nonShelfChecks?: NonShelfCheck[];
   reroll?: WalkAction;
+  spotState?: 'waiting' | 'ready' | null;
+  tallyLine?: string;
+  scoreCard?: SpotScoreCard | null;
 }) {
   const resolved = resolveRunnerKind(kind, responses);
   if (resolved === 'checklist') {
@@ -113,6 +120,9 @@ export function KindRunner({
       readOnly={readOnly}
       onChange={onChange}
       reroll={reroll}
+      spotState={spotState}
+      tallyLine={tallyLine}
+      scoreCard={scoreCard}
     />
   );
 }

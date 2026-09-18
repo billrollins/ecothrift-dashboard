@@ -1205,6 +1205,52 @@ class ScoringEngineTests(TestCase):
         self.assertEqual(result['weights']['do'], 100.0)
         self.assertIsNone(combine_weighted([('spot', 60, None), ('do', 25, None)])['score'])
 
+    def test_zero_expected_do_is_excluded_and_all_excluded_is_ungraded(self):
+        from apps.routines.grading import combine_weighted, grade_day
+        from apps.routines.models import QaDayExpected
+        do_out = combine_weighted(
+            [('spot', 60, 90.0), ('do', 25, 100.0)],
+            expected={'spot': 1, 'do': 0},
+        )
+        self.assertIn('do', do_out['excluded'])
+        self.assertNotIn('spot', do_out['excluded'])
+        self.assertEqual(do_out['score'], 90.0)
+        empty = combine_weighted(
+            [('spot', 60, None), ('do', 25, 100.0)],
+            expected={'spot': 0, 'do': 0},
+        )
+        self.assertIsNone(empty['score'])
+        self.assertEqual(sorted(empty['excluded']), ['do', 'spot'])
+        day = date(2026, 9, 14)
+        QaDayExpected.objects.update_or_create(date=day, defaults={'expected': 0})
+        graded = grade_day(day)
+        self.assertFalse(graded['graded'])
+        self.assertIsNone(graded['score'])
+        self.assertIsNone(graded['letter'])
+        self.assertIn('do', graded['excluded'])
+        self.assertIn('spot', graded['excluded'])
+
+    def test_section_check_weekday_flip_does_not_change_a_frozen_past_day(self):
+        from apps.core.models import AppSetting
+        from apps.routines.grading import expected_for_day, grade_day
+        from apps.routines.models import QaDayExpected
+        day = date(2026, 9, 14)
+        QaDayExpected.objects.update_or_create(date=day, defaults={'expected': 0})
+        before = grade_day(day)
+        self.assertEqual(expected_for_day(day), 0)
+        self.assertFalse(before['graded'])
+        self.assertIsNone(before['letter'])
+        AppSetting.objects.update_or_create(
+            key='retail_qa.section_check_weekdays',
+            defaults={'value': [True, True, True, True, True, True, True]},
+        )
+        after = grade_day(day)
+        self.assertEqual(expected_for_day(day), 0)
+        self.assertEqual(QaDayExpected.objects.get(date=day).expected, 0)
+        self.assertEqual(after['doing']['needed'], 0)
+        self.assertEqual(after['letter'], before['letter'])
+        self.assertEqual(after['graded'], before['graded'])
+
     def test_week_grade_equals_spot_do_blend_before_cross_due(self):
         from apps.routines.grading import _week_cross, combine_weighted
         daily = [{'cross': {'audits': [{'status': 'open'}]}}]
@@ -1336,13 +1382,28 @@ class DaySummaryApiTests(APITestCase):
         self.assertFalse(response.data['graded'])
         self.assertIsNone(response.data['letter'])
         self.assertIsNone(response.data['score'])
-        self.assertIsNone(response.data['do'])
-        self.assertIsNone(response.data['spot'])
-        self.assertIsNone(response.data['cross'])
+        self.assertEqual(response.data['do']['section_checks']['expected'], 0)
+        self.assertIsNone(response.data['do']['score'])
 
-    def test_monday_is_graded_while_closed(self):
+    def test_frozen_empty_monday_is_not_graded(self):
+        from apps.routines.models import QaDayExpected
         self.client.force_authenticate(self.employee)
-        monday = _last_weekday(0)
+        monday = date(2026, 9, 14)
+        QaDayExpected.objects.update_or_create(date=monday, defaults={'expected': 0})
+        response = self.client.get('/api/routines/qa/day-summary/', {'date': monday.isoformat()})
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['open'])
+        self.assertFalse(response.data['graded'])
+        self.assertFalse(response.data['expected']['section_checks'])
+        self.assertIsNone(response.data['letter'])
+        self.assertEqual(response.data['do']['section_checks']['expected'], 0)
+        self.assertEqual(response.data['do']['score'], None)
+
+    def test_closed_monday_with_frozen_sections_is_graded(self):
+        from apps.routines.models import QaDayExpected
+        self.client.force_authenticate(self.employee)
+        monday = date(2026, 9, 7)
+        QaDayExpected.objects.update_or_create(date=monday, defaults={'expected': 5})
         response = self.client.get('/api/routines/qa/day-summary/', {'date': monday.isoformat()})
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.data['open'])

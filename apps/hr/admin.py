@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Department, TimeEntry, SickLeaveBalance, SickLeaveRequest
+from .models import Department, TimeEntry, SickLeaveBalance, SickLeaveRequest, Shift, ShiftAssignment
 
 
 @admin.register(Department)
@@ -25,3 +25,15 @@ class SickLeaveBalanceAdmin(admin.ModelAdmin):
 class SickLeaveRequestAdmin(admin.ModelAdmin):
     list_display = ('employee', 'start_date', 'end_date', 'hours_requested', 'status')
     list_filter = ('status',)
+
+
+@admin.register(Shift)
+class ShiftAdmin(admin.ModelAdmin):
+    list_display = ('name', 'department', 'time_in', 'time_out', 'is_active')
+    list_filter = ('department', 'is_active')
+
+
+@admin.register(ShiftAssignment)
+class ShiftAssignmentAdmin(admin.ModelAdmin):
+    list_display = ('employee', 'shift', 'weekdays')
+    search_fields = ('employee__email', 'shift__name')

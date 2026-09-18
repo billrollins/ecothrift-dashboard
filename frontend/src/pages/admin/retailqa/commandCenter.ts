@@ -192,7 +192,7 @@ export function tileNote(tile: {
   return `Do ${scoreText(tile.doing)} · Spot ${scoreText(tile.spot)}`;
 }
 
-export function jobTimeLabel(job: Pick<QaJob, 'status' | 'due_label' | 'completed_label' | 'owner'>) {
+export function jobTimeLabel(job: Pick<QaJob, 'status' | 'due_label' | 'completed_label' | 'owner'> & { key?: string }) {
   const chip = jobChip(job.status, job.owner);
   if (chip === 'done') {
     if (job.due_label?.startsWith('Done')) return job.due_label;

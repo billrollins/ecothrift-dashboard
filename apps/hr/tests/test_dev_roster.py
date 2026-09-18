@@ -59,6 +59,16 @@ class DevRosterTests(APITestCase):
         self.assertEqual(blank.owner_id, carrie.pk)
         self.assertEqual(preset.owner_id, other.pk)
 
+    def test_department_managers_are_set(self):
+        carrie = _staff('carrie_rollins.rf@outlook.com', 'Carrie', 'Rollins')
+        ashley = _staff('kilduff.ashleym@outlook.com', 'Ashley', 'Kilduff')
+        michael = _staff('zatoichi82frieze@gmail.com', 'Michael', 'Frieze')
+        apply_dev_roster()
+        self.assertEqual(Department.objects.get(slug='retail-operations').manager_id, carrie.pk)
+        self.assertEqual(Department.objects.get(slug='processing').manager_id, ashley.pk)
+        self.assertEqual(Department.objects.get(slug='restoration').manager_id, michael.pk)
+        self.assertIsNone(Department.objects.get(slug='office').manager_id)
+
     def test_unmapped_assignments_stay(self):
         extra = _staff('unmapped@example.com', 'Un', 'Mapped')
         EmployeeProfile.objects.create(

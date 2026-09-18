@@ -1,4 +1,4 @@
-"""Create today's RoutineRun rows. Honour store hours (not Sun-Mon).
+"""Create today's RoutineRun rows. Store hours do not skip a day.
 
     python manage.py materialize_routines
     python manage.py materialize_routines --dry-run
@@ -7,11 +7,11 @@ from django.core.management.base import BaseCommand
 
 from apps.routines.models import Routine
 from apps.routines.schedule import materialize_routines, should_run_on
-from apps.webstore.services.hours import _local_now, is_open_day
+from apps.webstore.services.hours import _local_now
 
 
 class Command(BaseCommand):
-    help = 'Materialize routine runs for the current local store day.'
+    help = 'Materialize routine runs for the current local day.'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -23,9 +23,6 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         local, cfg, _tz = _local_now()
         day = local.date()
-        if not is_open_day(day, cfg=cfg):
-            self.stdout.write(f'Store is closed on {day.isoformat()}; nothing to materialize.')
-            return
         if options['dry_run']:
             due = [
                 routine.title

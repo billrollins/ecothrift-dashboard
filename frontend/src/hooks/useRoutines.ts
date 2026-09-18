@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  coverRoutineRun,
   createRoutine,
   createRoutineSubmission,
   createSection,
@@ -10,7 +9,6 @@ import {
   hardDeleteSection,
   getAdminRoutines,
   getMyRoutineRuns,
-  getRetailGrades,
   getTodayGlance,
   getRoutine,
   getRoutineAssignees,
@@ -208,24 +206,6 @@ export function useReorderSections() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (ids: number[]) => (await reorderSections(ids)).data,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['routines'] });
-    },
-  });
-}
-
-export function useRetailGrades(week: string | null) {
-  return useQuery({
-    queryKey: ['routines', 'grades', week],
-    queryFn: async () => (await getRetailGrades(week ?? undefined)).data,
-  });
-}
-
-/** Take an absent owner's open run. Grades and My Routines both change. */
-export function useCoverRun() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: number) => (await coverRoutineRun(id)).data,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['routines'] });
     },

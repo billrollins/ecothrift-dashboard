@@ -77,27 +77,35 @@ def _weights(cfg: dict | None = None) -> tuple[float, float, float]:
 
 def combine_weighted(
     components: list[tuple[str, float, float | None]],
+    *,
+    expected: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     """Drop excluded components (score is None) and scale the rest to 100.
 
+    A component with zero expected items is excluded the same way as no walk.
     Returns score, effective weights for every submitted key, and excluded keys.
     When every component is present and the nominal weights already sum to 100,
     those weights are left unchanged.
     """
-    keys = [key for key, _weight, _score in components]
+    counts = expected or {}
+    adjusted = [
+        (key, weight, None if counts.get(key) == 0 else score)
+        for key, weight, score in components
+    ]
+    keys = [key for key, _weight, _score in adjusted]
     weights = {key: 0.0 for key in keys}
     included = [
         (key, float(weight), float(score))
-        for key, weight, score in components
+        for key, weight, score in adjusted
         if score is not None
     ]
-    excluded = [key for key, _weight, score in components if score is None]
+    excluded = [key for key, _weight, score in adjusted if score is None]
     if not included:
         return {'score': None, 'weights': weights, 'excluded': excluded}
     total = sum(weight for _key, weight, _score in included)
     if total <= 0:
         return {'score': None, 'weights': weights, 'excluded': excluded}
-    all_present = len(included) == len(components)
+    all_present = len(included) == len(adjusted)
     if all_present and abs(total - 100.0) < 1e-9:
         for key, weight, _score in included:
             weights[key] = weight
@@ -147,19 +155,58 @@ def section_checks_required(day: date, cfg: dict | None = None) -> bool:
     return bool(flags[day.weekday()])
 
 
-def expected_parts(day: date) -> tuple[set[str], set[int]]:
+def expected_parts_live(day: date, cfg: dict | None = None) -> tuple[set[str], set[int]]:
     """Open/Day/Close follow the store; section checks follow the weekday flags.
 
     A checked weekday still owes every active section when the store is closed.
     """
     keys = set(PERFORMED_KEYS) if is_open_day(day) else set()
-    sections = {section.pk for section in _active_sections()} if section_checks_required(day) else set()
+    sections = (
+        {section.pk for section in _active_sections()}
+        if section_checks_required(day, cfg) else set()
+    )
     return keys, sections
 
 
+def split_frozen_expected(day: date, total: int) -> tuple[int, int]:
+    """Checklist count and section-check count implied by a frozen Do total."""
+    odc = len(PERFORMED_KEYS) if is_open_day(day) else 0
+    odc_used = min(odc, total)
+    return odc_used, total - odc_used
+
+
+def _parts_from_frozen(day: date, total: int) -> tuple[set[str], set[int]]:
+    odc_used, section_expected = split_frozen_expected(day, total)
+    keys = set(PERFORMED_KEYS) if odc_used else set()
+    sections = {section.pk for section in _active_sections()} if section_expected else set()
+    return keys, sections
+
+
+def expected_parts(day: date, cfg: dict | None = None) -> tuple[set[str], set[int]]:
+    """Past days with a snapshot never recompute from live settings."""
+    today = timezone.localdate()
+    if day < today:
+        row = QaDayExpected.objects.filter(date=day).first()
+        if row is not None:
+            return _parts_from_frozen(day, row.expected)
+    return expected_parts_live(day, cfg)
+
+
 def day_expected(day: date, cfg: dict | None = None) -> dict[str, bool]:
-    """What this day can be scored on, independent of whether the store is open."""
-    keys, _sections = expected_parts(day)
+    """What this day can be scored on. Past days read QaDayExpected."""
+    today = timezone.localdate()
+    if day < today:
+        row = QaDayExpected.objects.filter(date=day).first()
+        if row is not None:
+            odc_used, section_expected = split_frozen_expected(day, row.expected)
+            section_checks = section_expected > 0
+            open_day_close = odc_used > 0
+            return {
+                'section_checks': section_checks,
+                'open_day_close': open_day_close,
+                'walk_possible': section_checks or open_day_close,
+            }
+    keys, _sections = expected_parts_live(day, cfg)
     section_checks = section_checks_required(day, cfg)
     open_day_close = bool(keys)
     walk_possible = section_checks or open_day_close
@@ -176,17 +223,22 @@ def day_is_graded(day: date, cfg: dict | None = None) -> bool:
 
 
 def compute_expected(day: date) -> int:
-    keys, sections = expected_parts(day)
+    keys, sections = expected_parts_live(day)
     return len(keys) + len(sections)
 
 
 def expected_for_day(day: date) -> int:
-    row = QaDayExpected.objects.filter(date=day).first()
-    if row:
-        return row.expected
-    n = compute_expected(day)
-    if day <= timezone.localdate():
+    today = timezone.localdate()
+    if day < today:
+        row = QaDayExpected.objects.filter(date=day).first()
+        if row is not None:
+            return row.expected
+        n = compute_expected(day)
         QaDayExpected.objects.get_or_create(date=day, defaults={'expected': n})
+        return n
+    n = compute_expected(day)
+    if day == today:
+        QaDayExpected.objects.update_or_create(date=day, defaults={'expected': n})
     return n
 
 
@@ -514,9 +566,12 @@ def _doing_for_day(day: date, runs: list[RoutineRun], *, project: bool = False) 
         if key == SYSTEM_CROSS_CHECK and run.section_id:
             tallied.add(run.section_id)
 
+    needed = expected_for_day(day)
+    odc_expected, section_expected = split_frozen_expected(day, needed)
     expected_keys, expected_sections = expected_parts(day)
     routines = []
     done = 0
+    checklist_done = 0
     for key in PERFORMED_KEYS:
         if key not in expected_keys:
             continue
@@ -525,6 +580,7 @@ def _doing_for_day(day: date, runs: list[RoutineRun], *, project: bool = False) 
         finished = status in ('done', 'late') or (project and status not in ('missed',))
         if finished:
             done += 1
+            checklist_done += 1
             status = 'done' if project and status not in ('done', 'late') else status
         title = (run.routine.title if run and run.routine.title else PERFORMED_TITLES[key])
         routines.append({
@@ -541,11 +597,13 @@ def _doing_for_day(day: date, runs: list[RoutineRun], *, project: bool = False) 
     needed_sections = [
         section for section in sections
         if section.pk not in closed and section.pk in expected_sections
-    ]
+    ][:section_expected]
+    section_done = 0
     for section in needed_sections:
         is_done = section.pk in tallied
         if (is_done or project) and section.pk in expected_sections:
             done += 1
+            section_done += 1
         routines.append({
             'key': SYSTEM_TALLY,
             'title': section.name,
@@ -553,14 +611,19 @@ def _doing_for_day(day: date, runs: list[RoutineRun], *, project: bool = False) 
             'status': 'done' if is_done or project else 'not_started',
             'run_id': None,
         })
-    needed = expected_for_day(day)
     if project:
         done = needed
-    score = 100.0 if needed == 0 else 100.0 * min(done, needed) / needed
+        checklist_done = odc_expected
+        section_done = section_expected
+    score = None if needed == 0 else round(100.0 * min(done, needed) / needed, 1)
     return {
         'done': done,
         'needed': needed,
-        'score': round(score, 1),
+        'score': score,
+        'section_expected': section_expected,
+        'section_done': section_done,
+        'checklist_expected': odc_expected,
+        'checklist_done': checklist_done,
         'routines': routines,
     }
 
@@ -743,16 +806,22 @@ def grade_day(day: date, ctx: dict | None = None, *, project: bool = False) -> d
     cross = _cross_for_day(day, runs, cfg, ctx['bases'], project=project)
     owner = _owner_for_day(day, runs, cfg, ctx['bases'], project=project)
     spot_w, do_w, _cross_w = _weights(cfg)
-    blended = combine_weighted([
-        ('spot', spot_w, owner['score']),
-        ('do', do_w, doing['score']),
-    ])
+    blended = combine_weighted(
+        [
+            ('spot', spot_w, owner['score']),
+            ('do', do_w, doing['score']),
+        ],
+        expected={
+            'spot': 0 if owner['score'] is None else 1,
+            'do': doing['needed'],
+        },
+    )
     score = blended['score']
     letter = letter_for(score, cfg) if score is not None else None
     checklists = {row['key']: row for row in doing['routines'] if row['key'] in PERFORMED_KEYS}
     spot = owner['spots'][0] if owner['spots'] else None
     expected = day_expected(day, cfg)
-    graded = expected['section_checks'] or expected['open_day_close'] or expected['walk_possible']
+    graded = score is not None
     return {
         'date': day.isoformat(),
         'open_day': open_day,

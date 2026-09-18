@@ -375,6 +375,57 @@ class BatchRemapTests(ProcessingSplitTestBase):
         self.assertEqual(resp.data['items_removed'], 3)
         self.assertEqual(Item.objects.filter(manifest_row=mr).count(), 3)
 
+    def test_update_check_in_grow_does_not_inherit_sold_lost_or_scrapped(self):
+        order, pr, _mr, product_a, _product_b = self._crayons_order()
+        r1 = self.client.post(
+            f'/api/inventory/orders/{order.id}/processing-row-check-in/',
+            {
+                'processing_row_id': pr.id,
+                'quantity': 1,
+                'condition': 'good',
+                'dispatch': 'on_shelf',
+                'product_mode': 'existing',
+                'product_id': product_a.id,
+            },
+            format='json',
+        )
+        self.assertEqual(r1.status_code, 200, r1.data)
+        batch_id = r1.data['item_check_in_id']
+        original = Item.objects.get(check_in_id=batch_id)
+        original.status = 'sold'
+        original.sold_at = original.checked_in_at
+        original.location = 'sold'
+        original.save(update_fields=['status', 'sold_at', 'location', 'updated_at'])
+
+        resp = self.client.post(
+            f'/api/inventory/orders/{order.id}/item-check-ins/{batch_id}/update/',
+            {'quantity': 4},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(resp.data['items_added'], 3)
+        added = Item.objects.filter(check_in_id=batch_id).exclude(pk=original.pk)
+        self.assertEqual(added.count(), 3)
+        self.assertEqual(len({it.sku for it in added}), 3)
+        for it in added:
+            self.assertEqual(it.status, 'on_shelf')
+            self.assertIsNone(it.sold_at)
+            self.assertEqual(it.location, 'on_shelf')
+
+        last = Item.objects.filter(check_in_id=batch_id).order_by('pk').last()
+        last.status = 'lost'
+        last.save(update_fields=['status', 'updated_at'])
+        resp = self.client.post(
+            f'/api/inventory/orders/{order.id}/item-check-ins/{batch_id}/update/',
+            {'quantity': 5},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        newest = Item.objects.filter(check_in_id=batch_id).order_by('pk').last()
+        self.assertNotEqual(newest.pk, last.pk)
+        self.assertEqual(newest.status, 'on_shelf')
+        self.assertIsNone(newest.sold_at)
+
     def test_update_check_in_batch_edit_product_fields(self):
         order, pr, _mr, product_a, _product_b = self._crayons_order()
         r1 = self.client.post(

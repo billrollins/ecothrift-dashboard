@@ -299,7 +299,7 @@ export default function RetailQaPage() {
         weekLetter={data?.letter ?? null}
         projectedLetter={data?.projected?.letter}
         weekThirds={data?.thirds ?? { doing: null, owner: null, cross: null }}
-        weekItems={Array.isArray(data?.score_items) ? data.score_items : data?.score_items?.week ?? board?.score_items?.week ?? []}
+        weekItems={Array.isArray(data?.score_items) ? data.score_items : board?.score_items?.week ?? []}
         dayItems={board?.score_items?.day ?? []}
         tiles={tiles}
         weekData={data}

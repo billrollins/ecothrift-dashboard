@@ -84,6 +84,7 @@ export function ShiftCard({
         borderRadius: '12px',
         bgcolor: dutyColors.card,
         border: `1px solid ${dutyColors.ink08}`,
+        opacity: shift.is_active ? 1 : 0.55,
         overflow: 'visible',
         display: 'grid',
         gridTemplateColumns: `${TITLE_COL} ${DAYS_COL}px minmax(72px, 1fr)`,
@@ -171,6 +172,11 @@ export function ShiftCard({
         )}
       </Box>
       <Box sx={{ gridColumn: 3, gridRow: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: 32 }}>
+        {shift.is_active ? null : (
+          <Typography sx={{ fontSize: 12, fontWeight: 650, color: dutyColors.ink40, mr: 0.75 }}>
+            Inactive
+          </Typography>
+        )}
         {locked ? (
           <Tooltip title={lockTooltip(shift.locked_title || shift.name)}>
             <LockOutlined sx={{ fontSize: 14, color: dutyColors.ink40 }} />
@@ -202,10 +208,12 @@ export function ShiftCard({
           textAlign: 'right',
           lineHeight: '26px',
           whiteSpace: 'nowrap',
-          color: cover.tone === 'bad' ? dutyColors.red : dutyColors.green,
+          color: !shift.is_active
+            ? dutyColors.ink40
+            : cover.tone === 'bad' ? dutyColors.red : dutyColors.green,
         }}
       >
-        {cover.text}
+        {shift.is_active ? cover.text : 'Hidden from clock-in'}
       </Typography>
 
       {assigned.map((row) => (

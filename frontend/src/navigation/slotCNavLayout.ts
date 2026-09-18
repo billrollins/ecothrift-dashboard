@@ -52,6 +52,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     id: 'storeSales',
     label: 'Cashier',
     itemIds: ['posTerminal', 'posTransactions', 'posDrawers', 'posCash', 'posPrintables', 'posSetup'],
+    guestItemIds: ['retailQa'],
   },
   {
     id: 'deliveries',
@@ -78,7 +79,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     id: 'admin',
     label: 'Admin',
     roles: ['Manager', 'Admin'],
-    itemIds: ['users', 'retailInbox', 'settings', 'payrollHours', 'adminRoutines'],
+    itemIds: ['users', 'departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'settings'],
   },
 ];
 
@@ -174,7 +175,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     id: 'admin',
     label: 'Admin',
     shortLabel: 'Admin',
-    helper: 'Users, settings, inbox, and payroll',
+    helper: 'Users, departments, shifts, routines, payroll, and settings',
     icon: 'settings',
     shortcutColor: '#1E293B',
     shortcutDigit: 0,
@@ -193,6 +194,15 @@ export function resolveWorkspaceForRoute(
   for (const meta of workspaceOrder) {
     const group = workspaceGroups.find((g) => g.id === meta.id);
     if (group?.items.some((item) => isActive(item))) {
+      return meta.id;
+    }
+  }
+  // Divider-only pages with no native home (Enhancements under Restoration).
+  // Guest shortcuts that already have a home (Restoration under Processing,
+  // Command Center under Cashiers) stay with that home from the first pass.
+  for (const meta of workspaceOrder) {
+    const group = workspaceGroups.find((g) => g.id === meta.id);
+    if (group?.guestItems.some((item) => isActive(item))) {
       return meta.id;
     }
   }

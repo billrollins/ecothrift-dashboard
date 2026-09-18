@@ -35,9 +35,19 @@ export function deleteLocation(id: number): Promise<{ data: void }> {
   return api.delete(`/core/locations/${id}/`);
 }
 
+/** Always a plain array, even if a cached or paginated payload sneaks in. */
+export function asSettingRows(data: unknown): Setting[] {
+  if (Array.isArray(data)) return data as Setting[];
+  if (data && typeof data === 'object' && Array.isArray((data as PaginatedResponse<Setting>).results)) {
+    return (data as PaginatedResponse<Setting>).results;
+  }
+  return [];
+}
+
 // Settings endpoints
-export function getSettings(): Promise<{ data: Setting[] }> {
-  return api.get<Setting[]>('/core/settings/');
+export async function getSettings(): Promise<{ data: Setting[] }> {
+  const { data } = await api.get<Setting[] | PaginatedResponse<Setting>>('/core/settings/');
+  return { data: asSettingRows(data) };
 }
 
 export function updateSetting(key: string, data: Record<string, unknown>): Promise<{ data: Setting }> {

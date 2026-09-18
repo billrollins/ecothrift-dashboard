@@ -31,7 +31,7 @@ import Search from '@mui/icons-material/Search';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useQuery } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
-import { getDepartments } from '../../../api/hr.api';
+import { getDepartments, mergeCurrentDepartments } from '../../../api/hr.api';
 import {
   GRID_FILL_SX,
   GRID_PAGE_PROPS,
@@ -261,10 +261,16 @@ export default function EmployeesPanel({ onSelect }: Props) {
   );
 
   const departmentOptions = useMemo(() => {
-    const list = Array.isArray(departments.data) ? [...departments.data] : [];
+    const list = mergeCurrentDepartments(
+      Array.isArray(departments.data) ? [...departments.data] : [],
+      rows.map((row) => ({
+        id: row.employee?.department,
+        name: row.employee?.department_name,
+      })),
+    );
     list.sort((a, b) => a.name.localeCompare(b.name));
     return list.map((d) => ({ value: String(d.id), label: d.name }));
-  }, [departments.data]);
+  }, [departments.data, rows]);
 
   const typeOptions = useMemo(
     () =>

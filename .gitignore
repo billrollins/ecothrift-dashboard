@@ -17,6 +17,13 @@ venv/
 # Jupyter (any directory in the repo)
 .ipynb_checkpoints/
 
+# Accidental root npm install (Vite lives under frontend/)
+/node_modules/
+/package-lock.json
+
+# Local screenshot / scratch dumps
+.tmp-*/
+
 # Node / Frontend
 frontend/node_modules/
 frontend/dist/

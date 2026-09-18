@@ -1413,7 +1413,9 @@ def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data
 
     Clicking a prior check-in EDITS that event - it never creates a new one:
     - ``quantity`` greater than current ADDS items (bulk, same product/defaults);
-      smaller DELETES the newest items (sold / POS-cart items block the shrink).
+      added units are always ``on_shelf`` and never inherit sold/lost/scrapped
+      from a sibling. Smaller DELETES the newest items (sold / POS-cart items
+      block the shrink).
     - ``condition`` / ``dispatch`` / ``price`` / ``retail`` / ``notes`` apply to
       every remaining item in the check-in.
     - ``product_mode`` existing/new re-points the check-in (remap); ``edit`` updates
@@ -1595,8 +1597,22 @@ def update_item_check_in(user, order: PurchaseOrder, item_check_in_id: int, data
                 price_val = updates.get('price', template.price if template else (scaled_row_shelf or Decimal('0.00')))
                 retail_val = updates.get('retail', template.retail if template else scaled_row_retail)
                 cond_val = updates.get('condition', template.condition if template else 'good')
-                status_val = updates.get('status', template.status if template else 'on_shelf')
-                loc_val = updates.get('location', template.location if template else 'on_shelf')
+                # Fresh units are sellable. Copying sold/lost/scrapped from the
+                # last sibling printed unique tags that POS immediately blocked.
+                status_val = 'on_shelf'
+                template_live = (
+                    template is not None
+                    and template.status not in ('sold', 'lost', 'scrapped')
+                    and not template.sold_at
+                )
+                if updates.get('location'):
+                    loc_val = updates['location']
+                elif cond_val == 'salvage':
+                    loc_val = 'salvage'
+                elif template_live and template.location:
+                    loc_val = template.location
+                else:
+                    loc_val = 'on_shelf'
                 notes_val = updates.get('notes', template.notes if template else '')
                 unit_cost = order.compute_item_cost(retail_val)
                 added_items = _bulk_create_checked_in_items([

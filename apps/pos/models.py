@@ -413,7 +413,7 @@ class DashboardDepartmentGoal(models.Model):
         default=dict,
         help_text=(
             'Optional schedule configuration. Retail QA uses '
-            '{"weekdays": [0..6], "audits_per_day": N}.'
+            '{"weekdays": [0..6]}.'
         ),
     )
     created_by = models.ForeignKey(

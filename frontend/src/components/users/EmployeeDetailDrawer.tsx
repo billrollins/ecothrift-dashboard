@@ -26,7 +26,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { LoadingScreen } from '../feedback/LoadingScreen';
-import { getDepartments } from '../../api/hr.api';
+import { getDepartments, mergeCurrentDepartment } from '../../api/hr.api';
 import { getLocations } from '../../api/core.api';
 import type { UserRole } from '../../types/accounts.types';
 import {
@@ -233,7 +233,12 @@ export default function EmployeeDetailDrawer({ userId, open, onClose }: Props) {
 
   const employee = user?.employee;
   // A picker that cannot list its options must still render at the same size.
-  const departmentOptions = Array.isArray(departments.data) ? departments.data : [];
+  const departmentOptions = mergeCurrentDepartment(
+    Array.isArray(departments.data) ? departments.data : [],
+    employee
+      ? { id: employee.department, name: employee.department_name }
+      : null,
+  );
   const locationOptions = Array.isArray(locations.data) ? locations.data : [];
 
   return (

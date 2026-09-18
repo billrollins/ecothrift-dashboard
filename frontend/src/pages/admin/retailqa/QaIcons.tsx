@@ -10,7 +10,10 @@ export type QaIconName =
   | 'box'
   | 'tool'
   | 'home'
-  | 'door';
+  | 'door'
+  | 'tag'
+  | 'truck'
+  | 'none';
 
 const PATHS: Record<QaIconName, string> = {
   person: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
@@ -25,6 +28,9 @@ const PATHS: Record<QaIconName, string> = {
   tool: 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9z',
   home: 'M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
   door: 'M14 3H6a2 2 0 0 0-2 2v14h12V5a2 2 0 0 0-2-2zM10 12h.01M16 11l4 3-4 3',
+  tag: 'M20.6 13.4 10.8 3.6A2 2 0 0 0 9.4 3H4a1 1 0 0 0-1 1v5.4a2 2 0 0 0 .6 1.4l9.8 9.8a2 2 0 0 0 2.8 0l4.4-4.4a2 2 0 0 0 0-2.8zM7.5 8A1.5 1.5 0 1 1 7.5 5 1.5 1.5 0 0 1 7.5 8z',
+  truck: 'M1 3h15v13H1zM16 8h5l3 4v4h-8zM5.5 18.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM18.5 18.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z',
+  none: '',
 };
 
 export function QaIcon({ name, className }: { name: QaIconName; className?: string }) {

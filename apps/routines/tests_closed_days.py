@@ -8,7 +8,7 @@ from rest_framework.test import APITestCase
 from apps.accounts.models import User
 from apps.hr.models import Department, Shift, ShiftAssignment
 from apps.routines.command_center import build_staff, week_tiles
-from apps.routines.grading import expected_parts
+from apps.routines.grading import expected_parts_live
 from apps.routines.models import Section
 from apps.routines.schedule import SYSTEM_CLOSE, SYSTEM_DAY, SYSTEM_OPEN
 from apps.webstore.services.hours import is_open_day
@@ -68,7 +68,7 @@ class ClosedDayScoringTests(APITestCase):
         monday = date(2026, 9, 14)
         aisle = Section.objects.create(department=self.retail, name='Housewares')
         self.assertFalse(is_open_day(monday))
-        keys, sections = expected_parts(monday)
+        keys, sections = expected_parts_live(monday)
         self.assertEqual(keys, set())
         self.assertEqual(sections, {aisle.pk})
 
@@ -76,7 +76,7 @@ class ClosedDayScoringTests(APITestCase):
         tuesday = date(2026, 9, 15)
         self.assertTrue(is_open_day(tuesday))
         self.assertEqual(self.open_shift.weekdays, [3])
-        keys, _sections = expected_parts(tuesday)
+        keys, _sections = expected_parts_live(tuesday)
         self.assertEqual(keys, {SYSTEM_OPEN, SYSTEM_DAY, SYSTEM_CLOSE})
 
     def test_monday_reset_staff_appear_and_late_applies(self):
@@ -91,11 +91,16 @@ class ClosedDayScoringTests(APITestCase):
         self.assertEqual(row['time_in'], '09:00')
 
     def test_monday_week_tile_is_closed(self):
+        from apps.routines.grading import week_grade
+        from apps.routines.models import QaDayExpected
         monday = date(2026, 9, 14)
-        tiles = week_tiles(monday, {}, today=monday, due=None)
+        QaDayExpected.objects.update_or_create(date=monday, defaults={'expected': 0})
+        week = week_grade(monday)
+        tiles = week_tiles(monday, week, today=date(2026, 9, 18), due=None)
         tile = next(row for row in tiles if row['date'] == monday.isoformat())
         self.assertFalse(tile['open'])
-        self.assertTrue(tile['graded'])
+        self.assertFalse(tile['graded'])
+        self.assertIsNone(tile['letter'])
         sunday = next(row for row in tiles if row['weekday'] == 'Sun')
         self.assertFalse(sunday['open'])
         self.assertFalse(sunday['graded'])

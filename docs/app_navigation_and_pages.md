@@ -114,7 +114,6 @@ Intended story: *source → prep → ingest → restore → records → floor �
 | Authenticated | Else → login |
 | Staff | Consignees redirected to `/consignee` |
 | ManagerRoute | Primary role Manager or Admin |
-| AdminRoute | Primary role Admin only |
 | SuperAdminRoute | `is_superuser` |
 
 **Quirk to flag in consultation:** Sidebar filtering uses **max rank across all roles**, while some route guards use **primary role**. Multi-role users can occasionally see a link they then get bounced from (or the reverse), depending on primary role.
@@ -218,13 +217,14 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. D
 |------|------|----------------|
 | **Assumptions** | `/admin/assumptions` | Manager+: business defaults (shrink, buying assumptions, category-need knobs). |
 | **Employees** | `/admin/users` | Admin: users, roles, pay-related fields. |
+| **Departments** | `/admin/departments`, `/admin/departments/:slug` | Manager+: directory and per-department hub (home staff, shifts, routines, sections when present). Superuser create / rename / deactivate / delete / reorder. Grouping only; departments grant no permissions. |
 | **Customers** | `/admin/customers` | Admin: customer list. |
 | **Permissions** | `/admin/permissions` | Admin: permission matrix UI. |
 | **Settings** | `/admin/settings` | Manager+: app settings. Tabs `?tab=` — System, Printing, Store, Assumptions, **Retail QA** (grade weights, letter lines, audit floors, idle prompt minutes), Permissions (Admin only). |
 | **Label Studio** | `/admin/label-studio` (+ `/:id`) | Manager+: label template library and visual/PDF designer; print integration. |
 | **Blog Studio** | `/blog-studio` | Superuser TipTap blog CMS for the public site; **new window**. |
 | **Time & payroll** | `/admin/time-payroll` | Superuser: roster, payroll summary, time-change requests. |
-| **Routines** (Routine Control) | `/admin/routines` (`?id=` selects, `?view=sections\|grades`, `?day=`) | Superuser. One header for all three rooms; `?id=` survives a view switch. **Routines**: every routine incl. retired, run stats, filters, quick edits; program routines cannot be retired. **Sections**: areas of the floor and who keeps them, drag order, coverage gaps. **Grades**: the Retail QA week - day letters, the day taken apart, cross-checks with photos, tallies per section, work cycles, idle prompts, walks to cover, checker gaps. |
+| **Routines** (Routine Control) | `/admin/routines` (`?id=` selects, `?view=sections`) | Superuser. One header for Routines and Sections; `?id=` survives a view switch. **Routines**: every routine incl. retired, run stats, filters, quick edits; program routines cannot be retired. **Sections**: areas of the floor and who keeps them, drag order, coverage gaps. Week scoring is Command Center (`/admin/retail-qa`). Old `?view=grades` redirects there. |
 
 ### Hidden from nav (still reachable by URL)
 

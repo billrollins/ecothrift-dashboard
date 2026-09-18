@@ -9,7 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getDepartments } from '../../api/hr.api';
+import { getDepartments, mergeCurrentDepartments } from '../../api/hr.api';
 import { useRoutine, useRoutineAssignees, useSaveRoutine } from '../../hooks/useRoutines';
 import type { AuditTaxonomy, RoutineCheckDef, RoutineControl, RoutineDefinition, RoutineKind } from '../../api/routines.api';
 import { dutyColors, thinScrollSx } from '../../components/duty/tokens';
@@ -146,15 +146,29 @@ export function RoutineEditorPane({
     definition,
   };
 
+  const departmentList = useMemo(
+    () => mergeCurrentDepartments(
+      departments.data ?? [],
+      [
+        { id: existing.data?.assigned_department, name: existing.data?.assigned_department_name },
+        ...(settings.assignedDepartmentIds || []).map((id) => ({
+          id,
+          name: existing.data?.assigned_department_name,
+        })),
+      ],
+    ),
+    [departments.data, existing.data, settings.assignedDepartmentIds],
+  );
+
   const briefContext = useMemo<BriefContext>(() => ({
-    departments: (departments.data ?? []).map((d) => ({ id: d.id, name: d.name })),
+    departments: departmentList.map((d) => ({ id: d.id, name: d.name })),
     people: (assignees.data ?? []).map((p) => ({
       id: p.id,
       name: p.full_name,
       role: p.role,
       department: p.department_name,
     })),
-  }), [departments.data, assignees.data]);
+  }), [departmentList, assignees.data]);
 
   function applyDoc(doc: RoutineDoc) {
     // The brief only carries the fields an outside model reasons about, so the
@@ -295,7 +309,7 @@ export function RoutineEditorPane({
             value={settings}
             onChange={patchSettings}
             wide={wide}
-            departments={departments.data ?? []}
+            departments={departmentList}
             people={assignees.data ?? []}
             autoFocusTitle={!editingId}
             locked={locked}

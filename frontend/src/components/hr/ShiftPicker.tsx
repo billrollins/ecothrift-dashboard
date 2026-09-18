@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Chip,
@@ -9,7 +10,48 @@ import {
   Typography,
 } from '@mui/material';
 import { dutyColors } from '../duty/tokens';
-import { SHIFT_DEPARTMENTS, shiftDepartment, shiftName } from '../../i18n/routines';
+import { getClockTiles, type ClockTile } from '../../api/hr.api';
+import { shiftDepartment, shiftName } from '../../i18n/routines';
+
+type ClockShift = { key: string; en: string; es: string };
+export type ClockGroup = { key: string; en: string; es: string; shifts: ClockShift[] };
+
+export function clockGroupsFromTiles(roster: ClockTile[]): ClockGroup[] {
+  const byDept = new Map<string, { name: string; slug: string; sort: number; shifts: ClockShift[] }>();
+  for (const row of roster) {
+    if (!row.punch_code) continue;
+    const slug = row.department_slug || row.department.toLowerCase();
+    const bucket = byDept.get(slug) ?? {
+      name: row.department,
+      slug,
+      sort: row.department_sort ?? 99,
+      shifts: [],
+    };
+    bucket.shifts.push({ key: row.punch_code, en: row.name, es: row.name });
+    byDept.set(slug, bucket);
+  }
+  return [...byDept.values()]
+    .sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name))
+    .map((dept) => ({ key: dept.slug, en: dept.name, es: dept.name, shifts: dept.shifts }));
+}
+
+function storeDayYmd() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Chicago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+function useClockGroups() {
+  const day = storeDayYmd();
+  const tiles = useQuery({
+    queryKey: ['hr', 'clockTiles', day],
+    queryFn: async () => (await getClockTiles(day)).data,
+  });
+  return useMemo(() => clockGroupsFromTiles(tiles.data ?? []), [tiles.data]);
+}
 
 export const eyebrowSx = {
   fontSize: 10.5,
@@ -21,8 +63,12 @@ export const eyebrowSx = {
 
 const DEPT_TONE: Record<string, { accent: string; tint: string }> = {
   retail: { accent: dutyColors.brand, tint: dutyColors.brandTint },
+  'retail-operations': { accent: dutyColors.brand, tint: dutyColors.brandTint },
   warehouse: { accent: dutyColors.amberBg, tint: '#FBF6E4' },
+  processing: { accent: dutyColors.amberBg, tint: '#FBF6E4' },
+  restoration: { accent: dutyColors.amberBg, tint: '#FBF6E4' },
   office: { accent: dutyColors.blue, tint: '#EEF3FA' },
+  management: { accent: dutyColors.blue, tint: '#EEF3FA' },
 };
 
 export function ShiftPicker({
@@ -37,6 +83,7 @@ export function ShiftPicker({
   lang: string;
 }) {
   const [picking, setPicking] = useState<string | null>(null);
+  const groups = useClockGroups();
 
   useEffect(() => {
     if (!pending) setPicking(null);
@@ -44,7 +91,7 @@ export function ShiftPicker({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {SHIFT_DEPARTMENTS.map((dept) => (
+      {groups.map((dept) => (
         <Box key={dept.key}>
           <Typography sx={{ ...eyebrowSx, mb: 0.75 }}>
             {lang === 'es' ? dept.es : dept.en}
@@ -137,9 +184,10 @@ export function ShiftMenu({
   onPick: (shift: string) => void;
   lang: string;
 }) {
+  const groups = useClockGroups();
   return (
     <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={onClose}>
-      {SHIFT_DEPARTMENTS.map((dept) => [
+      {groups.map((dept) => [
         <ListSubheader
           key={`${dept.key}-head`}
           sx={{ ...eyebrowSx, lineHeight: '32px', bgcolor: 'background.paper' }}

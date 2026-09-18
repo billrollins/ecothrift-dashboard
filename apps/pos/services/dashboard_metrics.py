@@ -550,7 +550,7 @@ def _retail_today_note(today: date, day_row: dict[str, Any] | None = None) -> st
         graded = bool(day_row.get('graded')) if 'graded' in day_row else bool(day_row.get('open_day'))
         open_day = bool(day_row.get('open_day'))
     if not graded:
-        return 'Closed'
+        return 'Closed' if not open_day else '\u2014'
     doing = (day_row or {}).get('doing') or {}
     done = doing.get('done')
     needed = doing.get('needed')

@@ -11,7 +11,10 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsSuperAdmin
-from .models import WorkLocation, AppSetting, S3File, PrintServerRelease, EnhancementRequest, EnhancementRequestNote
+from .models import (
+    WorkLocation, AppSetting, AppSettingHistory, S3File, PrintServerRelease,
+    EnhancementRequest, EnhancementRequestNote,
+)
 from .serializers import (
     WorkLocationSerializer, AppSettingSerializer,
     S3FileSerializer, PrintServerReleaseSerializer,
@@ -32,12 +35,22 @@ class AppSettingViewSet(viewsets.ModelViewSet):
     queryset = AppSetting.objects.all()
     serializer_class = AppSettingSerializer
     permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+    pagination_class = None
     lookup_field = 'key'
     # DefaultRouter uses [^/.]+ which 404s dotted keys like online_sales.hours.
     lookup_value_regex = r'[^/]+'
 
     def perform_update(self, serializer):
-        serializer.save(updated_by=self.request.user)
+        instance = self.get_object()
+        old = instance.value
+        saved = serializer.save(updated_by=self.request.user)
+        if old != saved.value:
+            AppSettingHistory.objects.create(
+                key=saved.key,
+                old_value=old,
+                new_value=saved.value,
+                changed_by=self.request.user,
+            )
 
 
 class S3FileViewSet(viewsets.ModelViewSet):

@@ -24,6 +24,7 @@ from .qa_views import (
     QaTodayView,
     QaTrendsView,
     QaWeekView,
+    QaDaySummaryView,
 )
 from .views import (
     RoutineRunViewSet,
@@ -45,6 +46,7 @@ urlpatterns = [
     path('work-cycle/prompt/', WorkCyclePromptView.as_view(), name='work-cycle-prompt'),
     path('qa/week/', QaWeekView.as_view(), name='qa-week'),
     path('qa/today/', QaTodayView.as_view(), name='qa-today'),
+    path('qa/day-summary/', QaDaySummaryView.as_view(), name='qa-day-summary'),
     path('qa/board/assign/', QaAssignView.as_view(), name='qa-assign'),
     path('qa/call-in/', QaCallInView.as_view(), name='qa-call-in'),
     path('qa/call-in/<int:pk>/', QaCallInUndoView.as_view(), name='qa-call-in-undo'),

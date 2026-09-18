@@ -8,6 +8,7 @@ here rather than taken on faith.
 """
 from __future__ import annotations
 
+import random
 from typing import Any
 
 from .definition import build_responses, merge_responses, normalize_responses, score_responses
@@ -96,8 +97,17 @@ def _prior_results(responses: dict | None) -> dict[str, str]:
     return found
 
 
-def verify_checks_for(routine: Routine, previous_responses: dict | None = None) -> list[dict]:
-    """The checks the next shift confirms, in definition order."""
+def verify_checks_for(
+    routine: Routine,
+    previous_responses: dict | None = None,
+    *,
+    period_key: str = '',
+) -> list[dict]:
+    """The checks the next shift confirms, in definition order.
+
+    One check is marked photo_required, seeded by the period so a refresh
+    cannot shop for a different item.
+    """
     target = routine.verifies
     if target is None:
         return []
@@ -115,7 +125,14 @@ def verify_checks_for(routine: Routine, previous_responses: dict | None = None) 
                 'their_result': theirs.get(check_id, ''),
                 'result': '',
                 'note': '',
+                'photo': None,
+                'photo_file_id': None,
+                'photo_required': False,
             })
+    if out:
+        rng = random.Random(f'verify-photo:{period_key}:{routine.pk}')
+        chosen = rng.choice(out)
+        chosen['photo_required'] = True
     return out
 
 
@@ -147,14 +164,14 @@ def verify_context(run: RoutineRun) -> dict | None:
         'completed_at': previous.completed_at if previous else None,
         'completed_by_name': previous.completed_by.full_name if previous and previous.completed_by_id else None,
         'failed_count': previous.submission.failed_count if previous and previous.submission_id else 0,
-        'checks': verify_checks_for(run.routine, previous_responses),
+        'checks': verify_checks_for(run.routine, previous_responses, period_key=run.period_key),
     }
 
 
 def non_shelf_checks() -> list[dict]:
     """Every Day check, labelled by the section it came from.
 
-    Work cycle non-shelf is the leftover of the day list. Reading it live
+    Register activity non-shelf is the leftover of the day list. Reading it live
     means an edit to Day is on the phone the next time someone starts a walk.
     """
     from .schedule import SYSTEM_DAY
@@ -235,7 +252,9 @@ def initial_responses(routine: Routine, run: RoutineRun | None, *, mode: str = '
         if routine.verifies_id:
             fresh['verify'] = {
                 'run_id': None,
-                'checks': verify_checks_for(routine),
+                'checks': verify_checks_for(
+                    routine, period_key=run.period_key if run else '',
+                ),
             }
         return fresh
     if routine.kind == Routine.KIND_SECTION_TALLY:
@@ -266,6 +285,9 @@ def _clean_verify(raw: Any, expected: list[dict]) -> dict:
             **row,
             'result': result if result in ('pass', 'fail', 'na') else '',
             'note': str(incoming.get('note') or ''),
+            'photo': incoming.get('photo') or row.get('photo'),
+            'photo_file_id': incoming.get('photo_file_id') or row.get('photo_file_id'),
+            'photo_required': bool(row.get('photo_required') or incoming.get('photo_required')),
         })
     return {
         'run_id': raw.get('run_id'),
@@ -281,7 +303,7 @@ def merge_incoming(routine: Routine, run: RoutineRun | None, incoming: Any) -> d
         if routine.verifies_id:
             merged['verify'] = _clean_verify(
                 incoming.get('verify') if isinstance(incoming, dict) else None,
-                verify_checks_for(routine),
+                verify_checks_for(routine, period_key=run.period_key if run else ''),
             )
         return merged
     if routine.kind == Routine.KIND_SECTION_TALLY:
@@ -321,6 +343,15 @@ def submit_blockers(routine: Routine, responses: dict, *, min_items: int = 0) ->
             ]
             if unanswered:
                 problems.append('Confirm every check from the last shift.')
+            missing_photo = [
+                row for row in (verify.get('checks') or [])
+                if isinstance(row, dict)
+                and row.get('photo_required')
+                and row.get('result') == 'pass'
+                and not (row.get('photo') or row.get('photo_file_id'))
+            ]
+            if missing_photo:
+                problems.append('Photograph the item marked for a photo.')
         return problems
     if routine.kind == Routine.KIND_SECTION_TALLY:
         if not responses.get('sections'):

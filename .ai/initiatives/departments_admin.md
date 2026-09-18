@@ -1,9 +1,9 @@
-<!-- initiative: slug=departments-admin status=active updated=2026-09-17 -->
-<!-- Last updated: 2026-09-17 -->
+<!-- initiative: slug=departments-admin status=active updated=2026-09-18 -->
+<!-- Last updated: 2026-09-18 -->
 
 # Initiative: Departments admin
 
-**Status:** **Active** — Phase 1.
+**Status:** **Active** — Phase 1 shipped GitHub **v2.95.0**. Not Heroku.
 
 **Objective:** Managers can open a Departments directory and a per-department hub. Superusers can create, rename, deactivate, and delete (when nothing depends on the row). Grouping is `hr.Department` only; departments grant no permissions.
 
@@ -25,7 +25,7 @@ A Manager opens Admin → Departments, sees every org department, and clicks thr
 - Spanish department names
 - Documents staff UI
 - Punch-bucket taxonomy (Retail / Warehouse / Office)
-- Shipping / version bump
+- Heroku deploy (GitHub **v2.95.0** only)
 
 ---
 
@@ -36,23 +36,25 @@ A Manager opens Admin → Departments, sees every org department, and clicks thr
 **Gated by:** none.
 
 Acceptance:
-- [ ] Operations is Office with slug `office`; Retail / Processing / Restoration have slugs and icons
-- [ ] Pickers hide inactive departments; delete 409s when dependencies exist
-- [ ] `/admin/departments` and `/admin/departments/:slug` match the spec
-- [ ] Superuser-only create / rename / deactivate / delete; Manager+ can edit description, location, manager
+- [x] Operations is Office with slug `office`; Retail / Processing / Restoration have slugs and icons
+- [x] Pickers hide inactive departments; delete 409s when dependencies exist
+- [x] `/admin/departments` and `/admin/departments/:slug` match the spec
+- [x] Superuser-only create / rename / deactivate / delete; Manager+ can edit description, location, manager
 
 ---
 
 ## Acceptance
 
-- [ ] Phase 1 directory, hub, and slug cutover
-- [ ] Out-of-scope items stay out
+- [x] Phase 1 directory, hub, and slug cutover
+- [x] Out-of-scope items stay out
 
 ---
 
 ## Record
 
 **2026-09-17 — Opened.** Admin Departments directory and hub.
+
+**2026-09-18 — Shipped GitHub v2.95.0.** Directory, hub, slug/icon/sort, two-tier writes, Office display name. Not Heroku.
 
 ---
 

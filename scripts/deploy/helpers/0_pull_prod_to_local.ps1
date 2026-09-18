@@ -101,7 +101,7 @@ function Invoke-PgDumpSchema {
 
 Write-Pull '========================================'
 Write-Pull '  ECOTHRIFT - PULL PRODUCTION ecothrift SCHEMA ONLY'
-Write-Pull '  Does NOT touch local public, darkhorse, heroku_ext, etc.'
+Write-Pull '  Does NOT touch local public, darkhorse, finances, heroku_ext.'
 Write-Pull '========================================'
 Write-Pull ''
 Write-Pull '  Stops local servers, replaces schema ecothrift with production,'
@@ -176,7 +176,7 @@ Write-Pull ''
 
 Write-Pull '----------------------------------------'
 Write-Pull '  Dropping local schema ecothrift and replacing with production.'
-Write-Pull '  Local schemas NOT modified: public, darkhorse, heroku_ext, ...'
+Write-Pull '  Local schemas NOT modified: public, darkhorse, finances, heroku_ext.'
 Write-Pull "  Local DB: $($Db.Name) ($($Db.Host))"
 Write-Pull '----------------------------------------'
 Write-Pull ''
@@ -190,10 +190,14 @@ Invoke-Psql 'DROP SCHEMA IF EXISTS ecothrift CASCADE;' | Out-Host
 Write-Ok 'Dropped.'
 Write-Pull ''
 
-Write-Pull '[Restore] Restoring prod dump...'
+# -n ecothrift skips CREATE SCHEMA (TOC namespace is "-"), so the schema
+# must exist before restore or every object fails after DROP SCHEMA.
+Write-Pull '[Restore] Creating schema ecothrift, then restoring prod dump...'
+Invoke-Psql 'CREATE SCHEMA IF NOT EXISTS ecothrift;' | Out-Null
 $env:PGPASSWORD = $Db.Password
 $restore = Invoke-Native -File 'pg_restore' -NativeArgs @(
-    '--no-owner', '--no-acl', '-h', $Db.Host, '-p', $Db.Port, '-U', $Db.User, '-d', $Db.Name, $prodDump
+    '--no-owner', '--no-acl', '-n', 'ecothrift',
+    '-h', $Db.Host, '-p', $Db.Port, '-U', $Db.User, '-d', $Db.Name, $prodDump
 )
 $restoreRc = $restore.ExitCode
 $hasMigrations = ''
@@ -203,7 +207,8 @@ try {
     $hasMigrations = ''
 }
 if ($hasMigrations -ne '1') {
-    throw "Restore did not leave ecothrift.django_migrations (pg_restore exit $restoreRc). Half-schema - not migrating."
+    $errTail = @($restore.Output | Select-Object -Last 25) -join "`n"
+    throw "Restore did not leave ecothrift.django_migrations (pg_restore exit $restoreRc). Half-schema - not migrating.`n$errTail"
 }
 if ($restoreRc -ne 0) {
     Write-Ok "pg_restore exit $restoreRc - schema verified (index chatter is expected)."

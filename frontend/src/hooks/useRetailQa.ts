@@ -233,6 +233,7 @@ export function useSaveRosterShift() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['hr', 'roster-shifts'] });
       void queryClient.invalidateQueries({ queryKey: ['hr', 'roster-assignments'] });
+      void queryClient.invalidateQueries({ queryKey: ['hr', 'clockTiles'] });
       void queryClient.invalidateQueries({ queryKey: ['routines', 'qa'] });
     },
   });
@@ -245,6 +246,7 @@ export function useDeleteRosterShift() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['hr', 'roster-shifts'] });
       void queryClient.invalidateQueries({ queryKey: ['hr', 'roster-assignments'] });
+      void queryClient.invalidateQueries({ queryKey: ['hr', 'clockTiles'] });
     },
   });
 }

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.94.0] -->
-<!-- Last reviewed: 2026-09-09 (v2.94.0 CardX Phase 5 fix card type) -->
+<!-- Line 1 release: ## [2.95.0] -->
+<!-- Last reviewed: 2026-09-18 (v2.95.0 Command Center + Departments) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,35 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.95.0] - 2026-09-18
+
+User-facing theme: **Retail managers run Command Center with frozen day letters; Admin has Departments and Shifts.**
+
+Initiative: [`retail_qa_scoring_v2`](./.ai/initiatives/retail_qa_scoring_v2.md); [`departments_admin`](./.ai/initiatives/departments_admin.md).
+
+### Added
+
+- Manager+ **Command Center** (`/admin/retail-qa`) and staff **My QA** (`/routines/qa`). Day and week letters use Spot / Do / Cross with renormalized weights. Settings > Retail QA edits the ladders; Preview rescores this week in memory. `AppSettingHistory` (`core/0003`) keeps who changed a key.
+- Admin **Departments** directory and hub (`/admin/departments`, `/admin/departments/:slug`) and **Shifts** (`/admin/shifts`). Superuser create / rename / deactivate / delete; delete 409s when something still depends on the row. Manager+ can edit description, location, and manager.
+- `python manage.py backfill_section_observations` and `refresh_checker_flags`. `scripts/deploy/env/pull_from_heroku.bat` writes gitignored `.envprod` from Heroku Config Vars.
+
+### Changed
+
+- Floor names match the slugs: Office, short punch names, routine titles, and the Open/Day/Close group **Checklists**.
+- A past day reads frozen `QaDayExpected`. Zero expected excludes Do (same as no walk). A day with nothing expected is **Closed** (or **—** if open), never A+. Weekday flips apply today and future only.
+- `GET /api/core/settings/` is an unpaginated array. Dashboard department week cells keep room for hover/focus rings.
+
+### Fixed
+
+- Settings → System no longer crashes when a cached settings payload is a paginated object (`(settings ?? []).map`).
+- Processing check-in **edit** that adds units always creates them `on_shelf` (or salvage / the edit's dispatch). New items no longer copy `sold` / `lost` / `scrapped` from the last sibling.
+
+### Removed
+
+- Retail Inbox page and Routine Control Grades pane. `GET /api/routines/grades/` is gone; week scoring lives on Command Center.
 
 ---
 

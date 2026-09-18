@@ -24,7 +24,7 @@ export function DepartmentWeekStrip({
   const days = week?.days ?? [];
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, px: 0.75, pt: 0.5, pb: 0.75 }}>
       <Box
         sx={{
           display: 'grid',

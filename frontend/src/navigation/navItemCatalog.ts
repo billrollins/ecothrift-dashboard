@@ -187,12 +187,12 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'supervisorAccount',
     roles: ['Manager', 'Admin'],
   },
-  retailInbox: {
-    id: 'retailInbox',
-    path: '/admin/retail-inbox',
-    label: 'Retail inbox',
-    icon: 'receiptLong',
-    roles: ['Admin'],
+  departments: {
+    id: 'departments',
+    path: '/admin/departments',
+    label: 'Departments',
+    icon: 'store',
+    roles: ['Manager', 'Admin'],
   },
   permissions: {
     id: 'permissions',
@@ -265,6 +265,13 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     superuserOnly: true,
     openInNewWindow: true,
   },
+  shifts: {
+    id: 'shifts',
+    path: '/admin/shifts',
+    label: 'Shifts',
+    icon: 'schedule',
+    roles: ['Manager', 'Admin'],
+  },
   payrollHours: {
     id: 'payrollHours',
     path: '/admin/time-payroll',
@@ -286,5 +293,12 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Routines',
     icon: 'checklist',
     superuserOnly: true,
+  },
+  retailQa: {
+    id: 'retailQa',
+    path: '/admin/retail-qa',
+    label: 'Command Center',
+    icon: 'factCheck',
+    roles: ['Manager', 'Admin'],
   },
 };

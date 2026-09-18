@@ -1,4 +1,5 @@
-import { Box, Typography } from '@mui/material';
+import { Box, Button, Typography } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import { dutyColors } from '../../components/duty/tokens';
 import { RoutineViewToggle } from './RoutineViewToggle';
 
@@ -14,6 +15,7 @@ export function RoutineListHeader({
   desktop?: boolean;
   error?: string;
 }) {
+  const navigate = useNavigate();
   return (
     <Box
       sx={{
@@ -25,7 +27,16 @@ export function RoutineListHeader({
         borderBottom: `1px solid ${dutyColors.ink15}`,
       }}
     >
-      <RoutineViewToggle view={view} onChange={onView} />
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <RoutineViewToggle view={view} onChange={onView} />
+        </Box>
+        {view === 'mine' ? (
+          <Button size="small" onClick={() => navigate('/routines/qa')}>
+            My QA
+          </Button>
+        ) : null}
+      </Box>
       <Typography
         noWrap
         sx={{

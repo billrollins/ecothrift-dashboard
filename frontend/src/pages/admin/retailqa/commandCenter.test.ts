@@ -203,7 +203,7 @@ describe('scheduleGroups', () => {
 
 describe('labels', () => {
   it('keeps due after clock-in', () => {
-    expect(jobTimeLabel({ status: 'Due', due_label: 'Due after clock-in' })).toBe('Due after clock-in');
+    expect(jobTimeLabel({ status: 'Due', due_label: 'Due after clock-in', owner: null })).toBe('Due after clock-in');
   });
 
   it('summarizes who is in', () => {

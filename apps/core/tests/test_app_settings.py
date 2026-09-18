@@ -27,6 +27,15 @@ class DottedAppSettingTests(APITestCase):
             },
         )
 
+    def test_list_is_a_full_array(self):
+        for i in range(55):
+            AppSetting.objects.get_or_create(key=f'bulk_{i}', defaults={'value': i})
+        res = self.client.get('/api/core/settings/')
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertIsInstance(res.data, list)
+        self.assertGreaterEqual(len(res.data), 55)
+        self.assertTrue(any(row.get('key') == 'online_sales.hours' for row in res.data))
+
     def test_patch_dotted_key(self):
         res = self.client.patch(
             '/api/core/settings/online_sales.hours/',

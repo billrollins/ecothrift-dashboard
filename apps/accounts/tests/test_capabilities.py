@@ -37,6 +37,7 @@ class CapabilityCatalogTests(APITestCase):
         ids = {row['id'] for row in ok.data['results']}
         self.assertIn('users.staff:manage', ids)
         self.assertIn('hr.payroll:read', ids)
+        self.assertIn('hr.department:admin', ids)
         self.assertEqual(len(ok.data['results']), len(CATALOG))
 
     def test_mine_follows_role_and_superuser(self):
@@ -51,7 +52,6 @@ class CapabilityCatalogTests(APITestCase):
         mgr = self.client.get('/api/auth/capabilities/')
         self.assertIn('settings:write', mgr.data['capabilities'])
         self.assertNotIn('users.staff:manage', mgr.data['capabilities'])
-        self.assertNotIn('mailbox.retail:use', mgr.data['capabilities'])
 
         self.client.force_authenticate(self.admin)
         adm = self.client.get('/api/auth/capabilities/')

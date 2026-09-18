@@ -17,7 +17,7 @@ Workspaces (assigned digits; letter is the first letter of the short name):
 7. **Online Sales** (`7` / `O`, Manager/Admin) — Listings, Holds, Messages
 8. **Studios** (`8` / `S`, Manager/Admin) — Label Studio, Floorplans, Blog Studio (superuser)
 9. *(free — digit 9 and letter L are unassigned)*
-10. **Admin** (`0` / `A`, Manager/Admin) — Users, Retail inbox (Admin), Settings, Time & payroll (superuser), Routines (superuser; Routine Control)
+10. **Admin** (`0` / `A`, Manager/Admin) — Users, Departments, Shifts, Routines (superuser; Routine Control), Command Center, Time & payroll (superuser), Settings
 
 The same digit always opens the same workspace. A key for a workspace the user cannot see does nothing. Superuser **Enhancements** lives as a Restoration guest item (`/admin/enhancement-requests`). **Users** is Manager+; Employees is first and default for Admin, Customers is `?tab=customers`. Managers only see Customers.
 

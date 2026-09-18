@@ -9,6 +9,7 @@ import {
   contributionSegments,
   crossPastDueDetail,
   crossPendingLabel,
+  doDetailLine,
   formatCardWeight,
   formatGradeScale,
   goalThreshold,
@@ -171,6 +172,53 @@ describe('DepartmentRetailDayDialog', () => {
     expect(document.querySelector('tr[data-letter="B"]')).toHaveAttribute('data-current', 'true');
   });
 
+  it('says section checks were not required when the snapshot is zero', () => {
+    expect(doDetailLine({
+      score: null,
+      section_checks: { done: 0, expected: 0 },
+      open_day_close: { done: 0, expected: 0 },
+    })).toBe('Section checks not required that day');
+  });
+
+  it('shows no letter and the empty-day note when nothing was expected', () => {
+    renderDialog({
+      date: '2026-09-14',
+      open: false,
+      graded: false,
+      letter: 'A+',
+      score: 100,
+      goal_letter: 'B',
+      goal_met: true,
+      grade_scale: scale,
+      weights: {},
+      excluded: ['spot', 'do'],
+      do: {
+        score: null,
+        section_checks: { done: 0, expected: 0 },
+        open_day_close: { done: 0, expected: 0 },
+      },
+      spot: { score: null, walks: { done: 0, min_for_week: 3 }, state: 'none' },
+      cross: null,
+    });
+    expect(screen.queryByTestId('retail-letter-tile')).not.toBeInTheDocument();
+    expect(screen.getByText('Section checks not required that day')).toBeInTheDocument();
+    expect(screen.getByText('Nothing was expected this day')).toBeInTheDocument();
+    expect(contributionSegments({
+      date: '2026-09-14',
+      open: false,
+      graded: false,
+      letter: null,
+      score: null,
+      goal_letter: 'B',
+      goal_met: false,
+      weights: { spot: 0, do: 0 },
+      excluded: ['spot', 'do'],
+      do: { score: null, section_checks: { done: 0, expected: 0 }, open_day_close: { done: 0, expected: 0 } },
+      spot: { score: null, walks: { done: 0, min_for_week: 3 }, state: 'none' },
+      cross: null,
+    }, 80, 'day')).toEqual([]);
+  });
+
   it('shows Store closed and nothing else on a closed day', () => {
     renderDialog({
       date: '2026-08-31',
@@ -223,7 +271,7 @@ describe('DepartmentRetailDayDialog', () => {
       .toBe('3 walks · avg 88');
     expect(screen.getByText('3 walks · avg 88')).toBeInTheDocument();
     expect(screen.getByText(/18 of 40 section checks/)).toBeInTheDocument();
-    expect(screen.getByText(/9 of 15 open\/day\/close/)).toBeInTheDocument();
+    expect(screen.getByText(/9 of 15 checklists/)).toBeInTheDocument();
     expect(screen.getByTestId('retail-letter-tile')).toHaveTextContent('A');
   });
 

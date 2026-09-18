@@ -11,6 +11,9 @@ import { dashboardPalette, failLetterColors, isFailLetter, letterInk } from './d
 /** Visible week rows in the card scroller - matches the pre-history 2-week layout. */
 const VISIBLE_WEEK_ROWS = 2;
 
+/** Room for hover ring (2px) and focus outline (2px + 1px offset) around every cell. */
+const CELL_RING_GUTTER = 0.75;
+
 const DAY_HEADS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 interface DepartmentCardGridProps {
@@ -98,13 +101,16 @@ function GridCell({
           color: 'inherit',
           appearance: 'none' as const,
           WebkitAppearance: 'none' as const,
+          position: 'relative',
           transition: 'box-shadow 0.15s ease, transform 0.15s ease',
           '@media (hover: hover)': {
             '&:hover': {
+              zIndex: 1,
               boxShadow: '0 0 0 2px rgba(47, 103, 173, 0.45)',
             },
           },
           '&:focus-visible': {
+            zIndex: 1,
             outline: '2px solid',
             outlineColor: dashboardPalette.blue,
             outlineOffset: 1,
@@ -264,8 +270,10 @@ export function DepartmentCardGrid({
       }
       const styles = getComputedStyle(root);
       const gap = Number.parseFloat(styles.rowGap || styles.gap || '0') || 0;
+      const padTop = Number.parseFloat(styles.paddingTop) || 0;
+      const padBottom = Number.parseFloat(styles.paddingBottom) || 0;
       const rowsToMeasure = Math.min(VISIBLE_WEEK_ROWS, rows.length);
-      let height = gap * Math.max(0, rowsToMeasure - 1);
+      let height = gap * Math.max(0, rowsToMeasure - 1) + padTop + padBottom;
       for (let i = 0; i < rowsToMeasure; i += 1) {
         height += rows[i].getBoundingClientRect().height;
       }
@@ -309,6 +317,7 @@ export function DepartmentCardGrid({
           gridTemplateColumns: '34px repeat(7, minmax(0, 1fr))',
           gap: 0.25,
           alignItems: 'center',
+          px: CELL_RING_GUTTER,
           height: { xs: onDayHeadsClick ? 36 : 20, md: 18 },
           flexShrink: 0,
           ...(onDayHeadsClick
@@ -353,14 +362,17 @@ export function DepartmentCardGrid({
         ref={scrollRef}
         sx={{
           overflowY: 'auto',
+          overflowX: 'hidden',
           overscrollBehavior: 'contain',
-          // Fallback until measured: ~2 week rows (xs touch cells / md compact cells).
-          maxHeight: viewportHeight ?? { xs: 94, md: 64 },
-          height: viewportHeight ?? { xs: 94, md: 64 },
+          // Fallback until measured: 2 week rows plus ring gutter.
+          maxHeight: viewportHeight ?? { xs: 106, md: 76 },
+          height: viewportHeight ?? { xs: 106, md: 76 },
           display: 'flex',
           flexDirection: 'column',
           gap: 0.25,
-          pr: 0.15,
+          px: CELL_RING_GUTTER,
+          pt: CELL_RING_GUTTER,
+          pb: CELL_RING_GUTTER,
           '&::-webkit-scrollbar': { width: 4 },
           '&::-webkit-scrollbar-thumb': {
             bgcolor: `${dashboardPalette.muted}52`,
@@ -446,7 +458,7 @@ export function retailDayIsGraded(day: DepartmentDailyMetric): boolean {
 }
 
 export function retailGridValue(day: DepartmentDailyMetric): string {
-  if (!retailDayIsGraded(day)) return 'Closed';
+  if (!retailDayIsGraded(day)) return day.open === false ? 'Closed' : '\u2014';
   if (day.is_future) return '-';
   return day.retail || '\u2014';
 }

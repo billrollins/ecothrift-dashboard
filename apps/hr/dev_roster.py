@@ -31,6 +31,7 @@ DEV_ROSTER = {
     },
     'carrie_rollins.rf@outlook.com': {
         'dept_slug': 'retail-operations',
+        'manages_department': True,
         'shifts': [
             {'punch_code': 'retail_open'},
             {'punch_code': 'retail_close', 'weekdays': THU},
@@ -48,6 +49,7 @@ DEV_ROSTER = {
     },
     'kilduff.ashleym@outlook.com': {
         'dept_slug': 'processing',
+        'manages_department': True,
         'shifts': [
             {'punch_code': 'processing'},
             {'punch_code': 'retail_reset'},
@@ -64,6 +66,7 @@ DEV_ROSTER = {
     },
     'zatoichi82frieze@gmail.com': {
         'dept_slug': 'restoration',
+        'manages_department': True,
         'shifts': [
             {'punch_code': 'restoration'},
             {'punch_code': 'retail_reset'},
@@ -104,6 +107,9 @@ def _apply_one(user, spec: dict) -> None:
         elif profile.department_id != dept.pk:
             profile.department = dept
             profile.save(update_fields=['department'])
+        if spec.get('manages_department') and dept.manager_id != user.pk:
+            dept.manager = user
+            dept.save(update_fields=['manager'])
 
     wanted = []
     for row in spec['shifts']:

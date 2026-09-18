@@ -14,7 +14,7 @@ import { Document, Page } from 'react-pdf';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchDocumentPdfBlob, type DocumentField, type DocumentFieldKind } from '../../api/documents.api';
-import { getDepartments } from '../../api/hr.api';
+import { getDepartments, mergeCurrentDepartment } from '../../api/hr.api';
 import { dutyColors } from '../../components/duty/tokens';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import { useRoutineAssignees } from '../../hooks/useRoutines';
@@ -238,7 +238,10 @@ export default function DocumentEditorPage() {
         ) : null}
         {audience === 'department' ? (
           <TextField select label="Department" value={dept} onChange={(e) => setDept(Number(e.target.value))}>
-            {(departments.data ?? []).map((row) => (
+            {mergeCurrentDepartment(
+              departments.data ?? [],
+              typeof dept === 'number' ? { id: dept, name: `Department ${dept}` } : null,
+            ).map((row) => (
               <MenuItem key={row.id} value={row.id}>{row.name}</MenuItem>
             ))}
           </TextField>

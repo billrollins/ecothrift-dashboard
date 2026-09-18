@@ -1,12 +1,29 @@
+export type DepartmentIcon = 'cart' | 'box' | 'tool' | 'home' | 'tag' | 'truck' | 'none';
+
+export interface DepartmentDependencies {
+  shifts: number;
+  assignments: number;
+  sections: number;
+  routines: number;
+  documents: number;
+}
+
 export interface Department {
   id: number;
   name: string;
+  slug: string;
+  icon: DepartmentIcon;
+  sort_order: number;
   description: string;
   location: number | null;
   location_name: string | null;
   manager: number | null;
   manager_name: string | null;
   is_active: boolean;
+  home_count?: number;
+  shift_count?: number;
+  section_count?: number;
+  dependencies?: DepartmentDependencies;
 }
 
 export interface TimeEntry {

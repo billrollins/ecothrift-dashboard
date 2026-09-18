@@ -1,13 +1,9 @@
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
-from django.contrib.auth.models import Group
 from django.core import mail
 from django.core.mail import EmailMessage
 from django.test import TestCase, override_settings
-from rest_framework.test import APIClient
 
-from apps.accounts.models import User
-from apps.core.models import AppSetting
 from apps.webstore.models import Conversation, Message
 
 from apps.mailbox.backends import GraphEmailBackend
@@ -117,55 +113,6 @@ class SyncTests(TestCase):
             Message.objects.filter(conversation=conversation, author_kind='customer').count(),
             1,
         )
-
-
-@override_settings(MS_GRAPH_ENABLED=True)
-class MailboxApiTests(TestCase):
-    def setUp(self):
-        admin_group, _ = Group.objects.get_or_create(name='Admin')
-        manager_group, _ = Group.objects.get_or_create(name='Manager')
-        self.admin = User.objects.create_user(
-            email='admin@example.com', first_name='Alex', last_name='Admin', password='x',
-        )
-        self.admin.groups.add(admin_group)
-        self.manager = User.objects.create_user(
-            email='manager@example.com', first_name='Morgan', last_name='Manager', password='x',
-        )
-        self.manager.groups.add(manager_group)
-        self.message = MailMessage.objects.create(
-            graph_message_id='api-message',
-            from_email='customer@example.com',
-            subject='General',
-            text_body='Question',
-            classification='general',
-        )
-
-    def test_general_inbox_is_admin_only(self):
-        client = APIClient()
-        client.force_authenticate(self.manager)
-        self.assertEqual(client.get('/api/mailbox/messages/?classification=general').status_code, 403)
-        client.force_authenticate(self.admin)
-        self.assertEqual(client.get('/api/mailbox/messages/?classification=general').status_code, 200)
-
-    def test_reply_appends_sanitized_signature(self):
-        AppSetting.objects.update_or_create(
-            key='mailbox.email_signature',
-            defaults={'value': '<p>Regards, {{staff_name}}</p><script>alert(1)</script>'},
-        )
-        graph = Mock()
-        client = APIClient()
-        client.force_authenticate(self.admin)
-        with patch('apps.mailbox.views.GraphMailClient', return_value=graph):
-            response = client.post(
-                f'/api/mailbox/messages/{self.message.id}/reply/',
-                {'html_body': '<p>Hello</p><img src="https://tracker.invalid/x">'},
-                format='json',
-            )
-        self.assertEqual(response.status_code, 200)
-        sent_html = graph.reply.call_args.kwargs['html_body']
-        self.assertIn('Alex Admin', sent_html)
-        self.assertNotIn('<script', sent_html)
-        self.assertNotIn('<img', sent_html)
 
 
 @override_settings(

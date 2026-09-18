@@ -5,7 +5,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { pick, t } from '../../../i18n/routines';
 import { dutyColors } from '../../../components/duty/tokens';
 import { ChoiceRow } from './ChoiceRow';
-import { RunnerBand, runnerFieldSx } from './runnerParts';
+import { PhotoButton, RunnerBand, runnerFieldSx } from './runnerParts';
 
 function lastShiftLine(context: VerifyContext): string {
   if (!context.run_id || !context.completed_at) return 'Nobody completed it.';
@@ -91,6 +91,16 @@ export function VerifyBlock({
             failLabel={t('fail', lang)}
             onChange={(result) => patchCheck(row.check_id, { result })}
           />
+          {row.photo_required ? (
+            <Box sx={{ mt: 1, mx: -1.25 }}>
+              <PhotoButton
+                photo={row.photo ?? null}
+                disabled={readOnly}
+                label={t('photoRequired', lang)}
+                onPhoto={(photo) => patchCheck(row.check_id, { photo })}
+              />
+            </Box>
+          ) : null}
           <TextField
             value={row.note}
             onChange={(e) => patchCheck(row.check_id, { note: e.target.value })}

@@ -57,7 +57,19 @@ def _walks_done(day_row: dict | None) -> int:
 
 
 def _doing_parts(day_row: dict | None) -> tuple[dict[str, int], dict[str, int]]:
-    routines = ((day_row or {}).get('doing') or {}).get('routines') or []
+    doing = (day_row or {}).get('doing') or {}
+    if 'section_expected' in doing or 'checklist_expected' in doing:
+        return (
+            {
+                'done': int(doing.get('section_done') or 0),
+                'expected': int(doing.get('section_expected') or 0),
+            },
+            {
+                'done': int(doing.get('checklist_done') or 0),
+                'expected': int(doing.get('checklist_expected') or 0),
+            },
+        )
+    routines = doing.get('routines') or []
     section_done = section_expected = odc_done = odc_expected = 0
     for row in routines:
         finished = row.get('status') in ('done', 'late')
@@ -133,19 +145,18 @@ def day_summary_for_date(day: date, *, today: date | None = None) -> dict:
     if day > today:
         raise DaySummaryError('date is in the future')
     goal = _goal_letter()
-    expected = day_expected(day)
-    graded = day_is_graded(day)
     open_day = is_open_day(day)
-    if not graded:
-        return _closed_payload(day, goal, expected)
-
     week = week_grade(this_monday(day))
     day_row = next(
         (row for row in (week.get('days') or []) if row.get('date') == day.isoformat()),
         None,
     )
-    letter = None if day_row is None else day_row.get('letter')
-    score = None if day_row is None else day_row.get('score')
+    expected = (day_row or {}).get('expected') or day_expected(day)
+    graded = bool((day_row or {}).get('graded')) if day_row and 'graded' in day_row else day_is_graded(day)
+    if not graded and day_row is None:
+        return _closed_payload(day, goal, expected)
+    letter = None if (day_row is None or not graded) else day_row.get('letter')
+    score = None if (day_row is None or not graded) else day_row.get('score')
     doing = (day_row or {}).get('doing') or {}
     section_checks, open_day_close = _doing_parts(day_row)
     walks = _walks_done(day_row)
@@ -164,7 +175,7 @@ def day_summary_for_date(day: date, *, today: date | None = None) -> dict:
     return {
         'date': day.isoformat(),
         'open': open_day,
-        'graded': True,
+        'graded': graded,
         'expected': expected,
         'letter': letter,
         'score': score,

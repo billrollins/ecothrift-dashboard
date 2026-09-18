@@ -53,8 +53,13 @@ export function runnerBlockers(
     const checklist = responses as RoutineResponses;
     const left = unansweredCount(checklist);
     const out = left > 0 ? [`${left} left to answer`] : [];
-    const verifyLeft = (checklist.verify?.checks ?? []).filter((row) => !row.result).length;
+    const verifyChecks = checklist.verify?.checks ?? [];
+    const verifyLeft = verifyChecks.filter((row) => !row.result).length;
     if (verifyLeft) out.push('Confirm every check from the last shift');
+    const missingPhoto = verifyChecks.filter((row) => (
+      row.photo_required && row.result === 'pass' && !row.photo && !row.photo_file_id
+    )).length;
+    if (missingPhoto) out.push('Photograph the item marked for a photo');
     return out;
   }
   if (kind === 'section_tally') {

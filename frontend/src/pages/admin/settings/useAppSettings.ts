@@ -1,13 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { getSettings, type Setting } from '../../../api/core.api';
+import { asSettingRows, getSettings, type Setting } from '../../../api/core.api';
 
 export function useAppSettings() {
   return useQuery({
     queryKey: ['settings'],
-    queryFn: async () => {
-      const { data } = await getSettings();
-      return Array.isArray(data) ? data : (data as { results?: Setting[] })?.results ?? [];
-    },
+    queryFn: async () => (await getSettings()).data,
+    select: asSettingRows,
   });
 }
 

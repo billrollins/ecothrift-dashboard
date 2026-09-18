@@ -66,7 +66,7 @@ CATALOG: tuple[Capability, ...] = (
     Capability('pos.setup:write', 'POS', 'Edit store locations and POS setup', MANAGER_PLUS, 'WorkLocation writes; POS setup UI'),
     Capability('pos.override:use', 'POS', 'Manager override on a cart or sold-item action', MANAGER_PLUS, 'inline IsManagerOrAdmin in pos/views.py'),
     Capability('delivery:manage', 'Deliveries', 'Create and edit delivery days and jobs', MANAGER_PLUS, 'Delivery* ViewSet writes → Manager+'),
-    Capability('hr.department:write', 'People', 'Create and edit departments', MANAGER_PLUS, 'DepartmentViewSet writes'),
+    Capability('hr.department:write', 'People', 'Edit department description, location, and manager', MANAGER_PLUS, 'DepartmentViewSet PATCH allowlist'),
     Capability('hr.time_entry:edit', 'People', 'Edit or delete another person\'s time entry', MANAGER_PLUS, 'TimeEntryViewSet update/destroy'),
     Capability('hr.sick_leave:write', 'People', 'Adjust sick-leave balances', MANAGER_PLUS, 'SickLeaveBalanceViewSet writes'),
     Capability('floorplan:write', 'Studios', 'Create and edit floorplans', MANAGER_PLUS, 'FloorPlanViewSet / Asset writes'),
@@ -74,10 +74,10 @@ CATALOG: tuple[Capability, ...] = (
     Capability('mailbox.templates:read', 'Mail', 'Read email templates for Online Sales replies', MANAGER_PLUS, 'EmailTemplateViewSet'),
     # ── Admin only (IsAdmin) ──────────────────────────────────────────────
     Capability('users.staff:manage', 'People', 'Create and edit staff accounts (Employees tab)', ADMIN_ONLY, 'UserViewSet IsAdmin'),
-    Capability('mailbox.retail:use', 'Mail', 'Read and reply to retail@ general mail', ADMIN_ONLY, 'GeneralMailMessageViewSet IsAdmin'),
     Capability('buying.valuation:override', 'Buying', 'Override auction valuation inputs', ADMIN_ONLY, 'AuctionViewSet.valuation_inputs'),
     Capability('settings.permissions:read', 'Settings', 'View the capability catalog', ADMIN_ONLY, 'capability-catalog endpoint'),
     # ── Super Admin (IsSuperAdmin / is_superuser) ─────────────────────────
+    Capability('hr.department:admin', 'People', 'Create, rename, deactivate, delete, and reorder departments', SUPER_ONLY, 'DepartmentViewSet create/destroy/reorder'),
     Capability('hr.payroll:read', 'People', 'Open Time & payroll, roster, and pay totals', SUPER_ONLY, 'TimeEntryViewSet.payroll / roster'),
     Capability('hr.mod_requests:triage', 'People', 'Approve or reject time-change requests', SUPER_ONLY, 'TimeEntryModificationRequestViewSet'),
     Capability('blog:write', 'Studios', 'Write and publish in Blog Studio', SUPER_ONLY, 'blog _STAFF_PERMS IsSuperAdmin'),

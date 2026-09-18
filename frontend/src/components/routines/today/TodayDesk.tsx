@@ -1,4 +1,5 @@
 import { Box, Chip, Typography } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { t } from '../../../i18n/routines';
 import { FloorPage } from '../../layout/FloorPage';
@@ -20,6 +21,7 @@ const bandChipSx = {
 } as const;
 
 export function TodayDesk() {
+  const navigate = useNavigate();
   const model = useTodayModel();
   const { lang, weekly, clock, now, data, clockedIn, start, due, drafts, workCycle, loadingLists, greeting, lateCount, weekLine, weekWarn } = model;
 
@@ -51,6 +53,12 @@ export function TodayDesk() {
           {clockedIn && weekWarn ? (
             <Chip size="small" label={weekLine.text} sx={{ ...bandChipSx, maxWidth: '100%' }} />
           ) : null}
+          <Chip
+            size="small"
+            label={t('staffQa', lang)}
+            onClick={() => navigate('/routines/qa')}
+            sx={bandChipSx}
+          />
         </>
       )}
     >

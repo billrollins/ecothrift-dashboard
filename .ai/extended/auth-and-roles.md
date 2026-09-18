@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-03 (v2.87.0 Floor pages) -->
+<!-- Last updated: 2026-09-18 (department write vs admin) -->
 
 # Eco-Thrift Dashboard — Auth and Roles
 
@@ -111,7 +111,7 @@ User's `roles` property: returns **all** group names as a list (e.g. `['Employee
 | Class | Allowed Roles |
 |-------|---------------|
 | `IsAdmin` | Admin only |
-| `IsManagerOrAdmin` | Manager or Admin |
+| `IsManagerOrAdmin` | Manager or Admin, or any Django superuser |
 | `IsEmployee` | Employee, Manager, Admin |
 | `IsConsignee` | Consignee only |
 | `IsCustomer` | Customer only (storefront account endpoints) |
@@ -129,7 +129,6 @@ User's `roles` property: returns **all** group names as a list (e.g. `['Employee
 | **ProtectedRoute** | Requires `isAuthenticated`; else redirect to `/login` |
 | **StaffRoute** | Requires `Admin` / `Manager` / `Employee`. Consignee → `/consignee`. Anyone else (including `role === null`) → `/login` |
 | **ManagerRoute** | If `role` not in `['Admin','Manager']` → redirect to `/dashboard` |
-| **AdminRoute** | If `role !== 'Admin'` → redirect to `/dashboard` |
 | **SuperAdminRoute** | If `!user.is_superuser` → redirect to `/dashboard` |
 
 Route nesting: `ProtectedRoute` → `StaffRoute` → `MainLayout` for staff; `ProtectedRoute` → `ConsigneeLayout` for consignees.
@@ -157,16 +156,16 @@ hasRole(role) => roleRank(user.role) >= roleRank(role)
 ### Admin
 
 - All staff routes
-- Settings house at `/admin/settings` (System, Printing, Store, Assumptions, Permissions)
+- Settings house at `/admin/settings` (System, Printing, Store, Assumptions, Retail QA, Permissions)
+- Departments directory + hub (`/admin/departments`); Shifts (`/admin/shifts`); Command Center (`/admin/retail-qa`). Superuser-only `hr.department:admin` (create / rename / deactivate / delete); Manager+ `hr.department:write` (description, location, manager).
 - `/admin/users` — Admin workspace. Manager+ reach the page; the **Employees** tab is first and the default for Admin. Managers only see Customers (`?tab=customers`).
-- Retail inbox (`/admin/retail-inbox`)
 - **Django model admin** (superuser, raw ORM UI): **`/db-admin/`** — separate prefix from React **`/admin/*`**
 - Consignment management (`/consignment/accounts`, `/consignment/items`, `/consignment/payouts`)
 
 ### Manager
 
-- All staff routes except Admin-only pages (Retail inbox, Employees tab, Permissions tab)
-- Settings (System / Printing / Store / Assumptions / Retail QA), Users (Customers), Studios, Routines, Online Sales (Messages)
+- All staff routes except Admin-only pages (Employees tab, Permissions tab)
+- Settings (System / Printing / Store / Assumptions / Retail QA), Users (Customers), Departments (soft fields), Shifts, Command Center, Studios, Routines, Online Sales (Messages)
 - Consignment management
 - POS setup
 

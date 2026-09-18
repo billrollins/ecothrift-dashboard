@@ -91,14 +91,15 @@ echo   File: !DUMP_FILE!
 echo.
 echo   Full dump includes schemas: public, darkhorse, ecothrift
 echo   (and any other objects in the shared production database.)
+echo   Never restore this dump unfiltered into local_shared. Schema finances
+echo   is local-only and must not be dropped or overwritten.
 echo.
 echo   Restore examples (pick one):
-echo     Full DB into empty local DB:
-echo       pg_restore --no-owner --no-acl -h localhost -U postgres -d local_shared "!DUMP_FILE!"
-echo     Single schema only:
-echo       pg_restore --no-owner --no-acl -n public -h localhost -U postgres -d local_shared "!DUMP_FILE!"
-echo       pg_restore --no-owner --no-acl -n darkhorse -h localhost -U postgres -d local_shared "!DUMP_FILE!"
+echo     Single schema only (required on local_shared):
 echo       pg_restore --no-owner --no-acl -n ecothrift -h localhost -U postgres -d local_shared "!DUMP_FILE!"
+echo       pg_restore --no-owner --no-acl -n darkhorse -h localhost -U postgres -d local_shared "!DUMP_FILE!"
+echo     Do not: unfiltered pg_restore into local_shared
+echo     Do not: -n finances (not in this dump; do not create/replace it from here)
 echo.
 
 if "%~1"=="" pause

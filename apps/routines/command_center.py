@@ -1506,11 +1506,11 @@ def week_tiles(monday: date, week: dict, *, today: date, due: date | None) -> li
         day = monday + timedelta(days=offset)
         row = by_date.get(day.isoformat())
         open_day = is_open_day(day)
-        expected = day_expected(day)
-        graded = day_is_graded(day)
+        expected = (row or {}).get('expected') or day_expected(day)
+        graded = bool(row['graded']) if row and 'graded' in row else day_is_graded(day)
         spot_score = None if row is None else (row.get('thirds') or {}).get('owner')
         doing = None if row is None else (row.get('thirds') or {}).get('doing')
-        letter = None if row is None else row.get('letter')
+        letter = None if (row is None or not graded) else row.get('letter')
         future = day > today
         cross = None if (due is None or day < due) else week_cross
         tiles.append({

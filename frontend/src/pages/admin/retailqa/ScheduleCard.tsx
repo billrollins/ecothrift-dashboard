@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import type { QaStaffRow, RoutineAssignee } from '../../../api/routines.api';
-import { DEPT_ICON, displayName, formatShiftRange, scheduleGroups, scheduleSummary, shortName, staffChip } from './commandCenter';
+import { displayName, formatShiftRange, scheduleGroups, scheduleSummary, shortName, staffChip } from './commandCenter';
 import { AddPersonPopover } from './AddPersonPopover';
 import { ChipMenu } from './QaChip';
 import { ItemsMenu } from './ItemsMenu';
@@ -84,10 +84,11 @@ export function ScheduleCard({
         {closedLabel ? <div className="empty-closed">{closedLabel}</div> : null}
         {!closedLabel && !groups.length ? <div className="empty-closed">No one scheduled</div> : null}
         {!closedLabel && groups.map((group) => (
-          <div key={group.department}>
+          <div key={group.slug}>
             <div className="grp">
-              <QaIcon name={DEPT_ICON[displayName(group.department, 'dept')] || 'home'} />
-              {displayName(group.department, 'dept')}
+              <QaIcon name={group.icon === 'none' ? 'home' : group.icon} />
+              {group.department}
+              {group.inactive ? <span className="inactive">inactive</span> : null}
             </div>
             <div className="rows">
               {group.rows.map((row) => {

@@ -36,6 +36,27 @@ class AppSetting(models.Model):
         return self.key
 
 
+class AppSettingHistory(models.Model):
+    """Who changed an AppSetting, from what, to what."""
+
+    key = models.CharField(max_length=100, db_index=True)
+    old_value = models.JSONField(null=True)
+    new_value = models.JSONField(null=True)
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+    )
+    changed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-changed_at']
+        indexes = [
+            models.Index(fields=['key', 'changed_at']),
+        ]
+
+    def __str__(self):
+        return f'{self.key} @ {self.changed_at}'
+
+
 class S3File(models.Model):
     """Tracks files uploaded to S3."""
     key = models.CharField(max_length=500, unique=True)

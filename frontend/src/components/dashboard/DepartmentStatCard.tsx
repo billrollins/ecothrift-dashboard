@@ -91,7 +91,7 @@ export function DepartmentStatCard({
         sx={{
           p: 1.15,
           pl: 1.5,
-          '&:last-child': { pb: 0.85 },
+          '&:last-child': { pb: 1.15 },
           display: 'flex',
           flexDirection: 'column',
           gap: 0.85,
@@ -323,7 +323,7 @@ export function DepartmentStatCard({
           </Button>
         ) : null}
 
-        <Box sx={{ mt: 'auto', minWidth: 0, minHeight: 0 }}>{footer}</Box>
+        <Box sx={{ mt: 'auto', minWidth: 0, minHeight: 0, overflow: 'visible' }}>{footer}</Box>
       </CardContent>
     </Card>
   );

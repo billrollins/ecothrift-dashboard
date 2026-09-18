@@ -16,11 +16,12 @@ import {
 import type { AnyRoutineResponses, RoutineKind } from '../../api/routines.api';
 import { RoutinePhoneBar } from './RoutinePhoneBar';
 import { KindRunner } from './runners/KindRunner';
+import { OwnerCheckGate } from './runners/OwnerCheckGate';
+import { useQaNudge } from '../../hooks/useRetailQa';
 import { emptyAudit } from './runners/SectionAuditFields';
 import { issuesFound, resolveRunnerKind, runnerBlockers, submitLabel } from './runners/runnerStatus';
 
 const DRAFT_DEBOUNCE_MS = 600;
-const DEFAULT_MIN_ITEMS = 20;
 
 export function RoutineRunnerPage({ runId }: { runId?: number }) {
   const params = useParams();
@@ -42,6 +43,7 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
   const discard = useDiscardRoutineDraft();
   const submit = useSubmitRoutine();
   const reroll = useRerollSection();
+  const nudge = useQaNudge();
   const [submissionId, setSubmissionId] = useState<number | null>(null);
   const [responses, setResponses] = useState<AnyRoutineResponses | null>(null);
   const [error, setError] = useState('');
@@ -111,12 +113,24 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
   const subject = run?.section_name || run?.subject || '';
   const taxonomy = run?.taxonomy ?? routine?.runner?.taxonomy ?? null;
   const verify = run?.verify ?? null;
-  const minItems = run?.audit_min_items ?? DEFAULT_MIN_ITEMS;
+  const minItems = run?.audit_min_items ?? 0;
+  const generated = (run?.generated || {}) as Record<string, unknown>;
+  const tallyLine = generated.tallied_by
+    ? `Tallied by ${String(generated.tallied_by)}${generated.tallied_at ? ` · ${String(generated.tallied_at)}` : ''}`
+    : undefined;
+  const scoreCard = (generated.spot_score && typeof generated.spot_score === 'object')
+    ? generated.spot_score as import('../../api/routines.api').SpotScoreCard
+    : null;
   const sections = run?.sections ?? routine?.runner?.sections ?? [];
   const nonShelfChecks = routine?.runner?.non_shelf_checks ?? [];
   const blockers = runnerBlockers(kind, responses, minItems);
 
   function goBack() {
+    const ret = search.get('return');
+    if (ret && ret.startsWith('/')) {
+      navigate(ret);
+      return;
+    }
     navigate('/routines');
   }
 
@@ -142,12 +156,16 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
         goBack();
         return;
       }
-      await submit.mutateAsync({ id: submissionId, responses });
+      const submitted = await submit.mutateAsync({ id: submissionId, responses });
       const found = issuesFound(kind, responses);
       enqueueSnackbar(
         found > 0 ? `${title} submitted · ${found} logged` : `${title} submitted`,
         { variant: found > 0 ? 'warning' : 'success' },
       );
+      if (kind === 'owner_spot' && id && submitted.spot_score) {
+        await runQuery.refetch();
+        return;
+      }
       goBack();
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string | string[] } } })?.response?.data?.detail;
@@ -195,6 +213,9 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
               minItems={minItems}
               sections={sections}
               nonShelfChecks={nonShelfChecks}
+              spotState={run.spot_state}
+              tallyLine={tallyLine}
+              scoreCard={scoreCard}
               readOnly
             />
           ) : (
@@ -209,8 +230,34 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
     return error ? <Alert severity="error">{error}</Alert> : <LoadingScreen message="Starting..." />;
   }
 
+  const gate = run?.owner_check;
+  if (gate && !gate.allowed && !finished) {
+    return (
+      <OwnerCheckGate
+        gate={gate}
+        onBack={goBack}
+        onNudge={() => {
+          const text = gate.message || "Owner check for this section isn't done yet.";
+          void navigator.clipboard.writeText(text).catch(() => undefined);
+          if (gate.tally_run_id) {
+            void nudge.mutateAsync({
+              run: gate.tally_run_id,
+              message: text,
+            }).then(() => enqueueSnackbar('Copied', { variant: 'success' }))
+              .catch(() => enqueueSnackbar('Could not nudge', { variant: 'error' }));
+          } else {
+            enqueueSnackbar('Copied', { variant: 'success' });
+          }
+        }}
+      />
+    );
+  }
+
   return (
     <Box sx={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      {gate?.allowed && gate.reason === 'missed' ? (
+        <Alert severity="warning" sx={{ mx: 2, mt: 1 }}>Owner check missed</Alert>
+      ) : null}
       <Box sx={{ flex: 1, minHeight: 0 }}>
         <KindRunner
           kind={kind}
@@ -222,6 +269,9 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
           minItems={minItems}
           sections={sections}
           nonShelfChecks={nonShelfChecks}
+          spotState={run?.spot_state}
+          tallyLine={tallyLine}
+          scoreCard={scoreCard}
           onChange={(next) => {
             setResponses(next);
             queueDraft(next);

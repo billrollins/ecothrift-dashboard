@@ -103,7 +103,9 @@ export function thirdScoreDisplay(
 }
 
 export function doDetailLine(row: NonNullable<RetailDaySummary['do']>): string {
-  const lines = [`${row.section_checks.done} of ${row.section_checks.expected} section checks`];
+  const lines = row.section_checks.expected <= 0
+    ? ['Section checks not required that day']
+    : [`${row.section_checks.done} of ${row.section_checks.expected} section checks`];
   if (row.open_day_close.expected > 0) {
     lines.push(`${row.open_day_close.done} of ${row.open_day_close.expected} checklists`);
   }
@@ -113,7 +115,7 @@ export function doDetailLine(row: NonNullable<RetailDaySummary['do']>): string {
 export function dayIsIdleClosed(data: RetailDaySummary | null | undefined): boolean {
   if (!data) return false;
   const graded = data.graded ?? Boolean(data.open);
-  return data.open === false && !graded;
+  return data.open === false && !graded && data.do == null;
 }
 
 export function dayIsResetDay(data: RetailDaySummary | null | undefined): boolean {
@@ -467,7 +469,7 @@ export function DepartmentRetailDayDialog({
           ) : null}
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
-          {data?.letter && !closedDay ? (
+          {data?.letter && data.graded !== false && !closedDay ? (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Box
                 data-testid="retail-letter-tile"
@@ -601,7 +603,11 @@ export function DepartmentRetailDayDialog({
               segments={contributionSegments(data, threshold, mode)}
               score={data.score}
             />
-            {mode === 'day' && data.excluded?.includes('spot') ? (
+            {mode === 'day' && data.graded === false ? (
+              <Typography sx={{ fontSize: 12, fontWeight: 400, color: ccTokens.ink2 }}>
+                Nothing was expected this day
+              </Typography>
+            ) : mode === 'day' && data.excluded?.includes('spot') ? (
               <Typography sx={{ fontSize: 12, fontWeight: 400, color: ccTokens.ink2 }}>
                 Spot not counted · no walk that day
               </Typography>

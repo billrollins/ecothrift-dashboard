@@ -86,7 +86,9 @@ function GridCell({
           appearance: 'none' as const,
           WebkitAppearance: 'none' as const,
           border: '1px solid',
+          position: 'relative',
           '&:focus-visible': {
+            zIndex: 1,
             outline: '2px solid',
             outlineColor: dashboardPalette.blue,
             outlineOffset: 1,
@@ -169,7 +171,7 @@ export function DepartmentWeekDetailDialog({
       </DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minHeight: 0 }}>
-          <Box sx={{ display: 'grid', gridTemplateColumns: '48px repeat(7, minmax(0, 1fr))', gap: 0.35 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '48px repeat(7, minmax(0, 1fr))', gap: 0.35, px: 0.75 }}>
             <Box />
             {DAY_HEADS.map((head) => (
               <Typography
@@ -186,12 +188,15 @@ export function DepartmentWeekDetailDialog({
           <Box
             sx={{
               overflowY: 'auto',
+              overflowX: 'hidden',
               overscrollBehavior: 'contain',
               maxHeight: { xs: '60dvh', sm: 360 },
               display: 'flex',
               flexDirection: 'column',
               gap: 0.5,
-              pr: 0.25,
+              px: 0.75,
+              pt: 0.75,
+              pb: 0.75,
               '&::-webkit-scrollbar': { width: 4 },
               '&::-webkit-scrollbar-thumb': {
                 bgcolor: `${dashboardPalette.muted}52`,

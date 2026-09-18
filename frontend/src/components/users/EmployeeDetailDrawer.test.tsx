@@ -9,7 +9,11 @@ const state = vi.hoisted(() => ({
   user: null as null | Record<string, unknown>,
 }));
 
-vi.mock('../../api/hr.api', () => ({ getDepartments: vi.fn(async () => ({ data: [] })) }));
+vi.mock('../../api/hr.api', () => ({
+  getDepartments: vi.fn(async () => ({ data: [] })),
+  mergeCurrentDepartment: (list: unknown[]) => list,
+  mergeCurrentDepartments: (list: unknown[]) => list,
+}));
 vi.mock('../../api/core.api', () => ({
   getLocations: vi.fn(async () => ({ data: { results: [] } })),
 }));

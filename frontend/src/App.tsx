@@ -10,7 +10,6 @@ import { ConsigneeLayout } from './components/layout/ConsigneeLayout';
 // TipTap editor bundle never lands in the main staff chunk.
 const BlogStudioPage = lazy(() => import('./pages/blog/BlogStudioPage'));
 const AnnouncementEditorPage = lazy(() => import('./pages/announcements/AnnouncementEditorPage'));
-const RetailInboxPage = lazy(() => import('./pages/mailbox/RetailInboxPage'));
 
 // Full-screen floorplan editor - lazy so the SVG editor bundle stays out of the main chunk.
 const FloorplanEditorPage = lazy(() => import('./pages/floorplan/FloorplanEditorPage'));
@@ -29,6 +28,11 @@ import PayPage from './pages/hr/PayPage';
 import TimePayrollPage from './pages/admin/TimePayrollPage';
 import EnhancementRequestsPage from './pages/admin/EnhancementRequestsPage';
 import AdminRoutinesPage from './pages/admin/routines/AdminRoutinesPage';
+import RetailQaPage from './pages/admin/retailqa/RetailQaPage';
+import ShiftsPage from './pages/admin/ShiftsPage';
+import DepartmentsPage from './pages/admin/departments/DepartmentsPage';
+import DepartmentDetailPage from './pages/admin/departments/DepartmentDetailPage';
+import StaffQaPage from './pages/routines/StaffQaPage';
 import VendorListPage from './pages/inventory/VendorListPage';
 import VendorDetailPage from './pages/inventory/VendorDetailPage';
 import OrderListPage from './pages/inventory/OrderListPage';
@@ -99,12 +103,6 @@ function StaffRoute({ children }: { children: React.ReactNode }) {
   return <Navigate to="/login" replace />;
 }
 
-function AdminRoute({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
-  if (user?.role !== 'Admin') return <Navigate to="/dashboard" replace />;
-  return <>{children}</>;
-}
-
 function ManagerRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   if (!user?.role || !['Admin', 'Manager'].includes(user.role))
@@ -163,6 +161,7 @@ export default function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/today" element={<TodayPage />} />
         <Route path="/routines" element={<RoutinesPage />} />
+        <Route path="/routines/qa" element={<StaffQaPage />} />
         <Route path="/routines/catalog" element={<RoutinesPage />} />
         <Route path="/routines/new" element={<SuperAdminRoute><RoutinesPage /></SuperAdminRoute>} />
         <Route path="/routines/:id/edit" element={<SuperAdminRoute><RoutinesPage /></SuperAdminRoute>} />
@@ -269,16 +268,6 @@ export default function App() {
           path="/admin/customers"
           element={<Navigate to="/admin/users" replace />}
         />
-        <Route
-          path="/admin/retail-inbox"
-          element={
-            <AdminRoute>
-              <Suspense fallback={<LoadingScreen message="Loading retail inbox…" />}>
-                <RetailInboxPage />
-              </Suspense>
-            </AdminRoute>
-          }
-        />
         <Route path="/online-sales" element={<Navigate to="/online-sales/listings" replace />} />
         <Route
           path="/online-sales/listings"
@@ -332,6 +321,38 @@ export default function App() {
             <SuperAdminRoute>
               <AdminRoutinesPage />
             </SuperAdminRoute>
+          }
+        />
+        <Route
+          path="/admin/retail-qa"
+          element={
+            <ManagerRoute>
+              <RetailQaPage />
+            </ManagerRoute>
+          }
+        />
+        <Route
+          path="/admin/departments"
+          element={
+            <ManagerRoute>
+              <DepartmentsPage />
+            </ManagerRoute>
+          }
+        />
+        <Route
+          path="/admin/departments/:slug"
+          element={
+            <ManagerRoute>
+              <DepartmentDetailPage />
+            </ManagerRoute>
+          }
+        />
+        <Route
+          path="/admin/shifts"
+          element={
+            <ManagerRoute>
+              <ShiftsPage />
+            </ManagerRoute>
           }
         />
         <Route path="/admin/payroll-hours" element={<Navigate to="/admin/time-payroll" replace />} />

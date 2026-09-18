@@ -95,7 +95,7 @@ const metrics: DashboardMetrics = {
       ready: true,
       average_grade: 'B',
       last_grade: 'B',
-      schedule: { weekdays: [0, 1, 2, 3, 4], audits_per_day: 1 },
+      schedule: { weekdays: [0, 1, 2, 3, 4] },
       grade_goal: 'B',
       week_audits: 4,
       today_work_cycles: 1,
@@ -155,5 +155,10 @@ describe('DashboardPhone', () => {
     expect(screen.getByText('Processing')).toBeInTheDocument();
     expect(screen.getByText('Restoration')).toBeInTheDocument();
     expect(screen.getByText('Retail')).toBeInTheDocument();
+  });
+
+  it('makes the Retail Actual letter a button', () => {
+    renderPhone();
+    expect(screen.getByRole('button', { name: 'Actual B' })).toBeInTheDocument();
   });
 });

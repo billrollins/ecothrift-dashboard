@@ -22,6 +22,20 @@ vi.mock('../../../api/hr.api', () => ({
       { id: 7, name: 'Processing', is_active: true },
     ],
   }),
+  mergeCurrentDepartment: (list: unknown[], current?: { id?: number; name?: string }) => {
+    if (!current?.id) return list;
+    return list.some((row) => (row as { id: number }).id === current.id)
+      ? list
+      : [...list, { id: current.id, name: current.name || `Department ${current.id}` }];
+  },
+  mergeCurrentDepartments: (list: unknown[], currents: Array<{ id?: number; name?: string }>) => {
+    let next = list;
+    for (const current of currents) {
+      if (!current?.id || next.some((row) => (row as { id: number }).id === current.id)) continue;
+      next = [...next, { id: current.id, name: current.name || `Department ${current.id}` }];
+    }
+    return next;
+  },
 }));
 
 vi.mock('@mui/x-data-grid', () => ({

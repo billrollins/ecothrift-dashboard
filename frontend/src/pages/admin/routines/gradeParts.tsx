@@ -48,37 +48,18 @@ export function LetterChip({
   );
 }
 
-export function GradeBand({ title, hint }: { title: string; hint: string }) {
-  return (
-    <Box sx={{ px: 2.5, pt: 2.25, pb: 0.75 }}>
-      <Typography
-        sx={{
-          fontSize: 10.5,
-          fontWeight: 800,
-          letterSpacing: '0.09em',
-          textTransform: 'uppercase',
-          color: dutyColors.ink40,
-        }}
-      >
-        {title}
-      </Typography>
-      <Typography noWrap sx={{ fontSize: 12.5, color: dutyColors.ink60, minHeight: 18 }}>
-        {hint}
-      </Typography>
-    </Box>
-  );
-}
-
 export function GradeCard({
   children,
   tone = 'plain',
 }: {
   children: ReactNode;
-  tone?: 'plain' | 'warn' | 'good';
+  tone?: 'plain' | 'warn' | 'good' | 'bad';
 }) {
   const border = tone === 'warn'
     ? dutyColors.amberBg
-    : tone === 'good' ? dutyColors.brand : dutyColors.ink08;
+    : tone === 'good' ? dutyColors.brand
+      : tone === 'bad' ? dutyColors.red
+        : dutyColors.ink08;
   return (
     <Box
       sx={{
@@ -99,11 +80,11 @@ export function GradeCard({
 /** A number with its name under it, for the row of week figures. */
 export function Figure({ label, value }: { label: string; value: string }) {
   return (
-    <Box sx={{ minWidth: 0, flex: 1 }}>
-      <Typography noWrap sx={{ fontSize: 17, fontWeight: 750, color: dutyColors.ink, fontVariantNumeric: 'tabular-nums' }}>
+    <Box sx={{ minWidth: 72, flex: '0 0 auto' }}>
+      <Typography sx={{ fontSize: 17, fontWeight: 750, color: dutyColors.ink, fontVariantNumeric: 'tabular-nums' }}>
         {value}
       </Typography>
-      <Typography noWrap sx={{ fontSize: 11, color: dutyColors.ink40 }}>
+      <Typography sx={{ fontSize: 11, color: dutyColors.ink40 }}>
         {label}
       </Typography>
     </Box>

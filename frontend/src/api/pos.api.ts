@@ -755,7 +755,6 @@ export function upsertDashboardDepartmentGoal(data: {
   description: string;
   schedule?: {
     weekdays: number[];
-    audits_per_day: number;
   };
 }): Promise<{ data: DashboardDepartmentGoal }> {
   return api.post<DashboardDepartmentGoal>('/pos/dashboard/department-goals/', data);

@@ -3,7 +3,7 @@
 **IF** this file is `@`-mentioned **OR** the user says check messages / check comm / parent mail / master mail
 **THEN** do every step below, in order.
 
-You are the **project coder** for this repo. The master AI lives in the parent workspace `c:\Users\bill_\OneDrive\Coding\.ai\`.
+You are the **project coder** for this repo. The master AI lives in the parent workspace `C:\Coding\.ai`.
 
 ## Do
 

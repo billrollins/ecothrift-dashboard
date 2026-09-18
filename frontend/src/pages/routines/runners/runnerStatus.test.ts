@@ -37,6 +37,28 @@ describe('runnerBlockers for a checklist', () => {
     expect(runnerBlockers('checklist', withVerify, 0)).toEqual(['Confirm every check from the last shift']);
   });
 
+  it('wants a photo on the marked verify item when it passed', () => {
+    const withPhoto = checklist({
+      verify: {
+        run_id: 4,
+        checks: [{
+          check_id: 'c43',
+          label: 'Sign in',
+          their_result: 'pass',
+          result: 'pass',
+          note: '',
+          photo_required: true,
+          photo: null,
+          photo_file_id: null,
+        }],
+      },
+    });
+    withPhoto.sections[0].checks[1].result = 'pass';
+    expect(runnerBlockers('checklist', withPhoto, 0)).toEqual(['Photograph the item marked for a photo']);
+    withPhoto.verify!.checks[0].photo = 'data:image/png;base64,xx';
+    expect(runnerBlockers('checklist', withPhoto, 0)).toEqual([]);
+  });
+
   it('is clear once everything is answered', () => {
     const done = checklist();
     done.sections[0].checks[1].result = 'fail';

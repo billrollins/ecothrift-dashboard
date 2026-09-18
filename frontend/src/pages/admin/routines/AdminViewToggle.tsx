@@ -1,18 +1,17 @@
 import { Box, Button } from '@mui/material';
 
-export type AdminRoutineView = 'routines' | 'sections' | 'grades';
+export type AdminRoutineView = 'routines' | 'sections';
 
 export const ADMIN_VIEWS: Array<[AdminRoutineView, string]> = [
   ['routines', 'Routines'],
   ['sections', 'Sections'],
-  ['grades', 'Grades'],
 ];
 
 export function parseAdminView(raw: string | null): AdminRoutineView {
   return ADMIN_VIEWS.some(([id]) => id === raw) ? (raw as AdminRoutineView) : 'routines';
 }
 
-/** Segmented switch for the three rooms of Routine Control, on the dark head. */
+/** Segmented switch for the rooms of Routine Control, on the dark head. */
 export function AdminViewToggle({
   view,
   onChange,

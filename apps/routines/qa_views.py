@@ -9,6 +9,7 @@ from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework import status
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsSuperAdmin
 from apps.hr.models import Shift, ShiftAssignment, TimeEntry
@@ -23,8 +24,15 @@ from .grading import (
     preview_week,
     score_cross_check,
     score_spot,
+    section_owner_people,
     this_monday,
     week_grade,
+)
+from .day_summary import (
+    DaySummaryError,
+    day_summary_for_date,
+    parse_week_strict,
+    week_summary_for_staff,
 )
 from .command_center import (
     ack_nudge,
@@ -147,6 +155,36 @@ class QaTodayView(APIView):
             'checklists': _checklists_today(day, day_row),
             'sections': _section_board(day, day_row),
         })
+
+
+class QaDaySummaryView(APIView):
+    permission_classes = [IsAuthenticated, IsStaff]
+
+    def get(self, request):
+        raw_date = request.query_params.get('date')
+        raw_week = request.query_params.get('week')
+        has_date = raw_date not in (None, '')
+        has_week = raw_week not in (None, '')
+        if has_date == has_week:
+            return Response(
+                {'detail': 'exactly one of date or week is required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        today = timezone.localdate()
+        try:
+            if has_date:
+                try:
+                    day = date.fromisoformat(raw_date)
+                except ValueError:
+                    return Response(
+                        {'detail': 'invalid date'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                return Response(day_summary_for_date(day, today=today))
+            monday = parse_week_strict(raw_week)
+            return Response(week_summary_for_staff(monday, today=today))
+        except DaySummaryError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 def _staff_today(day: date) -> list[dict]:
@@ -322,7 +360,7 @@ class QaAssignView(APIView):
         if kind == 'run':
             run = get_object_or_404(RoutineRun, pk=request.data.get('run'))
             try:
-                assign_run(run=run, user=user, marked_by=request.user)
+                run = assign_run(run=run, user=user, marked_by=request.user)
             except ValueError as exc:
                 return Response({'detail': str(exc)}, status=400)
             return Response({
@@ -629,7 +667,10 @@ class QaPeopleView(APIView):
     def get(self, request):
         monday = parse_week(request.query_params.get('week'))
         week = week_grade(monday)
-        return Response({'week': week['week'], 'people': week.get('people') or []})
+        return Response({
+            'week': week['week'],
+            'people': section_owner_people(week.get('people') or []),
+        })
 
 
 class QaPersonView(APIView):

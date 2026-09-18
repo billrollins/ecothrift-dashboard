@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-08 (local_shared default) -->
+<!-- Last updated: 2026-09-18 (settings list + Heroku env pull) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -95,7 +95,7 @@ Creates `RoutineRun` rows for the current America/Chicago store day. Closed Sund
 |----------|---------|
 | Every 10 minutes (Scheduler minimum) | `python manage.py sync_ms_mailbox` |
 
-Requires `MS_GRAPH_ENABLED=true` plus the `MS_GRAPH_*` keys below. Manual refresh: Admin **Retail inbox** → Refresh now, or `POST /api/mailbox/sync/`.
+Requires `MS_GRAPH_ENABLED=true` plus the `MS_GRAPH_*` keys below. Manual refresh: `POST /api/mailbox/sync/`.
 
 **Send/receive mailbox:** `retail@ecothrift.us` via Microsoft Graph client credentials. From: `Eco-Thrift <retail@ecothrift.us>`. Reply-To: `retail@ecothrift.us`. Magic-link and hold emails embed `ONLINE_SALES_PUBLIC_BASE_URL` (local: `http://localhost:5174`). There is no debug-token bypass — confirming an email always means clicking the emailed link. With `MS_GRAPH_ENABLED=false`, the console backend prints the message (link included) to the Django terminal. Graph send does not require an SPF change.
 
@@ -142,6 +142,7 @@ If **POS registers** or **supplemental drawer** rows are missing, run `python ma
 | `python scripts/data/extract_po_descriptions.py` (if present locally) | **Historical sell-through —** reads POs from local **ecothrift_v1** / **ecothrift_v2** / **ecothrift_v3**; writes CSV under **`workspace/data/`** (**`CHANGELOG`** **2.7.1**). Requires **`psycopg2`** and root **`.env`** DB vars. |
 | `printserver/dev_print_label_test.bat` | Prints sample inventory labels **without** starting the print server (defaults to **Rollo Printer**). Pass `--dry-run` to write PNGs under `printserver/output/` instead. Example: `dev_print_label_test.bat --preset 3x2 --row 0` |
 | `printserver/dev_print_receipt_test.bat` | Renders a sample receipt to **PNG** under `printserver/output/` (no printer). Pass `--print` to also send to Windows (uses `receipt_printer` from settings or `--printer`). Optional JSON path (same shape as POST `/print/receipt` `receipt_data`). |
+| `scripts/deploy/env/pull_from_heroku.bat` | Writes gitignored `.envprod` from Heroku Config Vars; optional merge of shared keys into `.env` (skips local `DEBUG`, `DATABASE_*`, `SECRET_KEY`, hosts). Push the other way with `scripts/deploy/env/sync_to_heroku.bat`. |
 
 **Commit message staging (for scripted commits):** write the next message in `scripts/deploy/commit_message.txt` (placeholder `---` until you replace it). See [`.ai/protocols/ship-push-git.md`](../protocols/ship-push-git.md).
 
@@ -265,5 +266,7 @@ Defined in `.env` (gitignored):
 ```
 
 Set `DJANGO_SETTINGS_MODULE=ecothrift.settings_production` on Heroku.
+
+`GET /api/core/settings/` is an unpaginated array of every `AppSetting`. The staff client unwraps a leftover `{ results }` payload so Settings cannot crash on a stale cache.
 
 **Post-release one-shot (when CHANGELOG calls for it, e.g. v2.16.0):** after deploy + migrate, run **`python manage.py recompute_all_item_costs`** in a one-off Heroku shell or release task if you need every **`Item.cost`** refreshed from the PO shrink formula (`PurchaseOrder.compute_item_cost`). Not in **`release:`** in Procfile by default — run manually. See **`CHANGELOG`** **[2.16.0]** Operations.

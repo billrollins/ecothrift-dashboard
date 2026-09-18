@@ -12,13 +12,14 @@ class IsAdmin(BasePermission):
 
 
 class IsManagerOrAdmin(BasePermission):
-    """Allow access to Manager or Admin role users."""
+    """Allow access to Manager or Admin role users, and to any superuser."""
     def has_permission(self, request, view):
-        return (
-            request.user
-            and request.user.is_authenticated
-            and request.user.role in ('Manager', 'Admin')
-        )
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        if user.is_superuser:
+            return True
+        return user.role in ('Manager', 'Admin')
 
 
 class IsEmployee(BasePermission):

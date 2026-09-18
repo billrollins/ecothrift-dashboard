@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-09 (cardx Phase 5) -->
+<!-- Last updated: 2026-09-18 (Command Center + Departments GitHub ship) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -17,8 +17,10 @@ Full-stack business management for a thrift store in Omaha, NE. HR (time clock, 
 - **ACTIVE — Listing photos:** [`listing_photos`](initiatives/listing_photos.md) — full + main/grid/thumb slots; Listing Studio editor, public lightbox, autosave, Mark posted.
 - **ACTIVE — Universal object surfaces:** [`universal_object_surfaces`](initiatives/universal_object_surfaces.md) — design only. No code scheduled.
 - **ACTIVE — CardX credit surcharge:** [`cardx_surcharge`](initiatives/cardx_surcharge.md) — record-only 3% credit surcharge on POS (CardX total match, receipt, 15-min fix card type). Not the compass.
+- **ACTIVE — Retail QA scoring v2:** [`retail_qa_scoring_v2`](initiatives/retail_qa_scoring_v2.md) — Command Center, staff QA, frozen past days. Shipped GitHub **v2.95.0**. Not Heroku.
+- **ACTIVE — Departments admin:** [`departments_admin`](initiatives/departments_admin.md) — directory + hub. Shipped GitHub **v2.95.0**. Not Heroku.
 
-Routines + Retail QA shipped **v2.87.0** (GitHub, not Heroku): [`routines`](initiatives/_archived/_completed/routines.md).
+Routines + Retail QA shipped **v2.87.0** (GitHub, not Heroku): [`routines`](initiatives/_archived/_completed/routines.md). Scoring v2 and Command Center shipped **v2.95.0** (GitHub, not Heroku).
 
 TARS and enhancement requests shipped **v2.71.0** (GitHub, not Heroku): [`finalize_tars_app`](initiatives/_archived/_completed/finalize_tars_app.md), [`enhancement_requests`](initiatives/_archived/_completed/enhancement_requests.md). Domain: [`extended/restoration.md`](extended/restoration.md).
 
@@ -33,7 +35,7 @@ Sidebar entries removed. Consignment bookmarks still work. Documents routes are 
 | **Consignment (staff)** | Accounts, Items, Payouts (+ account detail) | `/consignment/accounts`, `/consignment/accounts/:id`, `/consignment/items`, `/consignment/payouts` |
 | **Documents** | Account-menu link off. Pages stay in `frontend/src/pages/documents/`. | `/documents*` unwired — catch-all goes to Dashboard. Rewire when the UI is tuned. |
 
-**HR (account menu):** Today (`/today` punch + day's routines), Pay (`/pay` ledger), Routines. Desk Home / Today / Pay / Routines share `FloorNav` (same names as the phone tab bar). Digit 9 and letter L are free. **Admin:** Users (Employees first and default for Admin, Customers second; Managers only see Customers), Settings (System / Printing / Store / Assumptions / Retail QA / Permissions), Retail inbox (Admin), Time & payroll (superuser), Routines / Routine Control (superuser — Routines, Sections, Grades). **Studios:** Label Studio, Floorplans, Blog Studio. **Consignee portal** (`/consignee/*`) unchanged.
+**HR (account menu):** Today (`/today` punch + day's routines), Pay (`/pay` ledger), Routines (plus staff `/routines/qa`). Desk Home / Today / Pay / Routines share `FloorNav` (same names as the phone tab bar). Digit 9 and letter L are free. **Admin:** Users (Employees first and default for Admin, Customers second; Managers only see Customers), Departments (directory + hub), Shifts, Routines / Routine Control (superuser — Routines, Sections), Time & payroll (superuser), Settings (System / Printing / Store / Assumptions / Retail QA / Permissions). Retail QA Command Center stays on Cashier (`/admin/retail-qa`, Manager+). **Studios:** Label Studio, Floorplans, Blog Studio. **Consignee portal** (`/consignee/*`) unchanged.
 
 ## File Map
 
@@ -104,6 +106,7 @@ When you add, rename, or remove a file in `.ai/extended/`, update this table.
 - Recharts ResponsiveContainer may log a width/height warning on first render (cosmetic).
 - Large JS bundle (~1.7MB).
 - POS cash completion should be hardened for malformed numeric payloads.
+- **POS — already sold:** the dialog is SKU-exact (`status=sold`). Check-in edit no longer births sold units when quantity is raised after a sibling sold (**v2.95.0**). Duplicate physical tags (Quick Reprice / extra copies of one SKU) and cart qty++ on the same SKU still produce the message.
 
 ## Not yet implemented (live gaps)
 
