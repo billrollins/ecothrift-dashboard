@@ -341,6 +341,9 @@ export interface DepartmentDailyMetric {
   retail: string | null;
   /** The day's Retail QA score behind the letter, 0-100. */
   retail_score?: number | null;
+  /** Daily effective weights after excluded thirds drop out. */
+  retail_weights?: { spot?: number; do?: number; cross?: number } | null;
+  retail_excluded?: string[] | null;
   retail_count?: number;
   retail_required?: number;
   retail_scheduled?: boolean;
@@ -348,6 +351,8 @@ export interface DepartmentDailyMetric {
   retail_goal_met?: boolean;
   /** Submitted QA audit ids for this day (Retail card deep links). */
   retail_audit_ids?: number[];
+  /** Store-open flag from hours / week_grade. Closed days show "Closed". */
+  open?: boolean;
   is_future: boolean;
 }
 
@@ -358,11 +363,13 @@ export interface DepartmentDailyWeek {
   week_start: string;
   week_end: string;
   /**
-   * The week's Retail QA letter: the daily average and the Tuesday cross-checks
-   * combined at the weights in Settings > Retail QA.
+   * The week's Retail QA letter: Spot, Do, and Cross combined at the
+   * effective weights for this week.
    */
   retail_week_grade?: string | null;
   retail_week_score?: number | null;
+  retail_weights?: { spot?: number; do?: number; cross?: number } | null;
+  retail_excluded?: string[] | null;
   retail_week_audits?: number;
   retail_week_required?: number;
   retail_completed_days?: number;
@@ -377,7 +384,7 @@ export type DepartmentGoalKey = 'buying' | 'processing' | 'restoration' | 'retai
 
 export interface RetailQaGoalSchedule {
   weekdays: number[];
-  audits_per_day: number;
+  audits_per_day?: number;
 }
 
 export interface DashboardDepartmentGoal {

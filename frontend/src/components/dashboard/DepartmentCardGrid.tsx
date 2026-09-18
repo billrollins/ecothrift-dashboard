@@ -459,7 +459,7 @@ export function retailWeekGoalAchieved(week: DepartmentDailyWeek): boolean {
   return Boolean(week.retail_week_goal_met);
 }
 
-/** The week's letter under the week label: the days and the cross-checks combined. */
+/** The week's letter under the week label: Spot, Do, and Cross at effective weights. */
 export function retailWeekTotal(week: DepartmentDailyWeek): string {
   return week.retail_week_grade || '-';
 }

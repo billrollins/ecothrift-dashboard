@@ -336,10 +336,13 @@ class DashboardMetricsTests(TestCase):
         payload = build_dashboard_metrics(thursday)
         week = next(w for w in payload['department_metrics']['daily_weeks'] if w['is_current'])
         retail = payload['department_metrics']['retail']
+        from apps.routines.grading import this_monday, week_grade
+        graded = week_grade(this_monday(thursday))
 
-        self.assertEqual(week['retail_week_grade'], 'A')
-        self.assertEqual(week['retail_week_score'], 100.0)
-        self.assertEqual(retail['average_grade'], 'A')
+        self.assertEqual(week['retail_week_grade'], graded['letter'])
+        self.assertEqual(week['retail_week_score'], graded['score'])
+        self.assertEqual(retail['average_grade'], graded['letter'])
+        self.assertIsNotNone(week['retail_week_grade'])
 
     def test_restoration_active_jobs_counts_active_stages(self):
         from apps.inventory.models import ItemCheckIn, RestorationJob
@@ -429,6 +432,120 @@ class DashboardMetricsTests(TestCase):
         last_week_day_payload = next(d for d in last_week['days'] if d['date'] == last_week_day.isoformat())
 
         self.assertEqual(last_week_day_payload['processing'], '40.00')
+
+    def test_letter_meets_uses_letter_order(self):
+        from apps.pos.services.dashboard_metrics import letter_meets
+
+        self.assertTrue(letter_meets('A', 'B'))
+        self.assertTrue(letter_meets('B', 'B'))
+        self.assertTrue(letter_meets('A', 'A-'))
+        self.assertTrue(letter_meets('B', 'B-'))
+        self.assertTrue(letter_meets('B+', 'B'))
+        self.assertFalse(letter_meets('A', 'A+'))
+        self.assertFalse(letter_meets('B', 'B+'))
+        self.assertFalse(letter_meets('C', 'B'))
+        self.assertFalse(letter_meets(None, 'B'))
+
+    def test_retail_note_vocabulary(self):
+        from apps.pos.services.dashboard_metrics import _retail_today_note
+
+        today = date(2026, 9, 3)
+        closed = _retail_today_note(today, {'open_day': False})
+        before_due = _retail_today_note(today, {
+            'open_day': True,
+            'doing': {'done': 0, 'needed': 8},
+            'owner': {'spots': []},
+        })
+        mid = _retail_today_note(today, {
+            'open_day': True,
+            'doing': {'done': 3, 'needed': 8},
+            'owner': {'spots': []},
+        })
+        done = _retail_today_note(today, {
+            'open_day': True,
+            'doing': {'done': 8, 'needed': 8},
+            'owner': {'spots': [{'spot_score': 91.0}]},
+        })
+        self.assertEqual(closed, 'Closed')
+        self.assertEqual(before_due, 'Do 0 of 8 · no walk yet')
+        self.assertEqual(mid, 'Do 3 of 8 · no walk yet')
+        self.assertEqual(done, 'Do 8 of 8 · walk done')
+        for note in (closed, before_due, mid, done):
+            self.assertNotIn('Doing', note)
+            self.assertNotIn('spot pending', note)
+
+    def test_retail_cells_and_note_use_effective_weights(self):
+        from apps.routines.grading import grade_day, this_monday, week_grade
+
+        thursday = date(2026, 9, 3)
+        payload = build_dashboard_metrics(thursday)
+        week = next(w for w in payload['department_metrics']['daily_weeks'] if w['is_current'])
+        graded_week = week_grade(this_monday(thursday))
+        self.assertEqual(week['retail_weights'], graded_week['weights'])
+        self.assertEqual(week['retail_excluded'], graded_week['excluded'])
+        self.assertEqual(
+            payload['department_metrics']['retail']['average_grade'],
+            graded_week['letter'],
+        )
+        day = next(d for d in week['days'] if d['date'] == thursday.isoformat())
+        graded_day = grade_day(thursday)
+        self.assertEqual(day['retail'], graded_day['letter'])
+        self.assertEqual(day['retail_score'], graded_day['score'])
+        self.assertEqual(day['retail_weights'], graded_day['weights'])
+        self.assertEqual(day['retail_excluded'], graded_day['excluded'])
+        self.assertIn('spot', day['retail_excluded'])
+        self.assertEqual(day['retail_weights']['do'], 100.0)
+        note = payload['department_metrics']['retail']['note']
+        self.assertIn('no walk yet', note)
+        self.assertNotIn('Doing', note)
+
+    def test_retail_card_letter_matches_command_center_tile(self):
+        from apps.routines.command_center import week_tiles
+        from apps.routines.grading import this_monday, week_grade
+        from apps.routines.models import WeekScoreSnapshot
+        from apps.routines.schedule import cross_check_day_for
+
+        thursday = date(2026, 9, 3)
+        last_monday = this_monday(thursday) - timedelta(days=7)
+        last_thu = last_monday + timedelta(days=3)
+        for key in ('retail.open', 'retail.day', 'retail.close'):
+            self._finish_checklist(key, last_thu)
+
+        live = week_grade(last_monday)
+        snap = WeekScoreSnapshot.objects.get(week_monday=last_monday)
+        payload = dict(snap.payload)
+        days = []
+        for row in payload.get('days') or []:
+            item = dict(row)
+            if item.get('date') == last_thu.isoformat():
+                item['letter'] = 'C'
+                item['score'] = 70.0
+                item['graded'] = True
+            days.append(item)
+        payload['days'] = days
+        payload['letter'] = 'C'
+        snap.payload = payload
+        snap.letter = 'C'
+        snap.finalized_at = timezone.now()
+        snap.save()
+
+        metrics = build_dashboard_metrics(thursday)
+        week_row = next(
+            w for w in metrics['department_metrics']['daily_weeks']
+            if w['week_start'] == last_monday.isoformat()
+        )
+        day = next(d for d in week_row['days'] if d['date'] == last_thu.isoformat())
+        tiles = week_tiles(
+            last_monday,
+            week_grade(last_monday),
+            today=thursday,
+            due=cross_check_day_for(last_monday),
+        )
+        tile = next(t for t in tiles if t['date'] == last_thu.isoformat())
+        self.assertEqual(day['retail'], tile['letter'])
+        self.assertEqual(day['retail'], 'C')
+        live_letter = next(row['letter'] for row in live['days'] if row['date'] == last_thu.isoformat())
+        self.assertNotEqual(live_letter, 'C')
 
     def test_get_dashboard_metrics_uses_cache(self):
         from unittest.mock import patch
