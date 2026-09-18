@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { QaIssue, QaJob, QaStaffRow } from '../../../api/routines.api';
-import { bandWeightLabel, displayName, formatShiftRange, groupIssues, jobTimeLabel, nudgeLabel, peopleDots, scheduleGroups, scheduleSummary, sectionCheckDoneLabel, shortName, tileClass, tileNote } from './commandCenter';
+import { CHECKLISTS_LABEL, bandWeightLabel, displayName, formatShiftRange, groupIssues, jobTimeLabel, nudgeLabel, peopleDots, scheduleGroups, scheduleSummary, sectionCheckDoneLabel, shortName, tileClass, tileNote } from './commandCenter';
 
 function person(id: number, name: string) {
   return { id, name };
@@ -123,6 +123,15 @@ describe('groupIssues', () => {
     expect(rows[0].sentence).toBe('Michael F. is 1 h 40 min late for Restoration.');
   });
 
+  it('writes late for Retail Open from the live shift name', () => {
+    const rows = groupIssues([], SAMPLE_STAFF.map((row) => (
+      row.id === 1
+        ? { ...row, clocked_in: false, status: 'Late' as const, late_minutes: 25, late_severity: 'amber' as const }
+        : row
+    )), []);
+    expect(rows[0].sentence).toBe('Carrie R. is 25 min late for Retail Open.');
+  });
+
   it('keeps nudged_at on routine issues', () => {
     const rows = groupIssues(SAMPLE_ISSUES, SAMPLE_STAFF, SAMPLE_JOBS);
     expect(rows[0].nudged_at).toBe(SAMPLE_ISSUES[0].nudged_at);
@@ -223,5 +232,11 @@ describe('labels', () => {
       { ...SAMPLE_STAFF[4], clocked_in: false, status: 'Called in' as const },
     ];
     expect(scheduleSummary(rows)).toBe('0 of 5 in · 3 late · 2 called in');
+  });
+});
+
+describe('CHECKLISTS_LABEL', () => {
+  it('is the Routines card group label', () => {
+    expect(CHECKLISTS_LABEL).toBe('Checklists');
   });
 });
