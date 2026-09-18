@@ -730,9 +730,13 @@ def grade_day(day: date, ctx: dict | None = None, *, project: bool = False) -> d
     doing = _doing_for_day(day, runs, project=project)
     cross = _cross_for_day(day, runs, cfg, ctx['bases'], project=project)
     owner = _owner_for_day(day, runs, cfg, ctx['bases'], project=project)
-    score, letter = _blend_weights(
-        doing['score'], None, owner['score'], cfg, include_cross=False,
-    )
+    spot_w, do_w, _cross_w = _weights(cfg)
+    blended = combine_weighted([
+        ('spot', spot_w, owner['score']),
+        ('do', do_w, doing['score']),
+    ])
+    score = blended['score']
+    letter = letter_for(score, cfg) if score is not None else None
     checklists = {row['key']: row for row in doing['routines'] if row['key'] in PERFORMED_KEYS}
     spot = owner['spots'][0] if owner['spots'] else None
     graded = bool(runs)
@@ -742,6 +746,8 @@ def grade_day(day: date, ctx: dict | None = None, *, project: bool = False) -> d
         'graded': graded,
         'score': score if graded else None,
         'letter': letter if graded else None,
+        'weights': blended['weights'],
+        'excluded': blended['excluded'],
         'thirds': {
             'doing': doing['score'],
             'cross': cross['score'],
