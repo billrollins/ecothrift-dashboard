@@ -236,6 +236,9 @@ class DashboardSalesGoalSerializer(serializers.ModelSerializer):
 
 
 class DashboardDepartmentGoalSerializer(serializers.ModelSerializer):
+    def validate_value(self, value):
+        return (value or '').strip()
+
     def validate_schedule(self, value):
         if value in (None, ''):
             return {}
@@ -258,18 +261,20 @@ class DashboardDepartmentGoalSerializer(serializers.ModelSerializer):
             if day not in weekdays:
                 weekdays.append(day)
 
-        raw_count = value.get('audits_per_day', 1)
-        try:
-            audits_per_day = int(raw_count)
-        except (TypeError, ValueError):
-            raise serializers.ValidationError('audits_per_day must be a whole number.')
-        if audits_per_day < 1 or audits_per_day > 20:
-            raise serializers.ValidationError('audits_per_day must be between 1 and 20.')
+        return {'weekdays': sorted(weekdays)}
 
-        return {
-            'weekdays': sorted(weekdays),
-            'audits_per_day': audits_per_day,
-        }
+    def validate(self, attrs):
+        department = attrs.get('department') or getattr(self.instance, 'department', None)
+        if department == DashboardDepartmentGoal.RETAIL:
+            from apps.pos.services.dashboard_metrics import RETAIL_GOAL_LETTERS, normalize_letter
+
+            letter = normalize_letter(attrs.get('value'))
+            if letter not in RETAIL_GOAL_LETTERS:
+                raise serializers.ValidationError({
+                    'value': 'Retail goal must be A, B, or C.',
+                })
+            attrs['value'] = letter
+        return attrs
 
     class Meta:
         model = DashboardDepartmentGoal

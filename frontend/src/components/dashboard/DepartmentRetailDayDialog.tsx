@@ -89,7 +89,24 @@ export function thirdScoreDisplay(
 }
 
 export function doDetailLine(row: NonNullable<RetailDaySummary['do']>): string {
-  return `${row.section_checks.done} of ${row.section_checks.expected} section checks · ${row.open_day_close.done} of ${row.open_day_close.expected} open/day/close`;
+  return [
+    `${row.section_checks.done} of ${row.section_checks.expected} section checks`,
+    `${row.open_day_close.done} of ${row.open_day_close.expected} open/day/close`,
+  ].join('\n');
+}
+
+export function crossPastDueDetail(row: NonNullable<RetailDaySummary['cross']>): string {
+  const remaining = Math.max(0, row.due - row.done);
+  return `${row.done} of ${row.due} done · ${remaining} not done`;
+}
+
+export function isWeekCrossPastDue(
+  mode: RetailSummaryMode,
+  row: RetailDaySummary['cross'] | null | undefined,
+): boolean {
+  return Boolean(
+    mode === 'week' && row && row.state !== 'pending' && row.due > row.done,
+  );
 }
 
 export function spotDetailLine(
@@ -268,6 +285,7 @@ function ThirdCard({
   detail,
   pending,
   informational,
+  forceTone,
   testId,
 }: {
   name: string;
@@ -280,9 +298,10 @@ function ThirdCard({
   detail: string;
   pending?: string | null;
   informational?: boolean;
+  forceTone?: LetterTileTone;
   testId?: string;
 }) {
-  const tone = informational ? 'grey' : thirdTone(score, state, threshold);
+  const tone = forceTone || (informational ? 'grey' : thirdTone(score, state, threshold));
   const colors = CARD_TONE[tone];
   const status = pending || spotStatusCopy(state);
   return (
@@ -293,7 +312,7 @@ function ThirdCard({
       sx={{
         flex: '1 1 0',
         minWidth: 0,
-        minHeight: 248,
+        minHeight: 'min-content',
         p: '24px',
         borderRadius: '12px',
         bgcolor: colors.bg,
@@ -316,7 +335,7 @@ function ThirdCard({
           mt: 'auto',
           fontSize: 13,
           fontWeight: 600,
-          whiteSpace: 'nowrap',
+          whiteSpace: 'pre-line',
           color: status ? ccTokens.ink2 : ccTokens.ink,
         }}
       >
@@ -526,8 +545,15 @@ export function DepartmentRetailDayDialog({
                   score={data.cross?.score}
                   state={data.cross?.state}
                   threshold={threshold}
+                  forceTone={isWeekCrossPastDue(mode, data.cross) ? 'red' : undefined}
                   description="Sections checked by someone other than their owner, once a week."
-                  detail={data.cross ? crossDetailLine(data.cross) : ''}
+                  detail={
+                    data.cross
+                      ? (isWeekCrossPastDue(mode, data.cross)
+                        ? crossPastDueDetail(data.cross)
+                        : crossDetailLine(data.cross))
+                      : ''
+                  }
                   pending={
                     data.cross?.state === 'pending'
                       ? crossPendingLabel(data.cross.due_date)

@@ -29,7 +29,7 @@ LETTER_ORDER = (
     'C+', 'C', 'C-', 'D+', 'D', 'D-', 'F',
 )
 LETTER_RANK = {letter: len(LETTER_ORDER) - index for index, letter in enumerate(LETTER_ORDER)}
-RETAIL_GOAL_LETTERS = ('A+', 'A', 'A-', 'B+', 'B', 'B-')
+RETAIL_GOAL_LETTERS = ('A', 'B', 'C')
 
 
 def normalize_letter(value: Any) -> str | None:
@@ -51,7 +51,11 @@ def letter_meets(actual: str | None, goal: str | None) -> bool:
 
 
 def retail_goal_letter(value: Any) -> str | None:
-    return normalize_letter(value)
+    letter = normalize_letter(value)
+    if letter is None:
+        return None
+    band = letter[0]
+    return band if band in RETAIL_GOAL_LETTERS else None
 
 
 def clamp_department_weeks(raw: Any) -> int:
@@ -678,10 +682,17 @@ def _department_goals() -> dict[str, dict[str, Any]]:
         'description',
         'schedule',
     ):
+        value = goal.value
+        if goal.department == DashboardDepartmentGoal.RETAIL:
+            band = retail_goal_letter(value) or 'B'
+            if value != band:
+                goal.value = band
+                goal.save(update_fields=['value'])
+                value = band
         goals[goal.department] = {
             'id': goal.id,
             'department': goal.department,
-            'value': goal.value,
+            'value': value,
             'description': goal.description,
             'schedule': goal.schedule or {},
         }

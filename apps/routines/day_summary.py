@@ -30,7 +30,13 @@ def _goal_letter() -> str | None:
     row = DashboardDepartmentGoal.objects.filter(
         department=DashboardDepartmentGoal.RETAIL,
     ).only('value').first()
-    return retail_goal_letter(row.value if row else None)
+    if row is None:
+        return None
+    letter = retail_goal_letter(row.value) or 'B'
+    if row.value != letter:
+        row.value = letter
+        row.save(update_fields=['value'])
+    return letter
 
 
 def _walks_done(day_row: dict | None) -> int:
