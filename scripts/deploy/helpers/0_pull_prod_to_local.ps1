@@ -244,6 +244,17 @@ $check.Output | Out-Host
 if ($check.ExitCode -ne 0) { throw 'manage.py check failed. Dumps kept.' }
 Write-Pull ''
 
+$debugRaw = [string]$envFile['DEBUG']
+if ($debugRaw -notin @('True', 'true', '1')) {
+    Write-Pull 'seed_dev_roster skipped: DEBUG is not true in .env'
+    exit 1
+}
+Write-Pull '[Seed] manage.py seed_dev_roster...'
+$seed = Invoke-Native -File $VenvPy -NativeArgs @('manage.py', 'seed_dev_roster')
+$seed.Output | Out-Host
+if ($seed.ExitCode -ne 0) { throw "manage.py seed_dev_roster failed.`n$($seed.Output)" }
+Write-Pull ''
+
 Write-Pull '[Cleanup] Keeping the newest 3 local-before and prod-schema dumps...'
 foreach ($pattern in @('local_ecothrift_before_pull_*.dump', 'prod_ecothrift_schema_*.dump')) {
     $files = @(Get-ChildItem -LiteralPath $BackupDir -Filter $pattern | Sort-Object LastWriteTime -Descending)
