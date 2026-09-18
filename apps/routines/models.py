@@ -214,6 +214,10 @@ class Routine(models.Model):
         related_name='routines_assigned',
     )
     is_blocking = models.BooleanField(default=False)
+    gate_on_miss = models.BooleanField(
+        default=False,
+        help_text='Kiosk asks why when a run of this routine was missed, before the next clock-in. Superuser only.',
+    )
     is_active = models.BooleanField(default=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -240,6 +244,19 @@ class RoutineRun(models.Model):
         (STATUS_OPEN, 'Open'),
         (STATUS_DONE, 'Done'),
         (STATUS_MISSED, 'Missed'),
+    ]
+
+    MISS_FORGOT = 'forgot'
+    MISS_NO_TIME = 'no_time'
+    MISS_CALLED_IN = 'called_in'
+    MISS_NOT_MY_SECTION = 'not_my_section'
+    MISS_OTHER = 'other'
+    MISS_REASON_CHOICES = [
+        (MISS_FORGOT, 'Forgot'),
+        (MISS_NO_TIME, 'Ran out of time'),
+        (MISS_CALLED_IN, 'Called in'),
+        (MISS_NOT_MY_SECTION, 'Not my section that day'),
+        (MISS_OTHER, 'Other'),
     ]
 
     routine = models.ForeignKey(Routine, on_delete=models.CASCADE, related_name='runs')
@@ -287,6 +304,19 @@ class RoutineRun(models.Model):
         blank=True,
         default='',
         help_text='Keeps more than one unassigned per-person run unique for a day.',
+    )
+    # Why a missed run was missed, answered at the kiosk before the next clock-in.
+    miss_reason = models.CharField(
+        max_length=20, choices=MISS_REASON_CHOICES, blank=True, default='',
+    )
+    miss_reason_note = models.CharField(max_length=200, blank=True, default='')
+    miss_reason_at = models.DateTimeField(null=True, blank=True)
+    miss_reason_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='routine_miss_reasons',
     )
 
     class Meta:

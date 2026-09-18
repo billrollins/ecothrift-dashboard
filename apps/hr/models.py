@@ -356,6 +356,41 @@ class ShiftAssignment(models.Model):
         return day.weekday() in own
 
 
+class KioskEvent(models.Model):
+    """Audit row for the time kiosk. Never stores the card token."""
+
+    ROUTE_KIOSK = 'kiosk'
+    ROUTE_CLOCK = 'clock'
+    ROUTE_CHOICES = [(ROUTE_KIOSK, 'Hosted kiosk'), (ROUTE_CLOCK, 'Public clock')]
+
+    ACTIONS = (
+        'identify_ok', 'identify_fail', 'cooldown', 'clock_in', 'clock_out',
+        'break_start', 'break_end', 'set_shift', 'request_edit', 'fix_stale',
+        'gate_cleared', 'unmatched_shift', 'exit',
+    )
+
+    at = models.DateTimeField(default=timezone.now, db_index=True)
+    route = models.CharField(max_length=8, choices=ROUTE_CHOICES)
+    host = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='kiosk_events_hosted',
+    )
+    subject = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='kiosk_events',
+    )
+    action = models.CharField(max_length=20)
+    shift = models.CharField(max_length=20, blank=True, default='')
+    ip = models.CharField(max_length=45, blank=True, default='')
+    meta = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-at', '-id']
+
+    def __str__(self):
+        return f'{self.route} {self.action} {self.at:%Y-%m-%d %H:%M}'
+
+
 def _weekday_list(raw) -> list[int]:
     days = []
     for value in raw or []:
