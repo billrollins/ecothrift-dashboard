@@ -74,6 +74,47 @@ def _weights(cfg: dict | None = None) -> tuple[float, float, float]:
     )
 
 
+def combine_weighted(
+    components: list[tuple[str, float, float | None]],
+) -> dict[str, Any]:
+    """Drop excluded components (score is None) and scale the rest to 100.
+
+    Returns score, effective weights for every submitted key, and excluded keys.
+    When every component is present and the nominal weights already sum to 100,
+    those weights are left unchanged.
+    """
+    keys = [key for key, _weight, _score in components]
+    weights = {key: 0.0 for key in keys}
+    included = [
+        (key, float(weight), float(score))
+        for key, weight, score in components
+        if score is not None
+    ]
+    excluded = [key for key, _weight, score in components if score is None]
+    if not included:
+        return {'score': None, 'weights': weights, 'excluded': excluded}
+    total = sum(weight for _key, weight, _score in included)
+    if total <= 0:
+        return {'score': None, 'weights': weights, 'excluded': excluded}
+    all_present = len(included) == len(components)
+    if all_present and abs(total - 100.0) < 1e-9:
+        for key, weight, _score in included:
+            weights[key] = weight
+        score = sum(weight * score for _key, weight, score in included) / 100.0
+        return {'score': round(score, 1), 'weights': weights, 'excluded': excluded}
+    acc = 0.0
+    last = len(included) - 1
+    for index, (key, weight, _score) in enumerate(included):
+        if index == last:
+            scaled = round(100.0 - acc, 2)
+        else:
+            scaled = round(weight / total * 100.0, 2)
+            acc += scaled
+        weights[key] = scaled
+    score = sum(weights[key] * score for key, _weight, score in included) / 100.0
+    return {'score': round(score, 1), 'weights': weights, 'excluded': excluded}
+
+
 def _renormalize(parts: list[tuple[float, float]]) -> float | None:
     """Weighted parts renormalized to 100. parts are (weight, score)."""
     present = [(weight, score) for weight, score in parts if score is not None]
@@ -742,8 +783,52 @@ def day_grades(days, cfg: dict | None = None) -> list[dict]:
     return [grade_day(day, ctx) for day in days]
 
 
+def section_owner_ids() -> set[int]:
+    return {
+        section.owner_id
+        for section in _active_sections()
+        if section.owner_id
+    }
+
+
+def section_owner_people(people: list[dict]) -> list[dict]:
+    """Section-check dialog rows: owners only, Done taken from the same dots."""
+    owners = section_owner_ids()
+    return [row for row in people if row.get('id') in owners]
+
+
+def section_check_done_parts(days: list[str]) -> dict:
+    """Green / expected-through-today / still-due, matching the dialog dots."""
+    done = sum(1 for status in days if status == 'done')
+    missed = sum(1 for status in days if status == 'missed')
+    due_today = sum(1 for status in days if status == 'due')
+    return {
+        'done': done,
+        'assigned': done + missed,
+        'due_today': due_today,
+        'missed': missed,
+    }
+
+
+def section_check_done_label(done: int, assigned: int, due_today: int = 0) -> str:
+    text = f'{done} of {assigned}'
+    if due_today:
+        text += f' · {due_today} due today'
+    return text
+
+
+def _owned_section_ids() -> dict[int, set[int]]:
+    owned: dict[int, set[int]] = {}
+    for section in _active_sections():
+        if not section.owner_id:
+            continue
+        owned.setdefault(section.owner_id, set()).add(section.pk)
+    return owned
+
+
 def _people_for_week(monday: date, days: list[dict], runs: list[RoutineRun]) -> list[dict]:
     by_user: dict[int, dict] = {}
+    owned = _owned_section_ids()
 
     def bucket(user_id, name):
         return by_user.setdefault(user_id, {
@@ -753,11 +838,16 @@ def _people_for_week(monday: date, days: list[dict], runs: list[RoutineRun]) -> 
             'done': 0,
             'late': 0,
             'missed': 0,
+            'due_today': 0,
             'verify_scores': [],
             'cross_scores': [],
             'spot_scores': [],
             'open_flags': 0,
         })
+
+    for section in _active_sections():
+        if section.owner_id and section.owner:
+            bucket(section.owner_id, section.owner.full_name)
 
     for run in runs:
         person = run.assigned_to or run.completed_by
@@ -805,38 +895,71 @@ def _people_for_week(monday: date, days: list[dict], runs: list[RoutineRun]) -> 
         row['spot_count'] = len(spots)
         row['spot_average'] = _mean_or_none(spots)
         row['on_task'] = None
-        row['section_days'] = _section_check_days(monday, row['id'], runs, days)
+        section_days = _section_check_days(
+            monday, row['id'], runs, days,
+            owned_section_ids=owned.get(row['id'], set()),
+        )
+        row['section_days'] = section_days
+        if row['id'] in owned:
+            parts = section_check_done_parts(section_days)
+            row['done'] = parts['done']
+            row['assigned'] = parts['assigned']
+            row['due_today'] = parts['due_today']
+            row['missed'] = parts['missed']
         out.append(row)
     out.sort(key=lambda item: item['name'] or '')
     return out
 
 
-def _section_check_days(monday: date, person_id: int, runs: list[RoutineRun], days: list[dict]) -> list[str]:
-    """Mon–Sun status for this person's section check: done / due / missed / none."""
+def _section_day_expected(day: date, info: dict | None) -> bool:
+    open_day = bool(info.get('open_day')) if info else is_open_day(day)
+    return open_day and section_checks_required(day)
+
+
+def _section_check_days(
+    monday: date,
+    person_id: int,
+    runs: list[RoutineRun],
+    days: list[dict],
+    *,
+    owned_section_ids: set[int] | None = None,
+    today: date | None = None,
+) -> list[str]:
+    """Mon–Sun section-check dots: done / due / missed / none.
+
+    A day gets a status only when a check was expected (section weekdays and
+    the store open) and the day is not in the future. Today's unfinished check
+    is due, not missed.
+    """
+    today = today or timezone.localdate()
+    owned = set(owned_section_ids or ())
     by_date = {row['date']: row for row in days}
     tallies = [
         run for run in runs
-        if run.routine.system_key == SYSTEM_TALLY and run.assigned_to_id == person_id
+        if run.routine.system_key == SYSTEM_TALLY
+        and (
+            run.assigned_to_id == person_id
+            or (run.section_id and run.section_id in owned)
+        )
     ]
     out: list[str] = []
     for offset in range(7):
         day = monday + timedelta(days=offset)
         iso = day.isoformat()
         info = by_date.get(iso)
-        if not info or not info.get('open_day'):
+        if day > today or not _section_day_expected(day, info):
             out.append('none')
             continue
         mine = [run for run in tallies if run.period_key == iso]
-        if not mine:
-            out.append('none')
-            continue
         words = [_run_status(run) for run in mine]
         if any(word in ('done', 'late') for word in words):
             out.append('done')
         elif any(word == 'missed' for word in words):
             out.append('missed')
-        else:
+        elif day == today:
             out.append('due')
+        else:
+            out.append('missed')
     return out
 
 
