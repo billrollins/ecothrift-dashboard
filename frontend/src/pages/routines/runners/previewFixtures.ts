@@ -106,7 +106,7 @@ export function previewSpot(): OwnerSpotResponses {
       },
       {
         routine_key: 'retail.close',
-        routine_title: 'Retail close',
+        routine_title: 'Closing checklist',
         check_id: 'sample-2',
         label: 'A check drawn from the closing list',
         control: 'pass_fail',

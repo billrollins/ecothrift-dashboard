@@ -1,4 +1,4 @@
-"""Staff-readable Retail day/week aggregates. No names, no per-person rows."""
+"""Staff-readable retail daily and weekly aggregates. No names, no per-person rows."""
 from __future__ import annotations
 
 from datetime import date

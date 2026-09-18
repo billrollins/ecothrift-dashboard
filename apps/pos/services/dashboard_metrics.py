@@ -504,7 +504,7 @@ def _retail_submissions_by_day(start: date, end: date) -> dict[date, dict[str, A
 
 
 def _work_cycle_activity(week_start: date, today: date) -> dict[str, int]:
-    """Work cycles submitted and idle prompts dismissed this ISO week."""
+    """Register activity submitted and idle prompts dismissed this ISO week."""
     from apps.routines.models import RoutineSubmission, WorkCyclePrompt
 
     submitted = list(

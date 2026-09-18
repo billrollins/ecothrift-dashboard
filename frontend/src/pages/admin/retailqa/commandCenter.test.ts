@@ -21,13 +21,13 @@ const SAMPLE_JOBS: QaJob[] = [
   { group: 'section', key: 'retail.section_tally', title: 'Ashley', run_id: 13, section_id: 3, owner: null, due_at: null, due_label: 'Done 09:55', completed_label: '09:55', status: 'Done', closed: false, can_close: true },
   { group: 'section', key: 'retail.section_tally', title: 'Carrie', run_id: 14, section_id: 4, owner: null, due_at: null, due_label: 'Done 09:12', completed_label: '09:12', status: 'Done', closed: false, can_close: true },
   { group: 'section', key: 'retail.section_tally', title: 'Michael', run_id: 15, section_id: 5, owner: null, due_at: null, due_label: 'Due 10:05', status: 'Overdue', closed: false, can_close: false },
-  { group: 'shift', key: 'retail.open', title: 'Retail open', run_id: 21, section_id: null, owner: person(1, 'Carrie Rollins'), due_at: null, due_label: 'Due 08:30', status: 'Overdue', closed: false, can_close: false },
-  { group: 'shift', key: 'retail.day', title: 'Retail day', run_id: 22, section_id: null, owner: person(1, 'Carrie Rollins'), due_at: null, due_label: 'Due 14:00', status: 'Due', closed: false, can_close: false },
-  { group: 'shift', key: 'retail.close', title: 'Retail close', run_id: 23, section_id: null, owner: person(2, 'David Kilduff'), due_at: null, due_label: 'Due 18:00', status: 'Due', closed: false, can_close: false },
+  { group: 'shift', key: 'retail.open', title: 'Opening checklist', run_id: 21, section_id: null, owner: person(1, 'Carrie Rollins'), due_at: null, due_label: 'Due 08:30', status: 'Overdue', closed: false, can_close: false },
+  { group: 'shift', key: 'retail.day', title: 'Midday checklist', run_id: 22, section_id: null, owner: person(1, 'Carrie Rollins'), due_at: null, due_label: 'Due 14:00', status: 'Due', closed: false, can_close: false },
+  { group: 'shift', key: 'retail.close', title: 'Closing checklist', run_id: 23, section_id: null, owner: person(2, 'David Kilduff'), due_at: null, due_label: 'Due 18:00', status: 'Due', closed: false, can_close: false },
 ];
 
 const SAMPLE_ISSUES: QaIssue[] = [
-  { id: 'routine-21', type: 'overdue_routine', severity: 'amber', sentence: 'Retail open was due 08:30 and is not started.', action: 'nudge', person_id: 1, person_name: 'Carrie Rollins', run_id: 21, call_in_id: null, nudged_at: null, can_act: true },
+  { id: 'routine-21', type: 'overdue_routine', severity: 'amber', sentence: 'Opening checklist was due 08:30 and is not started.', action: 'nudge', person_id: 1, person_name: 'Carrie Rollins', run_id: 21, call_in_id: null, nudged_at: null, can_act: true },
   { id: 'routine-15', type: 'overdue_routine', severity: 'amber', sentence: "Michael's section check was due 10:05.", action: 'nudge', person_id: 5, person_name: 'Michael Frieze', run_id: 15, call_in_id: null, nudged_at: null, can_act: true },
 ];
 
@@ -100,7 +100,7 @@ describe('groupIssues', () => {
   it('keeps overdue routines and does not list people who are in', () => {
     const rows = groupIssues(SAMPLE_ISSUES, SAMPLE_STAFF, SAMPLE_JOBS);
     expect(rows.map((row) => row.sentence)).toEqual([
-      'Retail open was due 08:30 and is not started. Owner Carrie R.',
+      'Opening checklist was due 08:30 and is not started. Owner Carrie R.',
       "Michael's section check was due 10:05.",
     ]);
   });
@@ -138,7 +138,7 @@ describe('groupIssues', () => {
     const issues: QaIssue[] = [{
       ...SAMPLE_ISSUES[0],
       severity: 'red',
-      sentence: 'Retail open is past its hard deadline (10:00).',
+      sentence: 'Opening checklist is past its hard deadline (10:00).',
       nudged_at: '10:00',
     }];
     const rows = groupIssues(issues, SAMPLE_STAFF, jobs);

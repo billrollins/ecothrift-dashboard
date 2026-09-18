@@ -61,8 +61,8 @@ class OverlappingShiftTests(APITestCase):
             defaults={'weekdays': [1, 2, 3, 4, 5]},
         )
         for key, title, shift in (
-            (SYSTEM_OPEN, 'Retail open', self.open_shift),
-            (SYSTEM_CLOSE, 'Retail close', self.close_shift),
+            (SYSTEM_OPEN, 'Opening checklist', self.open_shift),
+            (SYSTEM_CLOSE, 'Closing checklist', self.close_shift),
         ):
             routine, _ = Routine.objects.update_or_create(
                 system_key=key,

@@ -80,9 +80,9 @@ class DayPoolTests(APITestCase):
             defaults={'weekdays': [1, 2, 3, 4, 5]},
         )
         for key, title, shift, due in (
-            (SYSTEM_OPEN, 'Retail open', self.open_shift, time(9, 0)),
-            (SYSTEM_DAY, 'Retail day', self.day_shift, time(14, 0)),
-            (SYSTEM_CLOSE, 'Retail close', self.close_shift, time(18, 0)),
+            (SYSTEM_OPEN, 'Opening checklist', self.open_shift, time(9, 0)),
+            (SYSTEM_DAY, 'Midday checklist', self.day_shift, time(14, 0)),
+            (SYSTEM_CLOSE, 'Closing checklist', self.close_shift, time(18, 0)),
         ):
             routine, _ = Routine.objects.update_or_create(
                 system_key=key,
@@ -158,11 +158,11 @@ class DayPoolTests(APITestCase):
             qa = self.client.get('/api/routines/qa/mine/')
             self.assertEqual(qa.status_code, 200, qa.data)
             titles = {row['title'] for row in qa.data['today']}
-            self.assertIn('Retail day', titles)
+            self.assertIn('Midday checklist', titles)
 
     def test_complete_resolves_the_other_members_nudge(self):
         run = self._day_run()
-        create_nudge(run=run, source='manual', message='Please finish Retail day.')
+        create_nudge(run=run, source='manual', message='Please finish Midday checklist.')
         self.assertEqual(QaNudge.objects.filter(run=run).count(), 2)
         run.status = RoutineRun.STATUS_DONE
         run.completed_by = self.david
@@ -200,7 +200,7 @@ class DayPoolTests(APITestCase):
         jobs = [{
             'group': 'shift',
             'key': SYSTEM_DAY,
-            'title': 'Retail day',
+            'title': 'Midday checklist',
             'run_id': run.pk,
             'status': 'Overdue',
             'owner': {'id': None, 'name': 'Pool · Carrie R., David K.'},
@@ -258,4 +258,4 @@ class DayPoolTests(APITestCase):
         self.assertNotIn(SYSTEM_DAY, keys)
         qa = self.client.get('/api/routines/qa/mine/')
         titles = {row['title'] for row in qa.data['today']}
-        self.assertNotIn('Retail day', titles)
+        self.assertNotIn('Midday checklist', titles)

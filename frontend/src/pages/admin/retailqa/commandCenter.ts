@@ -301,8 +301,8 @@ export function formatLateMinutes(mins: number) {
 }
 
 export function lateSentence(row: QaStaffRow) {
-  const dept = row.department || displayName(row.department_slug, 'dept') || 'their shift';
-  return `${shortName(row.name)} is ${formatLateMinutes(row.late_minutes ?? 0)} late for ${dept}.`;
+  const where = row.shift_name || displayName(row.department_slug, 'dept') || row.department || 'their shift';
+  return `${shortName(row.name)} is ${formatLateMinutes(row.late_minutes ?? 0)} late for ${where}.`;
 }
 
 function issueIcon(type: QaIssue['type'] | 'late-group'): BoardIssue['icon'] {

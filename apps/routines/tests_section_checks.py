@@ -57,7 +57,7 @@ class SectionCheckDialogTests(TestCase):
         self.open, _ = Routine.objects.update_or_create(
             system_key=SYSTEM_OPEN,
             defaults={
-                'title': 'Retail open',
+                'title': 'Opening checklist',
                 'kind': Routine.KIND_CHECKLIST,
                 'trigger': Routine.TRIGGER_DAILY,
                 'is_active': True,

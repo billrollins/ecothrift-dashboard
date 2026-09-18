@@ -238,7 +238,7 @@ class TimeEntryShiftTests(APITestCase):
         routine, _ = Routine.objects.update_or_create(
             system_key='retail.open',
             defaults={
-                'title': 'Retail open',
+                'title': 'Opening checklist',
                 'kind': 'checklist',
                 'trigger': 'daily',
                 'is_active': True,

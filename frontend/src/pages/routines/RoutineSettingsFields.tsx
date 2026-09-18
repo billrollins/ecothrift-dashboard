@@ -211,7 +211,7 @@ export function RoutineSettingsFields({
           <TextField
             value={value.title}
             onChange={(e) => onChange({ title: e.target.value })}
-            placeholder="Retail opening checklist"
+            placeholder="Opening checklist"
             fullWidth
             autoFocus={autoFocusTitle}
             sx={titleFieldSx}

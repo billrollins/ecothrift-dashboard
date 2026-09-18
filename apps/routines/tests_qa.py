@@ -359,7 +359,7 @@ class CommandCenterTests(APITestCase):
         self.open, _ = Routine.objects.update_or_create(
             system_key=SYSTEM_OPEN,
             defaults={
-                'title': 'Retail open',
+                'title': 'Opening checklist',
                 'kind': Routine.KIND_CHECKLIST,
                 'trigger': Routine.TRIGGER_DAILY,
                 'is_active': True,
@@ -542,7 +542,7 @@ class CommandCenterTests(APITestCase):
         self.assertTrue(any(row.get('at_label') for row in payload['nudges']))
         issue = next(row for row in payload['issues'] if row.get('run_id') == job['run_id'])
         self.assertEqual(issue['severity'], 'red')
-        self.assertEqual(issue['sentence'], 'Retail open is past its hard deadline (10:00).')
+        self.assertEqual(issue['sentence'], 'Opening checklist is past its hard deadline (10:00).')
 
     def test_open_between_due_and_hard_is_amber(self):
         from apps.routines.command_center import today_payload
@@ -554,7 +554,7 @@ class CommandCenterTests(APITestCase):
         self.assertEqual(job['urgency'], 'overdue')
         issue = next(row for row in payload['issues'] if row.get('run_id') == job['run_id'])
         self.assertEqual(issue['severity'], 'amber')
-        self.assertEqual(issue['sentence'], 'Retail open was due 09:00 and is not started.')
+        self.assertEqual(issue['sentence'], 'Opening checklist was due 09:00 and is not started.')
 
     def test_today_alerts_match_red_and_amber_issues(self):
         from apps.routines.command_center import today_payload
@@ -921,10 +921,10 @@ class CommandCenterTests(APITestCase):
         self.open.shift_locked = True
         self.open.save(update_fields=['shift', 'shift_locked'])
         _, day_routine = self._cashier_pair(
-            'Retail Mid', 'retail_day', SYSTEM_DAY, 'Retail day', time(14, 0), time(15, 0),
+            'Retail Mid', 'retail_day', SYSTEM_DAY, 'Midday checklist', time(14, 0), time(15, 0),
         )
         _, close_routine = self._cashier_pair(
-            'Retail Close', 'retail_close', SYSTEM_CLOSE, 'Retail close', time(18, 0), time(19, 0),
+            'Retail Close', 'retail_close', SYSTEM_CLOSE, 'Closing checklist', time(18, 0), time(19, 0),
         )
         for routine in (self.open, day_routine, close_routine):
             RoutineRun.objects.create(
@@ -962,7 +962,7 @@ class CommandCenterTests(APITestCase):
         routine, _ = Routine.objects.update_or_create(
             system_key=SYSTEM_CLOSE,
             defaults={
-                'title': 'Retail close',
+                'title': 'Closing checklist',
                 'kind': Routine.KIND_CHECKLIST,
                 'trigger': Routine.TRIGGER_DAILY,
                 'is_active': True,
@@ -1012,7 +1012,7 @@ class CommandCenterTests(APITestCase):
         day_routine, _ = Routine.objects.update_or_create(
             system_key=SYSTEM_DAY,
             defaults={
-                'title': 'Retail day',
+                'title': 'Midday checklist',
                 'kind': Routine.KIND_CHECKLIST,
                 'trigger': Routine.TRIGGER_DAILY,
                 'is_active': True,
@@ -1089,7 +1089,7 @@ class CommandCenterTests(APITestCase):
         routine, _ = Routine.objects.update_or_create(
             system_key=SYSTEM_CLOSE,
             defaults={
-                'title': 'Retail close',
+                'title': 'Closing checklist',
                 'kind': Routine.KIND_CHECKLIST,
                 'trigger': Routine.TRIGGER_DAILY,
                 'is_active': True,
@@ -1152,7 +1152,7 @@ class CommandCenterTests(APITestCase):
         from apps.routines.command_center import create_nudge
         day = timezone.localdate()
         run = self._open_run(day)
-        create_nudge(run=run, message='Please start Retail open.', employee=self.sam)
+        create_nudge(run=run, message='Please start Opening checklist.', employee=self.sam)
         self.client.force_authenticate(self.sam)
         first = self.client.get('/api/routines/qa/nudges/pending/')
         self.assertEqual(first.status_code, 200, first.data)

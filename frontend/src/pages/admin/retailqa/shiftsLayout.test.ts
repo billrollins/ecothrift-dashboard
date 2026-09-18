@@ -97,7 +97,7 @@ describe('copy', () => {
   });
 
   it('names the locked routine', () => {
-    expect(lockTooltip('Retail open')).toContain('Retail open routine');
+    expect(lockTooltip('Opening checklist')).toContain('Opening checklist routine');
   });
 
   it('counts section rows', () => {
