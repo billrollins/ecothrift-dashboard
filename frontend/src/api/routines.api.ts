@@ -624,6 +624,7 @@ export interface PersonWeekRow {
   spot_average: number | null;
   open_flags: number;
   on_task?: number | null;
+  due_today?: number;
   section_days?: Array<'done' | 'due' | 'missed' | 'none'>;
 }
 
@@ -775,6 +776,10 @@ export interface QaStaffRow {
   name: string;
   role: string;
   department: string;
+  department_slug?: string;
+  department_icon?: 'cart' | 'box' | 'tool' | 'home' | 'tag' | 'truck' | 'none';
+  department_sort?: number;
+  department_active?: boolean;
   shift_id?: number | null;
   shift_name: string;
   time_in: string;
@@ -965,6 +970,53 @@ export function getQaWeek(week?: string) {
 
 export function getQaToday(date?: string) {
   return api.get<QaToday>('/routines/qa/today/', { params: { date } });
+}
+
+export type RetailSpotState = 'done' | 'not_yet' | 'none';
+export type RetailCrossState = 'pending' | 'live';
+
+export interface RetailSummaryCounts {
+  done: number;
+  expected: number;
+}
+
+export interface RetailGradeScale {
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+}
+
+export interface RetailDaySummary {
+  date?: string;
+  week?: string;
+  open: boolean | null;
+  letter: string | null;
+  score: number | null;
+  goal_letter: string | null;
+  goal_met: boolean;
+  grade_scale?: RetailGradeScale;
+  do: {
+    score: number | null;
+    section_checks: RetailSummaryCounts;
+    open_day_close: RetailSummaryCounts;
+  } | null;
+  spot: {
+    score: number | null;
+    walks: { done: number; min_for_week: number };
+    state: RetailSpotState;
+  } | null;
+  cross: {
+    score: number | null;
+    done: number;
+    due: number;
+    due_date: string | null;
+    state: RetailCrossState;
+  } | null;
+}
+
+export function getQaDaySummary(params: { date: string } | { week: string }) {
+  return api.get<RetailDaySummary>('/routines/qa/day-summary/', { params });
 }
 
 export function assignQaBoard(data: {

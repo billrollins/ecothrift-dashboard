@@ -267,6 +267,13 @@ function ThirdCard({
   );
 }
 
+export function formatGradeScale(
+  scale?: { a: number; b: number; c: number; d: number } | null,
+): string {
+  if (!scale) return '';
+  return `A ${scale.a} · B ${scale.b} · C ${scale.c} · D ${scale.d} · F below ${scale.d}`;
+}
+
 export function formatHeadingDate(iso: string): string {
   return format(parseISO(iso), 'EEE MMM d');
 }
@@ -322,7 +329,7 @@ export function DepartmentRetailDayDialog({
   const title = summaryHeading(mode, data, date, week);
   const tileTone = letterTileTone(data?.letter);
   const tile = TILE_TONE[tileTone];
-  const threshold = goalThreshold(data?.goal_letter);
+  const threshold = goalThreshold(data?.goal_letter, data?.grade_scale ?? DEFAULT_GRADE_SCALE);
 
   const weekKey = week || (date ? isoWeekKey(new Date(`${date}T12:00:00`)) : '');
   const ccTo = mode === 'week' && weekKey
@@ -453,15 +460,31 @@ export function DepartmentRetailDayDialog({
               segments={contributionSegments(data, threshold)}
               score={data.score}
             />
-            {showCommandCenterLink ? (
-              <Link
-                component={RouterLink}
-                to={ccTo}
-                sx={{ mt: 0.5, fontWeight: 800 }}
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 1.5,
+                mt: 0.5,
+              }}
+            >
+              <Typography
+                data-testid="retail-grade-scale"
+                sx={{ fontSize: 12, fontWeight: 400, color: ccTokens.ink3, whiteSpace: 'nowrap', minWidth: 0 }}
               >
-                Open in Command Center
-              </Link>
-            ) : null}
+                {formatGradeScale(data.grade_scale)}
+              </Typography>
+              {showCommandCenterLink ? (
+                <Link
+                  component={RouterLink}
+                  to={ccTo}
+                  sx={{ fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}
+                >
+                  Open in Command Center
+                </Link>
+              ) : null}
+            </Box>
           </Box>
         ) : (
           <Typography color="text.secondary">Loading…</Typography>
