@@ -92,9 +92,15 @@ export function doDetailLine(row: NonNullable<RetailDaySummary['do']>): string {
   return `${row.section_checks.done} of ${row.section_checks.expected} section checks · ${row.open_day_close.done} of ${row.open_day_close.expected} open/day/close`;
 }
 
-export function spotDetailLine(row: NonNullable<RetailDaySummary['spot']>): string {
+export function spotDetailLine(
+  row: NonNullable<RetailDaySummary['spot']>,
+  mode: RetailSummaryMode = 'day',
+): string {
   const walks = row.walks.done;
   const score = row.score == null ? '\u2014' : Math.round(row.score);
+  if (mode === 'week') {
+    return `${walks} walk${walks === 1 ? '' : 's'} · avg ${score}`;
+  }
   return `${walks} walk${walks === 1 ? '' : 's'} · ${score}`;
 }
 
@@ -430,7 +436,7 @@ export function DepartmentRetailDayDialog({
                 state={data.spot?.state}
                 threshold={threshold}
                 description="Owner walks a section and scores it. Biggest part of the grade."
-                detail={data.spot ? spotDetailLine(data.spot) : ''}
+                detail={data.spot ? spotDetailLine(data.spot, mode) : ''}
               />
               <ThirdCard
                 name="Do"
