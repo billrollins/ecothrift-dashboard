@@ -89,10 +89,22 @@ export function thirdScoreDisplay(
 }
 
 export function doDetailLine(row: NonNullable<RetailDaySummary['do']>): string {
-  return [
-    `${row.section_checks.done} of ${row.section_checks.expected} section checks`,
-    `${row.open_day_close.done} of ${row.open_day_close.expected} open/day/close`,
-  ].join('\n');
+  const lines = [`${row.section_checks.done} of ${row.section_checks.expected} section checks`];
+  if (row.open_day_close.expected > 0) {
+    lines.push(`${row.open_day_close.done} of ${row.open_day_close.expected} open/day/close`);
+  }
+  return lines.join('\n');
+}
+
+export function dayIsIdleClosed(data: RetailDaySummary | null | undefined): boolean {
+  if (!data) return false;
+  const graded = data.graded ?? Boolean(data.open);
+  return data.open === false && !graded;
+}
+
+export function dayIsResetDay(data: RetailDaySummary | null | undefined): boolean {
+  if (!data) return false;
+  return data.open === false && (data.graded ?? false);
 }
 
 export function crossPastDueDetail(row: NonNullable<RetailDaySummary['cross']>): string {
@@ -403,7 +415,8 @@ export function DepartmentRetailDayDialog({
     enabled: open && dataOverride == null && (mode === 'week' ? Boolean(week) : Boolean(date)),
   });
   const data = dataOverride ?? query.data ?? null;
-  const closedDay = mode === 'day' && data != null && data.open === false;
+  const closedDay = mode === 'day' && dayIsIdleClosed(data);
+  const resetDay = mode === 'day' && dayIsResetDay(data);
   const title = summaryHeading(mode, data, date, week);
   const tileTone = letterTileTone(data?.letter);
   const tile = TILE_TONE[tileTone];
@@ -428,9 +441,16 @@ export function DepartmentRetailDayDialog({
           minHeight: fullScreen ? 52 : undefined,
         }}
       >
-        <Typography sx={{ fontSize: 16, fontWeight: 600, lineHeight: 1.2, minWidth: 0 }}>
-          {title}
-        </Typography>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography sx={{ fontSize: 16, fontWeight: 600, lineHeight: 1.2 }}>
+            {title}
+          </Typography>
+          {resetDay ? (
+            <Typography sx={{ mt: 0.25, fontSize: 12, fontWeight: 600, color: ccTokens.ink2 }}>
+              Closed · Reset day
+            </Typography>
+          ) : null}
+        </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
           {data?.letter && !closedDay ? (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

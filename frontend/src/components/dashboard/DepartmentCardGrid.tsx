@@ -440,8 +440,12 @@ export function restorationWeekTotal(week: DepartmentDailyWeek): string {
  * not the question the card is asked, and a day where everything was done is
  * an A whether that took three routines or six.
  */
+export function retailDayIsGraded(day: DepartmentDailyMetric): boolean {
+  return day.graded ?? day.open !== false;
+}
+
 export function retailGridValue(day: DepartmentDailyMetric): string {
-  if (day.open === false) return 'Closed';
+  if (!retailDayIsGraded(day)) return 'Closed';
   if (day.is_future) return '-';
   return day.retail || '\u2014';
 }
@@ -466,7 +470,7 @@ export function retailWeekTotal(week: DepartmentDailyWeek): string {
 
 export function retailCellAriaLabel(day: DepartmentDailyMetric, value: string): string {
   const dateLabel = shortDate(day.date);
-  if (day.open === false) return `${dateLabel} - Closed`;
+  if (!retailDayIsGraded(day)) return `${dateLabel} - Closed`;
   if (!day.retail) return `${dateLabel} - ${value === '\u2014' ? 'No activity' : value}`;
   const score = day.retail_score != null ? `, scored ${day.retail_score}` : '';
   return `${dateLabel} - grade ${day.retail}${score}`;

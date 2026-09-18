@@ -453,7 +453,14 @@ class DashboardMetricsTests(TestCase):
         from apps.pos.services.dashboard_metrics import _retail_today_note
 
         today = date(2026, 9, 3)
-        closed = _retail_today_note(today, {'open_day': False})
+        closed = _retail_today_note(today, {'open_day': False, 'graded': False})
+        reset = _retail_today_note(today, {
+            'open_day': False,
+            'graded': True,
+            'doing': {'done': 3, 'needed': 5},
+            'owner': {'spots': []},
+            'excluded': ['spot'],
+        })
         before_due = _retail_today_note(today, {
             'open_day': True,
             'doing': {'done': 0, 'needed': 8},
@@ -470,10 +477,11 @@ class DashboardMetricsTests(TestCase):
             'owner': {'spots': [{'spot_score': 91.0}]},
         })
         self.assertEqual(closed, 'Closed')
+        self.assertEqual(reset, 'Reset day · Do 3 of 5 · no walk yet')
         self.assertEqual(before_due, 'Do 0 of 8 · no walk yet')
         self.assertEqual(mid, 'Do 3 of 8 · no walk yet')
         self.assertEqual(done, 'Do 8 of 8 · walk done')
-        for note in (closed, before_due, mid, done):
+        for note in (closed, reset, before_due, mid, done):
             self.assertNotIn('Doing', note)
             self.assertNotIn('spot pending', note)
 

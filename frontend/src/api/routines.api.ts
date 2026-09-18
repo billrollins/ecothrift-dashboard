@@ -1019,6 +1019,8 @@ export interface RetailDaySummary {
   date?: string;
   week?: string;
   open: boolean | null;
+  graded?: boolean;
+  expected?: QaExpected;
   letter: string | null;
   score: number | null;
   goal_letter: string | null;

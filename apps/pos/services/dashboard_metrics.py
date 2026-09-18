@@ -543,10 +543,16 @@ def _day_has_completed_walk(day_row: dict[str, Any] | None) -> bool:
 
 
 def _retail_today_note(today: date, day_row: dict[str, Any] | None = None) -> str:
+    from apps.routines.grading import day_is_graded
     from apps.webstore.services.hours import is_open_day
 
-    open_day = bool((day_row or {}).get('open_day')) if day_row is not None else is_open_day(today)
-    if not open_day:
+    if day_row is None:
+        graded = day_is_graded(today)
+        open_day = is_open_day(today)
+    else:
+        graded = bool(day_row.get('graded')) if 'graded' in day_row else bool(day_row.get('open_day'))
+        open_day = bool(day_row.get('open_day'))
+    if not graded:
         return 'Closed'
     doing = (day_row or {}).get('doing') or {}
     done = doing.get('done')
@@ -560,7 +566,8 @@ def _retail_today_note(today: date, day_row: dict[str, Any] | None = None) -> st
         walk = 'no walk yet'
     else:
         walk = 'walk done' if _day_has_completed_walk(day_row) else 'no walk yet'
-    return f'Do {done} of {needed} · {walk}'
+    line = f'Do {done} of {needed} · {walk}'
+    return f'Reset day · {line}' if not open_day else line
 
 
 def _week_label(week_start: date, this_week_start: date) -> str:
@@ -616,6 +623,8 @@ def _department_daily_weeks(
             retail_audit_ids = [] if is_future else list(retail_stats.get('audit_ids') or [])
             retail_scheduled = offset in scheduled_weekdays
             open_day = bool(graded.get('open_day')) if graded else is_open_day(day)
+            day_graded = bool(graded.get('graded')) if graded else open_day
+            expected = graded.get('expected') if graded else None
             grade_met = (
                 (not is_future)
                 and retail_scheduled
@@ -638,6 +647,8 @@ def _department_daily_weeks(
                 'retail_goal_met': grade_met,
                 'retail_audit_ids': retail_audit_ids,
                 'open': open_day,
+                'graded': day_graded,
+                'expected': expected,
                 'is_future': is_future,
             })
         if is_current:

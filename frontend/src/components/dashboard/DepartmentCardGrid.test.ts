@@ -38,6 +38,7 @@ describe('Retail routine goal presentation', () => {
     expect(retailGridValue(day({ retail: null, open: true }))).toBe('\u2014');
     expect(retailGridValue(day({ retail: 'A', is_future: true, open: true }))).toBe('-');
     expect(retailGridValue(day({ retail: null, open: false, is_future: true }))).toBe('Closed');
+    expect(retailGridValue(day({ retail: 'B', open: false, graded: true }))).toBe('B');
   });
 
   it('goes gold on a day that met the standard, amber-scheduled otherwise', () => {

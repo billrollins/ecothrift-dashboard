@@ -351,8 +351,15 @@ export interface DepartmentDailyMetric {
   retail_goal_met?: boolean;
   /** Submitted QA audit ids for this day (Retail card deep links). */
   retail_audit_ids?: number[];
-  /** Store-open flag from hours / week_grade. Closed days show "Closed". */
+  /** Store-open flag from hours / week_grade. */
   open?: boolean;
+  /** True when section checks, Open/Day/Close, or a walk can count. */
+  graded?: boolean;
+  expected?: {
+    section_checks: boolean;
+    open_day_close: boolean;
+    walk_possible: boolean;
+  };
   is_future: boolean;
 }
 
