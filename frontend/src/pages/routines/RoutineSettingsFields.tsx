@@ -46,7 +46,7 @@ export interface RoutineSettings {
   remindTime: string;
   /** HH:mm. When the run becomes overdue. */
   dueTime: string;
-  /** HH:mm. Hard deadline for Open / Day / Close. */
+  /** HH:mm. Hard deadline for the checklists. */
   hardTime: string;
   /** Blank `dueTime` is a deliberate choice, so the form holds it separately. */
   dueAtClockOut: boolean;

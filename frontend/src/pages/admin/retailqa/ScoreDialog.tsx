@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import type { GradeLetter, GradeThirds, QaDayTile, QaToday, QaWeek } from '../../../api/routines.api';
 import { DEFAULT_GRADE_SCALE } from '../../../components/dashboard/DepartmentRetailDayDialog';
 import { GradeScaleTable } from '../../../components/dashboard/GradeScaleTable';
-import { formatWeight, letterClass, scoreText } from './commandCenter';
+import { CHECKLISTS_LABEL, formatWeight, letterClass, scoreText } from './commandCenter';
 import { BoardDialog } from './SummaryDialogs';
 
 const RULES = {
@@ -125,6 +125,7 @@ export function ScoreDialog({
           rule={RULES.do}
           items={items.doing}
           extra={pos}
+          group={CHECKLISTS_LABEL}
         />
         {selectedDay ? (
           <ScoreCol
@@ -166,6 +167,7 @@ function ScoreCol({
   rule,
   items,
   extra,
+  group,
 }: {
   title: string;
   weight?: number;
@@ -177,6 +179,7 @@ function ScoreCol({
   rule: string;
   items: string[];
   extra?: string;
+  group?: string;
 }) {
   const heading = informational
     ? title
@@ -194,6 +197,7 @@ function ScoreCol({
       ) : (
         <p>{rule}</p>
       )}
+      {group && items.length ? <p className="muted">{group}</p> : null}
       {items.length ? (
         <ul>
           {items.map((item) => (

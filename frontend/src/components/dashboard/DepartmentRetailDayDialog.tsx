@@ -105,7 +105,7 @@ export function thirdScoreDisplay(
 export function doDetailLine(row: NonNullable<RetailDaySummary['do']>): string {
   const lines = [`${row.section_checks.done} of ${row.section_checks.expected} section checks`];
   if (row.open_day_close.expected > 0) {
-    lines.push(`${row.open_day_close.done} of ${row.open_day_close.expected} open/day/close`);
+    lines.push(`${row.open_day_close.done} of ${row.open_day_close.expected} checklists`);
   }
   return lines.join('\n');
 }

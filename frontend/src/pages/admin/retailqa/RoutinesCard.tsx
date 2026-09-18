@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import type { QaJob, RoutineAssignee } from '../../../api/routines.api';
-import { barTone, displayName, jobChip, jobTimeLabel, nudgeLabel, shortName } from './commandCenter';
+import { CHECKLISTS_LABEL, barTone, displayName, jobChip, jobTimeLabel, nudgeLabel, shortName } from './commandCenter';
 import { ChipMenu } from './QaChip';
 import { QaIcon } from './QaIcons';
 
@@ -45,7 +45,7 @@ export function RoutinesCard({
         {!closedLabel ? (
           <>
             <RoutineGroup title="Section checks" jobs={sections} people={people} onAssign={onAssign} onNudge={onNudge} />
-            <RoutineGroup title="Open / Day / Close" jobs={shifts} people={people} onAssign={onAssign} onNudge={onNudge} />
+            <RoutineGroup title={CHECKLISTS_LABEL} jobs={shifts} people={people} onAssign={onAssign} onNudge={onNudge} />
           </>
         ) : null}
       </div>

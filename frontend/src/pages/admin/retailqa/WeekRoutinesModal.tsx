@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import type { RoutineRun } from '../../../api/routines.api';
 import { useQaRoutines } from '../../../hooks/useRetailQa';
 import { weekMonday } from '../routines/gradeWeek';
-import { displayName, shortName } from './commandCenter';
+import { CHECKLISTS_LABEL, displayName, shortName } from './commandCenter';
 import { qaStatusWord } from './qaStatus';
 import { BoardDialog } from './SummaryDialogs';
 
@@ -52,7 +52,7 @@ export function WeekRoutinesModal({
           Type
           <select value={kind} onChange={(event) => setKind(event.target.value)}>
             <option value="">All</option>
-            <option value="checklist">Checklist</option>
+            <option value="checklist">{CHECKLISTS_LABEL}</option>
             <option value="section_tally">Tally</option>
             <option value="section_audit">Cross-check</option>
             <option value="owner_spot">Spot walk</option>

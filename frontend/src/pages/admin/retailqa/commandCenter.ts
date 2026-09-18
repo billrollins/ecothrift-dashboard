@@ -1,6 +1,8 @@
 import type { DayGrade, GradeLetter, QaIssue, QaJob, QaStaffRow, QaStatusWord } from '../../../api/routines.api';
 import { qaStatusWord } from './qaStatus';
 
+export const CHECKLISTS_LABEL = 'Checklists';
+
 export const CHIP_LABEL: Record<string, string> = {
   in: 'In',
   exp: 'Expected',

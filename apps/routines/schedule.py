@@ -304,7 +304,7 @@ def cross_check_pairs(sections, week: int) -> dict[int, Section]:
 
 
 def draw_spot_checks(period_key: str, count: int) -> list[dict]:
-    """`count` checks pulled at random from the Open / Day / Close checklists.
+    """`count` checks pulled at random from the checklists.
 
     Seeded by the period so a refresh cannot reroll a sample somebody dislikes.
     """
