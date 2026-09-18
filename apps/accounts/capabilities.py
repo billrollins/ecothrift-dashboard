@@ -50,6 +50,7 @@ CATALOG: tuple[Capability, ...] = (
     Capability('restoration.bench:use', 'Restoration', 'Work the TARS bench and overview', STAFF, 'IsStaff on RestorationJob'),
     Capability('restoration.parts:request', 'Restoration', 'File a parts request', STAFF, 'IsStaff on parts orders'),
     Capability('hr.time_clock:use', 'People', 'Clock in, out, break; request a time change', STAFF, 'IsEmployee on TimeEntry'),
+    Capability('hr.kiosk:use', 'People', 'Host the time kiosk tablet (/kiosk); punches act as the scanned card', STAFF, 'IsStaff on kiosk_views'),
     Capability('routines:perform', 'Routines', 'Fill in assigned routines', STAFF, 'IsStaff on runs / submissions'),
     Capability('documents:perform', 'Documents', 'Sign, acknowledge, or read assigned documents', STAFF, 'IsStaff on recipients'),
     Capability('enhancements:file', 'Restoration', 'File an enhancement request from the floor', STAFF, 'IsStaff on EnhancementRequest'),

@@ -212,6 +212,21 @@ def me_view(request):
     return Response(serializer.data)
 
 
+class AuthVerifyPasswordThrottle(_FixedScopeThrottle):
+    scope = 'auth_verify_password'
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@throttle_classes([AuthVerifyPasswordThrottle])
+def verify_password_view(request):
+    """Confirm the signed-in user's own password (kiosk Exit). Never anyone else's."""
+    password = str(request.data.get('password') or '')
+    if not password or not request.user.check_password(password):
+        return Response({'ok': False, 'detail': 'Wrong password.'}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({'ok': True})
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def change_password_view(request):
@@ -393,6 +408,69 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return _send_staff_reset(user, request=request, requested_by_admin=True)
+
+    # ── Kiosk card (badge) ───────────────────────────────────────────────────
+
+    def _badge_profile(self, user):
+        profile = getattr(user, 'employee', None)
+        if profile is None:
+            return None, Response(
+                {'detail': 'User does not have an employee profile.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return profile, None
+
+    def _mint_badge(self, profile):
+        """Rotate the card. Returns the plain token, shown once and never stored."""
+        from django.utils import timezone as dj_tz
+        from apps.hr.kiosk_service import hash_token, mint_token
+
+        for _ in range(5):
+            token = mint_token()
+            digest = hash_token(token)
+            if not type(profile).objects.filter(badge_token_hash=digest).exclude(pk=profile.pk).exists():
+                break
+        profile.badge_token_hash = digest
+        profile.badge_issued_at = dj_tz.now()
+        profile.badge_revoked_at = None
+        profile.save(update_fields=['badge_token_hash', 'badge_issued_at', 'badge_revoked_at'])
+        return token
+
+    @action(detail=True, methods=['post'], url_path='badge')
+    def badge_issue(self, request, pk=None):
+        """Mint a kiosk card. Refuses when one is already active (use reprint)."""
+        profile, failure = self._badge_profile(self.get_object())
+        if failure is not None:
+            return failure
+        if profile.badge_status == 'active':
+            return Response(
+                {'detail': 'A card is already active. Reprint to rotate it.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        token = self._mint_badge(profile)
+        return Response({'token': token, 'badge_status': profile.badge_status})
+
+    @action(detail=True, methods=['post'], url_path='badge/reprint')
+    def badge_reprint(self, request, pk=None):
+        """Rotate the card. The previous token stops working immediately."""
+        profile, failure = self._badge_profile(self.get_object())
+        if failure is not None:
+            return failure
+        token = self._mint_badge(profile)
+        return Response({'token': token, 'badge_status': profile.badge_status})
+
+    @action(detail=True, methods=['post'], url_path='badge/revoke')
+    def badge_revoke(self, request, pk=None):
+        from django.utils import timezone as dj_tz
+
+        profile, failure = self._badge_profile(self.get_object())
+        if failure is not None:
+            return failure
+        if not profile.badge_token_hash:
+            return Response({'detail': 'No card to revoke.'}, status=status.HTTP_400_BAD_REQUEST)
+        profile.badge_revoked_at = dj_tz.now()
+        profile.save(update_fields=['badge_revoked_at'])
+        return Response({'ok': True, 'badge_status': profile.badge_status})
 
     @action(detail=True, methods=['patch'])
     def consignee_profile(self, request, pk=None):

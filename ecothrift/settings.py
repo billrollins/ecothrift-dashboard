@@ -238,6 +238,7 @@ REST_FRAMEWORK = {
         'labels_generate_background': '10/hour',
         'auth_login': '30/minute',
         'auth_forgot_password': '10/hour',
+        'auth_verify_password': '10/minute',
         'auth_magic_link_ip': '20/hour',
         'auth_magic_link_email': '10/hour',
         'online_hold': '8/minute',
