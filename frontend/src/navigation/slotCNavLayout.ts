@@ -24,7 +24,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'essentials',
     label: null,
-    itemIds: ['dashboard'],
+    itemIds: ['dashboard', 'kiosk'],
   },
   {
     id: 'buying',

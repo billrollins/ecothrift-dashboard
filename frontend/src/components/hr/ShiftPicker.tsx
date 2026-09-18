@@ -44,13 +44,16 @@ function storeDayYmd() {
   }).format(new Date());
 }
 
-function useClockGroups() {
+/** Tiles from the staff endpoint, or the caller's own list (the public clock has no staff JWT). */
+function useClockGroups(given?: ClockTile[]) {
   const day = storeDayYmd();
   const tiles = useQuery({
     queryKey: ['hr', 'clockTiles', day],
     queryFn: async () => (await getClockTiles(day)).data,
+    enabled: given === undefined,
   });
-  return useMemo(() => clockGroupsFromTiles(tiles.data ?? []), [tiles.data]);
+  const source = given ?? tiles.data;
+  return useMemo(() => clockGroupsFromTiles(source ?? []), [source]);
 }
 
 export const eyebrowSx = {
@@ -76,14 +79,17 @@ export function ShiftPicker({
   pending,
   onPick,
   lang,
+  tiles,
 }: {
   value?: string;
   pending?: boolean;
   onPick: (shift: string) => void;
   lang: string;
+  /** Supply tiles to skip the staff endpoint (public clock). */
+  tiles?: ClockTile[];
 }) {
   const [picking, setPicking] = useState<string | null>(null);
-  const groups = useClockGroups();
+  const groups = useClockGroups(tiles);
 
   useEffect(() => {
     if (!pending) setPicking(null);

@@ -14,6 +14,12 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Today',
     icon: 'factCheck',
   },
+  kiosk: {
+    id: 'kiosk',
+    path: '/kiosk',
+    label: 'Kiosk',
+    icon: 'schedule',
+  },
   pay: {
     id: 'pay',
     path: '/pay',

@@ -15,6 +15,9 @@ const AnnouncementEditorPage = lazy(() => import('./pages/announcements/Announce
 const FloorplanEditorPage = lazy(() => import('./pages/floorplan/FloorplanEditorPage'));
 // Legacy fullscreen TARS Studio - parked off the sidebar, still out of the main chunk.
 const TarsPage = lazy(() => import('./pages/restoration/tars/TarsPage'));
+// Time kiosk: hosted (/kiosk, staff JWT) and public (/clock, no login). Both own the window.
+const KioskPage = lazy(() => import('./pages/kiosk/KioskPage'));
+const ClockPage = lazy(() => import('./pages/kiosk/ClockPage'));
 import FloorplanListPage from './pages/floorplan/FloorplanListPage';
 
 // Pages
@@ -147,6 +150,15 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      {/* Public clock: the door tablet. No login, no sidebar, card is the only identity. */}
+      <Route
+        path="/clock"
+        element={
+          <Suspense fallback={<LoadingScreen message="Loading…" />}>
+            <ClockPage />
+          </Suspense>
+        }
+      />
 
       {/* Staff routes */}
       <Route
@@ -428,6 +440,20 @@ export default function App() {
                 <BlogStudioPage />
               </Suspense>
             </SuperAdminRoute>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Hosted time kiosk - full-bleed, keeps the host's staff JWT, outside MainLayout. */}
+      <Route
+        path="/kiosk"
+        element={
+          <ProtectedRoute>
+            <StaffRoute>
+              <Suspense fallback={<LoadingScreen message="Loading kiosk…" />}>
+                <KioskPage />
+              </Suspense>
+            </StaffRoute>
           </ProtectedRoute>
         }
       />

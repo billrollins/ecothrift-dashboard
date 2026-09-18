@@ -20,13 +20,27 @@ const api = axios.create({
   withCredentials: true, // Always send cookies (refresh token)
 });
 
-/** Public API client for endpoints that don't require auth (e.g. itemLookup) */
+/** Public API client for endpoints that don't require auth (e.g. itemLookup, /clock).
+ *  Sends cookies so the public clock's device cookie rides along. No interceptors. */
 export const apiPublic = axios.create({
   baseURL: '/api',
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
+
+/** Fired on window when the staff refresh fails while the kiosk owns the screen. */
+export const KIOSK_HOST_EXPIRED_EVENT = 'kiosk:host-expired';
+
+/**
+ * The hosted kiosk must never bounce to /login: a tablet on the wall shows an
+ * overlay and waits for a manager instead. Everywhere else, a dead refresh
+ * means sign in again.
+ */
+export function shouldRedirectToLogin(pathname: string): boolean {
+  return !(pathname === '/kiosk' || pathname.startsWith('/kiosk/'));
+}
 
 // Request interceptor: add Bearer token from memory
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
@@ -95,7 +109,11 @@ api.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null);
         accessToken = null;
-        window.location.href = '/login';
+        if (shouldRedirectToLogin(window.location.pathname)) {
+          window.location.href = '/login';
+        } else {
+          window.dispatchEvent(new CustomEvent(KIOSK_HOST_EXPIRED_EVENT));
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
