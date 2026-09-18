@@ -1,0 +1,32 @@
+from datetime import date
+
+from django.test import TestCase
+
+from apps.routines.day_summary import _spot_state, day_summary_for_date
+from apps.routines.settings import retail_qa_settings
+
+
+class DaySummaryStateTests(TestCase):
+    def test_spot_state_is_none_on_a_past_day(self):
+        today = date(2026, 9, 18)
+        self.assertEqual(_spot_state(day=date(2026, 9, 16), today=today, walks=0), 'none')
+        payload = day_summary_for_date(date(2026, 9, 16), today=today)
+        self.assertTrue(payload['open'])
+        self.assertEqual(payload['spot']['state'], 'none')
+
+    def test_spot_state_is_not_yet_today(self):
+        today = date(2026, 9, 18)
+        self.assertEqual(_spot_state(day=today, today=today, walks=0), 'not_yet')
+        payload = day_summary_for_date(today, today=today)
+        self.assertTrue(payload['open'])
+        self.assertEqual(payload['spot']['state'], 'not_yet')
+
+    def test_grade_scale_matches_settings(self):
+        payload = day_summary_for_date(date(2026, 9, 16), today=date(2026, 9, 18))
+        cfg = retail_qa_settings()
+        self.assertEqual(payload['grade_scale'], {
+            'a': int(cfg['grade_a']),
+            'b': int(cfg['grade_b']),
+            'c': int(cfg['grade_c']),
+            'd': int(cfg['grade_d']),
+        })
