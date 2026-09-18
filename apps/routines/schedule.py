@@ -11,7 +11,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from apps.webstore.services.hours import _local_now
+from apps.webstore.services.hours import _local_now, is_open_day
 
 from .models import QaCallIn, QaDayOverride, Routine, RoutineRun, RoutineSubmission, Section
 from .settings import LATE_RED_MINUTES, retail_qa_settings
@@ -567,6 +567,44 @@ def audience_department_ids(routine: Routine) -> list[int]:
     return ids
 
 
+def department_id_for_routine(routine) -> int | None:
+    if getattr(routine, 'assigned_department_id', None):
+        return routine.assigned_department_id
+    return getattr(getattr(routine, 'shift', None), 'department_id', None)
+
+
+def locked_shift_is_staffed(routine: Routine, day: date | None = None) -> bool:
+    """True when the linked shift is active and someone is on it today."""
+    from apps.hr.models import ShiftAssignment
+
+    day = day or timezone.localdate()
+    shift = getattr(routine, 'shift', None)
+    if shift is None or not shift.is_active:
+        return False
+    for row in ShiftAssignment.objects.filter(shift=shift).select_related('shift'):
+        if row.runs_on(day):
+            return True
+    return QaDayOverride.objects.filter(date=day, shift=shift).exists()
+
+
+def user_in_department_pool_today(routine: Routine, user, day: date | None = None) -> bool:
+    from apps.hr.models import ShiftAssignment
+
+    day = day or timezone.localdate()
+    dept_id = department_id_for_routine(routine)
+    if not dept_id:
+        return False
+    for row in ShiftAssignment.objects.filter(
+        employee=user, shift__is_active=True, shift__department_id=dept_id,
+    ).select_related('shift'):
+        if row.runs_on(day):
+            return True
+    for row in QaDayOverride.objects.filter(employee=user, date=day).select_related('shift'):
+        if row.shift.is_active and row.shift.department_id == dept_id:
+            return True
+    return False
+
+
 def user_in_audience(routine: Routine, user, shift=None) -> bool:
     """Whether this user matches the routine's person / shift / department rule."""
     if routine.subject_source in (Routine.SUBJECT_MY_SECTION, Routine.SUBJECT_OTHER_SECTION):
@@ -575,6 +613,12 @@ def user_in_audience(routine: Routine, user, shift=None) -> bool:
     everyone = bool(getattr(routine, 'audience_all', False))
     if kind == Routine.AUDIENCE_SHIFT or getattr(routine, 'shift_locked', False):
         if user_holds_shift_today(routine, user):
+            return True
+        if (
+            getattr(routine, 'shift_locked', False)
+            and not locked_shift_is_staffed(routine)
+            and user_in_department_pool_today(routine, user)
+        ):
             return True
         punch = current_shift(user) if shift is None else shift
         if not punch:
@@ -722,13 +766,26 @@ def materialize_routines(day: date | None = None) -> int:
     ).select_related('assigned_department'):
         if not should_run_on(routine, day, cfg=cfg):
             continue
+        if getattr(routine, 'shift_locked', False) and routine.system_key in (
+            SYSTEM_OPEN, SYSTEM_DAY, SYSTEM_CLOSE,
+        ) and not is_open_day(day, cfg=cfg):
+            continue
         assignees = list(resolve_assignees(routine))
         pooled = routine.assignment == Routine.ASSIGN_POOLED and routine.subject_source == Routine.SUBJECT_POOL
-        if not pooled and not assignees:
+        locked_pool = bool(getattr(routine, 'shift_locked', False))
+        if not pooled and not locked_pool and not assignees:
             continue
         due = due_at_for(routine, day, tz=tz, cfg=cfg)
         key = period_key_for(routine, day)
-        if pooled:
+        if pooled or locked_pool:
+            existing = RoutineRun.objects.filter(
+                routine=routine, period_key=key, status=RoutineRun.STATUS_OPEN,
+            ).first()
+            if existing:
+                if existing.due_at != due:
+                    existing.due_at = due
+                    existing.save(update_fields=['due_at'])
+                continue
             if _upsert_run(routine, key, None, due, _run_extras(routine, day, key, None)):
                 created += 1
             continue

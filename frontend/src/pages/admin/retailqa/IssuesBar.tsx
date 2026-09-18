@@ -113,6 +113,9 @@ function issueMenu(
   },
 ): RowMenuItem[] {
   if ((row.action === 'nudge' || row.action === 're_nudge') && row.run_id) {
+    if (/^Resolved\b/i.test(nudgeLabel(row.nudged_at))) {
+      return [];
+    }
     return [{
       label: row.action === 're_nudge' ? 'Re-nudge' : 'Nudge',
       onClick: () => handlers.onNudge(row.run_id as number, document.body),

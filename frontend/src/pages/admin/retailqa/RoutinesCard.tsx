@@ -111,7 +111,7 @@ function RoutineGroup({
               <span className="name nowrap">{displayName(job.title, 'routine')}</span>
               <span
                 className={`owner nowrap${job.owner_state === 'scheduled' ? ' scheduled' : ''}`}
-                title={job.owner_state === 'scheduled' ? 'scheduled' : (job.owner?.name || '')}
+                title={job.owner_state === 'scheduled' || job.owner_state === 'pool' ? (job.owner_state || '') : (job.owner?.name || '')}
               >
                 {(unassigned || reassignId === job.run_id) && job.run_id ? (
                   <select
@@ -132,7 +132,7 @@ function RoutineGroup({
                       </option>
                     ))}
                   </select>
-                ) : job.owner?.name ? (job.owner.id == null ? job.owner.name : shortName(job.owner.name)) : ''}
+                ) : job.owner?.name ? (job.owner_state === 'pool' || job.owner.id == null ? job.owner.name : shortName(job.owner.name)) : ''}
               </span>
               <span className="time">
                 <span className="due nowrap">{jobTimeLabel(job)}</span>

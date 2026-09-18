@@ -36,6 +36,7 @@ from .command_center import (
     clear_call_in,
     create_nudge,
     pending_nudges_for,
+    pooled_open_runs_for,
     serialize_nudge,
     today_payload,
     week_payload,
@@ -716,6 +717,7 @@ class QaMineView(APIView):
             ).select_related('routine', 'section', 'submission')
         )
         today_runs = [run for run in my_runs if run.period_key == today.isoformat()]
+        today_runs.extend(pooled_open_runs_for(user, today, skip_ids={run.pk for run in today_runs}))
         owned = list(Section.objects.filter(owner=user, is_active=True))
         my_spots = []
         my_cross = []

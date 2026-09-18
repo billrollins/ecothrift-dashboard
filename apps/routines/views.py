@@ -632,6 +632,8 @@ class RoutineSubmissionViewSet(viewsets.ModelViewSet):
                 run.save(update_fields=[
                     'status', 'submission', 'completed_at', 'completed_by',
                 ])
+                from .command_center import resolve_nudges_for_run
+                resolve_nudges_for_run(run)
         record_submission(submission)
         evaluate_checker_flags(request.user, as_of=now)
         payload = RoutineSubmissionSerializer(submission).data

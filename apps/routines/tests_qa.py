@@ -842,6 +842,7 @@ class CommandCenterTests(APITestCase):
         from apps.routines.command_center import build_issues, build_jobs
         from apps.webstore.services.hours import get_hours_config
         day = date(2026, 9, 16)
+        ShiftAssignment.objects.filter(employee=self.sam).delete()
         close = Shift.objects.create(
             name='Cashier - Close',
             department=self.department,

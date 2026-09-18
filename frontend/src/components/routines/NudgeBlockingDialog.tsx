@@ -16,10 +16,20 @@ export function NudgeBlockingDialog() {
   const pending = usePendingQaNudges(Boolean(user));
   const ack = useAckQaNudge();
   const rows = pending.data?.nudges ?? [];
+  const unique: QaNudgeRow[] = [];
+  const seenRuns = new Set<number>();
+  for (const row of rows) {
+    const key = row.run_id ?? row.id;
+    if (seenRuns.has(key)) continue;
+    seenRuns.add(key);
+    unique.push(row);
+  }
   const first = user?.first_name?.trim() || 'me';
 
   async function respond(kind: 'heard' | 'not_me', row?: QaNudgeRow) {
-    const targets = row ? [row] : rows;
+    const targets = row
+      ? rows.filter((item) => (item.run_id ?? item.id) === (row.run_id ?? row.id))
+      : rows;
     for (const item of targets) {
       await ack.mutateAsync({ id: item.id, kind, device: deviceLabel(config) });
     }
@@ -29,7 +39,7 @@ export function NudgeBlockingDialog() {
     }
   }
 
-  if (!rows.length) return null;
+  if (!unique.length) return null;
   return (
     <Dialog
       open
@@ -40,7 +50,7 @@ export function NudgeBlockingDialog() {
       <DialogTitle>You were nudged</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
-          {rows.map((row) => (
+          {unique.map((row) => (
             <Stack key={row.id} spacing={0.5}>
               <Typography variant="body1">{row.message || 'Please finish this routine.'}</Typography>
               <Typography variant="body2" color="text.secondary">

@@ -130,6 +130,7 @@ describe('nudgeLabel', () => {
   it('prefixes a clock and leaves Heard / Not seen alone', () => {
     expect(nudgeLabel('08:55')).toBe('Nudged 08:55');
     expect(nudgeLabel('Heard 09:02')).toBe('Heard 09:02');
+    expect(nudgeLabel('Resolved')).toBe('Resolved');
     expect(nudgeLabel('Not seen')).toBe('Not seen');
     expect(nudgeLabel(null)).toBe('');
   });

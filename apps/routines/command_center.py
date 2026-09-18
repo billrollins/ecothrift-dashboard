@@ -44,6 +44,7 @@ from .schedule import (
     due_at_for,
     hard_at_for,
     maybe_draw_spot,
+    user_in_audience,
     week_days,
 )
 from .settings import (
@@ -181,6 +182,8 @@ def join_shift_names(names: list[str]) -> str:
 def shift_owner_payload(owner, owner_state: str | None, scheduled: list):
     if owner is not None:
         return _person(owner), owner_state
+    if owner_state == 'pool' and scheduled:
+        return {'id': None, 'name': f'Pool · {joined_owner_name(scheduled)}'}, 'pool'
     if owner_state == 'scheduled' and len(scheduled) > 1:
         return {'id': None, 'name': joined_owner_name(scheduled)}, 'scheduled'
     if owner_state == 'scheduled' and len(scheduled) == 1:
@@ -268,10 +271,43 @@ def locked_shift_for(routine) -> Shift | None:
     return Shift.objects.filter(is_active=True, punch_code=code).first()
 
 
-def resolve_shift_owner(routine, day: date, *, punches: dict, call_ins: set[int]):
-    """Anyone in with any open punch who holds this shift; else all scheduled names.
+def pool_department_id(routine) -> int | None:
+    if getattr(routine, 'assigned_department_id', None):
+        return routine.assigned_department_id
+    shift = getattr(routine, 'shift', None) or locked_shift_for(routine)
+    return getattr(shift, 'department_id', None)
 
-    Does not persist assigned_to for a scheduled-only name.
+
+def pool_for_routine(routine, day: date, call_ins: set[int]) -> list:
+    """Everyone on any active shift in this routine's department today."""
+    dept_id = pool_department_id(routine)
+    if not dept_id:
+        return []
+    blocked = set(call_ins) | excluded_ids(day) | left_ids(day)
+    seen: set[int] = set()
+    people = []
+    for row in ShiftAssignment.objects.filter(
+        shift__is_active=True, shift__department_id=dept_id,
+    ).select_related('employee', 'shift'):
+        if not row.runs_on(day) or row.employee_id in blocked or row.employee_id in seen:
+            continue
+        seen.add(row.employee_id)
+        people.append(row.employee)
+    for row in QaDayOverride.objects.filter(date=day).select_related('employee', 'shift'):
+        if not row.shift.is_active or row.shift.department_id != dept_id:
+            continue
+        if row.employee_id in blocked or row.employee_id in seen:
+            continue
+        seen.add(row.employee_id)
+        people.append(row.employee)
+    people.sort(key=lambda user: ((user.first_name or ''), (user.last_name or ''), user.pk))
+    return people
+
+
+def resolve_shift_owner(routine, day: date, *, punches: dict, call_ins: set[int]):
+    """Anyone in with any open punch who holds this shift; else scheduled names; else pool.
+
+    Does not persist assigned_to for a scheduled-only or pool name.
     """
     scheduled = scheduled_for_routine(routine, day, call_ins)
     in_now = open_punch_ids(day)
@@ -280,7 +316,10 @@ def resolve_shift_owner(routine, day: date, *, punches: dict, call_ins: set[int]
         return punched[0], 'in', scheduled
     if scheduled:
         return None, 'scheduled', scheduled
-    return None, None, scheduled
+    pool = pool_for_routine(routine, day, call_ins)
+    if pool:
+        return None, 'pool', pool
+    return None, None, pool
 
 
 def routine_due_at(run: RoutineRun | None, day: date, tz, hours_cfg=None):
@@ -353,13 +392,23 @@ def fire_hard_deadline_nudges(day: date, *, now: datetime, tz, hours_cfg=None) -
 
 
 def create_nudge(*, run, message='', created_by=None, source='manual', employee=None) -> QaNudge:
-    return QaNudge.objects.create(
-        run=run,
-        created_by=created_by,
-        source=source,
-        message=message,
-        employee=employee or run.assigned_to,
-    )
+    if employee is not None:
+        targets = [employee]
+    elif run.assigned_to_id:
+        targets = [run.assigned_to]
+    else:
+        day = date.fromisoformat(run.period_key) if run.period_key else timezone.localdate()
+        targets = pool_for_routine(run.routine, day, called_in_ids(day))
+    created = None
+    if not targets:
+        return QaNudge.objects.create(
+            run=run, created_by=created_by, source=source, message=message, employee=None,
+        )
+    for user in targets:
+        created = QaNudge.objects.create(
+            run=run, created_by=created_by, source=source, message=message, employee=user,
+        )
+    return created
 
 
 def latest_nudges(run_ids: list[int]) -> dict[int, QaNudge]:
@@ -396,7 +445,9 @@ def serialize_nudge(row: QaNudge, *, now: datetime | None = None) -> dict:
     local = timezone.localtime(row.created_at)
     now = now or timezone.now()
     ack_label = f'Nudged {local.strftime("%H:%M")}'
-    if row.acked_at and row.ack_kind == 'heard':
+    if row.ack_kind == 'resolved':
+        ack_label = 'Resolved'
+    elif row.acked_at and row.ack_kind == 'heard':
         ack_label = f'Heard {timezone.localtime(row.acked_at).strftime("%H:%M")}'
     elif row.acked_at and row.ack_kind == 'not_me':
         ack_label = 'Not me'
@@ -424,11 +475,41 @@ def pending_nudges_for(user, *, now: datetime | None = None) -> list[QaNudge]:
     hours_cfg = get_hours_config()
     tz = ZoneInfo(hours_cfg.get('timezone') or 'America/Chicago')
     fire_hard_deadline_nudges(day, now=now, tz=tz, hours_cfg=hours_cfg)
-    return list(
-        QaNudge.objects.filter(employee=user, acked_at__isnull=True).select_related(
-            'run', 'created_by', 'employee',
-        ).order_by('created_at')
+    rows = []
+    for row in QaNudge.objects.filter(employee=user, acked_at__isnull=True).select_related(
+        'run', 'created_by', 'employee',
+    ).order_by('created_at'):
+        if row.ack_kind == 'resolved':
+            continue
+        if row.run_id and row.run.status == RoutineRun.STATUS_DONE:
+            continue
+        rows.append(row)
+    return rows
+
+
+def resolve_nudges_for_run(run, *, now: datetime | None = None) -> int:
+    """Mark leftover nudges resolved when the run is completed."""
+    now = now or timezone.now()
+    return QaNudge.objects.filter(run=run, acked_at__isnull=True).update(
+        acked_at=now, ack_kind='resolved',
     )
+
+
+def pooled_open_runs_for(user, day: date, *, skip_ids: set[int] | None = None) -> list:
+    skip = skip_ids or set()
+    found = []
+    for run in RoutineRun.objects.filter(
+        period_key=day.isoformat(),
+        assigned_to=None,
+        status=RoutineRun.STATUS_OPEN,
+        routine__is_active=True,
+        routine__shift_locked=True,
+    ).select_related('routine', 'routine__shift', 'section', 'submission'):
+        if run.pk in skip:
+            continue
+        if user_in_audience(run.routine, user):
+            found.append(run)
+    return found
 
 
 def ack_nudge(row: QaNudge, *, kind: str, device: str, now: datetime | None = None) -> QaNudge:
@@ -1265,7 +1346,10 @@ def build_issues(
         })
 
     called = [row for row in staff if row['status'] == STATUS_CALLED_IN]
-    unassigned = [job for job in jobs if job['status'] == STATUS_UNASSIGNED]
+    unassigned = [
+        job for job in jobs
+        if job['status'] == STATUS_UNASSIGNED and job.get('owner_state') != 'pool'
+    ]
     for job in jobs:
         if job.get('group') != 'shift' or job.get('shift_people'):
             continue
@@ -1320,13 +1404,22 @@ def build_issues(
             issue_type = 'overdue_routine'
         nudge = nudges.get(job['run_id'])
         packed = serialize_nudge(nudge, now=now) if nudge else None
-        unseen = bool(nudge and not nudge.acked_at and packed and packed['ack_label'] == 'Not seen')
+        resolved = bool(
+            nudge and (
+                nudge.ack_kind == 'resolved'
+                or (packed and packed['ack_label'] == 'Resolved')
+            )
+        )
+        unseen = bool(
+            nudge and not nudge.acked_at and not resolved
+            and packed and packed['ack_label'] == 'Not seen'
+        )
         issues.append({
             'id': f'routine-{job["run_id"]}',
             'type': issue_type,
             'severity': severity,
             'sentence': sentence,
-            'action': 're_nudge' if unseen else 'nudge',
+            'action': 'nudge' if resolved or not unseen else 're_nudge',
             'person_id': (job.get('owner') or {}).get('id'),
             'person_name': (job.get('owner') or {}).get('name'),
             'run_id': job['run_id'],

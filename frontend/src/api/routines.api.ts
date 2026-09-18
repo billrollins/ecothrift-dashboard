@@ -756,7 +756,7 @@ export interface QaJob {
   run_id: number | null;
   section_id: number | null;
   owner: NamedPerson | null;
-  owner_state?: 'scheduled' | 'in' | null;
+  owner_state?: 'scheduled' | 'in' | 'pool' | null;
   owner_late?: boolean;
   due_at: string | null;
   due_label: string;

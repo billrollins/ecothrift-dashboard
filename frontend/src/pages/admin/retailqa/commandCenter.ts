@@ -263,7 +263,7 @@ export type BoardIssue = {
 
 export function nudgeLabel(stamp: string | null | undefined) {
   if (!stamp) return '';
-  if (/^(Nudged|Heard|Not seen)\b/i.test(stamp)) return stamp;
+  if (/^(Nudged|Heard|Resolved|Not seen)\b/i.test(stamp)) return stamp;
   return `Nudged ${stamp}`;
 }
 
