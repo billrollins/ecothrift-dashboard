@@ -261,9 +261,9 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
   },
   'retail_qa.section_check_weekdays': {
     label: 'Section checks required',
-    help: 'Days a section check is required. Default is every open day (Tue–Sat).',
+    help: 'Every section gets an owner check on these days, open or closed.',
     tab: 'retail-qa',
-    kind: 'weekdays',
+    kind: 'hidden',
   },
   'retail_qa.grade_a': {
     label: 'A at or above',
@@ -288,6 +288,12 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     help: 'Lowest score that still earns a D. Anything below this is an F.',
     tab: 'retail-qa',
     kind: 'score',
+  },
+  'retail_qa.program_department': {
+    label: 'Retail QA program department',
+    help: 'Slug of the department the Retail QA program belongs to. Changed when that department slug is edited.',
+    tab: 'retail-qa',
+    kind: 'hidden',
   },
   store_name: {
     label: 'Store name',

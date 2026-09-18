@@ -68,7 +68,6 @@ const GROUPS: Array<{ title: string; blurb: string; keys: string[] }> = [
       'retail_qa.weight_cross',
       'retail_qa.walk_floor',
       'retail_qa.section_due_after_punch_minutes',
-      'retail_qa.section_check_weekdays',
     ],
   },
   {
@@ -208,17 +207,6 @@ export function RetailQaPanel() {
             {group.keys.map((key) => {
               const row = rows.get(key);
               const meta = metaForKey(key);
-              if (!row && meta.kind === 'weekdays') {
-                return (
-                  <SettingRow
-                    key={key}
-                    settingKey={key}
-                    value={[false, true, true, true, true, true, false]}
-                    description={meta.help}
-                    meta={meta}
-                  />
-                );
-              }
               if (!row) {
                 return (
                   <Box key={key} sx={{ py: 2, borderBottom: '1px solid', borderColor: 'divider' }}>

@@ -23,7 +23,7 @@ CALL_IN_UNDO_SECONDS = 10
 NUDGE_UNSEEN_MINUTES = 15
 SECTION_DUE_AFTER_PUNCH_MINUTES = 60
 # Mon–Sun. Open days Tue–Sat on, Sun/Mon off.
-SECTION_CHECK_WEEKDAYS = [False, True, True, True, True, True, False]
+SECTION_CHECK_WEEKDAYS = [True, True, True, True, True, True, False]
 WEIGHT_SPOT = 60
 WEIGHT_DO = 25
 WEIGHT_CROSS = 15
@@ -87,6 +87,7 @@ DEFAULTS: dict[str, Any] = {
     'grade_b': 80,
     'grade_c': 70,
     'grade_d': 60,
+    'program_department': 'retail-operations',
 }
 
 RETIRED_KEYS = (
@@ -127,11 +128,12 @@ SETTING_HELP = {
     'weight_do': 'Share of the week grade that comes from routines done over expected.',
     'weight_cross': 'Share of the week grade that comes from cross-checks, after the due date.',
     'section_due_after_punch_minutes': 'Minutes after an owner punches in before their section check is due.',
-    'section_check_weekdays': 'Days a section check is required. Default is every open day (Tue–Sat).',
+    'section_check_weekdays': 'Every section gets an owner check on these days, open or closed.',
     'grade_a': 'Lowest score that still earns an A.',
     'grade_b': 'Lowest score that still earns a B.',
     'grade_c': 'Lowest score that still earns a C.',
     'grade_d': 'Lowest score that still earns a D. Anything below this is an F.',
+    'program_department': 'Slug of the department the Retail QA program belongs to.',
 }
 
 
@@ -140,6 +142,11 @@ def _coerce(name: str, raw: Any, fallback: Any) -> Any:
         return deepcopy(raw) if isinstance(raw, list) else deepcopy(fallback)
     if isinstance(fallback, dict):
         return deepcopy(raw) if isinstance(raw, dict) else deepcopy(fallback)
+    if isinstance(fallback, str):
+        if raw is None:
+            return fallback
+        text = str(raw).strip()
+        return text or fallback
     try:
         if isinstance(fallback, bool):
             return bool(raw)

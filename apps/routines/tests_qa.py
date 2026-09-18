@@ -125,7 +125,7 @@ class SettingsValidationTests(TestCase):
         self.assertEqual(cfg['weight_spot'], 60)
         self.assertEqual(cfg['weight_do'], 25)
         self.assertEqual(cfg['weight_cross'], 15)
-        self.assertEqual(cfg['section_check_weekdays'], [False, True, True, True, True, True, False])
+        self.assertEqual(cfg['section_check_weekdays'], [True, True, True, True, True, True, False])
         self.assertNotIn('owner_weight', cfg)
 
     def test_ladder_must_ascend_and_scores_descend(self):

@@ -7,7 +7,7 @@ import { createSetting, updateSetting } from '../../../api/core.api';
 import type { SettingKind, SettingMeta } from './settingsRegistry';
 
 const WEEKDAY_CHIPS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const DEFAULT_SECTION_DAYS = [false, true, true, true, true, true, false];
+const DEFAULT_SECTION_DAYS = [true, true, true, true, true, true, false];
 
 function displayValue(kind: SettingKind, value: unknown): string {
   if (kind === 'percent' || kind === 'weight') {

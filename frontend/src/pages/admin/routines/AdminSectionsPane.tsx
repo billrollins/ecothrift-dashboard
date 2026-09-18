@@ -1,4 +1,4 @@
-import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, TextField, Typography } from '@mui/material';
+import { Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, TextField, Typography } from '@mui/material';
 import AddRounded from '@mui/icons-material/AddRounded';
 import {
   DndContext,
@@ -10,11 +10,15 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useEffect, useMemo, useState } from 'react';
+import { createSetting, getSettings, updateSetting, type Setting } from '../../../api/core.api';
+import { DEFAULT_PROGRAM_DEPARTMENT_SLUG, programDepartmentSlug } from '../../../api/hr.api';
 import type { RoutineAssignee, Section } from '../../../api/routines.api';
 import { StatusTag } from '../../../components/duty/StatusTag';
 import { dutyColors, thinScrollSx } from '../../../components/duty/tokens';
+import { useAuth } from '../../../hooks/useAuth';
 import {
   useDeleteSection,
   useHardDeleteSection,
@@ -26,6 +30,11 @@ import { RoutineHeaderButton } from '../../routines/RoutinePaneHeader';
 import { AdminSectionRow } from './AdminSectionRow';
 import { coverageNote, sectionCoverage } from './sectionCoverage';
 
+const WEEKDAY_CHIPS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const DEFAULT_SECTION_DAYS = [true, true, true, true, true, true, false];
+const SECTION_CHECK_KEY = 'retail_qa.section_check_weekdays';
+const SECTION_CHECK_HELP = 'Every section gets an owner check on these days, open or closed.';
+
 /**
  * The floor plan behind the daily tally and the Tuesday cross-check. Every
  * section here becomes somebody's standing job, so an area with no owner is
@@ -36,12 +45,31 @@ export function AdminSectionsPane({
   people,
   showRetired,
 }: {
-  departments: Array<{ id: number; name: string }>;
+  departments: Array<{ id: number; name: string; slug?: string }>;
   people: RoutineAssignee[];
   showRetired: boolean;
   onShowRetired: (next: boolean) => void;
 }) {
   const { enqueueSnackbar } = useSnackbar();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const isSuperuser = Boolean(user?.is_superuser);
+  const settings = useQuery({
+    queryKey: ['settings'],
+    queryFn: async () => (await getSettings()).data,
+  });
+  const settingRows = useMemo(() => {
+    const raw = settings.data;
+    if (Array.isArray(raw)) return raw;
+    return (raw as { results?: Setting[] } | undefined)?.results ?? [];
+  }, [settings.data]);
+  const programSlug = programDepartmentSlug(settingRows) || DEFAULT_PROGRAM_DEPARTMENT_SLUG;
+  const weekdayFlags = useMemo(() => {
+    const row = settingRows.find((item) => item.key === SECTION_CHECK_KEY);
+    const value = row?.value;
+    if (Array.isArray(value) && value.length === 7) return value.map(Boolean);
+    return DEFAULT_SECTION_DAYS;
+  }, [settingRows]);
   const [departmentId, setDepartmentId] = useState<number | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [adding, setAdding] = useState('');
@@ -50,9 +78,9 @@ export function AdminSectionsPane({
   // Default to Retail, which is the department the QA program was built for.
   useEffect(() => {
     if (departmentId != null || !departments.length) return;
-    const retail = departments.find((d) => /retail/i.test(d.name));
+    const retail = departments.find((d) => d.slug === programSlug);
     setDepartmentId((retail ?? departments[0]).id);
-  }, [departments, departmentId]);
+  }, [departments, departmentId, programSlug]);
 
   const sections = useSections({
     department: departmentId ?? undefined,
@@ -99,6 +127,24 @@ export function AdminSectionsPane({
       await save.mutateAsync({ data: { department: departmentId, name, sort_order: rows.length } });
       enqueueSnackbar(`${name} added`, { variant: 'success' });
     }, 'Could not add that section');
+  }
+
+  async function saveWeekdays(next: boolean[]) {
+    try {
+      try {
+        await updateSetting(SECTION_CHECK_KEY, { value: next });
+      } catch {
+        await createSetting({
+          key: SECTION_CHECK_KEY,
+          value: next,
+          description: SECTION_CHECK_HELP,
+        });
+      }
+      await queryClient.invalidateQueries({ queryKey: ['settings'] });
+      enqueueSnackbar('Checked-on days saved', { variant: 'success' });
+    } catch {
+      enqueueSnackbar('Could not save checked-on days', { variant: 'error' });
+    }
   }
 
   function onDragEnd(event: DragEndEvent) {
@@ -164,6 +210,47 @@ export function AdminSectionsPane({
       </Box>
 
       <Box sx={{ flex: 1, overflow: 'auto', pt: 0.5, pb: 2, ...thinScrollSx }}>
+        {isSuperuser ? (
+          <Box
+            sx={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'flex-start',
+              gap: 1.25,
+              mx: 1.5,
+              mb: 1.5,
+              px: 1.75,
+              py: 1.25,
+              borderRadius: '12px',
+              bgcolor: dutyColors.card,
+              border: `1px solid ${dutyColors.ink08}`,
+            }}
+          >
+            <Box sx={{ flex: '1 1 180px', minWidth: 140 }}>
+              <Typography sx={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase', color: dutyColors.ink40 }}>
+                Checked on
+              </Typography>
+              <Typography sx={{ mt: 0.4, fontSize: 12.5, color: dutyColors.ink60 }}>
+                {SECTION_CHECK_HELP}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+              {WEEKDAY_CHIPS.map((label, index) => (
+                <Chip
+                  key={label}
+                  label={label}
+                  size="small"
+                  color={weekdayFlags[index] ? 'primary' : 'default'}
+                  variant={weekdayFlags[index] ? 'filled' : 'outlined'}
+                  onClick={() => {
+                    const next = weekdayFlags.map((on, day) => (day === index ? !on : on));
+                    void saveWeekdays(next);
+                  }}
+                />
+              ))}
+            </Box>
+          </Box>
+        ) : null}
         <ColumnHeads />
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={order} strategy={verticalListSortingStrategy}>
