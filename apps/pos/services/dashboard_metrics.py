@@ -42,12 +42,10 @@ def normalize_letter(value: Any) -> str | None:
 
 
 def letter_meets(actual: str | None, goal: str | None) -> bool:
-    """True when actual is at least as good as the goal (A+ > A > A- > B+ … > F)."""
-    actual_letter = normalize_letter(actual)
-    goal_letter = normalize_letter(goal)
-    if not actual_letter or not goal_letter:
-        return False
-    return LETTER_RANK[actual_letter] >= LETTER_RANK[goal_letter]
+    """True when actual is at least as good as the goal (list position)."""
+    from apps.routines.settings import letter_meets as _letter_meets
+
+    return _letter_meets(normalize_letter(actual), normalize_letter(goal))
 
 
 def retail_goal_letter(value: Any) -> str | None:

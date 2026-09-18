@@ -51,18 +51,31 @@ export function crossPendingLabel(dueDate: string | null | undefined): string {
   return when ? `Pending until ${when}` : 'Pending';
 }
 
-export const DEFAULT_GRADE_SCALE = { a: 90, b: 80, c: 70, d: 60 };
+export const DEFAULT_GRADE_SCALE: Array<{ letter: string; min: number }> = [
+  { letter: 'A+', min: 97 },
+  { letter: 'A', min: 93 },
+  { letter: 'A-', min: 90 },
+  { letter: 'B+', min: 87 },
+  { letter: 'B', min: 83 },
+  { letter: 'B-', min: 80 },
+  { letter: 'C+', min: 77 },
+  { letter: 'C', min: 73 },
+  { letter: 'C-', min: 70 },
+  { letter: 'D+', min: 67 },
+  { letter: 'D', min: 65 },
+  { letter: 'D-', min: 60 },
+];
 
 export function goalThreshold(
   goalLetter: string | null | undefined,
-  scale: { a: number; b: number; c: number; d: number } = DEFAULT_GRADE_SCALE,
+  scale: Array<{ letter: string; min: number }> = DEFAULT_GRADE_SCALE,
 ): number {
-  const band = (goalLetter || 'B').trim().toUpperCase().charAt(0);
-  if (band === 'A') return scale.a;
-  if (band === 'C') return scale.c;
-  if (band === 'D') return scale.d;
-  if (band === 'F') return 0;
-  return scale.b;
+  const goal = (goalLetter || 'B').trim().toUpperCase().replace(/\s+/g, '');
+  const exact = scale.find((row) => row.letter === goal);
+  if (exact) return exact.min;
+  const band = scale.find((row) => row.letter === goal.charAt(0));
+  if (band) return band.min;
+  return 80;
 }
 
 export function isIdleState(state: string | null | undefined): boolean {
@@ -358,10 +371,11 @@ function ThirdCard({
 }
 
 export function formatGradeScale(
-  scale?: { a: number; b: number; c: number; d: number } | null,
+  scale?: Array<{ letter: string; min: number }> | null,
 ): string {
-  if (!scale) return '';
-  return `A ${scale.a} · B ${scale.b} · C ${scale.c} · D ${scale.d} · F below ${scale.d}`;
+  if (!scale?.length) return '';
+  const last = scale[scale.length - 1];
+  return `${scale.map((row) => `${row.letter} ${row.min}`).join(' · ')} · F below ${last.min}`;
 }
 
 export function formatHeadingDate(iso: string): string {

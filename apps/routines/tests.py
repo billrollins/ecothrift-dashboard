@@ -970,7 +970,11 @@ class GradingTests(APITestCase):
 
     def test_settings_override_the_letter_boundaries(self):
         AppSetting.objects.update_or_create(
-            key='retail_qa.grade_a', defaults={'value': 95},
+            key='retail_qa.grade_scale',
+            defaults={'value': [
+                {'letter': 'A', 'min': 95},
+                {'letter': 'B', 'min': 80},
+            ]},
         )
         self._checklists(self.TUESDAY)
         self._tally_sections(self.TUESDAY)
@@ -986,16 +990,21 @@ class GradingTests(APITestCase):
 class RetailQaSettingsTests(TestCase):
     def test_defaults_stand_in_for_anything_unset_or_unreadable(self):
         AppSetting.objects.update_or_create(
-            key='retail_qa.grade_a', defaults={'value': 'ninety'},
+            key='retail_qa.grade_scale', defaults={'value': 'ninety'},
         )
         cfg = retail_qa_settings()
-        self.assertEqual(cfg['grade_a'], 90)
+        self.assertEqual(cfg['grade_scale'][0]['letter'], 'A+')
         self.assertEqual(cfg['spot_check_count'], 3)
 
     def test_letters_follow_the_stored_boundaries(self):
-        self.assertEqual(letter_for(89.9), 'B')
+        self.assertEqual(letter_for(89.9), 'B+')
         AppSetting.objects.update_or_create(
-            key='retail_qa.grade_b', defaults={'value': 85},
+            key='retail_qa.grade_scale',
+            defaults={'value': [
+                {'letter': 'A', 'min': 90},
+                {'letter': 'B', 'min': 85},
+                {'letter': 'C', 'min': 70},
+            ]},
         )
         self.assertEqual(letter_for(84), 'C')
 

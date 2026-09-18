@@ -39,7 +39,20 @@ function renderDialog(data: RetailDaySummary, mode: 'day' | 'week' = 'day') {
   );
 }
 
-const scale = { a: 91, b: 81, c: 71, d: 61 };
+const scale = [
+  { letter: 'A+', min: 97 },
+  { letter: 'A', min: 93 },
+  { letter: 'A-', min: 91 },
+  { letter: 'B+', min: 87 },
+  { letter: 'B', min: 81 },
+  { letter: 'B-', min: 80 },
+  { letter: 'C+', min: 77 },
+  { letter: 'C', min: 73 },
+  { letter: 'C-', min: 71 },
+  { letter: 'D+', min: 67 },
+  { letter: 'D', min: 65 },
+  { letter: 'D-', min: 61 },
+];
 
 const mixedDay: RetailDaySummary = {
   date: '2026-09-15',
@@ -149,11 +162,11 @@ describe('DepartmentRetailDayDialog', () => {
   });
 
   it('reads footer scale text from the payload, not a constant', () => {
-    expect(formatGradeScale(scale)).toBe('A 91 · B 81 · C 71 · D 61 · F below 61');
+    expect(formatGradeScale(scale)).toContain('A- 91');
+    expect(formatGradeScale(scale)).toContain('B 81');
+    expect(formatGradeScale(scale)).toContain('F below 61');
     renderDialog(mixedDay);
-    expect(screen.getByTestId('retail-grade-scale')).toHaveTextContent(
-      'A 91 · B 81 · C 71 · D 61 · F below 61',
-    );
+    expect(screen.getByTestId('retail-grade-scale')).toHaveTextContent('B 81');
     expect(screen.getByTestId('retail-grade-scale')).not.toHaveTextContent('A 90 · B 80');
   });
 

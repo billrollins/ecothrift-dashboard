@@ -43,6 +43,7 @@ from .settings import (
     WEIGHT_DO,
     WEIGHT_SPOT,
     WALK_FLOOR,
+    cap_letter_at,
     letter_for,
     open_hours_for,
     retail_qa_settings,
@@ -1186,11 +1187,12 @@ def _walk_cap(score: float | None, walks: int, cfg: dict) -> tuple[float | None,
     if score is None:
         return None, None
     floor = int(cfg.get('walk_floor', WALK_FLOOR))
+    letter = letter_for(score, cfg)
     if walks <= 0:
-        score = min(score, float(cfg['grade_b']) - 0.1)
+        letter = cap_letter_at(letter, 'C', cfg)
     elif walks < floor:
-        score = min(score, float(cfg['grade_a']) - 0.1)
-    return round(score, 1), letter_for(score, cfg)
+        letter = cap_letter_at(letter, 'B', cfg)
+    return round(score, 1), letter
 
 
 def _week_cross(daily: list[dict], *, due: date | None, today: date, project: bool) -> float | None:

@@ -55,11 +55,6 @@ const GROUPS: Array<{ title: string; blurb: string; keys: string[] }> = [
     ],
   },
   {
-    title: 'Letter cutoffs',
-    blurb: 'Where each grade starts. Below the D line is an F.',
-    keys: ['retail_qa.grade_a', 'retail_qa.grade_b', 'retail_qa.grade_c', 'retail_qa.grade_d'],
-  },
-  {
     title: 'Scoring',
     blurb: 'Spot, Do, and Cross shares. Missing parts renormalize to 100. Call-ins do not shrink expected.',
     keys: [

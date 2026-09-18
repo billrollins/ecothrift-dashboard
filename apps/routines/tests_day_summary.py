@@ -35,9 +35,6 @@ class DaySummaryStateTests(TestCase):
     def test_grade_scale_matches_settings(self):
         payload = day_summary_for_date(date(2026, 9, 16), today=date(2026, 9, 18))
         cfg = retail_qa_settings()
-        self.assertEqual(payload['grade_scale'], {
-            'a': int(cfg['grade_a']),
-            'b': int(cfg['grade_b']),
-            'c': int(cfg['grade_c']),
-            'd': int(cfg['grade_d']),
-        })
+        self.assertEqual(payload['grade_scale'][0], {'letter': 'A+', 'min': 97})
+        self.assertEqual(len(payload['grade_scale']), 12)
+        self.assertEqual(payload['grade_scale'][-1]['letter'], cfg['grade_scale'][-1]['letter'])

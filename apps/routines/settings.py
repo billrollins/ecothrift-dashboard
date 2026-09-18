@@ -22,12 +22,26 @@ LATE_RED_MINUTES = 30
 CALL_IN_UNDO_SECONDS = 10
 NUDGE_UNSEEN_MINUTES = 15
 SECTION_DUE_AFTER_PUNCH_MINUTES = 60
-# Mon–Sun. Open days Tue–Sat on, Sun/Mon off.
+# Mon–Sun. Monday on; Sunday off.
 SECTION_CHECK_WEEKDAYS = [True, True, True, True, True, True, False]
 WEIGHT_SPOT = 60
 WEIGHT_DO = 25
 WEIGHT_CROSS = 15
 WALK_FLOOR = 3
+GRADE_SCALE = [
+    {'letter': 'A+', 'min': 97},
+    {'letter': 'A', 'min': 93},
+    {'letter': 'A-', 'min': 90},
+    {'letter': 'B+', 'min': 87},
+    {'letter': 'B', 'min': 83},
+    {'letter': 'B-', 'min': 80},
+    {'letter': 'C+', 'min': 77},
+    {'letter': 'C', 'min': 73},
+    {'letter': 'C-', 'min': 70},
+    {'letter': 'D+', 'min': 67},
+    {'letter': 'D', 'min': 65},
+    {'letter': 'D-', 'min': 60},
+]
 IDLE_STRETCH_MINUTES = 20
 DIAG_OWNER_ITEMS = 5
 DIAG_CHECKER_SPOT = 70
@@ -83,10 +97,7 @@ DEFAULTS: dict[str, Any] = {
     'weight_cross': WEIGHT_CROSS,
     'section_due_after_punch_minutes': SECTION_DUE_AFTER_PUNCH_MINUTES,
     'section_check_weekdays': SECTION_CHECK_WEEKDAYS,
-    'grade_a': 90,
-    'grade_b': 80,
-    'grade_c': 70,
-    'grade_d': 60,
+    'grade_scale': GRADE_SCALE,
     'program_department': 'retail-operations',
 }
 
@@ -97,6 +108,10 @@ RETIRED_KEYS = (
     'audit_minor_max',
     'audit_needs_work_max',
     'audit_min_items',
+    'grade_a',
+    'grade_b',
+    'grade_c',
+    'grade_d',
 )
 
 SETTING_HELP = {
@@ -129,10 +144,7 @@ SETTING_HELP = {
     'weight_cross': 'Share of the week grade that comes from cross-checks, after the due date.',
     'section_due_after_punch_minutes': 'Minutes after an owner punches in before their section check is due.',
     'section_check_weekdays': 'Every section gets an owner check on these days, open or closed.',
-    'grade_a': 'Lowest score that still earns an A.',
-    'grade_b': 'Lowest score that still earns a B.',
-    'grade_c': 'Lowest score that still earns a C.',
-    'grade_d': 'Lowest score that still earns a D. Anything below this is an F.',
+    'grade_scale': 'Ordered letter floors. F is anything below the last min.',
     'program_department': 'Slug of the department the Retail QA program belongs to.',
 }
 
@@ -173,12 +185,60 @@ def settings_snapshot(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     return deepcopy(cfg or retail_qa_settings())
 
 
-def letter_for(score: float, cfg: dict[str, Any] | None = None) -> str:
+def grade_letters(cfg: dict[str, Any] | None = None) -> list[str]:
+    rows = grade_scale_rows(cfg)
+    letters = [row['letter'] for row in rows]
+    if 'F' not in letters:
+        letters.append('F')
+    return letters
+
+
+def grade_scale_rows(cfg: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     cfg = cfg or retail_qa_settings()
-    for letter in ('a', 'b', 'c', 'd'):
-        if score >= float(cfg[f'grade_{letter}']):
-            return letter.upper()
+    rows = cfg.get('grade_scale') or GRADE_SCALE
+    if not isinstance(rows, list) or not rows:
+        return deepcopy(GRADE_SCALE)
+    return rows
+
+
+def letter_for(score: float, cfg: dict[str, Any] | None = None) -> str:
+    for row in grade_scale_rows(cfg):
+        try:
+            floor = float(row.get('min'))
+        except (TypeError, ValueError):
+            continue
+        if score >= floor:
+            return str(row.get('letter') or 'F')
     return 'F'
+
+
+def letter_index(letter: str | None, cfg: dict[str, Any] | None = None) -> int | None:
+    if not letter:
+        return None
+    needle = str(letter).strip().upper().replace(' ', '')
+    letters = grade_letters(cfg)
+    try:
+        return letters.index(needle)
+    except ValueError:
+        return None
+
+
+def letter_meets(actual: str | None, goal: str | None, cfg: dict[str, Any] | None = None) -> bool:
+    """True when actual is at least as good as the goal (earlier in the list)."""
+    actual_i = letter_index(actual, cfg)
+    goal_i = letter_index(goal, cfg)
+    if actual_i is None or goal_i is None:
+        return False
+    return actual_i <= goal_i
+
+
+def cap_letter_at(letter: str, cap: str, cfg: dict[str, Any] | None = None) -> str:
+    """Pull anything better than cap down to cap. 'caps at B' maps A- to B."""
+    letter_i = letter_index(letter, cfg)
+    cap_i = letter_index(cap, cfg)
+    if letter_i is None or cap_i is None:
+        return letter
+    return cap if letter_i < cap_i else letter
 
 
 def score_ladder(value: float, rows: list[dict], *, above: float = 0.0) -> float:
@@ -300,13 +360,36 @@ def validate_retail_qa_value(name: str, value: Any) -> Any:
         if not 0 < number < 1:
             raise ValueError('A tail threshold must be between 0 and 1.')
         return number
-    if name.startswith('grade_'):
-        number = float(value)
-        if not 0 <= number <= 100:
-            raise ValueError('A letter cutoff is 0 to 100.')
-        return number
+    if name == 'grade_scale':
+        return _as_grade_scale(value)
     fallback = DEFAULTS[name]
     return _coerce(name, value, fallback)
+
+
+def _as_grade_scale(value: Any) -> list[dict]:
+    if not isinstance(value, list) or not value:
+        raise ValueError('Need at least one letter / min row.')
+    rows = []
+    seen = set()
+    mins: list[float] = []
+    for row in value:
+        if not isinstance(row, dict):
+            raise ValueError('Each grade row is a letter and a min.')
+        letter = str(row.get('letter') or '').strip().upper().replace(' ', '')
+        if not letter or letter in seen:
+            raise ValueError('Each grade needs its own letter.')
+        try:
+            floor = float(row.get('min'))
+        except (TypeError, ValueError):
+            raise ValueError('A letter min must be a number.')
+        if not 0 <= floor <= 100:
+            raise ValueError('A letter min is 0 to 100.')
+        seen.add(letter)
+        mins.append(floor)
+        rows.append({'letter': letter, 'min': floor})
+    if mins != sorted(mins, reverse=True):
+        raise ValueError('Letter mins must descend from A+ to the last passing grade.')
+    return rows
 
 
 def validate_retail_qa_bundle(cfg: dict[str, Any]) -> list[str]:
@@ -316,7 +399,8 @@ def validate_retail_qa_bundle(cfg: dict[str, Any]) -> list[str]:
     full = float(cfg.get('cross_full_tail', DEFAULTS['cross_full_tail']))
     if not zero < full:
         errors.append('Zero tail must be smaller than the full-marks tail.')
-    grades = [float(cfg.get(f'grade_{letter}', DEFAULTS[f'grade_{letter}'])) for letter in ('a', 'b', 'c', 'd')]
-    if grades != sorted(grades, reverse=True):
-        errors.append('Letter cutoffs must descend A > B > C > D.')
+    try:
+        _as_grade_scale(cfg.get('grade_scale') or GRADE_SCALE)
+    except ValueError as exc:
+        errors.append(str(exc))
     return errors

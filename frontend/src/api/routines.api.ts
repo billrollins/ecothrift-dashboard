@@ -1008,12 +1008,12 @@ export interface RetailSummaryCounts {
   expected: number;
 }
 
-export interface RetailGradeScale {
-  a: number;
-  b: number;
-  c: number;
-  d: number;
+export interface GradeScaleRow {
+  letter: string;
+  min: number;
 }
+
+export type RetailGradeScale = GradeScaleRow[];
 
 export interface RetailDaySummary {
   date?: string;

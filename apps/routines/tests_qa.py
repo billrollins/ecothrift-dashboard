@@ -147,9 +147,10 @@ class SettingsValidationTests(TestCase):
         self.assertTrue(validate_retail_qa_bundle(cfg))
 
     def test_letters_still_cut_the_same(self):
-        self.assertEqual(letter_for(90), 'A')
-        self.assertEqual(letter_for(89.9), 'B')
-        self.assertEqual(letter_for(50), 'F')
+        self.assertEqual(letter_for(97), 'A+')
+        self.assertEqual(letter_for(90), 'A-')
+        self.assertEqual(letter_for(89.9), 'B+')
+        self.assertEqual(letter_for(59), 'F')
 
     def test_score_ladder_helper(self):
         self.assertEqual(score_ladder(0.10, retail_qa_settings()['owner_ladder']), 100)

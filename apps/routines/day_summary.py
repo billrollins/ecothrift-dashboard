@@ -6,7 +6,8 @@ from datetime import date
 from django.utils import timezone
 
 from apps.pos.models import DashboardDepartmentGoal
-from apps.pos.services.dashboard_metrics import letter_meets, retail_goal_letter
+from apps.pos.services.dashboard_metrics import retail_goal_letter
+from apps.routines.settings import letter_meets
 from apps.webstore.services.hours import is_open_day
 
 from .grading import (
@@ -94,14 +95,13 @@ def _spot_state(*, day: date, today: date, walks: int) -> str:
     return 'none'
 
 
-def _grade_scale() -> dict[str, int]:
-    cfg = retail_qa_settings()
-    return {
-        'a': int(cfg['grade_a']),
-        'b': int(cfg['grade_b']),
-        'c': int(cfg['grade_c']),
-        'd': int(cfg['grade_d']),
-    }
+def _grade_scale() -> list[dict]:
+    from apps.routines.settings import grade_scale_rows
+
+    return [
+        {'letter': row['letter'], 'min': int(row['min'])}
+        for row in grade_scale_rows()
+    ]
 
 
 def _closed_payload(day: date, goal: str | None, expected: dict | None = None) -> dict:
