@@ -957,6 +957,7 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
             'closed': section.pk in closed,
             'can_close': status == STATUS_DONE or section.pk in closed,
             'shift_people': [],
+            **miss_fields(run),
         })
 
     for key in PERFORMED:
@@ -1025,8 +1026,22 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
             'shift_id': shift.pk if shift else None,
             'shift_name': shift.name if shift else '',
             'shift_people': shift_people,
+            **miss_fields(run),
         })
     return jobs
+
+
+MISS_REASON_LABELS = {code: label for code, label in RoutineRun.MISS_REASON_CHOICES}
+
+
+def miss_fields(run) -> dict:
+    """Why a run was missed, answered at the kiosk. Empty strings when unanswered."""
+    reason = (getattr(run, 'miss_reason', '') or '') if run is not None else ''
+    return {
+        'miss_reason': reason,
+        'miss_reason_label': MISS_REASON_LABELS.get(reason, ''),
+        'miss_reason_note': (getattr(run, 'miss_reason_note', '') or '') if run is not None else '',
+    }
 
 
 def section_owner_view(section, *, run, status, punches) -> tuple[dict | None, str | None]:
@@ -1261,7 +1276,8 @@ def score_items_for_day(day_row: dict) -> list[str]:
             continue
         title = row.get('title') or PERFORMED_TITLES.get(row.get('key') or '', 'Routine')
         if status == STATUS_MISSED:
-            items.append(f'{title} missed {stamp}')
+            why = row.get('miss_reason_label') or MISS_REASON_LABELS.get(row.get('miss_reason') or '', '')
+            items.append(f'{title} missed {stamp} · {why}' if why else f'{title} missed {stamp}')
         else:
             items.append(f'{title} not done {stamp}')
     for row in (day_row.get('cross') or {}).get('verify') or []:

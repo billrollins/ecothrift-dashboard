@@ -32,12 +32,23 @@ class RoutineSerializer(serializers.ModelSerializer):
             'assigned_role',
             'assigned_department', 'assigned_department_name', 'assigned_user_ids',
             'shift', 'shift_name', 'shift_locked',
-            'is_blocking', 'is_active', 'created_at', 'updated_at',
+            'is_blocking', 'gate_on_miss', 'is_active', 'created_at', 'updated_at',
         ]
         read_only_fields = [
             'id', 'kind', 'system_key', 'assigned_department_name',
             'shift_name', 'shift_locked', 'created_at', 'updated_at',
         ]
+
+    def validate_gate_on_miss(self, value):
+        """Only a superuser may flip the kiosk miss gate. Everyone else must leave it as is."""
+        current = bool(getattr(self.instance, 'gate_on_miss', False)) if self.instance else False
+        if bool(value) == current:
+            return value
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if user is None or not getattr(user, 'is_superuser', False):
+            raise serializers.ValidationError('Only a superuser can change the kiosk miss gate.')
+        return value
 
     def validate_definition(self, value):
         kind = getattr(self.instance, 'kind', None) or Routine.KIND_CHECKLIST
@@ -229,6 +240,7 @@ class RoutineRunSerializer(serializers.ModelSerializer):
             'owner_check',
             'completed_at', 'completed_by', 'completed_by_name', 'completed_late',
             'failed_count', 'has_critical_fail', 'seconds_taken',
+            'miss_reason', 'miss_reason_note',
         ]
         read_only_fields = fields
 
