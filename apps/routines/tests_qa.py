@@ -1241,8 +1241,8 @@ class ScoringEngineTests(TestCase):
             {'date': '2026-09-15', 'graded': True, 'open_day': True, 'thirds': {'doing': 0.0, 'owner': None}, 'doing': {'done': 0, 'needed': 10}},
             {'date': '2026-09-16', 'graded': True, 'open_day': True, 'thirds': {'doing': 0.0, 'owner': None}, 'doing': {'done': 0, 'needed': 10}},
             {'date': '2026-09-17', 'graded': True, 'open_day': True, 'thirds': {'doing': 40.0, 'owner': 20.0}, 'doing': {'done': 4, 'needed': 10}},
-            {'date': '2026-09-18', 'graded': False, 'open_day': True, 'thirds': {'doing': None, 'owner': None}, 'doing': {'done': 0, 'needed': 10}},
-            {'date': '2026-09-19', 'graded': False, 'open_day': True, 'thirds': {'doing': None, 'owner': None}, 'doing': {'done': 0, 'needed': 10}},
+            {'date': '2026-09-18', 'graded': True, 'open_day': True, 'thirds': {'doing': None, 'owner': None}, 'doing': {'done': 0, 'needed': 10}},
+            {'date': '2026-09-19', 'graded': True, 'open_day': True, 'thirds': {'doing': None, 'owner': None}, 'doing': {'done': 0, 'needed': 10}},
         ]
         today = date(2026, 9, 17)
         doing = _doing_for_week(daily, today=today, project=True)
@@ -1266,7 +1266,7 @@ class ScoringEngineTests(TestCase):
             time_in=time(8, 0),
             time_out=time(16, 0),
             weekdays=list(range(7)),
-            punch_code='retail_day',
+            punch_code='expect_desk_day',
         )
         ShiftAssignment.objects.create(employee=owner, shift=shift)
         Section.objects.create(department=department, name='Desk', owner=owner)

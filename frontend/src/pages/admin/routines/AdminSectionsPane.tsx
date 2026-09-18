@@ -30,10 +30,10 @@ import { RoutineHeaderButton } from '../../routines/RoutinePaneHeader';
 import { AdminSectionRow } from './AdminSectionRow';
 import { coverageNote, sectionCoverage } from './sectionCoverage';
 
-const WEEKDAY_CHIPS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const DEFAULT_SECTION_DAYS = [true, true, true, true, true, true, false];
-const SECTION_CHECK_KEY = 'retail_qa.section_check_weekdays';
-const SECTION_CHECK_HELP = 'Every section gets an owner check on these days, open or closed.';
+export const WEEKDAY_CHIPS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+export const DEFAULT_SECTION_DAYS = [true, true, true, true, true, true, false];
+export const SECTION_CHECK_KEY = 'retail_qa.section_check_weekdays';
+export const SECTION_CHECK_HELP = 'Every section gets an owner check on these days, open or closed.';
 
 /**
  * The floor plan behind the daily tally and the Tuesday cross-check. Every

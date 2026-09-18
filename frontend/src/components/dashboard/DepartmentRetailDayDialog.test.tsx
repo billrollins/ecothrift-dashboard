@@ -168,7 +168,7 @@ describe('DepartmentRetailDayDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /Grade scale/ }));
     expect(screen.getAllByRole('row')).toHaveLength(14);
     expect(screen.getByText('93 to 96')).toBeInTheDocument();
-    expect(screen.getByText('B').closest('tr')).toHaveAttribute('data-current', 'true');
+    expect(document.querySelector('tr[data-letter="B"]')).toHaveAttribute('data-current', 'true');
   });
 
   it('shows Store closed and nothing else on a closed day', () => {

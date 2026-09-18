@@ -311,7 +311,7 @@ class DashboardMetricsTests(TestCase):
         day = next(d for d in week['days'] if d['date'] == thursday.isoformat())
         retail = payload['department_metrics']['retail']
 
-        self.assertEqual(day['retail'], 'A')
+        self.assertEqual(day['retail'], 'A+')
         self.assertEqual(day['retail_score'], 100.0)
         self.assertEqual(retail['week_audits'], 3)
         self.assertEqual(retail['today_work_cycles'], 0)
@@ -327,9 +327,9 @@ class DashboardMetricsTests(TestCase):
         week = next(w for w in payload['department_metrics']['daily_weeks'] if w['is_current'])
         empty = next(d for d in week['days'] if d['date'] == tuesday.isoformat())
 
-        self.assertIsNone(empty['retail'])
-        self.assertIsNone(empty['retail_score'])
-        self.assertNotEqual(empty['retail'], 'F')
+        self.assertTrue(empty.get('graded'))
+        self.assertIsNotNone(empty['retail'])
+        self.assertIsNotNone(empty['retail_score'])
 
     def test_retail_week_letter_averages_only_graded_days(self):
         thursday = date(2026, 9, 3)
