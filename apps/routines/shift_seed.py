@@ -1,4 +1,4 @@
-"""Idempotent Cashier Open/Day/Close rows and locked routine links."""
+"""Idempotent Retail Open/Mid/Close rows and locked routine links."""
 from __future__ import annotations
 
 import logging
@@ -9,26 +9,29 @@ from apps.hr.shifts import SHIFT_RETAIL_CLOSE, SHIFT_RETAIL_DAY, SHIFT_RETAIL_OP
 logger = logging.getLogger(__name__)
 
 RENAME = {
-    'Retail - Open': 'Cashier - Open',
-    'Retail Opening': 'Cashier - Open',
-    'Retail - Opening': 'Cashier - Open',
-    'Retail - Day': 'Cashier - Day',
-    'Retail Day': 'Cashier - Day',
-    'Retail - Close': 'Cashier - Close',
-    'Retail Closing': 'Cashier - Close',
-    'Retail - Closing': 'Cashier - Close',
+    'Retail - Open': 'Retail Open',
+    'Retail Opening': 'Retail Open',
+    'Retail - Opening': 'Retail Open',
+    'Cashier - Open': 'Retail Open',
+    'Retail - Day': 'Retail Mid',
+    'Retail Day': 'Retail Mid',
+    'Cashier - Day': 'Retail Mid',
+    'Retail - Close': 'Retail Close',
+    'Retail Closing': 'Retail Close',
+    'Retail - Closing': 'Retail Close',
+    'Cashier - Close': 'Retail Close',
 }
 
 TEMPLATES = (
-    ('Cashier - Open', SHIFT_RETAIL_OPEN),
-    ('Cashier - Day', SHIFT_RETAIL_DAY),
-    ('Cashier - Close', SHIFT_RETAIL_CLOSE),
+    ('Retail Open', SHIFT_RETAIL_OPEN),
+    ('Retail Mid', SHIFT_RETAIL_DAY),
+    ('Retail Close', SHIFT_RETAIL_CLOSE),
 )
 
 ROUTINE_KEYS = {
-    'retail.open': 'Cashier - Open',
-    'retail.day': 'Cashier - Day',
-    'retail.close': 'Cashier - Close',
+    'retail.open': 'Retail Open',
+    'retail.day': 'Retail Mid',
+    'retail.close': 'Retail Close',
 }
 
 
@@ -68,7 +71,7 @@ def _hours():
 
 
 def seed_cashier_shifts(*, apps=None, stdout=None) -> list[str]:
-    """Create or rename the three Cashier shifts and lock retail routines to them."""
+    """Create or rename the three Retail Open/Mid/Close shifts and lock retail routines to them."""
     if apps is None:
         from apps.hr.models import Department, Shift
         from apps.routines.models import Routine
@@ -81,14 +84,14 @@ def seed_cashier_shifts(*, apps=None, stdout=None) -> list[str]:
     dept = _retail_department(Department)
     _open_t, _mid, _day_end, _close_t, weekdays = _hours()
     times = {
-        'Cashier - Open': (time(8, 30), time(14, 30)),
-        'Cashier - Day': (time(11, 0), time(19, 0)),
-        'Cashier - Close': (time(12, 30), time(18, 30)),
+        'Retail Open': (time(8, 30), time(14, 30)),
+        'Retail Mid': (time(11, 0), time(19, 0)),
+        'Retail Close': (time(12, 30), time(18, 30)),
     }
     active = {
-        'Cashier - Open': True,
-        'Cashier - Day': False,
-        'Cashier - Close': True,
+        'Retail Open': True,
+        'Retail Mid': False,
+        'Retail Close': True,
     }
 
     for old, new in RENAME.items():

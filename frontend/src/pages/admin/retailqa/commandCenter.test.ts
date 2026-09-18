@@ -7,8 +7,8 @@ function person(id: number, name: string) {
 }
 
 const SAMPLE_STAFF: QaStaffRow[] = [
-  { id: 1, name: 'Carrie Rollins', role: '', department: 'Retail Operations', shift_name: 'Cashier - Open', time_in: '08:30', time_out: '15:00', clocked_in: true, arrival: '08:28', expected_not_in: false, on_roster: true, status: 'In' },
-  { id: 2, name: 'David Kilduff', role: '', department: 'Retail Operations', shift_name: 'Cashier - Close', time_in: '12:30', time_out: '18:30', clocked_in: false, arrival: null, expected_not_in: false, on_roster: true, status: 'Expected' },
+  { id: 1, name: 'Carrie Rollins', role: '', department: 'Retail Operations', shift_name: 'Retail Open', time_in: '08:30', time_out: '15:00', clocked_in: true, arrival: '08:28', expected_not_in: false, on_roster: true, status: 'In' },
+  { id: 2, name: 'David Kilduff', role: '', department: 'Retail Operations', shift_name: 'Retail Close', time_in: '12:30', time_out: '18:30', clocked_in: false, arrival: null, expected_not_in: false, on_roster: true, status: 'Expected' },
   { id: 3, name: 'Ashley Kilduff', role: '', department: 'Processing', shift_name: 'Processing', time_in: '09:00', time_out: '17:00', clocked_in: true, arrival: '08:55', expected_not_in: false, on_roster: true, status: 'In' },
   { id: 4, name: 'Maria Kilduff', role: '', department: 'Processing', shift_name: 'Processing', time_in: '09:00', time_out: '17:00', clocked_in: true, arrival: '09:02', expected_not_in: false, on_roster: true, status: 'In' },
   { id: 5, name: 'Michael Frieze', role: '', department: 'Restoration', shift_name: 'Restoration', time_in: '09:00', time_out: '17:00', clocked_in: true, arrival: '09:10', expected_not_in: false, on_roster: true, status: 'In' },
@@ -36,7 +36,7 @@ describe('displayName', () => {
     expect(displayName('retail.open', 'routine')).toBe('Retail open');
     expect(displayName('retail.day', 'routine')).toBe('Retail day');
     expect(displayName('retail.close', 'routine')).toBe('Retail close');
-    expect(displayName('office', 'shift')).toBe('Management');
+    expect(displayName('office', 'shift')).toBe('Office');
     expect(displayName('restoration', 'shift')).toBe('Restoration');
     expect(displayName('office', 'dept')).toBe('Office');
     expect(displayName('retail', 'dept')).toBe('Retail');

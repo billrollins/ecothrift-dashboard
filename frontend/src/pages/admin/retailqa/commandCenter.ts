@@ -26,13 +26,14 @@ const ROUTINE_NAMES: Record<string, string> = {
 };
 
 const SHIFT_NAMES: Record<string, string> = {
-  retail_open: 'Cashier - Open',
-  retail_day: 'Cashier - Day',
-  retail_close: 'Cashier - Close',
+  retail_open: 'Retail Open',
+  retail_day: 'Retail Mid',
+  retail_close: 'Retail Close',
+  retail_reset: 'Retail Reset',
   retail_cs: 'Customer Service',
   processing: 'Processing',
   restoration: 'Restoration',
-  office: 'Management',
+  office: 'Office',
   dock: 'Dock',
   sorting: 'Sorting',
   listings: 'Listings',

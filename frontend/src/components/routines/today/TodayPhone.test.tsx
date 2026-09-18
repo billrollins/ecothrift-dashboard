@@ -50,7 +50,7 @@ vi.mock('../../../hooks/useRoutines', () => ({
     isLoading: false,
     data: clockState.entry ? {
       shift: 'retail_open',
-      shift_label: 'Cashier - Open',
+      shift_label: 'Retail Open',
       shift_department: 'Retail',
       start_with: fakeRun({
         id: 9,
@@ -123,7 +123,7 @@ describe('TodayPhone', () => {
       clock_in: new Date().toISOString(),
       clock_out: null,
       shift: 'retail_open',
-      shift_label: 'Cashier - Open',
+      shift_label: 'Retail Open',
       shift_department: 'Retail',
       break_minutes: 0,
       on_break: false,
@@ -153,7 +153,7 @@ describe('TodayPhone', () => {
       clock_in: new Date().toISOString(),
       clock_out: null,
       shift: 'retail_open',
-      shift_label: 'Cashier - Open',
+      shift_label: 'Retail Open',
       shift_department: 'Retail',
       break_minutes: 0,
       on_break: true,

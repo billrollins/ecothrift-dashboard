@@ -4,7 +4,7 @@ export const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 export const LAST_DEPT_KEY = 'ecothrift.shifts.lastDepartment';
 export const CARD_MAX = 880;
 export const NAME_COL = 240;
-export const TITLE_MAX_CHARS = 'Cashier - Open'.length + 10;
+export const TITLE_MAX_CHARS = 'Retail Open'.length + 10;
 export const TITLE_COL = `${TITLE_MAX_CHARS}ch`;
 export const DAY_CHIP = 36;
 export const DAY_CHIP_GAP = 4;
@@ -13,7 +13,7 @@ export const ACTION_COL = 120;
 
 export function lockTooltip(title?: string | null) {
   const name = (title || '').trim() || 'this';
-  return `Used by ${name} routine. Edit times and people, but this shift can't be removed.`;
+  return `Used by ${name} routine. Edit times and people, or deactivate it. This shift can't be removed.`;
 }
 
 export function hhmm(value: string) {

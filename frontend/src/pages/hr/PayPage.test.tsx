@@ -98,7 +98,7 @@ const recent: TimeEntry = {
   clock_in: '2026-09-02T13:02:00.000Z',
   clock_out: '2026-09-02T21:31:00.000Z',
   shift: 'retail_day',
-  shift_label: 'Cashier - Day',
+  shift_label: 'Retail Mid',
   shift_department: 'Retail',
   break_minutes: 30,
   on_break: false,

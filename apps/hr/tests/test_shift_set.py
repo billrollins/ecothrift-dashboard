@@ -56,7 +56,7 @@ class ShiftSetTests(APITestCase):
         self.assertEqual(close.time_out, time(18, 30))
         reset = by_code['retail_reset']
         self.assertEqual(reset.weekdays, [0])
-        self.assertEqual(reset.name, 'Retail - Reset')
+        self.assertEqual(reset.name, 'Retail Reset')
 
     def test_existing_row_keeps_its_name(self):
         apply_shift_set()

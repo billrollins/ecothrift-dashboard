@@ -34,7 +34,7 @@ class ClosedDayScoringTests(APITestCase):
         self.open_shift, _ = Shift.objects.update_or_create(
             punch_code='retail_open',
             defaults={
-                'name': 'Cashier - Open', 'department': self.retail,
+                'name': 'Retail Open', 'department': self.retail,
                 'time_in': time(8, 30), 'time_out': time(14, 30),
                 'weekdays': [3], 'is_active': True,
             },
@@ -42,7 +42,7 @@ class ClosedDayScoringTests(APITestCase):
         Shift.objects.update_or_create(
             punch_code='retail_day',
             defaults={
-                'name': 'Cashier - Day', 'department': self.retail,
+                'name': 'Retail Mid', 'department': self.retail,
                 'time_in': time(11, 0), 'time_out': time(19, 0),
                 'weekdays': [1, 2, 3, 4, 5], 'is_active': False,
             },
@@ -50,7 +50,7 @@ class ClosedDayScoringTests(APITestCase):
         Shift.objects.update_or_create(
             punch_code='retail_close',
             defaults={
-                'name': 'Cashier - Close', 'department': self.retail,
+                'name': 'Retail Close', 'department': self.retail,
                 'time_in': time(12, 30), 'time_out': time(18, 30),
                 'weekdays': [1, 2, 3, 4, 5], 'is_active': True,
             },
@@ -58,7 +58,7 @@ class ClosedDayScoringTests(APITestCase):
         self.reset, _ = Shift.objects.update_or_create(
             punch_code='retail_reset',
             defaults={
-                'name': 'Retail - Reset', 'department': self.retail,
+                'name': 'Retail Reset', 'department': self.retail,
                 'time_in': time(9, 0), 'time_out': time(17, 0),
                 'weekdays': [0], 'is_active': True,
             },
@@ -86,7 +86,7 @@ class ClosedDayScoringTests(APITestCase):
         now = timezone.make_aware(datetime.combine(monday, time(9, 20)), TZ)
         staff = build_staff(monday, now=now, tz=TZ, today=monday)
         row = next(item for item in staff if item['id'] == worker.pk)
-        self.assertEqual(row['shift_name'], 'Retail - Reset')
+        self.assertEqual(row['shift_name'], 'Retail Reset')
         self.assertEqual(row['status'], 'Late')
         self.assertEqual(row['time_in'], '09:00')
 

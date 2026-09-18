@@ -116,6 +116,7 @@ export function ShiftsPanel() {
   const [createDraft, setCreateDraft] = useState<Draft>(EMPTY);
   const [createTouched, setCreateTouched] = useState<Touched>({});
   const [pendingRemove, setPendingRemove] = useState<{ shift: RosterShift; count: number } | null>(null);
+  const [pendingDeactivate, setPendingDeactivate] = useState<RosterShift | null>(null);
   const [menu, setMenu] = useState<{ shift: RosterShift; anchor: HTMLElement } | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -211,6 +212,17 @@ export function ShiftsPanel() {
       });
     } catch {
       enqueueSnackbar('Could not save that shift', { variant: 'error' });
+    }
+  }
+
+  async function setShiftActive(shift: RosterShift, isActive: boolean) {
+    try {
+      await saveShift.mutateAsync({
+        id: shift.id,
+        data: { is_active: isActive },
+      });
+    } catch {
+      enqueueSnackbar('Could not update that shift', { variant: 'error' });
     }
   }
 
@@ -431,6 +443,20 @@ export function ShiftsPanel() {
         {menu && !remainingFor(menu.shift).length ? (
           <MenuItem disabled>Everyone is assigned</MenuItem>
         ) : null}
+        {menu ? (
+          <MenuItem
+            onClick={() => {
+              if (menu.shift.is_active) {
+                setPendingDeactivate(menu.shift);
+              } else {
+                void setShiftActive(menu.shift, true);
+              }
+              setMenu(null);
+            }}
+          >
+            {menu.shift.is_active ? 'Deactivate' : 'Activate'}
+          </MenuItem>
+        ) : null}
         {menu && !menu.shift.locked ? (
           <MenuItem
             onClick={() => {
@@ -445,6 +471,19 @@ export function ShiftsPanel() {
           </MenuItem>
         ) : null}
       </Menu>
+
+      <ConfirmDialog
+        open={pendingDeactivate != null}
+        title={pendingDeactivate ? `Deactivate ${pendingDeactivate.name}?` : 'Deactivate shift?'}
+        message="Clock-in will hide this tile. Assigned people stay on the roster."
+        confirmLabel="Deactivate"
+        severity="warning"
+        onCancel={() => setPendingDeactivate(null)}
+        onConfirm={() => {
+          if (pendingDeactivate) void setShiftActive(pendingDeactivate, false);
+          setPendingDeactivate(null);
+        }}
+      />
 
       <ConfirmDialog
         open={pendingRemove != null}
@@ -517,7 +556,7 @@ function ByDayGrid({
             </Typography>
           </Box>
           {ALL_DAYS.map((day) => {
-            const running = group.shifts.filter((shift) => shiftDays(shift).includes(day));
+            const running = group.shifts.filter((shift) => shift.is_active && shiftDays(shift).includes(day));
             const names: string[] = [];
             let hole = false;
             for (const shift of running) {
@@ -607,7 +646,7 @@ function ShiftFields({
         name="shift-name"
         label="Shift name"
         value={draft.name}
-        placeholder="Cashier - Day"
+        placeholder="Retail Mid"
         inputRef={nameRef}
         InputLabelProps={{ shrink: true }}
         error={nameError}

@@ -792,9 +792,9 @@ class GradingTests(APITestCase):
         )
         self.toys = Section.objects.create(department=self.department, name='Toys', owner=self.alex)
         for name, punch in (
-            ('Cashier - Open', SHIFT_RETAIL_OPEN),
-            ('Cashier - Day', SHIFT_RETAIL_DAY),
-            ('Cashier - Close', SHIFT_RETAIL_CLOSE),
+            ('Retail Open', SHIFT_RETAIL_OPEN),
+            ('Retail Mid', SHIFT_RETAIL_DAY),
+            ('Retail Close', SHIFT_RETAIL_CLOSE),
         ):
             Shift.objects.create(
                 department=self.department,
@@ -1338,7 +1338,7 @@ class TodayEndpointTests(APITestCase):
             mine = self.client.get('/api/routines/runs/mine/')
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data['shift'], 'retail_open')
-        self.assertEqual(response.data['shift_label'], 'Cashier - Open')
+        self.assertEqual(response.data['shift_label'], 'Retail Open')
         self.assertEqual(response.data['shift_department'], 'Retail')
         self.assertTrue(response.data['start_with'])
         self.assertEqual(response.data['start_with']['system_key'], SYSTEM_OPEN)

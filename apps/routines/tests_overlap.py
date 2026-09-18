@@ -33,7 +33,7 @@ class OverlappingShiftTests(APITestCase):
         self.open_shift, _ = Shift.objects.update_or_create(
             punch_code='retail_open',
             defaults={
-                'name': 'Cashier - Open', 'department': self.retail,
+                'name': 'Retail Open', 'department': self.retail,
                 'time_in': time(8, 30), 'time_out': time(14, 30),
                 'weekdays': [1, 2, 3, 4, 5], 'is_active': True,
             },
@@ -41,7 +41,7 @@ class OverlappingShiftTests(APITestCase):
         self.close_shift, _ = Shift.objects.update_or_create(
             punch_code='retail_close',
             defaults={
-                'name': 'Cashier - Close', 'department': self.retail,
+                'name': 'Retail Close', 'department': self.retail,
                 'time_in': time(12, 30), 'time_out': time(18, 30),
                 'weekdays': [1, 2, 3, 4, 5], 'is_active': True,
             },
@@ -87,7 +87,7 @@ class OverlappingShiftTests(APITestCase):
         now = timezone.make_aware(datetime.combine(THURSDAY, time(8, 50)), TZ)
         staff = build_staff(THURSDAY, now=now, tz=TZ, today=THURSDAY)
         row = next(item for item in staff if item['id'] == self.carrie.pk)
-        self.assertEqual(row['shift_name'], 'Cashier - Open + Close')
+        self.assertEqual(row['shift_name'], 'Retail Open + Retail Close')
         self.assertEqual(row['time_in'], '08:30')
         self.assertEqual(row['time_out'], '18:30')
         self.assertEqual(row['status'], 'Late')

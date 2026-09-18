@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-09 (listing photos letterbox default) -->
+<!-- Last updated: 2026-09-17 (check-in edit added units stay on_shelf) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -21,7 +21,7 @@ Django project with apps under `apps/`:
 | `apps.blog` | Blog Studio |
 | `apps.floorplan` | Floorplan builder |
 | `apps.labels` | Custom Label Studio |
-| `apps.routines` | Periodic / on-demand fill-in forms, Sections, Retail QA grades (`GET /api/routines/grades/`) |
+| `apps.routines` | Periodic / on-demand fill-in forms, Sections, Retail QA Command Center (`/api/routines/qa/`) |
 | `apps.documents` | PDF upload, field placement, assignment, flattened signed PDFs |
 
 Root URL prefixes: `api/auth/`, `api/accounts/`, `api/core/`, `api/hr/`, `api/inventory/`, `api/ai/`, `api/pos/`, `api/consignment/`, `api/buying/`, `api/webstore/`, `api/mailbox/`, `api/blog/`, `api/floorplan/`, `api/labels/`, `api/routines/`, `api/documents/`.
@@ -128,8 +128,8 @@ Heroku Scheduler (minimum) and local parity: **`.ai/extended/development.md`** �
 
 | Model | Key Fields |
 |-------|------------|
-| **Department** | name, location (FK core.WorkLocation), manager (FK User), is_active |
-| **TimeEntry** | employee (FK User), date, clock_in, clock_out, **shift** (`retail_open` / `retail_day` / `retail_close` / `retail_cs` under Retail, `processing` / `restoration` under Warehouse, `office` under Office; blank on manager payroll rows), break_minutes, **on_break**, **break_started_at**, total_hours, status (pending/approved/flagged), approved_by, **deleted_at**, **deleted_by** — default manager excludes soft-deleted. Serializer: `shift_label` (position) and `shift_department`. Roster `shift_label` is `Retail: Cashier - Open`. |
+| **Department** | name, slug (unique, set on create only), icon (`cart\|box\|tool\|home\|tag\|truck\|none`), sort_order, location (FK core.WorkLocation), manager (FK User), is_active. Directory at `/admin/departments`. Writes: Manager+ description/location/manager; Superuser create/rename/deactivate/delete/reorder. |
+| **TimeEntry** | employee (FK User), date, clock_in, clock_out, **shift** (`retail_open` / `retail_day` / `retail_close` / `retail_cs` under Retail, `processing` / `restoration` under Warehouse, `office` under Office; blank on manager payroll rows), break_minutes, **on_break**, **break_started_at**, total_hours, status (pending/approved/flagged), approved_by, **deleted_at**, **deleted_by** — default manager excludes soft-deleted. Serializer: `shift_label` (position) and `shift_department`. Roster `shift_label` is `Retail: Retail Open`. |
 | **SickLeaveBalance** | employee, year, hours_earned, hours_used; ANNUAL_CAP 56h |
 | **SickLeaveRequest** | employee, start_date, end_date, hours_requested, status (pending/approved/denied), reviewed_by |
 | **TimeEntryModificationRequest** | time_entry (FK TimeEntry), employee (FK User), requested_clock_in/out, requested_break_minutes, reason, status (pending/approved/denied), reviewed_by, review_note, **deleted_at**, **deleted_by** |
@@ -151,7 +151,7 @@ Heroku Scheduler (minimum) and local parity: **`.ai/extended/development.md`** �
 | **VendorProductRef** | vendor, product, vendor_item_number, vendor_description, last_unit_cost, times_seen, last_seen_date |
 | **BatchGroup** | batch_number, product, purchase_order, manifest_row, total_qty, status, unit_price, **unit_cost** (legacy name — stores **manifest/vendor retail per unit**, not acquisition cost; rename to `unit_retail` planned), condition, location, processed_by/at |
 | **Item** | sku (unique), product (FK), purchase_order (FK), manifest_row (FK), batch_group (FK), **check_in** (FK `ItemCheckIn`, SET_NULL), processing_tier, title, price, **retail_value** (vendor/manifest MSRP-style retail), **cost** (allocated from PO: `(item.retail / (PO.retail × (1 − PO.est_shrink))) × PO.total_cost` when PO has listing retail and total_cost; read-only on API), source, status, condition, location, listed_at, checked_in_at/by, sold_at |
-| **ItemCheckIn** | Sole check-in event (renamed from `ProcessingCheckInBatch` in **`0063`**). Membership is **`Item.check_in`** only; `item_ids` JSON dropped in **`0064`**. Nullable `processing_row` / `manifest_row` (SET_NULL). Origin: `processing` \| `product_ad_hoc` \| `manual`. API: `item_check_in_id`, `?item_check_in=`, `…/item-check-ins/{id}/…`. Workspace: `itemCheckIns` with nested `items`. |
+| **ItemCheckIn** | Sole check-in event (renamed from `ProcessingCheckInBatch` in **`0063`**). Membership is **`Item.check_in`** only; `item_ids` JSON dropped in **`0064`**. Nullable `processing_row` / `manifest_row` (SET_NULL). Origin: `processing` \| `product_ad_hoc` \| `manual`. API: `item_check_in_id`, `?item_check_in=`, `…/item-check-ins/{id}/…`. Workspace: `itemCheckIns` with nested `items`. Raising quantity on update adds ``on_shelf`` units only (does not copy sold/lost/scrapped from the last sibling). |
 | **RestorationJob** | One per ItemCheckIn (PROTECT). Stages `queued → sent → bench → pending → done` + `returned`. `scale` / `grade_values`, `intended_destination`, `timer_mode` (`look`/`work`), `look_seconds` / `work_seconds`, `starting_grade`, `value_added` (stamped at Done). See [`.ai/extended/restoration.md`](restoration.md). |
 | **RestorationPart** | Job parts list: description, url, qty, unit_price, `category` (parts/supplies/ffe). |
 | **RestorationPartsOrder** | Named order targeting a grade. Status draft → requested → approved → purchased → received (or denied/cancelled). `review_state` (`ok` / `needs_review` / `reviewed`), `review_note`. Receive sets `needs_review`; inspect (`POST …/inspect/`) sets `reviewed` and writes `parts.order_inspected`. |

@@ -44,7 +44,7 @@ class DayPoolTests(APITestCase):
         self.open_shift, _ = Shift.objects.update_or_create(
             punch_code='retail_open',
             defaults={
-                'name': 'Cashier - Open', 'department': self.retail,
+                'name': 'Retail Open', 'department': self.retail,
                 'time_in': time(8, 30), 'time_out': time(14, 30),
                 'weekdays': [1, 2, 3, 4, 5], 'is_active': True,
             },
@@ -52,7 +52,7 @@ class DayPoolTests(APITestCase):
         self.day_shift, _ = Shift.objects.update_or_create(
             punch_code='retail_day',
             defaults={
-                'name': 'Cashier - Day', 'department': self.retail,
+                'name': 'Retail Mid', 'department': self.retail,
                 'time_in': time(11, 0), 'time_out': time(19, 0),
                 'weekdays': [1, 2, 3, 4, 5], 'is_active': False,
             },
@@ -60,7 +60,7 @@ class DayPoolTests(APITestCase):
         self.close_shift, _ = Shift.objects.update_or_create(
             punch_code='retail_close',
             defaults={
-                'name': 'Cashier - Close', 'department': self.retail,
+                'name': 'Retail Close', 'department': self.retail,
                 'time_in': time(12, 30), 'time_out': time(18, 30),
                 'weekdays': [1, 2, 3, 4, 5], 'is_active': True,
             },

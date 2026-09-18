@@ -24,7 +24,7 @@ function entry(overrides: Partial<TimeEntry> = {}): TimeEntry {
     clock_in: new Date(Date.now() - 3661_000).toISOString(),
     clock_out: null,
     shift: 'retail_open',
-    shift_label: 'Cashier - Open',
+    shift_label: 'Retail Open',
     shift_department: 'Retail',
     break_minutes: 0,
     on_break: false,
@@ -55,7 +55,7 @@ describe('ShiftHeroCard', () => {
     );
     expect(screen.getByText('Clock in')).toBeInTheDocument();
     expect(screen.getAllByRole('button')).toHaveLength(7);
-    await user.click(screen.getByRole('button', { name: 'Cashier - Open' }));
+    await user.click(screen.getByRole('button', { name: 'Retail Open' }));
     expect(onClockIn).toHaveBeenCalledWith('retail_open');
   });
 

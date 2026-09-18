@@ -575,15 +575,15 @@ class CommandCenterTests(APITestCase):
     def test_late_sentence_uses_minutes_then_hours_then_expected(self):
         from apps.routines.command_center import format_late_sentence
         self.assertEqual(
-            format_late_sentence('Sam', 25, 'Cashier - Open', '08:30'),
-            'Sam is 25 min late for Cashier - Open.',
+            format_late_sentence('Sam', 25, 'Retail Open', '08:30'),
+            'Sam is 25 min late for Retail Open.',
         )
         self.assertEqual(
-            format_late_sentence('Sam', 90, 'Cashier - Open', '08:30'),
-            'Sam is 1 h 30 min late for Cashier - Open.',
+            format_late_sentence('Sam', 90, 'Retail Open', '08:30'),
+            'Sam is 1 h 30 min late for Retail Open.',
         )
         self.assertEqual(
-            format_late_sentence('Sam', 308, 'Cashier - Open', '08:30'),
+            format_late_sentence('Sam', 308, 'Retail Open', '08:30'),
             'Sam: Expected 08:30, not in',
         )
 
@@ -921,10 +921,10 @@ class CommandCenterTests(APITestCase):
         self.open.shift_locked = True
         self.open.save(update_fields=['shift', 'shift_locked'])
         _, day_routine = self._cashier_pair(
-            'Cashier - Day', 'retail_day', SYSTEM_DAY, 'Retail day', time(14, 0), time(15, 0),
+            'Retail Mid', 'retail_day', SYSTEM_DAY, 'Retail day', time(14, 0), time(15, 0),
         )
         _, close_routine = self._cashier_pair(
-            'Cashier - Close', 'retail_close', SYSTEM_CLOSE, 'Retail close', time(18, 0), time(19, 0),
+            'Retail Close', 'retail_close', SYSTEM_CLOSE, 'Retail close', time(18, 0), time(19, 0),
         )
         for routine in (self.open, day_routine, close_routine):
             RoutineRun.objects.create(
@@ -951,7 +951,7 @@ class CommandCenterTests(APITestCase):
         close, _ = Shift.objects.update_or_create(
             punch_code='retail_close',
             defaults={
-                'name': 'Cashier - Close',
+                'name': 'Retail Close',
                 'department': self.department,
                 'time_in': time(17, 0),
                 'time_out': time(18, 0),
@@ -1078,7 +1078,7 @@ class CommandCenterTests(APITestCase):
         close, _ = Shift.objects.update_or_create(
             punch_code='retail_close',
             defaults={
-                'name': 'Cashier - Close',
+                'name': 'Retail Close',
                 'department': self.department,
                 'time_in': time(17, 0),
                 'time_out': time(18, 0),
@@ -1281,10 +1281,10 @@ class ScoringEngineTests(TestCase):
         from apps.routines.shift_seed import seed_cashier_shifts
         first = seed_cashier_shifts()
         second = seed_cashier_shifts()
-        self.assertTrue(any('Cashier - Open' in row for row in first))
+        self.assertTrue(any('Retail Open' in row for row in first))
         self.assertTrue(all('kept' in row or 'locked' in row for row in second))
         self.assertEqual(
-            Shift.objects.filter(name__in=('Cashier - Open', 'Cashier - Day', 'Cashier - Close')).count(),
+            Shift.objects.filter(name__in=('Retail Open', 'Retail Mid', 'Retail Close')).count(),
             3,
         )
 

@@ -92,8 +92,8 @@ describe('sortByPersonName', () => {
 });
 
 describe('copy', () => {
-  it('sizes the title for Cashier - Open plus ten characters', () => {
-    expect(TITLE_MAX_CHARS).toBe('Cashier - Open'.length + 10);
+  it('sizes the title for Retail Open plus ten characters', () => {
+    expect(TITLE_MAX_CHARS).toBe('Retail Open'.length + 10);
   });
 
   it('names the locked routine', () => {
@@ -106,15 +106,15 @@ describe('copy', () => {
 
   it('keeps Open before Day before Close', () => {
     const rows = [
-      { punch_code: 'retail_close', time_in: '12:30:00', name: 'Cashier - Close' },
-      { punch_code: 'retail_open', time_in: '08:30:00', name: 'Cashier - Open' },
-      { punch_code: 'retail_day', time_in: '13:00:00', name: 'Cashier - Day' },
+      { punch_code: 'retail_close', time_in: '12:30:00', name: 'Retail Close' },
+      { punch_code: 'retail_open', time_in: '08:30:00', name: 'Retail Open' },
+      { punch_code: 'retail_day', time_in: '13:00:00', name: 'Retail Mid' },
     ];
     const ordered = [...rows].sort((a, b) => {
       const [ap, at, an] = shiftSortKey(a);
       const [bp, bt, bn] = shiftSortKey(b);
       return ap - bp || at.localeCompare(bt) || an.localeCompare(bn);
     }).map((row) => row.name);
-    expect(ordered).toEqual(['Cashier - Open', 'Cashier - Day', 'Cashier - Close']);
+    expect(ordered).toEqual(['Retail Open', 'Retail Mid', 'Retail Close']);
   });
 });

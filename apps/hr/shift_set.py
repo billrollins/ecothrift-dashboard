@@ -24,7 +24,7 @@ DEPTS = {
 SHIFT_SPECS = (
     {
         'punch_code': 'retail_open',
-        'name': 'Cashier - Open',
+        'name': 'Retail Open',
         'dept_slug': 'retail-operations',
         'weekdays': TUE_SAT,
         'time_in': time(8, 30),
@@ -34,7 +34,7 @@ SHIFT_SPECS = (
     },
     {
         'punch_code': 'retail_day',
-        'name': 'Cashier - Day',
+        'name': 'Retail Mid',
         'dept_slug': 'retail-operations',
         'weekdays': TUE_SAT,
         'time_in': time(11, 0),
@@ -44,7 +44,7 @@ SHIFT_SPECS = (
     },
     {
         'punch_code': 'retail_close',
-        'name': 'Cashier - Close',
+        'name': 'Retail Close',
         'dept_slug': 'retail-operations',
         'weekdays': TUE_SAT,
         'time_in': time(12, 30),
@@ -54,7 +54,7 @@ SHIFT_SPECS = (
     },
     {
         'punch_code': 'retail_reset',
-        'name': 'Retail - Reset',
+        'name': 'Retail Reset',
         'dept_slug': 'retail-operations',
         'weekdays': MON,
         'time_in': time(9, 0),
@@ -64,7 +64,7 @@ SHIFT_SPECS = (
     },
     {
         'punch_code': 'processing',
-        'name': 'Processing - Day',
+        'name': 'Processing',
         'dept_slug': 'processing',
         'weekdays': MON_FRI,
         'time_in': time(9, 0),
@@ -74,7 +74,7 @@ SHIFT_SPECS = (
     },
     {
         'punch_code': 'restoration',
-        'name': 'Restoration - Day',
+        'name': 'Restoration',
         'dept_slug': 'restoration',
         'weekdays': MON_FRI,
         'time_in': time(9, 0),
@@ -84,7 +84,7 @@ SHIFT_SPECS = (
     },
     {
         'punch_code': 'office',
-        'name': 'Office - Day',
+        'name': 'Office',
         'dept_slug': 'office',
         'weekdays': MON_FRI,
         'time_in': time(9, 0),

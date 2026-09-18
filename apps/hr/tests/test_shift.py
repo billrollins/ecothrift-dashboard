@@ -62,9 +62,9 @@ class TimeEntryShiftTests(APITestCase):
             slug='office',
             defaults={'name': 'Office', 'icon': 'home', 'sort_order': 3},
         )
-        _live_shift(SHIFT_RETAIL_OPEN, 'Cashier - Open', self.retail)
-        _live_shift(SHIFT_OFFICE, 'Office - Day', self.office)
-        _live_shift('retail_reset', 'Retail - Reset', self.retail, weekdays=[0])
+        _live_shift(SHIFT_RETAIL_OPEN, 'Retail Open', self.retail)
+        _live_shift(SHIFT_OFFICE, 'Office', self.office)
+        _live_shift('retail_reset', 'Retail Reset', self.retail, weekdays=[0])
 
     def test_self_clock_in_needs_a_shift(self):
         user = _employee()
@@ -103,7 +103,7 @@ class TimeEntryShiftTests(APITestCase):
         ok = self.client.post('/api/hr/time-entries/', {'shift': SHIFT_OFFICE}, format='json')
         self.assertEqual(ok.status_code, 201, ok.data)
         self.assertEqual(ok.data['shift'], SHIFT_OFFICE)
-        self.assertEqual(ok.data['shift_label'], 'Office - Day')
+        self.assertEqual(ok.data['shift_label'], 'Office')
         self.assertEqual(ok.data['shift_department'], 'Office')
 
     def test_open_shift_labels_are_position_and_department(self):
@@ -111,7 +111,7 @@ class TimeEntryShiftTests(APITestCase):
         self.client.force_authenticate(user)
         ok = self.client.post('/api/hr/time-entries/', {'shift': SHIFT_RETAIL_OPEN}, format='json')
         self.assertEqual(ok.status_code, 201, ok.data)
-        self.assertEqual(ok.data['shift_label'], 'Cashier - Open')
+        self.assertEqual(ok.data['shift_label'], 'Retail Open')
         self.assertEqual(ok.data['shift_department'], 'Retail')
 
     def test_roster_label_carries_department(self):
@@ -125,7 +125,7 @@ class TimeEntryShiftTests(APITestCase):
         )
         rows = build_time_roster(entry.date, entry.date)
         match = next(row for row in rows if row['id'] == entry.id)
-        self.assertEqual(match['shift_label'], 'Retail: Cashier - Open')
+        self.assertEqual(match['shift_label'], 'Retail: Retail Open')
 
     def test_clock_tiles_follow_departments_and_shifts(self):
         manager = _manager()
@@ -147,7 +147,7 @@ class TimeEntryShiftTests(APITestCase):
         office.save(update_fields=['name', 'sort_order', 'is_active'])
         Shift.objects.filter(department__in=[retail, office]).delete()
         Shift.objects.create(
-            department=retail, name='Cashier - Open', time_in=time(8, 30), time_out=time(15, 0),
+            department=retail, name='Retail Open', time_in=time(8, 30), time_out=time(15, 0),
             weekdays=[1, 2, 3, 4, 5], punch_code=SHIFT_RETAIL_OPEN,
         )
         Shift.objects.create(
@@ -155,21 +155,21 @@ class TimeEntryShiftTests(APITestCase):
             weekdays=[0], punch_code='retail_inventory',
         )
         Shift.objects.create(
-            department=office, name='Management', time_in=time(9, 0), time_out=time(17, 0),
+            department=office, name='Office', time_in=time(9, 0), time_out=time(17, 0),
             weekdays=[1, 2, 3, 4, 5], punch_code=SHIFT_OFFICE,
         )
         self.client.force_authenticate(manager)
         thursday = self.client.get('/api/hr/shifts/clock_tiles/', {'date': '2026-09-17'})
         self.assertEqual(thursday.status_code, 200, thursday.data)
         thursday_names = [row['name'] for row in thursday.data]
-        self.assertIn('Cashier - Open', thursday_names)
-        self.assertIn('Management', thursday_names)
+        self.assertIn('Retail Open', thursday_names)
+        self.assertIn('Office', thursday_names)
         self.assertNotIn('Retail - Inventory', thursday_names)
         monday = self.client.get('/api/hr/shifts/clock_tiles/', {'date': '2026-09-14'})
         self.assertEqual(monday.status_code, 200, monday.data)
         monday_names = [row['name'] for row in monday.data]
         self.assertIn('Retail - Inventory', monday_names)
-        self.assertNotIn('Cashier - Open', monday_names)
+        self.assertNotIn('Retail Open', monday_names)
         self.assertTrue(any(row['department'] == 'Office' for row in thursday.data))
         self.assertTrue(all(row['name'] != 'Customer Service' for row in thursday.data))
 
@@ -203,8 +203,8 @@ class TimeEntryShiftTests(APITestCase):
     def test_shift_list_marks_locked_routines(self):
         open_shift = Shift.objects.get(punch_code=SHIFT_RETAIL_OPEN)
         reset = Shift.objects.get(punch_code='retail_reset')
-        day = _live_shift('retail_day', 'Cashier - Day', self.retail, is_active=False)
-        close = _live_shift('retail_close', 'Cashier - Close', self.retail)
+        day = _live_shift('retail_day', 'Retail Mid', self.retail, is_active=False)
+        close = _live_shift('retail_close', 'Retail Close', self.retail)
         for key, shift in (
             ('retail.open', open_shift),
             ('retail.day', day),

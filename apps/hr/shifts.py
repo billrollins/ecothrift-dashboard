@@ -46,18 +46,18 @@ SHIFT_DEPARTMENTS = [
 SHIFT_LABELS = {
     SHIFT_RETAIL_OPEN: {
         'department': DEPT_RETAIL,
-        'en': 'Cashier - Open',
-        'es': 'Caja - Apertura',
+        'en': 'Retail Open',
+        'es': 'Apertura',
     },
     SHIFT_RETAIL_DAY: {
         'department': DEPT_RETAIL,
-        'en': 'Cashier - Day',
-        'es': 'Caja - Dia',
+        'en': 'Retail Mid',
+        'es': 'Medio dia',
     },
     SHIFT_RETAIL_CLOSE: {
         'department': DEPT_RETAIL,
-        'en': 'Cashier - Close',
-        'es': 'Caja - Cierre',
+        'en': 'Retail Close',
+        'es': 'Cierre',
     },
     SHIFT_RETAIL_CS: {
         'department': DEPT_RETAIL,
@@ -76,8 +76,8 @@ SHIFT_LABELS = {
     },
     SHIFT_OFFICE: {
         'department': DEPT_OFFICE,
-        'en': 'Management',
-        'es': 'Gerencia',
+        'en': 'Office',
+        'es': 'Oficina',
     },
 }
 
