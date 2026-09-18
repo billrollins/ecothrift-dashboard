@@ -1308,6 +1308,8 @@ def week_grade(monday: date, cfg: dict | None = None) -> dict:
         'owner': projected['thirds']['owner'],
         'score': projected['score'],
         'letter': projected['letter'],
+        'weights': projected.get('weights'),
+        'excluded': projected.get('excluded'),
     }
     _store_week_snapshot(monday, live, ctx, finalize=monday < current)
     return live
@@ -1378,6 +1380,8 @@ def preview_week(monday: date, edited: dict) -> dict:
             'thirds': projected['thirds'],
             'score': projected['score'],
             'letter': projected['letter'],
+            'weights': projected.get('weights'),
+            'excluded': projected.get('excluded'),
         },
     }
 
