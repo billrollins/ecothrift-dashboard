@@ -100,9 +100,12 @@ def _closed_payload(day: date, goal: str | None) -> dict:
         'goal_letter': goal,
         'goal_met': False,
         'grade_scale': _grade_scale(),
+        'weights': {},
+        'excluded': [],
         'do': None,
         'spot': None,
         'cross': None,
+        'cross_info': None,
     }
 
 
@@ -128,7 +131,14 @@ def day_summary_for_date(day: date, *, today: date | None = None) -> dict:
     min_walks = int(cfg.get('walk_floor', WALK_FLOOR))
     due = cross_check_day_for(day)
     cross_done, cross_due = _cross_counts(week)
-    week_cross = (week.get('thirds') or {}).get('cross')
+    day_audits = ((day_row or {}).get('cross') or {}).get('audits') or []
+    done_on_this_day = sum(1 for row in day_audits if row.get('status') == 'done')
+    if due and day < due:
+        cross_state = 'pending'
+    elif cross_due and cross_done >= cross_due:
+        cross_state = 'done'
+    else:
+        cross_state = 'live'
     return {
         'date': day.isoformat(),
         'open': True,
@@ -137,6 +147,8 @@ def day_summary_for_date(day: date, *, today: date | None = None) -> dict:
         'goal_letter': goal,
         'goal_met': letter_meets(letter, goal),
         'grade_scale': _grade_scale(),
+        'weights': (day_row or {}).get('weights') or {},
+        'excluded': (day_row or {}).get('excluded') or [],
         'do': {
             'score': doing.get('score'),
             'section_checks': section_checks,
@@ -147,12 +159,12 @@ def day_summary_for_date(day: date, *, today: date | None = None) -> dict:
             'walks': {'done': walks, 'min_for_week': min_walks},
             'state': _spot_state(day=day, today=today, walks=walks),
         },
-        'cross': {
-            'score': week_cross,
+        'cross_info': {
             'done': cross_done,
             'due': cross_due,
             'due_date': due.isoformat() if due else None,
-            'state': 'pending' if due and day < due else 'live',
+            'state': cross_state,
+            'done_on_this_day': done_on_this_day,
         },
     }
 
@@ -195,6 +207,8 @@ def week_summary_for_staff(monday: date, *, today: date | None = None) -> dict:
         'goal_letter': goal,
         'goal_met': letter_meets(letter, goal),
         'grade_scale': _grade_scale(),
+        'weights': week.get('weights') or {},
+        'excluded': week.get('excluded') or [],
         'do': {
             'score': thirds.get('doing'),
             'section_checks': section,

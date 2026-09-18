@@ -115,15 +115,25 @@ def combine_weighted(
     return {'score': round(score, 1), 'weights': weights, 'excluded': excluded}
 
 
-def _renormalize(parts: list[tuple[float, float]]) -> float | None:
-    """Weighted parts renormalized to 100. parts are (weight, score)."""
-    present = [(weight, score) for weight, score in parts if score is not None]
-    if not present:
-        return None
-    total_w = sum(weight for weight, _ in present)
-    if total_w <= 0:
-        return None
-    return round(sum(weight * score for weight, score in present) / total_w, 1)
+def excluded_reasons(
+    excluded: list[str],
+    *,
+    due: date | None = None,
+    period: str = 'week',
+) -> dict[str, str]:
+    reasons: dict[str, str] = {}
+    for key in excluded:
+        if key == 'spot':
+            reasons[key] = (
+                'No walks this week · not counted'
+                if period == 'week'
+                else 'No walk that day · not counted'
+            )
+        elif key == 'cross' and due:
+            reasons[key] = f'Cross-checks pending until {due.strftime("%a %b")} {due.day}'
+        elif key == 'cross':
+            reasons[key] = 'Cross-checks pending'
+    return reasons
 
 
 def section_checks_required(day: date, cfg: dict | None = None) -> bool:
@@ -702,26 +712,6 @@ def _mean_or_none(values):
     return None if not present else round(mean(present), 1)
 
 
-def _blend_weights(
-    doing: float | None,
-    cross: float | None,
-    owner: float | None,
-    cfg: dict | None = None,
-    *,
-    include_cross: bool = True,
-) -> tuple[float | None, str | None]:
-    spot_w, do_w, cross_w = _weights(cfg)
-    parts: list[tuple[float, float]] = []
-    if owner is not None:
-        parts.append((spot_w, owner))
-    if doing is not None:
-        parts.append((do_w, doing))
-    if include_cross and cross is not None:
-        parts.append((cross_w, cross))
-    score = _renormalize(parts)
-    return score, (letter_for(score, cfg) if score is not None else None)
-
-
 def grade_day(day: date, ctx: dict | None = None, *, project: bool = False) -> dict:
     ctx = ctx or _week_context(this_monday(day))
     cfg = ctx['cfg']
@@ -748,6 +738,7 @@ def grade_day(day: date, ctx: dict | None = None, *, project: bool = False) -> d
         'letter': letter if graded else None,
         'weights': blended['weights'],
         'excluded': blended['excluded'],
+        'excluded_reasons': excluded_reasons(blended['excluded'], period='day'),
         'thirds': {
             'doing': doing['score'],
             'cross': cross['score'],
@@ -1272,6 +1263,7 @@ def _assemble_week(ctx: dict, *, project: bool = False) -> dict:
         'letter': letter,
         'weights': blended['weights'],
         'excluded': blended['excluded'],
+        'excluded_reasons': excluded_reasons(blended['excluded'], due=due, period='week'),
         'thirds': {'doing': doing, 'cross': cross, 'owner': owner},
         'daily_average': doing,
         'cross_check_average': cross,
@@ -1310,6 +1302,7 @@ def week_grade(monday: date, cfg: dict | None = None) -> dict:
         'letter': projected['letter'],
         'weights': projected.get('weights'),
         'excluded': projected.get('excluded'),
+        'excluded_reasons': projected.get('excluded_reasons'),
     }
     _store_week_snapshot(monday, live, ctx, finalize=monday < current)
     return live
@@ -1359,6 +1352,8 @@ def week_summary(monday: date, cfg: dict | None = None) -> dict:
                 'graded': row['graded'],
                 'doing': row['thirds']['doing'],
                 'owner_pending': row['owner'].get('pending'),
+                'weights': row.get('weights'),
+                'excluded': row.get('excluded'),
             }
             for row in week.get('days') or []
         ],

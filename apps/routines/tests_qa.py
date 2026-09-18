@@ -338,14 +338,19 @@ class CommandCenterTests(APITestCase):
     def setUp(self):
         self.mgr = _staff('mgr@example.com', 'Manager')
         self.sam = _staff('sam@example.com')
-        self.department, _ = Department.objects.get_or_create(name='Retail')
-        self.shift = Shift.objects.create(
-            name='Retail Open',
-            department=self.department,
+        self.department, _ = Department.objects.get_or_create(
+            name='Retail', defaults={'slug': 'retail-operations', 'icon': 'cart'},
+        )
+        self.shift, _ = Shift.objects.update_or_create(
             punch_code='retail_open',
-            time_in=time(8, 30),
-            time_out=time(15, 0),
-            weekdays=[1, 2, 3, 4, 5],
+            defaults={
+                'name': 'Retail Open',
+                'department': self.department,
+                'time_in': time(8, 30),
+                'time_out': time(15, 0),
+                'weekdays': [1, 2, 3, 4, 5],
+                'is_active': True,
+            },
         )
         ShiftAssignment.objects.create(
             employee=self.sam, shift=self.shift, weekdays=[1, 2, 3, 4, 5],
@@ -643,6 +648,9 @@ class CommandCenterTests(APITestCase):
         david = _staff('david@example.com')
         david.first_name = 'David'
         david.save(update_fields=['first_name'])
+        ShiftAssignment.objects.create(
+            employee=david, shift=self.shift, weekdays=[0],
+        )
         Section.objects.filter(pk=self.section.pk).update(owner=david)
         extras = []
         for name in ('Books', 'Media', 'Toys', 'Seasonal'):
@@ -710,6 +718,37 @@ class CommandCenterTests(APITestCase):
         )
         self.assertEqual(status, STATUS_UNASSIGNED)
 
+    def test_owner_without_a_roster_row_stays_named(self):
+        from apps.routines.command_center import STATUS_NOT_TALLIED, section_due_state
+        day = date(2026, 9, 18)
+        ShiftAssignment.objects.filter(employee=self.sam).delete()
+        now = timezone.make_aware(datetime.combine(day, time(10, 0)), TZ)
+        due, label, status, late = section_due_state(
+            self.section, run=None, status=STATUS_NOT_TALLIED,
+            day=day, now=now, tz=TZ, punches={}, call_ins=set(),
+        )
+        self.assertEqual(status, STATUS_NOT_TALLIED)
+        self.assertEqual(label, 'Due after clock-in')
+        self.assertFalse(late)
+
+    def test_punched_owner_without_a_roster_row_stays_named(self):
+        from apps.routines.command_center import STATUS_NOT_TALLIED, section_due_state
+        day = date(2026, 9, 18)
+        ShiftAssignment.objects.filter(employee=self.sam).delete()
+        punch = TimeEntry(
+            employee=self.sam,
+            date=day,
+            clock_in=timezone.make_aware(datetime.combine(day, time(8, 30)), TZ),
+        )
+        now = timezone.make_aware(datetime.combine(day, time(9, 0)), TZ)
+        due, label, status, late = section_due_state(
+            self.section, run=None, status=STATUS_NOT_TALLIED,
+            day=day, now=now, tz=TZ, punches={self.sam.pk: punch}, call_ins=set(),
+        )
+        self.assertEqual(status, STATUS_NOT_TALLIED)
+        self.assertEqual(label, 'Due 09:30')
+        self.assertFalse(late)
+
     def test_cross_payload_lists_every_section_before_any_are_done(self):
         from apps.routines.command_center import cross_payload
         monday = date(2026, 9, 14)
@@ -740,6 +779,68 @@ class CommandCenterTests(APITestCase):
         row = QaNudge.objects.get(run=run)
         self.assertEqual(row.source, 'assign')
         self.assertEqual(row.created_by_id, self.mgr.pk)
+
+    def test_assign_run_reuses_the_person_s_existing_tally(self):
+        from apps.routines.command_center import assign_run
+        day = date(2026, 9, 17)
+        due = timezone.make_aware(datetime.combine(day, time(14, 0)), TZ)
+        mine = RoutineRun.objects.create(
+            routine=self.tally,
+            period_key=day.isoformat(),
+            assigned_to=self.sam,
+            due_at=due,
+            status=RoutineRun.STATUS_OPEN,
+        )
+        leftover = RoutineRun.objects.create(
+            routine=self.tally,
+            period_key=day.isoformat(),
+            assigned_to=None,
+            unassign_key='u-leftover',
+            due_at=due,
+            status=RoutineRun.STATUS_OPEN,
+        )
+        result = assign_run(run=leftover, user=self.sam, marked_by=self.mgr)
+        self.assertEqual(result.pk, mine.pk)
+        leftover.refresh_from_db()
+        self.assertIsNone(leftover.assigned_to_id)
+        mine.refresh_from_db()
+        self.assertEqual(mine.assigned_to_id, self.sam.pk)
+
+    def test_assign_api_does_not_duplicate_a_tally(self):
+        day = date(2026, 9, 17)
+        due = timezone.make_aware(datetime.combine(day, time(14, 0)), TZ)
+        mine = RoutineRun.objects.create(
+            routine=self.tally,
+            period_key=day.isoformat(),
+            assigned_to=self.sam,
+            due_at=due,
+            status=RoutineRun.STATUS_OPEN,
+        )
+        leftover = RoutineRun.objects.create(
+            routine=self.tally,
+            period_key=day.isoformat(),
+            assigned_to=None,
+            unassign_key='u-leftover',
+            due_at=due,
+            status=RoutineRun.STATUS_OPEN,
+        )
+        self.client.force_authenticate(self.mgr)
+        response = self.client.post('/api/routines/qa/board/assign/', {
+            'date': day.isoformat(),
+            'kind': 'run',
+            'run': leftover.pk,
+            'user': self.sam.pk,
+        }, format='json')
+        self.assertEqual(response.status_code, 200, getattr(response, 'data', response.content))
+        self.assertEqual(response.data['run_id'], mine.pk)
+        leftover.refresh_from_db()
+        self.assertIsNone(leftover.assigned_to_id)
+        self.assertEqual(
+            RoutineRun.objects.filter(
+                routine=self.tally, period_key=day.isoformat(), assigned_to=self.sam,
+            ).count(),
+            1,
+        )
 
     def test_scheduled_owner_stays_due_until_they_punch(self):
         from apps.routines.command_center import build_jobs
@@ -777,13 +878,16 @@ class CommandCenterTests(APITestCase):
         self.assertEqual(run.pk, open_job['run_id'])
 
     def _cashier_pair(self, name, punch, key, title, due, hard):
-        shift = Shift.objects.create(
-            name=name,
-            department=self.department,
+        shift, _ = Shift.objects.update_or_create(
             punch_code=punch,
-            time_in=time(8, 30),
-            time_out=time(15, 0),
-            weekdays=[1, 2, 3, 4, 5],
+            defaults={
+                'name': name,
+                'department': self.department,
+                'time_in': time(8, 30),
+                'time_out': time(15, 0),
+                'weekdays': [1, 2, 3, 4, 5],
+                'is_active': True,
+            },
         )
         ShiftAssignment.objects.create(
             employee=self.sam, shift=shift, weekdays=[1, 2, 3, 4, 5],
@@ -843,13 +947,16 @@ class CommandCenterTests(APITestCase):
         from apps.webstore.services.hours import get_hours_config
         day = date(2026, 9, 16)
         ShiftAssignment.objects.filter(employee=self.sam).delete()
-        close = Shift.objects.create(
-            name='Cashier - Close',
-            department=self.department,
+        close, _ = Shift.objects.update_or_create(
             punch_code='retail_close',
-            time_in=time(17, 0),
-            time_out=time(18, 0),
-            weekdays=[1, 2, 3, 4, 5],
+            defaults={
+                'name': 'Cashier - Close',
+                'department': self.department,
+                'time_in': time(17, 0),
+                'time_out': time(18, 0),
+                'weekdays': [1, 2, 3, 4, 5],
+                'is_active': True,
+            },
         )
         routine, _ = Routine.objects.update_or_create(
             system_key=SYSTEM_CLOSE,
@@ -958,7 +1065,7 @@ class CommandCenterTests(APITestCase):
             punch_code='floor_lead',
         )
         self.client.force_authenticate(self.sam)
-        response = self.client.get('/api/hr/shifts/clock_tiles/')
+        response = self.client.get('/api/hr/shifts/clock_tiles/', {'date': '2026-09-16'})
         self.assertEqual(response.status_code, 200, response.data)
         names = [row['name'] for row in response.data]
         self.assertIn('Floor Lead', names)
@@ -967,13 +1074,16 @@ class CommandCenterTests(APITestCase):
         from apps.routines.command_center import build_issues, build_jobs, scheduled_for_routine
         from apps.webstore.services.hours import get_hours_config
         day = date(2026, 9, 16)
-        close = Shift.objects.create(
-            name='Cashier - Close',
-            department=self.department,
+        close, _ = Shift.objects.update_or_create(
             punch_code='retail_close',
-            time_in=time(17, 0),
-            time_out=time(18, 0),
-            weekdays=[1, 2, 3, 4, 5],
+            defaults={
+                'name': 'Cashier - Close',
+                'department': self.department,
+                'time_in': time(17, 0),
+                'time_out': time(18, 0),
+                'weekdays': [1, 2, 3, 4, 5],
+                'is_active': True,
+            },
         )
         routine, _ = Routine.objects.update_or_create(
             system_key=SYSTEM_CLOSE,
@@ -1075,42 +1185,46 @@ class CommandCenterTests(APITestCase):
 
 class ScoringEngineTests(TestCase):
     def test_zero_walk_week_with_everything_else_done_shows_c(self):
-        from apps.routines.grading import _blend_weights, _walk_cap
+        from apps.routines.grading import _walk_cap, combine_weighted
         from apps.routines.settings import WEIGHT_CROSS, WEIGHT_DO, WEIGHT_SPOT
         cfg = retail_qa_settings()
         self.assertEqual((WEIGHT_SPOT, WEIGHT_DO, WEIGHT_CROSS), (60, 25, 15))
-        score, _letter = _blend_weights(100.0, 100.0, None, cfg, include_cross=True)
-        _capped, letter = _walk_cap(score, 0, cfg)
+        result = combine_weighted([
+            ('spot', 60, None),
+            ('do', 25, 100.0),
+            ('cross', 15, 100.0),
+        ])
+        _capped, letter = _walk_cap(result['score'], 0, cfg)
         self.assertEqual(letter, 'C')
 
     def test_day_with_no_walk_shows_do_only_and_spot_dash(self):
-        from apps.routines.grading import _blend_weights
-        cfg = retail_qa_settings()
-        score, letter = _blend_weights(92.0, None, None, cfg, include_cross=False)
-        self.assertEqual(score, 92.0)
-        self.assertIsNotNone(letter)
-        self.assertIsNone(_blend_weights(None, None, None, cfg, include_cross=False)[0])
+        from apps.routines.grading import combine_weighted
+        result = combine_weighted([('spot', 60, None), ('do', 25, 92.0)])
+        self.assertEqual(result['score'], 92.0)
+        self.assertEqual(result['weights']['do'], 100.0)
+        self.assertIsNone(combine_weighted([('spot', 60, None), ('do', 25, None)])['score'])
 
     def test_week_grade_equals_spot_do_blend_before_cross_due(self):
-        from apps.routines.grading import _blend_weights, _week_cross
-        cfg = retail_qa_settings()
+        from apps.routines.grading import _week_cross, combine_weighted
         daily = [{'cross': {'audits': [{'status': 'open'}]}}]
         self.assertIsNone(_week_cross(daily, due=date(2026, 9, 20), today=date(2026, 9, 16), project=False))
-        blend, _ = _blend_weights(88.0, None, 91.0, cfg, include_cross=False)
-        with_cross, _ = _blend_weights(88.0, 100.0, 91.0, cfg, include_cross=True)
-        self.assertNotEqual(blend, with_cross)
-        self.assertEqual(blend, _blend_weights(88.0, 50.0, 91.0, cfg, include_cross=False)[0])
+        blend = combine_weighted([('spot', 60, 91.0), ('do', 25, 88.0)])
+        with_cross = combine_weighted([('spot', 60, 91.0), ('do', 25, 88.0), ('cross', 15, 100.0)])
+        self.assertNotEqual(blend['score'], with_cross['score'])
+        self.assertEqual(
+            blend['score'],
+            combine_weighted([('spot', 60, 91.0), ('do', 25, 88.0), ('cross', 15, None)])['score'],
+        )
 
     def test_empty_spot_renormalizes_and_zero_walks_cap_at_c(self):
-        from apps.routines.grading import _blend_weights, _walk_cap
+        from apps.routines.grading import _walk_cap, combine_weighted
         cfg = retail_qa_settings()
-        score, letter = _blend_weights(100.0, None, None, cfg, include_cross=False)
-        self.assertEqual(score, 100.0)
-        self.assertEqual(letter, 'A')
-        capped, cap_letter = _walk_cap(score, 0, cfg)
+        result = combine_weighted([('spot', 60, None), ('do', 25, 100.0)])
+        self.assertEqual(result['score'], 100.0)
+        capped, cap_letter = _walk_cap(result['score'], 0, cfg)
         self.assertEqual(cap_letter, 'C')
-        blend, _ = _blend_weights(100.0, None, 100.0, cfg, include_cross=False)
-        self.assertEqual(blend, 100.0)
+        blend = combine_weighted([('spot', 60, 100.0), ('do', 25, 100.0)])
+        self.assertEqual(blend['score'], 100.0)
 
     def test_cross_stays_out_before_the_due_date(self):
         from apps.routines.grading import _week_cross
@@ -1120,25 +1234,23 @@ class ScoringEngineTests(TestCase):
         self.assertEqual(_week_cross(daily, due=date(2026, 9, 16), today=date(2026, 9, 16), project=False), 0.0)
 
     def test_projection_keeps_scored_days_and_fills_only_the_rest(self):
-        from apps.routines.grading import _blend_weights, _doing_for_week, _owner_for_week, _walk_cap
+        from apps.routines.grading import _doing_for_week, _owner_for_week, _walk_cap, combine_weighted
         cfg = retail_qa_settings()
         daily = [
-            {'date': '2026-09-15', 'graded': True, 'open_day': True, 'thirds': {'doing': 0.0, 'owner': None}},
-            {'date': '2026-09-16', 'graded': True, 'open_day': True, 'thirds': {'doing': 0.0, 'owner': None}},
-            {'date': '2026-09-17', 'graded': True, 'open_day': True, 'thirds': {'doing': 40.0, 'owner': 20.0}},
-            {'date': '2026-09-18', 'graded': False, 'open_day': True, 'thirds': {'doing': None, 'owner': None}},
-            {'date': '2026-09-19', 'graded': False, 'open_day': True, 'thirds': {'doing': None, 'owner': None}},
+            {'date': '2026-09-15', 'graded': True, 'open_day': True, 'thirds': {'doing': 0.0, 'owner': None}, 'doing': {'done': 0, 'needed': 10}},
+            {'date': '2026-09-16', 'graded': True, 'open_day': True, 'thirds': {'doing': 0.0, 'owner': None}, 'doing': {'done': 0, 'needed': 10}},
+            {'date': '2026-09-17', 'graded': True, 'open_day': True, 'thirds': {'doing': 40.0, 'owner': 20.0}, 'doing': {'done': 4, 'needed': 10}},
+            {'date': '2026-09-18', 'graded': False, 'open_day': True, 'thirds': {'doing': None, 'owner': None}, 'doing': {'done': 0, 'needed': 10}},
+            {'date': '2026-09-19', 'graded': False, 'open_day': True, 'thirds': {'doing': None, 'owner': None}, 'doing': {'done': 0, 'needed': 10}},
         ]
         today = date(2026, 9, 17)
         doing = _doing_for_week(daily, today=today, project=True)
-        owner, walks = _owner_for_week(daily, today=today)
+        owner, walks = _owner_for_week(daily, today=today, project=True)
         self.assertEqual(doing, 48.0)
-        self.assertEqual(owner, 20.0)
-        self.assertEqual(walks, 1)
-        remaining = 2
-        owner = round((20.0 * 1 + 100.0 * remaining) / (1 + remaining), 1)
-        score, _ = _blend_weights(doing, None, owner, cfg, include_cross=False)
-        _capped, letter = _walk_cap(score, 3, cfg)
+        self.assertEqual(owner, 73.3)
+        self.assertEqual(walks, 3)
+        result = combine_weighted([('spot', 60, owner), ('do', 25, doing)])
+        _capped, letter = _walk_cap(result['score'], walks, cfg)
         self.assertNotEqual(letter, 'A')
 
     def test_expected_persists_and_ignores_a_later_call_in(self):
@@ -1174,3 +1286,83 @@ class ScoringEngineTests(TestCase):
             Shift.objects.filter(name__in=('Cashier - Open', 'Cashier - Day', 'Cashier - Close')).count(),
             3,
         )
+
+
+FORBIDDEN_SUMMARY_KEYS = {
+    'name', 'full_name', 'assigned_to', 'completed_by', 'owner', 'email',
+    'people', 'nudges', 'staff', 'jobs', 'checker',
+}
+
+
+def _assert_no_forbidden_keys(test, payload, path='root'):
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            test.assertNotIn(key, FORBIDDEN_SUMMARY_KEYS, msg=path)
+            _assert_no_forbidden_keys(test, value, f'{path}.{key}')
+    elif isinstance(payload, list):
+        for index, value in enumerate(payload):
+            _assert_no_forbidden_keys(test, value, f'{path}[{index}]')
+
+
+def _last_weekday(weekday: int) -> date:
+    today = timezone.localdate()
+    return today - timedelta(days=(today.weekday() - weekday) % 7)
+
+
+class DaySummaryApiTests(APITestCase):
+    def setUp(self):
+        self.employee = _staff('day-summary-emp@example.com', 'Employee')
+
+    def test_employee_open_day_is_200_without_names(self):
+        self.client.force_authenticate(self.employee)
+        tuesday = _last_weekday(1)
+        response = self.client.get('/api/routines/qa/day-summary/', {'date': tuesday.isoformat()})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data.get('open'))
+        _assert_no_forbidden_keys(self, response.data)
+
+    def test_anonymous_is_401(self):
+        tuesday = _last_weekday(1)
+        response = self.client.get('/api/routines/qa/day-summary/', {'date': tuesday.isoformat()})
+        self.assertEqual(response.status_code, 401)
+
+    def test_closed_day_nulls_thirds(self):
+        self.client.force_authenticate(self.employee)
+        monday = _last_weekday(0)
+        response = self.client.get('/api/routines/qa/day-summary/', {'date': monday.isoformat()})
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['open'])
+        self.assertIsNone(response.data['letter'])
+        self.assertIsNone(response.data['score'])
+        self.assertIsNone(response.data['do'])
+        self.assertIsNone(response.data['spot'])
+        self.assertIsNone(response.data['cross'])
+
+    def test_future_date_is_400(self):
+        self.client.force_authenticate(self.employee)
+        response = self.client.get('/api/routines/qa/day-summary/', {'date': '2099-01-06'})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('date is in the future', str(response.data.get('detail', '')))
+
+    def test_xor_query_is_400(self):
+        self.client.force_authenticate(self.employee)
+        both = self.client.get('/api/routines/qa/day-summary/', {
+            'date': _last_weekday(1).isoformat(), 'week': '2026-W36',
+        })
+        neither = self.client.get('/api/routines/qa/day-summary/')
+        self.assertEqual(both.status_code, 400)
+        self.assertEqual(neither.status_code, 400)
+
+    def test_future_week_is_400(self):
+        self.client.force_authenticate(self.employee)
+        response = self.client.get('/api/routines/qa/day-summary/', {'week': '2099-W01'})
+        self.assertEqual(response.status_code, 400)
+
+    def test_current_week_is_200(self):
+        from apps.routines.grading import week_label, this_monday
+        self.client.force_authenticate(self.employee)
+        week = week_label(this_monday(timezone.localdate()))
+        response = self.client.get('/api/routines/qa/day-summary/', {'week': week})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data.get('week'), week)
+        _assert_no_forbidden_keys(self, response.data)

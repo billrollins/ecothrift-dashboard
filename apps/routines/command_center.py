@@ -27,6 +27,7 @@ from .grading import (
     closed_section_ids,
     day_grade,
     expected_parts,
+    section_owner_people,
     this_monday,
     week_grade,
     week_label,
@@ -1512,6 +1513,8 @@ def week_tiles(monday: date, week: dict, *, today: date, due: date | None) -> li
             'doing': doing,
             'spot': spot_score,
             'cross': cross,
+            'weights': None if row is None else row.get('weights'),
+            'excluded': None if row is None else row.get('excluded'),
             'is_today': day == today,
             'is_future': future,
         })
@@ -1612,9 +1615,10 @@ def week_payload(monday: date) -> dict:
                 'days': row.get('section_days') or ['none'] * 7,
                 'done': row.get('done'),
                 'assigned': row.get('assigned'),
+                'due_today': row.get('due_today') or 0,
                 'on_task': row.get('on_task'),
             }
-            for row in (week.get('people') or [])
+            for row in section_owner_people(week.get('people') or [])
         ],
     }
 
