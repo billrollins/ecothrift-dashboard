@@ -10,7 +10,7 @@ import {
 } from '@mui/material';
 import Close from '@mui/icons-material/Close';
 import type { DepartmentDailyMetric, DepartmentDailyWeek } from '../../types/pos.types';
-import { dashboardPalette } from './dashboardCardStyles';
+import { dashboardPalette, failLetterColors, isFailLetter } from './dashboardCardStyles';
 import { shortDate } from './dashboardFormatters';
 
 const DAY_HEADS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -45,8 +45,10 @@ function GridCell({
   onClick?: (event: React.MouseEvent<HTMLElement>) => void;
   ariaLabel?: string;
 }) {
-  const achieved = goalState === 'achieved';
-  const scheduled = goalState === 'scheduled';
+  const fail = isFailLetter(value);
+  const achieved = goalState === 'achieved' && !fail;
+  const scheduled = goalState === 'scheduled' && !fail;
+  const muted = value === 'Closed' || value === '\u2014';
   const cellSx = {
     minWidth: 0,
     width: '100%',
@@ -54,20 +56,24 @@ function GridCell({
     px: 0.25,
     minHeight: 44,
     border: '1px solid',
-    borderColor: achieved
-      ? dashboardPalette.gold
-      : scheduled
-        ? 'rgba(189, 134, 24, 0.55)'
-        : isToday
-          ? dashboardPalette.green
-          : 'rgba(91, 111, 95, 0.32)',
+    borderColor: fail
+      ? failLetterColors.border
+      : achieved
+        ? dashboardPalette.gold
+        : scheduled
+          ? 'rgba(189, 134, 24, 0.55)'
+          : isToday
+            ? dashboardPalette.green
+            : 'rgba(91, 111, 95, 0.32)',
     borderStyle: scheduled && !achieved ? 'dashed' : 'solid',
     borderRadius: 1,
-    bgcolor: achieved
-      ? dashboardPalette.goldSoft
-      : isToday
-        ? dashboardPalette.greenSoft
-        : 'transparent',
+    bgcolor: fail
+      ? failLetterColors.bg
+      : achieved
+        ? dashboardPalette.goldSoft
+        : isToday
+          ? dashboardPalette.greenSoft
+          : 'transparent',
     textAlign: 'center' as const,
     display: 'flex',
     alignItems: 'center',
@@ -93,10 +99,17 @@ function GridCell({
     <Typography
       variant="caption"
       fontWeight={isToday || achieved ? 900 : 700}
+      title={value === '\u2014' ? 'No activity' : value}
       sx={{
         fontSize: '0.75rem',
         lineHeight: 1.2,
-        color: achieved ? dashboardPalette.goldDark : 'inherit',
+        color: fail
+          ? failLetterColors.text
+          : achieved
+            ? dashboardPalette.goldDark
+            : muted
+              ? 'text.secondary'
+              : 'inherit',
       }}
     >
       {value}

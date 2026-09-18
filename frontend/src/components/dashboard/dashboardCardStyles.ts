@@ -1,3 +1,5 @@
+import { ccTokens } from '../../theme';
+
 export const dashboardPalette = {
   backdrop: '#33483a',
   backdropDeep: '#243429',
@@ -133,6 +135,17 @@ export const dashboardCardHoverLiftSx = {
 } as const;
 
 /** Solid left-edge accent - color only, no wash across the card. */
+
+/** F is a miss. Never treat it as the amber scheduled state. */
+export function isFailLetter(value: string): boolean {
+  return /^F[+-]?$/i.test((value || '').trim());
+}
+
+export const failLetterColors = {
+  border: ccTokens.bad,
+  bg: ccTokens.badTint,
+  text: ccTokens.bad,
+} as const;
 
 export function dashboardAccentLeftSx(accent: string) {
 

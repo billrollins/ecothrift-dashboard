@@ -5,6 +5,8 @@ import {
   dashboardCardHoverLiftSx,
   dashboardPalette,
   dashboardRaisedDeptCardSx,
+  failLetterColors,
+  isFailLetter,
 } from './dashboardCardStyles';
 
 interface DepartmentStatCardProps {
@@ -18,6 +20,7 @@ interface DepartmentStatCardProps {
   placeholder?: boolean;
   goalMet?: boolean;
   onGoalClick: () => void;
+  onActualClick?: () => void;
   footer?: ReactNode;
   onViewWeekDetail?: () => void;
   showWeekDetailButton?: boolean;
@@ -48,6 +51,7 @@ export function DepartmentStatCard({
   placeholder = false,
   goalMet = false,
   onGoalClick,
+  onActualClick,
   footer,
   onViewWeekDetail,
   showWeekDetailButton = false,
@@ -205,6 +209,10 @@ export function DepartmentStatCard({
           </Box>
 
           <Box
+            component={onActualClick ? 'button' : 'div'}
+            type={onActualClick ? 'button' : undefined}
+            onClick={onActualClick}
+            aria-label={onActualClick ? `Actual ${actualDisplay}` : undefined}
             sx={{
               minWidth: 0,
               maxWidth: { sm: '52%' },
@@ -212,6 +220,13 @@ export function DepartmentStatCard({
               flexDirection: 'column',
               justifyContent: 'flex-end',
               alignItems: { xs: 'flex-start', sm: 'flex-end' },
+              p: 0,
+              border: 'none',
+              background: 'none',
+              cursor: onActualClick ? 'pointer' : 'default',
+              font: 'inherit',
+              color: 'inherit',
+              textAlign: { xs: 'left', sm: 'right' },
             }}
           >
             <Typography
@@ -237,11 +252,16 @@ export function DepartmentStatCard({
                 fontWeight: 900,
                 lineHeight: 0.95,
                 letterSpacing: '-0.02em',
+                textDecoration: onActualClick ? 'underline' : 'none',
+                textDecorationColor: 'rgba(91, 111, 95, 0.35)',
+                textUnderlineOffset: 4,
                 color: placeholder
                   ? 'text.secondary'
-                  : goalMet
-                    ? dashboardPalette.goldDark
-                    : accent,
+                  : isFailLetter(actualDisplay)
+                    ? failLetterColors.text
+                    : goalMet
+                      ? dashboardPalette.goldDark
+                      : accent,
               }}
             >
               {actualDisplay}

@@ -5,6 +5,8 @@ import {
   dashboardAccentLeftSx,
   dashboardPalette,
   dashboardPhoneCardSx,
+  failLetterColors,
+  isFailLetter,
 } from '../dashboardCardStyles';
 import { DepartmentWeekStrip } from './DepartmentWeekStrip';
 
@@ -18,6 +20,7 @@ export function DepartmentCardPhone({
   placeholder = false,
   goalMet = false,
   onGoalClick,
+  onActualClick,
   onViewHistory,
   historyLabel,
   week,
@@ -37,6 +40,7 @@ export function DepartmentCardPhone({
   placeholder?: boolean;
   goalMet?: boolean;
   onGoalClick: () => void;
+  onActualClick?: () => void;
   onViewHistory: () => void;
   historyLabel: string;
   week: DepartmentDailyWeek | null;
@@ -163,7 +167,22 @@ export function DepartmentCardPhone({
               {goalDisplay}
             </Typography>
           </Box>
-          <Box sx={{ textAlign: 'right', minWidth: 0 }}>
+          <Box
+            component={onActualClick ? 'button' : 'div'}
+            type={onActualClick ? 'button' : undefined}
+            onClick={onActualClick}
+            aria-label={onActualClick ? `Actual ${actualDisplay}` : undefined}
+            sx={{
+              textAlign: 'right',
+              minWidth: 0,
+              p: 0,
+              border: 'none',
+              background: 'none',
+              cursor: onActualClick ? 'pointer' : 'default',
+              font: 'inherit',
+              color: 'inherit',
+            }}
+          >
             <Typography
               sx={{
                 fontSize: '0.75rem',
@@ -184,11 +203,16 @@ export function DepartmentCardPhone({
                 fontSize: '1.35rem',
                 fontWeight: 900,
                 lineHeight: 1,
+                textDecoration: onActualClick ? 'underline' : 'none',
+                textDecorationColor: 'rgba(91, 111, 95, 0.35)',
+                textUnderlineOffset: 4,
                 color: placeholder
                   ? 'text.secondary'
-                  : goalMet
-                    ? dashboardPalette.goldDark
-                    : accent,
+                  : isFailLetter(actualDisplay)
+                    ? failLetterColors.text
+                    : goalMet
+                      ? dashboardPalette.goldDark
+                      : accent,
               }}
             >
               {actualDisplay}

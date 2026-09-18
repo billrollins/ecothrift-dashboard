@@ -1,6 +1,6 @@
 import { Box, Typography } from '@mui/material';
 import type { DepartmentDailyMetric, DepartmentDailyWeek } from '../../../types/pos.types';
-import { dashboardPalette } from '../dashboardCardStyles';
+import { dashboardPalette, failLetterColors, isFailLetter } from '../dashboardCardStyles';
 
 const DAY_HEADS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -65,6 +65,10 @@ export function DepartmentWeekStrip({
           const scheduled = goalState === 'scheduled';
           const isToday = Boolean(todayIso && day.date === todayIso);
           const clickable = Boolean(isCellClickable?.(day) && onCellClick);
+          const muted = value === 'Closed' || value === '\u2014';
+          const fail = isFailLetter(value);
+          const showAchieved = achieved && !fail;
+          const showScheduled = scheduled && !fail;
           return (
             <Box
               key={day.date}
@@ -74,19 +78,23 @@ export function DepartmentWeekStrip({
               onClick={clickable ? () => onCellClick?.(day) : undefined}
               sx={{
                 ...cellBoxSx,
-                borderColor: achieved
-                  ? dashboardPalette.gold
-                  : scheduled
-                    ? 'rgba(189, 134, 24, 0.55)'
+                borderColor: fail
+                  ? failLetterColors.border
+                  : showAchieved
+                    ? dashboardPalette.gold
+                    : showScheduled
+                      ? 'rgba(189, 134, 24, 0.55)'
+                      : isToday
+                        ? dashboardPalette.green
+                        : 'rgba(91, 111, 95, 0.32)',
+                borderStyle: showScheduled && !showAchieved ? 'dashed' : 'solid',
+                background: fail
+                  ? failLetterColors.bg
+                  : showAchieved
+                    ? `linear-gradient(145deg, #fff7cf, ${dashboardPalette.goldSoft} 55%, #fffdf7)`
                     : isToday
-                      ? dashboardPalette.green
-                      : 'rgba(91, 111, 95, 0.32)',
-                borderStyle: scheduled && !achieved ? 'dashed' : 'solid',
-                background: achieved
-                  ? `linear-gradient(145deg, #fff7cf, ${dashboardPalette.goldSoft} 55%, #fffdf7)`
-                  : isToday
-                    ? dashboardPalette.greenSoft
-                    : 'transparent',
+                      ? dashboardPalette.greenSoft
+                      : 'transparent',
                 cursor: clickable ? 'pointer' : 'default',
                 font: 'inherit',
                 color: 'inherit',
@@ -94,16 +102,20 @@ export function DepartmentWeekStrip({
             >
               <Typography
                 noWrap
-                title={value}
+                title={value === '\u2014' ? 'No activity' : value}
                 sx={{
                   fontSize: '0.75rem',
-                  fontWeight: isToday || achieved ? 900 : 800,
+                  fontWeight: isToday || showAchieved ? 900 : 800,
                   lineHeight: 1.15,
-                  color: achieved
-                    ? dashboardPalette.goldDark
-                    : isToday
-                      ? dashboardPalette.greenDark
-                      : 'inherit',
+                  color: fail
+                    ? failLetterColors.text
+                    : showAchieved
+                      ? dashboardPalette.goldDark
+                      : isToday
+                        ? dashboardPalette.greenDark
+                        : muted
+                          ? 'text.secondary'
+                          : 'inherit',
                 }}
               >
                 {value}

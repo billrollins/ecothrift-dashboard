@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DepartmentDailyMetric, DepartmentDailyWeek } from '../../types/pos.types';
+import { isFailLetter } from './dashboardCardStyles';
 import {
   retailDayIsClickable,
   retailGoalCellState,
@@ -32,10 +33,11 @@ function week(overrides: Partial<DepartmentDailyWeek> = {}): DepartmentDailyWeek
 }
 
 describe('Retail routine goal presentation', () => {
-  it('shows the day letter, and a dash where there is nothing to grade', () => {
-    expect(retailGridValue(day({ retail: 'B', retail_score: 84 }))).toBe('B');
-    expect(retailGridValue(day({ retail: null }))).toBe('-');
-    expect(retailGridValue(day({ retail: 'A', is_future: true }))).toBe('-');
+  it('shows Closed, a dash, no activity, or the day letter', () => {
+    expect(retailGridValue(day({ retail: 'B', retail_score: 84, open: true }))).toBe('B');
+    expect(retailGridValue(day({ retail: null, open: true }))).toBe('\u2014');
+    expect(retailGridValue(day({ retail: 'A', is_future: true, open: true }))).toBe('-');
+    expect(retailGridValue(day({ retail: null, open: false, is_future: true }))).toBe('Closed');
   });
 
   it('goes gold on a day that met the standard, amber-scheduled otherwise', () => {
@@ -44,6 +46,12 @@ describe('Retail routine goal presentation', () => {
     expect(retailGoalCellState({ ...scheduled, retail: 'A', retail_grade_met: true }))
       .toBe('achieved');
     expect(retailGoalCellState(day({ retail: 'A' }))).toBeUndefined();
+  });
+
+  it('treats F as a fail letter, not amber', () => {
+    expect(isFailLetter('F')).toBe(true);
+    expect(isFailLetter('C')).toBe(false);
+    expect(isFailLetter('B+')).toBe(false);
   });
 
   it('leaves an ungraded scheduled day neutral, not a miss', () => {
@@ -66,9 +74,10 @@ describe('Retail routine goal presentation', () => {
     expect(retailWeekGoalAchieved(result)).toBe(true);
   });
 
-  it('marks a day clickable once it has a grade to open', () => {
+  it('marks any non-future day clickable, including Closed and no activity', () => {
     expect(retailDayIsClickable(day({ retail: 'B' }))).toBe(true);
-    expect(retailDayIsClickable(day({ retail: null }))).toBe(false);
+    expect(retailDayIsClickable(day({ retail: null, open: true }))).toBe(true);
+    expect(retailDayIsClickable(day({ retail: null, open: false }))).toBe(true);
     expect(retailDayIsClickable(day({ retail: 'B', is_future: true }))).toBe(false);
   });
 });

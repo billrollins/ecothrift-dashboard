@@ -6,7 +6,7 @@ import {
   parseDashboardAmount,
   shortDate,
 } from './dashboardFormatters';
-import { dashboardPalette } from './dashboardCardStyles';
+import { dashboardPalette, failLetterColors, isFailLetter } from './dashboardCardStyles';
 
 /** Visible week rows in the card scroller - matches the pre-history 2-week layout. */
 const VISIBLE_WEEK_ROWS = 2;
@@ -29,9 +29,9 @@ interface DepartmentCardGridProps {
   cellAriaLabel?: (day: DepartmentDailyMetric, value: string) => string;
 }
 
-/** True when a retail day cell has a grade to open. */
+/** Past and today (including Closed / no activity). Future cells stay inert. */
 export function retailDayIsClickable(day: DepartmentDailyMetric): boolean {
-  return !day.is_future && Boolean(day.retail);
+  return !day.is_future;
 }
 
 function GridCell({
@@ -49,8 +49,10 @@ function GridCell({
   onClick?: (event: React.MouseEvent<HTMLElement>) => void;
   ariaLabel?: string;
 }) {
-  const achieved = goalState === 'achieved';
-  const scheduled = goalState === 'scheduled';
+  const muted = value === 'Closed' || value === '\u2014';
+  const fail = isFailLetter(value);
+  const achieved = goalState === 'achieved' && !fail;
+  const scheduled = goalState === 'scheduled' && !fail;
   const cellSx = {
     minWidth: 0,
     width: '100%',
@@ -60,26 +62,32 @@ function GridCell({
     minHeight: { xs: 44, md: 28 },
     height: { xs: 44, md: 28 },
     border: '1px solid',
-    borderColor: achieved
-      ? dashboardPalette.gold
-      : scheduled
-        ? 'rgba(189, 134, 24, 0.55)'
-        : isToday
-          ? dashboardPalette.green
-          : 'rgba(91, 111, 95, 0.32)',
+    borderColor: fail
+      ? failLetterColors.border
+      : achieved
+        ? dashboardPalette.gold
+        : scheduled
+          ? 'rgba(189, 134, 24, 0.55)'
+          : isToday
+            ? dashboardPalette.green
+            : 'rgba(91, 111, 95, 0.32)',
     borderStyle: scheduled && !achieved ? 'dashed' : 'solid',
     borderRadius: 0.75,
-    background: achieved
-      ? `linear-gradient(145deg, #fff7cf, ${dashboardPalette.goldSoft} 55%, #fffdf7)`
-      : isToday
-        ? dashboardPalette.greenSoft
-        : 'transparent',
+    background: fail
+      ? failLetterColors.bg
+      : achieved
+        ? `linear-gradient(145deg, #fff7cf, ${dashboardPalette.goldSoft} 55%, #fffdf7)`
+        : isToday
+          ? dashboardPalette.greenSoft
+          : 'transparent',
     textAlign: 'center' as const,
-    boxShadow: achieved
-      ? '0 0 0 1px rgba(189,134,24,0.28), inset 0 1px 0 rgba(255,255,255,0.8)'
-      : isToday
-        ? '0 0 0 1px rgba(47, 122, 72, 0.5), inset 0 1px 0 rgba(255,255,255,0.45)'
-        : 'none',
+    boxShadow: fail
+      ? `0 0 0 1px ${failLetterColors.border}66`
+      : achieved
+        ? '0 0 0 1px rgba(189,134,24,0.28), inset 0 1px 0 rgba(255,255,255,0.8)'
+        : isToday
+          ? '0 0 0 1px rgba(47, 122, 72, 0.5), inset 0 1px 0 rgba(255,255,255,0.45)'
+          : 'none',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -110,22 +118,26 @@ function GridCell({
       variant="caption"
       fontWeight={isToday || achieved ? 900 : 800}
       noWrap
-      title={value}
-      sx={{
-        // Longer retail strings (e.g. B·1/2) shrink; cell box stays fixed.
-        fontSize:
-          value.length >= 6
-            ? { xs: '0.58rem', md: '0.48rem' }
-            : value.length >= 4
-              ? { xs: '0.64rem', md: '0.52rem' }
-              : { xs: '0.7rem', md: '0.56rem' },
-        lineHeight: 1.15,
-        color: achieved
-          ? dashboardPalette.goldDark
-          : isToday
-            ? dashboardPalette.greenDark
-            : 'inherit',
-      }}
+        title={value === '\u2014' ? 'No activity' : value}
+        sx={{
+          // Longer retail strings (e.g. B·1/2) shrink; cell box stays fixed.
+          fontSize:
+            value.length >= 6
+              ? { xs: '0.58rem', md: '0.48rem' }
+              : value.length >= 4
+                ? { xs: '0.64rem', md: '0.52rem' }
+                : { xs: '0.7rem', md: '0.56rem' },
+          lineHeight: 1.15,
+          color: fail
+            ? failLetterColors.text
+            : achieved
+              ? dashboardPalette.goldDark
+              : isToday
+                ? dashboardPalette.greenDark
+                : muted
+                  ? 'text.secondary'
+                  : 'inherit',
+        }}
     >
       {value}
     </Typography>
@@ -170,7 +182,11 @@ function WeekLabelCell({
         px: 0.1,
         py: 0.25,
         borderRadius: 0.75,
-        bgcolor: achieved ? dashboardPalette.goldSoft : 'transparent',
+        bgcolor: isFailLetter(total)
+          ? failLetterColors.bg
+          : achieved
+            ? dashboardPalette.goldSoft
+            : 'transparent',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
@@ -197,7 +213,11 @@ function WeekLabelCell({
               : { xs: '0.6rem', md: '0.5rem' },
           lineHeight: 1.1,
           display: 'block',
-          color: achieved ? dashboardPalette.goldDark : 'text.primary',
+          color: isFailLetter(total)
+            ? failLetterColors.text
+            : achieved
+              ? dashboardPalette.goldDark
+              : 'text.primary',
         }}
       >
         {achieved ? `★ ${total}` : total}
@@ -421,8 +441,9 @@ export function restorationWeekTotal(week: DepartmentDailyWeek): string {
  * an A whether that took three routines or six.
  */
 export function retailGridValue(day: DepartmentDailyMetric): string {
+  if (day.open === false) return 'Closed';
   if (day.is_future) return '-';
-  return day.retail || '-';
+  return day.retail || '\u2014';
 }
 
 export function retailGoalCellState(
@@ -445,7 +466,8 @@ export function retailWeekTotal(week: DepartmentDailyWeek): string {
 
 export function retailCellAriaLabel(day: DepartmentDailyMetric, value: string): string {
   const dateLabel = shortDate(day.date);
-  if (!day.retail) return `${dateLabel} - ${value}`;
+  if (day.open === false) return `${dateLabel} - Closed`;
+  if (!day.retail) return `${dateLabel} - ${value === '\u2014' ? 'No activity' : value}`;
   const score = day.retail_score != null ? `, scored ${day.retail_score}` : '';
   return `${dateLabel} - grade ${day.retail}${score}`;
 }
