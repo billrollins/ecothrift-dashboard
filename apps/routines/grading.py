@@ -592,6 +592,8 @@ def _doing_for_day(day: date, runs: list[RoutineRun], *, project: bool = False) 
             'assigned_to': _person(run.assigned_to) if run else None,
             'completed_by': _person(run.completed_by) if run else None,
             'completed_at': run.completed_at if run else None,
+            'miss_reason': (run.miss_reason or '') if run else '',
+            'miss_reason_note': (run.miss_reason_note or '') if run else '',
         })
 
     needed_sections = [
@@ -848,6 +850,8 @@ def grade_day(day: date, ctx: dict | None = None, *, project: bool = False) -> d
                 'completed_by_name': (checklists.get(key) or {}).get('completed_by', {}) and (checklists[key]['completed_by'] or {}).get('name'),
                 'title': (checklists.get(key) or {}).get('title') or key,
                 'verify': None,
+                'miss_reason': (checklists.get(key) or {}).get('miss_reason') or '',
+                'miss_reason_note': (checklists.get(key) or {}).get('miss_reason_note') or '',
             }
             for key in PERFORMED_KEYS
         },
