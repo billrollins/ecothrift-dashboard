@@ -1328,15 +1328,28 @@ class DaySummaryApiTests(APITestCase):
 
     def test_closed_day_nulls_thirds(self):
         self.client.force_authenticate(self.employee)
-        monday = _last_weekday(0)
-        response = self.client.get('/api/routines/qa/day-summary/', {'date': monday.isoformat()})
+        sunday = _last_weekday(6)
+        response = self.client.get('/api/routines/qa/day-summary/', {'date': sunday.isoformat()})
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.data['open'])
+        self.assertFalse(response.data['graded'])
         self.assertIsNone(response.data['letter'])
         self.assertIsNone(response.data['score'])
         self.assertIsNone(response.data['do'])
         self.assertIsNone(response.data['spot'])
         self.assertIsNone(response.data['cross'])
+
+    def test_monday_is_graded_while_closed(self):
+        self.client.force_authenticate(self.employee)
+        monday = _last_weekday(0)
+        response = self.client.get('/api/routines/qa/day-summary/', {'date': monday.isoformat()})
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['open'])
+        self.assertTrue(response.data['graded'])
+        self.assertTrue(response.data['expected']['section_checks'])
+        self.assertFalse(response.data['expected']['open_day_close'])
+        self.assertIsNotNone(response.data['do'])
+        self.assertIsNotNone(response.data['spot'])
 
     def test_future_date_is_400(self):
         self.client.force_authenticate(self.employee)

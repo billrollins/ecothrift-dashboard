@@ -9,7 +9,14 @@ from apps.pos.models import DashboardDepartmentGoal
 from apps.pos.services.dashboard_metrics import letter_meets, retail_goal_letter
 from apps.webstore.services.hours import is_open_day
 
-from .grading import PERFORMED_KEYS, this_monday, week_grade, week_label
+from .grading import (
+    PERFORMED_KEYS,
+    day_expected,
+    day_is_graded,
+    this_monday,
+    week_grade,
+    week_label,
+)
 from .schedule import SYSTEM_TALLY, cross_check_day_for
 from .settings import WALK_FLOOR, retail_qa_settings
 
@@ -97,10 +104,16 @@ def _grade_scale() -> dict[str, int]:
     }
 
 
-def _closed_payload(day: date, goal: str | None) -> dict:
+def _closed_payload(day: date, goal: str | None, expected: dict | None = None) -> dict:
     return {
         'date': day.isoformat(),
         'open': False,
+        'graded': False,
+        'expected': expected or {
+            'section_checks': False,
+            'open_day_close': False,
+            'walk_possible': False,
+        },
         'letter': None,
         'score': None,
         'goal_letter': goal,
@@ -120,8 +133,11 @@ def day_summary_for_date(day: date, *, today: date | None = None) -> dict:
     if day > today:
         raise DaySummaryError('date is in the future')
     goal = _goal_letter()
-    if not is_open_day(day):
-        return _closed_payload(day, goal)
+    expected = day_expected(day)
+    graded = day_is_graded(day)
+    open_day = is_open_day(day)
+    if not graded:
+        return _closed_payload(day, goal, expected)
 
     week = week_grade(this_monday(day))
     day_row = next(
@@ -147,7 +163,9 @@ def day_summary_for_date(day: date, *, today: date | None = None) -> dict:
         cross_state = 'live'
     return {
         'date': day.isoformat(),
-        'open': True,
+        'open': open_day,
+        'graded': True,
+        'expected': expected,
         'letter': letter,
         'score': score,
         'goal_letter': goal,
@@ -192,7 +210,8 @@ def week_summary_for_staff(monday: date, *, today: date | None = None) -> dict:
             day = date.fromisoformat(row['date'])
         except (KeyError, ValueError):
             continue
-        if day > today or not row.get('open_day'):
+        counts = row.get('graded') if 'graded' in row else row.get('open_day')
+        if day > today or not counts:
             continue
         sc, od = _doing_parts(row)
         section['done'] += sc['done']
@@ -208,6 +227,12 @@ def week_summary_for_staff(monday: date, *, today: date | None = None) -> dict:
     return {
         'week': week_label(monday),
         'open': True,
+        'graded': True,
+        'expected': {
+            'section_checks': section['expected'] > 0,
+            'open_day_close': odc['expected'] > 0,
+            'walk_possible': True,
+        },
         'letter': letter,
         'score': week.get('score'),
         'goal_letter': goal,

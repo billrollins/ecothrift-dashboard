@@ -1380,6 +1380,8 @@ def week_summary(monday: date, cfg: dict | None = None) -> dict:
                 'score': row['score'],
                 'letter': row['letter'],
                 'graded': row['graded'],
+                'expected': row.get('expected'),
+                'open_day': row.get('open_day'),
                 'doing': row['thirds']['doing'],
                 'owner_pending': row['owner'].get('pending'),
                 'weights': row.get('weights'),
