@@ -6,6 +6,7 @@ import { useSnackbar } from 'notistack';
 import { useEffect, useRef, useState } from 'react';
 import type { AdminRoutine, RoutineAssignee } from '../../../api/routines.api';
 import { dutyColors, thinScrollSx } from '../../../components/duty/tokens';
+import { useAuth } from '../../../contexts/AuthContext';
 import { useSaveRoutine } from '../../../hooks/useRoutines';
 import { FormSection } from '../../routines/editorStyles';
 import { RoutineHeaderButton, RoutineHeaderIconButton, RoutinePaneHeader } from '../../routines/RoutinePaneHeader';
@@ -43,6 +44,7 @@ export function AdminRoutineInspector({
   busy: boolean;
 }) {
   const { enqueueSnackbar } = useSnackbar();
+  const { user } = useAuth();
   const save = useSaveRoutine();
   const [settings, setSettings] = useState<RoutineSettings>(() => settingsFromRoutine(routine, new Date()));
   const [saved, setSaved] = useState<RoutineSettings>(settings);
@@ -153,6 +155,7 @@ export function AdminRoutineInspector({
               departments={departments}
               people={people}
               locked={system}
+              canGate={Boolean(user?.is_superuser)}
             />
 
             <FormSection

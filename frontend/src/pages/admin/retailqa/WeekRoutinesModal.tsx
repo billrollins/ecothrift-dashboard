@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import type { RoutineRun } from '../../../api/routines.api';
 import { useQaRoutines } from '../../../hooks/useRetailQa';
 import { weekMonday } from '../routines/gradeWeek';
-import { CHECKLISTS_LABEL, displayName, shortName } from './commandCenter';
+import { CHECKLISTS_LABEL, displayName, missReasonText, shortName } from './commandCenter';
 import { qaStatusWord } from './qaStatus';
 import { BoardDialog } from './SummaryDialogs';
 
@@ -96,8 +96,9 @@ export function WeekRoutinesModal({
                 const word = run ? qaStatusWord(run.status) : '';
                 const dot = word === 'Done' ? 'ok' : word === 'Missed' ? 'miss' : word ? 'due' : '';
                 const who = run?.completed_by_name || run?.assigned_to_name || '';
+                const why = word === 'Missed' ? missReasonText(run) : '';
                 const tip = run
-                  ? `${word}${run.completed_at ? ` ${format(parseISO(run.completed_at), 'HH:mm')}` : ''}${who ? ` by ${shortName(who)}` : ''}`
+                  ? `${word}${run.completed_at ? ` ${format(parseISO(run.completed_at), 'HH:mm')}` : ''}${who ? ` by ${shortName(who)}` : ''}${why ? ` · ${why}` : ''}`
                   : '';
                 return (
                   <td key={iso} title={tip}>{dot ? <i className={`dot ${dot}`} /> : null}</td>

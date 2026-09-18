@@ -38,6 +38,7 @@ import {
 import { useIsMobileLayout } from '../../hooks/useIsMobileLayout';
 import { formatPhone, maskPhoneInput, stripPhone } from '../../utils/formatPhone';
 import { DrawerSection, Fact, PersonAvatar, formatDay, tenureFrom } from './userChrome';
+import { BadgeBlock } from './BadgeBlock';
 
 type Props = {
   userId: number | null;
@@ -347,6 +348,21 @@ export default function EmployeeDetailDrawer({ userId, open, onClose }: Props) {
                 </Button>
               </Stack>
             </DrawerSection>
+
+            {employee ? (
+              <>
+                <Divider sx={{ my: 2.5 }} />
+                <BadgeBlock
+                  userId={user.id}
+                  fullName={user.full_name}
+                  employeeNumber={employee.employee_number}
+                  status={employee.badge_status ?? 'none'}
+                  issuedAt={employee.badge_issued_at}
+                  revokedAt={employee.badge_revoked_at}
+                  canEdit={user.is_active !== false}
+                />
+              </>
+            ) : null}
 
             <Divider sx={{ my: 2.5 }} />
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { QaIssue, QaJob, QaStaffRow } from '../../../api/routines.api';
-import { CHECKLISTS_LABEL, bandWeightLabel, displayName, formatShiftRange, groupIssues, jobTimeLabel, nudgeLabel, peopleDots, scheduleGroups, scheduleSummary, sectionCheckDoneLabel, shortName, tileClass, tileNote } from './commandCenter';
+import { CHECKLISTS_LABEL, bandWeightLabel, displayName, formatShiftRange, groupIssues, jobTimeLabel, missReasonText, missedLine, nudgeLabel, peopleDots, scheduleGroups, scheduleSummary, sectionCheckDoneLabel, shortName, tileClass, tileNote } from './commandCenter';
 
 function person(id: number, name: string) {
   return { id, name };
@@ -204,6 +204,15 @@ describe('scheduleGroups', () => {
 describe('labels', () => {
   it('keeps due after clock-in', () => {
     expect(jobTimeLabel({ status: 'Due', due_label: 'Due after clock-in', owner: null })).toBe('Due after clock-in');
+  });
+
+  it('shows the kiosk miss reason on a Missed row and nowhere else', () => {
+    expect(missedLine({ status: 'Missed', miss_reason: 'forgot', miss_reason_label: 'Forgot' })).toBe('Missed · Forgot');
+    expect(missedLine({ status: 'Missed', miss_reason: 'no_time' })).toBe('Missed · Ran out of time');
+    expect(missedLine({ status: 'Missed', miss_reason: '' })).toBe('');
+    expect(missedLine({ status: 'Done', miss_reason: 'forgot' })).toBe('');
+    expect(missReasonText({ miss_reason: 'other', miss_reason_note: 'printer down' })).toBe('Other · printer down');
+    expect(missReasonText(null)).toBe('');
   });
 
   it('summarizes who is in', () => {

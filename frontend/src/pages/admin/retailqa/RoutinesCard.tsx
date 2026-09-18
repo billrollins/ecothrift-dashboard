@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import type { QaJob, RoutineAssignee } from '../../../api/routines.api';
-import { CHECKLISTS_LABEL, barTone, displayName, jobChip, jobTimeLabel, nudgeLabel, shortName } from './commandCenter';
+import { CHECKLISTS_LABEL, barTone, displayName, jobChip, jobTimeLabel, missReasonText, missedLine, nudgeLabel, shortName } from './commandCenter';
 import { ChipMenu } from './QaChip';
 import { QaIcon } from './QaIcons';
 
@@ -144,8 +144,9 @@ function RoutineGroup({
                   job.owner_state === 'pool' || job.owner.id == null ? job.owner.name : shortName(job.owner.name)
                 ) : ''}
               </span>
-              <span className="time">
+              <span className="time" title={missReasonText(job) || undefined}>
                 <span className="due nowrap">{jobTimeLabel(job)}</span>
+                {missedLine(job) ? <span className="miss-why nowrap">{missedLine(job)}</span> : null}
                 {job.owner_late ? <span className="owner-late">Owner late</span> : null}
                 {nudgeLabel(job.nudged_at) ? <span className="nudged">{nudgeLabel(job.nudged_at)}</span> : null}
               </span>

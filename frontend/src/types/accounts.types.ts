@@ -32,6 +32,10 @@ export interface EmployeeProfile {
   emergency_phone: string;
   notes: string;
   created_at: string;
+  /** Kiosk card. The token itself is never returned after issue. */
+  badge_status?: 'none' | 'active' | 'revoked';
+  badge_issued_at?: string | null;
+  badge_revoked_at?: string | null;
 }
 
 export interface ConsigneeProfile {

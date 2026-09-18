@@ -207,6 +207,29 @@ export function jobTimeLabel(job: Pick<QaJob, 'status' | 'due_label' | 'complete
   return label;
 }
 
+/** Kiosk miss reasons, code to English. The backend sends the label too; this covers raw runs. */
+export const MISS_REASON_LABELS: Record<string, string> = {
+  forgot: 'Forgot',
+  no_time: 'Ran out of time',
+  called_in: 'Called in',
+  not_my_section: 'Not my section that day',
+  other: 'Other',
+};
+
+/** "Forgot" or "Other · note" for a missed run; empty when nobody has answered yet. */
+export function missReasonText(row: { miss_reason?: string; miss_reason_label?: string; miss_reason_note?: string } | null | undefined) {
+  if (!row?.miss_reason) return '';
+  const label = row.miss_reason_label || MISS_REASON_LABELS[row.miss_reason] || row.miss_reason;
+  return row.miss_reason_note ? `${label} · ${row.miss_reason_note}` : label;
+}
+
+/** Second line under the time on a Missed row: "Missed · Forgot". */
+export function missedLine(job: Pick<QaJob, 'status' | 'miss_reason' | 'miss_reason_label'>) {
+  if (job.status !== 'Missed') return '';
+  const label = job.miss_reason ? (job.miss_reason_label || MISS_REASON_LABELS[job.miss_reason] || job.miss_reason) : '';
+  return label ? `Missed · ${label}` : '';
+}
+
 export function dueClock(label: string) {
   const match = /(\d{1,2}:\d{2})/.exec(label);
   return match ? match[1] : label.replace(/^Due\s+/i, '');

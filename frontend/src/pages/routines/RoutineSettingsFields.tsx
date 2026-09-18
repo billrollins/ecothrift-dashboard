@@ -66,6 +66,8 @@ export interface RoutineSettings {
   assignedDepartmentIds: number[];
   assignedUserIds: number[];
   isBlocking: boolean;
+  /** Kiosk asks why when a run was missed. Superuser-only; others carry the loaded value. */
+  gateOnMiss: boolean;
   shiftLocked: boolean;
   shiftName: string;
   systemKey: string;
@@ -94,6 +96,7 @@ export function defaultRoutineSettings(today: Date): RoutineSettings {
     assignedDepartmentIds: [],
     assignedUserIds: [],
     isBlocking: false,
+    gateOnMiss: false,
     shiftLocked: false,
     shiftName: '',
     systemKey: '',
@@ -130,6 +133,7 @@ export function settingsFromRoutine(routine: Routine, today: Date): RoutineSetti
       : (routine.assigned_department ? [routine.assigned_department] : []),
     assignedUserIds: routine.assigned_user_ids || [],
     isBlocking: routine.is_blocking,
+    gateOnMiss: Boolean(routine.gate_on_miss),
     shiftLocked: Boolean(routine.shift_locked),
     shiftName: routine.shift_name || '',
     systemKey: routine.system_key || '',
@@ -160,6 +164,7 @@ export function settingsToPayload(
     assigned_department: settings.assignedDepartmentIds[0] ?? null,
     assigned_user_ids: settings.assignedUserIds,
     is_blocking: settings.isBlocking,
+    gate_on_miss: settings.gateOnMiss,
   };
   if (!opts?.locked) {
     payload.trigger = settings.trigger as Routine['trigger'];
@@ -186,6 +191,7 @@ export function RoutineSettingsFields({
   people,
   autoFocusTitle,
   locked,
+  canGate,
 }: {
   value: RoutineSettings;
   onChange: (patch: Partial<RoutineSettings>) => void;
@@ -195,6 +201,8 @@ export function RoutineSettingsFields({
   autoFocusTitle?: boolean;
   /** Program routines: repeats and assignment stay as seeded. */
   locked?: boolean;
+  /** Only a superuser sees and may flip the kiosk miss gate. */
+  canGate?: boolean;
 }) {
   const today = new Date();
   const biweekly = value.trigger === 'biweekly';
@@ -537,6 +545,16 @@ export function RoutineSettingsFields({
               onChange={(isBlocking) => onChange({ isBlocking })}
             />
           </Box>
+          {canGate ? (
+            <Box sx={{ gridColumn: '1 / -1' }}>
+              <Toggle
+                label="Ask why when missed"
+                hint="The kiosk asks the owner for a reason before their next clock-in. Superuser only."
+                checked={value.gateOnMiss}
+                onChange={(gateOnMiss) => onChange({ gateOnMiss })}
+              />
+            </Box>
+          ) : null}
         </FieldGrid>
       </FormSection>
     </>

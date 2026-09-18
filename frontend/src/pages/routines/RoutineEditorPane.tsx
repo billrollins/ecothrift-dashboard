@@ -13,6 +13,7 @@ import { getDepartments, mergeCurrentDepartments } from '../../api/hr.api';
 import { useRoutine, useRoutineAssignees, useSaveRoutine } from '../../hooks/useRoutines';
 import type { AuditTaxonomy, RoutineCheckDef, RoutineControl, RoutineDefinition, RoutineKind } from '../../api/routines.api';
 import { dutyColors, thinScrollSx } from '../../components/duty/tokens';
+import { useAuth } from '../../contexts/AuthContext';
 import { DashedButton, FormSection, fieldSx } from './editorStyles';
 import { RoutineHeaderButton, RoutineHeaderIconButton, RoutinePaneHeader } from './RoutinePaneHeader';
 import { RoutineJsonDialog } from './RoutineJsonDialog';
@@ -74,6 +75,7 @@ export function RoutineEditorPane({
   const editingId = id && id !== 'new' ? Number(id) : null;
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
+  const { user } = useAuth();
   const existing = useRoutine(editingId);
   const save = useSaveRoutine();
   const assignees = useRoutineAssignees();
@@ -313,6 +315,7 @@ export function RoutineEditorPane({
             people={assignees.data ?? []}
             autoFocusTitle={!editingId}
             locked={locked}
+            canGate={Boolean(user?.is_superuser)}
           />
 
           <FormSection

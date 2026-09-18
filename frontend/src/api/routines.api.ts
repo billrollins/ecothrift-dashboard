@@ -234,6 +234,8 @@ export interface Routine {
   shift_name?: string | null;
   shift_locked?: boolean;
   is_blocking: boolean;
+  /** Kiosk asks why when a run was missed. Superuser-only write. */
+  gate_on_miss?: boolean;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -284,6 +286,9 @@ export interface RoutineRun {
   completed_late: boolean;
   failed_count: number;
   has_critical_fail: boolean;
+  /** Why a missed run was missed, answered at the kiosk. Empty when unanswered. */
+  miss_reason?: string;
+  miss_reason_note?: string;
   /** This user's draft, on open rows from /mine/. Null when untouched. */
   progress?: { answered: number; total: number } | null;
   definition?: RoutineDefinition;
@@ -801,6 +806,10 @@ export interface QaJob {
   closed: boolean;
   can_close: boolean;
   shift_people?: Array<{ id: number; name?: string; full_name?: string }>;
+  /** Why a Missed run was missed, answered at the kiosk. Empty strings when unanswered. */
+  miss_reason?: string;
+  miss_reason_label?: string;
+  miss_reason_note?: string;
 }
 
 export interface QaStaffRow {
