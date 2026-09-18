@@ -1060,6 +1060,7 @@ def section_due_state(section, *, run, status, day, now, tz, punches, call_ins):
     if punch is None:
         late = bool(start) and now >= start + timedelta(minutes=LATE_AMBER_MINUTES)
         return None, 'Due after clock-in', keep, late
+    # Closed days use the same punch-plus-60 rule. The owner's shift that day is Retail - Reset.
     due = punch.clock_in + timedelta(minutes=SECTION_DUE_AFTER_PUNCH_MINUTES)
     if timezone.is_naive(due):
         due = timezone.make_aware(due, tz)

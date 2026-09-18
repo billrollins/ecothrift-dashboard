@@ -9,6 +9,7 @@ from apps.accounts.models import User
 from apps.hr.models import Department, Shift, ShiftAssignment
 from apps.routines.command_center import build_staff, week_tiles
 from apps.routines.grading import expected_parts
+from apps.routines.models import Section
 from apps.routines.schedule import SYSTEM_CLOSE, SYSTEM_DAY, SYSTEM_OPEN
 from apps.webstore.services.hours import is_open_day
 
@@ -63,12 +64,13 @@ class ClosedDayScoringTests(APITestCase):
             },
         )
 
-    def test_monday_omits_performed_keys_and_sections(self):
+    def test_monday_includes_sections_and_omits_open_day_close(self):
         monday = date(2026, 9, 14)
+        aisle = Section.objects.create(department=self.retail, name='Housewares')
         self.assertFalse(is_open_day(monday))
         keys, sections = expected_parts(monday)
         self.assertEqual(keys, set())
-        self.assertEqual(sections, set())
+        self.assertEqual(sections, {aisle.pk})
 
     def test_tuesday_includes_inactive_day_and_ignores_shift_weekdays(self):
         tuesday = date(2026, 9, 15)

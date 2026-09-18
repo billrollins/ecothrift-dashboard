@@ -147,7 +147,10 @@ def section_checks_required(day: date, cfg: dict | None = None) -> bool:
 
 
 def expected_parts(day: date) -> tuple[set[str], set[int]]:
-    """Open/Day/Close on open store days; section checks keep their weekday flags."""
+    """Open/Day/Close follow the store; section checks follow the weekday flags.
+
+    A checked weekday still owes every active section when the store is closed.
+    """
     keys = set(PERFORMED_KEYS) if is_open_day(day) else set()
     sections = {section.pk for section in _active_sections()} if section_checks_required(day) else set()
     return keys, sections
@@ -909,8 +912,9 @@ def _people_for_week(monday: date, days: list[dict], runs: list[RoutineRun]) -> 
 
 
 def _section_day_expected(day: date, info: dict | None) -> bool:
-    open_day = bool(info.get('open_day')) if info else is_open_day(day)
-    return open_day and section_checks_required(day)
+    if info and 'section_checks' in info:
+        return bool(info.get('section_checks'))
+    return section_checks_required(day)
 
 
 def _section_check_days(
@@ -924,9 +928,9 @@ def _section_check_days(
 ) -> list[str]:
     """Mon–Sun section-check dots: done / due / missed / none.
 
-    A day gets a status only when a check was expected (section weekdays and
-    the store open) and the day is not in the future. Today's unfinished check
-    is due, not missed.
+    A day gets a status only when a check was expected on that weekday and
+    the day is not in the future. Closed days still count. Today's unfinished
+    check is due, not missed.
     """
     today = today or timezone.localdate()
     owned = set(owned_section_ids or ())
