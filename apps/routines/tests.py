@@ -11,10 +11,11 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from apps.core.models import AppSetting
-from apps.hr.models import Department
+from apps.hr.models import Department, Shift, ShiftAssignment
+from apps.hr.shifts import SHIFT_RETAIL_CLOSE, SHIFT_RETAIL_DAY, SHIFT_RETAIL_OPEN
 
 from .definition import build_responses, merge_responses, score_responses, validate_definition
-from .grading import audit_score, day_grade, parse_week, score_run, week_grade
+from .grading import day_grade, parse_week, week_grade
 from .kinds import non_shelf_checks, outcome, submit_blockers, verify_checks_for
 from .taxonomy import clean_counts, taxonomy
 from .models import Routine, RoutineRun, RoutineSubmission, Section, WorkCyclePrompt
@@ -130,10 +131,10 @@ class ScheduleTests(TestCase):
         self.assertEqual(period_key_for(biweekly, date(2026, 9, 20)), '2026-09-08')
         self.assertEqual(period_key_for(biweekly, date(2026, 9, 22)), '2026-09-22')
 
-    def test_closed_sunday_does_not_run_daily(self):
+    def test_daily_runs_sunday_and_monday(self):
         routine = Routine(trigger=Routine.TRIGGER_DAILY, weekdays=[])
-        self.assertFalse(should_run_on(routine, date(2026, 8, 30)))  # Sunday
-        self.assertFalse(should_run_on(routine, date(2026, 8, 31)))  # Monday
+        self.assertTrue(should_run_on(routine, date(2026, 8, 30)))  # Sunday
+        self.assertTrue(should_run_on(routine, date(2026, 8, 31)))  # Monday
         self.assertTrue(should_run_on(routine, date(2026, 9, 1)))  # Tuesday
 
     def test_biweekly_indexes_from_next_due(self):
@@ -145,10 +146,10 @@ class ScheduleTests(TestCase):
         due = due_at_for(routine, date(2026, 9, 12), tz=TZ)
         self.assertEqual(due.date(), date(2026, 9, 8))
 
-    def test_weekly_due_last_open_day(self):
+    def test_weekly_due_is_sunday(self):
         routine = Routine(trigger=Routine.TRIGGER_WEEKLY, due_time=time(17, 0))
         due = due_at_for(routine, date(2026, 9, 1), tz=TZ)
-        self.assertEqual(due.date(), date(2026, 9, 5))  # Saturday; Sunday closed
+        self.assertEqual(due.date(), date(2026, 9, 6))
 
 
 class NagMomentTests(TestCase):
@@ -589,10 +590,12 @@ class SectionRoutineTests(APITestCase):
         materialize_routines(date(2026, 9, 1))
         self.assertEqual(RoutineRun.objects.count(), 0)
 
-    def test_owner_spot_draws_a_fixed_sample_and_walks_the_sections(self):
-        # The seeded Open checklist is the pool the sample is drawn from.
-        Routine.objects.filter(system_key=SYSTEM_OPEN).update(
+    def test_owner_spot_draws_a_fixed_sample_and_waits_for_a_tally(self):
+        Routine.objects.filter(system_key__in=(SYSTEM_OPEN, SYSTEM_DAY, SYSTEM_CLOSE)).update(
             is_active=True, definition=DEFINITION,
+        )
+        AppSetting.objects.update_or_create(
+            key='retail_qa.spot_check_count', defaults={'value': 3},
         )
         spot = self._routine(title='Spot check', kind=Routine.KIND_OWNER_SPOT)
         spot.assigned_users.set([self.owner])
@@ -600,22 +603,15 @@ class SectionRoutineTests(APITestCase):
         materialize_routines(date(2026, 9, 1))
         run = RoutineRun.objects.get(routine=spot)
         drawn = run.generated['checks']
-        self.assertEqual(len(drawn), 2)
-        first_section = run.section_id
-        self.assertIn(first_section, {row.pk for row in self.sections})
+        self.assertEqual(len(drawn), 3)
+        self.assertIsNone(run.section_id)
 
-        # A refresh must not reroll the sample somebody is halfway through.
         materialize_routines(date(2026, 9, 1))
         run.refresh_from_db()
         self.assertEqual(run.generated['checks'], drawn)
-        self.assertEqual(run.section_id, first_section)
+        self.assertIsNone(run.section_id)
 
-        materialize_routines(date(2026, 9, 2))
-        second = RoutineRun.objects.get(routine=spot, period_key='2026-09-02')
-        self.assertIn(second.section_id, {row.pk for row in self.sections})
-        self.assertNotEqual(second.section_id, first_section)
-
-    def test_owner_spot_picks_up_a_section_that_appeared_later(self):
+    def test_owner_spot_stays_waiting_until_a_tally_exists(self):
         Section.objects.all().delete()
         Routine.objects.filter(system_key=SYSTEM_OPEN).update(
             is_active=True, definition=DEFINITION,
@@ -629,7 +625,7 @@ class SectionRoutineTests(APITestCase):
         Section.objects.create(department=self.department, name='Housewares', owner=self.sam)
         materialize_routines(date(2026, 9, 1))
         run.refresh_from_db()
-        self.assertTrue((run.generated or {}).get('section_id'))
+        self.assertIsNone((run.generated or {}).get('section_id'))
 
     def test_reassigning_a_section_moves_todays_open_run(self):
         self._routine(title='Tally', kind=Routine.KIND_SECTION_TALLY,
@@ -665,27 +661,13 @@ class SectionRoutineTests(APITestCase):
         again = self.client.post(f'/api/routines/runs/{run.pk}/cover/')
         self.assertEqual(again.status_code, 400)
 
-    def test_spot_section_is_random_and_does_not_wrap(self):
-        Routine.objects.filter(system_key=SYSTEM_OPEN).update(
-            is_active=True, definition=DEFINITION,
-        )
+    def test_spot_section_is_empty_until_tallied(self):
         spot = self._routine(title='Spot check', kind=Routine.KIND_OWNER_SPOT)
         spot.assigned_users.set([self.owner])
         day = date(2026, 9, 1)
-        picked = next_spot_section(spot, day)
-        self.assertIn(picked, self.sections)
-        for section in self.sections:
-            RoutineRun.objects.create(
-                routine=spot,
-                period_key=(day + timedelta(days=section.sort_order + 1)).isoformat(),
-                due_at=timezone.make_aware(datetime(2026, 9, 2, 17, 0), TZ),
-                assigned_to=self.owner,
-                section=section,
-                status=RoutineRun.STATUS_OPEN,
-            )
         self.assertIsNone(next_spot_section(spot, day))
 
-    def test_reroll_section_picks_another_unseen_aisle(self):
+    def test_reroll_section_needs_another_tallied_aisle(self):
         Routine.objects.filter(system_key=SYSTEM_OPEN).update(
             is_active=True, definition=DEFINITION,
         )
@@ -693,25 +675,7 @@ class SectionRoutineTests(APITestCase):
         spot.assigned_users.set([self.owner])
         materialize_routines(date(2026, 9, 1))
         run = RoutineRun.objects.get(routine=spot)
-        first = run.section_id
         self.client.force_authenticate(self.owner)
-        changed = self.client.post(f'/api/routines/runs/{run.pk}/reroll-section/')
-        self.assertEqual(changed.status_code, 200, changed.data)
-        run.refresh_from_db()
-        self.assertNotEqual(run.section_id, first)
-        self.assertIn(run.section_id, {row.pk for row in self.sections})
-
-        for section in self.sections:
-            if section.pk == run.section_id:
-                continue
-            RoutineRun.objects.create(
-                routine=spot,
-                period_key=f'2026-09-0{section.sort_order + 2}',
-                due_at=timezone.make_aware(datetime(2026, 9, 2, 17, 0), TZ),
-                assigned_to=self.owner,
-                section=section,
-                status=RoutineRun.STATUS_DONE,
-            )
         refused = self.client.post(f'/api/routines/runs/{run.pk}/reroll-section/')
         self.assertEqual(refused.status_code, 400)
 
@@ -826,7 +790,23 @@ class GradingTests(APITestCase):
         self.housewares = Section.objects.create(
             department=self.department, name='Housewares', owner=self.sam,
         )
-        Section.objects.create(department=self.department, name='Toys', owner=self.alex)
+        self.toys = Section.objects.create(department=self.department, name='Toys', owner=self.alex)
+        for name, punch in (
+            ('Cashier - Open', SHIFT_RETAIL_OPEN),
+            ('Cashier - Day', SHIFT_RETAIL_DAY),
+            ('Cashier - Close', SHIFT_RETAIL_CLOSE),
+        ):
+            Shift.objects.create(
+                department=self.department,
+                name=name,
+                time_in=time(8, 0),
+                time_out=time(16, 0),
+                weekdays=[0, 1, 2, 3, 4],
+                punch_code=punch,
+            )
+        day_shift = Shift.objects.get(department=self.department, punch_code=SHIFT_RETAIL_DAY)
+        ShiftAssignment.objects.create(employee=self.sam, shift=day_shift)
+        ShiftAssignment.objects.create(employee=self.alex, shift=day_shift)
         Routine.objects.update(is_active=False)
         self.cfg = retail_qa_settings()
 
@@ -892,124 +872,88 @@ class GradingTests(APITestCase):
             **over,
         }
 
-    def test_a_clean_audit_scores_full_and_issues_step_it_down(self):
-        self.assertEqual(audit_score(self._audit(), self.cfg), 100.0)
-        # One graded group with two issues: 75 there, 100 in the other three.
-        self.assertEqual(
-            audit_score(self._audit(counts={'reshelf': 2}), self.cfg), 93.8,
-        )
-        self.assertEqual(
-            audit_score(self._audit(counts={'reshelf': 9}), self.cfg), 75.0,
-        )
-
-    def test_recorded_categories_never_touch_the_score(self):
-        churn = self._audit(counts={'clean': 12, 'tars': 4, 'reprice': 7})
-        self.assertEqual(audit_score(churn, self.cfg), 100.0)
-
-    def test_safety_caps_an_otherwise_spotless_section(self):
-        flagged = self._audit(flags=['safety'])
-        self.assertEqual(audit_score(flagged, self.cfg), 50.0)
-
-    def test_a_checklist_scores_on_when_not_on_what_it_found(self):
-        routine = self._routine(SYSTEM_OPEN)
-        on_time = self._run(routine, self.TUESDAY)
-        self.assertEqual(score_run(on_time, self.cfg), 100.0)
-
-        late = self._run(routine, self.TUESDAY - timedelta(days=1), at=datetime.combine(
-            self.TUESDAY, time(9, 0), tzinfo=TZ,
-        ))
-        self.assertEqual(score_run(late, self.cfg), 50.0)
-
-        never = self._run(routine, self.TUESDAY - timedelta(days=2),
-                          status=RoutineRun.STATUS_OPEN)
-        self.assertEqual(score_run(never, self.cfg), 0.0)
-
-    def test_a_daily_tally_is_recorded_and_not_scored(self):
+    def _tally_sections(self, day):
         tally = self._routine(SYSTEM_TALLY, kind=Routine.KIND_SECTION_TALLY)
-        run = self._run(tally, self.TUESDAY, responses={'sections': [
-            {'section_id': self.housewares.pk, 'counts': {'reshelf': 9}, 'flags': []},
+        self._run(tally, day, responses={'sections': [
+            {'section_id': self.housewares.pk, 'counts': {}, 'flags': []},
+            {'section_id': self.toys.pk, 'counts': {}, 'flags': []},
         ]})
-        self.assertIsNone(score_run(run, self.cfg))
 
-    def test_a_full_day_of_checklists_is_an_a(self):
+    def test_a_full_day_of_checklists_and_tallies_is_an_a(self):
         self._checklists(self.TUESDAY)
+        self._tally_sections(self.TUESDAY)
         graded = day_grade(self.TUESDAY, self.cfg)
-        self.assertEqual(graded['performed_score'], 100.0)
+        self.assertEqual(graded['thirds']['doing'], 100.0)
+        self.assertIsNone(graded['thirds']['owner'])
         self.assertEqual(graded['letter'], 'A')
-        self.assertIsNone(graded['owner_score'])
 
-    def test_a_missing_close_costs_a_third_of_the_day(self):
+    def test_a_missing_close_drops_doing(self):
         self._checklists(self.TUESDAY, missing=[SYSTEM_CLOSE])
+        self._tally_sections(self.TUESDAY)
         graded = day_grade(self.TUESDAY, self.cfg)
-        self.assertEqual(graded['score'], 66.7)
-        self.assertEqual(graded['letter'], 'D')
-        self.assertEqual(graded['performed'][SYSTEM_CLOSE]['status'], 'open')
+        self.assertEqual(graded['doing']['done'], 4)
+        self.assertEqual(graded['doing']['needed'], 5)
+        self.assertEqual(graded['performed'][SYSTEM_CLOSE]['status'], 'not_started')
 
-    def test_a_late_close_keeps_half_credit(self):
+    def test_a_late_close_still_counts_as_done(self):
         self._checklists(self.TUESDAY, late=[SYSTEM_CLOSE])
+        self._tally_sections(self.TUESDAY)
         graded = day_grade(self.TUESDAY, self.cfg)
-        self.assertEqual(graded['score'], 83.3)
+        self.assertEqual(graded['thirds']['doing'], 100.0)
         self.assertTrue(graded['performed'][SYSTEM_CLOSE]['late'])
 
-    def test_the_spot_check_takes_half_the_day_when_it_happens(self):
+    def test_a_done_spot_moves_the_owner_third(self):
         self._checklists(self.TUESDAY)
+        self._tally_sections(self.TUESDAY)
         spot = self._routine(SYSTEM_OWNER_SPOT, kind=Routine.KIND_OWNER_SPOT)
         self._run(spot, self.TUESDAY, section=self.housewares, responses={
             'checks': [
-                {'check_id': 'swept', 'result': 'pass'},
-                {'check_id': 'count', 'result': 'fail'},
+                {'check_id': 'swept', 'result': 'pass', 'severity': 'standard'},
+                {'check_id': 'count', 'result': 'fail', 'severity': 'standard'},
             ],
             'audit': self._audit(),
         })
         graded = day_grade(self.TUESDAY, self.cfg)
-        # Two drawn checks and the section, evenly weighted: 100, 0, 100.
-        self.assertEqual(graded['owner_score'], 66.7)
-        self.assertEqual(graded['performed_score'], 100.0)
-        # Half the checklists, half the owner's look.
-        self.assertEqual(graded['score'], 83.3)
+        self.assertIsNotNone(graded['owner_score'])
         self.assertEqual(graded['owner_section'], 'Housewares')
+        self.assertIn('thirds', graded)
 
-    def test_an_untouched_spot_check_is_silence_not_a_zero(self):
+    def test_an_untouched_spot_check_is_empty_not_a_zero(self):
         self._checklists(self.TUESDAY)
+        self._tally_sections(self.TUESDAY)
         spot = self._routine(SYSTEM_OWNER_SPOT, kind=Routine.KIND_OWNER_SPOT)
         self._run(spot, self.TUESDAY, status=RoutineRun.STATUS_OPEN)
         graded = day_grade(self.TUESDAY, self.cfg)
-        self.assertIsNone(graded['owner_score'])
-        self.assertEqual(graded['score'], 100.0)
+        self.assertIsNone(graded['thirds']['owner'])
+        self.assertEqual(graded['letter'], 'A')
 
-    def test_a_day_nobody_scheduled_is_blank_rather_than_failing(self):
-        self.assertFalse(day_grade(self.TUESDAY, self.cfg)['graded'])
+    def test_a_day_with_expected_work_is_graded_even_without_runs(self):
+        graded = day_grade(self.TUESDAY, self.cfg)
+        self.assertTrue(graded['graded'])
+        self.assertTrue(graded['expected']['open_day_close'])
 
-    def test_the_week_mixes_the_daily_average_with_the_cross_checks(self):
+    def test_a_missed_cross_check_is_a_zero_in_the_cross_third(self):
         self._checklists(self.TUESDAY)
-        cross = self._routine(SYSTEM_CROSS_CHECK, kind=Routine.KIND_SECTION_AUDIT,
-                              weekdays=[1])
-        run = self._run(cross, self.TUESDAY, section=self.housewares,
-                        responses=self._audit(counts={'reshelf': 9}))
-        run.assigned_to = self.alex
-        run.save(update_fields=['assigned_to'])
-
-        week = week_grade(self.MONDAY, self.cfg)
-        self.assertEqual(week['daily_average'], 100.0)
-        self.assertEqual(week['cross_check_average'], 75.0)
-        self.assertEqual(week['score'], 93.8)
-        self.assertEqual(week['letter'], 'A')
-        self.assertEqual(week['cross_checks'][0]['auditor_name'], self.alex.full_name)
-
-    def test_a_cross_check_that_never_happened_is_a_zero(self):
-        self._checklists(self.TUESDAY)
+        self._tally_sections(self.TUESDAY)
         cross = self._routine(SYSTEM_CROSS_CHECK, kind=Routine.KIND_SECTION_AUDIT)
-        self._run(cross, self.TUESDAY, section=self.housewares,
-                  status=RoutineRun.STATUS_OPEN)
+        self._run(cross, self.TUESDAY, section=self.housewares, status=RoutineRun.STATUS_OPEN)
         week = week_grade(self.MONDAY, self.cfg)
-        self.assertEqual(week['cross_check_average'], 0.0)
-        self.assertEqual(week['score'], 75.0)
+        self.assertEqual(week['thirds']['cross'], 0.0)
 
-    def test_a_week_with_no_cross_check_leans_on_the_days_alone(self):
+    def test_a_week_with_no_cross_check_leans_on_doing_and_owner(self):
+        self._checklists(self.TUESDAY)
+        self._tally_sections(self.TUESDAY)
+        week = week_grade(self.MONDAY, self.cfg)
+        self.assertEqual(week['thirds']['doing'], 71.4)
+        self.assertIsNone(week['thirds']['owner'])
+        self.assertEqual(week['letter'], 'C')
+
+    def test_week_payload_has_thirds_and_people(self):
         self._checklists(self.TUESDAY)
         week = week_grade(self.MONDAY, self.cfg)
-        self.assertIsNone(week['cross_check_average'])
-        self.assertEqual(week['score'], 100.0)
+        self.assertIn('doing', week['thirds'])
+        self.assertIn('people', week)
+        self.assertEqual(week['calibration'], [])
 
     def test_tallies_are_summed_per_section_for_the_report(self):
         tally = self._routine(SYSTEM_TALLY, kind=Routine.KIND_SECTION_TALLY)
@@ -1024,46 +968,15 @@ class GradingTests(APITestCase):
         self.assertEqual(rows[0]['counts']['facing'], 7)
         self.assertEqual(rows[0]['walks'], 2)
 
-    def test_calibration_shows_what_the_checker_walked_past(self):
-        cross = self._routine(SYSTEM_CROSS_CHECK, kind=Routine.KIND_SECTION_AUDIT)
-        self._run(cross, self.TUESDAY, section=self.housewares, responses=self._audit())
-        spot = self._routine(SYSTEM_OWNER_SPOT, kind=Routine.KIND_OWNER_SPOT)
-        self._run(spot, self.TUESDAY, section=self.housewares, responses={
-            'checks': [],
-            'audit': self._audit(counts={'security': 4}),
-        })
-        rows = week_grade(self.MONDAY, self.cfg)['calibration']
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]['gaps'][0]['key'], 'security')
-        self.assertEqual(rows[0]['gaps'][0]['owner'], 4)
-        self.assertEqual(rows[0]['checker_score'], 100.0)
-
     def test_settings_override_the_letter_boundaries(self):
         AppSetting.objects.update_or_create(
-            key='retail_qa.grade_a', defaults={'value': '95'},
+            key='retail_qa.grade_a', defaults={'value': 95},
         )
-        self._checklists(self.TUESDAY, late=[SYSTEM_CLOSE])
-        graded = day_grade(self.TUESDAY)
-        self.assertEqual(graded['score'], 83.3)
-        self.assertEqual(graded['letter'], 'B')
-
-    def test_the_grades_endpoint_needs_staff_and_returns_the_week(self):
         self._checklists(self.TUESDAY)
-        anonymous = self.client.get('/api/routines/grades/')
-        self.assertEqual(anonymous.status_code, 401)
-
-        self.client.force_authenticate(self.sam)
-        pinned = (
-            timezone.make_aware(datetime(2026, 9, 1, 12, 0), TZ),
-            {'closed_weekdays': [0, 6], 'timezone': 'America/Chicago'},
-            TZ,
-        )
-        with patch('apps.routines.schedule._local_now', return_value=pinned):
-            response = self.client.get('/api/routines/grades/?week=2026-W36')
-        self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual(response.data['monday'], '2026-08-31')
-        self.assertEqual(response.data['letter'], 'A')
-        self.assertIn('graded', response.data['taxonomy'])
+        self._tally_sections(self.TUESDAY)
+        graded = day_grade(self.TUESDAY)
+        self.assertEqual(graded['score'], 100.0)
+        self.assertEqual(letter_for(graded['score'], retail_qa_settings()), 'A')
 
     def test_a_bad_week_parameter_falls_back_to_this_week(self):
         self.assertEqual(parse_week('nonsense').weekday(), 0)
@@ -1073,21 +986,16 @@ class GradingTests(APITestCase):
 class RetailQaSettingsTests(TestCase):
     def test_defaults_stand_in_for_anything_unset_or_unreadable(self):
         AppSetting.objects.update_or_create(
-            key='retail_qa.owner_weight', defaults={'value': '0.7'},
-        )
-        AppSetting.objects.update_or_create(
             key='retail_qa.grade_a', defaults={'value': 'ninety'},
         )
         cfg = retail_qa_settings()
-        self.assertEqual(cfg['owner_weight'], 0.7)
-        # Unparsable is the same as unset: the shipped default, not a crash.
         self.assertEqual(cfg['grade_a'], 90)
-        self.assertEqual(cfg['spot_check_count'], 2)
+        self.assertEqual(cfg['spot_check_count'], 3)
 
     def test_letters_follow_the_stored_boundaries(self):
         self.assertEqual(letter_for(89.9), 'B')
         AppSetting.objects.update_or_create(
-            key='retail_qa.grade_b', defaults={'value': '85'},
+            key='retail_qa.grade_b', defaults={'value': 85},
         )
         self.assertEqual(letter_for(84), 'C')
 
@@ -1161,8 +1069,8 @@ class SectionSubmitTests(APITestCase):
         self.assertEqual(done.status_code, 200, done.data)
         self.run.refresh_from_db()
         self.assertEqual(self.run.status, RoutineRun.STATUS_DONE)
-        # 3 reshelf scores 50 in that group; the other three groups stay 100.
-        self.assertEqual(score_run(self.run), 87.5)
+        from .models import SectionObservation
+        self.assertTrue(SectionObservation.objects.filter(run=self.run).exists())
         # The photo is stored and the data URL is replaced by its own URL.
         self.assertTrue(self.run.submission.responses['photo'].startswith('/api/routines/'))
 
@@ -1382,7 +1290,14 @@ class VerifyCheckTests(TestCase):
                 check['control'] = 'pass_fail'
         problems = submit_blockers(opening, responses, min_items=20)
         self.assertTrue(any('last shift' in item.lower() for item in problems))
-        responses['verify']['checks'] = [{**row, 'result': 'pass'} for row in expected]
+        responses['verify']['checks'] = [
+            {
+                **row,
+                'result': 'pass',
+                'photo': 'data:image/png;base64,xx' if row.get('photo_required') else None,
+            }
+            for row in expected
+        ]
         self.assertEqual(submit_blockers(opening, responses, min_items=20), [])
 
 

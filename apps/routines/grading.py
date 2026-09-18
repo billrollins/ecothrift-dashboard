@@ -156,6 +156,24 @@ def expected_parts(day: date) -> tuple[set[str], set[int]]:
     return keys, sections
 
 
+def day_expected(day: date, cfg: dict | None = None) -> dict[str, bool]:
+    """What this day can be scored on, independent of whether the store is open."""
+    keys, _sections = expected_parts(day)
+    section_checks = section_checks_required(day, cfg)
+    open_day_close = bool(keys)
+    walk_possible = section_checks or open_day_close
+    return {
+        'section_checks': section_checks,
+        'open_day_close': open_day_close,
+        'walk_possible': walk_possible,
+    }
+
+
+def day_is_graded(day: date, cfg: dict | None = None) -> bool:
+    flags = day_expected(day, cfg)
+    return flags['section_checks'] or flags['open_day_close'] or flags['walk_possible']
+
+
 def compute_expected(day: date) -> int:
     keys, sections = expected_parts(day)
     return len(keys) + len(sections)
@@ -732,10 +750,12 @@ def grade_day(day: date, ctx: dict | None = None, *, project: bool = False) -> d
     letter = letter_for(score, cfg) if score is not None else None
     checklists = {row['key']: row for row in doing['routines'] if row['key'] in PERFORMED_KEYS}
     spot = owner['spots'][0] if owner['spots'] else None
-    graded = bool(runs)
+    expected = day_expected(day, cfg)
+    graded = expected['section_checks'] or expected['open_day_close'] or expected['walk_possible']
     return {
         'date': day.isoformat(),
         'open_day': open_day,
+        'expected': expected,
         'graded': graded,
         'score': score if graded else None,
         'letter': letter if graded else None,
@@ -1189,12 +1209,18 @@ def _day_of(row: dict) -> date:
     return date.fromisoformat(row['date'])
 
 
+def _counts_toward_week(row: dict) -> bool:
+    if 'graded' in row:
+        return bool(row['graded'])
+    return bool(row.get('open_day'))
+
+
 def _doing_for_week(daily: list[dict], *, today: date, project: bool) -> float | None:
-    """Done over expected across open days. Not a mean of daily scores."""
+    """Done over expected across graded days. Not a mean of daily scores."""
     done = 0
     needed = 0
     for row in daily:
-        if not row.get('open_day'):
+        if not _counts_toward_week(row):
             continue
         day = _day_of(row)
         doing = row.get('doing') or {}
@@ -1218,10 +1244,10 @@ def _doing_for_week(daily: list[dict], *, today: date, project: bool) -> float |
 
 
 def _owner_for_week(daily: list[dict], *, today: date, project: bool = False) -> tuple[float | None, int]:
-    """Average of walked days. Projection treats remaining open days as 100."""
+    """Average of walked days. Projection treats remaining graded days as 100."""
     scores = []
     for row in daily:
-        if not row.get('open_day'):
+        if not _counts_toward_week(row):
             continue
         day = _day_of(row)
         owner = (row.get('thirds') or {}).get('owner')
