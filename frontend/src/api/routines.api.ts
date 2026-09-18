@@ -522,7 +522,12 @@ export function reorderSections(ids: number[]) {
 
 /* ------------------------------------------------------------------ grades */
 
-export type GradeLetter = 'A' | 'B' | 'C' | 'D' | 'F';
+export type GradeLetter =
+  | 'A+' | 'A' | 'A-'
+  | 'B+' | 'B' | 'B-'
+  | 'C+' | 'C' | 'C-'
+  | 'D+' | 'D' | 'D-'
+  | 'F';
 
 export interface DayPerformed {
   score: number;

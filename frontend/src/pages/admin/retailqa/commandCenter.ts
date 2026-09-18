@@ -75,7 +75,7 @@ export function tileClass(
     : opts?.projected
       ? ' projected'
       : opts?.letter
-        ? ` g-${opts.letter.toLowerCase()}`
+        ? ` g-${letterTintKey(opts.letter)}`
         : '';
   return `tile${idle ? ' closed' : ''}${grade}${selected ? ' sel' : ''}`;
 }
@@ -144,9 +144,17 @@ export function barTone(jobs: Array<{ status: string; owner?: { name?: string } 
   return { pct, tone: 'warn' as const };
 }
 
+export function letterTintKey(letter: string | null | undefined): string {
+  const raw = (letter || '').trim().toUpperCase();
+  if (!raw) return '';
+  const band = raw.charAt(0).toLowerCase();
+  if (raw.endsWith('+')) return `${band}plus`;
+  if (raw.length > 1 && raw.endsWith('-')) return `${band}minus`;
+  return band;
+}
+
 export function letterClass(letter: GradeLetter | null | undefined) {
-  if (!letter) return '';
-  return letter.toLowerCase();
+  return letterTintKey(letter);
 }
 
 export function scoreText(value: number | null | undefined) {

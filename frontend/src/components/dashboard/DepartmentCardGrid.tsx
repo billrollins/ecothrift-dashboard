@@ -6,7 +6,7 @@ import {
   parseDashboardAmount,
   shortDate,
 } from './dashboardFormatters';
-import { dashboardPalette, failLetterColors, isFailLetter } from './dashboardCardStyles';
+import { dashboardPalette, failLetterColors, isFailLetter, letterInk } from './dashboardCardStyles';
 
 /** Visible week rows in the card scroller - matches the pre-history 2-week layout. */
 const VISIBLE_WEEK_ROWS = 2;
@@ -132,11 +132,12 @@ function GridCell({
             ? failLetterColors.text
             : achieved
               ? dashboardPalette.goldDark
-              : isToday
-                ? dashboardPalette.greenDark
-                : muted
-                  ? 'text.secondary'
-                  : 'inherit',
+              : letterInk(value)
+                || (isToday
+                  ? dashboardPalette.greenDark
+                  : muted
+                    ? 'text.secondary'
+                    : 'inherit'),
         }}
     >
       {value}
@@ -217,7 +218,7 @@ function WeekLabelCell({
             ? failLetterColors.text
             : achieved
               ? dashboardPalette.goldDark
-              : 'text.primary',
+              : letterInk(total) || 'text.primary',
         }}
       >
         {achieved ? `★ ${total}` : total}

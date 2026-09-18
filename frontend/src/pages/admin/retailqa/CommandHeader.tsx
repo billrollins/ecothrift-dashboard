@@ -99,7 +99,7 @@ export function CommandHeader({
         </div>
         <div className="proj">
           <span className="txt">If the rest is done<br />this week</span>
-          <b>{projectedLetter ?? '—'}</b>
+          <b className={letterClass(projectedLetter)}>{projectedLetter ?? '—'}</b>
         </div>
       </div>
 
@@ -182,9 +182,9 @@ function DayTile({
       {idleClosed ? (
         <div className="l">Closed</div>
       ) : tile.is_future ? (
-        <div className="l">{letter ?? 'A'}</div>
+        <div className={`l${letter && letter.length > 1 ? ' plusminus' : ''}`}>{letter ?? 'A'}</div>
       ) : (
-        <div className="l">{letter ?? '—'}</div>
+        <div className={`l${letter && letter.length > 1 ? ' plusminus' : ''}`}>{letter ?? '—'}</div>
       )}
       <div className="n">{note}</div>
     </div>

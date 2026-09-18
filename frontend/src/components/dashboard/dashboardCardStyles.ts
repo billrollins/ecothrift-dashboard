@@ -147,6 +147,14 @@ export const failLetterColors = {
   text: ccTokens.bad,
 } as const;
 
+export function letterInk(value: string): string | undefined {
+  const band = (value || '').trim().charAt(0).toUpperCase();
+  if (band === 'A' || band === 'B') return dashboardPalette.green;
+  if (band === 'C' || band === 'D') return dashboardPalette.amber;
+  if (band === 'F') return failLetterColors.text;
+  return undefined;
+}
+
 export function dashboardAccentLeftSx(accent: string) {
 
   return {

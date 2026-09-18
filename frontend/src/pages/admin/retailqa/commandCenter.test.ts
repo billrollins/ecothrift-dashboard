@@ -77,6 +77,8 @@ describe('tileClass', () => {
   it('marks a closed tile selected', () => {
     expect(tileClass(true, true)).toBe('tile closed sel');
     expect(tileClass(false, true)).toBe('tile sel');
+    expect(tileClass(false, false, { letter: 'A+', graded: true })).toBe('tile g-aplus');
+    expect(tileClass(false, false, { letter: 'B-', graded: true })).toBe('tile g-bminus');
   });
 });
 

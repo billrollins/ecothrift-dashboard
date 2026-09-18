@@ -1,7 +1,7 @@
 import { format, parseISO } from 'date-fns';
 import { useMemo, useState } from 'react';
 import type { GradeLetter, GradeThirds, QaDayTile, QaToday, QaWeek } from '../../../api/routines.api';
-import { formatWeight, scoreText } from './commandCenter';
+import { formatWeight, letterClass, scoreText } from './commandCenter';
 import { BoardDialog } from './SummaryDialogs';
 
 const RULES = {
@@ -91,6 +91,9 @@ export function ScoreDialog({
 
   return (
     <BoardDialog open={open} onClose={onClose} title={title}>
+      <div className={`score-letter ${letterClass(selectedDay?.letter ?? weekLetter)}`}>
+        {selectedDay?.letter ?? weekLetter ?? '—'}
+      </div>
       <div className="score-scope">
         <select value={scope} onChange={(event) => setScope(event.target.value)}>
           <option value="week">{weekNumber}</option>
