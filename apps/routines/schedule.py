@@ -522,9 +522,10 @@ def current_shift(user) -> str:
 
 
 def audience_shift_codes(routine: Routine) -> list[str]:
-    from apps.hr.shifts import SHIFT_ORDER
+    from apps.hr.shifts import known_punch_codes
+    allowed = known_punch_codes()
     raw = getattr(routine, 'assigned_shifts', None) or []
-    return [str(code) for code in raw if str(code) in SHIFT_ORDER]
+    return [str(code) for code in raw if str(code) in allowed]
 
 
 def audience_department_ids(routine: Routine) -> list[int]:

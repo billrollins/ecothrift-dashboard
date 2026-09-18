@@ -18,10 +18,12 @@ from apps.accounts.permissions import IsStaff, IsSuperAdmin
 from apps.core.files import save_upload, stream_s3
 from apps.core.models import S3File
 from apps.hr.models import TimeEntry
-from apps.hr.shifts import SHIFT_TO_SYSTEM_KEY, shift_department, shift_label
+from apps.hr.shifts import shift_department, shift_label, system_key_for_punch
 
 from .definition import merge_responses, score_responses, validate_definition
-from .grading import missing_owners, parse_week, week_grade
+from .flags import evaluate_checker_flags
+from .grading import score_spot
+from .observations import record_submission
 from .kinds import (
     floor_sections,
     initial_responses,
@@ -44,6 +46,9 @@ from .schedule import (
     mine_queryset,
     overdue_queryset,
     current_shift,
+    apply_spot_section,
+    eligible_spot_sections,
+    maybe_draw_spot,
     unseen_spot_sections,
     user_can_see_run,
     user_in_audience,
@@ -285,8 +290,8 @@ class RoutineRunViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         return (
             RoutineRun.objects.select_related(
-                'routine', 'routine__assigned_department', 'assigned_to',
-                'completed_by', 'submission',
+                'routine', 'routine__assigned_department', 'routine__shift',
+                'assigned_to', 'completed_by', 'submission', 'section', 'section__owner',
             )
             .filter(routine__is_active=True)
         )
@@ -306,12 +311,19 @@ class RoutineRunViewSet(viewsets.ReadOnlyModelViewSet):
                 day = datetime.fromisoformat(run.period_key).date()
             except ValueError:
                 day = timezone.localdate()
-            leftover = unseen_spot_sections(
+            data['spot_state'] = maybe_draw_spot(run)
+            run.refresh_from_db()
+            leftover = eligible_spot_sections(
                 run.routine, day, exclude_ids=[run.section_id] if run.section_id else [],
             )
             data['can_reroll'] = bool(leftover)
+            data['generated'] = run.generated
+            data['section'] = run.section_id
+            data['section_name'] = run.section.name if run.section_id else ''
+            data['subject'] = run.subject
         else:
             data['can_reroll'] = False
+            data['spot_state'] = None
         data['sections'] = [
             {'id': section.pk, 'name': section.name}
             for section in owned_sections(run)
@@ -413,18 +425,14 @@ class RoutineRunViewSet(viewsets.ReadOnlyModelViewSet):
             day = datetime.fromisoformat(run.period_key).date()
         except ValueError:
             day = timezone.localdate()
-        leftover = unseen_spot_sections(
+        leftover = eligible_spot_sections(
             run.routine, day, exclude_ids=[run.section_id] if run.section_id else [],
         )
         if not leftover:
-            return Response({'detail': 'NO SECTIONS LEFT TO CHECK'}, status=400)
+            return Response({'detail': 'Nothing else has been tallied yet.'}, status=400)
+        previous = run.section
         section = random.choice(leftover)
-        generated = dict(run.generated or {})
-        generated['section_id'] = section.pk
-        run.section = section
-        run.subject = section.name
-        run.generated = generated
-        run.save(update_fields=['section', 'subject', 'generated'])
+        apply_spot_section(run, section, day, from_section=previous)
         for draft in RoutineSubmission.objects.filter(
             run=run, status=RoutineSubmission.STATUS_DRAFT,
         ):
@@ -442,8 +450,10 @@ class RoutineRunViewSet(viewsets.ReadOnlyModelViewSet):
             draft.responses = responses
             draft.save(update_fields=['responses', 'updated_at'])
         data = RoutineRunSerializer(run).data
-        leftover = unseen_spot_sections(run.routine, day, exclude_ids=[section.pk])
+        leftover = eligible_spot_sections(run.routine, day, exclude_ids=[section.pk])
         data['can_reroll'] = bool(leftover)
+        data['spot_state'] = 'ready'
+        data['generated'] = run.generated
         return Response(data)
 
     @action(detail=False, methods=['get'], url_path='overdue-report')
@@ -622,7 +632,20 @@ class RoutineSubmissionViewSet(viewsets.ModelViewSet):
                 run.save(update_fields=[
                     'status', 'submission', 'completed_at', 'completed_by',
                 ])
-        return Response(RoutineSubmissionSerializer(submission).data)
+        record_submission(submission)
+        evaluate_checker_flags(request.user, as_of=now)
+        payload = RoutineSubmissionSerializer(submission).data
+        if submission.routine.kind == submission.routine.KIND_OWNER_SPOT and submission.run_id:
+            from .settings import retail_qa_settings
+            scored = score_spot(submission.run, retail_qa_settings())
+            if scored:
+                payload['spot_score'] = scored
+                run = submission.run
+                generated = dict(run.generated or {})
+                generated['spot_score'] = scored
+                run.generated = generated
+                run.save(update_fields=['generated'])
+        return Response(payload)
 
     @action(detail=True, methods=['get'], url_path='photos/(?P<file_id>[0-9]+)')
     def photo(self, request, pk=None, file_id=None):
@@ -672,6 +695,11 @@ def _extract_photos(responses, *, user, submission_id: int) -> dict:
         holders.append(responses['shelf'])
     if 'items_inspected' in responses:
         holders.append(responses)
+    verify = responses.get('verify')
+    if isinstance(verify, dict):
+        holders.extend(
+            row for row in (verify.get('checks') or []) if isinstance(row, dict)
+        )
     for holder in holders:
         _store_photo(holder, user=user, submission_id=submission_id)
     return responses
@@ -782,7 +810,7 @@ class TodayView(APIView):
             employee=request.user, clock_out__isnull=True,
         ).first()
         shift = (entry.shift if entry else '') or ''
-        system_key = SHIFT_TO_SYSTEM_KEY.get(shift)
+        system_key = system_key_for_punch(shift)
         open_rows = list(mine_queryset(request.user))
         start = None
         if system_key:
@@ -819,21 +847,3 @@ class TodayView(APIView):
             'on_demand': RoutineSerializer(_on_demand_routines(request.user), many=True).data,
             'language': language,
         })
-
-
-class RetailGradesView(APIView):
-    """`GET /api/routines/grades/?week=YYYY-Www` - the week, scored and itemised.
-
-    Staff can read their own grade. A number people are held to should not be
-    something only the people holding it can see.
-    """
-
-    permission_classes = [IsAuthenticated, IsStaff]
-
-    def get(self, request):
-        materialize_routines()
-        monday = parse_week(request.query_params.get('week'))
-        payload = week_grade(monday)
-        payload['missing_owners'] = missing_owners()
-        payload['taxonomy'] = taxonomy()
-        return Response(payload)

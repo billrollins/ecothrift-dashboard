@@ -42,7 +42,7 @@ SHIFT_DEPARTMENTS = [
     },
 ]
 
-# Position name only. Department lives on the parent row.
+# Historical labels only. Live names come from hr.Shift by punch_code.
 SHIFT_LABELS = {
     SHIFT_RETAIL_OPEN: {
         'department': DEPT_RETAIL,
@@ -114,9 +114,49 @@ def _lang(language: str) -> str:
     return 'es' if language == 'es' else 'en'
 
 
+def _shift_for_code(code: str, *, active_only: bool = False):
+    if not code:
+        return None
+    from apps.hr.models import Shift
+    qs = Shift.objects.filter(punch_code=code).select_related('department')
+    if active_only:
+        qs = qs.filter(is_active=True)
+    return qs.order_by('-is_active', 'id').first()
+
+
+def active_punch_codes() -> set[str]:
+    from apps.hr.models import Shift
+    return set(
+        Shift.objects.filter(is_active=True).exclude(punch_code='').values_list('punch_code', flat=True)
+    )
+
+
+def known_punch_codes() -> set[str]:
+    from apps.hr.models import Shift
+    live = set(Shift.objects.exclude(punch_code='').values_list('punch_code', flat=True))
+    return live | set(SHIFT_LABELS)
+
+
+def system_key_for_punch(code: str) -> str | None:
+    if not code:
+        return None
+    from apps.routines.models import Routine
+    routine = (
+        Routine.objects.filter(shift__punch_code=code, shift_locked=True, is_active=True)
+        .order_by('id')
+        .first()
+    )
+    if routine:
+        return routine.system_key
+    return SHIFT_TO_SYSTEM_KEY.get(code)
+
+
 def shift_department(code: str, language: str = 'en') -> str:
-    row = SHIFT_LABELS.get(code) or {}
-    dept = _department_row(row.get('department'))
+    row = _shift_for_code(code)
+    if row is not None and row.department_id:
+        return row.department.name
+    hist = SHIFT_LABELS.get(code) or {}
+    dept = _department_row(hist.get('department'))
     if not dept:
         return ''
     lang = _lang(language)
@@ -124,9 +164,16 @@ def shift_department(code: str, language: str = 'en') -> str:
 
 
 def shift_label(code: str, language: str = 'en', with_department: bool = False) -> str:
-    row = SHIFT_LABELS.get(code) or {}
+    row = _shift_for_code(code)
+    if row is not None:
+        name = row.name
+        dept = row.department.name if row.department_id else ''
+        if with_department and dept:
+            return f'{dept}: {name}'
+        return name
+    hist = SHIFT_LABELS.get(code) or {}
     lang = _lang(language)
-    name = row.get(lang) or row.get('en') or code
+    name = hist.get(lang) or hist.get('en') or code
     if with_department:
         dept = shift_department(code, language)
         if dept:

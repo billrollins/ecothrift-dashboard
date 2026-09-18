@@ -1,5 +1,6 @@
 from datetime import date
-from django.db.models import Sum, Q, DecimalField
+from zoneinfo import ZoneInfo
+from django.db.models import Sum, Q, DecimalField, Count
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from decimal import Decimal
@@ -12,30 +13,108 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsEmployee, IsSuperAdmin
-from .models import Department, TimeEntry, TimeEntryModificationRequest, SickLeaveBalance, SickLeaveRequest
+from apps.hr.services.departments import (
+    HARD_FIELDS,
+    build_department_summary,
+    department_dependencies,
+    strip_department_from_routines,
+    sync_program_department_slug,
+)
+from .models import (
+    Department, TimeEntry, TimeEntryModificationRequest, SickLeaveBalance,
+    SickLeaveRequest, Shift, ShiftAssignment,
+)
 from .serializers import (
     DepartmentSerializer, TimeEntrySerializer, TimeEntrySummarySerializer,
     TimeEntryModificationRequestSerializer,
     WeeklyHoursStatusSerializer, PayrollEmployeeRowSerializer,
     PayrollPeriodSerializer, MyPayPeriodSerializer, TimeEntryRosterSerializer,
     SickLeaveBalanceSerializer, SickLeaveRequestSerializer,
+    ShiftSerializer, ShiftAssignmentSerializer,
 )
 from .services.time_clock_utils import weekly_status_for_employee, week_bounds
 from .services.payroll_periods import list_payroll_periods
 from .services.roster import build_time_roster, shift_hours
-from .shifts import SHIFT_ORDER
+from .shifts import active_punch_codes
 
 
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.select_related('location', 'manager').all()
     serializer_class = DepartmentSerializer
     permission_classes = [IsAuthenticated, IsStaff]
+    pagination_class = None
     search_fields = ['name']
 
     def get_permissions(self):
-        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+        if self.action in ('create', 'destroy', 'reorder'):
+            return [IsAuthenticated(), IsSuperAdmin()]
+        if self.action in ('update', 'partial_update'):
             return [IsAuthenticated(), IsManagerOrAdmin()]
         return super().get_permissions()
+
+    def get_queryset(self):
+        qs = Department.objects.select_related('location', 'manager').annotate(
+            home_count=Count('employees', distinct=True),
+            shift_count=Count('shifts', distinct=True),
+            section_count=Count(
+                'sections',
+                filter=Q(sections__is_active=True),
+                distinct=True,
+            ),
+        )
+        if self.action == 'list' and self.request.query_params.get('include_inactive') != '1':
+            qs = qs.filter(is_active=True)
+        return qs
+
+    def update(self, request, *args, **kwargs):
+        if not request.user.is_superuser:
+            blocked = HARD_FIELDS.intersection(request.data.keys())
+            if blocked:
+                return Response(
+                    {'detail': 'Only a superuser can change that field.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        return super().update(request, *args, **kwargs)
+
+    def perform_update(self, serializer):
+        old_slug = serializer.instance.slug
+        serializer.save()
+        if self.request.user.is_superuser:
+            sync_program_department_slug(old_slug, serializer.instance.slug)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        deps = department_dependencies(instance)
+        if any(deps.values()):
+            return Response(
+                {
+                    'detail': 'This department still has records. Deactivate it instead.',
+                    'dependencies': deps,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        strip_department_from_routines(instance.pk)
+        instance.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['get'])
+    def summary(self, request, pk=None):
+        return Response(build_department_summary(self.get_object()))
+
+    @action(detail=False, methods=['post'])
+    def reorder(self, request):
+        ids = request.data.get('ids')
+        if not isinstance(ids, list):
+            return Response({'detail': 'ids must be a list of department ids.'}, status=400)
+        cleaned = []
+        for value in ids:
+            try:
+                cleaned.append(int(value))
+            except (TypeError, ValueError):
+                return Response({'detail': 'ids must be a list of department ids.'}, status=400)
+        for index, pk in enumerate(cleaned):
+            Department.objects.filter(pk=pk).update(sort_order=index)
+        return Response({'ok': True})
 
 
 class TimeEntryViewSet(viewsets.ModelViewSet):
@@ -92,9 +171,13 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
         ).exists():
             raise ValidationError({'detail': 'Already clocked in.'})
 
-        # Self clock-in needs a shift. A manager adding a payroll row may leave it blank.
-        if creating_open and target == user and not (serializer.validated_data.get('shift') or '').strip():
-            raise ValidationError({'shift': 'Say which shift you are working.'})
+        # Self clock-in needs an active Shift punch code. A manager payroll row may be blank.
+        if creating_open and target == user:
+            code = (serializer.validated_data.get('shift') or '').strip()
+            if not code:
+                raise ValidationError({'shift': 'Say which shift you are working.'})
+            if code not in active_punch_codes():
+                raise ValidationError({'shift': 'Pick a shift.'})
 
         now = timezone.now()
         defaults = {}
@@ -140,7 +223,7 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
         if entry.clock_out:
             return Response({'detail': 'That punch is already closed.'}, status=status.HTTP_400_BAD_REQUEST)
         code = str(request.data.get('shift') or '').strip()
-        if code not in SHIFT_ORDER:
+        if code not in active_punch_codes():
             return Response({'detail': 'Pick a shift.'}, status=status.HTTP_400_BAD_REQUEST)
         entry.shift = code
         entry.save(update_fields=['shift', 'updated_at'])
@@ -615,3 +698,70 @@ class SickLeaveRequestViewSet(viewsets.ModelViewSet):
         obj.reviewed_at = timezone.now()
         obj.save()
         return Response(SickLeaveRequestSerializer(obj).data)
+
+
+class ShiftViewSet(viewsets.ModelViewSet):
+    serializer_class = ShiftSerializer
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+    pagination_class = None
+    queryset = Shift.objects.select_related('department').prefetch_related('assignments')
+
+    def perform_create(self, serializer):
+        name = serializer.validated_data.get('name') or 'shift'
+        punch = serializer.validated_data.get('punch_code') or ''
+        if not punch:
+            import re
+            punch = re.sub(r'[^a-z0-9]+', '_', name.lower()).strip('_')[:20] or 'shift'
+        serializer.save(punch_code=punch)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsStaff])
+    def clock_tiles(self, request):
+        from apps.webstore.services.hours import get_hours_config
+
+        raw = request.query_params.get('date')
+        if raw:
+            try:
+                day = date.fromisoformat(raw)
+            except ValueError as exc:
+                raise ValidationError({'date': 'Use YYYY-MM-DD.'}) from exc
+        else:
+            cfg = get_hours_config()
+            tz = ZoneInfo(cfg.get('timezone') or 'America/Chicago')
+            day = timezone.now().astimezone(tz).date()
+        rows = Shift.objects.filter(
+            is_active=True,
+            department__is_active=True,
+        ).exclude(punch_code='').select_related('department').order_by(
+            'department__sort_order', 'department__name', 'time_in', 'name',
+        )
+        return Response([
+            {
+                'id': row.pk,
+                'name': row.name,
+                'department': row.department.name,
+                'department_slug': row.department.slug,
+                'department_sort': row.department.sort_order,
+                'punch_code': row.punch_code,
+            }
+            for row in rows
+            if row.runs_on(day)
+        ])
+
+
+class ShiftAssignmentViewSet(viewsets.ModelViewSet):
+    serializer_class = ShiftAssignmentSerializer
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+    pagination_class = None
+    queryset = ShiftAssignment.objects.select_related(
+        'employee', 'shift', 'shift__department',
+    )
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        shift = self.request.query_params.get('shift')
+        employee = self.request.query_params.get('employee')
+        if shift:
+            qs = qs.filter(shift_id=shift)
+        if employee:
+            qs = qs.filter(employee_id=employee)
+        return qs

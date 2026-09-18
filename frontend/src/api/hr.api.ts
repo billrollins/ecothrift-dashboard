@@ -1,6 +1,7 @@
 import type { PaginatedResponse } from '../types/index';
 import type {
   Department,
+  DepartmentDependencies,
   TimeEntry,
   SickLeaveBalance,
   SickLeaveRequest,
@@ -15,6 +16,7 @@ import api from './client';
 
 export type {
   Department,
+  DepartmentDependencies,
   TimeEntry,
   SickLeaveBalance,
   SickLeaveRequest,
@@ -37,14 +39,123 @@ export interface TimeEntryParams {
 }
 
 // Department endpoints
+export const DEFAULT_PROGRAM_DEPARTMENT_SLUG = 'retail-operations';
+
+export function programDepartmentSlug(
+  settings?: Array<{ key: string; value: unknown }> | { results?: Array<{ key: string; value: unknown }> },
+): string {
+  const rows = Array.isArray(settings) ? settings : settings?.results;
+  const row = rows?.find((item) => item.key === 'retail_qa.program_department');
+  return typeof row?.value === 'string' && row.value.trim()
+    ? row.value.trim()
+    : DEFAULT_PROGRAM_DEPARTMENT_SLUG;
+}
+
 /** Always resolves to a plain array, whether or not DRF paginated the response. */
-export async function getDepartments(): Promise<{ data: Department[] }> {
-  const { data } = await api.get<Department[] | PaginatedResponse<Department>>('/hr/departments/');
+export async function getDepartments(params?: {
+  includeInactive?: boolean;
+}): Promise<{ data: Department[] }> {
+  const query = params?.includeInactive ? { include_inactive: 1 } : undefined;
+  const { data } = await api.get<Department[] | PaginatedResponse<Department>>('/hr/departments/', {
+    params: query,
+  });
   return { data: Array.isArray(data) ? data : data?.results || [] };
 }
 
 export function createDepartment(data: Record<string, unknown>): Promise<{ data: Department }> {
   return api.post<Department>('/hr/departments/', data);
+}
+
+export function updateDepartment(id: number, data: Record<string, unknown>): Promise<{ data: Department }> {
+  return api.patch<Department>(`/hr/departments/${id}/`, data);
+}
+
+export function deleteDepartment(id: number): Promise<void> {
+  return api.delete(`/hr/departments/${id}/`);
+}
+
+export function getDepartmentSummary(id: number): Promise<{ data: DepartmentSummary }> {
+  return api.get<DepartmentSummary>(`/hr/departments/${id}/summary/`);
+}
+
+export function reorderDepartments(ids: number[]): Promise<{ data: { ok: boolean } }> {
+  return api.post<{ ok: boolean }>('/hr/departments/reorder/', { ids });
+}
+
+/** Keep a selected inactive department visible so the picker is not blank. */
+export function mergeCurrentDepartment<T extends { id: number; name: string }>(
+  list: T[],
+  current?: { id?: number | null; name?: string | null } | null,
+): T[] {
+  if (current?.id == null) return list;
+  if (list.some((row) => row.id === current.id)) return list;
+  return [...list, { ...(current as T), id: current.id, name: current.name || `Department ${current.id}` }];
+}
+
+export function mergeCurrentDepartments<T extends { id: number; name: string }>(
+  list: T[],
+  currents: Array<{ id?: number | null; name?: string | null } | null | undefined>,
+): T[] {
+  return currents.reduce((rows, current) => mergeCurrentDepartment(rows, current), list);
+}
+
+export interface DepartmentSummaryPerson {
+  id: number;
+  full_name: string;
+  role: string | null;
+  is_active: boolean;
+}
+
+export interface DepartmentSummaryShift {
+  id: number;
+  name: string;
+  time_in: string;
+  time_out: string;
+  weekdays: number[];
+  assigned_count: number;
+  assignments: Array<{
+    id: number;
+    employee: number;
+    employee_name: string;
+    weekdays: number[];
+  }>;
+}
+
+export interface DepartmentSummary {
+  id: number;
+  name: string;
+  slug: string;
+  icon: Department['icon'];
+  sort_order: number;
+  description: string;
+  location: number | null;
+  location_name: string | null;
+  manager: number | null;
+  manager_name: string | null;
+  is_active: boolean;
+  home_staff: DepartmentSummaryPerson[];
+  shifts: DepartmentSummaryShift[];
+  also_scheduled_here: Array<{ id: number; full_name: string; shift_name: string }>;
+  home_scheduled_elsewhere: Array<{
+    id: number;
+    full_name: string;
+    shift_name: string;
+    department_name: string;
+  }>;
+  sections?: {
+    items: Array<{ id: number; name: string; owner: number | null; owner_name: string | null }>;
+    orphans: Array<{ id: number; name: string }>;
+    idle: DepartmentSummaryPerson[];
+    doubled: Array<{ owner: string; count: number }>;
+  };
+  routines: Array<{
+    id: number;
+    title: string;
+    audience_type: string;
+    system_key: string;
+  }>;
+  document_count: number;
+  dependencies: DepartmentDependencies;
 }
 
 // Time entry endpoints
@@ -236,4 +347,80 @@ export function bulkRejectModificationRequests(
     ids,
     review_note: reviewNote,
   });
+}
+
+/** Named weekly roster row. Clock-in tiles read the same rows. */
+export interface RosterShift {
+  id: number;
+  name: string;
+  department: number;
+  department_name: string;
+  department_slug: string;
+  department_sort?: number;
+  time_in: string;
+  time_out: string;
+  weekdays: number[];
+  punch_code: string;
+  is_active: boolean;
+  assigned_count: number;
+  locked?: boolean;
+  locked_title?: string;
+}
+
+export type ClockTile = {
+  id: number;
+  name: string;
+  department: string;
+  department_slug: string;
+  department_sort: number;
+  punch_code: string;
+};
+
+export interface RosterAssignment {
+  id: number;
+  employee: number;
+  employee_name: string;
+  shift: number;
+  shift_name: string;
+  department_name: string;
+  time_in: string;
+  time_out: string;
+  /** Empty means every day the shift runs. */
+  weekdays: number[];
+}
+
+export function getClockTiles(day?: string) {
+  return api.get<ClockTile[]>('/hr/shifts/clock_tiles/', { params: day ? { date: day } : undefined });
+}
+
+export function getRosterShifts() {
+  return api.get<RosterShift[]>('/hr/shifts/');
+}
+
+export function createRosterShift(data: Partial<RosterShift>) {
+  return api.post<RosterShift>('/hr/shifts/', data);
+}
+
+export function updateRosterShift(id: number, data: Partial<RosterShift>) {
+  return api.patch<RosterShift>(`/hr/shifts/${id}/`, data);
+}
+
+export function deleteRosterShift(id: number) {
+  return api.delete(`/hr/shifts/${id}/`);
+}
+
+export function getRosterAssignments(params?: { shift?: number; employee?: number }) {
+  return api.get<RosterAssignment[]>('/hr/shift-assignments/', { params });
+}
+
+export function createRosterAssignment(data: { employee: number; shift: number; weekdays?: number[] }) {
+  return api.post<RosterAssignment>('/hr/shift-assignments/', data);
+}
+
+export function updateRosterAssignment(id: number, data: Partial<RosterAssignment>) {
+  return api.patch<RosterAssignment>(`/hr/shift-assignments/${id}/`, data);
+}
+
+export function deleteRosterAssignment(id: number) {
+  return api.delete(`/hr/shift-assignments/${id}/`);
 }

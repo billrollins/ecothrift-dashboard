@@ -51,11 +51,12 @@ class RoutineSerializer(serializers.ModelSerializer):
     def validate_assigned_shifts(self, value):
         if not isinstance(value, list):
             raise serializers.ValidationError('Shifts must be a list.')
-        from apps.hr.shifts import SHIFT_ORDER
+        from apps.hr.shifts import known_punch_codes
+        allowed = known_punch_codes()
         cleaned = []
         for item in value:
             code = str(item).strip()
-            if code not in SHIFT_ORDER:
+            if code not in allowed:
                 raise serializers.ValidationError(f'Unknown shift {code}.')
             if code not in cleaned:
                 cleaned.append(code)

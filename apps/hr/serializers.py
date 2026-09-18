@@ -1,18 +1,45 @@
 from rest_framework import serializers
-from .models import Department, TimeEntry, TimeEntryModificationRequest, SickLeaveBalance, SickLeaveRequest
+from .models import (
+    Department, TimeEntry, TimeEntryModificationRequest, SickLeaveBalance,
+    SickLeaveRequest, Shift, ShiftAssignment,
+)
 from .shifts import shift_department, shift_label
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
     manager_name = serializers.CharField(source='manager.full_name', read_only=True, default=None)
     location_name = serializers.CharField(source='location.name', read_only=True, default=None)
+    home_count = serializers.SerializerMethodField()
+    shift_count = serializers.SerializerMethodField()
+    section_count = serializers.SerializerMethodField()
+    dependencies = serializers.SerializerMethodField()
 
     class Meta:
         model = Department
         fields = [
-            'id', 'name', 'description', 'location', 'location_name',
-            'manager', 'manager_name', 'is_active',
+            'id', 'name', 'slug', 'icon', 'sort_order', 'description',
+            'location', 'location_name', 'manager', 'manager_name', 'is_active',
+            'home_count', 'shift_count', 'section_count', 'dependencies',
         ]
+        extra_kwargs = {
+            'slug': {'required': False, 'allow_blank': True},
+        }
+
+    def get_home_count(self, obj):
+        return int(getattr(obj, 'home_count', 0) or 0)
+
+    def get_shift_count(self, obj):
+        return int(getattr(obj, 'shift_count', 0) or 0)
+
+    def get_section_count(self, obj):
+        return int(getattr(obj, 'section_count', 0) or 0)
+
+    def get_dependencies(self, obj):
+        from apps.hr.services.departments import department_dependencies
+        cached = self.context.get('dependency_cache')
+        if cached is not None and obj.pk in cached:
+            return cached[obj.pk]
+        return department_dependencies(obj)
 
 
 class TimeEntrySerializer(serializers.ModelSerializer):
@@ -169,3 +196,84 @@ class SickLeaveRequestSerializer(serializers.ModelSerializer):
             'reviewed_by_name', 'review_note', 'reviewed_at', 'created_at',
         ]
         read_only_fields = ['id', 'reviewed_at', 'created_at']
+
+
+class ShiftSerializer(serializers.ModelSerializer):
+    department_name = serializers.CharField(source='department.name', read_only=True)
+    department_slug = serializers.CharField(source='department.slug', read_only=True)
+    department_sort = serializers.IntegerField(source='department.sort_order', read_only=True)
+    assigned_count = serializers.IntegerField(source='assignments.count', read_only=True)
+    locked = serializers.SerializerMethodField()
+    locked_title = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Shift
+        fields = [
+            'id', 'name', 'department', 'department_name', 'department_slug',
+            'department_sort', 'time_in', 'time_out', 'weekdays', 'punch_code',
+            'is_active', 'assigned_count', 'locked', 'locked_title',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'department_name', 'department_slug', 'department_sort',
+            'assigned_count', 'locked', 'locked_title', 'created_at', 'updated_at',
+        ]
+
+    def get_locked(self, obj) -> bool:
+        return bool(self._locked_routine(obj))
+
+    def get_locked_title(self, obj) -> str:
+        routine = self._locked_routine(obj)
+        return getattr(routine, 'title', '') or ''
+
+    def _locked_routine(self, obj):
+        cache = self.context.setdefault('_locked_routines', {})
+        if obj.pk not in cache:
+            from apps.routines.models import Routine
+            cache[obj.pk] = (
+                Routine.objects.filter(shift_id=obj.pk, shift_locked=True, is_active=True)
+                .only('id', 'title')
+                .first()
+            )
+        return cache[obj.pk]
+
+    def validate_weekdays(self, value):
+        return _clean_weekdays(value)
+
+
+class ShiftAssignmentSerializer(serializers.ModelSerializer):
+    employee_name = serializers.CharField(source='employee.full_name', read_only=True)
+    shift_name = serializers.CharField(source='shift.name', read_only=True)
+    department_name = serializers.CharField(source='shift.department.name', read_only=True)
+    time_in = serializers.TimeField(source='shift.time_in', read_only=True)
+    time_out = serializers.TimeField(source='shift.time_out', read_only=True)
+
+    class Meta:
+        model = ShiftAssignment
+        fields = [
+            'id', 'employee', 'employee_name', 'shift', 'shift_name',
+            'department_name', 'time_in', 'time_out', 'weekdays', 'created_at',
+        ]
+        read_only_fields = [
+            'id', 'employee_name', 'shift_name', 'department_name',
+            'time_in', 'time_out', 'created_at',
+        ]
+
+    def validate_weekdays(self, value):
+        return _clean_weekdays(value)
+
+
+def _clean_weekdays(value):
+    if not isinstance(value, list):
+        raise serializers.ValidationError('Weekdays must be a list of 0-6.')
+    days = []
+    for item in value:
+        try:
+            day = int(item)
+        except (TypeError, ValueError):
+            raise serializers.ValidationError('Weekdays must be numbers 0-6.')
+        if day < 0 or day > 6:
+            raise serializers.ValidationError('Weekdays must be 0 (Monday) through 6 (Sunday).')
+        if day not in days:
+            days.append(day)
+    return days
