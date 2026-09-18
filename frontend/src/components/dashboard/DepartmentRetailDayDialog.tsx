@@ -109,6 +109,95 @@ export function crossDetailLine(row: NonNullable<RetailDaySummary['cross']>): st
   return `${row.done} of ${row.due}${due}`;
 }
 
+export const THIRD_WEIGHTS = { spot: 60, do: 25, cross: 15 } as const;
+
+export interface ContributionSegment {
+  key: 'spot' | 'do' | 'cross';
+  weight: number;
+  points: number;
+  pending: boolean;
+  tone: LetterTileTone;
+}
+
+export function contributionSegments(
+  data: RetailDaySummary,
+  threshold: number,
+): ContributionSegment[] {
+  const rows: Array<{
+    key: ContributionSegment['key'];
+    weight: number;
+    score: number | null | undefined;
+    state?: string | null;
+  }> = [
+    { key: 'spot', weight: THIRD_WEIGHTS.spot, score: data.spot?.score, state: data.spot?.state },
+    { key: 'do', weight: THIRD_WEIGHTS.do, score: data.do?.score, state: null },
+    { key: 'cross', weight: THIRD_WEIGHTS.cross, score: data.cross?.score, state: data.cross?.state },
+  ];
+  return rows.map((row) => {
+    const pending = isIdleState(row.state) || row.score == null;
+    return {
+      key: row.key,
+      weight: row.weight,
+      points: pending ? row.weight : (row.weight * Number(row.score)) / 100,
+      pending,
+      tone: thirdTone(row.score, row.state, threshold),
+    };
+  });
+}
+
+export function scoredContributionTotal(segments: ContributionSegment[]): number {
+  return segments.reduce((sum, seg) => sum + (seg.pending ? 0 : seg.points), 0);
+}
+
+const HATCH = `repeating-linear-gradient(-45deg, ${ccTokens.neuTint} 0 4px, ${ccTokens.line2} 4px 8px)`;
+
+function ContributionBar({
+  segments,
+  score,
+}: {
+  segments: ContributionSegment[];
+  score: number | null;
+}) {
+  return (
+    <Box
+      data-testid="retail-contribution-bar"
+      sx={{ display: 'flex', alignItems: 'center', gap: 1.25, width: '100%' }}
+    >
+      <Box
+        sx={{
+          flex: 1,
+          minWidth: 0,
+          height: 10,
+          borderRadius: '999px',
+          overflow: 'hidden',
+          display: 'flex',
+          bgcolor: ccTokens.neuTint,
+        }}
+      >
+        {segments.map((seg) => (
+          <Box
+            key={seg.key}
+            data-segment={seg.key}
+            data-pending={seg.pending ? 'true' : 'false'}
+            sx={{
+              flexGrow: seg.points,
+              flexShrink: 0,
+              flexBasis: 0,
+              minWidth: 0,
+              height: '100%',
+              bgcolor: seg.pending ? undefined : CARD_TONE[seg.tone].fg,
+              background: seg.pending ? HATCH : undefined,
+            }}
+          />
+        ))}
+      </Box>
+      <Typography sx={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', color: ccTokens.ink }}>
+        {score == null ? '\u2014' : Math.round(score)}
+      </Typography>
+    </Box>
+  );
+}
+
 const CARD_TONE: Record<LetterTileTone, { bg: string; fg: string }> = {
   green: { bg: ccTokens.goodTint, fg: ccTokens.goodText },
   amber: { bg: ccTokens.warnTint, fg: ccTokens.warnText },
@@ -360,6 +449,10 @@ export function DepartmentRetailDayDialog({
                 }
               />
             </Box>
+            <ContributionBar
+              segments={contributionSegments(data, threshold)}
+              score={data.score}
+            />
             {showCommandCenterLink ? (
               <Link
                 component={RouterLink}
