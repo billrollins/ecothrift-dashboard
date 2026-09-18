@@ -125,29 +125,75 @@ export interface ContributionSegment {
   tone: LetterTileTone;
 }
 
+export function formatCardWeight(
+  name: string,
+  weight?: number | null,
+  excluded?: boolean,
+): string {
+  if (excluded) return `${name} —`;
+  if (weight == null) return name;
+  const shown = Number.isInteger(weight) ? String(weight) : String(weight);
+  return `${name} · ${shown}%`;
+}
+
+export function crossInfoDetail(
+  info: NonNullable<RetailDaySummary['cross_info']>,
+): { detail: string; pending: string | null } {
+  if (info.state === 'pending') {
+    return { detail: '', pending: crossPendingLabel(info.due_date) };
+  }
+  const complete = info.due > 0 && info.done >= info.due;
+  const due = !complete && info.due_date ? ` · due ${formatDueDate(info.due_date)}` : '';
+  const extra = info.done_on_this_day
+    ? ` · ${info.done_on_this_day} done on this day`
+    : '';
+  return { detail: `${info.done} of ${info.due} done${due}${extra}`, pending: null };
+}
+
 export function contributionSegments(
   data: RetailDaySummary,
   threshold: number,
+  mode: RetailSummaryMode = 'day',
 ): ContributionSegment[] {
+  const weights = data.weights ?? {};
+  const excluded = data.excluded ?? [];
   const rows: Array<{
     key: ContributionSegment['key'];
     weight: number;
     score: number | null | undefined;
     state?: string | null;
-  }> = [
-    { key: 'spot', weight: THIRD_WEIGHTS.spot, score: data.spot?.score, state: data.spot?.state },
-    { key: 'do', weight: THIRD_WEIGHTS.do, score: data.do?.score, state: null },
-    { key: 'cross', weight: THIRD_WEIGHTS.cross, score: data.cross?.score, state: data.cross?.state },
-  ];
-  return rows.map((row) => {
+  }> = mode === 'day'
+    ? [
+        { key: 'spot', weight: weights.spot ?? 0, score: data.spot?.score, state: data.spot?.state },
+        { key: 'do', weight: weights.do ?? 0, score: data.do?.score, state: null },
+      ]
+    : [
+        { key: 'spot', weight: weights.spot ?? THIRD_WEIGHTS.spot, score: data.spot?.score, state: data.spot?.state },
+        { key: 'do', weight: weights.do ?? THIRD_WEIGHTS.do, score: data.do?.score, state: null },
+        { key: 'cross', weight: weights.cross ?? THIRD_WEIGHTS.cross, score: data.cross?.score, state: data.cross?.state },
+      ];
+  return rows.flatMap((row) => {
+    if (mode === 'day' && (excluded.includes(row.key) || row.weight <= 0)) return [];
+    const crossPending = row.key === 'cross' && (
+      row.state === 'pending' || excluded.includes('cross') || row.score == null
+    );
+    if (mode === 'week' && crossPending) {
+      return [{
+        key: 'cross',
+        weight: THIRD_WEIGHTS.cross,
+        points: THIRD_WEIGHTS.cross,
+        pending: true,
+        tone: 'grey' as const,
+      }];
+    }
     const pending = isIdleState(row.state) || row.score == null;
-    return {
+    return [{
       key: row.key,
       weight: row.weight,
-      points: pending ? row.weight : (row.weight * Number(row.score)) / 100,
+      points: pending ? 0 : (row.weight * Number(row.score ?? 0)) / 100,
       pending,
       tone: thirdTone(row.score, row.state, threshold),
-    };
+    }];
   });
 }
 
@@ -214,29 +260,36 @@ const CARD_TONE: Record<LetterTileTone, { bg: string; fg: string }> = {
 function ThirdCard({
   name,
   weight,
+  excluded,
   score,
   state,
   threshold,
   description,
   detail,
   pending,
+  informational,
+  testId,
 }: {
   name: string;
-  weight: number;
+  weight?: number | null;
+  excluded?: boolean;
   score: number | null | undefined;
   state?: string | null;
   threshold: number;
   description: string;
   detail: string;
   pending?: string | null;
+  informational?: boolean;
+  testId?: string;
 }) {
-  const tone = thirdTone(score, state, threshold);
+  const tone = informational ? 'grey' : thirdTone(score, state, threshold);
   const colors = CARD_TONE[tone];
   const status = pending || spotStatusCopy(state);
   return (
     <Box
-      data-testid={`retail-${name.toLowerCase()}-card`}
+      data-testid={testId || `retail-${name.toLowerCase()}-card`}
       data-tone={tone}
+      data-weight={weight == null ? '' : String(weight)}
       sx={{
         flex: '1 1 0',
         minWidth: 0,
@@ -250,7 +303,7 @@ function ThirdCard({
       }}
     >
       <Typography sx={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', color: ccTokens.ink }}>
-        {name} · {weight}%
+        {formatCardWeight(name, weight, excluded)}
       </Typography>
       <Typography sx={{ fontSize: 28, fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap', color: colors.fg }}>
         {thirdScoreDisplay(score, state)}
@@ -431,7 +484,8 @@ export function DepartmentRetailDayDialog({
             >
               <ThirdCard
                 name="Spot"
-                weight={60}
+                weight={data.weights?.spot}
+                excluded={data.excluded?.includes('spot')}
                 score={data.spot?.score}
                 state={data.spot?.state}
                 threshold={threshold}
@@ -440,32 +494,57 @@ export function DepartmentRetailDayDialog({
               />
               <ThirdCard
                 name="Do"
-                weight={25}
+                weight={data.weights?.do}
+                excluded={data.excluded?.includes('do')}
                 score={data.do?.score}
                 state={null}
                 threshold={threshold}
-                description="Routines done over routines expected today."
+                description={
+                  mode === 'week'
+                    ? 'Routines done over routines expected.'
+                    : 'Routines done over routines expected today.'
+                }
                 detail={data.do ? doDetailLine(data.do) : ''}
               />
-              <ThirdCard
-                name="Cross"
-                weight={15}
-                score={data.cross?.score}
-                state={data.cross?.state}
-                threshold={threshold}
-                description="Sections checked by someone other than their owner, once a week."
-                detail={data.cross ? crossDetailLine(data.cross) : ''}
-                pending={
-                  data.cross?.state === 'pending'
-                    ? crossPendingLabel(data.cross.due_date)
-                    : null
-                }
-              />
+              {mode === 'day' ? (
+                <ThirdCard
+                  name="Cross · this week"
+                  testId="retail-cross-card"
+                  informational
+                  score={null}
+                  state="pending"
+                  threshold={threshold}
+                  description="Sections checked by someone other than their owner, once a week."
+                  detail={data.cross_info ? crossInfoDetail(data.cross_info).detail : ''}
+                  pending={data.cross_info ? crossInfoDetail(data.cross_info).pending : null}
+                />
+              ) : (
+                <ThirdCard
+                  name="Cross"
+                  weight={data.weights?.cross}
+                  excluded={data.excluded?.includes('cross')}
+                  score={data.cross?.score}
+                  state={data.cross?.state}
+                  threshold={threshold}
+                  description="Sections checked by someone other than their owner, once a week."
+                  detail={data.cross ? crossDetailLine(data.cross) : ''}
+                  pending={
+                    data.cross?.state === 'pending'
+                      ? crossPendingLabel(data.cross.due_date)
+                      : null
+                  }
+                />
+              )}
             </Box>
             <ContributionBar
-              segments={contributionSegments(data, threshold)}
+              segments={contributionSegments(data, threshold, mode)}
               score={data.score}
             />
+            {mode === 'day' && data.excluded?.includes('spot') ? (
+              <Typography sx={{ fontSize: 12, fontWeight: 400, color: ccTokens.ink2 }}>
+                Spot not counted · no walk that day
+              </Typography>
+            ) : null}
             <Box
               sx={{
                 display: 'flex',
