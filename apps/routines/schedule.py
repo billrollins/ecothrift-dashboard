@@ -13,7 +13,7 @@ from django.utils import timezone
 
 from apps.webstore.services.hours import _local_now
 
-from .models import QaCallIn, Routine, RoutineRun, RoutineSubmission, Section
+from .models import QaCallIn, QaDayOverride, Routine, RoutineRun, RoutineSubmission, Section
 from .settings import LATE_RED_MINUTES, retail_qa_settings
 
 User = get_user_model()
@@ -528,6 +528,31 @@ def audience_shift_codes(routine: Routine) -> list[str]:
     return [str(code) for code in raw if str(code) in allowed]
 
 
+def user_holds_shift_today(routine: Routine, user, day: date | None = None) -> bool:
+    """True when this person is assigned to the routine's shift (or punch) today."""
+    from apps.hr.models import ShiftAssignment
+
+    day = day or timezone.localdate()
+    codes = set(audience_shift_codes(routine))
+    punch = getattr(getattr(routine, 'shift', None), 'punch_code', '') or ''
+    if punch:
+        codes.add(punch)
+    shift_id = getattr(routine, 'shift_id', None)
+    for row in ShiftAssignment.objects.filter(employee=user).select_related('shift'):
+        if not row.runs_on(day):
+            continue
+        if shift_id and row.shift_id == shift_id:
+            return True
+        if row.shift.punch_code and row.shift.punch_code in codes:
+            return True
+    for row in QaDayOverride.objects.filter(employee=user, date=day).select_related('shift'):
+        if shift_id and row.shift_id == shift_id:
+            return True
+        if row.shift.punch_code and row.shift.punch_code in codes:
+            return True
+    return False
+
+
 def audience_department_ids(routine: Routine) -> list[int]:
     ids: list[int] = []
     for value in getattr(routine, 'assigned_department_ids', None) or []:
@@ -548,7 +573,9 @@ def user_in_audience(routine: Routine, user, shift=None) -> bool:
         return resolve_assignees(routine).filter(pk=user.pk).exists()
     kind = getattr(routine, 'audience_type', None) or Routine.AUDIENCE_PERSON
     everyone = bool(getattr(routine, 'audience_all', False))
-    if kind == Routine.AUDIENCE_SHIFT:
+    if kind == Routine.AUDIENCE_SHIFT or getattr(routine, 'shift_locked', False):
+        if user_holds_shift_today(routine, user):
+            return True
         punch = current_shift(user) if shift is None else shift
         if not punch:
             return False

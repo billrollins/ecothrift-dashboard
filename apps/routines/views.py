@@ -3,7 +3,7 @@ from __future__ import annotations
 import base64
 import random
 import re
-from datetime import datetime
+from datetime import datetime, time
 
 from django.core.files.base import ContentFile
 from django.shortcuts import get_object_or_404
@@ -813,7 +813,13 @@ class TodayView(APIView):
         system_key = system_key_for_punch(shift)
         open_rows = list(mine_queryset(request.user))
         start = None
-        if system_key:
+        locked = [
+            row for row in open_rows
+            if row.status == RoutineRun.STATUS_OPEN and getattr(row.routine, 'shift_locked', False)
+        ]
+        if locked:
+            start = min(locked, key=lambda row: row.routine.due_time or time.max)
+        elif system_key:
             start = next(
                 (
                     row for row in open_rows

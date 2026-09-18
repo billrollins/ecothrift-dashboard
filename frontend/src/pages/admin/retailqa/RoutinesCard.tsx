@@ -132,7 +132,7 @@ function RoutineGroup({
                       </option>
                     ))}
                   </select>
-                ) : job.owner?.name ? shortName(job.owner.name) : ''}
+                ) : job.owner?.name ? (job.owner.id == null ? job.owner.name : shortName(job.owner.name)) : ''}
               </span>
               <span className="time">
                 <span className="due nowrap">{jobTimeLabel(job)}</span>

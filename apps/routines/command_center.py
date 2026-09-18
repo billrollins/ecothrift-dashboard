@@ -9,11 +9,11 @@ from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from django.contrib.auth import get_user_model
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.hr.models import Shift, ShiftAssignment, TimeEntry
-from apps.hr.shifts import shift_department, shift_label
+from apps.hr.shifts import shift_label
 from apps.webstore.services.hours import (
     _local_now,
     _parse_hhmm,
@@ -156,6 +156,38 @@ def _person(user) -> dict | None:
     return {'id': user.pk, 'name': user.full_name}
 
 
+def short_person_name(user) -> str:
+    first = (getattr(user, 'first_name', '') or '').strip()
+    last = (getattr(user, 'last_name', '') or '').strip()
+    if first and last:
+        return f'{first} {last[0]}.'
+    return first or (getattr(user, 'full_name', '') or '').strip()
+
+
+def joined_owner_name(people) -> str:
+    return ', '.join(short_person_name(user) for user in people if user)
+
+
+def join_shift_names(names: list[str]) -> str:
+    cleaned = [name for name in names if name]
+    if len(cleaned) <= 1:
+        return cleaned[0] if cleaned else ''
+    parts = [name.split(' - ', 1) for name in cleaned]
+    if all(len(part) == 2 for part in parts) and len({part[0] for part in parts}) == 1:
+        return f'{parts[0][0]} - {" + ".join(part[1] for part in parts)}'
+    return ' + '.join(cleaned)
+
+
+def shift_owner_payload(owner, owner_state: str | None, scheduled: list):
+    if owner is not None:
+        return _person(owner), owner_state
+    if owner_state == 'scheduled' and len(scheduled) > 1:
+        return {'id': None, 'name': joined_owner_name(scheduled)}, 'scheduled'
+    if owner_state == 'scheduled' and len(scheduled) == 1:
+        return _person(scheduled[0]), 'scheduled'
+    return None, owner_state
+
+
 def performed_title(key: str, run=None) -> str:
     title = getattr(getattr(run, 'routine', None), 'title', '') or ''
     if title and '.' not in title:
@@ -163,29 +195,48 @@ def performed_title(key: str, run=None) -> str:
     return PERFORMED_TITLES.get(key, title or key)
 
 
-def assignment_for(user_id: int, day: date) -> ShiftAssignment | None:
+def assignments_for(user_id: int, day: date) -> list[ShiftAssignment]:
+    rows = []
     for row in ShiftAssignment.objects.filter(
         employee_id=user_id, shift__is_active=True,
     ).select_related('shift', 'shift__department'):
         if row.runs_on(day):
-            return row
-    return None
+            rows.append(row)
+    rows.sort(key=lambda row: (row.shift.time_in, row.shift.name))
+    return rows
+
+
+def assignment_for(user_id: int, day: date) -> ShiftAssignment | None:
+    rows = assignments_for(user_id, day)
+    return rows[0] if rows else None
+
+
+def _held_clock(row, which: str):
+    extra = getattr(row, which, None)
+    return extra if extra is not None else getattr(row.shift, which)
 
 
 def owner_start_on(user_id: int, day: date, tz) -> datetime | None:
     """Clock-in start if this person is on today's roster or a one-day override."""
-    assignment = assignment_for(user_id, day)
-    if assignment:
-        return at_clock(day, assignment.shift.time_in, tz)
-    override = (
-        QaDayOverride.objects.filter(employee_id=user_id, date=day)
-        .select_related('shift')
-        .first()
-    )
-    if override is None:
+    clocks = [row.shift.time_in for row in assignments_for(user_id, day)]
+    for override in QaDayOverride.objects.filter(employee_id=user_id, date=day).select_related('shift'):
+        clock = override.time_in or override.shift.time_in
+        if clock:
+            clocks.append(clock)
+    if not clocks:
         return None
-    clock = override.time_in or override.shift.time_in
-    return at_clock(day, clock, tz) if clock else None
+    return at_clock(day, min(clocks), tz)
+
+
+def owner_known_off_today(user_id: int, day: date) -> bool:
+    """True only when they work some days and today is not one of them."""
+    if assignment_for(user_id, day):
+        return False
+    if QaDayOverride.objects.filter(employee_id=user_id, date=day).exists():
+        return False
+    return ShiftAssignment.objects.filter(
+        employee_id=user_id, shift__is_active=True,
+    ).exists()
 
 
 def shift_end_on(shift: Shift, day: date, tz) -> datetime:
@@ -218,16 +269,17 @@ def locked_shift_for(routine) -> Shift | None:
 
 
 def resolve_shift_owner(routine, day: date, *, punches: dict, call_ins: set[int]):
-    """Punched on the locked shift, else scheduled (grey), else nobody.
+    """Anyone in with any open punch who holds this shift; else all scheduled names.
 
     Does not persist assigned_to for a scheduled-only name.
     """
-    punched = [user for user in punched_on_code(day, punch_code_for_routine(routine)) if user.pk not in call_ins]
     scheduled = scheduled_for_routine(routine, day, call_ins)
+    in_now = open_punch_ids(day)
+    punched = [user for user in scheduled if user.pk in in_now]
     if punched:
         return punched[0], 'in', scheduled
     if scheduled:
-        return scheduled[0], 'scheduled', scheduled
+        return None, 'scheduled', scheduled
     return None, None, scheduled
 
 
@@ -428,13 +480,39 @@ def format_late_sentence(name: str, minutes: int, shift: str, time_in: str) -> s
     return f'{name} is {minutes} min late for {shift}.'
 
 
+def open_punch_ids(day: date) -> set[int]:
+    return set(
+        TimeEntry.objects.filter(date=day, clock_out__isnull=True).values_list('employee_id', flat=True)
+    )
+
+
 def punched_on_code(day: date, code: str, *, exclude_id: int | None = None) -> list:
+    """Holders of this punch with any open punch, plus anyone who tapped this tile."""
     if not code:
         return []
-    qs = TimeEntry.objects.filter(date=day, shift=code, clock_out__isnull=True).select_related('employee')
+    in_now = open_punch_ids(day)
     if exclude_id:
-        qs = qs.exclude(employee_id=exclude_id)
-    return [row.employee for row in qs if row.employee_id]
+        in_now.discard(exclude_id)
+    seen: set[int] = set()
+    people = []
+    for row in ShiftAssignment.objects.filter(shift__punch_code=code).select_related('employee', 'shift'):
+        if not row.runs_on(day) or row.employee_id not in in_now or row.employee_id in seen:
+            continue
+        seen.add(row.employee_id)
+        people.append(row.employee)
+    for row in QaDayOverride.objects.filter(date=day, shift__punch_code=code).select_related('employee'):
+        if row.employee_id not in in_now or row.employee_id in seen:
+            continue
+        seen.add(row.employee_id)
+        people.append(row.employee)
+    for entry in TimeEntry.objects.filter(
+        date=day, clock_out__isnull=True, shift=code,
+    ).select_related('employee'):
+        if entry.employee_id not in in_now or entry.employee_id in seen:
+            continue
+        seen.add(entry.employee_id)
+        people.append(entry.employee)
+    return people
 
 
 def punch_code_for_routine(routine) -> str:
@@ -492,7 +570,36 @@ def scheduled_for_routine(routine, day: date, call_ins: set[int]) -> list:
             continue
         seen.add(row.employee_id)
         people.append(row.employee)
+    people.sort(key=lambda user: ((user.first_name or ''), (user.last_name or ''), user.pk))
     return people
+
+
+def _dept_fields(department=None) -> dict:
+    if department is None:
+        return {
+            'department': 'Unscheduled',
+            'department_slug': 'unscheduled',
+            'department_icon': 'none',
+            'department_sort': 99,
+            'department_active': True,
+        }
+    return {
+        'department': department.name,
+        'department_slug': getattr(department, 'slug', '') or 'unscheduled',
+        'department_icon': getattr(department, 'icon', None) or 'none',
+        'department_sort': getattr(department, 'sort_order', 99),
+        'department_active': bool(getattr(department, 'is_active', True)),
+    }
+
+
+def _shift_for_punch(code: str):
+    if not code:
+        return None
+    return (
+        Shift.objects.filter(punch_code=code, is_active=True)
+        .select_related('department')
+        .first()
+    )
 
 
 def week_roster_ids(monday: date) -> set[int]:
@@ -532,7 +639,7 @@ def build_staff(day: date, *, now: datetime, tz, today: date) -> list[dict]:
             'id': user.pk,
             'name': user.full_name,
             'role': getattr(user, 'role', '') or '',
-            'department': shift.department.name if shift else '',
+            **_dept_fields(shift.department if shift else None),
             'shift_id': shift.pk if shift else None,
             'shift_name': shift.name if shift else '',
             'time_in': time_in.strftime('%H:%M') if time_in else '',
@@ -550,34 +657,43 @@ def build_staff(day: date, *, now: datetime, tz, today: date) -> list[dict]:
             'added': added,
         }
 
+    held: dict[int, list] = {}
     for assignment in ShiftAssignment.objects.filter(
         shift__is_active=True,
     ).select_related('employee', 'shift', 'shift__department'):
         if not assignment.runs_on(day):
             continue
-        user = assignment.employee
-        if user.pk in seen or user.pk in skipped:
-            continue
-        seen.add(user.pk)
-        scheduled.append(row_for(
-            user=user, shift=assignment.shift,
-            time_in=assignment.shift.time_in, time_out=assignment.shift.time_out,
-            on_roster=True,
-        ))
+        held.setdefault(assignment.employee_id, []).append(assignment)
 
     for override in QaDayOverride.objects.filter(date=day).select_related(
         'employee', 'shift', 'shift__department',
     ):
-        user = override.employee
-        if user.pk in seen or user.pk in skipped:
+        if override.employee_id in skipped:
             continue
+        existing = held.get(override.employee_id, [])
+        if any(row.shift_id == override.shift_id for row in existing):
+            continue
+        held.setdefault(override.employee_id, []).append(override)
+
+    for user_id, rows in held.items():
+        if user_id in skipped:
+            continue
+        rows.sort(key=lambda row: (_held_clock(row, 'time_in'), row.shift.name))
+        user = rows[0].employee
         seen.add(user.pk)
-        scheduled.append(row_for(
-            user=user, shift=override.shift,
-            time_in=override.time_in or override.shift.time_in,
-            time_out=override.time_out or override.shift.time_out,
-            on_roster=True, added=True,
-        ))
+        first = rows[0]
+        time_in = min(_held_clock(row, 'time_in') for row in rows)
+        time_out = max(_held_clock(row, 'time_out') for row in rows)
+        added = any(isinstance(row, QaDayOverride) for row in rows) and all(
+            isinstance(row, QaDayOverride) for row in rows
+        )
+        staff_row = row_for(
+            user=user, shift=first.shift,
+            time_in=time_in, time_out=time_out,
+            on_roster=True, added=added,
+        )
+        staff_row['shift_name'] = join_shift_names([row.shift.name for row in rows])
+        scheduled.append(staff_row)
 
     for employee_id, punch in punches.items():
         if employee_id in seen or employee_id in skipped:
@@ -585,6 +701,7 @@ def build_staff(day: date, *, now: datetime, tz, today: date) -> list[dict]:
         user = punch.employee
         seen.add(user.pk)
         code = punch.shift or ''
+        matched = _shift_for_punch(code)
         status, late_minutes, late_severity = staff_status(
             punch=punch, called_in=False, start=None, now=now, on_roster=False,
         )
@@ -593,9 +710,9 @@ def build_staff(day: date, *, now: datetime, tz, today: date) -> list[dict]:
             'id': user.pk,
             'name': user.full_name,
             'role': getattr(user, 'role', '') or '',
-            'department': shift_department(code) if code else '',
-            'shift_id': None,
-            'shift_name': shift_label(code) if code else '',
+            **_dept_fields(matched.department if matched else None),
+            'shift_id': matched.pk if matched else None,
+            'shift_name': matched.name if matched else (shift_label(code) if code else ''),
             'time_in': '',
             'time_out': '',
             'clocked_in': punch.clock_out is None,
@@ -638,7 +755,7 @@ def build_off(day: date, staff: list[dict]) -> list[dict]:
             'id': user.pk,
             'name': user.full_name,
             'role': getattr(user, 'role', '') or '',
-            'department': assignment.shift.department.name,
+            **_dept_fields(assignment.shift.department),
             'shift_id': assignment.shift_id,
             'shift_name': assignment.shift.name,
             'time_in': assignment.shift.time_in.strftime('%H:%M'),
@@ -769,12 +886,24 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
             routine, day, punches=punches, call_ins=call_ins,
         )
         if run and owner is not None and owner_state == 'in' and run.assigned_to_id != owner.pk:
-            run.assigned_to = owner
-            run.unassign_key = ''
-            run.save(update_fields=['assigned_to', 'unassign_key'])
-        if run and owner is None and run.assigned_to_id and run.assigned_to_id not in call_ins:
+            taken = RoutineRun.objects.filter(
+                routine=run.routine, period_key=run.period_key, assigned_to=owner,
+            ).exclude(pk=run.pk).first()
+            if taken:
+                run = taken
+            else:
+                try:
+                    run.assigned_to = owner
+                    run.unassign_key = ''
+                    run.save(update_fields=['assigned_to', 'unassign_key'])
+                except IntegrityError:
+                    run = RoutineRun.objects.get(
+                        routine=run.routine, period_key=run.period_key, assigned_to=owner,
+                    )
+        if run and owner is None and owner_state != 'scheduled' and run.assigned_to_id and run.assigned_to_id not in call_ins:
             owner = run.assigned_to
             owner_state = 'in' if owner.pk in punches else 'scheduled'
+        owner_payload, owner_state = shift_owner_payload(owner, owner_state, scheduled)
         status = routine_live_status(run, day=day, now=now, tz=tz, hours_cfg=hours_cfg)
         due_at = routine_due_at(run, day, tz, hours_cfg) if run else None
         hard_at = routine_hard_at(run, day, tz, hours_cfg) if run else None
@@ -785,7 +914,7 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
             {'id': user.pk, 'name': user.full_name, 'full_name': user.full_name}
             for user in scheduled
         ]
-        if owner:
+        if owner_payload:
             if status == STATUS_UNASSIGNED:
                 if due_at is not None and now >= due_at:
                     boundary = miss_boundary(run, day, tz, hours_cfg) if run else now
@@ -799,7 +928,7 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
             'title': performed_title(key, run),
             'run_id': run.pk if run else None,
             'section_id': None,
-            'owner': _person(owner),
+            'owner': owner_payload,
             'owner_state': owner_state,
             'due_at': due_at,
             'due_label': due_label,
@@ -828,8 +957,9 @@ def section_owner_view(section, *, run, status, punches) -> tuple[dict | None, s
 
 
 def section_due_state(section, *, run, status, day, now, tz, punches, call_ins):
-    """Keep the owner unless called in, not scheduled today, or removed from today.
+    """Keep the owner unless called in, rostered off today, or removed from today.
 
+    A punch counts as being here. No roster row is not the same as a day off.
     Late is a schedule problem: the row stays theirs with Due after clock-in.
     """
     if status == STATUS_DONE:
@@ -840,13 +970,13 @@ def section_due_state(section, *, run, status, day, now, tz, punches, call_ins):
         return None, '', STATUS_UNASSIGNED, False
     if owner.pk in call_ins or owner.pk in excluded_ids(day):
         return None, '', STATUS_UNASSIGNED, False
+    punch = punches.get(owner.pk)
     start = owner_start_on(owner.pk, day, tz)
-    if start is None:
+    if start is None and punch is None and owner_known_off_today(owner.pk, day):
         return None, '', STATUS_UNASSIGNED, False
     keep = STATUS_NOT_TALLIED if status in (STATUS_DUE, STATUS_NOT_TALLIED, STATUS_UNASSIGNED) else status
-    punch = punches.get(owner.pk)
     if punch is None:
-        late = now >= start + timedelta(minutes=LATE_AMBER_MINUTES)
+        late = bool(start) and now >= start + timedelta(minutes=LATE_AMBER_MINUTES)
         return None, 'Due after clock-in', keep, late
     due = punch.clock_in + timedelta(minutes=SECTION_DUE_AFTER_PUNCH_MINUTES)
     if timezone.is_naive(due):
@@ -1491,15 +1621,33 @@ def apply_override(*, employee, day: date, shift, time_in=None, time_out=None, m
 def assign_run(*, run: RoutineRun, user, marked_by=None) -> RoutineRun:
     if run.routine.system_key == SYSTEM_WORK_CYCLE:
         raise ValueError('Work cycles are not assigned from this board.')
-    run.assigned_to = user
-    run.unassign_key = ''
-    run.save(update_fields=['assigned_to', 'unassign_key'])
-    if run.section_id and run.routine.system_key == SYSTEM_TALLY and user is not None:
-        section = run.section
-        if section.owner_id != user.pk:
-            section.owner = user
-            section.save(update_fields=['owner', 'updated_at'])
-    if user is not None:
+    with transaction.atomic():
+        if user is None:
+            run.assigned_to = None
+            run.unassign_key = '' if run.routine.system_key in PERFORMED else f'u{run.pk}'
+            run.save(update_fields=['assigned_to', 'unassign_key'])
+            return run
+        existing = (
+            RoutineRun.objects.select_for_update()
+            .filter(routine_id=run.routine_id, period_key=run.period_key, assigned_to=user)
+            .first()
+        )
+        if existing is not None and existing.pk != run.pk:
+            run = existing
+        elif run.assigned_to_id != user.pk:
+            try:
+                run.assigned_to = user
+                run.unassign_key = ''
+                run.save(update_fields=['assigned_to', 'unassign_key'])
+            except IntegrityError:
+                run = RoutineRun.objects.get(
+                    routine_id=run.routine_id, period_key=run.period_key, assigned_to=user,
+                )
+        if run.section_id and run.routine.system_key == SYSTEM_TALLY:
+            section = run.section
+            if section.owner_id != user.pk:
+                section.owner = user
+                section.save(update_fields=['owner', 'updated_at'])
         title = getattr(run.routine, 'title', '') or 'This routine'
         create_nudge(
             run=run,
@@ -1508,4 +1656,4 @@ def assign_run(*, run: RoutineRun, user, marked_by=None) -> RoutineRun:
             employee=user,
             message=f'{title} was assigned to you.',
         )
-    return run
+        return run
