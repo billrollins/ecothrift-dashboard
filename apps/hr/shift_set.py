@@ -18,7 +18,7 @@ DEPTS = {
     'retail-operations': {'name': 'Retail', 'icon': 'cart', 'sort_order': 0},
     'processing': {'name': 'Processing', 'icon': 'box', 'sort_order': 1},
     'restoration': {'name': 'Restoration', 'icon': 'tool', 'sort_order': 2},
-    'office': {'name': 'Management', 'icon': 'home', 'sort_order': 3},
+    'office': {'name': 'Office', 'icon': 'home', 'sort_order': 3},
 }
 
 SHIFT_SPECS = (

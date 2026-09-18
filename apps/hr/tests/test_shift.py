@@ -60,7 +60,7 @@ class TimeEntryShiftTests(APITestCase):
         )
         self.office, _ = Department.objects.get_or_create(
             slug='office',
-            defaults={'name': 'Management', 'icon': 'home', 'sort_order': 3},
+            defaults={'name': 'Office', 'icon': 'home', 'sort_order': 3},
         )
         _live_shift(SHIFT_RETAIL_OPEN, 'Cashier - Open', self.retail)
         _live_shift(SHIFT_OFFICE, 'Office - Day', self.office)
@@ -104,7 +104,7 @@ class TimeEntryShiftTests(APITestCase):
         self.assertEqual(ok.status_code, 201, ok.data)
         self.assertEqual(ok.data['shift'], SHIFT_OFFICE)
         self.assertEqual(ok.data['shift_label'], 'Office - Day')
-        self.assertEqual(ok.data['shift_department'], 'Management')
+        self.assertEqual(ok.data['shift_department'], 'Office')
 
     def test_open_shift_labels_are_position_and_department(self):
         user = _employee('labels@example.com')
@@ -135,13 +135,13 @@ class TimeEntryShiftTests(APITestCase):
         )
         office, _ = Department.objects.get_or_create(
             slug='office',
-            defaults={'name': 'Management', 'sort_order': 3, 'is_active': True},
+            defaults={'name': 'Office', 'sort_order': 3, 'is_active': True},
         )
         retail.name = 'Retail'
         retail.sort_order = 0
         retail.is_active = True
         retail.save(update_fields=['name', 'sort_order', 'is_active'])
-        office.name = 'Management'
+        office.name = 'Office'
         office.sort_order = 3
         office.is_active = True
         office.save(update_fields=['name', 'sort_order', 'is_active'])
@@ -170,7 +170,7 @@ class TimeEntryShiftTests(APITestCase):
         monday_names = [row['name'] for row in monday.data]
         self.assertIn('Retail - Inventory', monday_names)
         self.assertNotIn('Cashier - Open', monday_names)
-        self.assertTrue(all(row['department'] != 'Office' for row in thursday.data))
+        self.assertTrue(any(row['department'] == 'Office' for row in thursday.data))
         self.assertTrue(all(row['name'] != 'Customer Service' for row in thursday.data))
 
     def test_manager_may_omit_shift_on_a_payroll_row(self):
@@ -232,3 +232,37 @@ class TimeEntryShiftTests(APITestCase):
         self.assertTrue(by_code['retail_day']['locked'])
         self.assertTrue(by_code['retail_close']['locked'])
         self.assertFalse(by_code['retail_reset']['locked'])
+
+    def test_can_deactivate_a_locked_shift(self):
+        open_shift = Shift.objects.get(punch_code=SHIFT_RETAIL_OPEN)
+        routine, _ = Routine.objects.update_or_create(
+            system_key='retail.open',
+            defaults={
+                'title': 'Retail open',
+                'kind': 'checklist',
+                'trigger': 'daily',
+                'is_active': True,
+                'definition': {'template_version': 1, 'sections': []},
+            },
+        )
+        routine.shift = open_shift
+        routine.shift_locked = True
+        routine.save(update_fields=['shift', 'shift_locked'])
+        manager = _manager()
+        self.client.force_authenticate(manager)
+        listed_id = self.client.patch(
+            f'/api/hr/shifts/{open_shift.pk}/', {'is_active': False}, format='json',
+        )
+        self.assertEqual(listed_id.status_code, 200, listed_id.data)
+        self.assertFalse(listed_id.data['is_active'])
+        self.assertTrue(listed_id.data['locked'])
+        open_shift.refresh_from_db()
+        self.assertFalse(open_shift.is_active)
+        tiles = self.client.get('/api/hr/shifts/clock_tiles/', {'date': '2026-09-18'})
+        self.assertEqual(tiles.status_code, 200, tiles.data)
+        self.assertNotIn(SHIFT_RETAIL_OPEN, [row['punch_code'] for row in tiles.data])
+        restored = self.client.patch(
+            f'/api/hr/shifts/{open_shift.pk}/', {'is_active': True}, format='json',
+        )
+        self.assertEqual(restored.status_code, 200, restored.data)
+        self.assertTrue(restored.data['is_active'])
