@@ -66,20 +66,7 @@ class RetailGoalMigrationTests(APITestCase):
         self.assertFalse(serializer.is_valid())
         self.assertIn('value', serializer.errors)
 
-    def test_serializer_accepts_abc_retail_value(self):
-        existing = DashboardDepartmentGoal.objects.filter(department='retail').first()
-        serializer = DashboardDepartmentGoalSerializer(
-            instance=existing,
-            data={
-                'department': 'retail',
-                'value': 'c',
-                'description': '',
-            },
-        )
-        self.assertTrue(serializer.is_valid(), serializer.errors)
-        self.assertEqual(serializer.validated_data['value'], 'C')
-
-    def test_serializer_rejects_plus_minus_retail_value(self):
+    def test_serializer_accepts_plus_minus_retail_value(self):
         existing = DashboardDepartmentGoal.objects.filter(department='retail').first()
         serializer = DashboardDepartmentGoalSerializer(
             instance=existing,
@@ -89,8 +76,39 @@ class RetailGoalMigrationTests(APITestCase):
                 'description': '',
             },
         )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(serializer.validated_data['value'], 'B+')
+
+    def test_serializer_rejects_c_plus_retail_value(self):
+        existing = DashboardDepartmentGoal.objects.filter(department='retail').first()
+        serializer = DashboardDepartmentGoalSerializer(
+            instance=existing,
+            data={
+                'department': 'retail',
+                'value': 'c+',
+                'description': '',
+            },
+        )
         self.assertFalse(serializer.is_valid())
         self.assertIn('value', serializer.errors)
+
+    def test_c_goal_migrates_to_b_minus(self):
+        DashboardDepartmentGoal.objects.filter(department='retail').delete()
+        DashboardDepartmentGoal.objects.create(
+            department='retail',
+            value='C',
+            schedule={'weekdays': [1, 2, 3, 4, 5]},
+        )
+        spec = importlib.util.spec_from_file_location(
+            'pos_0032_retail_goal_plus_minus',
+            Path(__file__).resolve().parents[1] / 'migrations' / '0032_retail_goal_plus_minus.py',
+        )
+        assert spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.normalize_retail_goal(apps, None)
+        row = DashboardDepartmentGoal.objects.get(department='retail')
+        self.assertEqual(row.value, 'B-')
 
     def test_plus_minus_row_is_fixed_to_band(self):
         DashboardDepartmentGoal.objects.filter(department='retail').delete()

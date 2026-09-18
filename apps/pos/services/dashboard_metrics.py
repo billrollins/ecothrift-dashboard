@@ -29,7 +29,7 @@ LETTER_ORDER = (
     'C+', 'C', 'C-', 'D+', 'D', 'D-', 'F',
 )
 LETTER_RANK = {letter: len(LETTER_ORDER) - index for index, letter in enumerate(LETTER_ORDER)}
-RETAIL_GOAL_LETTERS = ('A', 'B', 'C')
+RETAIL_GOAL_LETTERS = ('A+', 'A', 'A-', 'B+', 'B', 'B-')
 
 
 def normalize_letter(value: Any) -> str | None:
@@ -50,10 +50,9 @@ def letter_meets(actual: str | None, goal: str | None) -> bool:
 
 def retail_goal_letter(value: Any) -> str | None:
     letter = normalize_letter(value)
-    if letter is None:
-        return None
-    band = letter[0]
-    return band if band in RETAIL_GOAL_LETTERS else None
+    if letter in RETAIL_GOAL_LETTERS:
+        return letter
+    return None
 
 
 def clamp_department_weeks(raw: Any) -> int:

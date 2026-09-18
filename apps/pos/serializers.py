@@ -271,7 +271,7 @@ class DashboardDepartmentGoalSerializer(serializers.ModelSerializer):
             letter = normalize_letter(attrs.get('value'))
             if letter not in RETAIL_GOAL_LETTERS:
                 raise serializers.ValidationError({
-                    'value': 'Retail goal must be A, B, or C.',
+                    'value': 'Retail goal must be A+, A, A-, B+, B, or B-.',
                 })
             attrs['value'] = letter
         return attrs

@@ -9,8 +9,9 @@ describe('formatDepartmentGoalValue', () => {
   });
 
   it('normalizes a stored plus/minus goal to A, B, or C', () => {
-    expect(retailGoalBand('B+')).toBe('B');
-    expect(retailGoalBand('a-')).toBe('A');
+    expect(retailGoalBand('B+')).toBe('B+');
+    expect(retailGoalBand('a-')).toBe('A-');
+    expect(retailGoalBand('C')).toBe('B');
     expect(retailGoalBand('D')).toBe('B');
   });
 });

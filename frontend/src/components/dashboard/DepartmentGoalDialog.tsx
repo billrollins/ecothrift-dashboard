@@ -39,12 +39,11 @@ interface DepartmentGoalDialogProps {
 }
 
 const GOLD = dashboardPalette.gold;
-const RETAIL_GOAL_LETTERS = ['A', 'B', 'C'] as const;
+const RETAIL_GOAL_LETTERS = ['A+', 'A', 'A-', 'B+', 'B', 'B-'] as const;
 
 export function retailGoalBand(raw?: string | null): string {
   const letter = (raw || 'B').trim().toUpperCase().replace(/\s+/g, '');
-  const band = letter.charAt(0);
-  return band === 'A' || band === 'B' || band === 'C' ? band : 'B';
+  return (RETAIL_GOAL_LETTERS as readonly string[]).includes(letter) ? letter : 'B';
 }
 const GRADE_SCALE = [
   { letter: 'A+', gpa: '4.0', range: '97–100%' },
