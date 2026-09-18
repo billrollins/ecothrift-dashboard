@@ -16,6 +16,7 @@ import { Link as RouterLink } from 'react-router-dom';
 import { getQaDaySummary, type RetailDaySummary } from '../../api/routines.api';
 import { isoWeekKey, weekRangeLabel } from '../../pages/admin/routines/gradeWeek';
 import { ccTokens } from '../../theme';
+import { GradeScaleTable } from './GradeScaleTable';
 
 export type RetailSummaryMode = 'day' | 'week';
 
@@ -614,12 +615,10 @@ export function DepartmentRetailDayDialog({
                 mt: 0.5,
               }}
             >
-              <Typography
-                data-testid="retail-grade-scale"
-                sx={{ fontSize: 12, fontWeight: 400, color: ccTokens.ink3, whiteSpace: 'nowrap', minWidth: 0 }}
-              >
-                {formatGradeScale(data.grade_scale)}
-              </Typography>
+              <GradeScaleTable
+                scale={data.grade_scale ?? DEFAULT_GRADE_SCALE}
+                currentLetter={data.letter}
+              />
               {showCommandCenterLink ? (
                 <Link
                   component={RouterLink}

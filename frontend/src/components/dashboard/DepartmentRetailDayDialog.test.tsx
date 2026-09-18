@@ -1,6 +1,6 @@
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import type { RetailDaySummary } from '../../api/routines.api';
@@ -161,13 +161,14 @@ describe('DepartmentRetailDayDialog', () => {
     expect(formatCardWeight('Spot', 0, true)).toBe('Spot —');
   });
 
-  it('reads footer scale text from the payload, not a constant', () => {
-    expect(formatGradeScale(scale)).toContain('A- 91');
-    expect(formatGradeScale(scale)).toContain('B 81');
-    expect(formatGradeScale(scale)).toContain('F below 61');
+  it('hides the scale table until Grade scale is opened', () => {
     renderDialog(mixedDay);
-    expect(screen.getByTestId('retail-grade-scale')).toHaveTextContent('B 81');
-    expect(screen.getByTestId('retail-grade-scale')).not.toHaveTextContent('A 90 · B 80');
+    expect(screen.getByRole('button', { name: /Grade scale/ })).toBeInTheDocument();
+    expect(screen.queryByText('93 to 96')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Grade scale/ }));
+    expect(screen.getAllByRole('row')).toHaveLength(14);
+    expect(screen.getByText('93 to 96')).toBeInTheDocument();
+    expect(screen.getByText('B').closest('tr')).toHaveAttribute('data-current', 'true');
   });
 
   it('shows Store closed and nothing else on a closed day', () => {

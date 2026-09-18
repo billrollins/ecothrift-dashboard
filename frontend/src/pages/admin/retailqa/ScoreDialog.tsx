@@ -1,6 +1,8 @@
 import { format, parseISO } from 'date-fns';
 import { useMemo, useState } from 'react';
 import type { GradeLetter, GradeThirds, QaDayTile, QaToday, QaWeek } from '../../../api/routines.api';
+import { DEFAULT_GRADE_SCALE } from '../../../components/dashboard/DepartmentRetailDayDialog';
+import { GradeScaleTable } from '../../../components/dashboard/GradeScaleTable';
 import { formatWeight, letterClass, scoreText } from './commandCenter';
 import { BoardDialog } from './SummaryDialogs';
 
@@ -145,6 +147,10 @@ export function ScoreDialog({
           />
         )}
       </div>
+      <GradeScaleTable
+        scale={weekData?.settings?.grade_scale ?? DEFAULT_GRADE_SCALE}
+        currentLetter={selectedDay?.letter ?? weekLetter}
+      />
     </BoardDialog>
   );
 }

@@ -698,6 +698,7 @@ export interface QaWeek {
     excluded?: string[];
   };
   days: DayGrade[];
+  settings?: { grade_scale?: GradeScaleRow[] };
   store: string;
   today: string;
   open_today: boolean;
