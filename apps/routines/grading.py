@@ -96,15 +96,8 @@ def section_checks_required(day: date, cfg: dict | None = None) -> bool:
 
 
 def expected_parts(day: date) -> tuple[set[str], set[int]]:
-    """Performed keys due today, plus every active section on required weekdays."""
-    from apps.hr.models import Shift
-
-    shifts = list(Shift.objects.filter(is_active=True))
-    keys = {
-        key
-        for key, punch in PUNCH_FOR_KEY.items()
-        if any(row.punch_code == punch and row.runs_on(day) for row in shifts)
-    }
+    """Open/Day/Close on open store days; section checks keep their weekday flags."""
+    keys = set(PERFORMED_KEYS) if is_open_day(day) else set()
     sections = {section.pk for section in _active_sections()} if section_checks_required(day) else set()
     return keys, sections
 
