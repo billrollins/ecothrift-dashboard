@@ -1,9 +1,9 @@
-<!-- initiative: slug=time-kiosk status=review updated=2026-09-18 -->
-<!-- Last updated: 2026-09-18 -->
+<!-- initiative: slug=time-kiosk status=shipped updated=2026-09-21 -->
+<!-- Last updated: 2026-09-21 -->
 
 # Initiative: Time kiosk
 
-**Status:** **Built, awaiting review** — Phase 1 complete on branch `kiosk` (11 commits, one per todo). Not merged. Not GitHub. Not Heroku.
+**Status:** **Shipped** — GitHub and Heroku **v2.96.0**. Hosted `/kiosk` and public `/clock`. Set `kiosk.public_allowed_ips` before relying on the door tablet.
 
 **Objective:** A store tablet lets any staff member punch in, out, or on break with a scannable employee card and no login of their own, while the same screen shows who is in, on break, expected, late, or called in, grouped by department. Two faces: hosted `/kiosk` (a dedicated Employee host stays signed in; full board; pay edits) and public `/clock` (no login; card-only punch; redacted board). Clock-in walks a gate: stale punch, missed routines flagged `gate_on_miss` (a reason is required), unheard nudges.
 
@@ -91,6 +91,8 @@ Things noticed during the build that are not in scope. Do not build; list them.
 **2026-09-18 — Opened.** Hosted `/kiosk` + public `/clock`, hashed Code 128 cards, clock-in gate, miss reasons.
 
 **2026-09-18 — Built.** Overnight run finished on branch `kiosk`: 11 commits, 34 new backend tests green, kiosk frontend tests green, build green. Pre-existing failures verified against a `main` worktree. Awaiting the user's merge and release.
+
+**2026-09-21 — Review fixes.** A bad card no longer looks like a dead host session. A good scan clears the failure count. `clock_in` and `fix_stale` lock the person row. Overlay timers, separate Tap-to-start keys, and the blocked door screen match the plan. Allowlist docs say exact IP strings. Release **v2.96.0** prepared. Not merged.
 
 ---
 

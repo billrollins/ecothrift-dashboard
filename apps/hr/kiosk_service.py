@@ -174,6 +174,11 @@ def short_name(user) -> str:
     return first or last or user.email
 
 
+def _lock_person(user) -> None:
+    """Hold the person row so /kiosk and /clock cannot open two punches at once."""
+    get_user_model().objects.select_for_update().get(pk=user.pk)
+
+
 def open_punch_for(user) -> TimeEntry | None:
     return (
         TimeEntry.objects.filter(employee=user, clock_out__isnull=True)
@@ -550,7 +555,12 @@ def _validate_gate_payload(user, punch, gate_payload: dict | None, *, now: datet
         if missing:
             raise KioskError('Every missed routine needs a reason.', 400, 'missed_routines')
         valid = {code for code, _ in RoutineRun.MISS_REASON_CHOICES}
-        runs = {run.pk: run for run in RoutineRun.objects.filter(pk__in=wanted)}
+        runs = {
+            run.pk: run
+            for run in RoutineRun.objects.filter(pk__in=wanted, assigned_to=user)
+        }
+        if set(runs) != wanted:
+            raise KioskError('Every missed routine needs a reason.', 400, 'missed_routines')
         for run_id in wanted:
             item = given[run_id]
             reason = str(item.get('reason') or '').strip()
@@ -585,6 +595,7 @@ def clock_in(user, *, shift: str, gate: dict | None, ctx: KioskContext, now: dat
     now = now or timezone.now()
     code = _validate_shift_code(shift)
     with transaction.atomic():
+        _lock_person(user)
         punch = open_punch_for(user)
         if punch and not is_stale(punch, now):
             raise KioskError('Already clocked in.', 400, 'already_in')
@@ -721,11 +732,12 @@ def _parse_requested_start(value, punch: TimeEntry, now: datetime) -> datetime:
 def fix_stale(user, *, ctx: KioskContext, now: datetime | None = None) -> TimeEntry:
     """Close a forgotten punch now at the suggested time and file the request for Pay."""
     now = now or timezone.now()
-    punch = _require_open(user, now=now)
-    if not is_stale(punch, now):
-        raise KioskError('That punch is not stale.', 400, 'not_stale')
-    suggested = suggested_clock_out(punch, now=now)
     with transaction.atomic():
+        _lock_person(user)
+        punch = _require_open(user, now=now)
+        if not is_stale(punch, now):
+            raise KioskError('That punch is not stale.', 400, 'not_stale')
+        suggested = suggested_clock_out(punch, now=now)
         if punch.on_break:
             punch.finalize_open_break(as_of=suggested)
         punch.clock_out = suggested

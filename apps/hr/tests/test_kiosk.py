@@ -116,6 +116,19 @@ class IdentifyTests(KioskBase):
         self.assertEqual(res.data['detail'], svc.GENERIC_MESSAGE)
         self.assertIsNone(KioskEvent.objects.get(action='cooldown').subject_id)
 
+    def test_a_good_scan_resets_the_failure_count(self):
+        client = self.hosted()
+        for _ in range(svc.HOSTED_FAIL_LIMIT - 1):
+            res = client.post('/api/hr/kiosk/identify/', {'token': 'ZZZZZZZZZZ'}, format='json')
+            self.assertEqual(res.status_code, 404)
+        res = client.post('/api/hr/kiosk/identify/', {'token': self.token}, format='json')
+        self.assertEqual(res.status_code, 200, res.data)
+        res = client.post('/api/hr/kiosk/identify/', {'token': 'ZZZZZZZZZZ'}, format='json')
+        self.assertEqual(res.status_code, 404)
+        self.assertEqual(KioskEvent.objects.filter(action='cooldown').count(), 0)
+        res = client.post('/api/hr/kiosk/identify/', {'token': self.token}, format='json')
+        self.assertEqual(res.status_code, 200, res.data)
+
 
 class PreviewTests(KioskBase):
     def test_preview_joins_roster_and_punch_code(self):
@@ -271,6 +284,26 @@ class GateTests(KioskBase):
         self.assertTrue(TimeEntry.objects.filter(employee=self.maria, clock_out__isnull=True).exists())
         cleared = KioskEvent.objects.get(action='gate_cleared')
         self.assertEqual(cleared.meta, {'kind': 'missed_routines', 'count': 1})
+
+    def test_a_gated_run_that_vanishes_returns_400(self):
+        run = self._missed(self.routine, WED - timedelta(days=1))
+        real = svc.missed_runs_for
+
+        def drop_after_listing(user, *, now):
+            rows = real(user, now=now)
+            run.delete()
+            return rows
+
+        with patch('apps.hr.kiosk_service.missed_runs_for', side_effect=drop_after_listing):
+            with self.assertRaises(svc.KioskError) as caught:
+                svc.clock_in(
+                    self.maria, shift='retail_open',
+                    gate={'missed_routines': [{'run': run.pk, 'reason': 'forgot'}]},
+                    ctx=self.ctx, now=WED,
+                )
+        self.assertEqual(caught.exception.status, 400)
+        self.assertEqual(caught.exception.code, 'missed_routines')
+        self.assertFalse(TimeEntry.objects.filter(employee=self.maria).exists())
 
     def test_nudge_gate_hears_with_the_route_device(self):
         run = RoutineRun.objects.create(

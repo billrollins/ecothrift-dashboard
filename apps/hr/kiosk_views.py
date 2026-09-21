@@ -65,6 +65,7 @@ class _KioskBase(APIView):
             if svc.note_identify_failure(key, limit=self.fail_limit):
                 svc.log_event(ctx, 'cooldown', key=key, limit=self.fail_limit)
             return None, _generic(status.HTTP_401_UNAUTHORIZED)
+        svc.clear_failures(key)
         return user, None
 
     def _preview_response(self, request, user, *, log_ok: bool = False) -> Response:

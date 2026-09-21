@@ -5,6 +5,16 @@ export const PICKER_MS = 45_000;
 export const SUCCESS_MS = 4_000;
 
 /**
+ * 15s for a one-tap screen, 45s while a picker, gate, or edit sheet is open,
+ * 4s on the success screen (a tap must not stretch that one).
+ */
+export function overlayTimeoutMs(screen: string, pickerOpen: boolean): number {
+  if (screen === 'success') return SUCCESS_MS;
+  const longForm = screen === 'gate' || screen === 'wrong' || (screen === 'out' && pickerOpen);
+  return longForm ? PICKER_MS : IDLE_MS;
+}
+
+/**
  * Calls `onExpire` after `ms` of no activity. `bump()` restarts the clock;
  * any pointer or key event on the window does the same while `active`.
  * Passing `ms = null` disables the timer.
@@ -32,7 +42,7 @@ export function useOverlayTimeout(active: boolean, ms: number | null, onExpire: 
 
   useEffect(() => {
     bump();
-    if (!active || ms === null) return clear;
+    if (!active || ms === null || ms === SUCCESS_MS) return clear;
     const events: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'touchstart'];
     for (const name of events) window.addEventListener(name, bump, { passive: true });
     return () => {

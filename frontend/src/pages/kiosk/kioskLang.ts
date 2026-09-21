@@ -1,7 +1,12 @@
 import { useCallback, useState } from 'react';
 import { readKioskLang, writeKioskLang, type AppLanguage } from '../../i18n/kiosk';
 
-export const KIOSK_FULLSCREEN_KEY = 'kiosk.fullscreen';
+export type KioskFace = 'kiosk' | 'clock';
+
+/** Tap-to-start is remembered per route, so opening one face does not skip the other. */
+export function startedStorageKey(face: KioskFace): string {
+  return face === 'clock' ? 'clock.started' : 'kiosk.started';
+}
 
 /** Per-device language for both kiosk routes. Persists in localStorage. */
 export function useKioskLang(): [AppLanguage, (next: AppLanguage) => void] {
@@ -13,17 +18,17 @@ export function useKioskLang(): [AppLanguage, (next: AppLanguage) => void] {
   return [lang, set];
 }
 
-export function readFullscreenDone(): boolean {
+export function readFullscreenDone(face: KioskFace): boolean {
   try {
-    return window.localStorage.getItem(KIOSK_FULLSCREEN_KEY) === '1';
+    return window.localStorage.getItem(startedStorageKey(face)) === '1';
   } catch {
     return false;
   }
 }
 
-export function writeFullscreenDone(): void {
+export function writeFullscreenDone(face: KioskFace): void {
   try {
-    window.localStorage.setItem(KIOSK_FULLSCREEN_KEY, '1');
+    window.localStorage.setItem(startedStorageKey(face), '1');
   } catch {
     // ignore
   }

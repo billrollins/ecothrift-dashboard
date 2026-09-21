@@ -21,7 +21,7 @@ import { GateSteps } from './GateSteps';
 import { SomethingWrongSheet, type WrongChoice } from './SomethingWrongSheet';
 import { bigButtonSx, kioskColors, mediumButtonSx } from './kioskTheme';
 import { clockLabel, dayClockLabel, hhmmLabel } from './kioskLang';
-import { IDLE_MS, PICKER_MS, SUCCESS_MS, useOverlayTimeout } from './useOverlayTimeout';
+import { overlayTimeoutMs, useOverlayTimeout } from './useOverlayTimeout';
 
 type Screen = 'stale' | 'gate' | 'out' | 'in' | 'wrong' | 'success';
 
@@ -79,9 +79,11 @@ export function PunchOverlay({
   const [error, setError] = useState('');
   const [success, setSuccess] = useState<Success | null>(null);
 
-  const longForm = screen === 'gate' || screen === 'wrong' || (screen === 'out' && picking);
-  const timeoutMs = screen === 'success' ? SUCCESS_MS : longForm ? PICKER_MS : IDLE_MS;
-  useOverlayTimeout(true, timeoutMs, onClose);
+  const pickerOpen = screen === 'out' && (
+    picking || !preview.suggested_shift || preview.suggested_shift_unmatched
+  );
+  const timeoutMs = overlayTimeoutMs(screen, pickerOpen);
+  const bump = useOverlayTimeout(true, timeoutMs, onClose);
 
   useEffect(() => {
     if (screen === 'success') onChanged();
@@ -322,7 +324,10 @@ export function PunchOverlay({
       role="dialog"
       aria-modal="true"
       data-testid="punch-overlay"
-      onPointerDown={(e) => e.stopPropagation()}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+        if (screen !== 'success') bump();
+      }}
       sx={{
         position: 'fixed',
         inset: 0,

@@ -13,16 +13,36 @@ import { useKioskSession } from './useKioskSession';
 /** The door tablet. No login, no staff data, card is the only identity. */
 export default function ClockPage() {
   const [lang, setLang] = useKioskLang();
-  const [started, setStarted] = useState(() => readFullscreenDone());
+  const [started, setStarted] = useState(() => readFullscreenDone('clock'));
   const session = useKioskSession('clock', lang, started);
 
   const start = useCallback(() => {
     void requestFullscreen();
-    writeFullscreenDone();
+    writeFullscreenDone('clock');
     setStarted(true);
   }, []);
 
   if (!started) return <TapToStart lang={lang} onTap={start} />;
+
+  if (session.blocked) {
+    return (
+      <Box
+        sx={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          bgcolor: kioskColors.bg,
+          px: 4,
+          textAlign: 'center',
+        }}
+      >
+        <Typography sx={{ fontSize: 36, fontWeight: 800, color: kioskColors.ink }}>
+          {tk('notAvailableHere', lang)}
+        </Typography>
+      </Box>
+    );
+  }
 
   return (
     <>
@@ -38,16 +58,10 @@ export default function ClockPage() {
           ) : null
         }
       >
-        {session.blocked ? (
-          <Box sx={{ p: 6, textAlign: 'center' }}>
-            <Typography sx={{ fontSize: 28, fontWeight: 800, color: kioskColors.ink60 }}>{tk('notAvailableHere', lang)}</Typography>
-          </Box>
-        ) : (
-          <KioskBoard board={session.board.data} lang={lang} dense />
-        )}
+        <KioskBoard board={session.board.data} lang={lang} dense />
       </KioskShell>
 
-      <ScanInput enabled={!session.scan && !session.blocked} onScan={(token) => void session.onScan(token)} />
+      <ScanInput enabled={!session.scan} onScan={(token) => void session.onScan(token)} />
 
       {session.scan ? (
         <PunchOverlay

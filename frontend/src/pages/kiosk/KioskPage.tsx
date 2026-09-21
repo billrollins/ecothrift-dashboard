@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { AxiosError } from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { Box, Button, Typography } from '@mui/material';
 import { useAuth } from '../../contexts/AuthContext';
@@ -24,7 +25,7 @@ export default function KioskPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [lang, setLang] = useKioskLang();
-  const [started, setStarted] = useState(() => readFullscreenDone());
+  const [started, setStarted] = useState(() => readFullscreenDone('kiosk'));
   const [expired, setExpired] = useState(false);
   const [exitOpen, setExitOpen] = useState(false);
   const session = useKioskSession('kiosk', lang, started && !expired);
@@ -38,14 +39,17 @@ export default function KioskPage() {
   useEffect(() => {
     if (!started || expired) return;
     const id = setInterval(() => {
-      keepHostAlive().catch(() => setExpired(true));
+      keepHostAlive().catch((err: AxiosError) => {
+        const status = err.response?.status;
+        if (status === 401 || status === 403) setExpired(true);
+      });
     }, KEEPALIVE_MS);
     return () => clearInterval(id);
   }, [started, expired]);
 
   const start = useCallback(() => {
     void requestFullscreen();
-    writeFullscreenDone();
+    writeFullscreenDone('kiosk');
     setStarted(true);
   }, []);
 

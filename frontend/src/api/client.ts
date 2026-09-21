@@ -42,6 +42,14 @@ export function shouldRedirectToLogin(pathname: string): boolean {
   return !(pathname === '/kiosk' || pathname.startsWith('/kiosk/'));
 }
 
+/**
+ * A kiosk mutation answers 401 when the card is bad. That is not a dead JWT,
+ * so the refresh interceptor must leave it alone.
+ */
+export function isCardRejection(data: unknown): boolean {
+  return Boolean(data && typeof data === 'object' && (data as { code?: unknown }).code === 'card');
+}
+
 // Request interceptor: add Bearer token from memory
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (accessToken) {
@@ -73,7 +81,12 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (
+      error.response?.status === 401
+      && originalRequest
+      && !originalRequest._retry
+      && !isCardRejection(error.response.data)
+    ) {
       if (isRefreshing) {
         // Queue this request until refresh completes
         return new Promise((resolve, reject) => {

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { IDLE_MS, PICKER_MS, SUCCESS_MS, useOverlayTimeout } from './useOverlayTimeout';
+import { IDLE_MS, PICKER_MS, SUCCESS_MS, overlayTimeoutMs, useOverlayTimeout } from './useOverlayTimeout';
 
 describe('useOverlayTimeout', () => {
   beforeEach(() => vi.useFakeTimers());
@@ -49,5 +49,28 @@ describe('useOverlayTimeout', () => {
     expect(onExpire).not.toHaveBeenCalled();
     act(() => vi.advanceTimersByTime(15_000));
     expect(onExpire).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not stretch the success window when the screen is tapped', () => {
+    const onExpire = vi.fn();
+    renderHook(() => useOverlayTimeout(true, SUCCESS_MS, onExpire));
+    act(() => vi.advanceTimersByTime(3_000));
+    act(() => {
+      window.dispatchEvent(new Event('pointerdown'));
+    });
+    act(() => vi.advanceTimersByTime(1_000));
+    expect(onExpire).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('overlayTimeoutMs', () => {
+  it('uses 45s while the picker, gate, or wrong sheet is open, and 4s on success', () => {
+    expect(overlayTimeoutMs('out', true)).toBe(PICKER_MS);
+    expect(overlayTimeoutMs('out', false)).toBe(IDLE_MS);
+    expect(overlayTimeoutMs('gate', false)).toBe(PICKER_MS);
+    expect(overlayTimeoutMs('wrong', false)).toBe(PICKER_MS);
+    expect(overlayTimeoutMs('in', false)).toBe(IDLE_MS);
+    expect(overlayTimeoutMs('stale', false)).toBe(IDLE_MS);
+    expect(overlayTimeoutMs('success', true)).toBe(SUCCESS_MS);
   });
 });

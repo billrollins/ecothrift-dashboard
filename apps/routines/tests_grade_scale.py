@@ -40,6 +40,22 @@ class GradeScaleTests(TestCase):
         _score, letter = _walk_cap(90.0, 2, cfg)
         self.assertEqual(letter, 'B')
 
+    def test_week_snapshot_stores_a_plus(self):
+        from apps.routines.grading import _store_week_snapshot
+        from apps.routines.models import WeekScoreSnapshot
+        monday = date(2026, 9, 7)
+        _store_week_snapshot(
+            monday,
+            {
+                'score': 97.0,
+                'letter': 'A+',
+                'thirds': {'doing': 97.0, 'cross': 97.0, 'owner': 97.0},
+            },
+            {'cfg': retail_qa_settings()},
+            finalize=False,
+        )
+        self.assertEqual(WeekScoreSnapshot.objects.get(week_monday=monday).letter, 'A+')
+
 
 class ClosedMondayExpectedTests(TestCase):
     def test_live_monday_rule_includes_sections_sunday_does_not(self):

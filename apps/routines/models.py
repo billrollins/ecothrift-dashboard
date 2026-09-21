@@ -626,7 +626,7 @@ class WeekScoreSnapshot(models.Model):
 
     week_monday = models.DateField(unique=True)
     score = models.FloatField(null=True, blank=True)
-    letter = models.CharField(max_length=1, blank=True, default='')
+    letter = models.CharField(max_length=2, blank=True, default='')
     doing = models.FloatField(null=True, blank=True)
     cross = models.FloatField(null=True, blank=True)
     owner = models.FloatField(null=True, blank=True)

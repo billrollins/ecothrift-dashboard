@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.95.0] -->
-<!-- Last reviewed: 2026-09-18 (v2.95.0 Command Center + Departments) -->
+<!-- Line 1 release: ## [2.96.0] -->
+<!-- Last reviewed: 2026-09-21 (v2.96.0 time kiosk) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,24 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.96.0] - 2026-09-21
+
+User-facing theme: **Staff punch in and out with a card on the store tablet, hosted or at the door.**
+
+Initiative: [`time_kiosk`](./.ai/initiatives/time_kiosk.md).
+
+### Added
+
+- Essentials → **Kiosk** (`/kiosk`) and the door tablet (`/clock`). A staff member scans a Code 128 card to clock in, out, or take a break. The hosted board shows who is in; the public board shows a short name and In / Out / Expected / Late only.
+- Admin issues, reprints, or revokes a card from the employee drawer. The plain token is shown once. Clock-in asks about a stale punch, missed routines flagged Ask why when missed, and unheard nudges. Those reasons show on Command Center.
+
+### Fixed
+
+- A bad card does not sign the host out. A good scan clears the lockout counter. Two tablets cannot open two punches for one person. The shift picker keeps the 45-second timer, a tap does not hold the success screen, and a blocked door tablet shows only "Not available here".
+- Dashboard week scores can store `A+`. `WeekScoreSnapshot.letter` is two characters (`routines/0023_week_score_letter`). A one-character column was rejecting the insert and returning 500 from `/api/pos/dashboard/metrics/`.
 
 ---
 

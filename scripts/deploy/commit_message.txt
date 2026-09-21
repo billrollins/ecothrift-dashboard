@@ -1,9 +1,9 @@
-feat: ship Command Center, Departments, and frozen day letters
+feat: ship the time kiosk and the grade-scale week letter
 
-Release: v2.95.0
+Release: v2.96.0
 
-Retail managers get Command Center and staff My QA with Spot/Do/Cross
-letters. A past day reads the frozen expected count, so a day with
-nothing expected is Closed, not A+. Admin has Departments and Shifts.
-Settings returns the full key list so System no longer crashes.
-Processing check-in adds stay on the shelf.
+Staff scan a card on /kiosk or /clock. A bad card does not sign the host out,
+a good scan clears the lockout, and two tablets cannot open two punches.
+WeekScoreSnapshot.letter is two characters so A+ can save and the dashboard
+metrics request stops returning 500. This Heroku push also carries the
+Command Center and Departments release that was already on GitHub.

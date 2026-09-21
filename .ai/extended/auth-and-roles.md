@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-18 (department write vs admin) -->
+<!-- Last updated: 2026-09-21 (kiosk card 401 and failure counter) -->
 
 # Eco-Thrift Dashboard — Auth and Roles
 
@@ -123,9 +123,9 @@ User's `roles` property: returns **all** group names as a list (e.g. `['Employee
 ### Time kiosk (`/kiosk` hosted, `/clock` public)
 
 - **Card token.** `EmployeeProfile.badge_token_hash` is `HMAC-SHA256(SECRET_KEY, token)` of a 10-char opaque Code 128 token; `badge_issued_at` / `badge_revoked_at`; `badge_status` = `none` / `active` / `revoked`. The plain token is returned exactly once by `POST /api/accounts/users/:id/badge/` (issue) or `.../badge/reprint/` (rotates; the old card dies at once); `.../badge/revoke/` sets `badge_revoked_at`. Admin only (`UserViewSet`). Employee number, PIN, and typed passwords are never accepted at the kiosk.
-- **Hosted kiosk host.** `/api/hr/kiosk/*` requires a staff JWT with `hr.kiosk:use` (every staff role has it). The host is meant to be a dedicated **Employee** account left signed in on the tablet; `/kiosk` warns when a Manager or Admin is the host. Every punch acts as the *scanned card's* user, never the host; `KioskEvent` records host, subject, action, ip. Exit needs the host's own password via `POST /api/auth/verify-password/` (throttle scope `auth_verify_password`). The axios interceptor never redirects `/kiosk` to `/login` on refresh failure; it fires `kiosk:host-expired` and the page shows a manager sign-in overlay.
-- **Public clock.** `/api/hr/clock/*` is `AllowAny`. Identity is the card token only; a `clock_device` HTTP-only cookie plus IP key the throttle (10 failed identifies per 10 min, then 5 min lock); `AppSetting kiosk.public_allowed_ips` (CIDR list, empty = any) fences the surface. Board and preview are redacted (`name` "Maria R." only, no punch times, no break state, no Called in). Punch mutations on `/clock` are clock-in, clock-out, break, fix-stale; time edits stay hosted.
-- **Identify throttle (hosted).** 20 failed identifies per host per 10 min, then 5 min cooldown; every failure returns the same generic message and is logged as `identify_fail` / `cooldown`.
+- **Hosted kiosk host.** `/api/hr/kiosk/*` requires a staff JWT with `hr.kiosk:use` (every staff role has it). The host is meant to be a dedicated **Employee** account left signed in on the tablet; `/kiosk` warns when a Manager or Admin is the host. Every punch acts as the *scanned card's* user, never the host; `KioskEvent` records host, subject, action, ip. Exit needs the host's own password via `POST /api/auth/verify-password/` (throttle scope `auth_verify_password`). The axios interceptor never redirects `/kiosk` to `/login` on refresh failure; it fires `kiosk:host-expired` and the page shows a manager sign-in overlay. A `401` with `code: card` is a bad card, not a dead host session, so it does not refresh.
+- **Public clock.** `/api/hr/clock/*` is `AllowAny`. Identity is the card token only; a `clock_device` HTTP-only cookie plus IP key the throttle (10 failed identifies per 10 min, then 5 min lock); `AppSetting kiosk.public_allowed_ips` (JSON list of exact IP strings, empty = any) fences the surface. Board and preview are redacted (`name` "Maria R." only, no punch times, no break state, no Called in). Punch mutations on `/clock` are clock-in, clock-out, break, fix-stale; time edits stay hosted.
+- **Identify throttle (hosted).** 20 failed identifies per host per 10 min, then 5 min cooldown; every failure returns the same generic message and is logged as `identify_fail` / `cooldown`. A successful identify clears that counter.
 
 ---
 
