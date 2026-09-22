@@ -1,13 +1,14 @@
-<!-- initiative: slug=listing_photos status=active updated=2026-09-09 -->
-<!-- Last updated: 2026-09-09 (whole-picture default) -->
+<!-- initiative: slug=listing_photos status=completed updated=2026-09-22 -->
+<!-- Archived 2026-09-22: disposition=completed shipped v2.91.0 (four photo slots, single-screen editor, lightbox, autosave, Mark posted) -->
+<!-- Last updated: 2026-09-22 (moved to _completed) -->
 
 # Initiative: Listing photos
 
-**Status:** **Active** — four photo slots, staff editor, public lightbox, autosave, Mark posted.
+**Status:** **Completed** (2026-09-22) — shipped **v2.91.0**. Four photo slots, staff editor, public lightbox, autosave, Mark posted.
 
 **Objective:** Listing Studio photos are framed for the shop surfaces that actually exist, stored as a full gallery image plus main / grid / thumb crops, and never wipe the rest of the listing while someone is writing copy.
 
-**Compass:** this file is not the compass. Documents stays the compass: [`documents`](./documents.md).
+**Compass:** this file is not the compass. Documents stays the compass: [`documents`](../../documents.md).
 
 ---
 
@@ -49,9 +50,11 @@ A staff member drops or multi-selects photos and frames them on one screen. The 
 
 **2026-09-09 — Whole picture default.** Center 4:3 cover was chopping portrait product shots. Derived slots now letterbox the full image; the public shop uses the full file with contain.
 
+**2026-09-22 — Completed.** Moved to `_archived/_completed/`.
+
 ---
 
 ## See also
 
-- Domain: [`.ai/extended/backend.md`](../extended/backend.md) (webstore listing photos)
-- Index: [`_index.md`](./_index.md)
+- Domain: [`.ai/extended/backend.md`](../../../extended/backend.md) (webstore listing photos)
+- Index: [`_index.md`](../../_index.md)

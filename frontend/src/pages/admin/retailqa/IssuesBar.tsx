@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { QaIssue, QaJob, QaStaffRow } from '../../../api/routines.api';
-import { groupIssues, nudgeLabel } from './commandCenter';
+import { groupIssues, nudgeLabel, type BoardIssue } from './commandCenter';
 import { ItemsMenu, type RowMenuItem } from './ItemsMenu';
 import { QaIcon } from './QaIcons';
 
@@ -8,8 +8,10 @@ export function IssuesBar({
   issues,
   staff,
   jobs,
+  workers,
   onCallIn,
-  onReassign,
+  onAssign,
+  onUnblock,
   onNudge,
   onOpenCross,
   onDoSpot,
@@ -20,8 +22,10 @@ export function IssuesBar({
   issues: QaIssue[];
   staff: QaStaffRow[];
   jobs: QaJob[];
+  workers: Array<{ id: number; name: string }>;
   onCallIn: (personId: number) => void;
-  onReassign: () => void;
+  onAssign: (row: BoardIssue, userId: number) => void;
+  onUnblock: (runId: number) => void;
   onNudge: (runId: number, el: HTMLElement) => void;
   onOpenCross: () => void;
   onDoSpot: () => void;
@@ -41,8 +45,8 @@ export function IssuesBar({
         <div className="scroll rows">
           {rows.map((row) => {
             const tone = row.severity === 'red' ? 'bad' : row.severity === 'amber' ? 'warn' : '';
-            const items = issueMenu(row, {
-              onCallIn, onReassign, onNudge, onOpenCross, onDoSpot, onOpenShifts, onRemove,
+            const menu = issueMenu(row, workers, {
+              onCallIn, onAssign, onUnblock, onNudge, onOpenCross, onDoSpot, onOpenShifts, onRemove,
             });
             return (
               <div className={`row${tone ? ` s-${tone}` : ''}`} key={row.id}>
@@ -51,10 +55,10 @@ export function IssuesBar({
                   <span className="nowrap">{row.sentence}</span>
                   {nudgeLabel(row.nudged_at) ? <span className="nudged">{nudgeLabel(row.nudged_at)}</span> : null}
                 </span>
-                {items.length ? (
+                {menu ? (
                   <IssueAction
-                    label={items[0].label}
-                    items={items}
+                    label={menu.label}
+                    items={menu.items}
                     tone={tone || 'warn'}
                     title={nudgeLabel(row.nudged_at) || undefined}
                   />
@@ -101,25 +105,30 @@ function IssueAction({
 }
 
 function issueMenu(
-  row: ReturnType<typeof groupIssues>[number],
+  row: BoardIssue,
+  workers: Array<{ id: number; name: string }>,
   handlers: {
     onCallIn: (personId: number) => void;
-    onReassign: () => void;
+    onAssign: (row: BoardIssue, userId: number) => void;
+    onUnblock: (runId: number) => void;
     onNudge: (runId: number, el: HTMLElement) => void;
     onOpenCross: () => void;
     onDoSpot: () => void;
     onOpenShifts: () => void;
     onRemove: (personId: number) => void;
   },
-): RowMenuItem[] {
+): { label: string; items: RowMenuItem[] } | null {
   if ((row.action === 'nudge' || row.action === 're_nudge') && row.run_id) {
     if (/^Resolved\b/i.test(nudgeLabel(row.nudged_at))) {
-      return [];
+      return null;
     }
-    return [{
+    return {
       label: row.action === 're_nudge' ? 'Re-nudge' : 'Nudge',
-      onClick: () => handlers.onNudge(row.run_id as number, document.body),
-    }];
+      items: [{
+        label: row.action === 're_nudge' ? 'Re-nudge' : 'Nudge',
+        onClick: () => handlers.onNudge(row.run_id as number, document.body),
+      }],
+    };
   }
   if (row.action === 'call_in' && row.person_id) {
     const items: RowMenuItem[] = [
@@ -127,14 +136,32 @@ function issueMenu(
     ];
     if (row.run_id) items.push({ label: 'Nudge', onClick: () => handlers.onNudge(row.run_id as number, document.body) });
     items.push({ label: 'Remove from today', onClick: () => handlers.onRemove(row.person_id as number) });
-    return items;
+    return { label: 'Called in', items };
   }
-  if (row.action === 'reassign') return [{ label: 'Reassign', onClick: handlers.onReassign }];
-  if (row.action === 'open_cross') return [{ label: 'Open', onClick: handlers.onOpenCross }];
-  if (row.action === 'do_spot') return [{ label: 'Walk', onClick: handlers.onDoSpot }];
-  if (row.action === 'open_shifts') return [{ label: 'Open Shifts', onClick: handlers.onOpenShifts }];
+  if (row.action === 'reassign') {
+    const people = workers.filter((person) => person.id !== row.exclude_user_id);
+    const items = people.length
+      ? people.map((person) => ({
+        label: person.name,
+        onClick: () => handlers.onAssign(row, person.id),
+      }))
+      : [{ label: 'No one is in', onClick: () => undefined }];
+    if (row.blocked && row.run_id) {
+      items.push({ label: 'Unblock', onClick: () => handlers.onUnblock(row.run_id as number) });
+    }
+    return { label: 'Reassign', items };
+  }
+  if (row.action === 'unblock' && row.run_id) {
+    return {
+      label: 'Unblock',
+      items: [{ label: 'Unblock', onClick: () => handlers.onUnblock(row.run_id as number) }],
+    };
+  }
+  if (row.action === 'open_cross') return { label: 'Open', items: [{ label: 'Open', onClick: handlers.onOpenCross }] };
+  if (row.action === 'do_spot') return { label: 'Walk', items: [{ label: 'Walk', onClick: handlers.onDoSpot }] };
+  if (row.action === 'open_shifts') return { label: 'Open Shifts', items: [{ label: 'Open Shifts', onClick: handlers.onOpenShifts }] };
   if (row.action === 'clear_call_in' && row.person_id) {
-    return [{ label: 'Clear call-in', onClick: () => handlers.onCallIn(row.person_id as number) }];
+    return { label: 'Clear call-in', items: [{ label: 'Clear call-in', onClick: () => handlers.onCallIn(row.person_id as number) }] };
   }
-  return [];
+  return null;
 }

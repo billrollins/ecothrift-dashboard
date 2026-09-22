@@ -279,7 +279,7 @@ class RoutineRunSerializer(serializers.ModelSerializer):
             day = date.fromisoformat(obj.period_key)
         except (TypeError, ValueError):
             return None
-        return owner_check_gate(section=obj.section, day=day)
+        return owner_check_gate(section=obj.section, day=day, run=obj)
 
     def get_seconds_taken(self, obj):
         submission = obj.submission

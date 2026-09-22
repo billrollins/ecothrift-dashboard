@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-08 (routines completed; split from routines_and_documents) -->
+<!-- Last updated: 2026-09-22 (time_kiosk, departments_admin, retail_qa_scoring_v2, cardx_surcharge, listing_photos completed) -->
 
 <!-- NOTE: `_pending/tars_restoration_workspace.md` and `_pending/tars_full_instruction_wizard_guidance.md` are SUPERSEDED. TARS scope is `_completed/finalize_tars_app.md`. -->
 # Archive index — initiatives
@@ -13,6 +13,11 @@ Files under **`.ai/initiatives/_archived/`** that are off the [main index](../_i
 
 | File | Summary | Archived |
 |------|---------|----------|
+| [time_kiosk.md](./_completed/time_kiosk.md) | Time kiosk: hosted `/kiosk`, public `/clock`, badge cards, clock-in gate, miss reasons. Shipped GitHub and Heroku **v2.96.0**. | 2026-09-22 |
+| [departments_admin.md](./_completed/departments_admin.md) | Departments directory + hub, slug cutover, two-tier writes. Shipped GitHub **v2.95.0**; Heroku with **v2.96.0**. | 2026-09-22 |
+| [retail_qa_scoring_v2.md](./_completed/retail_qa_scoring_v2.md) | Retail QA scoring v2: Command Center, staff QA, frozen past days. Shipped GitHub **v2.95.0**; Heroku with **v2.96.0**. | 2026-09-22 |
+| [cardx_surcharge.md](./_completed/cardx_surcharge.md) | Record-only CardX 3% credit surcharge, receipt, drawer kick, fix card type. Shipped **v2.92.0–v2.94.0** + print-server 1.7.0/1.8.0. | 2026-09-22 |
+| [listing_photos.md](./_completed/listing_photos.md) | Listing photos: full + main/grid/thumb slots, single-screen editor, lightbox, autosave, Mark posted. Shipped **v2.91.0**. | 2026-09-22 |
 | [routines.md](./_completed/routines.md) | Routines + Retail QA + Floor pages. Shipped **v2.76.0–v2.87.0**. Split from `routines_and_documents`. | 2026-09-08 |
 | [admin_workspace_overhaul.md](./_completed/admin_workspace_overhaul.md) | Studios workspace, Settings house, capability catalog. Shipped **v2.74.0**. Grants deferred. | 2026-09-08 |
 | [pos_labor_day_summer_sale.md](./_completed/pos_labor_day_summer_sale.md) | POS Labor Day / Summer sale, www announcements + holiday hours, receipt YOU SAVED. Shipped **v2.88.0–v2.90.0**. | 2026-09-08 |

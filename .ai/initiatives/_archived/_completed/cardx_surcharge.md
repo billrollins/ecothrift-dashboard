@@ -1,13 +1,14 @@
-<!-- initiative: slug=cardx-surcharge status=active updated=2026-09-09 -->
-<!-- Last updated: 2026-09-09 (Phase 5 fix card type) -->
+<!-- initiative: slug=cardx-surcharge status=completed updated=2026-09-22 -->
+<!-- Archived 2026-09-22: disposition=completed shipped v2.92.0–v2.94.0 + print-server 1.7.0/1.8.0 (record-only 3% credit surcharge, CardX match, receipt, fix card type) -->
+<!-- Last updated: 2026-09-22 (moved to _completed) -->
 
 # Initiative: CardX credit surcharge
 
-**Status:** **Active** — Phases 1–5 implemented.
+**Status:** **Completed** (2026-09-22) — Phases 1–5 shipped **v2.92.0–v2.94.0** with print-server 1.7.0 / 1.8.0.
 
 **Objective:** Cashiers can complete card and split sales by keying the POS pre-surcharge amount into CardX and matching the machine's approved total to one of two server-computed buttons. The POS records a 3% credit surcharge (not debit, prepaid, or cash) without adding it to sale revenue, and prints the breakdown on the store receipt.
 
-**Compass:** this file is not the compass; [`documents`](./documents.md) stays the compass.
+**Compass:** this file is not the compass; [`documents`](../../documents.md) stays the compass.
 
 ---
 
@@ -100,9 +101,11 @@ Acceptance:
 
 **2026-09-09 — Phase 5 fix card type (v2.94.0).** Transactions **Fix card type** next to Void. Two stacked "Change to … and print receipt" buttons. 15-minute window from `completed_at`, then Bill Rollins (`is_superuser`) only. `POST …/card-type/` + `card_type_fixed_at` / `card_type_fixed_by` (migration `pos.0029`). Receipt reprints after a successful change.
 
+**2026-09-22 — Completed.** Moved to `_archived/_completed/`.
+
 ---
 
 ## See also
 
-- Domain: [`.ai/extended/pos-system.md`](../extended/pos-system.md), [`.ai/extended/print-server.md`](../extended/print-server.md)
-- Index: [`_index.md`](./_index.md)
+- Domain: [`.ai/extended/pos-system.md`](../../../extended/pos-system.md), [`.ai/extended/print-server.md`](../../../extended/print-server.md)
+- Index: [`_index.md`](../../_index.md)

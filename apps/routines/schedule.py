@@ -682,7 +682,12 @@ def _run_extras(routine: Routine, day: date, key: str, user_id: int | None) -> d
     if routine.subject_source == Routine.SUBJECT_OTHER_SECTION:
         pairs = cross_check_pairs(department_sections(routine), day.isocalendar().week)
         section = pairs.get(user_id)
-        return {'section': section, 'subject': section.name if section else '', 'generated': {}}
+        return {
+            'section': section,
+            'subject': section.name if section else '',
+            'generated': {},
+            'section_scoped': True,
+        }
     if routine.kind == Routine.KIND_OWNER_SPOT:
         cfg = retail_qa_settings()
         return {
@@ -703,25 +708,49 @@ def _run_extras(routine: Routine, day: date, key: str, user_id: int | None) -> d
 def _upsert_run(routine: Routine, key: str, user, due, extras: dict) -> bool:
     # mine/ and today/ both materialize. After a fresh pull those two
     # requests race get_or_create and one used to 500.
+    scoped = bool(extras.get('section_scoped'))
+    section = extras.get('section')
+    defaults = {
+        'due_at': due,
+        'status': RoutineRun.STATUS_OPEN,
+        'assigned_to': user,
+        **extras,
+    }
     try:
         with transaction.atomic():
-            run, was_created = RoutineRun.objects.get_or_create(
-                routine=routine,
-                period_key=key,
-                assigned_to=user,
-                defaults={
-                    'due_at': due,
-                    'status': RoutineRun.STATUS_OPEN,
-                    **extras,
-                },
-            )
-    except IntegrityError:
+            if scoped and section is not None:
+                run, was_created = RoutineRun.objects.get_or_create(
+                    routine=routine,
+                    period_key=key,
+                    section=section,
+                    section_scoped=True,
+                    defaults={
+                        key: value for key, value in defaults.items()
+                        if key not in ('section', 'section_scoped')
+                    },
+                )
+            else:
+                run, was_created = RoutineRun.objects.get_or_create(
+                    routine=routine,
+                    period_key=key,
+                    assigned_to=user,
+                    section_scoped=False,
+                    defaults={
+                        key: value for key, value in defaults.items()
+                        if key != 'section_scoped'
+                    },
+                )
+    except (IntegrityError, RoutineRun.MultipleObjectsReturned):
         lookup = RoutineRun.objects.filter(routine=routine, period_key=key)
-        run = (
-            lookup.filter(assigned_to__isnull=True, unassign_key='').get()
-            if user is None
-            else lookup.get(assigned_to=user)
-        )
+        if scoped and section is not None:
+            run = lookup.get(section=section, section_scoped=True)
+        else:
+            lookup = lookup.filter(section_scoped=False)
+            run = (
+                lookup.filter(assigned_to__isnull=True, unassign_key='').get()
+                if user is None
+                else lookup.get(assigned_to=user)
+            )
         was_created = False
     if was_created:
         return True
@@ -789,15 +818,77 @@ def materialize_routines(day: date | None = None) -> int:
             if _upsert_run(routine, key, None, due, _run_extras(routine, day, key, None)):
                 created += 1
             continue
+        covered = covered_section_ids(day) if routine.system_key == SYSTEM_TALLY else set()
         for user in assignees:
             if user.pk in skipped and routine.system_key != SYSTEM_WORK_CYCLE:
                 continue
             extras = _run_extras(routine, day, key, user.pk)
+            if routine.system_key == SYSTEM_TALLY:
+                owned = [
+                    section for section in department_sections(routine)
+                    if section.owner_id == user.pk and section.pk not in covered
+                ]
+                if not owned:
+                    RoutineRun.objects.filter(
+                        routine=routine, period_key=key, assigned_to=user,
+                        section_scoped=False, status=RoutineRun.STATUS_OPEN,
+                    ).delete()
+                    continue
+                extras = {
+                    **extras,
+                    'section': None,
+                    'subject': ', '.join(section.name for section in owned),
+                    'section_scoped': False,
+                }
             if routine.subject_source == Routine.SUBJECT_OTHER_SECTION and not extras['section']:
                 continue
+            if routine.subject_source == Routine.SUBJECT_OTHER_SECTION:
+                section = extras['section']
+                section_run = RoutineRun.objects.filter(
+                    routine=routine, period_key=key, section=section,
+                ).first()
+                if section_run is not None:
+                    if section_run.status == RoutineRun.STATUS_OPEN and section_run.due_at != due:
+                        section_run.due_at = due
+                        section_run.save(update_fields=['due_at'])
+                    continue
+                user_run = RoutineRun.objects.filter(
+                    routine=routine, period_key=key, assigned_to=user,
+                ).first()
+                if user_run and (user_run.generated or {}).get('checker_pinned'):
+                    continue
             if _upsert_run(routine, key, user, due, extras):
                 created += 1
     return created
+
+
+def covered_section_ids(day: date) -> set[int]:
+    """Aisles whose section check is a today-only cover, so the owner tally skips them."""
+    return set(
+        RoutineRun.objects.filter(
+            routine__system_key=SYSTEM_TALLY,
+            period_key=day.isoformat(),
+            section_scoped=True,
+            section_id__isnull=False,
+        ).exclude(status=RoutineRun.STATUS_MISSED).values_list('section_id', flat=True)
+    )
+
+
+def drop_unowned_open_tally(user, day: date) -> None:
+    """Remove today's open section check when this person no longer keeps an aisle."""
+    if user is None:
+        return
+    routine = Routine.objects.filter(system_key=SYSTEM_TALLY, is_active=True).first()
+    if routine is None:
+        return
+    if any(section.owner_id == user.pk for section in department_sections(routine)):
+        return
+    RoutineRun.objects.filter(
+        routine=routine,
+        period_key=day.isoformat(),
+        assigned_to=user,
+        status=RoutineRun.STATUS_OPEN,
+    ).delete()
 
 
 def _called_in_ids(day: date) -> set[int]:
@@ -829,9 +920,16 @@ def was_late(run: RoutineRun) -> bool:
     return run.completed_at > run_moments(run)['late_at']
 
 
+def personal_section_run(run: RoutineRun) -> bool:
+    """Section checks and cross-checks belong to one person, never a pool."""
+    return run.routine.system_key in (SYSTEM_TALLY, SYSTEM_CROSS_CHECK)
+
+
 def user_can_see_run(run: RoutineRun, user) -> bool:
     if getattr(user, 'is_superuser', False):
         return True
+    if personal_section_run(run):
+        return run.assigned_to_id == user.pk
     if not user_in_audience(run.routine, user):
         return False
     if run.assigned_to_id is None:
@@ -847,11 +945,16 @@ def mine_queryset(user):
         .order_by('due_at', 'id')
     )
     punch = current_shift(user)
-    keep = [
-        run.pk for run in open_runs
-        if user_in_audience(run.routine, user, shift=punch)
-        and (run.assigned_to_id is None or run.assigned_to_id == user.pk)
-    ]
+    keep = []
+    for run in open_runs:
+        if personal_section_run(run):
+            if run.assigned_to_id == user.pk:
+                keep.append(run.pk)
+            continue
+        if user_in_audience(run.routine, user, shift=punch) and (
+            run.assigned_to_id is None or run.assigned_to_id == user.pk
+        ):
+            keep.append(run.pk)
     if not keep:
         return RoutineRun.objects.none()
     return open_runs.filter(pk__in=keep)

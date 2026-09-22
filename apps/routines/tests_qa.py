@@ -456,8 +456,8 @@ class CommandCenterTests(APITestCase):
         run.refresh_from_db()
         tally.refresh_from_db()
         self.assertFalse(QaCallIn.objects.filter(pk=call_id).exists())
-        self.assertIsNone(run.assigned_to_id)
-        self.assertIsNone(tally.assigned_to_id)
+        self.assertEqual(run.assigned_to_id, self.sam.pk)
+        self.assertEqual(tally.assigned_to_id, self.sam.pk)
 
     def test_past_day_cannot_be_called_in(self):
         from apps.routines.command_center import apply_call_in
@@ -802,8 +802,7 @@ class CommandCenterTests(APITestCase):
         )
         result = assign_run(run=leftover, user=self.sam, marked_by=self.mgr)
         self.assertEqual(result.pk, mine.pk)
-        leftover.refresh_from_db()
-        self.assertIsNone(leftover.assigned_to_id)
+        self.assertFalse(RoutineRun.objects.filter(pk=leftover.pk).exists())
         mine.refresh_from_db()
         self.assertEqual(mine.assigned_to_id, self.sam.pk)
 
@@ -834,8 +833,7 @@ class CommandCenterTests(APITestCase):
         }, format='json')
         self.assertEqual(response.status_code, 200, getattr(response, 'data', response.content))
         self.assertEqual(response.data['run_id'], mine.pk)
-        leftover.refresh_from_db()
-        self.assertIsNone(leftover.assigned_to_id)
+        self.assertFalse(RoutineRun.objects.filter(pk=leftover.pk).exists())
         self.assertEqual(
             RoutineRun.objects.filter(
                 routine=self.tally, period_key=day.isoformat(), assigned_to=self.sam,
@@ -1441,3 +1439,369 @@ class DaySummaryApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data.get('week'), week)
         _assert_no_forbidden_keys(self, response.data)
+
+
+class AssignmentVisibilityTests(APITestCase):
+    def setUp(self):
+        self.department = Department.objects.create(name='Floor', slug='floor')
+        self.david = _staff('david-vis@example.com')
+        self.michael = _staff('michael-vis@example.com')
+        self.other = _staff('other-vis@example.com')
+        self.mgr = _staff('mgr-vis@example.com', 'Manager')
+        self.david_section = Section.objects.create(
+            department=self.department, name='David', owner=self.david, sort_order=1,
+        )
+        self.michael_section = Section.objects.create(
+            department=self.department, name='Michael', owner=self.michael, sort_order=2,
+        )
+        self.day = date(2026, 9, 22)
+        self.tally, _ = Routine.objects.update_or_create(
+            system_key=SYSTEM_TALLY,
+            defaults={
+                'title': 'Section check',
+                'kind': Routine.KIND_SECTION_TALLY,
+                'trigger': Routine.TRIGGER_DAILY,
+                'assignment': Routine.ASSIGN_PER_PERSON,
+                'subject_source': Routine.SUBJECT_MY_SECTION,
+                'assigned_department': self.department,
+                'is_active': True,
+            },
+        )
+        self.cross, _ = Routine.objects.update_or_create(
+            system_key=SYSTEM_CROSS_CHECK,
+            defaults={
+                'title': 'Cross-check',
+                'kind': Routine.KIND_SECTION_AUDIT,
+                'trigger': Routine.TRIGGER_DAILY,
+                'assignment': Routine.ASSIGN_PER_PERSON,
+                'subject_source': Routine.SUBJECT_OTHER_SECTION,
+                'assigned_department': self.department,
+                'is_active': True,
+            },
+        )
+        self.shift = Shift.objects.create(
+            name='Afternoon',
+            department=self.department,
+            time_in=time(23, 0),
+            time_out=time(23, 30),
+            weekdays=[1],
+            is_active=True,
+        )
+        ShiftAssignment.objects.create(employee=self.michael, shift=self.shift, weekdays=[1])
+
+    def _due(self, day=None):
+        day = day or self.day
+        return timezone.make_aware(datetime.combine(day, time(18, 0)), TZ)
+
+    def _open(self, routine, *, who, section=None, subject='', generated=None, key=''):
+        return RoutineRun.objects.create(
+            routine=routine,
+            period_key=self.day.isoformat(),
+            due_at=self._due(),
+            assigned_to=who,
+            section=section,
+            subject=subject,
+            generated=generated or {},
+            unassign_key=key,
+            section_scoped=routine.system_key == SYSTEM_CROSS_CHECK,
+            status=RoutineRun.STATUS_OPEN,
+        )
+
+    def test_blank_section_and_cross_checks_stay_off_other_owners_lists(self):
+        from apps.routines.schedule import mine_queryset
+        blank_tally = self._open(self.tally, who=None, subject='David', key='u-tally')
+        blank_cross = self._open(
+            self.cross, who=None, section=self.michael_section, subject='Michael', key='u-cross',
+        )
+        mine = self._open(self.tally, who=self.michael, subject='Michael')
+        david_ids = set(mine_queryset(self.david).values_list('pk', flat=True))
+        michael_ids = set(mine_queryset(self.michael).values_list('pk', flat=True))
+        self.assertNotIn(blank_tally.pk, david_ids)
+        self.assertNotIn(blank_tally.pk, michael_ids)
+        self.assertNotIn(blank_cross.pk, david_ids)
+        self.assertNotIn(blank_cross.pk, michael_ids)
+        self.assertIn(mine.pk, michael_ids)
+        self.assertNotIn(mine.pk, david_ids)
+        handed = self._open(self.cross, who=self.other, section=self.david_section, subject='David')
+        other_ids = set(mine_queryset(self.other).values_list('pk', flat=True))
+        michael_after = set(mine_queryset(self.michael).values_list('pk', flat=True))
+        self.assertIn(handed.pk, other_ids)
+        self.assertNotIn(handed.pk, michael_after)
+
+    def test_owner_change_drops_the_former_open_tally(self):
+        david_run = self._open(self.tally, who=self.david, subject='David')
+        michael_run = self._open(self.tally, who=self.michael, subject='Michael')
+        self.client.force_authenticate(self.mgr)
+        response = self.client.post('/api/routines/qa/board/assign/', {
+            'date': self.day.isoformat(),
+            'kind': 'owner',
+            'section': self.david_section.pk,
+            'user': self.michael.pk,
+        }, format='json')
+        self.assertEqual(response.status_code, 200, getattr(response, 'data', response.content))
+        self.assertFalse(RoutineRun.objects.filter(pk=david_run.pk).exists())
+        michael_run.refresh_from_db()
+        self.assertEqual(michael_run.assigned_to_id, self.michael.pk)
+        self.assertIn('David', michael_run.subject)
+        self.assertIn('Michael', michael_run.subject)
+
+    def test_called_in_cross_check_is_off_my_routines_and_on_the_board(self):
+        from apps.routines.command_center import apply_call_in, build_issues
+        from apps.routines.schedule import mine_queryset
+        from apps.webstore.services.hours import get_hours_config
+        run = self._open(self.cross, who=self.david, section=self.michael_section, subject='Michael')
+        apply_call_in(employee=self.david, day=self.day, marked_by=self.mgr, today=self.day)
+        run.refresh_from_db()
+        self.assertIsNone(run.assigned_to_id)
+        visible = set(mine_queryset(self.michael).values_list('pk', flat=True))
+        visible |= set(mine_queryset(self.david).values_list('pk', flat=True))
+        self.assertNotIn(run.pk, visible)
+        now = timezone.make_aware(datetime.combine(self.day, time(12, 0)), TZ)
+        issues = build_issues(
+            day=self.day, open_day=True, staff=[], jobs=[],
+            spot={'done': True},
+            cross={
+                'due': self.day.isoformat(),
+                'total': 1,
+                'done': 0,
+                'rows': [{
+                    'status': 'Not done',
+                    'section_name': 'Michael',
+                    'section_id': self.michael_section.pk,
+                    'run_id': run.pk,
+                    'checker': None,
+                    'checker_state': 'called_in',
+                    'owner': {'id': self.michael.pk, 'name': 'Michael'},
+                }],
+            },
+            nudges={}, now=now, tz=TZ, hours_cfg=get_hours_config(), today=self.day,
+        )
+        row = next(item for item in issues if item['type'] == 'cross_uncovered')
+        self.assertEqual(row['action'], 'reassign')
+        self.assertEqual(row['assign_kind'], 'cross_checker')
+
+    def test_scheduled_checker_does_not_raise_a_reassign_issue(self):
+        from apps.routines.command_center import build_issues
+        from apps.webstore.services.hours import get_hours_config
+        now = timezone.make_aware(datetime.combine(self.day, time(12, 0)), TZ)
+        issues = build_issues(
+            day=self.day, open_day=True, staff=[], jobs=[],
+            spot={'done': True},
+            cross={
+                'due': self.day.isoformat(),
+                'total': 1,
+                'done': 0,
+                'rows': [{
+                    'status': 'Not done',
+                    'section_name': 'Michael',
+                    'section_id': self.michael_section.pk,
+                    'run_id': 1,
+                    'checker': {'id': self.david.pk, 'name': 'David'},
+                    'checker_state': 'working',
+                    'owner': {'id': self.michael.pk, 'name': 'Michael'},
+                }],
+            },
+            nudges={}, now=now, tz=TZ, hours_cfg=get_hours_config(), today=self.day,
+        )
+        self.assertFalse([item for item in issues if item['type'] == 'cross_uncovered'])
+
+    def test_pinned_checker_survives_materialize_and_a_second_cross_check(self):
+        from apps.routines.schedule import materialize_routines
+        pinned = self._open(
+            self.cross, who=self.other, section=self.michael_section, subject='Michael',
+            generated={'checker_pinned': True},
+        )
+        second = self._open(
+            self.cross, who=self.other, section=self.david_section, subject='David',
+        )
+        materialize_routines(self.day)
+        pinned.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(pinned.assigned_to_id, self.other.pk)
+        self.assertEqual(second.assigned_to_id, self.other.pk)
+        self.assertEqual(
+            RoutineRun.objects.filter(
+                routine=self.cross, period_key=self.day.isoformat(), section=self.michael_section,
+            ).count(),
+            1,
+        )
+
+    def test_section_owner_cannot_be_the_checker(self):
+        self._open(self.cross, who=self.david, section=self.michael_section, subject='Michael')
+        self.client.force_authenticate(self.mgr)
+        response = self.client.post('/api/routines/qa/board/assign/', {
+            'date': self.day.isoformat(),
+            'kind': 'cross_checker',
+            'section': self.michael_section.pk,
+            'user': self.michael.pk,
+        }, format='json')
+        self.assertEqual(response.status_code, 400)
+
+    def test_waived_cross_check_passes_the_gate_and_clears_the_ask(self):
+        from apps.routines.command_center import build_issues, owner_check_gate
+        from apps.webstore.services.hours import get_hours_config
+        run = self._open(self.cross, who=self.david, section=self.michael_section, subject='Michael')
+        now = timezone.make_aware(datetime.combine(self.day, time(12, 0)), TZ)
+        blocked = owner_check_gate(section=self.michael_section, day=self.day, run=run, now=now)
+        self.assertFalse(blocked['allowed'])
+        QaNudge.objects.create(
+            run=run, created_by=self.david, source='early_check', employee=None,
+            message='David asked to cross-check Michael before the section check.',
+        )
+        issues = build_issues(
+            day=self.day, open_day=True, staff=[], jobs=[],
+            spot={'done': True}, cross={'due': self.day.isoformat(), 'total': 1, 'done': 0, 'rows': []},
+            nudges={}, now=now, tz=TZ, hours_cfg=get_hours_config(), today=self.day,
+        )
+        self.assertTrue([item for item in issues if item['action'] == 'unblock'])
+        self.client.force_authenticate(self.mgr)
+        response = self.client.post('/api/routines/qa/board/assign/', {
+            'date': self.day.isoformat(),
+            'kind': 'unblock_cross',
+            'section': self.michael_section.pk,
+        }, format='json')
+        self.assertEqual(response.status_code, 200, getattr(response, 'data', response.content))
+        run.refresh_from_db()
+        opened = owner_check_gate(section=self.michael_section, day=self.day, run=run, now=now)
+        self.assertTrue(opened['allowed'])
+        self.assertEqual(opened['reason'], 'waived')
+        self.assertFalse(QaNudge.objects.filter(run=run, source='early_check', acked_at__isnull=True).exists())
+
+    def test_spot_walks_can_share_a_section_and_cross_checks_cannot(self):
+        from django.db import IntegrityError, transaction
+        spot, _ = Routine.objects.update_or_create(
+            system_key=SYSTEM_OWNER_SPOT,
+            defaults={
+                'title': 'Spot',
+                'kind': Routine.KIND_OWNER_SPOT,
+                'trigger': Routine.TRIGGER_DAILY,
+                'assignment': Routine.ASSIGN_PER_PERSON,
+                'is_active': True,
+            },
+        )
+        RoutineRun.objects.create(
+            routine=spot, period_key=self.day.isoformat(), due_at=self._due(),
+            assigned_to=self.david, section=self.michael_section, section_scoped=False,
+            status=RoutineRun.STATUS_OPEN,
+        )
+        RoutineRun.objects.create(
+            routine=spot, period_key=self.day.isoformat(), due_at=self._due(),
+            assigned_to=self.michael, section=self.michael_section, section_scoped=False,
+            status=RoutineRun.STATUS_OPEN,
+        )
+        self._open(self.cross, who=self.david, section=self.david_section, subject='David')
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                self._open(self.cross, who=self.michael, section=self.david_section, subject='David')
+
+    def test_cover_section_keeps_the_owner_and_the_helpers_own_check(self):
+        from apps.routines.kinds import owned_sections
+        from apps.routines.schedule import materialize_routines
+        david_run = self._open(self.tally, who=self.david, subject='David')
+        michael_run = self._open(self.tally, who=self.michael, subject='Michael')
+        self.client.force_authenticate(self.mgr)
+        response = self.client.post('/api/routines/qa/board/assign/', {
+            'date': self.day.isoformat(),
+            'kind': 'cover_section',
+            'section': self.david_section.pk,
+            'user': self.michael.pk,
+        }, format='json')
+        self.assertEqual(response.status_code, 200, getattr(response, 'data', response.content))
+        self.david_section.refresh_from_db()
+        self.assertEqual(self.david_section.owner_id, self.david.pk)
+        self.assertFalse(RoutineRun.objects.filter(pk=david_run.pk).exists())
+        michael_run.refresh_from_db()
+        self.assertEqual(michael_run.assigned_to_id, self.michael.pk)
+        self.assertFalse(michael_run.section_scoped)
+        cover = RoutineRun.objects.get(
+            routine=self.tally, section=self.david_section, section_scoped=True,
+        )
+        self.assertEqual(cover.assigned_to_id, self.michael.pk)
+        self.assertEqual([row.pk for row in owned_sections(cover)], [self.david_section.pk])
+        materialize_routines(self.day)
+        self.assertFalse(RoutineRun.objects.filter(
+            routine=self.tally, assigned_to=self.david, section_scoped=False,
+            status=RoutineRun.STATUS_OPEN,
+        ).exists())
+        cover.refresh_from_db()
+        self.assertEqual(cover.assigned_to_id, self.michael.pk)
+
+    def test_undo_call_in_restores_open_runs(self):
+        from apps.routines.command_center import apply_call_in, clear_call_in
+        cross = self._open(self.cross, who=self.david, section=self.michael_section, subject='Michael')
+        tally = self._open(self.tally, who=self.david, subject='David')
+        call = apply_call_in(employee=self.david, day=self.day, marked_by=self.mgr, today=self.day)
+        cross.refresh_from_db()
+        tally.refresh_from_db()
+        self.assertIsNone(cross.assigned_to_id)
+        self.assertIsNone(tally.assigned_to_id)
+        clear_call_in(call)
+        cross.refresh_from_db()
+        tally.refresh_from_db()
+        self.assertEqual(cross.assigned_to_id, self.david.pk)
+        self.assertEqual(tally.assigned_to_id, self.david.pk)
+        self.assertFalse(RoutineRun.objects.filter(
+            pk__in=[cross.pk, tally.pk], assigned_to__isnull=True,
+        ).exists())
+
+    def test_leaves_early_and_left_need_a_new_checker(self):
+        from apps.routines.command_center import build_issues, person_work_state
+        from apps.webstore.services.hours import get_hours_config
+        early = [
+            {'id': self.david.pk, 'status': 'In', 'time_in': '08:00', 'time_out': '14:00', 'called_in': False},
+            {'id': self.michael.pk, 'status': 'Expected', 'time_in': '15:00', 'time_out': '20:00', 'called_in': False},
+        ]
+        self.assertEqual(
+            person_work_state(self.david.pk, early, owner_id=self.michael.pk, section_done=False),
+            'leaves_early',
+        )
+        overlap = [
+            {'id': self.david.pk, 'status': 'In', 'time_in': '08:00', 'time_out': '18:00', 'called_in': False},
+            {'id': self.michael.pk, 'status': 'Expected', 'time_in': '15:00', 'time_out': '20:00', 'called_in': False},
+        ]
+        self.assertEqual(
+            person_work_state(self.david.pk, overlap, owner_id=self.michael.pk, section_done=False),
+            'working',
+        )
+        self.assertEqual(
+            person_work_state(
+                self.david.pk,
+                [{'id': self.david.pk, 'status': 'Left', 'time_in': '08:00', 'time_out': '18:00', 'called_in': False}],
+                owner_id=self.michael.pk,
+            ),
+            'left',
+        )
+        now = timezone.make_aware(datetime.combine(self.day, time(12, 0)), TZ)
+        issues = build_issues(
+            day=self.day, open_day=True, staff=[], jobs=[],
+            spot={'done': True},
+            cross={
+                'due': self.day.isoformat(), 'total': 1, 'done': 0,
+                'rows': [{
+                    'status': 'Not done',
+                    'section_name': 'Michael',
+                    'section_id': self.michael_section.pk,
+                    'run_id': 1,
+                    'checker': {'id': self.david.pk, 'name': 'David'},
+                    'checker_state': 'leaves_early',
+                    'checker_out': '14:00',
+                    'owner_in': '15:00',
+                    'owner': {'id': self.michael.pk, 'name': 'Michael'},
+                    'blocked': True,
+                }],
+            },
+            nudges={}, now=now, tz=TZ, hours_cfg=get_hours_config(), today=self.day,
+        )
+        row = next(item for item in issues if item['type'] == 'cross_uncovered')
+        self.assertIn('leaves 14:00', row['sentence'])
+        self.assertIn('in at 15:00', row['sentence'])
+        self.assertTrue(row['blocked'])
+
+    def test_blocked_cross_check_cannot_be_submitted_until_unblocked(self):
+        from apps.routines.kinds import submit_blockers
+        run = self._open(self.cross, who=self.david, section=self.michael_section, subject='Michael')
+        blocked = submit_blockers(self.cross, {'counts': {}}, run=run)
+        self.assertTrue(blocked)
+        run.generated = {'owner_check_waived': True}
+        run.save(update_fields=['generated'])
+        self.assertEqual(submit_blockers(self.cross, {'counts': {}}, run=run), [])

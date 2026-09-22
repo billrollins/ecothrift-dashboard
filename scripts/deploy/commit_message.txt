@@ -1,9 +1,9 @@
-feat: ship the time kiosk and the grade-scale week letter
+feat: let managers reassign and unblock today's cross-checks
 
-Release: v2.96.0
+Release: v2.97.0
 
-Staff scan a card on /kiosk or /clock. A bad card does not sign the host out,
-a good scan clears the lockout, and two tablets cannot open two punches.
-WeekScoreSnapshot.letter is two characters so A+ can save and the dashboard
-metrics request stops returning 500. This Heroku push also carries the
-Command Center and Departments release that was already on GitHub.
+A section check or cross-check shows only for the person who has it now.
+Command Center can hand a cross-check to someone still working, cover a
+section check for today, and unblock a walk that is waiting on the section
+check. Also files the five completed initiatives and ignores local floor-plan
+reference copies.

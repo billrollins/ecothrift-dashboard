@@ -1,9 +1,11 @@
 import { Dialog, DialogContent, DialogTitle, IconButton } from '@mui/material';
 import { addDays, format, parseISO } from 'date-fns';
+import { useState } from 'react';
 import type { PersonWeekRow, QaDayTile, QaToday, QaWeek, SpotScoreCard } from '../../../api/routines.api';
 import { ccTokens } from '../../../theme';
 import { weekMonday } from '../routines/gradeWeek';
 import { displayName, peopleDots, sectionCheckDoneLabel } from './commandCenter';
+import { ItemsMenu, type RowMenuItem } from './ItemsMenu';
 import { QaIcon } from './QaIcons';
 
 const WALK_FLOOR = 3;
@@ -22,6 +24,10 @@ export function SummaryDialogs({
   people,
   onDoSpot,
   onOpenRun,
+  workers,
+  canEdit,
+  onAssignChecker,
+  onUnblock,
 }: {
   open: SummaryId | null;
   onClose: () => void;
@@ -34,6 +40,10 @@ export function SummaryDialogs({
   people: PersonWeekRow[];
   onDoSpot: () => void;
   onOpenRun: (runId: number) => void;
+  workers: Array<{ id: number; name: string }>;
+  canEdit: boolean;
+  onAssignChecker: (sectionId: number, userId: number) => void;
+  onUnblock: (sectionId: number) => void;
 }) {
   const monday = weekMonday(week);
   const sunday = addDays(monday, 6);
@@ -118,23 +128,62 @@ export function SummaryDialogs({
             </tr>
           </thead>
           <tbody>
-            {(cross?.rows ?? []).map((row) => (
-              <tr key={row.run_id ?? row.section_id ?? row.section_name}>
+            {(cross?.rows ?? []).map((row) => {
+              const stuck = row.checker_state === 'not_scheduled'
+                || row.checker_state === 'called_in'
+                || row.checker_state === 'unassigned'
+                || row.checker_state === 'leaves_early'
+                || row.checker_state === 'left';
+              const stateLabel = row.checker_state === 'not_scheduled'
+                ? 'Not scheduled'
+                : row.checker_state === 'called_in'
+                  ? 'Called in'
+                  : row.checker_state === 'unassigned'
+                    ? 'Unassigned'
+                    : row.checker_state === 'leaves_early'
+                      ? `Leaves ${row.checker_out || ''}`.trim()
+                      : row.checker_state === 'left'
+                        ? 'Clocked out'
+                        : '';
+              const checkerName = typeof row.checker === 'string' ? row.checker : row.checker?.name || '';
+              const checkerId = typeof row.checker === 'string' ? null : row.checker?.id;
+              const openRow = row.status !== 'Validated' && row.status !== 'Issues found';
+              const choices = workers.filter((person) => person.id !== row.owner?.id && person.id !== checkerId);
+              return (
+              <tr key={row.run_id ?? row.section_id ?? row.section_name} className={stuck ? 'stuck' : undefined}>
                 <td>{displayName(row.section_name, 'auto')}</td>
                 <td>{row.owner?.name || '—'}</td>
-                <td>{typeof row.checker === 'string' ? row.checker : row.checker?.name || '—'}</td>
-                <td className={row.tone === 'grey' ? 'tone-grey' : row.tone === 'bad' ? 'tone-bad' : ''}>
-                  {row.status_label || row.status}
+                <td>
+                  {canEdit && openRow && row.section_id ? (
+                    <CheckerPicker
+                      name={checkerName}
+                      label={`Change ${row.section_name} checker`}
+                      choices={choices}
+                      onPick={(userId) => onAssignChecker(row.section_id as number, userId)}
+                    />
+                  ) : (checkerName || '—')}
+                  {stateLabel ? <span className="stuck-note">{stateLabel}</span> : null}
+                </td>
+                <td className={row.blocked && !row.waived ? 'wait' : row.tone === 'grey' ? 'tone-grey' : row.tone === 'bad' ? 'tone-bad' : ''}>
+                  <span className="status-cell">
+                    {row.status_label || row.status}
+                    {canEdit && row.blocked && !row.waived && row.section_id ? (
+                      <button type="button" className="unblock" onClick={() => onUnblock(row.section_id as number)}>
+                        Unblock
+                      </button>
+                    ) : null}
+                  </span>
                 </td>
                 <td className="r">{row.items_fixed ?? '—'}</td>
                 <td className="r">{row.score ?? '—'}</td>
                 <td className="r">
-                  {row.run_id && row.status !== 'Due' && row.status !== 'Not done' ? (
+                  {row.run_id && !openRow ? (
                     <a href="#" onClick={(event) => { event.preventDefault(); onOpenRun(row.run_id as number); }}>View</a>
                   ) : null}
                 </td>
               </tr>
-            ))}
+              );
+            })}
             {(cross?.done ?? 0) > 0 ? (
               <tr>
                 <td colSpan={5}>Combined score</td>
@@ -196,6 +245,38 @@ export function SummaryDialogs({
           <div className="cc-dialog-note">No one owns a section.</div>
         )}
       </BoardDialog>
+    </>
+  );
+}
+
+function CheckerPicker({
+  name,
+  label,
+  choices,
+  onPick,
+}: {
+  name: string;
+  label: string;
+  choices: Array<{ id: number; name: string }>;
+  onPick: (userId: number) => void;
+}) {
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const items: RowMenuItem[] = choices.length
+    ? choices.map((person) => ({ label: person.name, onClick: () => onPick(person.id) }))
+    : [{ label: 'No one else is in', onClick: () => undefined }];
+  return (
+    <>
+      <button
+        type="button"
+        className={`picker${name ? '' : ' empty'}`}
+        aria-label={label}
+        aria-haspopup="menu"
+        onClick={(event) => setAnchor(event.currentTarget)}
+      >
+        {name || 'Assign'}
+        <span className="caret" aria-hidden>▾</span>
+      </button>
+      <ItemsMenu anchor={anchor} onClose={() => setAnchor(null)} items={items} />
     </>
   );
 }

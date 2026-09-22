@@ -305,6 +305,10 @@ class RoutineRun(models.Model):
         default='',
         help_text='Keeps more than one unassigned per-person run unique for a day.',
     )
+    section_scoped = models.BooleanField(
+        default=False,
+        help_text='True when this run is the one walk of its section for the day (cross-check or a today-only cover).',
+    )
     # Why a missed run was missed, answered at the kiosk before the next clock-in.
     miss_reason = models.CharField(
         max_length=20, choices=MISS_REASON_CHOICES, blank=True, default='',
@@ -324,8 +328,13 @@ class RoutineRun(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=['routine', 'period_key', 'assigned_to'],
-                condition=Q(assigned_to__isnull=False),
+                condition=Q(assigned_to__isnull=False, section_scoped=False),
                 name='routines_run_period_user',
+            ),
+            models.UniqueConstraint(
+                fields=['routine', 'period_key', 'section'],
+                condition=Q(section_scoped=True, section__isnull=False),
+                name='routines_run_period_section',
             ),
             models.UniqueConstraint(
                 fields=['routine', 'period_key', 'unassign_key'],
@@ -554,11 +563,13 @@ class SectionAssignmentEvent(models.Model):
     KIND_CROSS_CHECKER = 'cross_checker'
     KIND_CLOSED_FOR_DAY = 'closed_for_day'
     KIND_REOPENED = 'reopened'
+    KIND_CROSS_UNBLOCK = 'cross_unblock'
     KIND_CHOICES = [
         (KIND_OWNER, 'Section owner'),
         (KIND_CROSS_CHECKER, 'Cross-checker'),
         (KIND_CLOSED_FOR_DAY, 'Closed for the day'),
         (KIND_REOPENED, 'Reopened'),
+        (KIND_CROSS_UNBLOCK, 'Cross-check unblocked'),
     ]
 
     section = models.ForeignKey(Section, on_delete=models.CASCADE, related_name='assignment_events')

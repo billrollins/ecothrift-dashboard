@@ -169,6 +169,9 @@ workspace/notebooks/db-explorer/pickles/
 workspace/notebooks/.env
 workspace/notebooks/__pycache__/
 
+# Local copies of production floor plans (not source)
+.ai/reference/
+
 # Deploy — local production DB dumps (scripts/deploy/1_backup_prod.bat)
 scripts/deploy/backups/
 # Transient artifacts from 0_pull_prod_to_local.bat (dumps + credential-bearing helper bats)

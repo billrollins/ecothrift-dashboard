@@ -206,6 +206,16 @@
 .cc-page-dialog .cc-dialog-table .r{text-align:right}
 .cc-page-dialog .tone-grey{color:#8e948a}
 .cc-page-dialog .tone-bad{color:#b01f14;font-weight:600}
+.cc-page-dialog tr.stuck td{background:#fdecea}
+.cc-page-dialog .stuck-note{display:block;color:#b01f14;font-size:11px;font-weight:600}
+.cc-page-dialog .wait{color:#8a5a00;font-weight:600}
+.cc-page-dialog .picker{font:inherit;color:inherit;background:transparent;border:0;border-radius:4px;padding:2px 6px;margin-left:-6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+.cc-page-dialog .picker:hover,.cc-page-dialog .picker:focus-visible{background:#eef0ea}
+.cc-page-dialog .picker .caret{font-size:10px;color:#8e948a}
+.cc-page-dialog .picker.empty{color:#b01f14;font-weight:600}
+.cc-page-dialog .status-cell{display:inline-flex;align-items:center;gap:10px}
+.cc-page-dialog .unblock{font:inherit;font-size:12px;font-weight:600;color:#22271f;background:#fff;border:1px solid #cfd3c9;border-radius:6px;padding:2px 10px;cursor:pointer}
+.cc-page-dialog .unblock:hover,.cc-page-dialog .unblock:focus-visible{border-color:#5b6356;background:#f6f7f3}
 .cc-page-dialog .cc-dialog-table a{color:#22271f;text-decoration:none;border-bottom:1px solid transparent}
 .cc-page-dialog .cc-dialog-table a:hover{border-bottom-color:#5b6356}
 .cc-page-dialog .walk-now{border:0;background:transparent;color:#22271f;padding:0;font:inherit;border-bottom:1px solid transparent}

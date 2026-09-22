@@ -1,9 +1,10 @@
-<!-- initiative: slug=retail-qa-scoring-v2 status=active updated=2026-09-18 -->
-<!-- Last updated: 2026-09-18 -->
+<!-- initiative: slug=retail-qa-scoring-v2 status=completed updated=2026-09-22 -->
+<!-- Archived 2026-09-22: disposition=completed shipped GitHub v2.95.0, Heroku with v2.96.0 (Command Center, staff QA, frozen past days) -->
+<!-- Last updated: 2026-09-22 (moved to _completed) -->
 
 # Initiative: Retail QA Scoring v2
 
-**Status:** **Active** — Phase 5 shipped GitHub **v2.95.0**. Not Heroku.
+**Status:** **Completed** (2026-09-22) — Phase 5 shipped GitHub **v2.95.0**; on Heroku with **v2.96.0**. Small follow-up checks continue outside this initiative.
 
 **Objective:** Retail managers can run the floor from one QA dashboard (who is scheduled, what is done, spots, cross-checks, flags, people). Staff can see their own week without baseline internals. Superusers can edit the three-thirds standard (Doing / Cross / Owner), preview the current week, and keep past weeks frozen under the settings they were scored with.
 
@@ -98,9 +99,11 @@ Acceptance:
 
 **2026-09-18 — Shipped GitHub v2.95.0.** Command Center, staff `/routines/qa`, Settings > Retail QA, frozen `QaDayExpected` (zero expected excludes Do; a day with nothing expected is Closed, not A+). Not Heroku.
 
+**2026-09-22 — Completed.** Moved to `_archived/_completed/`. Owner call: done; remaining small checks are not initiative scope.
+
 ---
 
 ## See also
 
-- Index: [`_index.md`](./_index.md)
-- Domain: [`../extended/routines.md`](../extended/routines.md)
+- Index: [`_index.md`](../../_index.md)
+- Domain: [`../extended/routines.md`](../../../extended/routines.md)

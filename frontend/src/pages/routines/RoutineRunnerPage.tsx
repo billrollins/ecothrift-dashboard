@@ -13,7 +13,7 @@ import {
   useStartRoutineSubmission,
   useSubmitRoutine,
 } from '../../hooks/useRoutines';
-import type { AnyRoutineResponses, RoutineKind } from '../../api/routines.api';
+import { requestEarlyCheck, type AnyRoutineResponses, type RoutineKind } from '../../api/routines.api';
 import { RoutinePhoneBar } from './RoutinePhoneBar';
 import { KindRunner } from './runners/KindRunner';
 import { OwnerCheckGate } from './runners/OwnerCheckGate';
@@ -236,6 +236,11 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
       <OwnerCheckGate
         gate={gate}
         onBack={goBack}
+        onAsk={kind === 'section_audit' && id ? () => {
+          void requestEarlyCheck(id)
+            .then(() => enqueueSnackbar('Asked to check before the section check', { variant: 'success' }))
+            .catch(() => enqueueSnackbar('Could not send that request', { variant: 'error' }));
+        } : undefined}
         onNudge={() => {
           const text = gate.message || "Owner check for this section isn't done yet.";
           void navigator.clipboard.writeText(text).catch(() => undefined);

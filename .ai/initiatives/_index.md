@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-21 (v2.96.0 GitHub and Heroku) -->
+<!-- Last updated: 2026-09-22 (five initiatives moved to completed) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not a session log.
@@ -14,12 +14,7 @@ Bounded work (hours–days), one `.md` per initiative. Not a session log.
 | Initiative | Phase | Notes |
 |------------|-------|-------|
 | [documents](./documents.md) | **Phase 1** | Company-wide read / accept. Individually assigned read / accept / sign. Staff UI still unwired. |
-| [listing_photos](./listing_photos.md) | **Active** | Four slots, single-screen editor, lightbox, autosave, Mark posted. |
 | [universal_object_surfaces](./universal_object_surfaces.md) | **Design only** | Permissioned ObjectChip → ObjectSurface. No code scheduled. |
-| [cardx_surcharge](./cardx_surcharge.md) | **Phase 5** | Record-only 3% credit surcharge: one-window CardX match, 15-min fix card type + reprint, then superuser. |
-| [retail_qa_scoring_v2](./retail_qa_scoring_v2.md) | **Phase 5** | Command Center, staff QA, frozen past days. Shipped GitHub **v2.95.0**. On Heroku with **v2.96.0**. |
-| [departments_admin](./departments_admin.md) | **Phase 1** | Directory + hub. Shipped GitHub **v2.95.0**. On Heroku with **v2.96.0**. |
-| [time_kiosk](./time_kiosk.md) | **Shipped** | Hosted `/kiosk` + public `/clock`. GitHub and Heroku **v2.96.0**. |
 
 ---
 
@@ -58,6 +53,11 @@ Not started / future; not scheduled.
 
 Name only. Details in each file.
 
+- [time_kiosk](./_archived/_completed/time_kiosk.md)
+- [departments_admin](./_archived/_completed/departments_admin.md)
+- [retail_qa_scoring_v2](./_archived/_completed/retail_qa_scoring_v2.md)
+- [cardx_surcharge](./_archived/_completed/cardx_surcharge.md)
+- [listing_photos](./_archived/_completed/listing_photos.md)
 - [routines](./_archived/_completed/routines.md)
 - [admin_workspace_overhaul](./_archived/_completed/admin_workspace_overhaul.md)
 - [pos_labor_day_summer_sale](./_archived/_completed/pos_labor_day_summer_sale.md)

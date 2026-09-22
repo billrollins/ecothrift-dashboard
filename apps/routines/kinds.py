@@ -75,6 +75,11 @@ def owned_sections(run: RoutineRun | None) -> list[Section]:
         return []
     if run.routine.kind != Routine.KIND_SECTION_TALLY:
         return []
+    if getattr(run, 'section_scoped', False) and run.section_id:
+        section = run.section
+        if section is None or not section.is_active:
+            return []
+        return [section]
     qs = Section.objects.filter(is_active=True, owner_id=run.assigned_to_id)
     if run.routine.assigned_department_id:
         qs = qs.filter(department_id=run.routine.assigned_department_id)
@@ -330,7 +335,7 @@ def merge_incoming(routine: Routine, run: RoutineRun | None, incoming: Any) -> d
     }
 
 
-def submit_blockers(routine: Routine, responses: dict, *, min_items: int = 0) -> list[str]:
+def submit_blockers(routine: Routine, responses: dict, *, min_items: int = 0, run=None) -> list[str]:
     """Reasons the server will not accept this submission yet."""
     if routine.kind == Routine.KIND_CHECKLIST:
         _failed, _critical, unanswered = score_responses(responses)
@@ -358,6 +363,17 @@ def submit_blockers(routine: Routine, responses: dict, *, min_items: int = 0) ->
             return ['You do not keep a section right now. Ask for one to be assigned.']
         return []
     if routine.kind == Routine.KIND_SECTION_AUDIT:
+        if run is not None and run.section_id:
+            from datetime import date as date_cls
+            from .command_center import owner_check_gate
+            try:
+                day = date_cls.fromisoformat(run.period_key)
+            except (TypeError, ValueError):
+                day = None
+            if day is not None:
+                gate = owner_check_gate(section=run.section, day=day, run=run)
+                if not gate['allowed']:
+                    return [gate['message'] or "Owner check for this section isn't done yet."]
         return []
     if routine.kind == Routine.KIND_WORK_CYCLE:
         mode = responses.get('mode')

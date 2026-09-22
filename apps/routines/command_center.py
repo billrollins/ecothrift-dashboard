@@ -44,6 +44,8 @@ from .schedule import (
     SYSTEM_TALLY,
     SYSTEM_WORK_CYCLE,
     cross_check_day_for,
+    covered_section_ids,
+    department_sections,
     due_at_for,
     hard_at_for,
     maybe_draw_spot,
@@ -868,24 +870,32 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
     }
     call_ins = called_in_ids(day)
     jobs: list[dict] = []
-    tallies = {
-        run.assigned_to_id: run
-        for run in RoutineRun.objects.filter(
+    tally_runs = list(
+        RoutineRun.objects.filter(
             routine__system_key=SYSTEM_TALLY, period_key=day.isoformat(),
         ).select_related('assigned_to', 'completed_by', 'routine', 'submission', 'section')
+    )
+    covers = {
+        run.section_id: run
+        for run in tally_runs
+        if run.section_scoped and run.section_id
+    }
+    tallies = {
+        run.assigned_to_id: run
+        for run in tally_runs
+        if not run.section_scoped and run.assigned_to_id
     }
     unassigned_tallies = [
-        run for run in RoutineRun.objects.filter(
-            routine__system_key=SYSTEM_TALLY,
-            period_key=day.isoformat(),
-            assigned_to__isnull=True,
-        ).select_related('assigned_to', 'completed_by', 'routine', 'submission', 'section')
+        run for run in tally_runs
+        if run.assigned_to_id is None and not run.section_scoped
     ]
 
     for section in Section.objects.filter(is_active=True).select_related('owner').order_by('sort_order', 'name'):
         if section.pk not in expected_sections:
             continue
-        run = tallies.get(section.owner_id)
+        run = covers.get(section.pk)
+        if run is None:
+            run = tallies.get(section.owner_id)
         if run is None:
             run = next((row for row in unassigned_tallies if row.section_id == section.pk), None)
         if run is None and unassigned_tallies:
@@ -927,6 +937,7 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
                 'closed': section.pk in closed,
                 'can_close': tallied or section.pk in closed,
                 'shift_people': [],
+                'section_owner_id': section.owner_id,
             })
             continue
         status = routine_live_status(run, day=day, now=now, tz=tz, hours_cfg=hours_cfg)
@@ -957,6 +968,7 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
             'closed': section.pk in closed,
             'can_close': status == STATUS_DONE or section.pk in closed,
             'shift_people': [],
+            'section_owner_id': section.owner_id,
             **miss_fields(run),
         })
 
@@ -1064,6 +1076,18 @@ def section_due_state(section, *, run, status, day, now, tz, punches, call_ins):
     if status == STATUS_DONE:
         done = f'Done {clock_hhmm(run.completed_at)}' if run and run.completed_at else 'Done'
         return (run.due_at if run else None), done, status, False
+    if run is not None and getattr(run, 'section_scoped', False) and run.assigned_to_id:
+        punch = punches.get(run.assigned_to_id)
+        keep = STATUS_NOT_TALLIED if status in (STATUS_DUE, STATUS_NOT_TALLIED, STATUS_UNASSIGNED) else status
+        if punch is None:
+            return None, 'Due after clock-in', keep, False
+        due = punch.clock_in + timedelta(minutes=SECTION_DUE_AFTER_PUNCH_MINUTES)
+        if timezone.is_naive(due):
+            due = timezone.make_aware(due, tz)
+        label = f'Due {clock_hhmm(due)}'
+        if now < due:
+            return due, label, keep, False
+        return due, label, STATUS_OVERDUE, False
     owner = section.owner
     if owner is None:
         return None, '', STATUS_UNASSIGNED, False
@@ -1091,11 +1115,45 @@ def section_due_state(section, *, run, status, day, now, tz, punches, call_ins):
     return due, label, STATUS_OVERDUE, False
 
 
-def owner_check_gate(*, section, day: date, now: datetime | None = None) -> dict:
+def person_work_state(user_id, staff: list[dict], *, owner_id=None, section_done=False) -> str:
+    """working, not_scheduled, called_in, left, leaves_early, or unassigned."""
+    if not user_id:
+        return 'unassigned'
+    row = next((item for item in staff if item.get('id') == user_id), None)
+    if row is None:
+        return 'not_scheduled'
+    if row.get('called_in') or row.get('status') == STATUS_CALLED_IN:
+        return 'called_in'
+    if row.get('status') == STATUS_LEFT:
+        return 'left'
+    if not section_done and owner_id:
+        owner = next((item for item in staff if item.get('id') == owner_id), None)
+        checker_out = row.get('time_out') or ''
+        owner_in = (owner or {}).get('time_in') or ''
+        if checker_out and owner_in and checker_out <= owner_in:
+            return 'leaves_early'
+    return 'working'
+
+
+def owner_check_gate(*, section, day: date, now: datetime | None = None, run=None) -> dict:
     """Whether a spot/cross runner may walk this section today."""
     from .settings import LATE_RED_MINUTES as red
     now = now or timezone.now()
     tz = timezone.get_current_timezone()
+    if (
+        run is not None
+        and getattr(getattr(run, 'routine', None), 'system_key', None) == SYSTEM_CROSS_CHECK
+        and (run.generated or {}).get('owner_check_waived')
+    ):
+        owner = section.owner if section is not None and section.owner_id else None
+        return {
+            'allowed': True,
+            'reason': 'waived',
+            'message': '',
+            'owner_id': section.owner_id if section is not None else None,
+            'owner_name': owner.full_name if owner else None,
+            'tally_run_id': None,
+        }
     if section is None:
         return {'allowed': True, 'reason': 'ready', 'message': '', 'owner_id': None, 'owner_name': None, 'tally_run_id': None}
     tally = RoutineRun.objects.filter(
@@ -1180,7 +1238,33 @@ def spot_payload(day: date, day_row: dict) -> dict:
     }
 
 
-def cross_payload(day: date, week: dict, *, due: date | None) -> dict:
+def _cross_flags(section, run, checker, day: date, staff: list[dict]) -> dict:
+    checker_id = checker.get('id') if isinstance(checker, dict) else None
+    on_this_day = bool(run and run.period_key == day.isoformat())
+    if not on_this_day:
+        return {
+            'checker_state': 'working' if checker_id else 'unassigned',
+            'blocked': False,
+            'waived': False,
+            'checker_out': '',
+            'owner_in': '',
+        }
+    gate = owner_check_gate(section=section, day=day, run=run)
+    owner_id = section.owner_id if section is not None else None
+    checker_row = next((item for item in staff if item.get('id') == checker_id), None)
+    owner_row = next((item for item in staff if item.get('id') == owner_id), None)
+    return {
+        'checker_state': person_work_state(
+            checker_id, staff, owner_id=owner_id, section_done=gate.get('reason') == 'ready',
+        ),
+        'blocked': not gate['allowed'],
+        'waived': gate.get('reason') == 'waived',
+        'checker_out': (checker_row or {}).get('time_out') or '',
+        'owner_in': (owner_row or {}).get('time_in') or '',
+    }
+
+
+def cross_payload(day: date, week: dict, *, due: date | None, staff: list[dict] | None = None) -> dict:
     from .grading import _active_sections
     today = timezone.localdate()
     monday = this_monday(day)
@@ -1211,6 +1295,7 @@ def cross_payload(day: date, week: dict, *, due: date | None) -> dict:
         if not checker and run is not None:
             checker = _person(run.assigned_to)
         run_id = (audit or {}).get('run_id') or (run.pk if run else None)
+        flags_for_row = _cross_flags(section, run, checker, day, staff or [])
         if audit and audit.get('status') == 'done':
             found = int(audit.get('found') or 0)
             flags = audit.get('flags') or []
@@ -1228,11 +1313,26 @@ def cross_payload(day: date, week: dict, *, due: date | None) -> dict:
                 'items_fixed': found,
                 'score': audit.get('score'),
                 'notes': audit.get('notes') or '',
+                'checker_state': 'working',
+                'blocked': False,
+                'waived': False,
             })
             done += 1
             continue
-        status = STATUS_DUE if before_due else STATUS_NOT_DONE
-        label = due_label if before_due else STATUS_NOT_DONE
+        due_today = bool(due and today == due)
+        if before_due:
+            status, label, tone = STATUS_DUE, due_label, 'grey'
+        elif due_today:
+            status = STATUS_DUE
+            if flags_for_row.get('blocked'):
+                label = 'Waiting on section check'
+            elif flags_for_row.get('waived'):
+                label = 'Unblocked'
+            else:
+                label = 'Ready to check'
+            tone = 'grey'
+        else:
+            status, label, tone = STATUS_NOT_DONE, STATUS_NOT_DONE, 'bad'
         table.append({
             'run_id': run_id,
             'section_id': section.pk,
@@ -1241,10 +1341,11 @@ def cross_payload(day: date, week: dict, *, due: date | None) -> dict:
             'checker': checker,
             'status': status,
             'status_label': label,
-            'tone': 'grey' if before_due else 'bad',
+            'tone': tone,
             'items_fixed': None,
             'score': None,
             'notes': '',
+            **flags_for_row,
         })
         missing.append({
             'run_id': run_id,
@@ -1361,7 +1462,6 @@ def build_issues(
             'can_act': can_call_in_on(day, today=today),
         })
 
-    called = [row for row in staff if row['status'] == STATUS_CALLED_IN]
     unassigned = [
         job for job in jobs
         if job['status'] == STATUS_UNASSIGNED and job.get('owner_state') != 'pool'
@@ -1385,18 +1485,27 @@ def build_issues(
             'nudged_at': None,
             'can_act': True,
         })
-    if unassigned:
-        count = len(unassigned)
+    for job in unassigned:
+        title = job.get('title') or 'This routine'
+        if job.get('group') == 'section':
+            sentence = f'{title} section check has no one scheduled.'
+            assign_kind = 'cover'
+        else:
+            sentence = f'{title} has no one scheduled.'
+            assign_kind = 'run'
         issues.append({
-            'id': 'call-in-unassigned',
+            'id': f'unassigned-{job.get("section_id") or job.get("run_id") or title}',
             'type': 'call_in_unassigned',
             'severity': 'amber',
-            'sentence': f'{count} routine{"s" if count != 1 else ""} need{"s" if count == 1 else ""} a new owner',
+            'sentence': sentence,
             'action': 'reassign',
-            'person_id': called[0]['id'] if called else None,
-            'person_name': called[0]['name'] if called else None,
-            'run_id': None,
-            'call_in_id': called[0].get('call_in_id') if called else None,
+            'person_id': None,
+            'person_name': None,
+            'run_id': job.get('run_id'),
+            'section_id': job.get('section_id'),
+            'assign_kind': assign_kind,
+            'exclude_user_id': job.get('section_owner_id'),
+            'call_in_id': None,
             'nudged_at': None,
             'can_act': True,
         })
@@ -1479,6 +1588,82 @@ def build_issues(
             'person_id': None,
             'person_name': None,
             'run_id': None,
+            'call_in_id': None,
+            'nudged_at': None,
+            'can_act': True,
+        })
+
+    if due and day == due:
+        for row in cross.get('rows') or []:
+            if row.get('status') in (STATUS_VALIDATED, STATUS_ISSUES_FOUND, 'done'):
+                continue
+            state = row.get('checker_state')
+            if state in (None, 'working'):
+                continue
+            section_name = row.get('section_name') or 'Section'
+            checker = row.get('checker') or {}
+            checker_name = checker.get('name') if isinstance(checker, dict) else None
+            owner = row.get('owner') or {}
+            owner_name = owner.get('name') if isinstance(owner, dict) else 'the owner'
+            if state == 'called_in':
+                sentence = f'{section_name} cross-check is assigned to {checker_name}, who called in.'
+            elif state == 'leaves_early':
+                sentence = (
+                    f'{section_name} cross-check: {checker_name} leaves {row.get("checker_out") or ""}, '
+                    f'before {owner_name} is in at {row.get("owner_in") or ""}.'
+                )
+            elif state == 'left':
+                sentence = f'{section_name} cross-check: {checker_name} has clocked out.'
+            elif state == 'unassigned' or not checker_name:
+                sentence = f'{section_name} cross-check has no checker.'
+            else:
+                sentence = (
+                    f'{section_name} cross-check is assigned to {checker_name}, '
+                    'who is not scheduled today.'
+                )
+            issues.append({
+                'id': f'cross-checker-{row.get("section_id") or row.get("run_id")}',
+                'type': 'cross_uncovered',
+                'severity': 'amber',
+                'sentence': sentence,
+                'action': 'reassign',
+                'person_id': checker.get('id') if isinstance(checker, dict) else None,
+                'person_name': checker_name,
+                'run_id': row.get('run_id'),
+                'section_id': row.get('section_id'),
+                'assign_kind': 'cross_checker',
+                'exclude_user_id': owner.get('id') if isinstance(owner, dict) else None,
+                'blocked': bool(row.get('blocked')),
+                'call_in_id': None,
+                'nudged_at': None,
+                'can_act': bool(row.get('run_id') and row.get('section_id')),
+            })
+
+    for nudge in QaNudge.objects.filter(
+        source='early_check',
+        acked_at__isnull=True,
+        run__routine__system_key=SYSTEM_CROSS_CHECK,
+        run__period_key=day.isoformat(),
+        run__status=RoutineRun.STATUS_OPEN,
+    ).select_related('run', 'run__section', 'run__routine', 'created_by'):
+        gate = owner_check_gate(section=nudge.run.section, day=day, run=nudge.run, now=now)
+        if gate['allowed']:
+            nudge.acked_at = now
+            nudge.ack_kind = 'resolved'
+            nudge.save(update_fields=['acked_at', 'ack_kind'])
+            continue
+        issues.append({
+            'id': f'early-check-{nudge.pk}',
+            'type': 'early_check',
+            'severity': 'amber',
+            'sentence': nudge.message or 'A checker asked to walk before the section check.',
+            'action': 'unblock',
+            'person_id': nudge.created_by_id,
+            'person_name': nudge.created_by.full_name if nudge.created_by_id else None,
+            'run_id': nudge.run_id,
+            'section_id': nudge.run.section_id,
+            'assign_kind': None,
+            'exclude_user_id': None,
             'call_in_id': None,
             'nudged_at': None,
             'can_act': True,
@@ -1567,7 +1752,7 @@ def today_payload(day: date, *, now: datetime | None = None) -> dict:
     fire_hard_deadline_nudges(day, now=now, tz=tz, hours_cfg=hours_cfg)
     jobs = build_jobs(day, day_row, now=now, tz=tz, hours_cfg=hours_cfg)
     spot = spot_payload(day, day_row)
-    cross = cross_payload(day, week, due=due)
+    cross = cross_payload(day, week, due=due, staff=staff)
     nudges = latest_nudges([job['run_id'] for job in jobs if job.get('run_id')])
     for job in jobs:
         nudge = nudges.get(job.get('run_id'))
@@ -1701,7 +1886,33 @@ def apply_call_in(*, employee, day: date, marked_by, today: date | None = None) 
 
 
 def clear_call_in(row: QaCallIn) -> None:
-    """Delete the flag. Assignments stay as they are."""
+    """Give today's cleared runs back, then delete the flag."""
+    for item in row.cleared or []:
+        run_id = item.get('run_id')
+        user_id = item.get('assigned_to_id')
+        if not run_id or not user_id:
+            continue
+        run = RoutineRun.objects.filter(pk=run_id).first()
+        if run is None or run.status != RoutineRun.STATUS_OPEN:
+            continue
+        if run.assigned_to_id and run.assigned_to_id != user_id:
+            continue
+        if run.assigned_to_id == user_id:
+            continue
+        clash = RoutineRun.objects.filter(
+            routine_id=run.routine_id,
+            period_key=run.period_key,
+            assigned_to_id=user_id,
+            section_scoped=run.section_scoped,
+        ).exclude(pk=run.pk)
+        if run.section_id:
+            clash = clash.filter(section_id=run.section_id)
+        if clash.exists():
+            run.delete()
+            continue
+        run.assigned_to_id = user_id
+        run.unassign_key = ''
+        run.save(update_fields=['assigned_to', 'unassign_key'])
     row.delete()
 
 
@@ -1746,6 +1957,81 @@ def apply_override(*, employee, day: date, shift, time_in=None, time_out=None, m
     return row
 
 
+def cover_section_today(*, section, helper, day, marked_by=None) -> RoutineRun:
+    """Hand one aisle's section check to a helper for today. The owner stays the owner."""
+    if helper is None:
+        raise ValueError('Pick someone to cover this section today.')
+    if section.owner_id and helper.pk == section.owner_id:
+        raise ValueError('That person already owns this aisle.')
+    routine = Routine.objects.filter(system_key=SYSTEM_TALLY, is_active=True).first()
+    if routine is None:
+        raise ValueError('Section check is not set up.')
+    key = day.isoformat()
+    owner = section.owner
+    owner_run = None
+    if owner is not None:
+        owner_run = RoutineRun.objects.filter(
+            routine=routine,
+            period_key=key,
+            assigned_to=owner,
+            section_scoped=False,
+            status=RoutineRun.STATUS_OPEN,
+        ).first()
+    cover = RoutineRun.objects.filter(
+        routine=routine,
+        period_key=key,
+        section=section,
+        section_scoped=True,
+    ).first()
+    if cover is not None and cover.status != RoutineRun.STATUS_OPEN:
+        raise ValueError('That section check is already finished.')
+    _local, cfg, tz = _local_now()
+    due = owner_run.due_at if owner_run is not None else due_at_for(routine, day, tz=tz, cfg=cfg)
+    generated = {'cover_for': owner.pk if owner is not None else None}
+    if cover is None:
+        cover = RoutineRun.objects.create(
+            routine=routine,
+            period_key=key,
+            due_at=due,
+            assigned_to=helper,
+            section=section,
+            subject=section.name,
+            section_scoped=True,
+            generated=generated,
+            status=RoutineRun.STATUS_OPEN,
+        )
+    else:
+        merged = dict(cover.generated or {})
+        merged.update(generated)
+        cover.assigned_to = helper
+        cover.subject = section.name
+        cover.section_scoped = True
+        cover.unassign_key = ''
+        cover.generated = merged
+        cover.save(update_fields=[
+            'assigned_to', 'subject', 'section_scoped', 'unassign_key', 'generated',
+        ])
+    if owner_run is not None:
+        remaining = [
+            item.name for item in department_sections(routine)
+            if item.owner_id == owner.pk and item.pk not in covered_section_ids(day)
+        ]
+        if remaining:
+            owner_run.subject = ', '.join(remaining)
+            owner_run.save(update_fields=['subject'])
+        else:
+            owner_run.delete()
+    title = getattr(routine, 'title', '') or 'Section check'
+    create_nudge(
+        run=cover,
+        created_by=marked_by,
+        source='assign',
+        employee=helper,
+        message=f'{title} for {section.name} was assigned to you for today.',
+    )
+    return cover
+
+
 def assign_run(*, run: RoutineRun, user, marked_by=None) -> RoutineRun:
     if run.routine.system_key == SYSTEM_WORK_CYCLE:
         raise ValueError('Register activity is not assigned from this board.')
@@ -1761,16 +2047,23 @@ def assign_run(*, run: RoutineRun, user, marked_by=None) -> RoutineRun:
             .first()
         )
         if existing is not None and existing.pk != run.pk:
+            leftover = run
             run = existing
+            if leftover.status == RoutineRun.STATUS_OPEN:
+                leftover.delete()
         elif run.assigned_to_id != user.pk:
             try:
-                run.assigned_to = user
-                run.unassign_key = ''
-                run.save(update_fields=['assigned_to', 'unassign_key'])
+                with transaction.atomic():
+                    run.assigned_to = user
+                    run.unassign_key = ''
+                    run.save(update_fields=['assigned_to', 'unassign_key'])
             except IntegrityError:
-                run = RoutineRun.objects.get(
+                kept = RoutineRun.objects.get(
                     routine_id=run.routine_id, period_key=run.period_key, assigned_to=user,
                 )
+                if run.status == RoutineRun.STATUS_OPEN and run.pk != kept.pk:
+                    run.delete()
+                run = kept
         if run.section_id and run.routine.system_key == SYSTEM_TALLY:
             section = run.section
             if section.owner_id != user.pk:

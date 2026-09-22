@@ -262,7 +262,7 @@ export interface RoutineRun {
   section_name: string | null;
   owner_check?: {
     allowed: boolean;
-    reason: 'ready' | 'blocked' | 'missed';
+    reason: 'ready' | 'blocked' | 'missed' | 'waived';
     message: string;
     owner_id: number | null;
     owner_name: string | null;
@@ -770,6 +770,8 @@ export type QaIssueType =
   | 'call_in_unassigned'
   | 'overdue_routine'
   | 'cross_overdue'
+  | 'cross_uncovered'
+  | 'early_check'
   | 'no_spot'
   | 'empty_shift';
 
@@ -778,10 +780,14 @@ export interface QaIssue {
   type: QaIssueType;
   severity: 'red' | 'amber' | 'grey';
   sentence: string;
-  action: 'call_in' | 'reassign' | 'nudge' | 'open_cross' | 'do_spot' | 'open_shifts' | 'clear_call_in' | 're_nudge';
+  action: 'call_in' | 'reassign' | 'nudge' | 'open_cross' | 'do_spot' | 'open_shifts' | 'clear_call_in' | 're_nudge' | 'unblock';
   person_id: number | null;
   person_name: string | null;
   run_id: number | null;
+  section_id?: number | null;
+  assign_kind?: 'owner' | 'cross_checker' | 'run' | 'cover' | null;
+  blocked?: boolean;
+  exclude_user_id?: number | null;
   call_in_id: number | null;
   nudged_at: string | null;
   can_act: boolean;
@@ -932,6 +938,11 @@ export interface QaToday {
       items_fixed: number | null;
       score: number | null;
       notes: string;
+      checker_state?: 'working' | 'not_scheduled' | 'called_in' | 'unassigned' | 'leaves_early' | 'left';
+      blocked?: boolean;
+      waived?: boolean;
+      checker_out?: string;
+      owner_in?: string;
     }>;
     score: number | null;
   };
@@ -1073,11 +1084,15 @@ export function getQaDaySummary(params: { date: string } | { week: string }) {
   return api.get<RetailDaySummary>('/routines/qa/day-summary/', { params });
 }
 
+export function requestEarlyCheck(runId: number) {
+  return api.post<{ ok: boolean; nudge_id: number }>(`/routines/runs/${runId}/early-check/`);
+}
+
 export function assignQaBoard(data: {
   date?: string;
   section?: number;
   run?: number;
-  kind: 'owner' | 'cross_checker' | 'close' | 'run';
+  kind: 'owner' | 'cover_section' | 'cross_checker' | 'unblock_cross' | 'close' | 'run';
   user?: number | null;
   closed?: boolean;
 }) {

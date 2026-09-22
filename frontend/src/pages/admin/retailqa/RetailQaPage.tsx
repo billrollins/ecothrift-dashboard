@@ -19,7 +19,8 @@ import {
   useUndoQaCallIn,
 } from '../../../hooks/useRetailQa';
 import { isoWeekKey, shiftWeek, weekMonday } from '../routines/gradeWeek';
-import { displayName, shortName } from './commandCenter';
+import { displayName, shortName, type BoardIssue } from './commandCenter';
+import { qaStatusWord } from './qaStatus';
 import { commandKeyAction } from './commandKeys';
 import { CommandHeader } from './CommandHeader';
 import { IssuesBar } from './IssuesBar';
@@ -164,6 +165,40 @@ export default function RetailQaPage() {
     navigate(`/routines/run/${runId}?return=${encodeURIComponent(back)}`);
   }
 
+  async function assignIssue(row: BoardIssue, userId: number) {
+    try {
+      if (row.assign_kind === 'cross_checker' && row.section_id) {
+        await assign.mutateAsync({
+          date, kind: 'cross_checker', section: row.section_id, user: userId,
+        });
+      } else if (row.assign_kind === 'cover' && row.section_id) {
+        await assign.mutateAsync({
+          date, kind: 'cover_section', section: row.section_id, user: userId,
+        });
+      } else if (row.assign_kind === 'owner' && row.section_id) {
+        await assign.mutateAsync({
+          date, kind: 'owner', section: row.section_id, user: userId,
+        });
+      } else if (row.run_id) {
+        await assign.mutateAsync({
+          date, kind: 'run', run: row.run_id, user: userId,
+        });
+      }
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      enqueueSnackbar(typeof detail === 'string' ? detail : 'Could not assign that routine', { variant: 'error' });
+    }
+  }
+
+  async function unblockCross(sectionId: number) {
+    try {
+      await assign.mutateAsync({ date, kind: 'unblock_cross', section: sectionId });
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      enqueueSnackbar(typeof detail === 'string' ? detail : 'Could not unblock that cross-check', { variant: 'error' });
+    }
+  }
+
   async function assignJob(job: { group: string; run_id: number | null; section_id: number | null }, userId: number | '') {
     try {
       if (job.group === 'section' && job.section_id) {
@@ -209,6 +244,12 @@ export default function RetailQaPage() {
     row.run_id && nudgeStamp[row.run_id] ? { ...row, nudged_at: nudgeStamp[row.run_id] } : row
   ));
   const staff = board?.staff ?? [];
+  const workers = staff
+    .filter((row) => {
+      const word = qaStatusWord(row.status);
+      return word === 'Expected' || word === 'Late' || word === 'In';
+    })
+    .map((row) => ({ id: row.id, name: row.name }));
   const closedLabel = board && !(board.graded ?? board.open)
     ? (board.closed_label || 'Store closed')
     : null;
@@ -259,8 +300,13 @@ export default function RetailQaPage() {
             issues={issues}
             staff={staff}
             jobs={jobs}
+            workers={workers}
             onCallIn={(id) => void markCalledIn(id)}
-            onReassign={() => document.getElementById('rtBody')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+            onAssign={(row, userId) => void assignIssue(row, userId)}
+            onUnblock={(runId) => {
+              const issue = issues.find((row) => row.run_id === runId);
+              if (issue?.section_id) void unblockCross(issue.section_id);
+            }}
             onNudge={(id, el) => setNudgeTarget({ runId: id, anchor: el })}
             onOpenCross={() => setSummary('cross')}
             onDoSpot={() => board?.spot?.run_id && runnerReturn(board.spot.run_id)}
@@ -291,6 +337,23 @@ export default function RetailQaPage() {
         people={peopleQuery.data?.people ?? []}
         onDoSpot={() => board?.spot?.run_id && runnerReturn(board.spot.run_id)}
         onOpenRun={(runId) => runnerReturn(runId)}
+        workers={workers}
+        canEdit={date === today}
+        onAssignChecker={(sectionId, userId) => void assignIssue({
+          id: '',
+          severity: 'amber',
+          sentence: '',
+          action: 'reassign',
+          person_id: null,
+          run_id: null,
+          section_id: sectionId,
+          assign_kind: 'cross_checker',
+          exclude_user_id: null,
+          can_act: true,
+          icon: 'alert',
+          nudged_at: null,
+        }, userId)}
+        onUnblock={(sectionId) => void unblockCross(sectionId)}
       />
       <ScoreDialog
         open={scoreOpen}

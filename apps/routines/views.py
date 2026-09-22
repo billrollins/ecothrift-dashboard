@@ -34,10 +34,11 @@ from .kinds import (
     submit_blockers,
     verify_context,
 )
-from .models import Routine, RoutineRun, RoutineSubmission, Section, WorkCyclePrompt
+from .models import QaNudge, Routine, RoutineRun, RoutineSubmission, Section, WorkCyclePrompt
 from .settings import retail_qa_settings
 from .taxonomy import taxonomy
 from .schedule import (
+    SYSTEM_CROSS_CHECK,
     STAFF_GROUPS,
     close_if_expired,
     cover_run,
@@ -409,6 +410,32 @@ class RoutineRunViewSet(viewsets.ReadOnlyModelViewSet):
         cover_run(run, request.user)
         return Response(RoutineRunSerializer(run).data)
 
+    @action(detail=True, methods=['post'], url_path='early-check')
+    def early_check(self, request, pk=None):
+        """The assignee asks to walk this cross-check before the section check."""
+        run = get_object_or_404(RoutineRun, pk=pk, routine__is_active=True)
+        if run.routine.system_key != SYSTEM_CROSS_CHECK:
+            return Response({'detail': 'Only a cross-check can be requested early.'}, status=400)
+        if run.status != RoutineRun.STATUS_OPEN:
+            return Response({'detail': 'That run is already closed.'}, status=400)
+        if not request.user.is_superuser and run.assigned_to_id != request.user.pk:
+            return Response({'detail': 'That cross-check is not yours.'}, status=403)
+        existing = QaNudge.objects.filter(
+            run=run, source='early_check', acked_at__isnull=True,
+        ).first()
+        if existing:
+            return Response({'ok': True, 'nudge_id': existing.pk})
+        section_name = run.section.name if run.section_id else (run.subject or 'this section')
+        who = request.user.full_name or 'A checker'
+        nudge = QaNudge.objects.create(
+            run=run,
+            created_by=request.user,
+            source='early_check',
+            employee=None,
+            message=f'{who} asked to cross-check {section_name} before the section check.',
+        )
+        return Response({'ok': True, 'nudge_id': nudge.pk})
+
     @action(detail=True, methods=['post'], url_path='reroll-section')
     def reroll_section(self, request, pk=None):
         """Pick a different unseen aisle for today's owner spot check."""
@@ -611,7 +638,7 @@ class RoutineSubmissionViewSet(viewsets.ModelViewSet):
         incoming = request.data.get('responses', submission.responses)
         responses = merge_incoming(routine, submission.run, incoming)
         responses = _extract_photos(responses, user=request.user, submission_id=submission.pk)
-        blockers = submit_blockers(routine, responses)
+        blockers = submit_blockers(routine, responses, run=submission.run)
         if blockers:
             return Response({'detail': blockers}, status=400)
         failed, critical = outcome(routine, responses)

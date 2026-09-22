@@ -1,13 +1,14 @@
-<!-- initiative: slug=time-kiosk status=shipped updated=2026-09-21 -->
-<!-- Last updated: 2026-09-21 -->
+<!-- initiative: slug=time-kiosk status=completed updated=2026-09-22 -->
+<!-- Archived 2026-09-22: disposition=completed shipped GitHub and Heroku v2.96.0 (hosted /kiosk, public /clock, badge cards, clock-in gate). Small updates continue outside this initiative. -->
+<!-- Last updated: 2026-09-22 (moved to _completed) -->
 
 # Initiative: Time kiosk
 
-**Status:** **Shipped** — GitHub and Heroku **v2.96.0**. Hosted `/kiosk` and public `/clock`. Set `kiosk.public_allowed_ips` before relying on the door tablet.
+**Status:** **Completed** (2026-09-22) — GitHub and Heroku **v2.96.0**. Hosted `/kiosk` and public `/clock`. Set `kiosk.public_allowed_ips` before relying on the door tablet. Small updates continue outside this initiative.
 
 **Objective:** A store tablet lets any staff member punch in, out, or on break with a scannable employee card and no login of their own, while the same screen shows who is in, on break, expected, late, or called in, grouped by department. Two faces: hosted `/kiosk` (a dedicated Employee host stays signed in; full board; pay edits) and public `/clock` (no login; card-only punch; redacted board). Clock-in walks a gate: stale punch, missed routines flagged `gate_on_miss` (a reason is required), unheard nudges.
 
-**Compass:** this file is not the compass; [`documents`](./documents.md) stays the compass.
+**Compass:** this file is not the compass; [`documents`](../../documents.md) stays the compass.
 
 ---
 
@@ -94,9 +95,11 @@ Things noticed during the build that are not in scope. Do not build; list them.
 
 **2026-09-21 — Review fixes.** A bad card no longer looks like a dead host session. A good scan clears the failure count. `clock_in` and `fix_stale` lock the person row. Overlay timers, separate Tap-to-start keys, and the blocked door screen match the plan. Allowlist docs say exact IP strings. Release **v2.96.0** prepared. Not merged.
 
+**2026-09-22 — Completed.** Moved to `_archived/_completed/`. Owner call: done; remaining updates are not initiative scope.
+
 ---
 
 ## See also
 
-- Index: [`_index.md`](./_index.md)
+- Index: [`_index.md`](../../_index.md)
 - Plan of record for the overnight run: `~/.cursor/plans/hosted_time_kiosk_4c9306bd.plan.md`

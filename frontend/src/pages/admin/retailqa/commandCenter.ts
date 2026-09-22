@@ -304,6 +304,10 @@ export type BoardIssue = {
   action: QaIssue['action'] | null;
   person_id: number | null;
   run_id: number | null;
+  section_id: number | null;
+  assign_kind: QaIssue['assign_kind'];
+  exclude_user_id: number | null;
+  blocked?: boolean;
   can_act: boolean;
   icon: 'person' | 'clip' | 'walk' | 'alert';
   nudged_at: string | null;
@@ -349,6 +353,10 @@ export function groupIssues(issues: QaIssue[], staff: QaStaffRow[], jobs: QaJob[
       action: null,
       person_id: null,
       run_id: null,
+      section_id: null,
+      assign_kind: null,
+      exclude_user_id: null,
+      blocked: false,
       can_act: false,
       icon: 'person',
       nudged_at: null,
@@ -363,6 +371,10 @@ export function groupIssues(issues: QaIssue[], staff: QaStaffRow[], jobs: QaJob[
       action: issue?.action ?? 'call_in',
       person_id: row.id,
       run_id: issue?.run_id ?? null,
+      section_id: issue?.section_id ?? null,
+      assign_kind: issue?.assign_kind ?? null,
+      exclude_user_id: issue?.exclude_user_id ?? null,
+      blocked: issue?.blocked ?? false,
       can_act: issue?.can_act ?? true,
       icon: 'person',
       nudged_at: issue?.nudged_at ?? null,
@@ -377,6 +389,10 @@ export function groupIssues(issues: QaIssue[], staff: QaStaffRow[], jobs: QaJob[
       action: issue.action,
       person_id: issue.person_id,
       run_id: issue.run_id,
+      section_id: issue.section_id ?? null,
+      assign_kind: issue.assign_kind ?? null,
+      exclude_user_id: issue.exclude_user_id ?? null,
+      blocked: issue.blocked ?? false,
       can_act: issue.can_act,
       icon: issueIcon(issue.type),
       nudged_at: issue.nudged_at ?? null,

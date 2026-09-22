@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.96.0] -->
-<!-- Last reviewed: 2026-09-21 (v2.96.0 time kiosk) -->
+<!-- Line 1 release: ## [2.97.0] -->
+<!-- Last reviewed: 2026-09-22 (v2.97.0 cross-check reassign) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -10,11 +10,34 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.97.0] - 2026-09-22
+
+User-facing theme: **A manager can move today's cross-check to someone who is still here, and a section check only shows for the person who has it now.**
+
+Initiative: outside initiatives.
+
+### Added
+
+- Command Center cross-checks: click the checker name to hand that walk to someone who is Expected, Late, or In. A row waiting on the section check shows Unblock. The checker can ask to walk first, and that ask shows up as Unblock.
+- Needs your attention lists a cross-check whose checker is not scheduled, called in, already gone, or leaving before the section owner arrives. A section check with nobody on it can be covered for today without changing who owns the aisle.
+- `RoutineRun.section_scoped` (`routines/0024_cross_check_section_unique`, aligned in `0026`). One cross-check per section per day. A spot walk can still share a section.
+
+### Changed
+
+- My Routines and Today show a section check or cross-check only to the current assignee. Clearing a call-in puts those runs back when they are still open and still unassigned.
+- A cross-check cannot be submitted while it is waiting on the section check, unless a manager unblocked it.
+
+### Fixed
+
+- An unassigned section check or cross-check no longer appears on every section owner's list.
+
+---
+
 ## [2.96.0] - 2026-09-21
 
 User-facing theme: **Staff punch in and out with a card on the store tablet, hosted or at the door.**
 
-Initiative: [`time_kiosk`](./.ai/initiatives/time_kiosk.md).
+Initiative: [`time_kiosk`](./.ai/initiatives/_archived/_completed/time_kiosk.md).
 
 ### Added
 
@@ -32,7 +55,7 @@ Initiative: [`time_kiosk`](./.ai/initiatives/time_kiosk.md).
 
 User-facing theme: **Retail managers run Command Center with frozen day letters; Admin has Departments and Shifts.**
 
-Initiative: [`retail_qa_scoring_v2`](./.ai/initiatives/retail_qa_scoring_v2.md); [`departments_admin`](./.ai/initiatives/departments_admin.md).
+Initiative: [`retail_qa_scoring_v2`](./.ai/initiatives/_archived/_completed/retail_qa_scoring_v2.md); [`departments_admin`](./.ai/initiatives/_archived/_completed/departments_admin.md).
 
 ### Added
 
@@ -61,7 +84,7 @@ Initiative: [`retail_qa_scoring_v2`](./.ai/initiatives/retail_qa_scoring_v2.md);
 
 User-facing theme: **Cashiers can fix a sale they marked Surcharged vs CardX didn't ask, for 15 minutes, and the receipt reprints.**
 
-Initiative: [`cardx_surcharge`](./.ai/initiatives/cardx_surcharge.md).
+Initiative: [`cardx_surcharge`](./.ai/initiatives/_archived/_completed/cardx_surcharge.md).
 
 ### Added
 
@@ -75,7 +98,7 @@ Initiative: [`cardx_surcharge`](./.ai/initiatives/cardx_surcharge.md).
 
 User-facing theme: **Card sales open one CardX window with the amount already filled in; cash receipts pulse both drawer pins in the same print job.**
 
-Initiative: [`cardx_surcharge`](./.ai/initiatives/cardx_surcharge.md).
+Initiative: [`cardx_surcharge`](./.ai/initiatives/_archived/_completed/cardx_surcharge.md).
 
 ### Changed
 
@@ -90,7 +113,7 @@ Initiative: [`cardx_surcharge`](./.ai/initiatives/cardx_surcharge.md).
 
 User-facing theme: **Card sales record the CardX 3% credit surcharge and print it on the receipt; listing photos keep the whole picture by default.**
 
-Initiative: [`cardx_surcharge`](./.ai/initiatives/cardx_surcharge.md); listing photo follow-up is [`listing_photos`](./.ai/initiatives/listing_photos.md).
+Initiative: [`cardx_surcharge`](./.ai/initiatives/_archived/_completed/cardx_surcharge.md); listing photo follow-up is [`listing_photos`](./.ai/initiatives/_archived/_completed/listing_photos.md).
 
 ### Added
 
@@ -118,7 +141,7 @@ Initiative: [`cardx_surcharge`](./.ai/initiatives/cardx_surcharge.md); listing p
 
 User-facing theme: **Listing photos you can frame, and Messages you can assign, resolve, and reply to without double-wrapped email.**
 
-Initiative: [`listing_photos`](./.ai/initiatives/listing_photos.md); Messages and hold undo are outside initiatives.
+Initiative: [`listing_photos`](./.ai/initiatives/_archived/_completed/listing_photos.md); Messages and hold undo are outside initiatives.
 
 ### Added
 

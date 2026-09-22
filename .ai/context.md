@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-21 (v2.96.0 GitHub and Heroku) -->
+<!-- Last updated: 2026-09-22 (five initiatives moved to completed) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -14,14 +14,11 @@ Full-stack business management for a thrift store in Omaha, NE. HR (time clock, 
 ## Active work
 
 - **ACTIVE (compass) — Documents:** [`documents`](initiatives/documents.md) — Company-wide (read / accept) vs individually assigned (read / accept / sign). API in-tree; staff UI unwired. Split from [`routines_and_documents`](initiatives/_archived/_completed/routines.md).
-- **ACTIVE — Listing photos:** [`listing_photos`](initiatives/listing_photos.md) — full + main/grid/thumb slots; Listing Studio editor, public lightbox, autosave, Mark posted.
 - **ACTIVE — Universal object surfaces:** [`universal_object_surfaces`](initiatives/universal_object_surfaces.md) — design only. No code scheduled.
-- **ACTIVE — CardX credit surcharge:** [`cardx_surcharge`](initiatives/cardx_surcharge.md) — record-only 3% credit surcharge on POS (CardX total match, receipt, 15-min fix card type). Not the compass.
-- **ACTIVE — Retail QA scoring v2:** [`retail_qa_scoring_v2`](initiatives/retail_qa_scoring_v2.md) — Command Center, staff QA, frozen past days. Shipped GitHub **v2.95.0**. On Heroku with **v2.96.0**.
-- **ACTIVE — Departments admin:** [`departments_admin`](initiatives/departments_admin.md) — directory + hub. Shipped GitHub **v2.95.0**. On Heroku with **v2.96.0**.
-- **ACTIVE — Time kiosk:** [`time_kiosk`](initiatives/time_kiosk.md) — hosted `/kiosk` and public `/clock`, hashed cards, clock-in gate. Shipped GitHub and Heroku **v2.96.0**.
 
-Routines + Retail QA shipped **v2.87.0**. Scoring v2 and Command Center shipped GitHub **v2.95.0** and Heroku with **v2.96.0**.
+Completed 2026-09-22: [`time_kiosk`](initiatives/_archived/_completed/time_kiosk.md) (**v2.96.0**), [`departments_admin`](initiatives/_archived/_completed/departments_admin.md) and [`retail_qa_scoring_v2`](initiatives/_archived/_completed/retail_qa_scoring_v2.md) (GitHub **v2.95.0**, Heroku with **v2.96.0**), [`cardx_surcharge`](initiatives/_archived/_completed/cardx_surcharge.md) (**v2.92.0–v2.94.0**), [`listing_photos`](initiatives/_archived/_completed/listing_photos.md) (**v2.91.0**). Kiosk and Command Center follow-ups continue without an initiative.
+
+Routines + Retail QA shipped **v2.87.0**.
 
 TARS and enhancement requests shipped **v2.71.0** (GitHub, not Heroku): [`finalize_tars_app`](initiatives/_archived/_completed/finalize_tars_app.md), [`enhancement_requests`](initiatives/_archived/_completed/enhancement_requests.md). Domain: [`extended/restoration.md`](extended/restoration.md).
 

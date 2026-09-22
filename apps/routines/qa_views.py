@@ -41,6 +41,7 @@ from .command_center import (
     apply_left_early,
     apply_override,
     assign_run,
+    cover_section_today,
     clear_call_in,
     create_nudge,
     pending_nudges_for,
@@ -66,6 +67,7 @@ from .schedule import (
     SYSTEM_OPEN,
     SYSTEM_OWNER_SPOT,
     SYSTEM_TALLY,
+    drop_unowned_open_tally,
     materialize_routines,
     week_days,
 )
@@ -384,7 +386,17 @@ class QaAssignView(APIView):
                 previous_user=previous,
             )
             materialize_routines(day)
+            drop_unowned_open_tally(previous, day)
             return Response({'ok': True, 'owner_id': section.owner_id})
+
+        if kind == 'cover_section':
+            try:
+                cover = cover_section_today(
+                    section=section, helper=user, day=day, marked_by=request.user,
+                )
+            except ValueError as exc:
+                return Response({'detail': str(exc)}, status=400)
+            return Response({'ok': True, 'run_id': cover.pk, 'assigned_to': user.pk if user else None})
 
         if kind == 'cross_checker':
             if user and section.owner_id == user.pk:
@@ -396,9 +408,16 @@ class QaAssignView(APIView):
             ).first()
             if run is None:
                 return Response({'detail': 'No cross-check is scheduled for that section today.'}, status=400)
+            if run.status != RoutineRun.STATUS_OPEN:
+                return Response({'detail': 'That cross-check is already finished.'}, status=400)
             previous = run.assigned_to
+            generated = dict(run.generated or {})
+            generated['checker_pinned'] = True
             run.assigned_to = user
-            run.save(update_fields=['assigned_to'])
+            run.generated = generated
+            run.section_scoped = True
+            run.unassign_key = '' if user else f'u{run.pk}'
+            run.save(update_fields=['assigned_to', 'generated', 'section_scoped', 'unassign_key'])
             SectionAssignmentEvent.objects.create(
                 section=section,
                 kind=SectionAssignmentEvent.KIND_CROSS_CHECKER,
@@ -408,6 +427,30 @@ class QaAssignView(APIView):
                 previous_user=previous,
             )
             return Response({'ok': True, 'run_id': run.pk, 'assigned_to': user.pk if user else None})
+
+        if kind == 'unblock_cross':
+            run = RoutineRun.objects.filter(
+                routine__system_key=SYSTEM_CROSS_CHECK,
+                period_key=day.isoformat(),
+                section=section,
+            ).first()
+            if run is None:
+                return Response({'detail': 'No cross-check is scheduled for that section today.'}, status=400)
+            generated = dict(run.generated or {})
+            generated['owner_check_waived'] = True
+            run.generated = generated
+            run.save(update_fields=['generated'])
+            QaNudge.objects.filter(
+                run=run, source='early_check', acked_at__isnull=True,
+            ).update(acked_at=timezone.now(), ack_kind='resolved')
+            SectionAssignmentEvent.objects.create(
+                section=section,
+                kind=SectionAssignmentEvent.KIND_CROSS_UNBLOCK,
+                user=run.assigned_to,
+                for_date=day,
+                assigned_by=request.user,
+            )
+            return Response({'ok': True, 'run_id': run.pk})
 
         if kind == 'close':
             closed = section.pk in closed_section_ids(day)
@@ -427,7 +470,9 @@ class QaAssignView(APIView):
             )
             return Response({'ok': True, 'closed': want_closed})
 
-        return Response({'detail': 'kind must be owner, cross_checker, close, or run.'}, status=400)
+        return Response({
+            'detail': 'kind must be owner, cover_section, cross_checker, unblock_cross, close, or run.',
+        }, status=400)
 
 
 class QaCallInView(APIView):

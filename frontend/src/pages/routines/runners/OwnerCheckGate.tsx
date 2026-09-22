@@ -5,10 +5,12 @@ import { dutyColors } from '../../../components/duty/tokens';
 export function OwnerCheckGate({
   gate,
   onNudge,
+  onAsk,
   onBack,
 }: {
   gate: NonNullable<RoutineRun['owner_check']>;
   onNudge: () => void;
+  onAsk?: () => void;
   onBack: () => void;
 }) {
   return (
@@ -28,6 +30,9 @@ export function OwnerCheckGate({
         <Button variant="outlined" onClick={onNudge} disabled={!gate.tally_run_id && !gate.owner_id}>
           Nudge owner
         </Button>
+        {gate.reason === 'blocked' && onAsk ? (
+          <Button variant="outlined" onClick={onAsk}>Ask to check first</Button>
+        ) : null}
         <Button variant="contained" onClick={onBack}>Go back</Button>
       </Box>
     </Box>
