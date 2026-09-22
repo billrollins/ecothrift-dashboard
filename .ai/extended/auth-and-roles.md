@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-21 (kiosk card 401 and failure counter) -->
+<!-- Last updated: 2026-09-22 (ai settings + floorplan AI) -->
 
 # Eco-Thrift Dashboard — Auth and Roles
 
@@ -163,7 +163,7 @@ hasRole(role) => roleRank(user.role) >= roleRank(role)
 ### Admin
 
 - All staff routes
-- Settings house at `/admin/settings` (System, Printing, Store, Assumptions, Retail QA, Permissions)
+- Settings house at `/admin/settings` (System, Printing, Store, Assumptions, Retail QA, Permissions, AI (superuser only))
 - Departments directory + hub (`/admin/departments`); Shifts (`/admin/shifts`); Command Center (`/admin/retail-qa`). Superuser-only `hr.department:admin` (create / rename / deactivate / delete); Manager+ `hr.department:write` (description, location, manager).
 - `/admin/users` — Admin workspace. Manager+ reach the page; the **Employees** tab is first and the default for Admin. Managers only see Customers (`?tab=customers`).
 - **Django model admin** (superuser, raw ORM UI): **`/db-admin/`** — separate prefix from React **`/admin/*`**

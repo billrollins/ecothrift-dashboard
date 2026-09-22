@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-18 (settings list + Heroku env pull) -->
+<!-- Last updated: 2026-09-22 (ai settings + floorplan AI) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -182,9 +182,9 @@ Defined in `.env` (gitignored):
 | `XAI_API_KEY` | xAI Grok API key (**`GROK_API_KEY`** is an alias; used for `grok-*` ids) | — |
 | `GOOGLE_API_KEY` | Google Gemini API key (**`GEMINI_API_KEY`** is an alias; used for `gemini-*` ids) | — |
 | `XAI_API_BASE` | OpenAI-compatible base URL for Grok | `https://api.x.ai/v1` |
-| `AI_PROVIDER` | `auto` (route by model id: `grok*` → xAI, `gemini*` → Google, else Anthropic), or force `anthropic` / `xai` / `google` | `auto` |
+| `AI_PROVIDER` | `auto` (route by model id: `grok*` → xAI, `gemini*` → Google, else Anthropic), or force `anthropic` / `xai` / `google`. A catalog row's provider in Settings > AI wins over the prefix rule when `auto` | `auto` |
 | `AI_MODEL` / `AI_MODEL_FAST` | Base fallback model ids (`ecothrift/settings.py`) | see `settings.py` |
-| `AI_MODEL_<PURPOSE>` | Per-feature model id (e.g. `AI_MODEL_SUGGEST_ITEM`, `AI_MODEL_INVENTORY_CLEANUP`); **any provider's id works for every purpose** — all call sites route via `apps/core/services/llm_router.py` | falls back to `AI_MODEL` / `AI_MODEL_FAST` |
+| `AI_MODEL_<PURPOSE>` | Per-feature model id (e.g. `AI_MODEL_SUGGEST_ITEM`, `AI_MODEL_INVENTORY_CLEANUP`); **any provider's id works for every purpose** — all call sites route via `apps/core/services/llm_router.py`. A model picked in Settings > AI wins over this value; blank in Settings means this value is used | falls back to `AI_MODEL` / `AI_MODEL_FAST` |
 | `AI_PRICING` | Defined in **`ecothrift/settings.py`** (per-model input/output/cache rates) — not env; costs logged to **`workspace/logs/ai_usage.jsonl`** | — |
 | `VITE_DEV_LOG` | Frontend dev console (`devLog`) for Add Item / suggest | `false` |
 | `BSTOCK_AUTH_TOKEN` | Fallback JWT if `workspace/.bstock_token` is missing (from `python manage.py bstock_token` or DevTools) | — |

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-21 (kiosk punch lock and gate 400) -->
+<!-- Last updated: 2026-09-22 (ai settings + floorplan AI) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -9,7 +9,7 @@ Django project with apps under `apps/`:
 | App | Purpose |
 |-----|---------|
 | `apps.accounts` | Users, auth, profiles (Employee, Consignee, Customer) |
-| `apps.core` | Shared models: WorkLocation, AppSetting, S3File, PrintServerRelease, EnhancementRequest |
+| `apps.core` | Shared models: WorkLocation, AppSetting, S3File, PrintServerRelease, EnhancementRequest, AiModel, AiAction |
 | `apps.hr` | HR: Departments, time entries, sick leave |
 | `apps.inventory` | Vendors, purchase orders, products, items, processing, formula engine |
 | `apps.ai` | Claude API proxy: chat endpoint, model list |
@@ -290,6 +290,14 @@ consignment.ConsignmentPayout → User (consignee)
 - **`POST /api/ai/chat/`** — Proxies to Anthropic Claude API. Accepts `model`, `system`, `messages`, `max_tokens`.
 - `anthropic` library is lazy-imported to prevent startup crash if not installed.
 - `ANTHROPIC_API_KEY` loaded from Django settings / `.env`.
+
+## AI settings (Settings > AI) and floorplan AI
+
+- **Tables:** `core.AiModel` (catalog: slug, label, provider anthropic/xai/google, modality text/image, status active/archived, source manual/discovered) and `core.AiAction` (one row per purpose: FK model or blank, effort off/low/medium/high/max). Seeded by `core/0005_seed_ai_settings` (14 actions, 4 models; Astra not seeded - no OpenAI provider).
+- **Resolution** (`apps/core/ai_config.py`): `ai_model(purpose, override)` = override, then the active assigned model, then `AI_MODEL_<PURPOSE>`, then `AI_MODEL`. `ai_effort(purpose)` returns the saved effort. Every DB read falls back to env on any exception (SimpleTestCase, migrate, import time).
+- **Router** (`apps/core/services/llm_router.py`): `resolve_provider` prefers the catalog provider over the id prefix (forced `AI_PROVIDER` still wins). `effort_payload` maps effort: anthropic `extra_body.output_config.effort` (low/medium/high/max), xai `reasoning_effort` (max -> xhigh), gemini-3* `thinkingConfig.thinkingLevel` (max -> high), nothing for other models. `model_quirks` is applied before every call: models that reject sampling params (Opus 4.7+, Opus 5.x, Sonnet 5, Fable, Mythos) never get `temperature`; models that reject forced tool choice (Opus 5.5, Fable 5.1, Mythos 5.1) get `tool_choice: auto` plus a system line asking for the tool. Backstop: on a 400/422 naming tool_choice, temperature, or effort, retry without that one param (max 3 retries).
+- **Settings API** (`/api/core/`): `ai/models/` GET/POST/PATCH, `ai/models/<id>/archive|unarchive/`, `ai/models/discover/` (Super Admin); `ai/actions/` GET, `ai/actions/<PURPOSE>/` PATCH (Super Admin); `ai/actions/<PURPOSE>/choices/` GET (Manager+, used by the floorplan dialogs). Archive clears assignments; unarchive does not restore them.
+- **Floorplan AI** (`apps/floorplan/ai.py`): `POST /api/floorplan/element-kinds/generate-svg/` (Super Admin) returns a sanitized SVG data URI; `POST /api/floorplan/plans/<id>/ai-adjust/` (Manager+) returns proposed active layers + a diff summary from JSON ops, validated against active kinds and assets. Both save nothing, use `llm_complete` directly with `temperature=None`, one attempt, 25 s timeout (Heroku 30 s router).
 
 ## Inventory AI Endpoints — Added v1.6.0
 

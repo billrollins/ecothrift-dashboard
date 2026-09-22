@@ -102,6 +102,8 @@ Base: `/api/floorplan/` — JWT auth (standard dashboard auth). All staff roles 
 | GET | `assets/` | Image asset library. `?location=<id>` returns that location's assets plus shared (location-less) ones |
 | POST | `assets/` | Multipart upload: `file` (SVG/PNG/JPEG, ≤512 KB) + optional `name`, `location`. Manager/Admin only |
 | DELETE | `assets/{id}/` | Soft delete + orphan sweep: unreferenced assets are hard-deleted; still-referenced ones stay soft-deleted and elements fall back to solid color |
+| POST | `element-kinds/generate-svg/` | Super Admin. Body `{label, width, depth, category?, fill_color?, notes?, model?, effort?}`. Returns `{svg_data_uri, model_used, width, depth}` (sanitized). Saves nothing; the dialog uploads the asset and sets the kind's `default_image` on Apply |
+| POST | `plans/{id}/ai-adjust/` | Manager/Admin. Body `{instruction, document (schema_version, settings, 5 active collections), model?, effort?}`. Returns `{layers, settings_patch, summary, notes, model_used}`. Saves nothing; Apply commits to the editor and the normal save keeps the revision lock |
 
 ### Image assets
 
