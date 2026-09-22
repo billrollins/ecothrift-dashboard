@@ -260,6 +260,7 @@ export function AiPanel() {
                         size="small"
                         fullWidth
                         value={row.model == null ? '' : String(row.model)}
+                        SelectProps={{ displayEmpty: true }}
                         disabled={updateAction.isPending}
                         onChange={(e) =>
                           void saveAction(row, { model: e.target.value === '' ? null : Number(e.target.value) })
