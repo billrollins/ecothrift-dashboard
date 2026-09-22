@@ -7,6 +7,7 @@ import type {
   PlanLayers,
   PlanObjectKind,
   PlanPath,
+  PlanSettings,
   PlanZone,
 } from '../../types/floorplan.types';
 import { pathBounds, rawRectFromVisual, rotatedBounds, type Rect } from './geometry';
@@ -887,4 +888,35 @@ export function moveObjects(doc: PlanDocument, refs: SelectionRef[], dx: number,
     }
   }
   return next;
+}
+
+
+/** Payload for AI adjust: schema, settings and the ACTIVE layers only (never configStore). */
+export function aiAdjustDocument(doc: PlanDocument): Pick<PlanDocument, 'schema_version' | 'settings'> & PlanLayers {
+  return { schema_version: doc.schema_version, settings: doc.settings, ...extractLayers(doc) };
+}
+
+/**
+ * Replace the active configuration's layers with an AI proposal.
+ * configStore, settings.configs and settings.activeConfigId are kept as they are;
+ * only planWidth, planHeight and snap may change.
+ */
+export function replaceActiveLayers(
+  doc: PlanDocument,
+  layers: PlanLayers,
+  settingsPatch: Partial<Pick<PlanSettings, 'planWidth' | 'planHeight' | 'snap'>> = {},
+): PlanDocument {
+  const settings: PlanSettings = { ...doc.settings };
+  if (typeof settingsPatch.planWidth === 'number') settings.planWidth = settingsPatch.planWidth;
+  if (typeof settingsPatch.planHeight === 'number') settings.planHeight = settingsPatch.planHeight;
+  if (typeof settingsPatch.snap === 'number') settings.snap = settingsPatch.snap;
+  return {
+    ...doc,
+    settings,
+    elements: layers.elements,
+    zones: layers.zones,
+    paths: layers.paths,
+    labels: layers.labels,
+    infoBlocks: layers.infoBlocks,
+  };
 }
