@@ -5,6 +5,7 @@ import {
   metaForKey,
   parseSettingsTab,
   SETTINGS_REGISTRY,
+  SETTINGS_TABS,
 } from './settingsRegistry';
 
 describe('settingsRegistry', () => {
@@ -37,6 +38,13 @@ describe('settingsRegistry', () => {
     expect(parseSettingsTab('permissions', false)).toBe('system');
     expect(parseSettingsTab('permissions', true)).toBe('permissions');
     expect(parseSettingsTab('nope', true)).toBe('system');
+  });
+
+  it('shows the AI tab to a superuser only', () => {
+    expect(parseSettingsTab('ai', true)).toBe('system');
+    expect(parseSettingsTab('ai', true, false)).toBe('system');
+    expect(parseSettingsTab('ai', false, true)).toBe('ai');
+    expect(SETTINGS_TABS).toContain('ai');
   });
 
   it('gathers every Retail QA key on its own tab', () => {

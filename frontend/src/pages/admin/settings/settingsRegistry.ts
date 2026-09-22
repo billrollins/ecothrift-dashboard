@@ -11,7 +11,8 @@ export type SettingsTab =
   | 'printing'
   | 'retail-qa'
   | 'permissions'
-  | 'system';
+  | 'system'
+  | 'ai';
 
 export type SettingKind =
   | 'fraction'
@@ -361,11 +362,13 @@ export const SETTINGS_TABS: SettingsTab[] = [
   'assumptions',
   'retail-qa',
   'permissions',
+  'ai',
 ];
 
 const OPEN_TABS: SettingsTab[] = ['assumptions', 'store', 'printing', 'retail-qa', 'system'];
 
-export function parseSettingsTab(raw: string | null, isAdmin: boolean): SettingsTab {
+export function parseSettingsTab(raw: string | null, isAdmin: boolean, isSuperuser = false): SettingsTab {
+  if (raw === 'ai' && isSuperuser) return 'ai';
   if (raw === 'permissions' && isAdmin) return 'permissions';
   const open = OPEN_TABS.find((tab) => tab === raw);
   return open ?? 'system';
