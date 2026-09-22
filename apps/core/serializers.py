@@ -7,7 +7,10 @@ from .models import (
     PrintServerRelease,
     EnhancementRequest,
     EnhancementRequestNote,
+    AiAction,
+    AiModel,
 )
+from apps.core.ai_config import settings_model
 
 
 class WorkLocationSerializer(serializers.ModelSerializer):
@@ -161,3 +164,79 @@ class EnhancementRequestNoteWriteSerializer(serializers.Serializer):
         if not text:
             raise serializers.ValidationError('Write a note.')
         return text
+
+
+class AiModelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AiModel
+        fields = [
+            'id', 'slug', 'label', 'provider', 'modality', 'status', 'source',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'status', 'source', 'created_at', 'updated_at']
+
+    def validate_slug(self, value):
+        slug = str(value or '').strip()
+        if slug.startswith('models/'):
+            slug = slug[len('models/'):]
+        if not slug:
+            raise serializers.ValidationError('Model id is required.')
+        if any(ch.isspace() for ch in slug) or '/' in slug:
+            raise serializers.ValidationError('Model id cannot contain spaces or slashes.')
+        # DRF's unique check ran on the raw value (before models/ was stripped); check again.
+        clash = AiModel.objects.filter(slug=slug)
+        if self.instance is not None:
+            clash = clash.exclude(pk=self.instance.pk)
+        if clash.exists():
+            raise serializers.ValidationError('That model id is already in the list.')
+        return slug
+
+    def validate(self, attrs):
+        instance = self.instance
+        provider = attrs.get('provider', getattr(instance, 'provider', None))
+        modality = attrs.get('modality', getattr(instance, 'modality', AiModel.MODALITY_TEXT))
+        if instance is not None and 'modality' in attrs and attrs['modality'] != instance.modality:
+            raise serializers.ValidationError(
+                {'modality': 'Type cannot change. Archive this model and add it again.'},
+            )
+        if modality == AiModel.MODALITY_IMAGE and provider != AiModel.PROVIDER_XAI:
+            raise serializers.ValidationError(
+                {'modality': 'Image models must be xAI. Label Studio only calls xAI for images.'},
+            )
+        return attrs
+
+
+class AiActionSerializer(serializers.ModelSerializer):
+    model = serializers.PrimaryKeyRelatedField(
+        queryset=AiModel.objects.all(), allow_null=True, required=False,
+    )
+    model_slug = serializers.CharField(source='model.slug', read_only=True, default=None)
+    env_model = serializers.SerializerMethodField()
+    updated_by_name = serializers.CharField(
+        source='updated_by.full_name', read_only=True, default=None,
+    )
+
+    class Meta:
+        model = AiAction
+        fields = [
+            'purpose', 'label', 'modality', 'model', 'model_slug', 'effort', 'env_model',
+            'updated_by_name', 'updated_at',
+        ]
+        read_only_fields = ['purpose', 'label', 'modality', 'updated_at']
+
+    def get_env_model(self, obj):
+        return settings_model(obj.purpose)
+
+    def validate(self, attrs):
+        instance = self.instance
+        model = attrs['model'] if 'model' in attrs else getattr(instance, 'model', None)
+        effort = attrs.get('effort', getattr(instance, 'effort', AiAction.EFFORT_OFF))
+        modality = getattr(instance, 'modality', AiModel.MODALITY_TEXT)
+        if model is not None:
+            if model.status != AiModel.STATUS_ACTIVE:
+                raise serializers.ValidationError({'model': 'That model is archived.'})
+            if model.modality != modality:
+                raise serializers.ValidationError({'model': f'This action needs a {modality} model.'})
+        if modality == AiModel.MODALITY_IMAGE and effort != AiAction.EFFORT_OFF:
+            raise serializers.ValidationError({'effort': 'Image actions have no effort setting.'})
+        return attrs
