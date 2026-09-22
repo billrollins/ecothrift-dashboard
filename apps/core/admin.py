@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import WorkLocation, AppSetting, S3File, PrintServerRelease, EnhancementRequest, EnhancementRequestNote
+from .models import WorkLocation, AppSetting, S3File, PrintServerRelease, EnhancementRequest, EnhancementRequestNote, AiAction, AiModel
 
 
 @admin.register(WorkLocation)
@@ -37,3 +37,16 @@ class EnhancementRequestAdmin(admin.ModelAdmin):
     list_filter = ('area', 'status', 'priority')
     search_fields = ('body',)
     inlines = [EnhancementRequestNoteInline]
+
+
+@admin.register(AiModel)
+class AiModelAdmin(admin.ModelAdmin):
+    list_display = ('slug', 'label', 'provider', 'modality', 'status', 'source', 'updated_at')
+    list_filter = ('provider', 'modality', 'status', 'source')
+    search_fields = ('slug', 'label')
+
+
+@admin.register(AiAction)
+class AiActionAdmin(admin.ModelAdmin):
+    list_display = ('purpose', 'label', 'modality', 'model', 'effort', 'updated_at')
+    search_fields = ('purpose', 'label')

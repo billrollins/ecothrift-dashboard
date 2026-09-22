@@ -193,3 +193,87 @@ class EnhancementRequestNote(models.Model):
 
     def __str__(self):
         return self.body[:48]
+
+
+class AiModel(models.Model):
+    """One model id the Settings > AI dropdowns can offer."""
+
+    PROVIDER_ANTHROPIC = 'anthropic'
+    PROVIDER_XAI = 'xai'
+    PROVIDER_GOOGLE = 'google'
+    PROVIDER_CHOICES = [
+        (PROVIDER_ANTHROPIC, 'Anthropic'),
+        (PROVIDER_XAI, 'xAI'),
+        (PROVIDER_GOOGLE, 'Google'),
+    ]
+    MODALITY_TEXT = 'text'
+    MODALITY_IMAGE = 'image'
+    MODALITY_CHOICES = [
+        (MODALITY_TEXT, 'Text'),
+        (MODALITY_IMAGE, 'Image'),
+    ]
+    STATUS_ACTIVE = 'active'
+    STATUS_ARCHIVED = 'archived'
+    STATUS_CHOICES = [
+        (STATUS_ACTIVE, 'Active'),
+        (STATUS_ARCHIVED, 'Archived'),
+    ]
+    SOURCE_MANUAL = 'manual'
+    SOURCE_DISCOVERED = 'discovered'
+    SOURCE_CHOICES = [
+        (SOURCE_MANUAL, 'Added by hand'),
+        (SOURCE_DISCOVERED, 'Found by check'),
+    ]
+
+    slug = models.CharField(max_length=100, unique=True)
+    label = models.CharField(max_length=200, blank=True, default='')
+    provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES)
+    modality = models.CharField(max_length=10, choices=MODALITY_CHOICES, default=MODALITY_TEXT)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
+    source = models.CharField(max_length=12, choices=SOURCE_CHOICES, default=SOURCE_MANUAL)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['provider', 'slug']
+
+    def __str__(self):
+        return self.slug
+
+
+class AiAction(models.Model):
+    """Model + effort for one AI purpose. A blank model means use the .env value."""
+
+    EFFORT_OFF = 'off'
+    EFFORT_LOW = 'low'
+    EFFORT_MEDIUM = 'medium'
+    EFFORT_HIGH = 'high'
+    EFFORT_MAX = 'max'
+    EFFORT_CHOICES = [
+        (EFFORT_OFF, 'Off'),
+        (EFFORT_LOW, 'Low'),
+        (EFFORT_MEDIUM, 'Medium'),
+        (EFFORT_HIGH, 'High'),
+        (EFFORT_MAX, 'Max'),
+    ]
+
+    purpose = models.CharField(max_length=64, unique=True)
+    label = models.CharField(max_length=120)
+    modality = models.CharField(
+        max_length=10, choices=AiModel.MODALITY_CHOICES, default=AiModel.MODALITY_TEXT,
+    )
+    model = models.ForeignKey(
+        AiModel, on_delete=models.SET_NULL, null=True, blank=True, related_name='actions',
+    )
+    effort = models.CharField(max_length=10, choices=EFFORT_CHOICES, default=EFFORT_OFF)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='+',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['purpose']
+
+    def __str__(self):
+        return self.purpose

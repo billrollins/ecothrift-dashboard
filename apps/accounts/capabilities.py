@@ -71,6 +71,8 @@ CATALOG: tuple[Capability, ...] = (
     Capability('hr.time_entry:edit', 'People', 'Edit or delete another person\'s time entry', MANAGER_PLUS, 'TimeEntryViewSet update/destroy'),
     Capability('hr.sick_leave:write', 'People', 'Adjust sick-leave balances', MANAGER_PLUS, 'SickLeaveBalanceViewSet writes'),
     Capability('floorplan:write', 'Studios', 'Create and edit floorplans', MANAGER_PLUS, 'FloorPlanViewSet / Asset writes'),
+    Capability('floorplan.ai:adjust', 'Studios', 'Ask AI to adjust the open floorplan (preview, then Apply)', MANAGER_PLUS, 'FloorPlanViewSet.ai_adjust'),
+    Capability('settings.ai:read', 'Settings', 'Read model and effort choices for an AI dialog', MANAGER_PLUS, 'AiActionViewSet.choices'),
     Capability('mailbox.sync:use', 'Mail', 'Trigger a Microsoft Graph mailbox sync', MANAGER_PLUS, 'sync_now IsManagerOrAdmin'),
     Capability('mailbox.templates:read', 'Mail', 'Read email templates for Online Sales replies', MANAGER_PLUS, 'EmailTemplateViewSet'),
     # ── Admin only (IsAdmin) ──────────────────────────────────────────────
@@ -85,6 +87,8 @@ CATALOG: tuple[Capability, ...] = (
     Capability('restoration.parts:approve', 'Restoration', 'Approve, deny, buy, or set ETA on parts', SUPER_ONLY, 'parts approve/deny/purchase/eta'),
     Capability('enhancements:triage', 'Restoration', 'Set priority, status, and target date', SUPER_ONLY, 'EnhancementRequestViewSet.triage'),
     Capability('floorplan.kinds:write', 'Studios', 'Create and edit floorplan element kinds', SUPER_ONLY, 'FloorPlanElementKindViewSet writes'),
+    Capability('floorplan.kinds:ai_svg', 'Studios', 'Generate an element SVG with AI', SUPER_ONLY, 'FloorPlanElementKindViewSet.generate_svg'),
+    Capability('settings.ai:write', 'Settings', 'Manage AI models and per-action model and effort', SUPER_ONLY, 'AiModelViewSet / AiActionViewSet writes'),
     Capability('dashboard.goals:write', 'Staff', 'Edit department sales goals', SUPER_ONLY, 'inline IsSuperAdmin on dashboard goals'),
     Capability('routines:write', 'Routines', 'Create and edit routines', SUPER_ONLY, 'RoutineViewSet writes'),
     Capability('documents:write', 'Documents', 'Upload PDFs, place fields, and assign', SUPER_ONLY, 'DocumentViewSet writes'),
