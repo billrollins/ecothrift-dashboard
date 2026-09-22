@@ -2,7 +2,7 @@
 <!-- Last updated: 2026-09-22 (opened) -->
 # Initiative: AI settings and floorplan AI
 
-**Status:** **Active** - Phase 1 built on branch `ai-settings-floorplan`, awaiting owner review.
+**Status:** **Active** - Phase 1 built and verified on branch `ai-settings-floorplan`; awaiting owner review and merge.
 
 **Objective:** Superusers choose AI models and effort per action in Settings > AI. The floorplan editor gets two AI tools that preview and wait for Apply.
 
@@ -21,9 +21,9 @@
 ## Phases
 
 ### Phase 1 - build (branch `ai-settings-floorplan`)
-- [ ] Backend: models, seed, router, Settings API, floorplan endpoints, tests green.
-- [ ] Frontend: AI tab, two floorplan dialogs, tests and tsc green.
-- [ ] Docs updated.
+- [x] Backend: models, seed, router, Settings API, floorplan endpoints, tests green.
+- [x] Frontend: AI tab, two floorplan dialogs, tests and tsc green.
+- [x] Docs updated.
 
 ### Phase 2 - owner review and ship
 - Owner merges `ai-settings-floorplan` and releases via `ship-push-git.md`.
@@ -35,6 +35,8 @@
 ## Record
 
 **2026-09-22 - Opened.** Built from the plan `ai_settings_floorplan_4d0dfa53.plan.md`.
+
+**2026-09-22 - Phase 1 built.** Scoped pytest 209 passed (163 + 46 new). Full pytest: failing set identical to main except one timing flake (`test_restoration_history_forget` superseded count; passes alone). Frontend: tsc clean; vitest 1099 passed, same 6 failing files as main; 14 new tests incl. render tests for AiPanel, BuildSvgDialog, AdjustPlanDialog. Opus 5.5 handled up front (no temperature, tool_choice auto). Astra not added (no OpenAI provider).
 
 ## See also
 
