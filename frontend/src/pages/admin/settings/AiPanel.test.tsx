@@ -61,12 +61,11 @@ describe('AiPanel', () => {
     expect(screen.getByText('old-model')).toBeInTheDocument();
   });
 
-  it('archives through a confirm dialog', async () => {
+  it('archives right away, with no confirm dialog', async () => {
     renderPanel();
     await userEvent.click(screen.getByRole('button', { name: 'Archive' }));
-    const dialog = await screen.findByRole('dialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Archive' }));
     await waitFor(() => expect(mocks.archive).toHaveBeenCalledWith(1));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('shows check-for-new results per provider in a dialog', async () => {

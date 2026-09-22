@@ -36,7 +36,6 @@ import {
   type AiModality,
   type AiProvider,
 } from '../../../api/aiSettings.api';
-import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
 import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
 import {
   useAiActions,
@@ -84,7 +83,6 @@ export function AiPanel() {
   const [showArchived, setShowArchived] = useState(false);
   const [draft, setDraft] = useState<ModelDraft | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
-  const [toArchive, setToArchive] = useState<AiCatalogModel | null>(null);
   const [discoverResults, setDiscoverResults] = useState<AiDiscoverProviderResult[] | null>(null);
 
   const models = useMemo(() => modelsQuery.data ?? [], [modelsQuery.data]);
@@ -124,16 +122,12 @@ export function AiPanel() {
     }
   };
 
-  const runArchive = async () => {
-    if (!toArchive) return;
-    const row = toArchive;
+  const runArchive = async (row: AiCatalogModel) => {
     try {
       const data = await archiveModel.mutateAsync(row.id);
       enqueueSnackbar(`Archived ${row.slug}. ${data.cleared_actions} action(s) now use the .env model.`, { variant: 'success' });
     } catch (err) {
       enqueueSnackbar(formatApiError(err, 'Could not archive.'), { variant: 'error' });
-    } finally {
-      setToArchive(null);
     }
   };
 
@@ -215,7 +209,7 @@ export function AiPanel() {
                         </IconButton>
                       </Tooltip>
                       {m.status === 'active' ? (
-                        <Button size="small" color="error" onClick={() => setToArchive(m)}>
+                        <Button size="small" color="error" onClick={() => void runArchive(m)} disabled={archiveModel.isPending}>
                           Archive
                         </Button>
                       ) : (
@@ -375,17 +369,6 @@ export function AiPanel() {
           <Button onClick={() => setDiscoverResults(null)}>Close</Button>
         </DialogActions>
       </Dialog>
-
-      <ConfirmDialog
-        open={toArchive != null}
-        title="Archive this model?"
-        message={toArchive ? `Archive ${toArchive.slug}? It leaves every model list, and actions that use it go back to their .env model.` : ''}
-        confirmLabel="Archive"
-        confirmColor="error"
-        loading={archiveModel.isPending}
-        onCancel={() => setToArchive(null)}
-        onConfirm={() => void runArchive()}
-      />
     </Box>
   );
 }
