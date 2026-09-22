@@ -1,5 +1,6 @@
 from django.db.models import Q
 from rest_framework import status, viewsets
+from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -7,6 +8,7 @@ from rest_framework.response import Response
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsSuperAdmin
 
 from .models import CURRENT_SCHEMA_VERSION, FloorPlan, FloorPlanAsset, FloorPlanElementKind
+from .ai import FloorplanAIError, generate_kind_svg, propose_adjustment
 from .services import purge_orphan_assets
 from .serializers import (
     FloorPlanAssetSerializer,
@@ -95,6 +97,23 @@ class FloorPlanViewSet(viewsets.ModelViewSet):
         instance.save(update_fields=['is_active', 'updated_at'])
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @action(detail=True, methods=['post'], url_path='ai-adjust')
+    def ai_adjust(self, request, pk=None):
+        """Manager+ via get_permissions. Proposes new active layers; saves nothing."""
+        plan = self.get_object()
+        data = request.data if isinstance(request.data, dict) else {}
+        try:
+            result = propose_adjustment(
+                plan=plan,
+                instruction=data.get('instruction'),
+                document=data.get('document'),
+                model=data.get('model'),
+                effort=data.get('effort'),
+            )
+        except FloorplanAIError as exc:
+            return Response({'detail': str(exc)}, status=exc.status)
+        return Response(result)
+
 
 class FloorPlanElementKindViewSet(viewsets.ModelViewSet):
     """Element type catalog for the editor palette.
@@ -137,6 +156,25 @@ class FloorPlanElementKindViewSet(viewsets.ModelViewSet):
         instance.save(update_fields=['is_active', 'updated_at'])
         purge_orphan_assets()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False, methods=['post'], url_path='generate-svg')
+    def generate_svg(self, request):
+        """Super Admin via get_permissions. Returns a sanitized SVG preview; saves nothing."""
+        data = request.data if isinstance(request.data, dict) else {}
+        try:
+            result = generate_kind_svg(
+                label=data.get('label'),
+                width=data.get('width'),
+                depth=data.get('depth'),
+                category=data.get('category'),
+                fill_color=data.get('fill_color'),
+                notes=data.get('notes'),
+                model=data.get('model'),
+                effort=data.get('effort'),
+            )
+        except FloorplanAIError as exc:
+            return Response({'detail': str(exc)}, status=exc.status)
+        return Response(result)
 
 
 class FloorPlanAssetViewSet(viewsets.ModelViewSet):
