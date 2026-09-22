@@ -19,6 +19,7 @@ from apps.core.services.llm_router import (
     is_provider_configured,
     llm_complete,
 )
+from apps.core.ai_config import ai_effort
 
 logger = logging.getLogger(__name__)
 
@@ -223,6 +224,7 @@ def map_one_fast_cat_batch(
             system=system,
             user=user,
             max_tokens=4096,
+            effort=ai_effort('KEY_MAPPING'),
             log_source='ai_key_mapping',
             log_detail=f'map_one_fast_cat_batch keys={len(unknown)}',
             log_auction_id=auction.pk,

@@ -18,7 +18,7 @@ from dataclasses import dataclass
 
 from django.conf import settings
 
-from apps.core.ai_config import ai_model  # noqa: F401 - re-exported router API
+from apps.core.ai_config import ai_effort, ai_model, catalog_provider  # noqa: F401 - re-exported router API
 from apps.core.services.llm_api_keys import (
     resolve_anthropic_api_key,
     resolve_google_api_key,
@@ -102,6 +102,9 @@ def resolve_provider(model_id: str) -> str:
         return raw
     if raw != 'auto':
         logger.warning('Unknown AI_PROVIDER=%r; using auto.', raw)
+    catalog = catalog_provider(model_id)
+    if catalog:
+        return catalog
     mid = (model_id or '').strip().lower()
     if mid.startswith('grok'):
         return 'xai'
@@ -135,6 +138,72 @@ def is_provider_configured(model_id: str) -> bool:
     except LLMConfigError:
         return False
     return True
+
+
+EFFORT_SCALE = ('off', 'low', 'medium', 'high', 'max')
+
+
+def effort_payload(provider: str, model_id: str, effort: str | None) -> str | None:
+    """Provider-specific effort value, or None when nothing should be sent.
+
+    anthropic: output_config.effort low|medium|high|max
+    xai:       reasoning_effort low|medium|high, max -> xhigh
+    google:    thinkingConfig.thinkingLevel low|medium|high (max -> high), gemini-3* only
+    """
+    e = str(effort or 'off').strip().lower()
+    if e not in EFFORT_SCALE or e == 'off':
+        return None
+    if provider == 'anthropic':
+        return e
+    if provider == 'xai':
+        return 'xhigh' if e == 'max' else e
+    if provider == 'google':
+        if not str(model_id or '').strip().lower().startswith('gemini-3'):
+            return None
+        return 'high' if e == 'max' else e
+    return None
+
+
+# Anthropic models that return 400 on ANY non-default temperature / top_p / top_k.
+# Prefix match: 'claude-opus-5' also covers claude-opus-5-5.
+NO_SAMPLING_PREFIXES = (
+    'claude-opus-5', 'claude-opus-4-8', 'claude-opus-4-7',
+    'claude-sonnet-5', 'claude-fable', 'claude-mythos',
+)
+# Anthropic models that return 400 on tool_choice type "tool" or "any".
+NO_FORCED_TOOL_PREFIXES = ('claude-opus-5-5', 'claude-fable-5-1', 'claude-mythos-5-1')
+
+
+def model_quirks(provider: str, model_id: str) -> dict:
+    """What this model accepts. Applied BEFORE the call so known models never get a 400."""
+    mid = str(model_id or '').strip().lower()
+    if provider != 'anthropic':
+        return {'temperature': True, 'forced_tool': True}
+    return {
+        'temperature': not mid.startswith(NO_SAMPLING_PREFIXES),
+        'forced_tool': not mid.startswith(NO_FORCED_TOOL_PREFIXES),
+    }
+
+
+def _relax_call_for_error(call: dict, exc: 'LLMAPIError') -> bool:
+    """Drop the one optional parameter a provider rejected. True when something changed.
+
+    Order matters: tool_choice and temperature errors can also mention "thinking",
+    so they are checked before effort.
+    """
+    if exc.status_code not in (400, 422):
+        return False
+    msg = str(exc).lower()
+    if call.get('tool_name') and call.get('force_tool') and 'tool_choice' in msg:
+        call['force_tool'] = False
+        return True
+    if call.get('temperature') is not None and 'temperature' in msg:
+        call['temperature'] = None
+        return True
+    if call.get('effort') and ('effort' in msg or 'thinking' in msg or 'reasoning' in msg):
+        call['effort'] = None
+        return True
+    return False
 
 
 def suggest_mappings_tools() -> list[dict]:
@@ -186,10 +255,16 @@ def _anthropic_complete(
     timeout: float | None,
     tool_name: str | None,
     tools: list[dict] | None,
+    effort: str | None = None,
+    force_tool: bool = True,
+    max_retries: int | None = None,
 ) -> LLMResult:
     import anthropic as anthropic_lib
 
-    client = anthropic_lib.Anthropic(api_key=api_key)
+    client_kwargs: dict = {'api_key': api_key}
+    if max_retries is not None:
+        client_kwargs['max_retries'] = max_retries
+    client = anthropic_lib.Anthropic(**client_kwargs)
     kwargs: dict = {
         'model': model_id,
         'max_tokens': max_tokens or DEFAULT_MAX_TOKENS,
@@ -206,7 +281,12 @@ def _anthropic_complete(
     if tools:
         kwargs['tools'] = tools
         if tool_name:
-            kwargs['tool_choice'] = {'type': 'tool', 'name': tool_name}
+            kwargs['tool_choice'] = (
+                {'type': 'tool', 'name': tool_name} if force_tool else {'type': 'auto'}
+            )
+    if effort:
+        # extra_body works on every SDK version; the native output_config kwarg does not.
+        kwargs['extra_body'] = {'output_config': {'effort': effort}}
 
     try:
         response = client.messages.create(**kwargs)
@@ -282,6 +362,9 @@ def _xai_complete(
     timeout: float | None,
     tool_name: str | None,
     tools: list[dict] | None,
+    effort: str | None = None,
+    force_tool: bool = True,
+    max_retries: int | None = None,
 ) -> LLMResult:
     base_url = (getattr(settings, 'XAI_API_BASE', None) or 'https://api.x.ai/v1').strip()
     oai_messages = []
@@ -295,6 +378,8 @@ def _xai_complete(
         payload['max_tokens'] = max_tokens
     if temperature is not None:
         payload['temperature'] = temperature
+    if effort:
+        payload['reasoning_effort'] = effort
     if tools:
         payload['tools'] = [
             {
@@ -308,7 +393,9 @@ def _xai_complete(
             for t in tools
         ]
         if tool_name:
-            payload['tool_choice'] = {'type': 'function', 'function': {'name': tool_name}}
+            payload['tool_choice'] = (
+                {'type': 'function', 'function': {'name': tool_name}} if force_tool else 'auto'
+            )
 
     data = _requests_post(
         f'{base_url}/chat/completions',
@@ -355,6 +442,9 @@ def _google_complete(
     timeout: float | None,
     tool_name: str | None,
     tools: list[dict] | None,
+    effort: str | None = None,
+    force_tool: bool = True,
+    max_retries: int | None = None,
 ) -> LLMResult:
     contents = []
     for m in messages:
@@ -366,6 +456,8 @@ def _google_complete(
         generation_config['temperature'] = temperature
     if max_tokens is not None:
         generation_config['maxOutputTokens'] = max_tokens
+    if effort:
+        generation_config['thinkingConfig'] = {'thinkingLevel': effort}
 
     payload: dict = {'contents': contents}
     if system:
@@ -387,7 +479,11 @@ def _google_complete(
         ]
         if tool_name:
             payload['toolConfig'] = {
-                'functionCallingConfig': {'mode': 'ANY', 'allowedFunctionNames': [tool_name]},
+                'functionCallingConfig': (
+                    {'mode': 'ANY', 'allowedFunctionNames': [tool_name]}
+                    if force_tool
+                    else {'mode': 'AUTO'}
+                ),
             }
 
     data = _requests_post(
@@ -445,6 +541,8 @@ def llm_complete(
     log_detail: str = '',
     log_auction_id: int | None = None,
     log_marketplace: str | None = None,
+    effort: str | None = None,
+    max_retries: int | None = None,
 ) -> LLMResult:
     """One completion call routed by model id. Raises LLMConfigError / LLMAPIError.
 
@@ -455,17 +553,36 @@ def llm_complete(
     provider = resolve_provider(mid)
     key = api_key or resolve_api_key(provider)
 
-    result = _PROVIDER_CALLS[provider](
-        model_id=mid,
-        api_key=key,
-        system=system,
-        messages=_build_messages(user, messages),
-        max_tokens=max_tokens,
-        temperature=temperature,
-        timeout=timeout,
-        tool_name=tool_name,
-        tools=tools,
-    )
+    quirks = model_quirks(provider, mid)
+    if tools and tool_name and not quirks['forced_tool']:
+        # tool_choice becomes "auto" for this model, so ask for the tool in the prompt instead.
+        system = (system + '\n\n' if system else '') + (
+            f'You must answer by calling the tool `{tool_name}`. Do not answer in plain text.'
+        )
+    call = {
+        'model_id': mid,
+        'api_key': key,
+        'system': system,
+        'messages': _build_messages(user, messages),
+        'max_tokens': max_tokens,
+        'temperature': temperature if quirks['temperature'] else None,
+        'timeout': timeout,
+        'tool_name': tool_name,
+        'tools': tools,
+        'effort': effort_payload(provider, mid, effort),
+        'force_tool': quirks['forced_tool'],
+        'max_retries': max_retries,
+    }
+    for attempt in range(4):
+        try:
+            result = _PROVIDER_CALLS[provider](**call)
+            break
+        except LLMAPIError as exc:
+            if attempt == 3 or not _relax_call_for_error(call, exc):
+                raise
+            logger.warning(
+                'LLM %s rejected an optional parameter; retrying without it: %s', mid, exc,
+            )
 
     if log_source:
         try:
@@ -503,6 +620,7 @@ def llm_chat_text(
     log_detail: str = '',
     log_auction_id: int | None = None,
     log_marketplace: str | None = None,
+    effort: str | None = None,
 ) -> tuple[str, str]:
     """Single chat completion for a configured purpose. Returns (text, model_used)."""
     result = llm_complete(
@@ -511,6 +629,7 @@ def llm_chat_text(
         user=user,
         messages=messages,
         max_tokens=max_tokens,
+        effort=effort if effort is not None else ai_effort(purpose),
         temperature=temperature,
         timeout=timeout,
         log_source=log_source,
@@ -534,6 +653,7 @@ def llm_chat_tool_input(
     timeout: float | None = None,
     log_source: str = '',
     log_detail: str = '',
+    effort: str | None = None,
 ) -> tuple[dict, str]:
     """Forced tool call for a configured purpose; returns (tool input dict, model_used).
 
@@ -544,6 +664,7 @@ def llm_chat_tool_input(
         system=system,
         user=user,
         max_tokens=max_tokens,
+        effort=effort if effort is not None else ai_effort(purpose),
         temperature=temperature,
         timeout=timeout,
         tool_name=tool_name,

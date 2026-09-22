@@ -17,6 +17,7 @@ from apps.core.services.llm_router import (
     is_provider_configured,
     llm_complete,
 )
+from apps.core.ai_config import ai_effort
 
 logger = logging.getLogger(__name__)
 
@@ -207,6 +208,7 @@ def estimate_batch(auction_ids: list[int]) -> dict[str, Any]:
                     system=system_text,
                     user=user,
                     max_tokens=8192,
+                    effort=ai_effort('TITLE_CATEGORY_ESTIMATE'),
                     log_source="ai_title_category_estimate",
                     log_detail=f"estimate_batch n={len(chunk)}",
                     log_auction_id=chunk[0].pk,

@@ -14,6 +14,7 @@ from apps.core.services.llm_router import (
     LLMConfigError,
     llm_complete,
 )
+from apps.core.ai_config import ai_effort
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +103,7 @@ def suggest_category_for_source_key(
             system=system,
             user=user,
             max_tokens=1024,
+            effort=ai_effort('CATEGORY_AI'),
             log_source='categorize_manifests',
             log_detail=f'source_key={source_key[:120]!r}',
             log_auction_id=auction_id,

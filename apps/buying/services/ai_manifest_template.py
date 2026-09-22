@@ -16,6 +16,7 @@ from apps.core.services.llm_router import (
     LLMConfigError,
     llm_complete,
 )
+from apps.core.ai_config import ai_effort
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +161,7 @@ def propose_manifest_template_with_ai(
             system=system,
             user=user,
             max_tokens=4096,
+            effort=ai_effort('MANIFEST_TEMPLATE'),
             log_source='ai_template_creation',
             log_detail='propose_manifest_template_with_ai',
             log_auction_id=auction_id,

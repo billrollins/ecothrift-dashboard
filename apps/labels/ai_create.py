@@ -15,7 +15,7 @@ from typing import Any
 import requests
 from django.conf import settings
 
-from apps.core.ai_config import ai_model
+from apps.core.ai_config import ai_effort, ai_model
 from apps.core.services.llm_api_keys import resolve_xai_api_key
 from apps.core.services.llm_router import LLMAPIError, LLMConfigError, llm_complete
 
@@ -148,6 +148,7 @@ def propose_structure(
                 user=user_msg + retry_note,
                 temperature=0.2,
                 max_tokens=4096,
+                effort=ai_effort('LABEL_STRUCTURE'),
                 log_source='label_ai_structure',
                 log_detail='propose_structure',
             )
