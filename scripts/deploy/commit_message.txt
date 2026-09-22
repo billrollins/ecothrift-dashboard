@@ -1,7 +1,7 @@
-fix: drop duplicate cross-checks before the unique rule
+fix: commit cross-check cleanup before the unique index
 
-Release: v2.97.1
+Release: v2.97.2
 
-Heroku v353 never became current. The release command failed because
-section 5 already had two cross-checks on 2026-09-22. The migration now
-keeps one of those rows, then adds the unique rule.
+Heroku v354 deleted the duplicate walk and then could not build the
+unique index in that same transaction. The migration now commits the
+cleanup first.

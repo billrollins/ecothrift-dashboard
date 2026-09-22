@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.97.1] -->
-<!-- Last reviewed: 2026-09-22 (v2.97.1 cross-check migration) -->
+<!-- Line 1 release: ## [2.97.2] -->
+<!-- Last reviewed: 2026-09-22 (v2.97.2 cross-check migration) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,18 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.97.2] - 2026-09-22
+
+User-facing theme: **The cross-check install finishes after clearing a duplicate walk.**
+
+Initiative: outside initiatives.
+
+### Fixed
+
+- `routines/0024_cross_check_section_unique` commits the duplicate cleanup before it adds the unique rule. Heroku v354 deleted the extra row and then failed with `cannot CREATE INDEX because it has pending trigger events`.
 
 ---
 

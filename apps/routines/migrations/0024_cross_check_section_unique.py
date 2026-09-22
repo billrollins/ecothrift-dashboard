@@ -47,6 +47,10 @@ def drop_duplicate_section_runs(apps, schema_editor):
 
 class Migration(migrations.Migration):
 
+    # Deletes fire row triggers. PostgreSQL refuses CREATE INDEX in that same
+    # transaction, so each step commits on its own.
+    atomic = False
+
     dependencies = [
         ('routines', '0023_week_score_letter'),
     ]
