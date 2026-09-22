@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.97.0] -->
-<!-- Last reviewed: 2026-09-22 (v2.97.0 cross-check reassign) -->
+<!-- Line 1 release: ## [2.97.1] -->
+<!-- Last reviewed: 2026-09-22 (v2.97.1 cross-check migration) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,18 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [2.97.1] - 2026-09-22
+
+User-facing theme: **The cross-check release can install when a section already has two walks today.**
+
+Initiative: outside initiatives.
+
+### Fixed
+
+- `routines/0024_cross_check_section_unique` keeps one cross-check per section per day before adding the unique rule. A finished walk is kept ahead of an open one, and an assigned walk ahead of a blank one. Heroku v353 failed on section 5 for 2026-09-22 because two rows already existed.
 
 ---
 

@@ -1,9 +1,7 @@
-feat: let managers reassign and unblock today's cross-checks
+fix: drop duplicate cross-checks before the unique rule
 
-Release: v2.97.0
+Release: v2.97.1
 
-A section check or cross-check shows only for the person who has it now.
-Command Center can hand a cross-check to someone still working, cover a
-section check for today, and unblock a walk that is waiting on the section
-check. Also files the five completed initiatives and ignores local floor-plan
-reference copies.
+Heroku v353 never became current. The release command failed because
+section 5 already had two cross-checks on 2026-09-22. The migration now
+keeps one of those rows, then adds the unique rule.
