@@ -52,11 +52,11 @@ describe('AiPanel', () => {
     });
   });
 
-  it('hides archived models until asked and shows the .env fallback per action', async () => {
+  it('hides archived models until asked and shows the fallback per action', async () => {
     renderPanel();
     expect(screen.getByText('grok-4.7')).toBeInTheDocument();
     expect(screen.queryByText('old-model')).not.toBeInTheDocument();
-    expect(screen.getByText('Use .env (env-chat)')).toBeInTheDocument();
+    expect(screen.getByText('Default (env-chat)')).toBeInTheDocument();
     await userEvent.click(screen.getByLabelText('Show archived'));
     expect(screen.getByText('old-model')).toBeInTheDocument();
   });

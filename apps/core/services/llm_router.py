@@ -5,7 +5,7 @@ anything else → Anthropic. ``AI_PROVIDER`` (auto | anthropic | xai | google)
 force-overrides the inference for every call.
 
 Application code should use :func:`llm_chat_text` / :func:`llm_chat_tool_input`
-with a purpose name from ``.env`` (``AI_MODEL_<PURPOSE>``), or :func:`llm_complete`
+with a purpose name (model + effort chosen in Settings > AI), or :func:`llm_complete`
 when it needs token usage / stop reason. No feature code should construct an
 ``anthropic.Anthropic()`` client or read provider API keys directly.
 """

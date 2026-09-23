@@ -179,6 +179,8 @@ _RUNNING_TESTS = (
 )
 if _RUNNING_TESTS:
     DATABASES['default']['OPTIONS'] = {'options': '-c search_path=public'}
+# Read by data migrations that must not depend on a developer's .env during tests.
+RUNNING_TESTS = _RUNNING_TESTS
 
 # ── Cache (database backend; release runs createcachetable) ─────────────────────
 CACHES = {
@@ -340,12 +342,6 @@ def _normalize_anthropic_model_id(model_id: str) -> str:
     return mid
 
 
-def _ai_model_setting(env_key: str, default: str) -> str:
-    """Read ``AI_MODEL_*`` from .env; fall back to *default* when unset or blank."""
-    raw = config(env_key, default='').strip()
-    return _normalize_anthropic_model_id(raw or default)
-
-
 # --- API keys ---
 ANTHROPIC_API_KEY = config('ANTHROPIC_API_KEY', default='').strip()
 XAI_API_KEY = (
@@ -366,29 +362,12 @@ GOOGLE_MAPS_API_KEY = config('GOOGLE_MAPS_API_KEY', default='').strip()
 # route through apps/core/services/llm_router.py.
 AI_PROVIDER = config('AI_PROVIDER', default='auto').strip().lower()
 
-# --- Base defaults (fallback when a purpose-specific knob is unset) ---
+# --- Models ---
+# Per-purpose model + effort live in Settings > AI (core.AiAction / core.AiModel).
+# AI_MODEL is only the emergency fallback when a purpose has no model there or the
+# database cannot be read. Migration core/0006 copied the old AI_MODEL_<PURPOSE>
+# values into Settings > AI; those env vars are no longer read.
 AI_MODEL = _normalize_anthropic_model_id(config('AI_MODEL', default='claude-sonnet-4-6'))
-AI_MODEL_FAST = _normalize_anthropic_model_id(config('AI_MODEL_FAST', default='claude-haiku-4-5'))
-
-# --- Purpose-specific models (.ai/extended/development.md lists what each drives) ---
-AI_MODEL_INVENTORY_CLEANUP = _ai_model_setting('AI_MODEL_INVENTORY_CLEANUP', 'gemini-2.5-flash')
-AI_MODEL_PREPROCESSING_SUGGEST = _ai_model_setting('AI_MODEL_PREPROCESSING_SUGGEST', AI_MODEL)
-AI_MODEL_SUGGEST_ITEM = _ai_model_setting('AI_MODEL_SUGGEST_ITEM', AI_MODEL_FAST)
-AI_MODEL_SUGGEST_PRODUCT = _ai_model_setting('AI_MODEL_SUGGEST_PRODUCT', AI_MODEL_SUGGEST_ITEM)
-AI_MODEL_SUGGEST_FINALIZATION = _ai_model_setting('AI_MODEL_SUGGEST_FINALIZATION', AI_MODEL)
-AI_MODEL_AI_CHAT = _ai_model_setting('AI_MODEL_AI_CHAT', AI_MODEL)
-AI_MODEL_LABEL_STRUCTURE = _ai_model_setting('AI_MODEL_LABEL_STRUCTURE', AI_MODEL_AI_CHAT)
-AI_MODEL_LABEL_IMAGE = _ai_model_setting('AI_MODEL_LABEL_IMAGE', 'grok-imagine-image-quality')
-AI_MODEL_MANIFEST_TEMPLATE = _ai_model_setting('AI_MODEL_MANIFEST_TEMPLATE', AI_MODEL)
-AI_MODEL_CATEGORY_AI = _ai_model_setting('AI_MODEL_CATEGORY_AI', AI_MODEL)
-AI_MODEL_KEY_MAPPING = _ai_model_setting('AI_MODEL_KEY_MAPPING', AI_MODEL)
-AI_MODEL_TITLE_CATEGORY_ESTIMATE = _ai_model_setting('AI_MODEL_TITLE_CATEGORY_ESTIMATE', AI_MODEL_FAST)
-AI_MODEL_INVENTORY_CLASSIFY = _ai_model_setting('AI_MODEL_INVENTORY_CLASSIFY', AI_MODEL_FAST)
-# Reserved — match-products endpoint is deprecated (410).
-AI_MODEL_MATCH_PRODUCTS = _ai_model_setting('AI_MODEL_MATCH_PRODUCTS', AI_MODEL)
-
-# Backward compatibility alias used by buying category AI.
-BUYING_CATEGORY_AI_MODEL = AI_MODEL_CATEGORY_AI
 
 # USD per 1M tokens (update when Anthropic changes pricing; restart required).
 AI_PRICING = {

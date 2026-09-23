@@ -296,15 +296,14 @@ class RouterCompletionTests(SimpleTestCase):
 @override_settings(
     AI_PROVIDER='auto',
     XAI_API_KEY='xai-k',
-    AI_MODEL_AI_CHAT='grok-4-1-fast',
-    AI_MODEL='claude-sonnet-4-6',
+    AI_MODEL='grok-4-1-fast',
 )
 class PurposeResolutionTests(SimpleTestCase):
     def test_ai_model_purpose_lookup_and_override(self):
+        # No database here, so every purpose uses the AI_MODEL fallback.
         self.assertEqual(ai_model('AI_CHAT'), 'grok-4-1-fast')
         self.assertEqual(ai_model('AI_CHAT', 'gemini-2.5-flash'), 'gemini-2.5-flash')
-        # Unset purpose falls back to AI_MODEL.
-        self.assertEqual(ai_model('NO_SUCH_PURPOSE'), 'claude-sonnet-4-6')
+        self.assertEqual(ai_model('NO_SUCH_PURPOSE'), 'grok-4-1-fast')
 
     def test_llm_chat_text_uses_purpose_model(self):
         payload = {

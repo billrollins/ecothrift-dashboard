@@ -31,20 +31,25 @@ class _FakeResp:
         return self._payload
 
 
-@override_settings(AI_PROVIDER='auto', AI_MODEL='env-default', AI_MODEL_AI_CHAT='env-chat')
+@override_settings(AI_PROVIDER='auto', AI_MODEL='env-default')
 class AiModelResolutionTests(TestCase):
     def test_seed_rows(self):
-        self.assertEqual(AiAction.objects.count(), 14)
+        self.assertEqual(AiAction.objects.count(), 15)
         self.assertFalse(AiAction.objects.filter(model__isnull=False).exists())
         self.assertEqual(
             set(AiModel.objects.values_list('slug', flat=True)),
             {'grok-4.7', 'claude-opus-5-5', 'gemini-3.5-flash-lite', 'gemini-3.8-flash'},
         )
-        self.assertFalse(AiAction.objects.filter(purpose='INVENTORY_CLEANUP').exists())
+        self.assertTrue(AiAction.objects.filter(purpose='INVENTORY_CLEANUP').exists())
 
-    def test_blank_assignment_uses_env(self):
-        self.assertEqual(ai_model('AI_CHAT'), 'env-chat')
+    def test_blank_assignment_uses_fallback(self):
+        self.assertEqual(ai_model('AI_CHAT'), 'env-default')
         self.assertEqual(ai_model('FLOORPLAN_SVG'), 'env-default')
+        self.assertEqual(ai_model('LABEL_IMAGE'), 'grok-imagine-image-quality')
+
+    @override_settings(AI_MODEL_AI_CHAT='ignored-env-model')
+    def test_per_purpose_env_values_are_no_longer_read(self):
+        self.assertEqual(ai_model('AI_CHAT'), 'env-default')
 
     def test_assignment_beats_env_and_override_beats_assignment(self):
         grok = AiModel.objects.get(slug='grok-4.7')
@@ -57,7 +62,7 @@ class AiModelResolutionTests(TestCase):
         grok = AiModel.objects.get(slug='grok-4.7')
         AiAction.objects.filter(purpose='AI_CHAT').update(model=grok)
         AiModel.objects.filter(pk=grok.pk).update(status='archived')
-        self.assertEqual(ai_model('AI_CHAT'), 'env-chat')
+        self.assertEqual(ai_model('AI_CHAT'), 'env-default')
 
     def test_effort(self):
         self.assertEqual(ai_effort('AI_CHAT'), 'off')
@@ -67,7 +72,7 @@ class AiModelResolutionTests(TestCase):
     def test_db_error_falls_back_to_env(self):
         with mock.patch('apps.core.models.AiAction.objects') as objects:
             objects.select_related.side_effect = RuntimeError('db down')
-            self.assertEqual(ai_model('AI_CHAT'), 'env-chat')
+            self.assertEqual(ai_model('AI_CHAT'), 'env-default')
             self.assertEqual(ai_effort('AI_CHAT'), 'off')
 
     def test_catalog_provider_beats_prefix(self):

@@ -3,8 +3,10 @@
 Order for ``ai_model(purpose, override)``:
 1. a non-blank ``override``
 2. the active model assigned to the purpose in Settings > AI (``core.AiAction``)
-3. ``settings.AI_MODEL_<PURPOSE>`` (from ``.env``)
-4. ``settings.AI_MODEL``
+3. the fallback: ``FALLBACK_MODELS[purpose]`` (image purposes) or ``settings.AI_MODEL``
+
+Settings > AI is the only place per-purpose models are chosen. ``AI_MODEL`` in
+``.env`` is just the emergency fallback.
 
 Every DB read here is wrapped in ``except Exception`` on purpose. This module
 runs in DB-less tests (SimpleTestCase raises an AssertionError subclass on any
@@ -18,6 +20,11 @@ from django.conf import settings
 
 EFFORT_VALUES = ('off', 'low', 'medium', 'high', 'max')
 PROVIDER_VALUES = ('anthropic', 'xai', 'google')
+
+# Purposes whose fallback cannot be the text model in AI_MODEL.
+FALLBACK_MODELS = {
+    'LABEL_IMAGE': 'grok-imagine-image-quality',
+}
 
 
 def _load_action(purpose: str):
@@ -38,12 +45,11 @@ def _load_action(purpose: str):
 
 
 def settings_model(purpose: str) -> str:
-    """The .env model for a purpose, ignoring Settings > AI."""
-    attr = f'AI_MODEL_{str(purpose or "").upper()}'
-    val = getattr(settings, attr, None)
-    if val and str(val).strip():
-        return str(val).strip()
-    return str(getattr(settings, 'AI_MODEL', 'claude-sonnet-4-6')).strip()
+    """The fallback model for a purpose when Settings > AI has none assigned."""
+    fallback = FALLBACK_MODELS.get(str(purpose or '').upper())
+    if fallback:
+        return fallback
+    return str(getattr(settings, 'AI_MODEL', '') or 'claude-sonnet-4-6').strip()
 
 
 def ai_model(purpose: str, override: str | None = None) -> str:

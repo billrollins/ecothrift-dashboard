@@ -53,6 +53,7 @@ const MODALITY_LABEL: Record<AiModality, string> = { text: 'Text', image: 'Image
 
 const ACTION_TIPS: Record<string, string> = {
   AI_CHAT: 'A model picked in the chat box wins over this one.',
+  INVENTORY_CLEANUP: 'Only the models offered on the preprocessing cleanup step work here; any other falls back to the first one there.',
   INVENTORY_CLASSIFY: 'Answers in about 50 tokens. Keep effort Off and do not pick Claude Opus 5.5 (it always thinks), or answers can come back empty.',
   LABEL_IMAGE: 'Only xAI image models work here. No effort setting.',
   FLOORPLAN_SVG: 'Must answer within 25 seconds. If it times out, pick a faster model or lower effort.',
@@ -125,7 +126,7 @@ export function AiPanel() {
   const runArchive = async (row: AiCatalogModel) => {
     try {
       const data = await archiveModel.mutateAsync(row.id);
-      enqueueSnackbar(`Archived ${row.slug}. ${data.cleared_actions} action(s) now use the .env model.`, { variant: 'success' });
+      enqueueSnackbar(`Archived ${row.slug}. ${data.cleared_actions} action(s) now use the default model.`, { variant: 'success' });
     } catch (err) {
       enqueueSnackbar(formatApiError(err, 'Could not archive.'), { variant: 'error' });
     }
@@ -260,7 +261,7 @@ export function AiPanel() {
                           void saveAction(row, { model: e.target.value === '' ? null : Number(e.target.value) })
                         }
                       >
-                        <MenuItem value="">Use .env ({row.env_model})</MenuItem>
+                        <MenuItem value="">Default ({row.env_model})</MenuItem>
                         {options.map((m) => (
                           <MenuItem key={m.id} value={String(m.id)}>
                             {(m.label || m.slug) + ' (' + PROVIDER_LABEL[m.provider] + ')'}

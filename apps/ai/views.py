@@ -32,7 +32,7 @@ class ChatProxyView(APIView):
     """POST /api/ai/chat/ - proxy a single chat completion via the LLM router.
 
     Expects JSON body:
-        model (str, optional): model id, defaults to AI_MODEL_AI_CHAT
+        model (str, optional): model id, defaults to the AI_CHAT model in Settings > AI
         system (str, optional): system prompt
         messages (list): messages array [{role, content}]
         max_tokens (int, optional): defaults to 4096
