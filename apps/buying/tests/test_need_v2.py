@@ -169,3 +169,22 @@ class CategoryGoalApiTests(TestCase):
         staff = User.objects.create_user('staff@x.test', 'St', 'Aff', password='x')
         self.client.force_authenticate(staff)
         self.assertEqual(self.client.patch(self.url, {'category': TOYS, 'goal': 'more'}, format='json').status_code, 403)
+
+
+class PriorityTests(SimpleTestCase):
+    def test_profit_score_scale(self):
+        from apps.buying.services.valuation import profit_score
+
+        self.assertEqual(
+            [profit_score(Decimal(r)) for r in ('-0.5', '0', '0.5', '1.0', '3')], [1, 1, 50, 99, 99]
+        )
+        self.assertIsNone(profit_score(None))
+
+    def test_blend_and_need_only(self):
+        from apps.buying.services.valuation import compute_priority
+
+        self.assertEqual(compute_priority(80, Decimal('0.2'), has_mix=True, weight=Decimal('0.5')), (50, 'need_profit'))
+        self.assertEqual(compute_priority(80, Decimal('0.2'), has_mix=True, weight=Decimal('0')), (80, 'need_profit'))
+        # No category mix: revenue is unknown, so profit is too; Priority is Need.
+        self.assertEqual(compute_priority(50, Decimal('-1'), has_mix=False, weight=Decimal('0.5')), (50, 'need_only'))
+        self.assertEqual(compute_priority(70, None, has_mix=True, weight=Decimal('0.5')), (70, 'need_only'))

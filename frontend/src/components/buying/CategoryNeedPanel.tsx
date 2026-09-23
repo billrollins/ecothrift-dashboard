@@ -98,6 +98,10 @@ export default function CategoryNeedPanel() {
     metaParts.push(`${windowDays}-day window`);
   }
   metaParts.push(`${rows.length} categories`);
+  const coverage = data?.coverage;
+  if (coverage?.named_category_pct != null) {
+    metaParts.push(`based on ${coverage.named_category_pct}% categorized sales`);
+  }
   const pipeline = data?.pipeline;
   if (pipeline && pipeline.backlog_weeks != null) {
     const waiting = pipeline.in_building_units + pipeline.on_order_units;

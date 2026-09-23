@@ -15,6 +15,7 @@ Bounded work (hours–days), one `.md` per initiative. Not a session log.
 |------------|-------|-------|
 | [bstock_daily_buying](./bstock_daily_buying.md) | **Phase 2** | Phase 1 done. Need v2 built; Priority next. Every phase states its data-quality handling. Compass. |
 | [data_quality_rails](./data_quality_rails.md) | **Phase 1** | Know the data (register + eras, runner R-009 to R-013), then quality-aware numbers, rails at every lifecycle stage, and cleanup. |
+| [product_intelligence](./product_intelligence.md) | **Phase 1** | Plan only. Product-first catalog: dedupe, categories and subcategories, vectors, and a Spark audition-then-backfill; verify-don't-type intake; short price-tag names. |
 
 ---
 

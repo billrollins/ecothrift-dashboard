@@ -167,6 +167,12 @@ export interface BuyingAuctionDetail extends BuyingAuctionListItem {
   /** Shipping rate that scales with the bid; null when shipping is an override or a quote. */
   shipping_rate_applied?: string | null;
   shipping_source?: 'override' | 'quote' | 'estimate';
+  /** How Priority was set: blended, Need only (no category mix), or a manual override. */
+  priority_basis?: 'need_profit' | 'need_only' | 'override';
+  /** 1-99 from profit / all-in cost at the current price (99 = doubles the money). */
+  profit_score?: number | null;
+  /** Profit's share of Priority (Admin > Assumptions). */
+  priority_profit_weight?: string;
   /** How an estimate was worked out (estimate only). */
   shipping_estimate?: BuyingShippingEstimate | null;
   /** From the listing: B-Stock palletCount, else the pallets in the title. */
@@ -375,6 +381,16 @@ export interface BuyingCategoryNeedResponse {
   target_cover_weeks?: number;
   pipeline_max_age_days?: number;
   pipeline?: BuyingPipelineSummary;
+  coverage?: BuyingNeedCoverage;
+}
+
+/** How much data backs the Need numbers (data-quality register IDs in `register`). */
+export interface BuyingNeedCoverage {
+  sold_units: number;
+  named_category_pct: number | null;
+  shelf_date_pct: number | null;
+  on_order_mixed_units: number;
+  register: string[];
 }
 
 /** PATCH /api/buying/auctions/:id/valuation-inputs/ */

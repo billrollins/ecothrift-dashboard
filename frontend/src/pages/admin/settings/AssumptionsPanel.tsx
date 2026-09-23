@@ -14,6 +14,7 @@ const ASSUMPTION_ORDER = [
   'buying_manifest_pull_page_delay_ms',
   'buying_shipping_per_pallet',
   'buying_target_cover_weeks',
+  'buying_priority_profit_weight',
   'buying_pipeline_max_age_days',
   'delivery_service_minutes_per_stop',
 ] as const;

@@ -103,6 +103,12 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'assumptions',
     kind: 'count',
   },
+  buying_priority_profit_weight: {
+    label: 'Priority: profit weight',
+    help: "Buying: profit's share of auction Priority (0-1, default 0.5); the rest is Need. Auctions with no category mix use Need only.",
+    tab: 'assumptions',
+    kind: 'fraction',
+  },
   buying_pipeline_max_age_days: {
     label: 'Need: open PO age limit (days)',
     help: 'Buying: open POs older than this are not counted as on order; they are usually done but never closed (default 120).',

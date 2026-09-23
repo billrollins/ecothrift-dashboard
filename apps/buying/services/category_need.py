@@ -5,6 +5,8 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from django.db.models import F
+
 from apps.buying.models import CategoryStats
 from apps.buying.services.buying_settings import (
     get_category_goals,
@@ -200,6 +202,7 @@ def build_category_need_payload() -> dict[str, Any]:
         'pipeline_max_age_days': get_pipeline_max_age_days(),
         'window_days': get_pricing_need_window_days(),
         'pipeline': pipeline_summary(),
+        'coverage': need_coverage(),
         'need_score_raw_global_min': str(mn) if mn is not None else None,
         'need_score_raw_global_max': str(mx) if mx is not None else None,
     }
@@ -246,3 +249,35 @@ def pipeline_summary() -> dict[str, Any]:
             else None
         ),
     }
+
+
+def need_coverage() -> dict[str, Any]:
+    """
+    How much data backs the Need numbers (data-quality register): the share of sold units in
+    the window with a real category (ITM-01), the share with a shelf date for days to sell
+    (ITM-03), and on-order units that could only go to Mixed lots (PO-03).
+    """
+    from datetime import timedelta
+
+    from django.db.models import Count, Q
+    from django.utils import timezone
+
+    from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED
+    from apps.inventory.models import Item
+
+    since = timezone.now() - timedelta(days=get_pricing_need_window_days())
+    sold = Item.objects.filter(status='sold', sold_at__gte=since).aggregate(
+        n=Count('id'),
+        named=Count('id', filter=Q(product__category__isnull=False) & ~Q(product__category__name=MIXED_LOTS_UNCATEGORIZED)),
+        listed=Count('id', filter=Q(listed_at__isnull=False, listed_at__lte=F('sold_at'))),
+    )
+    n = sold['n'] or 0
+    mixed = CategoryStats.objects.filter(category=MIXED_LOTS_UNCATEGORIZED).first()
+    return {
+        'sold_units': n,
+        'named_category_pct': round(100.0 * sold['named'] / n, 1) if n else None,
+        'shelf_date_pct': round(100.0 * sold['listed'] / n, 1) if n else None,
+        'on_order_mixed_units': int(mixed.on_order_units) if mixed else 0,
+        'register': ['ITM-01', 'ITM-03', 'PO-03', 'SHR-01'],
+    }
+

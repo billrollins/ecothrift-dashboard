@@ -17,4 +17,5 @@ Finished tasks, moved out of `queue.md`. Tasks are in `tasks/`, results in `resu
 | R-011 | recon | DQ: orders, transit, receiving, vendors | done | register PO-08 to PO-15, VEN-01, VEN-02 |
 | R-012 | recon | DQ: preprocessing, processing, products, items | done: scrapped = import label | register PRE-01 to PRE-04, PRD-03, ITM-06 (corrected), ITM-07 to ITM-11 |
 | R-013 | recon | DQ: sales, disputes, shrink, counts | done | register SAL-04 to SAL-13, DSP-01, SHR-03, SHR-04 |
-| R-014 | test | Pre-ship full run (before the Heroku deploy) | GREEN: 0 NEW | pending |
+| R-014 | test | Pre-ship full run (before the Heroku deploy) | GREEN: 0 NEW | verified; shipped or committed |
+| R-015 | test | Priority v2 and Need coverage | GREEN: 0 NEW | verified; shipped or committed |

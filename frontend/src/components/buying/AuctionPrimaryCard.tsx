@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { needNote, priorityNote } from '../../utils/buyingCostNotes';
 import { Box, Card, Tooltip, Typography } from '@mui/material';
 import BuyingDetailSectionTitle from './BuyingDetailSectionTitle';
 import { useBuyingValuationInputsMutation } from '../../hooks/useBuyingValuationInputsMutation';
@@ -240,12 +241,19 @@ export default function AuctionPrimaryCard({ detail, isAdmin }: Props) {
               </Typography>
             </Tooltip>
           </Box>
+          {needNote(detail) ? (
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', fontSize: '0.65rem' }}>
+              {needNote(detail)}
+            </Typography>
+          ) : null}
         </Box>
 
         <Box sx={cellSx}>
-          <Typography variant="caption" color="text.secondary" sx={labelSx}>
-            Priority
-          </Typography>
+          <Tooltip title={priorityNote(detail) ?? ''} placement="top" enterDelay={300}>
+            <Typography variant="caption" color="text.secondary" sx={{ ...labelSx, cursor: 'help' }}>
+              Priority
+            </Typography>
+          </Tooltip>
           {!isAdmin ? (
             <Box sx={valueSlotSx}>
               <Typography component="p" fontWeight={700} sx={{ ...metricValueFontSx, textAlign: 'center' }}>

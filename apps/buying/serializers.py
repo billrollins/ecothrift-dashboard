@@ -9,7 +9,13 @@ from django.db.models.functions import Coalesce
 from rest_framework import serializers
 
 from apps.buying.models import Auction, AuctionSnapshot, ManifestRow, Marketplace, WatchlistEntry
-from apps.buying.services.valuation import cost_sources, get_global_shrinkage, get_valuation_source
+from apps.buying.services.valuation import (
+    cost_sources,
+    get_global_shrinkage,
+    get_priority_profit_weight,
+    get_valuation_source,
+    profit_score,
+)
 
 
 class MarketplaceSerializer(serializers.ModelSerializer):
@@ -259,6 +265,9 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
     shipping_rate_applied = serializers.SerializerMethodField()
     shipping_source = serializers.SerializerMethodField()
     shipping_estimate = serializers.SerializerMethodField()
+    priority_basis = serializers.SerializerMethodField()
+    profit_score = serializers.SerializerMethodField()
+    priority_profit_weight = serializers.SerializerMethodField()
 
     class Meta:
         model = Auction
@@ -311,6 +320,9 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
             'shipping_rate_applied',
             'shipping_source',
             'shipping_estimate',
+            'priority_basis',
+            'profit_score',
+            'priority_profit_weight',
             'pallet_count',
             'origin_city',
             'origin_zip',
@@ -349,6 +361,19 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
 
     def get_shipping_estimate(self, obj: Auction) -> dict | None:
         return self._cost_sources(obj)['shipping_estimate']
+
+    def get_priority_basis(self, obj: Auction) -> str:
+        """``override`` | ``need_profit`` | ``need_only`` (no category mix: Need filled in)."""
+        if obj.priority_override:
+            return 'override'
+        has_mix = get_valuation_source(obj) != 'none'
+        return 'need_profit' if has_mix and obj.profitability_ratio is not None else 'need_only'
+
+    def get_profit_score(self, obj: Auction) -> int | None:
+        return profit_score(obj.profitability_ratio)
+
+    def get_priority_profit_weight(self, obj: Auction) -> str:
+        return str(get_priority_profit_weight())
 
     def get_my_thumbs_up(self, obj: Auction) -> bool:
         v = getattr(obj, '_user_thumbs_up', None)

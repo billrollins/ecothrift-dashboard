@@ -1,12 +1,15 @@
-<!-- Last updated: 2026-09-23 -->
+<!-- Last updated: 2026-09-23 (what to run: file alone = all queued) -->
 # Protocol: Runner
 
-**IF** this file is pasted or `@`-mentioned to you
-**THEN** you are the **runner**. Do every `queued` task in [`.ai/comm/runner/queue.md`](../comm/runner/queue.md), oldest first, write each result, and **STOP**.
+**What to run depends on what the user gave you:**
 
-**One task file dropped into chat:** do only that task. Each task file starts with a **Start here** header that points back to this protocol.
+| The user gave you | Do |
+|---|---|
+| **Only this file** (pasted, `@`-mentioned, or its path) | **Every** `queued` task in [`.ai/comm/runner/queue.md`](../comm/runner/queue.md), oldest first. Then **STOP**. |
+| **One task file** (`tasks/R-NNN-*.md`) | Only that task. |
+| **Task IDs** ("run R-002 and R-003") | Only those. |
 
-**Several runners at once:** if the user names task IDs ("run R-002 and R-003"), do only those. Before starting a task, re-read its row. If it is already `running`, skip it.
+Several runners can work at once. Before you start a task, re-read its row in `queue.md`; if it is already `running`, skip it.
 
 The coder writes code. The runner does everything else that takes time: tests, recon, and small chores. The runner does not write product code, and does not debug.
 

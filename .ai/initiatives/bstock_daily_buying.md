@@ -181,6 +181,8 @@ Marking an auction Won creates a PO that carries the manifest, which feeds the P
 
 ## Record
 
+**2026-09-23 — Phase 2 done (pending tests).** Priority = (1 − w) × Need + w × profit score (w = `buying_priority_profit_weight`, 0.5). The profit score is profit ÷ all-in cost at the current price, 1–99. No category mix means Need only (AUC-03). The Need panel shows coverage (70% of 90-day sales categorized, 99.5% with a shelf date). Buying `0027` seeds the weight. Known limit: the profit score at the current bid runs high early in an auction; Phase 5 price targets handle that.
+
 **2026-09-23 — Shipped v2.98.0.** Fees, the shipping formula, Costco and Need v2 (Phase 2 part) go live. The runner R-014 pre-ship run was GREEN. The owner still needs to add the Heroku Scheduler job `pull_shortlist_manifests` every 10 minutes.
 
 **2026-09-23 — Phase 2 started: Need v2.** Need is weeks of cover: (shelf + in the building + on order) ÷ weekly sales, against a target that defaults to the store's own cover (35.5 weeks locally). Goals per category (more / normal / less / stop) are set from the panel. Open POs older than 120 days are ignored: 98k units on stale "delivered" and "processing" POs with no categorized lines were never closed. The 22 POs delivered but not processed in the last 120 days ($672k retail, R-003) do count. PO line categories are B-Stock codes (`TOYS`), mapped by `CategoryMapping` majority. Local effect: Health & beauty fell from 74 to 42 (2,390 on order), Toys from 81 to 73, Office from 78 to 65. Still to come in Phase 2: sales and speed from R-004, processing from R-005, won-not-PO'd auctions (Phase 6 link), and Priority re-based on profit.

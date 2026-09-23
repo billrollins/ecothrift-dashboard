@@ -163,7 +163,7 @@ Every fill-in in code, in one place.
 |---|---|---|
 | Open PO older than 120 days = processed | `category_stats_sql._on_order_rows`, `buying_pipeline_max_age_days` | PO-01 |
 | PO line category: preprocessing `final_category` if a taxonomy name; else the code by `CategoryMapping` majority (at least 2 votes and 60%); else Mixed lots | `category_stats_sql._on_order_rows`, `category_code_to_taxonomy` | PO-03 |
-| No category mix → Need 50 | `valuation._auction_need_from_mix` | AUC-03 |
+| No category mix → Need 50, and Priority = Need (no profit blend); shown on the auction as "filled in" | `valuation._auction_need_from_mix`, `valuation.compute_priority` | AUC-03 |
 | Nothing sold in the window → Need 1 when stocked, 50 when empty | `category_stats_sql.need_from_cover` | (Need v2) |
 | Need target = the store's own cover when the setting is 0 | `category_stats_sql.effective_target_weeks` | (Need v2) |
 | Days to sell only from `listed_at` ≤ `sold_at` | `category_stats_sql._speed_rows` | ITM-02, ITM-03 |

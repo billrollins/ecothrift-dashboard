@@ -72,3 +72,16 @@ describe('shippingCaption', () => {
     expect(shippingCaption(d)).toContain("B-Stock's quote to 68124 (TL)");
   });
 });
+
+describe('needNote and priorityNote', () => {
+  it('says when Need was filled in and how Priority was set', async () => {
+    const { needNote, priorityNote } = await import('./buyingCostNotes');
+    expect(needNote(detail({ valuation_source: 'none' }))).toBe('filled in: no category mix');
+    expect(needNote(detail({ valuation_source: 'manifest' }))).toBeNull();
+    expect(priorityNote(detail({ priority_basis: 'need_profit', priority_profit_weight: '0.5', profit_score: 72 }))).toBe(
+      'Need 50% + profit 50%, profit 72'
+    );
+    expect(priorityNote(detail({ priority_basis: 'need_only' }))).toBe('Need only (no profit estimate)');
+    expect(priorityNote(detail({ priority_basis: 'override' }))).toBe('set by hand');
+  });
+});

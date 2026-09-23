@@ -62,3 +62,21 @@ export function shippingCaption(detail: BuyingAuctionDetail): string {
   }
   return 'Override ($). Default: the B-Stock quote once you open the listing on B-Stock, else pallets x $ per pallet, else rate x price.';
 }
+
+/** Small line under an auction's Need: filled in when there is no category mix. */
+export function needNote(detail: BuyingAuctionDetail): string | null {
+  return detail.valuation_source === 'none' ? 'filled in: no category mix' : null;
+}
+
+/** Small line under an auction's Priority: how it was set. */
+export function priorityNote(detail: BuyingAuctionDetail): string | null {
+  if (detail.priority_basis === 'override') return 'set by hand';
+  if (detail.priority_basis === 'need_only') return 'Need only (no profit estimate)';
+  if (detail.priority_basis === 'need_profit') {
+    const w = Number.parseFloat(detail.priority_profit_weight ?? '0.5');
+    const profitPct = Math.round((Number.isFinite(w) ? w : 0.5) * 100);
+    const score = detail.profit_score != null ? `, profit ${detail.profit_score}` : '';
+    return `Need ${100 - profitPct}% + profit ${profitPct}%${score}`;
+  }
+  return null;
+}

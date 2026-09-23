@@ -245,6 +245,45 @@ def shipping_estimate(
     return {'basis': 'rate', 'amount': (price * ship_rate).quantize(CENT), 'rate': ship_rate}
 
 
+def get_priority_profit_weight(using: str = 'default') -> Decimal:
+    """Admin > Assumptions ``buying_priority_profit_weight`` (0-1): profit's share of Priority."""
+    try:
+        v = Decimal(str(AppSetting.objects.using(using).get(key='buying_priority_profit_weight').value))
+    except Exception:
+        return Decimal('0.5')
+    return min(Decimal('1'), max(Decimal('0'), v))
+
+
+def profit_score(profitability_ratio: Decimal | None) -> int | None:
+    """
+    1-99 from profit / all-in cost: 0 or less is 1, a 50% return is 50, doubling the money
+    (the 2x profit goal) or better is 99.
+    """
+    if profitability_ratio is None:
+        return None
+    return max(1, min(99, int((Decimal('100') * profitability_ratio).quantize(Decimal('1'), rounding=ROUND_HALF_UP))))
+
+
+def compute_priority(
+    need: int,
+    profitability_ratio: Decimal | None,
+    *,
+    has_mix: bool,
+    weight: Decimal | None = None,
+) -> tuple[int, str]:
+    """
+    ``(priority, basis)``. basis ``need_profit``: need and profit score blended by the weight.
+    basis ``need_only``: no category mix, so revenue (and profit) is not known; Priority is
+    Need, which is itself filled in as 50 (register AUC-03).
+    """
+    score = profit_score(profitability_ratio)
+    if not has_mix or score is None:
+        return need, 'need_only'
+    w = get_priority_profit_weight() if weight is None else weight
+    blended = (Decimal('1') - w) * Decimal(need) + w * Decimal(score)
+    return max(1, min(99, int(blended.quantize(Decimal('1'), rounding=ROUND_HALF_UP)))), 'need_profit'
+
+
 def cost_sources(auction: Auction) -> dict[str, Any]:
     """
     Where fees and shipping come from, for the detail page and max bid:
@@ -371,7 +410,7 @@ def recompute_auction_full(
     auction.est_profit = est_profit
 
     if not auction.priority_override:
-        auction.priority = need_val
+        auction.priority, _ = compute_priority(need_val, profitability_ratio, has_mix=bool(weights))
 
     auction.save(
         update_fields=[
@@ -426,7 +465,7 @@ def recompute_auction_lightweight(
     auction.est_profit = est_profit
 
     if not auction.priority_override:
-        auction.priority = need_val
+        auction.priority, _ = compute_priority(need_val, profitability_ratio, has_mix=bool(weights))
 
     auction.save(
         update_fields=[

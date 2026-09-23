@@ -10,6 +10,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+User-facing theme: **Auction Priority weighs profit as well as Need, and Need says how much data backs it.**
+
+Initiative: [`bstock_daily_buying`](./.ai/initiatives/bstock_daily_buying.md) Phase 2.
+
+### Changed
+
+- Auction **Priority** blends Need with a profit score (profit ÷ all-in cost; 99 = doubles the money), half and half by default (Admin > Assumptions **Priority: profit weight**). Auctions with no category mix keep Priority = Need, and the page says Need was filled in.
+- The Inventory need panel header shows how much sales data has a real category.
+
 ## [2.98.0] - 2026-09-23
 
 User-facing theme: **Superusers get B-Stock manifests pulled for them each morning, from the desk or a phone, and pick every AI model in one place.**
