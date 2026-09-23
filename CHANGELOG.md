@@ -10,7 +10,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [2.99.0] - 2026-09-23
 
 User-facing theme: **Auction Priority weighs profit as well as Need, and Need says how much data backs it.**
 

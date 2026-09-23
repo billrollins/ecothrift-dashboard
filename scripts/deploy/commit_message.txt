@@ -1,1 +1,10 @@
----
+feat: v2.99.0 Priority blends Need and profit; Need coverage
+
+Release: v2.99.0
+
+- Auction Priority = Need blended with a profit score (Assumptions weight, default 0.5; buying/0027).
+- Auctions with no category mix keep Priority = Need and say Need was filled in.
+- Inventory need panel shows how much sales data is categorized.
+- Runner R-015 GREEN. Docs: product_intelligence plan, runner protocol, runner tasks R-016 to R-018.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
