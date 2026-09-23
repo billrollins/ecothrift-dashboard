@@ -11,6 +11,8 @@ from django.test import SimpleTestCase, override_settings
 
 from apps.core.services.llm_router import (
     LLMAPIError,
+    LLMResult,
+    effort_payload,
     LLMConfigError,
     ai_model,
     is_provider_configured,
@@ -294,15 +296,14 @@ class RouterCompletionTests(SimpleTestCase):
 @override_settings(
     AI_PROVIDER='auto',
     XAI_API_KEY='xai-k',
-    AI_MODEL_AI_CHAT='grok-4-1-fast',
-    AI_MODEL='claude-sonnet-4-6',
+    AI_MODEL='grok-4-1-fast',
 )
 class PurposeResolutionTests(SimpleTestCase):
     def test_ai_model_purpose_lookup_and_override(self):
+        # No database here, so every purpose uses the AI_MODEL fallback.
         self.assertEqual(ai_model('AI_CHAT'), 'grok-4-1-fast')
         self.assertEqual(ai_model('AI_CHAT', 'gemini-2.5-flash'), 'gemini-2.5-flash')
-        # Unset purpose falls back to AI_MODEL.
-        self.assertEqual(ai_model('NO_SUCH_PURPOSE'), 'claude-sonnet-4-6')
+        self.assertEqual(ai_model('NO_SUCH_PURPOSE'), 'grok-4-1-fast')
 
     def test_llm_chat_text_uses_purpose_model(self):
         payload = {
@@ -314,3 +315,119 @@ class PurposeResolutionTests(SimpleTestCase):
         self.assertEqual(post.call_args.kwargs['json']['model'], 'grok-4-1-fast')
         self.assertEqual(text, 'ok')
         self.assertEqual(model_used, 'grok-4-1-fast')
+
+
+@override_settings(
+    AI_PROVIDER='auto',
+    ANTHROPIC_API_KEY='ant-k',
+    XAI_API_KEY='xai-k',
+    GOOGLE_API_KEY='goo-k',
+    XAI_API_BASE='https://api.x.ai/v1',
+)
+class EffortAndCompatRetryTests(SimpleTestCase):
+    XAI_OK = {'choices': [{'message': {'content': 'ok'}, 'finish_reason': 'stop'}], 'model': 'grok-4.7'}
+    GOOGLE_OK = {'candidates': [{'content': {'parts': [{'text': 'ok'}]}, 'finishReason': 'STOP'}]}
+
+    def _anthropic_client(self):
+        client = mock.MagicMock()
+        client.messages.create.return_value = _FakeAnthropicResponse(
+            [_FakeAnthropicBlock('text', text='ok')],
+        )
+        return client
+
+    def test_effort_payload_mapping(self):
+        self.assertIsNone(effort_payload('anthropic', 'claude-opus-5-5', 'off'))
+        self.assertIsNone(effort_payload('anthropic', 'claude-opus-5-5', None))
+        self.assertEqual(effort_payload('anthropic', 'claude-opus-5-5', 'max'), 'max')
+        self.assertEqual(effort_payload('xai', 'grok-4.7', 'medium'), 'medium')
+        self.assertEqual(effort_payload('xai', 'grok-4.7', 'max'), 'xhigh')
+        self.assertEqual(effort_payload('google', 'gemini-3.8-flash', 'medium'), 'medium')
+        self.assertEqual(effort_payload('google', 'gemini-3.8-flash', 'max'), 'high')
+        self.assertIsNone(effort_payload('google', 'gemini-2.5-flash', 'high'))
+        self.assertIsNone(effort_payload('xai', 'grok-4.7', 'bogus'))
+
+    def test_anthropic_effort_goes_in_extra_body(self):
+        client = self._anthropic_client()
+        with mock.patch('anthropic.Anthropic', return_value=client):
+            llm_complete(model_id='claude-sonnet-4-6', user='hi', effort='high')
+        kwargs = client.messages.create.call_args.kwargs
+        self.assertEqual(kwargs['extra_body'], {'output_config': {'effort': 'high'}})
+
+    def test_anthropic_effort_off_sends_nothing(self):
+        client = self._anthropic_client()
+        with mock.patch('anthropic.Anthropic', return_value=client) as ctor:
+            llm_complete(model_id='claude-sonnet-4-6', user='hi', effort='off')
+        self.assertNotIn('extra_body', client.messages.create.call_args.kwargs)
+        ctor.assert_called_once_with(api_key='ant-k')
+
+    def test_anthropic_max_retries_is_passed_to_client(self):
+        client = self._anthropic_client()
+        with mock.patch('anthropic.Anthropic', return_value=client) as ctor:
+            llm_complete(model_id='claude-sonnet-4-6', user='hi', max_retries=0)
+        ctor.assert_called_once_with(api_key='ant-k', max_retries=0)
+
+    def test_xai_reasoning_effort(self):
+        with mock.patch('requests.post', return_value=_FakeHTTPResponse(self.XAI_OK)) as post:
+            llm_complete(model_id='grok-4.7', user='hi', effort='max')
+        self.assertEqual(post.call_args.kwargs['json']['reasoning_effort'], 'xhigh')
+
+    def test_google_thinking_level(self):
+        with mock.patch('requests.post', return_value=_FakeHTTPResponse(self.GOOGLE_OK)) as post:
+            llm_complete(model_id='gemini-3.8-flash', user='hi', effort='low')
+        sent = post.call_args.kwargs['json']
+        self.assertEqual(sent['generationConfig']['thinkingConfig'], {'thinkingLevel': 'low'})
+
+    def test_retry_drops_rejected_effort(self):
+        bad = _FakeHTTPResponse(
+            {}, status_code=400,
+            text='Model grok-4.20-0309-reasoning does not support parameter reasoningEffort.',
+        )
+        with mock.patch('requests.post', side_effect=[bad, _FakeHTTPResponse(self.XAI_OK)]) as post:
+            result = llm_complete(model_id='grok-4.20-0309-reasoning', user='hi', effort='high')
+        self.assertEqual(result.text, 'ok')
+        self.assertEqual(post.call_count, 2)
+        self.assertIn('reasoning_effort', post.call_args_list[0].kwargs['json'])
+        self.assertNotIn('reasoning_effort', post.call_args_list[1].kwargs['json'])
+
+    def test_unrelated_400_is_not_retried(self):
+        bad = _FakeHTTPResponse({}, status_code=400, text='bad field')
+        with mock.patch('requests.post', side_effect=[bad]) as post:
+            with self.assertRaises(LLMAPIError):
+                llm_complete(model_id='grok-4.7', user='hi', effort='high')
+        self.assertEqual(post.call_count, 1)
+
+    def test_retry_drops_temperature_then_forced_tool(self):
+        stub = mock.Mock(side_effect=[
+            LLMAPIError('temperature is not supported for this model', kind='bad_request', status_code=400),
+            LLMAPIError('tool_choice: type "tool" and "any" are not supported for this model.', kind='bad_request', status_code=400),
+            LLMResult(text='', model_used='claude-opus-5-5', tool_input={'a': 1}),
+        ])
+        tools = [{'name': 't', 'description': '', 'input_schema': {'type': 'object', 'properties': {}}}]
+        # A model NOT on the quirk lists, so this exercises the retry backstop.
+        with mock.patch.dict('apps.core.services.llm_router._PROVIDER_CALLS', {'anthropic': stub}):
+            result = llm_complete(
+                model_id='claude-sonnet-4-6', user='hi', temperature=0.0, tool_name='t', tools=tools,
+            )
+        self.assertEqual(result.tool_input, {'a': 1})
+        self.assertEqual(stub.call_count, 3)
+        self.assertIsNone(stub.call_args_list[1].kwargs['temperature'])
+        self.assertTrue(stub.call_args_list[1].kwargs['force_tool'])
+        self.assertFalse(stub.call_args_list[2].kwargs['force_tool'])
+
+    def test_opus_5_5_is_compatible_up_front(self):
+        client = self._anthropic_client()
+        client.messages.create.return_value = _FakeAnthropicResponse(
+            [_FakeAnthropicBlock('tool_use', name='t', input={'a': 1})],
+        )
+        tools = [{'name': 't', 'description': '', 'input_schema': {'type': 'object', 'properties': {}}}]
+        with mock.patch('anthropic.Anthropic', return_value=client):
+            result = llm_complete(
+                model_id='claude-opus-5-5', system='sys', user='hi', temperature=0.0,
+                tool_name='t', tools=tools,
+            )
+        self.assertEqual(client.messages.create.call_count, 1)
+        kwargs = client.messages.create.call_args.kwargs
+        self.assertNotIn('temperature', kwargs)
+        self.assertEqual(kwargs['tool_choice'], {'type': 'auto'})
+        self.assertIn('You must answer by calling the tool `t`', kwargs['system'][0]['text'])
+        self.assertEqual(result.tool_input, {'a': 1})

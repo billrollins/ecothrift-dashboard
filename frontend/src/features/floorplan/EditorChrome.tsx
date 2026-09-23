@@ -45,6 +45,7 @@ import ContentCutIcon from '@mui/icons-material/ContentCut';
 import TextFieldsIcon from '@mui/icons-material/TextFields';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import AddIcon from '@mui/icons-material/Add';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import EditIcon from '@mui/icons-material/Edit';
 import FlipIcon from '@mui/icons-material/Flip';
 import LinkIcon from '@mui/icons-material/Link';
@@ -552,6 +553,7 @@ interface PaletteSidebarProps {
   /** Super Admin: show "New element type" + per-kind edit affordances */
   canManageKinds?: boolean;
   onCreateKind?: () => void;
+  onBuildSvg?: () => void;
   onEditKind?: (entry: PaletteEntry) => void;
 }
 
@@ -563,7 +565,7 @@ const INFO_BLOCK_TYPES: { type: PlanInfoBlock['type']; label: string }[] = [
   { type: 'scaleBar', label: 'Scale reference' },
 ];
 
-export function PaletteSidebar({ entries, pendingPlacement, onPick, onAddInfoBlock, drawStroke, onDrawStrokeChange, activeTool, readOnly, canManageKinds = false, onCreateKind, onEditKind }: PaletteSidebarProps) {
+export function PaletteSidebar({ entries, pendingPlacement, onPick, onAddInfoBlock, drawStroke, onDrawStrokeChange, activeTool, readOnly, canManageKinds = false, onCreateKind, onBuildSvg, onEditKind }: PaletteSidebarProps) {
   const grouped = useMemo(
     () => paletteCategories(entries).map((cat) => ({ cat, entries: entries.filter((e) => e.category === cat) })),
     [entries],
@@ -576,11 +578,18 @@ export function PaletteSidebar({ entries, pendingPlacement, onPick, onAddInfoBlo
           View only - Manager or Admin role required to edit.
         </Typography>
       )}
-      {canManageKinds && onCreateKind && (
-        <Box sx={{ px: 1, pt: 1 }}>
-          <Button size="small" fullWidth variant="outlined" startIcon={<AddIcon />} onClick={onCreateKind} sx={{ textTransform: 'none' }}>
-            New element type
-          </Button>
+      {canManageKinds && (onCreateKind || onBuildSvg) && (
+        <Box sx={{ px: 1, pt: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {onCreateKind && (
+            <Button size="small" fullWidth variant="outlined" startIcon={<AddIcon />} onClick={onCreateKind} sx={{ textTransform: 'none' }}>
+              New element type
+            </Button>
+          )}
+          {onBuildSvg && (
+            <Button size="small" fullWidth variant="outlined" startIcon={<AutoAwesomeIcon />} onClick={onBuildSvg} sx={{ textTransform: 'none' }}>
+              Build SVG with AI
+            </Button>
+          )}
         </Box>
       )}
       <List dense disablePadding subheader={<li />} sx={{ '& ul': { p: 0 } }}>

@@ -14,6 +14,7 @@ from apps.core.services.llm_router import (
     LLMConfigError,
     llm_complete,
 )
+from apps.core.ai_config import ai_effort
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +84,7 @@ def suggest_category_for_source_key(
     marketplace_slug: str | None = None,
 ) -> tuple[str, str]:
     """
-    One model call (AI_MODEL_CATEGORY_AI): returns (canonical_category, reasoning) or raises.
+    One model call (CATEGORY_AI model, Settings > AI): returns (canonical_category, reasoning) or raises.
     sample_rows: ManifestRow-like with title, brand, condition.
     """
     sample_lines: list[tuple[str, str, str]] = []
@@ -102,6 +103,7 @@ def suggest_category_for_source_key(
             system=system,
             user=user,
             max_tokens=1024,
+            effort=ai_effort('CATEGORY_AI'),
             log_source='categorize_manifests',
             log_detail=f'source_key={source_key[:120]!r}',
             log_auction_id=auction_id,

@@ -52,7 +52,7 @@ from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsSuperAdmin
 from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED, TAXONOMY_V1_CATEGORY_NAMES
 from apps.inventory.canonical_categories import canonical_category_name
 
-from apps.core.ai_config import ai_model
+from apps.core.ai_config import ai_effort, ai_model
 from apps.core.logging import get_logger
 from apps.core.models import AppSetting, S3File
 from apps.core.services.ai_usage_log import log_ai_usage
@@ -6789,6 +6789,7 @@ class ProductViewSet(viewsets.ModelViewSet):
                 system=system_prompt,
                 user=user_message_json,
                 max_tokens=1024,
+                effort=ai_effort('SUGGEST_PRODUCT'),
                 timeout=60.0,
                 log_source='suggest_product',
                 log_detail='POST suggest_product',
@@ -6849,6 +6850,7 @@ class ProductViewSet(viewsets.ModelViewSet):
                             {'role': 'user', 'content': retry_user},
                         ],
                         max_tokens=1024,
+                        effort=ai_effort('SUGGEST_PRODUCT'),
                         timeout=60.0,
                         log_source='suggest_product',
                         log_detail='POST suggest_product category retry',
@@ -7687,6 +7689,7 @@ class ItemViewSet(viewsets.ModelViewSet):
                 system=system_prompt,
                 user=user_message_json,
                 max_tokens=1024,
+                effort=ai_effort('SUGGEST_ITEM'),
                 timeout=60.0,
                 log_source='suggest_item',
                 log_detail='POST suggest_item',
@@ -7762,6 +7765,7 @@ class ItemViewSet(viewsets.ModelViewSet):
                             {'role': 'user', 'content': retry_user},
                         ],
                         max_tokens=1024,
+                        effort=ai_effort('SUGGEST_ITEM'),
                         timeout=60.0,
                         log_source='suggest_item',
                         log_detail='POST suggest_item category retry',

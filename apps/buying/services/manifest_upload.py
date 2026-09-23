@@ -96,7 +96,7 @@ def process_manifest_upload(
                     'detail': (
                         'Unknown manifest format. A template stub was created for review. '
                         'Configure the template in admin or re-upload after setting the AI API key '
-                        'for the configured AI_MODEL_MANIFEST_TEMPLATE provider.'
+                        'for the Manifest template model chosen in Settings > AI.'
                     ),
                     'code': 'unknown_template',
                     'template_status': 'unknown',

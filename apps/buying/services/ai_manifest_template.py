@@ -16,6 +16,7 @@ from apps.core.services.llm_router import (
     LLMConfigError,
     llm_complete,
 )
+from apps.core.ai_config import ai_effort
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +148,7 @@ def propose_manifest_template_with_ai(
     auction_id: int | None,
 ) -> bool:
     """
-    Call the configured model (AI_MODEL_MANIFEST_TEMPLATE) to fill column_map and
+    Call the MANIFEST_TEMPLATE model (Settings > AI) to fill column_map and
     category_fields; set is_reviewed=True. Returns True on success.
     """
     model = _default_model()
@@ -160,6 +161,7 @@ def propose_manifest_template_with_ai(
             system=system,
             user=user,
             max_tokens=4096,
+            effort=ai_effort('MANIFEST_TEMPLATE'),
             log_source='ai_template_creation',
             log_detail='propose_manifest_template_with_ai',
             log_auction_id=auction_id,

@@ -535,7 +535,7 @@ class AspectRatioHelperTests(TestCase):
         self.assertEqual(aspect_ratio_for_inches(2, 2), '1:1')
 
 
-@override_settings(XAI_API_KEY='test-xai-key', AI_MODEL_LABEL_STRUCTURE='grok-4-1-fast')
+@override_settings(XAI_API_KEY='test-xai-key', AI_MODEL='grok-4-1-fast')
 class AiCreateApiTests(APITestCase):
     def setUp(self):
         throttle_cache = LocMemCache(f'label-ai-{id(self)}', {})

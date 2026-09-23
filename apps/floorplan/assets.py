@@ -107,3 +107,21 @@ def sanitize_asset_upload(uploaded_file):
 
     encoded = base64.b64encode(raw).decode('ascii')
     return f'data:{content_type};base64,{encoded}', content_type
+
+
+def sanitize_svg_markup(markup: str) -> str:
+    """Sanitize SVG text (not an upload) and return it as a data URI.
+
+    Same rules and size cap as ``sanitize_asset_upload``. Raises DRF
+    ValidationError keyed ``file`` like the upload path.
+    """
+    raw = str(markup or '').encode('utf-8')
+    if not raw.strip():
+        _err('SVG is empty.')
+    if len(raw) > MAX_ASSET_BYTES:
+        _err(f'SVG too large ({len(raw)} bytes; max {MAX_ASSET_BYTES}).')
+    clean = _sanitize_svg(raw)
+    if len(clean) > MAX_ASSET_BYTES:
+        _err('SVG too large after processing.')
+    encoded = base64.b64encode(clean).decode('ascii')
+    return f'data:image/svg+xml;base64,{encoded}'

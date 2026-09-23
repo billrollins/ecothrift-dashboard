@@ -2,6 +2,8 @@
 
 **Purpose:** Prompt templates for generating SVG assets that upload cleanly into the Eco-Thrift floorplan builder (`FloorPlanAsset` → element kind default image or per-instance `element.image`).
 
+**Live prompt:** Build SVG with AI uses `SVG_SYSTEM_PROMPT` in `apps/floorplan/ai.py`.
+
 **Store finished files in:** [`element-svg/`](element-svg/) (by category; filename = `{kind}.svg`).
 
 **Last updated:** 2026-07-02
@@ -13,7 +15,7 @@
 | Rule | Detail |
 |------|--------|
 | **View** | Top-down / bird's-eye **floor plan** only (not elevation, not 3D, not perspective) |
-| **Scaling** | SVG is drawn inside the element footprint with `preserveAspectRatio="xMidYMid meet"` — artwork is **letterboxed** if aspect ratio differs |
+| **Scaling** | The editor stretches the SVG to the footprint (`preserveAspectRatio="none"`), so the viewBox ratio must match W x H exactly |
 | **Footprint units** | Plan uses **inches**; default element size is W×H in inches (e.g. gondola **48×144**) |
 | **viewBox** | Set `viewBox="0 0 {width} {height}"` using the **same numeric ratio** as the element footprint (recommended: use footprint inches directly) |
 | **Coordinate system** | SVG origin top-left, **y increases downward** (matches canvas) |

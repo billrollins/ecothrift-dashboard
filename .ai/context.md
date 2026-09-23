@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-22 (one release when all work is done; own-aisle fix and kiosk follow-ups unreleased) -->
+<!-- Last updated: 2026-09-23 (B-Stock Phase 1 + ai settings/floorplan AI merged; one release when all work is done) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -18,6 +18,7 @@ Full-stack business management for a thrift store in Omaha, NE. HR (time clock, 
 - **ACTIVE — B-Stock daily buying:** [`bstock_daily_buying`](initiatives/bstock_daily_buying.md) — fresh stats, auto manifests for a shortlist, won → PO, truck score, daily Top picks.
 - **Unreleased, outside initiatives:** own-aisle cross-check fix (`routines/0027_orphan_section_drafts`, runs before B-Stock's `0028`) and kiosk follow-ups (Exit without password, sign-in **Scan your card**). Both are in `[Unreleased]`.
 - **ACTIVE — Universal object surfaces:** [`universal_object_surfaces`](initiatives/universal_object_surfaces.md) — design only. No code scheduled.
+- **ACTIVE - AI settings + floorplan AI:** [`ai_settings_floorplan`](initiatives/ai_settings_floorplan.md) - Settings > AI (superuser), Build SVG / Adjust with AI in the floorplan editor.
 
 Completed 2026-09-22: [`time_kiosk`](initiatives/_archived/_completed/time_kiosk.md) (**v2.96.0**), [`departments_admin`](initiatives/_archived/_completed/departments_admin.md) and [`retail_qa_scoring_v2`](initiatives/_archived/_completed/retail_qa_scoring_v2.md) (GitHub **v2.95.0**, Heroku with **v2.96.0**), [`cardx_surcharge`](initiatives/_archived/_completed/cardx_surcharge.md) (**v2.92.0–v2.94.0**), [`listing_photos`](initiatives/_archived/_completed/listing_photos.md) (**v2.91.0**). Kiosk and Command Center follow-ups continue without an initiative.
 
@@ -36,7 +37,7 @@ Sidebar entries removed. Consignment bookmarks still work. Documents routes are 
 | **Consignment (staff)** | Accounts, Items, Payouts (+ account detail) | `/consignment/accounts`, `/consignment/accounts/:id`, `/consignment/items`, `/consignment/payouts` |
 | **Documents** | Account-menu link off. Pages stay in `frontend/src/pages/documents/`. | `/documents*` unwired — catch-all goes to Dashboard. Rewire when the UI is tuned. |
 
-**HR (account menu):** Today (`/today` punch + day's routines), Pay (`/pay` ledger), Routines (plus staff `/routines/qa`). Essentials → **Kiosk** (`/kiosk`). Desk Home / Today / Pay / Routines share `FloorNav` (same names as the phone tab bar). Digit 9 and letter L are free. **Admin:** Users (Employees first and default for Admin, Customers second; Managers only see Customers), Departments (directory + hub), Shifts, Routines / Routine Control (superuser — Routines, Sections), Time & payroll (superuser), Settings (System / Printing / Store / Assumptions / Retail QA / Permissions). Retail QA Command Center stays on Cashier (`/admin/retail-qa`, Manager+). **Studios:** Label Studio, Floorplans, Blog Studio. **Consignee portal** (`/consignee/*`) unchanged.
+**HR (account menu):** Today (`/today` punch + day's routines), Pay (`/pay` ledger), Routines (plus staff `/routines/qa`). Essentials → **Kiosk** (`/kiosk`). Desk Home / Today / Pay / Routines share `FloorNav` (same names as the phone tab bar). Digit 9 and letter L are free. **Admin:** Users (Employees first and default for Admin, Customers second; Managers only see Customers), Departments (directory + hub), Shifts, Routines / Routine Control (superuser — Routines, Sections), Time & payroll (superuser), Settings (System / Printing / Store / Assumptions / Retail QA / Permissions / AI for superusers). Retail QA Command Center stays on Cashier (`/admin/retail-qa`, Manager+). **Studios:** Label Studio, Floorplans, Blog Studio. **Consignee portal** (`/consignee/*`) unchanged.
 
 ## File Map
 

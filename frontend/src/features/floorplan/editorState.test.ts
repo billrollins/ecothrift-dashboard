@@ -3,6 +3,8 @@ import type { PlanDocument, PlanElement } from '../../types/floorplan.types';
 import {
   activeConfigId,
   addConfig,
+  aiAdjustDocument,
+  replaceActiveLayers,
   addElement,
   alignObjects,
   cloneObjects,
@@ -603,5 +605,43 @@ describe('cutWallAt', () => {
     doc = addElement(doc, { ...el('wall', 0, 0), kind: 'wall', w: 96, h: 6 });
     expect(cutWallAt(doc, { kind: 'element', id: 'wall' }, { x: 1, y: 3 })).toBeNull();
     expect(cutWallAt(doc, { kind: 'element', id: 'wall' }, { x: 95.5, y: 3 })).toBeNull();
+  });
+});
+
+
+describe('AI adjust helpers', () => {
+  const noLayers = { elements: [], zones: [], paths: [], labels: [], infoBlocks: [] };
+
+  it('sends the active layers only', () => {
+    let doc = addElement(emptyDoc(), el('a'));
+    doc = addConfig(doc, 'Holiday');
+    const payload = aiAdjustDocument(doc);
+    expect('configStore' in payload).toBe(false);
+    expect(payload.schema_version).toBe(1);
+    expect(payload.settings).toBe(doc.settings);
+  });
+
+  it('replaces active layers and keeps configStore and the config list', () => {
+    let doc = addElement(emptyDoc(), el('a', 10, 10));
+    doc = addConfig(doc, 'Holiday');
+    const next = replaceActiveLayers(doc, { ...noLayers, elements: [el('b', 5, 5)] }, { planWidth: 2400 });
+    expect(next.elements.map((e) => e.id)).toEqual(['b']);
+    expect(next.configStore).toBe(doc.configStore);
+    expect(next.settings.configs).toEqual(doc.settings.configs);
+    expect(activeConfigId(next)).toBe(activeConfigId(doc));
+    expect(next.settings.planWidth).toBe(2400);
+    expect(next.settings.planHeight).toBe(doc.settings.planHeight);
+    const back = switchConfig(next, configMetas(next)[0].id);
+    expect(back.elements[0].id).toBe('a');
+  });
+
+  it('applies as one undoable step', () => {
+    let state = initialEditorState(emptyDoc());
+    const next = replaceActiveLayers(state.doc, { ...noLayers, elements: [el('b')] });
+    state = editorReducer(state, { type: 'commit', doc: next });
+    expect(state.past).toHaveLength(1);
+    expect(state.dirty).toBe(true);
+    state = editorReducer(state, { type: 'undo' });
+    expect(state.doc.elements).toHaveLength(0);
   });
 });

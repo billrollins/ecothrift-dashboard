@@ -221,7 +221,7 @@ Time clock and Routines are on the **account menu** (avatar), not the sidebar. D
 | **Departments** | `/admin/departments`, `/admin/departments/:slug` | Manager+: directory and per-department hub (home staff, shifts, routines, sections when present). Superuser create / rename / deactivate / delete / reorder. Grouping only; departments grant no permissions. |
 | **Customers** | `/admin/customers` | Admin: customer list. |
 | **Permissions** | `/admin/permissions` | Admin: permission matrix UI. |
-| **Settings** | `/admin/settings` | Manager+: app settings. Tabs `?tab=` — System, Printing, Store, Assumptions, **Retail QA** (grade weights, letter lines, audit floors, idle prompt minutes), Permissions (Admin only). |
+| **Settings** | `/admin/settings` | Manager+: app settings. Tabs `?tab=` — System, Printing, Store, Assumptions, **Retail QA** (grade weights, letter lines, audit floors, idle prompt minutes), Permissions (Admin only), **AI** (superuser only: model catalog, per-action model + effort). |
 | **Label Studio** | `/admin/label-studio` (+ `/:id`) | Manager+: label template library and visual/PDF designer; print integration. |
 | **Blog Studio** | `/blog-studio` | Superuser TipTap blog CMS for the public site; **new window**. |
 | **Time & payroll** | `/admin/time-payroll` | Superuser: roster, payroll summary, time-change requests. |

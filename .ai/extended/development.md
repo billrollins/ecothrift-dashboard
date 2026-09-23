@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-23 (manifest pull backstop timings) -->
+<!-- Last updated: 2026-09-23 (manifest pull backstop timings; ai settings + floorplan AI merged) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -183,9 +183,9 @@ Defined in `.env` (gitignored):
 | `XAI_API_KEY` | xAI Grok API key (**`GROK_API_KEY`** is an alias; used for `grok-*` ids) | — |
 | `GOOGLE_API_KEY` | Google Gemini API key (**`GEMINI_API_KEY`** is an alias; used for `gemini-*` ids) | — |
 | `XAI_API_BASE` | OpenAI-compatible base URL for Grok | `https://api.x.ai/v1` |
-| `AI_PROVIDER` | `auto` (route by model id: `grok*` → xAI, `gemini*` → Google, else Anthropic), or force `anthropic` / `xai` / `google` | `auto` |
-| `AI_MODEL` / `AI_MODEL_FAST` | Base fallback model ids (`ecothrift/settings.py`) | see `settings.py` |
-| `AI_MODEL_<PURPOSE>` | Per-feature model id (e.g. `AI_MODEL_SUGGEST_ITEM`, `AI_MODEL_INVENTORY_CLEANUP`); **any provider's id works for every purpose** — all call sites route via `apps/core/services/llm_router.py` | falls back to `AI_MODEL` / `AI_MODEL_FAST` |
+| `AI_PROVIDER` | `auto` (route by model id: `grok*` → xAI, `gemini*` → Google, else Anthropic), or force `anthropic` / `xai` / `google`. A catalog row's provider in Settings > AI wins over the prefix rule when `auto` | `auto` |
+| `AI_MODEL` | Emergency fallback model id only. Per-feature model + effort are chosen in **Settings > AI** (superuser; `core.AiAction`). Used when a feature has no model there or the DB cannot be read | `claude-sonnet-4-6` |
+| ~~`AI_MODEL_<PURPOSE>`~~, ~~`AI_MODEL_FAST`~~ | **Removed.** Migration `core/0006_ai_models_from_env` copied their values into Settings > AI; code no longer reads them. Delete them from `.env` / `.envprod` and unset on Heroku after that migration has run | - |
 | `AI_PRICING` | Defined in **`ecothrift/settings.py`** (per-model input/output/cache rates) — not env; costs logged to **`workspace/logs/ai_usage.jsonl`** | — |
 | `VITE_DEV_LOG` | Frontend dev console (`devLog`) for Add Item / suggest | `false` |
 | `BSTOCK_AUTH_TOKEN` | Last-resort JWT, after the handed-over `BStockToken` row and `workspace/.bstock_token` (from `python manage.py bstock_token` or DevTools) | — |

@@ -11,7 +11,7 @@ from apps.buying.services.ai_title_category_estimate import estimate_batch
 
 class Command(BaseCommand):
     help = (
-        "Run Claude (AI_MODEL_FAST) title category estimates for auction PKs, "
+        "Run the FAST model (Settings > AI) title category estimates for auction PKs, "
         "or --missing-both for open/closing auctions without AI or manifest mix."
     )
 

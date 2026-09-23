@@ -93,24 +93,23 @@ Default app: `ecothrift-dashboard` (`--app` override on the Python script).
 - `USE_S3`, `AWS_*`
 - B-Stock / SOCKS5 vars as needed
 
-### AI model knobs (slim)
+### AI models
 
-Code in `ecothrift/settings.py` + `apps/core/ai_config.py` supports many `AI_MODEL_<PURPOSE>` vars, but **most fall back** to:
+Per-feature models and effort are chosen in **Settings > AI** (superuser), not in env. Keep only:
 
 ```env
-AI_MODEL=grok-4-1-fast              # default for most features
-AI_MODEL_FAST=grok-4-1-fast         # high-volume paths
-AI_MODEL_INVENTORY_CLEANUP=gemini-2.5-flash   # preprocessing Step 2 only
+AI_MODEL=gemini-3.5-flash-lite      # emergency fallback when a feature has no model in Settings > AI
+AI_PROVIDER=auto
 ```
 
-Only add purpose-specific `AI_MODEL_*` lines when one feature needs a different model.
+`AI_MODEL_<PURPOSE>` and `AI_MODEL_FAST` are no longer read. Migration `core/0006_ai_models_from_env` copied their values into Settings > AI; after it has run on an environment, delete those lines (and `heroku config:unset` them on Heroku).
 
 ## How Django loads config
 
 - **Local:** `ecothrift/settings.py` reads `.env` from repo root when the file exists.
 - **Heroku:** no `.env` file; `settings_production.py` imports base settings; env vars come from Heroku Config Vars / `DATABASE_URL`.
 
-Relevant settings block: `ecothrift/settings.py` — `ANTHROPIC_API_KEY`, `XAI_API_KEY`, `GOOGLE_API_KEY`, `AI_MODEL*`, AWS, B-Stock.
+Relevant settings block: `ecothrift/settings.py` — `ANTHROPIC_API_KEY`, `XAI_API_KEY`, `GOOGLE_API_KEY`, `AI_MODEL` (fallback), AWS, B-Stock.
 
 ## AI provider routing (unified — llm_router)
 
@@ -121,8 +120,8 @@ Relevant settings block: `ecothrift/settings.py` — `ANTHROPIC_API_KEY`, `XAI_A
 - else → Anthropic (`ANTHROPIC_API_KEY`)
 
 `AI_PROVIDER=auto` (default) keeps that inference; setting it to `anthropic` / `xai` /
-`google` force-overrides for every call. Every `AI_MODEL_<PURPOSE>` knob therefore
-accepts any provider's model id — a missing key fails fast with `LLMConfigError`
+`google` force-overrides for every call. Any model picked in Settings > AI therefore
+accepts any provider's model id (a catalog row's provider wins over the prefix) — a missing key fails fast with `LLMConfigError`
 (HTTP 503 from API endpoints), never a silent wrong-provider call.
 
 ## Related files (outside `env/`)

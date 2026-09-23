@@ -2,6 +2,7 @@ from pathlib import Path
 from xml.sax.saxutils import escape
 
 from django.conf import settings
+from django.db import transaction
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -13,7 +14,7 @@ from rest_framework.response import Response
 from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsSuperAdmin
 from .models import (
     WorkLocation, AppSetting, AppSettingHistory, S3File, PrintServerRelease,
-    EnhancementRequest, EnhancementRequestNote,
+    EnhancementRequest, EnhancementRequestNote, AiAction, AiModel,
 )
 from .serializers import (
     WorkLocationSerializer, AppSettingSerializer,
@@ -21,7 +22,9 @@ from .serializers import (
     EnhancementRequestSerializer, EnhancementRequestWriteSerializer,
     EnhancementRequestTriageSerializer, EnhancementRequestNoteWriteSerializer,
     EnhancementRequestNoteSerializer, _can_own,
+    AiActionSerializer, AiModelSerializer,
 )
+from .services.ai_catalog import action_choices, discover_models
 
 
 class WorkLocationViewSet(viewsets.ModelViewSet):
@@ -298,3 +301,57 @@ def robots_txt(request):
     return HttpResponse(body, content_type='text/plain')
 
 
+
+
+class AiModelViewSet(viewsets.ModelViewSet):
+    """Settings > AI model catalog. Super Admin only."""
+    queryset = AiModel.objects.all()
+    serializer_class = AiModelSerializer
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+    pagination_class = None
+    http_method_names = ['get', 'post', 'patch', 'head', 'options']
+
+    def perform_create(self, serializer):
+        serializer.save(source=AiModel.SOURCE_MANUAL, status=AiModel.STATUS_ACTIVE)
+
+    @action(detail=True, methods=['post'])
+    def archive(self, request, pk=None):
+        row = self.get_object()
+        with transaction.atomic():
+            row.status = AiModel.STATUS_ARCHIVED
+            row.save(update_fields=['status', 'updated_at'])
+            cleared = AiAction.objects.filter(model=row).update(model=None, updated_by=request.user)
+        return Response({**AiModelSerializer(row).data, 'cleared_actions': cleared})
+
+    @action(detail=True, methods=['post'])
+    def unarchive(self, request, pk=None):
+        row = self.get_object()
+        row.status = AiModel.STATUS_ACTIVE
+        row.save(update_fields=['status', 'updated_at'])
+        return Response(AiModelSerializer(row).data)
+
+    @action(detail=False, methods=['post'])
+    def discover(self, request):
+        return Response({'providers': discover_models()})
+
+
+class AiActionViewSet(viewsets.ModelViewSet):
+    """Settings > AI per-action model + effort. Super Admin writes; Manager+ reads choices."""
+    queryset = AiAction.objects.select_related('model', 'updated_by')
+    serializer_class = AiActionSerializer
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+    pagination_class = None
+    lookup_field = 'purpose'
+    http_method_names = ['get', 'patch', 'head', 'options']
+
+    def perform_update(self, serializer):
+        serializer.save(updated_by=self.request.user)
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='choices',
+        permission_classes=[IsAuthenticated, IsManagerOrAdmin],
+    )
+    def choices(self, request, purpose=None):
+        return Response(action_choices(self.get_object()))

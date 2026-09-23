@@ -24,13 +24,14 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import PrintIcon from '@mui/icons-material/Print';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useSnackbar } from 'notistack';
 import { isAxiosError } from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { useFloorPlan, useSaveFloorPlan } from '../../hooks/useFloorplans';
 import { useFloorPlanAssets, useUploadFloorPlanAsset } from '../../hooks/useFloorplanAssets';
 import { useFloorPlanElementKinds } from '../../hooks/useFloorplanElementKinds';
-import type { FloorPlanElementKind, PlanElement, PlanInfoBlock } from '../../types/floorplan.types';
+import type { FloorPlanElementKind, PlanDocument, PlanElement, PlanInfoBlock } from '../../types/floorplan.types';
 import {
   activeConfigId,
   addConfig,
@@ -80,6 +81,8 @@ import {
 import FloorplanCanvas, { defaultInfoBlock, type DrawStroke } from '../../features/floorplan/FloorplanCanvas';
 import { EditorToolbar, PaletteSidebar, PropertiesPanel, ScaleBarOverlay } from '../../features/floorplan/EditorChrome';
 import ElementKindDialog from '../../features/floorplan/ElementKindDialog';
+import AdjustPlanDialog from '../../features/floorplan/AdjustPlanDialog';
+import BuildSvgDialog from '../../features/floorplan/BuildSvgDialog';
 import { exportPlanJson, exportPlanPng } from '../../features/floorplan/exportPlan';
 import PrintDialog from '../../features/floorplan/PrintDialog';
 
@@ -130,6 +133,8 @@ export default function FloorplanEditorPage() {
     open: false,
     kind: null,
   });
+  const [svgDialogOpen, setSvgDialogOpen] = useState(false);
+  const [adjustOpen, setAdjustOpen] = useState(false);
 
   const handleUploadAsset = useCallback(
     async (file: File) => {
@@ -468,6 +473,11 @@ export default function FloorplanEditorPage() {
       dispatch({ type: 'setSelection', selection: [] });
     }
   }, []);
+  const getCurrentDoc = useCallback(() => stateRef.current.doc, []);
+  const handleAiApply = useCallback((next: PlanDocument) => {
+    dispatch({ type: 'commit', doc: next });
+    dispatch({ type: 'setSelection', selection: [] });
+  }, []);
 
   const handleConfigAdd = useCallback(() => {
     const current = stateRef.current;
@@ -583,6 +593,7 @@ export default function FloorplanEditorPage() {
         return;
       }
       if (typing) return;
+      if (target instanceof Element && target.closest('.MuiDialog-root')) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
         e.preventDefault();
         dispatch({ type: 'undo' });
@@ -832,6 +843,11 @@ export default function FloorplanEditorPage() {
             }}
           />
           {!readOnly && (
+            <Button size="small" startIcon={<AutoAwesomeIcon />} onClick={() => setAdjustOpen(true)}>
+              Adjust with AI
+            </Button>
+          )}
+          {!readOnly && (
             <Button
               size="small"
               variant="contained"
@@ -878,6 +894,7 @@ export default function FloorplanEditorPage() {
           readOnly={readOnly}
           canManageKinds={canManageKinds}
           onCreateKind={() => setKindDialog({ open: true, kind: null })}
+          onBuildSvg={() => setSvgDialogOpen(true)}
           onEditKind={(entry) => {
             const kind = kindsQuery.data?.find((k) => k.id === entry.kindId) ?? null;
             if (kind) setKindDialog({ open: true, kind });
@@ -941,6 +958,23 @@ export default function FloorplanEditorPage() {
           assets={assets}
           onUploadAsset={handleUploadAsset}
           onClose={() => setKindDialog({ open: false, kind: null })}
+        />
+      )}
+      {canManageKinds && (
+        <BuildSvgDialog
+          open={svgDialogOpen}
+          kinds={kindsQuery.data ?? []}
+          categories={kindCategories}
+          onClose={() => setSvgDialogOpen(false)}
+        />
+      )}
+      {!readOnly && (
+        <AdjustPlanDialog
+          open={adjustOpen}
+          planId={planId}
+          getDoc={getCurrentDoc}
+          onApply={handleAiApply}
+          onClose={() => setAdjustOpen(false)}
         />
       )}
 

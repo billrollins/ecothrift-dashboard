@@ -62,7 +62,7 @@ def _suggestion(row, **overrides):
     return base
 
 
-@override_settings(ANTHROPIC_API_KEY='test-key', AI_MODEL_INVENTORY_CLEANUP='claude-haiku-4-5', AI_PROVIDER='auto')
+@override_settings(ANTHROPIC_API_KEY='test-key', AI_MODEL='claude-haiku-4-5', AI_PROVIDER='auto')
 class AiCleanupBatchTestBase(TestCase):
     def setUp(self):
         self.vendor = Vendor.objects.create(name='Vendor', code='VND')
@@ -282,7 +282,7 @@ class AiCleanupBatchTests(AiCleanupBatchTestBase):
         self.assertEqual(resp.status_code, 400, resp.data)
         self.assertEqual(resp.data['code'], 'invalid_model')
 
-    @override_settings(GOOGLE_API_KEY='google-test-key', AI_MODEL_INVENTORY_CLEANUP='gemini-3.1-flash-lite')
+    @override_settings(GOOGLE_API_KEY='google-test-key', AI_MODEL='gemini-3.1-flash-lite')
     def test_gemini_model_routes_to_google_provider(self):
         """gemini-3.1-flash-lite is passed through llm_complete with the Google API key."""
         r1 = self._staging_row(1)

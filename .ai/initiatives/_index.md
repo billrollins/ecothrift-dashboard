@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-22 (bstock_daily_buying opened) -->
+<!-- Last updated: 2026-09-23 (bstock_daily_buying opened; ai settings + floorplan AI merged) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not a session log.
@@ -16,6 +16,7 @@ Bounded work (hours–days), one `.md` per initiative. Not a session log.
 | [documents](./documents.md) | **Phase 1** | Company-wide read / accept. Individually assigned read / accept / sign. Staff UI still unwired. |
 | [bstock_daily_buying](./bstock_daily_buying.md) | **Phase 1** | Best 1–2 B-Stock auctions a day: fresh stats, auto manifests, won → PO, truck score, Top picks. |
 | [universal_object_surfaces](./universal_object_surfaces.md) | **Design only** | Permissioned ObjectChip → ObjectSurface. No code scheduled. |
+| [ai_settings_floorplan](./ai_settings_floorplan.md) | **Phase 1** | Settings > AI + floorplan Build SVG / Adjust with AI |
 
 ---
 

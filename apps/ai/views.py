@@ -3,7 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.core.ai_config import ai_model
+from apps.core.ai_config import ai_effort, ai_model
 from apps.core.logging import get_logger
 from apps.core.services.ai_usage_log import log_ai_usage
 from apps.core.services.llm_router import LLMAPIError, LLMConfigError, llm_complete
@@ -15,7 +15,9 @@ AVAILABLE_MODELS = [
     {'id': 'claude-haiku-4-5', 'name': 'Claude Haiku 4.5', 'default': False},
 ]
 
-DEFAULT_MODEL = ai_model('AI_CHAT')
+def default_chat_model() -> str:
+    """Resolved per request so Settings > AI changes apply without a restart."""
+    return ai_model('AI_CHAT')
 
 
 class ModelListView(APIView):
@@ -23,14 +25,14 @@ class ModelListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response({'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL})
+        return Response({'models': AVAILABLE_MODELS, 'default': default_chat_model()})
 
 
 class ChatProxyView(APIView):
     """POST /api/ai/chat/ - proxy a single chat completion via the LLM router.
 
     Expects JSON body:
-        model (str, optional): model id, defaults to AI_MODEL_AI_CHAT
+        model (str, optional): model id, defaults to the AI_CHAT model in Settings > AI
         system (str, optional): system prompt
         messages (list): messages array [{role, content}]
         max_tokens (int, optional): defaults to 4096
@@ -39,7 +41,7 @@ class ChatProxyView(APIView):
 
     def post(self, request):
         data = request.data
-        model = data.get('model', DEFAULT_MODEL)
+        model = data.get('model') or default_chat_model()
         system_prompt = data.get('system', '')
         messages = data.get('messages', [])
         max_tokens = data.get('max_tokens', 4096)
@@ -56,6 +58,7 @@ class ChatProxyView(APIView):
                 system=system_prompt,
                 messages=messages,
                 max_tokens=max_tokens,
+                effort=ai_effort('AI_CHAT'),
                 log_source='ai_chat_proxy',
                 log_detail='POST /api/ai/chat/',
             )
