@@ -98,6 +98,14 @@ export default function CategoryNeedPanel() {
     metaParts.push(`${windowDays}-day window`);
   }
   metaParts.push(`${rows.length} categories`);
+  const pipeline = data?.pipeline;
+  if (pipeline && pipeline.backlog_weeks != null) {
+    const waiting = pipeline.in_building_units + pipeline.on_order_units;
+    metaParts.push(
+      `processing backlog ${pipeline.backlog_weeks} wk (${waiting.toLocaleString()} units waiting, ` +
+        `${Math.round(pipeline.checked_in_per_week_26 ?? 0).toLocaleString()}/wk)`
+    );
+  }
 
   const isOpen = size === 'window';
   const toggleOpen = () => setSize(isOpen ? 'min' : 'window');
@@ -210,6 +218,8 @@ export default function CategoryNeedPanel() {
               needScoreRawGlobalMin={data?.need_score_raw_global_min}
               needScoreRawGlobalMax={data?.need_score_raw_global_max}
               needWindowDays={data?.need_window_days}
+              targetCoverWeeks={data?.target_cover_weeks}
+              pipelineMaxAgeDays={data?.pipeline_max_age_days}
             />
           </Stack>
         )

@@ -91,6 +91,38 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'assumptions',
     kind: 'count',
   },
+  buying_shipping_per_pallet: {
+    label: 'Shipping estimate ($ per pallet)',
+    help: 'Buying: shipping estimate per pallet for a lot when B-Stock has no quote for it and we do not know how far its city is yet (default 100). Otherwise the shipping formula is used.',
+    tab: 'assumptions',
+    kind: 'count',
+  },
+  buying_target_cover_weeks: {
+    label: 'Need: target weeks of stock',
+    help: "Buying: weeks of stock (shelf + pipeline) to hold per category. 0 (default) = the store's own average, so Need compares each category with the store. Need is 50 on target.",
+    tab: 'assumptions',
+    kind: 'count',
+  },
+  buying_pipeline_max_age_days: {
+    label: 'Need: open PO age limit (days)',
+    help: 'Buying: open POs older than this are not counted as on order; they are usually done but never closed (default 120).',
+    tab: 'assumptions',
+    kind: 'days',
+  },
+  // Edited from the Inventory need panel's Goal buttons (JSON).
+  buying_category_goals: {
+    label: 'Need: category goals',
+    help: 'Buying: more / less / stop per category.',
+    tab: 'assumptions',
+    kind: 'hidden',
+  },
+  // Set by: python manage.py fit_shipping_formula --save (JSON, not hand-edited).
+  buying_shipping_formula: {
+    label: 'Shipping formula',
+    help: 'Buying: truckload and LTL shipping formula fitted on past orders.',
+    tab: 'assumptions',
+    kind: 'hidden',
+  },
   delivery_service_minutes_per_stop: {
     label: 'Delivery unload time (minutes / stop)',
     help: 'Delivery Field: assumed on-site unload/service minutes per stop for ETA totals (5-120). Default 20.',

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-23 (bstock_daily_buying opened; ai settings + floorplan AI merged) -->
+<!-- Last updated: 2026-09-23 (data_quality_rails opened) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not a session log.
@@ -13,10 +13,8 @@ Bounded work (hours–days), one `.md` per initiative. Not a session log.
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [documents](./documents.md) | **Phase 1** | Company-wide read / accept. Individually assigned read / accept / sign. Staff UI still unwired. |
-| [bstock_daily_buying](./bstock_daily_buying.md) | **Phase 1** | Best 1–2 B-Stock auctions a day: fresh stats, auto manifests, won → PO, truck score, Top picks. |
-| [universal_object_surfaces](./universal_object_surfaces.md) | **Design only** | Permissioned ObjectChip → ObjectSurface. No code scheduled. |
-| [ai_settings_floorplan](./ai_settings_floorplan.md) | **Phase 1** | Settings > AI + floorplan Build SVG / Adjust with AI |
+| [bstock_daily_buying](./bstock_daily_buying.md) | **Phase 2** | Phase 1 done. Need v2 built; Priority next. Every phase states its data-quality handling. Compass. |
+| [data_quality_rails](./data_quality_rails.md) | **Phase 1** | Know the data (register + eras, runner R-009 to R-013), then quality-aware numbers, rails at every lifecycle stage, and cleanup. |
 
 ---
 
@@ -26,6 +24,8 @@ Paused to resume later. Checklists live in each file.
 
 | Initiative | Description | Pending since | Why / resume |
 |------------|-------------|---------------|--------------|
+| [documents](./_archived/_pending/documents.md) | Company-wide read / accept. Individually assigned read / accept / sign. API in-tree; staff UI unwired. | 2026-09-23 | Resume when Documents is the next product. |
+| [universal_object_surfaces](./_archived/_pending/universal_object_surfaces.md) | Permissioned ObjectChip → ObjectSurface. Design only; no code. | 2026-09-23 | Resume when the capability taxonomy and object-surface design are picked up. |
 | [online_sales_workspace](./_archived/_pending/online_sales_workspace.md) | Online Sales long-term vision (channels, marketing, P&L). | 2026-07-21 | MVP shipped via [online_sales_mvp](./_archived/_completed/online_sales_mvp.md) **v2.69.0**. Resume only for scope beyond MVP. |
 | [tars_full_instruction_wizard_guidance](./_archived/_pending/tars_full_instruction_wizard_guidance.md) | TARS process canon / guardrails. | 2026-07-21 | **Superseded — closed to new work.** Scope is [finalize_tars_app](./_archived/_completed/finalize_tars_app.md). |
 | [tars_restoration_workspace](./_archived/_pending/tars_restoration_workspace.md) | TARS queue + live bench (Phases 0–2 + hardening ~v2.39.0). | 2026-07-09 | **Superseded — closed to new work.** Scope is [finalize_tars_app](./_archived/_completed/finalize_tars_app.md). |
@@ -55,6 +55,7 @@ Not started / future; not scheduled.
 
 Name only. Details in each file.
 
+- [ai_settings_floorplan](./_archived/_completed/ai_settings_floorplan.md)
 - [time_kiosk](./_archived/_completed/time_kiosk.md)
 - [departments_admin](./_archived/_completed/departments_admin.md)
 - [retail_qa_scoring_v2](./_archived/_completed/retail_qa_scoring_v2.md)

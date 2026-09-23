@@ -6,6 +6,7 @@ from apps.buying.api_views import (
     AuctionViewSet,
     BstockLoginView,
     BstockTokenStatusView,
+    CategoryGoalView,
     CategoryNeedView,
     ManifestPullView,
     MarketplaceViewSet,
@@ -25,5 +26,6 @@ urlpatterns = [
     path('manifest-pulls/', ManifestPullView.as_view(), name='buying-manifest-pulls'),
     path('sweep/', SweepView.as_view(), name='buying-sweep'),
     path('category-need/', CategoryNeedView.as_view(), name='buying-category-need'),
+    path('category-need/goal/', CategoryGoalView.as_view(), name='buying-category-goal'),
     path('', include(router.urls)),
 ]

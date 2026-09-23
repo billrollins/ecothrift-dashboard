@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-23 (B-Stock Phase 1 + ai settings/floorplan AI merged; one release when all work is done) -->
+<!-- Last updated: 2026-09-23 (B-Stock is the compass; documents and object surfaces pending; AI settings completed) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -14,11 +14,14 @@ Full-stack business management for a thrift store in Omaha, NE. HR (time clock, 
 
 ## Active work
 
-- **ACTIVE (compass) — Documents:** [`documents`](initiatives/documents.md) — Company-wide (read / accept) vs individually assigned (read / accept / sign). API in-tree; staff UI unwired. Split from [`routines_and_documents`](initiatives/_archived/_completed/routines.md).
-- **ACTIVE — B-Stock daily buying:** [`bstock_daily_buying`](initiatives/bstock_daily_buying.md) — fresh stats, auto manifests for a shortlist, won → PO, truck score, daily Top picks.
+- **ACTIVE (compass) — B-Stock daily buying:** [`bstock_daily_buying`](initiatives/bstock_daily_buying.md) — Phase 1 done. Phase 2 (buying context) is next and waits on runner recon R-002 to R-007.
 - **Unreleased, outside initiatives:** own-aisle cross-check fix (`routines/0027_orphan_section_drafts`, runs before B-Stock's `0028`) and kiosk follow-ups (Exit without password, sign-in **Scan your card**). Both are in `[Unreleased]`.
-- **ACTIVE — Universal object surfaces:** [`universal_object_surfaces`](initiatives/universal_object_surfaces.md) — design only. No code scheduled.
-- **ACTIVE - AI settings + floorplan AI:** [`ai_settings_floorplan`](initiatives/ai_settings_floorplan.md) - Settings > AI (superuser), Build SVG / Adjust with AI in the floorplan editor.
+- **ACTIVE - Data quality and rails:** [`data_quality_rails`](initiatives/data_quality_rails.md). The register is [`extended/data-quality.md`](extended/data-quality.md): every build states the register IDs it touches and the fill-ins it uses. We work with imperfect data rather than drop it. **Read its Eras and Standing decisions before building on any data.** V1/V2 were imported on 2026-04-12 with `BACKFILL:` tags; V3 native is the only clean era. "Scrapped" import rows are not shrink, $0 often means unknown, and enrichment is product-first.
+- **Runner:** the coder only codes. Tests, recon and small chores go to a runner agent following [`protocols/runner.md`](protocols/runner.md), through [`comm/runner/`](comm/runner/): `queue.md`, `tasks/`, `results/`, and `baseline.md` (known test failures).
+
+Pending 2026-09-23: [`documents`](initiatives/_archived/_pending/documents.md) (staff UI unwired; resume when Documents is next) and [`universal_object_surfaces`](initiatives/_archived/_pending/universal_object_surfaces.md) (design only).
+
+Completed 2026-09-23: [`ai_settings_floorplan`](initiatives/_archived/_completed/ai_settings_floorplan.md) — merged into `main`; ships with B-Stock Phase 1. After that Heroku release runs `core/0006`, unset the old `AI_MODEL_<PURPOSE>` keys.
 
 Completed 2026-09-22: [`time_kiosk`](initiatives/_archived/_completed/time_kiosk.md) (**v2.96.0**), [`departments_admin`](initiatives/_archived/_completed/departments_admin.md) and [`retail_qa_scoring_v2`](initiatives/_archived/_completed/retail_qa_scoring_v2.md) (GitHub **v2.95.0**, Heroku with **v2.96.0**), [`cardx_surcharge`](initiatives/_archived/_completed/cardx_surcharge.md) (**v2.92.0–v2.94.0**), [`listing_photos`](initiatives/_archived/_completed/listing_photos.md) (**v2.91.0**). Kiosk and Command Center follow-ups continue without an initiative.
 
@@ -52,7 +55,7 @@ ecothrift-dashboard/
 ├── .ai/                    AI steering — see .ai/README.md
 │   ├── context.md          This compass
 │   ├── protocols/          clean-up, context-load, check_comm, initiative-create, initiative-review, ship-push-git, ship-push-heroku, ship-print-server
-│   ├── comm/               Parent master AI — inbox.md (from master), outbox.md (to master)
+│   ├── comm/               Master: inbox.md / outbox.md. Two coders: inbox-<feature>.md
 │   ├── initiatives/        Plan + _archived/
 │   └── extended/           Domain docs + sql/ + initiatives.md
 ├── .version                Single-line app semver (vMAJOR.MINOR.PATCH)
@@ -137,7 +140,7 @@ When you add, rename, or remove a file in `.ai/extended/`, update this table.
 | Compass | `.ai/context.md` (this file) |
 | Clean-up | `.ai/protocols/clean-up.md` — if given, list then delete the paste-back |
 | Load context | `.ai/protocols/context-load.md` — if given, do it |
-| Parent comm | `.ai/comm/` + `.ai/protocols/check_comm.md` — if given, pickup inbox / write outbox |
+| Parent comm | `.ai/comm/` + `.ai/protocols/check_comm.md` — if given, pickup master inbox and your feature inbox / write outbox or the other coder's inbox |
 | Create initiative | `.ai/protocols/initiative-create.md` — if given, interview then write |
 | Review initiatives | `.ai/protocols/initiative-review.md` — if given, propose then apply the paste-back |
 | Ship to GitHub | `.ai/protocols/ship-push-git.md` — if given, do it |

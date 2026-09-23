@@ -1,13 +1,14 @@
-<!-- initiative: slug=documents status=active updated=2026-09-08 -->
-<!-- Last updated: 2026-09-08 (split from routines_and_documents) -->
+<!-- Archived 2026-09-23: disposition=pending paused; staff UI still unwired. Resume when Documents is the next product. -->
+<!-- initiative: slug=documents status=pending updated=2026-09-23 -->
+<!-- Last updated: 2026-09-23 (parked pending) -->
 
 # Initiative: Documents
 
-**Status:** **Active** — Phase 1. API and page files are in-tree; staff routes and the account-menu link stay unwired until this UI ships. Split from [`routines_and_documents`](./_archived/_completed/routines.md) (Routines completed).
+**Status:** **Pending** — Phase 1. API and page files are in-tree; staff routes and the account-menu link stay unwired. **Resume when** Documents is the next product. Split from [`routines_and_documents`](../_completed/routines.md) (Routines completed).
 
 **Objective:** Staff have one Documents place for company paperwork and for paperwork that belongs to one person. A superuser publishes a company-wide PDF that everyone must read or accept, or assigns a PDF to one person to read, accept, or sign. Today the API can do pieces of this; the staff UI is off.
 
-**Compass:** this file is the compass. Routines is done: [`routines`](./_archived/_completed/routines.md).
+**Compass:** retired. [`bstock_daily_buying`](../../bstock_daily_buying.md) is the compass. Routines is done: [`routines`](../_completed/routines.md).
 
 ---
 
@@ -34,7 +35,7 @@ In-tree today: `Document.mode` is `read` / `acknowledge` / `sign`; `DocumentAssi
 
 ## Out of scope
 
-- Routines (shipped; [`routines`](./_archived/_completed/routines.md))
+- Routines (shipped; [`routines`](../_completed/routines.md))
 - SOP / training document library, versioning, and a folder tree
 - DOCX upload (export as PDF)
 - Company-wide signatures (everyone signs the same field boxes)
@@ -87,13 +88,15 @@ Acceptance:
 
 ## Record
 
+**2026-09-23 — Parked pending.** Owner paused it. Staff UI is still unwired. Resume when Documents is the next product.
+
 **2026-09-08 — Opened (split).** Owner split `routines_and_documents`. Routines completed. Documents stays: company-wide (read, accepted, etc.) vs individually assigned (read, accepted check, signed).
 
 ---
 
 ## See also
 
-- Routines (completed): [`routines`](./_archived/_completed/routines.md)
-- Abandoned predecessor: [`documents_and_duties`](./_archived/_abandoned/documents_and_duties.md)
-- Domain: [`.ai/extended/documents.md`](../extended/documents.md)
-- Index: [`_index.md`](./_index.md)
+- Routines (completed): [`routines`](../_completed/routines.md)
+- Abandoned predecessor: [`documents_and_duties`](../_abandoned/documents_and_duties.md)
+- Domain: [`.ai/extended/documents.md`](../../../extended/documents.md)
+- Index: [`_index.md`](../../_index.md)

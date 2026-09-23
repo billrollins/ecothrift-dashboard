@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-22 (time_kiosk, departments_admin, retail_qa_scoring_v2, cardx_surcharge, listing_photos completed) -->
+<!-- Last updated: 2026-09-23 (ai_settings_floorplan completed; documents and universal_object_surfaces pending) -->
 
 <!-- NOTE: `_pending/tars_restoration_workspace.md` and `_pending/tars_full_instruction_wizard_guidance.md` are SUPERSEDED. TARS scope is `_completed/finalize_tars_app.md`. -->
 # Archive index — initiatives
@@ -13,6 +13,7 @@ Files under **`.ai/initiatives/_archived/`** that are off the [main index](../_i
 
 | File | Summary | Archived |
 |------|---------|----------|
+| [ai_settings_floorplan.md](./_completed/ai_settings_floorplan.md) | Settings > AI and floorplan Build SVG / Adjust with AI. Merged into main 2026-09-23; ships with the unreleased B-Stock release. Env unset waits until after Heroku runs `core/0006`. | 2026-09-23 |
 | [time_kiosk.md](./_completed/time_kiosk.md) | Time kiosk: hosted `/kiosk`, public `/clock`, badge cards, clock-in gate, miss reasons. Shipped GitHub and Heroku **v2.96.0**. | 2026-09-22 |
 | [departments_admin.md](./_completed/departments_admin.md) | Departments directory + hub, slug cutover, two-tier writes. Shipped GitHub **v2.95.0**; Heroku with **v2.96.0**. | 2026-09-22 |
 | [retail_qa_scoring_v2.md](./_completed/retail_qa_scoring_v2.md) | Retail QA scoring v2: Command Center, staff QA, frozen past days. Shipped GitHub **v2.95.0**; Heroku with **v2.96.0**. | 2026-09-22 |
@@ -72,6 +73,8 @@ Files under **`.ai/initiatives/_archived/`** that are off the [main index](../_i
 
 | File | Summary | Archived |
 |------|---------|----------|
+| [documents.md](./_pending/documents.md) | Company-wide and individually assigned PDFs. API in-tree; staff UI unwired. Resume when Documents is next. | 2026-09-23 |
+| [universal_object_surfaces.md](./_pending/universal_object_surfaces.md) | ObjectChip → ObjectSurface. Design only. Resume when that design is picked up. | 2026-09-23 |
 | [tars_full_instruction_wizard_guidance.md](./_pending/tars_full_instruction_wizard_guidance.md) | TARS process canon. **Superseded** by [finalize_tars_app](./_completed/finalize_tars_app.md). | 2026-07-21 |
 | [online_sales_workspace.md](./_pending/online_sales_workspace.md) | Long-term Online Sales vision. MVP shipped **v2.69.0**. | 2026-07-21 |
 | [tars_restoration_workspace.md](./_pending/tars_restoration_workspace.md) | TARS queue + bench. **Superseded** by [finalize_tars_app](./_completed/finalize_tars_app.md). | 2026-07-09 |

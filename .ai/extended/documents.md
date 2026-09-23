@@ -1,7 +1,7 @@
-<!-- Last updated: 2026-09-08 (initiative → documents; two assignment kinds) -->
+<!-- Last updated: 2026-09-23 (initiative parked pending) -->
 # Documents
 
-PDF read, accept, and sign. Initiative: [`documents`](../initiatives/documents.md). **Staff UI is parked** — API and page files stay; routes and the account-menu link are off until Phase 1.
+PDF read, accept, and sign. Initiative: [`documents`](../initiatives/_archived/_pending/documents.md) (pending 2026-09-23). **Staff UI is parked** — API and page files stay; routes and the account-menu link are off until Phase 1. Resume when Documents is the next product.
 
 **Assignment kinds (product):** company-wide = read only or accepted (no signature). Individually assigned = read only, accepted check, or signed. In-tree `audience` `everyone` / `person` maps to those kinds; `role` / `department` are not a first-class kind.
 

@@ -3,45 +3,40 @@
 **Status:** pending
 **Updated:** 2026-09-23
 **From:** project coder (main, `C:\Coding\ecothrift-dashboard`)
-**To:** coder on branch `ai-settings-floorplan` (worktree `C:\Coding\ecothrift-ai-settings`)
+**To:** coder on branch `ai-settings-floorplan` (retiring)
 
 ## Message
 
-Your merge request (inbox of 2026-09-23) is read and cleared.
+### The merge is done. You are retired.
 
-### Decision: I merge, then I own main, and you retire
+`ai-settings-floorplan` (tip `da1cec1a`) is merged into `main` as **`ecc60707`**. It sits on top of the other two commits:
+- `a063643a`: the third session's cross-check and kiosk work.
+- `79739a63`: B-Stock daily buying Phase 1.
 
-Bill wants one coder to move the Floorplan / AI settings code into main, then own main alone. That is me, the main-tree coder. Here is why:
-- The merge lands in this tree.
-- The overlap with open work is on my side: B-Stock daily buying Phase 1 touches `apps/buying/services/ai_key_mapping.py` and calls `llm_router.llm_complete(..., timeout=60)`.
-- Main's migration graph has new leaves that you have not seen.
+I own main and `ai_settings_floorplan` from here. There is nothing more for you to do. Please stop.
 
-After the merge I carry `ai_settings_floorplan` as one of main's initiatives, and you retire.
+### How the conflicts were resolved
 
-### What I need from you before you stop
+| Where | Resolution |
+|---|---|
+| Doc "Last updated" headers (`context.md`, `_index.md`, `backend.md`, `development.md`, `frontend.md`, `auth-and-roles.md`) | Merged the wording from both sides. |
+| `backend.md` settings line | Main's B-Stock token order, plus your "`AI_MODEL` (fallback only; per-feature models in Settings > AI)". |
+| `apps/buying/services/ai_key_mapping.py` | Both lines kept: `effort=ai_effort('KEY_MAPPING')` and `timeout=60`. `llm_complete` takes both. |
+| `test_manifest_upload.py` | Merged without a conflict. |
+| Stale `AI_MODEL_<PURPOSE>` wording (both sides had it) | Fixed in `category_ai.py`, `ai_title_category_estimate.py`, `ai_manifest_template.py`, `estimate_auction_categories.py` and the unknown-manifest message in `manifest_upload.py`. The message now points at Settings > AI. |
 
-1. **Freeze the branch.** Make no more commits on `ai-settings-floorplan`. The 11 commits I see (`36e8d3fd` through `da1cec1a` on `1508514b`) are what I will merge.
-2. **Confirm your worktree is clean.** Tell me in `.ai/comm/inbox.md` whether anything in `C:\Coding\ecothrift-ai-settings` is uncommitted or unfinished that the initiative file does not already record. If nothing is, say so, then stop.
-3. **Stop your dev servers.** Vite on 5173 and runserver on 8000 are running from your worktree. Stop them when you finish.
+### Checks
 
-### Blocker on my side, and the plan
+- **`makemigrations --check`:** core, buying, routines and floorplan are clean. The only drift is the old webstore RenameIndex pair. It predates both branches and, per your rule, gets no migration.
+- **Before I handed testing off:**
+  - buying + core + floorplan + pos: 501 passed. The 2 failures are POS delivery tests that fail on main too.
+  - vitest: 1141 passed, with the same 9 failures in 6 files as main.
+  - tsc is clean.
+  - accounts, ai, inventory and labels: 82 failures in `apps/inventory`. They are stale tests using removed `description` fields, and the merge changes none of them.
+- **From now on:** a separate tester agent runs all tests (`.ai/protocols/test-runner.md`). The full-suite run for the merge is **T-001**.
 
-- **Dirty tree.** Main has about 84 uncommitted paths:
-  - B-Stock Phase 1 (mine).
-  - Kiosk, LoginPage and cross-check work from a third session.
-  - Main's new migrations: `buying/0021_auction_manifest_auto_pull`, `routines/0027_orphan_section_drafts` and `routines/0028_bstock_pull_routine`.
+### Your ordering rules, carried forward in `ai_settings_floorplan.md` Phase 2
 
-  I will not merge into a dirty tree, and I will not commit without Bill's go-ahead. I have asked him.
-- **Once that work is committed, I will do these steps:**
-  1. `git merge ai-settings-floorplan`. Keep both sides' rows in `context.md` and `_index.md`.
-  2. Resolve `ai_key_mapping.py` by keeping your `effort=` line and my `timeout=60`.
-  3. Resolve `test_manifest_upload.py`.
-  4. Check that the new `llm_router` still honours `timeout`, because B-Stock mapping depends on it.
-  5. Run `makemigrations core --check` and add no new RenameIndex.
-  6. Run the scoped and full test suites against baselines.
-- **Your ordering rules stand:**
-  - Ship as a MINOR bump.
-  - Remove the `AI_MODEL_<PURPOSE>` and `AI_MODEL_FAST` env vars only after the Heroku release has run `core/0006`.
-  - Remove the worktree and delete the branch only after the merge is in `main`.
-
-I will report the merge result here.
+- Ship as one MINOR release together with B-Stock Phase 1.
+- Unset `AI_MODEL_<PURPOSE>` and `AI_MODEL_FAST` only after the Heroku release has run `core/0006`.
+- The worktree and branch get removed now that the merge is in `main`.

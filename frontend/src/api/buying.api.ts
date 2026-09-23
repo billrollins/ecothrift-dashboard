@@ -1,6 +1,7 @@
 import type { PaginatedResponse } from '../types/index';
 import type {
   BuyingAuctionDetail,
+  BuyingCategoryGoal,
   BuyingAuctionListItem,
   BuyingAuctionListParams,
   BuyingAuctionSnapshot,
@@ -290,6 +291,15 @@ export async function fetchBuyingCategoryNeed(): Promise<BuyingCategoryNeedRespo
   return data;
 }
 
+/** PATCH a manager goal for one category; returns the re-scored need payload (Admin). */
+export async function patchBuyingCategoryGoal(
+  category: string,
+  goal: BuyingCategoryGoal
+): Promise<BuyingCategoryNeedResponse> {
+  const { data } = await api.patch<BuyingCategoryNeedResponse>('/buying/category-need/goal/', { category, goal });
+  return data;
+}
+
 export async function postBuyingThumbsUp(
   auctionId: number
 ): Promise<{ my_thumbs_up: boolean; thumbs_up_count: number }> {
@@ -316,6 +326,12 @@ export async function patchBuyingValuationInputs(
     `/buying/auctions/${auctionId}/valuation-inputs/`,
     body
   );
+  return data;
+}
+
+/** Read B-Stock's shipping quote with the owner's handed-over login (superuser). */
+export async function postBuyingShippingQuote(auctionId: number): Promise<BuyingAuctionDetail> {
+  const { data } = await api.post<BuyingAuctionDetail>(`/buying/auctions/${auctionId}/shipping-quote/`, {});
   return data;
 }
 

@@ -12,6 +12,7 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from apps.buying.models import Auction, CategoryStats, ManifestRow
+from apps.buying.services.shipping_formula import estimate_for_auction, get_shipping_formula, load_origin_miles
 from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED
 from apps.core.models import AppSetting
 
@@ -198,23 +199,110 @@ def infer_auction_completed_from_end_time(auction: Auction) -> bool:
     return True
 
 
-def _fees_shipping_total_cost(auction: Auction) -> tuple[Decimal, Decimal, Decimal]:
+DEFAULT_SHIPPING_PER_PALLET = Decimal('100')
+CENT = Decimal('0.01')
+
+
+def get_shipping_per_pallet(using: str = 'default') -> Decimal:
+    """Admin -> Assumptions ``buying_shipping_per_pallet``: $ per pallet when a city has no quotes."""
+    try:
+        v = Decimal(str(AppSetting.objects.using(using).get(key='buying_shipping_per_pallet').value))
+        return v if v >= 0 else DEFAULT_SHIPPING_PER_PALLET
+    except Exception:
+        return DEFAULT_SHIPPING_PER_PALLET
+
+
+def shipping_estimate(
+    auction: Auction,
+    *,
+    origin_miles: dict[str, int] | None = None,
+    formula: dict[str, Any] | None = None,
+    per_pallet_default: Decimal | None = None,
+) -> dict[str, Any]:
+    """
+    Shipping when there is no override and no B-Stock quote for this listing:
+    1. ``formula``: the distance formula (``services/shipping_formula.py``) when the lot has a
+       pallet count and we know how far its city is;
+    2. ``pallets``: pallets x the Assumptions $ per pallet when we do not know the distance;
+    3. ``rate``: the marketplace shipping rate x price when there is no pallet count.
+    """
+    est = estimate_for_auction(auction, origin_miles=origin_miles, formula=formula)
+    if est is not None:
+        return est
+    pallets = auction.pallet_count or 0
+    if pallets > 0:
+        per = per_pallet_default if per_pallet_default is not None else get_shipping_per_pallet()
+        return {
+            'basis': 'pallets',
+            'amount': (per * pallets).quantize(CENT),
+            'pallets': pallets,
+            'per_pallet': per,
+            'city': (auction.origin_city or '').strip(),
+        }
+    mp = auction.marketplace
+    ship_rate = (mp.default_shipping_rate if mp else None) or Decimal('0')
+    price = auction.current_price or Decimal('0')
+    return {'basis': 'rate', 'amount': (price * ship_rate).quantize(CENT), 'rate': ship_rate}
+
+
+def cost_sources(auction: Auction) -> dict[str, Any]:
+    """
+    Where fees and shipping come from, for the detail page and max bid:
+    ``fee_rate_applied`` / ``shipping_rate_applied`` are the rates that scale with the bid
+    (None when the amount is fixed: an override, a B-Stock quote, or a per-pallet estimate),
+    ``shipping_source`` is ``override`` | ``quote`` | ``estimate``, and ``shipping_estimate``
+    (estimate only) says how it was worked out, as strings for JSON.
+    """
+    mp = auction.marketplace
+    fee_rate = (mp.default_fee_rate if mp else None) or Decimal('0')
+    if auction.shipping_override is not None:
+        shipping_source = 'override'
+    elif auction.shipping_quote is not None:
+        shipping_source = 'quote'
+    else:
+        shipping_source = 'estimate'
+    estimate = None
+    ship_rate_applied = None
+    if shipping_source == 'estimate':
+        est = shipping_estimate(auction)
+        if est['basis'] == 'rate':
+            ship_rate_applied = str(est['rate'])
+        estimate = {k: (str(v) if isinstance(v, Decimal) else v) for k, v in est.items()}
+    return {
+        'fee_rate_applied': None if auction.fees_override is not None else str(fee_rate),
+        'shipping_rate_applied': ship_rate_applied,
+        'shipping_source': shipping_source,
+        'shipping_estimate': estimate,
+    }
+
+
+def _fees_shipping_total_cost(
+    auction: Auction,
+    *,
+    origin_miles: dict[str, int] | None = None,
+    formula: dict[str, Any] | None = None,
+    per_pallet_default: Decimal | None = None,
+) -> tuple[Decimal, Decimal, Decimal]:
     price = auction.current_price or Decimal('0')
     mp = auction.marketplace
     fee_rate = (mp.default_fee_rate if mp else None) or Decimal('0')
-    ship_rate = (mp.default_shipping_rate if mp else None) or Decimal('0')
 
     if auction.fees_override is not None:
-        fees = auction.fees_override.quantize(Decimal('0.01'))
+        fees = auction.fees_override.quantize(CENT)
     else:
-        fees = (price * fee_rate).quantize(Decimal('0.01'))
+        fees = (price * fee_rate).quantize(CENT)
 
     if auction.shipping_override is not None:
-        shipping = auction.shipping_override.quantize(Decimal('0.01'))
+        shipping = auction.shipping_override.quantize(CENT)
+    elif auction.shipping_quote is not None:
+        # B-Stock's own freight quote: a fixed amount, whatever the bid.
+        shipping = auction.shipping_quote.quantize(CENT)
     else:
-        shipping = (price * ship_rate).quantize(Decimal('0.01'))
+        shipping = shipping_estimate(
+            auction, origin_miles=origin_miles, formula=formula, per_pallet_default=per_pallet_default
+        )['amount']
 
-    total_cost = (price + fees + shipping).quantize(Decimal('0.01'))
+    total_cost = (price + fees + shipping).quantize(CENT)
     return fees, shipping, total_cost
 
 
@@ -222,6 +310,9 @@ def recompute_auction_full(
     auction: Auction,
     *,
     stats: dict[str, CategoryStats] | None = None,
+    origin_miles: dict[str, int] | None = None,
+    formula: dict[str, Any] | None = None,
+    per_pallet_default: Decimal | None = None,
 ) -> None:
     """Full recompute: revenue from mix × CategoryStats recovery_rate; need_score = auction need 1-99."""
     db = getattr(auction._state, 'db', None) or 'default'
@@ -250,7 +341,9 @@ def recompute_auction_full(
             est_rev += retail_base * w * rate
     est_rev = est_rev.quantize(Decimal('0.01'))
 
-    fees, shipping, total_cost = _fees_shipping_total_cost(auction)
+    fees, shipping, total_cost = _fees_shipping_total_cost(
+        auction, origin_miles=origin_miles, formula=formula, per_pallet_default=per_pallet_default
+    )
 
     shrink = (
         auction.shrinkage_override
@@ -300,12 +393,17 @@ def recompute_auction_lightweight(
     *,
     stats: dict[str, CategoryStats],
     shrink_global: Decimal,
+    origin_miles: dict[str, int] | None = None,
+    formula: dict[str, Any] | None = None,
+    per_pallet_default: Decimal | None = None,
 ) -> None:
     """Fees/shipping/cost, est_profit from stored revenue line; refresh need_score and priority."""
     infer_auction_completed_from_end_time(auction)
     auction.refresh_from_db()
 
-    fees, shipping, total_cost = _fees_shipping_total_cost(auction)
+    fees, shipping, total_cost = _fees_shipping_total_cost(
+        auction, origin_miles=origin_miles, formula=formula, per_pallet_default=per_pallet_default
+    )
 
     shrink = auction.shrinkage_override if auction.shrinkage_override is not None else shrink_global
     base_rev = auction.revenue_override if auction.revenue_override is not None else (auction.estimated_revenue or Decimal('0'))
@@ -357,13 +455,18 @@ def recompute_auction_valuation(
 def recompute_all_open_auctions() -> int:
     """Full recompute for open/closing, non-archived auctions."""
     stats = load_category_stats_dict()
+    origin_miles = load_origin_miles()
+    formula = get_shipping_formula()
+    per_pallet = get_shipping_per_pallet()
     qs = (
         Auction.objects.filter(status__in=[Auction.STATUS_OPEN, Auction.STATUS_CLOSING], archived_at__isnull=True)
         .select_related('marketplace')
     )
     n = 0
     for a in qs.iterator(chunk_size=200):
-        recompute_auction_full(a, stats=stats)
+        recompute_auction_full(
+            a, stats=stats, origin_miles=origin_miles, formula=formula, per_pallet_default=per_pallet
+        )
         n += 1
     return n
 
@@ -372,6 +475,9 @@ def recompute_active_auctions_lightweight() -> int:
     """Lightweight recompute: active (non-archived) open/closing with future end_time."""
     stats = load_category_stats_dict()
     shrink = get_global_shrinkage()
+    origin_miles = load_origin_miles()
+    formula = get_shipping_formula()
+    per_pallet = get_shipping_per_pallet()
     now = timezone.now()
     qs = (
         Auction.objects.filter(
@@ -383,7 +489,14 @@ def recompute_active_auctions_lightweight() -> int:
     )
     n = 0
     for a in qs.iterator(chunk_size=200):
-        recompute_auction_lightweight(a, stats=stats, shrink_global=shrink)
+        recompute_auction_lightweight(
+            a,
+            stats=stats,
+            shrink_global=shrink,
+            origin_miles=origin_miles,
+            formula=formula,
+            per_pallet_default=per_pallet,
+        )
         n += 1
     return n
 

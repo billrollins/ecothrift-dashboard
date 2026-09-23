@@ -3,6 +3,10 @@ import { useMemo, type MouseEvent } from 'react';
 import type { BuyingMarketplace } from '../../types/buying.types';
 import { multiSelectChipTooltip } from '../../utils/multiSelectChipTooltip';
 
+/** Tooltip line for a seller B-Stock shows only to signed-in buyers. */
+export const SIGNED_IN_ONLY_NOTE =
+  'Signed-in only on B-Stock: loads when you send your login in the Pull B-Stock manifests routine.';
+
 export type AuctionMarketplaceChipsProps = {
   marketplaces: BuyingMarketplace[];
   /** Counts from global summary (static; do not change per toggle). */
@@ -61,7 +65,12 @@ export default function AuctionMarketplaceChips({
         const on = activeSlugs?.has(m.slug) ?? false;
         const count = countBySlug[m.slug] ?? 0;
         return (
-          <Tooltip key={m.id} title={tooltipTitle} enterDelay={400} placement="top">
+          <Tooltip
+            key={m.id}
+            title={m.requires_login ? `${SIGNED_IN_ONLY_NOTE} ${tooltipTitle}.` : tooltipTitle}
+            enterDelay={400}
+            placement="top"
+          >
             <Chip
               size="small"
               label={`${m.name}: ${count}`}

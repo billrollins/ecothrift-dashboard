@@ -206,6 +206,10 @@ def run_discovery(
                             'category': fields['category'],
                             'condition_summary': fields['condition_summary'],
                             'lot_size': fields['lot_size'],
+                            'pallet_count': fields.get('pallet_count'),
+                            'origin_city': fields.get('origin_city') or '',
+                            'origin_zip': fields.get('origin_zip') or '',
+                            'shipment_type': fields.get('shipment_type') or '',
                             'listing_type': fields.get('listing_type') or '',
                             'total_retail_value': fields.get('total_retail_value'),
                             'current_price': fields['current_price'],
@@ -244,6 +248,10 @@ def run_discovery(
                             'has_manifest',
                         ):
                             setattr(auction, name, fields[name])
+                        # Keep what we knew when a listing stops saying it.
+                        for name in ('pallet_count', 'origin_city', 'origin_zip', 'shipment_type'):
+                            if fields.get(name):
+                                setattr(auction, name, fields[name])
                         if auction.first_seen_at is None:
                             auction.first_seen_at = now
                         auction.last_updated_at = now
@@ -321,6 +329,8 @@ def run_discovery(
 
     with transaction.atomic():
         sweep_result = sweep_upsert.run_sweep_upsert_for_batches(sweep_batches, now)
+    # Distances for new seller cities (shipping formula): one Google call, never fails the sweep.
+    _ensure_origin_miles_for(sweep_result.get('auction_ids') or [])
 
     sweep_rows = {r['slug']: r for r in sweep_result['by_marketplace']}
     for b in batches_http:
@@ -585,3 +595,20 @@ def refresh_auction_from_bstock(auction: Auction) -> dict[str, Any]:
         shrink_global=valuation_mod.get_global_shrinkage(),
     )
     return {'ok': True}
+
+
+def _ensure_origin_miles_for(auction_ids: list[int]) -> None:
+    from apps.buying.services.shipping_formula import ensure_origin_miles
+
+    if not auction_ids:
+        return
+    try:
+        cities = list(
+            Auction.objects.filter(pk__in=auction_ids)
+            .exclude(origin_city='')
+            .values_list('origin_city', flat=True)
+            .distinct()
+        )
+        ensure_origin_miles(cities)
+    except Exception:  # noqa: BLE001 - the sweep already saved its listings
+        logger.exception('shipping origin miles lookup failed after sweep')

@@ -5,8 +5,10 @@ Search listings POST does not require auth. **Auction state** GET
 (``auction.bstock.com/v1/auctions``) works anonymously by default via
 ``get_auction_states_batch(auth=False)``. Other listing and shipment calls normally require a
 JWT; when ``JWT_BSTOCK_CALLS_DISABLED`` is True (ban prevention),
-**authenticated** calls are skipped-see each function's guard. The one exception is
-``fetch_manifest_items``: the owner hands over a login for exactly that call.
+**authenticated** calls are skipped-see each function's guard. The exceptions send only the
+login the owner hands over from the daily routine: ``fetch_manifest_items``,
+``fetch_shipping_quote``, and the search for signed-in-only sellers such as Costco
+(``Marketplace.requires_login``), which B-Stock hides from anonymous search.
 
 When ``BUYING_SOCKS5_PROXY_ENABLED`` is True, ``*.bstock.com`` requests made via
 ``_request_json`` use that SOCKS5 proxy, except the authenticated manifest pull
@@ -647,9 +649,13 @@ def _search_post_paginate(
     max_pages: int | None,
     log_full_first_response: bool,
     slug_for_log: str = '',
+    bearer: str | None = None,
 ) -> tuple[list[dict[str, Any]], str | None, float]:
     """
     POST all pages for one storeFrontId. Returns (rows, error_or_none, total_elapsed_ms).
+
+    ``bearer``: search as the owner (a signed-in-only seller such as Costco), direct, never
+    through SOCKS5. Anonymous otherwise.
 
     Runs in the calling thread (sequential caller or one ThreadPoolExecutor worker).
     """
@@ -677,13 +683,18 @@ def _search_post_paginate(
         }
 
         t0 = time.perf_counter()
-        data = _request_json(
-            'POST',
-            SEARCH_LISTINGS_URL,
-            json_body=body,
-            auth=False,
-            timeout=120,
-        )
+        try:
+            data = _request_json(
+                'POST',
+                SEARCH_LISTINGS_URL,
+                json_body=body,
+                auth=False,
+                timeout=120,
+                bearer=bearer,
+                proxies={} if bearer else None,
+            )
+        except BStockAuthError:
+            return all_rows, 'B-Stock refused the login for this search.', http_ms_total
         http_ms_total += (time.perf_counter() - t0) * 1000.0
 
         if data is None:
@@ -754,12 +765,19 @@ def discover_auctions(
             'Set it in Django admin.'
         )
 
+    bearer = None
+    if getattr(mp, 'requires_login', False):
+        bearer = login_for_signed_in_sellers([mp])
+        if not bearer:
+            logger.info('%s: %s', marketplace_slug, LOGIN_NEEDED_FOR_SEARCH)
+            return []
     rows, _err, _ms = _search_post_paginate(
         storefront,
         page_limit=page_limit,
         max_pages=max_pages,
         log_full_first_response=log_full_first_response,
         slug_for_log=marketplace_slug,
+        bearer=bearer,
     )
     return rows
 
@@ -774,6 +792,20 @@ class MarketplaceSearchBatch:
     rows: list[dict[str, Any]] = field(default_factory=list)
     error: str | None = None
     http_ms: float = 0.0
+
+
+LOGIN_NEEDED_FOR_SEARCH = (
+    'Signed-in only on B-Stock: send your login from the Pull B-Stock manifests routine to load it.'
+)
+
+
+def login_for_signed_in_sellers(marketplaces: list[Any]) -> str:
+    """The owner's handed-over login when any of these sellers is signed-in only, else ''."""
+    if not any(getattr(mp, 'requires_login', False) for mp in marketplaces):
+        return ''
+    from apps.buying.services.bstock_token_store import current_token
+
+    return current_token()
 
 
 def discover_auctions_parallel(
@@ -797,9 +829,10 @@ def discover_auctions_parallel(
     if not mps:
         return []
 
-    tasks: list[tuple[str, str, str]] = []
+    tasks: list[tuple[str, str, str, str | None]] = []
     results_by_slug: dict[str, MarketplaceSearchBatch] = {}
     slug_order: list[str] = []
+    login = login_for_signed_in_sellers(mps)
 
     for mp in mps:
         slug_order.append(mp.slug)
@@ -814,19 +847,33 @@ def discover_auctions_parallel(
                 http_ms=0.0,
             )
             continue
-        tasks.append((mp.slug, mp.name, sid))
+        bearer = None
+        if getattr(mp, 'requires_login', False):
+            if not login:
+                results_by_slug[mp.slug] = MarketplaceSearchBatch(
+                    slug=mp.slug,
+                    name=mp.name,
+                    store_front_id=sid,
+                    rows=[],
+                    error=LOGIN_NEEDED_FOR_SEARCH,
+                    http_ms=0.0,
+                )
+                continue
+            bearer = login
+        tasks.append((mp.slug, mp.name, sid, bearer))
 
     max_workers = int(getattr(settings, 'BUYING_SWEEP_MAX_WORKERS', 8))
     max_workers = max(1, min(max_workers, len(tasks) or 1))
 
-    def _work(item: tuple[str, str, str]) -> MarketplaceSearchBatch:
-        slug, name, storefront = item
+    def _work(item: tuple[str, str, str, str | None]) -> MarketplaceSearchBatch:
+        slug, name, storefront, bearer = item
         rows, err, ms = _search_post_paginate(
             storefront,
             page_limit=page_limit,
             max_pages=max_pages,
             log_full_first_response=log_full_first_response,
             slug_for_log=slug,
+            bearer=bearer,
         )
         return MarketplaceSearchBatch(
             slug=slug,
@@ -1004,6 +1051,86 @@ def get_unique_bid_counts(auction_ids_csv: str) -> dict[str, Any] | None:
         return _request_json('GET', AUCTION_UNIQUE_BIDS_URL, params=params, auth=True)
     except BStockAuthError:
         raise
+
+
+@dataclass
+class ShippingQuote:
+    """B-Stock's freight quote for one listing to the buyer's saved address."""
+
+    amount_cents: int
+    carrier: str = ''
+    mode: str = ''  # TL (truckload) or LTL
+    trucks: int | None = None
+    destination_zip: str = ''
+    quote_id: str = ''
+    quoted_at: str = ''  # B-Stock's own timestamp (ISO)
+
+    def info(self) -> dict[str, Any]:
+        return {
+            'carrier': self.carrier,
+            'mode': self.mode,
+            'trucks': self.trucks,
+            'destination_zip': self.destination_zip,
+            'quote_id': self.quote_id,
+            'quoted_at': self.quoted_at,
+        }
+
+
+def pick_shipping_quote(data: Any) -> ShippingQuote | None:
+    """The selected active quote in a ``/v1/quotes`` body (else the first active one), or None."""
+    quotes = data.get('quotes') if isinstance(data, dict) else None
+    if not isinstance(quotes, list):
+        return None
+    usable = [
+        q
+        for q in quotes
+        if isinstance(q, dict)
+        and q.get('active', True) is not False
+        and isinstance(q.get('totalPrice'), (int, float))
+        and not isinstance(q.get('totalPrice'), bool)
+        and q['totalPrice'] > 0
+    ]
+    if not usable:
+        return None
+    q = next((q for q in usable if q.get('selected')), usable[0])
+    carrier = q.get('carrier') if isinstance(q.get('carrier'), dict) else {}
+    destination = q.get('destination') if isinstance(q.get('destination'), dict) else {}
+    trucks = q.get('truckCount')
+    return ShippingQuote(
+        amount_cents=int(round(q['totalPrice'])),
+        carrier=str(carrier.get('name') or carrier.get('code') or '')[:80],
+        mode=str(q.get('transportMode') or '')[:20],
+        trucks=trucks if isinstance(trucks, int) and not isinstance(trucks, bool) else None,
+        destination_zip=str(destination.get('zip') or '')[:20],
+        quote_id=str(q.get('_id') or '')[:40],
+        quoted_at=str(q.get('updatedAt') or q.get('createdAt') or '')[:40],
+    )
+
+
+def fetch_shipping_quote(
+    listing_id: str,
+    *,
+    bearer: str,
+    session: requests.Session | None = None,
+) -> ShippingQuote | None:
+    """
+    GET shipment.bstock.com/v1/quotes?listingId=...&selected=true with the login the owner
+    handed over. Returns the quote to the buyer's address, or None when B-Stock has none yet
+    (it makes one when the buyer opens the listing). Like ``fetch_manifest_items`` this is
+    exempt from ``JWT_BSTOCK_CALLS_DISABLED`` and always goes direct, never through SOCKS5.
+
+    Raises ``BStockAuthError`` (401), ``BStockUnavailable``, or ``BStockHTTPError``.
+    """
+    data = _request_json(
+        'GET',
+        SHIPMENT_QUOTES_URL,
+        params={'listingId': listing_id, 'selected': 'true'},
+        bearer=bearer,
+        session=session,
+        proxies={},
+        raise_errors=True,
+    )
+    return pick_shipping_quote(data)
 
 
 # The anonymous preview is this many lines; a page this small with more to come is not a manifest.

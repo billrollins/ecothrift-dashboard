@@ -4,11 +4,11 @@
 
 # Initiative: Routines
 
-**Status:** **Completed** (2026-09-08) — Routines + Retail QA through desk Home / Today / Pay / Routines shipped **v2.87.0** (GitHub, not Heroku). Split out of `routines_and_documents`; Documents continues as [`documents`](../../documents.md).
+**Status:** **Completed** (2026-09-08) — Routines + Retail QA through desk Home / Today / Pay / Routines shipped **v2.87.0** (GitHub, not Heroku). Split out of `routines_and_documents`; Documents continues as [`documents`](../_pending/documents.md).
 
 **Objective:** Staff have **Routines** (periodic or on-demand fill-in forms, pooled or per person) as a phone-first page.
 
-**Compass:** retired. Documents is the remaining product work: [`documents`](../../documents.md). Replaces abandoned [`documents_and_duties`](../_abandoned/documents_and_duties.md) (Library + QA-in-library was the wrong product).
+**Compass:** retired. Documents is the remaining product work: [`documents`](../_pending/documents.md). Replaces abandoned [`documents_and_duties`](../_abandoned/documents_and_duties.md) (Library + QA-in-library was the wrong product).
 
 ---
 
@@ -33,7 +33,7 @@ A person opening **Routines** sees Blocking / Overdue / Due today / This week / 
 
 ## Out of scope
 
-- Documents (own initiative: [`documents`](../../documents.md))
+- Documents (own initiative: [`documents`](../_pending/documents.md))
 - SOP / training document library, versioning, and read-tracking of reference material
 - A schedule model (Department / Shift / Day / Time / Who). Open / Day / Close stay pooled to Retail; the time clock is the "who is here" signal
 - Event-driven routine triggers
@@ -55,7 +55,7 @@ A person opening **Routines** sees Blocking / Overdue / Due today / This week / 
 
 ## Record
 
-**2026-09-08 — Split and completed.** Owner split `routines_and_documents`. This file is Routines only and is done. Documents is [`documents`](../../documents.md).
+**2026-09-08 — Split and completed.** Owner split `routines_and_documents`. This file is Routines only and is done. Documents is [`documents`](../_pending/documents.md).
 
 **2026-09-03 — GitHub v2.87.0.** Floor pages: Home / Today / Pay / Routines share `FloorNav`. Shift on the punch, language, 52-item Open / Day / Close (`0008` reseeds definitions, does not wipe history), expire, audience, subject-pool removal, phone Dashboard / Today / Pay. Retail cells with no letter stay blank, not a miss. Not on Heroku.
 
@@ -75,7 +75,7 @@ A person opening **Routines** sees Blocking / Overdue / Due today / This week / 
 
 ## See also
 
-- Documents (active): [`documents`](../../documents.md)
+- Documents (active): [`documents`](../_pending/documents.md)
 - Abandoned predecessor: [`documents_and_duties`](../_abandoned/documents_and_duties.md)
 - Domain: [`.ai/extended/routines.md`](../../extended/routines.md)
 - Index: [`_index.md`](../_index.md)

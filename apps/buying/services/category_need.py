@@ -6,7 +6,13 @@ from decimal import Decimal
 from typing import Any
 
 from apps.buying.models import CategoryStats
-from apps.buying.services.category_stats_sql import _retail_raw_leg, _unit_raw_leg
+from apps.buying.services.buying_settings import (
+    get_category_goals,
+    get_pipeline_max_age_days,
+    get_pricing_need_window_days,
+    get_target_cover_weeks,
+)
+from apps.buying.services.category_stats_sql import OPEN_PO_STATUSES, _retail_raw_leg, _unit_raw_leg
 from apps.buying.taxonomy_v1 import TAXONOMY_V1_CATEGORY_NAMES
 
 _RAW_Q = Decimal('0.000001')
@@ -69,6 +75,7 @@ def build_category_need_rows() -> list[dict[str, Any]]:
     :func:`build_category_need_payload` for string serialization).
     """
     stats_map = {c.category: c for c in CategoryStats.objects.filter(category__in=TAXONOMY_V1_CATEGORY_NAMES)}
+    goals = get_category_goals()
     total_shelf = sum(stats_map[n].have_units for n in TAXONOMY_V1_CATEGORY_NAMES if n in stats_map)
     total_want = sum(stats_map[n].want_units for n in TAXONOMY_V1_CATEGORY_NAMES if n in stats_map)
 
@@ -110,6 +117,8 @@ def build_category_need_rows() -> list[dict[str, Any]]:
         need_1_99 = int(getattr(c, 'need_score_1to99', 50))
 
         hu, wu = int(c.have_units), int(c.want_units)
+        in_building = int(getattr(c, 'in_building_units', 0) or 0)
+        on_order = int(getattr(c, 'on_order_units', 0) or 0)
         hr = c.have_retail if c.have_retail is not None else Decimal('0')
         wr = c.want_retail if c.want_retail is not None else Decimal('0')
         u_leg = _unit_raw_leg(wu, hu)
@@ -138,6 +147,16 @@ def build_category_need_rows() -> list[dict[str, Any]]:
                 'need_gap': need_gap,
                 'recovery_rate': rec_rate,
                 'need_score_1to99': need_1_99,
+                # Need v2 inputs: shelf + pipeline against weekly sales.
+                'in_building_units': in_building,
+                'on_order_units': on_order,
+                'pipeline_units': in_building + on_order,
+                'weekly_sales_units': c.weekly_sales_units if c.weekly_sales_units is not None else Decimal('0'),
+                'cover_weeks': c.cover_weeks,
+                'target_weeks': c.target_weeks,
+                'goal': goals.get(name, 'normal'),
+                'median_days_to_sell': c.median_days_to_sell,
+                'sold_within_90_pct': c.sold_within_90_pct,
             }
         )
 
@@ -146,7 +165,7 @@ def build_category_need_rows() -> list[dict[str, Any]]:
     for row in rows:
         row['bar_scale_max'] = scale
 
-    rows.sort(key=lambda r: r['need_gap'], reverse=True)
+    rows.sort(key=lambda r: (r['need_score_1to99'], r['need_gap']), reverse=True)
     return rows
 
 
@@ -162,15 +181,68 @@ def build_category_need_payload() -> dict[str, Any]:
         'need_raw_unit_leg',
         'need_raw_retail_leg',
         'need_raw_combined',
+        'weekly_sales_units',
     )
+    optional_str_keys = ('cover_weeks', 'target_weeks', 'sold_within_90_pct')
     categories: list[dict[str, Any]] = []
     for r in rows:
         row = dict(r)
         for k in str_keys:
             row[k] = str(row[k])
+        for k in optional_str_keys:
+            row[k] = str(row[k]) if row[k] is not None else None
         categories.append(row)
     return {
         'categories': categories,
+        'need_method': 'cover_v2',
+        # 0 = auto: each category's target is the store's own cover (see target_weeks per row).
+        'target_cover_weeks': get_target_cover_weeks(),
+        'pipeline_max_age_days': get_pipeline_max_age_days(),
+        'window_days': get_pricing_need_window_days(),
+        'pipeline': pipeline_summary(),
         'need_score_raw_global_min': str(mn) if mn is not None else None,
         'need_score_raw_global_max': str(mx) if mx is not None else None,
+    }
+
+
+def pipeline_summary() -> dict[str, Any]:
+    """
+    Stock we own that is not on the shelf, across all categories, plus processing speed:
+    what the per-category pipeline cannot place (open POs with no manifest lines yet).
+    """
+    from datetime import timedelta
+
+    from django.db.models import Count, Sum
+    from django.utils import timezone
+
+    from apps.inventory.models import Item, PurchaseOrder
+
+    open_pos = PurchaseOrder.objects.filter(status__in=OPEN_PO_STATUSES)
+    no_lines = open_pos.filter(manifest_rows__isnull=True).aggregate(n=Count('id', distinct=True), retail=Sum('retail_value'))
+    by_status = {
+        row['status']: row['n'] for row in open_pos.values('status').annotate(n=Count('id')).order_by('status')
+    }
+    now = timezone.now()
+    checked_in = Item.objects.filter(checked_in_at__gte=now - timedelta(days=28)).count()
+    # Check-in puts an item on the shelf: the processing rate (runner R-005). 26 weeks smooths
+    # the swings between big and slow weeks.
+    checked_in_26 = Item.objects.filter(checked_in_at__gte=now - timedelta(weeks=26)).count()
+    stats = CategoryStats.objects.filter(category__in=TAXONOMY_V1_CATEGORY_NAMES).aggregate(
+        in_building=Sum('in_building_units'), on_order=Sum('on_order_units'), shelf=Sum('have_units')
+    )
+    return {
+        'shelf_units': int(stats['shelf'] or 0),
+        'in_building_units': int(stats['in_building'] or 0),
+        'on_order_units': int(stats['on_order'] or 0),
+        'open_pos_by_status': by_status,
+        'open_pos_without_lines': int(no_lines['n'] or 0),
+        'open_pos_without_lines_retail': str(no_lines['retail'] or Decimal('0')),
+        'checked_in_per_week': round(checked_in / 4.0, 1),
+        'checked_in_per_week_26': round(checked_in_26 / 26.0, 1),
+        # Weeks to process what is waiting at the 26-week rate: a store-wide brake on buying.
+        'backlog_weeks': (
+            round((int(stats['in_building'] or 0) + int(stats['on_order'] or 0)) / (checked_in_26 / 26.0), 1)
+            if checked_in_26
+            else None
+        ),
     }

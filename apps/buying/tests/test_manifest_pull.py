@@ -29,6 +29,7 @@ from apps.buying.models import (
     ManifestRow,
     ManifestTemplate,
     Marketplace,
+    Outcome,
     WatchlistEntry,
 )
 from apps.buying.services import manifest_pull, scraper
@@ -354,6 +355,10 @@ class PullOneAuctionTests(TestCase):
         patcher = patch.object(manifest_pull, 'map_one_fast_cat_batch', return_value={'error': 'ai_not_configured'})
         self.mapper = patcher.start()
         self.addCleanup(patcher.stop)
+        # No real B-Stock calls: by default the listing has no shipping quote.
+        quote_patcher = patch.object(scraper, 'fetch_shipping_quote', return_value=None)
+        self.quote = quote_patcher.start()
+        self.addCleanup(quote_patcher.stop)
 
     def _fetch(self, items, total=None, complete=True, reason=''):
         return scraper.ManifestFetch(
@@ -395,6 +400,43 @@ class PullOneAuctionTests(TestCase):
         log = ManifestPullLog.objects.get(auction=a)
         self.assertTrue(log.success)
         self.assertFalse(log.used_socks5)
+
+    def test_success_reads_the_shipping_quote_before_valuing(self):
+        self.quote.return_value = scraper.ShippingQuote(
+            amount_cents=273233, carrier='RXO Logistics', mode='TL', trucks=1, destination_zip='68124'
+        )
+        with patch.object(scraper, 'fetch_manifest_items', return_value=self._fetch([_api_row(1)])):
+            result = self._pull()
+        self.assertTrue(result.ok)
+        self.assertTrue(result.shipping_quote)
+        self.assertEqual(self.quote.call_args.args[0], 'a1')
+        self.assertEqual(self.quote.call_args.kwargs['bearer'], 'owner-token')
+        a = self._state()
+        self.assertEqual(a.shipping_quote, Decimal('2732.33'))
+        self.assertEqual(a.estimated_shipping, Decimal('2732.33'))
+        self.assertEqual(a.shipping_quote_info['carrier'], 'RXO Logistics')
+        self.assertIsNotNone(a.shipping_quote_at)
+
+    def test_a_failed_shipping_quote_never_fails_the_manifest(self):
+        for exc in (scraper.BStockUnavailable('down'), scraper.BStockAuthError('401'), ValueError('odd body')):
+            with self.subTest(exc=type(exc).__name__):
+                Auction.objects.filter(pk=self.auction.pk).update(
+                    has_manifest=False, manifest_source='', manifest_pull_attempted_at=None
+                )
+                ManifestRow.objects.filter(auction=self.auction).delete()
+                self.quote.side_effect = exc
+                with patch.object(scraper, 'fetch_manifest_items', return_value=self._fetch([_api_row(1)])):
+                    result = self._pull()
+                self.assertTrue(result.ok)
+                self.assertFalse(result.shipping_quote)
+                self.assertIsNone(self._state().shipping_quote)
+
+    def test_no_quote_keeps_the_rate_estimate(self):
+        with patch.object(scraper, 'fetch_manifest_items', return_value=self._fetch([_api_row(1)])):
+            result = self._pull()
+        self.assertTrue(result.ok)
+        self.assertFalse(result.shipping_quote)
+        self.assertIsNone(self._state().shipping_quote)
 
     def test_rows_mapped_elsewhere_after_save_are_filled(self):
         def mapped_meanwhile(auction, mapping):
@@ -783,18 +825,21 @@ class CommandTests(TestCase):
         call_command('pull_shortlist_manifests', '--auction-id', str(a.pk), stdout=out)
         self.assertIn('No B-Stock login', out.getvalue())
 
-    def test_prunes_old_auto_rows_but_keeps_watchlisted(self):
+    def test_prunes_old_auto_rows_but_keeps_watchlisted_and_outcomes(self):
         mp = _target()
         old = _auction(mp, 'old', hours=-24 * 20, manifest_source=Auction.MANIFEST_SOURCE_AUTO, has_manifest=True)
         kept = _auction(mp, 'kept', hours=-24 * 20, manifest_source=Auction.MANIFEST_SOURCE_AUTO, has_manifest=True)
+        won = _auction(mp, 'won', hours=-24 * 20, manifest_source=Auction.MANIFEST_SOURCE_AUTO, has_manifest=True)
         WatchlistEntry.objects.create(auction=kept)  # status 'watching': nothing sets won yet
-        for a in (old, kept):
+        Outcome.objects.create(auction=won, win=True)  # a recorded win without a watchlist entry
+        for a in (old, kept, won):
             ManifestRow.objects.create(auction=a, row_number=1)
         with patch.object(manifest_pull, 'recompute_auction_valuation') as value:
             call_command('pull_shortlist_manifests', stdout=StringIO())
         old.refresh_from_db()
         self.assertEqual((old.manifest_rows.count(), old.manifest_source), (0, ''))
         self.assertEqual(kept.manifest_rows.count(), 1)
+        self.assertEqual(won.manifest_rows.count(), 1)
         self.assertEqual(value.call_count, 1)
 
 

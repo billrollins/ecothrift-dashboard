@@ -8,7 +8,7 @@
 
 **Objective:** A store tablet lets any staff member punch in, out, or on break with a scannable employee card and no login of their own, while the same screen shows who is in, on break, expected, late, or called in, grouped by department. Two faces: hosted `/kiosk` (a dedicated Employee host stays signed in; full board; pay edits) and public `/clock` (no login; card-only punch; redacted board). Clock-in walks a gate: stale punch, missed routines flagged `gate_on_miss` (a reason is required), unheard nudges.
 
-**Compass:** this file is not the compass; [`documents`](../../documents.md) stays the compass.
+**Compass:** this file is not the compass; [`documents`](../_pending/documents.md) stays the compass.
 
 ---
 

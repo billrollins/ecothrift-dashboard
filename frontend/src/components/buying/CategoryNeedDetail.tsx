@@ -5,11 +5,16 @@ import {
   Divider,
   IconButton,
   Stack,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { formatCurrency } from '../../utils/format';
-import type { BuyingCategoryNeedRow } from '../../types/buying.types';
+import { useAuth } from '../../hooks/useAuth';
+import { useBuyingCategoryGoalMutation } from '../../hooks/useBuyingCategoryNeed';
+import type { BuyingCategoryGoal, BuyingCategoryNeedRow } from '../../types/buying.types';
 
 function num(s: string | null | undefined): number | null {
   if (s == null || s === '') return null;
@@ -17,16 +22,15 @@ function num(s: string | null | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function fmt2(s: string | null | undefined): string {
-  const n = num(s);
-  return n == null ? '-' : n.toFixed(2);
-}
 
 type Props = {
   row: BuyingCategoryNeedRow | null;
   needScoreRawGlobalMin: string | null | undefined;
   needScoreRawGlobalMax: string | null | undefined;
   needWindowDays: number | null | undefined;
+  /** Assumptions target weeks; 0 = auto (store average cover). */
+  targetCoverWeeks?: number | null;
+  pipelineMaxAgeDays?: number | null;
   /** When true, omit fixed width / bordered card chrome (e.g. inside a drawer). */
   embeddedInDrawer?: boolean;
 };
@@ -189,6 +193,46 @@ function ExplainerBlock({
   );
 }
 
+const GOAL_MULTIPLIER: Record<BuyingCategoryGoal, number> = { more: 1.5, normal: 1, less: 0.5, stop: 1 };
+const GOAL_LABEL: Record<BuyingCategoryGoal, string> = {
+  more: 'want more: 1.5x the target',
+  normal: 'normal',
+  less: 'want less: half the target',
+  stop: 'stop buying: Need 1',
+};
+
+/** Manager goal for a category (Admin can change it; others see it). */
+function CategoryGoalPicker({ category, goal }: { category: string; goal: BuyingCategoryGoal }) {
+  const { hasRole } = useAuth();
+  const canEdit = hasRole('Admin');
+  const mutation = useBuyingCategoryGoalMutation();
+  return (
+    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+      <Typography variant="caption" color="text.secondary" fontWeight={600}>
+        Goal
+      </Typography>
+      <ToggleButtonGroup
+        size="small"
+        exclusive
+        value={goal}
+        disabled={!canEdit || mutation.isPending}
+        onChange={(_e, next: BuyingCategoryGoal | null) => {
+          if (next && next !== goal) mutation.mutate({ category, goal: next });
+        }}
+        aria-label={`Buying goal for ${category}`}
+      >
+        {(['more', 'normal', 'less', 'stop'] as const).map((g) => (
+          <Tooltip key={g} title={GOAL_LABEL[g]} placement="top">
+            <ToggleButton value={g} sx={{ py: 0.25, px: 1, fontSize: '0.7rem', textTransform: 'none' }}>
+              {g === 'more' ? 'More' : g === 'normal' ? 'Normal' : g === 'less' ? 'Less' : 'Stop'}
+            </ToggleButton>
+          </Tooltip>
+        ))}
+      </ToggleButtonGroup>
+    </Stack>
+  );
+}
+
 function soldWindowSinceLabel(days: number | null | undefined): string {
   if (days == null || !Number.isFinite(days) || days < 1) return '-';
   const d = new Date();
@@ -202,9 +246,9 @@ function soldWindowSinceLabel(days: number | null | undefined): string {
 
 export default function CategoryNeedDetail({
   row,
-  needScoreRawGlobalMin,
-  needScoreRawGlobalMax,
   needWindowDays,
+  targetCoverWeeks,
+  pipelineMaxAgeDays,
   embeddedInDrawer = false,
 }: Props) {
   const [explainerOpen, setExplainerOpen] = useState(false);
@@ -235,16 +279,18 @@ export default function CategoryNeedDetail({
 
   const windowDays = needWindowDays ?? null;
   const since = soldWindowSinceLabel(windowDays);
+  const inBuilding = row.in_building_units ?? 0;
+  const onOrder = row.on_order_units ?? 0;
+  const supply = row.shelf_count + inBuilding + onOrder;
+  const weekly = num(row.weekly_sales_units);
+  const cover = num(row.cover_weeks);
+  const target = num(row.target_weeks);
+  const goal: BuyingCategoryGoal = row.goal ?? 'normal';
+  const autoTarget = (targetCoverWeeks ?? 0) === 0;
+  const baseTarget = target != null ? target / (GOAL_MULTIPLIER[goal] ?? 1) : null;
+  const wk = (n: number | null) => (n == null ? '-' : n.toFixed(1));
+  const noSales = weekly == null || weekly <= 0;
   const gap = num(row.need_gap);
-  const unitLeg = fmt2(row.need_raw_unit_leg);
-  const retailLeg = fmt2(row.need_raw_retail_leg);
-  const combinedRaw = fmt2(row.need_raw_combined);
-  const rawMin = fmt2(needScoreRawGlobalMin);
-  const rawMax = fmt2(needScoreRawGlobalMax);
-  const equalBounds =
-    needScoreRawGlobalMin != null &&
-    needScoreRawGlobalMax != null &&
-    needScoreRawGlobalMin === needScoreRawGlobalMax;
 
   const outerSx = embeddedInDrawer
     ? {
@@ -287,9 +333,11 @@ export default function CategoryNeedDetail({
           / 99
         </Typography>
       </Stack>
-      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-        Need score · higher means stronger need to restock
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
+        Need · 50 = on target, higher = short on stock, lower = overstocked
       </Typography>
+
+      <CategoryGoalPicker category={row.category} goal={goal} />
 
       <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mb: 1 }}>
         <Typography
@@ -329,70 +377,76 @@ export default function CategoryNeedDetail({
         >
           <Stack spacing={1.25}>
             <ExplainerBlock
-              title="Unit leg"
-              value={unitLeg}
+              title="Supply"
+              value={supply.toLocaleString()}
               vars={[
+                { name: 'shelf', value: row.shelf_count.toLocaleString(), note: 'items on shelf' },
+                { name: 'in_building', value: inBuilding.toLocaleString(), note: 'intake + processing' },
                 {
-                  name: 'shelf_units',
-                  value: row.shelf_count.toLocaleString(),
-                  note: 'items on shelf',
-                },
-                {
-                  name: 'sold_units',
-                  value: row.sold_count.toLocaleString(),
-                  note: `sold in past ${windowDays ?? '-'} days`,
+                  name: 'on_order',
+                  value: onOrder.toLocaleString(),
+                  note: `open POs from the last ${pipelineMaxAgeDays ?? '-'} days, not processed`,
                 },
               ]}
-              formula="sold_units / shelf_units"
-              substitution={`${row.sold_count.toLocaleString()} / ${row.shelf_count.toLocaleString()}`}
-              result={unitLeg}
+              formula="shelf + in_building + on_order"
+              substitution={`${row.shelf_count.toLocaleString()} + ${inBuilding.toLocaleString()} + ${onOrder.toLocaleString()}`}
+              result={supply.toLocaleString()}
             />
             <ExplainerBlock
-              title="Retail leg"
-              value={retailLeg}
+              title="Weekly sales"
+              value={wk(weekly)}
+              vars={[
+                { name: 'sold', value: row.sold_count.toLocaleString(), note: `sold in past ${windowDays ?? '-'} days` },
+                { name: 'weeks', value: windowDays != null ? (windowDays / 7).toFixed(1) : '-' },
+              ]}
+              formula="sold / weeks"
+              substitution={`${row.sold_count.toLocaleString()} / ${windowDays != null ? (windowDays / 7).toFixed(1) : '-'}`}
+              result={wk(weekly)}
+            />
+            <ExplainerBlock
+              title="Weeks of cover"
+              value={wk(cover)}
+              vars={[
+                { name: 'supply', value: supply.toLocaleString() },
+                { name: 'weekly_sales', value: wk(weekly) },
+              ]}
+              formula="supply / weekly_sales"
+              substitution={`${supply.toLocaleString()} / ${wk(weekly)}`}
+              result={noSales ? 'none sold' : wk(cover)}
+            />
+            <ExplainerBlock
+              title="Target"
+              value={`${wk(target)} wk`}
               vars={[
                 {
-                  name: 'shelf_retail',
-                  value: formatCurrency(row.have_retail),
-                  note: 'retail value on shelf',
+                  name: 'base',
+                  value: wk(baseTarget),
+                  note: autoTarget ? "the store's average cover" : 'Admin > Assumptions',
                 },
-                {
-                  name: 'sold_retail',
-                  value: formatCurrency(row.want_retail),
-                  note: `sold in past ${windowDays ?? '-'} days`,
-                },
+                { name: 'goal', value: `x${GOAL_MULTIPLIER[goal] ?? 1}`, note: GOAL_LABEL[goal] },
               ]}
-              formula="sold_retail / shelf_retail"
-              substitution={`${formatCurrency(row.want_retail)} / ${formatCurrency(row.have_retail)}`}
-              result={retailLeg}
+              formula="base x goal"
+              substitution={`${wk(baseTarget)} x ${GOAL_MULTIPLIER[goal] ?? 1}`}
+              result={wk(target)}
             />
             <ExplainerBlock
-              title="Combined"
-              value={combinedRaw}
-              vars={[
-                { name: 'unit_leg', value: unitLeg },
-                { name: 'retail_leg', value: retailLeg },
-              ]}
-              formula="(unit_leg + retail_leg) / 2"
-              substitution={`(${unitLeg} + ${retailLeg}) / 2`}
-              result={combinedRaw}
-            />
-            <ExplainerBlock
-              title="Need score"
+              title="Need"
               value={`${row.need_score_1to99} / 99`}
               vars={[
-                { name: 'combined', value: combinedRaw, note: 'this category' },
-                { name: 'min_raw', value: rawMin, note: 'lowest across categories' },
-                { name: 'max_raw', value: rawMax, note: 'highest across categories' },
+                { name: 'cover', value: wk(cover) },
+                { name: 'target', value: wk(target) },
               ]}
-              formula="(combined − min_raw) / (max_raw − min_raw) × 99"
-              substitution={`(${combinedRaw} − ${rawMin}) / (${rawMax} − ${rawMin}) × 99`}
+              formula="100 x (1 - cover / target / 2), 1 to 99"
+              substitution={`100 x (1 - ${wk(cover)} / ${wk(target)} / 2)`}
               result={`${row.need_score_1to99}`}
             />
-            {equalBounds ? (
+            {goal === 'stop' ? (
               <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.5 }}>
-                All categories currently tie on the combined score, so every category maps to{' '}
-                <strong>50</strong>.
+                The goal is <strong>Stop</strong>, so Need is always 1.
+              </Typography>
+            ) : noSales ? (
+              <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.5 }}>
+                Nothing sold in the window: Need is 1 while we hold stock, and 50 when we hold none.
               </Typography>
             ) : null}
           </Stack>
@@ -407,18 +461,34 @@ export default function CategoryNeedDetail({
         color="text.secondary"
         sx={{ display: 'block', mb: 0.5, letterSpacing: 0.3 }}
       >
-        Last {windowDays ?? '-'} days (since {since})
+        Stock and pipeline · sales since {since}
       </Typography>
-      <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: 1.25 }}>
+      <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: 0.75 }}>
         <Tile
           label="On shelf"
           primary={`${row.shelf_count.toLocaleString()} units`}
           secondary={formatCurrency(row.have_retail)}
         />
+        <Tile label="In the building" primary={`${inBuilding.toLocaleString()} units`} secondary="intake + processing" />
+        <Tile label="On order" primary={`${onOrder.toLocaleString()} units`} secondary="open POs, not processed" />
+      </Stack>
+      <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: 1.25 }}>
         <Tile
           label="Sold in window"
           primary={`${row.sold_count.toLocaleString()} units`}
-          secondary={formatCurrency(row.want_retail)}
+          secondary={`${wk(weekly)} a week · ${formatCurrency(row.want_retail)}`}
+        />
+        <Tile
+          label="Weeks of cover"
+          primary={noSales ? 'none sold' : `${wk(cover)} wk`}
+          secondary={`target ${wk(target)} wk`}
+        />
+        <Tile
+          label="Days to sell"
+          primary={row.median_days_to_sell != null ? `${row.median_days_to_sell} days` : '-'}
+          secondary={
+            row.sold_within_90_pct != null ? `median · ${num(row.sold_within_90_pct)?.toFixed(0)}% within 90 days` : 'median'
+          }
         />
       </Stack>
 

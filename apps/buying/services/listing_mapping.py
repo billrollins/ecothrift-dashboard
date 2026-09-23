@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -10,6 +11,31 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from apps.buying.models import Auction
+
+
+# "Truckload (23 Pallets) of ...", "3 Pallet Spaces of ...", "Est. 1 Pallet of ..."
+_TITLE_PALLETS_RE = re.compile(r'(\d{1,3})\s+pallets?\b', re.IGNORECASE)
+
+
+def pallet_count_from_listing(raw: dict[str, Any], title: str = '') -> int | None:
+    """B-Stock palletCount when positive, else the pallet count in the title, else None."""
+    n = _to_int(_first(raw, 'palletCount', 'pallet_count'))
+    if n is not None and n > 0:
+        return n
+    m = _TITLE_PALLETS_RE.search(title or '')
+    if m:
+        n = int(m.group(1))
+        return n if n > 0 else None
+    return None
+
+
+def origin_from_listing(raw: dict[str, Any]) -> tuple[str, str]:
+    """(``"City, ST"``, zip) where the lot ships from; blanks when B-Stock does not say."""
+    city = str(_first(raw, 'sellerCity') or '').strip()
+    state = str(_first(raw, 'provinceCode', 'sellerState') or '').strip()
+    label = f'{city}, {state}' if city and state else city
+    zip_code = str(_first(raw, 'sellerZipCode') or '').strip()[:12]
+    return label[:120], zip_code
 
 
 def _first(raw: dict[str, Any], *keys: str) -> Any:
@@ -187,6 +213,9 @@ def map_listing_raw_to_auction_fields(
     )[:500]
 
     lot_size = _to_int(_first(raw, 'lotSize', 'itemCount', 'quantity', 'units'))
+    pallet_count = pallet_count_from_listing(raw, title)
+    origin_city, origin_zip = origin_from_listing(raw)
+    shipment_type = str(_first(raw, 'shipmentType') or '').strip()[:20]
 
     lt_raw = _first(raw, 'listingType', 'listing_type')
     listing_type = str(lt_raw).strip()[:32] if lt_raw is not None else ''
@@ -243,6 +272,10 @@ def map_listing_raw_to_auction_fields(
         'category': category,
         'condition_summary': condition_summary,
         'lot_size': lot_size,
+        'pallet_count': pallet_count,
+        'origin_city': origin_city,
+        'origin_zip': origin_zip,
+        'shipment_type': shipment_type,
         'listing_type': listing_type,
         'total_retail_value': total_retail_value,
         'current_price': current_price,

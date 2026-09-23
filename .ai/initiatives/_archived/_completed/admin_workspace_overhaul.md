@@ -8,7 +8,7 @@
 
 **Objective:** Pull every studio into a Studios workspace (`8` / `S`), leave every other page in its original workspace, fold Assumptions + Permissions + Settings into one tabbed Settings house (`0` / `A` Admin), and replace the fake Permissions page with a real capability catalog.
 
-**Compass:** retired. Remaining Active work is on [`.ai/context.md`](../../context.md). [`universal_object_surfaces`](../../universal_object_surfaces.md) stays design-only; its capability taxonomy must not be reinvented here. The catalog in `apps/accounts/capabilities.py` cites that initiative so the two stay aligned.
+**Compass:** retired. Remaining Active work is on [`.ai/context.md`](../../context.md). [`universal_object_surfaces`](../_pending/universal_object_surfaces.md) stays design-only; its capability taxonomy must not be reinvented here. The catalog in `apps/accounts/capabilities.py` cites that initiative so the two stay aligned.
 
 ---
 
@@ -45,7 +45,7 @@ A Manager or Admin opens Studios for labels, floorplans, QA forms, and the blog.
 
 ## See also
 
-- Capability taxonomy (design, not this file): [`universal_object_surfaces`](../../universal_object_surfaces.md)
+- Capability taxonomy (design, not this file): [`universal_object_surfaces`](../_pending/universal_object_surfaces.md)
 - Nav: `frontend/src/navigation/`
 - Settings: `frontend/src/pages/admin/settings/`
 - Auth: `.ai/extended/auth-and-roles.md`

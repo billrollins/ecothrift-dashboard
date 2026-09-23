@@ -21,6 +21,9 @@ from apps.core.services.llm_router import (
 )
 from apps.core.ai_config import ai_effort
 
+# Per-attempt LLM timeout by the effort chosen in Settings > AI (thinking takes longer).
+KEY_MAPPING_TIMEOUT_SECONDS = {'off': 60, 'low': 60, 'medium': 90, 'high': 110, 'max': 110}
+
 logger = logging.getLogger(__name__)
 
 
@@ -217,6 +220,7 @@ def map_one_fast_cat_batch(
             str(r.retail_value) if r.retail_value is not None else '',
         )
     user = build_user_prompt(unknown, key_context)
+    effort = ai_effort('KEY_MAPPING')
 
     try:
         result = llm_complete(
@@ -224,10 +228,12 @@ def map_one_fast_cat_batch(
             system=system,
             user=user,
             max_tokens=4096,
-            effort=ai_effort('KEY_MAPPING'),
+            effort=effort,
             # Bounded: the background manifest pull must keep its heartbeat moving (a job is
-            # treated as dead after 8 silent minutes; this plus SDK retries stays well under).
-            timeout=60,
+            # treated as dead after 8 silent minutes). Two attempts at most, so even a
+            # high-effort model (Settings > AI) stays under 4 minutes per batch.
+            timeout=KEY_MAPPING_TIMEOUT_SECONDS.get(effort, 60),
+            max_retries=1,
             log_source='ai_key_mapping',
             log_detail=f'map_one_fast_cat_batch keys={len(unknown)}',
             log_auction_id=auction.pk,

@@ -62,7 +62,13 @@ Root URL prefixes: `api/auth/`, `api/accounts/`, `api/core/`, `api/hr/`, `api/in
 
 | Metric / output | Source | Notes |
 |-----------------|--------|--------|
-| **Category need (1–99 per taxonomy row)** | `CategoryStats` populated by **`compute_daily_category_stats`** → SQL in **`apps/buying/services/category_stats_sql.py`**; panel rows via **`build_category_need_rows()`** in **`apps/buying/services/category_need.py`**. | **`need_score_1to99`** on `CategoryStats`; shelf/sold bar mix + **N-day** sold cohort for **want** counts; **recovery** / **avg sale–retail–cost** / **margin** use **all-time good-data** sold rows (**v2.17.0**: sale, retail, cost each **0.01–9999**). |
+| **Category need (1–99 per taxonomy row)** | `CategoryStats` populated by **`compute_daily_category_stats`** → SQL in **`apps/buying/services/category_stats_sql.py`**; panel rows via **`build_category_need_rows()`** in **`apps/buying/services/category_need.py`**. | **`need_score_1to99`** on `CategoryStats` is **Need v2** (2026-09-23, `need_from_cover`):
+- **Supply:** shelf (`on_shelf`) + in the building (`intake` / `processing` items) + on order (lines on open POs ordered within `buying_pipeline_max_age_days` (120) with no item yet; PO line codes such as `TOYS` map through `CategoryMapping` majority, `category_code_to_taxonomy`).
+- **Cover:** supply ÷ weekly sales.
+- **Target:** `buying_target_cover_weeks`, where 0 (the default) means the store's own average cover, × the category goal (`buying_category_goals`: more ×1.5, less ×0.5, stop = Need 1).
+- **Need:** 100 × (1 − cover / target / 2), clamped to 1–99, so 50 = on target. `PATCH /api/buying/category-need/goal/` (Admin) re-scores from the stored inputs and re-values live auctions.
+
+Shelf/sold bar mix + **N-day** sold cohort for **want** counts; **recovery** / **avg sale–retail–cost** / **margin** use **all-time good-data** sold rows (**v2.17.0**: sale, retail, cost each **0.01–9999**). |
 | **Auction `need_score` / auto `priority`** | **`apps/buying/services/valuation.py`** — **`_auction_need_from_mix()`** (weighted SUMPRODUCT of per-category **`need_score_1to99`**, clamped **1–99**). | Staff may set **`priority_override`** on **`Auction`**. |
 | **`Item.cost`** | **`PurchaseOrder.est_shrink`** + listing **`Item.retail_value`** / PO retail totals — see **Item acquisition cost**; updates on PO save and on **Item** retail/PO FK change; **`recompute_all_item_costs`** for backfill only. | Not computed by daily buying batch. |
 | **Profitability / fees / shipping** | **`valuation._fees_shipping_total_cost()`** + overrides on **`Auction`**; **`PricingRule`** sell-through where applicable. | |

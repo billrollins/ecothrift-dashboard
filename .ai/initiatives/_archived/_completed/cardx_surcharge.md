@@ -8,7 +8,7 @@
 
 **Objective:** Cashiers can complete card and split sales by keying the POS pre-surcharge amount into CardX and matching the machine's approved total to one of two server-computed buttons. The POS records a 3% credit surcharge (not debit, prepaid, or cash) without adding it to sale revenue, and prints the breakdown on the store receipt.
 
-**Compass:** this file is not the compass; [`documents`](../../documents.md) stays the compass.
+**Compass:** this file is not the compass; [`documents`](../_pending/documents.md) stays the compass.
 
 ---
 

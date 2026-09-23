@@ -8,7 +8,7 @@
 
 **Objective:** Managers can open a Departments directory and a per-department hub. Superusers can create, rename, deactivate, and delete (when nothing depends on the row). Grouping is `hr.Department` only; departments grant no permissions.
 
-**Compass:** this file is not the compass; [`documents`](../../documents.md) stays the compass.
+**Compass:** this file is not the compass; [`documents`](../_pending/documents.md) stays the compass.
 
 ---
 

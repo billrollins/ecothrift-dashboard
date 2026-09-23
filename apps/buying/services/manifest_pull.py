@@ -46,6 +46,8 @@ from apps.buying.models import (
     ManifestPullJob,
     ManifestPullLog,
     ManifestRow,
+    Marketplace,
+    Outcome,
     WatchlistEntry,
 )
 from apps.buying.services import scraper
@@ -66,6 +68,7 @@ from apps.buying.services.manifest_template import (
     slugify_segment,
 )
 from apps.buying.services.normalize import normalize_manifest_row
+from apps.buying.services.shipping_quote import try_refresh_shipping_quote
 from apps.buying.services.valuation import (
     compute_and_save_manifest_distribution,
     recompute_auction_valuation,
@@ -134,6 +137,8 @@ class PullResult:
     blocked: bool = False
     # B-Stock refused this lot (400/403/preview). Two in a row means the login.
     refused: bool = False
+    # B-Stock had a shipping quote for this listing (the buyer opened it on bstock.com).
+    shipping_quote: bool = False
 
 
 def _noop() -> None:
@@ -495,6 +500,14 @@ def pull_manifest_for_auction(
             try:
                 result.rows = save_api_manifest(auction, fetch.items, replace=force)
                 result.ok = True
+                # One more call, spaced like the pages: the quote exists only for listings the
+                # owner opened on B-Stock. Read before valuing so the value uses it.
+                if page_delay_seconds > 0:
+                    time.sleep(page_delay_seconds)
+                touch()
+                result.shipping_quote = (
+                    try_refresh_shipping_quote(auction, bearer=bearer, session=session) is not None
+                )
                 result.unmapped_keys = map_categories_and_value(auction, touch=touch, deadline=deadline)
             except ManifestArrived:
                 result.skipped = True
@@ -711,6 +724,10 @@ def _run_claimed(runner: _Runner, session: requests.Session, deadline: float | N
     if job.auction_ids:
         _release_in_flight(job, [pk for pk in job.auction_ids if pk not in finished])
     else:
+        # Only a Pull the owner started (no deadline): the Scheduler's resume budget is for
+        # manifests, and its heartbeat would stop the job before the list is fixed.
+        if deadline is None:
+            _refresh_signed_in_sellers(runner)
         ids = list(
             shortlist_queryset().values_list('pk', flat=True)[: get_manifest_pull_max_per_run()]
         )
@@ -799,6 +816,29 @@ def _run_claimed(runner: _Runner, session: requests.Session, deadline: float | N
     runner.finish(ManifestPullJob.STATUS_DONE)
 
 
+def _refresh_signed_in_sellers(runner: _Runner) -> None:
+    """
+    Search signed-in-only sellers (Costco) with the login before the shortlist is fixed:
+    B-Stock hides them from the anonymous hourly sweep, so this is when their lots arrive.
+    A failed search never stops the pull.
+    """
+    from apps.buying.services import pipeline
+
+    slugs = list(
+        Marketplace.objects.filter(is_active=True, requires_login=True).values_list('slug', flat=True)
+    )
+    for slug in slugs:
+        runner.touch()
+        try:
+            pipeline.run_discovery(slug)
+        except JobLost:
+            raise
+        except Exception:
+            logger.exception('signed-in search failed for %s before the pull', slug)
+    if slugs:
+        runner.touch()
+
+
 def _result_row(auction_id: int, auction: Auction | None, result: PullResult) -> dict:
     return {
         'auction_id': auction_id,
@@ -808,6 +848,7 @@ def _result_row(auction_id: int, auction: Auction | None, result: PullResult) ->
         'blocked': result.blocked,
         'rows': result.rows,
         'unmapped_keys': result.unmapped_keys,
+        'shipping_quote': result.shipping_quote,
         'error': result.error,
     }
 
@@ -898,10 +939,11 @@ def resume_claimable_jobs(*, deadline: float | None = None) -> list[ManifestPull
 
 def prune_auto_manifests(now=None, *, limit: int = 100) -> int:
     """
-    Drop auto-pulled rows for auctions that ended a while ago and were never watchlisted.
-    Watchlist anything you bid on or win: until Phase 2 links a win to its PO, that is how
-    its manifest is kept. Each pull stores up to 10,000 rows with the raw API line. The pruned
-    auctions are re-valued without them. At most ``limit`` per run. Returns auctions pruned.
+    Drop auto-pulled rows for auctions that ended a while ago, were never watchlisted, and
+    have no recorded outcome (win or loss). Until Phase 2 links a win to its PO, a watchlist
+    entry or an outcome is what keeps a manifest. Each pull stores up to 10,000 rows with the
+    raw API line. The pruned auctions are re-valued without them. At most ``limit`` per run.
+    Returns auctions pruned.
     """
     now = now or timezone.now()
     ids = list(
@@ -910,6 +952,7 @@ def prune_auto_manifests(now=None, *, limit: int = 100) -> int:
             end_time__lt=now - PRUNE_AUTO_AFTER,
         )
         .exclude(Exists(WatchlistEntry.objects.filter(auction_id=OuterRef('pk'))))
+        .exclude(Exists(Outcome.objects.filter(auction_id=OuterRef('pk'))))
         .values_list('pk', flat=True)[:limit]
     )
     if not ids:

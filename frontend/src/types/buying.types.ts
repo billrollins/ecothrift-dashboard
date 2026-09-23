@@ -7,6 +7,8 @@ export interface BuyingMarketplace {
   name: string;
   slug: string;
   external_id: string | null;
+  /** B-Stock shows this seller only to a signed-in buyer (Costco): loaded with the handed-over login. */
+  requires_login?: boolean;
 }
 
 /** Phase 5: mix source label from backend. */
@@ -156,6 +158,54 @@ export interface BuyingAuctionDetail extends BuyingAuctionListItem {
   category_distribution?: BuyingCategoryDistribution;
   watchlist_entry: BuyingWatchlistEntry | null;
   first_seen_at: string | null;
+  /** B-Stock's freight quote to the buyer's address (dollars), when B-Stock has one. */
+  shipping_quote?: string | null;
+  shipping_quote_at?: string | null;
+  shipping_quote_info?: BuyingShippingQuoteInfo | null;
+  /** Fee rate that scales with the bid; null when fees are a fixed override. */
+  fee_rate_applied?: string | null;
+  /** Shipping rate that scales with the bid; null when shipping is an override or a quote. */
+  shipping_rate_applied?: string | null;
+  shipping_source?: 'override' | 'quote' | 'estimate';
+  /** How an estimate was worked out (estimate only). */
+  shipping_estimate?: BuyingShippingEstimate | null;
+  /** From the listing: B-Stock palletCount, else the pallets in the title. */
+  pallet_count?: number | null;
+  /** Where the lot ships from, e.g. "Franklin, IN". */
+  origin_city?: string;
+  origin_zip?: string;
+  /** Truckload, LTL, or PARCEL. */
+  shipment_type?: string;
+}
+
+/**
+ * formula: distance formula (truckload or LTL) fitted on our past orders;
+ * pallets: pallets x the Assumptions $ per pallet (no distance for the city yet);
+ * rate: marketplace shipping rate x price (no pallet count).
+ */
+export interface BuyingShippingEstimate {
+  basis: 'formula' | 'pallets' | 'rate';
+  amount: string;
+  mode?: 'truckload' | 'ltl';
+  pallets?: number;
+  miles?: number;
+  city?: string;
+  per_pallet?: string;
+  /** Share the formula typically misses by; low / high are amount -/+ that share. */
+  typical_error?: string;
+  low?: string | null;
+  high?: string | null;
+  rate?: string;
+}
+
+export interface BuyingShippingQuoteInfo {
+  carrier?: string;
+  /** TL (truckload) or LTL. */
+  mode?: string;
+  trucks?: number | null;
+  destination_zip?: string;
+  quote_id?: string;
+  quoted_at?: string;
 }
 
 /** Row from GET /api/buying/auctions/:id/manifest_rows/ */
@@ -279,8 +329,38 @@ export interface BuyingCategoryNeedRow {
   bar_scale_max: string;
   /** From CategoryStats - SUM(sold_for)/SUM(retail_value), 0-1 */
   recovery_rate: string;
-  /** Min-max scaled vs other categories (1-99), daily SQL. */
+  /** Need v2 (1-99): weeks of cover vs target; 50 = on target, higher = short. */
   need_score_1to99: number;
+  /** Items in intake or processing. */
+  in_building_units?: number;
+  /** Units on open POs (recent) with no item yet. */
+  on_order_units?: number;
+  pipeline_units?: number;
+  weekly_sales_units?: string;
+  /** (shelf + pipeline) / weekly sales; null when nothing sold. */
+  cover_weeks?: string | null;
+  /** Target weeks after the goal multiplier. */
+  target_weeks?: string | null;
+  goal?: BuyingCategoryGoal;
+  median_days_to_sell?: number | null;
+  sold_within_90_pct?: string | null;
+}
+
+/** Manager goal per category: moves its target weeks of cover (more x1.5, less x0.5, stop = Need 1). */
+export type BuyingCategoryGoal = 'more' | 'normal' | 'less' | 'stop';
+
+export interface BuyingPipelineSummary {
+  shelf_units: number;
+  in_building_units: number;
+  on_order_units: number;
+  open_pos_by_status: Record<string, number>;
+  open_pos_without_lines: number;
+  open_pos_without_lines_retail: string;
+  checked_in_per_week: number;
+  /** Check-ins per week averaged over 26 weeks. */
+  checked_in_per_week_26?: number;
+  /** (in building + on order) / weekly check-ins: weeks of processing already waiting. */
+  backlog_weeks?: number | null;
 }
 
 export interface BuyingCategoryNeedResponse {
@@ -290,6 +370,11 @@ export interface BuyingCategoryNeedResponse {
   /** Max of `need_raw_combined` across taxonomy rows. */
   need_score_raw_global_max: string | null;
   categories: BuyingCategoryNeedRow[];
+  need_method?: 'cover_v2';
+  /** Assumptions setting; 0 = auto (the store's average cover). */
+  target_cover_weeks?: number;
+  pipeline_max_age_days?: number;
+  pipeline?: BuyingPipelineSummary;
 }
 
 /** PATCH /api/buying/auctions/:id/valuation-inputs/ */

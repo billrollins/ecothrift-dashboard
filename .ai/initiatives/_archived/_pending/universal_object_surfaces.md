@@ -1,13 +1,14 @@
-<!-- initiative: slug=universal-object-surfaces status=active updated=2026-08-21 -->
-<!-- Last updated: 2026-08-21 (design only) -->
+<!-- Archived 2026-09-23: disposition=pending design only, no code. Resume when the capability taxonomy and object surface are picked up. -->
+<!-- initiative: slug=universal-object-surfaces status=pending updated=2026-09-23 -->
+<!-- Last updated: 2026-09-23 (parked pending) -->
 
 # Initiative: Universal object surfaces
 
-**Status:** **Active** — Design only. No code is scheduled. The item notes ledger shipped under [`finalize_tars_app`](./_archived/_completed/finalize_tars_app.md); this file records the larger object-surface idea so it does not get reinvented inside TARS.
+**Status:** **Pending** — Design only. No code is scheduled. **Resume when** the capability taxonomy, descriptor schema, tab inventory, and migration path are written and accepted. The item notes ledger shipped under [`finalize_tars_app`](../_completed/finalize_tars_app.md); this file records the larger object-surface idea so it does not get reinvented inside TARS.
 
 **Objective:** One permissioned way to open any inventory object from any screen — a chip that always opens the same tabbed surface — instead of a new drawer, dialog, or permission check for each desk.
 
-**Compass:** TARS stays the compass. This initiative does not take over [`.ai/context.md`](../context.md).
+**Compass:** this file is not the compass. [`bstock_daily_buying`](../../bstock_daily_buying.md) is the compass. This initiative does not take over [`.ai/context.md`](../../../context.md).
 
 ---
 
@@ -21,7 +22,7 @@ This file is not that finish line. It is the design we will build from when we p
 
 ## Why this is not built yet
 
-Today every inventory viewset is `[IsAuthenticated, IsStaff]`. Role is a Django group name (`Admin` / `Manager` / `Employee`…) in [`apps/accounts/models.py`](../../apps/accounts/models.py). There are eight `has_permission` classes and **no** `has_object_permission` anywhere. There is no field-level read/write. A universal modal without that layer would either leak or lie.
+Today every inventory viewset is `[IsAuthenticated, IsStaff]`. Role is a Django group name (`Admin` / `Manager` / `Employee`…) in [`apps/accounts/models.py`](../../../../apps/accounts/models.py). There are eight `has_permission` classes and **no** `has_object_permission` anywhere. There is no field-level read/write. A universal modal without that layer would either leak or lie.
 
 The notes ledger is the first durable item-scoped history. It is not the object surface.
 
@@ -119,7 +120,7 @@ The real list of tabs and fields per object, walked against the live screens. Th
 ## Acceptance
 
 - [x] Design recorded in this file
-- [x] Active row on [`_index.md`](./_index.md) marked design-only
+- [x] Was on [`_index.md`](../../_index.md) as design-only; parked pending 2026-09-23
 - [ ] Capability taxonomy written
 - [ ] Descriptor schema written
 - [ ] Per-object tab inventory written
@@ -130,12 +131,14 @@ The real list of tabs and fields per object, walked against the live screens. Th
 
 ## Record
 
+**2026-09-23 — Parked pending.** Owner paused it. Design only; no code. Resume when the four empty design sections are picked up.
+
 **2026-08-21 — Design opened.** Written next to the item notes ledger so the chip-to-surface idea has a home. No code. TARS remains the compass.
 
 ---
 
 ## See also
 
-- Notes ledger: [`finalize_tars_app`](./_archived/_completed/finalize_tars_app.md)
-- Accounts roles: [`apps/accounts/models.py`](../../apps/accounts/models.py)
-- Index: [`_index.md`](./_index.md)
+- Notes ledger: [`finalize_tars_app`](../_completed/finalize_tars_app.md)
+- Accounts roles: [`apps/accounts/models.py`](../../../../apps/accounts/models.py)
+- Index: [`_index.md`](../../_index.md)

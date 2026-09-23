@@ -1,19 +1,19 @@
 <!-- initiative: slug=bstock-daily-buying status=active updated=2026-09-23 -->
-<!-- Last updated: 2026-09-22 (Phase 1 built) -->
+<!-- Last updated: 2026-09-23 (process rethink; phases 2-6 re-planned) -->
 
 # Initiative: B-Stock daily buying
 
-**Status:** **Active** — Phase 1.
+**Status:** **Active**. Phase 1 is done. Phase 2 (buying context) is next and waits on runner recon R-002 to R-007 (`.ai/comm/runner/`).
 
 **Objective:** The buyer can go from ad-hoc buying (about 5 auctions every week or two, manifests downloaded and uploaded by hand) to buying the best 1–2 B-Stock auctions a day. The app finds candidates, pulls their manifests without a manual step, and scores each truck on what the store already has, what sells, how fast it sells, shelf space, what is already won and on the way, the all-in cost (bid + fees + shipping), and bulk (same or similar items across lines). A won auction becomes a PO without a second manifest upload, so every truck gets a report card that feeds the next score.
 
-**Compass:** this file is not the compass; [`documents`](./documents.md) stays the compass.
+**Compass:** this file is the compass. Documents is pending: [`documents`](./_archived/_pending/documents.md).
 
 ---
 
 ## Finish line
 
-Each morning the buyer opens **Buying → Top picks** and sees the best 1–2 auctions ending soon, each with a max bid, its manifest already loaded, and a plain breakdown (money in, all-in cost, weeks of shelf space, bulk flags). The buyer bids on B-Stock, marks the auction Won in the app, and a PO with that manifest appears in Inventory. When the truck's items sell, the auction shows predicted vs actual.
+Each morning the buyer opens the wish list: the few auctions worth bidding on, each with a price target (buy at or under), a truck score, how badly we need it, a duration estimate, hazards, and why we want it or might not. Prices are tracked, and an auction drops off when it passes its target. The buyer bids by hand near the end. A won auction becomes a PO with its manifest, and when its items sell the auction shows predicted vs actual.
 
 ---
 
@@ -38,57 +38,158 @@ Each morning the buyer opens **Buying → Top picks** and sees the best 1–2 au
 
 ---
 
+## The daily process (owner, 2026-09-23)
+
+1. **Get context:** inventory, sales, goals, processing, orders, and listings.
+2. **Make intermediate decisions:** which listings are worth a closer look.
+3. **Get deeper context on those:** the signed-in data (manifest, fees, shipping quote).
+4. **Process them for full context:** exact products, and what the truck really holds.
+5. **Decide the wish list:** very good insight, driven by profit.
+6. **Set a buy price** (buy at or under it), track the price, and drop the auction when it gets too high.
+
+The owner bids by hand near the end of the auction (outbid at the last second, then wait). The app never bids. It hands over a short list with a price target, a strategy, and the reasons for and against each auction.
+
+**Contexts the process needs**
+
+1. **Inventory.** We have it by canonical category now. Product vectors come later.
+   - We know nothing about shrink yet, because we never count.
+   - Coming: Monday counts of the floor (not backstock), customer price scans (last seen, and scanned but not bought), and product dedupe.
+2. **Sales.** By category, vendor, price and day, and by product vector later. This drives truck value, pricing to sell within 90 days, and buying pressure.
+3. **Goals.** What the manager wants: more of a category, better sales or profit, or faster sales.
+4. **Processing.** Velocity, what is waiting in receiving, and what we have that is not on the shelf.
+5. **Orders.** Won auctions at every stage: entered, preprocessed, shipped, received, or none of these.
+6. **Listings.** What is live on B-Stock, and what the listing text alone says: vendor, category, condition, pallets, units, retail $, price and location.
+7. **Decisions.** Which auctions to focus on, and the signed-in data for those (shipping, fees, manifest).
+8. **Manifest analysis.** The exact products (and vectors), then the hazards:
+   - high-volume items, and whether we can sell them;
+   - items we need, and items that are hard to sell;
+   - likely breakage;
+   - "box 1 of 4" and missing pieces;
+   - high-value items (theft, damage, a wrong retail price);
+   - $0 lines (soft-deleted);
+   - quantities too large for processing.
+9. **Final list.** Auctions to watch, each with how badly we need it, a price target, the truck score, a duration estimate, and why we want it or might not.
+
+---
+
+## Data quality (every phase)
+
+The data is messy (4+ years, at least 3 database restarts). Every phase reads the register [`.ai/extended/data-quality.md`](../extended/data-quality.md) and, before it is done, states the register IDs it touches, the fill-ins it uses, and what coverage the screen shows. Imperfect data is used and labelled, not dropped. The work itself lives in [`data_quality_rails`](./data_quality_rails.md).
+
+| Phase | Register IDs |
+|---|---|
+| 2 · Buying context | PO-01, PO-03, PO-04, ITM-01, ITM-02, ITM-03, ITM-05, SHR-01, AUC-03, SAL-03, ERA-01 |
+| 3 · Listing triage | AUC-03, AUC-04, AUC-05, PO-06, PO-07 |
+| 4 · Manifest analysis | PRD-01, PRD-02, AUC-06, ITM-01 |
+| 5 · Wish list | AUC-02, SHR-02, ERA-01 |
+| 6 · Won to PO | AUC-01, AUC-02, PO-01, PO-02, PO-05, PO-07 (this phase is also their rail) |
+
+---
+
 ## Phases
 
-### Phase 1 — Fresh stats and automatic manifests
-Need scores are current again. A daily superuser routine hands the app the owner's B-Stock login (desk or phone) and the server pulls manifests for the auctions ending soon, with manual upload kept as a fallback.
-**Gated by:** none.
+### Phase 1 — Fresh stats and automatic manifests (done)
+Need scores are current again. The owner hands over the B-Stock login each day from a superuser routine (desk or phone), and the server pulls manifests for the shortlist. Manual upload stays as a fallback.
 
 Acceptance:
-- [x] `compute_daily_category_stats` runs green (`unit_retail` → `retail`, `computed_at` now set on update); the six SQL tests that used pre-0061 Item fields now run the real SQL; local stats refreshed
-- [x] One-request probe of the anonymous order-process manifest API, result recorded under Audit (preview only)
-- [x] Shortlist: open, non-archived, non-contract auctions with a lot id and no manifest, ending inside the window, not failed inside the retry wait; watchlisted, then priority, then soonest; window / cap / retry / page delay are Admin → Assumptions settings
-- [x] The routine's Pull button runs a `ManifestPullJob` with the handed-over login (one live job; Stop; the Scheduler's `pull_shortlist_manifests` only resumes a job whose runner died); rows save through the same fast-cat mapping and valuation as a CSV upload; a partial download is never saved
-- [x] Daily **Pull B-Stock manifests** routine (`kind=bstock_pull`, superusers): open B-Stock → Send to Eco-Thrift bookmarklet → confirm on `/routines/bstock-login` → Pull → progress → Submit; works in the phone runner and the desk stage
-- [x] Each auction records manifest source (auto / manual), last attempt, and error; auction detail (with the attempt time) and the list's manifest tooltip show them
-- [x] Manual CSV upload still works and replaces an auto manifest
-- [x] Scheduler step documented in `development.md` and `bstock.md`; buying pytest 143 green; routines pytest and vitest failures identical to `main`
-- [ ] Verified end to end with a real B-Stock login (bookmark set up on desk and phone, one real pull)
+- [x] `compute_daily_category_stats` runs green again; local stats refreshed.
+- [x] The anonymous manifest API was probed: it returns a 10-line preview only.
+- [x] Shortlist: watchlisted auctions first, then priority, then soonest ending. Window, cap, retry wait and pause are settings.
+- [x] `ManifestPullJob`:
+  - one live job at a time, with Stop and runner ownership;
+  - the Scheduler only resumes a job whose runner died;
+  - a partial download is never saved.
+- [x] The daily **Pull B-Stock manifests** routine, with the bookmark hand-off, on desk and phone.
+- [x] Each auction records its manifest source, last attempt and error. Manual CSV upload still works.
+- [x] Verified with a real B-Stock login (2026-09-23): 40 manifests, then Costco.
+- [x] Also shipped on 2026-09-23:
+  - B-Stock's 5% fee;
+  - B-Stock shipping quotes;
+  - a shipping formula from distance and pallets, fitted on 193 POs;
+  - pallets, origin and shipment type from each listing;
+  - Costco and other signed-in-only sellers.
 
-### Phase 2 — Won auction to PO, and the data a report card needs
-Mark Won creates a PO carrying the manifest; sales record channel, realized price, and days-to-sell.
-**Gated by:** Phase 1.
-Detail when Phase 1 is built.
+### Phase 2 — Buying context (steps 1 and 3 to 5 of the contexts)
+One context per category, which everything later reads:
 
-### Phase 3 — Truck score
-Manifest lines grouped into products (UPC / ASIN / near-same description); each group scored on stock on hand + on the way, days-to-sell, cash-back-adjusted price, clear-this-week price, shrink, and dispute clawback; ranked by profit per week of shelf space.
-**Gated by:** Phase 2.
-Detail when Phase 2 is built.
+| Measure | What it is |
+|---|---|
+| **Have** | Items on the shelf |
+| **Pipeline** | Won, then PO entered, preprocessed, shipped, received, and in processing but not shelved |
+| **Sales** | Units, revenue, days to sell, and sold price vs retail, by category and vendor |
+| **Processing** | Items per week, and the backlog |
+| **Goals** | Manager settings per category (more, less, or normal), and the weight on profit vs speed |
 
-### Phase 4 — Daily Top picks
-A Top picks board with the best 1–2 auctions a day, max bid, and a plain breakdown; predicted vs actual on won trucks.
+**Need v2** is weeks of cover: (have + pipeline) ÷ weekly sales, compared with a target number of weeks. This fixes today's Need, which ignores what is won but not yet processed. Priority is re-based on Need v2 and profit.
+**Gated by:** Phase 1, and runner recon R-002 to R-006.
+
+### Phase 3 — Listing triage, no sign-in (step 2; context 6)
+Every live listing gets:
+- **parsed facts** from the listing text: vendor, category, condition, pallets, units, retail $, price, location;
+- **an estimated all-in cost:** fees plus the shipping formula;
+- **a cheap triage score:** estimated profit at the current price, fit with Need v2, and speed of sale.
+
+The top N form the **focus list**. The morning Pull pulls the focus list instead of "ending soon by priority".
+**Gated by:** Phase 2, and recon R-007.
+
+### Phase 4 — Deep context and manifest analysis (steps 3 and 4; contexts 7 and 8)
+The signed-in data for the focus list is built: manifest, fees and shipping quote. What this phase adds:
+- **Product grouping:** UPC, ASIN or near-same title first, vectors later.
+- **Sell-through per product or category**, and the high-volume items.
+- **Hazard flags:** box 1 of N or missing pieces, high value (theft, damage, or a wrong retail price), $0 lines, quantities too big for processing, and likely breakage.
+- **Truck valuation v2** from the matched products.
+
 **Gated by:** Phase 3.
-Detail when Phase 3 is built.
+
+### Phase 5 — Wish list and price targets (steps 5, 6 and 9)
+The final list of auctions to bid on. Each one shows:
+- truck score, Need v2 and a duration estimate;
+- why we want it and why we might not;
+- its hazards;
+- a **price target** (buy at or under it).
+
+Prices are tracked, and an auction drops off once it passes its target. The board says to bid near the end. The app never bids.
+**Gated by:** Phase 4.
+
+### Phase 6 — Won to PO, and the report card
+Marking an auction Won creates a PO that carries the manifest, which feeds the Pipeline in Phase 2. When the truck's items sell, predicted vs actual is shown and fed back into the valuation and the shipping formula.
+**Gated by:** Phase 5. The Won-to-PO link can move earlier if Phase 2's Pipeline needs it.
 
 ---
 
 ## Future hooks (design for, do not build here)
 
-- **Weekly inventory count:** item places are one list (floor, backstock, processing, restoration, in transit, online, sold, lost, broken) so counts update places and real shrink per category / seller.
+- **Monday inventory count:** the floor is counted every Monday (backstock is not). Item places are one list (floor, backstock, processing, restoration, in transit, online, sold, lost, broken), so a count updates places and gives real shrink per category and seller.
 - **Online sales:** a sale channel on every sale, so days-to-sell and price split in-store vs online.
-- **Product vectors:** product matching sits behind one "which products is this like?" function; UPC / ASIN / description first, vectors swap in later.
+- **Product vectors:** product matching sits behind one "which products is this like?" function. UPC, ASIN or description first; vectors swap in later (the early vector R&D worked well). Also planned: a scheduled product-dedupe script on Heroku, vector matching in preprocessing and auction processing, and better categorization (new categories and/or better AI).
+- **Customer price scans:** customers scanning prices tell us an item is in the store, when it was last seen, and when it was scanned but not bought (the price is probably too high).
 - **Thrift+ cash back:** expected price = starting price × (1 − cash back on the likely sell day); record the realized price after cash back.
 
 ---
 
 ## Acceptance
 
-- [ ] Phase 1 fresh stats and automatic manifests
+- [x] Phase 1: fresh stats and automatic manifests
+- [ ] Phase 2: buying context and Need v2
+- [ ] Phase 3: listing triage and focus list
+- [ ] Phase 4: manifest analysis and hazards
+- [ ] Phase 5: wish list with price targets and price tracking
+- [ ] Phase 6: won to PO, and the report card
 - [ ] Out-of-scope items stay out
 
 ---
 
 ## Record
+
+**2026-09-23 — Phase 2 started: Need v2.** Need is weeks of cover: (shelf + in the building + on order) ÷ weekly sales, against a target that defaults to the store's own cover (35.5 weeks locally). Goals per category (more / normal / less / stop) are set from the panel. Open POs older than 120 days are ignored: 98k units on stale "delivered" and "processing" POs with no categorized lines were never closed. The 22 POs delivered but not processed in the last 120 days ($672k retail, R-003) do count. PO line categories are B-Stock codes (`TOYS`), mapped by `CategoryMapping` majority. Local effect: Health & beauty fell from 74 to 42 (2,390 on order), Toys from 81 to 73, Office from 78 to 65. Still to come in Phase 2: sales and speed from R-004, processing from R-005, won-not-PO'd auctions (Phase 6 link), and Priority re-based on profit.
+
+**2026-09-23 — Rethink after the first real pulls.** Costco pulls. Need and Priority are off: they ignore orders won but not processed, and "need" may be the wrong measure anyway. The owner laid out a 6-step daily process and 9 contexts (above). The phases were re-planned: 2 buying context, 3 listing triage, 4 manifest analysis, 5 wish list and price targets, 6 won to PO and report card. Recon goes to the runner (`.ai/protocols/runner.md`) as R-002 to R-007.
+
+**2026-09-23 — Costco.** Costco never appeared (0 auctions ever): B-Stock hides it from anonymous search; the owner's signed-in search returned 272. Signed-in-only sellers are now searched with the handed-over login while it is live, and the Pull searches them before fixing its shortlist. Not yet seen end to end (the login had expired): the first real Pull confirms Costco lots carry a `lotId` and their manifests download.
+
+**2026-09-23 — Fees and shipping (all-in cost, early).** First real login pull worked (40 auctions, one call each, full manifests). Fees: B-Stock's 5% buyer fee per marketplace (`buying/0022`). Shipping: B-Stock's quote from `shipment.bstock.com/v1/quotes` (only exists once the owner opened the listing), read by the pull after each manifest and by a Get B-Stock quote link; else rate x price. Max bid solves for the fee rate. Unquoted lots: a distance formula fitted on our PO history (owner's call: city from the PO description, pallets, cost, fee, month; distance from the store by Google). Per-city medians missed by 24%; the split truckload / LTL distance formula by 11-19%, and a 2026 level for truckloads (prices up about 60%) predicts the Franklin quote within 1%. $100 a pallet stays as the fallback when a city's distance is unknown. B-Stock would not list all past quotes in one call (timed out).
+
+**2026-09-23 — Merged with AI settings.** `ai-settings-floorplan` merged into `main` (`ecc60707`). The pull's category mapping (`ai_key_mapping`) now takes its model and effort from **Settings > AI → KEY_MAPPING**; each call stays bounded so the job heartbeat keeps moving (at most 2 attempts, 60 s each at effort off or low, up to 110 s at high or max). Tests now run through the tester (`.ai/protocols/test-runner.md`); the merge is T-001. Still owner-side: one real login pull, and the Heroku Scheduler job `python manage.py pull_shortlist_manifests` every 10 minutes.
 
 **2026-09-23 — Second review pass.** A second multi-agent pass (280 agents) re-checked all 88 fixes (58 fully fixed, 30 partly) and found 45 new confirmed issues, mostly from the rewrite. Biggest: one lot's 404 or refusal was treated as a systemic outage or refused login (wiping the token, stalling every later Pull at that lot); the routine could not be submitted on a day with nothing to pull; prune's keep-rule used watchlist statuses nothing sets. Now: per-lot errors stay on the lot (404 and too-large lots are `manifest_pull_blocked`), only a 401 or two refused lots in a row mean the login (and only that exact token is forgotten), the pull sends only the handed-over token, a resumed job releases the dead runner's in-flight lot, Stop keeps the interrupted result, Disconnect stops the job, a quiet day can be submitted, only superusers get or submit the routine, the run keeps every pull's results, CSV upload and manifest delete take the pull's row lock, a sign-in bounce shows a waiting-login notice, and the hand-off tab closes instead of opening a second runner. Buying pytest 143 green (fresh test DB), routines 32 and vitest 9 failures identical to `main`.
 

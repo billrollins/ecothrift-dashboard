@@ -22,6 +22,14 @@ class Marketplace(models.Model):
     base_url = models.URLField(max_length=500, blank=True, default='')
     notes = models.TextField(blank=True, default='')
     is_active = models.BooleanField(default=True, db_index=True)
+    requires_login = models.BooleanField(
+        default=False,
+        db_default=False,
+        help_text=(
+            "B-Stock shows this seller's auctions only to a signed-in buyer (Costco). The sweep "
+            "searches it with the owner's handed-over login while that login is live."
+        ),
+    )
     default_fee_rate = models.DecimalField(
         max_digits=5,
         decimal_places=4,
@@ -162,8 +170,28 @@ class CategoryStats(models.Model):
     )
     need_score_1to99 = models.PositiveSmallIntegerField(
         default=50,
-        help_text='Min-max scaled need vs other taxonomy buckets (1-99); recomputed daily.',
+        help_text=(
+            'Need v2 (1-99): weeks of cover (shelf + pipeline) against the target weeks; '
+            '50 = on target, higher = short, lower = overstocked. Recomputed daily.'
+        ),
     )
+    # Need v2 inputs (daily job). Pipeline = stock we own that is not on the shelf yet.
+    in_building_units = models.PositiveIntegerField(default=0, db_default=0, help_text='Items in intake or processing.')
+    in_building_retail = models.DecimalField(max_digits=14, decimal_places=2, default=0, db_default=0)
+    on_order_units = models.PositiveIntegerField(
+        default=0, db_default=0, help_text='Manifest units on open POs with no item yet (ordered to processing).'
+    )
+    on_order_retail = models.DecimalField(max_digits=14, decimal_places=2, default=0, db_default=0)
+    weekly_sales_units = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0, db_default=0, help_text='Units sold per week over the need window.'
+    )
+    cover_weeks = models.DecimalField(
+        max_digits=8, decimal_places=1, null=True, blank=True,
+        help_text='(shelf + pipeline) / weekly sales; empty when nothing sold.',
+    )
+    target_weeks = models.DecimalField(max_digits=6, decimal_places=1, null=True, blank=True)
+    median_days_to_sell = models.PositiveIntegerField(null=True, blank=True)
+    sold_within_90_pct = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True)
 
     class Meta:
         ordering = ['category']
@@ -273,6 +301,24 @@ class Auction(models.Model):
     category = models.CharField(max_length=300, blank=True, default='')
     condition_summary = models.CharField(max_length=500, blank=True, default='')
     lot_size = models.PositiveIntegerField(null=True, blank=True)
+    # From the search listing (palletCount, else "23 Pallets" in the title). db_default: the
+    # sweep inserts with raw SQL.
+    pallet_count = models.PositiveIntegerField(null=True, blank=True)
+    origin_city = models.CharField(
+        max_length=120,
+        blank=True,
+        default='',
+        db_default='',
+        help_text='Where the lot ships from: B-Stock sellerCity, provinceCode (e.g. "Franklin, IN").',
+    )
+    origin_zip = models.CharField(max_length=12, blank=True, default='', db_default='')
+    shipment_type = models.CharField(
+        max_length=20,
+        blank=True,
+        default='',
+        db_default='',
+        help_text='B-Stock shipmentType: Truckload, LTL, or PARCEL.',
+    )
     listing_type = models.CharField(
         max_length=32,
         blank=True,
@@ -363,7 +409,28 @@ class Auction(models.Model):
         decimal_places=2,
         null=True,
         blank=True,
-        help_text='Optional user override for shipping in dollars; else shipping rate times current price.',
+        help_text=(
+            'Optional user override for shipping in dollars; else the B-Stock shipping quote; '
+            'else shipping rate times current price.'
+        ),
+    )
+    # Nullable on purpose: the hourly sweep inserts auctions with raw SQL that omits these.
+    shipping_quote = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="B-Stock's freight quote to the buyer's address, in dollars.",
+    )
+    shipping_quote_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the quote was read from B-Stock.',
+    )
+    shipping_quote_info = models.JSONField(
+        null=True,
+        blank=True,
+        help_text='Carrier, mode (TL / LTL), trucks, destination ZIP, quote id, and B-Stock quote time.',
     )
     estimated_fees = models.DecimalField(
         max_digits=12,
@@ -627,6 +694,21 @@ class ManifestPullLog(models.Model):
 
     def __str__(self) -> str:
         return f'auction {self.auction_id} @ {self.completed_at}'
+
+
+class ShippingOrigin(models.Model):
+    """A city lots ship from, with its driving distance from the store (for the shipping formula)."""
+
+    slug = models.SlugField(max_length=120, unique=True)
+    city = models.CharField(max_length=120, help_text='"City, ST" as B-Stock or a PO names it.')
+    miles = models.PositiveIntegerField(null=True, blank=True, help_text='Driving miles from the store.')
+    looked_up_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['city']
+
+    def __str__(self) -> str:
+        return f'{self.city} ({self.miles} mi)' if self.miles else self.city
 
 
 class BStockToken(models.Model):

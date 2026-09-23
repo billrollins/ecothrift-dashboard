@@ -1,6 +1,9 @@
 """History lines that are allowed to go can be voided. Live facts stay."""
 
+import time
+
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from django.contrib.auth.models import Group
 
 from apps.inventory.models import RestorationJob, RestorationTimelineEvent
@@ -595,6 +598,10 @@ class RestorationHistoryForgetTests(RestorationQueueTestBase):
         describe_action(job, first.pk, description='looked inside')
         job.refresh_from_db()
         job, second = start_action(job, self.user, force_new=True)
+        # The Windows clock ticks about every 16 ms: an estimate stamped in the same tick as the
+        # new action would count toward the first action (splitters need started_at < occurred_at).
+        while timezone.now() <= second.started_at:
+            time.sleep(0.001)
         self.assertEqual(self._patch_estimate(job, minutes=10).status_code, 200)
         self.assertEqual(self._patch_estimate(job, minutes=20).status_code, 200)
         self.assertEqual(self._patch_estimate(job, minutes=45).status_code, 200)

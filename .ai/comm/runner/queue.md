@@ -1,0 +1,8 @@
+# Runner queue — ecothrift-dashboard
+
+Per [`.ai/protocols/runner.md`](../../protocols/runner.md). The coder adds rows; the runner changes only **Status**. Oldest first. Finished tasks move to [`archive/`](archive/index.md).
+
+Each task file starts with a **Start here** header, so you can drop that one file into chat.
+
+| ID | Type | Status | Title | Task | Result |
+|---|---|---|---|---|---|

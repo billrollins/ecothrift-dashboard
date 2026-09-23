@@ -9,7 +9,7 @@ from django.db.models.functions import Coalesce
 from rest_framework import serializers
 
 from apps.buying.models import Auction, AuctionSnapshot, ManifestRow, Marketplace, WatchlistEntry
-from apps.buying.services.valuation import get_global_shrinkage, get_valuation_source
+from apps.buying.services.valuation import cost_sources, get_global_shrinkage, get_valuation_source
 
 
 class MarketplaceSerializer(serializers.ModelSerializer):
@@ -17,7 +17,7 @@ class MarketplaceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Marketplace
-        fields = ['id', 'name', 'slug', 'external_id']
+        fields = ['id', 'name', 'slug', 'external_id', 'requires_login']
 
 
 class AuctionListSerializer(serializers.ModelSerializer):
@@ -255,6 +255,10 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
     effective_revenue_after_shrink = serializers.SerializerMethodField()
     my_thumbs_up = serializers.SerializerMethodField()
     thumbs_up_count = serializers.SerializerMethodField()
+    fee_rate_applied = serializers.SerializerMethodField()
+    shipping_rate_applied = serializers.SerializerMethodField()
+    shipping_source = serializers.SerializerMethodField()
+    shipping_estimate = serializers.SerializerMethodField()
 
     class Meta:
         model = Auction
@@ -300,6 +304,17 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
             'shipping_override',
             'estimated_fees',
             'estimated_shipping',
+            'shipping_quote',
+            'shipping_quote_at',
+            'shipping_quote_info',
+            'fee_rate_applied',
+            'shipping_rate_applied',
+            'shipping_source',
+            'shipping_estimate',
+            'pallet_count',
+            'origin_city',
+            'origin_zip',
+            'shipment_type',
             'estimated_total_cost',
             'profitability_ratio',
             'est_profit',
@@ -315,6 +330,25 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
             'has_revenue_override',
             'effective_revenue_after_shrink',
         ]
+
+    def _cost_sources(self, obj: Auction) -> dict:
+        cached = getattr(obj, '_cost_sources', None)
+        if cached is None:
+            cached = cost_sources(obj)
+            obj._cost_sources = cached
+        return cached
+
+    def get_fee_rate_applied(self, obj: Auction) -> str | None:
+        return self._cost_sources(obj)['fee_rate_applied']
+
+    def get_shipping_rate_applied(self, obj: Auction) -> str | None:
+        return self._cost_sources(obj)['shipping_rate_applied']
+
+    def get_shipping_source(self, obj: Auction) -> str:
+        return self._cost_sources(obj)['shipping_source']
+
+    def get_shipping_estimate(self, obj: Auction) -> dict | None:
+        return self._cost_sources(obj)['shipping_estimate']
 
     def get_my_thumbs_up(self, obj: Auction) -> bool:
         v = getattr(obj, '_user_thumbs_up', None)

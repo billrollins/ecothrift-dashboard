@@ -8,7 +8,7 @@
 
 **Objective:** Listing Studio photos are framed for the shop surfaces that actually exist, stored as a full gallery image plus main / grid / thumb crops, and never wipe the rest of the listing while someone is writing copy.
 
-**Compass:** this file is not the compass. Documents stays the compass: [`documents`](../../documents.md).
+**Compass:** this file is not the compass. Documents stays the compass: [`documents`](../_pending/documents.md).
 
 ---
 

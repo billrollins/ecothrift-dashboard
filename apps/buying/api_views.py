@@ -68,6 +68,7 @@ from apps.buying.services.manifest_pull import (
     waiting_retry_count,
 )
 from apps.buying.services.category_need import build_category_need_payload
+from apps.buying.services.shipping_quote import refresh_shipping_quote
 from apps.buying.pagination import ManifestRowsPagination, SnapshotPagination
 from ecothrift.pagination import ConfigurablePageSizePagination
 from apps.buying.serializers import (
@@ -611,6 +612,64 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(
         detail=True,
+        methods=['post'],
+        url_path='shipping-quote',
+        permission_classes=[IsAuthenticated, IsSuperAdmin],
+    )
+    def shipping_quote(self, request, pk=None):
+        """
+        Read B-Stock's shipping quote for this listing with the owner's handed-over login
+        (one direct call). B-Stock only has a quote once the owner opened the listing there.
+        """
+        auction = self.get_object()
+        login = current_token()
+        if not login:
+            return Response(
+                {
+                    'detail': 'Send your B-Stock login from the Pull B-Stock manifests routine first.',
+                    'code': 'no_login',
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        try:
+            quote = refresh_shipping_quote(auction, bearer=login)
+        except scraper.BStockAuthError:
+            clear_token(login)
+            return Response(
+                {
+                    'detail': 'B-Stock refused the login. Send it again from the Pull B-Stock manifests routine.',
+                    'code': 'login_refused',
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        except scraper.BStockHTTPError as e:
+            if e.status_code != 404:
+                return Response(
+                    {'detail': f'B-Stock answered HTTP {e.status_code}. Try again in a minute.', 'code': 'bstock_error'},
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+            quote = None
+        except scraper.BStockUnavailable:
+            return Response(
+                {'detail': 'B-Stock did not answer. Try again in a minute.', 'code': 'bstock_unavailable'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        if quote is None:
+            return Response(
+                {
+                    'detail': 'B-Stock has no shipping quote for this listing yet. Open it on B-Stock, then try again.',
+                    'code': 'no_quote',
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        auction.refresh_from_db()
+        recompute_auction_valuation(auction)
+        auction.refresh_from_db()
+        serializer = AuctionDetailSerializer(auction, context={'request': request})
+        return Response(serializer.data)
+
+    @action(
+        detail=True,
         methods=['patch'],
         url_path='valuation-inputs',
         permission_classes=[IsAuthenticated, IsAdmin],
@@ -881,6 +940,9 @@ class ManifestPullView(APIView):
         return Response(self._payload(stop_job() or ManifestPullJob.objects.first()))
 
 
+CATEGORY_NEED_CACHE_KEY = 'category_need_panel'
+
+
 class CategoryNeedView(APIView):
     """GET: category need panel aggregates (19 taxonomy rows + need_window_days)."""
 
@@ -892,6 +954,51 @@ class CategoryNeedView(APIView):
             payload['need_window_days'] = get_pricing_need_window_days()
             return payload
 
-        # TTL-only cache (10 min); no signal invalidation.
-        payload = cache.get_or_set('category_need_panel', _build, 600)
+        # TTL-only cache (10 min); a goal change clears it.
+        payload = cache.get_or_set(CATEGORY_NEED_CACHE_KEY, _build, 600)
+        return Response(payload)
+
+
+class CategoryGoalView(APIView):
+    """
+    PATCH ``{category, goal}``: the manager's goal for one category (more | normal | less |
+    stop). It moves the category's target weeks of cover, so Need v2 is re-scored from the
+    stored inputs at once and live auctions are re-valued.
+    """
+
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    def patch(self, request):
+        from apps.buying.services.buying_settings import CATEGORY_GOALS, get_category_goals
+        from apps.buying.services.category_stats_sql import rescore_needs_from_stored
+        from apps.buying.taxonomy_v1 import TAXONOMY_V1_CATEGORY_NAMES
+        from apps.core.models import AppSetting
+
+        data = request.data if isinstance(request.data, dict) else {}
+        category = str(data.get('category') or '')
+        goal = str(data.get('goal') or '')
+        if category not in TAXONOMY_V1_CATEGORY_NAMES:
+            return Response({'detail': 'Unknown category.'}, status=status.HTTP_400_BAD_REQUEST)
+        if goal not in CATEGORY_GOALS:
+            return Response(
+                {'detail': f'Goal must be one of: {", ".join(CATEGORY_GOALS)}.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        goals = get_category_goals()
+        if goal == 'normal':
+            goals.pop(category, None)
+        else:
+            goals[category] = goal
+        AppSetting.objects.update_or_create(
+            key='buying_category_goals',
+            defaults={
+                'value': goals,
+                'description': 'Buying: manager goal per category (more / less / stop); moves its target weeks of cover.',
+            },
+        )
+        rescore_needs_from_stored()
+        recompute_active_auctions_lightweight()
+        cache.delete(CATEGORY_NEED_CACHE_KEY)
+        payload = build_category_need_payload()
+        payload['need_window_days'] = get_pricing_need_window_days()
         return Response(payload)

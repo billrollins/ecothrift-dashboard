@@ -3,7 +3,7 @@
 This is the single source of truth for *what the server actually enforces
 today*: Django group names plus `is_superuser`. It is not a grant table.
 Per-user extras are a later initiative. The capability *ids* are the schema
-that [`universal_object_surfaces`](.ai/initiatives/universal_object_surfaces.md)
+that [`universal_object_surfaces`](.ai/initiatives/_archived/_pending/universal_object_surfaces.md)
 should reuse rather than inventing a parallel taxonomy.
 
 Holders are explicit - a Manager does not inherit an Admin-only row.

@@ -12,12 +12,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-User-facing theme: **Superusers get B-Stock manifests pulled for them each morning, from the desk or a phone.**
+User-facing theme: **Superusers get B-Stock manifests pulled for them each morning, from the desk or a phone, and pick every AI model in one place.**
 
-Initiative: [`bstock_daily_buying`](./.ai/initiatives/bstock_daily_buying.md). Also outside initiatives: the own-aisle cross-check fix and kiosk follow-ups.
+Initiatives: [`bstock_daily_buying`](./.ai/initiatives/bstock_daily_buying.md), [`ai_settings_floorplan`](./.ai/initiatives/_archived/_completed/ai_settings_floorplan.md). Also outside initiatives: the own-aisle cross-check fix and kiosk follow-ups.
 
 ### Added
 
+- **Settings > AI** (superusers): a model catalog (add, edit, archive, unarchive, check for new models) and a model plus effort for each AI action, including the B-Stock pull's category mapping. This is now the only place per-feature models are chosen; `AI_MODEL` in the environment is just the fallback. Migration `core/0006` copies each environment's old `AI_MODEL_<PURPOSE>` values in on release.
+- **Need** now means weeks of cover: what is on the shelf, in the building, and on open POs not yet processed, against what sells each week. 50 is on target (by default the store's own average), higher is short, lower is overstocked. The Inventory need panel shows each piece, and Admins can set a goal per category (More, Normal, Less, Stop) that re-scores it at once. Won trucks that are not processed yet now lower the need for what they carry.
+- **Costco auctions** load: B-Stock shows Costco only to signed-in buyers, so they come in with the login you send each morning (the Pull loads them first, and the hourly refresh keeps them current while the login lasts).
+- Auction detail **Fees** and **Shipping** fill in: fees are B-Stock's 5% buyer fee, and shipping is B-Stock's own freight quote to your address when B-Stock has one (it makes one when you open the listing there). Otherwise shipping comes from a formula fitted on our own 193 past orders: a truckload costs a fixed amount plus a rate per mile from the seller's city to the store, and a smaller load a fixed amount plus a rate per pallet and per pallet-mile. The tooltip gives the likely range. Distances are looked up once per new city. When the distance is not known yet it is $100 per pallet (Admin > Assumptions). `python manage.py fit_shipping_formula --save` re-fits it from newer orders. The morning pull reads the quote for each manifest it gets, and superusers get a **Get B-Stock quote** link. A line under each says where the number came from; your own number still wins. Max bid now accounts for the fee growing with the bid.
+- Floorplan editor: **Build SVG with AI** (Super Admin) and **Adjust with AI** (Manager+). Both show a preview and change nothing until Apply.
 - Daily **Pull B-Stock manifests** routine (superusers). Open B-Stock, tap the Send to Eco-Thrift bookmark, confirm, then Pull: the server fetches full manifests for auctions ending in the next 36 hours (watchlisted first) and values them. The routine shows progress, can Stop the pull or Disconnect the login, and works on a phone. A refused login or a B-Stock outage stops the pull without marking any auction as failed. Auction detail and the list tooltip say whether a manifest was pulled or uploaded, or why a pull failed. Window, cap, retry wait, and pause are under Admin → Assumptions.
 - Sign-in page **Scan your card**: a staff card punches in or out through the same dialog as the door tablet, over the public `/api/hr/clock/*` API. It never signs anyone in to the dashboard.
 

@@ -11,15 +11,17 @@ from django.core.management.base import BaseCommand, CommandError
 
 from apps.buying.models import Marketplace
 
-# Placeholder defaults (fraction of purchase price). Replace via CSV from PO history.
+# Defaults (fraction of purchase price). Fee: B-Stock's 5% buyer fee (seen on Target
+# 2026-09-23; the others assumed until checked). Shipping: placeholder until B-Stock has a
+# quote for the listing (see services/shipping_quote.py). Replace via CSV from PO history.
 _BUILTIN_SLUG_RATES: dict[str, tuple[str, str]] = {
-    'amazon': ('0.0300', '0.3500'),
-    'target': ('0.0300', '0.4000'),
-    'walmart': ('0.0300', '0.3800'),
-    'costco': ('0.0300', '0.3200'),
-    'homedepot': ('0.0300', '0.3500'),
-    'wayfair': ('0.0300', '0.4200'),
-    'essendant': ('0.0300', '0.3000'),
+    'amazon': ('0.0500', '0.3500'),
+    'target': ('0.0500', '0.4000'),
+    'walmart': ('0.0500', '0.3800'),
+    'costco': ('0.0500', '0.3200'),
+    'homedepot': ('0.0500', '0.3500'),
+    'wayfair': ('0.0500', '0.4200'),
+    'essendant': ('0.0500', '0.3000'),
 }
 
 

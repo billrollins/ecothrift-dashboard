@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-27 (bat-style: if given this, do this) -->
+<!-- Last updated: 2026-09-23 (also peek your feature inbox) -->
 # Protocol: Load context
 
 **IF** this file is `@`-mentioned **OR** the user says load context / context-load / start / orient
@@ -12,7 +12,7 @@
 4. Read [`.ai/initiatives/_index.md`](../initiatives/_index.md).
 5. Read each **Active** initiative file named there. Do not open `_archived/` unless the user asked about that archived work.
 6. Read terminal metadata (cwd, last command, running?). Do not dump full logs.
-7. Peek [`.ai/comm/inbox.md`](../comm/inbox.md). If **Status** is `pending`, tell them before asking for other work. Do not run the full comm protocol unless they said check messages.
+7. Peek [`.ai/comm/inbox.md`](../comm/inbox.md). If **Status** is `pending`, tell them before asking for other work. If you are one of two coders, also peek [`.ai/comm/inbox-<your-feature>.md`](../comm/) the same way. Do not run the full comm protocol unless they said check messages.
 8. **STOP.** Ask what they need. One question. Wait.
 
 ## Do not

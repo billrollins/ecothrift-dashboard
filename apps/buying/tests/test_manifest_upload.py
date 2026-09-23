@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from unittest import mock
 
 from django.test import SimpleTestCase, TestCase, override_settings
 
@@ -10,6 +11,7 @@ from apps.buying.models import Auction, CategoryMapping, ManifestRow, ManifestTe
 from apps.buying.services.ai_key_mapping import map_one_fast_cat_batch
 from apps.buying.services.manifest_template import compute_header_signature, standardize_row
 from apps.buying.services.manifest_upload import process_manifest_upload
+from apps.core.services.llm_router import LLMAPIError
 
 
 class ManifestTemplateHelpersTests(TestCase):
@@ -177,6 +179,31 @@ class MapFastCatBatchTests(TestCase):
         body = map_one_fast_cat_batch(self.auction, mapping=mapping)
         self.assertEqual(body.get('error'), 'ai_not_configured')
         self.assertEqual(body.get('has_more'), False)
+
+    @override_settings(ANTHROPIC_API_KEY='test-key', AI_MODEL='claude-sonnet-4-6')
+    def test_map_one_batch_timeout_follows_settings_effort(self) -> None:
+        """The background manifest pull needs every mapping call bounded: at most two
+        attempts, with a longer per-attempt timeout only when Settings > AI asks for effort."""
+        ManifestRow.objects.create(
+            auction=self.auction,
+            row_number=1,
+            manifest_template=self.template,
+            raw_data={},
+            fast_cat_key='needs-a-model',
+            fast_cat_value=None,
+        )
+        for effort, timeout in (('off', 60), ('medium', 90), ('high', 110), ('max', 110)):
+            with self.subTest(effort=effort), mock.patch(
+                'apps.buying.services.ai_key_mapping.ai_effort', return_value=effort
+            ), mock.patch(
+                'apps.buying.services.ai_key_mapping.llm_complete',
+                side_effect=LLMAPIError('down', kind='connection'),
+            ) as call:
+                map_one_fast_cat_batch(self.auction, mapping={})
+                kwargs = call.call_args.kwargs
+                self.assertEqual(kwargs['effort'], effort)
+                self.assertEqual(kwargs['timeout'], timeout)
+                self.assertEqual(kwargs['max_retries'], 1)
 
     def test_map_one_batch_no_unmapped_rows(self) -> None:
         mapping = dict(CategoryMapping.objects.values_list('source_key', 'canonical_category'))

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
@@ -23,8 +23,11 @@ import {
 } from '@mui/material';
 import BuyingDetailSectionTitle from './BuyingDetailSectionTitle';
 import { useBuyingCategoryNeed } from '../../hooks/useBuyingCategoryNeed';
+import { useAuth } from '../../hooks/useAuth';
+import { useBuyingShippingQuoteMutation } from '../../hooks/useBuyingShippingQuoteMutation';
 import { useBuyingValuationInputsMutation } from '../../hooks/useBuyingValuationInputsMutation';
 import type { BuyingAuctionDetail } from '../../types/buying.types';
+import { feesNote, shippingCaption, shippingNote } from '../../utils/buyingCostNotes';
 import { formatCurrency, formatCurrencyWhole } from '../../utils/format';
 import { parseDec } from '../../utils/valuationParse';
 
@@ -84,6 +87,8 @@ type EditField = 'fees' | 'ship' | 'shrink' | 'profitT' | 'revenue' | 'effPost';
 type ValuationInlineFieldProps = {
   label: string;
   caption?: string;
+  /** Small line under the label: where the number comes from. */
+  note?: ReactNode;
   isOverride: boolean;
   display: string;
   isEditing: boolean;
@@ -99,6 +104,7 @@ type ValuationInlineFieldProps = {
 function ValuationInlineField({
   label,
   caption,
+  note,
   isOverride,
   display,
   isEditing,
@@ -148,6 +154,11 @@ function ValuationInlineField({
         ) : (
           labelEl
         )}
+        {note ? (
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.68rem', lineHeight: 1.3 }}>
+            {note}
+          </Typography>
+        ) : null}
       </Box>
       <Stack direction="row" alignItems="center" spacing={0.25} justifyContent="flex-end">
         {isEditing ? (
@@ -326,6 +337,9 @@ type CostsProps = { detail: BuyingAuctionDetail; isAdmin: boolean };
 /** Cell 2,1 - costs and revenue overrides. */
 export function ValuationCostsCard({ detail, isAdmin }: CostsProps) {
   const valuationMutation = useBuyingValuationInputsMutation();
+  const quoteMutation = useBuyingShippingQuoteMutation();
+  const { user } = useAuth();
+  const canQuote = Boolean(user?.is_superuser);
   const { tableTotals } = useValuationBreakdownRows(detail);
 
   const [local, setLocal] = useState<LocalOverrides>({
@@ -590,7 +604,8 @@ export function ValuationCostsCard({ detail, isAdmin }: CostsProps) {
             <>
               <ValuationInlineField
                 label="Fees"
-                caption="Override ($); default = rate x price"
+                caption="Override ($). Default: B-Stock's fee rate x price."
+                note={feesNote(detail, feesIsOverride)}
                 isOverride={feesIsOverride}
                 display={feesDisplay}
                 isEditing={editField === 'fees'}
@@ -603,7 +618,27 @@ export function ValuationCostsCard({ detail, isAdmin }: CostsProps) {
               />
               <ValuationInlineField
                 label="Shipping"
-                caption="Override ($); default = rate x price"
+                caption={shippingCaption(detail)}
+                note={
+                  <>
+                    {shippingNote(detail, shipIsOverride)}
+                    {canQuote ? (
+                      <Button
+                        size="small"
+                        variant="text"
+                        onClick={() => quoteMutation.mutate(detail.id)}
+                        disabled={quoteMutation.isPending}
+                        sx={{ display: 'block', minWidth: 0, p: 0, fontSize: '0.68rem', textTransform: 'none' }}
+                      >
+                        {quoteMutation.isPending
+                          ? 'Asking B-Stock...'
+                          : detail.shipping_source === 'quote'
+                            ? 'Refresh B-Stock quote'
+                            : 'Get B-Stock quote'}
+                      </Button>
+                    ) : null}
+                  </>
+                }
                 isOverride={shipIsOverride}
                 display={shipDisplay}
                 isEditing={editField === 'ship'}

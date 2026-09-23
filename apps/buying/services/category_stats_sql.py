@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from django.db import connections
 from django.utils import timezone
 
+from apps.buying.services.buying_settings import (
+    GOAL_TARGET_MULTIPLIER,
+    get_category_goals,
+    get_pipeline_max_age_days,
+    get_target_cover_weeks,
+)
 from apps.buying.services.taxonomy_bucket_sql import taxonomy_bucket_case_sql
-from apps.buying.taxonomy_v1 import TAXONOMY_V1_CATEGORY_NAMES
+from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED, TAXONOMY_V1_CATEGORY_NAMES
 
 
 def _case() -> str:
@@ -133,11 +139,192 @@ def _retail_raw_leg(want_r: Decimal, have_r: Decimal) -> Decimal:
     return (want_r / have_r).quantize(Decimal('0.000001'))
 
 
+# Open POs whose lines are not items yet: bought, not processed.
+OPEN_PO_STATUSES = ('ordered', 'paid', 'shipped', 'delivered', 'processing')
+# Items we own that are not on the shelf yet.
+IN_BUILDING_ITEM_STATUSES = ('intake', 'processing')
+
+
+def _in_building_rows(*, using: str = 'default') -> list[tuple[str, int, Decimal]]:
+    """(bucket, units, retail) for items in intake or processing."""
+    case = _case()
+    sql = f"""
+        SELECT b.bucket, COUNT(*)::int, COALESCE(SUM(b.retail_line), 0)::numeric
+        FROM (
+            SELECT
+                ({case}) AS bucket,
+                COALESCE(i.retail, i.price, 0)::numeric AS retail_line
+            FROM inventory_item i
+            LEFT JOIN inventory_product p ON i.product_id = p.id
+            LEFT JOIN inventory_manifestrow mr ON i.manifest_row_id = mr.id
+            WHERE i.status IN %s
+        ) b
+        GROUP BY b.bucket
+    """
+    out: list[tuple[str, int, Decimal]] = []
+    with connections[using].cursor() as cursor:
+        cursor.execute(sql, [IN_BUILDING_ITEM_STATUSES])
+        for bucket, units, retail in cursor.fetchall():
+            out.append((bucket, int(units or 0), Decimal(str(retail or 0))))
+    return out
+
+
+def category_code_to_taxonomy(codes: set[str], *, using: str = 'default') -> dict[str, str]:
+    """
+    Taxonomy name for PO manifest category codes (B-Stock codes such as ``OFFICE_SUPPLIES``):
+    a taxonomy name maps to itself; a code takes the canonical category most of the learned
+    ``CategoryMapping`` rows for it agree on (``*-api-office-supplies*``: at least 2 rows and
+    60%). Anything else is left out (the caller puts it in Mixed lots).
+    """
+    from collections import Counter
+
+    from apps.buying.models import CategoryMapping
+
+    out: dict[str, str] = {}
+    for code in codes:
+        if code in TAXONOMY_V1_CATEGORY_NAMES:
+            out[code] = code
+            continue
+        slug = code.strip().lower().replace('_', '-').replace(' ', '-')
+        if not slug:
+            continue
+        votes = Counter(
+            CategoryMapping.objects.using(using)
+            .filter(source_key__contains=f'-api-{slug}')
+            .values_list('canonical_category', flat=True)
+        )
+        if not votes:
+            continue
+        top, n = votes.most_common(1)[0]
+        if top in TAXONOMY_V1_CATEGORY_NAMES and n >= 2 and n / sum(votes.values()) >= 0.6:
+            out[code] = top
+    return out
+
+
+def _on_order_rows(*, using: str = 'default') -> list[tuple[str, int, Decimal]]:
+    """
+    (bucket, units, retail) for manifest lines on open POs that no item came from yet,
+    ordered inside ``buying_pipeline_max_age_days`` (older open POs are done but never closed).
+    Category: the preprocessing row's ``final_category`` (the AI cleanup's pick from the 19)
+    when it is a taxonomy name; else the PO line's B-Stock code, mapped by
+    :func:`category_code_to_taxonomy` (lines not preprocessed yet). Register PO-03.
+    """
+    since = timezone.localdate() - timedelta(days=get_pipeline_max_age_days(using=using))
+    in_list = ', '.join("'" + n.replace("'", "''") + "'" for n in TAXONOMY_V1_CATEGORY_NAMES)
+    sql = f"""
+        SELECT COALESCE(
+                   (SELECT MAX(TRIM(pr.final_category)) FROM inventory_preprocessingrow pr
+                    WHERE pr.manifest_row_id = mr.id AND TRIM(pr.final_category) IN ({in_list})),
+                   TRIM(COALESCE(mr.category, ''))
+               ),
+               COALESCE(SUM(GREATEST(COALESCE(mr.quantity, 1), 1)), 0)::int,
+               COALESCE(SUM(GREATEST(COALESCE(mr.quantity, 1), 1) * COALESCE(mr.unit_retail, 0)), 0)::numeric
+        FROM inventory_manifestrow mr
+        JOIN inventory_purchaseorder po ON po.id = mr.purchase_order_id
+        WHERE po.status IN %s
+          AND po.ordered_date >= %s
+          AND NOT EXISTS (SELECT 1 FROM inventory_item i WHERE i.manifest_row_id = mr.id)
+        GROUP BY 1
+    """
+    with connections[using].cursor() as cursor:
+        cursor.execute(sql, [OPEN_PO_STATUSES, since])
+        raw = [(code or '', int(units or 0), Decimal(str(retail or 0))) for code, units, retail in cursor.fetchall()]
+    names = category_code_to_taxonomy({code for code, _, _ in raw if code}, using=using)
+    totals: dict[str, tuple[int, Decimal]] = {}
+    for code, units, retail in raw:
+        bucket = names.get(code, MIXED_LOTS_UNCATEGORIZED)
+        u, r = totals.get(bucket, (0, Decimal('0')))
+        totals[bucket] = (u + units, r + retail)
+    return [(bucket, u, r) for bucket, (u, r) in totals.items()]
+
+
+def _speed_rows(since: datetime, *, using: str = 'default') -> dict[str, tuple[int | None, Decimal | None]]:
+    """
+    Per bucket, for items sold since ``since`` that have a shelf date: median days from
+    ``listed_at`` to ``sold_at``, and the % sold within 90 days. Only ``listed_at`` is
+    trustworthy (runner R-004): ``created_at`` is often stamped after the sale by imports.
+    """
+    case = _case()
+    sql = f"""
+        SELECT b.bucket,
+               percentile_cont(0.5) WITHIN GROUP (ORDER BY b.days),
+               100.0 * AVG(CASE WHEN b.days <= 90 THEN 1 ELSE 0 END)
+        FROM (
+            SELECT
+                ({case}) AS bucket,
+                EXTRACT(EPOCH FROM (i.sold_at - i.listed_at)) / 86400.0 AS days
+            FROM inventory_item i
+            LEFT JOIN inventory_product p ON i.product_id = p.id
+            LEFT JOIN inventory_manifestrow mr ON i.manifest_row_id = mr.id
+            WHERE i.status = 'sold'
+              AND i.sold_at >= %s
+              AND i.listed_at IS NOT NULL
+              AND i.listed_at <= i.sold_at
+        ) b
+        GROUP BY b.bucket
+    """
+    out: dict[str, tuple[int | None, Decimal | None]] = {}
+    with connections[using].cursor() as cursor:
+        cursor.execute(sql, [since])
+        for bucket, median_days, within_90 in cursor.fetchall():
+            out[bucket] = (
+                int(round(float(median_days))) if median_days is not None else None,
+                Decimal(str(within_90)).quantize(Decimal('0.1')) if within_90 is not None else None,
+            )
+    return out
+
+
+def effective_target_weeks(
+    supply_by: dict[str, int], weekly_by: dict[str, Decimal], *, using: str = 'default'
+) -> Decimal:
+    """
+    The target weeks of cover: the Assumptions number, or when it is 0 (auto) the store's own
+    cover, all supply / all weekly sales, so each category is compared with the store.
+    """
+    setting = get_target_cover_weeks(using=using)
+    if setting > 0:
+        return Decimal(setting)
+    weekly = sum(weekly_by.values(), Decimal('0'))
+    if weekly <= 0:
+        return Decimal('8')
+    return max(Decimal('1'), (Decimal(sum(supply_by.values())) / weekly).quantize(Decimal('0.1')))
+
+
+def need_from_cover(
+    *,
+    supply_units: int,
+    weekly_sales: Decimal,
+    target_weeks: Decimal,
+    goal: str = 'normal',
+) -> tuple[int, Decimal | None, Decimal]:
+    """
+    Need v2 for one category: ``(need 1-99, cover weeks or None, target weeks)``.
+
+    cover = (shelf + pipeline) / weekly sales; target = target weeks x the goal (more 1.5,
+    less 0.5). need = 100 x (1 - cover / target / 2), so 50 is on target, 99 is empty, and
+    twice the target or more is 1. A category that sold nothing is 1 when we hold stock and
+    50 when we hold none (no signal either way). A ``stop`` goal is always 1.
+    """
+    target = (Decimal(target_weeks) * Decimal(str(GOAL_TARGET_MULTIPLIER.get(goal, 1.0)))).quantize(Decimal('0.1'))
+    cover = None
+    if weekly_sales > 0:
+        cover = (Decimal(supply_units) / weekly_sales).quantize(Decimal('0.1'))
+    if goal == 'stop':
+        return 1, cover, target
+    if cover is None:
+        return (50 if supply_units <= 0 else 1), None, target
+    ratio = cover / target if target > 0 else Decimal('99')
+    need = int((Decimal('100') * (Decimal('1') - ratio / Decimal('2'))).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
+    return max(1, min(99, need)), cover, target
+
+
 def compute_category_stats_payloads(*, since: datetime, using: str = 'default') -> dict[str, dict[str, Any]]:
     """
     Merge raw aggregates into per-canonical-category dicts ready for CategoryStats upsert.
 
     Keys are exactly ``TAXONOMY_V1_CATEGORY_NAMES``; missing buckets get zeros.
+    ``need_score_1to99`` is Need v2 (:func:`need_from_cover`): weeks of cover of shelf +
+    pipeline (in building + on order) against the target weeks and the manager's goal.
     """
     have_map = {name: (0, Decimal('0')) for name in TAXONOMY_V1_CATEGORY_NAMES}
     for bucket, u, r in _have_rows(using=using):
@@ -195,26 +382,83 @@ def compute_category_stats_payloads(*, since: datetime, using: str = 'default') 
             'avg_cost': a_cost,
         }
 
-    raw_pairs: list[tuple[str, Decimal]] = []
+    in_building = {name: (0, Decimal('0')) for name in TAXONOMY_V1_CATEGORY_NAMES}
+    for bucket, u, r in _in_building_rows(using=using):
+        if bucket in in_building:
+            in_building[bucket] = (u, r)
+    on_order = {name: (0, Decimal('0')) for name in TAXONOMY_V1_CATEGORY_NAMES}
+    for bucket, u, r in _on_order_rows(using=using):
+        if bucket in on_order:
+            on_order[bucket] = (u, r)
+    speed = _speed_rows(since, using=using)
+
+    window_days = max((timezone.now() - since).total_seconds() / 86400.0, 1.0)
+    weeks = Decimal(str(window_days / 7.0))
+    supply_by = {
+        n: int(out[n]['have_units']) + in_building[n][0] + on_order[n][0] for n in TAXONOMY_V1_CATEGORY_NAMES
+    }
+    weekly_by = {
+        n: (Decimal(int(out[n]['want_units'])) / weeks).quantize(Decimal('0.01')) for n in TAXONOMY_V1_CATEGORY_NAMES
+    }
+    target_weeks = effective_target_weeks(supply_by, weekly_by, using=using)
+    goals = get_category_goals(using=using)
     for name in TAXONOMY_V1_CATEGORY_NAMES:
         d = out[name]
-        u_leg = _unit_raw_leg(int(d['want_units']), int(d['have_units']))
-        r_leg = _retail_raw_leg(d['want_retail'], d['have_retail'])
-        raw = ((u_leg + r_leg) / Decimal('2')).quantize(Decimal('0.000001'))
-        raw_pairs.append((name, raw))
-
-    raw_vals = [r for _, r in raw_pairs]
-    mn, mx = min(raw_vals), max(raw_vals)
-    for name, raw in raw_pairs:
-        if mx == mn:
-            ns = 50
-        else:
-            scaled = Decimal('1') + (raw - mn) / (mx - mn) * Decimal('98')
-            ns = int(scaled.quantize(Decimal('1'), rounding=ROUND_HALF_UP))
-            ns = max(1, min(99, ns))
-        out[name]['need_score_1to99'] = ns
+        bu, br = in_building[name]
+        ou, orr = on_order[name]
+        weekly = weekly_by[name]
+        need, cover, target = need_from_cover(
+            supply_units=int(d['have_units']) + bu + ou,
+            weekly_sales=weekly,
+            target_weeks=target_weeks,
+            goal=goals.get(name, 'normal'),
+        )
+        median_days, within_90 = speed.get(name, (None, None))
+        d.update(
+            {
+                'in_building_units': bu,
+                'in_building_retail': br.quantize(Decimal('0.01')),
+                'on_order_units': ou,
+                'on_order_retail': orr.quantize(Decimal('0.01')),
+                'weekly_sales_units': weekly,
+                'cover_weeks': cover,
+                'target_weeks': target,
+                'median_days_to_sell': median_days,
+                'sold_within_90_pct': within_90,
+                'need_score_1to99': need,
+            }
+        )
 
     return out
+
+
+def rescore_needs_from_stored(*, using: str = 'default') -> int:
+    """
+    Recompute Need v2 from the stored inputs (no SQL aggregates): after a goal or the target
+    weeks change. Returns rows updated.
+    """
+    from apps.buying.models import CategoryStats
+
+    rows = list(CategoryStats.objects.using(using).filter(category__in=TAXONOMY_V1_CATEGORY_NAMES))
+    target_weeks = effective_target_weeks(
+        {c.category: int(c.have_units) + int(c.in_building_units) + int(c.on_order_units) for c in rows},
+        {c.category: c.weekly_sales_units or Decimal('0') for c in rows},
+        using=using,
+    )
+    goals = get_category_goals(using=using)
+    n = 0
+    for c in rows:
+        need, cover, target = need_from_cover(
+            supply_units=int(c.have_units) + int(c.in_building_units) + int(c.on_order_units),
+            weekly_sales=c.weekly_sales_units or Decimal('0'),
+            target_weeks=target_weeks,
+            goal=goals.get(c.category, 'normal'),
+        )
+        CategoryStats.objects.using(using).filter(pk=c.pk).update(
+            need_score_1to99=need, cover_weeks=cover, target_weeks=target
+        )
+        n += 1
+    return n
 
 
 def upsert_category_stats_from_sql(*, since: datetime, using: str = 'default') -> None:
@@ -240,5 +484,14 @@ def upsert_category_stats_from_sql(*, since: datetime, using: str = 'default') -
             avg_retail=d['avg_retail'],
             avg_cost=d['avg_cost'],
             need_score_1to99=d['need_score_1to99'],
+            in_building_units=d['in_building_units'],
+            in_building_retail=d['in_building_retail'],
+            on_order_units=d['on_order_units'],
+            on_order_retail=d['on_order_retail'],
+            weekly_sales_units=d['weekly_sales_units'],
+            cover_weeks=d['cover_weeks'],
+            target_weeks=d['target_weeks'],
+            median_days_to_sell=d['median_days_to_sell'],
+            sold_within_90_pct=d['sold_within_90_pct'],
             computed_at=now,
         )
