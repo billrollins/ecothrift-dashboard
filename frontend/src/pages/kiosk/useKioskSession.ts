@@ -10,6 +10,9 @@ const TOAST_MS = 4_000;
 
 export type Scan = { token: string; preview: KioskPreview };
 
+/** A punch that landed reads green; a bad card or a failure reads salmon. */
+export type ToastTone = 'ok' | 'error';
+
 /** Board polling, scan → identify → overlay, and the generic-failure toast. Shared by both routes. */
 export function useKioskSession(route: KioskRoute, lang: AppLanguage, enabled: boolean) {
   const queryClient = useQueryClient();
@@ -24,12 +27,14 @@ export function useKioskSession(route: KioskRoute, lang: AppLanguage, enabled: b
 
   const [scan, setScan] = useState<Scan | null>(null);
   const [toast, setToast] = useState('');
+  const [toastTone, setToastTone] = useState<ToastTone>('error');
   const [identifying, setIdentifying] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showToast = useCallback((text: string) => {
+  const showToast = useCallback((text: string, tone: ToastTone = 'error') => {
     setToast(text);
+    setToastTone(tone);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(''), TOAST_MS);
   }, []);
@@ -66,9 +71,22 @@ export function useKioskSession(route: KioskRoute, lang: AppLanguage, enabled: b
   );
 
   const closeOverlay = useCallback(() => setScan(null), []);
+
+  /** A punch landed: clear the overlay and leave a short line in the footer. */
+  const finishOverlay = useCallback(
+    (successKey: string) => {
+      showToast(tk(successKey, lang), 'ok');
+      setScan(null);
+    },
+    [showToast, lang],
+  );
+
+  /** Something was typed at the scanner that is too short to be a card. */
+  const rejectScan = useCallback(() => showToast(tk('scanAgain', lang)), [showToast, lang]);
+
   const refreshBoard = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['kiosk', route, 'board'] });
   }, [queryClient, route]);
 
-  return { board, scan, toast, identifying, blocked, onScan, closeOverlay, refreshBoard };
+  return { board, scan, toast, toastTone, identifying, blocked, onScan, closeOverlay, finishOverlay, rejectScan, refreshBoard };
 }

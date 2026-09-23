@@ -1,7 +1,1 @@
-fix: commit cross-check cleanup before the unique index
-
-Release: v2.97.2
-
-Heroku v354 deleted the duplicate walk and then could not build the
-unique index in that same transaction. The migration now commits the
-cleanup first.
+---

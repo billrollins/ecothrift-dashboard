@@ -38,6 +38,8 @@ from .models import QaNudge, Routine, RoutineRun, RoutineSubmission, Section, Wo
 from .settings import retail_qa_settings
 from .taxonomy import taxonomy
 from .schedule import (
+    OWN_AISLE_MESSAGE,
+    RUNLESS_WALK_MESSAGE,
     SYSTEM_CROSS_CHECK,
     STAFF_GROUPS,
     close_if_expired,
@@ -561,6 +563,12 @@ class RoutineSubmissionViewSet(viewsets.ModelViewSet):
                 return Response({'detail': 'This run is already closed.'}, status=400)
             if close_if_expired(run):
                 return Response({'detail': 'This run is missed.'}, status=400)
+            if (
+                routine.kind == Routine.KIND_SECTION_AUDIT
+                and run.section_id
+                and run.section.owner_id == request.user.pk
+            ):
+                return Response({'detail': OWN_AISLE_MESSAGE}, status=400)
             existing = RoutineSubmission.objects.filter(
                 run=run, submitted_by=request.user, status=RoutineSubmission.STATUS_DRAFT,
             ).first()
@@ -571,6 +579,8 @@ class RoutineSubmissionViewSet(viewsets.ModelViewSet):
                     existing.save(update_fields=['responses', 'updated_at'])
                 return Response(RoutineSubmissionSerializer(existing).data)
         if not run_id:
+            if routine.kind in (Routine.KIND_SECTION_TALLY, Routine.KIND_SECTION_AUDIT):
+                return Response({'detail': RUNLESS_WALK_MESSAGE}, status=400)
             existing = RoutineSubmission.objects.filter(
                 routine=routine,
                 run__isnull=True,
@@ -638,7 +648,9 @@ class RoutineSubmissionViewSet(viewsets.ModelViewSet):
         incoming = request.data.get('responses', submission.responses)
         responses = merge_incoming(routine, submission.run, incoming)
         responses = _extract_photos(responses, user=request.user, submission_id=submission.pk)
-        blockers = submit_blockers(routine, responses, run=submission.run)
+        blockers = submit_blockers(
+            routine, responses, run=submission.run, submitter_id=submission.submitted_by_id,
+        )
         if blockers:
             return Response({'detail': blockers}, status=400)
         failed, critical = outcome(routine, responses)
@@ -741,6 +753,7 @@ def _on_demand_drafts(user):
             submitted_by=user,
             status=RoutineSubmission.STATUS_DRAFT,
             routine__is_active=True,
+            routine__trigger=Routine.TRIGGER_ON_DEMAND,
             run__isnull=True,
         )
         .select_related('routine')

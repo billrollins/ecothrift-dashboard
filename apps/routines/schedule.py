@@ -28,6 +28,8 @@ SYSTEM_TALLY = 'retail.section_tally'
 SYSTEM_CROSS_CHECK = 'retail.section_audit'
 SYSTEM_OWNER_SPOT = 'retail.owner_spot'
 SYSTEM_WORK_CYCLE = 'retail.work_cycle'
+OWN_AISLE_MESSAGE = 'A section owner cannot cross-check their own aisle.'
+RUNLESS_WALK_MESSAGE = 'Open this walk from your list.'
 
 
 def biweekly_period_start(anchor: date | None, day: date) -> date | None:
@@ -829,10 +831,12 @@ def materialize_routines(day: date | None = None) -> int:
                     if section.owner_id == user.pk and section.pk not in covered
                 ]
                 if not owned:
-                    RoutineRun.objects.filter(
+                    stale = RoutineRun.objects.filter(
                         routine=routine, period_key=key, assigned_to=user,
                         section_scoped=False, status=RoutineRun.STATUS_OPEN,
-                    ).delete()
+                    )
+                    for row in stale:
+                        delete_run(row)
                     continue
                 extras = {
                     **extras,
@@ -862,6 +866,14 @@ def materialize_routines(day: date | None = None) -> int:
     return created
 
 
+def delete_run(run) -> None:
+    """A run leaving takes its unfinished drafts. Submitted rows keep their history."""
+    RoutineSubmission.objects.filter(
+        run=run, status=RoutineSubmission.STATUS_DRAFT,
+    ).delete()
+    run.delete()
+
+
 def covered_section_ids(day: date) -> set[int]:
     """Aisles whose section check is a today-only cover, so the owner tally skips them."""
     return set(
@@ -883,12 +895,14 @@ def drop_unowned_open_tally(user, day: date) -> None:
         return
     if any(section.owner_id == user.pk for section in department_sections(routine)):
         return
-    RoutineRun.objects.filter(
+    stale = RoutineRun.objects.filter(
         routine=routine,
         period_key=day.isoformat(),
         assigned_to=user,
         status=RoutineRun.STATUS_OPEN,
-    ).delete()
+    )
+    for row in stale:
+        delete_run(row)
 
 
 def _called_in_ids(day: date) -> set[int]:

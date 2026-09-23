@@ -96,10 +96,12 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
     }).then((row) => {
       setSubmissionId(row.id);
       setResponses(row.responses);
-    }).catch(() => {
+    }).catch((err) => {
       startFailed.current = true;
       starting.current = false;
-      setError('Could not start that routine.');
+      const detail = (err as { response?: { data?: { detail?: string | string[] } } })?.response?.data?.detail;
+      const message = Array.isArray(detail) ? detail[0] : detail;
+      setError(message || 'Could not start that routine.');
     });
   }, [draftId, draftQuery.data, draftQuery.isError, finished, id, responses, routineId, routineQuery.data, runQuery.data, start, startMode, submissionId]);
 

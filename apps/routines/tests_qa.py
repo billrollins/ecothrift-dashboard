@@ -1805,3 +1805,130 @@ class AssignmentVisibilityTests(APITestCase):
         run.generated = {'owner_check_waived': True}
         run.save(update_fields=['generated'])
         self.assertEqual(submit_blockers(self.cross, {'counts': {}}, run=run), [])
+
+    def _draft(self, routine, *, who, run=None, responses=None):
+        return RoutineSubmission.objects.create(
+            routine=routine,
+            run=run,
+            submitted_by=who,
+            status=RoutineSubmission.STATUS_DRAFT,
+            responses=responses or {},
+        )
+
+    def test_orphan_section_draft_is_not_in_progress(self):
+        self._draft(
+            self.cross, who=self.michael,
+            responses={'section_id': self.michael_section.pk, 'section_name': 'Michael'},
+        )
+        self.client.force_authenticate(self.michael)
+        mine = self.client.get('/api/routines/runs/mine/')
+        today = self.client.get('/api/routines/today/')
+        self.assertEqual(mine.status_code, 200, mine.data)
+        self.assertEqual(mine.data['drafts'], [])
+        self.assertEqual(today.data['drafts'], [])
+
+    def test_runless_section_draft_cannot_be_started_or_submitted(self):
+        from apps.routines.models import SectionObservation
+        from apps.routines.schedule import RUNLESS_WALK_MESSAGE
+        orphan = self._draft(
+            self.cross, who=self.michael,
+            responses={'section_id': self.michael_section.pk, 'section_name': 'Michael', 'counts': {}},
+        )
+        self.client.force_authenticate(self.michael)
+        started = self.client.post('/api/routines/submissions/', {
+            'routine': self.cross.pk,
+        }, format='json')
+        self.assertEqual(started.status_code, 400)
+        self.assertEqual(started.data['detail'], RUNLESS_WALK_MESSAGE)
+        submitted = self.client.post(
+            f'/api/routines/submissions/{orphan.pk}/submit/',
+            {'responses': orphan.responses},
+            format='json',
+        )
+        self.assertEqual(submitted.status_code, 400)
+        self.assertEqual(submitted.data['detail'], [RUNLESS_WALK_MESSAGE])
+        self.assertFalse(SectionObservation.objects.filter(actor=self.michael).exists())
+
+    def test_owner_cannot_submit_a_cross_check_of_their_aisle(self):
+        from apps.routines.models import SectionObservation
+        run = self._open(self.cross, who=self.michael, section=self.michael_section, subject='Michael')
+        draft = self._draft(
+            self.cross, who=self.michael, run=run,
+            responses={'section_id': self.michael_section.pk, 'section_name': 'Michael', 'counts': {}},
+        )
+        self.client.force_authenticate(self.michael)
+        started = self.client.post('/api/routines/submissions/', {
+            'routine': self.cross.pk, 'run': run.pk,
+        }, format='json')
+        self.assertEqual(started.status_code, 400)
+        submitted = self.client.post(
+            f'/api/routines/submissions/{draft.pk}/submit/',
+            {'responses': draft.responses},
+            format='json',
+        )
+        self.assertEqual(submitted.status_code, 400)
+        self.assertFalse(SectionObservation.objects.filter(section=self.michael_section).exists())
+
+    def test_assign_run_refuses_the_section_owner(self):
+        from apps.routines.command_center import assign_run
+        run = self._open(self.cross, who=self.david, section=self.michael_section, subject='Michael')
+        with self.assertRaises(ValueError):
+            assign_run(run=run, user=self.michael, marked_by=self.mgr)
+
+    def test_delete_run_takes_the_draft_and_keeps_the_submitted_row(self):
+        from apps.routines.schedule import delete_run
+        run = self._open(self.cross, who=self.david, section=self.michael_section, subject='Michael')
+        draft = self._draft(self.cross, who=self.david, run=run)
+        done = RoutineSubmission.objects.create(
+            routine=self.cross, run=run, submitted_by=self.david,
+            status=RoutineSubmission.STATUS_SUBMITTED, responses={'counts': {}},
+        )
+        delete_run(run)
+        self.assertFalse(RoutineSubmission.objects.filter(pk=draft.pk).exists())
+        done.refresh_from_db()
+        self.assertIsNone(done.run_id)
+
+    def test_unassigned_cross_check_is_not_duplicated(self):
+        from apps.routines.schedule import materialize_routines
+        parked = self._open(
+            self.cross, who=None, section=self.michael_section, subject='Michael', key='u-park',
+        )
+        materialize_routines(self.day)
+        self.assertEqual(
+            RoutineRun.objects.filter(
+                routine=self.cross, period_key=self.day.isoformat(), section=self.michael_section,
+            ).count(),
+            1,
+        )
+        parked.refresh_from_db()
+        self.assertIsNone(parked.assigned_to_id)
+        # The other aisle got its walk, so materialize did reach the cross-check.
+        self.assertTrue(RoutineRun.objects.filter(
+            routine=self.cross, period_key=self.day.isoformat(), section=self.david_section,
+        ).exists())
+
+    def test_repair_drops_orphan_drafts_and_the_duplicate_blank_tally(self):
+        import importlib
+        from django.apps import apps
+        repair = importlib.import_module(
+            'apps.routines.migrations.0027_orphan_section_drafts',
+        ).repair_orphan_section_drafts
+        self._draft(self.cross, who=self.michael, responses={'section_name': 'Michael'})
+        self._draft(self.tally, who=self.michael)
+        blank = self._open(self.tally, who=None, subject='David', key='u-blank')
+        kept = self._open(self.tally, who=self.david, subject='David')
+        done = self._open(self.cross, who=self.david, section=self.michael_section, subject='Michael')
+        done.status = RoutineRun.STATUS_DONE
+        done.save(update_fields=['status'])
+        parked = self._open(self.tally, who=None, subject='Warehouse', key='u-called')
+        repair(apps, None)
+        self.assertFalse(RoutineSubmission.objects.filter(
+            run__isnull=True, status=RoutineSubmission.STATUS_DRAFT,
+            routine__kind__in=('section_tally', 'section_audit'),
+        ).exists())
+        self.assertFalse(RoutineRun.objects.filter(pk=blank.pk).exists())
+        self.assertTrue(RoutineRun.objects.filter(pk=kept.pk).exists())
+        self.assertTrue(RoutineRun.objects.filter(pk=done.pk).exists())
+        self.assertTrue(RoutineRun.objects.filter(pk=parked.pk).exists())
+        repair(apps, None)
+        self.assertTrue(RoutineRun.objects.filter(pk=parked.pk).exists())

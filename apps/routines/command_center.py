@@ -36,6 +36,7 @@ from .grading import (
 )
 from .models import QaCallIn, QaDayExclusion, QaDayOverride, QaNudge, Routine, RoutineRun, Section
 from .schedule import (
+    OWN_AISLE_MESSAGE,
     SYSTEM_CLOSE,
     SYSTEM_CROSS_CHECK,
     SYSTEM_DAY,
@@ -45,6 +46,7 @@ from .schedule import (
     SYSTEM_WORK_CYCLE,
     cross_check_day_for,
     covered_section_ids,
+    delete_run,
     department_sections,
     due_at_for,
     hard_at_for,
@@ -1908,7 +1910,7 @@ def clear_call_in(row: QaCallIn) -> None:
         if run.section_id:
             clash = clash.filter(section_id=run.section_id)
         if clash.exists():
-            run.delete()
+            delete_run(run)
             continue
         run.assigned_to_id = user_id
         run.unassign_key = ''
@@ -2020,7 +2022,7 @@ def cover_section_today(*, section, helper, day, marked_by=None) -> RoutineRun:
             owner_run.subject = ', '.join(remaining)
             owner_run.save(update_fields=['subject'])
         else:
-            owner_run.delete()
+            delete_run(owner_run)
     title = getattr(routine, 'title', '') or 'Section check'
     create_nudge(
         run=cover,
@@ -2035,6 +2037,13 @@ def cover_section_today(*, section, helper, day, marked_by=None) -> RoutineRun:
 def assign_run(*, run: RoutineRun, user, marked_by=None) -> RoutineRun:
     if run.routine.system_key == SYSTEM_WORK_CYCLE:
         raise ValueError('Register activity is not assigned from this board.')
+    if (
+        user is not None
+        and run.routine.system_key == SYSTEM_CROSS_CHECK
+        and run.section_id
+        and getattr(run.section, 'owner_id', None) == user.pk
+    ):
+        raise ValueError(OWN_AISLE_MESSAGE)
     with transaction.atomic():
         if user is None:
             run.assigned_to = None
@@ -2050,7 +2059,7 @@ def assign_run(*, run: RoutineRun, user, marked_by=None) -> RoutineRun:
             leftover = run
             run = existing
             if leftover.status == RoutineRun.STATUS_OPEN:
-                leftover.delete()
+                delete_run(leftover)
         elif run.assigned_to_id != user.pk:
             try:
                 with transaction.atomic():
@@ -2062,7 +2071,7 @@ def assign_run(*, run: RoutineRun, user, marked_by=None) -> RoutineRun:
                     routine_id=run.routine_id, period_key=run.period_key, assigned_to=user,
                 )
                 if run.status == RoutineRun.STATUS_OPEN and run.pk != kept.pk:
-                    run.delete()
+                    delete_run(run)
                 run = kept
         if run.section_id and run.routine.system_key == SYSTEM_TALLY:
             section = run.section

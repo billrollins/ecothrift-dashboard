@@ -6,7 +6,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { KIOSK_HOST_EXPIRED_EVENT } from '../../api/client';
 import { keepHostAlive, kioskExit } from '../../api/kiosk.api';
 import { tk } from '../../i18n/kiosk';
-import { ExitDialog } from './ExitDialog';
 import { HostExpiredOverlay } from './HostExpiredOverlay';
 import { KioskBoard } from './KioskBoard';
 import { KioskShell } from './KioskShell';
@@ -27,7 +26,6 @@ export default function KioskPage() {
   const [lang, setLang] = useKioskLang();
   const [started, setStarted] = useState(() => readFullscreenDone('kiosk'));
   const [expired, setExpired] = useState(false);
-  const [exitOpen, setExitOpen] = useState(false);
   const session = useKioskSession('kiosk', lang, started && !expired);
 
   useEffect(() => {
@@ -47,18 +45,32 @@ export default function KioskPage() {
     return () => clearInterval(id);
   }, [started, expired]);
 
+  const leave = useCallback(async () => {
+    // The audit row is best effort; a failure must never trap someone on the tablet.
+    kioskExit().catch(() => undefined);
+    await exitFullscreen();
+    navigate('/dashboard');
+  }, [navigate]);
+
+  // One Esc rule for the page: cancel the punch dialog if it is open, otherwise
+  // leave. In fullscreen the browser eats the first Esc to drop fullscreen, so
+  // the Exit button stays the reliable way out.
+  useEffect(() => {
+    if (!started || expired) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return;
+      if (session.scan) session.closeOverlay();
+      else void leave();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [started, expired, session.scan, session.closeOverlay, leave]);
+
   const start = useCallback(() => {
     void requestFullscreen();
     writeFullscreenDone('kiosk');
     setStarted(true);
   }, []);
-
-  const leave = useCallback(async () => {
-    setExitOpen(false);
-    kioskExit().catch(() => undefined);
-    await exitFullscreen();
-    navigate('/dashboard');
-  }, [navigate]);
 
   const isManager = user?.role === 'Manager' || user?.role === 'Admin' || Boolean(user?.is_superuser);
 
@@ -72,13 +84,13 @@ export default function KioskPage() {
         onLang={setLang}
         title="Eco-Thrift"
         right={
-          <Button onClick={() => setExitOpen(true)} sx={{ ...mediumButtonSx, minHeight: 40, fontSize: 15, color: kioskColors.ink60 }}>
+          <Button onClick={() => void leave()} sx={{ ...mediumButtonSx, minHeight: 40, fontSize: 15, color: kioskColors.ink60 }}>
             {tk('exit', lang)}
           </Button>
         }
         footer={
           session.toast ? (
-            <Typography role="status" data-testid="kiosk-toast" sx={{ color: '#FFB3A8', fontWeight: 800, fontSize: 18 }}>{session.toast}</Typography>
+            <Typography role="status" data-testid="kiosk-toast" sx={{ color: session.toastTone === 'ok' ? kioskColors.brand : '#FFB3A8', fontWeight: 800, fontSize: 18 }}>{session.toast}</Typography>
           ) : session.identifying ? (
             <Typography sx={{ color: kioskColors.ink60, fontWeight: 700 }}>{tk('checkingCard', lang)}</Typography>
           ) : null
@@ -90,7 +102,11 @@ export default function KioskPage() {
         ) : null}
       </KioskShell>
 
-      <ScanInput enabled={!expired && !session.scan && !exitOpen} onScan={(token) => void session.onScan(token)} />
+      <ScanInput
+        enabled={!expired && !session.scan}
+        onScan={(token) => void session.onScan(token)}
+        onReject={session.rejectScan}
+      />
 
       {session.scan ? (
         <PunchOverlay
@@ -101,10 +117,9 @@ export default function KioskPage() {
           lang={lang}
           onClose={session.closeOverlay}
           onChanged={session.refreshBoard}
+          onSuccess={session.finishOverlay}
         />
       ) : null}
-
-      <ExitDialog open={exitOpen} lang={lang} onCancel={() => setExitOpen(false)} onConfirmed={() => void leave()} />
 
       {expired ? (
         <HostExpiredOverlay

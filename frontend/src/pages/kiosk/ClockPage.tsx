@@ -52,7 +52,7 @@ export default function ClockPage() {
         title="Eco-Thrift"
         footer={
           session.toast ? (
-            <Typography role="status" data-testid="kiosk-toast" sx={{ color: '#FFB3A8', fontWeight: 800, fontSize: 18 }}>{session.toast}</Typography>
+            <Typography role="status" data-testid="kiosk-toast" sx={{ color: session.toastTone === 'ok' ? kioskColors.brand : '#FFB3A8', fontWeight: 800, fontSize: 18 }}>{session.toast}</Typography>
           ) : session.identifying ? (
             <Typography sx={{ color: kioskColors.ink60, fontWeight: 700 }}>{tk('checkingCard', lang)}</Typography>
           ) : null
@@ -61,7 +61,11 @@ export default function ClockPage() {
         <KioskBoard board={session.board.data} lang={lang} dense />
       </KioskShell>
 
-      <ScanInput enabled={!session.scan} onScan={(token) => void session.onScan(token)} />
+      <ScanInput
+        enabled={!session.scan}
+        onScan={(token) => void session.onScan(token)}
+        onReject={session.rejectScan}
+      />
 
       {session.scan ? (
         <PunchOverlay
@@ -72,6 +76,7 @@ export default function ClockPage() {
           lang={lang}
           onClose={session.closeOverlay}
           onChanged={session.refreshBoard}
+          onSuccess={session.finishOverlay}
         />
       ) : null}
     </>

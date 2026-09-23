@@ -335,7 +335,7 @@ def merge_incoming(routine: Routine, run: RoutineRun | None, incoming: Any) -> d
     }
 
 
-def submit_blockers(routine: Routine, responses: dict, *, min_items: int = 0, run=None) -> list[str]:
+def submit_blockers(routine: Routine, responses: dict, *, min_items: int = 0, run=None, submitter_id=None) -> list[str]:
     """Reasons the server will not accept this submission yet."""
     if routine.kind == Routine.KIND_CHECKLIST:
         _failed, _critical, unanswered = score_responses(responses)
@@ -363,7 +363,12 @@ def submit_blockers(routine: Routine, responses: dict, *, min_items: int = 0, ru
             return ['You do not keep a section right now. Ask for one to be assigned.']
         return []
     if routine.kind == Routine.KIND_SECTION_AUDIT:
-        if run is not None and run.section_id:
+        from .schedule import OWN_AISLE_MESSAGE, RUNLESS_WALK_MESSAGE
+        if run is None:
+            return [RUNLESS_WALK_MESSAGE]
+        if submitter_id and run.section_id and run.section.owner_id == submitter_id:
+            return [OWN_AISLE_MESSAGE]
+        if run.section_id:
             from datetime import date as date_cls
             from .command_center import owner_check_gate
             try:

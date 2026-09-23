@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import logoImg from '../assets/logo-full-360x120.png';
 import {
@@ -11,6 +11,11 @@ import {
   Alert,
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
+import { tk } from '../i18n/kiosk';
+import { useKioskLang } from './kiosk/kioskLang';
+
+/** Card scanning is the door tablet's code. Keep it out of the sign-in bundle. */
+const LoginScan = lazy(() => import('./LoginScan'));
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -19,6 +24,15 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [lang] = useKioskLang();
+  const [scanning, setScanning] = useState(false);
+  const [scanMessage, setScanMessage] = useState('');
+  const emailRef = useRef<HTMLInputElement | null>(null);
+
+  const stopScanning = () => {
+    setScanning(false);
+    emailRef.current?.focus();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,6 +88,11 @@ export default function LoginPage() {
                 {error}
               </Alert>
             )}
+            {scanMessage ? (
+              <Alert severity="success" data-testid="login-scan-message" onClose={() => setScanMessage('')}>
+                {scanMessage}
+              </Alert>
+            ) : null}
             <TextField
               label="Email"
               type="email"
@@ -83,6 +102,7 @@ export default function LoginPage() {
               fullWidth
               autoComplete="email"
               autoFocus
+              inputRef={emailRef}
             />
             <TextField
               label="Password"
@@ -107,6 +127,17 @@ export default function LoginPage() {
             >
               {isLoading ? 'Signing in...' : 'Sign in'}
             </Button>
+            <Button
+              type="button"
+              data-testid="login-scan-button"
+              onClick={() => {
+                setScanMessage('');
+                setScanning(true);
+              }}
+              sx={{ textTransform: 'none', fontWeight: 700, color: '#2e7d32' }}
+            >
+              {tk('scanYourCard', lang)}
+            </Button>
             <Typography variant="body2" textAlign="center" sx={{ mt: 1 }}>
               <Link to="/forgot-password" style={{ color: '#2e7d32' }}>
                 Forgot password?
@@ -115,6 +146,18 @@ export default function LoginPage() {
           </Box>
         </CardContent>
       </Card>
+
+      {scanning ? (
+        <Suspense fallback={null}>
+          <LoginScan
+            onExit={stopScanning}
+            onDone={(message) => {
+              setScanMessage(message);
+              stopScanning();
+            }}
+          />
+        </Suspense>
+      ) : null}
     </Box>
   );
 }

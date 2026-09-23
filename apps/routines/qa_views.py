@@ -61,6 +61,7 @@ from .models import (
     SectionObservation,
 )
 from .schedule import (
+    OWN_AISLE_MESSAGE,
     SYSTEM_CLOSE,
     SYSTEM_CROSS_CHECK,
     SYSTEM_DAY,
@@ -400,7 +401,7 @@ class QaAssignView(APIView):
 
         if kind == 'cross_checker':
             if user and section.owner_id == user.pk:
-                return Response({'detail': 'A section owner cannot cross-check their own aisle.'}, status=400)
+                return Response({'detail': OWN_AISLE_MESSAGE}, status=400)
             run = RoutineRun.objects.filter(
                 routine__system_key=SYSTEM_CROSS_CHECK,
                 period_key=day.isoformat(),

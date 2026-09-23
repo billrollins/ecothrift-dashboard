@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Box, Button, CircularProgress, Typography } from '@mui/material';
-import CheckCircle from '@mui/icons-material/CheckCircle';
 import WarningAmber from '@mui/icons-material/WarningAmber';
 import type { AxiosError } from 'axios';
 import { ShiftPicker } from '../../components/hr/ShiftPicker';
@@ -23,9 +22,7 @@ import { bigButtonSx, kioskColors, mediumButtonSx } from './kioskTheme';
 import { clockLabel, dayClockLabel, hhmmLabel } from './kioskLang';
 import { overlayTimeoutMs, useOverlayTimeout } from './useOverlayTimeout';
 
-type Screen = 'stale' | 'gate' | 'out' | 'in' | 'wrong' | 'success';
-
-type Success = { key: string; at?: string; shift?: string };
+type Screen = 'stale' | 'gate' | 'out' | 'in' | 'wrong';
 
 function firstScreen(preview: KioskPreview): Screen {
   if (preview.state === 'stale') return 'stale';
@@ -62,6 +59,7 @@ export function PunchOverlay({
   lang,
   onClose,
   onChanged,
+  onSuccess,
 }: {
   route: KioskRoute;
   token: string;
@@ -69,6 +67,8 @@ export function PunchOverlay({
   lang: AppLanguage;
   onClose: () => void;
   onChanged: () => void;
+  /** A punch landed. The page shows this string key and closes the overlay. */
+  onSuccess: (successKey: string) => void;
 }) {
   const [preview, setPreview] = useState<KioskPreview>(initial);
   const [screen, setScreen] = useState<Screen>(() => firstScreen(initial));
@@ -77,17 +77,12 @@ export function PunchOverlay({
   const [gate, setGate] = useState<GatePayload>({});
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState<Success | null>(null);
 
   const pickerOpen = screen === 'out' && (
     picking || !preview.suggested_shift || preview.suggested_shift_unmatched
   );
   const timeoutMs = overlayTimeoutMs(screen, pickerOpen);
   const bump = useOverlayTimeout(true, timeoutMs, onClose);
-
-  useEffect(() => {
-    if (screen === 'success') onChanged();
-  }, [screen, onChanged]);
 
   const run = useCallback(
     async (call: () => Promise<{ data: KioskPreview }>, after?: (next: KioskPreview) => void) => {
@@ -98,8 +93,10 @@ export function PunchOverlay({
         setPreview(data);
         if (after) after(data);
         else if (data.result?.action) {
-          setSuccess({ key: SUCCESS_KEY[data.result.action] ?? 'done', at: data.result.at, shift: data.result.shift });
-          setScreen('success');
+          // Refresh the board here: the deleted success screen used to do it.
+          onChanged();
+          onSuccess(SUCCESS_KEY[data.result.action] ?? 'done');
+          onClose();
         }
       } catch (err) {
         const body = (err as AxiosError<KioskErrorBody>)?.response?.data;
@@ -116,7 +113,7 @@ export function PunchOverlay({
         setPending(false);
       }
     },
-    [lang],
+    [lang, onChanged, onSuccess, onClose],
   );
 
   const shiftLabel = useMemo(() => {
@@ -302,19 +299,6 @@ export function PunchOverlay({
         }}
       />
     );
-  } else if (screen === 'success' && success) {
-    body = (
-      <Box data-testid="overlay-success" sx={{ display: 'flex', alignItems: 'center', gap: 2.5, py: 2 }}>
-        <CheckCircle sx={{ fontSize: 72, color: kioskColors.brand }} />
-        <Box>
-          <Typography sx={{ fontSize: 40, fontWeight: 900, color: kioskColors.ink, lineHeight: 1 }}>{tk(success.key, lang)}</Typography>
-          <Typography sx={{ fontSize: 22, color: kioskColors.ink60, fontWeight: 600 }}>
-            {success.at ? `${tk('at', lang)} ${clockLabel(success.at, lang)}` : ''}
-            {success.shift && success.key !== 'successRequest' ? ` · ${preview.tiles.find((t) => t.punch_code === success.shift)?.name || preview.punch?.shift_name || success.shift}` : ''}
-          </Typography>
-        </Box>
-      </Box>
-    );
   }
 
   void wrongChoice;
@@ -326,7 +310,7 @@ export function PunchOverlay({
       data-testid="punch-overlay"
       onPointerDown={(event) => {
         event.stopPropagation();
-        if (screen !== 'success') bump();
+        bump();
       }}
       sx={{
         position: 'fixed',
@@ -354,8 +338,8 @@ export function PunchOverlay({
           boxShadow: '0 30px 80px rgba(0,0,0,0.5)',
         }}
       >
-        {screen !== 'success' ? header() : null}
-        {screen !== 'success' ? warningLines() : null}
+        {header()}
+        {warningLines()}
         {errorLine()}
         {body}
       </Box>

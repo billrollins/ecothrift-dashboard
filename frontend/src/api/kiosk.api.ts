@@ -146,7 +146,7 @@ export function kioskRequestEdit(token: string, kind: 'wrong_start' | 'forgot_br
   return api.post<KioskPreview>('/hr/kiosk/request-edit/', { token, kind, value });
 }
 
-/** Hosted only. Audit row; the password check is verifyPassword. */
+/** Hosted only. Audit row for leaving the kiosk. Exit takes no password. */
 export function kioskExit() {
   return api.post<{ ok: boolean }>('/hr/kiosk/exit/', {});
 }
