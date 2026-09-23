@@ -1,1 +1,12 @@
----
+feat: v2.98.0 B-Stock daily buying (fees, shipping, Costco, Need v2) and AI settings
+
+Release: v2.98.0
+
+- B-Stock daily manifest pull routine with the owner's handed-over login.
+- Fees (5% buyer fee), shipping quote or distance formula, Costco signed-in search.
+- Need v2: weeks of cover with pipeline, category goals, processing backlog.
+- Settings > AI and floorplan AI (merged ai-settings-floorplan).
+- Runner protocol and data-quality register (docs).
+- Runner R-014 pre-ship run GREEN (no new failures; POS unchanged).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

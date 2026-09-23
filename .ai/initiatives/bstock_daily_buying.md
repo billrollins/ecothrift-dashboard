@@ -181,6 +181,8 @@ Marking an auction Won creates a PO that carries the manifest, which feeds the P
 
 ## Record
 
+**2026-09-23 — Shipped v2.98.0.** Fees, the shipping formula, Costco and Need v2 (Phase 2 part) go live. The runner R-014 pre-ship run was GREEN. The owner still needs to add the Heroku Scheduler job `pull_shortlist_manifests` every 10 minutes.
+
 **2026-09-23 — Phase 2 started: Need v2.** Need is weeks of cover: (shelf + in the building + on order) ÷ weekly sales, against a target that defaults to the store's own cover (35.5 weeks locally). Goals per category (more / normal / less / stop) are set from the panel. Open POs older than 120 days are ignored: 98k units on stale "delivered" and "processing" POs with no categorized lines were never closed. The 22 POs delivered but not processed in the last 120 days ($672k retail, R-003) do count. PO line categories are B-Stock codes (`TOYS`), mapped by `CategoryMapping` majority. Local effect: Health & beauty fell from 74 to 42 (2,390 on order), Toys from 81 to 73, Office from 78 to 65. Still to come in Phase 2: sales and speed from R-004, processing from R-005, won-not-PO'd auctions (Phase 6 link), and Priority re-based on profit.
 
 **2026-09-23 — Rethink after the first real pulls.** Costco pulls. Need and Priority are off: they ignore orders won but not processed, and "need" may be the wrong measure anyway. The owner laid out a 6-step daily process and 9 contexts (above). The phases were re-planned: 2 buying context, 3 listing triage, 4 manifest analysis, 5 wish list and price targets, 6 won to PO and report card. Recon goes to the runner (`.ai/protocols/runner.md`) as R-002 to R-007.

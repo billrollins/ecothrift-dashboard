@@ -10,7 +10,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [2.98.0] - 2026-09-23
 
 User-facing theme: **Superusers get B-Stock manifests pulled for them each morning, from the desk or a phone, and pick every AI model in one place.**
 
