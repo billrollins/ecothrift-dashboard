@@ -5,18 +5,22 @@ Search listings POST does not require auth. **Auction state** GET
 (``auction.bstock.com/v1/auctions``) works anonymously by default via
 ``get_auction_states_batch(auth=False)``. Other listing and shipment calls normally require a
 JWT; when ``JWT_BSTOCK_CALLS_DISABLED`` is True (ban prevention),
-**authenticated** calls are skipped-see each function's guard.
+**authenticated** calls are skipped-see each function's guard. The one exception is
+``fetch_manifest_items``: the owner hands over a login for exactly that call.
 
-When ``BUYING_SOCKS5_PROXY_ENABLED`` is True, **all** ``*.bstock.com`` requests
-made via ``_request_json`` use that SOCKS5 proxy (not only search). Dev opt-in
+When ``BUYING_SOCKS5_PROXY_ENABLED`` is True, ``*.bstock.com`` requests made via
+``_request_json`` use that SOCKS5 proxy, except the authenticated manifest pull
+(``fetch_manifest_items``), which always goes direct with the owner's login. Dev opt-in
 ``BUYING_SOCKS5_DEV_AUDIT`` logs the redacted proxy URL per request and probes
 egress IP through the same proxy (see ``logs/bstock_api.log``).
 
-Token resolution when JWT calls are enabled (first match
-wins):
+Token resolution for authenticated calls (first match wins):
 
-1. File ``workspace/.bstock_token`` (from ``python manage.py bstock_token``)
-2. Environment variable ``BSTOCK_AUTH_TOKEN``
+1. The ``BStockToken`` row the owner hands over from the daily routine
+2. File ``workspace/.bstock_token`` (from ``python manage.py bstock_token``)
+3. Environment variable ``BSTOCK_AUTH_TOKEN``
+
+The manifest pull uses only (1), passed in explicitly as ``bearer``.
 
 Do not automate login or bypass CAPTCHA. Throttle requests.
 """
@@ -30,6 +34,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -47,7 +52,8 @@ _SOCKS5_EGRESS_LOCK = threading.Lock()
 _SOCKS5_LAST_EGRESS_MONO = 0.0
 _SOCKS5_LAST_EGRESS_IP: str | None = None
 
-# Ban prevention: skip all JWT-backed B-Stock HTTP calls. Public search (`discover_auctions`) is unchanged.
+# Ban prevention: skip JWT-backed B-Stock HTTP calls. Public search (`discover_auctions`) is unchanged.
+# fetch_manifest_items is exempt: it sends the login the owner handed over for manifests.
 # Set False to re-enable authenticated endpoints.
 JWT_BSTOCK_CALLS_DISABLED = True
 
@@ -56,6 +62,8 @@ LISTING_GROUPS_URL = 'https://listing.bstock.com/v1/groups'
 AUCTION_STATE_URL = 'https://auction.bstock.com/v1/auctions'
 AUCTION_UNIQUE_BIDS_URL = 'https://auction.bstock.com/v1/auctions/bids/unique'
 SHIPMENT_QUOTES_URL = 'https://shipment.bstock.com/v1/quotes'
+# Full manifests need the buyer's JWT; anonymous callers get a 10-line preview.
+ORDER_MANIFEST_URL = 'https://order-process.bstock.com/v1/manifests'
 
 BASE_HEADERS: dict[str, str] = {
     'Accept': 'application/json',
@@ -73,7 +81,39 @@ class BStockAuthError(Exception):
     """HTTP 401: JWT missing, invalid, or expired."""
 
 
+class BStockUnavailable(Exception):
+    """B-Stock or the network did not answer usefully (timeout, 5xx, rate limit). Try later."""
+
+
+class BStockLotError(Exception):
+    """One lot's manifest cannot be had (404, other 4xx): record it on that auction only."""
+
+    def __init__(self, message: str, *, permanent: bool = False):
+        super().__init__(message)
+        self.permanent = permanent
+
+
+class BStockLotRefused(Exception):
+    """
+    B-Stock refused the authenticated call for one lot (400, 403, or the anonymous preview).
+
+    Ambiguous: an expired or ignored login looks like this, and so does a lot this buyer may
+    not see. The pull job decides: two different lots refused in a row means the login.
+    """
+
+
+class BStockHTTPError(Exception):
+    """A non-2xx answer, raised only by ``_request_json(raise_errors=True)`` (an authenticated 401 raises ``BStockAuthError``)."""
+
+    def __init__(self, status_code: int, message: str = ''):
+        super().__init__(message or f'B-Stock answered HTTP {status_code}')
+        self.status_code = status_code
+
+
 AUTH_TOKEN_EXPIRED_MESSAGE = 'Token expired. Run: python manage.py bstock_token'
+
+# A long Retry-After would stall a pull job past its heartbeat; give up and try later instead.
+RETRY_AFTER_CAP_SECONDS = 60.0
 
 
 def _token_file_path() -> Path:
@@ -99,7 +139,21 @@ def _delay_between_requests() -> None:
         time.sleep(sec)
 
 
+def _db_token_value() -> str:
+    """Newest unexpired token handed over from bstock.com (see ``bstock_token_store``)."""
+    try:
+        from apps.buying.services.bstock_token_store import current_token
+
+        return current_token()
+    except Exception as e:  # no table yet (early migrate), or DB down
+        logger.debug('B-Stock DB token unavailable: %s', e)
+        return ''
+
+
 def _auth_token_value() -> str:
+    db_token = _db_token_value()
+    if db_token:
+        return db_token
     file_token = _read_token_from_file()
     if file_token:
         return file_token
@@ -110,7 +164,7 @@ def _auth_token_value() -> str:
 
 
 def bstock_token_available() -> bool:
-    """True when a JWT is available for authenticated B-Stock HTTP (file or env)."""
+    """True when a JWT is available for authenticated B-Stock HTTP (DB, file, or env)."""
     return bool(_auth_token_value())
 
 
@@ -119,8 +173,9 @@ def get_auth_headers() -> dict[str, str]:
     token = _auth_token_value()
     if not token:
         raise ValueError(
-            'No B-Stock token. Run: python manage.py bstock_token '
-            '(writes workspace/.bstock_token) or set BSTOCK_AUTH_TOKEN in .env.'
+            'No B-Stock token. Hand one over from the Pull B-Stock manifests routine, run '
+            'python manage.py bstock_token (writes workspace/.bstock_token), or set '
+            'BSTOCK_AUTH_TOKEN in .env.'
         )
     out = dict(BASE_HEADERS)
     out['Authorization'] = f'Bearer {token}'
@@ -141,6 +196,19 @@ def _sanitize_headers_for_log(headers: dict[str, str]) -> dict[str, str]:
         else:
             out[k] = v
     return out
+
+
+def jwt_expiry(token: str) -> datetime | None:
+    """The JWT's ``exp`` as an aware datetime, read without verifying; None if unreadable."""
+    parts = (token or '').split('.')
+    if len(parts) < 2:
+        return None
+    payload_b64 = parts[1] + '=' * (-len(parts[1]) % 4)
+    try:
+        data = json.loads(base64.urlsafe_b64decode(payload_b64).decode('utf-8'))
+        return datetime.fromtimestamp(int(data['exp']), tz=timezone.utc)
+    except (KeyError, TypeError, ValueError, UnicodeDecodeError, OverflowError, OSError):
+        return None
 
 
 def _jwt_exp_summary(headers: dict[str, str]) -> str:
@@ -235,17 +303,30 @@ def _request_json(
     timeout: int = 30,
     proxies: dict[str, str] | None = None,
     session: requests.Session | None = None,
+    raise_errors: bool = False,
+    bearer: str | None = None,
 ) -> Any | None:
     """
     Perform one HTTP request and return parsed JSON.
 
     On 401 with auth=True, raises BStockAuthError (no retry).
     On 403, logs and returns None.
-    On 429, retries with exponential backoff up to BSTOCK_MAX_RETRIES.
+    On 429, retries with exponential backoff up to BSTOCK_MAX_RETRIES (Retry-After capped
+    at ``RETRY_AFTER_CAP_SECONDS``).
     Network errors: log and return None.
+
+    ``raise_errors``: instead of returning None, raise ``BStockUnavailable`` (network error,
+    5xx, rate limit after retries, empty or non-JSON body) or ``BStockHTTPError`` (any
+    other non-2xx, including 401 on an anonymous call). ``proxies={}`` forces a direct call.
+    ``bearer``: send exactly this token (implies ``auth``) instead of resolving one.
     """
     max_retries = int(getattr(settings, 'BSTOCK_MAX_RETRIES', 3))
-    headers = _headers_for_request(method, auth)
+    if bearer:
+        auth = True
+        headers = _headers_for_request(method, False)
+        headers['Authorization'] = f'Bearer {bearer}'
+    else:
+        headers = _headers_for_request(method, auth)
     backoff_base = 2.0
 
     try:
@@ -258,6 +339,8 @@ def _request_json(
 
     if proxies is None:
         proxies = _bstock_socks5_proxies_for_url(url)
+    # A bad token can put its own text in a requests exception; never log that.
+    redact = auth
 
     _socks5_dev_audit_request_line(method, prepared_url, url, proxies)
 
@@ -281,7 +364,10 @@ def _request_json(
             _log_bstock_request(
                 method, prepared_url, auth=auth, status_code='ERR', elapsed_ms=elapsed_ms
             )
-            logger.error('B-Stock request error %s %s: %s', method, url[:160], e)
+            detail = type(e).__name__ if redact else str(e)
+            logger.error('B-Stock request error %s %s: %s', method, url[:160], detail)
+            if raise_errors:
+                raise BStockUnavailable(f'B-Stock did not answer ({type(e).__name__}).') from e
             return None
 
         elapsed_ms = (time.perf_counter() - start) * 1000.0
@@ -299,6 +385,8 @@ def _request_json(
                 logger.error('B-Stock 401 Unauthorized: %s', AUTH_TOKEN_EXPIRED_MESSAGE)
                 raise BStockAuthError(AUTH_TOKEN_EXPIRED_MESSAGE)
             logger.error('B-Stock 401 on unauthenticated request: %s', url[:160])
+            if raise_errors:
+                raise BStockHTTPError(401)
             return None
 
         if resp.status_code == 403:
@@ -306,6 +394,8 @@ def _request_json(
                 'B-Stock 403 Forbidden (access denied or marketplace not available): %s',
                 url[:160],
             )
+            if raise_errors:
+                raise BStockHTTPError(403)
             return None
 
         if resp.status_code == 429:
@@ -316,6 +406,7 @@ def _request_json(
                     wait = max(wait, float(retry_after))
                 except ValueError:
                     pass
+            wait = min(wait, RETRY_AFTER_CAP_SECONDS)
             if attempt < max_retries:
                 logger.warning(
                     'B-Stock 429 rate limited. Retry-After=%s sleeping %.1fs (attempt %s/%s)',
@@ -327,6 +418,8 @@ def _request_json(
                 time.sleep(wait)
                 continue
             logger.error('B-Stock 429 after %s retries: %s', max_retries, url[:160])
+            if raise_errors:
+                raise BStockUnavailable('B-Stock is rate limiting right now.')
             return None
 
         try:
@@ -344,15 +437,23 @@ def _request_json(
                 err_url[:400],
                 body_preview,
             )
+            if raise_errors:
+                if resp.status_code >= 500:
+                    raise BStockUnavailable(f'B-Stock answered HTTP {resp.status_code}.')
+                raise BStockHTTPError(resp.status_code)
             return None
 
         if not (resp.content or '').strip():
+            if raise_errors:
+                raise BStockUnavailable('B-Stock answered with an empty body.')
             return None
 
         try:
             return resp.json()
         except (json.JSONDecodeError, ValueError) as e:
             logger.error('B-Stock response is not JSON: %s body_preview=%r', e, resp.text[:400])
+            if raise_errors:
+                raise BStockUnavailable('B-Stock answered with something that is not JSON.') from e
             return None
 
     return None
@@ -903,3 +1004,159 @@ def get_unique_bid_counts(auction_ids_csv: str) -> dict[str, Any] | None:
         return _request_json('GET', AUCTION_UNIQUE_BIDS_URL, params=params, auth=True)
     except BStockAuthError:
         raise
+
+
+# The anonymous preview is this many lines; a page this small with more to come is not a manifest.
+MANIFEST_PREVIEW_LINES = 10
+# Hard stop on requests for one manifest, whatever page size B-Stock honours.
+MAX_MANIFEST_CALLS = 25
+
+
+@dataclass
+class ManifestFetch:
+    """One manifest download: unique rows, what the API said the total was, and cost."""
+
+    items: list[dict[str, Any]]
+    total: int | None
+    api_calls: int
+    complete: bool
+    # '' when complete; 'preview' (anonymous 10 lines), 'too_large', 'unstable' (paging
+    # gave duplicate or missing lines), or 'too_many_calls'.
+    reason: str = ''
+
+
+def fetch_manifest_items(
+    lot_id: str,
+    *,
+    bearer: str | None = None,
+    auth: bool = True,
+    page_delay_seconds: float = 0.5,
+    max_rows: int = 10000,
+    session: requests.Session | None = None,
+    on_page: Callable[[], None] | None = None,
+) -> ManifestFetch:
+    """
+    Page through ``GET order-process.bstock.com/v1/manifests/{lotId}``, sorted by ``_id``.
+
+    With the buyer's JWT (``bearer``, the owner's handed-over login) B-Stock answers up to
+    1,000 lines a page. Without it every page is the same first 10 lines (``offset`` and
+    ``limit`` come back as 0 and 10). This is the one JWT call ``JWT_BSTOCK_CALLS_DISABLED``
+    does not block: the owner hands over the token for exactly this.
+
+    Authenticated calls go direct, never through the SOCKS5 pool: the owner's login showing
+    up from rotating foreign IPs would look like a stolen session.
+
+    Raises (each with ``api_calls`` set):
+    - ``BStockAuthError``: 401, the login is refused outright.
+    - ``BStockLotRefused``: 400 / 403, or the anonymous preview despite the token. One lot or
+      the login; the caller decides.
+    - ``BStockLotError``: 404 or another 4xx for this lot (``permanent`` for 404).
+    - ``BStockUnavailable``: timeout, 5xx, rate limit after retries, a reply with no items.
+
+    ``on_page`` runs after every page (the pull job's heartbeat; it may raise to abort).
+    Rows are de-duplicated by ``_id``; ``complete`` is True only when the unique count
+    reaches ``total`` (or, with no ``total``, when a short page ends the list).
+    """
+    url = f'{ORDER_MANIFEST_URL}/{quote(lot_id.strip(), safe="")}'
+    session = session or requests.Session()
+    authed = bool(auth or bearer)
+    items: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    total: int | None = None
+    api_calls = 0
+    page_limit = 1000
+
+    def result(complete: bool, reason: str = '') -> ManifestFetch:
+        return ManifestFetch(items=items, total=total, api_calls=api_calls, complete=complete, reason=reason)
+
+    def tagged(exc: Exception) -> Exception:
+        exc.api_calls = api_calls  # type: ignore[attr-defined]
+        return exc
+
+    offset = 0
+    while True:
+        if api_calls >= MAX_MANIFEST_CALLS:
+            return result(False, 'too_many_calls')
+        if api_calls and page_delay_seconds > 0:
+            time.sleep(page_delay_seconds)
+        api_calls += 1
+        try:
+            data = _request_json(
+                'GET',
+                url,
+                params={
+                    'limit': page_limit,
+                    'offset': offset,
+                    'sortBy': '_id',
+                    'sortOrder': 'ASC',
+                    'exclude': 'metadata',
+                },
+                auth=auth,
+                bearer=bearer,
+                session=session,
+                proxies={} if authed else None,
+                raise_errors=True,
+            )
+        except (BStockAuthError, BStockUnavailable) as e:
+            raise tagged(e)
+        except BStockHTTPError as e:
+            if authed and e.status_code == 401:
+                raise tagged(BStockAuthError('B-Stock refused the login (HTTP 401).')) from e
+            if authed and e.status_code in (400, 403):
+                raise tagged(BStockLotRefused(f'B-Stock refused this lot (HTTP {e.status_code}).')) from e
+            if e.status_code == 404:
+                raise tagged(
+                    BStockLotError('B-Stock has no manifest for this lot (HTTP 404).', permanent=True)
+                ) from e
+            raise tagged(BStockLotError(f'B-Stock answered HTTP {e.status_code} for this lot.')) from e
+        if on_page is not None:
+            try:
+                on_page()
+            except Exception as e:
+                raise tagged(e)
+        if not isinstance(data, dict) or not isinstance(data.get('items'), list):
+            raise tagged(BStockUnavailable('B-Stock answered without a manifest.'))
+        try:
+            total = int(data['total']) if data.get('total') is not None else total
+        except (TypeError, ValueError):
+            pass
+        if api_calls == 1 and total is not None and total > max_rows:
+            return result(False, 'too_large')
+        page = [row for row in data['items'] if isinstance(row, dict)]
+        echoed_offset = data.get('offset')
+        echoed_limit = data.get('limit')
+        more_expected = total is not None and offset + len(page) < total
+        preview = (echoed_offset is not None and echoed_offset != offset) or (
+            more_expected
+            and isinstance(echoed_limit, int)
+            and echoed_limit <= MANIFEST_PREVIEW_LINES
+        )
+        if preview:
+            if authed:
+                raise tagged(BStockLotRefused('B-Stock sent only the 10-line preview for this lot.'))
+            if api_calls == 1:
+                items.extend(page)
+            return result(False, 'preview')
+        for row in page:
+            key = str(row.get('_id') or '')
+            if key and key in seen:
+                continue
+            if key:
+                seen.add(key)
+            items.append(row)
+        offset += len(page)
+        if not page:
+            break
+        if total is None:
+            # No total: keep going while pages come back full.
+            size = echoed_limit if isinstance(echoed_limit, int) and echoed_limit > 0 else page_limit
+            if len(page) < size:
+                break
+            if len(items) > max_rows:
+                return result(False, 'too_large')
+            continue
+        if offset >= total:
+            break
+    if total is not None and len(items) != total:
+        return result(False, 'unstable')
+    return result(True)

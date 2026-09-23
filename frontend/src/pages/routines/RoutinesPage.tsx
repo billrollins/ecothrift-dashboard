@@ -49,7 +49,11 @@ export default function RoutinesPage() {
   );
 
   const phone = mode === 'fill' ? (
-    <RoutineRunnerPage runId={fillRunId} />
+    // Keyed: switching runs (or new / draft fills) must not carry one runner's state into another.
+    <RoutineRunnerPage
+      key={`${fillRunId ?? 'new'}:${params.get('routine') ?? ''}:${params.get('draft') ?? ''}`}
+      runId={fillRunId}
+    />
   ) : mode === 'edit' ? (
     <RoutinePreview
       title={preview.title}

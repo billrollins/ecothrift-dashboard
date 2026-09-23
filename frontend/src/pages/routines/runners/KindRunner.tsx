@@ -2,6 +2,7 @@ import { Alert } from '@mui/material';
 import type {
   AnyRoutineResponses,
   AuditTaxonomy,
+  BstockPullResponses,
   NonShelfCheck,
   OwnerSpotResponses,
   RoutineKind,
@@ -13,6 +14,7 @@ import type {
   WorkCycleResponses,
 } from '../../../api/routines.api';
 import { RoutineRunner } from '../RoutineRunner';
+import { BstockPullRunner } from './BstockPullRunner';
 import { resolveRunnerKind } from './runnerStatus';
 import { OwnerSpotRunner } from './OwnerSpotRunner';
 import { SectionAuditRunner } from './SectionAuditRunner';
@@ -40,6 +42,7 @@ export function KindRunner({
   spotState,
   tallyLine,
   scoreCard,
+  preview,
 }: {
   kind: RoutineKind;
   title: string;
@@ -56,6 +59,8 @@ export function KindRunner({
   spotState?: 'waiting' | 'ready' | null;
   tallyLine?: string;
   scoreCard?: SpotScoreCard | null;
+  /** Catalog and editor preview: runners that talk to the server stay static. */
+  preview?: boolean;
 }) {
   const resolved = resolveRunnerKind(kind, responses);
   if (resolved === 'checklist') {
@@ -67,6 +72,18 @@ export function KindRunner({
         verify={verify}
         hideFooter
         readOnly={readOnly}
+        onChange={onChange}
+      />
+    );
+  }
+  if (resolved === 'bstock_pull') {
+    return (
+      <BstockPullRunner
+        title={title}
+        subject={subject}
+        responses={responses as BstockPullResponses}
+        readOnly={readOnly}
+        preview={preview}
         onChange={onChange}
       />
     );

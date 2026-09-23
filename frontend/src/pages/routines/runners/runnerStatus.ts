@@ -1,5 +1,6 @@
 import type {
   AnyRoutineResponses,
+  BstockPullResponses,
   OwnerSpotResponses,
   RoutineKind,
   RoutineResponses,
@@ -49,6 +50,18 @@ export function runnerBlockers(
 ): string[] {
   if (!responses) return ['Loading'];
   kind = resolveRunnerKind(kind, responses);
+  if (kind === 'bstock_pull') {
+    const pull = responses as BstockPullResponses;
+    if (pull.job_id && (pull.job_status === 'queued' || pull.job_status === 'running')) {
+      return ['Wait for the pull to finish'];
+    }
+    // Done, or stopped by the owner: the day's pull is settled.
+    if (pull.job_id && (pull.job_status === 'done' || pull.job_status === 'stopped')) return [];
+    // A quiet day (or a failure that left nothing to pull) needs no pull.
+    if (pull.nothing_to_pull) return [];
+    if (!pull.job_id) return ["Pull today's manifests first"];
+    return ['Send your login and pull again'];
+  }
   if (kind === 'checklist') {
     const checklist = responses as RoutineResponses;
     const left = unansweredCount(checklist);
@@ -96,6 +109,7 @@ export function submitLabel(
 ): string {
   const blockers = runnerBlockers(kind, responses, minItems);
   if (blockers.length) return blockers[0];
+  if (kind === 'bstock_pull') return 'Done';
   if (kind === 'checklist') {
     const fails = failCount(responses as RoutineResponses);
     return fails > 0 ? `Submit with ${fails} fail${fails === 1 ? '' : 's'}` : 'Submit';
@@ -108,6 +122,7 @@ export function submitLabel(
 export function issuesFound(kind: RoutineKind, responses: AnyRoutineResponses | null): number {
   if (!responses) return 0;
   kind = resolveRunnerKind(kind, responses);
+  if (kind === 'bstock_pull') return 0;
   const sum = (counts: Record<string, number> | undefined) =>
     Object.values(counts || {}).reduce((total, n) => total + (Number(n) || 0), 0);
   if (kind === 'section_tally') {

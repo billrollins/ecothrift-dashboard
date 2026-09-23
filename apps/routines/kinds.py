@@ -251,7 +251,40 @@ def _clean_work_cycle(raw: Any) -> dict:
     }
 
 
+def _is_job_id(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _clean_bstock_pull(raw: Any) -> dict:
+    """
+    ``job_id``: the run's current pull. ``earlier_job_ids``: pulls it made before that
+    ('Pull the rest'), so the record keeps every result. ``job_status`` and
+    ``nothing_to_pull`` are the phone's last reading, for its own blockers; submit checks
+    the job and the shortlist itself.
+    """
+    raw = raw if isinstance(raw, dict) else {}
+    job_id = raw.get('job_id')
+    status = raw.get('job_status')
+    earlier = raw.get('earlier_job_ids')
+    earlier = [pk for pk in earlier if _is_job_id(pk)][-10:] if isinstance(earlier, list) else []
+    return {
+        'job_id': job_id if _is_job_id(job_id) else None,
+        'job_status': status if status in ('queued', 'running', 'done', 'failed', 'stopped') else None,
+        'earlier_job_ids': [pk for pk in earlier if pk != job_id],
+        'nothing_to_pull': raw.get('nothing_to_pull') is True,
+    }
+
+
+def _bstock_pull_job(responses: dict):
+    from apps.buying.models import ManifestPullJob
+
+    job_id = responses.get('job_id')
+    return ManifestPullJob.objects.filter(pk=job_id).first() if job_id else None
+
+
 def initial_responses(routine: Routine, run: RoutineRun | None, *, mode: str = '') -> dict:
+    if routine.kind == Routine.KIND_BSTOCK_PULL:
+        return _clean_bstock_pull({})
     if routine.kind == Routine.KIND_CHECKLIST:
         fresh = build_responses(routine.definition or {})
         if routine.verifies_id:
@@ -301,6 +334,8 @@ def _clean_verify(raw: Any, expected: list[dict]) -> dict:
 
 
 def merge_incoming(routine: Routine, run: RoutineRun | None, incoming: Any) -> dict:
+    if routine.kind == Routine.KIND_BSTOCK_PULL:
+        return _clean_bstock_pull(incoming)
     if routine.kind == Routine.KIND_CHECKLIST:
         merged = normalize_responses(merge_responses(routine.definition, incoming))
         # `merge_responses` rebuilds from the definition, which knows nothing
@@ -337,6 +372,28 @@ def merge_incoming(routine: Routine, run: RoutineRun | None, incoming: Any) -> d
 
 def submit_blockers(routine: Routine, responses: dict, *, min_items: int = 0, run=None, submitter_id=None) -> list[str]:
     """Reasons the server will not accept this submission yet."""
+    if routine.kind == Routine.KIND_BSTOCK_PULL:
+        from django.contrib.auth import get_user_model
+
+        from apps.buying.models import ManifestPullJob
+        from apps.buying.services.manifest_pull import shortlist_queryset
+
+        submitter = get_user_model().objects.filter(pk=submitter_id).first() if submitter_id else None
+        if submitter is None or not submitter.is_superuser:
+            return ['Only the owner can submit the B-Stock pull.']
+        job = _bstock_pull_job(responses)
+        if job is not None and job.status in (ManifestPullJob.STATUS_QUEUED, ManifestPullJob.STATUS_RUNNING):
+            return ['Wait for the pull to finish.']
+        if job is not None and job.status in (ManifestPullJob.STATUS_DONE, ManifestPullJob.STATUS_STOPPED):
+            # Done, or stopped by the owner: either way the day's pull is settled.
+            return []
+        # No pull, or a failed one: fine when nothing is left to pull (a quiet day, or a
+        # failure that left every lot in the retry wait); otherwise the pull still owes.
+        if not shortlist_queryset().exists():
+            return []
+        if job is None:
+            return ["Pull today's manifests first."]
+        return [job.error or 'The pull failed. Send your B-Stock login and pull again.']
     if routine.kind == Routine.KIND_CHECKLIST:
         _failed, _critical, unanswered = score_responses(responses)
         problems = [f'Answer everything to submit. {len(unanswered)} left.'] if unanswered else []
@@ -405,6 +462,10 @@ def outcome(routine: Routine, responses: dict) -> tuple[int, bool]:
     the list should show what the walk turned up, not a pass badge on a walk
     that found ten things wrong.
     """
+    if routine.kind == Routine.KIND_BSTOCK_PULL:
+        # Per-auction results live on the job and show in the runner; a manifest B-Stock
+        # could not send is not a failed check, so nothing is scored here.
+        return 0, False
     if routine.kind == Routine.KIND_CHECKLIST:
         failed, critical, _unanswered = score_responses(responses)
         return failed, critical

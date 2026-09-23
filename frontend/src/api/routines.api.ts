@@ -5,7 +5,13 @@ export type RoutineAssignment = 'pooled' | 'per_person';
 export type RoutineAudienceType = 'person' | 'shift' | 'department';
 export type RoutineControl = 'pass_fail' | 'pass_fail_strict' | 'number' | 'text' | 'photo';
 /** How the phone renders a run. Only `checklist` is authored in the editor. */
-export type RoutineKind = 'checklist' | 'section_tally' | 'section_audit' | 'owner_spot' | 'work_cycle';
+export type RoutineKind =
+  | 'checklist'
+  | 'section_tally'
+  | 'section_audit'
+  | 'owner_spot'
+  | 'work_cycle'
+  | 'bstock_pull';
 export type RoutineSubjectSource = 'pool' | 'my_section' | 'other_section';
 /** When an open run stops being merely open and starts counting against the day. */
 export type RoutineLateAfter = 'due_time' | 'end_of_day' | 'grace_days';
@@ -154,12 +160,23 @@ export interface WorkCycleRunnerContext {
   non_shelf_checks: NonShelfCheck[];
 }
 
+/** Superuser B-Stock pull: which job this run started, and its last-seen status. */
+export interface BstockPullResponses {
+  job_id: number | null;
+  job_status: 'queued' | 'running' | 'done' | 'failed' | 'stopped' | null;
+  /** Pulls this run made before `job_id` ('Pull the rest'), oldest first. */
+  earlier_job_ids?: number[];
+  /** Last reading: nothing on the shortlist, so the day's pull is settled without one. */
+  nothing_to_pull?: boolean;
+}
+
 export type AnyRoutineResponses =
   | RoutineResponses
   | SectionTallyResponses
   | SectionAuditResponses
   | OwnerSpotResponses
-  | WorkCycleResponses;
+  | WorkCycleResponses
+  | BstockPullResponses;
 
 export interface TaxonomyItem {
   key: string;

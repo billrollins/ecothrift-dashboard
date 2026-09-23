@@ -32,7 +32,7 @@ export function auctionManifestColumnAriaLabel(state: AuctionManifestColumnState
 export function auctionManifestColumnTooltip(state: AuctionManifestColumnState): string {
   switch (state) {
     case 'verified':
-      return 'Manifest verified - uploaded manifest drives retail';
+      return 'Manifest verified - manifest rows drive retail';
     case 'ai_estimate':
       return 'AI / listing estimate - no manifest; retail from listing or AI';
     default:

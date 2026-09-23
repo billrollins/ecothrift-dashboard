@@ -40,7 +40,8 @@ class Command(BaseCommand):
     help = (
         'Re-normalize manifest line fields from existing JSON raw_data. '
         'Rows with manifest_template: template standardize + fast_cat. '
-        'Legacy API rows: normalize_manifest_row only. Does not require JWT or HTTP.'
+        'Rows without a template (order-process API rows from the auto pull or the pre-v2.18 pull): '
+        'normalize_manifest_row, reading retail as cents. Does not require JWT or HTTP.'
     )
 
     def add_arguments(self, parser) -> None:
@@ -97,6 +98,7 @@ class Command(BaseCommand):
             return
 
         processed = 0
+        touched: set[int] = set()
         batch: list[ManifestRow] = []
         mp = _mapping()
 
@@ -128,7 +130,13 @@ class Command(BaseCommand):
                 row.notes = std['notes']
                 fields = _BULK_FIELDS_TEMPLATE
             else:
-                norm = normalize.normalize_manifest_row(raw, row_id=row.pk)
+                # order-process API rows (auto pull, and the pre-v2.18 pull) nest fields under
+                # `attributes` and always send retail as integer cents.
+                norm = normalize.normalize_manifest_row(
+                    raw,
+                    row_id=row.pk,
+                    whole_numbers_are_cents=isinstance(raw.get('attributes'), dict),
+                )
                 row.title = norm['title']
                 row.brand = norm['brand']
                 row.model = norm['model']
@@ -141,6 +149,7 @@ class Command(BaseCommand):
                 fields = _BULK_FIELDS_BSTOCK
 
             batch.append((row, fields))
+            touched.add(row.auction_id)
             if len(batch) >= batch_size:
                 self._flush_batch(batch)
                 processed += len(batch)
@@ -151,7 +160,24 @@ class Command(BaseCommand):
             self._flush_batch(batch)
             processed += len(batch)
 
-        self.stdout.write(self.style.SUCCESS(f'Done. Re-normalized {processed} manifest row(s).'))
+        # Retail per line may have changed (e.g. cents read as dollars): the mix and the
+        # valuation built from those lines must follow.
+        from apps.buying.models import Auction
+        from apps.buying.services.valuation import (
+            compute_and_save_manifest_distribution,
+            recompute_auction_valuation,
+        )
+
+        for auction in Auction.objects.filter(pk__in=touched):
+            compute_and_save_manifest_distribution(auction)
+            auction.refresh_from_db()
+            recompute_auction_valuation(auction)
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                f'Done. Re-normalized {processed} manifest row(s); re-valued {len(touched)} auction(s).'
+            )
+        )
 
     def _flush_batch(self, batch: list[tuple[ManifestRow, list[str]]]) -> None:
         by_fields: dict[tuple[str, ...], list[ManifestRow]] = {}

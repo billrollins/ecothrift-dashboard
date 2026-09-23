@@ -1,5 +1,8 @@
 # B-Stock JWT bookmarklet (Next.js `accessToken`)
 
+> **2026-09-22:** for manifests, use the **Pull B-Stock manifests** routine instead: it builds its own Send to Eco-Thrift bookmark (see `.ai/extended/bstock.md` → Manifests) and stores the login in the database (`BStockToken`), which the scraper reads before `workspace/.bstock_token` and `BSTOCK_AUTH_TOKEN`. The bookmarklets below are for local command-line use.
+
+
 The old **`elt` cookie** approach does not work for API calls:
 
 1. The cookie often holds a **JWE** (encrypted token), not the plain **JWT** the microservices expect. It typically starts with `eyJhbGciOiJSU0EtT0FF` (RSA-OAEP). The order-process manifest endpoint returns **400** if you send this.
@@ -45,7 +48,7 @@ python manage.py sweep_auctions
 python manage.py watch_auctions
 ```
 
-The scraper reads **`workspace/.bstock_token`** first, then **`BSTOCK_AUTH_TOKEN`** in `.env`. Manifest data is ingested via **CSV upload** in the staff UI, not via a management command.
+The scraper reads the **`BStockToken`** row handed over from the Pull B-Stock manifests routine first, then **`workspace/.bstock_token`**, then **`BSTOCK_AUTH_TOKEN`** in `.env` (the manifest pull itself uses only the handed-over row). Manifests arrive two ways: **CSV upload** in the staff UI, or the routine's **Pull** (`pull_shortlist_manifests` only resumes a pull).
 
 ## Token lifetime
 

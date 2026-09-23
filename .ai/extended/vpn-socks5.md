@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-04 (env key list lives in development.md) -->
+<!-- Last updated: 2026-09-22 (authenticated manifest pulls go direct) -->
 # VPN / SOCKS5 proxy — PIA configuration and diagnostics
 
 All outbound B-Stock HTTP (`*.bstock.com`) in `apps/buying/services/scraper.py` can be routed through a SOCKS5 proxy. The current provider is **Private Internet Access (PIA)**. This file documents the setup, known behavior, troubleshooting, and diagnostic tooling.
@@ -9,8 +9,9 @@ All outbound B-Stock HTTP (`*.bstock.com`) in `apps/buying/services/scraper.py` 
 
 - **IP anonymity:** B-Stock sees a PIA exit IP (Netherlands pool), not the office/home IP.
 - **Rotation:** PIA's `proxy-nl` hostname resolves to ~30 IPs via DNS round-robin. If one IP is rate-limited, the next connection may land on a different one.
-- **No account fingerprint:** Anonymous endpoints (search, auction state, manifests) require no JWT. Combined with rotating IPs, there is no stable identity to block.
-- **Selective:** Only `*.bstock.com` URLs go through the proxy. Local API calls, ipify probes, and all other traffic use the direct connection.
+- **No account fingerprint:** Anonymous endpoints (search, auction state) require no JWT. Combined with rotating IPs, there is no stable identity to block.
+- **Selective:** Only anonymous `*.bstock.com` URLs go through the proxy. Local API calls, ipify probes, and all other traffic use the direct connection.
+- **Never with the owner's login:** the authenticated manifest pull (`scraper.fetch_manifest_items`, `proxies={}`) always goes direct. The owner's JWT turning up from rotating foreign IPs while they are logged in from the store would look like a stolen session.
 
 ---
 

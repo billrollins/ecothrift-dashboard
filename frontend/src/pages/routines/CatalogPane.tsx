@@ -25,9 +25,11 @@ function routineMeta(routine: Routine, language: string): string {
   const trigger = triggerLabel(routine.trigger, language);
   const who = routine.assignment === 'pooled' ? t('oneShared', language) : t('each', language);
   const checks = (routine.definition?.sections ?? []).reduce((sum, s) => sum + (s.checks?.length ?? 0), 0);
-  const when = routine.trigger === 'on_demand'
+  const when = routine.trigger === 'on_demand' || !routine.due_time
     ? trigger
-    : `${trigger} ${t('at', language)} ${friendlyTime(routine.due_time || '')}`;
+    : `${trigger} ${t('at', language)} ${friendlyTime(routine.due_time)}`;
+  // Only authored checklists have a check count; other kinds carry their own runner.
+  if (routine.kind !== 'checklist') return `${when} · ${who}`;
   const checkWord = checks === 1 ? t('check', language) : t('checks', language);
   return `${when} · ${who} · ${checks} ${checkWord}`;
 }
@@ -40,8 +42,12 @@ export function CatalogPane({ desktop }: { desktop: boolean }) {
   const selectedId = Number(params.get('view') || 0) || null;
   const catalog = useRoutines();
   const groups = useMemo(
-    () => groupCatalog((catalog.data ?? []).filter((routine) => routine.is_active)),
-    [catalog.data],
+    () => groupCatalog((catalog.data ?? []).filter((routine) => (
+      routine.is_active
+      // The B-Stock pull is the owner's; nobody else can run it.
+      && (routine.kind !== 'bstock_pull' || Boolean(user?.is_superuser))
+    ))),
+    [catalog.data, user?.is_superuser],
   );
 
   return (

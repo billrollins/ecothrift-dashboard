@@ -9,13 +9,13 @@ import time
 from datetime import timedelta
 from decimal import Decimal
 
-from django.db import connection
 from django.test import TestCase
 from django.utils import timezone
 
 from apps.buying.models import Auction, CategoryStats, ManifestRow, Marketplace
 from apps.buying.services.buying_settings import get_pricing_need_window_days
 from apps.buying.services.category_need import build_category_need_rows
+from apps.buying.services.category_stats_sql import _have_rows, _profitability_aggregates, _want_rows
 from apps.buying.services.valuation import (
     _auction_need_from_mix,
     _manifest_retail_sum,
@@ -27,7 +27,6 @@ from apps.buying.services.valuation import (
 )
 from apps.buying.taxonomy_v1 import TAXONOMY_V1_CATEGORY_NAMES
 from apps.core.models import AppSetting
-from apps.inventory.models import Item
 
 
 def _print(msg: str) -> None:
@@ -165,59 +164,21 @@ class ValuationBenchmarkTests(TestCase):
         _print(f"recompute_all_open_auctions n={n}: {self._timings['recompute_all_open_auctions']:.4f}s")
 
     def test_bench_sql_recovery_aggregate(self):
-        tbl = Item._meta.db_table
         t0 = time.perf_counter()
-        with connection.cursor() as cursor:
-            cursor.execute(
-                f"""
-                SELECT category,
-                       SUM(sold_for) / NULLIF(SUM(retail_value), 0)
-                FROM {tbl}
-                WHERE status = %s
-                  AND sold_for BETWEEN 0.01 AND 9999
-                  AND retail_value BETWEEN 0.01 AND 9999
-                  AND cost BETWEEN 0.01 AND 9999
-                GROUP BY category
-                """,
-                ["sold"],
-            )
-            list(cursor.fetchall())
+        _profitability_aggregates()
         self._timings["sql_recovery_ratio_by_category"] = time.perf_counter() - t0
         _print(f"SQL recovery SUM ratio by category: {self._timings['sql_recovery_ratio_by_category']:.4f}s")
 
     def test_bench_sql_shelf_aggregate(self):
-        tbl = Item._meta.db_table
         t0 = time.perf_counter()
-        with connection.cursor() as cursor:
-            cursor.execute(
-                f"""
-                SELECT category, SUM(price), COUNT(*)
-                FROM {tbl}
-                WHERE status = %s
-                GROUP BY category
-                """,
-                ["on_shelf"],
-            )
-            list(cursor.fetchall())
+        _have_rows()
         self._timings["sql_shelf_sum_count"] = time.perf_counter() - t0
         _print(f"SQL on_shelf SUM/COUNT by category: {self._timings['sql_shelf_sum_count']:.4f}s")
 
     def test_bench_sql_window_sold_aggregate(self):
-        tbl = Item._meta.db_table
         days = get_pricing_need_window_days()
         t0 = time.perf_counter()
-        with connection.cursor() as cursor:
-            cursor.execute(
-                f"""
-                SELECT category, SUM(price), COUNT(*)
-                FROM {tbl}
-                WHERE status = %s
-                  AND sold_at >= NOW() - (INTERVAL '1 day' * %s)
-                GROUP BY category
-                """,
-                ["sold", days],
-            )
-            list(cursor.fetchall())
+        _want_rows(timezone.now() - timedelta(days=days))
         self._timings["sql_window_sold_sum_count"] = time.perf_counter() - t0
         _print(f"SQL window sold SUM/COUNT by category: {self._timings['sql_window_sold_sum_count']:.4f}s")
 

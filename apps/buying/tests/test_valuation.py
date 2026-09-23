@@ -13,7 +13,7 @@ from apps.buying.filters import AuctionFilter, cdt_today_window_utc
 from apps.buying.models import Auction, CategoryStats, Marketplace
 from apps.buying.services.category_need import build_category_need_rows
 from apps.buying.services.category_stats_sql import upsert_category_stats_from_sql
-from apps.inventory.models import Item
+from apps.inventory.models import Category, Item, Product
 from unittest.mock import patch
 
 from apps.buying.services.ai_title_category_estimate import estimate_batch
@@ -26,6 +26,13 @@ from apps.buying.services.valuation import (
 )
 from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED, TAXONOMY_V1_CATEGORY_NAMES
 
+
+
+def _stats_item(*, title: str, category: str, retail_value=None, **fields) -> Item:
+    """Item on a Product in ``category`` so the stats SQL buckets it like production rows."""
+    cat, _ = Category.objects.get_or_create(name=category, defaults={'slug': f'stats-{category}'[:200]})
+    product = Product.objects.create(title=title, category=cat)
+    return Item.objects.create(product=product, retail=retail_value, **fields)
 
 class GetValuationSourceTests(TestCase):
     def test_manifest_wins(self):
@@ -387,7 +394,7 @@ class CategoryNeedProfitabilityTests(TestCase):
         frozen_now = datetime(2026, 4, 12, 12, 0, 0, tzinfo=dt_timezone.utc)
         cat = TAXONOMY_V1_CATEGORY_NAMES[2]
         for i in range(2):
-            Item.objects.create(
+            _stats_item(
                 sku=f"CN-PR-{i}",
                 title="p",
                 category=cat,
@@ -424,7 +431,7 @@ class CategoryNeedWindowingTests(TestCase):
             Decimal("200"),
         ]
         for i in range(3):
-            Item.objects.create(
+            _stats_item(
                 sku=f"CN-WIN-{i}",
                 title="w",
                 category=cat,
@@ -436,7 +443,7 @@ class CategoryNeedWindowingTests(TestCase):
                 cost=costs[i],
             )
         for i in range(2):
-            Item.objects.create(
+            _stats_item(
                 sku=f"CN-OLD-{i}",
                 title="o",
                 category=cat,
@@ -475,7 +482,7 @@ class CategoryNeedWindowingTests(TestCase):
         shelf_n = 2
 
         for i in range(shelf_n):
-            Item.objects.create(
+            _stats_item(
                 sku=f"CN-SHF-{i}",
                 title="s",
                 category=cat,
@@ -483,7 +490,7 @@ class CategoryNeedWindowingTests(TestCase):
                 price=Decimal("5"),
             )
         for i in range(3):
-            Item.objects.create(
+            _stats_item(
                 sku=f"CN-WIN2-{i}",
                 title="w",
                 category=cat,
@@ -495,7 +502,7 @@ class CategoryNeedWindowingTests(TestCase):
                 cost=costs[i],
             )
         for i in range(2):
-            Item.objects.create(
+            _stats_item(
                 sku=f"CN-OLD2-{i}",
                 title="o",
                 category=cat,

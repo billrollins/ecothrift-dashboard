@@ -9,6 +9,10 @@ import { SnackbarProvider } from 'notistack';
 import { AuthProvider } from './contexts/AuthContext';
 import theme from './theme';
 import App from './App';
+import { captureBstockTokenFromHash } from './pages/routines/runners/bstockHandoff';
+
+// Before routing: a login bounce would drop the #t= hash the B-Stock bookmarklet sends.
+captureBstockTokenFromHash();
 
 const queryClient = new QueryClient({
   defaultOptions: {

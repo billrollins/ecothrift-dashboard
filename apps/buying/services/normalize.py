@@ -197,6 +197,15 @@ def _manifest_retail_to_dollars(raw: Any) -> Decimal | None:
     return d.quantize(q2)
 
 
+def _cents_to_dollars(raw: Any) -> Decimal | None:
+    """Whole numbers are cents; anything with a decimal point is already dollars."""
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, int) or (isinstance(raw, str) and raw.strip().lstrip('-').isdigit()):
+        return (Decimal(str(raw).strip()) / Decimal('100')).quantize(Decimal('0.01'))
+    return _manifest_retail_to_dollars(raw)
+
+
 def _first_from_ids(ids_obj: Any, *key_names: str) -> str:
     """First string from B-Stock ``attributes.ids`` list values (e.g. asin, upc, tcin)."""
     if not isinstance(ids_obj, dict):
@@ -321,13 +330,22 @@ def _maybe_log_unmapped(
     )
 
 
-def normalize_manifest_row(raw_row: dict[str, Any], row_id: int | None = None) -> dict[str, Any]:
+def normalize_manifest_row(
+    raw_row: dict[str, Any],
+    row_id: int | None = None,
+    *,
+    whole_numbers_are_cents: bool = False,
+) -> dict[str, Any]:
     """
     Map one raw manifest dict to keys aligned with ManifestRow model fields.
 
     B-Stock order-process manifests typically nest product fields under ``attributes``,
     identifiers under ``attributes.ids`` and ``uniqueIds``, and category under ``categories``.
+
+    ``whole_numbers_are_cents``: the order-process API always sends ``unitRetail`` /
+    ``extRetail`` as integer cents, so ``999`` is $9.99, not the $999 the size heuristic guesses.
     """
+    to_dollars = _cents_to_dollars if whole_numbers_are_cents else _manifest_retail_to_dollars
     if not isinstance(raw_row, dict):
         raw_row = {}
     merged = _flatten_bstock_manifest_row(raw_row)
@@ -417,10 +435,10 @@ def normalize_manifest_row(raw_row: dict[str, Any], row_id: int | None = None) -
         'retail_price',
         'estimated_retail',
     )
-    retail_value = _manifest_retail_to_dollars(unit_retail_raw)
+    retail_value = to_dollars(unit_retail_raw)
     if retail_value is None:
         ext_raw = pick('extRetail', 'Ext Retail', 'extended_retail', 'Extended Retail')
-        ext_val = _manifest_retail_to_dollars(ext_raw)
+        ext_val = to_dollars(ext_raw)
         if ext_val is not None:
             if quantity is not None and quantity > 0:
                 retail_value = (ext_val / Decimal(quantity)).quantize(

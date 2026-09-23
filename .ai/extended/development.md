@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-18 (settings list + Heroku env pull) -->
+<!-- Last updated: 2026-09-23 (manifest pull backstop timings) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -61,8 +61,9 @@ npm run dev
 |----------|---------|
 | Daily (e.g. 03:00 UTC) | `python manage.py compute_daily_category_stats` |
 | Hourly | `python manage.py scheduled_sweep` |
+| Every 10 minutes | `python manage.py pull_shortlist_manifests` |
 
-`compute_daily_category_stats` refreshes SQL-backed `CategoryStats` (including `need_score_1to99`), invalidates the category-need cache, and (unless `--skip-recompute-open`) runs a full valuation pass for non-archived open/closing auctions with a future `end_time`. `scheduled_sweep` runs discovery then `recompute_active_auctions_lightweight`. **Removed:** the legacy nightly **`recompute_cost_pipeline`** — item costs use **`PurchaseOrder.est_shrink`** and **`recompute_all_item_costs`** for backfills only.
+`compute_daily_category_stats` refreshes SQL-backed `CategoryStats` (including `need_score_1to99`), invalidates the category-need cache, and (unless `--skip-recompute-open`) runs a full valuation pass for non-archived open/closing auctions with a future `end_time`. `scheduled_sweep` runs discovery then `recompute_active_auctions_lightweight`. `pull_shortlist_manifests` is a backstop: it prunes old auto-pulled rows, finishes leftover category mapping, then resumes a `ManifestPullJob` whose thread died (queued for a minute, or running with a heartbeat 8+ minutes old) and fails it when the login has run out. It never starts a pull; only the **Pull B-Stock manifests** routine's Pull button does. See [`bstock.md`](bstock.md) → Manifests. **Removed:** the legacy nightly **`recompute_cost_pipeline`** — item costs use **`PurchaseOrder.est_shrink`** and **`recompute_all_item_costs`** for backfills only.
 
 ## Heroku Scheduler (Routines)
 
@@ -148,7 +149,7 @@ If **POS registers** or **supplemental drawer** rows are missing, run `python ma
 
 **Jupyter (DB1 / DB2 / DB3):** From repo root: `pip install -r workspace/notebooks/_shared/requirements-notebooks.txt` (and `jupyter` / `jupyterlab` as needed). Copy **`workspace/notebooks/_shared/config.example.py`** → **`config_local.py`** (gitignored) for multi-DB connection dicts aligned with root **`.env`**.
 
-**B-Stock (production):** **`apps/buying/`** — `python manage.py sweep_auctions`, **`bstock_token`** (writes **`workspace/.bstock_token`**, gitignored; scraper prefers it over **`BSTOCK_AUTH_TOKEN`**). **`BUYING_REQUEST_DELAY_SECONDS`**, **`BSTOCK_MAX_RETRIES`**, **`BSTOCK_SEARCH_MAX_PAGES`** in root `.env`. **Manifests:** staff **CSV upload** in the React UI (`upload_manifest`); there is no order-process manifest download or `pull_manifests*` commands. Search listings POST is unauthenticated. Bookmarklet to copy JWT from the `elt` cookie: **`apps/buying/bookmarklet/bstock_elt_bookmarklet.md`**. Optional notebook exploration: **`workspace/notebooks/category-research/`**, **`workspace/notebooks/historical-data/`**, **`workspace/notebooks/bstock-scraper/Scraper/`** (package + **`examples/bstock_quickstart.ipynb`**). **AI usage log (all Claude call sites):** append-only **`workspace/logs/ai_usage.jsonl`** (gitignored); inspect directly or aggregate with your own tooling (**`scripts/ai/summarize_ai_usage.*`** is not in the repo).
+**B-Stock (production):** **`apps/buying/`** — `python manage.py sweep_auctions`, **`bstock_token`** (writes **`workspace/.bstock_token`**, gitignored). Token order for authenticated calls: the **`BStockToken`** row the owner hands over from the routine, then **`workspace/.bstock_token`**, then **`BSTOCK_AUTH_TOKEN`**. **`BUYING_REQUEST_DELAY_SECONDS`**, **`BSTOCK_MAX_RETRIES`**, **`BSTOCK_SEARCH_MAX_PAGES`** in root `.env`. **Manifests:** two paths. Staff **CSV upload** in the React UI (`upload_manifest`), and the owner's daily **Pull B-Stock manifests** routine, which pulls full manifests from `order-process.bstock.com` with the handed-over login (`manifest_pull.py`, `pull_shortlist_manifests`; [`bstock.md`](bstock.md) → Manifests). Search listings POST is unauthenticated. Bookmarklet to copy JWT from the `elt` cookie: **`apps/buying/bookmarklet/bstock_elt_bookmarklet.md`**. Optional notebook exploration: **`workspace/notebooks/category-research/`**, **`workspace/notebooks/historical-data/`**, **`workspace/notebooks/bstock-scraper/Scraper/`** (package + **`examples/bstock_quickstart.ipynb`**). **AI usage log (all Claude call sites):** append-only **`workspace/logs/ai_usage.jsonl`** (gitignored); inspect directly or aggregate with your own tooling (**`scripts/ai/summarize_ai_usage.*`** is not in the repo).
 
 **Print server (V3):** AI-oriented notes in [`.ai/extended/print-server.md`](print-server.md). Ship a release with [`.ai/protocols/ship-print-server.md`](../protocols/ship-print-server.md) (`python printserver/distribute.py --install-local`; skip-if-done). The Windows **installer** (`printserver/installer/setup.py`) removes legacy V2 artifacts before installing V3; headless: `--install` / `--uninstall`. Optional IT batch: `printserver/installer/uninstall_legacy_prior.bat`. **Installer / S3 release version** is `VERSION` in [`printserver/config.py`](../../printserver/config.py) (not the same as repo root `.version`, which tracks the dashboard app). For fast label/receipt iteration, use `printserver/dev_print_label_test.bat` and `printserver/dev_print_receipt_test.bat` (see table above).
 
@@ -187,7 +188,7 @@ Defined in `.env` (gitignored):
 | `AI_MODEL_<PURPOSE>` | Per-feature model id (e.g. `AI_MODEL_SUGGEST_ITEM`, `AI_MODEL_INVENTORY_CLEANUP`); **any provider's id works for every purpose** — all call sites route via `apps/core/services/llm_router.py` | falls back to `AI_MODEL` / `AI_MODEL_FAST` |
 | `AI_PRICING` | Defined in **`ecothrift/settings.py`** (per-model input/output/cache rates) — not env; costs logged to **`workspace/logs/ai_usage.jsonl`** | — |
 | `VITE_DEV_LOG` | Frontend dev console (`devLog`) for Add Item / suggest | `false` |
-| `BSTOCK_AUTH_TOKEN` | Fallback JWT if `workspace/.bstock_token` is missing (from `python manage.py bstock_token` or DevTools) | — |
+| `BSTOCK_AUTH_TOKEN` | Last-resort JWT, after the handed-over `BStockToken` row and `workspace/.bstock_token` (from `python manage.py bstock_token` or DevTools) | — |
 | `BUYING_REQUEST_DELAY_SECONDS` | Minimum delay between scraper HTTP requests | `2.0` |
 | `BSTOCK_MAX_RETRIES` | Retries after HTTP 429 | `3` |
 | `BSTOCK_SEARCH_MAX_PAGES` | Safety cap on search pagination pages per marketplace | `5000` |

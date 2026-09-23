@@ -243,7 +243,9 @@ def _staff_today(day: date) -> list[dict]:
             RoutineRun.objects.filter(
                 period_key=day.isoformat(),
                 assigned_to__isnull=False,
-            ).values_list('assigned_to_id', flat=True)
+            )
+            .exclude(routine__kind=Routine.KIND_BSTOCK_PULL)
+            .values_list('assigned_to_id', flat=True)
         )
         for user in User.objects.filter(pk__in=assigned_ids, is_active=True):
             punch = punches.get(user.pk)
@@ -688,6 +690,8 @@ class QaRoutinesView(APIView):
             keys = [item.isoformat() for item in week_days(monday)]
         runs = list(
             RoutineRun.objects.filter(period_key__in=keys, routine__is_active=True)
+            # The owner's B-Stock pull is not floor work.
+            .exclude(routine__kind=Routine.KIND_BSTOCK_PULL)
             .select_related('routine', 'assigned_to', 'completed_by', 'section', 'submission')
             .order_by('period_key', 'id')
         )

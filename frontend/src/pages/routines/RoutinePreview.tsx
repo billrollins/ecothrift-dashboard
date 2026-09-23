@@ -130,7 +130,9 @@ export function RoutinePreview({
       ? previewAudit(names[sectionId ?? 0] || 'Sample section', sectionId ?? 1)
       : kind === 'work_cycle'
         ? previewWorkCycle()
-        : spot;
+        : kind === 'bstock_pull'
+          ? { job_id: null, job_status: null }
+          : spot;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, bgcolor: dutyColors.paper }}>
@@ -145,6 +147,7 @@ export function RoutinePreview({
             verify={null}
             minItems={0}
             readOnly={false}
+            preview
             sections={floor}
             reroll={sectionKind && kind !== 'section_audit'
               ? { onClick: reroll, disabled: idsKey.split(',').filter(Boolean).length < 2 }

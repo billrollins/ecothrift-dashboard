@@ -15,6 +15,8 @@ import type {
   BuyingUploadManifestResponse,
   BuyingSweepResponse,
   BuyingBstockTokenStatus,
+  BstockLoginStatus,
+  ManifestPullState,
   BuyingValuationInputsPatch,
   BuyingWatchlistAuctionItem,
   BuyingWatchlistEntry,
@@ -330,6 +332,38 @@ export async function deleteBuyingAuctionArchive(auctionId: number): Promise<Buy
 
 export async function fetchBuyingBstockTokenStatus(): Promise<BuyingBstockTokenStatus> {
   const { data } = await api.get<BuyingBstockTokenStatus>('/buying/bstock_token_status/');
+  return data;
+}
+
+/** Superuser: store the B-Stock login the bookmarklet handed over. */
+export async function postBstockLogin(token: string): Promise<BstockLoginStatus> {
+  const { data } = await api.post<BstockLoginStatus>('/buying/bstock-login/', { token });
+  return data;
+}
+
+/** Superuser: latest (or a given) manifest pull job, login status, and shortlist size. */
+export async function fetchManifestPull(jobId?: number | null): Promise<ManifestPullState> {
+  const { data } = await api.get<ManifestPullState>('/buying/manifest-pulls/', {
+    params: jobId ? { job: jobId } : undefined,
+  });
+  return data;
+}
+
+/** Superuser: start a shortlist pull, resume one that died, or get the one already running. */
+export async function postManifestPull(): Promise<ManifestPullState> {
+  const { data } = await api.post<ManifestPullState>('/buying/manifest-pulls/', {});
+  return data;
+}
+
+/** Superuser: stop the live pull. */
+export async function stopManifestPull(): Promise<ManifestPullState> {
+  const { data } = await api.delete<ManifestPullState>('/buying/manifest-pulls/');
+  return data;
+}
+
+/** Superuser: forget the handed-over B-Stock login. */
+export async function deleteBstockLogin(): Promise<BstockLoginStatus> {
+  const { data } = await api.delete<BstockLoginStatus>('/buying/bstock-login/');
   return data;
 }
 

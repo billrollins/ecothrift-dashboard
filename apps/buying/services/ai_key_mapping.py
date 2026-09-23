@@ -223,6 +223,9 @@ def map_one_fast_cat_batch(
             system=system,
             user=user,
             max_tokens=4096,
+            # Bounded: the background manifest pull must keep its heartbeat moving (a job is
+            # treated as dead after 8 silent minutes; this plus SDK retries stays well under).
+            timeout=60,
             log_source='ai_key_mapping',
             log_detail=f'map_one_fast_cat_batch keys={len(unknown)}',
             log_auction_id=auction.pk,

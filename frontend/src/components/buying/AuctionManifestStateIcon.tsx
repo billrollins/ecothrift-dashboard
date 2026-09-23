@@ -97,7 +97,18 @@ function IconEmpty({ size }: { size: number }) {
 export default function AuctionManifestStateIcon({ row, size = BUYING_AUCTION_LIST_ROW_ICON_PX, state: stateProp }: Props) {
   const state = stateProp ?? getAuctionManifestColumnState(row);
   const label = auctionManifestColumnAriaLabel(state);
-  const tip = auctionManifestColumnTooltip(state);
+  // Where the rows came from when there are rows; why a pull failed when there are none.
+  const source =
+    state === 'verified'
+      ? row.manifest_source === 'auto'
+        ? 'Pulled from B-Stock.'
+        : row.manifest_source === 'manual'
+          ? 'Uploaded CSV.'
+          : ''
+      : row.manifest_pull_error
+        ? `Auto pull failed: ${row.manifest_pull_error}`
+        : '';
+  const tip = [auctionManifestColumnTooltip(state), source].filter(Boolean).join(' ');
 
   const inner =
     state === 'verified' ? (

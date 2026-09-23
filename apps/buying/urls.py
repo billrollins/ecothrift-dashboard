@@ -4,8 +4,10 @@ from rest_framework.routers import DefaultRouter
 from apps.buying import views
 from apps.buying.api_views import (
     AuctionViewSet,
+    BstockLoginView,
     BstockTokenStatusView,
     CategoryNeedView,
+    ManifestPullView,
     MarketplaceViewSet,
     SweepView,
     WatchlistAuctionViewSet,
@@ -19,6 +21,8 @@ router.register(r'marketplaces', MarketplaceViewSet, basename='buying-marketplac
 urlpatterns = [
     path('token/', views.receive_bstock_token, name='buying_bstock_token'),
     path('bstock_token_status/', BstockTokenStatusView.as_view(), name='buying-bstock-token-status'),
+    path('bstock-login/', BstockLoginView.as_view(), name='buying-bstock-login'),
+    path('manifest-pulls/', ManifestPullView.as_view(), name='buying-manifest-pulls'),
     path('sweep/', SweepView.as_view(), name='buying-sweep'),
     path('category-need/', CategoryNeedView.as_view(), name='buying-category-need'),
     path('', include(router.urls)),

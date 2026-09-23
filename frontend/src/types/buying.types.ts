@@ -26,6 +26,10 @@ export interface BuyingAuctionListItem {
   total_retail_value: string | null;
   /** Row count from manifest lines (list endpoint only). */
   manifest_row_count?: number;
+  /** Where the current rows came from: B-Stock auto pull or a CSV upload; '' when none. */
+  manifest_source?: '' | 'auto' | 'manual';
+  /** Why the last auto pull failed; '' after a success. */
+  manifest_pull_error?: string;
   /** Hybrid sort key: manifest sum or listing total (list endpoint only). */
   retail_sort?: string | null;
   /** Dollars to display in list (manifest sum when rows exist, else sweep listing). */
@@ -142,6 +146,12 @@ export interface BuyingAuctionDetail extends BuyingAuctionListItem {
   manifest_extended_retail_total?: string | null;
   /** Display name of manifest template used for current rows (from first row), if any. */
   manifest_template_name?: string | null;
+  manifest_pulled_at?: string | null;
+  manifest_pull_attempted_at?: string | null;
+  /** Would the daily pull ever pick this auction (ignoring when it ends)? */
+  manifest_pull_eligible?: boolean;
+  /** B-Stock will never give this manifest (too large, or none); the pull stops trying. */
+  manifest_pull_blocked?: boolean;
   /** Aggregated manifest canonical categories (top 5, Other, not yet categorized). */
   category_distribution?: BuyingCategoryDistribution;
   watchlist_entry: BuyingWatchlistEntry | null;
@@ -379,5 +389,49 @@ export interface BuyingSweepResponse {
 /** GET /api/buying/bstock_token_status/ */
 export interface BuyingBstockTokenStatus {
   bstock_token_available: boolean;
+}
+
+/** The B-Stock login handed over from bstock.com. The token itself never comes back. */
+export interface BstockLoginStatus {
+  connected: boolean;
+  expires_at: string | null;
+  seconds_left: number;
+  saved_at: string | null;
+}
+
+export type ManifestPullStatus = 'queued' | 'running' | 'done' | 'failed' | 'stopped';
+
+export interface ManifestPullJob {
+  id: number;
+  status: ManifestPullStatus;
+  total: number;
+  done: number;
+  ok: number;
+  error: string;
+  created_at: string;
+  finished_at: string | null;
+  /** Live but silent: its runner died; Pull resumes it. */
+  stalled: boolean;
+  results: Array<{
+    auction_id: number;
+    title: string;
+    ok: boolean;
+    /** Nothing attempted: the auction no longer needed a pull when its turn came. */
+    skipped?: boolean;
+    /** B-Stock will never give this manifest (too large, or none); not retried. */
+    blocked?: boolean;
+    rows: number;
+    unmapped_keys?: number;
+    error: string;
+  }>;
+}
+
+export interface ManifestPullState {
+  job: ManifestPullJob | null;
+  login: BstockLoginStatus;
+  /** Auctions that would be pulled if you started now. */
+  shortlist_count: number;
+  /** Auctions in the window with no manifest that are waiting out a failed attempt. */
+  waiting_retry_count: number;
 }
 

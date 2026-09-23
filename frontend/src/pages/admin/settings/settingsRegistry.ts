@@ -66,6 +66,30 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'assumptions',
     kind: 'days',
   },
+  buying_manifest_pull_window_hours: {
+    label: 'Manifest pull - ending within (hours)',
+    help: 'Buying: the daily B-Stock pull fetches manifests for auctions ending within this many hours (default 36; 1 to 168 is used).',
+    tab: 'assumptions',
+    kind: 'count',
+  },
+  buying_manifest_pull_max_per_run: {
+    label: 'Manifest pull - most per run',
+    help: 'Buying: the most manifests one Pull fetches (default 40; at least 1). Watchlisted, then highest priority, go first.',
+    tab: 'assumptions',
+    kind: 'count',
+  },
+  buying_manifest_pull_retry_hours: {
+    label: 'Manifest pull - retry a failure after (hours)',
+    help: 'Buying: wait this long before trying a failed manifest again (default 12; at least 1).',
+    tab: 'assumptions',
+    kind: 'count',
+  },
+  buying_manifest_pull_page_delay_ms: {
+    label: 'Manifest pull - pause between pages (ms)',
+    help: 'Buying: pause between B-Stock manifest requests and between auctions, to stay polite (default 500).',
+    tab: 'assumptions',
+    kind: 'count',
+  },
   delivery_service_minutes_per_stop: {
     label: 'Delivery unload time (minutes / stop)',
     help: 'Delivery Field: assumed on-site unload/service minutes per stop for ETA totals (5-120). Default 20.',

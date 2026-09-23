@@ -50,18 +50,25 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
   const starting = useRef(false);
   const startFailed = useRef(false);
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingDraft = useRef<{ id: number; responses: AnyRoutineResponses } | null>(null);
 
   // Typing in a number or text check must not fire a request per keystroke.
   function queueDraft(next: AnyRoutineResponses) {
     if (!submissionId) return;
     if (draftTimer.current) clearTimeout(draftTimer.current);
+    pendingDraft.current = { id: submissionId, responses: next };
     draftTimer.current = setTimeout(() => {
+      pendingDraft.current = null;
       void saveDraft.mutateAsync({ id: submissionId, responses: next });
     }, DRAFT_DEBOUNCE_MS);
   }
 
+  // Leaving (or switching runs) inside the debounce window still saves what was typed.
+  const flushDraft = useRef(saveDraft.mutate);
+  flushDraft.current = saveDraft.mutate;
   useEffect(() => () => {
     if (draftTimer.current) clearTimeout(draftTimer.current);
+    if (pendingDraft.current) flushDraft.current(pendingDraft.current);
   }, []);
 
   useEffect(() => {
@@ -138,6 +145,7 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
 
   async function handleCancel() {
     if (draftTimer.current) clearTimeout(draftTimer.current);
+    pendingDraft.current = null;
     if (submissionId && !finished) {
       try {
         await discard.mutateAsync(submissionId);
@@ -151,6 +159,7 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
   async function handleSave() {
     if (!submissionId || !responses) return;
     if (draftTimer.current) clearTimeout(draftTimer.current);
+    pendingDraft.current = null;
     try {
       if (blockers.length) {
         await saveDraft.mutateAsync({ id: submissionId, responses });
@@ -195,11 +204,13 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
   }
   if (finished && run) {
     const submitted = run.submission?.responses;
-    const outcome = run.has_critical_fail
-      ? 'Critical fail'
-      : run.failed_count > 0
-        ? `${run.failed_count} logged`
-        : 'Nothing found';
+    const outcome = kind === 'bstock_pull'
+      ? 'Done'
+      : run.has_critical_fail
+        ? 'Critical fail'
+        : run.failed_count > 0
+          ? `${run.failed_count} logged`
+          : 'Nothing found';
     const by = run.completed_by_name ? ` · ${run.completed_by_name}` : '';
     return (
       <Box sx={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>

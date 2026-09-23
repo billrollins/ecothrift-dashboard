@@ -53,6 +53,8 @@ class AuctionListSerializer(serializers.ModelSerializer):
             'lot_size',
             'total_retail_value',
             'manifest_row_count',
+            'manifest_source',
+            'manifest_pull_error',
             'retail_sort',
             'total_retail_display',
             'retail_source',
@@ -247,6 +249,7 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
     category_distribution = serializers.SerializerMethodField()
     manifest_template_name = serializers.SerializerMethodField()
     manifest_extended_retail_total = serializers.SerializerMethodField()
+    manifest_pull_eligible = serializers.SerializerMethodField()
     valuation_source = serializers.SerializerMethodField()
     has_revenue_override = serializers.SerializerMethodField()
     effective_revenue_after_shrink = serializers.SerializerMethodField()
@@ -277,6 +280,12 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
             'status',
             'has_manifest',
             'manifest_row_count',
+            'manifest_source',
+            'manifest_pulled_at',
+            'manifest_pull_attempted_at',
+            'manifest_pull_error',
+            'manifest_pull_blocked',
+            'manifest_pull_eligible',
             'manifest_template_name',
             'manifest_extended_retail_total',
             'category_distribution',
@@ -330,6 +339,11 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
         sh = obj.shrinkage_override if obj.shrinkage_override is not None else get_global_shrinkage()
         eff = (base * (Decimal('1') - sh)).quantize(Decimal('0.01'))
         return format(eff, 'f')
+
+    def get_manifest_pull_eligible(self, obj: Auction) -> bool:
+        from apps.buying.services.manifest_pull import pull_eligible
+
+        return pull_eligible(obj)
 
     def get_manifest_template_name(self, obj: Auction) -> str | None:
         r = (

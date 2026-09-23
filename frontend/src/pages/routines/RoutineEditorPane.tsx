@@ -249,7 +249,8 @@ export function RoutineEditorPane({
     try {
       const saved = await save.mutateAsync({
         id: editingId ?? undefined,
-        data: { ...payload, definition, is_active: true },
+        // Only authored checklists carry a definition; other kinds keep the one they were seeded with.
+        data: { ...payload, ...(kind === 'checklist' ? { definition } : {}), is_active: true },
       });
       enqueueSnackbar(editingId ? 'Routine saved' : 'Routine created', { variant: 'success' });
       navigate(`/routines/catalog?view=${saved.id}`);

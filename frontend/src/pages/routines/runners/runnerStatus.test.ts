@@ -155,3 +155,26 @@ describe('submitLabel', () => {
       .toBe('Submit · 2 logged');
   });
 });
+
+describe('runnerBlockers for the B-Stock pull', () => {
+  it('waits for a finished pull before Submit', () => {
+    expect(runnerBlockers('bstock_pull', { job_id: null, job_status: null }, 0)).toEqual([
+      "Pull today's manifests first",
+    ]);
+    expect(runnerBlockers('bstock_pull', { job_id: 4, job_status: 'running' }, 0)).toEqual([
+      'Wait for the pull to finish',
+    ]);
+    expect(runnerBlockers('bstock_pull', { job_id: 4, job_status: 'failed' }, 0)).toHaveLength(1);
+    expect(submitLabel('bstock_pull', { job_id: 4, job_status: 'done' }, 0)).toBe('Done');
+    expect(runnerBlockers('bstock_pull', { job_id: 4, job_status: 'stopped' }, 0)).toEqual([]);
+  });
+
+  it('lets a quiet day through without a pull', () => {
+    expect(runnerBlockers('bstock_pull', { job_id: null, job_status: null, nothing_to_pull: true }, 0)).toEqual([]);
+    expect(runnerBlockers('bstock_pull', { job_id: 4, job_status: 'failed', nothing_to_pull: true }, 0)).toEqual([]);
+    // A running pull still has to finish, quiet shortlist or not.
+    expect(runnerBlockers('bstock_pull', { job_id: 4, job_status: 'running', nothing_to_pull: true }, 0)).toEqual([
+      'Wait for the pull to finish',
+    ]);
+  });
+});

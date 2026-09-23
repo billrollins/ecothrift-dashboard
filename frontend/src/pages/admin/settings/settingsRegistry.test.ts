@@ -8,11 +8,15 @@ import {
 } from './settingsRegistry';
 
 describe('settingsRegistry', () => {
-  it('sends the four assumption keys only to Assumptions', () => {
+  it('sends the assumption keys only to Assumptions', () => {
     expect(keysForTab('assumptions', Object.keys(SETTINGS_REGISTRY))).toEqual([
       'po_default_est_shrink',
       'pricing_shrinkage_factor',
       'pricing_need_window_days',
+      'buying_manifest_pull_window_hours',
+      'buying_manifest_pull_max_per_run',
+      'buying_manifest_pull_retry_hours',
+      'buying_manifest_pull_page_delay_ms',
       'delivery_service_minutes_per_stop',
     ]);
   });

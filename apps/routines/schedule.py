@@ -804,6 +804,9 @@ def materialize_routines(day: date | None = None) -> int:
         assignees = list(resolve_assignees(routine))
         pooled = routine.assignment == Routine.ASSIGN_POOLED and routine.subject_source == Routine.SUBJECT_POOL
         locked_pool = bool(getattr(routine, 'shift_locked', False))
+        if routine.kind == Routine.KIND_BSTOCK_PULL and (pooled or locked_pool):
+            # A shared run would reach staff who cannot open the superuser-only pull.
+            continue
         if not pooled and not locked_pool and not assignees:
             continue
         due = due_at_for(routine, day, tz=tz, cfg=cfg)
@@ -822,7 +825,15 @@ def materialize_routines(day: date | None = None) -> int:
             continue
         covered = covered_section_ids(day) if routine.system_key == SYSTEM_TALLY else set()
         for user in assignees:
-            if user.pk in skipped and routine.system_key != SYSTEM_WORK_CYCLE:
+            # A retail call-in skips retail work, not the owner's buying routine.
+            if (
+                user.pk in skipped
+                and routine.system_key != SYSTEM_WORK_CYCLE
+                and routine.kind != Routine.KIND_BSTOCK_PULL
+            ):
+                continue
+            # The B-Stock pull runs on superuser-only endpoints; nobody else gets a run.
+            if routine.kind == Routine.KIND_BSTOCK_PULL and not user.is_superuser:
                 continue
             extras = _run_extras(routine, day, key, user.pk)
             if routine.system_key == SYSTEM_TALLY:

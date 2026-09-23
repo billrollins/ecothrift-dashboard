@@ -118,3 +118,25 @@ describe('Owner spot walk', () => {
     expect(screen.queryByText('How many items did you look at')).not.toBeInTheDocument();
   });
 });
+
+describe('B-Stock pull preview', () => {
+  it('is a static picture that never calls the server', async () => {
+    const buying = await import('../../api/buying.api');
+    const fetchSpy = vi.spyOn(buying, 'fetchManifestPull');
+    const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query');
+    const { SnackbarProvider } = await import('notistack');
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <SnackbarProvider>
+          <MemoryRouter>
+            <RoutinePreview title="Pull B-Stock manifests" definition={null} kind="bstock_pull" mode="demo" />
+          </MemoryRouter>
+        </SnackbarProvider>
+      </QueryClientProvider>,
+    );
+    expect(screen.getByText('1. Log in to B-Stock')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Pull manifests' })).toHaveProperty('disabled', true);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+});

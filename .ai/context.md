@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-22 (five initiatives moved to completed) -->
+<!-- Last updated: 2026-09-22 (one release when all work is done; own-aisle fix and kiosk follow-ups unreleased) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -9,11 +9,14 @@ Full-stack business management for a thrift store in Omaha, NE. HR (time clock, 
 
 - **Current tag:** [`.version`](../.version) — do not duplicate semver here.
 - **What shipped / WIP:** [`CHANGELOG.md`](../CHANGELOG.md) (latest dated section + `[Unreleased]`).
+- **Release timing (owner's rule):** nothing ships per fix. The owner pushes everything in one release when all active work is done. Until then `.version` stays at the last shipped tag, every change goes under `[Unreleased]`, and nobody commits, pushes, or bumps a version. The ship protocol picks the bump then.
 - **Pushes:** [`ship-push-git.md`](protocols/ship-push-git.md) bumps semver and pushes GitHub. [`ship-push-heroku.md`](protocols/ship-push-heroku.md) does that then Heroku. Prod shows `.version` via `GET /api/core/system/version/` and the sidebar footer. Print server exe: [`ship-print-server.md`](protocols/ship-print-server.md) (`VERSION` in `printserver/config.py`, not `.version`).
 
 ## Active work
 
 - **ACTIVE (compass) — Documents:** [`documents`](initiatives/documents.md) — Company-wide (read / accept) vs individually assigned (read / accept / sign). API in-tree; staff UI unwired. Split from [`routines_and_documents`](initiatives/_archived/_completed/routines.md).
+- **ACTIVE — B-Stock daily buying:** [`bstock_daily_buying`](initiatives/bstock_daily_buying.md) — fresh stats, auto manifests for a shortlist, won → PO, truck score, daily Top picks.
+- **Unreleased, outside initiatives:** own-aisle cross-check fix (`routines/0027_orphan_section_drafts`, runs before B-Stock's `0028`) and kiosk follow-ups (Exit without password, sign-in **Scan your card**). Both are in `[Unreleased]`.
 - **ACTIVE — Universal object surfaces:** [`universal_object_surfaces`](initiatives/universal_object_surfaces.md) — design only. No code scheduled.
 
 Completed 2026-09-22: [`time_kiosk`](initiatives/_archived/_completed/time_kiosk.md) (**v2.96.0**), [`departments_admin`](initiatives/_archived/_completed/departments_admin.md) and [`retail_qa_scoring_v2`](initiatives/_archived/_completed/retail_qa_scoring_v2.md) (GitHub **v2.95.0**, Heroku with **v2.96.0**), [`cardx_surcharge`](initiatives/_archived/_completed/cardx_surcharge.md) (**v2.92.0–v2.94.0**), [`listing_photos`](initiatives/_archived/_completed/listing_photos.md) (**v2.91.0**). Kiosk and Command Center follow-ups continue without an initiative.
@@ -105,6 +108,8 @@ When you add, rename, or remove a file in `.ai/extended/`, update this table.
 - Large JS bundle (~1.7MB).
 - POS cash completion should be hardened for malformed numeric payloads.
 - **POS — already sold:** the dialog is SKU-exact (`status=sold`). Check-in edit no longer births sold units when quantity is raised after a sibling sold (**v2.95.0**). Duplicate physical tags (Quick Reprice / extra copies of one SKU) and cart qty++ on the same SKU still produce the message.
+- **Routines — Opening can run twice a day:** once a pooled run picks up an assignee and is finished, the pooled branch of `materialize_routines` (it looks for `status=open` only) makes a second run for the same period. Seen 2026-09-22 (runs 180 and 187). Fix: skip creation when any run exists for that routine and period.
+- **Tests — `tests_*.py` are not collected by default:** `pytest.ini` `python_files` is `test_*.py tests.py`, so a bare `pytest apps/routines` skips the nine `tests_*.py` files; name them. Pre-existing red (the `Retail` department seed collision, em dashes in six files, grading and clock-dependent asserts) is listed under Later in [`time_kiosk`](initiatives/_archived/_completed/time_kiosk.md).
 
 ## Not yet implemented (live gaps)
 

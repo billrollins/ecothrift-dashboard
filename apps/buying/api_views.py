@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
@@ -10,6 +11,7 @@ from decimal import Decimal, InvalidOperation
 from django.utils import timezone
 
 from django.core.cache import cache
+from django.db import transaction
 from django.db.models import (
     Case,
     CharField,
@@ -22,6 +24,7 @@ from django.db.models import (
     Max,
     OuterRef,
     Q,
+    Subquery,
     Sum,
     Value,
     When,
@@ -36,18 +39,34 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.permissions import IsAdmin, IsStaff
+from apps.accounts.permissions import IsAdmin, IsStaff, IsSuperAdmin
 from apps.buying.filters import AuctionFilter, WatchlistAuctionFilter
 from apps.buying.models import (
     Auction,
     AuctionSnapshot,
     AuctionThumbsVote,
     CategoryMapping,
+    ManifestPullJob,
     ManifestRow,
     Marketplace,
     WatchlistEntry,
 )
 from apps.buying.services.buying_settings import get_pricing_need_window_days
+from apps.buying.services.bstock_token_store import (
+    TokenRejected,
+    clear_token,
+    current_token,
+    save_token,
+    token_status,
+)
+from apps.buying.services.manifest_pull import (
+    STOPPED_DISCONNECTED,
+    job_payload,
+    shortlist_queryset,
+    start_job,
+    stop_job,
+    waiting_retry_count,
+)
 from apps.buying.services.category_need import build_category_need_payload
 from apps.buying.pagination import ManifestRowsPagination, SnapshotPagination
 from ecothrift.pagination import ConfigurablePageSizePagination
@@ -75,11 +94,19 @@ logger = logging.getLogger(__name__)
 
 def annotate_auction_list_extras(qs, user=None):
     """Manifest row count, retail sum, hybrid retail_sort, thumbs counts (Phase 3B)."""
+    # Subqueries, not joins: joining manifest rows and thumbs votes in one GROUP BY
+    # multiplied the retail sum by the vote count.
+    rows = ManifestRow.objects.filter(auction_id=OuterRef('pk')).order_by().values('auction_id')
     qs = qs.annotate(
-        _manifest_row_count=Count('manifest_rows', distinct=True),
-        _manifest_retail_sum=Sum(
-            Coalesce(F('manifest_rows__quantity'), Value(1))
-            * F('manifest_rows__retail_value')
+        _manifest_row_count=Coalesce(
+            Subquery(rows.annotate(n=Count('pk')).values('n')[:1]),
+            Value(0),
+        ),
+        _manifest_retail_sum=Subquery(
+            rows.annotate(
+                s=Sum(Coalesce(F('quantity'), Value(1)) * F('retail_value'))
+            ).values('s')[:1],
+            output_field=DecimalField(max_digits=16, decimal_places=2),
         ),
     ).annotate(
         retail_sort=Case(
@@ -106,7 +133,18 @@ def annotate_auction_list_extras(qs, user=None):
             output_field=DecimalField(max_digits=20, decimal_places=10, null=True),
         ),
     )
-    qs = qs.annotate(thumbs_up_count=Count('staff_thumbs_votes', distinct=True))
+    qs = qs.annotate(
+        thumbs_up_count=Coalesce(
+            Subquery(
+                AuctionThumbsVote.objects.filter(auction_id=OuterRef('pk'))
+                .order_by()
+                .values('auction_id')
+                .annotate(n=Count('pk'))
+                .values('n')[:1]
+            ),
+            Value(0),
+        )
+    )
     if user is not None and getattr(user, 'is_authenticated', False):
         qs = qs.annotate(
             _user_thumbs_up=Exists(
@@ -330,7 +368,18 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
             qs = annotate_auction_list_extras(qs, self.request.user)
         if self.action == 'retrieve':
             qs = qs.annotate(manifest_rows_count=Count('manifest_rows', distinct=True))
-            qs = qs.annotate(thumbs_up_count=Count('staff_thumbs_votes', distinct=True))
+            qs = qs.annotate(
+                thumbs_up_count=Coalesce(
+                    Subquery(
+                        AuctionThumbsVote.objects.filter(auction_id=OuterRef('pk'))
+                        .order_by()
+                        .values('auction_id')
+                        .annotate(n=Count('pk'))
+                        .values('n')[:1]
+                    ),
+                    Value(0),
+                )
+            )
             u = self.request.user
             if getattr(u, 'is_authenticated', False):
                 qs = qs.annotate(
@@ -461,17 +510,30 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
         # after manifest removal. Consider adding purge_ai_mappings option or admin
         # tooling to review/delete AI-origin mappings by marketplace prefix.
         auction = self.get_object()
-        auction.manifest_rows.all().delete()
-        auction.has_manifest = False
-        auction.manifest_category_distribution = None
-        auction.manifest_pulled_at = None
-        auction.save(
-            update_fields=[
-                'has_manifest',
-                'manifest_category_distribution',
-                'manifest_pulled_at',
-            ]
-        )
+        with transaction.atomic():
+            # Same lock the background manifest pull takes before saving, held until the
+            # auction's fields match: a pull cannot slip rows in between.
+            Auction.objects.select_for_update().filter(pk=auction.pk).first()
+            auction.manifest_rows.all().delete()
+            auction.has_manifest = False
+            auction.manifest_category_distribution = None
+            auction.manifest_pulled_at = None
+            auction.manifest_source = ''
+            # Removing a manifest puts the auction back in line for the next Pull.
+            auction.manifest_pull_attempted_at = None
+            auction.manifest_pull_error = ''
+            auction.manifest_pull_blocked = False
+            auction.save(
+                update_fields=[
+                    'has_manifest',
+                    'manifest_category_distribution',
+                    'manifest_pulled_at',
+                    'manifest_source',
+                    'manifest_pull_attempted_at',
+                    'manifest_pull_error',
+                    'manifest_pull_blocked',
+                ]
+            )
         auction.refresh_from_db()
         recompute_auction_valuation(auction)
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -743,6 +805,80 @@ class BstockTokenStatusView(APIView):
 
     def get(self, request):
         return Response({'bstock_token_available': scraper.bstock_token_available()})
+
+
+class BstockLoginView(APIView):
+    """
+    Superuser: the B-Stock login handed over from bstock.com by the bookmarklet.
+
+    GET: connected / expires_at / seconds_left (usable time; never the token).
+    POST {token}: validate and store it, replacing the old one.
+    DELETE: forget it (Disconnect) and stop a running pull.
+    """
+
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+
+    def get(self, request):
+        return Response(token_status().as_dict())
+
+    def post(self, request):
+        data = request.data if isinstance(request.data, dict) else {}
+        try:
+            save_token(str(data.get('token') or ''), user=request.user)
+        except TokenRejected as e:
+            return Response({'detail': str(e), 'code': 'token_rejected'}, status=400)
+        return Response(token_status().as_dict())
+
+    def delete(self, request):
+        stop_job(STOPPED_DISCONNECTED)
+        clear_token()
+        return Response(token_status().as_dict())
+
+
+class ManifestPullView(APIView):
+    """
+    Superuser: the shortlist manifest pull.
+
+    GET [?job=<id>]: that job (default the latest), login status, the shortlist size now,
+    and how many auctions are only waiting out a failed attempt.
+    POST: start a pull, resume one whose runner died, or return the one running. 409 without
+    a live login.
+    DELETE: stop the live pull.
+    """
+
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+
+    def _payload(self, job):
+        return {
+            'job': job_payload(job),
+            'login': token_status().as_dict(),
+            'shortlist_count': shortlist_queryset().count(),
+            'waiting_retry_count': waiting_retry_count(),
+        }
+
+    def get(self, request):
+        job_id = str(request.query_params.get('job') or '')
+        qs = ManifestPullJob.objects.all()
+        if job_id and not re.fullmatch(r'[0-9]{1,12}', job_id):
+            return Response({'detail': 'job must be an id.'}, status=400)
+        job = qs.filter(pk=int(job_id)).first() if job_id else qs.first()
+        return Response(self._payload(job))
+
+    def post(self, request):
+        if not current_token():
+            return Response(
+                {'detail': 'Send your B-Stock login first.', 'code': 'no_login'},
+                status=409,
+            )
+        job = start_job(user=request.user)
+        payload = self._payload(job)
+        if payload['job'] and payload['job']['status'] in ManifestPullJob.LIVE_STATUSES:
+            # A resumed job was just handed to a new runner; it is not stalled any more.
+            payload['job']['stalled'] = False
+        return Response(payload, status=202)
+
+    def delete(self, request):
+        return Response(self._payload(stop_job() or ManifestPullJob.objects.first()))
 
 
 class CategoryNeedView(APIView):

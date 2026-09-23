@@ -915,6 +915,17 @@ export default function AuctionDetailPage() {
                     <Typography variant="body2" align="center" color="text.secondary">
                       Or click the card to browse, or use Choose file below.
                     </Typography>
+                    <Typography variant="caption" align="center" color="text.secondary">
+                      {detail.manifest_pull_error
+                        ? `Auto pull failed${
+                          detail.manifest_pull_attempted_at
+                            ? ` ${formatDistanceToNow(parseISO(detail.manifest_pull_attempted_at), { addSuffix: true })}`
+                            : ''
+                        }: ${detail.manifest_pull_error}`
+                        : detail.manifest_pull_eligible
+                          ? 'The daily manifest pull gets this if it ends soon. Watch it to pull it first.'
+                          : 'The daily manifest pull skips this listing; upload the CSV.'}
+                    </Typography>
                     <Stack spacing={0.75} alignItems="center">
                       <Button
                         variant="contained"
@@ -979,6 +990,14 @@ export default function AuctionDetailPage() {
                       {formatNumber(categorizedRows)} categorized
                     </Typography>
                   </Stack>
+                  {detail.manifest_source ? (
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                      {detail.manifest_source === 'auto' ? 'Pulled from B-Stock' : 'Uploaded CSV'}
+                      {detail.manifest_pulled_at
+                        ? ` ${formatDistanceToNow(parseISO(detail.manifest_pulled_at), { addSuffix: true })}`
+                        : ''}
+                    </Typography>
+                  ) : null}
                   {detail.manifest_template_name ? (
                     <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
                       Template: {detail.manifest_template_name}

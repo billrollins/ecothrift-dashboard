@@ -490,7 +490,7 @@ def _retail_submissions_by_day(start: date, end: date) -> dict[date, dict[str, A
         submitted_at__isnull=False,
         submitted_at__date__gte=start,
         submitted_at__date__lte=end,
-    ).values_list('run_id', 'submitted_at', 'routine__system_key')
+    ).exclude(routine__kind='bstock_pull').values_list('run_id', 'submitted_at', 'routine__system_key')
     by_day: dict[date, dict[str, Any]] = {}
     for run_id, submitted_at, system_key in rows:
         if system_key == 'retail.work_cycle':

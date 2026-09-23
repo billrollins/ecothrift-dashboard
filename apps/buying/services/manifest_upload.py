@@ -129,6 +129,8 @@ def process_manifest_upload(
     bulk: list[ManifestRow] = []
 
     with transaction.atomic():
+        # Same lock the background manifest pull takes before saving: one writer at a time.
+        Auction.objects.select_for_update().filter(pk=auction.pk).first()
         auction.manifest_rows.all().delete()
 
         for i, raw_row in enumerate(rows, start=1):
@@ -165,7 +167,18 @@ def process_manifest_upload(
         ManifestRow.objects.bulk_create(bulk)
         auction.has_manifest = len(bulk) > 0
         auction.manifest_pulled_at = timezone.now()
-        auction.save(update_fields=['has_manifest', 'manifest_pulled_at'])
+        auction.manifest_source = Auction.MANIFEST_SOURCE_MANUAL if bulk else ''
+        auction.manifest_pull_error = ''
+        auction.manifest_pull_blocked = False
+        auction.save(
+            update_fields=[
+                'has_manifest',
+                'manifest_pulled_at',
+                'manifest_source',
+                'manifest_pull_error',
+                'manifest_pull_blocked',
+            ]
+        )
 
     mapping = _load_category_mapping()
     unmapped_key_count = count_distinct_unmapped_keys(auction, mapping)

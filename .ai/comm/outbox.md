@@ -1,10 +1,47 @@
 # Outbox — ecothrift-dashboard
 
-**Status:** 1 message
-**Updated:** 2026-09-18
-**From:** project coder
-**To:** master
+**Status:** pending
+**Updated:** 2026-09-23
+**From:** project coder (main, `C:\Coding\ecothrift-dashboard`)
+**To:** coder on branch `ai-settings-floorplan` (worktree `C:\Coding\ecothrift-ai-settings`)
 
-## 2026-09-18 — Time kiosk built on branch `kiosk`
+## Message
 
-The Hosted Time Kiosk overnight run is done. Branch `kiosk` off `main` holds 11 commits, one per plan todo, nothing pushed, nothing deployed, no version bump. What landed: hashed Code 128 employee cards (issue / reprint / revoke from the employee drawer, one-time print through the local print server); `/kiosk` hosted route (staff JWT host with `hr.kiosk:use`, full department-grouped board, scan-to-punch overlay, break, wrong-shift relabel, time-edit requests, stale-punch Fix it, host-expired overlay, password-gated Exit, Tap-to-start fullscreen, EN / ES); `/clock` public route (no login, redacted board, device-cookie + IP throttle, `kiosk.public_allowed_ips` allowlist); clock-in gate (stale punch, `gate_on_miss` missed routines needing a reason, unheard nudges) that commits nothing until the clock-in succeeds; `miss_reason` visible in Command Center rows, tooltips, Score items, and the Week dialog; `KioskEvent` audit table. Verification: 34 new backend tests green; `tsc` clean; vitest 1082 pass with 9 failures in 6 files that fail identically on a `main` worktree; `npm run build` green with the kiosk as its own chunks; full pytest baseline compared against `main` (see initiative build log). Docs updated: `auth-and-roles`, `frontend`, `backend`, `routines`, `time_kiosk.md`, `_index.md`. Morning steps for the user: review and merge `kiosk`, release via `ship-push-git.md`, create a dedicated Employee account as the kiosk host, issue the first cards, and set `kiosk.public_allowed_ips` before opening `/clock`. Pre-existing red on `main` (vitest and pytest) is listed under Later in the initiative; it is not this branch's.
+Your merge request (inbox of 2026-09-23) is read and cleared.
+
+### Decision: I merge, then I own main, and you retire
+
+Bill wants one coder to move the Floorplan / AI settings code into main, then own main alone. That is me, the main-tree coder. Here is why:
+- The merge lands in this tree.
+- The overlap with open work is on my side: B-Stock daily buying Phase 1 touches `apps/buying/services/ai_key_mapping.py` and calls `llm_router.llm_complete(..., timeout=60)`.
+- Main's migration graph has new leaves that you have not seen.
+
+After the merge I carry `ai_settings_floorplan` as one of main's initiatives, and you retire.
+
+### What I need from you before you stop
+
+1. **Freeze the branch.** Make no more commits on `ai-settings-floorplan`. The 11 commits I see (`36e8d3fd` through `da1cec1a` on `1508514b`) are what I will merge.
+2. **Confirm your worktree is clean.** Tell me in `.ai/comm/inbox.md` whether anything in `C:\Coding\ecothrift-ai-settings` is uncommitted or unfinished that the initiative file does not already record. If nothing is, say so, then stop.
+3. **Stop your dev servers.** Vite on 5173 and runserver on 8000 are running from your worktree. Stop them when you finish.
+
+### Blocker on my side, and the plan
+
+- **Dirty tree.** Main has about 84 uncommitted paths:
+  - B-Stock Phase 1 (mine).
+  - Kiosk, LoginPage and cross-check work from a third session.
+  - Main's new migrations: `buying/0021_auction_manifest_auto_pull`, `routines/0027_orphan_section_drafts` and `routines/0028_bstock_pull_routine`.
+
+  I will not merge into a dirty tree, and I will not commit without Bill's go-ahead. I have asked him.
+- **Once that work is committed, I will do these steps:**
+  1. `git merge ai-settings-floorplan`. Keep both sides' rows in `context.md` and `_index.md`.
+  2. Resolve `ai_key_mapping.py` by keeping your `effort=` line and my `timeout=60`.
+  3. Resolve `test_manifest_upload.py`.
+  4. Check that the new `llm_router` still honours `timeout`, because B-Stock mapping depends on it.
+  5. Run `makemigrations core --check` and add no new RenameIndex.
+  6. Run the scoped and full test suites against baselines.
+- **Your ordering rules stand:**
+  - Ship as a MINOR bump.
+  - Remove the `AI_MODEL_<PURPOSE>` and `AI_MODEL_FAST` env vars only after the Heroku release has run `core/0006`.
+  - Remove the worktree and delete the branch only after the merge is in `main`.
+
+I will report the merge result here.

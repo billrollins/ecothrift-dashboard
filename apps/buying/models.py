@@ -223,6 +223,13 @@ class Auction(models.Model):
     # B-Stock search `listingType`: SPOT (inventory), CONTRACT (term / percent-of-retail), etc.
     LISTING_TYPE_CONTRACT = 'CONTRACT'
 
+    MANIFEST_SOURCE_AUTO = 'auto'
+    MANIFEST_SOURCE_MANUAL = 'manual'
+    MANIFEST_SOURCE_CHOICES = [
+        (MANIFEST_SOURCE_AUTO, 'Pulled from B-Stock'),
+        (MANIFEST_SOURCE_MANUAL, 'Uploaded CSV'),
+    ]
+
 
     marketplace = models.ForeignKey(
         Marketplace,
@@ -426,7 +433,33 @@ class Auction(models.Model):
         null=True,
         blank=True,
         db_index=True,
-        help_text='When manifest rows were last fetched via API pull or CSV upload (nightly queue skips if set).',
+        help_text='When manifest rows were last saved, by auto pull or CSV upload.',
+    )
+    # db_default: sweep_upsert inserts auctions with raw SQL that does not name these columns.
+    manifest_source = models.CharField(
+        max_length=10,
+        choices=MANIFEST_SOURCE_CHOICES,
+        blank=True,
+        default='',
+        db_default='',
+        help_text='Where the current manifest rows came from; blank when there are none.',
+    )
+    manifest_pull_attempted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Last auto pull attempt, success or not. The shortlist waits before retrying a failure.',
+    )
+    manifest_pull_error = models.CharField(
+        max_length=300,
+        blank=True,
+        default='',
+        db_default='',
+        help_text='Why the last auto pull failed; cleared on success.',
+    )
+    manifest_pull_blocked = models.BooleanField(
+        default=False,
+        db_default=False,
+        help_text='B-Stock will never give this manifest (too large, or none); the pull stops trying.',
     )
 
     class Meta:
@@ -573,7 +606,7 @@ class ManifestRow(models.Model):
 
 
 class ManifestPullLog(models.Model):
-    """Audit log for anonymous manifest API pulls (nightly queue + admin UI)."""
+    """One row per manifest pull attempt with the owner's login (a routine Pull, or a resumed job)."""
 
     auction = models.ForeignKey(
         Auction,
@@ -594,6 +627,93 @@ class ManifestPullLog(models.Model):
 
     def __str__(self) -> str:
         return f'auction {self.auction_id} @ {self.completed_at}'
+
+
+class BStockToken(models.Model):
+    """
+    A superuser's B-Stock login token (the RS256 JWT B-Stock's own pages use, about an hour).
+
+    Handed over from bstock.com by the Send-to-Eco-Thrift bookmarklet. Kept in the database so
+    the web and Scheduler dynos see the same one. Never returned by the API.
+    """
+
+    token = models.TextField()
+    expires_at = models.DateTimeField(null=True, blank=True)
+    saved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    saved_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-saved_at']
+
+    def __str__(self) -> str:
+        return f'B-Stock token saved {self.saved_at:%Y-%m-%d %H:%M}'
+
+
+class ManifestPullJob(models.Model):
+    """One run over the manifest shortlist. Started only by the routine's Pull; the scheduler resumes it."""
+
+    STATUS_QUEUED = 'queued'
+    STATUS_RUNNING = 'running'
+    STATUS_DONE = 'done'
+    STATUS_FAILED = 'failed'
+    STATUS_STOPPED = 'stopped'
+    STATUS_CHOICES = [
+        (STATUS_QUEUED, 'Queued'),
+        (STATUS_RUNNING, 'Running'),
+        (STATUS_DONE, 'Done'),
+        (STATUS_FAILED, 'Failed'),
+        (STATUS_STOPPED, 'Stopped by owner'),
+    ]
+    LIVE_STATUSES = (STATUS_QUEUED, STATUS_RUNNING)
+
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_QUEUED)
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    heartbeat_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Touched after every page, mapping batch, and auction; a job that goes quiet is picked up again.',
+    )
+    runner = models.CharField(
+        max_length=32,
+        blank=True,
+        default='',
+        help_text='Token of the thread or scheduler run that owns the job; a runner that loses it stops.',
+    )
+    auction_ids = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='The shortlist fixed when the job first ran; a resumed job works through the rest.',
+    )
+    total = models.PositiveIntegerField(default=0)
+    done_count = models.PositiveIntegerField(default=0)
+    ok_count = models.PositiveIntegerField(default=0)
+    error = models.CharField(max_length=300, blank=True, default='')
+    results = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='[{auction_id, title, ok, rows, error}] in pull order.',
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f'manifest pull {self.pk} {self.status} {self.done_count}/{self.total}'
 
 
 class WatchlistEntry(models.Model):

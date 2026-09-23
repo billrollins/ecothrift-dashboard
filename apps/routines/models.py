@@ -113,12 +113,15 @@ class Routine(models.Model):
     KIND_SECTION_AUDIT = 'section_audit'
     KIND_OWNER_SPOT = 'owner_spot'
     KIND_WORK_CYCLE = 'work_cycle'
+    # Superuser: hand over the B-Stock login and pull the manifest shortlist.
+    KIND_BSTOCK_PULL = 'bstock_pull'
     KIND_CHOICES = [
         (KIND_CHECKLIST, 'Checklist'),
         (KIND_SECTION_TALLY, 'Section tally'),
         (KIND_SECTION_AUDIT, 'Section cross-check'),
         (KIND_OWNER_SPOT, 'Spot walk'),
         (KIND_WORK_CYCLE, 'Register activity'),
+        (KIND_BSTOCK_PULL, 'B-Stock manifest pull'),
     ]
 
     SUBJECT_POOL = 'pool'

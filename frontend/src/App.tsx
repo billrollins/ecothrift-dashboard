@@ -18,6 +18,7 @@ const TarsPage = lazy(() => import('./pages/restoration/tars/TarsPage'));
 // Time kiosk: hosted (/kiosk, staff JWT) and public (/clock, no login). Both own the window.
 const KioskPage = lazy(() => import('./pages/kiosk/KioskPage'));
 const ClockPage = lazy(() => import('./pages/kiosk/ClockPage'));
+const BstockLoginHandoffPage = lazy(() => import('./pages/routines/BstockLoginHandoffPage'));
 import FloorplanListPage from './pages/floorplan/FloorplanListPage';
 
 // Pages
@@ -26,6 +27,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import RoutinesPage from './pages/routines/RoutinesPage';
+import { PendingBstockLoginNotice } from './pages/routines/runners/PendingBstockLoginNotice';
 import TodayPage from './pages/routines/TodayPage';
 import PayPage from './pages/hr/PayPage';
 import TimePayrollPage from './pages/admin/TimePayrollPage';
@@ -166,6 +168,7 @@ export default function App() {
           <ProtectedRoute>
             <StaffRoute>
               <MainLayout />
+              <PendingBstockLoginNotice />
             </StaffRoute>
           </ProtectedRoute>
         }
@@ -178,6 +181,15 @@ export default function App() {
         <Route path="/routines/new" element={<SuperAdminRoute><RoutinesPage /></SuperAdminRoute>} />
         <Route path="/routines/:id/edit" element={<SuperAdminRoute><RoutinesPage /></SuperAdminRoute>} />
         <Route path="/routines/run/:id" element={<RoutinesPage />} />
+        <Route
+          path="/routines/bstock-login"
+          element={
+            // Not SuperAdminRoute: the page itself tells a non-owner staff user why, and drops the token.
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <BstockLoginHandoffPage />
+            </Suspense>
+          }
+        />
         <Route path="/hr/time-clock" element={<Navigate to="/pay" replace />} />
         <Route path="/pay" element={<PayPage />} />
         <Route path="/hr/modification-requests" element={<Navigate to="/admin/time-payroll" replace />} />

@@ -1,5 +1,5 @@
 <!-- Line 1 release: ## [2.97.2] -->
-<!-- Last reviewed: 2026-09-22 (v2.97.2 cross-check migration) -->
+<!-- Last reviewed: 2026-09-22 (Unreleased: B-Stock pull, own-aisle cross-check, kiosk follow-ups) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -7,6 +7,33 @@ Commit-level detail belongs in commit messages, not here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [Unreleased]
+
+User-facing theme: **Superusers get B-Stock manifests pulled for them each morning, from the desk or a phone.**
+
+Initiative: [`bstock_daily_buying`](./.ai/initiatives/bstock_daily_buying.md). Also outside initiatives: the own-aisle cross-check fix and kiosk follow-ups.
+
+### Added
+
+- Daily **Pull B-Stock manifests** routine (superusers). Open B-Stock, tap the Send to Eco-Thrift bookmark, confirm, then Pull: the server fetches full manifests for auctions ending in the next 36 hours (watchlisted first) and values them. The routine shows progress, can Stop the pull or Disconnect the login, and works on a phone. A refused login or a B-Stock outage stops the pull without marking any auction as failed. Auction detail and the list tooltip say whether a manifest was pulled or uploaded, or why a pull failed. Window, cap, retry wait, and pause are under Admin → Assumptions.
+- Sign-in page **Scan your card**: a staff card punches in or out through the same dialog as the door tablet, over the public `/api/hr/clock/*` API. It never signs anyone in to the dashboard.
+
+### Changed
+
+- Kiosk Exit (or Esc) leaves without the host password; `POST /api/hr/kiosk/exit/` still writes the audit row. A punch closes the dialog and leaves a short green line in the footer instead of a success screen.
+- Kiosk scanner: keys under 400 ms apart are one scan, and a read too short or too long for a card says Scan again.
+
+### Fixed
+
+- Buying Need and Priority were stuck on April's numbers: the daily category stats job had been failing on a renamed item column (`unit_retail` → `retail`).
+- The auction list's manifest retail (and P/R %) was multiplied by the number of thumbs-up votes on the auction.
+- Switching between runs on the desktop Routines page could carry one run's answers into another's runner.
+- A section check or cross-check whose run was deleted no longer sits in In Progress, and it cannot be started or submitted. `routines/0027_orphan_section_drafts` removes those drafts and a blank section check that duplicates one the owner still has; a called-in person's parked run stays.
+- Deleting a run deletes its unfinished draft. Nobody can start, submit, or be assigned a cross-check of an aisle they own, including from Needs your attention. The runner says why a walk cannot start.
+- Kiosk scanner: a scanner that paused before Enter no longer throws its own scan away.
 
 ---
 
