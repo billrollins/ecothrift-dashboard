@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db.models import Case, Q, When
 from django.utils import timezone
 
 from apps.webstore.services.hours import _local_now, is_open_day
@@ -812,11 +812,19 @@ def materialize_routines(day: date | None = None) -> int:
         due = due_at_for(routine, day, tz=tz, cfg=cfg)
         key = period_key_for(routine, day)
         if pooled or locked_pool:
-            existing = RoutineRun.objects.filter(
-                routine=routine, period_key=key, status=RoutineRun.STATUS_OPEN,
-            ).first()
+            # One shared run per period. Any run for the period counts, not just an open one:
+            # once someone finishes it (and the Command Center has assigned it to them), a
+            # fresh unassigned copy must not appear and ask for the checklist again.
+            existing = (
+                RoutineRun.objects.filter(routine=routine, period_key=key)
+                .order_by(
+                    Case(When(status=RoutineRun.STATUS_OPEN, then=0), default=1),
+                    'id',
+                )
+                .first()
+            )
             if existing:
-                if existing.due_at != due:
+                if existing.status == RoutineRun.STATUS_OPEN and existing.due_at != due:
                     existing.due_at = due
                     existing.save(update_fields=['due_at'])
                 continue

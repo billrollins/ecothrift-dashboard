@@ -10,6 +10,7 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
+import { useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { useSnackbar } from 'notistack';
 import { createModificationRequest } from '../../api/hr.api';
@@ -25,6 +26,7 @@ export function TimeChangeDialog({
   const theme = useTheme();
   const isPhone = useMediaQuery(theme.breakpoints.down('md'));
   const { enqueueSnackbar } = useSnackbar();
+  const queryClient = useQueryClient();
   const [form, setForm] = useState({
     requested_clock_in: '',
     requested_clock_out: '',
@@ -59,6 +61,7 @@ export function TimeChangeDialog({
           : null,
         reason: form.reason.trim(),
       });
+      void queryClient.invalidateQueries({ queryKey: ['modRequests'] });
       enqueueSnackbar('Modification request submitted', { variant: 'success' });
       onClose();
     } catch {

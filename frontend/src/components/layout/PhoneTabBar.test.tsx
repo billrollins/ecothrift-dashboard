@@ -21,7 +21,8 @@ vi.mock('../../hooks/useAuth', () => ({
 }));
 
 vi.mock('../../hooks/useNavBadgeCounts', () => ({
-  useNavBadgeCounts: () => ({ routines: 2 }),
+  useNavBadgeCounts: () => ({ today: 2 }),
+  useNavBadgeTones: () => ({ today: 'grey' }),
 }));
 
 const theme = createTheme();
@@ -42,27 +43,27 @@ describe('PhoneTabBar', () => {
     authState.language = 'en';
   });
 
-  it('renders Home, Today, Pay, and Routines', () => {
+  it('renders Dashboard and Today (routines, hours and pay live in Today)', () => {
     renderBar();
-    expect(screen.getByRole('button', { name: /home/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /dashboard/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /today/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^pay$/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /routines/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^pay$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /routines/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /more/i })).not.toBeInTheDocument();
   });
 
   it('marks the active tab from the path', () => {
-    renderBar('/pay');
-    expect(screen.getByRole('button', { name: /^pay$/i })).toHaveClass('Mui-selected');
-    expect(screen.getByRole('button', { name: /home/i })).not.toHaveClass('Mui-selected');
+    renderBar('/today?hours=1');
+    expect(screen.getByRole('button', { name: /today/i })).toHaveClass('Mui-selected');
+    expect(screen.getByRole('button', { name: /dashboard/i })).not.toHaveClass('Mui-selected');
   });
 
-  it('keeps Routines selected on the routines list', () => {
-    renderBar('/routines');
-    expect(screen.getByRole('button', { name: /routines/i })).toHaveClass('Mui-selected');
+  it('keeps Today selected for an old routine link', () => {
+    renderBar('/routines/run/5');
+    expect(screen.getByRole('button', { name: /today/i })).toHaveClass('Mui-selected');
   });
 
-  it('shows the routines waiting badge in a reserved slot', () => {
+  it('shows the due-today count on Today', () => {
     renderBar();
     expect(screen.getByLabelText('2 waiting')).toBeInTheDocument();
   });
@@ -70,9 +71,9 @@ describe('PhoneTabBar', () => {
   it('labels the tabs in Spanish when the user language is es', () => {
     authState.language = 'es';
     renderBar();
-    expect(screen.getByRole('button', { name: /inicio/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /tablero/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /hoy/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /pago/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /rutinas/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /pago/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /rutinas/i })).not.toBeInTheDocument();
   });
 });

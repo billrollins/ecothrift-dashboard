@@ -1020,7 +1020,7 @@ def _section_check_days(
     owned_section_ids: set[int] | None = None,
     today: date | None = None,
 ) -> list[str]:
-    """Mon–Sun section-check dots: done / due / missed / none.
+    """Mon-Sun section-check dots: done / due / missed / none.
 
     A day gets a status only when a check was expected on that weekday and
     the day is not in the future. Closed days still count. Today's unfinished

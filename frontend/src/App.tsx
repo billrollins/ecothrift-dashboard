@@ -30,7 +30,6 @@ import DashboardPage from './pages/DashboardPage';
 import RoutinesPage from './pages/routines/RoutinesPage';
 import { PendingBstockLoginNotice } from './pages/routines/runners/PendingBstockLoginNotice';
 import TodayPage from './pages/routines/TodayPage';
-import PayPage from './pages/hr/PayPage';
 import TimePayrollPage from './pages/admin/TimePayrollPage';
 import EnhancementRequestsPage from './pages/admin/EnhancementRequestsPage';
 import AdminRoutinesPage from './pages/admin/routines/AdminRoutinesPage';
@@ -38,7 +37,6 @@ import RetailQaPage from './pages/admin/retailqa/RetailQaPage';
 import ShiftsPage from './pages/admin/ShiftsPage';
 import DepartmentsPage from './pages/admin/departments/DepartmentsPage';
 import DepartmentDetailPage from './pages/admin/departments/DepartmentDetailPage';
-import StaffQaPage from './pages/routines/StaffQaPage';
 import VendorListPage from './pages/inventory/VendorListPage';
 import VendorDetailPage from './pages/inventory/VendorDetailPage';
 import OrderListPage from './pages/inventory/OrderListPage';
@@ -177,7 +175,7 @@ export default function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/today" element={<TodayPage />} />
         <Route path="/routines" element={<RoutinesPage />} />
-        <Route path="/routines/qa" element={<StaffQaPage />} />
+        <Route path="/routines/qa" element={<Navigate to="/today" replace />} />
         <Route path="/routines/catalog" element={<RoutinesPage />} />
         <Route path="/routines/new" element={<SuperAdminRoute><RoutinesPage /></SuperAdminRoute>} />
         <Route path="/routines/:id/edit" element={<SuperAdminRoute><RoutinesPage /></SuperAdminRoute>} />
@@ -191,10 +189,11 @@ export default function App() {
             </Suspense>
           }
         />
-        <Route path="/hr/time-clock" element={<Navigate to="/pay" replace />} />
-        <Route path="/pay" element={<PayPage />} />
+        {/* Hours & pay live on Today; old links open it expanded. */}
+        <Route path="/hr/time-clock" element={<Navigate to="/today?hours=1" replace />} />
+        <Route path="/pay" element={<Navigate to="/today?hours=1" replace />} />
         <Route path="/hr/modification-requests" element={<Navigate to="/admin/time-payroll" replace />} />
-        <Route path="/hr/time-history" element={<Navigate to="/pay" replace />} />
+        <Route path="/hr/time-history" element={<Navigate to="/today?hours=1" replace />} />
         <Route path="/hr/employees" element={<Navigate to="/admin/users" replace />} />
         <Route path="/hr/employees/:id" element={<Navigate to="/admin/users" replace />} />
         <Route path="/hr/sick-leave" element={<Navigate to="/dashboard" replace />} />

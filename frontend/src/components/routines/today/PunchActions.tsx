@@ -11,7 +11,6 @@ export function PunchActions({
   onToggleBreak,
   onClockOut,
   lang,
-  row,
 }: {
   onBreak: boolean;
   pendingBreak: boolean;
@@ -19,17 +18,18 @@ export function PunchActions({
   onToggleBreak: () => void;
   onClockOut: () => void;
   lang: string;
+  /** Kept for callers; the two buttons always sit side by side now. */
   row?: boolean;
 }) {
   return (
-    <Stack direction={row ? 'row' : 'column'} spacing={1}>
+    <Stack direction="row" spacing={1}>
       <Button
         variant={onBreak ? 'contained' : 'outlined'}
         color="warning"
         startIcon={onBreak ? <PlayCircleOutline /> : <FreeBreakfast />}
         onClick={onToggleBreak}
         disabled={pendingBreak}
-        sx={{ height: 56, flex: row ? 1 : undefined }}
+        sx={{ height: 48, flex: 1 }}
       >
         {t(onBreak ? 'endBreak' : 'takeBreak', lang)}
       </Button>
@@ -39,7 +39,7 @@ export function PunchActions({
         startIcon={<Stop />}
         onClick={onClockOut}
         disabled={pendingClockOut || onBreak}
-        sx={{ height: 56, flex: row ? 1 : undefined }}
+        sx={{ height: 48, flex: 1 }}
       >
         {t('clockOut', lang)}
       </Button>

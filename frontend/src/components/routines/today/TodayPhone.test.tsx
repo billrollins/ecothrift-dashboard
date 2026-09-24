@@ -37,6 +37,7 @@ vi.mock('../../../hooks/useTimeClock', () => ({
       overtime_hours: '0.00',
     } satisfies WeeklyHoursStatus,
   }),
+  useMyPay: () => ({ isLoading: false, data: [] }),
   useCurrentEntry: () => ({ data: clockState.entry, isLoading: false }),
   useClockIn: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useClockOut: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -45,45 +46,37 @@ vi.mock('../../../hooks/useTimeClock', () => ({
   useEndBreak: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
-vi.mock('../../../hooks/useRoutines', () => ({
-  useTodayGlance: () => ({
-    isLoading: false,
-    data: clockState.entry ? {
-      shift: 'retail_open',
-      shift_label: 'Retail Open',
-      shift_department: 'Retail',
-      start_with: fakeRun({
-        id: 9,
-        title: 'Open checklist',
-        href: '/routines/run/9',
-        nag_at: new Date(2026, 8, 3, 10, 30).toISOString(),
-      }),
-      verify_of: null,
-      open: [
-        fakeRun({
-          id: 4,
-          title: 'Day checklist',
-          href: '/routines/run/4',
-          nag_at: new Date(2026, 8, 3, 10, 30).toISOString(),
-        }),
-      ],
-      drafts: [],
-      on_demand: [],
-      language: 'en',
-    } : {
-      shift: '',
-      shift_label: '',
-      shift_department: '',
-      start_with: null,
-      verify_of: null,
-      open: [],
-      drafts: [],
-      on_demand: [],
-      language: 'en',
-    },
-  }),
-  useMyRoutineRuns: () => ({ data: { open: [] } }),
+vi.mock('../../../hooks/useTimeEntries', () => ({
+  useTimeEntries: () => ({ isLoading: false, data: { results: [] } }),
+  useModificationRequests: () => ({ isLoading: false, data: { count: 0, results: [] } }),
 }));
+
+// The runner has its own tests; here it only has to open in place of the list.
+vi.mock('../../../pages/routines/RoutineRunnerPage', () => ({
+  RoutineRunnerPage: ({ runId }: { runId?: number }) => <div>Runner {runId}</div>,
+}));
+
+vi.mock('../../../hooks/useRoutines', () => {
+  // Relative to now so states do not drift with the calendar: both are soft nags (due soon).
+  const soon = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
+  return {
+    useMyRoutineRuns: () => ({
+      isLoading: false,
+      isError: false,
+      data: clockState.entry ? {
+        start_with_id: 9,
+        open: [
+          fakeRun({ id: 4, title: 'Day checklist', href: '/routines/run/4', due_at: soon(10), remind_at: soon(-10), nag_at: soon(10), late_at: soon(30) }),
+          fakeRun({ id: 9, title: 'Open checklist', href: '/routines/run/9', due_at: soon(20), remind_at: soon(-10), nag_at: soon(20), late_at: soon(30) }),
+        ],
+        done: [],
+        drafts: [],
+        on_demand: [],
+        idle_prompt_minutes: 20,
+      } : { open: [], done: [], drafts: [], on_demand: [], idle_prompt_minutes: 20 },
+    }),
+  };
+});
 
 const theme = createTheme();
 
@@ -108,12 +101,15 @@ describe('TodayPhone', () => {
     clockState.onBreak = false;
     renderToday();
     expect(screen.getByText(/Good (morning|afternoon|evening), Bill/)).toBeInTheDocument();
-    expect(screen.getAllByRole('button')).toHaveLength(7);
-    expect(screen.getByText('Pick your shift to see your day.')).toBeInTheDocument();
-    expect(screen.queryByText('Start with')).not.toBeInTheDocument();
+    // Hours & pay is open by default. (The shift tiles come from an unmocked query.)
+    expect(screen.getByRole('button', { name: 'Show pay' })).toBeInTheDocument();
+    expect(screen.getByText('Current pay period')).toBeInTheDocument();
+    expect(screen.getByText('Hours & pay')).toBeInTheDocument();
+    expect(screen.getByText("You're all caught up for today.")).toBeInTheDocument();
+    expect(screen.queryByText('Next up')).not.toBeInTheDocument();
   });
 
-  it('shows Start with and a due row, and navigates on tap', async () => {
+  it('leads with the shift checklist, lists the rest, and opens a routine in place', async () => {
     const user = userEvent.setup();
     clockState.entry = {
       id: 1,
@@ -138,10 +134,17 @@ describe('TodayPhone', () => {
     };
     clockState.onBreak = false;
     renderToday();
+    expect(screen.getByText('Next up')).toBeInTheDocument();
     expect(screen.getByText('Open checklist')).toBeInTheDocument();
-    expect(screen.getByText(/Due 10:30am/i)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /Day checklist/i }));
-    expect(navigate).toHaveBeenCalledWith('/routines/run/4');
+    expect(screen.getByText('Day checklist')).toBeInTheDocument();
+    // The header and the list agree: 2 to do, both nagging (amber), under Due soon.
+    expect(screen.getByText('2 to do')).toBeInTheDocument();
+    expect(screen.getByText('2 need attention')).toBeInTheDocument();
+    expect(screen.getByText('Due soon')).toBeInTheDocument();
+    await user.click(screen.getByText('Day checklist'));
+    expect(screen.getByText('Runner 4')).toBeInTheDocument();
+    expect(screen.queryByText('Open checklist')).not.toBeInTheDocument();
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it('disables Clock out while on break', () => {

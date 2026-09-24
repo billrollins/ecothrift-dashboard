@@ -2,7 +2,7 @@ import { Box, ButtonBase } from '@mui/material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { dutyColors } from '../duty/tokens';
 import { useAuth } from '../../hooks/useAuth';
-import { useNavBadgeCounts } from '../../hooks/useNavBadgeCounts';
+import { useNavBadgeCounts, useNavBadgeTones } from '../../hooks/useNavBadgeCounts';
 import { t } from '../../i18n/routines';
 import {
   FLOOR_NAV_EXTRA_IDS,
@@ -13,10 +13,10 @@ import {
 import { resolveNavItems } from '../../navigation/navResolve';
 import type { ResolvedNavItem } from '../../navigation/navTypes';
 import { navItemIsActive, navigateForNavItem } from '../../navigation/navUtils';
-import { NavWaitingBadge } from '../../navigation/NavWaitingBadge';
+import { NavWaitingBadge, type NavBadgeTone } from '../../navigation/NavWaitingBadge';
 
 /**
- * The desk twin of PhoneTabBar: Home / Today / Pay / Routines, plus Settings
+ * The desk twin of PhoneTabBar: Dashboard / Today, plus Settings
  * behind a divider for Manager+. Identical on every floor page; only the
  * active item changes.
  */
@@ -28,6 +28,7 @@ export function FloorNav() {
   const items = resolveNavItems(user, [...FLOOR_NAV_IDS]);
   const extras = resolveNavItems(user, [...FLOOR_NAV_EXTRA_IDS]);
   const badges = useNavBadgeCounts({ onlineSales: false });
+  const tones = useNavBadgeTones();
 
   const isActive = (item: ResolvedNavItem) =>
     navItemIsActive(location.pathname, location.search, location.hash || '', item);
@@ -55,6 +56,7 @@ export function FloorNav() {
           item={item}
           label={isFloorNavId(item.id) ? t(FLOOR_NAV_LABEL_KEYS[item.id], lang) : item.label}
           count={badges[item.id] ?? 0}
+          tone={tones[item.id]}
           active={isActive(item)}
           onPick={() => pick(item)}
         />
@@ -85,12 +87,14 @@ function FloorNavItem({
   item,
   label,
   count,
+  tone,
   active,
   onPick,
 }: {
   item: ResolvedNavItem;
   label: string;
   count: number;
+  tone?: NavBadgeTone;
   active: boolean;
   onPick: () => void;
 }) {
@@ -128,7 +132,7 @@ function FloorNavItem({
         {label}
       </Box>
       <Box sx={{ width: 20, display: 'flex', justifyContent: 'flex-end' }}>
-        <NavWaitingBadge count={count} />
+        <NavWaitingBadge count={count} tone={tone} />
       </Box>
     </ButtonBase>
   );

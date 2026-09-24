@@ -1,16 +1,29 @@
-import { Box, Typography } from '@mui/material';
-import { t } from '../../../i18n/routines';
-import { ClockOutRoutineGuard } from '../ClockOutRoutineGuard';
+import { Box } from '@mui/material';
 import { dutyColors } from '../../duty/tokens';
+import { HoursPayPanel } from '../../hr/HoursPayPanel';
 import { ShiftHeroCard } from '../../hr/ShiftHeroCard';
+import { PhoneFrame } from '../../layout/PhoneFrame';
+import { RoutineRunnerPage } from '../../../pages/routines/RoutineRunnerPage';
+import { ClockOutRoutineGuard } from '../ClockOutRoutineGuard';
 import { PunchActions } from './PunchActions';
-import { TodayGlanceSections } from './TodayGlanceSections';
 import { TodayHeader } from './TodayHeader';
+import { TodayWork } from './TodayWork';
 import { useTodayModel } from './useTodayModel';
 
 export function TodayPhone() {
   const model = useTodayModel();
-  const { lang, weekly, clock, now, data, clockedIn, start, due, drafts, workCycle, loadingLists, greeting, lateCount, weekLine, weekWarn } = model;
+  const { lang, weekly, clock, runner, now, work, clockedIn, loadingLists, greeting } = model;
+
+  // A routine takes the whole screen on a phone; Back (or Save / Cancel) returns to Today.
+  if (runner.open) {
+    return (
+      <Box sx={{ flex: 1, minHeight: 0, display: 'flex' }}>
+        <PhoneFrame framed={false} background={dutyColors.paper} contentSx={{ overflow: 'hidden' }}>
+          <RoutineRunnerPage key={runner.key} runId={runner.runId ?? undefined} onClose={runner.close} />
+        </PhoneFrame>
+      </Box>
+    );
+  }
 
   return (
     <Box
@@ -31,10 +44,9 @@ export function TodayPhone() {
         now={now}
         clockedIn={clockedIn}
         onBreak={clock.onBreak}
-        dueCount={due.length}
-        lateCount={lateCount}
-        weekWarn={weekWarn}
-        weekLine={weekLine.text}
+        dueCount={work.count}
+        nagCount={work.nagCount}
+        nagTone={work.nagTone}
         lang={lang}
       />
 
@@ -57,21 +69,9 @@ export function TodayPhone() {
         ) : undefined}
       />
 
-      {clockedIn ? (
-        <TodayGlanceSections
-          loading={loadingLists}
-          start={start}
-          due={due}
-          drafts={drafts}
-          workCycle={workCycle}
-          verifyOf={data?.verify_of}
-          lang={lang}
-        />
-      ) : (
-        <Typography sx={{ fontSize: 13, color: dutyColors.ink40, minHeight: 20 }}>
-          {t('pickShiftToSeeDay', lang)}
-        </Typography>
-      )}
+      <TodayWork work={work} loading={loadingLists} clockedIn={clockedIn} lang={lang} onOpen={runner.openHref} />
+
+      <HoursPayPanel />
 
       <ClockOutRoutineGuard
         open={clock.guardOpen}

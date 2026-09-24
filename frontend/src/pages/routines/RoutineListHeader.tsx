@@ -1,6 +1,7 @@
-import { Box, Button, Typography } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { Box, Typography } from '@mui/material';
 import { dutyColors } from '../../components/duty/tokens';
+import { useAuth } from '../../hooks/useAuth';
+import { t } from '../../i18n/routines';
 import { RoutineViewToggle } from './RoutineViewToggle';
 
 export function RoutineListHeader({
@@ -15,7 +16,10 @@ export function RoutineListHeader({
   desktop?: boolean;
   error?: string;
 }) {
-  const navigate = useNavigate();
+  const { user } = useAuth();
+  const lang = user?.language === 'es' ? 'es' : 'en';
+  // The catalog is a superuser tool (Admin > Routines); staff see their list only.
+  const showToggle = Boolean(user?.is_superuser);
   return (
     <Box
       sx={{
@@ -29,13 +33,12 @@ export function RoutineListHeader({
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <RoutineViewToggle view={view} onChange={onView} />
+          {showToggle ? (
+            <RoutineViewToggle view={view} onChange={onView} />
+          ) : (
+            <Typography sx={{ fontSize: 15, fontWeight: 800, color: dutyColors.ink }}>{t('toDoToday', lang)}</Typography>
+          )}
         </Box>
-        {view === 'mine' ? (
-          <Button size="small" onClick={() => navigate('/routines/qa')}>
-            My QA
-          </Button>
-        ) : null}
       </Box>
       <Typography
         noWrap

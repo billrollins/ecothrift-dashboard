@@ -1,12 +1,12 @@
 import { Box, BottomNavigation, BottomNavigationAction } from '@mui/material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { useNavBadgeCounts } from '../../hooks/useNavBadgeCounts';
+import { useNavBadgeCounts, useNavBadgeTones } from '../../hooks/useNavBadgeCounts';
 import { t } from '../../i18n/routines';
 import { FLOOR_NAV_IDS, FLOOR_NAV_LABEL_KEYS, isFloorNavId } from '../../navigation/floorNav';
 import { resolveNavItems } from '../../navigation/navResolve';
 import { navItemIsActive, navigateForNavItem } from '../../navigation/navUtils';
-import { NavWaitingBadge } from '../../navigation/NavWaitingBadge';
+import { NavWaitingBadge, type NavBadgeTone } from '../../navigation/NavWaitingBadge';
 import type { ResolvedNavItem } from '../../navigation/navTypes';
 
 export const PHONE_TAB_BAR_HEIGHT = 56;
@@ -20,6 +20,7 @@ export function PhoneTabBar() {
   const location = useLocation();
   const items = resolveNavItems(user, [...FLOOR_NAV_IDS]);
   const badges = useNavBadgeCounts({ onlineSales: false });
+  const tones = useNavBadgeTones();
 
   const activeId = items.find((item) =>
     navItemIsActive(location.pathname, location.search, location.hash || '', item),
@@ -52,7 +53,7 @@ export function PhoneTabBar() {
           key={item.id}
           value={item.id}
           label={isFloorNavId(item.id) ? t(FLOOR_NAV_LABEL_KEYS[item.id], lang) : item.label}
-          icon={<TabIcon item={item} count={badges[item.id] ?? 0} />}
+          icon={<TabIcon item={item} count={badges[item.id] ?? 0} tone={tones[item.id]} />}
           onClick={() => {
             if (item.id === 'today') {
               if (location.pathname !== item.path) navigate(item.path);
@@ -69,7 +70,7 @@ export function PhoneTabBar() {
   );
 }
 
-function TabIcon({ item, count }: { item: ResolvedNavItem; count: number }) {
+function TabIcon({ item, count, tone }: { item: ResolvedNavItem; count: number; tone?: NavBadgeTone }) {
   const Icon = item.Icon;
   return (
     <Box sx={{ position: 'relative', width: 24, height: 24 }}>
@@ -86,7 +87,7 @@ function TabIcon({ item, count }: { item: ResolvedNavItem; count: number }) {
           justifyContent: 'center',
         }}
       >
-        <NavWaitingBadge count={count} />
+        <NavWaitingBadge count={count} tone={tone} />
       </Box>
     </Box>
   );

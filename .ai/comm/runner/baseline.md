@@ -146,6 +146,7 @@ Failures that exist on main independent of current work. The runner **appends** 
 (All seeded 2026-09-23 at `79739a63` and `ecc60707`.)
 
 - `src/pages/routines/TodayPage.test.tsx > TodayPage > shows the desk punch column and the pick-your-shift line` (confirmed T-001 @ `79739a63`)
+- `src/pages/routines/TodayPage.test.tsx > TodayPage > shows the desk punch column, an empty list, and Hours & pay once` (confirmed R-048 @ `73662f5b`)
 
 ## tsc
 

@@ -1,8 +1,26 @@
-import { render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render as rtlRender, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { TimeEntry, WeeklyHoursStatus } from '../../types/hr.types';
 import { ShiftHeroCard } from './ShiftHeroCard';
+
+// The shift tiles come from the staff endpoint; two departments are enough here.
+vi.mock('../../api/hr.api', () => ({
+  getClockTiles: async () => ({
+    data: [
+      { punch_code: 'retail_open', name: 'Retail Open', department: 'Retail', department_slug: 'retail', department_sort: 0 },
+      { punch_code: 'retail_close', name: 'Retail Close', department: 'Retail', department_slug: 'retail', department_sort: 0 },
+      { punch_code: 'warehouse_day', name: 'Warehouse Day', department: 'Warehouse', department_slug: 'warehouse', department_sort: 1 },
+    ],
+  }),
+}));
+
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
 
 const weekly: WeeklyHoursStatus = {
   week_start: '2026-08-31',
@@ -41,7 +59,7 @@ function entry(overrides: Partial<TimeEntry> = {}): TimeEntry {
 }
 
 describe('ShiftHeroCard', () => {
-  it('shows seven single-line tiles when clocked out', async () => {
+  it('shows the shift tiles when clocked out and clocks in on a tap', async () => {
     const user = userEvent.setup();
     const onClockIn = vi.fn();
     render(
@@ -54,12 +72,11 @@ describe('ShiftHeroCard', () => {
       />,
     );
     expect(screen.getByText('Clock in')).toBeInTheDocument();
-    expect(screen.getAllByRole('button')).toHaveLength(7);
-    await user.click(screen.getByRole('button', { name: 'Retail Open' }));
+    await user.click(await screen.findByRole('button', { name: 'Retail Open' }));
     expect(onClockIn).toHaveBeenCalledWith('retail_open');
   });
 
-  it('shows the timer, Change, and hours left when clocked in', () => {
+  it('shows the timer and Change when clocked in; weekly hours live in Hours & pay', () => {
     render(
       <ShiftHeroCard
         entry={entry()}
@@ -72,7 +89,7 @@ describe('ShiftHeroCard', () => {
     expect(screen.getByText('On the clock')).toBeInTheDocument();
     expect(screen.getByText(/\d+:\d{2}:\d{2}/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Change' })).toBeInTheDocument();
-    expect(screen.getByText('17.50 h left this week')).toBeInTheDocument();
+    expect(screen.queryByText(/h left this week/)).not.toBeInTheDocument();
   });
 
   it('names the break on the status line', () => {

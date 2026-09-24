@@ -1,6 +1,6 @@
 import { Box, useMediaQuery, useTheme } from '@mui/material';
 import { useState } from 'react';
-import { useLocation, useParams, useSearchParams } from 'react-router-dom';
+import { Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { dutyCardSx } from '../../components/duty/cards';
 import { dutyColors } from '../../components/duty/tokens';
 import { FloorPage } from '../../components/layout/FloorPage';
@@ -9,15 +9,18 @@ import { useAuth } from '../../hooks/useAuth';
 import { useRoutine } from '../../hooks/useRoutines';
 import { t } from '../../i18n/routines';
 import { CatalogPane } from './CatalogPane';
-import { MyRoutinesPane } from './MyRoutinesPane';
+import { todayHref } from './todayRunner';
 import { emptyDefinition, RoutineEditorPane, type EditorPreview } from './RoutineEditorPane';
 import { RoutineIdlePhone, RoutinePreview } from './RoutinePreview';
-import { RoutineRunnerPage } from './RoutineRunnerPage';
 import { routineShellMode } from './routineMode';
 
 /** Left pane on a desk. Wide enough for two-line rows with badges and for the form sheet. */
 const PANE_WIDTH = 'clamp(500px, 46%, 680px)';
 
+/**
+ * The superuser's catalog and editor. Staff routines live on Today (`/today`): the list, and
+ * the runner beside it. Old run links (`/routines/run/12`, `/routines?run=12`) land there.
+ */
 export default function RoutinesPage() {
   const theme = useTheme();
   const desktop = useMediaQuery(theme.breakpoints.up('md'));
@@ -25,36 +28,30 @@ export default function RoutinesPage() {
   const lang = user?.language === 'es' ? 'es' : 'en';
   const location = useLocation();
   const [params] = useSearchParams();
-  const routeParams = useParams();
   const mode = routineShellMode(location.pathname, params);
   const [preview, setPreview] = useState<EditorPreview>({
     title: '',
     intro: '',
     definition: emptyDefinition(),
   });
-
-  const runFromQuery = Number(params.get('run') || 0) || null;
-  const runFromPath = routeParams.id && routeParams.id !== 'new' ? Number(routeParams.id) : null;
-  const fillRunId = runFromQuery || runFromPath || undefined;
   const viewId = Number(params.get('view') || 0) || null;
   const demo = useRoutine(mode === 'demo' ? viewId : null);
 
-  const listMode = mode === 'catalog' || mode === 'demo' ? 'catalog' : 'mine';
+  if (mode === 'fill') {
+    const target = todayHref(`${location.pathname}${location.search}`);
+    return <Navigate to={target.startsWith('/today') ? target : '/today'} replace />;
+  }
+  if (mode === 'mine' || !user?.is_superuser) {
+    return <Navigate to="/today" replace />;
+  }
+
   const left = mode === 'edit' ? (
     <RoutineEditorPane wide={desktop} onPreviewChange={setPreview} />
-  ) : listMode === 'catalog' ? (
-    <CatalogPane desktop={desktop} />
   ) : (
-    <MyRoutinesPane desktop={desktop} />
+    <CatalogPane desktop={desktop} />
   );
 
-  const phone = mode === 'fill' ? (
-    // Keyed: switching runs (or new / draft fills) must not carry one runner's state into another.
-    <RoutineRunnerPage
-      key={`${fillRunId ?? 'new'}:${params.get('routine') ?? ''}:${params.get('draft') ?? ''}`}
-      runId={fillRunId}
-    />
-  ) : mode === 'edit' ? (
+  const phone = mode === 'edit' ? (
     <RoutinePreview
       title={preview.title}
       intro={preview.intro}
@@ -79,7 +76,7 @@ export default function RoutinesPage() {
   );
 
   if (!desktop) {
-    if (mode === 'fill' || mode === 'demo') {
+    if (mode === 'demo') {
       return (
         <Box sx={{ height: '100%', minHeight: 0, display: 'flex' }}>
           <PhoneFrame framed={false} background={dutyColors.paper} contentSx={{ overflow: 'hidden' }}>

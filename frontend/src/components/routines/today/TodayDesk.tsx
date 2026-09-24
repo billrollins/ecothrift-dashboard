@@ -1,15 +1,16 @@
-import { Box, Chip, Typography } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { Box, Chip } from '@mui/material';
 import { format } from 'date-fns';
 import { t } from '../../../i18n/routines';
-import { FloorPage } from '../../layout/FloorPage';
-import { ClockOutRoutineGuard } from '../ClockOutRoutineGuard';
+import { RoutineRunnerPage } from '../../../pages/routines/RoutineRunnerPage';
 import { dutyColors } from '../../duty/tokens';
+import { HoursPayPanel } from '../../hr/HoursPayPanel';
 import { ShiftHeroCard } from '../../hr/ShiftHeroCard';
-import { eyebrowSx } from '../../hr/ShiftPicker';
-import { WeekHoursBar } from '../../hr/WeekHoursBar';
+import { FloorPage } from '../../layout/FloorPage';
+import { PhoneFrame } from '../../layout/PhoneFrame';
+import { ClockOutRoutineGuard } from '../ClockOutRoutineGuard';
 import { PunchActions } from './PunchActions';
-import { TodayGlanceSections } from './TodayGlanceSections';
+import { NAG_CHIP_BG } from './TodayHeader';
+import { TodayWork } from './TodayWork';
 import { useTodayModel } from './useTodayModel';
 
 const bandChipSx = {
@@ -20,10 +21,18 @@ const bandChipSx = {
   '& .MuiChip-label': { color: '#fff' },
 } as const;
 
+const SIDE = 400;
+const PHONE = 'clamp(340px, 36%, 440px)';
+
+/**
+ * Today on a desk: the shift and Hours & pay on the left, today's routines in the middle.
+ * Starting a routine slides the left column away and opens the phone runner to the right of
+ * the list, the same screen staff see on a phone. Closing it slides everything back.
+ */
 export function TodayDesk() {
-  const navigate = useNavigate();
   const model = useTodayModel();
-  const { lang, weekly, clock, now, data, clockedIn, start, due, drafts, workCycle, loadingLists, greeting, lateCount, weekLine, weekWarn } = model;
+  const { lang, weekly, clock, runner, now, work, clockedIn, loadingLists, greeting } = model;
+  const open = runner.open;
 
   return (
     <FloorPage
@@ -40,97 +49,99 @@ export function TodayDesk() {
               ? { height: 24, fontWeight: 700, bgcolor: dutyColors.amberBg, color: dutyColors.amberInk }
               : bandChipSx}
           />
-          {clockedIn ? (
-            <Chip size="small" label={`${due.length} ${t('due', lang)}`} sx={bandChipSx} />
+          {work.count > 0 ? (
+            <Chip size="small" label={`${work.count} ${t('toDoLower', lang)}`} sx={bandChipSx} />
           ) : null}
-          {clockedIn && lateCount > 0 ? (
+          {work.nagCount > 0 && work.nagTone !== 'none' ? (
             <Chip
               size="small"
-              label={t('late', lang)}
-              sx={{ height: 24, fontWeight: 700, bgcolor: dutyColors.red, color: '#fff' }}
+              label={`${work.nagCount} ${t(work.nagCount === 1 ? 'naggingOne' : 'nagging', lang)}`}
+              sx={{ height: 24, fontWeight: 700, bgcolor: NAG_CHIP_BG[work.nagTone], color: '#fff' }}
             />
           ) : null}
-          {clockedIn && weekWarn ? (
-            <Chip size="small" label={weekLine.text} sx={{ ...bandChipSx, maxWidth: '100%' }} />
-          ) : null}
-          <Chip
-            size="small"
-            label={t('staffQa', lang)}
-            onClick={() => navigate('/routines/qa')}
-            sx={bandChipSx}
-          />
         </>
       )}
     >
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(360px, 420px) 1fr',
-          gap: 2,
-          alignItems: 'stretch',
+          gridTemplateColumns: open ? `0px minmax(0, 1fr) ${PHONE}` : `${SIDE}px minmax(0, 1fr) 0px`,
+          transition: 'grid-template-columns 280ms ease',
+          height: 'calc(100dvh - 210px)',
+          minHeight: 560,
         }}
       >
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, minHeight: 0 }}>
-          <ShiftHeroCard
-            entry={clock.entry}
-            weekly={weekly.data}
-            lang={lang}
-            onClockIn={(shift) => { void clock.clockIn(shift); }}
-            pendingClockIn={clock.pending.clockIn}
-            onSetShift={clock.setShift}
-            actions={clockedIn ? (
-              <PunchActions
-                onBreak={clock.onBreak}
-                pendingBreak={clock.pending.break}
-                pendingClockOut={clock.pending.clockOut}
-                onToggleBreak={() => { void clock.toggleBreak(); }}
-                onClockOut={() => { void clock.clockOut(); }}
+        <Box
+          aria-hidden={open}
+          sx={{ minWidth: 0, overflow: 'hidden', opacity: open ? 0 : 1, transition: 'opacity 180ms ease' }}
+        >
+          <Box
+            sx={{
+              width: SIDE,
+              height: '100%',
+              pr: 2,
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+            }}
+          >
+            {/* The clock card keeps its height; Hours & pay fills the rest, level with To do today. */}
+            <Box sx={{ flexShrink: 0 }}>
+              <ShiftHeroCard
+                entry={clock.entry}
+                weekly={weekly.data}
                 lang={lang}
-                row
+                onClockIn={(shift) => { void clock.clockIn(shift); }}
+                pendingClockIn={clock.pending.clockIn}
+                onSetShift={clock.setShift}
+                actions={clockedIn ? (
+                  <PunchActions
+                    onBreak={clock.onBreak}
+                    pendingBreak={clock.pending.break}
+                    pendingClockOut={clock.pending.clockOut}
+                    onToggleBreak={() => { void clock.toggleBreak(); }}
+                    onClockOut={() => { void clock.clockOut(); }}
+                    lang={lang}
+                    row
+                  />
+                ) : undefined}
               />
-            ) : undefined}
-          />
-          <WeekHoursBar weekly={weekly.data} lang={lang} sx={{ flex: 1 }} />
+            </Box>
+            <HoursPayPanel fill />
+          </Box>
         </Box>
 
-        <Box sx={{ minHeight: 430, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          {clockedIn ? (
-            <TodayGlanceSections
-              loading={loadingLists}
-              start={start}
-              due={due}
-              drafts={drafts}
-              workCycle={workCycle}
-              verifyOf={data?.verify_of}
-              lang={lang}
-              columns={3}
-            />
-          ) : (
-            <Box
-              sx={{
-                flex: 1,
-                minHeight: 430,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 0.75,
-                border: `1px dashed ${dutyColors.ink15}`,
-                borderRadius: '12px',
-                bgcolor: dutyColors.card,
-                px: 3,
-                textAlign: 'center',
-              }}
-            >
-              <Typography sx={{ ...eyebrowSx }}>{t('dayAtAGlance', lang)}</Typography>
-              <Typography sx={{ fontSize: 18, fontWeight: 800, color: dutyColors.ink }}>
-                {t('pickShiftToSeeDay', lang)}
-              </Typography>
-              <Typography sx={{ fontSize: 13.5, color: dutyColors.ink40, maxWidth: 420 }}>
-                {t('glanceExplainer', lang)}
-              </Typography>
+        <Box
+          sx={{
+            minWidth: 0,
+            minHeight: 0,
+            overflowY: 'auto',
+            px: 1.5,
+            py: 1,
+            border: `1px solid ${dutyColors.ink15}`,
+            borderRadius: '12px',
+            bgcolor: dutyColors.card,
+          }}
+        >
+          <TodayWork
+            work={work}
+            loading={loadingLists}
+            clockedIn={clockedIn}
+            lang={lang}
+            onOpen={runner.openHref}
+            selectedRunId={runner.runId}
+          />
+        </Box>
+
+        <Box sx={{ minWidth: 0, minHeight: 0, overflow: 'hidden', display: 'flex' }}>
+          {open ? (
+            <Box sx={{ flex: 1, minWidth: 0, pl: 2, display: 'flex' }}>
+              <PhoneFrame framed stage inset background={dutyColors.paper} contentSx={{ overflow: 'hidden' }}>
+                <RoutineRunnerPage key={runner.key} runId={runner.runId ?? undefined} onClose={runner.close} />
+              </PhoneFrame>
             </Box>
-          )}
+          ) : null}
         </Box>
       </Box>
 

@@ -7,7 +7,7 @@ def seed_weekdays(apps, schema_editor):
         key='retail_qa.section_check_weekdays',
         defaults={
             'value': [False, True, True, True, True, True, False],
-            'description': 'Days a section check is required. Default is every open day (Tue–Sat).',
+            'description': 'Days a section check is required. Default is every open day (Tue-Sat).',
         },
     )
 

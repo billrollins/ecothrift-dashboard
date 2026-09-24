@@ -41,7 +41,7 @@ export default function DashboardPage() {
 
   return (
     <FloorPage
-      title={t('home', lang)}
+      title={t('dashboard', lang)}
       subtitle={t('homeSubtitle', lang)}
       fill
       contained={false}

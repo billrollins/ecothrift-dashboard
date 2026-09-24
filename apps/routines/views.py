@@ -6,6 +6,7 @@ import re
 from datetime import date, datetime, time
 
 from django.core.files.base import ContentFile
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import viewsets
@@ -373,6 +374,33 @@ class RoutineRunViewSet(viewsets.ReadOnlyModelViewSet):
             data['progress'] = {'answered': max(total - len(unanswered), 0), 'total': total}
         return serialized
 
+    @staticmethod
+    def _attach_nudges(rows, serialized, user):
+        """The latest nudge on each open run (to this user, or to the whole pool), or None.
+
+        Hearing a nudge clears the message; the note stays on the run until it is done.
+        """
+        latest = {}
+        for nudge in (
+            QaNudge.objects.filter(run__in=[row.pk for row in rows])
+            .filter(Q(employee=user) | Q(employee__isnull=True))
+            .exclude(ack_kind='resolved')
+            .select_related('created_by')
+            .order_by('created_at')
+        ):
+            latest[nudge.run_id] = nudge
+        for row, data in zip(rows, serialized):
+            nudge = latest.get(row.pk)
+            data['nudge'] = {
+                'id': nudge.pk,
+                # Blank means the app sent it (a hard deadline passed).
+                'by': (nudge.created_by.first_name or nudge.created_by.full_name) if nudge.created_by_id else '',
+                'at': nudge.created_at,
+                'message': nudge.message or '',
+                'heard': nudge.acked_at is not None,
+            } if nudge else None
+        return serialized
+
     @action(detail=False, methods=['get'])
     def mine(self, request):
         materialize_routines()
@@ -380,10 +408,14 @@ class RoutineRunViewSet(viewsets.ReadOnlyModelViewSet):
         done_rows = list(done_this_week_queryset(request.user))
         on_demand = _on_demand_routines(request.user)
         drafts = _on_demand_drafts(request.user)
+        _shift, start = start_with_run(request.user, open_rows)
+        open_data = self._attach_progress(
+            open_rows, RoutineRunSerializer(open_rows, many=True).data, request.user,
+        )
         return Response({
-            'open': self._attach_progress(
-                open_rows, RoutineRunSerializer(open_rows, many=True).data, request.user,
-            ),
+            'open': self._attach_nudges(open_rows, open_data, request.user),
+            # The run Today leads with; every routine surface reads this same list.
+            'start_with_id': start.pk if start else None,
             'done': RoutineRunSerializer(done_rows, many=True).data,
             'on_demand': RoutineSerializer(on_demand, many=True).data,
             'drafts': [_draft_row(row) for row in drafts],
@@ -856,6 +888,32 @@ class WorkCyclePromptView(APIView):
         }, status=201)
 
 
+def start_with_run(user, open_rows):
+    """``(shift code, run)``: the one run to start with for this punch, or None.
+
+    Shared by Today and ``runs/mine/`` so every routine surface points at the same first job:
+    a shift-locked run (earliest due), else the checklist for the shift punched into.
+    """
+    entry = TimeEntry.objects.filter(employee=user, clock_out__isnull=True).first()
+    shift = (entry.shift if entry else '') or ''
+    system_key = system_key_for_punch(shift)
+    locked = [
+        row for row in open_rows
+        if row.status == RoutineRun.STATUS_OPEN and getattr(row.routine, 'shift_locked', False)
+    ]
+    if locked:
+        return shift, min(locked, key=lambda row: row.routine.due_time or time.max)
+    if system_key:
+        return shift, next(
+            (
+                row for row in open_rows
+                if row.routine.system_key == system_key and row.status == RoutineRun.STATUS_OPEN
+            ),
+            None,
+        )
+    return shift, None
+
+
 class TodayView(APIView):
     """`GET /api/routines/today/` - Day at a glance for the current punch."""
 
@@ -864,28 +922,8 @@ class TodayView(APIView):
     def get(self, request):
         materialize_routines()
         language = getattr(request.user, 'language', 'en') or 'en'
-        entry = TimeEntry.objects.filter(
-            employee=request.user, clock_out__isnull=True,
-        ).first()
-        shift = (entry.shift if entry else '') or ''
-        system_key = system_key_for_punch(shift)
         open_rows = list(mine_queryset(request.user))
-        start = None
-        locked = [
-            row for row in open_rows
-            if row.status == RoutineRun.STATUS_OPEN and getattr(row.routine, 'shift_locked', False)
-        ]
-        if locked:
-            start = min(locked, key=lambda row: row.routine.due_time or time.max)
-        elif system_key:
-            start = next(
-                (
-                    row for row in open_rows
-                    if row.routine.system_key == system_key
-                    and row.status == RoutineRun.STATUS_OPEN
-                ),
-                None,
-            )
+        shift, start = start_with_run(request.user, open_rows)
         start_payload = None
         verify_of = None
         if start is not None:

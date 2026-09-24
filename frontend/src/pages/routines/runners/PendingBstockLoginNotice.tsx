@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Button, Snackbar } from '@mui/material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
+import { hasRunner } from '../todayRunner';
 import { BSTOCK_HANDOFF_PATH, clearPendingBstockToken, peekPendingBstockToken } from './bstockHandoff';
 
 /**
@@ -28,7 +29,9 @@ export function PendingBstockLoginNotice() {
     }
   }, [pending, user]);
 
-  const onOwnPage = location.pathname === BSTOCK_HANDOFF_PATH || location.pathname.startsWith('/routines/run/');
+  const onOwnPage = location.pathname === BSTOCK_HANDOFF_PATH
+    || location.pathname.startsWith('/routines/run/')
+    || (location.pathname === '/today' && hasRunner(new URLSearchParams(location.search)));
   if (!pending || !user?.is_superuser || onOwnPage) return null;
 
   return (

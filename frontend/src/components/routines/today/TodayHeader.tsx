@@ -1,7 +1,12 @@
 import { Box, Chip, Typography } from '@mui/material';
 import { format } from 'date-fns';
 import { t } from '../../../i18n/routines';
+import type { NagTone } from '../../../pages/routines/myWork';
 import { dutyColors } from '../../duty/tokens';
+import { NAG_AMBER } from '../MyWorkList';
+
+/** Chip colour for the nag count: the same grading as the nag icon. */
+export const NAG_CHIP_BG: Record<Exclude<NagTone, 'none'>, string> = { amber: NAG_AMBER, red: dutyColors.red };
 
 export function TodayHeader({
   greeting,
@@ -9,9 +14,8 @@ export function TodayHeader({
   clockedIn,
   onBreak,
   dueCount,
-  lateCount,
-  weekWarn,
-  weekLine,
+  nagCount,
+  nagTone,
   lang,
 }: {
   greeting: string;
@@ -19,9 +23,8 @@ export function TodayHeader({
   clockedIn: boolean;
   onBreak: boolean;
   dueCount: number;
-  lateCount: number;
-  weekWarn: boolean;
-  weekLine: string;
+  nagCount: number;
+  nagTone: NagTone;
   lang: string;
 }) {
   return (
@@ -48,25 +51,18 @@ export function TodayHeader({
             color: onBreak ? dutyColors.amberInk : dutyColors.ink,
           }}
         />
-        {clockedIn ? (
+        {dueCount > 0 ? (
           <Chip
             size="small"
-            label={`${dueCount} ${t('due', lang)}`}
+            label={`${dueCount} ${t('toDoLower', lang)}`}
             sx={{ fontWeight: 700 }}
           />
         ) : null}
-        {clockedIn && lateCount > 0 ? (
+        {nagCount > 0 && nagTone !== 'none' ? (
           <Chip
             size="small"
-            label={t('late', lang)}
-            sx={{ fontWeight: 700, bgcolor: dutyColors.red, color: '#fff' }}
-          />
-        ) : null}
-        {clockedIn && weekWarn ? (
-          <Chip
-            size="small"
-            label={weekLine}
-            sx={{ fontWeight: 700, maxWidth: '100%' }}
+            label={`${nagCount} ${t(nagCount === 1 ? 'naggingOne' : 'nagging', lang)}`}
+            sx={{ fontWeight: 700, bgcolor: NAG_CHIP_BG[nagTone], color: '#fff' }}
           />
         ) : null}
       </Box>

@@ -18,7 +18,7 @@ from .definition import build_responses, merge_responses, score_responses, valid
 from .grading import day_grade, parse_week, week_grade
 from .kinds import non_shelf_checks, outcome, submit_blockers, verify_checks_for
 from .taxonomy import clean_counts, taxonomy
-from .models import Routine, RoutineRun, RoutineSubmission, Section, WorkCyclePrompt
+from .models import QaNudge, Routine, RoutineRun, RoutineSubmission, Section, WorkCyclePrompt
 from .settings import letter_for, retail_qa_settings
 from .schedule import (
     SYSTEM_CLOSE,
@@ -329,6 +329,29 @@ class RoutineApiTests(APITestCase):
         self.assertEqual(mine.status_code, 200)
         self.assertEqual(len(mine.data['open']), 1)
 
+    def test_mine_keeps_the_nudge_note_after_it_is_heard(self):
+        """Nags and nudges share the drawer: Heard clears the message, the run keeps the note."""
+        with patch('apps.routines.schedule._local_now', return_value=self._open_tuesday_now()):
+            materialize_routines(date(2026, 9, 1))
+        run = RoutineRun.objects.get()
+        nudge = QaNudge.objects.create(
+            run=run, created_by=self.owner, employee=self.employee, message='Please finish opening',
+        )
+        self.client.force_authenticate(self.employee)
+        with patch('apps.routines.schedule._local_now', return_value=self._open_tuesday_now()):
+            before = self.client.get('/api/routines/runs/mine/')
+        note = before.data['open'][0]['nudge']
+        self.assertEqual(note['id'], nudge.pk)
+        self.assertEqual(note['message'], 'Please finish opening')
+        self.assertFalse(note['heard'])
+
+        heard = self.client.post(f'/api/routines/qa/nudges/{nudge.pk}/ack/', {'kind': 'heard', 'device': 'Test'})
+        self.assertEqual(heard.status_code, 200, heard.data)
+        with patch('apps.routines.schedule._local_now', return_value=self._open_tuesday_now()):
+            after = self.client.get('/api/routines/runs/mine/')
+        self.assertTrue(after.data['open'][0]['nudge']['heard'])
+        self.assertEqual(self.client.get('/api/routines/qa/nudges/pending/').data['nudges'], [])
+
     def test_mine_and_submit_closes_pooled_run(self):
         with patch('apps.routines.schedule._local_now', return_value=self._open_tuesday_now()):
             materialize_routines(date(2026, 9, 1))
@@ -535,7 +558,7 @@ class SectionRoutineTests(APITestCase):
     """Materialize rules for the three section-shaped routine kinds."""
 
     def setUp(self):
-        self.department = Department.objects.create(name='Retail')
+        self.department = Department.objects.get_or_create(name='Retail')[0]  # a data migration seeds Retail
         self.sam = _staff('sam@example.com')
         self.alex = _staff('alex@example.com')
         self.jo = _staff('jo@example.com')
@@ -549,10 +572,10 @@ class SectionRoutineTests(APITestCase):
         Routine.objects.update(is_active=False)
 
     def _routine(self, **fields):
+        fields.setdefault('assignment', Routine.ASSIGN_PER_PERSON)
         return Routine.objects.create(
             definition={'template_version': 1, 'sections': []},
             trigger=Routine.TRIGGER_DAILY,
-            assignment=Routine.ASSIGN_PER_PERSON,
             assigned_department=self.department,
             assigned_department_ids=[self.department.pk],
             **fields,
@@ -661,6 +684,21 @@ class SectionRoutineTests(APITestCase):
         again = self.client.post(f'/api/routines/runs/{run.pk}/cover/')
         self.assertEqual(again.status_code, 400)
 
+    def test_a_finished_shared_checklist_is_not_created_again(self):
+        """Opening done by Carrie (and assigned to her) must not come back as a new shared run."""
+        shared = self._routine(title='Opening checklist', kind=Routine.KIND_CHECKLIST,
+                               assignment=Routine.ASSIGN_POOLED, audience_all=True)
+        day = date(2026, 9, 1)
+        materialize_routines(day)
+        run = RoutineRun.objects.get(routine=shared)
+        run.assigned_to = self.sam
+        run.status = RoutineRun.STATUS_DONE
+        run.completed_at = timezone.now()
+        run.save(update_fields=['assigned_to', 'status', 'completed_at'])
+        materialize_routines(day)
+        materialize_routines(day)
+        self.assertEqual(RoutineRun.objects.filter(routine=shared, period_key=day.isoformat()).count(), 1)
+
     def test_spot_section_is_empty_until_tallied(self):
         spot = self._routine(title='Spot check', kind=Routine.KIND_OWNER_SPOT)
         spot.assigned_users.set([self.owner])
@@ -684,7 +722,7 @@ class SectionApiTests(APITestCase):
     def setUp(self):
         self.employee = _staff('emp@example.com')
         self.owner = _staff('owner@example.com', 'Admin', superuser=True)
-        self.department = Department.objects.create(name='Retail')
+        self.department = Department.objects.get_or_create(name='Retail')[0]  # a data migration seeds Retail
         self.section = Section.objects.create(
             department=self.department, name='Housewares', owner=self.employee,
         )
@@ -783,7 +821,7 @@ class GradingTests(APITestCase):
     TUESDAY = date(2026, 9, 1)
 
     def setUp(self):
-        self.department = Department.objects.create(name='Retail')
+        self.department = Department.objects.get_or_create(name='Retail')[0]  # a data migration seeds Retail
         self.sam = _staff('sam@example.com')
         self.alex = _staff('alex@example.com')
         self.boss = _staff('boss@example.com', 'Admin', superuser=True)
@@ -791,20 +829,24 @@ class GradingTests(APITestCase):
             department=self.department, name='Housewares', owner=self.sam,
         )
         self.toys = Section.objects.create(department=self.department, name='Toys', owner=self.alex)
+        shifts = {}
         for name, punch in (
             ('Retail Open', SHIFT_RETAIL_OPEN),
             ('Retail Mid', SHIFT_RETAIL_DAY),
             ('Retail Close', SHIFT_RETAIL_CLOSE),
         ):
-            Shift.objects.create(
+            # The seeded Retail department may already have these shifts; set them to known hours.
+            shifts[punch], _created = Shift.objects.update_or_create(
                 department=self.department,
                 name=name,
-                time_in=time(8, 0),
-                time_out=time(16, 0),
-                weekdays=[0, 1, 2, 3, 4],
-                punch_code=punch,
+                defaults={
+                    'time_in': time(8, 0),
+                    'time_out': time(16, 0),
+                    'weekdays': [0, 1, 2, 3, 4],
+                    'punch_code': punch,
+                },
             )
-        day_shift = Shift.objects.get(department=self.department, punch_code=SHIFT_RETAIL_DAY)
+        day_shift = shifts[SHIFT_RETAIL_DAY]
         ShiftAssignment.objects.create(employee=self.sam, shift=day_shift)
         ShiftAssignment.objects.create(employee=self.alex, shift=day_shift)
         Routine.objects.update(is_active=False)
@@ -1015,7 +1057,7 @@ class SectionSubmitTests(APITestCase):
     DAY = date(2026, 9, 1)
 
     def setUp(self):
-        self.department = Department.objects.create(name='Retail')
+        self.department = Department.objects.get_or_create(name='Retail')[0]  # a data migration seeds Retail
         self.sam = _staff('sam@example.com')
         self.alex = _staff('alex@example.com')
         self.housewares = Section.objects.create(

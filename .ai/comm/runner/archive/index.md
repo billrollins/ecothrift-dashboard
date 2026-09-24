@@ -48,4 +48,9 @@ Finished tasks, moved out of `queue.md`. Tasks are in `tasks/`, results in `resu
 | R-042 | test | Tests: vectors (R-041 fix) and product merges | GREEN: 0 NEW | pending |
 | R-043 | test | Tests: routine visibility (today-only covers) | RED: 2 NEW | pending |
 | R-044 | test | Retest: routine visibility (R-043 fixes) | GREEN: 0 NEW | pending |
+| R-045 | test | Tests: routines in one place (Today) | RED: 4 NEW | R-047 |
+| R-046 | test | Tests: finished shared checklist not re-created | RED: 1 NEW | R-047 |
+| R-047 | test | Tests: My day (runner in place, Hours & pay) | RED: 2 NEW | R-049 |
+| R-048 | test | Tests: Dashboard / Today names, compact clock card | GREEN: 0 NEW | pending |
+| R-049 | test | Tests: nags and nudges in one drawer, Hours & pay fills, R-047 fixes | GREEN: 0 NEW | pending |
 

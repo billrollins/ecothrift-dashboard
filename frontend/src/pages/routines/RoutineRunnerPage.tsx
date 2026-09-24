@@ -23,7 +23,7 @@ import { issuesFound, resolveRunnerKind, runnerBlockers, submitLabel } from './r
 
 const DRAFT_DEBOUNCE_MS = 600;
 
-export function RoutineRunnerPage({ runId }: { runId?: number }) {
+export function RoutineRunnerPage({ runId, onClose }: { runId?: number; onClose?: () => void }) {
   const params = useParams();
   const [search] = useSearchParams();
   const navigate = useNavigate();
@@ -140,7 +140,11 @@ export function RoutineRunnerPage({ runId }: { runId?: number }) {
       navigate(ret);
       return;
     }
-    navigate('/routines');
+    if (onClose) {
+      onClose();
+      return;
+    }
+    navigate('/today');
   }
 
   async function handleCancel() {

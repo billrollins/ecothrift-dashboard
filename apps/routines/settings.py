@@ -22,7 +22,7 @@ LATE_RED_MINUTES = 30
 CALL_IN_UNDO_SECONDS = 10
 NUDGE_UNSEEN_MINUTES = 15
 SECTION_DUE_AFTER_PUNCH_MINUTES = 60
-# Mon–Sun. Monday on; Sunday off.
+# Mon-Sun. Monday on; Sunday off.
 SECTION_CHECK_WEEKDAYS = [True, True, True, True, True, True, False]
 WEIGHT_SPOT = 60
 WEIGHT_DO = 25

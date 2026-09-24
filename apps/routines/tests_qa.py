@@ -160,7 +160,7 @@ class SettingsValidationTests(TestCase):
 
 class SpotPoolTests(TestCase):
     def setUp(self):
-        self.department = Department.objects.create(name='Retail')
+        self.department = Department.objects.get_or_create(name='Retail')[0]  # a data migration seeds Retail
         self.sam = _staff('sam@example.com')
         self.owner = _staff('owner@example.com', 'Admin', superuser=True)
         self.section = Section.objects.create(
@@ -244,7 +244,7 @@ class ShiftRosterTests(APITestCase):
     def setUp(self):
         self.mgr = _staff('mgr@example.com', 'Manager')
         self.sam = _staff('sam@example.com')
-        self.department = Department.objects.create(name='Retail')
+        self.department = Department.objects.get_or_create(name='Retail')[0]  # a data migration seeds Retail
         self.shift = Shift.objects.create(
             name='Retail Day',
             department=self.department,
@@ -300,7 +300,7 @@ class ShiftRosterTests(APITestCase):
 class FlagSpeedTests(TestCase):
     def setUp(self):
         self.sam = _staff('sam@example.com')
-        self.department = Department.objects.create(name='Retail')
+        self.department = Department.objects.get_or_create(name='Retail')[0]  # a data migration seeds Retail
         self.section = Section.objects.create(department=self.department, name='Toys')
         self.audit, _ = Routine.objects.update_or_create(
             system_key=SYSTEM_CROSS_CHECK,

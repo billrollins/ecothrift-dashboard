@@ -1,10 +1,16 @@
 import { Box } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 
-/** Red count of work waiting behind a nav row or workspace. Hidden at zero. */
-export function NavWaitingBadge({ count }: { count: number }) {
+export type NavBadgeTone = 'red' | 'amber' | 'grey';
+
+/**
+ * Count of work waiting behind a nav row or workspace. Hidden at zero. Red by default; the
+ * Today badge is neutral grey (a plain "due today" count, not a nag).
+ */
+export function NavWaitingBadge({ count, tone = 'red' }: { count: number; tone?: NavBadgeTone }) {
   const theme = useTheme();
   if (!count) return null;
+  const bg = tone === 'amber' ? '#C98A00' : tone === 'grey' ? theme.palette.grey[600] : theme.palette.error.main;
   return (
     <Box
       component="span"
@@ -15,8 +21,8 @@ export function NavWaitingBadge({ count }: { count: number }) {
         height: 18,
         px: 0.5,
         borderRadius: 999,
-        bgcolor: theme.palette.error.main,
-        color: theme.palette.error.contrastText,
+        bgcolor: bg,
+        color: '#fff',
         fontSize: '0.6875rem',
         fontWeight: 700,
         lineHeight: '18px',

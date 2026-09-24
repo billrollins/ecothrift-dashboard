@@ -1,7 +1,7 @@
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import RoutinesPage from './RoutinesPage';
 
@@ -45,7 +45,8 @@ vi.mock('../../hooks/useAuth', () => ({
 }));
 
 vi.mock('../../hooks/useNavBadgeCounts', () => ({
-  useNavBadgeCounts: () => ({ routines: 0 }),
+  useNavBadgeCounts: () => ({}),
+  useNavBadgeTones: () => ({}),
 }));
 
 vi.mock('../../hooks/useRoutines', () => ({
@@ -61,13 +62,24 @@ vi.mock('../../hooks/useRoutines', () => ({
 
 const theme = createTheme();
 
-function renderPage() {
+function PathProbe() {
+  const location = useLocation();
+  return <div data-testid="path">{`${location.pathname}${location.search}`}</div>;
+}
+
+function renderPage(path = '/routines') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <ThemeProvider theme={theme}>
       <QueryClientProvider client={client}>
-        <MemoryRouter>
-          <RoutinesPage />
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path="/routines" element={<RoutinesPage />} />
+            <Route path="/routines/catalog" element={<RoutinesPage />} />
+            <Route path="/routines/run/:id" element={<RoutinesPage />} />
+            <Route path="/today" element={<div>Today page</div>} />
+          </Routes>
+          <PathProbe />
         </MemoryRouter>
       </QueryClientProvider>
     </ThemeProvider>,
@@ -80,29 +92,30 @@ describe('RoutinesPage', () => {
     setDesk(true);
   });
 
-  it('always renders the remaining groups so the list cannot jump', () => {
-    renderPage();
-    expect(screen.getByRole('heading', { name: 'Routines' })).toBeInTheDocument();
-    expect(screen.getByText('My Routines')).toBeInTheDocument();
-    expect(screen.getByText('Catalog')).toBeInTheDocument();
-    expect(screen.getByText('In progress')).toBeInTheDocument();
-    expect(screen.getByText('Overdue')).toBeInTheDocument();
-    expect(screen.getByText('Due today')).toBeInTheDocument();
-    expect(screen.getByText('On demand')).toBeInTheDocument();
-    expect(screen.queryByText('This week')).not.toBeInTheDocument();
-    expect(screen.queryByText('Done this week')).not.toBeInTheDocument();
-    expect(screen.queryByText('Nothing blocking the floor')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Filter routines')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('New routine')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Edit routine')).not.toBeInTheDocument();
+  it('sends staff from the bare routines list to Today (one place)', () => {
+    renderPage('/routines');
+    expect(screen.getByText('Today page')).toBeInTheDocument();
+    expect(screen.getByTestId('path')).toHaveTextContent('/today');
   });
 
-  it('renders the list in Spanish when the user language is es', () => {
-    authState.language = 'es';
-    renderPage();
-    expect(screen.getByText('Mis rutinas')).toBeInTheDocument();
-    expect(screen.getByText('Catalogo')).toBeInTheDocument();
-    expect(screen.getByText('Para hoy')).toBeInTheDocument();
-    expect(screen.getByText('En curso')).toBeInTheDocument();
+  it('keeps the catalog for superusers only', () => {
+    renderPage('/routines/catalog');
+    expect(screen.getByTestId('path')).toHaveTextContent('/today');
+  });
+
+  it('opens an old run link on Today, beside the list', () => {
+    renderPage('/routines?run=5');
+    expect(screen.getByText('Today page')).toBeInTheDocument();
+    expect(screen.getByTestId('path')).toHaveTextContent('/today?run=5');
+  });
+
+  it('carries a new-run link (routine, draft, return) to Today', () => {
+    renderPage('/routines/run/new?routine=3&draft=9&return=%2Fadmin%2Fretail-qa');
+    expect(screen.getByTestId('path')).toHaveTextContent('/today?routine=3&draft=9&return=%2Fadmin%2Fretail-qa');
+  });
+
+  it('opens a numbered run link on Today', () => {
+    renderPage('/routines/run/12');
+    expect(screen.getByTestId('path')).toHaveTextContent('/today?run=12');
   });
 });

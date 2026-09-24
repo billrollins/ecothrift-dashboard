@@ -3,8 +3,8 @@ import { partsNavWaitingCount } from '../pages/restoration/parts/partsBoard';
 import { useAuth } from './useAuth';
 import { useRestorationPartsOrders } from './useRestorationBench';
 import { useNeedsReplyCount } from './useWebStore';
-import { runsAtLeast } from '../pages/routines/runIsDue';
-import { useMyRoutineRuns } from './useRoutines';
+import type { NavBadgeTone } from '../navigation/NavWaitingBadge';
+import { useMyWork } from './useMyWork';
 
 function useRestorationPartsWaitingCount(enabled: boolean): number {
   // Same live list the command center writes on approve / deny / file, so the
@@ -31,16 +31,26 @@ export function useNavBadgeCounts(options: {
   const { user } = useAuth();
   const nextAction = useNeedsReplyCount({ enabled: options.onlineSales });
   const partsWaiting = useRestorationPartsWaitingCount(Boolean(user?.is_superuser));
-  const routines = useMyRoutineRuns();
-  // The badge is the soft nag: it turns on at remind time, well before the
-  // app-bar alert. Quiet runs stay on the list without a number beside it.
-  const routinesWaiting = runsAtLeast(routines.data?.open, 'soft').length;
+  // Routines live on Today: the badge is the same "to do today" count Today shows
+  // (useMyWork), never a separately computed number.
+  const { work } = useMyWork();
+  const routinesWaiting = work.count;
 
   return useMemo(() => {
     const counts: Record<string, number> = {};
     if (nextAction > 0) counts.onlineSalesCustomers = nextAction;
     if (partsWaiting > 0) counts.restorationPartsRequests = partsWaiting;
-    if (routinesWaiting > 0) counts.routines = routinesWaiting;
+    if (routinesWaiting > 0) counts.today = routinesWaiting;
     return counts;
   }, [nextAction, partsWaiting, routinesWaiting]);
+}
+
+const BADGE_TONES: Record<string, NavBadgeTone> = { today: 'grey' };
+
+/**
+ * Badge colour per nav id; red when not listed. The Today badge is a plain count of
+ * everything due today, so it stays neutral grey. Urgency colour lives on the nag icon only.
+ */
+export function useNavBadgeTones(): Record<string, NavBadgeTone> {
+  return BADGE_TONES;
 }

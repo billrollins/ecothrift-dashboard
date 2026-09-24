@@ -40,16 +40,18 @@ describe('isPhoneFirstPath', () => {
 });
 
 describe('showsPhoneTabBar', () => {
-  it('shows the floor tab bar on Dashboard, Today, Pay, and Routines list', () => {
+  it('shows the floor tab bar on Dashboard, Today, and the routines catalog', () => {
     expect(showsPhoneTabBar('/dashboard')).toBe(true);
     expect(showsPhoneTabBar('/today')).toBe(true);
-    expect(showsPhoneTabBar('/pay')).toBe(true);
+    expect(showsPhoneTabBar('/today', '?hours=1')).toBe(true);
     expect(showsPhoneTabBar('/hr/time-clock')).toBe(false);
     expect(showsPhoneTabBar('/routines')).toBe(true);
     expect(showsPhoneTabBar('/routines/catalog')).toBe(true);
   });
 
   it('hides the tab bar while filling, demoing, or editing a routine', () => {
+    expect(showsPhoneTabBar('/today', '?run=12')).toBe(false);
+    expect(showsPhoneTabBar('/today', 'routine=3&draft=9')).toBe(false);
     expect(showsPhoneTabBar('/routines/run/12')).toBe(false);
     expect(showsPhoneTabBar('/routines', '?run=12')).toBe(false);
     expect(showsPhoneTabBar('/routines/catalog', '?view=4')).toBe(false);
@@ -64,7 +66,7 @@ describe('showsPhoneTabBar', () => {
 
   it('ignores a trailing slash and case', () => {
     expect(showsPhoneTabBar('/Today/')).toBe(true);
-    expect(showsPhoneTabBar('/Pay/')).toBe(true);
+    expect(showsPhoneTabBar('/Dashboard/')).toBe(true);
   });
 });
 
@@ -72,14 +74,12 @@ describe('phoneShellTitle', () => {
   it('labels the slim top bar from the route', () => {
     expect(phoneShellTitle('/dashboard')).toBe('Dashboard');
     expect(phoneShellTitle('/today')).toBe('Today');
-    expect(phoneShellTitle('/pay')).toBe('Pay');
     expect(phoneShellTitle('/routines')).toBe('Routines');
   });
 
   it('translates titles when the language is Spanish', () => {
     expect(phoneShellTitle('/dashboard', 'es')).toBe('Tablero');
     expect(phoneShellTitle('/today', 'es')).toBe('Hoy');
-    expect(phoneShellTitle('/pay', 'es')).toBe('Pago');
     expect(phoneShellTitle('/routines', 'es')).toBe('Rutinas');
   });
 });

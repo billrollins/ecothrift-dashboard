@@ -178,7 +178,7 @@ hasRole(role) => roleRank(user.role) >= roleRank(role)
 
 ### Employee
 
-- Dashboard, HR (**Today** punch at `/today`, **Pay** ledger at `/pay`), Routines
+- Dashboard, HR (**Today** at `/today`: punch, routines, Hours & pay)
 - Inventory (vendors, orders, processing, products, items)
 - POS (terminal, drawers, cash, transactions)
 - No consignment management, no admin, no Time & payroll

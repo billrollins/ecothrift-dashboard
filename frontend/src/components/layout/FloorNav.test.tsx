@@ -21,7 +21,8 @@ vi.mock('../../hooks/useAuth', () => ({
 }));
 
 vi.mock('../../hooks/useNavBadgeCounts', () => ({
-  useNavBadgeCounts: () => ({ routines: 2 }),
+  useNavBadgeCounts: () => ({ today: 2 }),
+  useNavBadgeTones: () => ({ today: 'grey' }),
 }));
 
 const theme = createTheme();
@@ -50,19 +51,19 @@ describe('FloorNav', () => {
     authState.role = 'Employee';
   });
 
-  it('renders Home, Today, Pay, and Routines in that order', () => {
+  it('renders Dashboard and Today in that order (routines, hours and pay live in Today)', () => {
     renderNav();
     const labels = screen.getAllByRole('button').map((node) => node.getAttribute('aria-label'));
-    expect(labels).toEqual(['Home', 'Today', 'Pay', 'Routines']);
+    expect(labels).toEqual(['Dashboard', 'Today']);
   });
 
-  it('marks Home as the current page on /dashboard', () => {
+  it('marks Dashboard as the current page on /dashboard', () => {
     renderNav('/dashboard');
-    expect(screen.getByRole('button', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('button', { name: 'Today' })).not.toHaveAttribute('aria-current');
   });
 
-  it('shows the routines waiting badge in a reserved slot', () => {
+  it('shows the due-today count on Today', () => {
     renderNav();
     expect(screen.getByLabelText('2 waiting')).toBeInTheDocument();
   });
@@ -88,7 +89,7 @@ describe('FloorNav', () => {
   it('does nothing when the active item is clicked', async () => {
     const user = userEvent.setup();
     renderNav('/dashboard');
-    await user.click(screen.getByRole('button', { name: 'Home' }));
+    await user.click(screen.getByRole('button', { name: 'Dashboard' }));
     expect(screen.getByTestId('path')).toHaveTextContent('/dashboard');
   });
 });

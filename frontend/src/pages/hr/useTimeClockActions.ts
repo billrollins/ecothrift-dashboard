@@ -9,8 +9,7 @@ import {
   useSetShift,
   useStartBreak,
 } from '../../hooks/useTimeClock';
-import { useMyRoutineRuns } from '../../hooks/useRoutines';
-import { runsBlockingClockOut } from '../routines/runIsDue';
+import { useMyWork } from '../../hooks/useMyWork';
 import { t } from '../../i18n/routines';
 
 function errorDetail(err: unknown, fallback: string): string {
@@ -30,12 +29,13 @@ export function useTimeClockActions() {
   const setShiftMut = useSetShift();
   const startBreak = useStartBreak();
   const endBreak = useEndBreak();
-  const myRoutines = useMyRoutineRuns();
+  // Clock-out lists exactly what Today lists as still to do today (one model everywhere).
+  const { work } = useMyWork();
   const [guardOpen, setGuardOpen] = useState(false);
 
   const entry = current.data;
   const onBreak = Boolean(entry?.on_break);
-  const owed = runsBlockingClockOut(myRoutines.data?.open);
+  const owed = work.owed.map((item) => item.run);
 
   async function clockIn(shift: string) {
     try {

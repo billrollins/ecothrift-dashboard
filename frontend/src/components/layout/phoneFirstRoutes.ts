@@ -1,4 +1,5 @@
 import { t } from '../../i18n/routines';
+import { hasRunner } from '../../pages/routines/todayRunner';
 
 /**
  * Which routes are designed phone-first.
@@ -27,7 +28,7 @@ const PHONE_FIRST_OVERRIDES = ['/pos/deliveries/field'];
  * Routines list/catalog share the bar. Fill, demo, and edit replace it
  * with RoutinePhoneBar (save/cancel or the demo/preview chip).
  */
-const PHONE_TAB_BAR_PATHS = ['/dashboard', '/today', '/pay'] as const;
+const PHONE_TAB_BAR_PATHS = ['/dashboard', '/today'] as const;
 
 function matchesPrefix(path: string, prefix: string): boolean {
   return path === prefix || path.startsWith(`${prefix}/`);
@@ -56,13 +57,14 @@ function isRoutinePhoneList(path: string, search: string): boolean {
 export function showsPhoneTabBar(pathname: string, search = ''): boolean {
   const path = normalizePath(pathname);
   if (isRoutinePhoneList(path, search)) return true;
+  // A routine open on Today has its own Save / Cancel bar.
+  if (matchesPrefix(path, '/today') && hasRunner(new URLSearchParams(search.replace(/^\?/, '')))) return false;
   return PHONE_TAB_BAR_PATHS.some((prefix) => matchesPrefix(path, prefix));
 }
 
 export function phoneShellTitle(pathname: string, language?: string | null): string {
   const path = normalizePath(pathname);
   if (matchesPrefix(path, '/today')) return t('today', language);
-  if (matchesPrefix(path, '/pay')) return t('pay', language);
   if (matchesPrefix(path, '/routines')) return t('routines', language);
   return t('dashboard', language);
 }

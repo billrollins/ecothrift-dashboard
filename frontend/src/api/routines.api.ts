@@ -260,6 +260,15 @@ export interface Routine {
   runner?: WorkCycleRunnerContext;
 }
 
+export interface RunNudge {
+  id: number;
+  /** First name of whoever sent it; blank when the app sent it (a hard deadline passed). */
+  by: string;
+  at: string;
+  message: string;
+  heard: boolean;
+}
+
 export interface RoutineRun {
   id: number;
   routine: number;
@@ -308,6 +317,8 @@ export interface RoutineRun {
   miss_reason_note?: string;
   /** This user's draft, on open rows from /mine/. Null when untouched. */
   progress?: { answered: number; total: number } | null;
+  /** The latest nudge on an open row from /mine/. Stays after Heard, until the run is done. */
+  nudge?: RunNudge | null;
   definition?: RoutineDefinition;
   draft?: RoutineSubmission | null;
   /** The submitted answers, on a finished run from /runs/:id/. */
@@ -393,6 +404,8 @@ export interface RoutineDraft {
 
 export interface MyRoutines {
   open: RoutineRun[];
+  /** The run Today leads with (shift checklist or shift-locked run); same pick as /today/. */
+  start_with_id?: number | null;
   done: RoutineRun[];
   on_demand: Routine[];
   drafts: RoutineDraft[];

@@ -37,7 +37,8 @@ export function ShiftHeroCard({
   const now = useNowTick(Boolean(entry));
   const onBreak = Boolean(entry?.on_break);
   const elapsed = elapsedSeconds(entry, now);
-  const status = weekStatusLine(weekly, onBreak, elapsed, lang);
+  // Only notes about this shift (on break, very long). Weekly hours live in Hours & pay.
+  const shiftNote = onBreak || elapsed > 16 * 3600 ? weekStatusLine(weekly, onBreak, elapsed, lang) : null;
   const [shiftEl, setShiftEl] = useState<null | HTMLElement>(null);
 
   if (!entry) {
@@ -49,13 +50,15 @@ export function ShiftHeroCard({
     );
   }
 
+  // Compact on purpose: status, timer and punch buttons, so Today's list gets the room.
   return (
-    <Box sx={cardSx}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+    <Box sx={{ ...cardSx, pt: 1.5, pb: 1.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minHeight: 32 }}>
         <Box
           sx={{
             width: 10,
             height: 10,
+            flexShrink: 0,
             borderRadius: '50%',
             bgcolor: onBreak ? dutyColors.amberBg : dutyColors.brand,
             animation: onBreak ? 'none' : 'livePulse 1.6s ease-in-out infinite',
@@ -72,26 +75,13 @@ export function ShiftHeroCard({
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
             color: onBreak ? dutyColors.amberInk : dutyColors.brand,
+            flex: '1 0 auto',
           }}
         >
           {t(onBreak ? 'onBreak' : 'onTheClock', lang)}
         </Typography>
-      </Box>
-      <Typography
-        sx={{
-          mt: 0.75,
-          fontSize: 52,
-          fontWeight: 900,
-          lineHeight: 1,
-          fontVariantNumeric: 'tabular-nums',
-          color: onBreak ? dutyColors.amberInk : dutyColors.ink,
-        }}
-      >
-        {formatElapsed(elapsed)}
-      </Typography>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, minHeight: 32 }}>
         <ShiftChip code={entry.shift} label={entry.shift_label} lang={lang} />
-        <Button size="small" onClick={(e) => setShiftEl(e.currentTarget)}>
+        <Button size="small" onClick={(e) => setShiftEl(e.currentTarget)} sx={{ minWidth: 0, px: 1 }}>
           {t('changeShift', lang)}
         </Button>
         <ShiftMenu
@@ -105,16 +95,31 @@ export function ShiftHeroCard({
           }}
         />
       </Box>
-      <Typography sx={{ fontSize: 13, color: dutyColors.ink60, minHeight: 20, mt: 0.5 }}>
-        {t('clockedInAt', lang)} {format(parseISO(entry.clock_in), 'h:mm a')}
-        {onBreak && entry.break_started_at
-          ? ` · ${t('breakSince', lang)} ${format(parseISO(entry.break_started_at), 'h:mm a')}`
-          : ''}
-      </Typography>
-      <Box sx={{ minHeight: actions ? 128 : 0, mt: actions ? 1.5 : 0 }}>{actions}</Box>
-      <Typography sx={{ fontSize: 13, fontWeight: 700, color: status.color, minHeight: 20, mt: 1 }}>
-        {status.text}
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.25, mt: 0.5, flexWrap: 'wrap' }}>
+        <Typography
+          sx={{
+            fontSize: 36,
+            fontWeight: 900,
+            lineHeight: 1.05,
+            fontVariantNumeric: 'tabular-nums',
+            color: onBreak ? dutyColors.amberInk : dutyColors.ink,
+          }}
+        >
+          {formatElapsed(elapsed)}
+        </Typography>
+        <Typography sx={{ fontSize: 12.5, color: dutyColors.ink60 }}>
+          {t('clockedInAt', lang)} {format(parseISO(entry.clock_in), 'h:mm a')}
+          {onBreak && entry.break_started_at
+            ? ` · ${t('breakSince', lang)} ${format(parseISO(entry.break_started_at), 'h:mm a')}`
+            : ''}
+        </Typography>
+      </Box>
+      {actions ? <Box sx={{ mt: 1.25 }}>{actions}</Box> : null}
+      {shiftNote ? (
+        <Typography sx={{ fontSize: 13, fontWeight: 700, color: shiftNote.color, mt: 1 }}>
+          {shiftNote.text}
+        </Typography>
+      ) : null}
     </Box>
   );
 }

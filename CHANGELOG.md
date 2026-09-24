@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.101.1] -->
-<!-- Last reviewed: 2026-09-24 (2.101.1) -->
+<!-- Line 1 release: ## [2.102.0] -->
+<!-- Last reviewed: 2026-09-24 (2.102.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.102.0] - 2026-09-24
+
+User-facing theme: **Today is the one place for your shift: routines, hours and pay, with one number and the same colours everywhere.**
+
+Outside initiatives (routines UX, from staff feedback 2026-09-23/24).
+
+### Changed
+
+- **Names:** the floor tabs are **Dashboard** and **Today** everywhere (the phone tab used to say Home). The Pay and Routines tabs are gone.
+- **Today holds everything for your shift:** the clock, today's routines, and **Hours & pay**. Hours & pay is one line (this week's hours and hours left) with a tag when something needs a look: near or at the weekly limit, a flagged shift, or a time change waiting. Tap it for the pay period, past periods and recent shifts, where a shift opens a time change request. "h left this week" is said once, not three times. Hours & pay starts open; on a desk it runs to the bottom of the column, level with To do today, and shows as many recent shifts as fit ("More shifts" scrolls the rest). Old `/pay` links open Today. The on-the-clock card is compact (status, timer, break and clock-out side by side), so the list gets the room.
+- **Routines run inside Today.** On a desk, Start or Continue slides the shift column away and opens the phone runner to the right of the list; closing it slides back. On a phone the routine takes the screen and Back returns. Old `/routines/run/...` links (Command Center, POS register activity, notifications) land there.
+- **Colour grades, one per state:** grey = later today, **amber = soft nag** (its reminder has passed), **red = hard nag or late**. To do today is split into **Do now** (red), **Due soon** (amber) and **Later today** (grey), with a "Next up" card for the first thing to do.
+- **Two numbers, each with one meaning:** the Today badge counts **everything due today** and stays grey. The app-bar nag counts **everything nagging** (due soon, due now, late), takes the colour of the worst one, and hides when nothing nags. Every routine surface reads the same list (`useMyWork`).
+- **Nags and nudges are one thing, in one drawer.** The nag drawer shows **Messages** first (nudges from a manager, or from the app at a hard deadline), then the same sections as Today, plus an "Open Today" button. A new message opens the drawer by itself; it replaces the full-screen "You were nudged" popup. Only the person clears a message, with **Heard** ("I'm not Bill" still signs out a shared register). A nudged routine keeps a "Nudged by Carrie 2:10 PM" note after Heard and counts as a red nag until it is done. Messages between people can use the same section later.
+- Every row says one of **Due 4:00 PM / By clock-out / Due now / Late**, plus "In progress 3/9". Weekly and monthly routines due on a later day show under **Coming up**.
+- **My QA is gone.** It repeated the to-do list and weekly store numbers staff could not act on. Managers keep the Command Center.
+- The routines catalog is in **Admin > Routines** (superusers).
+
+### Fixed
+
+- A finished shared checklist (Open, Day or Close) no longer comes back as a new one to do. On 09-24 production had two Opening checklists.
+- Routines tests set up the Retail department the data migrations already seed, instead of failing on a duplicate name.
 
 ## [2.101.1] - 2026-09-24
 

@@ -37,13 +37,14 @@ import { dutyColors } from '../duty/tokens';
 import { RESTORATION_BENCH_PATH } from '../../pages/restoration/restorationRoutes';
 import { t } from '../../i18n/routines';
 import { RoutinesNag } from '../routines/RoutinesNag';
-import { useNavBadgeCounts } from '../../hooks/useNavBadgeCounts';
+import { useNavBadgeCounts, useNavBadgeTones } from '../../hooks/useNavBadgeCounts';
 import { resolveNavItem } from '../../navigation/navResolve';
 import { navigateForNavItem } from '../../navigation/navUtils';
 import { NavWaitingBadge } from '../../navigation/NavWaitingBadge';
-import { NudgeBlockingDialog } from '../routines/NudgeBlockingDialog';
+import { hasRunner } from '../../pages/routines/todayRunner';
 
-const PROFILE_NAV_IDS = ['today', 'pay', 'routines'] as const;
+// Hours & pay live on Today now; the menu has one way in.
+const PROFILE_NAV_IDS = ['today'] as const;
 
 const DASHBOARD_BACKDROP = dashboardPalette.backdrop;
 
@@ -59,7 +60,8 @@ export default function MainLayout() {
   const location = useLocation();
   const isDashboard = location.pathname === '/dashboard';
   const isToday = location.pathname === '/today' || location.pathname.startsWith('/today/');
-  const isPay = location.pathname === '/pay' || location.pathname.startsWith('/hr/time-clock');
+  // A routine open on Today draws its own pane edge to edge, like the runner always did.
+  const isTodayRunner = isToday && hasRunner(new URLSearchParams(location.search));
   const isRestoration = location.pathname.startsWith('/restoration');
   const isRestorationBench = location.pathname === RESTORATION_BENCH_PATH;
   const isFieldMobile = isMobile && location.pathname.startsWith('/pos/deliveries/field');
@@ -67,9 +69,10 @@ export default function MainLayout() {
   const isRoutines = location.pathname.startsWith('/routines') || location.pathname.startsWith('/admin/routines');
   const isRetailQa = location.pathname.startsWith('/admin/retail-qa');
   const isStaffRoutines = location.pathname.startsWith('/routines');
-  const isFloorDesk = !isMobile && (isDashboard || isToday || isPay || isStaffRoutines);
+  const isFloorDesk = !isMobile && (isDashboard || isToday || isStaffRoutines);
   const isPhoneShell = isMobile && showsPhoneTabBar(location.pathname, location.search);
   const profileBadges = useNavBadgeCounts({ onlineSales: false });
+  const profileTones = useNavBadgeTones();
   const profileNavItems = PROFILE_NAV_IDS
     .map((id) => resolveNavItem(id))
     .filter((item): item is NonNullable<typeof item> => item != null);
@@ -253,7 +256,7 @@ export default function MainLayout() {
                         <ListItemIcon><item.Icon fontSize="small" /></ListItemIcon>
                         <ListItemText primary={item.label} />
                         <Box sx={{ width: 28, display: 'flex', justifyContent: 'flex-end' }}>
-                          <NavWaitingBadge count={profileBadges[item.id] ?? 0} />
+                          <NavWaitingBadge count={profileBadges[item.id] ?? 0} tone={profileTones[item.id]} />
                         </Box>
                       </MenuItem>
                     ))}
@@ -326,8 +329,8 @@ export default function MainLayout() {
             display: 'flex',
             flexDirection: 'column',
             overflowX: 'hidden',
-            overflowY: isRestorationBench || isRoutines || isRetailQa ? 'hidden' : 'auto',
-            p: isFieldMobile || isRoutines || isRetailQa || isFloorDesk || (isPhoneShell && (isDashboard || isToday || isPay))
+            overflowY: isRestorationBench || isRoutines || isRetailQa || (isMobile && isTodayRunner) ? 'hidden' : 'auto',
+            p: isFieldMobile || isRoutines || isRetailQa || isFloorDesk || isToday || (isPhoneShell && isDashboard)
               ? 0
               : isRestoration
                 ? { xs: 0.75, md: 1 }
@@ -356,7 +359,6 @@ export default function MainLayout() {
         </Box>
         {isPhoneShell ? <PhoneTabBar /> : null}
       </Box>
-      {user ? <NudgeBlockingDialog /> : null}
     </Box>
   );
 }
