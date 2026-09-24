@@ -6,6 +6,9 @@ import { t } from '../../i18n/routines';
 import { dutyColors } from '../duty/tokens';
 import { elapsedSeconds, formatElapsed, useNowTick } from '../../pages/hr/timeClockFormat';
 import { eyebrowSx, ShiftChip, ShiftMenu, ShiftPicker } from './ShiftPicker';
+import type { HoursNag } from '../../hooks/useHoursNag';
+import { ForgottenClockOutCard } from './ForgottenClockOutCard';
+import { HoursNagCard } from './HoursNagCard';
 import { weekStatusLine } from './weekStatus';
 
 const cardSx = {
@@ -20,19 +23,27 @@ const cardSx = {
 export function ShiftHeroCard({
   entry,
   weekly,
+  hoursNag,
   lang,
   actions,
   onClockIn,
   pendingClockIn,
   onSetShift,
+  onFixForgotten,
+  pendingFix,
 }: {
   entry: TimeEntry | null | undefined;
   weekly: WeeklyHoursStatus | undefined;
+  /** The weekly-hours nag (amber an hour out, red at the limit); shown under the buttons. */
+  hoursNag?: HoursNag;
   lang: string;
   actions?: ReactNode;
   onClockIn: (shift: string) => void;
   pendingClockIn?: boolean;
   onSetShift: (shift: string) => void;
+  /** Close a forgotten punch at the time they left (ISO). */
+  onFixForgotten?: (clockOutIso: string) => void;
+  pendingFix?: boolean;
 }) {
   const now = useNowTick(Boolean(entry));
   const onBreak = Boolean(entry?.on_break);
@@ -48,6 +59,11 @@ export function ShiftHeroCard({
         <ShiftPicker lang={lang} pending={pendingClockIn} onPick={onClockIn} />
       </Box>
     );
+  }
+
+  // Never clocked out: ask when they left instead of showing a 24-hour timer.
+  if (entry.stale && onFixForgotten) {
+    return <ForgottenClockOutCard entry={entry} lang={lang} pending={pendingFix} onFix={onFixForgotten} />;
   }
 
   // Compact on purpose: status, timer and punch buttons, so Today's list gets the room.
@@ -115,6 +131,11 @@ export function ShiftHeroCard({
         </Typography>
       </Box>
       {actions ? <Box sx={{ mt: 1.25 }}>{actions}</Box> : null}
+      {hoursNag && hoursNag.level !== 'none' ? (
+        <Box sx={{ mt: 1.25 }}>
+          <HoursNagCard nag={hoursNag} lang={lang} />
+        </Box>
+      ) : null}
       {shiftNote ? (
         <Typography sx={{ fontSize: 13, fontWeight: 700, color: shiftNote.color, mt: 1 }}>
           {shiftNote.text}

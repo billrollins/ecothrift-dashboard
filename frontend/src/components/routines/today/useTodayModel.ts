@@ -6,6 +6,9 @@ import { t } from '../../../i18n/routines';
 import { useNowTick } from '../../../pages/hr/timeClockFormat';
 import { useTimeClockActions } from '../../../pages/hr/useTimeClockActions';
 import { useTodayRunner } from '../../../pages/routines/todayRunner';
+import { useHoursNag } from '../../../hooks/useHoursNag';
+import { useNagMessages } from '../NagMessages';
+import { nagSummary } from '../nagSummary';
 import { greetingKey } from '../../hr/weekStatus';
 
 export function glanceHref(run: RoutineRun): string {
@@ -20,6 +23,10 @@ export function useTodayModel() {
   const weekly = useWeeklyHoursStatus();
   const clock = useTimeClockActions();
   const runner = useTodayRunner();
+  // The header chip counts exactly what the app-bar nag counts: routines, messages, hours.
+  const hours = useHoursNag();
+  const inbox = useNagMessages();
+  const nag = nagSummary(work, inbox.messages.map((row) => row.run_id), hours.level);
   const now = useNowTick(true);
   const clockedIn = Boolean(clock.entry);
   const firstName = user?.first_name?.trim() || '';
@@ -32,6 +39,8 @@ export function useTodayModel() {
     weekly,
     clock,
     runner,
+    hours,
+    nag,
     now,
     work,
     clockedIn,

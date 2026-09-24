@@ -79,7 +79,7 @@ export const KIOSK_STRINGS: Record<string, { en: string; es: string }> = {
   staleTitle: { en: 'You never clocked out', es: 'No marcaste tu salida' },
   staleBody: { en: 'Your last punch is still open from', es: 'Tu ultima entrada sigue abierta desde' },
   staleSuggest: { en: "We'll close it at", es: 'La cerraremos a las' },
-  staleNote: { en: 'A manager will confirm the time in Pay.', es: 'Un gerente confirmara la hora en Pago.' },
+  staleNote: { en: 'A manager will confirm the time.', es: 'Un gerente confirmara la hora.' },
   fixIt: { en: 'Fix it', es: 'Arreglarlo' },
 
   // Gate
@@ -100,7 +100,7 @@ export const KIOSK_STRINGS: Record<string, { en: string; es: string }> = {
 
   // Warnings (never blocking)
   warnStoreClosed: { en: 'The store is closed today.', es: 'La tienda esta cerrada hoy.' },
-  warnOvertime: { en: "You're at the weekly hour limit.", es: 'Llegaste al limite de horas de la semana.' },
+  warnOvertime: { en: "You're at 40 hours this week. No overtime is approved.", es: 'Llegaste a 40 horas esta semana. No hay horas extra aprobadas.' },
   warnLate: { en: "You're {minutes} min late for {shift}.", es: 'Llegas {minutes} min tarde para {shift}.' },
   alreadyIn: { en: 'Already clocked in.', es: 'Ya estas en turno.' },
 

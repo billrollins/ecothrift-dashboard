@@ -32,6 +32,7 @@ from .serializers import (
     SickLeaveBalanceSerializer, SickLeaveRequestSerializer,
     ShiftSerializer, ShiftAssignmentSerializer,
 )
+from .services.forgotten_punch import close_forgotten_punch, parse_clock_out, stale_info
 from .services.time_clock_utils import weekly_status_for_employee, week_bounds
 from .services.payroll_periods import list_payroll_periods
 from .services.roster import build_time_roster, shift_hours
@@ -240,6 +241,13 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
                 {'detail': 'Already clocked out.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        # A forgotten punch closed "now" becomes a 24-hour shift. The person says when they
+        # left instead (fix_forgotten). A manager clocking someone else out is not stopped.
+        if entry.employee_id == request.user.pk and stale_info(entry):
+            return Response(
+                {'detail': 'You never clocked out. Say when you left.', 'code': 'stale_punch'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if entry.on_break:
             entry.finalize_open_break()
         entry.clock_out = timezone.now()
@@ -247,6 +255,17 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
             entry.break_minutes = request.data.get('break_minutes', entry.break_minutes)
         entry.save()
         return Response(TimeEntrySerializer(entry).data)
+
+    @action(detail=True, methods=['post'])
+    def fix_forgotten(self, request, pk=None):
+        """Close a forgotten punch at the time the person left; a manager confirms it."""
+        entry = self.get_object()
+        user = request.user
+        is_manager = user.role in ('Manager', 'Admin') or user.is_superuser
+        if entry.employee_id != user.pk and not is_manager:
+            return Response({'detail': 'Not your punch.'}, status=status.HTTP_403_FORBIDDEN)
+        closed = close_forgotten_punch(entry, clock_out=parse_clock_out(request.data.get('clock_out')))
+        return Response(TimeEntrySerializer(closed).data)
 
     @action(detail=True, methods=['post'])
     def start_break(self, request, pk=None):
@@ -327,7 +346,10 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
             employee=request.user, clock_out__isnull=True,
         ).first()
         if entry:
-            return Response(TimeEntrySerializer(entry).data)
+            data = TimeEntrySerializer(entry).data
+            # Open 14 hours or more: Today asks when they left instead of showing a timer.
+            data['stale'] = stale_info(entry)
+            return Response(data)
         return Response(None)
 
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])

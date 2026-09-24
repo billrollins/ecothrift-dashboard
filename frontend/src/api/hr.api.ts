@@ -179,6 +179,11 @@ export function clockOut(id: number, breakMinutes?: number): Promise<{ data: Tim
   return api.post<TimeEntry>(`/hr/time-entries/${id}/clock_out/`, { break_minutes: breakMinutes });
 }
 
+/** Close a forgotten punch (open 14h+) at the time the person left; files a request to confirm. */
+export function fixForgottenClockOut(id: number, clockOut?: string): Promise<{ data: TimeEntry }> {
+  return api.post<TimeEntry>(`/hr/time-entries/${id}/fix_forgotten/`, clockOut ? { clock_out: clockOut } : {});
+}
+
 export function startBreak(id: number): Promise<{ data: TimeEntry }> {
   return api.post<TimeEntry>(`/hr/time-entries/${id}/start_break/`);
 }

@@ -1,5 +1,6 @@
 import { Box } from '@mui/material';
 import { dutyColors } from '../../duty/tokens';
+import { ClockInLimitDialog } from '../../hr/ClockInLimitDialog';
 import { HoursPayPanel } from '../../hr/HoursPayPanel';
 import { ShiftHeroCard } from '../../hr/ShiftHeroCard';
 import { PhoneFrame } from '../../layout/PhoneFrame';
@@ -12,7 +13,7 @@ import { useTodayModel } from './useTodayModel';
 
 export function TodayPhone() {
   const model = useTodayModel();
-  const { lang, weekly, clock, runner, now, work, clockedIn, loadingLists, greeting } = model;
+  const { lang, weekly, clock, runner, hours, nag, now, work, clockedIn, loadingLists, greeting } = model;
 
   // A routine takes the whole screen on a phone; Back (or Save / Cancel) returns to Today.
   if (runner.open) {
@@ -45,18 +46,21 @@ export function TodayPhone() {
         clockedIn={clockedIn}
         onBreak={clock.onBreak}
         dueCount={work.count}
-        nagCount={work.nagCount}
-        nagTone={work.nagTone}
+        nagCount={nag.count}
+        nagTone={nag.tone}
         lang={lang}
       />
 
       <ShiftHeroCard
         entry={clock.entry}
         weekly={weekly.data}
+        hoursNag={hours}
         lang={lang}
         onClockIn={(shift) => { void clock.clockIn(shift); }}
         pendingClockIn={clock.pending.clockIn}
         onSetShift={clock.setShift}
+        onFixForgotten={(at) => { void clock.fixForgotten(at); }}
+        pendingFix={clock.pending.fix}
         actions={clockedIn ? (
           <PunchActions
             onBreak={clock.onBreak}
@@ -73,6 +77,13 @@ export function TodayPhone() {
 
       <HoursPayPanel />
 
+      <ClockInLimitDialog
+        open={clock.limitOpen}
+        lang={lang}
+        busy={clock.pending.clockIn}
+        onCancel={clock.closeLimit}
+        onConfirm={clock.confirmLimit}
+      />
       <ClockOutRoutineGuard
         open={clock.guardOpen}
         runs={clock.owed}

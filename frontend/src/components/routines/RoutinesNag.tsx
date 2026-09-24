@@ -6,12 +6,14 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useMyWork } from '../../hooks/useMyWork';
 import { pick, t } from '../../i18n/routines';
+import { useHoursNag } from '../../hooks/useHoursNag';
 import type { NagTone } from '../../pages/routines/myWork';
-import { isNagging } from '../../pages/routines/myWork';
 import { todayHref } from '../../pages/routines/todayRunner';
 import { dutyColors } from '../duty/tokens';
+import { HoursNagCard, hoursNagText } from '../hr/HoursNagCard';
 import { MyWorkList, NAG_AMBER } from './MyWorkList';
 import { NagMessages, useNagMessages } from './NagMessages';
+import { nagSummary } from './nagSummary';
 import { glanceHref } from './today/useTodayModel';
 
 const NAG_COLOR: Record<Exclude<NagTone, 'none'>, string> = { amber: NAG_AMBER, red: dutyColors.red };
@@ -29,6 +31,7 @@ export function RoutinesNag() {
   const navigate = useNavigate();
   const { work } = useMyWork();
   const inbox = useNagMessages();
+  const hours = useHoursNag();
   const [open, setOpen] = useState(false);
   const seen = useRef<Set<number>>(new Set());
 
@@ -42,9 +45,7 @@ export function RoutinesNag() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messageKey]);
 
-  const nagging = new Set(work.owed.filter((item) => isNagging(item.state)).map((item) => item.run.id));
-  const count = work.nagCount + messages.filter((row) => !nagging.has(row.run_id)).length;
-  const tone: NagTone = messages.length ? 'red' : work.nagTone;
+  const { count, tone } = nagSummary(work, messages.map((row) => row.run_id), hours.level);
   const next = work.next;
 
   function go(href: string) {
@@ -57,9 +58,11 @@ export function RoutinesNag() {
     return <Box sx={{ width: 44, height: 44 }} />;
   }
   const color = NAG_COLOR[tone];
-  const tip = messages[0]
-    ? messages[0].message || t('pleaseFinish', lang)
-    : next ? `${pick(next.run, 'title', lang) || next.run.title} · ${next.label}` : '';
+  const tip = hours.level === 'hard'
+    ? hoursNagText(hours, lang).title
+    : messages[0]
+      ? messages[0].message || t('pleaseFinish', lang)
+      : next ? `${pick(next.run, 'title', lang) || next.run.title} · ${next.label}` : '';
 
   return (
     <Box sx={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -93,6 +96,11 @@ export function RoutinesNag() {
           </IconButton>
         </Box>
         <Box sx={{ flex: 1, overflowY: 'auto', px: 1 }}>
+          {hours.level !== 'none' ? (
+            <Box sx={{ mx: 1.5, mb: 1 }}>
+              <HoursNagCard nag={hours} lang={lang} onOpen={() => go('/today?hours=1')} />
+            </Box>
+          ) : null}
           <NagMessages
             messages={messages}
             busy={inbox.busy}

@@ -4,6 +4,7 @@ import {
   createTimeEntry,
   setTimeEntryShift,
   clockOut,
+  fixForgottenClockOut,
   startBreak,
   endBreak,
   getWeeklyHoursStatus,
@@ -83,6 +84,21 @@ export function useClockOut() {
       return data;
     },
     onSuccess: () => invalidateTimeClock(queryClient),
+  });
+}
+
+export function useFixForgotten() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, clockOut }: { id: number; clockOut?: string }) => {
+      const { data } = await fixForgottenClockOut(id, clockOut);
+      return data;
+    },
+    onSuccess: () => {
+      invalidateTimeClock(queryClient);
+      queryClient.invalidateQueries({ queryKey: ['modRequests'] });
+    },
   });
 }
 

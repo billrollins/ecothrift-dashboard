@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.102.0] -->
-<!-- Last reviewed: 2026-09-24 (2.102.0) -->
+<!-- Line 1 release: ## [2.103.0] -->
+<!-- Last reviewed: 2026-09-24 (2.103.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.103.0] - 2026-09-24
+
+User-facing theme: **No overtime is approved, so the 40-hour week nags like a routine.**
+
+### Added
+
+- **Weekly hours nag** while clocked in: **amber** with an hour or less left this week ("30 min left this week · Clock out by 4:15 PM"), **red** at 40 hours ("Clock out now. No overtime is approved."). It shows on the Today clock card and in the nag drawer, and counts in the nag icon and the Today header chip (one shared count: routines, messages, hours).
+- **Clocking in at the weekly limit asks first** (Today): "No overtime is approved. Talk to a manager before you clock in." with Cancel or Clock in anyway. It never blocks, because the hours can be wrong after a forgotten clock-out. The kiosk warning says the same.
+
+- **Forgotten clock-out, fixed on Today.** A shift open 14 hours or more shows "You never clocked out" instead of a timer: pick when you left (the roster time out or store close is filled in), and the shift closes at that time with a time change request for a manager to confirm. Clock out is refused for such a shift, because closing it at "now" turned a 7-hour day into a 24-hour shift (Carrie, 09-23). The hours nag stays quiet until it is fixed. Same rules as the kiosk. New `POST /api/hr/time-entries/{id}/fix_forgotten/`; `current` returns `stale`.
+
+### Changed
+
+- **Hours & pay starts folded on a phone** (open on a desk). Old `/pay` links still open it.
+- The limit messages no longer say to request a time change first; they say to clock out now, and point to a time change only if the hours look wrong.
 
 ## [2.102.0] - 2026-09-24
 

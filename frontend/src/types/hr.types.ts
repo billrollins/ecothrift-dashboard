@@ -41,6 +41,8 @@ export interface TimeEntry {
   break_started_at: string | null;
   total_hours: string | null;
   status: 'pending' | 'approved' | 'flagged';
+  /** On the current punch only: open 14h+, so it was almost surely never clocked out. */
+  stale?: { since: string; suggested_clock_out: string } | null;
   approved_by: number | null;
   approved_by_name: string | null;
   notes: string;

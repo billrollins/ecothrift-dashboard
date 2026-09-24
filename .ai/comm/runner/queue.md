@@ -6,8 +6,6 @@ Each task file starts with a **Start here** header, so you can drop that one fil
 
 | ID | Type | Status | Title | Task | Result |
 |---|---|---|---|---|---|
-| R-050 | — | hold | (slot: coder fills) | | |
-| R-051 | — | hold | (slot: coder fills) | | |
 | R-052 | — | hold | (slot: coder fills) | | |
 | R-053 | — | hold | (slot: coder fills) | | |
 | R-054 | — | hold | (slot: coder fills) | | |

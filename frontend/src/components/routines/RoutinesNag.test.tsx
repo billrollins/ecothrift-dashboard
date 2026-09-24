@@ -4,12 +4,14 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MyRoutines, QaNudgeRow } from '../../api/routines.api';
+import type { HoursNag } from '../../hooks/useHoursNag';
 import { fakeRun } from '../../pages/routines/routineFixture';
 import { RoutinesNag } from './RoutinesNag';
 
 const state = vi.hoisted(() => ({
   mine: { open: [], done: [], drafts: [], on_demand: [], idle_prompt_minutes: 20 } as MyRoutines,
   nudges: [] as QaNudgeRow[],
+  hours: { level: 'none', worked: 20, limit: 40, left: 20, clockOutBy: null } as HoursNag,
   ack: vi.fn(async () => ({})),
   logout: vi.fn(async () => undefined),
 }));
@@ -25,6 +27,10 @@ vi.mock('../../hooks/useRoutines', () => ({
 vi.mock('../../hooks/useRetailQa', () => ({
   usePendingQaNudges: () => ({ data: { nudges: state.nudges } }),
   useAckQaNudge: () => ({ mutateAsync: state.ack, isPending: false }),
+}));
+
+vi.mock('../../hooks/useHoursNag', () => ({
+  useHoursNag: () => state.hours,
 }));
 
 vi.mock('../../hooks/useDeviceConfig', () => ({
@@ -48,6 +54,7 @@ describe('RoutinesNag', () => {
   beforeEach(() => {
     state.mine = { open: [], done: [], drafts: [], on_demand: [], idle_prompt_minutes: 20 };
     state.nudges = [];
+    state.hours = { level: 'none', worked: 20, limit: 40, left: 20, clockOutBy: null };
     state.ack.mockClear();
   });
 
@@ -93,5 +100,24 @@ describe('RoutinesNag', () => {
     expect(screen.getByText('From Carrie Smith', { exact: false })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Heard' }));
     expect(state.ack).toHaveBeenCalledWith({ id: 3, kind: 'heard', device: 'Register 1' });
+  });
+
+  it('nags red at the weekly hour limit, even with no routines due', async () => {
+    const user = userEvent.setup();
+    state.hours = { level: 'hard', worked: 40.2, limit: 40, left: 0, clockOutBy: null };
+    renderNag();
+    await user.click(screen.getByRole('button', { name: '1 needs attention' }));
+    // Also the icon's tooltip, if it has opened by now.
+    expect(screen.getAllByText('40 hours reached this week').length).toBeGreaterThan(0);
+    expect(screen.getByText(/Clock out now\. No overtime is approved\./)).toBeInTheDocument();
+  });
+
+  it('nags amber with an hour or less left', async () => {
+    const user = userEvent.setup();
+    state.hours = { level: 'soft', worked: 39.5, limit: 40, left: 0.5, clockOutBy: new Date(2026, 8, 24, 16, 15) };
+    renderNag();
+    await user.click(screen.getByRole('button', { name: '1 needs attention' }));
+    expect(screen.getByText('30 min left this week')).toBeInTheDocument();
+    expect(screen.getByText(/Clock out by 4:15 PM\./)).toBeInTheDocument();
   });
 });

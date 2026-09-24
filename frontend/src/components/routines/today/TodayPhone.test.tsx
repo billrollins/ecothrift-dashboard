@@ -18,6 +18,7 @@ vi.mock('react-router-dom', async () => {
 const clockState = vi.hoisted(() => ({
   entry: null as TimeEntry | null,
   onBreak: false,
+  fix: vi.fn(async (_args: { id: number; clockOut?: string }) => ({})),
 }));
 
 vi.mock('../../../hooks/useAuth', () => ({
@@ -44,6 +45,7 @@ vi.mock('../../../hooks/useTimeClock', () => ({
   useSetShift: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useStartBreak: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useEndBreak: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useFixForgotten: () => ({ mutateAsync: clockState.fix, isPending: false }),
 }));
 
 vi.mock('../../../hooks/useTimeEntries', () => ({
@@ -101,10 +103,9 @@ describe('TodayPhone', () => {
     clockState.onBreak = false;
     renderToday();
     expect(screen.getByText(/Good (morning|afternoon|evening), Bill/)).toBeInTheDocument();
-    // Hours & pay is open by default. (The shift tiles come from an unmocked query.)
-    expect(screen.getByRole('button', { name: 'Show pay' })).toBeInTheDocument();
-    expect(screen.getByText('Current pay period')).toBeInTheDocument();
+    // Hours & pay starts folded on a phone. (The shift tiles come from an unmocked query.)
     expect(screen.getByText('Hours & pay')).toBeInTheDocument();
+    expect(screen.queryByText('Current pay period')).not.toBeInTheDocument();
     expect(screen.getByText("You're all caught up for today.")).toBeInTheDocument();
     expect(screen.queryByText('Next up')).not.toBeInTheDocument();
   });
@@ -172,5 +173,42 @@ describe('TodayPhone', () => {
     clockState.onBreak = true;
     renderToday();
     expect(screen.getByRole('button', { name: 'Clock out' })).toBeDisabled();
+  });
+
+  it('asks when they left for a punch that was never clocked out, instead of Clock out', async () => {
+    const user = userEvent.setup();
+    const since = new Date(Date.now() - 24 * 3_600_000);
+    const suggested = new Date(since.getTime() + 7 * 3_600_000);
+    clockState.entry = {
+      id: 7,
+      employee: 1,
+      employee_name: 'Bill Tester',
+      date: '2026-09-23',
+      clock_in: since.toISOString(),
+      clock_out: null,
+      shift: 'retail_open',
+      shift_label: 'Retail Open',
+      shift_department: 'Retail',
+      break_minutes: 0,
+      on_break: false,
+      break_started_at: null,
+      total_hours: null,
+      status: 'pending',
+      stale: { since: since.toISOString(), suggested_clock_out: suggested.toISOString() },
+      approved_by: null,
+      approved_by_name: null,
+      notes: '',
+      created_at: '',
+      updated_at: '',
+    };
+    clockState.onBreak = false;
+    renderToday();
+    expect(screen.getByText('You never clocked out')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clock out' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Close it at this time' }));
+    // The suggestion is filled in; minutes precision, as the time box keeps them.
+    const sent = clockState.fix.mock.calls[0][0];
+    expect(sent.id).toBe(7);
+    expect(Math.abs(new Date(sent.clockOut ?? '').getTime() - suggested.getTime())).toBeLessThan(60_000);
   });
 });

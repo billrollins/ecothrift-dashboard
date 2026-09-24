@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { t } from '../../../i18n/routines';
 import { RoutineRunnerPage } from '../../../pages/routines/RoutineRunnerPage';
 import { dutyColors } from '../../duty/tokens';
+import { ClockInLimitDialog } from '../../hr/ClockInLimitDialog';
 import { HoursPayPanel } from '../../hr/HoursPayPanel';
 import { ShiftHeroCard } from '../../hr/ShiftHeroCard';
 import { FloorPage } from '../../layout/FloorPage';
@@ -31,7 +32,7 @@ const PHONE = 'clamp(340px, 36%, 440px)';
  */
 export function TodayDesk() {
   const model = useTodayModel();
-  const { lang, weekly, clock, runner, now, work, clockedIn, loadingLists, greeting } = model;
+  const { lang, weekly, clock, runner, hours, nag, now, work, clockedIn, loadingLists, greeting } = model;
   const open = runner.open;
 
   return (
@@ -52,11 +53,11 @@ export function TodayDesk() {
           {work.count > 0 ? (
             <Chip size="small" label={`${work.count} ${t('toDoLower', lang)}`} sx={bandChipSx} />
           ) : null}
-          {work.nagCount > 0 && work.nagTone !== 'none' ? (
+          {nag.count > 0 && nag.tone !== 'none' ? (
             <Chip
               size="small"
-              label={`${work.nagCount} ${t(work.nagCount === 1 ? 'naggingOne' : 'nagging', lang)}`}
-              sx={{ height: 24, fontWeight: 700, bgcolor: NAG_CHIP_BG[work.nagTone], color: '#fff' }}
+              label={`${nag.count} ${t(nag.count === 1 ? 'naggingOne' : 'nagging', lang)}`}
+              sx={{ height: 24, fontWeight: 700, bgcolor: NAG_CHIP_BG[nag.tone], color: '#fff' }}
             />
           ) : null}
         </>
@@ -91,10 +92,13 @@ export function TodayDesk() {
               <ShiftHeroCard
                 entry={clock.entry}
                 weekly={weekly.data}
+                hoursNag={hours}
                 lang={lang}
                 onClockIn={(shift) => { void clock.clockIn(shift); }}
                 pendingClockIn={clock.pending.clockIn}
                 onSetShift={clock.setShift}
+                onFixForgotten={(at) => { void clock.fixForgotten(at); }}
+                pendingFix={clock.pending.fix}
                 actions={clockedIn ? (
                   <PunchActions
                     onBreak={clock.onBreak}
@@ -145,6 +149,13 @@ export function TodayDesk() {
         </Box>
       </Box>
 
+      <ClockInLimitDialog
+        open={clock.limitOpen}
+        lang={lang}
+        busy={clock.pending.clockIn}
+        onCancel={clock.closeLimit}
+        onConfirm={clock.confirmLimit}
+      />
       <ClockOutRoutineGuard
         open={clock.guardOpen}
         runs={clock.owed}

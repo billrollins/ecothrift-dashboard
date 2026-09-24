@@ -125,14 +125,16 @@ function useFitCount(ref: RefObject<HTMLDivElement | null>, total: number, enabl
 /**
  * Hours & pay on Today: the week's hours with a tag for anything that needs a look, then the
  * pay period, past periods and recent shifts (a shift opens a time change request). Open by
- * default; `?hours=0` keeps it folded. With `fill` (desk) it stretches to the bottom of the
+ * default on a desk, folded on a phone. With `fill` (desk) it stretches to the bottom of the
  * column, level with To do today, and shows as many shifts as fit; "More shifts" scrolls.
  */
 export function HoursPayPanel({ fill = false }: { fill?: boolean }) {
   const { user } = useAuth();
   const lang = user?.language === 'es' ? 'es' : 'en';
   const [params, setParams] = useSearchParams();
-  const open = params.get('hours') !== '0';
+  // Desk: open unless folded (`?hours=0`). Phone: folded unless opened (`?hours=1`, which is
+  // also where old /pay links land), so the list stays near the top.
+  const open = fill ? params.get('hours') !== '0' : params.get('hours') === '1';
   const weekly = useWeeklyHoursStatus();
   const pay = useMyPay();
   const entries = useTimeEntries(
@@ -163,8 +165,11 @@ export function HoursPayPanel({ fill = false }: { fill?: boolean }) {
   function toggle() {
     setParams((prev) => {
       const next = new URLSearchParams(prev);
-      if (open) next.set('hours', '0');
-      else next.delete('hours');
+      if (fill) {
+        if (open) next.set('hours', '0');
+        else next.delete('hours');
+      } else if (open) next.delete('hours');
+      else next.set('hours', '1');
       return next;
     }, { replace: true });
   }

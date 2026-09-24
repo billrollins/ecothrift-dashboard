@@ -49,6 +49,7 @@ vi.mock('../../hooks/useTimeClock', () => ({
   useSetShift: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useStartBreak: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useEndBreak: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useFixForgotten: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 vi.mock('../../hooks/useTimeEntries', () => ({

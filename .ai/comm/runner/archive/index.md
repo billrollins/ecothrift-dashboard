@@ -53,4 +53,6 @@ Finished tasks, moved out of `queue.md`. Tasks are in `tasks/`, results in `resu
 | R-047 | test | Tests: My day (runner in place, Hours & pay) | RED: 2 NEW | R-049 |
 | R-048 | test | Tests: Dashboard / Today names, compact clock card | GREEN: 0 NEW | pending |
 | R-049 | test | Tests: nags and nudges in one drawer, Hours & pay fills, R-047 fixes | GREEN: 0 NEW | pending |
+| R-050 | test | Tests: weekly hours nag, clock-in at the limit, Hours & pay folded on phones | RED: 1 NEW | R-051 |
+| R-051 | test | Tests: weekly hours nag + forgotten clock-out on Today | GREEN: 0 NEW | v2.103.0 |
 

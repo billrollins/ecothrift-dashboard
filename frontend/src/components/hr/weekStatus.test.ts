@@ -37,7 +37,7 @@ describe('weekStatusLine', () => {
 
   it('says overtime is not allowed', () => {
     const line = weekStatusLine(weekly({ is_over_limit: true, hours_worked: '41.00' }), false, 0, 'en');
-    expect(line.text).toBe('Overtime is not allowed');
+    expect(line.text).toBe('Over the weekly limit · clock out now. No overtime is approved.');
     expect(line.color).toBe(dutyColors.red);
   });
 
