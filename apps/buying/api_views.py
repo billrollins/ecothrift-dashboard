@@ -83,8 +83,15 @@ from apps.buying.serializers import (
 )
 from apps.buying.services import pipeline, scraper
 from apps.buying.services.ai_key_mapping import map_one_fast_cat_batch
+from apps.buying.services.manifest_analysis import product_sales
+from apps.buying.services.decision import decision as build_decision
+from apps.buying.services.decision import need_level
+from apps.buying.services.wishlist import build_wishlist, buying_strip
+from apps.buying.services.won_to_po import WonToPoError, calibration, mark_lost, mark_won
+from apps.inventory.models import Product
 from apps.buying.services.manifest_upload import process_manifest_upload
 from apps.buying.services.valuation import (
+    load_category_stats_dict,
     recompute_active_auctions_lightweight,
     recompute_auction_valuation,
     run_ai_estimate_for_swept_auctions,
@@ -188,6 +195,22 @@ def _apply_manifest_rows_ordering(qs, ordering_param: str):
     }
     if key in direct:
         return qs.order_by(f'{prefix}{key}')
+
+    if key == 'line_value':
+        # Phase 4: expected revenue for the line (unit value x units).
+        qty = Coalesce(F('quantity'), Value(1), output_field=IntegerField())
+        unit = Coalesce(
+            F('unit_value'),
+            Value(Decimal('0')),
+            output_field=DecimalField(max_digits=10, decimal_places=2),
+        )
+        qs = qs.annotate(
+            _manifest_line_value=ExpressionWrapper(
+                qty * unit,
+                output_field=DecimalField(max_digits=16, decimal_places=2),
+            )
+        )
+        return qs.order_by(f'{prefix}_manifest_line_value', 'row_number')
 
     if key == 'canonical_category':
         qs = qs.annotate(
@@ -456,6 +479,16 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
                 | Q(fast_cat_value__icontains=search)
                 | Q(canonical_category__icontains=search)
             )
+        hazard = request.query_params.get('hazard', '').strip()
+        if hazard == 'any':
+            qs = qs.exclude(hazards__isnull=True).exclude(hazards=[])
+        elif hazard:
+            qs = qs.filter(hazards__contains=[hazard])
+        matched = request.query_params.get('matched', '').strip()
+        if matched == '1':
+            qs = qs.filter(matched_product__isnull=False)
+        elif matched == '0':
+            qs = qs.filter(matched_product__isnull=True)
         category = request.query_params.get('category', '').strip()
         if category == '__uncategorized__':
             qs = qs.filter(
@@ -465,8 +498,27 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(Q(canonical_category=category) | Q(fast_cat_value=category))
         paginator = ManifestRowsPagination()
         page = paginator.paginate_queryset(qs, request, view=self)
-        serializer = ManifestRowSerializer(page, many=True)
-        return paginator.get_paginated_response(serializer.data)
+        data = ManifestRowSerializer(page, many=True).data
+        # Phase 4: what each matched product did for us (sold, days, share of retail, on hand).
+        sales = product_sales({row.matched_product_id for row in page if row.matched_product_id})
+        titles = dict(
+            Product.objects.filter(pk__in=list(sales.keys())).values_list('pk', 'title')
+        ) if sales else {}
+        # The advisor's Need column: the line's category need (the same levels as the page).
+        stats = load_category_stats_dict()
+        for row, out in zip(page, data):
+            category = (row.fast_cat_value or row.canonical_category or '').strip()
+            cat_stats = stats.get(category) if category else None
+            out['need_level'] = need_level(cat_stats.need_score_1to99) if cat_stats is not None else None
+            ps = sales.get(row.matched_product_id) if row.matched_product_id else None
+            out['product_sales'] = None if ps is None else {
+                'title': titles.get(row.matched_product_id, ''),
+                'sold': ps.sold,
+                'avg_days': ps.avg_days,
+                'on_hand': ps.on_hand,
+                'ratio': None if ps.ratio is None else str(ps.ratio),
+            }
+        return paginator.get_paginated_response(data)
 
     @action(
         detail=True,
@@ -738,6 +790,85 @@ class AuctionViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = AuctionDetailSerializer(auction, context={'request': request})
         return Response(serializer.data)
 
+    @action(detail=True, methods=['get'], url_path='decision', permission_classes=[IsAuthenticated, IsStaff])
+    def decision(self, request, pk=None):
+        """The auction page's decision panel: verdict, bids, need, hazards, profit, landed cost."""
+        return Response(build_decision(self.get_object()))
+
+    @action(detail=True, methods=['patch'], url_path='buyer', permission_classes=[IsAuthenticated, IsStaff])
+    def buyer(self, request, pk=None):
+        """The buyer's own max bid (blank clears it) and notes."""
+        auction = self.get_object()
+        fields = []
+        if 'max_bid' in request.data:
+            raw = request.data.get('max_bid')
+            if raw in (None, ''):
+                auction.max_bid = None
+            else:
+                try:
+                    value = Decimal(str(raw))
+                except Exception:
+                    return Response({'detail': 'max_bid must be a number.'}, status=status.HTTP_400_BAD_REQUEST)
+                if value <= 0:
+                    return Response({'detail': 'max_bid must be above 0.'}, status=status.HTTP_400_BAD_REQUEST)
+                auction.max_bid = value.quantize(Decimal('0.01'))
+            fields.append('max_bid')
+        if 'buyer_notes' in request.data:
+            auction.buyer_notes = str(request.data.get('buyer_notes') or '')[:5000]
+            fields.append('buyer_notes')
+        if fields:
+            auction.save(update_fields=fields)
+        return Response({'max_bid': auction.max_bid, 'buyer_notes': auction.buyer_notes})
+
+    @action(detail=True, methods=['post'], url_path='won', permission_classes=[IsAuthenticated, IsStaff])
+    def won(self, request, pk=None):
+        """
+        Phase 6: record the win and create the PO (with the manifest). Body: ``hammer_price``,
+        optional ``fees`` and ``shipping`` (default: the fee rate on the hammer, and the
+        auction's shipping). Manager, Admin or superuser.
+        """
+        user = request.user
+        if not (user.is_superuser or getattr(user, 'role', '') in ('Manager', 'Admin')):
+            return Response({'detail': 'A manager records wins.'}, status=status.HTTP_403_FORBIDDEN)
+        auction = self.get_object()
+
+        def money(key):
+            raw = request.data.get(key)
+            if raw in (None, ''):
+                return None
+            try:
+                return Decimal(str(raw))
+            except Exception:
+                raise ValueError(key)
+
+        try:
+            hammer = money('hammer_price')
+            fees = money('fees')
+            shipping = money('shipping')
+        except ValueError as bad:
+            return Response({'detail': f'{bad} must be a number.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            po = mark_won(auction, hammer_price=hammer, user=user, fees=fees, shipping=shipping)
+        except WonToPoError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        auction.refresh_from_db()
+        data = AuctionDetailSerializer(auction, context={'request': request}).data
+        data['won_note'] = getattr(po, 'won_manifest_note', '')
+        return Response(data)
+
+    @action(detail=True, methods=['post'], url_path='lost', permission_classes=[IsAuthenticated, IsStaff])
+    def lost(self, request, pk=None):
+        """Phase 6: record a loss, with the closing price when known (``hammer_price``)."""
+        auction = self.get_object()
+        raw = request.data.get('hammer_price')
+        try:
+            hammer = Decimal(str(raw)) if raw not in (None, '') else None
+        except Exception:
+            return Response({'detail': 'hammer_price must be a number.'}, status=status.HTTP_400_BAD_REQUEST)
+        mark_lost(auction, hammer_price=hammer)
+        auction.refresh_from_db()
+        return Response(AuctionDetailSerializer(auction, context={'request': request}).data)
+
     @action(
         detail=True,
         methods=['post', 'delete'],
@@ -941,6 +1072,54 @@ class ManifestPullView(APIView):
 
 
 CATEGORY_NEED_CACHE_KEY = 'category_need_panel'
+
+
+class WishlistView(APIView):
+    """
+    GET: the wish list (Phase 5). Live auctions with a price target, in range first by
+    Priority; ``?include=over`` adds the ones whose price already passed the target.
+    """
+
+    permission_classes = [IsAuthenticated, IsStaff]
+
+    def get(self, request):
+        include_over = request.query_params.get('include', '') == 'over'
+        payload = build_wishlist(
+            include_over=include_over,
+            rank=request.query_params.get('rank', 'focus'),
+            category=request.query_params.get('category') or None,
+        )
+        # Phase 6: how finished trucks did against their prediction (the valuation's check).
+        payload['report_cards'] = calibration()
+        payload['strip'] = buying_strip()
+        return Response(payload)
+
+
+class ReportCardsView(APIView):
+    """GET: every won truck's report card (predicted vs actual) and the valuation check."""
+
+    permission_classes = [IsAuthenticated, IsStaff]
+
+    def get(self, request):
+        from apps.buying.services.won_to_po import report_cards
+
+        return Response(report_cards())
+
+
+class BuyingNagsView(APIView):
+    """
+    GET: the buyer's nags for the nag drawer: watched lots ending within the hour still under
+    the max, and ended ones with no result. Superusers only (they bid); everyone else gets none.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.buying.services import buying_nags
+
+        if not request.user.is_superuser:
+            return Response(buying_nags.empty())
+        return Response(buying_nags.buying_nags())
 
 
 class CategoryNeedView(APIView):

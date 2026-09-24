@@ -8,10 +8,7 @@ import {
   type DragEvent,
 } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import StarBorderIcon from '@mui/icons-material/StarBorder';
-import StarIcon from '@mui/icons-material/Star';
 import {
   Box,
   Button,
@@ -25,13 +22,14 @@ import {
   DialogTitle,
   Divider,
   FormControl,
-  IconButton,
   InputLabel,
   Link as MuiLink,
   MenuItem,
   Paper,
   Select,
   Stack,
+  Tab,
+  Tabs,
   TextField,
   Tooltip,
   Typography,
@@ -49,6 +47,13 @@ import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import AiManifestComparisonStrip from '../../components/buying/AiManifestComparisonStrip';
+import ManifestAnalysisCard from '../../components/buying/ManifestAnalysisCard';
+import AuctionOutcomeCard from '../../components/buying/AuctionOutcomeCard';
+import AuctionDecisionHeader from '../../components/buying/decision/AuctionDecisionHeader';
+import AuctionKpiCards from '../../components/buying/decision/AuctionKpiCards';
+import AuctionSideRail from '../../components/buying/decision/AuctionSideRail';
+import { useBuyingAuctionDecision } from '../../hooks/useBuyingAuctionDecision';
+import { HAZARD_LONG, HAZARD_SHORT, hazardTone, sortHazards } from '../../components/buying/manifestHazards';
 import AuctionDetailsInfoCard from '../../components/buying/AuctionDetailsInfoCard';
 import AuctionPrimaryCard from '../../components/buying/AuctionPrimaryCard';
 import AuctionSecondaryCard from '../../components/buying/AuctionSecondaryCard';
@@ -81,6 +86,7 @@ import type {
   BuyingAuctionDetail,
   BuyingManifestRow,
   BuyingUploadManifestResponse,
+  ManifestAnalysis,
 } from '../../types/buying.types';
 import { BUYING_AUCTION_LIST_HEADER_ICON_PX } from '../../constants/buyingAuctionListUi';
 import { manifestOrderingFromSortModel } from '../../utils/buyingManifestGrid';
@@ -243,6 +249,135 @@ function buildManifestColumns(manifestExtendedTotal: string | null | undefined):
         );
       },
     },
+    {
+      field: 'line_value',
+      headerName: 'Value',
+      description: 'Expected revenue for the line: units x retail x our rate, after hazard discounts',
+      width: 96,
+      align: 'right',
+      headerAlign: 'right',
+      renderCell: (params) => {
+        const unit = params.row.unit_value;
+        if (unit == null) {
+          return (
+            <Typography variant="body2" color="text.secondary">
+              -
+            </Typography>
+          );
+        }
+        const qty = params.row.quantity && params.row.quantity > 0 ? params.row.quantity : 1;
+        return (
+          <Tooltip
+            title={`${formatCurrency(unit)} each, ${
+              params.row.value_basis === 'product' ? "from this product's own sales" : 'from the category rate'
+            }`}
+          >
+            <Typography
+              variant="body2"
+              sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: params.row.value_basis === 'product' ? 700 : 400 }}
+            >
+              {formatCurrency((parseFloat(unit) * qty).toFixed(2))}
+            </Typography>
+          </Tooltip>
+        );
+      },
+    },
+    {
+      field: 'match_method',
+      headerName: 'Match',
+      width: 110,
+      sortable: false,
+      renderCell: (params) => {
+        const row = params.row;
+        if (!row.match_method) {
+          return (
+            <Typography variant="body2" color="text.secondary">
+              -
+            </Typography>
+          );
+        }
+        const sales = row.product_sales;
+        const label = row.match_method === 'upc' ? 'UPC' : row.match_method === 'title' ? 'Title' : 'Similar';
+        const tip = sales
+          ? `${sales.title} · sold ${sales.sold}${sales.avg_days != null ? ` · ${sales.avg_days} days avg` : ''}${
+              sales.ratio != null ? ` · ${Math.round(parseFloat(sales.ratio) * 100)}% of retail` : ''
+            }${sales.on_hand ? ` · ${sales.on_hand} on hand` : ''}`
+          : 'Matched';
+        return (
+          <Tooltip title={tip}>
+            <Chip
+              size="small"
+              variant="outlined"
+              color={row.match_method === 'near' ? 'default' : 'primary'}
+              label={sales ? `${label} · ${sales.sold} sold` : label}
+              sx={{ height: 22 }}
+            />
+          </Tooltip>
+        );
+      },
+    },
+    {
+      field: 'sells_in',
+      headerName: 'Sells in',
+      description: 'Average days this product took to sell here (matched lines only)',
+      width: 84,
+      align: 'right',
+      headerAlign: 'right',
+      sortable: false,
+      renderCell: (params) => {
+        const days = params.row.product_sales?.avg_days;
+        return (
+          <Typography variant="body2" color={days == null ? 'text.secondary' : 'text.primary'} sx={{ fontVariantNumeric: 'tabular-nums' }}>
+            {days == null ? '-' : `${days} d`}
+          </Typography>
+        );
+      },
+    },
+    {
+      field: 'need_level',
+      headerName: 'Need',
+      description: "The line's category need: High fills a gap, Low adds to overstock",
+      width: 76,
+      sortable: false,
+      renderCell: (params) => {
+        const level = params.row.need_level;
+        if (!level) {
+          return (
+            <Typography variant="body2" color="text.secondary">
+              -
+            </Typography>
+          );
+        }
+        return (
+          <Chip
+            size="small"
+            label={level}
+            color={level === 'Low' ? 'default' : 'primary'}
+            variant={level === 'High' ? 'filled' : 'outlined'}
+            sx={{ height: 22 }}
+          />
+        );
+      },
+    },
+    {
+      field: 'hazards',
+      headerName: 'Hazards',
+      width: 150,
+      sortable: false,
+      renderCell: (params) => {
+        const codes = sortHazards(params.row.hazards ?? []);
+        if (!codes.length) return null;
+        return (
+          <Stack direction="row" spacing={0.5} sx={{ overflow: 'hidden' }}>
+            {codes.map((code) => (
+              <Tooltip key={code} title={HAZARD_LONG[code] ?? code}>
+                <Chip size="small" color={hazardTone(code)} label={HAZARD_SHORT[code] ?? code} sx={{ height: 22 }} />
+              </Tooltip>
+            ))}
+          </Stack>
+        );
+      },
+    },
     { field: 'condition', headerName: 'Condition', width: 96, minWidth: 80, maxWidth: 112 },
     { field: 'upc', headerName: 'UPC', width: 88, minWidth: 72, maxWidth: 104 },
     { field: 'sku', headerName: 'SKU', width: 96, minWidth: 80, maxWidth: 112 },
@@ -253,6 +388,19 @@ function dragHasFiles(e: DragEvent): boolean {
   const types = e.dataTransfer?.types;
   if (!types) return false;
   return [...types].includes('Files');
+}
+
+type ManifestView = 'all' | 'flagged' | 'matched' | 'unmatched';
+
+/** The manifest tabs, with line counts from the analysis (flagged is missing on older ones). */
+function manifestTabs(a: ManifestAnalysis): Array<{ value: ManifestView; label: string }> {
+  const count = (n: number | undefined) => (n == null ? '' : ` (${formatNumber(n)})`);
+  return [
+    { value: 'all', label: `All${count(a.lines)}` },
+    { value: 'flagged', label: `Flagged${count(a.flagged_lines)}` },
+    { value: 'matched', label: `Matched${count(a.matched_lines)}` },
+    { value: 'unmatched', label: `No match${count(a.lines - a.matched_lines)}` },
+  ];
 }
 
 export default function AuctionDetailPage() {
@@ -281,6 +429,9 @@ export default function AuctionDetailPage() {
   const [manifestSearch, setManifestSearch] = useState('');
   const [debouncedManifestSearch, setDebouncedManifestSearch] = useState('');
   const [manifestCategoryFilter, setManifestCategoryFilter] = useState('');
+  // Phase 4: a tab (all, flagged, matched, no match) and, within it, one hazard.
+  const [manifestHazard, setManifestHazard] = useState('');
+  const [manifestView, setManifestView] = useState<ManifestView>('all');
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedManifestSearch(manifestSearch), 300);
@@ -289,15 +440,17 @@ export default function AuctionDetailPage() {
 
   useEffect(() => {
     setPaginationModel((pm) => ({ ...pm, page: 0 }));
-  }, [debouncedManifestSearch, manifestCategoryFilter]);
+  }, [debouncedManifestSearch, manifestCategoryFilter, manifestHazard, manifestView]);
 
   const manifestFilters = useMemo(
     () => ({
       search: debouncedManifestSearch.trim() || undefined,
       category: manifestCategoryFilter || undefined,
+      hazard: manifestHazard || (manifestView === 'flagged' ? 'any' : undefined),
+      matched: manifestView === 'matched' ? '1' : manifestView === 'unmatched' ? '0' : undefined,
       ordering: manifestOrderingFromSortModel(manifestSortModel),
     }),
-    [debouncedManifestSearch, manifestCategoryFilter, manifestSortModel]
+    [debouncedManifestSearch, manifestCategoryFilter, manifestHazard, manifestView, manifestSortModel]
   );
 
   const handleManifestSortModelChange = useCallback((model: GridSortModel) => {
@@ -315,6 +468,8 @@ export default function AuctionDetailPage() {
 
   const { data: detail, isLoading: detailLoading, isError: detailError } =
     useBuyingAuctionDetail(auctionId);
+  // The decision panel (verdict, bids, need, hazards, profit, landed cost, similar lots).
+  const decisionQuery = useBuyingAuctionDecision(auctionId);
 
   const countdownTick = useLiveBuyingCountdownTick([detail?.end_time]);
 
@@ -677,135 +832,41 @@ export default function AuctionDetailPage() {
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
-      <Button
-        component={RouterLink}
-        to="/buying/auctions"
-        startIcon={<ArrowBackIcon />}
-        sx={{ mb: 2 }}
-      >
-        Auctions
-      </Button>
+      <AuctionDecisionHeader
+        detail={detail}
+        decision={decisionQuery.data}
+        watched={watched}
+        watchlistBusy={watchlistBusy}
+        onToggleWatchlist={onToggleWatchlist}
+        onRefresh={() => {
+          if (auctionId) refreshBstockMutation.mutate();
+        }}
+        refreshing={refreshBstockMutation.isPending}
+        onPass={() => archiveMutation.mutate(Boolean(detail.archived_at))}
+        passing={archiveMutation.isPending}
+      />
 
-      <Box sx={{ mb: 0.75 }}>
-        {detail.marketplace?.name ? (
-          <Typography
-            variant="overline"
-            sx={{
-              display: 'block',
-              fontWeight: 800,
-              letterSpacing: 0.14,
-              color: 'primary.main',
-              mb: 0.5,
-              lineHeight: 1.2,
-            }}
-          >
-            {detail.marketplace.name}
-          </Typography>
-        ) : null}
-        <Typography
-          variant="h4"
-          component="h1"
-          fontWeight={600}
-          sx={{ lineHeight: 1.25, wordBreak: 'break-word', m: 0 }}
+      {decisionQuery.data ? (
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1fr) 380px' },
+            gap: 1.5,
+            mb: 3,
+            alignItems: 'start',
+          }}
         >
-          {detail.url ? (
-            <Box
-              component="a"
-              href={detail.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={`Open on B-Stock: ${detail.title}`}
-              sx={{
-                display: 'inline',
-                color: 'inherit',
-                textDecoration: 'none',
-                '&:hover': { color: 'primary.main' },
-              }}
-            >
-              {detail.title}
-              <OpenInNewIcon
-                sx={{
-                  fontSize: '0.85em',
-                  ml: 0.5,
-                  verticalAlign: '0.05em',
-                  display: 'inline-block',
-                }}
-                aria-hidden
-              />
-            </Box>
-          ) : (
-            detail.title
-          )}
-        </Typography>
-      </Box>
+          <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <AuctionKpiCards decision={decisionQuery.data} />
+            <AuctionOutcomeCard detail={detail} />
+          </Box>
+          <AuctionSideRail detail={detail} decision={decisionQuery.data} />
+        </Box>
+      ) : null}
 
-      <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 2.5 }}>
-        <Tooltip title={watched ? 'Remove from watchlist' : 'Add to watchlist'}>
-          <span>
-            <IconButton
-              aria-label={watched ? 'Remove from watchlist' : 'Add to watchlist'}
-              color={watched ? 'warning' : 'default'}
-              disabled={watchlistBusy}
-              onClick={onToggleWatchlist}
-              size="small"
-            >
-              {watchlistBusy ? (
-                <CircularProgress size={20} />
-              ) : watched ? (
-                <StarIcon fontSize="small" />
-              ) : (
-                <StarBorderIcon fontSize="small" />
-              )}
-            </IconButton>
-          </span>
-        </Tooltip>
-
-        <Tooltip title="Pull latest price, bids, and timing from B-Stock (public auction state API)">
-          <span>
-            <Button
-              variant="contained"
-              color="primary"
-              size="small"
-              disabled={!auctionId || refreshBstockMutation.isPending}
-              onClick={() => auctionId && refreshBstockMutation.mutate()}
-              sx={{ textTransform: 'none', minWidth: 0, px: 1.25, py: 0.25 }}
-            >
-              {refreshBstockMutation.isPending ? (
-                <CircularProgress size={16} color="inherit" />
-              ) : (
-                'Refresh'
-              )}
-            </Button>
-          </span>
-        </Tooltip>
-
-        <Tooltip
-          title={
-            detail.archived_at
-              ? 'Unarchive - show in default auction lists again'
-              : 'Archive - hide from default lists (still in Archived filter)'
-          }
-        >
-          <span>
-            <Button
-              variant="text"
-              color="error"
-              size="small"
-              disabled={archiveMutation.isPending}
-              onClick={() => archiveMutation.mutate(Boolean(detail.archived_at))}
-              sx={{ textTransform: 'none', minWidth: 0, px: 1.25, py: 0.25 }}
-            >
-              {archiveMutation.isPending ? (
-                <CircularProgress size={16} color="inherit" />
-              ) : detail.archived_at ? (
-                'Unarchive'
-              ) : (
-                'Archive'
-              )}
-            </Button>
-          </span>
-        </Tooltip>
-      </Stack>
+      <BuyingDetailSectionTitle first sx={{ mb: 1.5 }}>
+        Valuation details and overrides
+      </BuyingDetailSectionTitle>
 
       <input
         ref={manifestFileInputRef}
@@ -1052,10 +1113,37 @@ export default function AuctionDetailPage() {
 
       <Divider sx={{ mb: 2 }} />
 
+      {detail.manifest_analysis ? (
+        <ManifestAnalysisCard
+          analysis={detail.manifest_analysis}
+          hazard={manifestHazard}
+          onHazard={(code) => {
+            setManifestHazard(code);
+            if (code) setManifestView('flagged');
+          }}
+        />
+      ) : null}
+
       <Box sx={{ mb: 3, minWidth: 0 }}>
         <Typography variant="subtitle1" component="h2" fontWeight={600} sx={{ mb: 1.5 }}>
           Manifest Rows
         </Typography>
+        {detail.manifest_analysis ? (
+          <Tabs
+            value={manifestView}
+            onChange={(_, view: ManifestView) => {
+              setManifestView(view);
+              if (view !== 'flagged') setManifestHazard('');
+            }}
+            variant="scrollable"
+            allowScrollButtonsMobile
+            sx={{ mb: 1, minHeight: 36, '& .MuiTab-root': { minHeight: 36, textTransform: 'none', py: 0.5 } }}
+          >
+            {manifestTabs(detail.manifest_analysis).map((t) => (
+              <Tab key={t.value} value={t.value} label={t.label} />
+            ))}
+          </Tabs>
+        ) : null}
         {detail.category_distribution && detail.category_distribution.total_rows > 0 ? (
           <CategoryDistributionBar
             dist={detail.category_distribution}

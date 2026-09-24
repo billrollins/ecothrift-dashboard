@@ -4,11 +4,13 @@ import { Badge, Box, Button, Drawer, IconButton, Tooltip, Typography } from '@mu
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { useBuyingNags } from '../../hooks/useBuyingNags';
 import { useMyWork } from '../../hooks/useMyWork';
 import { pick, t } from '../../i18n/routines';
 import { useHoursNag } from '../../hooks/useHoursNag';
 import type { NagTone } from '../../pages/routines/myWork';
 import { todayHref } from '../../pages/routines/todayRunner';
+import { BuyingNagCards } from '../buying/BuyingNagCards';
 import { dutyColors } from '../duty/tokens';
 import { HoursNagCard, hoursNagText } from '../hr/HoursNagCard';
 import { MyWorkList, NAG_AMBER } from './MyWorkList';
@@ -32,6 +34,7 @@ export function RoutinesNag() {
   const { work } = useMyWork();
   const inbox = useNagMessages();
   const hours = useHoursNag();
+  const buying = useBuyingNags();
   const [open, setOpen] = useState(false);
   const seen = useRef<Set<number>>(new Set());
 
@@ -45,7 +48,7 @@ export function RoutinesNag() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messageKey]);
 
-  const { count, tone } = nagSummary(work, messages.map((row) => row.run_id), hours.level);
+  const { count, tone } = nagSummary(work, messages.map((row) => row.run_id), hours.level, buying);
   const next = work.next;
 
   function go(href: string) {
@@ -58,9 +61,12 @@ export function RoutinesNag() {
     return <Box sx={{ width: 44, height: 44 }} />;
   }
   const color = NAG_COLOR[tone];
+  const urgentLot = buying.ending.find((lot) => lot.tone === 'red');
   const tip = hours.level === 'hard'
     ? hoursNagText(hours, lang).title
-    : messages[0]
+    : urgentLot
+      ? `Bid now: ${urgentLot.title} ends in ${urgentLot.minutes_left} min`
+      : messages[0]
       ? messages[0].message || t('pleaseFinish', lang)
       : next ? `${pick(next.run, 'title', lang) || next.run.title} · ${next.label}` : '';
 
@@ -101,6 +107,13 @@ export function RoutinesNag() {
               <HoursNagCard nag={hours} lang={lang} onOpen={() => go('/today?hours=1')} />
             </Box>
           ) : null}
+          <BuyingNagCards
+            nags={buying}
+            onOpen={(id) => {
+              setOpen(false);
+              navigate(`/buying/auctions/${id}`);
+            }}
+          />
           <NagMessages
             messages={messages}
             busy={inbox.busy}

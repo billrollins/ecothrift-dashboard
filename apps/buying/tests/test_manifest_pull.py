@@ -339,6 +339,13 @@ class ShortlistTests(TestCase):
         # Only the failed one waits; the in-flight claim and the blocked lot do not.
         self.assertEqual(manifest_pull.waiting_retry_count(), 1)
 
+    def test_lots_already_over_their_max_go_last(self):
+        over = _auction(self.mp, 'over', priority=95, current_price=Decimal('900'), price_target=Decimal('500'))
+        mine = _auction(self.mp, 'my-max', priority=80, current_price=Decimal('600'), price_target=Decimal('500'), max_bid=Decimal('700'))
+        unknown = _auction(self.mp, 'no-target', priority=70, current_price=Decimal('600'))
+        ids = [a.external_id for a in manifest_pull.shortlist_queryset()]
+        self.assertEqual(ids, [mine.external_id, unknown.external_id, over.external_id])
+
     def test_pull_eligible(self):
         self.assertTrue(manifest_pull.pull_eligible(_auction(self.mp, 'far', hours=500)))
         self.assertFalse(manifest_pull.pull_eligible(_auction(self.mp, 'c', listing_type='CONTRACT')))

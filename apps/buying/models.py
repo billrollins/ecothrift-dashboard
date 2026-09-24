@@ -532,6 +532,51 @@ class Auction(models.Model):
         db_default=False,
         help_text='B-Stock will never give this manifest (too large, or none); the pull stops trying.',
     )
+    # Buying Phase 4: manifest lines matched to our products, hazards and a line-by-line value.
+    manifest_analysis = models.JSONField(
+        null=True,
+        blank=True,
+        help_text='Summary from services/manifest_analysis.py: match coverage, hazards, top lines.',
+    )
+    analysis_revenue = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Truck value v2: expected revenue summed line by line (before shrink).',
+    )
+    # Buying Phase 5 (services/price_target.py).
+    price_target = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Buy at or under: the most we can pay and still make the profit factor.',
+    )
+    expected_close = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Likely hammer price (retail x seller close ratio, or price x the late bump).',
+    )
+    # The buyer's own max bid and notes (the auction page's "Your max bid" and "Notes").
+    max_bid = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="The buyer's own max; the wish list measures room against it (else the price target).",
+    )
+    buyer_notes = models.TextField(blank=True, default='', db_default='')
+    # Buying Phase 6 (services/won_to_po.py): the PO a won auction became.
+    purchase_order = models.ForeignKey(
+        'inventory.PurchaseOrder',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='buying_auctions',
+    )
 
     class Meta:
         ordering = ['-last_updated_at', '-created_at']
@@ -660,6 +705,37 @@ class ManifestRow(models.Model):
         null=True,
         blank=True,
         choices=CATEGORY_CONFIDENCE_CHOICES,
+    )
+    # Buying Phase 4 (services/manifest_analysis.py).
+    matched_product = models.ForeignKey(
+        'inventory.Product',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='buying_manifest_rows',
+    )
+    match_method = models.CharField(
+        max_length=8,
+        blank=True,
+        default='',
+        db_default='',
+        help_text="How the line was matched: 'upc', 'title' (same title) or 'near' (similar title).",
+    )
+    match_score = models.DecimalField(max_digits=4, decimal_places=3, null=True, blank=True)
+    hazards = models.JSONField(null=True, blank=True, help_text='Hazard codes for this line.')
+    unit_value = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Expected revenue per unit, after hazard discounts.',
+    )
+    value_basis = models.CharField(
+        max_length=10,
+        blank=True,
+        default='',
+        db_default='',
+        help_text="'product' (this product's own sales) or 'category' (the category rate).",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -935,6 +1011,11 @@ class Outcome(models.Model):
         decimal_places=2,
         null=True,
         blank=True,
+    )
+    prediction = models.JSONField(
+        null=True,
+        blank=True,
+        help_text='What we predicted when it was won (revenue, profit, days to sell): the report card.',
     )
     notes = models.TextField(blank=True, default='')
     captured_at = models.DateTimeField(null=True, blank=True)

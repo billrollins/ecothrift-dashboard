@@ -177,6 +177,8 @@ describe('BstockPullRunner', () => {
     expect(await screen.findByText('Second lot')).toBeTruthy();
     expect(await screen.findByText('First lot')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Pull/ })).toBeNull();
+    // The next step of the morning: choosing what to bid on.
+    expect(screen.getAllByText("Open Today's best")[0].closest('a')?.getAttribute('href')).toBe('/buying/wishlist');
   });
 
   it('makes no requests as a catalog preview', () => {

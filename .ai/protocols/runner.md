@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-23 (shift mode: hold slots) -->
+<!-- Last updated: 2026-09-24 (shift mode: no clock stop; only an end row stops it) -->
 # Protocol: Runner
 
 **What to run depends on what the user gave you:**
@@ -66,7 +66,7 @@ For long unattended runs. The coder keeps writing and editing tasks while you wo
    Tasks can change or appear at any moment.
 2. Run the task by the normal rules, including archiving it. Then go back to step 1.
 3. **No `queued` row?** Do one chunk of **idle work** from [`comm/runner/shift.md`](../comm/runner/shift.md), about 20 minutes. Then go back to step 1. Don't sit waiting while there is idle work.
-4. **Stop only** when you reach a row whose status is `end`, or at 07:00 local time. Then give one line per task you finished.
+4. **Stop only** when you reach a row whose status is `end`. There is no clock stop: the shift runs until the coder adds an `end` row. Then give one line per task you finished.
 5. Keep status chatter short: one line per task, not one per check.
 
 ## Recon tasks (`type: recon`)

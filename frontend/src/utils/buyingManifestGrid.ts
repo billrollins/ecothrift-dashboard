@@ -15,6 +15,7 @@ const MANIFEST_ORDERING_FIELDS = [
   'condition',
   'upc',
   'sku',
+  'line_value',
 ] as const;
 
 export function manifestOrderingFromSortModel(model: GridSortModel): string {

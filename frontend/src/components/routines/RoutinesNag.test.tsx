@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MyRoutines, QaNudgeRow } from '../../api/routines.api';
 import type { HoursNag } from '../../hooks/useHoursNag';
+import type { BuyingNags } from '../../types/buying.types';
 import { fakeRun } from '../../pages/routines/routineFixture';
 import { RoutinesNag } from './RoutinesNag';
 
@@ -12,6 +13,7 @@ const state = vi.hoisted(() => ({
   mine: { open: [], done: [], drafts: [], on_demand: [], idle_prompt_minutes: 20 } as MyRoutines,
   nudges: [] as QaNudgeRow[],
   hours: { level: 'none', worked: 20, limit: 40, left: 20, clockOutBy: null } as HoursNag,
+  buying: { ending: [], unrecorded: [], count: 0, tone: 'none' } as BuyingNags,
   ack: vi.fn(async () => ({})),
   logout: vi.fn(async () => undefined),
 }));
@@ -31,6 +33,10 @@ vi.mock('../../hooks/useRetailQa', () => ({
 
 vi.mock('../../hooks/useHoursNag', () => ({
   useHoursNag: () => state.hours,
+}));
+
+vi.mock('../../hooks/useBuyingNags', () => ({
+  useBuyingNags: () => state.buying,
 }));
 
 vi.mock('../../hooks/useDeviceConfig', () => ({
@@ -55,6 +61,7 @@ describe('RoutinesNag', () => {
     state.mine = { open: [], done: [], drafts: [], on_demand: [], idle_prompt_minutes: 20 };
     state.nudges = [];
     state.hours = { level: 'none', worked: 20, limit: 40, left: 20, clockOutBy: null };
+    state.buying = { ending: [], unrecorded: [], count: 0, tone: 'none' };
     state.ack.mockClear();
   });
 
@@ -119,5 +126,22 @@ describe('RoutinesNag', () => {
     await user.click(screen.getByRole('button', { name: '1 needs attention' }));
     expect(screen.getByText('30 min left this week')).toBeInTheDocument();
     expect(screen.getByText(/Clock out by 4:15 PM\./)).toBeInTheDocument();
+  });
+
+  it('nags the buyer to bid on a watched lot ending under the max, and to record ended ones', async () => {
+    const user = userEvent.setup();
+    const lot = { title: 'Kitchen lot', marketplace: 'Target', end_time: soon(10), current_price: '1450.00' };
+    state.buying = {
+      ending: [{ ...lot, id: 7, minutes_left: 10, max_bid: '2050.00', max_is_buyer: true, room: '600.00', tone: 'red' }],
+      unrecorded: [{ ...lot, id: 8, title: 'Toys lot', current_price: '900.00' }],
+      count: 2,
+      tone: 'red',
+    };
+    renderNag();
+    await user.click(screen.getByRole('button', { name: '2 need attention' }));
+    expect(screen.getByText('Bid now: ends in 10 min')).toBeInTheDocument();
+    expect(screen.getByText('Target · Kitchen lot · $600 under your max')).toBeInTheDocument();
+    expect(screen.getByText('Did we win it?')).toBeInTheDocument();
+    expect(screen.getByText('Target · Toys lot · closed near $900')).toBeInTheDocument();
   });
 });

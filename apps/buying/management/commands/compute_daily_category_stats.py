@@ -76,6 +76,19 @@ class Command(BaseCommand):
         _invalidate_category_need_panel_cache(db)
         self.stdout.write(self.style.SUCCESS(f'CategoryStats updated (need window {window} days). Cache invalidated.'))
 
+        # Phase 6: report cards (won trucks, actual vs predicted) set the revenue calibration.
+        if db == 'default':
+            try:
+                from apps.buying.services.won_to_po import refresh_calibration
+
+                card = refresh_calibration()
+                self.stdout.write(
+                    f"Report cards: {card['trucks']} finished trucks, median actual/predicted "
+                    f"{card['median_ratio']}, applied {card['applied']}."
+                )
+            except Exception as exc:  # never block the daily stats
+                self.stderr.write(f'Report card calibration skipped: {exc}')
+
         if skip_re:
             self.stdout.write('Skipped full recompute (--skip-recompute-open).')
             return

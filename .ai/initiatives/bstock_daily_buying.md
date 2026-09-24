@@ -1,5 +1,5 @@
 <!-- initiative: slug=bstock-daily-buying status=active updated=2026-09-23 -->
-<!-- Last updated: 2026-09-23 (Phase 3 in progress: Focus, condition, speed, why) -->
+<!-- Last updated: 2026-09-24 (bstock Phases 4-6, v2.104.0) -->
 
 # Initiative: B-Stock daily buying
 
@@ -154,6 +154,40 @@ The signed-in data for the focus list is built: manifest, fees and shipping quot
 
 **Gated by:** Phase 3.
 
+Built (2026-09-24, `services/manifest_analysis.py`, buying `0032`):
+- **Matching:** the UPC key (digits, leading zeros stripped), then the same lowercase title, then a trigram near-title match. The near match needs a score of 0.7 or more (R-052: at 0.55–0.65 the best hit was often another size in the same brand line). Below 0.75 the brand must also match. When both titles name sizes (32qt, 14-cup, 13"), one size must be shared. At most 300 near lookups per truck. Each row keeps `matched_product`, `match_method` and `match_score`. R-052 (dev, 98 auctions, 30k lines): UPC and exact title match 7% of lines; a near match at 0.7 or more adds about 13%.
+- **Value per line:**
+  - the product's own sold ÷ retail when it has 3 or more sales, else the category recovery rate;
+  - times a hazard factor (missing pieces and box 1 of N 0.5, breakage 0.9).
+  - `analysis_revenue` feeds valuation.
+- **Hazards:** the 9 in `HAZARDS`, per line, and per truck with the share of retail. A seller's hedge ("sets may be missing pieces", on 4,827 Target lines) does not count as missing pieces. `retail_value` is the unit price in every template (R-052).
+- **The summary** (`Auction.manifest_analysis`) holds:
+  - lines, units, retail and truck value v2 next to the category-only value;
+  - days to sell (retail-weighted);
+  - matched lines and methods, and the share of retail priced from product sales;
+  - flagged lines;
+  - the top 10 lines and their share of the value;
+  - bulk items.
+- **Dev backfill (R-055, 98 trucks, 30k lines):**
+  - Speed: 1,206 s, about 12 s a truck.
+  - Match rate: 14% of lines (UPC 1,340, same title 827, near 2,129). A spot check found 0 wrong of 20 near matches and 0 of 10 UPC matches.
+  - Value: truck value v2 is within ±1% of the category-only value on 80% of trucks, because only 11% of matched products have 3 or more sales yet.
+  - Hazards: most often `high_value` (61 trucks), `fragile` (63) and `bulk_line` (42). `incomplete` touched only 4 after the hedge fix.
+  - It found two bugs, both fixed:
+    - The new categories (Appliances and 3 more) had a recovery rate of 0, which valued 4 Costco appliance trucks at $0. They now use the store-wide rate (`recovery.py`).
+    - One manifest's retail was 690× its listing's. Values are now scaled back past 3× (`RETAIL_MISMATCH`).
+- **Hazard accuracy (R-060):** the first rules were often wrong, and are now tightened.
+  - Box 1 of N was 0 of 2 right ("20/30 amp"). It now needs the word "of".
+  - Missing pieces was 0 of 9 right in titles ("for Broken Ankle", "broken-in"). Titles now need a plain statement such as "parts only"; the seller's condition keeps the broad words.
+  - Fragile was 18 of 25 right. It drops bare TV (unless it is a smart, OLED or sized TV), mug and plate, and ignores "glass not included".
+  - Candidates not added: battery, aerosol, liquid and furniture are each under 2% of a truck's retail, and "recall" never appears.
+- **Re-analysis** runs only when the rows or their mapping change (`freshness_key`). An auction without rows is never written (`has_manifest` only says B-Stock lists one).
+- **Data quality:**
+  - PRD-01 and PRD-02: duplicate and thin products lower the match rate. A near match needs a brand check, and unmatched lines fall back to the category rate, labelled.
+  - AUC-06: $0 and missing retail are kept, valued at 0 and flagged.
+  - ITM-01: product sales use sold items with a retail price for the ratio; items without one count as sold but not in the ratio.
+  - Coverage shows as "N of M lines matched" and "% of retail priced from our own sales".
+
 ### Phase 5 — Wish list and price targets (steps 5, 6 and 9)
 The final list of auctions to bid on. Each one shows:
 - truck score, Need v2 and a duration estimate;
@@ -171,9 +205,56 @@ Baseline for price targets (R-036, 2026-09-23):
 - A first "expected close" could be retail × the marketplace × condition median × about 1.17, split by bid count. 10 cells have n ≥ 30.
 - The sweep's price snapshots (added 2026-09-23) will replace this with real price curves.
 
+Built (2026-09-24, `services/price_target.py`, `wishlist.py`, `decision.py`, buying `0033` and `0035`):
+- **`price_target`:** the bid whose all-in cost (bid + fee + freight + labor + disposal) is effective revenue ÷ the profit factor (the auction's override, else `buying_profit_factor`, 2.0).
+- **`expected_close`:** retail × the close ratio for the seller and condition cell, else the seller, else the default. Near the end, the current price × the late bump.
+  - The ratios come from R-053 (dev, 16,863 ended auctions): Target .068, Walmart .075, Amazon .066, Costco .081, Home Depot .021, Wayfair .033, and .065 overall. They can be overridden in `buying_close_model`.
+  - Condition matters: new closes at .084, damaged at .037.
+  - More bids mean a higher close: .075 with 5 or more bids, .044 with fewer.
+  - The late bump is 1.00. R-053 found none (median 1.00, n = 28), against R-033's 1.17 (n = 19).
+  - `fit_close_model` re-fits the sellers, the seller × condition cells (n ≥ 30) and the bumps (n ≥ 15, with a snapshot within 15 minutes of the end). `--save` stores them.
+  - Caveat: the stored close is the sweep's last price, a median 28 minutes before the end.
+  - R-061 backtest (7,501 ended auctions, 452 with snapshots):
+    - 2–4 hours out, the price on the board was within ±15% of the close 77% of the time (median ratio 1.00), so the bump stays at 1.00.
+    - Similar lots: 97% of auctions have 2 or more, but only 67% of closes fall inside their range, and the close runs from half to double the similar median. R-068 tests scaling each similar lot by retail.
+- **Today's best** (`GET /api/buying/wishlist/`): live lots at or under the buyer's max, else the target.
+  - Ranking: Focus, Profit, Need, Speed or Ending, plus a category filter.
+  - Each row: why and why not, hazards, a profit range (±10% when every line matched, up to ±45% with none), and room to the max.
+  - The strip: won not paid, on order and in the building.
+- **The auction page decision panel** (`GET .../decision/`):
+  - the verdict, and the tiers Comfortable (factor × 1.25), Model and Stretch (factor × 0.75, at least 1.2);
+  - need now and after this lot;
+  - hazards with the clean checks;
+  - profit at the current bid and at the max, and the break-even bid;
+  - the landed cost;
+  - similar lots (same seller, same main category, ±2 pallets, last 30 days);
+  - the seller scorecard.
+- **The buyer's own max and notes:** `PATCH .../buyer/`.
+- **Data quality:**
+  - AUC-02: close prices are the last stored price, a median 21 minutes early; the late bump corrects for it.
+  - SHR-02: shrink comes from the condition group or the global setting, as in Phase 3.
+  - ERA-01: close ratios use all eras; the report card will re-fit them.
+
 ### Phase 6 — Won to PO, and the report card
 Marking an auction Won creates a PO that carries the manifest, which feeds the Pipeline in Phase 2. When the truck's items sell, predicted vs actual is shown and fed back into the valuation and the shipping formula.
 **Gated by:** Phase 5. The Won-to-PO link can move earlier if Phase 2's Pipeline needs it.
+
+Built (2026-09-24, `services/won_to_po.py`, buying `0034`):
+- **We won it** (Manager, Admin or superuser) creates the PO. It gets:
+  - the same defaults as a PO entered by hand;
+  - the seller as vendor;
+  - order number `BST-<lot>`;
+  - status ordered;
+  - the fee and freight.
+
+  It then uploads the manifest as a CSV through the normal upload service. The header order is borrowed from the vendor's earlier POs, so the template auto-match still fires (Postgres reorders jsonb keys).
+- It records the Outcome with a **prediction snapshot** (revenue, cost and days at the time of the win) and sets `Auction.purchase_order`.
+- **We lost it** records the close.
+- **Report card:** predicted vs actual revenue, sell-through and days once the items sell.
+- **Calibration:** the nightly stats set `buying_revenue_calibration` to the median actual ÷ predicted. It needs 5 or more trucks at least 90 days old and 50% sold, and is clamped between 0.7 and 1.3.
+- **Data quality:**
+  - AUC-01 and AUC-02: the win is recorded, not inferred.
+  - PO-01, PO-02, PO-05 and PO-07: the PO is created with its vendor, order number, cost and manifest at the moment of the win. This is the rail for those register gaps going forward; old POs are unchanged.
 
 ---
 
@@ -190,16 +271,38 @@ Marking an auction Won creates a PO that carries the manifest, which feeds the P
 ## Acceptance
 
 - [x] Phase 1: fresh stats and automatic manifests
-- [ ] Phase 2: buying context and Need v2
-- [ ] Phase 3: listing triage and focus list
-- [ ] Phase 4: manifest analysis and hazards
-- [ ] Phase 5: wish list with price targets and price tracking
-- [ ] Phase 6: won to PO, and the report card
+- [x] Phase 2: buying context and Need v2 (v2.98.0, v2.99.0)
+- [x] Phase 3: listing triage and focus list (v2.100.0)
+- [x] Phase 4: manifest analysis and hazards (v2.104.0)
+- [x] Phase 5: wish list with price targets and price tracking (v2.104.0, as Today's best)
+- [x] Phase 6: won to PO, and the report card (v2.104.0; calibration waits for 5 judged trucks)
 - [ ] Out-of-scope items stay out
 
 ---
 
 ## Record
+
+**2026-09-24 — Shipped v2.104.0: Phases 4 to 6.** The ship gate R-067 was GREEN, with 0 NEW failures across all Python apps, vitest and tsc, and none in POS or processing. On the way there, the recon found two production bugs:
+- the four new categories had a recovery rate of 0, which valued appliance trucks at $0 (store-wide fill-in);
+- one broken manifest was 690× its listing (the `RETAIL_MISMATCH` rail).
+
+Tests R-059, R-065 and R-066 were RED only on test setup (seeded marketplaces, category stats and vendor) and one half-cent rounding. Still open: R-062 (report-card history from old POs), R-063 (fit the close model), R-064 (dev re-analysis with the fixes), and R-068 (similar lots scaled by retail).
+
+**2026-09-24 — Phases 4 to 6 built, and the auction pages redesigned.** An advisor's mockups showed a decision-first auction page and a ranked "Today's best". Kept:
+- the countdown, current bid and your max with tiers;
+- a one-line verdict;
+- the Need, Hazards, Profit and Time to sell cards;
+- the landed cost, similar lots, seller scorecard and notes;
+- the manifest tabs and flag columns;
+- the ranked list with room to max, the strip, the need tiles, and Watch / Open / Pass.
+
+Left out (no data behind them):
+- cash on hand and floor space (not tracked);
+- Leading or Outbid (the app never bids);
+- recalls (outside data);
+- manifest accuracy per seller (needs receiving counts; the report card covers value).
+
+Tests: runner R-059. The dev backfill (`analyze_manifests --all --force`, then recompute) is R-055. Prices stay empty on dev until it runs.
 
 **2026-09-23 — Phase 3 started: Focus.** Triage = Priority (Need + profit) over the pull window. The **Focus** chip (`filters.focus_queryset`) shows that field ranked. Contracts are excluded (AUC-12). Still to do in Phase 3: speed in the score, parsed condition (AUC-05), and a per-auction "why" line.
 

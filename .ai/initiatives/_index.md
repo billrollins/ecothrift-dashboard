@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-24 (v2.100.0: bstock Phase 3, product_intelligence Phase 1 done) -->
+<!-- Last updated: 2026-09-24 (bstock_daily_buying Phases 4-6 in v2.104.0) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not a session log.
@@ -13,7 +13,7 @@ Bounded work (hours–days), one `.md` per initiative. Not a session log.
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [bstock_daily_buying](./bstock_daily_buying.md) | **Phase 3** | Phases 1–2 shipped (v2.99.0). Phase 3 triage (Focus, condition, speed, why, price history) in v2.100.0; the expected-close baseline is recorded for Phase 5. Compass. |
+| [bstock_daily_buying](./bstock_daily_buying.md) | **Phases 4–6 shipped** | Phases 1–3 in v2.98.0–v2.100.0. Phases 4–6 in v2.104.0: manifest analysis, price targets, Today's best, won → PO, report cards, and the decision-first auction page. Open: report-card history (R-062) and calibration. Compass. |
 | [data_quality_rails](./data_quality_rails.md) | **Phase 1** | Know the data (register + eras, runner R-009 to R-013), then quality-aware numbers, rails at every lifecycle stage, and cleanup. |
 | [product_intelligence](./product_intelligence.md) | **Phase 2** | Phase 2 structure shipped in v2.101.0: profiles, proposals, review page, pgvector vectors (a title alone places 90.5%), reversible merges. Loading the proposals, merges and embeddings into production waits on owner OK. |
 

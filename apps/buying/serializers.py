@@ -101,6 +101,9 @@ class AuctionListSerializer(_ShrinkMixin, serializers.ModelSerializer):
             'estimated_total_cost',
             'profitability_ratio',
             'est_profit',
+            'price_target',
+            'expected_close',
+            'max_bid',
             'need_score',
             'shrinkage_override',
             'profit_target_override',
@@ -270,6 +273,13 @@ class ManifestRowSerializer(serializers.ModelSerializer):
             'retail_value',
             'condition',
             'notes',
+            # Phase 4: match, hazards and value (services/manifest_analysis.py).
+            'matched_product',
+            'match_method',
+            'match_score',
+            'hazards',
+            'unit_value',
+            'value_basis',
         ]
 
 
@@ -300,6 +310,12 @@ class AuctionDetailSerializer(_ShrinkMixin, serializers.ModelSerializer):
     speed_score = serializers.SerializerMethodField()
     priority_speed_weight = serializers.SerializerMethodField()
     priority_profit_weight = serializers.SerializerMethodField()
+    # Phase 6: the PO a win became, the recorded outcome, and the report card.
+    purchase_order_number = serializers.SerializerMethodField()
+    outcome = serializers.SerializerMethodField()
+    report_card = serializers.SerializerMethodField()
+    # Labor and disposal (Assumptions), fixed at any bid: the max-bid tiles take them off.
+    handling_cost = serializers.SerializerMethodField()
 
     class Meta:
         model = Auction
@@ -341,6 +357,8 @@ class AuctionDetailSerializer(_ShrinkMixin, serializers.ModelSerializer):
             'first_seen_at',
             'ai_category_estimates',
             'manifest_category_distribution',
+            'manifest_analysis',
+            'analysis_revenue',
             'estimated_revenue',
             'revenue_override',
             'fees_override',
@@ -366,6 +384,15 @@ class AuctionDetailSerializer(_ShrinkMixin, serializers.ModelSerializer):
             'estimated_total_cost',
             'profitability_ratio',
             'est_profit',
+            'price_target',
+            'expected_close',
+            'max_bid',
+            'buyer_notes',
+            'purchase_order',
+            'purchase_order_number',
+            'outcome',
+            'report_card',
+            'handling_cost',
             'need_score',
             'shrinkage_override',
             'profit_target_override',
@@ -385,6 +412,31 @@ class AuctionDetailSerializer(_ShrinkMixin, serializers.ModelSerializer):
             cached = cost_sources(obj)
             obj._cost_sources = cached
         return cached
+
+    def get_purchase_order_number(self, obj: Auction) -> str | None:
+        return obj.purchase_order.order_number if obj.purchase_order_id else None
+
+    def get_outcome(self, obj: Auction) -> dict | None:
+        outcome = getattr(obj, 'outcome', None)
+        if outcome is None:
+            return None
+        return {
+            'win': outcome.win,
+            'hammer_price': str(outcome.hammer_price) if outcome.hammer_price is not None else None,
+            'total_cost': str(outcome.total_cost) if outcome.total_cost is not None else None,
+            'captured_at': outcome.captured_at,
+        }
+
+    def get_report_card(self, obj: Auction) -> dict | None:
+        from apps.buying.services.won_to_po import report_card
+
+        return report_card(obj) if obj.purchase_order_id else None
+
+    def get_handling_cost(self, obj: Auction) -> str:
+        from apps.buying.services.price_target import handling_costs
+
+        costs = handling_costs(obj)
+        return str(costs['labor'] + costs['disposal'])
 
     def get_fee_rate_applied(self, obj: Auction) -> str | None:
         return self._cost_sources(obj)['fee_rate_applied']

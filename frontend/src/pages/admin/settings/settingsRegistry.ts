@@ -121,6 +121,24 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'assumptions',
     kind: 'days',
   },
+  buying_profit_factor: {
+    label: 'Price target: profit factor',
+    help: "Buying: revenue / all-in cost the price target must make (default 2.0 = double the money). The max bid on every auction follows it; an auction's own profit target overrides it.",
+    tab: 'assumptions',
+    kind: 'ratio',
+  },
+  buying_labor_per_item: {
+    label: 'Labor per item ($)',
+    help: 'Buying: dollars of labor to process one unit (for example 0.75). Counts in the landed cost and the price target. 0 (default) = not counted.',
+    tab: 'assumptions',
+    kind: 'ratio',
+  },
+  buying_disposal_per_pallet: {
+    label: 'Disposal per pallet ($)',
+    help: 'Buying: dollars to throw away what does not sell, per pallet. Counts in the landed cost and the price target. 0 (default) = not counted.',
+    tab: 'assumptions',
+    kind: 'count',
+  },
   buying_shrink_new: {
     label: 'Shrink: New listings',
     help: 'Buying: revenue shrink (0-1) for auctions B-Stock lists as New / Brand New. 0 = use Buying revenue shrink.',

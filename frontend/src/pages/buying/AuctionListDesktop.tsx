@@ -772,6 +772,39 @@ function buildColumns(
       ),
     },
     {
+      // The buyer's own max, else the price target: green while the price is under it.
+      field: 'max_bid',
+      headerName: 'Max',
+      description: 'Your max bid, else the price target (buy at or under it)',
+      width: 84,
+      sortable: false,
+      align: 'right',
+      headerAlign: 'right',
+      renderCell: (params: GridRenderCellParams<BuyingAuctionListItem>) => {
+        const row = params.row;
+        const raw = row.max_bid ?? row.price_target;
+        const max = raw != null && raw !== '' ? Number.parseFloat(String(raw)) : NaN;
+        if (!Number.isFinite(max)) {
+          return (
+            <Typography variant="body2" color="text.secondary">
+              -
+            </Typography>
+          );
+        }
+        const price = Number.parseFloat(String(row.current_price ?? '0')) || 0;
+        return (
+          <Tooltip title={`${row.max_bid != null ? 'Your max' : 'Price target'} · ${price <= max ? `${formatCurrencyWhole(String(max - price))} room` : `${formatCurrencyWhole(String(price - max))} over`}`}>
+            <Typography
+              variant="body2"
+              sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: row.max_bid != null ? 700 : 400, color: price <= max ? 'success.main' : 'error.main' }}
+            >
+              {formatCurrencyWhole(String(max))}
+            </Typography>
+          </Tooltip>
+        );
+      },
+    },
+    {
       field: 'price_retail_pct',
       headerName: 'P/R %',
       width: 64,

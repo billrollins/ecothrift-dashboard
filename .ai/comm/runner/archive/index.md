@@ -55,4 +55,16 @@ Finished tasks, moved out of `queue.md`. Tasks are in `tasks/`, results in `resu
 | R-049 | test | Tests: nags and nudges in one drawer, Hours & pay fills, R-047 fixes | GREEN: 0 NEW | pending |
 | R-050 | test | Tests: weekly hours nag, clock-in at the limit, Hours & pay folded on phones | RED: 1 NEW | R-051 |
 | R-051 | test | Tests: weekly hours nag + forgotten clock-out on Today | GREEN: 0 NEW | v2.103.0 |
+| R-052 | recon | Buying manifests: fill, match rates, hazard keywords | done | manifest_analysis.py (NEAR_MIN 0.7, size check, hedge), bstock_daily_buying Phase 4 |
+| R-053 | recon | Expected close price and price-target calibration | done | price_target.DEFAULT_CLOSE_MODEL (ratios, bump 1.00, cells), fit_close_model, bstock_daily_buying Phase 5 |
+| R-054 | recon | How a purchase order and its manifest are created today | done | won_to_po.py unchanged (mark_won path confirmed; BST- numbers do not change generate_order_number, which already falls back for vendor-style numbers), bstock_daily_buying Phase 6 |
+| R-055 | chore | Analyze every dev manifest (Phase 4 backfill) | done | recovery.py (store-wide rate for zero-rate categories), manifest_analysis RETAIL_MISMATCH, bstock_daily_buying Phase 4 |
+| R-059 | test | Tests: Buying Phases 4 to 6 and the new auction pages | RED: 51 py NEW, 3 vitest NEW, 1 tsc NEW | fixed in R-065 (test seeds, exact unit values, tsc, vitest) |
+| R-060 | recon | Manifest hazard precision and candidate new hazards | done | manifest_analysis hazard rules (PART needs "of", INCOMPLETE_TITLE_RE, FRAGILE drops bare tv/mug/plate, NO_GLASS_RE), bstock_daily_buying Phase 4 |
+| R-065 | test | Retest R-059 RED (fixes + retail mismatch rail) | RED: 7 NEW | fixed in R-066 (vendor seed, Costco default ratio) |
+| R-061 | recon | Backtest the likely close and the similar-lots range | done | bumps stay 1.00 (confirmed); similar range kept, retail-scaled range tested in R-068; bstock_daily_buying Phase 5 |
+| R-066 | test | Hazard rules after R-060, and the R-065 fixes | RED: 2 NEW | fixed for R-067 (prediction stored as 3000.00) |
+| R-062 | recon | Tie old POs to auctions and backtest valuation | done | pending |
+| R-067 | test | Full pre-ship run for v2.104.0 | GREEN: 0 NEW | pending |
+| R-063 | chore | Fit the close model on dev (report only) | done | pending |
 

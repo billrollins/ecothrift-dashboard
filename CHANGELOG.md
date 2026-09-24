@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.103.0] -->
-<!-- Last reviewed: 2026-09-24 (2.103.0) -->
+<!-- Line 1 release: ## [2.104.0] -->
+<!-- Last reviewed: 2026-09-24 (2.104.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,94 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.104.0] - 2026-09-24
+
+User-facing theme: **The auction page says whether to bid and how much, Today's best ranks the lots worth it, and a win becomes a PO in one click.**
+
+Initiative `bstock_daily_buying`, Phases 4 to 6, plus a design pass on the auction pages (from an advisor's mockups).
+
+### Added
+
+- **The auction page leads with the decision.**
+  - **The top of the page:**
+    - a countdown;
+    - the current bid;
+    - **your max bid**: set it yourself, or pick Comfortable, Model or Stretch;
+    - a one-line verdict ("Bid up to $2,050. Fills the kitchen & dining gap, 2 hazards to check, cash back in about 38 days. Similar lots closed near your max, so expect a fight.") with the score.
+  - **Four cards:**
+    - **Need**: weeks of supply now, after this lot and the target;
+    - **Hazards**: the named ones, and the checks that came back clean;
+    - **Profit**: at the current bid, with a likely range, what's left at your max, and the break-even bid;
+    - **Time to sell.**
+  - **The side rail:**
+    - the landed cost (bid, fee, freight, labor and disposal) and what comes back;
+    - similar lots from the same seller that closed in the last 30 days, with a likely-close range;
+    - the seller's scorecard from our own won trucks;
+    - notes that save as you type.
+  - **What if I win at $X?** gives the landed cost, profit and return at any bid, for the last minutes when the bidding runs past the plan. "Use the model's" puts your max back to the model's.
+  - The old valuation cards and overrides sit below, under "Valuation details and overrides".
+- **Manifest analysis (Phase 4).** Each manifest line is matched to a product we know, by UPC, then the same title, then a similar title (with a brand check). A matched line is valued from that product's own sales when it has at least 3; the rest use the category rate. Truck value v2 shows next to the category-only value.
+  - Lines are flagged for hazards:
+    - box 1 of N;
+    - missing pieces;
+    - likely breakage;
+    - high value;
+    - $0 retail;
+    - quantities too big to process;
+    - bulk items;
+    - slow sellers;
+    - already stocked.
+  - The manifest has tabs (**All / Flagged / Matched / No match**) with counts, and Value, Match, Sells in, Need and Hazards columns.
+  - A badge says how much of the value rides on the top 10 lines.
+  - A manifest whose retail is more than 3× the listing's is treated as broken: its values are scaled back to the listing, and the card says so. One dev truck had $9.99 toys stored as $999.
+  - `python manage.py analyze_manifests` backfills existing manifests.
+- **Price targets (Phase 5).** Every auction gets a price target (the bid that still makes the profit factor, 2× by default, after fees, freight, labor and disposal) and a likely close: listed retail × what that seller's lots close at (Target 6.8%, Walmart 7.5%, Home Depot 2.1% and so on, from 16,863 ended auctions), and near the end the current price. `python manage.py fit_close_model` re-fits the ratios by seller and condition from our own data, and `--save` stores them.
+- **Today's best** (Buying → Today's best, replaces the wish list). It lists the live lots at or under your max (or the target).
+  - At the top:
+    - a strip with won not paid, on order and in the building;
+    - Need tiles you can click to filter;
+    - ranking by Focus, Profit, Need, Speed or Ending.
+  - Each lot shows its score, need, profit range, days to sell, hazards, room to your max, and why or why not, with Watch, Open and Pass.
+  - "Show ones over max" adds the ones that got away.
+- **Won to PO (Phase 6).** On a closed auction, **We won it** records the hammer price and creates the PO:
+  - status ordered, the seller as vendor (Target, Walmart and so on), order number `BST-<lot>`;
+  - the manifest attached in the column order the vendor's template expects;
+  - "we won it" is recorded on the auction.
+
+  **We lost it** records the close. Once a truck's items sell, its **report card** compares predicted with actual. Once 5 or more trucks are judged, the nightly stats adjust revenue estimates (clamped between 0.7× and 1.3×).
+- **Buying nags, in the same drawer as routines** (superusers, who bid):
+  - **"Bid now: ends in 12 min"** for a watched lot that ends within the hour and is still under your max. It turns red in the last 15 minutes.
+  - **"Did we win it?"** for a watched lot that ended in the last week with no result recorded.
+
+  Both count in the nag icon and on Today, and tapping one opens the auction.
+- **Report cards** (Buying → Report cards): every truck won with "We won it", what we predicted, what it has sold for so far, and its sell-through and days. A truck counts toward the valuation check once it is 90 days old and half sold. The page also shows the multiplier in use and the wins and losses of the last 90 days.
+- **Today's plan** on Today's best: the goal is 1 or 2 lots a day, so it names the 2 best lots that end within a day and are under their max, with each one's max, likely close and time left. It also counts what is won today, and says so once the goal is met. The morning Pull ends with an "Open Today's best" button.
+- **Your shortlist** on Today's best: every watched lot still live, soonest first, with its current bid against your max (red once over it).
+- **New in Admin → Assumptions:**
+  - **Price target: profit factor** (2.0);
+  - **Labor per item ($)** and **Disposal per pallet ($)**. Both start at $0, so nothing changes until they are set; then they count in the landed cost and in every max bid. A lot that lists pallets but no unit count gets our typical units per pallet (the median over the last 180 days), labelled "estimated from pallets".
+
+  The likely-close model (`buying_close_model`) is set by `fit_close_model --save`.
+
+### Changed
+
+- The max-bid tiles count labor and disposal like the server does.
+- **Manifest matching is stricter** (R-052):
+  - a similar-title match needs a score of 0.7 or more;
+  - when both titles name a size (32qt, 14-cup, 13"), a size must agree;
+  - Target's "sets may be missing pieces" disclaimer no longer flags a line as missing pieces.
+  - Hazards are tighter after checking them by hand (R-060):
+    - "Box 1 of N" needs the word "of";
+    - "missing pieces" needs a plain statement in the title;
+    - "fragile" no longer fires on a Funko "POP! TV", a steel mug or a mounting plate.
+- **The morning Pull** takes lots still under their max before lots already over it. Watched lots still come first.
+- **The Auctions list has a Max column**: your max (bold), else the price target. It is green while the price is under it and red once over.
+- Revenue estimates use the manifest analysis where a lot has one.
+
+### Fixed
+
+- **Lots in the four new categories (Appliances, Automotive, Arts & crafts, Lawn & garden) were valued at $0** since v2.100.0, because those categories have no sales of their own yet. So a Costco appliance truck never ranked. They now use the store-wide recovery rate (about 35% of retail), and the auction page says it is filled in.
 
 ## [2.103.0] - 2026-09-24
 

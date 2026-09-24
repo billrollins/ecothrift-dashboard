@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-23 (manifest pull second review) -->
+<!-- Last updated: 2026-09-24 (bstock Phases 4-6, v2.104.0) -->
 # B-Stock API and scraper reference
 
 **Committed map:** This file is the **scraper-centric** reference aligned with `apps/buying/services/scraper.py`. A longer probe-backed catalog previously lived under **`.ai/reference/`**; that tree is **not** in the repo anymore — treat **`scraper.py`** + this doc as authoritative.
@@ -14,6 +14,34 @@ All B-Stock HTTP calls go through `apps/buying/services/scraper.py`. No calls ar
 ### Internal Django endpoints (staff REST — not B-Stock hosts)
 
 Phase **5** adds valuation-related routes on the **same** `/api/buying/` router (see `apps/buying/urls.py`, `api_views.py`): e.g. **`POST`/`DELETE` `/api/buying/auctions/{id}/thumbs-up/`** (Admin; response **`my_thumbs_up`**, **`thumbs_up_count`**), **`PATCH` `/api/buying/auctions/{id}/valuation-inputs/`** (Admin), **`GET` `/api/buying/category-need/`**. List auctions supports **`ordering`** (e.g. **`-priority`**, **`-thumbs_up_count`**) and query filter **`thumbs_up`** (current user voted). List/detail JSON includes **`my_thumbs_up`** and **`thumbs_up_count`**. **`POST` `/api/buying/sweep/`** runs discovery then **optional** AI title-category estimate for a limited batch of new auctions and **`recompute_all_open_auctions()`** (see `backend.md` Buying section). These do **not** call B-Stock except via **`pipeline.run_discovery`** (search).
+
+**Daily buying Phases 4 to 6 (2026-09-24, `bstock_daily_buying`):** all on `/api/buying/`, staff only, and none of them call B-Stock.
+- **`GET auctions/{id}/manifest_rows/`** takes these filters:
+  - `hazard` (a code, or `any`);
+  - `matched` (`1` or `0`);
+  - ordering `line_value`.
+
+  Each row carries `matched_product`, `match_method`, `hazards`, `unit_value`, `value_basis` and `product_sales`.
+- **`GET auctions/{id}/decision/`** (`services/decision.py`) returns the verdict, bid tiers, need, hazards, profit, landed cost, similar lots and seller.
+- **`PATCH auctions/{id}/buyer/`** takes `max_bid` (blank clears it) and `buyer_notes`.
+- **`POST auctions/{id}/won/`** takes `hammer_price`, and optionally `fees` and `shipping`. It is for Manager, Admin or superuser, and creates the PO with its manifest through `services/won_to_po.py`.
+- **`POST auctions/{id}/lost/`**.
+- **`GET report-cards/`** (`won_to_po.report_cards`) returns every won truck's report card and stage, the calibration (trucks, median ratio, the multiplier `applied`, and the thresholds), and the last 90 days won and lost.
+- **`GET nags/`** (`services/buying_nags.py`) is for superusers only; everyone else gets an empty list. It returns:
+  - `ending`: watched lots that end within 60 minutes and are still at or under the max (red within 15 minutes);
+  - `unrecorded`: watched lots that ended in the last 7 days with no Outcome or PO;
+  - `count` and `tone`.
+- **`GET wishlist/`** takes `include=over`, `rank` (focus / profit / need / speed / ending) and `category`. It returns `results`, `eligible`, `live_total`, `strip` and `report_cards`.
+- **The detail** adds these fields:
+  - `manifest_analysis` and `analysis_revenue`;
+  - `price_target` and `expected_close`;
+  - `max_bid` and `buyer_notes`;
+  - `purchase_order`, `outcome` and `report_card`;
+  - `handling_cost`.
+- **Commands:**
+  - `analyze_manifests [--all] [--force] [--auction ID]` backfills the analysis.
+  - `compute_daily_category_stats` also refreshes `buying_revenue_calibration`.
+  - `fit_close_model [--days 180] [--save]` fits the likely-close ratios (per seller, per seller × condition cell with n ≥ 30) and the late bumps (n ≥ 15, with a snapshot within 15 minutes of the end). `--save` writes `buying_close_model`; run `recompute_buying_valuations` after.
 
 | Function | Endpoint | Auth (in code) | Notes |
 |----------|----------|----------------|--------|
@@ -45,7 +73,7 @@ Safe operations (no ban risk):
 - **Signed-in-only sellers (Costco).** Anonymous search returns none of Costco's lots; a signed-in search returned all 272 (2026-09-23). `Marketplace.requires_login` (`buying/0025` sets it for `costco`): the sweep searches such a seller with the owner's handed-over login, direct, only while that login is live; with no login it skips the seller with "Signed-in only on B-Stock..." (nothing is closed: auctions close by end time). A pull's first run searches these sellers before fixing its shortlist, so the day's Costco lots can make it. The marketplace chip's tooltip says so. Tests: `apps/buying/tests/conftest.py` makes that search see no login unless a test patches `scraper.login_for_signed_in_sellers`.
 - **Fees and shipping.** Fees = `Marketplace.default_fee_rate` x price (B-Stock's 5% buyer fee; `buying/0022` set 5% where blank or the old 3% placeholder), unless overridden. Shipping = override, else `Auction.shipping_quote` (B-Stock's quote), else the **shipping formula** (`services/shipping_formula.py`, AppSetting `buying_shipping_formula`): truckload (`shipmentType` Truckload or 16+ pallets) = fixed + per_mile x miles; LTL = fixed + per_pallet x pallets + per_pallet_mile x pallets x miles, with miles = driving miles from the store to `origin_city` (`ShippingOrigin`, Google Routes, one lookup per new city after each sweep, a failed one again after 30 days; `buying/0024` seeds the 25 cities in our PO history). Fitted 2026-09-23 on 193 POs + 2 B-Stock quotes: truckload $1,668 + $1.67/mi (level x1.62 from 2026 orders, when truckloads jumped), LTL $298 + $43.25/pallet + $0.075/pallet-mile; the page shows amount -/+ the typical miss (25% / 20%). Re-fit: `python manage.py fit_shipping_formula` (report, writes `workspace/shipping_history.csv`: city slug, vendor, pallets, cost, fee, shipping, yyyy-mm) then `--save`, then `recompute_buying_valuations`. No distance: pallets x `buying_shipping_per_pallet` (100). No pallet count: `default_shipping_rate` x price. The sweep stores `pallet_count` (B-Stock `palletCount`, else "23 Pallets" in the title), `origin_city` (`sellerCity, provinceCode`), `origin_zip`, `shipment_type` (Truckload / LTL / PARCEL), and keeps them when a later listing omits them (`buying/0023` also fills pallet counts from old titles). Bulk recomputes load the city rates once. After each saved manifest the pull reads the listing's quote (one more direct call, same pause; a failed quote never fails the manifest). Auction detail has **Get B-Stock quote** (superuser, `POST /api/buying/auctions/{id}/shipping-quote/`: 409 without a login or when B-Stock refuses it, 404 `no_quote`, 502 B-Stock down). Detail also returns `fee_rate_applied`, `shipping_rate_applied`, `shipping_source` so max bid solves for costs that scale with the bid.
 - **What stops the job.** A 401, or two different lots refused in a row, means the login: that exact token is forgotten (a newer one sent meanwhile stays), the job fails with "reload B-Stock, then Send again", and the refused lots are cleared back onto the shortlist. B-Stock not answering (timeout, 5xx, 429 after retries; `Retry-After` capped at 60 s) fails the job and parks only the lot it was on. Three failed manifests in a row stop the job unless it was the end of the list; blocked and refused lots do not count. Every attempt writes a `ManifestPullLog` (download time, calls, `used_socks5=False`: authenticated calls always go direct, never through the SOCKS5 pool).
-- **Shortlist** (`manifest_pull.shortlist_queryset`): open/closing, seen by a sweep in the last 3 hours, ends within `buying_manifest_pull_window_hours` (36, 1-168), has `lot_id`, not CONTRACT (any case), not archived, not blocked, marketplace active, no manifest rows, no failed attempt within `buying_manifest_pull_retry_hours` (12, at least 1). Watchlisted first, then `priority`, then soonest. Cap `buying_manifest_pull_max_per_run` (40, at least 1); pause `buying_manifest_pull_page_delay_ms` (500) between requests and between auctions. All four under Admin → Assumptions.
+- **Shortlist** (`manifest_pull.shortlist_queryset`): open/closing, seen by a sweep in the last 3 hours, ends within `buying_manifest_pull_window_hours` (36, 1-168), has `lot_id`, not CONTRACT (any case), not archived, not blocked, marketplace active, no manifest rows, no failed attempt within `buying_manifest_pull_retry_hours` (12, at least 1). Watchlisted first, then lots at or under their max (`max_bid`, else `price_target`) ahead of ones already over it (kept, since the target before a manifest is only an estimate), then `priority`, then soonest. Cap `buying_manifest_pull_max_per_run` (40, at least 1); pause `buying_manifest_pull_page_delay_ms` (500) between requests and between auctions. All four under Admin → Assumptions.
 - **Save.** Rows normalize with `whole_numbers_are_cents=True` (API retail is integer cents; `renormalize_manifest_rows` does the same for any row whose `raw_data` has an `attributes` dict, then re-values those auctions). Rows are de-duplicated by `_id` and saved only when the unique count equals `total` (with no `total`, paging runs until a short page). `fast_cat_key` = `{vendor}-api-{categories[0]}-{customAttributes.subCategory|otherCategory}`; known mappings are applied first, then the AI (up to 20 batches); mapping trouble or a stop never skips valuation. `Auction.manifest_source` = `auto` / `manual`.
 - **Routine.** Submit needs the pull done or stopped, or nothing left to pull (a quiet day, or a failed pull that left every lot in the retry wait). Only a superuser can submit. The run keeps every pull it made (`earlier_job_ids`), so the record shows all results; outcome is always 0 issues.
 

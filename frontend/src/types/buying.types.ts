@@ -59,6 +59,12 @@ export interface BuyingAuctionListItem {
   profitability_ratio?: string | null;
   /** Expected profit after shrink minus total cost (Phase 5+). */
   est_profit?: string | null;
+  /** Phase 5: buy at or under this; null without a revenue estimate. */
+  price_target?: string | null;
+  /** Phase 5: likely hammer price. */
+  expected_close?: string | null;
+  /** The buyer's own max bid; null means the price target is the max. */
+  max_bid?: string | null;
   /** 1-99 taxonomy need mix; absent when not computed. */
   need_score?: number | null;
   shrinkage_override?: string | null;
@@ -142,6 +148,22 @@ export interface BuyingAuctionDetail extends BuyingAuctionListItem {
   external_id: string;
   description: string;
   url: string;
+  /** Phase 4: manifest lines matched, flagged and valued (null without manifest lines). */
+  manifest_analysis?: ManifestAnalysis | null;
+  /** Truck value v2 (before shrink); replaces the category-mix revenue when set. */
+  analysis_revenue?: string | null;
+  /** The buyer's own max bid (else the price target is the max) and notes. */
+  max_bid?: string | null;
+  buyer_notes?: string;
+  /** Phase 6: the PO a win became. */
+  purchase_order?: number | null;
+  purchase_order_number?: string | null;
+  outcome?: { win: boolean; hammer_price: string | null; total_cost: string | null; captured_at: string | null } | null;
+  report_card?: ReportCard | null;
+  /** Labor + disposal (Assumptions), fixed at any bid. */
+  handling_cost?: string;
+  /** Only on the POST .../won/ response: why the manifest did not carry over, if it didn't. */
+  won_note?: string;
   category: string;
   /** B-Stock lotId (manifest API path segment). */
   lot_id: string | null;
@@ -245,6 +267,51 @@ export interface BuyingManifestRow {
   retail_value: string | null;
   condition: string;
   notes: string;
+  /** Phase 4 (manifest analysis): the product this line matched, and how. */
+  matched_product?: number | null;
+  /** upc | title | near | '' */
+  match_method?: string;
+  match_score?: string | null;
+  /** Hazard codes (see `components/buying/manifestHazards.ts`). */
+  hazards?: string[] | null;
+  /** Expected revenue per unit, after hazard discounts. */
+  unit_value?: string | null;
+  /** product (this product's own sales) | category (the category rate) */
+  value_basis?: string;
+  /** The line's category need (High / Med / Low); null when the category has no stats. */
+  need_level?: 'High' | 'Med' | 'Low' | null;
+  /** What the matched product did for us; null when unmatched. */
+  product_sales?: {
+    title: string;
+    sold: number;
+    avg_days: number | null;
+    on_hand: number;
+    ratio: string | null;
+  } | null;
+}
+
+/** Summary of the manifest analysis on an auction (Phase 4). */
+export interface ManifestAnalysis {
+  key: string;
+  analyzed_at: string;
+  lines: number;
+  units: number;
+  retail: string;
+  revenue: string;
+  revenue_by_category: string;
+  matched_lines: number;
+  /** Lines with any hazard; missing on analyses made before it was added. */
+  flagged_lines?: number;
+  /** Manifest retail far over the listing's: values were scaled back to the listing. */
+  retail_mismatch?: { manifest_retail: string; listing_retail: string; scale: number } | null;
+  /** Share of the value in the 10 best lines; missing on older analyses. */
+  top_lines_value_pct?: number | null;
+  match_methods: Record<string, number>;
+  matched_retail_pct: number;
+  product_basis_retail_pct: number;
+  hazards: Record<string, { lines: number; retail_pct: number }>;
+  top_lines: Array<{ row_id: number; title: string; qty: number; value: string; basis: string; hazards: string[] }>;
+  high_volume: Array<{ product_id: number; title: string; units: number; sold: number; avg_days: number | null; on_hand: number }>;
 }
 
 export interface BuyingManifestRowsParams {
@@ -252,6 +319,10 @@ export interface BuyingManifestRowsParams {
   search?: string;
   /** Canonical or fast_cat value, or `__uncategorized__`. */
   category?: string;
+  /** One hazard code (Phase 4). */
+  hazard?: string;
+  /** '1' matched lines only, '0' unmatched only. */
+  matched?: string;
   /** Comma-separated whitelist (first wins), e.g. `-retail_value` or `row_number`. */
   ordering?: string;
 }
@@ -550,3 +621,213 @@ export interface ManifestPullState {
   waiting_retry_count: number;
 }
 
+
+/** GET /api/buying/wishlist/ (Phase 5): one auction worth bidding on. */
+export interface WishlistAuction {
+  id: number;
+  title: string;
+  marketplace: string;
+  url: string;
+  /** The lot's main category (the biggest share of its mix). */
+  top_category?: string | null;
+  origin_city?: string;
+  total_retail_value?: string | null;
+  lot_size?: number | null;
+  /** The buyer's max, else the price target. */
+  max_bid?: string | null;
+  max_is_buyer?: boolean;
+  /** max_bid minus the current price (negative when over). */
+  room?: string | null;
+  need_level?: 'High' | 'Med' | 'Low' | null;
+  profit_low?: string | null;
+  profit_high?: string | null;
+  /** Hazards covering 5% of retail or more. */
+  hazard_count?: number;
+  end_time: string | null;
+  current_price: string | null;
+  bid_count: number | null;
+  price_target: string | null;
+  expected_close: string | null;
+  /** in_range | likely_over | over */
+  state: 'in_range' | 'likely_over' | 'over' | null;
+  priority: number;
+  need_score: number | null;
+  est_profit: string | null;
+  profitability_ratio: string | null;
+  estimated_revenue: string | null;
+  estimated_total_cost: string | null;
+  pallet_count: number | null;
+  condition_summary: string;
+  days_to_sell: number | null;
+  has_analysis: boolean;
+  matched_retail_pct: number | null;
+  hazards: Array<{ code: string; lines: number; retail_pct: number }>;
+  why: string;
+  why_not: string[];
+  watched: boolean;
+}
+
+/** Phase 6: predicted (at the win) vs actual (the PO's items so far). */
+export interface ReportCard {
+  purchase_order_id: number;
+  order_number: string;
+  po_status: string;
+  predicted: { revenue: string | null; profit: string | null; days_to_sell: number | null; units: number | null };
+  actual: {
+    items: number;
+    sold: number;
+    on_shelf: number;
+    revenue: string;
+    shelf_value: string;
+    profit_so_far: string;
+    avg_days_to_sell: number | null;
+    sell_through_pct: number | null;
+  };
+  revenue_vs_predicted_pct: number | null;
+  cost: string;
+}
+
+/** One won truck on the Report cards page. */
+export interface ReportCardRow {
+  auction_id: number;
+  title: string;
+  marketplace: string;
+  ordered_date: string | null;
+  age_days: number | null;
+  hammer_price: string | null;
+  /** judged: old enough and sold enough to count in the valuation check. */
+  stage: 'judged' | 'selling' | 'not_selling_yet';
+  card: ReportCard;
+}
+
+/** GET /api/buying/report-cards/ */
+export interface ReportCardsResponse {
+  results: ReportCardRow[];
+  calibration: {
+    trucks: number;
+    median_ratio: number | null;
+    /** The multiplier valuation uses now (null: 1.0, not enough trucks yet). */
+    applied: string | null;
+    min_trucks: number;
+    min_age_days: number;
+    min_sold_pct: number;
+  };
+  last_90_days: { won: number; lost: number };
+}
+
+/** GET /api/buying/wishlist/ */
+export interface WishlistResponse {
+  results: WishlistAuction[];
+  /** Rows that pass (before the 60-row cap) and all live auctions. */
+  eligible?: number;
+  live_total?: number;
+  /** Numbers we really have: won not paid, on order, in the building. */
+  strip?: {
+    /** Lots marked won today: the goal is 1 or 2 a day. */
+    won_today?: number;
+    won_unpaid: { lots: number; total: string | null };
+    on_order: { units: number; retail: string | null };
+    in_building: { units: number; retail: string | null; oldest_days: number | null };
+  };
+  /** Finished won trucks: actual / predicted revenue (Phase 6). */
+  report_cards: { trucks: number; median_ratio: number | null };
+}
+
+/** A watched lot in the buyer's nags. */
+export interface BuyingNagLot {
+  id: number;
+  title: string;
+  marketplace: string;
+  end_time: string | null;
+  current_price: string | null;
+}
+
+/** GET /api/buying/nags/ (superusers; empty for everyone else). */
+export interface BuyingNags {
+  /** Watched, ending within the hour, still at or under the max. Red in the last 15 minutes. */
+  ending: Array<
+    BuyingNagLot & { minutes_left: number; max_bid: string | null; max_is_buyer: boolean; room: string | null; tone: 'red' | 'amber' }
+  >;
+  /** Watched, ended in the last 7 days, no result recorded yet. */
+  unrecorded: BuyingNagLot[];
+  count: number;
+  tone: 'red' | 'amber' | 'none';
+}
+
+/** GET /api/buying/auctions/:id/decision/ (the auction page's decision panel). */
+export interface AuctionDecision {
+  score: number;
+  verdict: string;
+  bids: {
+    max_bid: string | null;
+    max_is_buyer: boolean;
+    comfortable: string | null;
+    model: string | null;
+    stretch: string | null;
+    room: string | null;
+  };
+  need: {
+    level: 'High' | 'Med' | 'Low' | null;
+    score: number | null;
+    category?: string;
+    share_pct?: number;
+    cover_weeks?: string | null;
+    cover_after_weeks?: string | null;
+    target_weeks?: string | null;
+    note?: string;
+  };
+  hazards: {
+    count: number;
+    named: Array<{ code: string; label: string; lines: number; retail_pct: number }>;
+    clean: string[];
+    known: boolean;
+  };
+  profit: {
+    at_current: string | null;
+    roi_pct: number | null;
+    at_max: string | null;
+    low: string | null;
+    high: string | null;
+    break_even_bid: string | null;
+    per_pallet: string | null;
+  };
+  time_to_sell: { days: number | null; sell_through_30_pct: number | null };
+  landed: {
+    bid: string | null;
+    fee: string | null;
+    freight: string | null;
+    labor: string | null;
+    /** Categories with no sales of their own, valued at the store-wide rate (``store_rate``). */
+    filled_categories?: string[];
+    store_rate?: string;
+    /** Freight per $ of bid when freight is a rate estimate; null when it is a fixed amount. */
+    ship_rate?: string | null;
+    /** Units the labor is on, and where they came from (estimate = pallets x typical units). */
+    labor_units?: number;
+    labor_units_basis?: 'manifest' | 'listing' | 'estimate' | 'none';
+    disposal_pallets?: number;
+    disposal_pallets_basis?: 'listing' | 'estimate' | 'none';
+    disposal: string | null;
+    total: string | null;
+    recovery: string | null;
+    profit: string | null;
+    fee_rate: string | null;
+    recovery_pct_of_retail: number | null;
+    value_basis_pct: number | null;
+  };
+  similar: {
+    lots: Array<{ id: number; title: string; category: string | null; origin_city: string; pallets: number | null; close: string | null; retail: string | null }>;
+    likely_low: string | null;
+    likely_high: string | null;
+    days: number;
+  };
+  seller: {
+    name: string;
+    won_90_days: number;
+    lost_90_days: number;
+    trucks_judged: number;
+    actual_vs_predicted_pct: number | null;
+  };
+  units: number;
+  retail: string | null;
+}

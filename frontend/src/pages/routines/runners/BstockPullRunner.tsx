@@ -435,6 +435,22 @@ function JobResults({ job, heading }: { job: ManifestPullJob; heading?: string }
           <Typography sx={{ fontSize: 13, color: dutyColors.ink60 }}>Nothing to pull right now.</Typography>
         </RunnerCard>
       ) : null}
+      {!running && job.results.some((row) => row.ok) ? (
+        // The manifests just pulled re-value their lots; the next step of the morning is choosing.
+        <Box sx={{ mx: 1.25, mb: 1 }}>
+          <Button
+            fullWidth
+            variant="contained"
+            component="a"
+            href="/buying/wishlist"
+            target="_blank"
+            rel="noopener noreferrer"
+            sx={{ height: 44, fontWeight: 800 }}
+          >
+            Open Today&apos;s best
+          </Button>
+        </Box>
+      ) : null}
       {job.results.map((row, index) => (
         <RunnerCard key={`${index}-${row.auction_id}`} tone={row.ok ? 'good' : row.skipped ? 'plain' : 'warn'}>
           <Typography

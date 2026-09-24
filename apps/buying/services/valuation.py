@@ -13,6 +13,14 @@ from django.utils import timezone
 
 from apps.buying.models import Auction, CategoryStats, ManifestRow
 from apps.buying.services.condition import get_condition_shrink, shrink_for
+from apps.buying.services.manifest_analysis import analyze_if_stale
+from apps.buying.services.recovery import recovery_rate
+from apps.buying.services.price_target import (
+    expected_close,
+    get_revenue_calibration,
+    handling_costs,
+    price_target,
+)
 from apps.buying.services.shipping_formula import estimate_for_auction, get_shipping_formula, load_origin_miles
 from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED
 from apps.core.models import AppSetting
@@ -148,11 +156,9 @@ def _manifest_retail_sum(auction: Auction) -> Decimal:
 
 
 def _recovery_rate_for_category(stats: dict[str, CategoryStats], cat: str) -> Decimal:
-    row = stats.get(cat)
-    if row is not None:
-        return row.recovery_rate
-    m = stats.get(MIXED_LOTS_UNCATEGORIZED)
-    return m.recovery_rate if m else Decimal('0')
+    # The category's own rate, else the store-wide one: the categories added in 2026-09 have no
+    # sales yet, and a rate of 0 valued their lots at $0 (R-055).
+    return recovery_rate(stats, cat)
 
 
 def _need_score_1to99_for_category(stats: dict[str, CategoryStats], cat: str) -> int:
@@ -382,8 +388,49 @@ def _fees_shipping_total_cost(
             auction, origin_miles=origin_miles, formula=formula, per_pallet_default=per_pallet_default
         )['amount']
 
-    total_cost = (price + fees + shipping).quantize(CENT)
+    handling = handling_costs(auction)
+    total_cost = (price + fees + shipping + handling['labor'] + handling['disposal']).quantize(CENT)
     return fees, shipping, total_cost
+
+
+def _bid_rates(
+    auction: Auction,
+    *,
+    origin_miles: dict[str, int] | None = None,
+    formula: dict[str, Any] | None = None,
+    per_pallet_default: Decimal | None = None,
+) -> tuple[Decimal | None, Decimal | None]:
+    """(fee rate, shipping rate) that grow with the bid; None where that cost is fixed."""
+    mp = auction.marketplace
+    fee_rate = None if auction.fees_override is not None else ((mp.default_fee_rate if mp else None) or Decimal('0'))
+    ship_rate = None
+    if auction.shipping_override is None and auction.shipping_quote is None:
+        est = shipping_estimate(auction, origin_miles=origin_miles, formula=formula, per_pallet_default=per_pallet_default)
+        if est['basis'] == 'rate':
+            ship_rate = est['rate']
+    return fee_rate, ship_rate
+
+
+def _price_fields(
+    auction: Auction,
+    effective_rev: Decimal,
+    fees: Decimal,
+    shipping: Decimal,
+    **estimate_kwargs: Any,
+) -> None:
+    """Phase 5: set ``price_target`` and ``expected_close`` (saved by the caller)."""
+    fee_rate, ship_rate = _bid_rates(auction, **estimate_kwargs)
+    handling = handling_costs(auction)
+    auction.price_target = price_target(
+        auction,
+        effective_revenue=effective_rev,
+        fees=fees,
+        shipping=shipping,
+        fee_rate=fee_rate,
+        ship_rate=ship_rate,
+        extra_fixed=handling['labor'] + handling['disposal'],
+    )
+    auction.expected_close = expected_close(auction)
 
 
 def recompute_auction_full(
@@ -407,6 +454,12 @@ def recompute_auction_full(
     if auction.has_manifest:
         compute_and_save_manifest_distribution(auction)
         auction.refresh_from_db()
+    # Phase 4: match, flag and value the manifest line by line (only when it changed).
+    try:
+        if analyze_if_stale(auction, stats=stats):
+            auction.refresh_from_db()
+    except Exception:
+        logger.exception('recompute_auction_full: manifest analysis failed for auction %s', auction.pk)
 
     weights = _mix_for_auction(auction)
     retail_manifest = _manifest_retail_sum(auction)
@@ -416,11 +469,15 @@ def recompute_auction_full(
         retail_base = auction.total_retail_value or Decimal('0')
 
     est_rev = Decimal('0')
-    if retail_base > 0 and weights:
+    if auction.analysis_revenue is not None and auction.analysis_revenue > 0:
+        # Truck value v2: line by line, from matched products' own sales where we have them.
+        est_rev = auction.analysis_revenue
+    elif retail_base > 0 and weights:
         for cat, w in weights.items():
             rate = _recovery_rate_for_category(stats, cat)
             est_rev += retail_base * w * rate
-    est_rev = est_rev.quantize(Decimal('0.01'))
+    # Phase 6: report cards (actual / predicted) scale the estimate once enough trucks back it.
+    est_rev = (est_rev * get_revenue_calibration()).quantize(Decimal('0.01'))
 
     fees, shipping, total_cost = _fees_shipping_total_cost(
         auction, origin_miles=origin_miles, formula=formula, per_pallet_default=per_pallet_default
@@ -443,6 +500,10 @@ def recompute_auction_full(
         profitability_ratio = None
 
     need_val = _auction_need_from_mix(weights, stats)
+    _price_fields(
+        auction, effective_rev, fees, shipping,
+        origin_miles=origin_miles, formula=formula, per_pallet_default=per_pallet_default,
+    )
 
     auction.estimated_revenue = est_rev
     auction.estimated_fees = fees
@@ -468,6 +529,8 @@ def recompute_auction_full(
             'priority',
             'est_profit',
             'status',
+            'price_target',
+            'expected_close',
         ]
     )
 
@@ -504,6 +567,10 @@ def recompute_auction_lightweight(
 
     weights = _mix_for_auction(auction)
     need_val = _auction_need_from_mix(weights, stats)
+    _price_fields(
+        auction, effective_rev, fees, shipping,
+        origin_miles=origin_miles, formula=formula, per_pallet_default=per_pallet_default,
+    )
 
     auction.estimated_fees = fees
     auction.estimated_shipping = shipping
@@ -527,6 +594,8 @@ def recompute_auction_lightweight(
             'priority',
             'est_profit',
             'status',
+            'price_target',
+            'expected_close',
         ]
     )
 

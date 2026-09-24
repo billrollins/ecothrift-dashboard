@@ -36,7 +36,7 @@ from typing import Callable
 
 import requests
 from django.db import close_old_connections, connection, connections, transaction
-from django.db.models import Exists, F, OuterRef, Q, QuerySet, Value
+from django.db.models import BooleanField, Case, Exists, F, OuterRef, Q, QuerySet, Value, When
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
@@ -188,15 +188,24 @@ def shortlist_queryset(now=None) -> QuerySet[Auction]:
 
     Open or closing, seen by a sweep in the last few hours, ending inside the window, has a
     lot id, not a contract listing, not archived, marketplace active, no manifest rows yet,
-    not blocked, and no failed attempt inside the retry wait. Watchlisted first, then
-    priority, then soonest ending.
+    not blocked, and no failed attempt inside the retry wait. Watchlisted first, then the
+    ones still at or under their max (the buyer's, else the price target) ahead of the ones
+    already over it, then priority, then soonest ending. Over-max lots are not dropped: before
+    the manifest, the target is only the listing's estimate.
     """
     now = now or timezone.now()
     return (
         Auction.objects.filter(_needs_pull_q(now) & _window_q(now))
-        .annotate(on_watchlist=Exists(WatchlistEntry.objects.filter(auction_id=OuterRef('pk'))))
+        .annotate(
+            on_watchlist=Exists(WatchlistEntry.objects.filter(auction_id=OuterRef('pk'))),
+            over_max=Case(
+                When(current_price__gt=Coalesce(F('max_bid'), F('price_target')), then=Value(True)),
+                default=Value(False),
+                output_field=BooleanField(),
+            ),
+        )
         .select_related('marketplace')
-        .order_by('-on_watchlist', F('priority').desc(nulls_last=True), 'end_time', 'pk')
+        .order_by('-on_watchlist', 'over_max', F('priority').desc(nulls_last=True), 'end_time', 'pk')
     )
 
 

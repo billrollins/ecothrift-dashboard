@@ -82,6 +82,8 @@ import LabelDesignerPage from './pages/admin/labelStudio/LabelDesignerPage';
 import AuctionListPage from './pages/buying/AuctionListPage';
 import AuctionDetailPage from './pages/buying/AuctionDetailPage';
 import WatchlistPage from './pages/buying/WatchlistPage';
+import WishListPage from './pages/buying/WishListPage';
+import ReportCardsPage from './pages/buying/ReportCardsPage';
 import PartsCommandCenterPage from './pages/restoration/parts/PartsCommandCenterPage';
 import RestorationQueuePage from './pages/restoration/queue/RestorationQueuePage';
 import RestorationBenchPage from './pages/restoration/RestorationBenchPage';
@@ -260,6 +262,8 @@ export default function App() {
         <Route path="/buying/auctions" element={<AuctionListPage />} />
         <Route path="/buying/auctions/:id" element={<AuctionDetailPage />} />
         <Route path="/buying/watchlist" element={<WatchlistPage />} />
+        <Route path="/buying/wishlist" element={<WishListPage />} />
+        <Route path="/buying/report-cards" element={<ReportCardsPage />} />
         <Route path="/restoration" element={<RestorationLayout />}>
           <Route index element={<Navigate to="/restoration/overview" replace />} />
           <Route path="overview" element={<RestorationQueuePage />} />

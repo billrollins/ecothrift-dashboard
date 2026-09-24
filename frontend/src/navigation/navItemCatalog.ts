@@ -141,6 +141,13 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Table',
     icon: 'receiptLong',
   },
+  wishlist: {
+    id: 'wishlist',
+    path: '/buying/wishlist',
+    label: "Today's best",
+    // The morning list: auctions worth bidding on, each with a buy-at-or-under max.
+    icon: 'localOffer',
+  },
   auctions: {
     id: 'auctions',
     path: '/buying/auctions',
@@ -152,6 +159,13 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     path: '/buying/watchlist',
     label: 'Watchlist',
     icon: 'star',
+  },
+  reportCards: {
+    id: 'reportCards',
+    path: '/buying/report-cards',
+    label: 'Report cards',
+    // Won trucks: predicted vs what they sold for (the valuation's check).
+    icon: 'factCheck',
   },
   assumptions: {
     id: 'assumptions',

@@ -29,7 +29,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'buying',
     label: 'Buying',
-    itemIds: ['auctions', 'watchlist', 'vendors', 'orders', 'preprocessing'],
+    itemIds: ['wishlist', 'auctions', 'watchlist', 'reportCards', 'vendors', 'orders', 'preprocessing'],
   },
   {
     id: 'processing',

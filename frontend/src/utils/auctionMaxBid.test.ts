@@ -48,6 +48,18 @@ describe('computeMaxBidAtProfitFactor', () => {
     expect(computeMaxBidAtProfitFactor(d, 1)).toBeCloseTo(890, 2);
   });
 
+  it('takes labor and disposal off like the server does', () => {
+    const d = detail({
+      effective_revenue_after_shrink: '1000',
+      estimated_fees: '10',
+      estimated_shipping: '100',
+      fee_rate_applied: null,
+      shipping_rate_applied: null,
+      handling_cost: '90.00',
+    });
+    expect(computeMaxBidAtProfitFactor(d, 1)).toBeCloseTo(800, 2);
+  });
+
   it('returns null without numbers or with a bad factor', () => {
     expect(computeMaxBidAtProfitFactor(detail({}), 1)).toBeNull();
     const d = detail({ effective_revenue_after_shrink: '1000', estimated_fees: '0', estimated_shipping: '0' });

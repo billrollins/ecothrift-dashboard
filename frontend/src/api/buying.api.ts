@@ -1,5 +1,9 @@
 import type { PaginatedResponse } from '../types/index';
 import type {
+  AuctionDecision,
+  BuyingNags,
+  ReportCardsResponse,
+  WishlistResponse,
   BuyingAuctionDetail,
   BuyingCategoryGoal,
   BuyingAuctionListItem,
@@ -170,6 +174,62 @@ export async function fetchBuyingAuctionSummary(
   return data;
 }
 
+/** The wish list (Phase 5); `includeOver` adds auctions whose price passed the target. */
+export type WishlistRank = 'focus' | 'profit' | 'need' | 'speed' | 'ending';
+
+export async function fetchBuyingWishlist(
+  options: { includeOver?: boolean; rank?: WishlistRank; category?: string } = {},
+): Promise<WishlistResponse> {
+  const params: Record<string, string> = {};
+  if (options.includeOver) params.include = 'over';
+  if (options.rank) params.rank = options.rank;
+  if (options.category) params.category = options.category;
+  const { data } = await api.get<WishlistResponse>('/buying/wishlist/', { params });
+  return data;
+}
+
+/** Every won truck's report card, and the valuation check (Phase 6). */
+export async function fetchBuyingReportCards(): Promise<ReportCardsResponse> {
+  const { data } = await api.get<ReportCardsResponse>('/buying/report-cards/');
+  return data;
+}
+
+/** The buyer's nags (superusers): bid on watched lots ending soon, record ended ones. */
+export async function fetchBuyingNags(): Promise<BuyingNags> {
+  const { data } = await api.get<BuyingNags>('/buying/nags/');
+  return data;
+}
+
+/** Phase 6: record the win; the server creates the PO and carries the manifest over. */
+export async function postBuyingAuctionWon(
+  id: number,
+  body: { hammer_price: string; fees?: string; shipping?: string },
+): Promise<BuyingAuctionDetail> {
+  const { data } = await api.post<BuyingAuctionDetail>(`/buying/auctions/${id}/won/`, body);
+  return data;
+}
+
+/** Phase 6: record a loss, with the closing price when known. */
+export async function postBuyingAuctionLost(id: number, body: { hammer_price?: string }): Promise<BuyingAuctionDetail> {
+  const { data } = await api.post<BuyingAuctionDetail>(`/buying/auctions/${id}/lost/`, body);
+  return data;
+}
+
+/** The auction page's decision panel. */
+export async function fetchBuyingAuctionDecision(id: number): Promise<AuctionDecision> {
+  const { data } = await api.get<AuctionDecision>(`/buying/auctions/${id}/decision/`);
+  return data;
+}
+
+/** The buyer's own max bid ('' clears it) and notes. */
+export async function patchBuyingAuctionBuyer(
+  id: number,
+  body: { max_bid?: string; buyer_notes?: string },
+): Promise<{ max_bid: string | null; buyer_notes: string }> {
+  const { data } = await api.patch<{ max_bid: string | null; buyer_notes: string }>(`/buying/auctions/${id}/buyer/`, body);
+  return data;
+}
+
 export async function fetchBuyingAuction(id: number): Promise<BuyingAuctionDetail> {
   const { data } = await api.get<BuyingAuctionDetail>(`/buying/auctions/${id}/`);
   return data;
@@ -194,6 +254,8 @@ export async function fetchBuyingManifestRows(
   if (params.page != null) q.page = params.page;
   if (params.search) q.search = params.search;
   if (params.category) q.category = params.category;
+  if (params.hazard) q.hazard = params.hazard;
+  if (params.matched) q.matched = params.matched;
   if (params.ordering) q.ordering = params.ordering;
   const { data } = await api.get<PaginatedResponse<BuyingManifestRow>>(
     `/buying/auctions/${auctionId}/manifest_rows/`,

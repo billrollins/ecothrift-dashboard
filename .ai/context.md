@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-24 (v2.100.0; product_intelligence active; taxonomy rulebook) -->
+<!-- Last updated: 2026-09-24 (v2.104.0: B-Stock buying Phases 4-6) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -14,7 +14,7 @@ Full-stack business management for a thrift store in Omaha, NE. HR (time clock, 
 
 ## Active work
 
-- **ACTIVE (compass) — B-Stock daily buying:** [`bstock_daily_buying`](initiatives/bstock_daily_buying.md). Phases 1–2 are shipped. Phase 3 (triage: Focus, condition, speed, the "why" line, price history) shipped in v2.100.0. Next: Phase 4 manifest analysis.
+- **ACTIVE (compass) — B-Stock daily buying:** [`bstock_daily_buying`](initiatives/bstock_daily_buying.md). Phases 1–3 are shipped. v2.104.0 ships Phases 4–6: manifest analysis (matching, hazards, truck value v2), price targets and Today's best (plan, shortlist, buyer nags), won → PO with report cards, and the decision-first auction page. Next: report-card history (R-062) and calibration once won trucks sell.
 - **ACTIVE — Product intelligence:** [`product_intelligence`](initiatives/product_intelligence.md). Phase 1 is done. Spark backfill proposals for every Mixed product sit in `workspace/backfill/` (files only). Phase 2 (v2.101.0) added profiles, the proposals review page, pgvector product vectors and reversible merges. Loading them into production waits on the owner.
 - **Unreleased, outside initiatives:** own-aisle cross-check fix (`routines/0027_orphan_section_drafts`, runs before B-Stock's `0028`) and kiosk follow-ups (Exit without password, sign-in **Scan your card**). Both are in `[Unreleased]`.
 - **ACTIVE - Data quality and rails:** [`data_quality_rails`](initiatives/data_quality_rails.md). The register is [`extended/data-quality.md`](extended/data-quality.md): every build states the register IDs it touches and the fill-ins it uses. We work with imperfect data rather than drop it. **Read its Eras and Standing decisions before building on any data.** V1/V2 were imported on 2026-04-12 with `BACKFILL:` tags; V3 native is the only clean era. "Scrapped" import rows are not shrink, $0 often means unknown, and enrichment is product-first.
@@ -122,7 +122,7 @@ When you add, rename, or remove a file in `.ai/extended/`, update this table.
 - No DB link from won **Auction** → **PurchaseOrder**.
 - Email notifications beyond Graph transactional mail (holds, magic links, and password resets are covered).
 - Broad automated test suite (POS and restoration have coverage; most domains do not).
-- Pricing ML model not trained. Buying Phase 6 (outcome tracking) not started.
+- Pricing ML model not trained. Buying report cards start empty: only trucks won with "We won it" (v2.104.0+) count, and calibration needs 5 trucks that are 90+ days old and half sold.
 
 ## AI Guidelines
 

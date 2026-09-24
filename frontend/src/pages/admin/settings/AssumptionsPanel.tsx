@@ -22,6 +22,9 @@ const ASSUMPTION_ORDER = [
   'buying_priority_profit_weight',
   'buying_priority_speed_weight',
   'buying_pipeline_max_age_days',
+  'buying_profit_factor',
+  'buying_labor_per_item',
+  'buying_disposal_per_pallet',
   'delivery_service_minutes_per_stop',
 ] as const;
 

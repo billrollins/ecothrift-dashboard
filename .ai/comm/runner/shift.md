@@ -1,4 +1,4 @@
-> **Start here (runner, shift mode).** 1) Load context: steps 1–5 of `.ai/protocols/context-load.md` (skip its STOP: this file is the ask). 2) Follow `.ai/protocols/runner.md`, section **Shift mode**. You run until 07:00 or an `end` row. Never stop because the queue is empty.
+> **Start here (runner, shift mode).** 1) Load context: steps 1–5 of `.ai/protocols/context-load.md` (skip its STOP: this file is the ask). 2) Follow `.ai/protocols/runner.md`, section **Shift mode**. You run until an `end` row appears in `queue.md`. There is no clock stop. Never stop because the queue is empty.
 
 # Runner shift
 
@@ -7,7 +7,8 @@
 2. Take the lowest `queued` ID, and open **only that** task file. Run it, archive it, and start again at step 1.
 3. Skip `hold` rows. They are slots the coder hasn't filled yet.
 4. **Nothing queued?** Do one idle chunk (below), about 20 minutes, then go back to step 1.
-5. **Stop** at a row marked `end`, or at 07:00 local time.
+5. **Stop** only at a row marked `end`. Keep going otherwise, however long it takes.
+6. **Never end your reply between tasks.** Ending the reply ends the shift: nobody restarts you, and the queue sits for hours (it happened on 2026-09-24 after R-060). After archiving a task, your next action is always a tool call that re-reads `queue.md`. Write a summary to the result file, not to the chat.
 
 ## Idle work (only when nothing is queued)
 
@@ -32,4 +33,4 @@ Each idle chunk writes to its own file and picks up where the last chunk stopped
 - Append to `workspace/gold/mixed_labels.csv` with columns `item_title`, `category`, `subcategory`, `confidence`, `note`.
 - Taxonomy questions go to the same file as in I-1.
 
-If all three are blocked, wait 5 minutes and re-read `queue.md`.
+If all three are blocked, wait 5 minutes and re-read `queue.md`. Keep looping; never end the shift yourself.

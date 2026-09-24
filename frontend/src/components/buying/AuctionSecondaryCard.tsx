@@ -139,6 +139,16 @@ export default function AuctionSecondaryCard({ detail }: Props) {
             {formatMaxBid(bidAtBreakeven)}
           </Typography>
         </Box>
+        {detail.expected_close ? (
+          <Box sx={tooltipRowSx}>
+            <Typography component="span" sx={{ ...tooltipLabelSx, color: 'rgba(255,255,255,0.7)' }}>
+              Likely close
+            </Typography>
+            <Typography component="span" className="gauge-tip-amount" sx={{ ...tooltipAmountSx, color: 'common.white' }}>
+              {formatCurrencyWhole(detail.expected_close)}
+            </Typography>
+          </Box>
+        ) : null}
       </Stack>
     </Box>
   );

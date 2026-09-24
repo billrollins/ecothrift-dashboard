@@ -6,12 +6,15 @@ from apps.buying.api_views import (
     AuctionViewSet,
     BstockLoginView,
     BstockTokenStatusView,
+    BuyingNagsView,
     CategoryGoalView,
     CategoryNeedView,
     ManifestPullView,
     MarketplaceViewSet,
+    ReportCardsView,
     SweepView,
     WatchlistAuctionViewSet,
+    WishlistView,
 )
 
 router = DefaultRouter()
@@ -25,6 +28,9 @@ urlpatterns = [
     path('bstock-login/', BstockLoginView.as_view(), name='buying-bstock-login'),
     path('manifest-pulls/', ManifestPullView.as_view(), name='buying-manifest-pulls'),
     path('sweep/', SweepView.as_view(), name='buying-sweep'),
+    path('wishlist/', WishlistView.as_view(), name='buying-wishlist'),
+    path('nags/', BuyingNagsView.as_view(), name='buying-nags'),
+    path('report-cards/', ReportCardsView.as_view(), name='buying-report-cards'),
     path('category-need/', CategoryNeedView.as_view(), name='buying-category-need'),
     path('category-need/goal/', CategoryGoalView.as_view(), name='buying-category-goal'),
     path('', include(router.urls)),

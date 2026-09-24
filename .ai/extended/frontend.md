@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-23 (B-Stock hand-off; ai settings + floorplan AI merged) -->
+<!-- Last updated: 2026-09-24 (bstock Phases 4-6, v2.104.0) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -45,6 +45,36 @@
 **Enhancement requests:** staff file Restoration / Processing asks from `RequestsDrawer` (bottom sheet on the bench and Processing — fixed grabber, does not shift the page). Superuser board at `/admin/enhancement-requests` (Restoration workspace guest item **Enhancements**). Initiative: [`enhancement_requests`](../initiatives/_archived/_completed/enhancement_requests.md).
 
 **Buying (StaffRoute):** **`AuctionListPage`** at **`/buying/auctions`** — **Phase 5 UI:** toolbar **Active auctions**, **Filters** + **Clear all**, marketplace row (**All** + chips) and filter row (**Profitable**, **Needed**, **Thumbs up**, **Watched**, **Has manifest**); multi-select tooltips via **`multiSelectChipTooltip`**; default sort **`-priority,end_time`**, valuation DataGrid columns (thumbs, vendor chip, est. revenue, profitability/need pills, priority steppers Admin, time colors **>4h / <4h / <1h**), watchlist row tint (≤**100** watchlist IDs); **category need panel** (desktop **`md+` only**): Min/Window/Full + bars + **Margin** + **Recovery** + detail **Profitability** tiles (**useBuyingCategoryNeed**; **`GET /api/buying/category-need/`** — **v2.17.0**). Marketplace + filter chip filters (Ctrl/⌘ multi-select where applicable), retail tooltips, list queries use **`keepPreviousData`** for stable server pagination; list hooks use **`refetchOnMount: false`** and **`staleTime`** so optimistic thumbs/watch/archive do not refetch the grid (see **Buying — desktop auction list** below). **`AuctionDetailPage`** (**v2.15.0** decision-flow layout — see **`.ai/extended/ux-spec.md`**): **`AuctionUrgencyStrip`** (full-width real-time banner: countdown, price, bids, status), **`AuctionDecisionSummary`** (margin ratio, risk flags, opportunity signal), then 3×2 CSS grid: **`ValuationMaxBidCard`** (multi-tick gauge, color-bordered tiles) | **`AuctionBiddingCard`** (priority, need, buy now, starting price, est. profit, profitability) | **`ValuationCostsCard`** (inputs/outputs split with est. profit + margin) | **`AuctionDetailsInfoCard`** (condition chip, avg retail/item) | **`ValuationCategoryTableCard`** (recovery rate color coding) | **manifest card** (compact metadata when loaded, full drop zone when empty). Below: **`CategoryDistributionBar`**, **Manifest Rows** DataGrid, price history chart. **`AiManifestComparisonStrip`** in manifest card. Admin overrides via **`PATCH …/valuation-inputs/`**. **`WatchlistPage`** at **`/buying/watchlist`**. **B-Stock manifest pull (superuser, 2026-09-22):** the daily routine's runner is **`pages/routines/runners/BstockPullRunner.tsx`** (kind `bstock_pull`; open B-Stock, bookmark hand-off, Pull / Stop / Disconnect, results; `preview` prop makes it static in the catalog and editor). The bookmarklet lands on **`/routines/bstock-login`** (**`BstockLoginHandoffPage`**, any staff user; it tells a non-owner why and drops the token); **`main.tsx`** calls **`captureBstockTokenFromHash()`** before routing so a sign-in bounce keeps the token (sessionStorage, 15-minute life). Nothing is saved until the owner taps Send; the page then pings other tabs through a `localStorage` storage event so the runner refreshes, and closes itself when a runner tab is open (the runner stamps `bstock.runnerOpenAt`). **`PendingBstockLoginNotice`** (staff layout) offers a login a sign-in bounce left waiting. The runner keeps every pull on the run (`earlier_job_ids`) and marks a quiet day (`nothing_to_pull`) so it can be submitted. Helpers: **`bstockHandoff.ts`**. Auction detail and the list manifest tooltip show **`manifest_source`** / **`manifest_pull_error`**; the empty drop zone uses **`manifest_pull_eligible`**. **`buying.api.ts`** + hooks **`useBuyingAuctions`**, **`useBuyingAuctionsInfinite`**, **`useBuyingAuctionSummary`**, **`useBuyingMarketplaces`**, **`useBuyingAuctionDetail`**, **`useBuyingManifestRows`**, **`useBuyingAuctionSnapshots`**, **`useBuyingWatchlist`**, **`useBuyingWatchlistInfinite`**, **`useBuyingCategoryNeed`**, **`useBuyingThumbsUpMutation`**, **`useBuyingValuationInputsMutation`**. Initiative: **`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`**.
+
+**Buying decision pages (2026-09-24, `bstock_daily_buying` Phases 4 to 6):**
+- **`AuctionDetailPage`** now opens with the decision panel, and the older cards follow under "Valuation details and overrides".
+  - Data: `useBuyingAuctionDecision`, key `['buying','auctions',id,'decision']`.
+  - The components are in `components/buying/decision/`:
+    - `AuctionDecisionHeader`: countdown, current bid, your max with Set max and the Comfortable / Model / Stretch tiers (`PATCH …/buyer/`), the verdict bar, and Watch / Refresh / Pass;
+    - `AuctionKpiCards`: Need, Hazards, Profit and Time to sell;
+    - `AuctionSideRail`: landed cost, similar lots, seller scorecard, and notes that autosave;
+    - `ScoreBadge`.
+  - Below them:
+    - `AuctionOutcomeCard`: We won it / We lost it, and the report card;
+    - `ManifestAnalysisCard`: truck value v2, match coverage, the top-10 value badge, and hazard chips that filter;
+    - the manifest tabs All / Flagged / Matched / No match (`hazard=any`, `matched=1|0`);
+    - the columns Value, Match, Sells in, Need (the line category's level) and Hazards.
+  - Hazard labels and colours come from `components/buying/manifestHazards.ts`.
+  - `utils/auctionMaxBid.ts` subtracts `handling_cost`.
+- **`WishListPage`** ("Today's best", `/buying/wishlist`, first in the Buying nav) holds:
+  - the strip;
+  - need tiles (click to filter);
+  - Rank by Focus / Profit / Need / Speed / Ending;
+  - "Show ones over max";
+  - a desk table (lg) or phone cards, with Watch / Open / Pass.
+
+  Data: `useBuyingWishlist({includeOver, rank, category})`, refetched every minute.
+
+  It also has a "Your shortlist" panel: a right column on lg, above the list on smaller screens. It holds the watched live lots from `useBuyingWatchlist`, showing the price against `max_bid` or else `price_target`.
+- **`ReportCardsPage`** (`/buying/report-cards`, nav `reportCards`, via `useBuyingReportCards`) holds:
+  - the valuation check: trucks judged out of 5, actual ÷ predicted, the multiplier in use, and the last 90 days won and lost;
+  - each won truck with its stage (judged / selling / not selling yet) and predicted vs actual.
+- **Buying nags** (`useBuyingNags`, superusers only, refetched every minute) show as `BuyingNagCards` in the `RoutinesNag` drawer and count in `nagSummary` (4th argument) and on Today (`useTodayModel`).
 
 **Inventory route behavior (M3)**:
 
