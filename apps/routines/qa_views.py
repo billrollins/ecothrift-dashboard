@@ -46,6 +46,7 @@ from .command_center import (
     create_nudge,
     pending_nudges_for,
     pooled_open_runs_for,
+    remove_section_cover,
     serialize_nudge,
     today_payload,
     week_payload,
@@ -377,20 +378,16 @@ class QaAssignView(APIView):
         section = get_object_or_404(Section, pk=request.data.get('section'))
 
         if kind == 'owner':
-            previous = section.owner
-            section.owner = user
-            section.save(update_fields=['owner', 'updated_at'])
-            SectionAssignmentEvent.objects.create(
-                section=section,
-                kind=SectionAssignmentEvent.KIND_OWNER,
-                user=user,
-                for_date=day,
-                assigned_by=request.user,
-                previous_user=previous,
-            )
-            materialize_routines(day)
-            drop_unowned_open_tally(previous, day)
-            return Response({'ok': True, 'owner_id': section.owner_id})
+            # The Command Center moves a section for today only. The standing owner changes in
+            # Settings > Routines (PATCH /routines/sections/<id>/), never here.
+            try:
+                if user is not None and user.pk == section.owner_id:
+                    remove_section_cover(section=section, day=day)
+                    return Response({'ok': True, 'owner_id': section.owner_id, 'today': section.owner_id})
+                cover = cover_section_today(section=section, helper=user, day=day, marked_by=request.user)
+            except ValueError as exc:
+                return Response({'detail': str(exc)}, status=400)
+            return Response({'ok': True, 'owner_id': section.owner_id, 'today': user.pk, 'run_id': cover.pk})
 
         if kind == 'cover_section':
             try:

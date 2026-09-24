@@ -46,4 +46,6 @@ Finished tasks, moved out of `queue.md`. Tasks are in `tasks/`, results in `resu
 | R-040 | recon | Production: where extensions live | done: vector not installed; no event trigger; pg_trgm already in ecothrift; opinion: CREATE in ecothrift likely succeeds | vector is untrusted on prod; pre-create before the vector release |
 | R-041 | test | Tests: product vectors and similar products | RED: 3 NEW | RED fixed (tests scoped); retest R-042 |
 | R-042 | test | Tests: vectors (R-041 fix) and product merges | GREEN: 0 NEW | pending |
+| R-043 | test | Tests: routine visibility (today-only covers) | RED: 2 NEW | pending |
+| R-044 | test | Retest: routine visibility (R-043 fixes) | GREEN: 0 NEW | pending |
 

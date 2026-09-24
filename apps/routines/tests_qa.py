@@ -1,5 +1,6 @@
 """Retail QA v2: baseline math, residual examples, flags, settings."""
 from datetime import date, datetime, time, timedelta
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 from django.contrib.auth.models import Group
@@ -1528,7 +1529,8 @@ class AssignmentVisibilityTests(APITestCase):
         self.assertIn(handed.pk, other_ids)
         self.assertNotIn(handed.pk, michael_after)
 
-    def test_owner_change_drops_the_former_open_tally(self):
+    def test_command_center_owner_pick_is_today_only(self):
+        """Picking someone on the Command Center covers the aisle today; the owner stays the owner."""
         david_run = self._open(self.tally, who=self.david, subject='David')
         michael_run = self._open(self.tally, who=self.michael, subject='Michael')
         self.client.force_authenticate(self.mgr)
@@ -1539,11 +1541,59 @@ class AssignmentVisibilityTests(APITestCase):
             'user': self.michael.pk,
         }, format='json')
         self.assertEqual(response.status_code, 200, getattr(response, 'data', response.content))
+        self.david_section.refresh_from_db()
+        self.assertEqual(self.david_section.owner_id, self.david.pk)
+        cover = RoutineRun.objects.get(
+            routine=self.tally, period_key=self.day.isoformat(), section=self.david_section, section_scoped=True,
+        )
+        self.assertEqual(cover.assigned_to_id, self.michael.pk)
         self.assertFalse(RoutineRun.objects.filter(pk=david_run.pk).exists())
         michael_run.refresh_from_db()
-        self.assertEqual(michael_run.assigned_to_id, self.michael.pk)
-        self.assertIn('David', michael_run.subject)
-        self.assertIn('Michael', michael_run.subject)
+        self.assertEqual(michael_run.subject, 'Michael')
+
+        back = self.client.post('/api/routines/qa/board/assign/', {
+            'date': self.day.isoformat(),
+            'kind': 'owner',
+            'section': self.david_section.pk,
+            'user': self.david.pk,
+        }, format='json')
+        self.assertEqual(back.status_code, 200, getattr(back, 'data', back.content))
+        self.assertFalse(RoutineRun.objects.filter(pk=cover.pk).exists())
+        self.david_section.refresh_from_db()
+        self.assertEqual(self.david_section.owner_id, self.david.pk)
+
+    def test_reassigning_an_owners_check_covers_today_and_is_not_recreated(self):
+        """Handing David's whole section check to Michael must not make David own it, or give David a new run."""
+        from apps.routines.command_center import assign_run
+        from apps.routines.kinds import owned_sections
+        from apps.routines.schedule import materialize_routines
+        david_run = self._open(self.tally, who=self.david, subject='David')
+        assign_run(run=david_run, user=self.michael, marked_by=self.mgr)
+        self.david_section.refresh_from_db()
+        self.assertEqual(self.david_section.owner_id, self.david.pk)
+        # self.day is in the past; the real flow is same-day, so don't let expiry close the cover first.
+        with patch('apps.routines.schedule.expire_open_runs', return_value=0):
+            materialize_routines(self.day)
+        open_for_david = RoutineRun.objects.filter(
+            routine=self.tally, period_key=self.day.isoformat(), assigned_to=self.david,
+            status=RoutineRun.STATUS_OPEN,
+        )
+        self.assertFalse(open_for_david.exists())
+        cover = RoutineRun.objects.get(
+            routine=self.tally, period_key=self.day.isoformat(), section=self.david_section, section_scoped=True,
+        )
+        self.assertEqual(cover.assigned_to_id, self.michael.pk)
+        self.assertEqual([s.pk for s in owned_sections(cover)], [self.david_section.pk])
+
+    def test_owners_form_skips_an_aisle_covered_today(self):
+        """The owner's own check must not list (and so double-count) an aisle someone else walks today."""
+        from apps.routines.command_center import cover_section_today
+        from apps.routines.kinds import owned_sections
+        second = Section.objects.create(department=self.david_section.department, name='Zz Second aisle', owner=self.david)
+        david_run = self._open(self.tally, who=self.david, subject='David')
+        cover_section_today(section=self.david_section, helper=self.michael, day=self.day, marked_by=self.mgr)
+        david_run.refresh_from_db()
+        self.assertEqual([s.pk for s in owned_sections(david_run)], [second.pk])
 
     def test_called_in_cross_check_is_off_my_routines_and_on_the_board(self):
         from apps.routines.command_center import apply_call_in, build_issues
@@ -1932,3 +1982,21 @@ class AssignmentVisibilityTests(APITestCase):
         self.assertTrue(RoutineRun.objects.filter(pk=parked.pk).exists())
         repair(apps, None)
         self.assertTrue(RoutineRun.objects.filter(pk=parked.pk).exists())
+
+
+class DayPunchesTests(TestCase):
+    """A zero-length closed punch next to an open one must not make someone look gone."""
+
+    def test_open_punch_wins_then_latest_end(self):
+        from apps.hr.models import TimeEntry
+        from apps.routines.command_center import day_punches
+        user = User.objects.create_user(email='punch@example.com', first_name='Ash', last_name='K', password='x', is_staff=True)
+        day = date(2026, 9, 23)
+        at = timezone.make_aware(datetime.combine(day, time(11, 57)), TZ)
+        # Production had 11:57:xx for both; the second punch is seconds later (unique employee/date/clock_in).
+        TimeEntry.objects.create(employee=user, date=day, clock_in=at, clock_out=at, shift='restoration')
+        real = TimeEntry.objects.create(employee=user, date=day, clock_in=at + timedelta(seconds=20), shift='processing')
+        self.assertEqual(day_punches(day)[user.pk].pk, real.pk)
+        real.clock_out = at + timedelta(hours=8)
+        real.save(update_fields=['clock_out'])
+        self.assertEqual(day_punches(day)[user.pk].pk, real.pk)

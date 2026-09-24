@@ -819,6 +819,9 @@ export interface QaJob {
   owner: NamedPerson | null;
   owner_state?: 'scheduled' | 'in' | 'pool' | null;
   owner_late?: boolean;
+  /** Section rows: the standing owner (Settings > Routines), and whether someone else covers it today. */
+  standing_owner?: { id: number; name: string } | null;
+  covered_today?: boolean;
   due_at: string | null;
   due_label: string;
   hard_label?: string;

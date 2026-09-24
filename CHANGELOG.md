@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.101.0] -->
-<!-- Last reviewed: 2026-09-24 (2.101.0) -->
+<!-- Line 1 release: ## [2.101.1] -->
+<!-- Last reviewed: 2026-09-24 (2.101.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.101.1] - 2026-09-24
+
+User-facing theme: **Section checks reassigned on the Command Center are for today only; owners change only in Settings.**
+
+Outside initiatives (routines fixes reported by staff 2026-09-23).
+
+### Fixed
+
+- Picking someone for a section on the Command Center (or taking over someone's section check on the phone) now covers that aisle **for today only**. It used to change the section's owner for good (section "David" became Carrie's on 09-22, so David's aisle was checked twice). Picking the owner again removes today's cover. Owners change only in Settings > Routines.
+- An owner's section check no longer lists an aisle someone else covers today, so nothing is counted twice.
+- The Command Center shows who walks a section today and, when it's covered, "for <owner>".
+- Someone with two punches in a day (a zero-length one from a shift switch) no longer shows as "Left" while clocked in.
+- Data: section "David" set back to owner David Kilduff; today's check records Carrie covering it.
 
 ## [2.101.0] - 2026-09-24
 

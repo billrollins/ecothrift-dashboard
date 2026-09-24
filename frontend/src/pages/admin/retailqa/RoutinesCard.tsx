@@ -129,7 +129,7 @@ function RoutineGroup({
                       }
                     }}
                   >
-                    <option value="">Assign owner</option>
+                    <option value="">{job.section_id ? 'Who walks it today' : 'Assign owner'}</option>
                     {pool.map((person) => (
                       <option key={person.id} value={person.id}>
                         {'full_name' in person && person.full_name
@@ -141,7 +141,14 @@ function RoutineGroup({
                     ))}
                   </select>
                 ) : job.owner?.name ? (
-                  job.owner_state === 'pool' || job.owner.id == null ? job.owner.name : shortName(job.owner.name)
+                  <>
+                    {job.owner_state === 'pool' || job.owner.id == null ? job.owner.name : shortName(job.owner.name)}
+                    {job.covered_today && job.standing_owner?.name ? (
+                      <span className="cover-for" title={`Covering today. ${job.standing_owner.name} still owns this section.`}>
+                        {' '}for {shortName(job.standing_owner.name)}
+                      </span>
+                    ) : null}
+                  </>
                 ) : ''}
               </span>
               <span className="time" title={missReasonText(job) || undefined}>

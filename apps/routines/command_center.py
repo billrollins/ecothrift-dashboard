@@ -50,6 +50,7 @@ from .schedule import (
     department_sections,
     due_at_for,
     hard_at_for,
+    materialize_routines,
     maybe_draw_spot,
     user_in_audience,
     week_days,
@@ -700,11 +701,27 @@ def week_roster_ids(monday: date) -> set[int]:
     return ids
 
 
+def day_punches(day: date) -> dict:
+    """
+    One punch per person for the day: an open punch (still clocked in) wins, otherwise the latest.
+
+    People can have several punches a day (a shift switch leaves a zero-length closed one, e.g.
+    11:57-11:57 then 11:57-open). Picking one at random showed someone clocked in as "Left".
+    """
+    chosen: dict = {}
+    for row in TimeEntry.objects.filter(date=day).select_related('employee').order_by('clock_in', 'pk'):
+        prev = chosen.get(row.employee_id)
+        if (
+            prev is None
+            or row.clock_out is None
+            or (prev.clock_out is not None and row.clock_out >= prev.clock_out)
+        ):
+            chosen[row.employee_id] = row
+    return chosen
+
+
 def build_staff(day: date, *, now: datetime, tz, today: date) -> list[dict]:
-    punches = {
-        row.employee_id: row
-        for row in TimeEntry.objects.filter(date=day).select_related('employee')
-    }
+    punches = day_punches(day)
     call_ins = {row.employee_id: row for row in call_in_rows(day)}
     skipped = excluded_ids(day)
     allowed = can_call_in_on(day, today=today)
@@ -866,10 +883,7 @@ def build_off(day: date, staff: list[dict]) -> list[dict]:
 def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> list[dict]:
     expected_keys, expected_sections = expected_parts(day)
     closed = closed_section_ids(day)
-    punches = {
-        row.employee_id: row
-        for row in TimeEntry.objects.filter(date=day).select_related('employee')
-    }
+    punches = day_punches(day)
     call_ins = called_in_ids(day)
     jobs: list[dict] = []
     tally_runs = list(
@@ -971,6 +985,10 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
             'can_close': status == STATUS_DONE or section.pk in closed,
             'shift_people': [],
             'section_owner_id': section.owner_id,
+            # Rule: the owner is set in Settings; a today-only cover shows who walks it today.
+            'standing_owner': _person(section.owner) if section.owner_id else None,
+            'covered_today': bool(run is not None and getattr(run, 'section_scoped', False) and run.assigned_to_id
+                                  and run.assigned_to_id != section.owner_id),
             **miss_fields(run),
         })
 
@@ -2034,6 +2052,52 @@ def cover_section_today(*, section, helper, day, marked_by=None) -> RoutineRun:
     return cover
 
 
+def remove_section_cover(*, section, day) -> bool:
+    """Undo a today-only cover: the aisle goes back to its owner's section check for the day."""
+    cover = RoutineRun.objects.filter(
+        routine__system_key=SYSTEM_TALLY,
+        period_key=day.isoformat(),
+        section=section,
+        section_scoped=True,
+    ).first()
+    if cover is None:
+        return False
+    if cover.status != RoutineRun.STATUS_OPEN:
+        raise ValueError('That section check is already finished.')
+    delete_run(cover)
+    materialize_routines(day)
+    return True
+
+
+def cover_owner_tally_today(*, run: RoutineRun, helper, marked_by=None) -> RoutineRun:
+    """
+    Hand an owner's whole section check to someone else for today only, one aisle at a time.
+
+    Moving the run itself would not stick: the owner still owns the aisles, so the next
+    materialize gives them a fresh run and two people hold the same sections. Per-aisle covers
+    are what materialize already understands (``covered_section_ids``).
+    """
+    if helper is None:
+        raise ValueError(
+            'Pick someone to cover it today. To take a section off today, close it for the day; '
+            'owners change in Settings > Routines.'
+        )
+    day = date.fromisoformat(run.period_key)
+    owner_id = run.assigned_to_id
+    covered = covered_section_ids(day)
+    sections = [
+        section for section in department_sections(run.routine)
+        if owner_id and section.owner_id == owner_id and section.pk not in covered
+    ]
+    if not sections:
+        raise ValueError('That section check has no aisles left to hand over today.')
+    first = None
+    for section in sections:
+        cover = cover_section_today(section=section, helper=helper, day=day, marked_by=marked_by)
+        first = first or cover
+    return first
+
+
 def assign_run(*, run: RoutineRun, user, marked_by=None) -> RoutineRun:
     if run.routine.system_key == SYSTEM_WORK_CYCLE:
         raise ValueError('Register activity is not assigned from this board.')
@@ -2044,6 +2108,23 @@ def assign_run(*, run: RoutineRun, user, marked_by=None) -> RoutineRun:
         and getattr(run.section, 'owner_id', None) == user.pk
     ):
         raise ValueError(OWN_AISLE_MESSAGE)
+    if run.routine.system_key == SYSTEM_TALLY:
+        # Section checks move for today only; the owner changes in Settings > Routines.
+        if run.section_scoped and run.section_id:
+            if user is not None and run.section and run.section.owner_id == user.pk:
+                remove_section_cover(section=run.section, day=date.fromisoformat(run.period_key))
+                return run
+            if user is None:
+                raise ValueError('Pick someone to cover this section today.')
+            return cover_section_today(
+                section=run.section, helper=user, day=date.fromisoformat(run.period_key), marked_by=marked_by,
+            )
+        if user is not None and run.assigned_to_id == user.pk:
+            return run
+        if run.assigned_to_id is not None:
+            # An owner's own check: hand their aisles over for today, one cover per aisle.
+            return cover_owner_tally_today(run=run, helper=user, marked_by=marked_by)
+        # An unowned leftover (e.g. after a call-in) is simply assigned below; no owner changes.
     with transaction.atomic():
         if user is None:
             run.assigned_to = None
@@ -2073,11 +2154,6 @@ def assign_run(*, run: RoutineRun, user, marked_by=None) -> RoutineRun:
                 if run.status == RoutineRun.STATUS_OPEN and run.pk != kept.pk:
                     delete_run(run)
                 run = kept
-        if run.section_id and run.routine.system_key == SYSTEM_TALLY:
-            section = run.section
-            if section.owner_id != user.pk:
-                section.owner = user
-                section.save(update_fields=['owner', 'updated_at'])
         title = getattr(run.routine, 'title', '') or 'This routine'
         create_nudge(
             run=run,

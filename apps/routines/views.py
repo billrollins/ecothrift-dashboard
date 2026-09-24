@@ -3,7 +3,7 @@ from __future__ import annotations
 import base64
 import random
 import re
-from datetime import datetime, time
+from datetime import date, datetime, time
 
 from django.core.files.base import ContentFile
 from django.shortcuts import get_object_or_404
@@ -41,6 +41,7 @@ from .schedule import (
     OWN_AISLE_MESSAGE,
     RUNLESS_WALK_MESSAGE,
     SYSTEM_CROSS_CHECK,
+    SYSTEM_TALLY,
     STAFF_GROUPS,
     close_if_expired,
     cover_run,
@@ -403,6 +404,21 @@ class RoutineRunViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({'detail': 'That one is already yours.'}, status=400)
         if not request.user.is_superuser and not user_in_audience(run.routine, request.user):
             return Response({'detail': 'This one is not yours to cover.'}, status=403)
+        if run.routine.system_key == SYSTEM_TALLY:
+            # A section check moves for today only, aisle by aisle; the owner stays the owner.
+            from .command_center import cover_owner_tally_today, cover_section_today
+
+            try:
+                if run.section_scoped and run.section_id:
+                    run = cover_section_today(
+                        section=run.section, helper=request.user,
+                        day=date.fromisoformat(run.period_key), marked_by=request.user,
+                    )
+                else:
+                    run = cover_owner_tally_today(run=run, helper=request.user, marked_by=request.user)
+            except ValueError as exc:
+                return Response({'detail': str(exc)}, status=400)
+            return Response(RoutineRunSerializer(run).data)
         if RoutineRun.objects.filter(
             routine=run.routine,
             period_key=run.period_key,

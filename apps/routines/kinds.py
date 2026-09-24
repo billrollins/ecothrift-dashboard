@@ -83,6 +83,14 @@ def owned_sections(run: RoutineRun | None) -> list[Section]:
     qs = Section.objects.filter(is_active=True, owner_id=run.assigned_to_id)
     if run.routine.assigned_department_id:
         qs = qs.filter(department_id=run.routine.assigned_department_id)
+    # An aisle someone else covers today is theirs to walk today, not the owner's.
+    covered = RoutineRun.objects.filter(
+        routine_id=run.routine_id,
+        period_key=run.period_key,
+        section_scoped=True,
+        section_id__isnull=False,
+    ).exclude(status=RoutineRun.STATUS_MISSED).exclude(assigned_to_id=run.assigned_to_id)
+    qs = qs.exclude(pk__in=covered.values('section_id'))
     return list(qs.order_by('sort_order', 'name'))
 
 

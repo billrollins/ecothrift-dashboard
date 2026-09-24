@@ -1,18 +1,17 @@
-feat: v2.101.0 product profiles, review queue, pgvector product vectors, reversible merges
+fix: v2.101.1 section checks reassigned on the Command Center are today-only
 
-Product intelligence Phase 2:
-- ProductProfile, BrandAlias, ProductProposal (inventory/0097); product title trigram index built concurrently (inventory/0098).
-- Inventory > Product review page and API (/api/inventory/product-review/); a person's answer is never overwritten by AI.
-- pgvector ProductVector (inventory/0099, extension created in the connection's schema; prod pre-created in ecothrift),
-  fastembed bge-small-en-v1.5, embed_products command, /api/inventory/similar-products/.
-- CatalogMerge (inventory/0100) with merge_duplicate_products (dry run, --apply, --undo).
-- Commands: seed_brand_aliases, load_profile_proposals, apply_profile_proposals.
-- Prod-pull script creates vector and pg_trgm before restore.
-- New deps: pgvector, fastembed.
+- Command Center section picks and the phone "cover" of a section check create today-only
+  per-aisle covers; they no longer change Section.owner (owners change only in Settings > Routines).
+  Picking the owner again removes today's cover.
+- assign_run: an owner's section check becomes per-aisle covers; never sets section.owner.
+- owned_sections leaves out aisles covered today (no double-counted aisle).
+- Command Center section rows carry standing_owner / covered_today; UI shows "for <owner>".
+- day_punches: an open punch wins, then the latest end (someone clocked in no longer shows "Left").
+- Data (applied in prod 2026-09-24, owner approved): section "David" back to David Kilduff;
+  today's check records Carrie covering it.
 
-Product rows, POS and processing are unchanged. No production data is loaded by this release.
-Tests: R-038, R-042 GREEN (R-041 red on test scoping, fixed).
+Tests: R-043 (RED on 2 new tests), R-044 GREEN.
 
-Release: v2.101.0
+Release: v2.101.1
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

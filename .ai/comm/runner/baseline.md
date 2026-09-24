@@ -118,6 +118,18 @@ Failures that exist on main independent of current work. The runner **appends** 
 - `apps/routines/tests.py::NoDashesTests::test_apps_source_has_no_em_or_en_dashes` (confirmed T-001 @ `79739a63`)
 - `apps/webstore/tests/test_query_budget.py::QueryBudgetTests::test_staff_listings_query_budget` (confirmed T-001 @ `79739a63`)
 - `apps/inventory/tests/test_restoration_history_forget.py::RestorationHistoryForgetTests::test_clear_history_clears_notes_and_superseded_not_actions` (confirmed R-037 @ `9e969a42`)
+- `apps/routines/tests_qa.py::SpotPoolTests::test_empty_pool_until_something_is_tallied` (confirmed R-043 @ `2d1e2c5e`)
+- `apps/routines/tests_qa.py::SpotPoolTests::test_lazy_draw_waits_then_picks` (confirmed R-043 @ `2d1e2c5e`)
+- `apps/routines/tests_qa.py::ShiftRosterTests::test_empty_days_keep_the_person_assigned` (confirmed R-043 @ `2d1e2c5e`)
+- `apps/routines/tests_qa.py::ShiftRosterTests::test_manager_can_assign_a_shift` (confirmed R-043 @ `2d1e2c5e`)
+- `apps/routines/tests_qa.py::ShiftRosterTests::test_person_days_limit_who_is_on_today` (confirmed R-043 @ `2d1e2c5e`)
+- `apps/routines/tests_qa.py::FlagSpeedTests::test_a_ten_second_audit_is_too_fast` (confirmed R-043 @ `2d1e2c5e`)
+- `apps/routines/tests_qa.py::CommandCenterTests::test_cross_payload_lists_every_section_before_any_are_done` (confirmed R-043 @ `2d1e2c5e`)
+- `apps/routines/tests_qa.py::AssignmentVisibilityTests::test_blocked_cross_check_cannot_be_submitted_until_unblocked` (confirmed R-043 @ `2d1e2c5e`)
+- `apps/routines/tests_qa.py::AssignmentVisibilityTests::test_cover_section_keeps_the_owner_and_the_helpers_own_check` (confirmed R-043 @ `2d1e2c5e`)
+- `apps/routines/tests_qa.py::AssignmentVisibilityTests::test_owner_cannot_submit_a_cross_check_of_their_aisle` (confirmed R-043 @ `2d1e2c5e`)
+- `apps/routines/tests_qa.py::test_low_findings` (confirmed R-043 @ `2d1e2c5e`)
+- `apps/routines/tests_qa.py::test_speed` (confirmed R-043 @ `2d1e2c5e`)
 
 ## vitest
 
