@@ -10,6 +10,7 @@ from django.db.models import IntegerField, Max
 from django.db.models.functions import Cast, Substr
 from django.utils.text import slugify
 from django.utils import timezone
+from pgvector.django import HnswIndex, VectorField
 
 
 class Vendor(models.Model):
@@ -1578,6 +1579,8 @@ class Product(models.Model):
         indexes = [
             GinIndex(fields=['identifiers'], name='inv_product_ident_gin'),
             GinIndex(fields=['tags'], name='inv_product_tags_gin'),
+            # Near-duplicate search (product_intelligence Phase 4; R-022: 0.55 s per lookup without it).
+            GinIndex(fields=['title'], name='inv_product_title_trgm', opclasses=['gin_trgm_ops']),
         ]
 
     def __str__(self):
@@ -2606,3 +2609,181 @@ class ItemSwapAudit(models.Model):
 
     class Meta:
         ordering = ['-swapped_at']
+
+
+# ── Product intelligence (initiative product_intelligence, Phase 2) ─────────────────────────
+
+
+PROFILE_SOURCES = ('copy', 'rule', 'vector', 'ai', 'human')
+PROFILE_CONFIDENCE = ('high', 'medium', 'low')
+
+
+class ProductProfile(models.Model):
+    """
+    One clean profile per Product: what every surface reads (price tag, listing, reports, buying).
+
+    ``field_meta`` records, per field, where the value came from and how sure we are:
+    ``{field: {"source": "ai:muse-spark-1.3-contributor", "confidence": "high", "set_at": iso}}``.
+    Only ``apps.inventory.services.product_profile`` writes here; a ``human`` value is never
+    overwritten by a machine. Category names are the taxonomy names
+    (``.ai/extended/product-taxonomy.md``), not ``inventory.Category`` rows.
+    """
+
+    PRICE_BANDS = ('under_5', '5_20', '20_50', '50_plus')
+
+    product = models.OneToOneField(Product, on_delete=models.CASCADE, related_name='profile')
+    short_name = models.CharField(max_length=40, blank=True, default='')
+    display_title = models.CharField(max_length=120, blank=True, default='')
+    brand = models.CharField(max_length=200, blank=True, default='')
+    model_number = models.CharField(max_length=200, blank=True, default='')
+    category = models.CharField(max_length=100, blank=True, default='', db_index=True)
+    subcategory = models.CharField(max_length=100, blank=True, default='')
+    key_specs = models.JSONField(default=dict, blank=True)
+    flags = models.JSONField(default=list, blank=True)
+    retail_estimate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    price_band = models.CharField(max_length=10, blank=True, default='')
+    description = models.TextField(blank=True, default='')
+    search_keywords = models.JSONField(default=list, blank=True)
+    dup_group = models.CharField(max_length=64, blank=True, default='', db_index=True)
+    merged_into = models.ForeignKey(
+        Product, on_delete=models.SET_NULL, null=True, blank=True, related_name='merged_profiles'
+    )
+    field_meta = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'profile {self.product_id}: {self.short_name or self.category}'
+
+
+class BrandAlias(models.Model):
+    """A brand spelling (normalized) → the canonical brand, or marked junk (seller codes, 'Generic')."""
+
+    alias = models.CharField(max_length=200, unique=True, help_text='normalize_brand() of the spelling.')
+    brand = models.CharField(max_length=200, blank=True, default='', help_text='Canonical name; blank when junk.')
+    is_junk = models.BooleanField(default=False)
+    source = models.CharField(max_length=40, blank=True, default='', help_text='e.g. R-023 cluster, human.')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['alias']
+
+    def __str__(self):
+        return f'{self.alias} → {"(junk)" if self.is_junk else self.brand}'
+
+
+class ProductProposal(models.Model):
+    """
+    A suggested value for one profile field, waiting to be applied or reviewed.
+    Backfills and intake write proposals; nothing reaches the profile without one. The review
+    queue is ``status=pending`` sorted by ``dollars``.
+    """
+
+    STATUS_PENDING = 'pending'
+    STATUS_AUTO = 'auto'
+    STATUS_ACCEPTED = 'accepted'
+    STATUS_REJECTED = 'rejected'
+    STATUS_APPLIED = 'applied'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Needs review'),
+        (STATUS_AUTO, 'Auto-accepted, not yet applied'),
+        (STATUS_ACCEPTED, 'Accepted by a person, not yet applied'),
+        (STATUS_REJECTED, 'Rejected'),
+        (STATUS_APPLIED, 'Applied to the profile'),
+    ]
+
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='proposals')
+    field = models.CharField(max_length=40)
+    value = models.JSONField()
+    source = models.CharField(max_length=80, help_text='copy | rule | vector | ai:<model> | human')
+    confidence = models.CharField(max_length=10, blank=True, default='')
+    second_opinion = models.JSONField(default=dict, blank=True)
+    dollars = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text='Sold dollars behind this product.')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    batch = models.CharField(max_length=80, blank=True, default='', db_index=True)
+    rules_version = models.CharField(max_length=80, blank=True, default='')
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='product_proposals'
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-dollars', 'id']
+        indexes = [
+            models.Index(fields=['status', '-dollars'], name='inv_proposal_status_dollars'),
+            models.Index(fields=['product', 'field'], name='inv_proposal_product_field'),
+        ]
+
+    def __str__(self):
+        return f'{self.product_id}.{self.field} = {self.value!r} ({self.status})'
+
+
+class ProductVector(models.Model):
+    """
+    One embedding per product and model, stored with pgvector (product_intelligence Phase 2,
+    step 6). Written by ``apps.inventory.services.product_vectors``. ``text_hash`` is the hash
+    of the text that was embedded, so unchanged products are skipped on re-runs. Vectors from
+    different models are never compared.
+    """
+
+    DIMENSIONS = 384
+
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='vectors')
+    model_name = models.CharField(max_length=100)
+    embedding = VectorField(dimensions=DIMENSIONS)
+    text_hash = models.CharField(max_length=40)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['product', 'model_name'], name='inv_productvector_product_model_uniq'),
+        ]
+        indexes = [
+            HnswIndex(
+                name='inv_productvector_hnsw',
+                fields=['embedding'],
+                m=16,
+                ef_construction=64,
+                opclasses=['vector_cosine_ops'],
+            ),
+        ]
+
+    def __str__(self):
+        return f'vector {self.product_id} ({self.model_name})'
+
+
+class CatalogMerge(models.Model):
+    """
+    One product folded into another (product_intelligence Phase 2, step 5; dedupe in Phase 4).
+    Nothing is deleted: rows that pointed at ``merged`` are moved to ``survivor`` and their ids are
+    recorded in ``moved`` ({"app_label.Model.field": [ids]}), so ``undo`` moves exactly those back.
+    The merged product is set inactive and its profile gets ``merged_into``.
+    """
+
+    METHOD_UPC = 'upc'
+    METHOD_TITLE_BRAND = 'title_brand'
+    METHOD_HUMAN = 'human'
+
+    survivor = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='merges_as_survivor')
+    merged = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='merges_as_merged')
+    method = models.CharField(max_length=20)
+    reason = models.CharField(max_length=300, blank=True, default='')
+    moved = models.JSONField(default=dict)
+    merged_was_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='catalog_merges'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    undone_at = models.DateTimeField(null=True, blank=True)
+    undone_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='catalog_merges_undone'
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['merged', 'undone_at'], name='inv_catalogmerge_merged_live')]
+
+    def __str__(self):
+        return f'{self.merged_id} → {self.survivor_id} ({self.method})'

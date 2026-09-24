@@ -19,6 +19,7 @@ const TarsPage = lazy(() => import('./pages/restoration/tars/TarsPage'));
 const KioskPage = lazy(() => import('./pages/kiosk/KioskPage'));
 const ClockPage = lazy(() => import('./pages/kiosk/ClockPage'));
 const BstockLoginHandoffPage = lazy(() => import('./pages/routines/BstockLoginHandoffPage'));
+const ProductReviewPage = lazy(() => import('./pages/inventory/ProductReviewPage'));
 import FloorplanListPage from './pages/floorplan/FloorplanListPage';
 
 // Pages
@@ -220,6 +221,14 @@ export default function App() {
         <Route path="/inventory/items/:id" element={<ItemDetailPage />} />
         <Route path="/inventory/inbound" element={<Navigate to="/inventory/processing" replace />} />
         <Route path="/inventory/quick-reprice" element={<QuickRepricePage />} />
+        <Route
+          path="/inventory/product-review"
+          element={
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <ProductReviewPage />
+            </Suspense>
+          }
+        />
         <Route path="/floor-ops/floorplans" element={<FloorplanListPage />} />
         <Route path="/inventory/inbound/receiving" element={<Navigate to="/inventory/receiving" replace />} />
         <Route path="/inventory/inbound/finalization" element={<Navigate to="/inventory/processing" replace />} />

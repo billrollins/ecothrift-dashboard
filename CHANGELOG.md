@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.100.0] -->
-<!-- Last reviewed: 2026-09-24 (2.100.0) -->
+<!-- Line 1 release: ## [2.101.0] -->
+<!-- Last reviewed: 2026-09-24 (2.101.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.101.0] - 2026-09-24
+
+User-facing theme: **The product catalog gets profiles, a review queue, meaning-based search, and reversible merges.**
+
+Initiative: [`product_intelligence`](./.ai/initiatives/product_intelligence.md) Phase 2.
+
+### Added
+
+- **Inventory > Product review** (Retail Floor, Managers and Admins): AI-proposed category, subcategory and price-tag short name, with Accept, Fix or Reject. A person's answer is never overwritten by AI.
+- Product profiles, brand aliases and proposals (`inventory/0097`), and a product-title trigram index built without locking (`inventory/0098`). Commands: `seed_brand_aliases`, `load_profile_proposals`, `apply_profile_proposals`. Product rows themselves are not changed.
+- **Product vectors** in pgvector (`inventory/0099`; model `BAAI/bge-small-en-v1.5` through fastembed) and `/api/inventory/similar-products/` (by product or free text, with category and sold-only filters). Command: `embed_products`. On dev, a title alone places a product in the right category 90.5% of the time.
+- **Reversible product merges** (`inventory/0100` `CatalogMerge`): `merge_duplicate_products` does a dry run with a plan CSV; `--apply` merges and `--undo <id>` reverses one. Nothing is deleted, and merged products become inactive.
+- New Python dependencies: `pgvector`, `fastembed`.
+
+### Changed
+
+- `scripts/deploy/helpers/0_pull_prod_to_local.ps1` creates the `vector` and `pg_trgm` extensions before restoring production.
 
 ## [2.100.0] - 2026-09-24
 

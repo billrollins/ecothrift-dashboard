@@ -6,6 +6,6 @@ Each task file starts with a **Start here** header, so you can drop that one fil
 
 | ID | Type | Status | Title | Task | Result |
 |---|---|---|---|---|---|
-| R-016 | recon | queued | Every B-Stock category code we have seen, and where it lands | [task](tasks/R-016-bstock-category-codes.md) | [result](results/R-016-bstock-category-codes.md) |
-| R-017 | recon | queued | What is inside Mixed lots (titles and brands) | [task](tasks/R-017-mixed-title-patterns.md) | [result](results/R-017-mixed-title-patterns.md) |
-| R-018 | recon | queued | Can our Postgres hold vectors? | [task](tasks/R-018-pgvector-heroku.md) | [result](results/R-018-pgvector-heroku.md) |
+| R-043 | — | hold | (slot: coder fills overnight) | | |
+| R-044 | — | hold | (slot: coder fills overnight) | | |
+| R-045 | — | hold | (slot: coder fills overnight) | | |

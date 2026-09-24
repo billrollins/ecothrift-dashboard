@@ -40,3 +40,10 @@ Finished tasks, moved out of `queue.md`. Tasks are in `tasks/`, results in `resu
 | R-034 | recon | Why Pet supplies is Need 99 | done | bstock Phase 3 notes (target weeks decision) |
 | R-036 | recon | Close price ÷ retail from stored auctions | done: 14,387 sweep closes; 10 mp×cond cells n≥30 (pre-close floor, split by bids) | bstock Phase 5 baseline |
 | R-035 | test | Tests: sweep price snapshots | GREEN: 0 NEW | verified; shipped in v2.100.0 (with R-037) |
+| R-038 | test | Tests: product profile, proposals, review page | GREEN: 0 NEW | verified; in next release |
+| R-039 | recon | Can the local Postgres take pgvector | done: vector not on local Postgres 18.6; README says build with nmake | product_intelligence Phase 2 step 6 (owner decision) |
+| R-037 | test | Full pre-ship test run (POS, processing) | GREEN: 0 NEW | pending |
+| R-040 | recon | Production: where extensions live | done: vector not installed; no event trigger; pg_trgm already in ecothrift; opinion: CREATE in ecothrift likely succeeds | vector is untrusted on prod; pre-create before the vector release |
+| R-041 | test | Tests: product vectors and similar products | RED: 3 NEW | RED fixed (tests scoped); retest R-042 |
+| R-042 | test | Tests: vectors (R-041 fix) and product merges | GREEN: 0 NEW | pending |
+

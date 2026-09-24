@@ -121,18 +121,59 @@ Build steps (draft 2026-09-23). Each step is a migration plus tests, and each sh
    - The backfill writes proposals.
    - High confidence from a model that passed the audition auto-accepts. The rest go to review, sorted by dollars.
 4. **Review screen** (Inventory > Product review): a list sorted by dollars, where one key accepts, picks or fixes. The same screen serves the end-of-truck and weekly reviews (`data_quality_rails` Phase 3).
-5. **`ProductMerge`:** survivor, merged, the reason, who, when, and the item ids moved.
+5. **`CatalogMerge`** (built 2026-09-24; named so it doesn't clash with the existing `ProductMergeAudit`): survivor, merged, the reason, who, when, and the item ids moved.
    - `merge_products(survivor, merged)` repoints items and manifest links, sets `merged_into`, and never deletes a row.
    - `unmerge()` reverses it.
    - A merge needs the same brand and specs, or `human` approval (R-022 sizes it).
-6. **Vectors:**
-   - `CREATE EXTENSION vector` (pgvector 0.8.1 on Heroku, per R-018); locally, check the build first.
+6. **Vectors** (superseded 2026-09-24: FAISS, not pgvector; see Progress below):
+   - ~~`CREATE EXTENSION vector` (pgvector 0.8.1 on Heroku, per R-018); locally, check the build first.~~
    - A `ProductVector` table: product, model name, dimension, the vector, and the text hash.
    - The model is local MiniLM or similar (a new dependency, so the owner decides) or a cheap API embedding.
    - Fallback when pgvector is missing: store float arrays and use trigram matching only.
    - Nothing needs vectors until Phase 4 dedupe and Phase 6 intake.
 
 Order: 1 → 2 → 3 → 4, then 5 (needs 3 and 4), then 6. Steps 1–3 unblock the Spark backfill trial on the gold set's neighbours.
+
+Progress (2026-09-24, owner approved Phase 2):
+- **Step 5 built:**
+  - `CatalogMerge` (`inventory/0100`) and `services/catalog_merge.py`.
+  - `merge_duplicate_products` does a dry run by default and writes a plan; `--apply` merges and `--undo <id>` reverses one.
+  - Candidates on dev: 78,455 (6,445 by UPC, 72,010 by same normalized title and canonical brand).
+  - The UPC rule needs 11+ stored digits and similar titles: 12% of same-UPC pairs were unrelated goods (a toilet seat and a fireplace).
+  - Trial on dev: 500 merges took 25 seconds, and undo was verified.
+  - Applying merges in production waits on the owner.
+- **Steps 1–4 built** (tests in R-038):
+  - `ProductProfile`, `BrandAlias` (1,814 aliases seeded from R-023 plus placeholders) and `ProductProposal`;
+  - the title trigram index;
+  - the service and the three commands;
+  - the review page and API.
+- **On dev:**
+  - 386k proposals loaded (both batches);
+  - 366k auto-accepted proposals applied, about 4 minutes;
+  - 121,609 profiles;
+  - 19,434 proposals (about 6.5k products) waiting in Product review.
+- **Production: not loaded.** The backfill files are in `workspace/` and aren't committed. To load them after the deploy:
+  1. copy the JSONL files up (a Heroku one-off with an upload, or commit them compressed; owner's choice);
+  2. run `seed_brand_aliases`;
+  3. run `load_profile_proposals` for each batch;
+  4. run `apply_profile_proposals --status auto`.
+- **Not yet:** step 5 (merge tool) and step 6 (vectors).
+  - R-039: local Postgres 18 has no pgvector, and there's no prebuilt Windows binary; it means an `nmake` build of v0.8.6, or Docker. Heroku has 0.8.1.
+  - No embedding libraries are installed.
+  - **Decided (owner, 2026-09-24): pgvector in both local and Heroku, because local must match production.**
+    - A `ProductVector` table with `vector(384)` and an HNSW index, created by migration (`CREATE EXTENSION vector`).
+    - Embeddings come from `fastembed` (ONNX, no PyTorch).
+    - Live lookups are SQL, with filters.
+    - FAISS is optional, only inside batch commands (load from the table, all-pairs, write back) if pgvector proves slow; it's never in the web process.
+    - **Built (2026-09-24):**
+      - pgvector 0.8.1 is installed locally (owner build) and was created in production by the owner.
+      - `inventory/0099` creates the extension in the connection's schema and checks the type is visible.
+      - Tests: R-041 was RED on test scoping, fixed; R-042 is the retest.
+    - **Model: `BAAI/bge-small-en-v1.5`** through fastembed. It beat MiniLM, Arctic-s and Nomic on the labelled set.
+    - **Dev:** all 200,342 products embedded in 39 minutes.
+    - **Quality, title and brand only (a new manifest line):** the 5 nearest products' majority category matches the hand label **90.5%** of the time (482 gold and held-out products). Spark gets 92%.
+      - Vectors can place intake lines before any AI call, which is the "local vectors" rung of the ladder.
+    - **The pull-prod-to-local script** now creates vector and pg_trgm in `ecothrift` before the restore. Nothing reads the profile yet: switching the price tag, POS and processing screens to `short_name` is Phase 6 (R-030 lists the one-line switches).
 
 ### Phase 3 — Gold set and audition
 A gold set of 100–1,000 products per task: category, short name, duplicate yes/no. Audition the models; pick one per task on cost and accuracy.

@@ -82,6 +82,13 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Floorplans',
     icon: 'store',
   },
+  productReview: {
+    id: 'productReview',
+    path: '/inventory/product-review',
+    label: 'Product review',
+    icon: 'factCheck',
+    roles: ['Manager', 'Admin'],
+  },
   quickReprice: {
     id: 'quickReprice',
     path: '/inventory/quick-reprice',

@@ -15,7 +15,7 @@ Bounded work (hours–days), one `.md` per initiative. Not a session log.
 |------------|-------|-------|
 | [bstock_daily_buying](./bstock_daily_buying.md) | **Phase 3** | Phases 1–2 shipped (v2.99.0). Phase 3 triage (Focus, condition, speed, why, price history) in v2.100.0; the expected-close baseline is recorded for Phase 5. Compass. |
 | [data_quality_rails](./data_quality_rails.md) | **Phase 1** | Know the data (register + eras, runner R-009 to R-013), then quality-aware numbers, rails at every lifecycle stage, and cleanup. |
-| [product_intelligence](./product_intelligence.md) | **Phase 2** | Phase 1 done: taxonomy rulebook, Spark provider, gold and held-out audition (92%). The full Mixed backfill is proposals in files: Mixed would go from 89.6% to 4.3%. Phase 2 (profile table, brand aliases, proposals queue) approved 2026-09-24. |
+| [product_intelligence](./product_intelligence.md) | **Phase 2** | Phase 2 structure shipped in v2.101.0: profiles, proposals, review page, pgvector vectors (a title alone places 90.5%), reversible merges. Loading the proposals, merges and embeddings into production waits on owner OK. |
 
 ---
 

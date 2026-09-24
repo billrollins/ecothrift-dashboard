@@ -117,6 +117,7 @@ Failures that exist on main independent of current work. The runner **appends** 
 - `apps/routines/tests.py::ProgramV2Tests::test_open_day_close_are_the_52_items` (confirmed T-001 @ `79739a63`)
 - `apps/routines/tests.py::NoDashesTests::test_apps_source_has_no_em_or_en_dashes` (confirmed T-001 @ `79739a63`)
 - `apps/webstore/tests/test_query_budget.py::QueryBudgetTests::test_staff_listings_query_budget` (confirmed T-001 @ `79739a63`)
+- `apps/inventory/tests/test_restoration_history_forget.py::RestorationHistoryForgetTests::test_clear_history_clears_notes_and_superseded_not_actions` (confirmed R-037 @ `9e969a42`)
 
 ## vitest
 

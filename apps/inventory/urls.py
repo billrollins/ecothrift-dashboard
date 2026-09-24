@@ -1,5 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from .api_product_review import product_review_decide, product_review_list
+from .api_product_similar import similar_products_view
 from .views import (
     VendorViewSet, CategoryViewSet, PurchaseOrderViewSet, CSVTemplateViewSet,
     ProductViewSet, VendorProductRefViewSet, BatchGroupViewSet,
@@ -34,6 +36,9 @@ router.register(r'grade-scales', RestorationGradeScaleViewSet, basename='restora
 
 urlpatterns = [
     path('manifest-fields/', manifest_field_metadata_view, name='inventory-manifest-fields'),
+    path('product-review/', product_review_list, name='product-review-list'),
+    path('similar-products/', similar_products_view, name='similar-products'),
+    path('product-review/<int:product_id>/decide/', product_review_decide, name='product-review-decide'),
     path('', include(router.urls)),
     path('items/lookup/<str:sku>/', item_lookup, name='item-lookup'),
     path('classify/', classify_item_view, name='classify-item'),

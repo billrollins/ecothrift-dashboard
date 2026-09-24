@@ -6,6 +6,7 @@ django-filter==24.3
 django-storages==1.14.4
 boto3==1.35.0
 psycopg2-binary==2.9.10
+pgvector==0.4.2
 dj-database-url==2.3.0
 gunicorn==23.0.0
 whitenoise==6.8.2
@@ -22,5 +23,7 @@ bleach>=6.0,<7
 requests>=2.31.0
 msal>=1.28.0,<2
 PySocks>=1.7.1
+# Product vectors (product_intelligence): ONNX embeddings, no PyTorch, fits the Heroku slug.
+fastembed==0.7.4
 pytest>=9.0
 pytest-django>=4.11

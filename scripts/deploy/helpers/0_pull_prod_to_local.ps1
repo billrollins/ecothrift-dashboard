@@ -194,6 +194,10 @@ Write-Pull ''
 # must exist before restore or every object fails after DROP SCHEMA.
 Write-Pull '[Restore] Creating schema ecothrift, then restoring prod dump...'
 Invoke-Psql 'CREATE SCHEMA IF NOT EXISTS ecothrift;' | Out-Null
+# Extensions the restored tables need while restoring (DROP SCHEMA CASCADE removed them):
+# pgvector for inventory_productvector.embedding, pg_trgm for the gin_trgm_ops indexes.
+Invoke-Psql 'CREATE EXTENSION IF NOT EXISTS vector SCHEMA ecothrift;' | Out-Null
+Invoke-Psql 'CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA ecothrift;' | Out-Null
 $env:PGPASSWORD = $Db.Password
 $restore = Invoke-Native -File 'pg_restore' -NativeArgs @(
     '--no-owner', '--no-acl', '-n', 'ecothrift',
