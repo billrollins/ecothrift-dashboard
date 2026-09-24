@@ -978,6 +978,17 @@ class AuctionManifestStateTests(TestCase):
         created = Auction.objects.get(pk=ids[0])
         self.assertEqual((created.manifest_source, created.manifest_pull_blocked), ('', False))
 
+    def test_sweep_records_price_history_only_when_it_moves(self):
+        from apps.buying.models import AuctionSnapshot
+
+        now = timezone.now()
+        listing = {'listingId': 'L-px', 'title': 'Priced lot', 'lotId': 'lot-px', 'currentPrice': 100, 'bidCount': 1}
+        _, _, _, _, ids = upsert_listings_raw(self.mp.pk, 'sf', [listing], now)
+        upsert_listings_raw(self.mp.pk, 'sf', [listing], now)
+        self.assertEqual(AuctionSnapshot.objects.filter(auction_id=ids[0]).count(), 1)
+        upsert_listings_raw(self.mp.pk, 'sf', [{**listing, 'currentPrice': 150, 'bidCount': 2}], now)
+        self.assertEqual(AuctionSnapshot.objects.filter(auction_id=ids[0]).count(), 2)
+
     def test_renormalize_reads_api_rows_as_cents_and_revalues(self):
         row = ManifestRow.objects.create(
             auction=self.auction, row_number=1, raw_data=_api_row(1), retail_value=Decimal('999')

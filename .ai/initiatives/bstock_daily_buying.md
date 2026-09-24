@@ -1,9 +1,9 @@
 <!-- initiative: slug=bstock-daily-buying status=active updated=2026-09-23 -->
-<!-- Last updated: 2026-09-23 (process rethink; phases 2-6 re-planned) -->
+<!-- Last updated: 2026-09-23 (Phase 3 in progress: Focus, condition, speed, why) -->
 
 # Initiative: B-Stock daily buying
 
-**Status:** **Active**. Phase 1 is done. Phase 2 (buying context) is next and waits on runner recon R-002 to R-007 (`.ai/comm/runner/`).
+**Status:** **Active**. Phases 1 and 2 are done (v2.99.0). Phase 3 (listing triage) is in progress: Focus, condition, speed and the "why" line are built but not yet shipped.
 
 **Objective:** The buyer can go from ad-hoc buying (about 5 auctions every week or two, manifests downloaded and uploaded by hand) to buying the best 1–2 B-Stock auctions a day. The app finds candidates, pulls their manifests without a manual step, and scores each truck on what the store already has, what sells, how fast it sells, shelf space, what is already won and on the way, the all-in cost (bid + fees + shipping), and bulk (same or similar items across lines). A won auction becomes a PO without a second manifest upload, so every truck gets a report card that feeds the next score.
 
@@ -132,6 +132,19 @@ Every live listing gets:
 The top N form the **focus list**. The morning Pull pulls the focus list instead of "ending soon by priority".
 **Gated by:** Phase 2, and recon R-007.
 
+Progress (2026-09-23 night):
+- **Focus chip:** done (R-019).
+- **Condition:** parsed into 6 groups (R-024: 99.9% filled). Each group has a revenue shrink setting that starts at 0 (uses the global shrink). There's no outcome data to fit the settings until the Won → PO link (Phase 6).
+- **Speed:** a new `CategoryStats.sell_through_30_pct`, the share of items shelved 30 to 180 days ago that sold within 30 days, with unsold items counting against it.
+  - R-025 showed the sold-only median flatters slow categories: Apparel is 12%, Tools 23% and Toys 52%.
+  - Auction speed is the category mix × that rate. The `buying_priority_speed_weight` setting starts at 0.
+- **"Why" line:** added to the list (title hover) and the detail page.
+- **Units and retail from the listing text:** not yet parsed; the pallet count and origin were already in.
+- **Price history (R-033):** only watched auctions had snapshots, 54 closed auctions in all, so an early price couldn't predict the close. The hourly sweep now saves a snapshot whenever an auction's price or bid count moves. From the little data so far: close ÷ price 1 hour before is 1.17 (n = 19), and close ÷ retail is 5% (Amazon), 11% (Target) and 13% (Walmart).
+- **Need check (R-034):** Pet's shortage is real (14 weeks of cover, mostly cheap Walmart and Amazon goods). The "Need 99" auctions were ended auctions still marked open on dev; the list hides them.
+  - Real issue: the auto target is the store's own cover, now 42.7 weeks, inflated by overstocked categories (Home décor 140, Party 146, Apparel 115 weeks). So Need is relative, and many categories read as needy.
+  - Owner decision: set a fixed target (e.g. 12 weeks) in Assumptions?
+
 ### Phase 4 — Deep context and manifest analysis (steps 3 and 4; contexts 7 and 8)
 The signed-in data for the focus list is built: manifest, fees and shipping quote. What this phase adds:
 - **Product grouping:** UPC, ASIN or near-same title first, vectors later.
@@ -150,6 +163,13 @@ The final list of auctions to bid on. Each one shows:
 
 Prices are tracked, and an auction drops off once it passes its target. The board says to bid near the end. The app never bids.
 **Gated by:** Phase 4.
+
+Baseline for price targets (R-036, 2026-09-23):
+- 14,387 ended auctions had a stored price within 2 hours of the close. Close ÷ listed retail, median: 0.059 overall (Target 0.061, Walmart 0.069, Amazon 0.062, Home Depot 0.021, Wayfair 0.033).
+- Auctions with fewer than 5 bids close at about half the ratio of those with 5 or more (0.036 vs 0.075).
+- The stored price is from a median 21 minutes before the end, so it's a low estimate; late bidding adds about 17% in the final hour (R-033, n = 19).
+- A first "expected close" could be retail × the marketplace × condition median × about 1.17, split by bid count. 10 cells have n ≥ 30.
+- The sweep's price snapshots (added 2026-09-23) will replace this with real price curves.
 
 ### Phase 6 — Won to PO, and the report card
 Marking an auction Won creates a PO that carries the manifest, which feeds the Pipeline in Phase 2. When the truck's items sell, predicted vs actual is shown and fed back into the valuation and the shipping formula.
@@ -180,6 +200,8 @@ Marking an auction Won creates a PO that carries the manifest, which feeds the P
 ---
 
 ## Record
+
+**2026-09-23 — Phase 3 started: Focus.** Triage = Priority (Need + profit) over the pull window. The **Focus** chip (`filters.focus_queryset`) shows that field ranked. Contracts are excluded (AUC-12). Still to do in Phase 3: speed in the score, parsed condition (AUC-05), and a per-auction "why" line.
 
 **2026-09-23 — Phase 2 done (pending tests).** Priority = (1 − w) × Need + w × profit score (w = `buying_priority_profit_weight`, 0.5). The profit score is profit ÷ all-in cost at the current price, 1–99. No category mix means Need only (AUC-03). The Need panel shows coverage (70% of 90-day sales categorized, 99.5% with a shelf date). Buying `0027` seeds the weight. Known limit: the profit score at the current bid runs high early in an auction; Phase 5 price targets handle that.
 

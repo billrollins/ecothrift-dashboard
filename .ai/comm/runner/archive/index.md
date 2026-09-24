@@ -19,3 +19,24 @@ Finished tasks, moved out of `queue.md`. Tasks are in `tasks/`, results in `resu
 | R-013 | recon | DQ: sales, disputes, shrink, counts | done | register SAL-04 to SAL-13, DSP-01, SHR-03, SHR-04 |
 | R-014 | test | Pre-ship full run (before the Heroku deploy) | GREEN: 0 NEW | verified; shipped or committed |
 | R-015 | test | Priority v2 and Need coverage | GREEN: 0 NEW | verified; shipped or committed |
+| R-018 | recon | Can our Postgres hold vectors? | done | register ITM-12, PO-03; product_intelligence Phase 1 |
+| R-016 | recon | Every B-Stock category code we have seen, and where it lands | done | register ITM-12, PO-03; product_intelligence Phase 1 |
+| R-017 | recon | What is inside Mixed lots (titles and brands) | done | register ITM-12, PO-03; product_intelligence Phase 1 |
+| R-019 | test | Focus chip | GREEN: 0 NEW | verified; awaiting commit |
+| R-020 | test | 23 categories, B-Stock code mapping, Focus | GREEN: 0 NEW | verified; awaiting commit |
+| R-021 | recon | Gold-set candidates (300 products) | done | gold set labelled; product_intelligence Record |
+| R-022 | recon | Duplicate products: dry run | done | product_intelligence Phase 4 facts |
+| R-023 | recon | Brand spellings and junk brands | done | product_intelligence Phase 2 step 2 |
+| R-024 | recon | Auction condition (AUC-05) | done | bstock Phase 3 (condition, speed); register AUC-05 |
+| R-025 | recon | Sell speed by category | done | bstock Phase 3 (condition, speed); register AUC-05 |
+| R-026 | test | Tests: Spark (Meta) as an AI provider | RED: 1 NEW | RED fixed (test_seed_rows lists Spark models); retest in R-032 |
+| R-027 | recon | How far the bad old-era categories reach (ITM-13) | done | register ITM-13 |
+| R-028 | recon | Size the free-copy tier for Mixed products | done | register ITM-11; product_intelligence ladder |
+| R-029 | recon | Which product identifiers we have | done | product_intelligence Phase 4 facts |
+| R-030 | recon | Where names print today | done | product_intelligence Phase 6 |
+| R-031 | recon | Held-out set: 200 more products | done | held-out audition (workspace/gold/AUDITION.md); TAX-38 to 45 |
+| R-032 | test | Tests: condition shrink, sell speed, why line | GREEN: 0 NEW | verified; awaiting commit |
+| R-033 | recon | How much the price rises before close | done | sweep price snapshots; bstock Phase 3 notes |
+| R-034 | recon | Why Pet supplies is Need 99 | done | bstock Phase 3 notes (target weeks decision) |
+| R-036 | recon | Close price ÷ retail from stored auctions | done: 14,387 sweep closes; 10 mp×cond cells n≥30 (pre-close floor, split by bids) | bstock Phase 5 baseline |
+| R-035 | test | Tests: sweep price snapshots | GREEN: 0 NEW | verified; shipped in v2.100.0 (with R-037) |

@@ -1,6 +1,6 @@
 import api from './client';
 
-export type AiProvider = 'anthropic' | 'xai' | 'google';
+export type AiProvider = 'anthropic' | 'xai' | 'google' | 'meta';
 export type AiModality = 'text' | 'image';
 export type AiEffort = 'off' | 'low' | 'medium' | 'high' | 'max';
 
@@ -16,6 +16,7 @@ export const PROVIDER_LABEL: Record<AiProvider, string> = {
   anthropic: 'Anthropic',
   xai: 'xAI',
   google: 'Google',
+  meta: 'Meta (Spark)',
 };
 
 export interface AiCatalogModel {

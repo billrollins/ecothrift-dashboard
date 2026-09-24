@@ -16,7 +16,7 @@ from apps.buying.services.buying_settings import (
     get_target_cover_weeks,
 )
 from apps.buying.services.taxonomy_bucket_sql import taxonomy_bucket_case_sql
-from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED, TAXONOMY_V1_CATEGORY_NAMES
+from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED, TAXONOMY_ADDED_2026_09, TAXONOMY_V1_CATEGORY_NAMES
 
 
 def _case() -> str:
@@ -180,10 +180,15 @@ def category_code_to_taxonomy(codes: set[str], *, using: str = 'default') -> dic
 
     from apps.buying.models import CategoryMapping
 
+    from apps.inventory.canonical_categories import BSTOCK_CODE_TO_CANONICAL
+
     out: dict[str, str] = {}
     for code in codes:
         if code in TAXONOMY_V1_CATEGORY_NAMES:
             out[code] = code
+            continue
+        if code in BSTOCK_CODE_TO_CANONICAL:
+            out[code] = BSTOCK_CODE_TO_CANONICAL[code]
             continue
         slug = code.strip().lower().replace('_', '-').replace(' ', '-')
         if not slug:
@@ -271,6 +276,45 @@ def _speed_rows(since: datetime, *, using: str = 'default') -> dict[str, tuple[i
                 int(round(float(median_days))) if median_days is not None else None,
                 Decimal(str(within_90)).quantize(Decimal('0.1')) if within_90 is not None else None,
             )
+    return out
+
+
+SELL_THROUGH_MIN_ITEMS = 20
+
+
+def _sell_through_rows(*, using: str = 'default') -> dict[str, Decimal]:
+    """
+    Per bucket: of items put on the shelf 30 to 180 days ago, the % that sold within 30 days.
+    Unsold items count against it, so this is not flattered the way sold-only medians are
+    (runner R-025: tools that sold took 23 days; tools still listed are 93 days old).
+    Only ``listed_at`` is used (V3 era; V1/V2 have no list date). Buckets under
+    ``SELL_THROUGH_MIN_ITEMS`` are left out.
+    """
+    case = _case()
+    sql = f"""
+        SELECT b.bucket, COUNT(*),
+               100.0 * AVG(CASE WHEN b.sold_in_30 THEN 1 ELSE 0 END)
+        FROM (
+            SELECT
+                ({case}) AS bucket,
+                (i.status = 'sold' AND i.sold_at IS NOT NULL
+                 AND i.sold_at <= i.listed_at + INTERVAL '30 days') AS sold_in_30
+            FROM inventory_item i
+            LEFT JOIN inventory_product p ON i.product_id = p.id
+            LEFT JOIN inventory_manifestrow mr ON i.manifest_row_id = mr.id
+            WHERE i.listed_at IS NOT NULL
+              AND i.listed_at >= NOW() - INTERVAL '180 days'
+              AND i.listed_at <= NOW() - INTERVAL '30 days'
+              AND i.status <> 'scrapped'
+        ) b
+        GROUP BY b.bucket
+    """
+    out: dict[str, Decimal] = {}
+    with connections[using].cursor() as cursor:
+        cursor.execute(sql)
+        for bucket, n, pct in cursor.fetchall():
+            if n >= SELL_THROUGH_MIN_ITEMS and pct is not None:
+                out[bucket] = Decimal(str(pct)).quantize(Decimal('0.1'))
     return out
 
 
@@ -391,6 +435,7 @@ def compute_category_stats_payloads(*, since: datetime, using: str = 'default') 
         if bucket in on_order:
             on_order[bucket] = (u, r)
     speed = _speed_rows(since, using=using)
+    sell_through = _sell_through_rows(using=using)
 
     window_days = max((timezone.now() - since).total_seconds() / 86400.0, 1.0)
     weeks = Decimal(str(window_days / 7.0))
@@ -413,6 +458,8 @@ def compute_category_stats_payloads(*, since: datetime, using: str = 'default') 
             target_weeks=target_weeks,
             goal=goals.get(name, 'normal'),
         )
+        if weekly <= 0 and name in TAXONOMY_ADDED_2026_09:
+            need = 50  # new category: no sales history yet (ITM-12)
         median_days, within_90 = speed.get(name, (None, None))
         d.update(
             {
@@ -425,6 +472,7 @@ def compute_category_stats_payloads(*, since: datetime, using: str = 'default') 
                 'target_weeks': target,
                 'median_days_to_sell': median_days,
                 'sold_within_90_pct': within_90,
+                'sell_through_30_pct': sell_through.get(name),
                 'need_score_1to99': need,
             }
         )
@@ -454,6 +502,8 @@ def rescore_needs_from_stored(*, using: str = 'default') -> int:
             target_weeks=target_weeks,
             goal=goals.get(c.category, 'normal'),
         )
+        if (c.weekly_sales_units or Decimal('0')) <= 0 and c.category in TAXONOMY_ADDED_2026_09:
+            need = 50  # new category: no sales history yet (ITM-12)
         CategoryStats.objects.using(using).filter(pk=c.pk).update(
             need_score_1to99=need, cover_weeks=cover, target_weeks=target
         )
@@ -493,5 +543,6 @@ def upsert_category_stats_from_sql(*, since: datetime, using: str = 'default') -
             target_weeks=d['target_weeks'],
             median_days_to_sell=d['median_days_to_sell'],
             sold_within_90_pct=d['sold_within_90_pct'],
+            sell_through_30_pct=d['sell_through_30_pct'],
             computed_at=now,
         )

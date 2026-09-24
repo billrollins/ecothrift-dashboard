@@ -17,6 +17,7 @@ import { multiSelectChipTooltip } from '../../utils/multiSelectChipTooltip';
 /** Row filter chips (no “All”; empty selection normalizes to Today-only on parent). */
 export type AuctionFilterChipId =
   | 'today'
+  | 'focus'
   | 'thumbs'
   | 'watched'
   | 'manifest'
@@ -170,6 +171,25 @@ export default function BuyingFilterChips({
           color={active.has('today') ? 'primary' : 'default'}
           variant={active.has('today') ? 'filled' : 'outlined'}
           onClick={(e) => onToggle('today', e)}
+          sx={{
+            cursor: 'pointer',
+            height: { xs: 24, sm: 26 },
+            fontSize: { xs: '0.7rem', sm: '0.75rem' },
+          }}
+        />
+      </Tooltip>
+
+      <Tooltip
+        title="Focus: what the morning Pull chooses from. Ending inside the pull window, not contracts, ranked by Priority."
+        enterDelay={400}
+        placement="top"
+      >
+        <Chip
+          size="small"
+          label="Focus"
+          color={active.has('focus') ? 'primary' : 'default'}
+          variant={active.has('focus') ? 'filled' : 'outlined'}
+          onClick={(e) => onToggle('focus', e)}
           sx={{
             cursor: 'pointer',
             height: { xs: 24, sm: 26 },

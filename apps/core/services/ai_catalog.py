@@ -10,6 +10,7 @@ from apps.core.models import AiAction, AiModel
 from apps.core.services.llm_api_keys import (
     resolve_anthropic_api_key,
     resolve_google_api_key,
+    resolve_meta_api_key,
     resolve_xai_api_key,
 )
 from apps.core.services.llm_router import GOOGLE_API_BASE, resolve_provider
@@ -88,10 +89,22 @@ def list_google_models(api_key: str) -> list[tuple[str, str, str]]:
     return rows
 
 
+def list_meta_models(api_key: str) -> list[tuple[str, str, str]]:
+    """Meta's OpenAI-compatible /models list; keeps the muse-spark chat models."""
+    base = (getattr(settings, 'META_API_BASE', None) or 'https://api.meta.ai/v1').strip().rstrip('/')
+    rows = []
+    for item in _get_json(f'{base}/models', {'Authorization': f'Bearer {api_key}'}).get('data') or []:
+        slug = str(item.get('id') or '').strip()
+        if slug.startswith('muse-spark'):
+            rows.append((slug, '', AiModel.MODALITY_TEXT))
+    return rows
+
+
 PROVIDER_LISTERS = (
     (AiModel.PROVIDER_ANTHROPIC, resolve_anthropic_api_key, list_anthropic_models),
     (AiModel.PROVIDER_XAI, resolve_xai_api_key, list_xai_models),
     (AiModel.PROVIDER_GOOGLE, resolve_google_api_key, list_google_models),
+    (AiModel.PROVIDER_META, resolve_meta_api_key, list_meta_models),
 )
 
 

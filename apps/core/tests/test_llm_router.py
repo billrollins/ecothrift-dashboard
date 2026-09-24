@@ -431,3 +431,32 @@ class EffortAndCompatRetryTests(SimpleTestCase):
         self.assertEqual(kwargs['tool_choice'], {'type': 'auto'})
         self.assertIn('You must answer by calling the tool `t`', kwargs['system'][0]['text'])
         self.assertEqual(result.tool_input, {'a': 1})
+
+
+@override_settings(AI_PROVIDER='auto', META_API_KEY='meta-k', META_API_BASE='https://api.meta.ai/v1')
+class MetaSparkTests(SimpleTestCase):
+    OK = {
+        'id': 'cmpl-m',
+        'model': 'muse-spark-1.3',
+        'choices': [{'message': {'content': 'Household'}, 'finish_reason': 'stop'}],
+        'usage': {'prompt_tokens': 9, 'completion_tokens': 40},
+    }
+
+    def test_muse_models_route_to_meta(self):
+        self.assertEqual(resolve_provider('muse-spark-1.3-contributor'), 'meta')
+        self.assertEqual(resolve_api_key('meta'), 'meta-k')
+
+    @override_settings(META_API_KEY='')
+    def test_missing_meta_key(self):
+        with self.assertRaises(LLMConfigError):
+            resolve_api_key('meta')
+
+    def test_meta_route_and_effort(self):
+        with mock.patch('requests.post', return_value=_FakeHTTPResponse(self.OK)) as post:
+            result = llm_complete(model_id='muse-spark-1.3', system='sys', user='hi', effort='max')
+        self.assertEqual(post.call_args.args[0], 'https://api.meta.ai/v1/chat/completions')
+        self.assertEqual(post.call_args.kwargs['headers']['Authorization'], 'Bearer meta-k')
+        self.assertEqual(post.call_args.kwargs['json']['reasoning_effort'], 'high')
+        self.assertEqual(result.text, 'Household')
+        self.assertEqual(result.output_tokens, 40)
+        self.assertEqual(effort_payload('meta', 'muse-spark-1.3', 'low'), 'low')

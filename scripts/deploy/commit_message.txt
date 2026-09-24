@@ -1,10 +1,20 @@
-feat: v2.99.0 Priority blends Need and profit; Need coverage
+feat: v2.100.0 B-Stock triage (Focus, condition, speed, why, price history), 23 categories, Spark provider
 
-Release: v2.99.0
+B-Stock daily buying Phase 3:
+- Focus chip: auctions the morning Pull chooses from (?focus=true).
+- Listing condition groups with per-group revenue shrink settings (buying/0029; 0 = global shrink).
+- Category 30-day sell-through (unsold count against) and a Priority speed weight (buying/0030; default 0).
+- One-line "why" per auction (list title tooltip, detail card).
+- Hourly sweep saves an AuctionSnapshot when price or bid count moves (price history for all live auctions).
+- Need target cover set to 12 weeks, the owner's turnover goal (buying/0031).
 
-- Auction Priority = Need blended with a profit score (Assumptions weight, default 0.5; buying/0027).
-- Auctions with no category mix keep Priority = Need and say Need was filled in.
-- Inventory need panel shows how much sales data is categorized.
-- Runner R-015 GREEN. Docs: product_intelligence plan, runner protocol, runner tasks R-016 to R-018.
+Product intelligence Phase 1:
+- 23 categories (Lawn & garden, Appliances, Arts & crafts, Automotive added; web shop keeps 19) and B-Stock code mapping (buying/0028).
+- Meta Muse Spark as a fourth llm_router provider (core/0007; META_API_KEY; no action uses it by default).
+- .ai/extended/product-taxonomy.md placement rulebook (rulings TAX-01..TAX-46).
+
+Tests: R-020, R-026 (fixed), R-032, R-035 GREEN; full pre-ship run R-037.
+
+Release: v2.100.0
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

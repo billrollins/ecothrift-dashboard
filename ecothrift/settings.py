@@ -354,11 +354,15 @@ GOOGLE_API_KEY = (
     or config('GEMINI_API_KEY', default='').strip()
 )
 GEMINI_API_KEY = GOOGLE_API_KEY  # alias
+# Meta Muse Spark (muse-spark-*): OpenAI-compatible chat completions. Very cheap; used for
+# long data-correction runs (product_intelligence).
+META_API_KEY = config('META_API_KEY', default='').strip()
+META_API_BASE = config('META_API_BASE', default='https://api.meta.ai/v1').strip()
 # Maps Platform key for POS delivery driving distance (Distance Matrix). Do not reuse Gemini-only keys.
 GOOGLE_MAPS_API_KEY = config('GOOGLE_MAPS_API_KEY', default='').strip()
 
-# --- Provider routing (llm_router: auto | anthropic | xai | google) ---
-# auto: grok-* → xAI, gemini-* → Google, otherwise Anthropic. All AI call sites
+# --- Provider routing (llm_router: auto | anthropic | xai | google | meta) ---
+# auto: grok-* → xAI, gemini-* → Google, muse-* → Meta, otherwise Anthropic. All AI call sites
 # route through apps/core/services/llm_router.py.
 AI_PROVIDER = config('AI_PROVIDER', default='auto').strip().lower()
 

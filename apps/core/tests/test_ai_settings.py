@@ -1,7 +1,7 @@
 from unittest import mock
 
 from django.contrib.auth.models import Group
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
@@ -38,7 +38,10 @@ class AiModelResolutionTests(TestCase):
         self.assertFalse(AiAction.objects.filter(model__isnull=False).exists())
         self.assertEqual(
             set(AiModel.objects.values_list('slug', flat=True)),
-            {'grok-4.7', 'claude-opus-5-5', 'gemini-3.5-flash-lite', 'gemini-3.8-flash'},
+            {
+                'grok-4.7', 'claude-opus-5-5', 'gemini-3.5-flash-lite', 'gemini-3.8-flash',
+                'muse-spark-1.3', 'muse-spark-1.3-contributor',
+            },
         )
         self.assertTrue(AiAction.objects.filter(purpose='INVENTORY_CLEANUP').exists())
 
@@ -193,7 +196,7 @@ class AiSettingsApiTests(TestCase):
             {'name': 'models/text-embedding-9', 'supportedGenerationMethods': ['embedContent']},
             {'name': 'models/gemini-3.8-flash', 'supportedGenerationMethods': ['generateContent']},
         ]}
-        with override_settings(ANTHROPIC_API_KEY='', XAI_API_KEY='', GOOGLE_API_KEY='goo-k', GEMINI_API_KEY=''):
+        with override_settings(ANTHROPIC_API_KEY='', XAI_API_KEY='', GOOGLE_API_KEY='goo-k', GEMINI_API_KEY='', META_API_KEY=''):
             with mock.patch('requests.get', return_value=_FakeResp(page)) as get:
                 resp = self.client.post('/api/core/ai/models/discover/')
         self.assertEqual(resp.status_code, 200)
@@ -206,3 +209,13 @@ class AiSettingsApiTests(TestCase):
         self.assertEqual(get.call_args.kwargs['headers']['x-goog-api-key'], 'goo-k')
         row = AiModel.objects.get(slug='gemini-9-flash')
         self.assertEqual((row.provider, row.source, row.status), ('google', 'discovered', 'active'))
+
+
+class MetaModelListTests(SimpleTestCase):
+    def test_keeps_only_spark_chat_models(self):
+        from apps.core.services import ai_catalog
+
+        data = {'data': [{'id': 'muse-spark-1.3'}, {'id': 'muse-image-1.0'}, {'id': 'muse-voice-transcribe-1.0'}]}
+        with mock.patch.object(ai_catalog, '_get_json', return_value=data):
+            rows = ai_catalog.list_meta_models('k')
+        self.assertEqual([r[0] for r in rows], ['muse-spark-1.3'])

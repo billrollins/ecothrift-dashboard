@@ -109,11 +109,47 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'assumptions',
     kind: 'fraction',
   },
+  buying_priority_speed_weight: {
+    label: 'Priority: speed weight',
+    help: "Buying: sell speed's share of auction Priority (0-1, default 0 = off). Speed is the category mix x the share of items that sell within 30 days of shelving.",
+    tab: 'assumptions',
+    kind: 'fraction',
+  },
   buying_pipeline_max_age_days: {
     label: 'Need: open PO age limit (days)',
     help: 'Buying: open POs older than this are not counted as on order; they are usually done but never closed (default 120).',
     tab: 'assumptions',
     kind: 'days',
+  },
+  buying_shrink_new: {
+    label: 'Shrink: New listings',
+    help: 'Buying: revenue shrink (0-1) for auctions B-Stock lists as New / Brand New. 0 = use Buying revenue shrink.',
+    tab: 'assumptions',
+    kind: 'fraction',
+  },
+  buying_shrink_like_new: {
+    label: 'Shrink: Like new listings',
+    help: 'Buying: revenue shrink (0-1) for auctions B-Stock lists as Like New. 0 = use Buying revenue shrink.',
+    tab: 'assumptions',
+    kind: 'fraction',
+  },
+  buying_shrink_used_good: {
+    label: 'Shrink: Used good listings',
+    help: 'Buying: revenue shrink (0-1) for auctions B-Stock lists as Used Good. 0 = use Buying revenue shrink.',
+    tab: 'assumptions',
+    kind: 'fraction',
+  },
+  buying_shrink_used_fair: {
+    label: 'Shrink: Used fair listings',
+    help: 'Buying: revenue shrink (0-1) for auctions B-Stock lists as Used Fair. 0 = use Buying revenue shrink.',
+    tab: 'assumptions',
+    kind: 'fraction',
+  },
+  buying_shrink_damaged: {
+    label: 'Shrink: Damaged listings',
+    help: 'Buying: revenue shrink (0-1) for auctions B-Stock lists as Salvage or Scratch & Dent. 0 = use Buying revenue shrink.',
+    tab: 'assumptions',
+    kind: 'fraction',
   },
   // Edited from the Inventory need panel's Goal buttons (JSON).
   buying_category_goals: {

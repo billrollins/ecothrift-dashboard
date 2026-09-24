@@ -1,7 +1,8 @@
 """One LLM routing layer: purpose → model id → provider → API key → completion.
 
 Provider is inferred from the model id: ``grok-*`` → xAI, ``gemini-*`` → Google,
-anything else → Anthropic. ``AI_PROVIDER`` (auto | anthropic | xai | google)
+``muse-*`` → Meta (Spark), anything else → Anthropic. ``AI_PROVIDER``
+(auto | anthropic | xai | google | meta)
 force-overrides the inference for every call.
 
 Application code should use :func:`llm_chat_text` / :func:`llm_chat_tool_input`
@@ -22,6 +23,7 @@ from apps.core.ai_config import ai_effort, ai_model, catalog_provider  # noqa: F
 from apps.core.services.llm_api_keys import (
     resolve_anthropic_api_key,
     resolve_google_api_key,
+    resolve_meta_api_key,
     resolve_xai_api_key,
 )
 
@@ -35,6 +37,7 @@ PROVIDER_KEY_HINT = {
     'anthropic': 'ANTHROPIC_API_KEY',
     'xai': 'XAI_API_KEY (or GROK_API_KEY)',
     'google': 'GOOGLE_API_KEY (or GEMINI_API_KEY)',
+    'meta': 'META_API_KEY',
 }
 
 SUGGEST_MAPPINGS_JSON_SCHEMA: dict = {
@@ -96,9 +99,9 @@ class LLMResult:
 
 
 def resolve_provider(model_id: str) -> str:
-    """anthropic | xai | google - by model id, unless AI_PROVIDER forces one."""
+    """anthropic | xai | google | meta - by model id, unless AI_PROVIDER forces one."""
     raw = (getattr(settings, 'AI_PROVIDER', None) or 'auto').strip().lower()
-    if raw in ('anthropic', 'xai', 'google'):
+    if raw in ('anthropic', 'xai', 'google', 'meta'):
         return raw
     if raw != 'auto':
         logger.warning('Unknown AI_PROVIDER=%r; using auto.', raw)
@@ -110,6 +113,8 @@ def resolve_provider(model_id: str) -> str:
         return 'xai'
     if mid.startswith('gemini'):
         return 'google'
+    if mid.startswith('muse'):
+        return 'meta'
     return 'anthropic'
 
 
@@ -121,6 +126,8 @@ def resolve_api_key(provider: str) -> str:
         key = resolve_google_api_key()
     elif provider == 'anthropic':
         key = resolve_anthropic_api_key()
+    elif provider == 'meta':
+        key = resolve_meta_api_key()
     else:
         raise LLMConfigError(f'Unknown LLM provider {provider!r}.')
     if not key:
@@ -148,6 +155,7 @@ def effort_payload(provider: str, model_id: str, effort: str | None) -> str | No
 
     anthropic: output_config.effort low|medium|high|max
     xai:       reasoning_effort low|medium|high, max -> xhigh
+    meta:      reasoning_effort low|medium|high, max -> high (dropped on a 400)
     google:    thinkingConfig.thinkingLevel low|medium|high (max -> high), gemini-3* only
     """
     e = str(effort or 'off').strip().lower()
@@ -157,6 +165,8 @@ def effort_payload(provider: str, model_id: str, effort: str | None) -> str | No
         return e
     if provider == 'xai':
         return 'xhigh' if e == 'max' else e
+    if provider == 'meta':
+        return 'high' if e == 'max' else e
     if provider == 'google':
         if not str(model_id or '').strip().lower().startswith('gemini-3'):
             return None
@@ -351,8 +361,10 @@ def _requests_post(url: str, *, headers: dict, payload: dict, timeout: float | N
     return resp.json()
 
 
-def _xai_complete(
+def _openai_compatible_complete(
     *,
+    base_url: str,
+    provider_label: str,
     model_id: str,
     api_key: str,
     system: str,
@@ -366,7 +378,8 @@ def _xai_complete(
     force_tool: bool = True,
     max_retries: int | None = None,
 ) -> LLMResult:
-    base_url = (getattr(settings, 'XAI_API_BASE', None) or 'https://api.x.ai/v1').strip()
+    """POST {base_url}/chat/completions in the OpenAI format (xAI, Meta Spark)."""
+    base_url = base_url.strip().rstrip('/')
     oai_messages = []
     if system:
         oai_messages.append({'role': 'system', 'content': system})
@@ -414,7 +427,7 @@ def _xai_complete(
                 try:
                     parsed = json.loads(fn.get('arguments') or '{}')
                 except json.JSONDecodeError as e:
-                    raise ValueError(f'Invalid Grok tool arguments JSON: {e}') from e
+                    raise ValueError(f'Invalid {provider_label} tool arguments JSON: {e}') from e
                 if isinstance(parsed, dict):
                     tool_input = parsed
                     break
@@ -429,6 +442,16 @@ def _xai_complete(
         response_id=str(data.get('id') or ''),
         tool_input=tool_input,
     )
+
+
+def _xai_complete(**kwargs) -> LLMResult:
+    base_url = (getattr(settings, 'XAI_API_BASE', None) or 'https://api.x.ai/v1')
+    return _openai_compatible_complete(base_url=base_url, provider_label='Grok', **kwargs)
+
+
+def _meta_complete(**kwargs) -> LLMResult:
+    base_url = (getattr(settings, 'META_API_BASE', None) or 'https://api.meta.ai/v1')
+    return _openai_compatible_complete(base_url=base_url, provider_label='Spark', **kwargs)
 
 
 def _google_complete(
@@ -520,6 +543,7 @@ _PROVIDER_CALLS = {
     'anthropic': _anthropic_complete,
     'xai': _xai_complete,
     'google': _google_complete,
+    'meta': _meta_complete,
 }
 
 

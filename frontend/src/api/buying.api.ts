@@ -56,6 +56,7 @@ export function buyingAuctionListQueryKey(params: BuyingAuctionListParams) {
     params.completed === true ? '1' : '',
     params.archived === true ? '1' : '',
     params.today === true ? '1' : '',
+    params.focus === true ? '1' : '',
   ] as const;
 }
 
@@ -76,6 +77,7 @@ export function buyingWatchlistQueryKey(params: BuyingWatchlistParams) {
     params.completed === true ? '1' : '',
     params.archived === true ? '1' : '',
     params.today === true ? '1' : '',
+    params.focus === true ? '1' : '',
   ] as const;
 }
 
@@ -97,6 +99,7 @@ function buildAuctionParams(params: BuyingAuctionListParams): Record<string, str
   if (params.completed === true) q.completed = true;
   if (params.archived === true) q.archived = true;
   if (params.today === true) q.today = true;
+  if (params.focus === true) q.focus = true;
   return q;
 }
 
@@ -112,6 +115,7 @@ function buildSummaryParams(params: BuyingAuctionSummaryParams): Record<string, 
   if (params.completed === true) q.completed = true;
   if (params.archived === true) q.archived = true;
   if (params.today === true) q.today = true;
+  if (params.focus === true) q.focus = true;
   return q;
 }
 
@@ -135,6 +139,7 @@ function buildWatchlistParams(params: BuyingWatchlistParams): Record<string, str
   if (params.completed === true) q.completed = true;
   if (params.archived === true) q.archived = true;
   if (params.today === true) q.today = true;
+  if (params.focus === true) q.focus = true;
   return q;
 }
 

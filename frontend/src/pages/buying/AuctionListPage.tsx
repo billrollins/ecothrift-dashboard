@@ -219,6 +219,7 @@ export default function AuctionListPage() {
     if (hasManifestFilter === true) p.has_manifest = true;
     if (filterChips.has('thumbs')) p.thumbs_up = true;
     if (filterChips.has('today')) p.today = true;
+    if (filterChips.has('focus')) p.focus = true;
     if (committedSearchTrimmed) p.q = committedSearchTrimmed;
     if (filterChips.has('completed')) p.completed = true;
     if (filterChips.has('archived')) p.archived = true;
@@ -241,6 +242,7 @@ export default function AuctionListPage() {
     if (hasManifestFilter === true) p.has_manifest = true;
     if (filterChips.has('thumbs')) p.thumbs_up = true;
     if (filterChips.has('today')) p.today = true;
+    if (filterChips.has('focus')) p.focus = true;
     if (committedSearchTrimmed) p.q = committedSearchTrimmed;
     if (filterChips.has('completed')) p.completed = true;
     if (filterChips.has('archived')) p.archived = true;
@@ -255,6 +257,7 @@ export default function AuctionListPage() {
     if (hasManifestFilter === true) p.has_manifest = true;
     if (filterChips.has('thumbs')) p.thumbs_up = true;
     if (filterChips.has('today')) p.today = true;
+    if (filterChips.has('focus')) p.focus = true;
     if (committedSearchTrimmed) p.q = committedSearchTrimmed;
     if (filterChips.has('completed')) p.completed = true;
     if (filterChips.has('archived')) p.archived = true;

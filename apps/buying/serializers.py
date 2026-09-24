@@ -9,13 +9,37 @@ from django.db.models.functions import Coalesce
 from rest_framework import serializers
 
 from apps.buying.models import Auction, AuctionSnapshot, ManifestRow, Marketplace, WatchlistEntry
+from apps.buying.services.condition import condition_group, get_condition_shrink, shrink_for
 from apps.buying.services.valuation import (
     cost_sources,
     get_global_shrinkage,
+    auction_speed_from_mix,
     get_priority_profit_weight,
+    get_priority_speed_weight,
     get_valuation_source,
     profit_score,
 )
+
+
+class _ShrinkMixin:
+    """Shrink per auction (override, then condition group, then global); settings read once per serializer."""
+
+    def _shrink(self, obj: Auction) -> tuple[Decimal, str]:
+        if not hasattr(self, '_shrink_settings'):
+            self._shrink_settings = (get_global_shrinkage(), get_condition_shrink())
+        global_shrink, by_condition = self._shrink_settings
+        return shrink_for(obj.shrinkage_override, obj.condition_summary, global_shrink, by_condition)
+
+    def get_condition_group(self, obj: Auction) -> str:
+        return condition_group(obj.condition_summary)
+
+    def get_why(self, obj: Auction) -> str:
+        from apps.buying.services.auction_why import auction_why
+        from apps.buying.services.valuation import load_category_stats_dict
+
+        if not hasattr(self, '_why_stats'):
+            self._why_stats = load_category_stats_dict()
+        return auction_why(obj, self._why_stats)
 
 
 class MarketplaceSerializer(serializers.ModelSerializer):
@@ -26,7 +50,7 @@ class MarketplaceSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug', 'external_id', 'requires_login']
 
 
-class AuctionListSerializer(serializers.ModelSerializer):
+class AuctionListSerializer(_ShrinkMixin, serializers.ModelSerializer):
     marketplace = MarketplaceSerializer(read_only=True)
     manifest_row_count = serializers.SerializerMethodField()
     retail_sort = serializers.DecimalField(
@@ -40,6 +64,8 @@ class AuctionListSerializer(serializers.ModelSerializer):
     valuation_source = serializers.SerializerMethodField()
     has_revenue_override = serializers.SerializerMethodField()
     effective_revenue_after_shrink = serializers.SerializerMethodField()
+    condition_group = serializers.SerializerMethodField()
+    why = serializers.SerializerMethodField()
     # Overrides model field: CSV uploaded into app (ManifestRow), not B-Stock `has_manifest` flag.
     has_manifest = serializers.SerializerMethodField()
     my_thumbs_up = serializers.SerializerMethodField()
@@ -88,6 +114,8 @@ class AuctionListSerializer(serializers.ModelSerializer):
             'has_revenue_override',
             'effective_revenue_after_shrink',
             'condition_summary',
+            'condition_group',
+            'why',
             'status',
             'has_manifest',
             'last_updated_at',
@@ -151,7 +179,7 @@ class AuctionListSerializer(serializers.ModelSerializer):
         base = obj.revenue_override if obj.revenue_override is not None else obj.estimated_revenue
         if base is None:
             return None
-        sh = obj.shrinkage_override if obj.shrinkage_override is not None else get_global_shrinkage()
+        sh, _ = self._shrink(obj)
         eff = (base * (Decimal('1') - sh)).quantize(Decimal('0.01'))
         return format(eff, 'f')
 
@@ -245,7 +273,7 @@ class ManifestRowSerializer(serializers.ModelSerializer):
         ]
 
 
-class AuctionDetailSerializer(serializers.ModelSerializer):
+class AuctionDetailSerializer(_ShrinkMixin, serializers.ModelSerializer):
     marketplace = MarketplaceSerializer(read_only=True)
     manifest_row_count = serializers.IntegerField(
         source='manifest_rows_count',
@@ -259,6 +287,8 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
     valuation_source = serializers.SerializerMethodField()
     has_revenue_override = serializers.SerializerMethodField()
     effective_revenue_after_shrink = serializers.SerializerMethodField()
+    condition_group = serializers.SerializerMethodField()
+    why = serializers.SerializerMethodField()
     my_thumbs_up = serializers.SerializerMethodField()
     thumbs_up_count = serializers.SerializerMethodField()
     fee_rate_applied = serializers.SerializerMethodField()
@@ -267,6 +297,8 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
     shipping_estimate = serializers.SerializerMethodField()
     priority_basis = serializers.SerializerMethodField()
     profit_score = serializers.SerializerMethodField()
+    speed_score = serializers.SerializerMethodField()
+    priority_speed_weight = serializers.SerializerMethodField()
     priority_profit_weight = serializers.SerializerMethodField()
 
     class Meta:
@@ -290,6 +322,8 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
             'listing_type',
             'total_retail_value',
             'condition_summary',
+            'condition_group',
+            'why',
             'status',
             'has_manifest',
             'manifest_row_count',
@@ -322,6 +356,8 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
             'shipping_estimate',
             'priority_basis',
             'profit_score',
+            'speed_score',
+            'priority_speed_weight',
             'priority_profit_weight',
             'pallet_count',
             'origin_city',
@@ -372,6 +408,14 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
     def get_profit_score(self, obj: Auction) -> int | None:
         return profit_score(obj.profitability_ratio)
 
+    def get_speed_score(self, obj: Auction) -> int | None:
+        from apps.buying.services.valuation import _mix_for_auction, load_category_stats_dict
+
+        return auction_speed_from_mix(_mix_for_auction(obj), load_category_stats_dict())
+
+    def get_priority_speed_weight(self, obj: Auction) -> str:
+        return format(get_priority_speed_weight(), 'f')
+
     def get_priority_profit_weight(self, obj: Auction) -> str:
         return str(get_priority_profit_weight())
 
@@ -395,7 +439,7 @@ class AuctionDetailSerializer(serializers.ModelSerializer):
         base = obj.revenue_override if obj.revenue_override is not None else obj.estimated_revenue
         if base is None:
             return None
-        sh = obj.shrinkage_override if obj.shrinkage_override is not None else get_global_shrinkage()
+        sh, _ = self._shrink(obj)
         eff = (base * (Decimal('1') - sh)).quantize(Decimal('0.01'))
         return format(eff, 'f')
 

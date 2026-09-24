@@ -7,6 +7,11 @@ import { useAppSettings } from './useAppSettings';
 const ASSUMPTION_ORDER = [
   'po_default_est_shrink',
   'pricing_shrinkage_factor',
+  'buying_shrink_new',
+  'buying_shrink_like_new',
+  'buying_shrink_used_good',
+  'buying_shrink_used_fair',
+  'buying_shrink_damaged',
   'pricing_need_window_days',
   'buying_manifest_pull_window_hours',
   'buying_manifest_pull_max_per_run',
@@ -15,6 +20,7 @@ const ASSUMPTION_ORDER = [
   'buying_shipping_per_pallet',
   'buying_target_cover_weeks',
   'buying_priority_profit_weight',
+  'buying_priority_speed_weight',
   'buying_pipeline_max_age_days',
   'delivery_service_minutes_per_stop',
 ] as const;

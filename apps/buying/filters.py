@@ -24,6 +24,27 @@ def cdt_today_window_utc():
     return start_cdt.astimezone(dt_timezone.utc), end_cdt.astimezone(dt_timezone.utc)
 
 
+def focus_queryset(queryset):
+    """
+    Auctions the morning Pull chooses from: ending inside ``buying_manifest_pull_window_hours``,
+    with a lot id, not archived, not a contract (register AUC-12). Ranked by the list's ordering
+    (Priority by default), whether or not a manifest is already in.
+    """
+    from apps.buying.services.buying_settings import get_manifest_pull_window_hours
+
+    now = timezone.now()
+    return (
+        queryset.filter(
+            end_time__gt=now,
+            end_time__lte=now + timedelta(hours=get_manifest_pull_window_hours()),
+            archived_at__isnull=True,
+        )
+        .exclude(listing_type__iexact=Auction.LISTING_TYPE_CONTRACT)
+        .exclude(lot_id__isnull=True)
+        .exclude(lot_id='')
+    )
+
+
 def filter_auction_text_search(queryset, value):
     """
     Split `value` on whitespace; each non-empty term must match
@@ -53,6 +74,7 @@ class WatchlistAuctionFilter(django_filters.FilterSet):
     has_manifest = django_filters.CharFilter(method='filter_watchlist_has_manifest')
     thumbs_up = django_filters.BooleanFilter(method='filter_thumbs_up_for_user')
     today = django_filters.BooleanFilter(method='filter_today_end_cdt')
+    focus = django_filters.BooleanFilter(method='filter_focus')
     archived = django_filters.CharFilter(method='filter_archived')
     q = django_filters.CharFilter(method='filter_q')
 
@@ -66,6 +88,7 @@ class WatchlistAuctionFilter(django_filters.FilterSet):
             'has_manifest',
             'thumbs_up',
             'today',
+            'focus',
             'archived',
             'q',
         ]
@@ -93,6 +116,12 @@ class WatchlistAuctionFilter(django_filters.FilterSet):
                 return queryset
             return queryset.filter(marketplace__slug__in=slugs)
         return queryset.filter(marketplace__slug__iexact=raw)
+
+    def filter_focus(self, queryset, name, value):
+        """The morning Pull's field: ending inside the pull window, lot id, not a contract."""
+        if value is not True:
+            return queryset
+        return focus_queryset(queryset)
 
     def filter_today_end_cdt(self, queryset, name, value):
         """``end_time`` falls on today's calendar date in America/Chicago (UTC window)."""
@@ -137,12 +166,13 @@ class AuctionFilter(django_filters.FilterSet):
     has_manifest = django_filters.CharFilter(method='filter_has_manifest')
     thumbs_up = django_filters.BooleanFilter(method='filter_thumbs_up_for_user')
     today = django_filters.BooleanFilter(method='filter_today_end_cdt')
+    focus = django_filters.BooleanFilter(method='filter_focus')
     archived = django_filters.CharFilter(method='filter_archived')
     q = django_filters.CharFilter(method='filter_q')
 
     class Meta:
         model = Auction
-        fields = ['marketplace', 'status', 'has_manifest', 'thumbs_up', 'today', 'archived', 'q']
+        fields = ['marketplace', 'status', 'has_manifest', 'thumbs_up', 'today', 'focus', 'archived', 'q']
 
     def filter_has_manifest(self, queryset, name, value):
         if value is None or value == '':
@@ -155,6 +185,12 @@ class AuctionFilter(django_filters.FilterSet):
         if s in ('false', '0', 'no', 'off'):
             return queryset.exclude(manifest_exists)
         return queryset
+
+    def filter_focus(self, queryset, name, value):
+        """The morning Pull's field: ending inside the pull window, lot id, not a contract."""
+        if value is not True:
+            return queryset
+        return focus_queryset(queryset)
 
     def filter_today_end_cdt(self, queryset, name, value):
         """``end_time`` falls on today's calendar date in America/Chicago (UTC window)."""

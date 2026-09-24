@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-23 (what to run: file alone = all queued) -->
+<!-- Last updated: 2026-09-23 (shift mode: hold slots) -->
 # Protocol: Runner
 
 **What to run depends on what the user gave you:**
@@ -8,6 +8,7 @@
 | **Only this file** (pasted, `@`-mentioned, or its path) | **Every** `queued` task in [`.ai/comm/runner/queue.md`](../comm/runner/queue.md), oldest first. Then **STOP**. |
 | **One task file** (`tasks/R-NNN-*.md`) | Only that task. |
 | **Task IDs** ("run R-002 and R-003") | Only those. |
+| **[`comm/runner/shift.md`](../comm/runner/shift.md)** | **Shift mode** (below): work through the queue in ID order, and wait on `hold` rows instead of stopping. |
 
 Several runners can work at once. Before you start a task, re-read its row in `queue.md`; if it is already `running`, skip it.
 
@@ -26,7 +27,7 @@ The coder writes code. The runner does everything else that takes time: tests, r
 | `workspace/runner/R-NNN/` (gitignored) | The runner | Logs, CSVs, scratch scripts. |
 | `archive/tasks/`, `archive/results/`, `archive/index.md` | The coder | Finished tasks, moved out of the queue. Runners ignore `archive/`. |
 
-**Status words:** `queued` → `running` → `done`, `partial` or `blocked`. `superseded` means skip the task.
+**Status words:** `queued` → `running` → `done`, `partial` or `blocked`. `superseded` means skip the task. `hold` is an empty slot the coder hasn't written yet (shift mode only). `end` means the shift is over.
 
 ---
 
@@ -52,6 +53,21 @@ The coder writes code. The runner does everything else that takes time: tests, r
 When no `queued` tasks remain, tell the user one line per task, like `R-004 recon done: results/R-004-sales-data.md`. Then **STOP**.
 
 ---
+
+## Shift mode
+
+For long unattended runs. The coder keeps writing and editing tasks while you work, so **never stop because you ran out of work.**
+
+1. **Read just in time.** Don't read all the task files at the start. Before each task:
+   - re-read `queue.md`;
+   - take the lowest ID whose status is `queued`;
+   - only then open its task file.
+
+   Tasks can change or appear at any moment.
+2. Run the task by the normal rules, including archiving it. Then go back to step 1.
+3. **No `queued` row?** Do one chunk of **idle work** from [`comm/runner/shift.md`](../comm/runner/shift.md), about 20 minutes. Then go back to step 1. Don't sit waiting while there is idle work.
+4. **Stop only** when you reach a row whose status is `end`, or at 07:00 local time. Then give one line per task you finished.
+5. Keep status chatter short: one line per task, not one per check.
 
 ## Recon tasks (`type: recon`)
 
@@ -145,8 +161,9 @@ New-Item -ItemType Junction -Path C:\Coding\ecothrift-test\frontend\node_modules
      SHA=$(git stash create "R-NNN"); SHA=${SHA:-$(git rev-parse HEAD)}
      git update-ref refs/runner/R-NNN "$SHA"
      ```
-  4. Tell the user one line: **"Runner tasks queued: R-NNN (type) ... Run `.ai/protocols/runner.md`."**
-  5. Keep coding. Assume tests are green.
+  4. Shift mode: to fill a slot, write the task file and change its `hold` row to `queued` with the real type, title and links. To add more slots, append `hold` rows. To finish, set a row to `end`.
+  5. Tell the user one line: **"Runner tasks queued: R-NNN (type) ... Run `.ai/protocols/runner.md`."**
+  6. Keep coding. Assume tests are green.
 - **Size:** keep each task small enough for a cheaper model: one topic, concrete questions, and a clear finish line.
 - **Check `results/`:**
   - before relying on an answer;

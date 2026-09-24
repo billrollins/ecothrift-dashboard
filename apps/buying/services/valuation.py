@@ -12,6 +12,7 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from apps.buying.models import Auction, CategoryStats, ManifestRow
+from apps.buying.services.condition import get_condition_shrink, shrink_for
 from apps.buying.services.shipping_formula import estimate_for_auction, get_shipping_formula, load_origin_miles
 from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED
 from apps.core.models import AppSetting
@@ -254,6 +255,35 @@ def get_priority_profit_weight(using: str = 'default') -> Decimal:
     return min(Decimal('1'), max(Decimal('0'), v))
 
 
+def get_priority_speed_weight(using: str = 'default') -> Decimal:
+    """Admin > Assumptions ``buying_priority_speed_weight`` (0-1): sell speed's share of Priority."""
+    try:
+        v = Decimal(str(AppSetting.objects.using(using).get(key='buying_priority_speed_weight').value))
+    except Exception:
+        return Decimal('0')
+    return min(Decimal('1'), max(Decimal('0'), v))
+
+
+def auction_speed_from_mix(weights: dict[str, Decimal], stats: dict[str, CategoryStats]) -> int | None:
+    """
+    1-99 speed for an auction: its category mix x each category's 30-day sell-through
+    (``CategoryStats.sell_through_30_pct``). A category without a rate takes the average of
+    the known ones. None when there is no mix or no rate at all.
+    """
+    if not weights:
+        return None
+    known = [row.sell_through_30_pct for row in stats.values() if getattr(row, 'sell_through_30_pct', None) is not None]
+    if not known:
+        return None
+    fallback = sum(known, Decimal('0')) / len(known)
+    total = Decimal('0')
+    for cat, w in weights.items():
+        row = stats.get(str(cat))
+        pct = getattr(row, 'sell_through_30_pct', None) if row is not None else None
+        total += w * (pct if pct is not None else fallback)
+    return max(1, min(99, int(total.quantize(Decimal('1'), rounding=ROUND_HALF_UP))))
+
+
 def profit_score(profitability_ratio: Decimal | None) -> int | None:
     """
     1-99 from profit / all-in cost: 0 or less is 1, a 50% return is 50, doubling the money
@@ -270,17 +300,28 @@ def compute_priority(
     *,
     has_mix: bool,
     weight: Decimal | None = None,
+    speed: int | None = None,
+    speed_weight: Decimal | None = None,
 ) -> tuple[int, str]:
     """
     ``(priority, basis)``. basis ``need_profit``: need and profit score blended by the weight.
     basis ``need_only``: no category mix, so revenue (and profit) is not known; Priority is
     Need, which is itself filled in as 50 (register AUC-03).
+    With a speed (1-99) and a speed weight above 0, speed takes its share from Need;
+    if profit + speed weights pass 1 they are scaled down to sum to 1.
     """
     score = profit_score(profitability_ratio)
     if not has_mix or score is None:
         return need, 'need_only'
     w = get_priority_profit_weight() if weight is None else weight
-    blended = (Decimal('1') - w) * Decimal(need) + w * Decimal(score)
+    s = Decimal('0')
+    if speed is not None:
+        s = get_priority_speed_weight() if speed_weight is None else speed_weight
+    if w + s > 1:
+        w, s = w / (w + s), s / (w + s)
+    blended = (Decimal('1') - w - s) * Decimal(need) + w * Decimal(score)
+    if s > 0:
+        blended += s * Decimal(speed)
     return max(1, min(99, int(blended.quantize(Decimal('1'), rounding=ROUND_HALF_UP)))), 'need_profit'
 
 
@@ -352,6 +393,7 @@ def recompute_auction_full(
     origin_miles: dict[str, int] | None = None,
     formula: dict[str, Any] | None = None,
     per_pallet_default: Decimal | None = None,
+    condition_shrink: dict[str, Decimal] | None = None,
 ) -> None:
     """Full recompute: revenue from mix × CategoryStats recovery_rate; need_score = auction need 1-99."""
     db = getattr(auction._state, 'db', None) or 'default'
@@ -384,10 +426,11 @@ def recompute_auction_full(
         auction, origin_miles=origin_miles, formula=formula, per_pallet_default=per_pallet_default
     )
 
-    shrink = (
-        auction.shrinkage_override
-        if auction.shrinkage_override is not None
-        else get_global_shrinkage(using=db)
+    if condition_shrink is None:
+        condition_shrink = get_condition_shrink(using=db)
+    shrink, _ = shrink_for(
+        auction.shrinkage_override, auction.condition_summary,
+        get_global_shrinkage(using=db), condition_shrink,
     )
     base_rev_for_eff = auction.revenue_override if auction.revenue_override is not None else est_rev
     effective_rev = (base_rev_for_eff * (Decimal('1') - shrink)).quantize(Decimal('0.01'))
@@ -410,7 +453,9 @@ def recompute_auction_full(
     auction.est_profit = est_profit
 
     if not auction.priority_override:
-        auction.priority, _ = compute_priority(need_val, profitability_ratio, has_mix=bool(weights))
+        auction.priority, _ = compute_priority(
+            need_val, profitability_ratio, has_mix=bool(weights), speed=auction_speed_from_mix(weights, stats)
+        )
 
     auction.save(
         update_fields=[
@@ -435,6 +480,7 @@ def recompute_auction_lightweight(
     origin_miles: dict[str, int] | None = None,
     formula: dict[str, Any] | None = None,
     per_pallet_default: Decimal | None = None,
+    condition_shrink: dict[str, Decimal] | None = None,
 ) -> None:
     """Fees/shipping/cost, est_profit from stored revenue line; refresh need_score and priority."""
     infer_auction_completed_from_end_time(auction)
@@ -444,7 +490,9 @@ def recompute_auction_lightweight(
         auction, origin_miles=origin_miles, formula=formula, per_pallet_default=per_pallet_default
     )
 
-    shrink = auction.shrinkage_override if auction.shrinkage_override is not None else shrink_global
+    if condition_shrink is None:
+        condition_shrink = get_condition_shrink()
+    shrink, _ = shrink_for(auction.shrinkage_override, auction.condition_summary, shrink_global, condition_shrink)
     base_rev = auction.revenue_override if auction.revenue_override is not None else (auction.estimated_revenue or Decimal('0'))
     effective_rev = (base_rev * (Decimal('1') - shrink)).quantize(Decimal('0.01'))
     est_profit = (effective_rev - total_cost).quantize(Decimal('0.01'))
@@ -465,7 +513,9 @@ def recompute_auction_lightweight(
     auction.est_profit = est_profit
 
     if not auction.priority_override:
-        auction.priority, _ = compute_priority(need_val, profitability_ratio, has_mix=bool(weights))
+        auction.priority, _ = compute_priority(
+            need_val, profitability_ratio, has_mix=bool(weights), speed=auction_speed_from_mix(weights, stats)
+        )
 
     auction.save(
         update_fields=[
@@ -494,6 +544,7 @@ def recompute_auction_valuation(
 def recompute_all_open_auctions() -> int:
     """Full recompute for open/closing, non-archived auctions."""
     stats = load_category_stats_dict()
+    condition_shrink = get_condition_shrink()
     origin_miles = load_origin_miles()
     formula = get_shipping_formula()
     per_pallet = get_shipping_per_pallet()
@@ -504,7 +555,12 @@ def recompute_all_open_auctions() -> int:
     n = 0
     for a in qs.iterator(chunk_size=200):
         recompute_auction_full(
-            a, stats=stats, origin_miles=origin_miles, formula=formula, per_pallet_default=per_pallet
+            a,
+            stats=stats,
+            origin_miles=origin_miles,
+            formula=formula,
+            per_pallet_default=per_pallet,
+            condition_shrink=condition_shrink,
         )
         n += 1
     return n
@@ -514,6 +570,7 @@ def recompute_active_auctions_lightweight() -> int:
     """Lightweight recompute: active (non-archived) open/closing with future end_time."""
     stats = load_category_stats_dict()
     shrink = get_global_shrinkage()
+    condition_shrink = get_condition_shrink()
     origin_miles = load_origin_miles()
     formula = get_shipping_formula()
     per_pallet = get_shipping_per_pallet()
@@ -535,6 +592,7 @@ def recompute_active_auctions_lightweight() -> int:
             origin_miles=origin_miles,
             formula=formula,
             per_pallet_default=per_pallet,
+            condition_shrink=condition_shrink,
         )
         n += 1
     return n

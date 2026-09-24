@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-23 (B-Stock is the compass; documents and object surfaces pending; AI settings completed) -->
+<!-- Last updated: 2026-09-24 (v2.100.0; product_intelligence active; taxonomy rulebook) -->
 # Eco-Thrift Dashboard — AI Context
 
 ## Project Summary
@@ -14,9 +14,11 @@ Full-stack business management for a thrift store in Omaha, NE. HR (time clock, 
 
 ## Active work
 
-- **ACTIVE (compass) — B-Stock daily buying:** [`bstock_daily_buying`](initiatives/bstock_daily_buying.md) — Phase 1 done. Phase 2 (buying context) is next and waits on runner recon R-002 to R-007.
+- **ACTIVE (compass) — B-Stock daily buying:** [`bstock_daily_buying`](initiatives/bstock_daily_buying.md). Phases 1–2 are shipped. Phase 3 (triage: Focus, condition, speed, the "why" line, price history) shipped in v2.100.0. Next: Phase 4 manifest analysis.
+- **ACTIVE — Product intelligence:** [`product_intelligence`](initiatives/product_intelligence.md). Phase 1 is done. Spark backfill proposals for every Mixed product sit in `workspace/backfill/` (files only). Phase 2, approved 2026-09-24, builds the tables to apply them.
 - **Unreleased, outside initiatives:** own-aisle cross-check fix (`routines/0027_orphan_section_drafts`, runs before B-Stock's `0028`) and kiosk follow-ups (Exit without password, sign-in **Scan your card**). Both are in `[Unreleased]`.
 - **ACTIVE - Data quality and rails:** [`data_quality_rails`](initiatives/data_quality_rails.md). The register is [`extended/data-quality.md`](extended/data-quality.md): every build states the register IDs it touches and the fill-ins it uses. We work with imperfect data rather than drop it. **Read its Eras and Standing decisions before building on any data.** V1/V2 were imported on 2026-04-12 with `BACKFILL:` tags; V3 native is the only clean era. "Scrapped" import rows are not shrink, $0 often means unknown, and enrichment is product-first.
+- **Product categories:** [`extended/product-taxonomy.md`](extended/product-taxonomy.md) is the one answer key for category, subcategory and price-tag short name. Every placer uses it (people, rules, AI prompts, the gold set). A questioned placement is settled by adding a ruling (TAX-NN) there.
 - **Runner:** the coder only codes. Tests, recon and small chores go to a runner agent following [`protocols/runner.md`](protocols/runner.md), through [`comm/runner/`](comm/runner/): `queue.md`, `tasks/`, `results/`, and `baseline.md` (known test failures).
 
 Pending 2026-09-23: [`documents`](initiatives/_archived/_pending/documents.md) (staff UI unwired; resume when Documents is next) and [`universal_object_surfaces`](initiatives/_archived/_pending/universal_object_surfaces.md) (design only).

@@ -188,3 +188,42 @@ class PriorityTests(SimpleTestCase):
         # No category mix: revenue is unknown, so profit is too; Priority is Need.
         self.assertEqual(compute_priority(50, Decimal('-1'), has_mix=False, weight=Decimal('0.5')), (50, 'need_only'))
         self.assertEqual(compute_priority(70, None, has_mix=True, weight=Decimal('0.5')), (70, 'need_only'))
+
+
+class FocusFilterTests(TestCase):
+    def test_focus_is_the_pull_window_without_contracts(self):
+        from apps.buying.filters import focus_queryset
+        from apps.buying.models import Auction
+        from apps.buying.tests.test_manifest_pull import _auction, _target
+
+        AppSetting.objects.update_or_create(key='buying_manifest_pull_window_hours', defaults={'value': 36})
+        mp = _target()
+        soon = _auction(mp, 'soon', hours=5)
+        _auction(mp, 'later', hours=100)
+        _auction(mp, 'ended', hours=-1)
+        _auction(mp, 'contract', hours=5, listing_type='CONTRACT')
+        _auction(mp, 'nolot', hours=5, lot_id='')
+        self.assertEqual(list(focus_queryset(Auction.objects.all()).values_list('pk', flat=True)), [soon.pk])
+
+
+class CategoryCodeMappingTests(SimpleTestCase):
+    def test_bstock_codes_reach_real_categories(self):
+        from apps.inventory.canonical_categories import canonical_category_name as name
+
+        self.assertEqual(name('VACUUMS'), 'Appliances')
+        self.assertEqual(name('OUTDOOR_LIVING_AND_GARDEN'), 'Lawn & garden')
+        self.assertEqual(name('ARTS_AND_CRAFTS'), 'Arts & crafts')
+        self.assertEqual(name('AUTOMOTIVE_ACCESSORIES'), 'Automotive')
+        self.assertEqual(name('TOYS'), 'Toys & games')
+        self.assertEqual(name('MIXED_SMALL_APPLIANCES'), 'Kitchen & dining')
+        self.assertEqual(name('MIXED_HOME_AND_GARDEN'), 'Mixed lots & uncategorized')
+        self.assertEqual(name('toys-games'), 'Toys & games')
+        self.assertEqual(name(''), 'Mixed lots & uncategorized')
+
+    def test_web_shop_keeps_the_original_19(self):
+        from apps.buying.taxonomy_v1 import TAXONOMY_V1_CATEGORY_NAMES
+        from apps.webstore.shop_categories import SHOP_CATEGORIES
+
+        self.assertEqual(len(TAXONOMY_V1_CATEGORY_NAMES), 23)
+        self.assertEqual(len(SHOP_CATEGORIES), 19)
+        self.assertNotIn('Appliances', [c['name'] for c in SHOP_CATEGORIES])

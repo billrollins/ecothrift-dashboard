@@ -38,6 +38,10 @@ export interface BuyingAuctionListItem {
   total_retail_display?: string | null;
   /** Where `total_retail_display` comes from. */
   retail_source?: 'manifest' | 'listing';
+  /** new | like_new | used_good | used_fair | damaged | unspecified (from condition_summary). */
+  condition_group?: string;
+  /** One line: why this auction ranks where it does (Need, profit, speed, condition, shipping, mix source). */
+  why?: string;
   condition_summary: string;
   status: string;
   has_manifest: boolean;
@@ -113,6 +117,8 @@ export interface BuyingWatchlistParams {
   archived?: boolean;
   /** ``end_time`` on today's calendar date in America/Chicago. */
   today?: boolean;
+  /** Ending inside the manifest-pull window, not contracts: the morning Pull's list. */
+  focus?: boolean;
 }
 
 /** Canonical category mix for manifest rows (auction detail). */
@@ -173,6 +179,10 @@ export interface BuyingAuctionDetail extends BuyingAuctionListItem {
   profit_score?: number | null;
   /** Profit's share of Priority (Admin > Assumptions). */
   priority_profit_weight?: string;
+  /** 1-99: category mix x 30-day sell-through; null with no mix. */
+  speed_score?: number | null;
+  /** Speed's share of Priority (Admin > Assumptions; 0 = ignored). */
+  priority_speed_weight?: string;
   /** How an estimate was worked out (estimate only). */
   shipping_estimate?: BuyingShippingEstimate | null;
   /** From the listing: B-Stock palletCount, else the pallets in the title. */
@@ -299,6 +309,8 @@ export interface BuyingAuctionListParams {
   archived?: boolean;
   /** ``end_time`` on today's calendar date in America/Chicago. */
   today?: boolean;
+  /** Ending inside the manifest-pull window, not contracts: the morning Pull's list. */
+  focus?: boolean;
 }
 
 /** GET /api/buying/category-need/ */
@@ -412,6 +424,8 @@ export interface BuyingAuctionSummaryParams {
   completed?: boolean;
   archived?: boolean;
   today?: boolean;
+  /** Ending inside the manifest-pull window, not contracts: the morning Pull's list. */
+  focus?: boolean;
 }
 
 export interface BuyingAuctionSummaryMarketplaceRow {

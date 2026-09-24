@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-23 (data_quality_rails opened) -->
+<!-- Last updated: 2026-09-24 (v2.100.0: bstock Phase 3, product_intelligence Phase 1 done) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not a session log.
@@ -13,9 +13,9 @@ Bounded work (hours–days), one `.md` per initiative. Not a session log.
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [bstock_daily_buying](./bstock_daily_buying.md) | **Phase 2** | Phase 1 done. Need v2 built; Priority next. Every phase states its data-quality handling. Compass. |
+| [bstock_daily_buying](./bstock_daily_buying.md) | **Phase 3** | Phases 1–2 shipped (v2.99.0). Phase 3 triage (Focus, condition, speed, why, price history) in v2.100.0; the expected-close baseline is recorded for Phase 5. Compass. |
 | [data_quality_rails](./data_quality_rails.md) | **Phase 1** | Know the data (register + eras, runner R-009 to R-013), then quality-aware numbers, rails at every lifecycle stage, and cleanup. |
-| [product_intelligence](./product_intelligence.md) | **Phase 1** | Plan only. Product-first catalog: dedupe, categories and subcategories, vectors, and a Spark audition-then-backfill; verify-don't-type intake; short price-tag names. |
+| [product_intelligence](./product_intelligence.md) | **Phase 2** | Phase 1 done: taxonomy rulebook, Spark provider, gold and held-out audition (92%). The full Mixed backfill is proposals in files: Mixed would go from 89.6% to 4.3%. Phase 2 (profile table, brand aliases, proposals queue) approved 2026-09-24. |
 
 ---
 

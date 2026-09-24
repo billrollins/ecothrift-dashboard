@@ -82,6 +82,17 @@ describe('needNote and priorityNote', () => {
       'Need 50% + profit 50%, profit 72'
     );
     expect(priorityNote(detail({ priority_basis: 'need_only' }))).toBe('Need only (no profit estimate)');
+    expect(
+      priorityNote(
+        detail({
+          priority_basis: 'need_profit',
+          priority_profit_weight: '0.5',
+          priority_speed_weight: '0.2',
+          profit_score: 72,
+          speed_score: 40,
+        })
+      )
+    ).toBe('Need 30% + profit 50% + speed 20%, profit 72, speed 40');
     expect(priorityNote(detail({ priority_basis: 'override' }))).toBe('set by hand');
   });
 });

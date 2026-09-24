@@ -6,9 +6,12 @@ import logging
 from datetime import datetime
 from typing import Any
 
+from decimal import Decimal
+
 from django.db import connection
 from psycopg2.extras import Json
 
+from apps.buying.models import AuctionSnapshot
 from apps.buying.services.listing_mapping import map_listing_raw_to_auction_fields
 
 logger = logging.getLogger(__name__)
@@ -63,6 +66,18 @@ ON CONFLICT (marketplace_id, external_id) DO UPDATE SET
 RETURNING id, (xmax = 0) AS inserted
 """
 
+OLD_PRICE_SQL = 'SELECT current_price, bid_count FROM buying_auction WHERE marketplace_id = %s AND external_id = %s'
+
+
+def _price_moved(old: tuple | None, price, bid_count) -> bool:
+    """New auction, or its price or bid count changed since the last sweep."""
+    if price is None:
+        return False
+    if old is None:
+        return True
+    old_price, old_bids = old
+    return old_price is None or Decimal(str(old_price)) != Decimal(str(price)) or old_bids != bid_count
+
 
 def upsert_listings_raw(
     marketplace_id: int,
@@ -79,6 +94,9 @@ def upsert_listings_raw(
     skipped = 0
     db_errors = 0
     ids_out: list[int] = []
+    # Price history for every live auction, not only watched ones: one row when the price or
+    # bid count moves (runner R-033: without it an early price can't predict the close).
+    snapshots: list[AuctionSnapshot] = []
 
     with connection.cursor() as cur:
         for raw in listings:
@@ -129,12 +147,21 @@ def upsert_listings_raw(
             )
             cur.execute('SAVEPOINT sweep_upsert_row')
             try:
+                cur.execute(OLD_PRICE_SQL, (marketplace_id, ext))
+                old = cur.fetchone()
                 cur.execute(UPSERT_SQL, row_vals)
                 row = cur.fetchone()
                 cur.execute('RELEASE SAVEPOINT sweep_upsert_row')
                 if row:
                     pk, was_insert = row[0], row[1]
                     ids_out.append(int(pk))
+                    if _price_moved(old, fields['current_price'], fields['bid_count']):
+                        snapshots.append(AuctionSnapshot(
+                            auction_id=int(pk),
+                            price=fields['current_price'],
+                            bid_count=fields['bid_count'],
+                            time_remaining_seconds=fields['time_remaining_seconds'],
+                        ))
                     if was_insert:
                         inserted += 1
                     else:
@@ -144,6 +171,11 @@ def upsert_listings_raw(
                 db_errors += 1
                 logger.exception('Sweep upsert row failed marketplace_id=%s ext=%s', marketplace_id, ext)
 
+    if snapshots:
+        try:
+            AuctionSnapshot.objects.bulk_create(snapshots, batch_size=500)
+        except Exception:  # noqa: BLE001 - price history must never fail a sweep
+            logger.exception('Sweep price snapshots failed (%s rows)', len(snapshots))
     return inserted, updated, skipped, db_errors, ids_out
 
 

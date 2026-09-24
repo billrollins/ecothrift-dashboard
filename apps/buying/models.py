@@ -192,6 +192,10 @@ class CategoryStats(models.Model):
     target_weeks = models.DecimalField(max_digits=6, decimal_places=1, null=True, blank=True)
     median_days_to_sell = models.PositiveIntegerField(null=True, blank=True)
     sold_within_90_pct = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True)
+    sell_through_30_pct = models.DecimalField(
+        max_digits=5, decimal_places=1, null=True, blank=True,
+        help_text='Of items shelved 30-180 days ago, % sold within 30 days (unsold count against). Empty under 20 items.',
+    )
 
     class Meta:
         ordering = ['category']
@@ -576,7 +580,7 @@ class AuctionThumbsVote(models.Model):
 
 
 class AuctionSnapshot(models.Model):
-    """Time-series sample for a watched auction (Phase 2 uses this heavily)."""
+    """Price over time: every watched-auction poll, plus each hourly sweep when the price or bid count moves."""
 
     auction = models.ForeignKey(
         Auction,

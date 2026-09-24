@@ -73,9 +73,21 @@ export function priorityNote(detail: BuyingAuctionDetail): string | null {
   if (detail.priority_basis === 'override') return 'set by hand';
   if (detail.priority_basis === 'need_only') return 'Need only (no profit estimate)';
   if (detail.priority_basis === 'need_profit') {
-    const w = Number.parseFloat(detail.priority_profit_weight ?? '0.5');
-    const profitPct = Math.round((Number.isFinite(w) ? w : 0.5) * 100);
+    const wRaw = Number.parseFloat(detail.priority_profit_weight ?? '0.5');
+    let w = Number.isFinite(wRaw) ? wRaw : 0.5;
+    const sRaw = Number.parseFloat(detail.priority_speed_weight ?? '0');
+    let s = detail.speed_score != null && Number.isFinite(sRaw) ? sRaw : 0;
+    if (w + s > 1) {
+      const t = w + s;
+      w /= t;
+      s /= t;
+    }
+    const profitPct = Math.round(w * 100);
+    const speedPct = Math.round(s * 100);
     const score = detail.profit_score != null ? `, profit ${detail.profit_score}` : '';
+    if (speedPct > 0) {
+      return `Need ${100 - profitPct - speedPct}% + profit ${profitPct}% + speed ${speedPct}%${score}, speed ${detail.speed_score}`;
+    }
     return `Need ${100 - profitPct}% + profit ${profitPct}%${score}`;
   }
   return null;

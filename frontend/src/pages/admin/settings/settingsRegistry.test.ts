@@ -21,7 +21,13 @@ describe('settingsRegistry', () => {
       'buying_shipping_per_pallet',
       'buying_target_cover_weeks',
       'buying_priority_profit_weight',
+      'buying_priority_speed_weight',
       'buying_pipeline_max_age_days',
+      'buying_shrink_new',
+      'buying_shrink_like_new',
+      'buying_shrink_used_good',
+      'buying_shrink_used_fair',
+      'buying_shrink_damaged',
       'delivery_service_minutes_per_stop',
     ]);
   });

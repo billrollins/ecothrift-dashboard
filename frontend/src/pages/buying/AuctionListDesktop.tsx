@@ -20,7 +20,7 @@ import {
   type MutableRefObject,
   type ReactNode,
 } from 'react';
-import { Box, Chip, IconButton, Typography } from '@mui/material';
+import { Box, Chip, IconButton, Tooltip, Typography } from '@mui/material';
 import { keyframes } from '@mui/system';
 import {
   DataGrid,
@@ -735,9 +735,11 @@ function buildColumns(
       minWidth: 160,
       sortable: true,
       renderCell: (params: GridRenderCellParams<BuyingAuctionListItem>) => (
-        <Typography variant="body2" noWrap sx={{ overflow: 'hidden', textOverflow: 'ellipsis', width: '100%' }}>
-          {params.row.title}
-        </Typography>
+        <Tooltip title={params.row.why ?? ''} placement="bottom-start" enterDelay={500}>
+          <Typography variant="body2" noWrap sx={{ overflow: 'hidden', textOverflow: 'ellipsis', width: '100%' }}>
+            {params.row.title}
+          </Typography>
+        </Tooltip>
       ),
     },
     {

@@ -21,6 +21,10 @@ export const TAXONOMY_V1_CATEGORY_NAMES: readonly string[] = [
   'Books & media',
   'Pet supplies',
   'Party, seasonal & novelty',
+  'Lawn & garden',
+  'Appliances',
+  'Arts & crafts',
+  'Automotive',
   'Mixed lots & uncategorized',
 ];
 
@@ -44,6 +48,10 @@ export const TAXONOMY_V1_CATEGORY_COLORS: readonly string[] = [
   '#7E57C2',
   '#26A69A',
   '#FFA726',
+  '#7CB342',
+  '#546E7A',
+  '#D81B60',
+  '#455A64',
   '#BDBDBD',
 ];
 

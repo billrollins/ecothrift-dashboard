@@ -201,10 +201,12 @@ class AiModel(models.Model):
     PROVIDER_ANTHROPIC = 'anthropic'
     PROVIDER_XAI = 'xai'
     PROVIDER_GOOGLE = 'google'
+    PROVIDER_META = 'meta'
     PROVIDER_CHOICES = [
         (PROVIDER_ANTHROPIC, 'Anthropic'),
         (PROVIDER_XAI, 'xAI'),
         (PROVIDER_GOOGLE, 'Google'),
+        (PROVIDER_META, 'Meta'),
     ]
     MODALITY_TEXT = 'text'
     MODALITY_IMAGE = 'image'

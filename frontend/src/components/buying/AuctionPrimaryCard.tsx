@@ -412,6 +412,11 @@ export default function AuctionPrimaryCard({ detail, isAdmin }: Props) {
           )}
         </Box>
       </Box>
+      {detail.why ? (
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+          {detail.why}
+        </Typography>
+      ) : null}
     </Card>
   );
 }

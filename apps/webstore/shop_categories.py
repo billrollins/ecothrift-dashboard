@@ -8,7 +8,7 @@ from typing import TypedDict
 
 from django.utils.text import slugify
 
-from apps.buying.taxonomy_v1 import TAXONOMY_V1_CATEGORY_NAMES
+from apps.buying.taxonomy_v1 import SHOP_CATEGORY_NAMES_V1
 
 
 class ShopCategory(TypedDict):
@@ -19,7 +19,7 @@ class ShopCategory(TypedDict):
 
 SHOP_CATEGORIES: list[ShopCategory] = [
     {'name': name, 'slug': slugify(name), 'description': ''}
-    for name in TAXONOMY_V1_CATEGORY_NAMES
+    for name in SHOP_CATEGORY_NAMES_V1
 ]
 
 SHOP_CATEGORY_SLUGS: frozenset[str] = frozenset(c['slug'] for c in SHOP_CATEGORIES)

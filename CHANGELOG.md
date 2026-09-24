@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.97.2] -->
-<!-- Last reviewed: 2026-09-22 (Unreleased: B-Stock pull, own-aisle cross-check, kiosk follow-ups) -->
+<!-- Line 1 release: ## [2.100.0] -->
+<!-- Last reviewed: 2026-09-24 (2.100.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.100.0] - 2026-09-24
+
+User-facing theme: **Auctions explain their rank, the Pull's list has a Focus chip, and the store has 23 categories.**
+
+Initiatives: [`bstock_daily_buying`](./.ai/initiatives/bstock_daily_buying.md) Phase 3, [`product_intelligence`](./.ai/initiatives/product_intelligence.md) Phase 1.
+
+### Added
+
+- **4 new categories:** Lawn & garden, Appliances, Arts & crafts, Automotive (23 in all; the web shop keeps its 19). B-Stock category codes on manifest lines now reach their category at check-in instead of all landing in Mixed lots.
+- Auctions **Focus** chip: auctions ending inside the manifest-pull window (36 hours), with a lot id, not contracts, ranked by Priority. `?focus=true` on the auction and watchlist lists.
+- Auctions show a one-line **why** (hover the title in the list, or under the Live auction card), for example "Need 72 (Kitchen 40%) · profit 38% · sells fast · Used fair · shipping 41% of cost".
+- **Listing condition** groups (New, Like new, Used good, Used fair, Damaged) with their own revenue shrink in Admin > Assumptions. They start at 0, which means the old single shrink is used, so nothing changes until you set one.
+- **Sell speed:** each category's 30-day sell-through (unsold items count against it), and **Priority: speed weight** in Admin > Assumptions. It starts at 0, which means Priority ignores speed until you set it.
+- B-Stock **price history** for every live auction: the hourly sweep saves a snapshot when an auction's price or bid count changes (it used to be watched auctions only). This is the start of price targets.
+- **Meta Muse Spark** as a fourth AI provider (Settings > AI; `META_API_KEY`). Its two models are in the catalog; no action uses Spark until you pick it. Heroku needs `META_API_KEY` set before an action is switched to Spark.
+
+### Changed
+
+- **Need target is 12 weeks** of stock (the owner's turnover goal; migration `buying/0031`). It used to be the store's own average, 43 weeks, so most categories now show a low Need until stock comes down. Change it in Admin > Assumptions.
+
+### Documentation
+
+- `.ai/extended/product-taxonomy.md`: the placement rulebook (23 categories, subcategories, rulings TAX-01 to TAX-46, price-tag short-name rules).
 
 ## [2.99.0] - 2026-09-23
 
