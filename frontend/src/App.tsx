@@ -174,8 +174,6 @@ export default function App() {
           </Suspense>
         }
       />
-      <Route path="/pricescanner" element={<Navigate to="/scan" replace />} />
-      <Route path="/thrift-plus/scanner" element={<Navigate to="/scan" replace />} />
 
       {/* Staff routes */}
       <Route

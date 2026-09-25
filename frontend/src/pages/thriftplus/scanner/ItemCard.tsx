@@ -269,7 +269,7 @@ function titleSize(title: string): number {
   return 42;
 }
 
-/** Approximate width of the reward text in em (Baloo 2 ExtraBold), to fit it in the card. */
+/** Approximate width of the reward text in em (Nunito Black), to fit it in the card. */
 function rewardEm(text: string): number {
   let em = 0;
   for (const ch of text) em += ch === '.' || ch === ',' ? 0.28 : ch === '1' ? 0.48 : 0.58;
@@ -498,47 +498,28 @@ function FoundBody({
   );
 }
 
-/** "+$15.00" as the design's bubbly 3D green lettering: a dark extruded layer under a bright gradient face. */
+/** "+$15.00": a heavy rounded face with a fresh green gradient and a soft shadow. No outlines. */
 function RewardText({ text }: { text: string }) {
-  const face = {
-    fontFamily: sc.bubble,
-    fontWeight: 800,
-    fontSize: 'var(--f)',
-    letterSpacing: '-0.02em',
-    whiteSpace: 'nowrap',
-    lineHeight: 1,
-  } as const;
   return (
-    // The design's lettering is taller than Baloo 2's natural shape.
-    <Box data-testid="reward" aria-label={text} sx={{ position: 'relative', transform: 'scaleY(1.16)' }}>
-      <Box
-        aria-hidden
-        sx={{
-          ...face,
-          position: 'absolute',
-          inset: 0,
-          color: '#23761f',
-          WebkitTextStroke: 'calc(var(--f) * 0.07) #23761f',
-          transform: 'translateY(calc(var(--f) * 0.05))',
-          filter: 'drop-shadow(0 calc(var(--f) * 0.05) calc(var(--f) * 0.06) rgba(25,70,20,0.35))',
-        }}
-      >
-        {text}
-      </Box>
-      <Box
-        aria-hidden
-        sx={{
-          ...face,
-          position: 'relative',
-          background: 'linear-gradient(180deg, #8fe06a 0%, #5cc442 42%, #3aa52d 100%)',
-          WebkitBackgroundClip: 'text',
-          backgroundClip: 'text',
-          color: 'transparent',
-          WebkitTextStroke: 'calc(var(--f) * 0.012) #2f8f27',
-        }}
-      >
-        {text}
-      </Box>
+    <Box
+      data-testid="reward"
+      aria-label={text}
+      sx={{
+        position: 'relative',
+        fontFamily: sc.money,
+        fontWeight: 900,
+        fontSize: 'var(--f)',
+        letterSpacing: '-0.035em',
+        whiteSpace: 'nowrap',
+        lineHeight: 1,
+        background: 'linear-gradient(180deg, #7ddc5f 0%, #45b537 48%, #2c9128 100%)',
+        WebkitBackgroundClip: 'text',
+        backgroundClip: 'text',
+        color: 'transparent',
+        filter: 'drop-shadow(0 calc(var(--f) * 0.045) calc(var(--f) * 0.06) rgba(34, 105, 30, 0.3))',
+      }}
+    >
+      {text}
     </Box>
   );
 }

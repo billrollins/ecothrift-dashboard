@@ -279,9 +279,9 @@ export function shortTitle(title: string, max = 28): string {
   return (out || clean.slice(0, max)).replace(/[\s,;:/(&-]+$/, '');
 }
 
-/** A reward in cents plus the banking extra, to the nearest cent. */
+/** A reward in cents plus the banking extra, rounded down to the cent like the register. */
 export function withBankExtra(cents: number): number {
-  return Math.round((cents * (100 + BANK_EXTRA_PCT)) / 100);
+  return Math.floor((cents * (100 + BANK_EXTRA_PCT)) / 100);
 }
 
 function hashCode(s: string): number {

@@ -72,7 +72,7 @@ export const sc = {
   night: '#101511',
   font: 'Roboto, "Segoe UI", system-ui, sans-serif',
   condensed: '"Roboto Condensed", "Arial Narrow", Roboto, sans-serif',
-  bubble: '"Baloo 2", "Roboto Condensed", system-ui, sans-serif',
+  money: '"Nunito", "Roboto", system-ui, sans-serif',
   script: '"Kaushan Script", "Brush Script MT", cursive',
   mono: '"DM Mono", ui-monospace, monospace',
   cardShadow: '0 10px 28px rgba(64,120,44,0.13), 0 2px 6px rgba(31,38,29,0.06)',
@@ -88,7 +88,7 @@ export function useScannerFonts(): void {
     link.id = id;
     link.rel = 'stylesheet';
     link.href =
-      'https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&family=Roboto+Condensed:wght@700&family=Roboto:wght@400;500;700&display=swap';
+      'https://fonts.googleapis.com/css2?family=Nunito:wght@900&family=Roboto+Condensed:wght@700&family=Roboto:wght@400;500;700&display=swap';
     document.head.appendChild(link);
   }, []);
 }

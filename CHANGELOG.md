@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.108.0] -->
-<!-- Last reviewed: 2026-09-25 (2.108.0) -->
+<!-- Line 1 release: ## [2.108.1] -->
+<!-- Last reviewed: 2026-09-25 (2.108.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.108.1] - 2026-09-25
+
+User-facing theme: **The scanner lives only at /scan, and the reward amount has a cleaner look.**
+
+Initiative `thrift_plus_rewards` (the `thrift_scanner` thread; front end only).
+
+### Changed
+
+- The reward amount ("+$15.00") is Nunito Black with a green gradient and a soft shadow, with no outlines (owner).
+- Banked amounts round down to the cent, matching the register (`apps/thriftplus/services/trip.py`).
+
+### Removed
+
+- The old scanner addresses `/pricescanner` and `/thrift-plus/scanner` (owner). Only `/scan` remains.
 
 ## [2.108.0] - 2026-09-25
 
