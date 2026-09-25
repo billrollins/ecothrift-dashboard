@@ -18,6 +18,8 @@ const TarsPage = lazy(() => import('./pages/restoration/tars/TarsPage'));
 // Time kiosk: hosted (/kiosk, staff JWT) and public (/clock, no login). Both own the window.
 const KioskPage = lazy(() => import('./pages/kiosk/KioskPage'));
 const ClockPage = lazy(() => import('./pages/kiosk/ClockPage'));
+// Thrift+ price scanner: the customer web app (mock). Public, its own sign-in, owns the window.
+const ThriftPlusScannerPage = lazy(() => import('./pages/thriftplus/scanner/ThriftPlusScannerPage'));
 const BstockLoginHandoffPage = lazy(() => import('./pages/routines/BstockLoginHandoffPage'));
 const ProductReviewPage = lazy(() => import('./pages/inventory/ProductReviewPage'));
 import FloorplanListPage from './pages/floorplan/FloorplanListPage';
@@ -162,6 +164,20 @@ export default function App() {
           </Suspense>
         }
       />
+
+      {/* Thrift+ price scanner (customer mock). /scan is the short link for signs. */}
+      {['/pricescanner', '/scan'].map((path) => (
+        <Route
+          key={path}
+          path={path}
+          element={
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <ThriftPlusScannerPage />
+            </Suspense>
+          }
+        />
+      ))}
+      <Route path="/thrift-plus/scanner" element={<Navigate to="/pricescanner" replace />} />
 
       {/* Staff routes */}
       <Route

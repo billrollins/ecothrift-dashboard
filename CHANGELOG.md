@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.105.1] -->
-<!-- Last reviewed: 2026-09-25 (2.105.1) -->
+<!-- Line 1 release: ## [2.106.0] -->
+<!-- Last reviewed: 2026-09-25 (2.106.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.106.0] - 2026-09-25
+
+User-facing theme: **A Thrift+ price scanner mock to try on a phone: scan a real tag, see the item and what a member would earn, swipe it into a cart.**
+
+Initiative `thrift_plus_rewards` (the `thrift_scanner` thread; front end only).
+
+### Added
+
+- `/pricescanner` (also `/scan`; `/thrift-plus/scanner` redirects): the customer price scanner, public, built from the owner's concept image. A mock sign-in (phone, then any 4 digits) or guest mode, banked-rewards and monthly-cover tiles, and a card stack whose bottom card is the live camera, so after a swipe the scanner is already running. Swipe right or tap Add to put an item in the cart; swipe left or tap Pass. The camera rests after 5 quiet minutes.
+- Fast code reading: the phone's own `BarcodeDetector` where it exists (Android Chrome), else ZXing compiled to WebAssembly (`barcode-detector` + `zxing-wasm`, served from our build, never a CDN) on the middle of each new video frame. QR and Code 128.
+- Real item pull through the existing public `GET /api/inventory/items/lookup/<sku>/`; the reward is a mock, a random 0% to 80% of the price fixed per tag. Sample tags work without a database.
+- "Price feel off? Tell us.": a one-tap survey (too high with "I'd buy it at" 15/25/35% under, retail wrong, wrong info, too low, something else), a thank-you, and back to the card.
+- The cart as a checkout receipt (quantities, remove, clear, rewards off the price after this month's cover) with the scan history under it (day headers, search, add from history).
+- `frontend/src/api/thriftPlusMock.ts`: every call and type the scanner uses, in one module the real Thrift+ API replaces one-to-one.
+
+### Changed
+
+- Dev start scripts: a phone URL that stays the same and a QR code to open it (see `scripts/dev/`).
 
 ## [2.105.1] - 2026-09-25
 
