@@ -62,6 +62,8 @@ export interface ThriftPlusItemCard {
   reward: Money;
   /** price - reward, before the monthly cover. */
   member_price: Money;
+  /** The same reward if the member banks it: banked rewards earn BANK_EXTRA_PCT more. */
+  reward_banked: Money;
   /** 18+ item: sells only to ID-verified cards. */
   age_restricted: boolean;
   /** false = final sale even for members (as-is, clothing and soft goods, 18+). */
@@ -121,9 +123,12 @@ export interface ThriftPlusCartLine {
 /**
  * What happens to this trip's rewards: banked for later, or taken off today's
  * price. Asked on the first add; the register gets an alert with the answer,
- * and the cashier asks too.
+ * and the cashier asks too. Banking pays BANK_EXTRA_PCT more.
  */
 export type RewardChoice = 'bank' | 'instant';
+
+/** Banked rewards are worth this much more than an instant rebate (owner, 09-25). */
+export const BANK_EXTRA_PCT = 5;
 
 /** Cart totals. An estimate: the register is the source of truth. */
 export interface ThriftPlusCartTotals {
@@ -137,7 +142,13 @@ export interface ThriftPlusCartTotals {
   to_cover: Money;
   /** Instant rebate: reward_total - to_cover, taken off at the register. 0 when banking. */
   savings: Money;
-  /** Banking: reward_total - to_cover, added to banked rewards. 0 for an instant rebate. */
+  /** What banking this cart would add to banked rewards: (reward_total - to_cover) plus bank_extra_pct. */
+  bank_value: Money;
+  /** The extra part of bank_value, i.e. what banking adds over an instant rebate. */
+  bank_extra: Money;
+  /** The banking extra in percent (5). */
+  bank_extra_pct: number;
+  /** bank_value when the member chose to bank, else 0. */
   to_bank: Money;
   /** price_total - savings: the member's estimate, before tax. */
   member_total: Money;
@@ -268,6 +279,11 @@ export function shortTitle(title: string, max = 28): string {
   return (out || clean.slice(0, max)).replace(/[\s,;:/(&-]+$/, '');
 }
 
+/** A reward in cents plus the banking extra, to the nearest cent. */
+export function withBankExtra(cents: number): number {
+  return Math.round((cents * (100 + BANK_EXTRA_PCT)) / 100);
+}
+
 function hashCode(s: string): number {
   let h = 2166136261;
   for (let i = 0; i < s.length; i += 1) {
@@ -287,7 +303,7 @@ export function mockRewardCents(sku: string, priceCents: number): number {
 }
 
 function cardFrom(
-  base: Omit<ThriftPlusItemCard, 'member_price' | 'reward' | 'category_label'> & { reward?: Money },
+  base: Omit<ThriftPlusItemCard, 'member_price' | 'reward_banked' | 'reward' | 'category_label'> & { reward?: Money },
 ): ThriftPlusItemCard {
   const priceCents = toCents(base.price);
   const rewardCents = base.reward != null ? toCents(base.reward) : mockRewardCents(base.sku, priceCents);
@@ -296,6 +312,7 @@ function cardFrom(
     category_label: CATEGORY_LABELS[base.category],
     reward: fromCents(rewardCents),
     member_price: fromCents(priceCents - rewardCents),
+    reward_banked: fromCents(withBankExtra(rewardCents)),
   };
 }
 
@@ -326,7 +343,7 @@ export function itemFromPublic(dto: PublicItemDTO): ThriftPlusItemCard {
 // Sample tags (work without a database, e.g. on a laptop)
 // ---------------------------------------------------------------------------
 
-type Sample = Omit<ThriftPlusItemCard, 'member_price' | 'category_label' | 'age_restricted' | 'returnable' | 'available'> &
+type Sample = Omit<ThriftPlusItemCard, 'member_price' | 'reward_banked' | 'category_label' | 'age_restricted' | 'returnable' | 'available'> &
   Partial<Pick<ThriftPlusItemCard, 'age_restricted' | 'returnable' | 'available'>>;
 
 const SAMPLES: Sample[] = [
@@ -474,18 +491,28 @@ export function computeCartTotals(
     reward_total: fromCents(rewardCents),
     to_cover: fromCents(toCover),
     savings: fromCents(savings),
-    to_bank: fromCents(banking ? past : 0),
+    bank_value: fromCents(withBankExtra(past)),
+    bank_extra: fromCents(withBankExtra(past) - past),
+    bank_extra_pct: BANK_EXTRA_PCT,
+    to_bank: fromCents(banking ? withBankExtra(past) : 0),
     member_total: fromCents(priceCents - savings),
   };
+}
+
+/** Items saved on the phone by an older version lack newer fields; fill them in. */
+function upgradeItem(item: ThriftPlusItemCard): ThriftPlusItemCard {
+  return item.reward_banked ? item : { ...item, reward_banked: fromCents(withBankExtra(toCents(item.reward))) };
 }
 
 function readCartLines(): ThriftPlusCartLine[] {
   const raw = readJson<unknown>(LS.cart, []);
   if (!Array.isArray(raw)) return [];
-  return raw.filter(
-    (l): l is ThriftPlusCartLine =>
-      !!l && typeof l === 'object' && !!(l as ThriftPlusCartLine).item?.sku && Number((l as ThriftPlusCartLine).qty) > 0,
-  );
+  return raw
+    .filter(
+      (l): l is ThriftPlusCartLine =>
+        !!l && typeof l === 'object' && !!(l as ThriftPlusCartLine).item?.sku && Number((l as ThriftPlusCartLine).qty) > 0,
+    )
+    .map((l) => ({ ...l, item: upgradeItem(l.item) }));
 }
 
 function readChoice(): RewardChoice | null {
@@ -502,7 +529,9 @@ function cartOf(lines: ThriftPlusCartLine[]): ThriftPlusCart {
 function readHistory(): ThriftPlusHistoryEntry[] {
   const raw = readJson<unknown>(LS.history, []);
   if (!Array.isArray(raw)) return [];
-  return raw.filter((e): e is ThriftPlusHistoryEntry => !!e && typeof e === 'object' && !!(e as ThriftPlusHistoryEntry).item?.sku);
+  return raw
+    .filter((e): e is ThriftPlusHistoryEntry => !!e && typeof e === 'object' && !!(e as ThriftPlusHistoryEntry).item?.sku)
+    .map((e) => ({ ...e, item: upgradeItem(e.item) }));
 }
 
 /** Newest first, one row per tag. */

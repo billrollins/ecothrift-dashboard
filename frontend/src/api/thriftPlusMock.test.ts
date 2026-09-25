@@ -86,7 +86,7 @@ describe('sign-in (mock)', () => {
 describe('tag lookup', () => {
   it('finds sample tags without the network and logs the scan to history', async () => {
     const drill = await found(DRILL);
-    expect(drill).toMatchObject({ title: 'Cordless Drill Kit', category: 'tools', category_label: 'Tools', price: '60.00', reward: '15.00', member_price: '45.00' });
+    expect(drill).toMatchObject({ title: 'Cordless Drill Kit', category: 'tools', category_label: 'Tools', price: '60.00', reward: '15.00', member_price: '45.00', reward_banked: '15.75' });
     const hist = await getHistory();
     expect(hist[0].item.sku).toBe(DRILL);
     expect(hist[0].decision).toBeNull();
@@ -185,7 +185,7 @@ describe('cart', () => {
     expect(cart.reward_choice).toBeNull();
     cart = await setRewardChoice('bank');
     expect(cart.reward_choice).toBe('bank');
-    expect(cart.totals.to_bank).toBe('11.40');
+    expect(cart.totals.to_bank).toBe('11.97');
     expect(thriftPlusMockControls.signals().at(-1)).toMatchObject({ kind: 'choice', choice: 'bank' });
     const { clearCart } = await import('./thriftPlusMock');
     expect((await clearCart()).reward_choice).toBeNull();
@@ -214,6 +214,9 @@ describe('cart totals and the monthly cover', () => {
       reward_total: '19.00',
       to_cover: '3.60',
       savings: '15.40',
+      bank_value: '16.17',
+      bank_extra: '0.77',
+      bank_extra_pct: 5,
       to_bank: '0.00',
       member_total: '84.60',
     });
@@ -231,9 +234,10 @@ describe('cart totals and the monthly cover', () => {
     expect(t.member_total).toBe('55.00');
   });
 
-  it('banks the rewards past the cover instead of taking them off the price', () => {
+  it('banks the rewards past the cover, 5% richer, instead of taking them off the price', () => {
     const t = computeCartTotals([line('60.00', '15.00')], member(640), 'bank');
-    expect(t).toMatchObject({ to_cover: '3.60', savings: '0.00', to_bank: '11.40', member_total: '60.00' });
+    expect(t).toMatchObject({ to_cover: '3.60', savings: '0.00', bank_value: '11.97', bank_extra: '0.57', to_bank: '11.97', member_total: '60.00' });
+    expect(computeCartTotals([line('60.00', '15.00')], member(640), 'instant')).toMatchObject({ savings: '11.40', to_bank: '0.00', bank_value: '11.97' });
     expect(computeCartTotals([line('60.00', '15.00')], null, 'bank').to_bank).toBe('0.00');
   });
 });

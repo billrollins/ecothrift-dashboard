@@ -79,10 +79,10 @@ export function cameraSupported(): boolean {
 
 function cameraErrorText(err: unknown): string {
   const name = err && typeof err === 'object' && 'name' in err ? String((err as { name?: unknown }).name) : '';
-  if (name === 'NotAllowedError') return 'Camera is blocked. Allow the camera for this site in your browser settings, then tap to try again.';
-  if (name === 'NotFoundError') return 'No camera found. Type the tag number instead.';
-  if (name === 'NotReadableError') return 'Another app is using the camera. Close it and tap to try again.';
-  return 'The camera did not start. Tap to try again.';
+  if (name === 'NotAllowedError') return 'The camera is blocked.';
+  if (name === 'NotFoundError') return 'No camera found.';
+  if (name === 'NotReadableError') return 'Another app is using the camera.';
+  return "The camera didn't start.";
 }
 
 type VideoWithFrameCallback = HTMLVideoElement & {

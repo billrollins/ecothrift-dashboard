@@ -6,7 +6,8 @@
  * camera, so after a swipe the scanner is already running. A code is read,
  * looked up and shown as an item card on top; swipe right to add it to the
  * cart, left to pass. The first add asks bank-or-rebate. The cart opens from
- * the pill as a receipt with the scan history under it.
+ * the pill with the scan history under it. Tiles explain themselves when
+ * tapped; a first-run walkthrough covers Scan, Bank and Cart.
  * Data: ../../../api/thriftPlusMock.ts.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -14,7 +15,9 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Box, ButtonBase, CircularProgress } from '@mui/material';
 import {
+  fromCents,
   lookupTag,
+  toCents,
   type RewardChoice,
   type TagLookup,
   type ThriftPlusCart,
@@ -23,6 +26,7 @@ import {
 } from '../../../api/thriftPlusMock';
 import { CameraCard } from './CameraCard';
 import { CartPage } from './CartPage';
+import { InfoPopup, IntroTour, introSeen, markIntroSeen, type Origin, type Topic } from './Explainers';
 import { ItemCard, type ItemCardHandle, type SwipeDir } from './ItemCard';
 import { ScannerTiles, ScannerTop } from './ScannerTop';
 import { SignInScreen } from './SignInScreen';
@@ -114,6 +118,9 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
   const [flash, setFlash] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [askBank, setAskBank] = useState(false);
+  const [explain, setExplain] = useState<{ topic: Topic; origin: Origin | null } | null>(null);
+  const [tour, setTour] = useState(() => !introSeen());
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const topRef = useRef<Top | null>(null);
   const gate = useRef(new ScanGate(2000));
   const cardRef = useRef<ItemCardHandle | null>(null);
@@ -134,7 +141,7 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
   const handleCodeRef = useRef<(raw: string, from: 'camera' | 'typed') => void>(() => undefined);
   const camera = useQrCamera({
     enabled: true,
-    paused: top != null || cartOpen || askBank,
+    paused: top != null || cartOpen || askBank || tour || explain != null,
     onDecode: (raw) => handleCodeRef.current(raw, 'camera'),
   });
 
@@ -209,18 +216,34 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
     camera.poke();
   };
 
+  /** Open an explainer that grows out of the tapped element. */
+  const openExplain = (topic: Topic, from?: HTMLElement | null) => {
+    const root = rootRef.current?.getBoundingClientRect();
+    const r = from?.getBoundingClientRect();
+    setExplain({
+      topic,
+      origin: root && r ? { x: r.left + r.width / 2 - root.left, y: r.top + r.height / 2 - root.top } : null,
+    });
+  };
+
+  const endTour = () => {
+    markIntroSeen();
+    setTour(false);
+  };
+
   const found = top?.lookup?.status === 'found' ? top.lookup.item : null;
   const canAdd = !!found && found.available;
 
   return (
     <Box
+      ref={rootRef}
       onPointerDown={() => camera.poke()}
       sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}
     >
       <ScannerTop cart={cart.data} onOpenCart={openCart} />
       <Box sx={{ flex: 1, minHeight: 0, width: u(900), mx: 'auto', display: 'flex', flexDirection: 'column' }}>
         <Gap basis={38} min={14} />
-        <ScannerTiles member={member} cart={cart.data} onSignIn={() => auth.signOut.mutate()} />
+        <ScannerTiles member={member} cart={cart.data} onSignIn={() => auth.signOut.mutate()} onExplain={openExplain} />
         <Gap basis={44} min={16} />
 
         {/* The stack (the extra 22 is the back card peeking out) */}
@@ -234,6 +257,7 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
               flash={flash}
               onWake={camera.wake}
               onCode={(code) => handleCodeRef.current(code, 'typed')}
+              onHelp={(el) => openExplain('camera', el)}
             />
             {top && (
               <ItemCard
@@ -276,21 +300,24 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
               </Box>
             )}
           </Box>
-      </Box>
+        </Box>
 
-      <Gap basis={20} min={10} />
+        <Gap basis={20} min={10} />
 
-      {/* Pass / Add to my list */}
-      <Box sx={{ display: 'flex', justifyContent: 'center', gap: u(40), flexShrink: 0 }}>
-        <RoundAction label="Pass" disabled={!top} onClick={() => cardRef.current?.fling('left')} kind="pass" />
-        <RoundAction label="Add to my list" disabled={!canAdd} onClick={() => cardRef.current?.fling('right')} kind="add" />
-      </Box>
+        {/* Pass / Add to my list */}
+        <Box sx={{ display: 'flex', justifyContent: 'center', gap: u(40), flexShrink: 0 }}>
+          <RoundAction label="Pass" disabled={!top} onClick={() => cardRef.current?.fling('left')} kind="pass" />
+          <RoundAction label="Add to my list" disabled={!canAdd} onClick={() => cardRef.current?.fling('right')} kind="add" />
+        </Box>
 
-      <Gap basis={40} min={10} />
-      <Box sx={{ textAlign: 'center', fontSize: u(29), color: sc.ink2, flexShrink: 0, lineHeight: 1.2 }}>
-        {top ? 'Swipe right to add, left to pass.' : 'Point your camera at a price tag.'}
-      </Box>
-      <Box sx={{ flexShrink: 0, height: `calc(${u(30)} + env(safe-area-inset-bottom, 0px))` }} />
+        <Gap basis={40} min={10} />
+        <Box
+          aria-hidden={!top}
+          sx={{ textAlign: 'center', fontSize: u(29), color: sc.ink2, flexShrink: 0, lineHeight: 1.2, visibility: top ? 'visible' : 'hidden' }}
+        >
+          Swipe right to add, left to pass.
+        </Box>
+        <Box sx={{ flexShrink: 0, height: `calc(${u(30)} + env(safe-area-inset-bottom, 0px))` }} />
       </Box>
 
       {cartOpen && (
@@ -301,18 +328,45 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
           onBack={closeCart}
           onAdd={addItem}
           onChoose={(c) => actions.choose.mutate(c)}
+          onExplain={openExplain}
+          onTour={() => setTour(true)}
           onSignIn={() => auth.signOut.mutate()}
           onSignOut={() => auth.signOut.mutate()}
         />
       )}
 
       {askBank && cart.data && <BankPrompt cart={cart.data} onChoose={choose} />}
+
+      {tour && (
+        <IntroTour
+          isGuest={isGuest}
+          onDone={endTour}
+          onCameraHelp={() => {
+            endTour();
+            openExplain('camera');
+          }}
+        />
+      )}
+
+      {explain && (
+        <InfoPopup
+          topic={explain.topic}
+          origin={explain.origin}
+          member={member}
+          cart={cart.data}
+          onClose={() => setExplain(null)}
+          onRetryCamera={camera.wake}
+        />
+      )}
     </Box>
   );
 }
 
-/** First add of a trip: bank the rewards or take them off today's price. The register gets the answer. */
+/** First add of a trip: bank the rewards (worth more) or take them off today's price. The register gets the answer. */
 function BankPrompt({ cart, onChoose }: { cart: ThriftPlusCart; onChoose: (c: RewardChoice) => void }) {
+  const t = cart.totals;
+  const worth = Number.parseFloat(t.bank_value) > 0;
+  const rebate = fromCents(toCents(t.bank_value) - toCents(t.bank_extra));
   return (
     <Box
       role="dialog"
@@ -326,58 +380,63 @@ function BankPrompt({ cart, onChoose }: { cart: ThriftPlusCart; onChoose: (c: Re
           position: 'relative',
           bgcolor: sc.card,
           borderRadius: `${u(44)} ${u(44)} 0 0`,
-          px: u(56),
-          pt: u(40),
-          pb: `calc(${u(44)} + env(safe-area-inset-bottom, 0px))`,
+          px: u(50),
+          pt: u(36),
+          pb: `calc(${u(40)} + env(safe-area-inset-bottom, 0px))`,
           textAlign: 'center',
           boxShadow: '0 -8px 30px rgba(0,0,0,0.18)',
-          animation: 'tpSheet 200ms ease-out both',
+          animation: 'tpSheet 220ms ease-out both',
           '@keyframes tpSheet': { from: { transform: 'translateY(40%)', opacity: 0 } },
         }}
       >
-        <Box component="img" src={art.coins} alt="" sx={{ width: u(150), height: u(150) }} />
+        <Box component="img" src={art.coins} alt="" sx={{ width: u(140), height: u(140) }} />
         <Box
           id="tp-bank-title"
-          sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(54), lineHeight: 1.1, color: sc.titleGreen, mt: u(12) }}
+          sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(54), lineHeight: 1.1, color: sc.titleGreen, mt: u(8) }}
         >
           Would you like to bank your rewards?
         </Box>
-        <Box sx={{ fontSize: u(30), color: sc.ink2, lineHeight: 1.4, mt: u(16) }}>
-          Banked rewards save up for a later trip. An instant rebate takes them off today's price.
-          {Number.parseFloat(cart.totals.reward_total) > 0 && ` So far this trip: ${money(cart.totals.reward_total)}.`}
+        <Box sx={{ fontSize: u(30), color: sc.ink2, lineHeight: 1.4, mt: u(12) }}>
+          Banked rewards are worth {t.bank_extra_pct}% more. Use them on a later trip.
         </Box>
         <ButtonBase
           onClick={() => onChoose('bank')}
           sx={{
-            mt: u(34),
+            mt: u(30),
             width: '100%',
-            minHeight: u(104),
-            borderRadius: 99,
+            minHeight: u(120),
+            flexDirection: 'column',
+            borderRadius: u(60),
             background: `linear-gradient(180deg, #62c64a, ${sc.green})`,
             boxShadow: '0 4px 12px rgba(63,159,53,0.35), inset 0 2px 0 rgba(255,255,255,0.35)',
             color: '#fff',
-            fontSize: u(34),
-            fontWeight: 700,
+            py: u(16),
           }}
         >
-          Yes, bank my rewards
+          <Box sx={{ fontSize: u(34), fontWeight: 700 }}>Yes, bank my rewards</Box>
+          <Box sx={{ fontSize: u(26), opacity: 0.95, mt: u(2) }}>
+            {worth ? `${money(t.bank_value)} for later, ${t.bank_extra_pct}% more` : `Worth ${t.bank_extra_pct}% more`}
+          </Box>
         </ButtonBase>
         <ButtonBase
           onClick={() => onChoose('instant')}
           sx={{
-            mt: u(18),
+            mt: u(16),
             width: '100%',
-            minHeight: u(104),
-            borderRadius: 99,
+            minHeight: u(120),
+            flexDirection: 'column',
+            borderRadius: u(60),
             border: `${u(3)} solid ${sc.cardEdge}`,
             color: sc.priceGreen,
-            fontSize: u(34),
-            fontWeight: 700,
+            py: u(16),
           }}
         >
-          No, instant rebate please
+          <Box sx={{ fontSize: u(34), fontWeight: 700 }}>No, instant rebate please</Box>
+          <Box sx={{ fontSize: u(26), color: sc.ink2, mt: u(2) }}>
+            {worth ? `${money(rebate)} off today's price` : "Off today's price"}
+          </Box>
         </ButtonBase>
-        <Box sx={{ fontSize: u(26), color: sc.ink3, mt: u(24), lineHeight: 1.35 }}>
+        <Box sx={{ fontSize: u(25), color: sc.ink3, mt: u(20), lineHeight: 1.35 }}>
           We'll let the register know. Remind your cashier at checkout, too.
         </Box>
       </Box>

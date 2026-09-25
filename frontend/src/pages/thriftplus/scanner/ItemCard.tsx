@@ -401,7 +401,7 @@ function FoundBody({
               <Box
                 sx={{
                   // The reward's font size: fit the card's width, and the height left under the label.
-                  '--f': `min(${u(fitWidth)}, calc((100cqh - ${u(70)}) * 0.78))`,
+                  '--f': `min(${u(fitWidth)}, calc((100cqh - ${u(isGuest ? 70 : 110)}) * 0.74))`,
                   position: 'relative',
                   lineHeight: 1,
                 }}
@@ -451,6 +451,15 @@ function FoundBody({
                 <RewardText text={rewardText} />
               </Box>
             </Box>
+            {!isGuest && (
+              <Box data-testid="bank-line" sx={{ fontSize: u(28), color: sc.ink2, mb: u(22), flexShrink: 0, whiteSpace: 'nowrap' }}>
+                or{' '}
+                <Box component="span" sx={{ color: '#8a6200', fontWeight: 700 }}>
+                  +{money(item.reward_banked)}
+                </Box>{' '}
+                if you bank it
+              </Box>
+            )}
             {isGuest && (
               <Box sx={{ fontSize: u(26), color: sc.ink2, mb: u(18), textAlign: 'center', px: u(30), flexShrink: 0 }}>
                 Guests pay the tag price. Cards are free at the register.

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.107.0] -->
-<!-- Last reviewed: 2026-09-25 (2.107.0) -->
+<!-- Line 1 release: ## [2.108.0] -->
+<!-- Last reviewed: 2026-09-25 (2.108.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.108.0] - 2026-09-25
+
+User-facing theme: **The Thrift+ scanner explains itself: tap a tile to learn what it means, a three-step walkthrough on first use, camera help for iPhone and Android, and banking shown as the better deal (5% more).**
+
+Initiative `thrift_plus_rewards` (the `thrift_scanner` thread; front end only).
+
+### Added
+
+- Banked rewards are worth 5% more (owner, 09-25): the item card shows "or +$X if you bank it", the first-add prompt shows both amounts (e.g. $11.97 for later vs $11.40 off today), and the cart compares them side by side. Contract: `BANK_EXTRA_PCT`, `reward_banked`, `bank_value`, `bank_extra`, `bank_extra_pct`; `to_bank` now includes the 5%.
+- Tap-to-explain popups that zoom out of what was tapped, each with a small animation: banked rewards (coins drop into the stack, +5% pops), this month's cover (the bar fills), and cart rewards (coins hop into the cart).
+- First-run walkthrough: Scan, Bank, Cart, Done (once per phone; "How Thrift+ works" in the cart reopens it).
+- "Camera not working?" help with iPhone and Android permission steps (it opens on the right tab for the phone) and a Try the camera again button.
+
+### Changed
+
+- The cart is rebuilt for readability: a big estimated total, the rewards and the bank-or-rebate choice as two cards, item rows with quantity and remove, and the scan history under it. No receipt-style monospace.
+- Cleaner scanner: no "Point your camera" line (the swipe hint shows only while a card is up), no text over the camera, one "Type tag #" button with the sample tags inside it, a solid (not striped) pending part on the cover bar, and short camera error messages.
 
 ## [2.107.0] - 2026-09-25
 

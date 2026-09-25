@@ -3,7 +3,6 @@ import { Box, ButtonBase, CircularProgress, InputBase } from '@mui/material';
 import KeyboardRounded from '@mui/icons-material/KeyboardRounded';
 import NoPhotographyRounded from '@mui/icons-material/NoPhotographyRounded';
 import PhotoCameraRounded from '@mui/icons-material/PhotoCameraRounded';
-import QrCode2Rounded from '@mui/icons-material/QrCode2Rounded';
 import { thriftPlusMockControls } from '../../../api/thriftPlusMock';
 import { cardFaceSx } from './ItemCard';
 import type { CameraStatus } from './useQrCamera';
@@ -20,17 +19,19 @@ interface Props {
   onWake: () => void;
   /** Typed tag number or a sample tag. */
   onCode: (code: string) => void;
+  /** "Camera not working?" help (the popup grows from the link). */
+  onHelp: (from: HTMLElement) => void;
 }
 
 /**
  * The bottom card of the stack: the live camera. It never unmounts, so when an
  * item card is swiped away the scanner is already running underneath.
  */
-export function CameraCard({ videoRef, status, error, underneath, flash, onWake, onCode }: Props) {
+export function CameraCard({ videoRef, status, error, underneath, flash, onWake, onCode, onHelp }: Props) {
   const [typing, setTyping] = useState(false);
   const [typed, setTyped] = useState('');
-  const [samples, setSamples] = useState(false);
   const noCamera = status === 'unsupported' || status === 'blocked';
+  const panelOpen = typing || noCamera;
 
   const submitTyped = () => {
     const code = typed.trim();
@@ -135,104 +136,92 @@ export function CameraCard({ videoRef, status, error, underneath, flash, onWake,
           </ButtonBase>
         )}
         {noCamera && (
-          <Box sx={{ pointerEvents: 'auto' }}>
+          <Box sx={{ pointerEvents: 'auto', mb: u(160) }}>
             <NoPhotographyRounded sx={{ fontSize: u(96), opacity: 0.8 }} />
-            <Box sx={{ mt: u(16), fontSize: u(30), opacity: 0.9, lineHeight: 1.35 }}>
-              {status === 'blocked' ? error : 'This browser cannot open the camera here. Type the tag number instead.'}
+            <Box sx={{ mt: u(12), fontSize: u(32), fontWeight: 500, opacity: 0.92, lineHeight: 1.35 }}>
+              {status === 'blocked' ? error : "This browser can't open the camera here."}
             </Box>
-            {status === 'blocked' && (
-              <ButtonBase
-                onClick={onWake}
-                sx={{ mt: u(24), px: u(36), py: u(16), borderRadius: 99, bgcolor: 'rgba(255,255,255,0.16)', fontWeight: 700, fontSize: u(30) }}
-              >
-                Try again
-              </ButtonBase>
-            )}
+            <ButtonBase
+              onClick={(e) => onHelp(e.currentTarget)}
+              sx={{ mt: u(22), px: u(34), py: u(16), borderRadius: 99, bgcolor: '#fff', color: sc.priceGreen, fontWeight: 700, fontSize: u(30) }}
+            >
+              Camera not working?
+            </ButtonBase>
           </Box>
         )}
       </Box>
 
-      {status === 'live' && !typing && !samples && (
-        <Box
-          sx={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            top: u(30),
-            textAlign: 'center',
-            color: '#fff',
-            fontSize: u(33),
-            fontWeight: 500,
-            textShadow: '0 1px 4px rgba(0,0,0,0.6)',
-          }}
-        >
-          Point at a price tag
-        </Box>
-      )}
-
-      {/* Type a tag number, or try a sample tag (mock). */}
+      {/* Type a tag number (sample tags live here too while this is a mock). */}
       <Box sx={{ position: 'absolute', left: u(24), right: u(24), bottom: u(24) }}>
-        {typing || (noCamera && !samples) ? (
-          <Box
-            component="form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              submitTyped();
-            }}
-            sx={{ display: 'flex', gap: u(12), bgcolor: '#fff', borderRadius: 99, p: u(8), pl: u(30) }}
-          >
-            <InputBase
-              autoFocus={typing}
-              value={typed}
-              onChange={(e) => setTyped(e.target.value)}
-              placeholder="Tag number"
-              inputProps={{ 'aria-label': 'Tag number', autoCapitalize: 'characters', autoCorrect: 'off', spellCheck: false, enterKeyHint: 'search' }}
-              sx={{ flex: 1, minWidth: 0, fontSize: 16 }}
-            />
-            <ButtonBase
-              type="submit"
-              sx={{ px: u(30), borderRadius: 99, bgcolor: sc.green, color: '#fff', fontWeight: 700, fontSize: u(30), whiteSpace: 'nowrap' }}
+        {panelOpen ? (
+          <Box sx={{ bgcolor: 'rgba(16,21,17,0.86)', borderRadius: u(32), p: u(16), backdropFilter: 'blur(8px)' }}>
+            <Box
+              component="form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                submitTyped();
+              }}
+              sx={{ display: 'flex', gap: u(12), bgcolor: '#fff', borderRadius: 99, p: u(8), pl: u(30) }}
             >
-              Look up
-            </ButtonBase>
-          </Box>
-        ) : samples ? (
-          <Box sx={{ bgcolor: 'rgba(16,21,17,0.88)', borderRadius: u(28), p: u(20) }}>
-            <Box sx={{ color: '#fff', fontSize: u(26), opacity: 0.8, mb: u(14) }}>Sample tags (mock)</Box>
-            <Box sx={{ display: 'flex', gap: u(10), flexWrap: 'wrap' }}>
-              {thriftPlusMockControls.sampleTags().map((t) => (
+              <InputBase
+                autoFocus={typing}
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                placeholder="Tag number"
+                inputProps={{ 'aria-label': 'Tag number', autoCapitalize: 'characters', autoCorrect: 'off', spellCheck: false, enterKeyHint: 'search' }}
+                sx={{ flex: 1, minWidth: 0, fontSize: 16 }}
+              />
+              <ButtonBase
+                type="submit"
+                sx={{ px: u(30), borderRadius: 99, bgcolor: sc.green, color: '#fff', fontWeight: 700, fontSize: u(30), whiteSpace: 'nowrap' }}
+              >
+                Look up
+              </ButtonBase>
+            </Box>
+            <Box sx={{ display: 'flex', gap: u(10), flexWrap: 'wrap', mt: u(14), alignItems: 'center' }}>
+              <Box sx={{ color: 'rgba(255,255,255,0.7)', fontSize: u(24), mr: u(4) }}>Samples:</Box>
+              {thriftPlusMockControls.sampleTags().slice(0, 4).map((t) => (
                 <ButtonBase
                   key={t.sku}
                   onClick={() => {
-                    setSamples(false);
+                    setTyping(false);
                     onCode(t.sku);
                   }}
-                  sx={{ px: u(20), py: u(10), borderRadius: 99, bgcolor: 'rgba(255,255,255,0.14)', color: '#fff', fontSize: u(26) }}
+                  sx={{ px: u(18), py: u(8), borderRadius: 99, bgcolor: 'rgba(255,255,255,0.14)', color: '#fff', fontSize: u(24) }}
                 >
                   {t.title}
                 </ButtonBase>
               ))}
             </Box>
+            {typing && !noCamera && (
+              <ButtonBase onClick={() => setTyping(false)} sx={{ mt: u(10), width: '100%', py: u(10), color: '#fff', fontSize: u(26), opacity: 0.85, borderRadius: u(16) }}>
+                Back to the camera
+              </ButtonBase>
+            )}
           </Box>
-        ) : null}
-        <Box sx={{ display: 'flex', justifyContent: 'center', gap: u(14), mt: typing || samples || noCamera ? u(14) : 0 }}>
-          <Pill
-            icon={<KeyboardRounded sx={{ fontSize: u(36) }} />}
-            label={typing ? 'Use camera' : 'Type tag #'}
-            onClick={() => {
-              setSamples(false);
-              setTyping((v) => !v);
-            }}
-          />
-          <Pill
-            icon={<QrCode2Rounded sx={{ fontSize: u(36) }} />}
-            label={samples ? 'Close samples' : 'Try a sample'}
-            onClick={() => {
-              setTyping(false);
-              setSamples((v) => !v);
-            }}
-          />
-        </Box>
+        ) : (
+          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+            <ButtonBase
+              onClick={() => setTyping(true)}
+              sx={{
+                gap: u(10),
+                px: u(26),
+                py: u(12),
+                borderRadius: 99,
+                bgcolor: 'rgba(16,21,17,0.55)',
+                border: '1px solid rgba(255,255,255,0.25)',
+                color: '#fff',
+                fontSize: u(28),
+                fontWeight: 500,
+                whiteSpace: 'nowrap',
+                backdropFilter: 'blur(6px)',
+              }}
+            >
+              <KeyboardRounded sx={{ fontSize: u(36) }} />
+              Type tag #
+            </ButtonBase>
+          </Box>
+        )}
       </Box>
 
       {/* Underneath, the camera card looks like the design's plain back card. */}
@@ -248,29 +237,5 @@ export function CameraCard({ videoRef, status, error, underneath, flash, onWake,
         }}
       />
     </Box>
-  );
-}
-
-function Pill({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
-  return (
-    <ButtonBase
-      onClick={onClick}
-      sx={{
-        gap: u(10),
-        px: u(24),
-        py: u(12),
-        borderRadius: 99,
-        bgcolor: 'rgba(16,21,17,0.6)',
-        border: '1px solid rgba(255,255,255,0.25)',
-        color: '#fff',
-        fontSize: u(28),
-        fontWeight: 500,
-        whiteSpace: 'nowrap',
-        backdropFilter: 'blur(6px)',
-      }}
-    >
-      {icon}
-      {label}
-    </ButtonBase>
   );
 }

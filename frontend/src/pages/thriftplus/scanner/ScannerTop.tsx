@@ -70,10 +70,13 @@ export function ScannerTiles({
   member,
   cart,
   onSignIn,
+  onExplain,
 }: {
   member: ThriftPlusMember | null;
   cart: ThriftPlusCart | undefined;
   onSignIn: () => void;
+  /** Tap a tile to learn what it means (the popup grows from the tile). */
+  onExplain: (topic: 'bank' | 'cover', from: HTMLElement) => void;
 }) {
   if (!member) {
     return (
@@ -112,7 +115,11 @@ export function ScannerTiles({
 
   return (
     <Box sx={{ display: 'grid', gridTemplateColumns: `${u(403)} ${u(413)}`, gap: u(24), mx: u(30) }}>
-      <Tile sx={{ display: 'flex', alignItems: 'center', pl: u(25), pr: u(16) }}>
+      <Tile
+        label={`Banked rewards ${money(member.banked_rewards)}. What is this?`}
+        onClick={(el) => onExplain('bank', el)}
+        sx={{ display: 'flex', alignItems: 'center', pl: u(25), pr: u(16) }}
+      >
         <Box component="img" src={art.coins} alt="" sx={{ width: u(102), height: u(102), flexShrink: 0 }} />
         <Box sx={{ ml: u(20), whiteSpace: 'nowrap' }}>
           <Box sx={{ fontSize: u(27), color: sc.ink2, lineHeight: 1.2 }}>Banked rewards</Box>
@@ -130,7 +137,11 @@ export function ScannerTiles({
           </Box>
         </Box>
       </Tile>
-      <Tile sx={{ display: 'flex', alignItems: 'center', pl: u(22), pr: u(26) }}>
+      <Tile
+        label={`This month's cover, ${money(cover.covered)} of ${money(cover.amount)}. What is this?`}
+        onClick={(el) => onExplain('cover', el)}
+        sx={{ display: 'flex', alignItems: 'center', pl: u(22), pr: u(26) }}
+      >
         <Box component="img" src={art.cart} alt="" sx={{ width: u(72), height: u(72), flexShrink: 0 }} />
         <Box sx={{ ml: u(22), flex: 1, minWidth: 0, whiteSpace: 'nowrap' }}>
           <Box sx={{ fontSize: u(25), color: sc.ink2, lineHeight: 1.2 }}>
@@ -150,7 +161,7 @@ export function ScannerTiles({
                 inset: 0,
                 width: `${((covered + pending) / amount) * 100}%`,
                 borderRadius: 99,
-                background: `repeating-linear-gradient(120deg, ${sc.greenBright} 0 ${u(8)}, #bfe3b2 ${u(8)} ${u(16)})`,
+                bgcolor: '#b9e2a9',
                 transition: 'width 240ms ease',
               }}
             />
@@ -174,21 +185,35 @@ export function ScannerTiles({
   );
 }
 
-function Tile({ children, sx }: { children: React.ReactNode; sx?: object }) {
+function Tile({
+  children,
+  sx,
+  label,
+  onClick,
+}: {
+  children: React.ReactNode;
+  sx?: object;
+  label?: string;
+  onClick?: (el: HTMLElement) => void;
+}) {
+  const look = {
+    flexShrink: 0,
+    height: u(184),
+    bgcolor: sc.card,
+    borderRadius: u(30),
+    boxShadow: sc.tileShadow,
+    border: '1px solid #ecede8',
+    fontFamily: sc.font,
+    ...sx,
+  };
+  if (!onClick) return <Box sx={look}>{children}</Box>;
   return (
-    <Box
-      sx={{
-        flexShrink: 0,
-        height: u(184),
-        bgcolor: sc.card,
-        borderRadius: u(30),
-        boxShadow: sc.tileShadow,
-        border: '1px solid #ecede8',
-        fontFamily: sc.font,
-        ...sx,
-      }}
+    <ButtonBase
+      aria-label={label}
+      onClick={(e) => onClick(e.currentTarget)}
+      sx={{ ...look, justifyContent: 'flex-start', textAlign: 'left', transition: 'transform 90ms', '&:active': { transform: 'scale(0.97)' } }}
     >
       {children}
-    </Box>
+    </ButtonBase>
   );
 }
