@@ -148,6 +148,9 @@ export default function AuctionSideRail({ detail, decision }: { detail: BuyingAu
           {landed.recovery_pct_of_retail != null ? `Recovery is ${landed.recovery_pct_of_retail}% of retail` : 'Recovery'}
           {landed.value_basis_pct != null ? `, ${landed.value_basis_pct}% of it priced from our own sales of these products` : ', from category rates'}
           {hasHandling ? '.' : '. Labor and disposal are not counted (Assumptions: labor per item, disposal per pallet).'}
+          {landed.seller_factor
+            ? ` It includes this seller's factor: its ${landed.seller_factor_trucks ?? ''} finished trucks made ${Math.round(Number.parseFloat(landed.seller_factor) * 100)}% of what we predicted.`
+            : ''}
         </Typography>
         {landed.filled_categories?.length ? (
           <Alert severity="info" icon={false} sx={{ mt: 1, py: 0 }}>

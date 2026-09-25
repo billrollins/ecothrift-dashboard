@@ -1,5 +1,5 @@
 <!-- initiative: slug=bstock-daily-buying status=active updated=2026-09-23 -->
-<!-- Last updated: 2026-09-24 (bstock Phases 4-6, v2.104.0) -->
+<!-- Last updated: 2026-09-25 (handover to buying_intelligence_v2) -->
 
 # Initiative: B-Stock daily buying
 
@@ -212,7 +212,7 @@ Built (2026-09-24, `services/price_target.py`, `wishlist.py`, `decision.py`, buy
   - Condition matters: new closes at .084, damaged at .037.
   - More bids mean a higher close: .075 with 5 or more bids, .044 with fewer.
   - The late bump is 1.00. R-053 found none (median 1.00, n = 28), against R-033's 1.17 (n = 19).
-  - `fit_close_model` re-fits the sellers, the seller × condition cells (n ≥ 30) and the bumps (n ≥ 15, with a snapshot within 15 minutes of the end). `--save` stores them.
+  - `fit_close_model` re-fits the sellers, the seller × condition cells (n ≥ 30) and the bumps (n ≥ 50, with a snapshot within 15 minutes of the end). `--save` stores them.
   - Caveat: the stored close is the sweep's last price, a median 28 minutes before the end.
   - R-061 backtest (7,501 ended auctions, 452 with snapshots):
     - 2–4 hours out, the price on the board was within ±15% of the close 77% of the time (median ratio 1.00), so the bump stays at 1.00.
@@ -281,6 +281,16 @@ Built (2026-09-24, `services/won_to_po.py`, buying `0034`):
 ---
 
 ## Record
+
+**2026-09-25 — Handed over.** The owner's next goals (vector text, a price and speed model, the QA inbox, the self-running loop, the Buying workspace) are in [`buying_intelligence_v2`](./buying_intelligence_v2.md), which is now the compass. Open items move there: ship v2.105.0 (seller factors) and the retail-scaled similar range (R-068).
+
+**2026-09-24 — The valuation runs hot (R-062).**
+- On 201 finished B-Stock trucks (120+ days old, half sold), actual revenue was a median 0.70 of the category-rate prediction before shrink (p25 0.58, p75 0.84).
+- By seller: Wayfair 0.27, Amazon 0.60, Home Depot 0.67, Target 0.71, Walmart 0.77, Costco 0.78.
+- By year: 2024 was 0.66 and 2025 was 0.73.
+- About 34.5% of the items are still unsold.
+- Old POs cannot be tied to auctions: 3 of 300 matched on price and date, and 1 of those was wrong. So the report card starts from new wins only.
+- Built `seller_factor.py` and `fit_seller_factors`: a per-seller factor on revenue, which reaches the price target too. It applies only after `--save`, which is the owner's call in production.
 
 **2026-09-24 — Shipped v2.104.0: Phases 4 to 6.** The ship gate R-067 was GREEN, with 0 NEW failures across all Python apps, vitest and tsc, and none in POS or processing. On the way there, the recon found two production bugs:
 - the four new categories had a recovery rate of 0, which valued appliance trucks at $0 (store-wide fill-in);

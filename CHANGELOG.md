@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.104.0] -->
-<!-- Last reviewed: 2026-09-24 (2.104.0) -->
+<!-- Line 1 release: ## [2.105.0] -->
+<!-- Last reviewed: 2026-09-25 (2.105.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.105.0] - 2026-09-25
+
+User-facing theme: **Price targets learn from what each seller's trucks really made.**
+
+Initiative `bstock_daily_buying`.
+
+### Added
+
+- **Seller revenue factors.** R-062 compared the valuation with what 201 finished B-Stock trucks really sold for. Actual revenue was a median 0.70 of the prediction: about a third of items never sell, and the category rates assume they all do. Each seller differs: Wayfair 0.27, Amazon 0.60, Target 0.71, Walmart and Costco 0.77.
+  - `python manage.py fit_seller_factors` measures each seller from our own POs that are 120+ days old and half or more sold, and reports.
+  - `--save` stores the factors. Every truck's revenue estimate, and so its price target, is then scaled by its seller's factor, clamped between 0.2 and 1.3.
+  - Nothing changes until it is saved. The auction page says when a factor is in the recovery.
+
+### Changed
+
+- `fit_close_model` fits a late bump only from 50 or more auctions, up from 15. R-063's 19 auctions said 1.30, where R-061's 163 said 1.00.
 
 ## [2.104.0] - 2026-09-24
 

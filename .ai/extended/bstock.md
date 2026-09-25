@@ -41,7 +41,8 @@ Phase **5** adds valuation-related routes on the **same** `/api/buying/` router 
 - **Commands:**
   - `analyze_manifests [--all] [--force] [--auction ID]` backfills the analysis.
   - `compute_daily_category_stats` also refreshes `buying_revenue_calibration`.
-  - `fit_close_model [--days 180] [--save]` fits the likely-close ratios (per seller, per seller × condition cell with n ≥ 30) and the late bumps (n ≥ 15, with a snapshot within 15 minutes of the end). `--save` writes `buying_close_model`; run `recompute_buying_valuations` after.
+  - `fit_seller_factors [--min-age-days 120] [--min-sold-pct 50] [--save]` fits each B-Stock seller's actual ÷ predicted revenue from finished POs (5+ trucks, clamped 0.2–1.3). `--save` writes `buying_seller_revenue_factors`, and the full recompute multiplies revenue by it.
+  - `fit_close_model [--days 180] [--save]` fits the likely-close ratios (per seller, per seller × condition cell with n ≥ 30) and the late bumps (n ≥ 50, with a snapshot within 15 minutes of the end). `--save` writes `buying_close_model`; run `recompute_buying_valuations` after.
 
 | Function | Endpoint | Auth (in code) | Notes |
 |----------|----------|----------------|--------|

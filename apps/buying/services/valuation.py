@@ -15,6 +15,7 @@ from apps.buying.models import Auction, CategoryStats, ManifestRow
 from apps.buying.services.condition import get_condition_shrink, shrink_for
 from apps.buying.services.manifest_analysis import analyze_if_stale
 from apps.buying.services.recovery import recovery_rate
+from apps.buying.services.seller_factor import seller_factor
 from apps.buying.services.price_target import (
     expected_close,
     get_revenue_calibration,
@@ -476,8 +477,10 @@ def recompute_auction_full(
         for cat, w in weights.items():
             rate = _recovery_rate_for_category(stats, cat)
             est_rev += retail_base * w * rate
-    # Phase 6: report cards (actual / predicted) scale the estimate once enough trucks back it.
-    est_rev = (est_rev * get_revenue_calibration()).quantize(Decimal('0.01'))
+    # What this seller's finished trucks really made against the prediction (R-062; 1.0 until
+    # fit_seller_factors --save), then the report cards' calibration for what is left.
+    factor, _ = seller_factor(auction)
+    est_rev = (est_rev * factor * get_revenue_calibration()).quantize(Decimal('0.01'))
 
     fees, shipping, total_cost = _fees_shipping_total_cost(
         auction, origin_miles=origin_miles, formula=formula, per_pallet_default=per_pallet_default

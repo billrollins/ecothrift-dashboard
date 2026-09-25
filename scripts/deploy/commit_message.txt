@@ -1,35 +1,18 @@
-feat: v2.104.0 B-Stock buying Phases 4-6: decision-first auction page, Today's best, won to PO, report cards
+feat: v2.105.0 seller revenue factors; buying_intelligence_v2 plan
 
-- Phase 4 manifest analysis (services/manifest_analysis.py, buying 0032):
-  - lines matched to products by UPC, same title, then near title (>= 0.7, brand and size checks);
-  - hazards (box 1 of N, missing pieces, fragile, high value, $0, bulk; tightened after R-060);
-  - truck value v2 from matched products' own sales;
-  - retail-mismatch rail;
-  - manifest tabs All / Flagged / Matched / No match, and Value / Match / Sells in / Need / Hazards columns;
-  - `analyze_manifests` command.
-- Phase 5 price targets (services/price_target.py, buying 0033, 0035):
-  - price target at the profit factor, after fees, freight, labor and disposal;
-  - likely close from R-053 seller and condition ratios, with the late bump at 1.00 (R-053, R-061);
-  - `fit_close_model` command.
-- Today's best (/buying/wishlist) holds:
-  - the strip, need tiles and ranks;
-  - Today's plan (the 2 best ending today, won today);
-  - the shortlist, why / why not, and Watch / Open / Pass.
-- Auction page decision panel (services/decision.py, GET decision, PATCH buyer):
-  - verdict and score;
-  - your max with Comfortable / Model / Stretch;
-  - Need / Hazards / Profit / Time to sell cards;
-  - landed cost with what-if;
-  - similar lots, seller scorecard, notes.
-- Phase 6 won to PO (services/won_to_po.py, buying 0034):
-  - "We won it" creates the PO with the manifest in the vendor's column order, and "We lost it" records the loss;
-  - report cards page (/buying/report-cards), nightly calibration (5 trucks, 0.7-1.3).
-- Buyer nags in the nag drawer (superusers): "Bid now" for watched lots ending under the max, and "Did we win it?" for ended lots.
-- Assumptions: profit factor, labor per item, disposal per pallet (buying 0036 seeds them at no-change values). Units and pallets are filled in from each other when missing.
-- Fixed: lots in the 4 categories added in v2.100.0 were valued at $0 (recovery rate 0); they now use the store-wide rate, flagged.
-- Pull shortlist puts over-max lots last; the Pull runner links to Today's best. The Auctions list has a Max column.
-- Tests: R-067 full pre-ship run GREEN (0 NEW in any app; POS and processing baseline only). Runner recon R-052 to R-055, R-060, R-061.
+- Seller revenue factors (services/seller_factor.py, `fit_seller_factors [--save]`):
+  - What: R-062 found finished B-Stock trucks made a median 0.70 of the category-rate prediction (Wayfair 0.27, Amazon 0.60, Target 0.71, Walmart and Costco 0.77).
+  - How: each seller's factor is actual / predicted after shrink, from POs 120+ days old and half sold, with 5+ trucks, clamped between 0.2 and 1.3. The full recompute scales revenue (and so the price target) by it. It is 1.0 until saved.
+  - Where it shows: the auction page says when a factor is in the recovery.
+- `fit_close_model`: a late bump needs 50+ auctions, up from 15 (R-063: 19 auctions said 1.30; R-061: 163 said 1.00).
+- Plan: new initiative `buying_intelligence_v2`, now the compass. Its five phases:
+  - QA inbox;
+  - vector text;
+  - price and speed model (truck value v3);
+  - the self-running buying loop;
+  - the Buying workspace.
+- Tests: R-069 GREEN (buying, vitest, tsc). Runner recon R-062 to R-064, R-068, R-070.
 
-Release: v2.104.0
+Release: v2.105.0
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,5 +1,5 @@
 <!-- initiative: slug=product-intelligence status=active updated=2026-09-23 -->
-<!-- Last updated: 2026-09-23 (Phase 1 done; gold set, audition, pilot) -->
+<!-- Last updated: 2026-09-25 (handover to buying_intelligence_v2) -->
 
 # Initiative: Product intelligence
 
@@ -232,6 +232,8 @@ Detail when Phase 5 is built.
 ---
 
 ## Record
+
+**2026-09-25 — Phases 4–6 continue in [`buying_intelligence_v2`](./buying_intelligence_v2.md).** Dedupe and backfill become routine work through the QA inbox (its Phase 1). Vectors are re-embedded from an AI "vector text" and used in dedupe, categorization and intake (its Phase 2).
 
 **2026-09-23 — Opened (plan only).** It came from the owner's buying goals (categories, vectors, "what do we need, make money on, and sell quickly"). Spark was verified the same day: 4 of 4 categories right, good short names, about 8 s a call, and heavy reasoning tokens (so batch the calls).
 

@@ -64,7 +64,11 @@ Finished tasks, moved out of `queue.md`. Tasks are in `tasks/`, results in `resu
 | R-065 | test | Retest R-059 RED (fixes + retail mismatch rail) | RED: 7 NEW | fixed in R-066 (vendor seed, Costco default ratio) |
 | R-061 | recon | Backtest the likely close and the similar-lots range | done | bumps stay 1.00 (confirmed); similar range kept, retail-scaled range tested in R-068; bstock_daily_buying Phase 5 |
 | R-066 | test | Hazard rules after R-060, and the R-065 fixes | RED: 2 NEW | fixed for R-067 (prediction stored as 3000.00) |
-| R-062 | recon | Tie old POs to auctions and backtest valuation | done | pending |
-| R-067 | test | Full pre-ship run for v2.104.0 | GREEN: 0 NEW | pending |
-| R-063 | chore | Fit the close model on dev (report only) | done | pending |
+| R-062 | recon | Tie old POs to auctions and backtest valuation | done | seller_factor.py + fit_seller_factors (valuation runs hot: 0.70); no PO backfill; bstock_daily_buying Record |
+| R-067 | test | Full pre-ship run for v2.104.0 | GREEN: 0 NEW | shipped in v2.104.0 |
+| R-063 | chore | Fit the close model on dev (report only) | done | close_model_fit MIN_BUMP_N 15 -> 50; do not --save the fit yet |
+| R-064 | chore | Re-run manifest analysis and valuation after the fixes | done | verified: appliance trucks valued, 523 scaled, part/incomplete 0, fragile 1,046 -> 836 |
+| R-068 | recon | Similar-lots range scaled by retail | done | buying_intelligence_v2 pre-Phase-1: switch verdict to the retail-scaled range |
+| R-069 | test | Seller revenue factors (after v2.104.0) | GREEN: 0 NEW | shipped in v2.105.0 |
+| R-070 | chore | Fit seller factors on dev (report only) | done | fit_seller_factors --save in production (v2.105.0) |
 

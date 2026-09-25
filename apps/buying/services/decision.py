@@ -34,6 +34,7 @@ from apps.buying.services.manifest_analysis import HAZARDS
 from apps.buying.services.price_target import expected_close, get_profit_factor, handling_costs
 from apps.buying.services.recovery import filled_in as recovery_filled_in
 from apps.buying.services.recovery import store_rate
+from apps.buying.services.seller_factor import seller_factor
 from apps.buying.services.valuation import (
     _bid_rates,
     _mix_for_auction,
@@ -307,6 +308,7 @@ def decision(auction: Auction) -> dict[str, Any]:
     manifest_retail = Decimal((summary or {}).get('retail') or 0) if not (summary or {}).get('retail_mismatch') else Decimal('0')
     retail = manifest_retail or (auction.total_retail_value or Decimal('0'))
 
+    seller_factor_value, seller_factor_entry = seller_factor(auction)
     landed = costs.lines(price)
     return {
         'score': auction.priority,
@@ -354,6 +356,9 @@ def decision(auction: Auction) -> dict[str, Any]:
                 str(category) for category in _mix_for_auction(auction) if recovery_filled_in(stats, str(category))
             ),
             'store_rate': str(store_rate(stats)),
+            # The seller's factor in the recovery (finished trucks' actual / predicted, R-062).
+            'seller_factor': str(seller_factor_value) if seller_factor_entry else None,
+            'seller_factor_trucks': (seller_factor_entry or {}).get('n'),
         },
         'similar': similar,
         'seller': _seller(auction),

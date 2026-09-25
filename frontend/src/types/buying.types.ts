@@ -800,6 +800,9 @@ export interface AuctionDecision {
     /** Categories with no sales of their own, valued at the store-wide rate (``store_rate``). */
     filled_categories?: string[];
     store_rate?: string;
+    /** Share of predicted revenue this seller's finished trucks really made (null: not fitted). */
+    seller_factor?: string | null;
+    seller_factor_trucks?: number | null;
     /** Freight per $ of bid when freight is a rate estimate; null when it is a fixed amount. */
     ship_rate?: string | null;
     /** Units the labor is on, and where they came from (estimate = pallets x typical units). */

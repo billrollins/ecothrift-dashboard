@@ -177,6 +177,7 @@ Every fill-in in code, in one place.
 | A seller's hedge ("may be missing pieces") is not a missing-pieces hazard | `manifest_analysis.HEDGE_RE` | AUC-06 (manifest text) |
 | Likely close = retail × the seller and condition median (R-053), else the seller's, else 0.065 | `price_target.expected_close`, `buying_close_model` | AUC-02 |
 | Manifest retail over 3× the listing's → line values scaled back to the listing, flagged `retail_mismatch` on the manifest card (R-055: one truck, 690×, $9.99 toys stored as $999) | `manifest_analysis._retail_mismatch` | AUC-06 |
+| Revenue × the seller's factor (finished POs' actual ÷ predicted after shrink, 5+ trucks, clamped 0.2–1.3) once `fit_seller_factors --save` stores it; 1.0 before | `seller_factor.seller_factor`, `valuation.recompute_auction_full` | SHR-02, ERA-01 |
 | A category with no recovery rate of its own (0 or missing) → the store-wide Mixed lots rate; the auction page says "Filled in" | `recovery.recovery_rate`, `decision` `filled_categories` | ITM-12 |
 | Units unknown but pallets known → pallets × the median units per pallet (180 days), labelled "estimated from pallets"; the reverse for disposal pallets | `price_target.handling_costs`, `units_per_pallet` | AUC-04 |
 | Revenue × the report cards' actual ÷ predicted once 5 trucks (90+ days, 50%+ sold) back it, clamped between 0.7 and 1.3; 1.0 before | `won_to_po.refresh_calibration`, `price_target.get_revenue_calibration` | AUC-01, SHR-02 |

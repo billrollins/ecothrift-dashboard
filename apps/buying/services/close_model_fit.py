@@ -29,7 +29,8 @@ from apps.buying.services.condition import condition_group
 from apps.buying.services.price_target import DEFAULT_CLOSE_MODEL, get_close_model
 
 MIN_SELLER_N = 30
-MIN_BUMP_N = 15
+# R-063: 19 auctions fitted a 1.30 bump that R-061 (163 auctions) did not see; a bump needs many.
+MIN_BUMP_N = 50
 FINAL_WITHIN = timedelta(minutes=15)
 HOUR_WINDOW = (timedelta(minutes=45), timedelta(minutes=75))
 THREE_HOUR_WINDOW = (timedelta(minutes=150), timedelta(minutes=210))

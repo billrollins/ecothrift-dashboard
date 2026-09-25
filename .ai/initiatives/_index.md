@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-24 (bstock_daily_buying Phases 4-6 in v2.104.0) -->
+<!-- Last updated: 2026-09-25 (buying_intelligence_v2 opened; compass) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not a session log.
@@ -13,7 +13,8 @@ Bounded work (hours–days), one `.md` per initiative. Not a session log.
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [bstock_daily_buying](./bstock_daily_buying.md) | **Phases 4–6 shipped** | Phases 1–3 in v2.98.0–v2.100.0. Phases 4–6 in v2.104.0: manifest analysis, price targets, Today's best, won → PO, report cards, and the decision-first auction page. Open: report-card history (R-062) and calibration. Compass. |
+| [buying_intelligence_v2](./buying_intelligence_v2.md) | **Phase 1 (not started)** | Compass. 5 phases, each shipped to production on its own: (1) QA inbox, and dedupe and backfill as routine work; (2) AI vector text as the product vector, used in dedupe, categorization and manifest matching; (3) price and speed model, and truck value v3 with a time horizon and a supply cap; (4) the buying loop runs itself (auto-shortlist, near-end polling, email alerts); (5) the Buying workspace. |
+| [bstock_daily_buying](./bstock_daily_buying.md) | **Phases 4–6 shipped** | Phases 1–3 in v2.98.0–v2.100.0. Phases 4–6 in v2.104.0: manifest analysis, price targets, Today's best, won → PO, report cards, and the decision-first auction page. Open items move to `buying_intelligence_v2` (seller factors v2.105.0, scaled similar range). No longer the compass. |
 | [data_quality_rails](./data_quality_rails.md) | **Phase 1** | Know the data (register + eras, runner R-009 to R-013), then quality-aware numbers, rails at every lifecycle stage, and cleanup. |
 | [product_intelligence](./product_intelligence.md) | **Phase 2** | Phase 2 structure shipped in v2.101.0: profiles, proposals, review page, pgvector vectors (a title alone places 90.5%), reversible merges. Loading the proposals, merges and embeddings into production waits on owner OK. |
 

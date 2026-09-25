@@ -1,5 +1,5 @@
 <!-- initiative: slug=data-quality-rails status=active updated=2026-09-23 -->
-<!-- Last updated: 2026-09-23 (opened) -->
+<!-- Last updated: 2026-09-25 (handover to buying_intelligence_v2) -->
 
 # Initiative: Data quality and rails
 
@@ -88,6 +88,8 @@ Detail when Phase 3 is built.
 ---
 
 ## Record
+
+**2026-09-25 — The review loop (Phase 3) is built as the QA inbox in [`buying_intelligence_v2`](./buying_intelligence_v2.md) Phase 1:** deterministic checks, then AI triage, then fast superuser approval. Data quality comes first, and other domains plug in later.
 
 **2026-09-23 — Recon merged.** R-009 to R-013 are in the register:
 - The eras: V1/V2 imported 2026-04-12, V3 native.
