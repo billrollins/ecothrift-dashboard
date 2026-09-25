@@ -23,10 +23,9 @@
 - **Behind a switch.** Where a phase changes how trucks are valued, the new way ships behind a setting next to the old one, with a side-by-side comparison. The owner flips it.
 
 **Before Phase 1** (carried over from `bstock_daily_buying`):
-- The owner deploys v2.104.0 (`git push heroku main`).
-- v2.105.0 ships: seller revenue factors (R-062), GREEN in R-069.
-- After the deploy, the owner runs `fit_seller_factors --save`, then `recompute_buying_valuations`.
-- The similar-lots range switches to the retail-scaled one (R-068: the band is 1.32× the median, not 1.89×).
+- [x] v2.104.0 and v2.105.0 deployed (Heroku v363, 2026-09-25; migrations buying 0032–0036 applied).
+- [x] `fit_seller_factors --save` in production. It used 201 finished trucks: Target 0.791, Amazon 0.670, Walmart 0.856, Costco 0.862, Wayfair 0.303, Home Depot 0.744. `recompute_buying_valuations` followed.
+- [ ] The similar-lots range switches to the retail-scaled one (R-068: the band is 1.32× the median, not 1.89×).
 
 ---
 
@@ -184,6 +183,8 @@ Scope (detail when Phase 4 is built):
 ---
 
 ## Record
+
+**2026-09-25 — Before Phase 1.** Shipped v2.105.0 and deployed it to Heroku v363, which took v2.104.0 live too. The seller factors are saved in production (the numbers above) and the open auctions were re-valued. The owner asked for all of this to be done for him.
 
 **2026-09-25 — Opened.** The owner laid out 8 goals after v2.104.0; this is the 5-phase plan, each phase shipped to production on its own.
 

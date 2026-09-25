@@ -1,18 +1,13 @@
-feat: v2.105.0 seller revenue factors; buying_intelligence_v2 plan
+docs: v2.105.1 clean slate before Thrift+ (calendar, plan, runner archive)
 
-- Seller revenue factors (services/seller_factor.py, `fit_seller_factors [--save]`):
-  - What: R-062 found finished B-Stock trucks made a median 0.70 of the category-rate prediction (Wayfair 0.27, Amazon 0.60, Target 0.71, Walmart and Costco 0.77).
-  - How: each seller's factor is actual / predicted after shrink, from POs 120+ days old and half sold, with 5+ trucks, clamped between 0.2 and 1.3. The full recompute scales revenue (and so the price target) by it. It is 1.0 until saved.
-  - Where it shows: the auction page says when a factor is in the recovery.
-- `fit_close_model`: a late bump needs 50+ auctions, up from 15 (R-063: 19 auctions said 1.30; R-061: 163 said 1.00).
-- Plan: new initiative `buying_intelligence_v2`, now the compass. Its five phases:
-  - QA inbox;
-  - vector text;
-  - price and speed model (truck value v3);
-  - the self-running buying loop;
-  - the Buying workspace.
-- Tests: R-069 GREEN (buying, vitest, tsc). Runner recon R-062 to R-064, R-068, R-070.
+- New .ai/calendar.md:
+  - the day-by-day plan to the Thrift+ launch (Tue 2026-10-20; last project day Thu 10-15);
+  - ship milestones on the owner's work days (Mon-Thu);
+  - Thrift+ ships go out dark behind a switch.
+- context.md points at the calendar.
+- buying_intelligence_v2 records the v2.105.0 deploy and the seller factors saved in production.
+- Runner: R-056 to R-058 (superseded) moved to the archive; index updated.
 
-Release: v2.105.0
+Release: v2.105.1
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

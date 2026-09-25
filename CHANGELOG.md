@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.105.0] -->
-<!-- Last reviewed: 2026-09-25 (2.105.0) -->
+<!-- Line 1 release: ## [2.105.1] -->
+<!-- Last reviewed: 2026-09-25 (2.105.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.105.1] - 2026-09-25
+
+User-facing theme: **Clean slate before Thrift+: the plan, the calendar and the runner archive are up to date.**
+
+Outside initiatives (planning).
+
+### Documentation
+
+- New `.ai/calendar.md`: the day-by-day plan to the Thrift+ launch (Tue 2026-10-20; last project day Thu 10-15), with a ship milestone on each of the owner's work days (Mon–Thu).
+- `buying_intelligence_v2` records the v2.105.0 deploy and the seller factors saved in production. The runner archive lists R-056 to R-058 as superseded.
 
 ## [2.105.0] - 2026-09-25
 

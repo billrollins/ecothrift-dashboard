@@ -6,9 +6,6 @@ Each task file starts with a **Start here** header, so you can drop that one fil
 
 | ID | Type | Status | Title | Task | Result |
 |---|---|---|---|---|---|
-| R-056 | test | superseded | Tests: Buying Phase 4 (manifest analysis, hazards, truck value v2) | [task](tasks/R-056-tests-phase4-manifest-analysis.md) | |
-| R-057 | test | superseded | Tests: Buying Phases 4 and 5 (supersedes R-056) | [task](tasks/R-057-tests-phase4-5.md) | |
-| R-058 | test | superseded | Tests: Buying Phases 4 to 6 (supersedes R-057) | [task](tasks/R-058-tests-phase4-6.md) | |
 | R-071 | — | hold | (slot: coder fills) | | |
 | R-072 | — | hold | (slot: coder fills) | | |
 | R-073 | — | hold | (slot: coder fills) | | |

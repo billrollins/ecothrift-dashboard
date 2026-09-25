@@ -59,6 +59,9 @@ Finished tasks, moved out of `queue.md`. Tasks are in `tasks/`, results in `resu
 | R-053 | recon | Expected close price and price-target calibration | done | price_target.DEFAULT_CLOSE_MODEL (ratios, bump 1.00, cells), fit_close_model, bstock_daily_buying Phase 5 |
 | R-054 | recon | How a purchase order and its manifest are created today | done | won_to_po.py unchanged (mark_won path confirmed; BST- numbers do not change generate_order_number, which already falls back for vendor-style numbers), bstock_daily_buying Phase 6 |
 | R-055 | chore | Analyze every dev manifest (Phase 4 backfill) | done | recovery.py (store-wide rate for zero-rate categories), manifest_analysis RETAIL_MISMATCH, bstock_daily_buying Phase 4 |
+| R-056 | test | Tests: Buying Phase 4 (manifest analysis, hazards, truck value v2) | superseded, never run | superseded by R-057 |
+| R-057 | test | Tests: Buying Phases 4 and 5 | superseded, never run | superseded by R-058 |
+| R-058 | test | Tests: Buying Phases 4 to 6 | superseded, never run | superseded by R-059 |
 | R-059 | test | Tests: Buying Phases 4 to 6 and the new auction pages | RED: 51 py NEW, 3 vitest NEW, 1 tsc NEW | fixed in R-065 (test seeds, exact unit values, tsc, vitest) |
 | R-060 | recon | Manifest hazard precision and candidate new hazards | done | manifest_analysis hazard rules (PART needs "of", INCOMPLETE_TITLE_RE, FRAGILE drops bare tv/mug/plate, NO_GLASS_RE), bstock_daily_buying Phase 4 |
 | R-065 | test | Retest R-059 RED (fixes + retail mismatch rail) | RED: 7 NEW | fixed in R-066 (vendor seed, Costco default ratio) |
