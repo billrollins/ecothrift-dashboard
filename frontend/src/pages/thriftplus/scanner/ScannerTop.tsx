@@ -1,27 +1,22 @@
-import { Box, ButtonBase, Typography } from '@mui/material';
-import PaidRounded from '@mui/icons-material/PaidRounded';
-import ReceiptLongRounded from '@mui/icons-material/ReceiptLongRounded';
-import ShoppingCartRounded from '@mui/icons-material/ShoppingCartRounded';
+import { Box, ButtonBase } from '@mui/material';
+import DescriptionRounded from '@mui/icons-material/DescriptionRounded';
 import { toCents, type ThriftPlusCart, type ThriftPlusMember } from '../../../api/thriftPlusMock';
 import { money } from './scannerLogic';
-import { ThriftPlusLogo, sc } from './scannerTheme';
+import { ThriftPlusLogo, art, sc, u } from './scannerTheme';
 
-/** Sky over a field, drawn in CSS so the page needs no photo. */
+/** The field photo header. `tall` is the sign-in screen's bigger version. */
 export function FieldBanner({ children, tall = false }: { children: React.ReactNode; tall?: boolean }) {
   return (
     <Box
       sx={{
         position: 'relative',
-        minHeight: tall ? 220 : 0,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'flex-end',
+        flexShrink: 0,
+        height: tall ? u(420) : u(158),
         pt: 'env(safe-area-inset-top, 0px)',
-        background: [
-          'linear-gradient(180deg, rgba(0,0,0,0) 55%, rgba(0,0,0,0.18) 100%)',
-          'repeating-linear-gradient(97deg, rgba(38,72,22,0.30) 0 2px, rgba(0,0,0,0) 2px 6px) bottom / 100% 42% no-repeat',
-          'linear-gradient(180deg, #aebfcb 0%, #d7e0dc 34%, #c9d7a9 50%, #86ad55 64%, #5d8a36 82%, #416b25 100%)',
-        ].join(', '),
+        boxSizing: 'content-box',
+        backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.10)), url(${art.header})`,
+        backgroundSize: 'cover',
+        backgroundPosition: tall ? 'center 42%' : 'center 46%',
       }}
     >
       {children}
@@ -29,59 +24,40 @@ export function FieldBanner({ children, tall = false }: { children: React.ReactN
   );
 }
 
-export function ScannerTop({
-  cart,
-  onOpenCart,
-}: {
-  cart: ThriftPlusCart | undefined;
-  onOpenCart: () => void;
-}) {
+export function ScannerTop({ cart, onOpenCart }: { cart: ThriftPlusCart | undefined; onOpenCart: () => void }) {
   const count = cart?.totals.item_count ?? 0;
   const rewards = cart?.totals.reward_total ?? '0.00';
   return (
     <FieldBanner>
-      <Box sx={{ display: 'flex', alignItems: 'center', px: 2, pt: 1.25, pb: 1.5, gap: 0.75 }}>
-        <ThriftPlusLogo size={38} />
-        <Box
-          sx={{
-            fontSize: 10,
-            fontWeight: 800,
-            letterSpacing: '0.1em',
-            color: 'rgba(255,255,255,0.9)',
-            border: '1px solid rgba(255,255,255,0.6)',
-            borderRadius: 1,
-            px: 0.6,
-            alignSelf: 'flex-start',
-            mt: 0.5,
-          }}
-        >
-          MOCK
+      {/* The design column: full width on most phones, centered when a short screen scales it down. */}
+      <Box sx={{ position: 'relative', width: u(900), height: '100%', mx: 'auto' }}>
+        <Box sx={{ position: 'absolute', left: u(35), top: u(24) }}>
+          <ThriftPlusLogo width={u(262)} />
         </Box>
-        <Box sx={{ flex: 1 }} />
         <ButtonBase
           onClick={onOpenCart}
           data-testid="cart-pill"
           aria-label={`Your cart: ${count} ${count === 1 ? 'item' : 'items'}, ${money(rewards)} in rewards`}
           sx={{
-            bgcolor: '#fff',
+            position: 'absolute',
+            right: u(30),
+            top: u(40),
+            height: u(82),
+            px: u(30),
+            gap: u(16),
             borderRadius: 99,
-            px: 1.5,
-            py: 0.9,
-            gap: 1,
-            boxShadow: '0 2px 10px rgba(0,0,0,0.18)',
-            fontSize: 16,
-            fontWeight: 700,
-            color: sc.ink,
+            bgcolor: '#fff',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.16)',
+            fontFamily: sc.font,
             whiteSpace: 'nowrap',
-            flexShrink: 0,
           }}
         >
-          <ReceiptLongRounded sx={{ color: sc.greenDeep, fontSize: 20 }} />
-          <span>
+          <DescriptionRounded sx={{ fontSize: u(42), color: sc.greenDeep }} />
+          <Box component="span" sx={{ fontSize: u(33), fontWeight: 500, color: sc.ink }}>
             {count} {count === 1 ? 'item' : 'items'}
-          </span>
-          <Box component="span" sx={{ width: '1px', alignSelf: 'stretch', bgcolor: sc.line }} />
-          <Box component="span" sx={{ color: sc.green, fontWeight: 800 }}>
+          </Box>
+          <Box component="span" sx={{ width: '2px', height: u(46), bgcolor: '#dadbd6' }} />
+          <Box component="span" sx={{ fontSize: u(33), fontWeight: 700, color: sc.green }}>
             +{money(rewards)}
           </Box>
         </ButtonBase>
@@ -101,14 +77,27 @@ export function ScannerTiles({
 }) {
   if (!member) {
     return (
-      <Tile sx={{ mx: 2, mt: 1.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <Box sx={{ flex: 1 }}>
-          <Typography sx={{ fontSize: 16, fontWeight: 800, color: sc.ink }}>Scanning as a guest</Typography>
-          <Typography sx={{ fontSize: 14, color: sc.ink2 }}>Members pay less. Cards are free at the register.</Typography>
+      <Tile sx={{ mx: u(30), display: 'flex', alignItems: 'center', gap: u(24), px: u(34) }}>
+        <Box component="img" src={art.coins} alt="" sx={{ width: u(100), height: u(100) }} />
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Box sx={{ fontSize: u(31), fontWeight: 700, color: sc.ink, lineHeight: 1.2 }}>Scanning as a guest</Box>
+          <Box sx={{ fontSize: u(26), color: sc.ink2, lineHeight: 1.3, mt: u(4) }}>
+            Members pay less. Cards are free at the register.
+          </Box>
         </Box>
         <ButtonBase
           onClick={onSignIn}
-          sx={{ px: 2, py: 1, borderRadius: 99, bgcolor: sc.green, color: '#fff', fontWeight: 800, fontSize: 15 }}
+          sx={{
+            px: u(30),
+            height: u(76),
+            borderRadius: 99,
+            bgcolor: sc.green,
+            color: '#fff',
+            fontWeight: 700,
+            fontSize: u(28),
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+          }}
         >
           Sign in
         </ButtonBase>
@@ -122,31 +111,38 @@ export function ScannerTiles({
   const pending = Math.min(toCents(cart?.totals.to_cover ?? '0'), amount - covered);
 
   return (
-    <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 1.5, mx: 2, mt: 1.5 }}>
-      <Tile sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <PaidRounded sx={{ fontSize: 42, color: sc.gold, filter: 'drop-shadow(0 2px 2px rgba(183,134,12,0.35))' }} />
-        <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontSize: 13, color: sc.ink2 }} noWrap>
-            Banked rewards
-          </Typography>
-          <Typography sx={{ fontSize: 'clamp(22px, 7vw, 30px)', fontWeight: 800, color: sc.greenDeep, lineHeight: 1.1 }}>
+    <Box sx={{ display: 'grid', gridTemplateColumns: `${u(403)} ${u(413)}`, gap: u(24), mx: u(30) }}>
+      <Tile sx={{ display: 'flex', alignItems: 'center', pl: u(25), pr: u(16) }}>
+        <Box component="img" src={art.coins} alt="" sx={{ width: u(102), height: u(102), flexShrink: 0 }} />
+        <Box sx={{ ml: u(20), whiteSpace: 'nowrap' }}>
+          <Box sx={{ fontSize: u(27), color: sc.ink2, lineHeight: 1.2 }}>Banked rewards</Box>
+          <Box
+            sx={{
+              fontFamily: sc.condensed,
+              fontWeight: 700,
+              fontSize: u(64),
+              lineHeight: 1.05,
+              color: sc.priceGreen,
+              mt: u(6),
+            }}
+          >
             {money(member.banked_rewards)}
-          </Typography>
+          </Box>
         </Box>
       </Tile>
-      <Tile sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <ShoppingCartRounded sx={{ fontSize: 34, color: sc.ink2 }} />
-        <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Typography sx={{ fontSize: 13, color: sc.ink2 }} noWrap>
+      <Tile sx={{ display: 'flex', alignItems: 'center', pl: u(22), pr: u(26) }}>
+        <Box component="img" src={art.cart} alt="" sx={{ width: u(72), height: u(72), flexShrink: 0 }} />
+        <Box sx={{ ml: u(22), flex: 1, minWidth: 0, whiteSpace: 'nowrap' }}>
+          <Box sx={{ fontSize: u(25), color: sc.ink2, lineHeight: 1.2 }}>
             {cover.is_covered ? 'Card covered' : "This month's cover"}
-          </Typography>
+          </Box>
           <Box
             role="progressbar"
             aria-label="This month's cover"
             aria-valuemin={0}
             aria-valuemax={amount / 100}
             aria-valuenow={covered / 100}
-            sx={{ position: 'relative', height: 10, borderRadius: 99, bgcolor: sc.track, overflow: 'hidden', my: 0.6 }}
+            sx={{ position: 'relative', height: u(24), borderRadius: 99, bgcolor: '#e4e5e1', overflow: 'hidden', my: u(16) }}
           >
             <Box
               sx={{
@@ -154,7 +150,7 @@ export function ScannerTiles({
                 inset: 0,
                 width: `${((covered + pending) / amount) * 100}%`,
                 borderRadius: 99,
-                background: `repeating-linear-gradient(135deg, ${sc.greenBright} 0 4px, ${sc.greenTint} 4px 8px)`,
+                background: `repeating-linear-gradient(120deg, ${sc.greenBright} 0 ${u(8)}, #bfe3b2 ${u(8)} ${u(16)})`,
                 transition: 'width 240ms ease',
               }}
             />
@@ -164,14 +160,14 @@ export function ScannerTiles({
                 inset: 0,
                 width: `${(covered / amount) * 100}%`,
                 borderRadius: 99,
-                background: `linear-gradient(180deg, ${sc.greenBright}, ${sc.green})`,
+                background: `linear-gradient(180deg, #6fcf52, ${sc.green})`,
                 transition: 'width 240ms ease',
               }}
             />
           </Box>
-          <Typography sx={{ fontSize: 13, color: sc.ink2 }} noWrap>
+          <Box sx={{ fontSize: u(27), color: sc.ink2, lineHeight: 1.2 }}>
             {money(cover.covered)} of {money(cover.amount)}
-          </Typography>
+          </Box>
         </Box>
       </Tile>
     </Box>
@@ -180,6 +176,19 @@ export function ScannerTiles({
 
 function Tile({ children, sx }: { children: React.ReactNode; sx?: object }) {
   return (
-    <Box sx={{ bgcolor: sc.card, borderRadius: 4, boxShadow: sc.shadow, px: 1.5, py: 1.25, ...sx }}>{children}</Box>
+    <Box
+      sx={{
+        flexShrink: 0,
+        height: u(184),
+        bgcolor: sc.card,
+        borderRadius: u(30),
+        boxShadow: sc.tileShadow,
+        border: '1px solid #ecede8',
+        fontFamily: sc.font,
+        ...sx,
+      }}
+    >
+      {children}
+    </Box>
   );
 }

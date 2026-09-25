@@ -15,7 +15,7 @@
     actually answer, so "READY" means ready.
 
     Phone testing (staff dashboard over LAN HTTPS, the default): the READY report
-    prints https://<hostname>.local:5173/pricescanner plus a QR code for it. The
+    prints https://<hostname>.local:5173/scan plus a QR code for it. The
     .local name (mDNS) does not change when DHCP gives the PC a new IP, and the
     self-signed cert is kept in %LOCALAPPDATA%\EcoThrift\dev-cert\<hostname> for
     800 days, so a phone bookmarks the URL and accepts the cert warning once.
@@ -85,7 +85,7 @@ $Ports = @($ApiPort)
 if ($StartStaff) { $Ports += $StaffPort }
 if ($StartPublic) { $Ports += $PublicPort }
 # The page the phone QR code opens (what gets tested on a phone first).
-$PhonePath = '/pricescanner'
+$PhonePath = '/scan'
 
 # ---------------------------------------------------------------- output helpers
 

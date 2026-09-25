@@ -165,19 +165,17 @@ export default function App() {
         }
       />
 
-      {/* Thrift+ price scanner (customer mock). /scan is the short link for signs. */}
-      {['/pricescanner', '/scan'].map((path) => (
-        <Route
-          key={path}
-          path={path}
-          element={
-            <Suspense fallback={<LoadingScreen message="Loading…" />}>
-              <ThriftPlusScannerPage />
-            </Suspense>
-          }
-        />
-      ))}
-      <Route path="/thrift-plus/scanner" element={<Navigate to="/pricescanner" replace />} />
+      {/* Thrift+ price scanner (customer app, mock). /scan is the address on signs. */}
+      <Route
+        path="/scan"
+        element={
+          <Suspense fallback={<LoadingScreen message="Loading…" />}>
+            <ThriftPlusScannerPage />
+          </Suspense>
+        }
+      />
+      <Route path="/pricescanner" element={<Navigate to="/scan" replace />} />
+      <Route path="/thrift-plus/scanner" element={<Navigate to="/scan" replace />} />
 
       {/* Staff routes */}
       <Route

@@ -9,12 +9,15 @@ import {
   getSession,
   passItem,
   removeFromCart,
-  requestSignInCode,
+  requestPasswordReset,
   sendPriceFeel,
   setCartQty,
+  setRewardChoice,
+  signIn,
+  signInWithCard,
   signOut,
-  verifySignInCode,
   type PriceFeel,
+  type RewardChoice,
   type ThriftPlusCart,
   type ThriftPlusItemCard,
   type ThriftPlusSession,
@@ -47,8 +50,15 @@ export function useSignIn() {
     void qc.invalidateQueries({ queryKey: thriftPlusKeys.cart });
   };
   return {
-    requestCode: useMutation({ mutationFn: (phone: string) => requestSignInCode(phone) }),
-    verify: useMutation({ mutationFn: (code: string) => verifySignInCode(code), onSuccess: setSession }),
+    password: useMutation({
+      mutationFn: ({ login, password }: { login: string; password: string }) => signIn(login, password),
+      onSuccess: setSession,
+    }),
+    card: useMutation({
+      mutationFn: ({ code, last4 }: { code: string; last4: string }) => signInWithCard(code, last4),
+      onSuccess: setSession,
+    }),
+    reset: useMutation({ mutationFn: (email: string) => requestPasswordReset(email) }),
     guest: useMutation({ mutationFn: () => continueAsGuest(), onSuccess: setSession }),
     signOut: useMutation({ mutationFn: () => signOut(), onSuccess: setSession }),
   };
@@ -68,6 +78,7 @@ export function useCartActions() {
     }),
     remove: useMutation({ mutationFn: (sku: string) => removeFromCart(sku), onSuccess: setCart }),
     clear: useMutation({ mutationFn: () => clearCart(), onSuccess: setCart }),
+    choose: useMutation({ mutationFn: (choice: RewardChoice) => setRewardChoice(choice), onSuccess: setCart }),
     pass: useMutation({
       mutationFn: (sku: string) => passItem(sku),
       onSuccess: () => void qc.invalidateQueries({ queryKey: thriftPlusKeys.history }),

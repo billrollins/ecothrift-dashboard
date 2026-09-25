@@ -16,7 +16,7 @@ function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/pricescanner']}>
+      <MemoryRouter initialEntries={['/scan']}>
         <ThriftPlusScannerPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -33,10 +33,10 @@ describe('Thrift+ price scanner', () => {
     const user = userEvent.setup();
     renderPage();
 
-    // Sign in (mock): phone, then any 4 digits.
-    await user.type(await screen.findByLabelText('Phone number'), '4025550123');
-    await user.click(screen.getByRole('button', { name: 'Text me a code' }));
-    await user.type(await screen.findByLabelText('Code'), '1234');
+    // Sign in (mock): any email or username and password.
+    await user.type(await screen.findByLabelText('Email or username'), 'dana');
+    await user.type(screen.getByLabelText('Password'), 'secret');
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
     // Scanner: no camera in jsdom, so type a sample tag.
     const tagField = await screen.findByLabelText('Tag number');
@@ -55,6 +55,11 @@ describe('Thrift+ price scanner', () => {
     await waitFor(() => expect(screen.getByTestId('cart-pill')).toHaveTextContent('1 item'));
     expect(screen.getByTestId('cart-pill')).toHaveTextContent('+$15.00');
 
+    // First add of the trip: bank or instant rebate.
+    const ask = await screen.findByRole('dialog', { name: 'Would you like to bank your rewards?' });
+    await user.click(within(ask).getByRole('button', { name: 'Yes, bank my rewards' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
     // The cart: a receipt line with a quantity stepper, and the scan in history.
     await user.click(screen.getByTestId('cart-pill'));
     const cart = await screen.findByTestId('cart-page');
@@ -65,6 +70,8 @@ describe('Thrift+ price scanner', () => {
     expect(within(line).getByText('$120.00')).toBeInTheDocument();
     const row = await within(cart).findByTestId('history-row');
     expect(within(row).getByRole('button', { name: /is in your cart/ })).toBeDisabled();
+    expect(within(cart).getByText('Rewards to bank')).toBeInTheDocument();
+    expect(within(cart).getByRole('button', { name: 'Bank them' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('runs the quick price survey and returns to the card', async () => {

@@ -11,13 +11,15 @@ import {
   lookupTag,
   mockRewardCents,
   passItem,
-  requestSignInCode,
+  requestPasswordReset,
   setCartQty,
+  setRewardChoice,
   shortTitle,
+  signIn,
+  signInWithCard,
   signOut,
   thriftPlusMockControls,
   toCents,
-  verifySignInCode,
   type ThriftPlusItemCard,
   type ThriftPlusMember,
 } from './thriftPlusMock';
@@ -34,7 +36,8 @@ async function found(sku: string): Promise<ThriftPlusItemCard> {
 function member(coveredCents: number): ThriftPlusMember {
   return {
     first_name: 'Test',
-    phone_last4: '0123',
+    email: 'test@example.com',
+    username: null,
     card_last4: null,
     verified_18: true,
     banked_rewards: '0.00',
@@ -56,15 +59,23 @@ beforeEach(() => {
 });
 
 describe('sign-in (mock)', () => {
-  it('starts signed out, signs in with a phone and any 4 digits, and signs out', async () => {
+  it('starts signed out, signs in with email or username and a password, and signs out', async () => {
     expect((await getSession()).status).toBe('signed_out');
-    await expect(requestSignInCode('555')).rejects.toThrow(/10-digit/);
-    expect((await requestSignInCode('(402) 555-0123')).sent_to).toContain('0123');
-    await expect(verifySignInCode('12')).rejects.toThrow(/4-digit/);
-    const s = await verifySignInCode('4321');
-    expect(s.status).toBe('member');
-    if (s.status === 'member') expect(s.member.phone_last4).toBe('0123');
+    await expect(signIn('', 'secret')).rejects.toThrow(/email or username/);
+    await expect(signIn('dana@example.com', '')).rejects.toThrow(/password/);
+    const byEmail = await signIn('Dana@Example.com', 'secret');
+    expect(byEmail.status === 'member' && byEmail.member.email).toBe('dana@example.com');
+    const byName = await signIn('dana', 'secret');
+    expect(byName.status === 'member' && byName.member.username).toBe('dana');
     expect((await signOut()).status).toBe('signed_out');
+  });
+
+  it('emails a reset link and signs in with a scanned card plus the phone last 4', async () => {
+    await expect(requestPasswordReset('nope')).rejects.toThrow(/email/);
+    expect((await requestPasswordReset(' Dana@Example.com ')).sent_to).toBe('dana@example.com');
+    await expect(signInWithCard('TP1', '1234')).rejects.toThrow(/card/);
+    await expect(signInWithCard('TPC-4821-7', '12')).rejects.toThrow(/last 4/);
+    expect((await signInWithCard('TPC-4821-7', '1234')).status).toBe('member');
   });
 
   it('lets a guest scan', async () => {
@@ -111,7 +122,7 @@ describe('mapping a live inventory item', () => {
   it('builds a card with a short title, icon category, details and a 0-80% reward', () => {
     const card = itemFromPublic(dto);
     expect(card.title.length).toBeLessThanOrEqual(28);
-    expect(card.title.endsWith('…')).toBe(true);
+    expect(card.title).toBe('Hamilton Beach 12-Cup');
     expect(card.category).toBe('kitchen');
     expect(card.details).toEqual(['Hamilton Beach', 'Like new', 'Tested, brews hot']);
     expect(card.retail_price).toBe('59.99');
@@ -144,7 +155,8 @@ describe('mapping a live inventory item', () => {
     expect(categoryFor('Is that a lamp')).toBe('lighting');
     expect(categoryFor('Womens Dresses')).toBe('clothing');
     expect(shortTitle('Short title')).toBe('Short title');
-    expect(shortTitle('One two three four five six seven eight')).toBe('One two three four five six…');
+    expect(shortTitle('One two three four five six seven eight')).toBe('One two three four five six');
+    expect(shortTitle('Supercalifragilisticexpialidocious lamp')).toBe('Supercalifragilisticexpialid');
   });
 });
 
@@ -167,6 +179,21 @@ describe('cart', () => {
     await expect(addToCart(await found(PATIO))).rejects.toThrow(/no longer/);
   });
 
+  it('asks bank-or-rebate once per trip (members only) and clears it with the cart', async () => {
+    await signIn('dana', 'secret');
+    let cart = await addToCart(await found(DRILL));
+    expect(cart.reward_choice).toBeNull();
+    cart = await setRewardChoice('bank');
+    expect(cart.reward_choice).toBe('bank');
+    expect(cart.totals.to_bank).toBe('11.40');
+    expect(thriftPlusMockControls.signals().at(-1)).toMatchObject({ kind: 'choice', choice: 'bank' });
+    const { clearCart } = await import('./thriftPlusMock');
+    expect((await clearCart()).reward_choice).toBeNull();
+    await continueAsGuest();
+    await setRewardChoice('bank');
+    expect((await getCart()).reward_choice).toBeNull();
+  });
+
   it('survives a reload (kept on the phone)', async () => {
     await addToCart(await found(DRILL));
     expect((await getCart()).lines[0].item.sku).toBe(DRILL);
@@ -187,6 +214,7 @@ describe('cart totals and the monthly cover', () => {
       reward_total: '19.00',
       to_cover: '3.60',
       savings: '15.40',
+      to_bank: '0.00',
       member_total: '84.60',
     });
   });
@@ -201,5 +229,11 @@ describe('cart totals and the monthly cover', () => {
     const t = computeCartTotals([line('60.00', '15.00')], null);
     expect(t.to_cover).toBe('10.00');
     expect(t.member_total).toBe('55.00');
+  });
+
+  it('banks the rewards past the cover instead of taking them off the price', () => {
+    const t = computeCartTotals([line('60.00', '15.00')], member(640), 'bank');
+    expect(t).toMatchObject({ to_cover: '3.60', savings: '0.00', to_bank: '11.40', member_total: '60.00' });
+    expect(computeCartTotals([line('60.00', '15.00')], null, 'bank').to_bank).toBe('0.00');
   });
 });

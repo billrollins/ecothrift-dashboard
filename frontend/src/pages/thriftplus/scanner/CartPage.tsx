@@ -6,7 +6,7 @@ import CheckRounded from '@mui/icons-material/CheckRounded';
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import RemoveRounded from '@mui/icons-material/RemoveRounded';
 import SearchRounded from '@mui/icons-material/SearchRounded';
-import { thriftPlusMockControls, toCents, type ThriftPlusCart, type ThriftPlusHistoryEntry, type ThriftPlusMember } from '../../../api/thriftPlusMock';
+import { thriftPlusMockControls, toCents, type RewardChoice, type ThriftPlusCart, type ThriftPlusItemCard, type ThriftPlusHistoryEntry, type ThriftPlusMember } from '../../../api/thriftPlusMock';
 import { money } from './scannerLogic';
 import { CategoryBadge, sc } from './scannerTheme';
 import { useCartActions, useThriftPlusHistory } from './useThriftPlus';
@@ -16,12 +16,15 @@ interface Props {
   member: ThriftPlusMember | null;
   isGuest: boolean;
   onBack: () => void;
+  /** Adds go through the scanner so the first one can ask bank-or-rebate. */
+  onAdd: (item: ThriftPlusItemCard) => void;
+  onChoose: (choice: RewardChoice) => void;
   onSignIn: () => void;
   onSignOut: () => void;
 }
 
 /** The cart as a checkout receipt, then everything they scanned. */
-export function CartPage({ cart, member, isGuest, onBack, onSignIn, onSignOut }: Props) {
+export function CartPage({ cart, member, isGuest, onBack, onAdd, onChoose, onSignIn, onSignOut }: Props) {
   const actions = useCartActions();
   const history = useThriftPlusHistory();
   const lines = cart?.lines ?? [];
@@ -73,7 +76,7 @@ export function CartPage({ cart, member, isGuest, onBack, onSignIn, onSignOut }:
             sx={{
               bgcolor: sc.card,
               borderRadius: '14px 14px 0 0',
-              boxShadow: sc.shadow,
+              boxShadow: sc.tileShadow,
               px: 2,
               pt: 2,
               pb: 3,
@@ -91,7 +94,7 @@ export function CartPage({ cart, member, isGuest, onBack, onSignIn, onSignOut }:
               <Typography sx={{ fontFamily: sc.mono, fontSize: 12, color: sc.ink3 }}>
                 {now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}{' '}
                 {now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                {member ? `  ·  Member ${member.card_last4 ? `card ${member.card_last4}` : `phone ${member.phone_last4}`}` : '  ·  Guest'}
+                {member ? `  ·  Member${member.card_last4 ? ` card ${member.card_last4}` : ''}` : '  ·  Guest'}
               </Typography>
             </Box>
             <Dashed />
@@ -107,7 +110,7 @@ export function CartPage({ cart, member, isGuest, onBack, onSignIn, onSignOut }:
               lines.map((l) => (
                 <Box key={l.item.sku} data-testid="cart-line" sx={{ py: 1.25, borderBottom: `1px dotted ${sc.line}` }}>
                   <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
-                    <Typography sx={{ fontFamily: sc.font, fontWeight: 700, fontSize: 16, flex: 1, minWidth: 0 }} noWrap>
+                    <Typography sx={{ fontFamily: sc.font, fontWeight: 700, fontSize: 16, flex: 1, minWidth: 0, lineHeight: 1.25 }}>
                       {l.item.title}
                     </Typography>
                     <Typography sx={{ fontFamily: sc.mono, fontSize: 16, fontWeight: 600 }}>
@@ -164,9 +167,14 @@ export function CartPage({ cart, member, isGuest, onBack, onSignIn, onSignOut }:
                   </>
                 ) : (
                   <>
-                    <Line label="Rewards off your price" value={`-${money(t.savings)}`} tone="green" />
+                    {cart?.reward_choice === 'bank' ? (
+                      <Line label="Rewards to bank" value={`+${money(t.to_bank)}`} tone="green" />
+                    ) : (
+                      <Line label="Rewards off your price" value={`-${money(t.savings)}`} tone="green" />
+                    )}
                     <Dashed />
                     <Line label="Estimated total" value={money(t.member_total)} strong />
+                    <ChoiceRow choice={cart?.reward_choice ?? null} onChoose={onChoose} />
                     <Typography sx={{ fontFamily: sc.font, fontSize: 13, color: sc.ink2, mt: 1 }}>
                       You earn {money(t.reward_total)} in rewards on this cart
                       {Number.parseFloat(t.to_cover) > 0
@@ -186,7 +194,7 @@ export function CartPage({ cart, member, isGuest, onBack, onSignIn, onSignOut }:
         <HistoryList
           entries={history.data ?? []}
           inCart={inCart}
-          onAdd={(item) => actions.add.mutate(item)}
+          onAdd={onAdd}
         />
 
         <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mt: 3 }}>
@@ -295,12 +303,12 @@ function HistoryList({
                   containIntrinsicSize: '64px',
                 }}
               >
-                <CategoryBadge category={e.item.category} size={40} />
+                <CategoryBadge category={e.item.category} size="44px" />
                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography sx={{ fontSize: 15, fontWeight: 700 }} noWrap>
+                  <Typography sx={{ fontSize: 15, fontWeight: 700, lineHeight: 1.25 }}>
                     {e.item.title}
                   </Typography>
-                  <Typography sx={{ fontSize: 13, color: sc.ink2 }} noWrap>
+                  <Typography sx={{ fontSize: 13, color: sc.ink2 }}>
                     {money(e.item.price)}
                     {Number.parseFloat(e.item.reward) > 0 && (
                       <Box component="span" sx={{ color: sc.green, fontWeight: 700 }}>
@@ -343,6 +351,41 @@ function HistoryList({
           })}
         </Box>
       ))}
+    </Box>
+  );
+}
+
+/** Bank or rebate for this trip, shown on the receipt and changeable before checkout. */
+function ChoiceRow({ choice, onChoose }: { choice: RewardChoice | null; onChoose: (c: RewardChoice) => void }) {
+  const option = (c: RewardChoice, label: string) => (
+    <ButtonBase
+      onClick={() => onChoose(c)}
+      aria-pressed={choice === c}
+      sx={{
+        flex: 1,
+        py: 1,
+        px: 1,
+        borderRadius: 99,
+        fontFamily: sc.font,
+        fontSize: 14,
+        fontWeight: 700,
+        border: `2px solid ${choice === c ? sc.green : sc.line}`,
+        bgcolor: choice === c ? sc.greenTint : '#fff',
+        color: choice === c ? sc.priceGreen : sc.ink2,
+      }}
+    >
+      {label}
+    </ButtonBase>
+  );
+  return (
+    <Box sx={{ mt: 1.5 }}>
+      <Typography sx={{ fontFamily: sc.font, fontSize: 13, color: sc.ink2, mb: 0.75 }}>
+        Your rewards this trip (the register gets your choice; tell the cashier too):
+      </Typography>
+      <Box sx={{ display: 'flex', gap: 1 }}>
+        {option('bank', 'Bank them')}
+        {option('instant', 'Instant rebate')}
+      </Box>
     </Box>
   );
 }

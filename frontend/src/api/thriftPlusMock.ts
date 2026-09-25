@@ -10,7 +10,8 @@
  * Live today: tag lookup pulls the real item from inventory
  * (GET /api/inventory/items/lookup/<sku>/, public). Mock today: the customer
  * account (sign-in, cover, banked rewards), the reward (a random 0% to 80% of
- * the price, fixed per tag), and the cart and history (kept on this phone).
+ * the price, fixed per tag), the bank-or-rebate choice (the real API alerts
+ * the register), and the cart and history (kept on this phone).
  *
  * `thriftPlusMockControls` at the bottom is mock-only. The real API drops it.
  */
@@ -91,14 +92,15 @@ export interface ThriftPlusCover {
 
 export interface ThriftPlusMember {
   first_name: string;
-  /** Last 4 of the phone they signed in with, for display. */
-  phone_last4: string;
+  email: string;
+  /** Optional short login name; email always works too. */
+  username: string | null;
   /** Last 4 of the card code, for display. null until a card is attached at the register. */
   card_last4: string | null;
   /** ID checked at signup; required for 18+ items and returns. */
   verified_18: boolean;
   cover: ThriftPlusCover;
-  /** Rewards kept for later (the owner's scanner design shows this tile). */
+  /** Rewards the member chose to bank for a later trip. */
   banked_rewards: Money;
   /** Store credit balance. */
   credit_balance: Money;
@@ -116,6 +118,13 @@ export interface ThriftPlusCartLine {
   added_at: string;
 }
 
+/**
+ * What happens to this trip's rewards: banked for later, or taken off today's
+ * price. Asked on the first add; the register gets an alert with the answer,
+ * and the cashier asks too.
+ */
+export type RewardChoice = 'bank' | 'instant';
+
 /** Cart totals. An estimate: the register is the source of truth. */
 export interface ThriftPlusCartTotals {
   /** Units (sum of qty). */
@@ -126,14 +135,18 @@ export interface ThriftPlusCartTotals {
   reward_total: Money;
   /** The part of reward_total that fills this month's cover (for a guest: as a new member would). */
   to_cover: Money;
-  /** reward_total - to_cover: what comes off at the register. */
+  /** Instant rebate: reward_total - to_cover, taken off at the register. 0 when banking. */
   savings: Money;
+  /** Banking: reward_total - to_cover, added to banked rewards. 0 for an instant rebate. */
+  to_bank: Money;
   /** price_total - savings: the member's estimate, before tax. */
   member_total: Money;
 }
 
 export interface ThriftPlusCart {
   lines: ThriftPlusCartLine[];
+  /** null until the member answers (first add). Guests are never asked. */
+  reward_choice: RewardChoice | null;
   totals: ThriftPlusCartTotals;
 }
 
@@ -238,15 +251,21 @@ export function categoryFor(text: string): ThriftPlusCategory {
   return 'other';
 }
 
-/** Cut at a word so the card title fits in 28 characters. */
+/**
+ * The card title in 28 characters or fewer, cut at a whole word and never
+ * with an ellipsis (the real API will send an AI-written short title).
+ */
 export function shortTitle(title: string, max = 28): string {
   const clean = title.replace(/\s+/g, ' ').trim() || 'Item';
   if (clean.length <= max) return clean;
-  const cut = clean.slice(0, max - 1);
-  const space = cut.lastIndexOf(' ');
-  // Keep the cut when it already ends on a whole word.
-  const base = clean[max - 1] === ' ' || space <= 12 ? cut : cut.slice(0, space);
-  return `${base.replace(/[\s,;:/-]+$/, '')}…`;
+  let out = '';
+  for (const w of clean.split(' ')) {
+    const next = out ? `${out} ${w}` : w;
+    if (next.length > max) break;
+    out = next;
+  }
+  // A first word longer than the limit is cut hard rather than dropped.
+  return (out || clean.slice(0, max)).replace(/[\s,;:/(&-]+$/, '');
 }
 
 function hashCode(s: string): number {
@@ -338,6 +357,7 @@ const LS = {
   session: 'thriftPlus.session',
   cart: 'thriftPlus.cart',
   history: 'thriftPlus.history',
+  choice: 'thriftPlus.rewardChoice',
   covered: 'thriftPlus.mockCovered',
 };
 
@@ -361,17 +381,18 @@ function writeJson(key: string, value: unknown): void {
 
 interface StoredSession {
   status: 'guest' | 'member';
-  phone_last4?: string;
+  email?: string;
+  username?: string | null;
 }
 
 export type MockSignal =
   | { kind: 'scan' | 'add' | 'pass'; sku: string; at: string }
-  | { kind: 'feel'; sku: string; at: string; feel: PriceFeel };
+  | { kind: 'feel'; sku: string; at: string; feel: PriceFeel }
+  | { kind: 'choice'; sku: ''; at: string; choice: RewardChoice };
 
 const state = {
   latencyMs: 120,
   signals: [] as MockSignal[],
-  pendingPhone: '',
 };
 
 function wait(ms = state.latencyMs): Promise<void> {
@@ -409,7 +430,8 @@ function readSession(): ThriftPlusSession {
     status: 'member',
     member: {
       first_name: 'Dana',
-      phone_last4: s.phone_last4 || '0000',
+      email: s.email || 'member@example.com',
+      username: s.username ?? null,
       card_last4: '4821',
       verified_18: true,
       cover: coverFor(readJson<number>(LS.covered, 640)),
@@ -430,6 +452,7 @@ function memberOf(session: ThriftPlusSession): ThriftPlusMember | null {
 export function computeCartTotals(
   lines: Array<{ item: ThriftPlusItemCard; qty: number }>,
   member: ThriftPlusMember | null,
+  choice: RewardChoice | null = null,
 ): ThriftPlusCartTotals {
   let units = 0;
   let priceCents = 0;
@@ -441,13 +464,17 @@ export function computeCartTotals(
   }
   const coverLeft = member ? toCents(member.cover.remaining) : COVER_AMOUNT_CENTS;
   const toCover = Math.min(coverLeft, rewardCents);
-  const savings = rewardCents - toCover;
+  const past = rewardCents - toCover;
+  // Banking is for members who chose it; everyone else is shown the instant rebate.
+  const banking = !!member && choice === 'bank';
+  const savings = banking ? 0 : past;
   return {
     item_count: units,
     price_total: fromCents(priceCents),
     reward_total: fromCents(rewardCents),
     to_cover: fromCents(toCover),
     savings: fromCents(savings),
+    to_bank: fromCents(banking ? past : 0),
     member_total: fromCents(priceCents - savings),
   };
 }
@@ -461,8 +488,15 @@ function readCartLines(): ThriftPlusCartLine[] {
   );
 }
 
+function readChoice(): RewardChoice | null {
+  const c = readJson<unknown>(LS.choice, null);
+  return c === 'bank' || c === 'instant' ? c : null;
+}
+
 function cartOf(lines: ThriftPlusCartLine[]): ThriftPlusCart {
-  return { lines, totals: computeCartTotals(lines, memberOf(readSession())) };
+  const member = memberOf(readSession());
+  const choice = member ? readChoice() : null;
+  return { lines, reward_choice: choice, totals: computeCartTotals(lines, member, choice) };
 }
 
 function readHistory(): ThriftPlusHistoryEntry[] {
@@ -503,20 +537,41 @@ export async function getSession(): Promise<ThriftPlusSession> {
   return readSession();
 }
 
-/** Step 1 of sign-in: text a code to this phone. Mock: nothing is sent. */
-export async function requestSignInCode(phone: string): Promise<{ sent_to: string }> {
+/**
+ * Email (or username) and password. Email always works; a username is an
+ * optional shortcut. Mock: any login of 3+ characters and password of 4+.
+ */
+export async function signIn(login: string, password: string): Promise<ThriftPlusSession> {
   await wait();
-  const digits = phone.replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
-  if (digits.length !== 10) throw new Error('Enter a 10-digit phone number.');
-  state.pendingPhone = digits;
-  return { sent_to: `(***) ***-${digits.slice(-4)}` };
+  const who = login.trim();
+  if (who.length < 3) throw new Error('Enter your email or username.');
+  if (password.length < 4) throw new Error('Enter your password.');
+  const isEmail = who.includes('@');
+  writeJson(LS.session, {
+    status: 'member',
+    email: isEmail ? who.toLowerCase() : `${who.toLowerCase()}@example.com`,
+    username: isEmail ? null : who,
+  } satisfies StoredSession);
+  return readSession();
 }
 
-/** Step 2 of sign-in. Mock: any 4 digits work. */
-export async function verifySignInCode(code: string): Promise<ThriftPlusSession> {
+/** "Forgot password?": email a reset link. Mock: nothing is sent. */
+export async function requestPasswordReset(email: string): Promise<{ sent_to: string }> {
   await wait();
-  if (!/^\d{4}$/.test(code.trim())) throw new Error('Enter the 4-digit code.');
-  writeJson(LS.session, { status: 'member', phone_last4: state.pendingPhone.slice(-4) } satisfies StoredSession);
+  const e = email.trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) throw new Error('Enter the email on your account.');
+  return { sent_to: e };
+}
+
+/**
+ * Scan the QR on the back of a Thrift+ card, then the last 4 digits of the
+ * member's phone as the check. Mock: any code of 6+ characters and any 4 digits.
+ */
+export async function signInWithCard(cardCode: string, phoneLast4: string): Promise<ThriftPlusSession> {
+  await wait();
+  if (cardCode.trim().length < 6) throw new Error('That card did not read. Scan it again.');
+  if (!/^\d{4}$/.test(phoneLast4.trim())) throw new Error('Enter the last 4 digits of your phone.');
+  writeJson(LS.session, { status: 'member', email: 'member@example.com', username: null } satisfies StoredSession);
   return readSession();
 }
 
@@ -528,6 +583,7 @@ export async function continueAsGuest(): Promise<ThriftPlusSession> {
 
 export async function signOut(): Promise<ThriftPlusSession> {
   writeJson(LS.session, null);
+  writeJson(LS.choice, null);
   return readSession();
 }
 
@@ -585,7 +641,16 @@ export async function removeFromCart(sku: string): Promise<ThriftPlusCart> {
 
 export async function clearCart(): Promise<ThriftPlusCart> {
   writeJson(LS.cart, []);
+  // A new trip asks bank-or-rebate again.
+  writeJson(LS.choice, null);
   return cartOf([]);
+}
+
+/** The bank-or-rebate answer for this trip. The real API alerts the register. */
+export async function setRewardChoice(choice: RewardChoice): Promise<ThriftPlusCart> {
+  writeJson(LS.choice, choice);
+  record({ kind: 'choice', sku: '', at: nowIso(), choice });
+  return cartOf(readCartLines());
 }
 
 /** Swipe left. Logs a pass. */
@@ -626,7 +691,6 @@ export const thriftPlusMockControls = {
   /** Forget everything on this phone. */
   reset(): void {
     state.signals = [];
-    state.pendingPhone = '';
     for (const key of Object.values(LS)) writeJson(key, null);
   },
 };

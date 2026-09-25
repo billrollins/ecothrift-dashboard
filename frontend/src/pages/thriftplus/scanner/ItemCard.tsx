@@ -1,13 +1,12 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { Box, ButtonBase, CircularProgress, Typography } from '@mui/material';
-import AutoAwesomeRounded from '@mui/icons-material/AutoAwesomeRounded';
-import ChatBubbleRounded from '@mui/icons-material/ChatBubbleRounded';
+import { Box, ButtonBase, CircularProgress } from '@mui/material';
 import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import SearchOffRounded from '@mui/icons-material/SearchOffRounded';
+import SmsRounded from '@mui/icons-material/SmsRounded';
 import type { PriceFeel, PriceFeelReason, TagLookup, ThriftPlusItemCard } from '../../../api/thriftPlusMock';
 import { money, wouldPayChoices } from './scannerLogic';
-import { CategoryBadge, sc } from './scannerTheme';
+import { CategoryBadge, Sparkle, art, sc, u } from './scannerTheme';
 
 export type SwipeDir = 'left' | 'right';
 
@@ -36,6 +35,17 @@ const FEEL_REASONS: Array<{ reason: PriceFeelReason; label: string }> = [
 ];
 
 const FLING_MS = 200;
+
+/** The card face shared by the item card and the camera card (the design's white card, green edge). */
+export const cardFaceSx = {
+  position: 'absolute',
+  inset: 0,
+  borderRadius: u(36),
+  bgcolor: sc.card,
+  border: `${u(3)} solid ${sc.cardEdge}`,
+  boxShadow: sc.cardShadow,
+  overflow: 'hidden',
+} as const;
 
 /** The top card of the stack: one scanned item. Swipe right to add, left to pass. */
 export const ItemCard = forwardRef<ItemCardHandle, Props>(function ItemCard(
@@ -112,7 +122,7 @@ export const ItemCard = forwardRef<ItemCardHandle, Props>(function ItemCard(
   const sendFeel = (feel: PriceFeel) => {
     onFeel(feel);
     setPanel('thanks');
-    thanksTimer.current = window.setTimeout(() => setPanel(null), 1200);
+    thanksTimer.current = window.setTimeout(() => setPanel(null), 1300);
   };
 
   const dragging = drag.current?.dragging ?? false;
@@ -127,29 +137,23 @@ export const ItemCard = forwardRef<ItemCardHandle, Props>(function ItemCard(
       onPointerUp={onPointerEnd}
       onPointerCancel={onPointerEnd}
       sx={{
-        position: 'absolute',
-        inset: 0,
+        ...cardFaceSx,
         zIndex: 2,
         touchAction: 'pan-y',
         userSelect: 'none',
-        borderRadius: '22px',
-        bgcolor: sc.card,
-        border: `2px solid ${sc.cardEdge}`,
-        boxShadow: sc.shadow,
-        overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
+        fontFamily: sc.font,
         transform: `translateX(${dx}px) rotate(${dx / 22}deg)`,
         opacity: leaving ? 0 : 1,
         transition: dragging ? 'none' : `transform ${FLING_MS}ms ease-out, opacity ${FLING_MS}ms ease-in`,
-        animation: 'tpCardIn 180ms ease-out',
+        animation: 'tpCardIn 170ms ease-out',
         '@keyframes tpCardIn': {
-          from: { transform: 'translateY(18px) scale(0.97)', opacity: 0 },
+          from: { transform: 'translateY(14px) scale(0.98)', opacity: 0.4 },
           to: { transform: 'translateY(0) scale(1)', opacity: 1 },
         },
       }}
     >
-      {/* Swipe cues */}
       <SwipeStamp side="right" show={pull > 0 && canAdd} strength={pull} label="ADD" color={sc.green} />
       <SwipeStamp side="left" show={pull < 0} strength={-pull} label="PASS" color={sc.ink3} />
 
@@ -169,23 +173,23 @@ export const ItemCard = forwardRef<ItemCardHandle, Props>(function ItemCard(
 
       {item && panel === 'details' && (
         <Overlay title="Details" onClose={() => setPanel(null)}>
-          <Typography sx={{ fontWeight: 800, fontSize: 18, color: sc.ink, mb: 0.5 }}>{item.title}</Typography>
-          <Typography sx={{ color: sc.ink2, fontSize: 15, mb: 1.5 }}>{item.category_label}</Typography>
+          <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(44), color: sc.titleGreen, lineHeight: 1.1 }}>
+            {item.title}
+          </Box>
+          <Box sx={{ color: sc.ink2, fontSize: u(30), mt: u(6), mb: u(20) }}>{item.category_label}</Box>
           {item.details.map((d) => (
-            <Typography key={d} sx={{ fontSize: 15, color: sc.ink, py: 0.6, borderTop: `1px solid ${sc.line}` }}>
-              {d}
-            </Typography>
+            <DetailLine key={d}>{d}</DetailLine>
           ))}
-          {!item.returnable && <DetailFlag text="Final sale. No returns on this item." />}
-          {item.age_restricted && <DetailFlag text="18+. Needs an ID-verified card." />}
-          <Typography sx={{ fontSize: 12, color: sc.ink3, mt: 1.5, fontFamily: sc.mono }}>Tag {item.sku}</Typography>
+          {!item.returnable && <DetailLine tone="warn">Final sale. No returns on this item.</DetailLine>}
+          {item.age_restricted && <DetailLine tone="warn">18+. Needs an ID-verified card.</DetailLine>}
+          <Box sx={{ fontSize: u(24), color: sc.ink3, mt: u(20), fontFamily: sc.mono }}>Tag {item.sku}</Box>
         </Overlay>
       )}
 
       {item && (panel === 'feel' || panel === 'too_high') && (
-        <Overlay title="What feels off?" onClose={() => setPanel(null)}>
+        <Overlay title={panel === 'feel' ? 'What feels off?' : "I'd buy it at"} onClose={() => setPanel(null)}>
           {panel === 'feel' ? (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: u(14) }}>
               {FEEL_REASONS.map((r) => (
                 <SurveyChoice
                   key={r.reason}
@@ -198,21 +202,21 @@ export const ItemCard = forwardRef<ItemCardHandle, Props>(function ItemCard(
             </Box>
           ) : (
             <Box>
-              <Typography sx={{ fontSize: 16, color: sc.ink2, mb: 1.25 }}>I'd buy it at</Typography>
-              <Box sx={{ display: 'flex', gap: 1, mb: 1.5 }}>
+              <Box sx={{ display: 'flex', gap: u(16), mb: u(20) }}>
                 {wouldPayChoices(item.price).map((c) => (
                   <ButtonBase
                     key={c.under_pct}
                     onClick={() => sendFeel({ reason: 'too_high', would_pay: c.would_pay })}
                     sx={{
                       flex: 1,
-                      py: 1.5,
-                      borderRadius: 3,
-                      border: `2px solid ${sc.cardEdge}`,
+                      height: u(110),
+                      borderRadius: u(24),
+                      border: `${u(3)} solid ${sc.cardEdge}`,
                       bgcolor: sc.greenTint,
-                      fontSize: 20,
-                      fontWeight: 800,
-                      color: sc.greenDeep,
+                      fontFamily: sc.condensed,
+                      fontSize: u(46),
+                      fontWeight: 700,
+                      color: sc.priceGreen,
                     }}
                   >
                     {money(c.would_pay, true)}
@@ -232,29 +236,45 @@ export const ItemCard = forwardRef<ItemCardHandle, Props>(function ItemCard(
             position: 'absolute',
             inset: 0,
             zIndex: 5,
-            bgcolor: 'rgba(255,255,255,0.96)',
+            bgcolor: 'rgba(255,255,255,0.97)',
             display: 'grid',
             placeItems: 'center',
             textAlign: 'center',
-            animation: 'tpFade 1200ms ease both',
+            animation: 'tpFade 1300ms ease both',
             '@keyframes tpFade': {
               '0%': { opacity: 0 },
-              '15%': { opacity: 1 },
-              '75%': { opacity: 1 },
+              '12%': { opacity: 1 },
+              '78%': { opacity: 1 },
               '100%': { opacity: 0 },
             },
           }}
         >
           <Box>
-            <CheckCircleRounded sx={{ fontSize: 56, color: sc.green }} />
-            <Typography sx={{ fontSize: 24, fontWeight: 800, color: sc.ink, mt: 1 }}>Thanks for that!</Typography>
-            <Typography sx={{ fontSize: 15, color: sc.ink2 }}>It helps us price things right.</Typography>
+            <CheckCircleRounded sx={{ fontSize: u(120), color: sc.green }} />
+            <Box sx={{ fontFamily: sc.condensed, fontSize: u(52), fontWeight: 700, color: sc.titleGreen, mt: u(10) }}>
+              Thanks for that!
+            </Box>
+            <Box sx={{ fontSize: u(30), color: sc.ink2, mt: u(6) }}>It helps us price things right.</Box>
           </Box>
         </Box>
       )}
     </Box>
   );
 });
+
+/** Title size by length: up to 28 characters always fit in two lines, never cut. */
+function titleSize(title: string): number {
+  if (title.length <= 18) return 52;
+  if (title.length <= 23) return 47;
+  return 42;
+}
+
+/** Approximate width of the reward text in em (Baloo 2 ExtraBold), to fit it in the card. */
+function rewardEm(text: string): number {
+  let em = 0;
+  for (const ch of text) em += ch === '.' || ch === ',' ? 0.28 : ch === '1' ? 0.48 : 0.58;
+  return em;
+}
 
 function FoundBody({
   item,
@@ -270,150 +290,257 @@ function FoundBody({
   onFeel: () => void;
 }) {
   const hasReward = Number.parseFloat(item.reward) > 0;
+  const rewardText = `+${money(item.reward)}`;
+  // Fit the reward to the card: at most 134 design px, and never wider than 520.
+  const fitWidth = Math.min(134, 520 / rewardEm(rewardText));
+  const flags: Array<{ text: string; color: string }> = [];
+  if (!item.available) flags.push({ text: 'Sold', color: sc.badText });
+  if (inCart && item.available) flags.push({ text: 'In your cart', color: sc.greenDeep });
+  if (!item.returnable && item.available) flags.push({ text: 'Final sale', color: sc.warnText });
+  if (item.age_restricted) flags.push({ text: '18+', color: sc.warnText });
+
   return (
     <>
-      <Box sx={{ px: 2.25, pt: 3.25, pb: 1.5, display: 'flex', gap: 1.5, alignItems: 'center', position: 'relative' }}>
-        <CategoryBadge category={item.category} size={60} />
-        <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Typography
+      {/* Badge, title, category */}
+      <Box
+        sx={{
+          position: 'relative',
+          flex: `0 1 ${u(209)}`,
+          minHeight: u(168),
+          display: 'flex',
+          alignItems: 'center',
+          pl: u(32),
+          pr: u(40),
+          gap: u(23),
+        }}
+      >
+        <CategoryBadge category={item.category} size={u(128)} />
+        <Box sx={{ minWidth: 0, flex: 1, pt: u(8) }}>
+          <Box
             component="h2"
             sx={{
-              fontSize: 'clamp(20px, 6vw, 26px)',
-              fontWeight: 800,
-              lineHeight: 1.12,
-              color: sc.ink,
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
+              m: 0,
+              fontFamily: sc.condensed,
+              fontWeight: 700,
+              fontSize: u(titleSize(item.title)),
+              lineHeight: 1.06,
+              letterSpacing: '-0.005em',
+              color: sc.titleGreen,
+              overflowWrap: 'anywhere',
             }}
           >
             {item.title}
-          </Typography>
-          <Typography sx={{ fontSize: 16, color: sc.ink2, mt: 0.25 }} noWrap>
+          </Box>
+          <Box sx={{ fontSize: u(31), color: sc.ink2, mt: u(10), lineHeight: 1.2 }}>
             {item.category_label}
-          </Typography>
+            {flags.map((f) => (
+              <Box key={f.text} component="span" sx={{ color: f.color, fontWeight: 700 }}>
+                {'  ·  '}
+                {f.text}
+              </Box>
+            ))}
+          </Box>
         </Box>
         <ButtonBase
           onClick={onDetails}
-          sx={{ position: 'absolute', top: 8, right: 12, fontSize: 14, color: sc.ink2, px: 0.75, py: 0.25, borderRadius: 1 }}
+          sx={{ position: 'absolute', top: u(22), right: u(26), px: u(10), py: u(6), fontSize: u(25), color: sc.ink2, borderRadius: u(12) }}
         >
           Details
         </ButtonBase>
       </Box>
 
-      {(inCart || !item.available || !item.returnable || item.age_restricted) && (
-        <Box sx={{ px: 2.25, pb: 1, display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
-          {!item.available && <Flag tone="bad" text="Sold. This one is gone." />}
-          {inCart && item.available && <Flag tone="good" text="In your cart" />}
-          {!item.returnable && item.available && <Flag tone="warn" text="Final sale" />}
-          {item.age_restricted && <Flag tone="warn" text="18+" />}
-        </Box>
-      )}
+      <Rule />
 
-      <Box sx={{ mx: 2.25, borderTop: `1px solid ${sc.line}`, py: 1.25 }}>
-        {item.retail_price && (
-          <Row label="Retail">
-            <Typography sx={{ fontSize: 20, color: sc.ink3, textDecoration: 'line-through' }}>
-              {money(item.retail_price)}
-            </Typography>
-          </Row>
-        )}
-        <Row label="Our price">
-          <Typography sx={{ fontSize: 'clamp(26px, 8vw, 32px)', fontWeight: 800, color: sc.greenDeep, lineHeight: 1.1 }}>
-            {money(item.price)}
-          </Typography>
-        </Row>
-      </Box>
-
+      {/* Retail and our price */}
       <Box
         sx={{
-          mx: 2.25,
-          borderTop: `1px solid ${sc.line}`,
-          flex: 1,
-          minHeight: 0,
+          flex: `0 1 ${u(184)}`,
+          minHeight: u(138),
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          gap: u(6),
+          pl: u(40),
+          pr: u(43),
+        }}
+      >
+        {item.retail_price && (
+          <PriceRow label="Retail">
+            <Box sx={{ fontSize: u(35), color: sc.ink3, textDecoration: 'line-through', textDecorationThickness: u(3) }}>
+              {money(item.retail_price)}
+            </Box>
+          </PriceRow>
+        )}
+        <PriceRow label="Our price">
+          <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(58), lineHeight: 1.05, color: sc.priceGreen }}>
+            {money(item.price)}
+          </Box>
+        </PriceRow>
+      </Box>
+
+      <Rule />
+
+      {/* You'd earn */}
+      <Box
+        sx={{
+          position: 'relative',
+          flex: `1 1 ${u(300)}`,
+          minHeight: u(150),
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
-          textAlign: 'center',
-          py: 1,
+          containerType: 'size',
         }}
       >
         {hasReward ? (
           <>
-            <Typography sx={{ fontSize: 18, color: sc.ink2 }}>{isGuest ? 'Members earn' : "You'd earn"}</Typography>
-            <Box sx={{ position: 'relative', px: 3 }}>
+            <Box sx={{ fontSize: u(33), color: sc.ink2, mt: u(26), lineHeight: 1.2, flexShrink: 0 }}>
+              {isGuest ? 'Members earn' : "You'd earn"}
+            </Box>
+            <Box sx={{ flex: 1, width: '100%', display: 'grid', placeItems: 'center' }}>
               <Box
-                aria-hidden
                 sx={{
-                  position: 'absolute',
-                  left: 0,
-                  right: 0,
-                  top: '22%',
-                  bottom: '14%',
-                  borderRadius: '40% 55% 45% 60% / 60% 45% 55% 40%',
-                  background: `linear-gradient(100deg, transparent, ${sc.greenWash} 12%, ${sc.greenWash} 85%, transparent)`,
-                  transform: 'rotate(-3deg)',
-                }}
-              />
-              <AutoAwesomeRounded aria-hidden sx={{ position: 'absolute', left: -6, top: 4, fontSize: 22, color: sc.gold }} />
-              <AutoAwesomeRounded aria-hidden sx={{ position: 'absolute', right: -4, top: 0, fontSize: 18, color: sc.gold }} />
-              <Typography
-                data-testid="reward"
-                sx={{
+                  // The reward's font size: fit the card's width, and the height left under the label.
+                  '--f': `min(${u(fitWidth)}, calc((100cqh - ${u(70)}) * 0.78))`,
                   position: 'relative',
-                  fontSize: 'clamp(48px, 16vw, 68px)',
-                  fontWeight: 900,
-                  letterSpacing: '-0.03em',
-                  lineHeight: 1.05,
-                  color: sc.green,
-                  textShadow: `0 2px 0 ${sc.greenDeep}33`,
+                  lineHeight: 1,
                 }}
               >
-                +{money(item.reward)}
-              </Typography>
+                <Box
+                  component="img"
+                  src={art.brush}
+                  alt=""
+                  sx={{
+                    position: 'absolute',
+                    left: '50%',
+                    top: '50%',
+                    width: 'calc(var(--f) * 4.25)',
+                    maxWidth: 'none',
+                    transform: 'translate(-48%, -44%) rotate(-2deg)',
+                    pointerEvents: 'none',
+                  }}
+                />
+                <Sparkle size="calc(var(--f) * 0.34)" sx={{ left: 'calc(50% - var(--f) * 2.02)', top: 'calc(50% - var(--f) * 0.88)' }} />
+                <Sparkle size="calc(var(--f) * 0.16)" sx={{ left: 'calc(50% - var(--f) * 1.54)', top: 'calc(50% - var(--f) * 0.68)' }} />
+                <Sparkle size="calc(var(--f) * 0.25)" sx={{ left: 'calc(50% - var(--f) * 2.22)', top: 'calc(50% - var(--f) * 0.46)' }} />
+                <Sparkle size="calc(var(--f) * 0.3)" sx={{ left: 'calc(50% + var(--f) * 1.78)', top: 'calc(50% - var(--f) * 0.78)' }} />
+                <Box
+                  component="img"
+                  src={art.coin}
+                  alt=""
+                  sx={{
+                    position: 'absolute',
+                    width: 'calc(var(--f) * 0.5)',
+                    left: 'calc(50% - var(--f) * 2.22)',
+                    top: 'calc(50% + var(--f) * 0.3)',
+                    transform: 'rotate(-12deg)',
+                  }}
+                />
+                <Box
+                  component="img"
+                  src={art.coin}
+                  alt=""
+                  sx={{
+                    position: 'absolute',
+                    width: 'calc(var(--f) * 0.48)',
+                    left: 'calc(50% + var(--f) * 1.72)',
+                    top: 'calc(50% + var(--f) * 0.36)',
+                    transform: 'scaleX(-1) rotate(-8deg)',
+                  }}
+                />
+                <RewardText text={rewardText} />
+              </Box>
             </Box>
             {isGuest && (
-              <Typography sx={{ fontSize: 14, color: sc.ink2, mt: 0.5 }}>
-                Guests pay the tag price. Get a free card at the register.
-              </Typography>
+              <Box sx={{ fontSize: u(26), color: sc.ink2, mb: u(18), textAlign: 'center', px: u(30), flexShrink: 0 }}>
+                Guests pay the tag price. Cards are free at the register.
+              </Box>
             )}
           </>
         ) : (
-          <>
-            <Typography sx={{ fontSize: 22, fontWeight: 700, color: sc.ink2 }}>No reward on this item yet</Typography>
-            <Typography sx={{ fontSize: 14, color: sc.ink3, mt: 0.5 }}>Check back on your next visit.</Typography>
-          </>
+          <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', textAlign: 'center', px: u(40) }}>
+            <Box>
+              <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(46), color: sc.ink2 }}>No reward on this item yet</Box>
+              <Box sx={{ fontSize: u(28), color: sc.ink3, mt: u(8) }}>Check back on your next visit.</Box>
+            </Box>
+          </Box>
         )}
       </Box>
+
+      <Rule />
 
       <ButtonBase
         onClick={onFeel}
         sx={{
-          mx: 2.25,
-          py: 1.5,
-          borderTop: `1px solid ${sc.line}`,
+          flex: `0 1 ${u(118)}`,
+          minHeight: u(92),
           justifyContent: 'flex-start',
-          gap: 1.25,
+          pl: u(40),
+          gap: u(26),
           color: sc.ink2,
-          fontSize: 16,
+          fontSize: u(33),
+          fontFamily: sc.font,
         }}
       >
-        <ChatBubbleRounded sx={{ color: sc.ink3, fontSize: 26 }} />
+        <SmsRounded sx={{ fontSize: u(64), color: '#8c8f89' }} />
         Price feel off? Tell us.
       </ButtonBase>
     </>
   );
 }
 
+/** "+$15.00" as the design's bubbly 3D green lettering: a dark extruded layer under a bright gradient face. */
+function RewardText({ text }: { text: string }) {
+  const face = {
+    fontFamily: sc.bubble,
+    fontWeight: 800,
+    fontSize: 'var(--f)',
+    letterSpacing: '-0.02em',
+    whiteSpace: 'nowrap',
+    lineHeight: 1,
+  } as const;
+  return (
+    // The design's lettering is taller than Baloo 2's natural shape.
+    <Box data-testid="reward" aria-label={text} sx={{ position: 'relative', transform: 'scaleY(1.16)' }}>
+      <Box
+        aria-hidden
+        sx={{
+          ...face,
+          position: 'absolute',
+          inset: 0,
+          color: '#23761f',
+          WebkitTextStroke: 'calc(var(--f) * 0.07) #23761f',
+          transform: 'translateY(calc(var(--f) * 0.05))',
+          filter: 'drop-shadow(0 calc(var(--f) * 0.05) calc(var(--f) * 0.06) rgba(25,70,20,0.35))',
+        }}
+      >
+        {text}
+      </Box>
+      <Box
+        aria-hidden
+        sx={{
+          ...face,
+          position: 'relative',
+          background: 'linear-gradient(180deg, #8fe06a 0%, #5cc442 42%, #3aa52d 100%)',
+          WebkitBackgroundClip: 'text',
+          backgroundClip: 'text',
+          color: 'transparent',
+          WebkitTextStroke: 'calc(var(--f) * 0.012) #2f8f27',
+        }}
+      >
+        {text}
+      </Box>
+    </Box>
+  );
+}
+
 function LoadingBody({ sku }: { sku: string }) {
   return (
-    <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', textAlign: 'center', p: 3 }}>
+    <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', textAlign: 'center' }}>
       <Box>
-        <CircularProgress size={40} sx={{ color: sc.green }} />
-        <Typography sx={{ mt: 1.5, fontSize: 16, color: sc.ink2 }}>Looking up</Typography>
-        <Typography sx={{ fontFamily: sc.mono, fontSize: 15, color: sc.ink3 }}>{sku}</Typography>
+        <CircularProgress size={36} sx={{ color: sc.green }} />
+        <Box sx={{ mt: u(24), fontSize: u(32), color: sc.ink2 }}>Looking up</Box>
+        <Box sx={{ fontFamily: sc.mono, fontSize: u(28), color: sc.ink3 }}>{sku}</Box>
       </Box>
     </Box>
   );
@@ -421,49 +548,49 @@ function LoadingBody({ sku }: { sku: string }) {
 
 function MissBody({ lookup }: { lookup: Exclude<TagLookup, { status: 'found' }> }) {
   return (
-    <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', textAlign: 'center', p: 3 }}>
+    <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', textAlign: 'center', px: u(50) }}>
       <Box>
-        <SearchOffRounded sx={{ fontSize: 52, color: sc.ink3 }} />
-        <Typography sx={{ mt: 1, fontSize: 22, fontWeight: 800, color: sc.ink }}>
+        <SearchOffRounded sx={{ fontSize: u(110), color: sc.ink3 }} />
+        <Box sx={{ mt: u(16), fontFamily: sc.condensed, fontSize: u(50), fontWeight: 700, color: sc.titleGreen, lineHeight: 1.1 }}>
           {lookup.status === 'not_found' ? "We couldn't find that tag" : 'No connection'}
-        </Typography>
-        <Typography sx={{ mt: 0.5, fontSize: 16, color: sc.ink2 }}>
+        </Box>
+        <Box sx={{ mt: u(12), fontSize: u(30), color: sc.ink2, lineHeight: 1.35 }}>
           {lookup.status === 'not_found' ? 'Ask a team member, or try scanning it again.' : lookup.message}
-        </Typography>
-        <Typography sx={{ mt: 1, fontFamily: sc.mono, fontSize: 14, color: sc.ink3 }}>{lookup.sku}</Typography>
-        <Typography sx={{ mt: 2, fontSize: 14, color: sc.ink3 }}>Tap Pass or swipe left to scan again.</Typography>
+        </Box>
+        <Box sx={{ mt: u(16), fontFamily: sc.mono, fontSize: u(26), color: sc.ink3 }}>{lookup.sku}</Box>
+        <Box sx={{ mt: u(30), fontSize: u(27), color: sc.ink3 }}>Tap Pass or swipe left to scan again.</Box>
       </Box>
     </Box>
   );
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Rule() {
+  return <Box sx={{ mx: u(32), height: u(2), minHeight: '1px', bgcolor: sc.line, flexShrink: 0 }} />;
+}
+
+function PriceRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', py: 0.35 }}>
-      <Typography sx={{ fontSize: 18, color: sc.ink2 }}>{label}</Typography>
+    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: u(20), whiteSpace: 'nowrap' }}>
+      <Box sx={{ fontSize: u(33), color: sc.ink2 }}>{label}</Box>
       {children}
     </Box>
   );
 }
 
-function Flag({ tone, text }: { tone: 'good' | 'warn' | 'bad'; text: string }) {
-  const colors = {
-    good: { bg: sc.greenTint, fg: sc.greenDeep },
-    warn: { bg: sc.warnTint, fg: sc.warnText },
-    bad: { bg: sc.badTint, fg: sc.badText },
-  }[tone];
+function DetailLine({ children, tone }: { children: React.ReactNode; tone?: 'warn' }) {
   return (
-    <Box sx={{ px: 1, py: 0.25, borderRadius: 99, bgcolor: colors.bg, color: colors.fg, fontSize: 13, fontWeight: 700 }}>
-      {text}
+    <Box
+      sx={{
+        fontSize: u(30),
+        lineHeight: 1.35,
+        color: tone === 'warn' ? sc.warnText : sc.ink,
+        fontWeight: tone === 'warn' ? 600 : 400,
+        py: u(14),
+        borderTop: `1px solid ${sc.line}`,
+      }}
+    >
+      {children}
     </Box>
-  );
-}
-
-function DetailFlag({ text }: { text: string }) {
-  return (
-    <Typography sx={{ fontSize: 15, color: sc.warnText, py: 0.6, borderTop: `1px solid ${sc.line}`, fontWeight: 600 }}>
-      {text}
-    </Typography>
   );
 }
 
@@ -473,14 +600,15 @@ function SurveyChoice({ label, onClick }: { label: string; onClick: () => void }
       onClick={onClick}
       sx={{
         justifyContent: 'flex-start',
-        px: 2,
-        py: 1.4,
-        borderRadius: 3,
+        px: u(32),
+        minHeight: u(92),
+        borderRadius: u(24),
         border: `1px solid ${sc.line}`,
         bgcolor: '#fafbf8',
-        fontSize: 17,
-        fontWeight: 600,
+        fontSize: u(32),
+        fontWeight: 500,
         color: sc.ink,
+        textAlign: 'left',
         '&:active': { bgcolor: sc.greenTint },
       }}
     >
@@ -499,17 +627,17 @@ function Overlay({ title, onClose, children }: { title: string; onClose: () => v
         bgcolor: sc.card,
         display: 'flex',
         flexDirection: 'column',
-        animation: 'tpUp 160ms ease-out',
-        '@keyframes tpUp': { from: { transform: 'translateY(24px)', opacity: 0 }, to: { transform: 'none', opacity: 1 } },
+        animation: 'tpUp 150ms ease-out',
+        '@keyframes tpUp': { from: { transform: `translateY(${u(30)})`, opacity: 0 }, to: { transform: 'none', opacity: 1 } },
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', px: 2.25, pt: 1.75, pb: 1 }}>
-        <Typography sx={{ flex: 1, fontSize: 20, fontWeight: 800, color: sc.ink }}>{title}</Typography>
-        <ButtonBase onClick={onClose} aria-label="Close" sx={{ borderRadius: 99, p: 0.75, color: sc.ink2 }}>
-          <CloseRounded />
+      <Box sx={{ display: 'flex', alignItems: 'center', pl: u(40), pr: u(20), pt: u(30), pb: u(16) }}>
+        <Box sx={{ flex: 1, fontFamily: sc.condensed, fontSize: u(46), fontWeight: 700, color: sc.titleGreen }}>{title}</Box>
+        <ButtonBase onClick={onClose} aria-label="Close" sx={{ borderRadius: 99, p: u(14), color: sc.ink2 }}>
+          <CloseRounded sx={{ fontSize: u(52) }} />
         </ButtonBase>
       </Box>
-      <Box sx={{ px: 2.25, pb: 2, overflowY: 'auto', flex: 1 }}>{children}</Box>
+      <Box sx={{ px: u(40), pb: u(30), overflowY: 'auto', flex: 1 }}>{children}</Box>
     </Box>
   );
 }
@@ -533,20 +661,20 @@ function SwipeStamp({
       aria-hidden
       sx={{
         position: 'absolute',
-        top: 18,
-        [side === 'right' ? 'left' : 'right']: 18,
+        top: u(40),
+        [side === 'right' ? 'left' : 'right']: u(40),
         zIndex: 3,
-        px: 1.25,
-        py: 0.25,
-        border: `3px solid ${color}`,
+        px: u(20),
+        py: u(4),
+        border: `${u(6)} solid ${color}`,
         color,
-        borderRadius: 2,
-        fontSize: 22,
+        borderRadius: u(16),
+        fontSize: u(48),
         fontWeight: 900,
         letterSpacing: '0.08em',
         transform: `rotate(${side === 'right' ? -12 : 12}deg)`,
         opacity: Math.min(1, strength),
-        bgcolor: 'rgba(255,255,255,0.85)',
+        bgcolor: 'rgba(255,255,255,0.9)',
       }}
     >
       {label}

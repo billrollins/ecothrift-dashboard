@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.106.0] -->
-<!-- Last reviewed: 2026-09-25 (2.106.0) -->
+<!-- Line 1 release: ## [2.107.0] -->
+<!-- Last reviewed: 2026-09-25 (2.107.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.107.0] - 2026-09-25
+
+User-facing theme: **The Thrift+ scanner now matches the owner's design, lives at /scan, asks bank-or-rebate on the first add, and signs in with email and password or a Thrift+ card.**
+
+Initiative `thrift_plus_rewards` (the `thrift_scanner` thread; front end only).
+
+### Added
+
+- Bank or rebate: the first add of a trip asks "Would you like to bank your rewards?" (Yes, bank my rewards / No, instant rebate please). The receipt shows rewards to bank or rewards off the price and lets the member change it; clearing the cart asks again. The real API alerts the register (`setRewardChoice`, `cart.reward_choice`, `totals.to_bank`).
+- Sign-in by email or username and password, "Forgot password?" by email, or scanning the Thrift+ card with the phone's last 4 digits as the check. No text messages.
+- Art generated for the design (field header, Thrift+ wordmark, coin stack, coin, cart, glossy green button, brush stroke) in `frontend/src/assets/thriftplus/` as WebP.
+
+### Changed
+
+- `/scan` is the scanner's address; `/pricescanner` and `/thrift-plus/scanner` redirect to it. The dev launcher's phone URL and QR code follow.
+- The scanner is laid out in the design's own units, so it keeps the design's proportions on any phone and gives up card height (not text) on short screens. Bubbly 3D reward amount with the brush stroke, sparkles and coins; the back card is the design's plain white card while the camera waits underneath.
+- No truncation anywhere: labels are sized to fit, titles wrap to two lines, and item titles are cut at a whole word with no ellipsis.
 
 ## [2.106.0] - 2026-09-25
 
