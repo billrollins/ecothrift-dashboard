@@ -2,15 +2,17 @@ import { Box, Tab, Tabs, Typography } from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
 import CardBatchesTab from './CardBatchesTab';
 import MembersTab from './MembersTab';
+import OverviewTab from './OverviewTab';
+import RegisterTab from './RegisterTab';
 import RewardsTab from './RewardsTab';
 
-const TABS = ['members', 'cards', 'rewards'] as const;
+const TABS = ['members', 'cards', 'rewards', 'register', 'overview'] as const;
 type TabKey = (typeof TABS)[number];
 
 /**
  * Thrift+ in Dash: member service (find, sign up, verify, cards, second adult, revoke) and
- * blank-card batches (Phase 1); the reward engine's dry run (Phase 2). Superuser-only in the
- * nav until launch (10-20).
+ * blank-card batches (Phase 1); the reward engine's dry run (Phase 2); 18+ products and member
+ * returns (Phase 3). Superuser-only in the nav until launch (10-20).
  */
 export default function ThriftPlusPage() {
   const [params, setParams] = useSearchParams();
@@ -23,10 +25,14 @@ export default function ThriftPlusPage() {
         <Tab value="members" label="Members" sx={{ textTransform: 'none' }} />
         <Tab value="cards" label="Card batches" sx={{ textTransform: 'none' }} />
         <Tab value="rewards" label="Rewards" sx={{ textTransform: 'none' }} />
+        <Tab value="register" label="Register" sx={{ textTransform: 'none' }} />
+        <Tab value="overview" label="Overview" sx={{ textTransform: 'none' }} />
       </Tabs>
       {tab === 'members' ? <MembersTab /> : null}
       {tab === 'cards' ? <CardBatchesTab /> : null}
       {tab === 'rewards' ? <RewardsTab /> : null}
+      {tab === 'register' ? <RegisterTab /> : null}
+      {tab === 'overview' ? <OverviewTab /> : null}
     </Box>
   );
 }

@@ -138,7 +138,7 @@ SETTING_HELP = {
     'flag_rubber_stamp_window': 'All-confirmed verifications before a rubber-stamp flag can fire.',
     'idle_prompt_minutes': 'Minutes with no cart on the register before it asks for a work cycle.',
     'idle_stretch_minutes': 'Idle stretches longer than this are listed next to cashier names. They do not change the grade.',
-    'walk_floor': 'Fewer than this many spot walks in a week caps the week at B. Zero walks caps at C.',
+    'walk_floor': 'Spot walks the owner aims for each week. Walks never cap the grade; a week with none shows the owner a warning.',
     'weight_spot': 'Share of the week grade that comes from owner spot walks.',
     'weight_do': 'Share of the week grade that comes from routines done over expected.',
     'weight_cross': 'Share of the week grade that comes from cross-checks, after the due date.',

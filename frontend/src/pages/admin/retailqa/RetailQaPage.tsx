@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
 import type { QaDayTile } from '../../../api/routines.api';
 import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
+import { useAuth } from '../../../hooks/useAuth';
 import { useRoutineAssignees } from '../../../hooks/useRoutines';
 import {
   useAssignQaBoard,
@@ -34,6 +35,7 @@ import './commandCenter.css';
 
 export default function RetailQaPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
   const [params, setParams] = useSearchParams();
   const today = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
@@ -275,6 +277,14 @@ export default function RetailQaPage() {
         onMoveWeek={moveWeek}
         onSelectDay={(next) => setDay(next, week)}
       />
+      {user?.is_superuser && data?.spot_walks?.warning ? (
+        <div className="walk-nag" role="alert">
+          <b>WARNING</b>
+          <span>
+            {data.spot_walks.warning}. Goal is {data.spot_walks.goal}. The grade leaves missing walks out, so only you see this.
+          </span>
+        </div>
+      ) : null}
       {date !== today ? (
         <div className="not-today">
           <span>Viewing {format(parseISO(date), 'EEE MMM d')}. You are not on today.</span>

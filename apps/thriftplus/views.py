@@ -1,6 +1,7 @@
 """
 Thrift+ staff API: members, their people and cards, and blank-card batches (Phase 1); the reward
-engine's dry run, item log and nightly runs (Phase 2).
+engine's dry run, item log and nightly runs (Phase 2); the register's member actions and 18+ products
+(Phase 3).
 
 The register (Phase 3) and the signup flow (Phase 4) build on the same services. Until launch the
 Dash screens are superuser-only in the nav; the API itself is staff-level, like the rest of Dash.
@@ -9,6 +10,7 @@ from __future__ import annotations
 
 import base64
 from datetime import date
+from decimal import Decimal, InvalidOperation
 
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -19,8 +21,18 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from apps.accounts.permissions import IsManagerOrAdmin, IsStaff
-from apps.thriftplus.models import Account, Card, CardBatch, Person, RewardRun
+from apps.accounts.permissions import IsEmployee, IsManagerOrAdmin, IsStaff
+from apps.thriftplus.models import (
+    Account,
+    Card,
+    CardBatch,
+    LedgerEntry,
+    Person,
+    RestrictedProduct,
+    ReturnRecord,
+    RewardRun,
+    SalePhoto,
+)
 from apps.thriftplus.serializers import (
     AccountDetailSerializer,
     AccountSerializer,
@@ -28,7 +40,7 @@ from apps.thriftplus.serializers import (
     CardSerializer,
     PersonSerializer,
 )
-from apps.thriftplus.services import card_pdf, cards, members, rewards
+from apps.thriftplus.services import card_pdf, cards, ledger, members, register, returns, rewards
 from apps.thriftplus.services.members import MemberError
 
 
@@ -79,6 +91,41 @@ class AccountViewSet(viewsets.ReadOnlyModelViewSet):
         except MemberError as exc:
             return _error(exc)
         return Response(AccountDetailSerializer(self.get_object()).data)
+
+    @action(detail=True, methods=['get'])
+    def money(self, request, pk=None):
+        """The membership's cover, banked rewards and store credit, and its last 50 ledger rows (Phase 4)."""
+        account = self.get_object()
+        rows = account.ledger.select_related('actor', 'item').order_by('-created_at', '-pk')[:50]
+        return Response({
+            **ledger.balances(account),
+            'entries': [
+                {'id': e.pk, 'kind': e.kind, 'amount': str(e.amount), 'month': e.month, 'reason': e.reason,
+                 'cart': e.cart_id, 'sku': e.item.sku if e.item_id else '', 'note': e.note,
+                 'actor': e.actor.full_name if e.actor_id else '', 'created_at': e.created_at}
+                for e in rows
+            ],
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
+    def adjust(self, request, pk=None):
+        """A manager's correction to store credit or banked rewards, with a note. Never below zero."""
+        account = self.get_object()
+        kind = request.data.get('kind')
+        if kind not in (LedgerEntry.KIND_CREDIT, LedgerEntry.KIND_BANK):
+            return Response({'detail': 'Adjust credit or bank.'}, status=status.HTTP_400_BAD_REQUEST)
+        note = str(request.data.get('note') or '').strip()
+        if not note:
+            return Response({'detail': 'Say why.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            amount = Decimal(str(request.data.get('amount'))).quantize(Decimal('0.01'))
+        except (InvalidOperation, TypeError):
+            return Response({'detail': 'The amount must be dollars, like 5.00 or -5.00.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not amount or ledger.balance(account, kind) + amount < 0:
+            return Response({'detail': 'That would take the balance below zero.'}, status=status.HTTP_400_BAD_REQUEST)
+        ledger.record(account, kind, amount, 'adjust', actor=request.user, note=note)
+        members.log('adjust', account=account, actor=request.user, kind=kind, amount=str(amount), note=note[:200])
+        return self.money(request, pk)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
     def revoke(self, request, pk=None):
@@ -228,6 +275,12 @@ class RewardsViewSet(viewsets.ViewSet):
         return Response(rewards.item_detail(found))
 
     @action(detail=False, methods=['get'])
+    def overview(self, request):
+        """The owner's Thrift+ numbers (Phase 4): members, sales, rewards, what is owed, returns, scans."""
+        from apps.thriftplus.services.overview import overview
+        return Response(overview())
+
+    @action(detail=False, methods=['get'])
     def runs(self, request):
         return Response([_run_payload(r) for r in RewardRun.objects.all()[:30]])
 
@@ -237,3 +290,163 @@ def _run_payload(run: RewardRun) -> dict:
         'id': run.pk, 'day': run.day.isoformat(), 'started_at': run.started_at, 'finished_at': run.finished_at,
         'counts': run.counts, 'error': run.error.splitlines()[0] if run.error else '',
     }
+
+
+class RegisterViewSet(viewsets.ViewSet):
+    """
+    Thrift+ at the register (Phase 3). Each action takes ``cart`` (the POS cart id) and answers with
+    the POS cart, so the terminal can take it as its new state:
+    - ``attach``: scan a member's card onto the sale;
+    - ``detach``;
+    - ``choice``: bank or instant;
+    - ``balance``: spend store credit and banked rewards;
+    - ``rering``: a card on a sale finished in the last 30 minutes.
+
+    Every action refuses while Thrift+ is dark at that register.
+    """
+
+    permission_classes = [IsAuthenticated, IsEmployee]
+
+    def _cart(self, request):
+        from apps.pos.models import Cart
+
+        return get_object_or_404(Cart, pk=request.data.get('cart'))
+
+    def _done(self, cart) -> Response:
+        from apps.pos.models import Cart
+        from apps.pos.serializers import CartSerializer
+
+        return Response(CartSerializer(Cart.objects.get(pk=cart.pk)).data)
+
+    def _run(self, request, fn):
+        cart = self._cart(request)
+        try:
+            fn(cart)
+        except register.RegisterError as exc:
+            return Response({'detail': str(exc), 'code': exc.code}, status=status.HTTP_400_BAD_REQUEST)
+        return self._done(cart)
+
+    @action(detail=False, methods=['get'])
+    def status(self, request):
+        """Whether Thrift+ is live at a register (``?register=<code>``), before any sale exists."""
+        code = str(request.query_params.get('register') or '').strip().upper()
+        return Response({'live': members.is_enabled() or code in register.live_register_codes()})
+
+    @action(detail=False, methods=['post'])
+    def attach(self, request):
+        return self._run(request, lambda cart: register.attach(cart, str(request.data.get('code') or ''), user=request.user))
+
+    @action(detail=False, methods=['post'])
+    def detach(self, request):
+        return self._run(request, lambda cart: register.detach(cart, user=request.user))
+
+    @action(detail=False, methods=['post'])
+    def choice(self, request):
+        return self._run(request, lambda cart: register.set_choice(cart, str(request.data.get('choice') or '')))
+
+    @action(detail=False, methods=['post'])
+    def balance(self, request):
+        def spend(cart):
+            try:
+                credit = Decimal(str(request.data.get('credit') or '0'))
+                bank = Decimal(str(request.data.get('bank') or '0'))
+            except InvalidOperation as exc:
+                raise register.RegisterError('BAD_AMOUNT', 'Amounts must be dollars, like 5.00.') from exc
+            register.use_balance(cart, credit=credit, bank=bank)
+        return self._run(request, spend)
+
+    @action(detail=False, methods=['post'])
+    def rering(self, request):
+        return self._run(request, lambda cart: register.rering(cart, str(request.data.get('code') or ''), user=request.user))
+
+
+class RestrictedProductViewSet(viewsets.ViewSet):
+    """18+ products (Phase 3): list, mark by SKU, unmark. Manager or Admin."""
+
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+
+    def list(self, request):
+        rows = RestrictedProduct.objects.select_related('product', 'marked_by').order_by('-marked_at')[:500]
+        return Response([
+            {'product_id': r.product_id, 'title': r.product.title, 'reason': r.reason, 'marked_at': r.marked_at,
+             'marked_by': r.marked_by.full_name if r.marked_by else ''}
+            for r in rows
+        ])
+
+    def create(self, request):
+        from apps.inventory.models import Item
+
+        sku = (request.data.get('sku') or '').strip()
+        item = Item.objects.filter(sku__iexact=sku).first() if sku else None
+        if item is None:
+            return Response({'detail': 'No item with that SKU.'}, status=status.HTTP_404_NOT_FOUND)
+        row, _ = RestrictedProduct.objects.get_or_create(
+            product_id=item.product_id,
+            defaults={'reason': (request.data.get('reason') or '')[:120], 'marked_by': request.user},
+        )
+        members.log('restricted_marked', actor=request.user, product=item.product_id, sku=item.sku)
+        return Response({'product_id': row.product_id, 'title': item.product.title}, status=status.HTTP_201_CREATED)
+
+    def destroy(self, request, pk=None):
+        deleted, _ = RestrictedProduct.objects.filter(product_id=pk).delete()
+        if deleted:
+            members.log('restricted_unmarked', actor=request.user, product=pk)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ReturnsViewSet(viewsets.ViewSet):
+    """
+    Member returns at the register (Phase 3):
+    - ``lookup``: a card's recent purchases, each with whether it can come back;
+    - ``create``: take one back as store credit;
+    - ``photo``: the serial and condition photo of a $100+ item at the sale;
+    - ``list`` and ``done``: returned items waiting for staff.
+    """
+
+    permission_classes = [IsAuthenticated, IsEmployee]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def list(self, request):
+        rows = ReturnRecord.objects.select_related('person', 'cart_line', 'item').order_by('status', '-created_at')[:200]
+        return Response([
+            {'id': r.pk, 'status': r.status, 'member': f'{r.person.first_name} {r.person.last_name}'.strip(),
+             'sku': r.item.sku if r.item_id else '', 'title': r.cart_line.description, 'paid': str(r.paid), 'note': r.note,
+             'created_at': r.created_at}
+            for r in rows
+        ])
+
+    @action(detail=False, methods=['get'])
+    def lookup(self, request):
+        try:
+            return Response(returns.purchases(str(request.query_params.get('code') or '')))
+        except register.RegisterError as exc:
+            return Response({'detail': str(exc), 'code': exc.code}, status=status.HTTP_400_BAD_REQUEST)
+
+    def create(self, request):
+        from apps.pos.models import CartLine
+
+        line = get_object_or_404(CartLine.objects.select_related('cart', 'item__product'), pk=request.data.get('cart_line'))
+        try:
+            record = returns.do_return(
+                line, str(request.data.get('code') or ''), confirmed=_truthy(request.data.get('confirmed')),
+                note=str(request.data.get('note') or ''), user=request.user,
+            )
+        except register.RegisterError as exc:
+            return Response({'detail': str(exc), 'code': exc.code}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'id': record.pk, 'credit': str(record.paid), **ledger.balances(record.account)}, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'])
+    def photo(self, request):
+        from apps.pos.models import CartLine
+
+        line = get_object_or_404(CartLine, pk=request.data.get('cart_line'))
+        upload = request.FILES.get('photo')
+        if upload is None:
+            return Response({'detail': 'Attach a photo.'}, status=status.HTTP_400_BAD_REQUEST)
+        SalePhoto.objects.create(cart_line=line, photo=upload, taken_by=request.user)
+        return Response({'cart_line': line.pk, 'photos': SalePhoto.objects.filter(cart_line=line).count()}, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def done(self, request, pk=None):
+        ReturnRecord.objects.filter(pk=pk).update(status=ReturnRecord.STATUS_DONE)
+        return Response(status=status.HTTP_204_NO_CONTENT)

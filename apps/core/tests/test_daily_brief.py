@@ -21,7 +21,7 @@ class SnapshotTests(TestCase):
         data = build_snapshot(DAY)
         self.assertEqual(data['for_day'], '2026-09-27')
         self.assertEqual(data['errors'], {})
-        for section in ('sales', 'labor', 'routines', 'inventory', 'buying', 'requests', 'thrift_plus'):
+        for section in ('sales', 'labor', 'routines', 'inventory', 'buying', 'requests', 'thrift_plus', 'qa'):
             self.assertIn(section, data)
         self.assertEqual(data['sales']['revenue'], '0.00')
         self.assertFalse(data['thrift_plus']['switch_on'])

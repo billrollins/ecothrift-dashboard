@@ -1184,8 +1184,8 @@ class CommandCenterTests(APITestCase):
 
 
 class ScoringEngineTests(TestCase):
-    def test_zero_walk_week_with_everything_else_done_shows_c(self):
-        from apps.routines.grading import _walk_cap, combine_weighted
+    def test_zero_walk_week_with_everything_else_done_is_not_capped(self):
+        from apps.routines.grading import _week_letter, combine_weighted
         from apps.routines.settings import WEIGHT_CROSS, WEIGHT_DO, WEIGHT_SPOT
         cfg = retail_qa_settings()
         self.assertEqual((WEIGHT_SPOT, WEIGHT_DO, WEIGHT_CROSS), (60, 25, 15))
@@ -1194,8 +1194,8 @@ class ScoringEngineTests(TestCase):
             ('do', 25, 100.0),
             ('cross', 15, 100.0),
         ])
-        _capped, letter = _walk_cap(result['score'], 0, cfg)
-        self.assertEqual(letter, 'C')
+        _score, letter = _week_letter(result['score'], cfg)
+        self.assertEqual(letter, 'A+')
 
     def test_day_with_no_walk_shows_do_only_and_spot_dash(self):
         from apps.routines.grading import combine_weighted
@@ -1262,13 +1262,13 @@ class ScoringEngineTests(TestCase):
             combine_weighted([('spot', 60, 91.0), ('do', 25, 88.0), ('cross', 15, None)])['score'],
         )
 
-    def test_empty_spot_renormalizes_and_zero_walks_cap_at_c(self):
-        from apps.routines.grading import _walk_cap, combine_weighted
+    def test_empty_spot_renormalizes_and_zero_walks_do_not_cap(self):
+        from apps.routines.grading import _week_letter, combine_weighted
         cfg = retail_qa_settings()
         result = combine_weighted([('spot', 60, None), ('do', 25, 100.0)])
         self.assertEqual(result['score'], 100.0)
-        capped, cap_letter = _walk_cap(result['score'], 0, cfg)
-        self.assertEqual(cap_letter, 'C')
+        _score, letter = _week_letter(result['score'], cfg)
+        self.assertEqual(letter, 'A+')
         blend = combine_weighted([('spot', 60, 100.0), ('do', 25, 100.0)])
         self.assertEqual(blend['score'], 100.0)
 
@@ -1280,7 +1280,7 @@ class ScoringEngineTests(TestCase):
         self.assertEqual(_week_cross(daily, due=date(2026, 9, 16), today=date(2026, 9, 16), project=False), 0.0)
 
     def test_projection_keeps_scored_days_and_fills_only_the_rest(self):
-        from apps.routines.grading import _doing_for_week, _owner_for_week, _walk_cap, combine_weighted
+        from apps.routines.grading import _doing_for_week, _owner_for_week, _week_letter, combine_weighted
         cfg = retail_qa_settings()
         daily = [
             {'date': '2026-09-15', 'graded': True, 'open_day': True, 'thirds': {'doing': 0.0, 'owner': None}, 'doing': {'done': 0, 'needed': 10}},
@@ -1296,7 +1296,7 @@ class ScoringEngineTests(TestCase):
         self.assertEqual(owner, 73.3)
         self.assertEqual(walks, 3)
         result = combine_weighted([('spot', 60, owner), ('do', 25, doing)])
-        _capped, letter = _walk_cap(result['score'], walks, cfg)
+        _score, letter = _week_letter(result['score'], cfg)
         self.assertNotEqual(letter, 'A')
 
     def test_expected_persists_and_ignores_a_later_call_in(self):

@@ -78,4 +78,10 @@ Finished tasks, moved out of `queue.md`. Tasks are in `tasks/`, results in `resu
 | R-072 | test | Tests: Thrift+ members and cards (Phase 1), plus everything since R-071 | GREEN: 0 NEW | ship candidate for Mon 09-28 |
 | R-073 | test | Tests: the morning brief (data_platform Phase 2) | RED: 1 py NEW | fixed (AiAction seed count; 2 dashes); re-run in R-074 |
 | R-074 | test | Tests: the Thrift+ reward engine (Phase 2), the R-073 fixes, and the Monday pre-ship run | GREEN: 0 NEW | Monday candidate; delta re-run in R-075 |
+| R-075 | test | Tests: the Monday candidate after the merge (scanner code, 10% floor, /scan, POS line-price fix) | GREEN: 0 NEW | **ship tree for Mon 09-28 (v2.108.0)**; tsc gap is the runner missing `npm install` (scanner deps), fixed in R-076 |
+| R-076 | test | Tests: Thrift+ at the register (Phase 3), plus npm install for the scanner packages | GREEN: 0 NEW | Phase 3 verified; ships Mon 10-05 (after v2.108.0) |
+| R-077 | test | Tests: the Monday ship tree plus the security fix (staff endpoints closed to online-store customers) | GREEN: 0 NEW | **the Monday ship tree** (v2.108.0) |
+| R-078 | test | Tests: Thrift+ Phase 4, the discount logic, and return credit | GREEN: 0 NEW | Phase 4 verified; ships Thu 10-08 (after Phase 3) |
+| R-079 | test | Tests: data QA (data_platform Phase 3), and the QA section in the morning brief | RED: 1 py NEW | test bug fixed (patched the list twice); re-run R-080 |
+| R-080 | test | Tests: the R-079 fix (the QA test patched its check list twice) | GREEN: 0 NEW | data QA verified (with R-079); ships after v2.108.0 |
 

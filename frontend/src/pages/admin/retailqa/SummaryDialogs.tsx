@@ -116,7 +116,7 @@ export function SummaryDialogs({
             ) : null}
           </tbody>
         </table>
-        <div className="cc-dialog-note">{WALK_FLOOR} walks this week keep the grade uncapped.</div>
+        <div className="cc-dialog-note">Goal: {WALK_FLOOR} walks a week. Walks never cap the grade.</div>
       </BoardDialog>
 
       <BoardDialog open={open === 'cross'} onClose={onClose} title={`Cross-checks · due ${cross?.due_label || '—'}`}>

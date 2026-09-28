@@ -22,6 +22,12 @@ Initiative: [`data_quality_rails`](../initiatives/data_quality_rails.md).
 
 ---
 
+## Standing checks (data_platform Phase 3)
+
+Every rail that can be counted is a nightly check in `apps/qa/checks.py`, named by its register ID: `python manage.py run_qa`, shown at Dash `/admin/qa`, and in the morning brief when one gets worse.
+- A check with a safe fix (today SHR-03) stages a Requests item for the owner to approve in production.
+- **Adding a register row with a countable scope?** Add its check with a test in the same change.
+
 ## The lifecycle and its rails
 
 The rail is what must be captured at each stage so the next stage can trust it. "Today" is filled in from runner recon (R-010 to R-013).
@@ -154,6 +160,10 @@ Scope numbers are from the dev database copy, as of the date given.
 | ITM-12 | items | 4 categories added 2026-09-23 (Lawn & garden, Appliances, Arts & crafts, Automotive) have no history: past items and past AI picks use the old 19 (the garden truck sits in Home décor) | all history (2026-09-23) | Need, sales by category | **fill:** Need 50 until they have sales; recovery = the store-wide (Mixed lots) rate, flagged on the auction page (their own rate was 0, valuing appliance trucks at $0, R-055) | AI prompts and check-in know the 23; product-intelligence backfill re-places history | handled (fill) |
 | ITM-13 | products | V1/V2 products carry a near-random category. On the gold set, the current category matched a hand label for 8 of 82 V1/V2 products (10%), against 81 of 98 for V3 (83%). There is no consistent mapping, so it isn't an ID shift. 72 of 300 gold rows are flagged `miscat_old`. Weighted by the real mix it is milder: Spark keeps the current category on 3,575 of 5,566 V1/V2 title groups (64%; Electronics is mostly right). 1,991 groups ($32k sold) would move, and 1,861 of those moves are auto-accepted (`workspace/backfill/pilot_out_v1v2_placed.jsonl`) | 2,774 V1/V2 products placed outside Mixed, 3,667 sold items, $78k (Electronics $48k) (R-027). Gold set 2026-09-23 | Category sales history before 2026-04. **Not** Need, want mix or speed: their 90-day window is 99.75% V3 (R-027) | **unknown:** treat a V1/V2 product's category as missing; don't trust it or copy it to siblings | The product_intelligence backfill re-places V1/V2 products (`workspace/backfill/pilot_out_v1v2_placed.jsonl`). No free-copy source exists for them: 0 of 183k V1/V2 items have a manifest row, and only 1% of their titles have a V3 twin | open |
 | SHR-02 | shrink | No shrink measure at all | all | Truck value, report card | **unknown** | Counts (SHR-01) and scrap reasons (ITM-06) | open |
+| TP-01 | thrift+ | A floor item with no Thrift+ reward state once the switch is on (no member price until the nightly run) | QA check (after launch) | Member prices, the scanner card | **use** reward 0 until the next run | The nightly `recompute_rewards` | railed (QA check) |
+| TP-02 | thrift+ | An active card whose person has no photo (the cashier can't check who is paying) | QA check | Member identity at the register | **flag** | Photo at signup | railed (QA check) |
+| TP-03 | thrift+ | A store-credit or banked balance below zero | QA check (should be 0) | Money owed to members | **flag**; investigate the ledger | Spending checks the balance; returns and voids reverse exact rows | railed (QA check) |
+| TP-04 | thrift+ | A month's cover filled past its amount | QA check (should be 0) | The cover | **flag** | The trip math fills only what is left | railed (QA check) |
 
 ---
 

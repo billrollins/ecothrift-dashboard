@@ -57,6 +57,20 @@ const itemDetail: ItemRewardDetail = {
 
 vi.mock('../../api/thriftplus.api', () => ({
   fetchRewardPreview: async () => preview,
+  fetchMemberMoney: async () => ({
+    banked: '3.00', credit: '0.00', entries: [],
+    cover: { month: '2026-10', amount: '10.00', covered: '10.00', remaining: '0.00', is_covered: true, resets_on: '2026-11-01' },
+  }),
+  adjustMemberMoney: async () => ({}),
+  fetchThriftOverview: async () => ({
+    days: 30,
+    members: { active: 42, revoked: 1, people: 50, verified_18: 40, cards_active: 45, cards_blank: 455, signups: [{ day: '2026-10-20', n: 30 }] },
+    sales: { member_sales: 120, member_revenue: '3400.00', guest_sales: 300, guest_revenue: '9100.00' },
+    rewards: { instant: '210.00', to_cover: '380.00', banked: '55.00', credit_from_returns: '12.00' },
+    owed: { banked: '55.00', credit: '12.00' },
+    returns: { count: 1, waiting: 1 },
+    scanner: { scans: 200, adds: 50, passes: 150, add_rate: 0.25, items_scanned: 180, price_feedback: 7 },
+  }),
   fetchItemReward: async () => itemDetail,
   findMembers: async () => [account],
   fetchMember: async () => account,
@@ -98,6 +112,7 @@ describe('Thrift+ member service', () => {
     expect(screen.getByText('18+ verified')).toBeInTheDocument();
     expect(screen.getAllByText('7123 4567 8903').length).toBeGreaterThan(0);
     expect(screen.getByText(/card issued · Ana Diaz/)).toBeInTheDocument();
+    expect(await screen.findByText(/Banked \$3\.00/)).toBeInTheDocument();
   });
 
   it('signs up a member; the 18+ box needs an ID check first', async () => {
@@ -125,5 +140,15 @@ describe('Thrift+ rewards (the dry run)', () => {
     await user.type(screen.getByLabelText('SKU'), 'ITM0000011');
     await user.click(screen.getByRole('button', { name: 'Look up' }));
     expect(await screen.findByText(/day 14 · Retagged/)).toBeInTheDocument();
+  });
+});
+
+describe('Thrift+ overview', () => {
+  it("shows the owner's numbers", async () => {
+    renderPage('/thrift-plus?tab=overview');
+    expect(await screen.findByText('Active memberships')).toBeInTheDocument();
+    expect(screen.getByText('42')).toBeInTheDocument();
+    expect(screen.getByText('$380.00')).toBeInTheDocument();
+    expect(screen.getByText('25%')).toBeInTheDocument();
   });
 });

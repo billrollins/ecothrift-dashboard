@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.109.5] -->
-<!-- Last reviewed: 2026-09-28 (2.109.5) -->
+<!-- Line 1 release: ## [2.110.0] -->
+<!-- Last reviewed: 2026-09-28 (2.110.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [Unreleased]
+
+## [2.110.0] - 2026-09-28
+
+User-facing theme: **Thrift+ at the register, signup, scanner and member money (all dark until launch), nightly data QA checks, and spot walks that no longer cap the Retail QA grade.**
+
+### Added
+
+- **Thrift+ at the register (thrift_plus_rewards Phase 3, dark).** Every Thrift+ step runs only when Thrift+ is live for that register: the switch is on, or the register's code is in `thrift_plus_test_registers` (empty at launch). With it off, the POS, the receipt and returns are unchanged.
+  - Scan a card (`TP` + 12 digits) to attach a member to the sale; the photo shows on screen. Member price is the tag minus the reward, and 18+ products are blocked for members under 18.
+  - The monthly cover ledger ($10, resets on the 1st), banked rewards (at 1.05x past the cover) and the store-credit ledger. Banked value never exceeds what was spent.
+  - Member and guest receipt lines (`receipt_data.thrift_plus`); the print server prints them after its 1.9.0 rebuild, and an older print server ignores them. Re-ring the last sale as a member.
+  - Member returns: 3-day window from the sale date, primary-function failures, final-sale categories (apparel and soft goods), a serial photo prompt for $100+, the reward reversed, and store credit at 95% of the pre-tax price.
+  - Settings: `thrift_plus_cover_amount`, `thrift_plus_bank_bonus`, `thrift_plus_return_credit_share`, `thrift_plus_test_registers`, `thrift_plus_nonreturnable_categories`.
+- **Thrift+ signup, scanner, portal and Dash (Phase 4, dark).** Signup at the register (ID check, photo, a blank card, applied to the open sale or a re-ring); the scanner app and member portal API (email or card sign-in; each item card shows the banked reward); Dash member money (cover, banked, credit, every ledger row, a manager adjustment with a reason), a Register tab (18+ products, returned items) and an Overview tab.
+- **Data QA checks (data_platform Phase 3).** `/admin/qa` (also linked from Requests) runs 15 checks across items, sales, shrink, purchase orders, auctions, products and Thrift+ (register IDs ITM-05/07/08/10, SAL-04, SHR-03, PO-01/11, AUC-07/08, PRD-01, TP-01 to TP-04), keeps each run with its counts, and shows what got worse. `python manage.py run_qa` runs them from the scheduler. A fix that writes data goes through the Requests center (`qa.sold_from_cart`).
+- **Morning brief:** the last QA run (what got worse, high-severity checks with rows, failed checks) is in the AI's input.
+- `scripts/dev/lean_test.py`: named test suites that print only a summary and new failures.
+
+### Changed
+
+- **Retail QA: spot walks never cap the week grade.** Before, zero walks capped the week at C and fewer than the goal capped it at B. Now the letter comes straight from the score, including past weeks frozen under the old cap. A week with no spot walks shows the owner (superuser only) a warning on the Command Center. The setting is now "Spot walks goal per week".
+
+### Migrations
+
+- `pos/0033_thrift_plus_fields`, `thriftplus/0005` to `0008` (register, seeded settings, returns, member app), `qa/0001` and `qa/0002` (seeded triage action). The release phase runs them.
 
 ## [2.109.5] - 2026-09-28
 

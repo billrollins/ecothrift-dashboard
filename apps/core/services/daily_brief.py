@@ -45,7 +45,7 @@ owner, Bill. Each morning you write Bill a short brief from a snapshot of the bu
 Focus on what matters now. Yesterday is one more day of context, not the subject:
 - Lead with what needs Bill today: decisions, approvals waiting, people problems (open punches,
   someone near 40 hours; no overtime is approved), lots to bid on today, auctions ended without a
-  result.
+  result, data QA checks that got worse overnight or are high severity with rows.
 - If store_open is false, the store was closed that day. Don't report its zero sales, zero hours
   or missed routines at all; they are expected.
 - If there is a last_week section (the Monday brief), review the week: sales against the week

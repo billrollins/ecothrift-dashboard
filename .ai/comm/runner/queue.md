@@ -4,14 +4,12 @@ Per [`.ai/protocols/runner.md`](../../protocols/runner.md). The coder adds rows;
 
 Each task file starts with a **Start here** header, so you can drop that one file into chat.
 
+**Lean runs (from 2026-09-28; the runner is a free model):**
+- A test task is one command: `python scripts/dev/lean_test.py suite <name>` (suites in the script; `ship` is the pre-ship gate).
+- Paste `workspace/lean/last-<name>.txt` as the result. Don't read other logs.
+
 | ID | Type | Status | Title | Task | Result |
 |---|---|---|---|---|---|
-| R-075 | — | hold | (slot: coder fills) | | |
-| R-076 | — | hold | (slot: coder fills) | | |
-| R-077 | — | hold | (slot: coder fills) | | |
-| R-078 | — | hold | (slot: coder fills) | | |
-| R-079 | — | hold | (slot: coder fills) | | |
-| R-080 | — | hold | (slot: coder fills) | | |
 | R-081 | — | hold | (slot: coder fills) | | |
 | R-082 | — | hold | (slot: coder fills) | | |
 | R-083 | — | hold | (slot: coder fills) | | |

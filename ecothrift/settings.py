@@ -119,6 +119,7 @@ INSTALLED_APPS = [
     'apps.routines',
     'apps.documents',
     'apps.thriftplus',
+    'apps.qa',
 ]
 
 MIDDLEWARE = [
@@ -246,6 +247,10 @@ REST_FRAMEWORK = {
         'auth_magic_link_email': '10/hour',
         'online_hold': '8/minute',
         'online_message': '20/minute',
+        # Thrift+ scanner app (apps/thriftplus/public_views.py)
+        'thriftplus_login': '20/minute',
+        'thriftplus_reset': '10/hour',
+        'thriftplus_scan': '240/minute',
     },
 }
 

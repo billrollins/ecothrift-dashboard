@@ -104,6 +104,17 @@ import {
   snackbarVariantForPosAddItemError,
 } from '../../utils/posAddItemError';
 import { buildReceiptData } from '../../utils/posReceipt';
+import ThriftPlusPanel from '../../components/pos/ThriftPlusPanel';
+import ThriftPlusReturnDialog from '../../components/pos/ThriftPlusReturnDialog';
+import ThriftPlusSignupDialog from '../../components/pos/ThriftPlusSignupDialog';
+import { useQuery } from '@tanstack/react-query';
+import {
+  attachThriftCard,
+  getThriftRegisterStatus,
+  reringThriftCard,
+  thriftErrorMessage,
+} from '../../api/thriftplusRegister.api';
+import { thriftCardCode } from '../../utils/thriftPlusCard';
 
 // ── Terminal state machine ─────────────────────────────────────────────────
 
@@ -184,6 +195,20 @@ function findAffectedCartLineId(prev: Cart | null, next: Cart): number | null {
 
 // ── Component ──────────────────────────────────────────────────────────────
 
+/** Thrift+ re-ring works for 30 minutes after a sale (apps/thriftplus/services/register.py). */
+const RERING_WINDOW_MS = 30 * 60 * 1000;
+
+/** What cash or card must cover: the total less Thrift+ credit and banked rewards (the total while dark). */
+function amountDue(cart: Cart | null): number {
+  const total = parseFloat(cart?.total ?? '0') || 0;
+  return moneyCents(Math.max(0, total - (parseFloat(cart?.thrift_credit ?? '0') || 0)));
+}
+
+/** The Thrift+ member rebates on this sale. */
+function thriftSavings(cart: Cart | null): number {
+  return moneyCents((cart?.lines ?? []).reduce((sum, ln) => sum + Number(ln.thrift_savings || 0), 0));
+}
+
 export default function TerminalPage() {
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
@@ -193,6 +218,13 @@ export default function TerminalPage() {
   const pendingScrollLineIdRef = useRef<number | null>(null);
   const lineElRefs = useRef<Map<number, HTMLElement>>(new Map());
   const { config, isRegister, registerId } = useDeviceConfig();
+  const thriftStatus = useQuery({
+    queryKey: ['thriftplus', 'register-status', config?.registerCode ?? ''],
+    queryFn: () => getThriftRegisterStatus(config?.registerCode ?? ''),
+    enabled: Boolean(config?.registerCode),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
   const printStatus = useLocalPrintStatus();
 
   const { data: registersData, isLoading: registersLoading } = useRegisters({ page_size: 200 });
@@ -212,6 +244,11 @@ export default function TerminalPage() {
   const [cardTenderOpen, setCardTenderOpen] = useState(false);
   const [cardPreview, setCardPreview] = useState<CardPreview | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
+  // Thrift+ re-ring: the last completed sale on this terminal, and whether the next card scan re-rings it.
+  const [lastSale, setLastSale] = useState<{ id: number; total: string; at: number; live: boolean } | null>(null);
+  const [reringArmed, setReringArmed] = useState(false);
+  const [thriftReturnOpen, setThriftReturnOpen] = useState(false);
+  const [thriftSignupOpen, setThriftSignupOpen] = useState(false);
   const [openDrawerDialog, setOpenDrawerDialog] = useState(false);
   const [openingCount, setOpeningCount] = useState<DenominationBreakdown>(EMPTY_BREAKDOWN);
   const [editingLineId, setEditingLineId] = useState<number | null>(null);
@@ -451,6 +488,33 @@ export default function TerminalPage() {
       }
     }
 
+    const cardCode = thriftCardCode(
+      input,
+      Boolean(activeCart.thrift_plus?.live || thriftStatus.data?.live || (reringArmed && lastSale?.live)),
+    );
+    if (cardCode) {
+      try {
+        if (reringArmed && lastSale) {
+          const rerung = await reringThriftCard(lastSale.id, cardCode);
+          setReringArmed(false);
+          setLastSale(null);
+          enqueueSnackbar(
+            `Re-rung for ${rerung.thrift_plus?.member?.name ?? 'the member'}: ${formatCurrency(rerung.thrift_plus?.totals.savings ?? 0)} store credit`,
+            { variant: 'success' },
+          );
+        } else {
+          const updated = await attachThriftCard(activeCart.id, cardCode);
+          commitCart(updated, { scroll: false });
+          enqueueSnackbar(`Thrift+ member: ${updated.thrift_plus?.member?.name ?? ''}`, { variant: 'info' });
+        }
+      } catch (err: unknown) {
+        enqueueSnackbar(thriftErrorMessage(err), { variant: 'error' });
+      }
+      setSkuInput('');
+      skuInputRef.current?.focus();
+      return;
+    }
+
     if (/^CUS-\d+$/i.test(input)) {
       try {
         const cust = await lookupCustomerMutation.mutateAsync(input.toUpperCase());
@@ -497,6 +561,9 @@ export default function TerminalPage() {
     lookupCustomerMutation,
     enqueueSnackbar,
     markRegisterActivity,
+    reringArmed,
+    lastSale,
+    thriftStatus.data?.live,
   ]);
 
   useEffect(() => {
@@ -1061,6 +1128,13 @@ export default function TerminalPage() {
         });
       }
 
+      setLastSale({
+        id: completedCart.id,
+        total: completedCart.total,
+        at: Date.now(),
+        live: Boolean(completedCart.thrift_plus?.live),
+      });
+      setReringArmed(false);
       setCart(null);
       cartRef.current = null;
       setCustomer(null);
@@ -1096,7 +1170,7 @@ export default function TerminalPage() {
       enqueueSnackbar('Add at least one item before completing the sale.', { variant: 'warning' });
       return;
     }
-    const total = parseFloat(cart.total) || 0;
+    const total = amountDue(cart);
     const cash = parseFloat(cashTendered) || 0;
     const cardDue =
       paymentMethod === 'split' ? moneyCents(Math.max(0, total - cash)) : total;
@@ -1149,7 +1223,7 @@ export default function TerminalPage() {
 
   const changeDue = (() => {
     if (paymentMethod !== 'cash' && paymentMethod !== 'split') return 0;
-    const total = parseFloat(cart?.total ?? '0') || 0;
+    const total = amountDue(cart);
     return Math.max(0, (parseFloat(cashTendered) || 0) - total);
   })();
 
@@ -1619,9 +1693,11 @@ export default function TerminalPage() {
                               secondary={
                                 line.line_kind === 'delivery' && line.meta
                                   ? `${line.quantity} × ${formatCurrency(line.unit_price)} · ${String(line.meta.phone ?? '')} · ${String(line.meta.address ?? '')}${line.meta.is_apt ? ` Apt ${String(line.meta.unit ?? '')}` : ''}`
-                                  : Number(line.sale_percent) > 0
-                                    ? `${line.quantity} × ${formatCurrency(line.unit_price)} → ${formatCurrency(line.line_total)}`
-                                    : `${line.quantity} × ${formatCurrency(line.unit_price)}`
+                                  : Number(line.thrift_savings) > 0
+                                    ? `${line.quantity} × ${formatCurrency(line.unit_price)} → ${formatCurrency(line.line_total)} (Thrift+ −${formatCurrency(line.thrift_savings ?? 0)})`
+                                    : Number(line.sale_percent) > 0
+                                      ? `${line.quantity} × ${formatCurrency(line.unit_price)} → ${formatCurrency(line.line_total)}`
+                                      : `${line.quantity} × ${formatCurrency(line.unit_price)}`
                               }
                               slotProps={{ primary: { component: 'div' } }}
                             />
@@ -1647,7 +1723,7 @@ export default function TerminalPage() {
                   <Stack spacing={0.5}>
                     {Number(
                       (cart?.lines ?? []).reduce(
-                        (sum, ln) => sum + Number(ln.sale_savings || 0),
+                        (sum, ln) => sum + Number(ln.sale_savings || 0) - Number(ln.thrift_savings || 0),
                         0,
                       ),
                     ) > 0 && (
@@ -1657,11 +1733,17 @@ export default function TerminalPage() {
                           −
                           {formatCurrency(
                             (cart?.lines ?? []).reduce(
-                              (sum, ln) => sum + Number(ln.sale_savings || 0),
+                              (sum, ln) => sum + Number(ln.sale_savings || 0) - Number(ln.thrift_savings || 0),
                               0,
                             ),
                           )}
                         </Typography>
+                      </Box>
+                    )}
+                    {thriftSavings(cart) > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography color="success.main">Thrift+ rewards</Typography>
+                        <Typography color="success.main">−{formatCurrency(thriftSavings(cart))}</Typography>
                       </Box>
                     )}
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -1680,6 +1762,18 @@ export default function TerminalPage() {
                         {formatCurrency(cart?.total ?? 0)}
                       </Typography>
                     </Box>
+                    {Number(cart?.thrift_credit ?? 0) > 0 && (
+                      <>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography color="success.main">Thrift+ credit</Typography>
+                          <Typography color="success.main">−{formatCurrency(cart?.thrift_credit ?? 0)}</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography fontWeight={700}>Due</Typography>
+                          <Typography fontWeight={700}>{formatCurrency(amountDue(cart))}</Typography>
+                        </Box>
+                      </>
+                    )}
                   </Stack>
                 </Box>
               </Paper>
@@ -1690,6 +1784,36 @@ export default function TerminalPage() {
               size={{ xs: 12, md: 5 }}
               sx={{ minHeight: 0, display: 'flex', flexDirection: 'column', height: { md: '100%' } }}
             >
+              {cart?.thrift_plus ? <ThriftPlusPanel cart={cart} onCart={(next) => commitCart(next, { scroll: false })} /> : null}
+              {!cart?.thrift_plus?.member && lastSale?.live && Date.now() - lastSale.at < RERING_WINDOW_MS ? (
+                <Paper variant="outlined" sx={{ p: 1.5, mb: 2, flexShrink: 0 }}>
+                  <Typography variant="body2">
+                    {reringArmed
+                      ? `Scan the new member's card to re-ring the last sale (${formatCurrency(lastSale.total)}).`
+                      : `Signed up after paying? Re-ring the last sale (${formatCurrency(lastSale.total)}) as a member.`}
+                  </Typography>
+                  <Button
+                    size="small"
+                    sx={{ mt: 0.5 }}
+                    onClick={() => {
+                      setReringArmed((v) => !v);
+                      skuInputRef.current?.focus();
+                    }}
+                  >
+                    {reringArmed ? 'Cancel re-ring' : 'Re-ring with a card'}
+                  </Button>
+                </Paper>
+              ) : null}
+              {cart?.thrift_plus?.live || thriftStatus.data?.live ? (
+                <Box sx={{ mb: 1, flexShrink: 0, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                  <Button size="small" variant="outlined" onClick={() => setThriftSignupOpen(true)}>
+                    Thrift+ sign up
+                  </Button>
+                  <Button size="small" variant="outlined" onClick={() => setThriftReturnOpen(true)}>
+                    Thrift+ member return
+                  </Button>
+                </Box>
+              ) : null}
               <Paper sx={{ p: 2, mb: 2, flexShrink: 0 }}>
                 <Typography variant="subtitle1" fontWeight={600} gutterBottom>
                   Add item
@@ -1699,7 +1823,7 @@ export default function TerminalPage() {
                     inputRef={skuInputRef}
                     fullWidth
                     size="small"
-                    placeholder="Scan or type SKU (or CUS-XXXX)"
+                    placeholder={cart?.thrift_plus?.live || thriftStatus.data?.live ? 'Scan a SKU, CUS-XXXX or a Thrift+ card' : 'Scan or type SKU (or CUS-XXXX)'}
                     value={skuInput}
                     onChange={(e) => setSkuInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleScanInput()}
@@ -1927,7 +2051,7 @@ export default function TerminalPage() {
                 )}
                 {paymentMethod === 'split' && (
                   <Typography variant="body2" fontWeight={600} sx={{ mb: 2 }}>
-                    Card: {formatCurrency(moneyCents(Math.max(0, (parseFloat(cart?.total ?? '0') || 0) - (parseFloat(cashTendered) || 0))))}
+                    Card: {formatCurrency(moneyCents(Math.max(0, amountDue(cart) - (parseFloat(cashTendered) || 0))))}
                   </Typography>
                 )}
 
@@ -2596,6 +2720,18 @@ export default function TerminalPage() {
         loading={voidCartMutation.isPending}
       />
 
+      <ThriftPlusReturnDialog open={thriftReturnOpen} onClose={() => setThriftReturnOpen(false)} />
+      <ThriftPlusSignupDialog
+        open={thriftSignupOpen}
+        onClose={() => {
+          setThriftSignupOpen(false);
+          skuInputRef.current?.focus();
+        }}
+        cart={cart}
+        lastSale={lastSale?.live && Date.now() - lastSale.at < RERING_WINDOW_MS ? lastSale : null}
+        onCart={(next) => commitCart(next, { scroll: false })}
+      />
+
       <CardTenderDialog
         open={cardTenderOpen}
         preview={cardPreview}
@@ -2605,7 +2741,7 @@ export default function TerminalPage() {
           setCardPreview(null);
         }}
         onConfirm={({ card_type, card_charged_total }) => {
-          const total = parseFloat(cart?.total ?? '0') || 0;
+          const total = amountDue(cart);
           const payload: Record<string, unknown> = { payment_method: paymentMethod };
           if (paymentMethod === 'cash' || paymentMethod === 'split') {
             payload.cash_tendered = cashTendered ? parseFloat(cashTendered) : 0;

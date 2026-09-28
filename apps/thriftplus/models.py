@@ -265,3 +265,195 @@ class RewardEvent(models.Model):
 
     def __str__(self):
         return f'{self.item_reward_id} {self.on} {self.reason}'
+
+
+# ── The register (thrift_plus_rewards Phase 3) ──────────────────────────────────
+
+
+class CartMember(models.Model):
+    """The member on a register sale: who showed the card, and the trip's bank-or-instant choice."""
+
+    CHOICE_INSTANT = 'instant'
+    CHOICE_BANK = 'bank'
+    CHOICE_CHOICES = [(CHOICE_INSTANT, 'Instant rebate'), (CHOICE_BANK, 'Bank my rewards')]
+
+    cart = models.OneToOneField('pos.Cart', on_delete=models.CASCADE, primary_key=True, related_name='thrift_member')
+    account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='carts')
+    person = models.ForeignKey(Person, on_delete=models.PROTECT, related_name='+')
+    card = models.ForeignKey(Card, on_delete=models.PROTECT, related_name='+')
+    reward_choice = models.CharField(max_length=10, choices=CHOICE_CHOICES, default=CHOICE_INSTANT)
+    credit_used = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text='Store credit spent on this sale.')
+    bank_used = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text='Banked rewards spent on this sale.')
+    rering = models.BooleanField(default=False, help_text='Attached after the sale was completed (re-ring as a member).')
+    attached_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    attached_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'cart {self.cart_id}: account {self.account_id}'
+
+
+class LedgerEntry(models.Model):
+    """
+    Money on a membership, as rows that are never edited: the monthly cover, banked rewards and
+    store credit. A balance is a sum. A sale writes one row per line and kind, so a return or a
+    void reverses exactly that line.
+    """
+
+    KIND_COVER = 'cover'
+    KIND_BANK = 'bank'
+    KIND_CREDIT = 'credit'
+    KIND_CHOICES = [(KIND_COVER, 'Monthly cover'), (KIND_BANK, 'Banked rewards'), (KIND_CREDIT, 'Store credit')]
+
+    account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='ledger')
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES)
+    amount = models.DecimalField(max_digits=10, decimal_places=2, help_text='Signed: + adds to the balance or cover, - takes away.')
+    month = models.CharField(max_length=7, blank=True, default='', help_text='YYYY-MM, for the cover.')
+    reason = models.CharField(max_length=20, help_text='sale, void, return, rering, spend, adjust.')
+    cart = models.ForeignKey('pos.Cart', on_delete=models.SET_NULL, null=True, blank=True, related_name='thrift_ledger')
+    cart_line_id = models.BigIntegerField(null=True, blank=True)
+    item = models.ForeignKey('inventory.Item', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    reverses = models.OneToOneField('self', on_delete=models.PROTECT, null=True, blank=True, related_name='reversed_by')
+    note = models.CharField(max_length=200, blank=True, default='')
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at', '-pk']
+        indexes = [models.Index(fields=['account', 'kind', 'month'])]
+
+    def __str__(self):
+        return f'{self.account_id} {self.kind} {self.amount} ({self.reason})'
+
+
+class RestrictedProduct(models.Model):
+    """A product that sells only to a verified 18+ card while Thrift+ is live at the register."""
+
+    product = models.OneToOneField('inventory.Product', on_delete=models.CASCADE, primary_key=True, related_name='thrift_restriction')
+    reason = models.CharField(max_length=120, blank=True, default='')
+    marked_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    marked_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'18+ product {self.product_id}'
+
+
+class SalePhoto(models.Model):
+    """The serial number and condition of a $100+ item, photographed when a member buys it."""
+
+    cart_line = models.ForeignKey('pos.CartLine', on_delete=models.CASCADE, related_name='thrift_photos')
+    photo = models.FileField(upload_to='thriftplus/sale_photos/')
+    taken_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    taken_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'photo for line {self.cart_line_id}'
+
+
+class ReturnRecord(models.Model):
+    """A member return: a primary-function failure, within the window, refunded as store credit."""
+
+    STATUS_OPEN = 'open'
+    STATUS_DONE = 'done'
+    STATUS_CHOICES = [(STATUS_OPEN, 'Waiting for staff'), (STATUS_DONE, 'Handled')]
+
+    account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='returns')
+    person = models.ForeignKey(Person, on_delete=models.PROTECT, related_name='+')
+    cart_line = models.OneToOneField('pos.CartLine', on_delete=models.PROTECT, related_name='thrift_return')
+    item = models.ForeignKey('inventory.Item', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    paid = models.DecimalField(max_digits=10, decimal_places=2, help_text='The store credit given: 95% of what was paid for the line, before tax.')
+    note = models.TextField(blank=True, default='', help_text="What doesn't work.")
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_OPEN, help_text='Staff decide what happens to the item.')
+    returned_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'return of line {self.cart_line_id} ({self.paid})'
+
+
+# ── The customer side: sign-in, the scanner app's cart and signals (Phase 4) ─────
+
+
+class MemberLogin(models.Model):
+    """A person's own sign-in for the scanner app and portal: email (and an optional username) and a
+    password (Django's hasher). It is not a Django user and can't reach anything staff-side."""
+
+    person = models.OneToOneField(Person, on_delete=models.CASCADE, related_name='login')
+    email = models.CharField(max_length=254, unique=True, help_text='Lower-cased.')
+    username = models.CharField(max_length=30, unique=True, null=True, blank=True, help_text='Lower-cased; optional.')
+    password = models.CharField(max_length=128)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.email
+
+
+class MemberSession(models.Model):
+    """A signed-in phone. Only a keyed hash of the token is kept; the phone holds the token in an
+    httpOnly cookie scoped to the public Thrift+ API."""
+
+    KIND_PASSWORD = 'password'
+    KIND_CARD = 'card'
+    KIND_CHOICES = [(KIND_PASSWORD, 'Email or username and password'), (KIND_CARD, 'Card and phone digits')]
+
+    token_hash = models.CharField(max_length=64, unique=True)
+    person = models.ForeignKey(Person, on_delete=models.CASCADE, related_name='sessions')
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    user_agent = models.CharField(max_length=200, blank=True, default='')
+
+    def __str__(self):
+        return f'session {self.pk} for person {self.person_id}'
+
+
+class MemberResetToken(models.Model):
+    """A password reset link, one use, short-lived. Only a keyed hash of the token is kept."""
+
+    login = models.ForeignKey(MemberLogin, on_delete=models.CASCADE, related_name='resets')
+    token_hash = models.CharField(max_length=64, unique=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class AppCart(models.Model):
+    """A member's cart in the scanner app: an estimate (the register is the source of truth). One per
+    account; the trip's bank-or-instant answer rides along to the register."""
+
+    account = models.OneToOneField(Account, on_delete=models.CASCADE, related_name='app_cart')
+    reward_choice = models.CharField(max_length=10, blank=True, default='', help_text="'bank', 'instant', or '' until asked.")
+    choice_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class AppCartLine(models.Model):
+    cart = models.ForeignKey(AppCart, on_delete=models.CASCADE, related_name='lines')
+    item = models.ForeignKey('inventory.Item', on_delete=models.CASCADE, related_name='+')
+    qty = models.PositiveSmallIntegerField(default=1)
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['added_at', 'pk']
+        constraints = [models.UniqueConstraint(fields=['cart', 'item'], name='thriftplus_appcartline_cart_item_uniq')]
+
+
+class ScanSignal(models.Model):
+    """What shoppers did with a tag in the scanner app: scan, add, pass, a price feel, or the trip's
+    choice. Kept per event; ``ItemReward`` holds the running counts the reward engine reads."""
+
+    KIND_CHOICES = [('scan', 'Scan'), ('add', 'Add'), ('pass', 'Pass'), ('feel', 'Price feel'), ('choice', 'Bank or instant')]
+
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES, db_index=True)
+    item = models.ForeignKey('inventory.Item', on_delete=models.CASCADE, null=True, blank=True, related_name='+')
+    account = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    detail = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']

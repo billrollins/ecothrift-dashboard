@@ -365,8 +365,8 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     kind: 'count',
   },
   'retail_qa.walk_floor': {
-    label: 'Walks to keep the week uncapped',
-    help: 'Fewer than this many spot walks caps the week at B. Zero walks caps at C.',
+    label: 'Spot walks goal per week',
+    help: 'Spot walks the owner aims for each week. Walks never cap the grade; a week with none shows the owner a warning.',
     tab: 'retail-qa',
     kind: 'count',
   },

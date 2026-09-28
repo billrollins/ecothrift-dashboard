@@ -169,6 +169,8 @@ export interface CartLine {
   sale_percent?: string;
   list_total?: string;
   sale_savings?: string;
+  /** Thrift+: the member rebate taken off this line (0 while Thrift+ is dark). */
+  thrift_savings?: string;
   created_at: string;
 }
 
@@ -230,6 +232,48 @@ export interface Cart {
   lines: CartLine[];
   receipt?: Receipt | null;
   savings?: CartSavings;
+  /** Thrift+ store credit and banked rewards spent on this sale. */
+  thrift_credit?: string;
+  /** Thrift+ member, rebates and totals; null while Thrift+ is dark at this register. */
+  thrift_plus?: ThriftPlusCartBlock | null;
+}
+
+/** Thrift+ at the register (thrift_plus_rewards Phase 3); from apps/thriftplus/services/register.py cart_block. */
+export interface ThriftPlusCartBlock {
+  live: boolean;
+  member: {
+    account_id: number;
+    person_id: number;
+    name: string;
+    role: 'primary' | 'secondary';
+    photo_url: string | null;
+    verified_18: boolean;
+    card_last4: string;
+    choice: 'instant' | 'bank';
+    rering: boolean;
+    banked: string;
+    credit: string;
+    cover: { month: string; amount: string; covered: string; remaining: string; is_covered: boolean; resets_on: string };
+  } | null;
+  credit_used?: string;
+  bank_used?: string;
+  guest_line: string;
+  totals: {
+    item_count: number;
+    price_total: string;
+    reward_total: string;
+    to_cover: string;
+    savings: string;
+    to_bank: string;
+    member_total: string;
+  };
+  lines: Record<string, { reward: string; to_cover: string; savings: string; to_bank: string }>;
+  restricted_line_ids: number[];
+  /** Member lines of $100+ still without a serial and condition photo. */
+  photo_line_ids?: number[];
+  /** The member's bank-or-instant answer in the scanner app (the register's alert). */
+  app_choice?: 'bank' | 'instant' | null;
+  amount_due: string;
 }
 
 export interface RevenueGoal {

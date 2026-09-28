@@ -227,6 +227,10 @@ class Cart(models.Model):
         blank=True,
         related_name='card_type_fixed_carts',
     )
+    thrift_credit = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('0'),
+        help_text='Thrift+ store credit and banked rewards spent on this sale; cash or card covers the rest of the total.',
+    )
     completed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -241,6 +245,9 @@ class Cart(models.Model):
 
     def recalculate(self):
         """Recalculate subtotal, tax, and total from lines."""
+        from apps.thriftplus.services.register import sync_if_live
+
+        sync_if_live(self)  # Thrift+ member prices; does nothing while Thrift+ is dark at this register
         # Query CartLine directly so we never sum a stale prefetch_related cache on `cart.lines`.
         lines = self.lines.model.objects.filter(cart_id=self.pk)
         self.subtotal = sum((line.line_total for line in lines), Decimal('0'))
@@ -284,6 +291,10 @@ class CartLine(models.Model):
     meta = models.JSONField(default=dict, blank=True)
     sale_label = models.CharField(max_length=20, blank=True, default='')
     sale_percent = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0'))
+    thrift_savings = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('0'),
+        help_text='Thrift+: the member rebate taken off this line today (set by thriftplus.services.register.sync).',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -311,6 +322,8 @@ class CartLine(models.Model):
         pct = self.sale_percent if self.sale_percent is not None else Decimal('0')
         factor = Decimal('1') - (pct / Decimal('100'))
         self.line_total = (self.unit_price * self.quantity * factor).quantize(Decimal('0.01'))
+        if self.thrift_savings:  # Thrift+ member rebate; 0 unless a live register priced a member
+            self.line_total = max(Decimal('0.00'), self.line_total - self.thrift_savings)
         super().save(*args, **kwargs)
 
 

@@ -10,7 +10,8 @@ week so far, plus what is waiting on the owner, into one JSON document:
 - inventory flow (processed, on the floor, aging, POs waiting);
 - buying (Today's plan, nags, wins, report cards);
 - approvals waiting in Requests;
-- Thrift+.
+- Thrift+;
+- data QA: checks that got worse overnight (data_platform Phase 3).
 
 The AI brief is written from this snapshot and only this, so every number it says can be
 traced here.
@@ -188,6 +189,25 @@ def _thrift_plus(day: date) -> dict:
     }
 
 
+def _qa() -> dict:
+    """The last nightly QA run: what got worse, what is high severity with rows, and the AI's headline."""
+    from apps.qa.models import QARun
+
+    run = QARun.objects.filter(finished_at__isnull=False).first()
+    if run is None:
+        return {'last_run': None}
+    findings = list(run.findings.all())
+    return {
+        'last_run': run.finished_at.isoformat(),
+        'worse': [{'check': f.check_id, 'title': f.title, 'count': f.count, 'was': f.previous}
+                  for f in findings if f.previous is not None and f.count > f.previous],
+        'high_with_rows': [{'check': f.check_id, 'title': f.title, 'count': f.count}
+                           for f in findings if f.severity == 'high' and f.count > 0],
+        'failed_checks': [f.check_id for f in findings if f.error],
+        'triage_headline': (run.triage or {}).get('headline', ''),
+    }
+
+
 def _store_open(day: date) -> bool | None:
     try:
         from apps.webstore.services.hours import is_open_day
@@ -233,6 +253,7 @@ def build_snapshot(day: date | None = None) -> dict[str, Any]:
         'buying': lambda: _buying(day),
         'requests': _requests,
         'thrift_plus': lambda: _thrift_plus(day),
+        'qa': _qa,
     }
     if day.weekday() == 6:  # the Monday brief looks back at the whole week
         sections['last_week'] = lambda: _last_week(day)

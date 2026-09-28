@@ -5,7 +5,7 @@ from django.test import TestCase
 from apps.routines.grading import (
     _doing_for_week,
     _owner_for_week,
-    _walk_cap,
+    _week_letter,
     combine_weighted,
     excluded_reasons,
 )
@@ -75,7 +75,7 @@ class DailyWeeklyFormulaTests(TestCase):
         self.assertEqual(result['weights']['do'], 29.41)
         self.assertNotIn('cross', result['weights'])
 
-    def test_weekly_zero_walks_is_62_5_37_5_and_caps_at_c(self):
+    def test_weekly_zero_walks_is_62_5_37_5_and_not_capped(self):
         result = combine_weighted([
             ('spot', 60, None),
             ('do', 25, 100.0),
@@ -84,8 +84,8 @@ class DailyWeeklyFormulaTests(TestCase):
         self.assertEqual(result['weights']['spot'], 0.0)
         self.assertEqual(result['weights']['do'], 62.5)
         self.assertEqual(result['weights']['cross'], 37.5)
-        _capped, letter = _walk_cap(result['score'], 0, retail_qa_settings())
-        self.assertEqual(letter, 'C')
+        _score, letter = _week_letter(result['score'], retail_qa_settings())
+        self.assertEqual(letter, 'A+')
 
     def test_weekly_spot_averages_walked_days_only(self):
         daily = [

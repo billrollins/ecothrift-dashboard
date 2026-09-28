@@ -260,7 +260,10 @@ export default function RequestsPage() {
 
   return (
     <Box>
-      <Typography variant="h5" component="h1" sx={{ fontWeight: 800 }}>Requests</Typography>
+      <Stack direction="row" alignItems="center">
+        <Typography variant="h5" component="h1" sx={{ fontWeight: 800, flex: 1 }}>Requests</Typography>
+        <Button href="/admin/qa">Data QA checks</Button>
+      </Stack>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
         Routine data work staged in production for your approval. Nothing changes until you approve, and applied requests can be undone.
       </Typography>

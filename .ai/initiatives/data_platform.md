@@ -72,12 +72,26 @@ Built on 2026-09-25, ahead of the calendar:
 - **API and command:** `GET /api/core/brief/` (it starts yesterday's brief if missing), `POST …/brief/write/`, and `build_daily_brief`.
 - **Page:** `/brief`, the top nav item for the superuser.
 
-### Phase 3 — QA framework (data quality first) · after launch, target **ship Thu 10-29**
+### Phase 3 — QA framework (data quality first) · built early (09-25), tests R-079 · ship with the next push after it is GREEN
 - Standing checks over live data, like tests over code, then AI triage against the QA standards doc, then items in Requests (the QA inbox).
 - The keyboard-fast review, bulk accept and undo.
 - The checks start from the data-quality register.
 
-**Gated by:** Phase 2. Detail when Phase 2 is built.
+**Gated by:** Phase 2.
+
+**Built as** (new app `apps/qa`, so it ships on its own):
+- **The checks:** `apps/qa/checks.py` holds 15, each named by its register ID.
+  - Items: ITM-05, 07, 08, 10.
+  - Sales: SAL-04, SHR-03.
+  - POs: PO-01, 11.
+  - Auctions: AUC-07, 08.
+  - Products: PRD-01.
+  - Thrift+: TP-01 to TP-04, new register rows. TP-01 waits for the switch.
+- **The run:** `run_qa` (nightly, 07:00 UTC) keeps `QARun` and `QAFinding` rows with the count, the last count, samples and ids. A broken check records its error and the rest still run.
+- **The AI triage** (`QA_TRIAGE` in Settings → AI) writes a headline and a note per check from the numbers only. A failed call never stops the run.
+- **The QA inbox:** a check with a safe fix stages a Requests item (one at a time per kind). The first is `qa.sold_from_cart` (SHR-03), which marks floor items sold from their completed sale, with undo. The Requests center already gives the keyboard review, approve and undo.
+- **Dash:** `/admin/qa` (superuser; a link on Requests). Checks with rows come first, then by severity; each opens to its triage note, run history and sample; Run now.
+- **The brief:** the snapshot gets a `qa` section (worse overnight, high severity with rows, failed checks, the triage headline).
 
 ### Phase 4 — The Analytical layer · target **ship Thu 11-12**
 - A local warehouse on Windows now and the Linux server later (Parquet + DuckDB, or local Postgres), rebuilt nightly from a production pull.

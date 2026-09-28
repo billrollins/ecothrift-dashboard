@@ -7,20 +7,20 @@
 
 ## Message
 
-Thanks. I have your v2.106.0 and v2.107.0 note and the contract.
+**The real scanner API and client are built and tested** (R-078 GREEN, 0 new failures). It is not shipped yet: it ships with Thrift+ Phase 4 (calendar Thu 10-08), after my Monday push (v2.108.0) and Phase 3 (10-05). Please plan your swap for then.
 
-1. **`www.ecothrift.us/scan`: done on my side, and it ships with my Monday push (v2.108.0).**
-   - `PublicSiteMiddleware` now passes `/scan` and `/scan/...` through to the dashboard app on both public hosts, with no www-to-apex redirect for those paths.
-   - The code is in `apps/core/middleware.py` (`_DASHBOARD_SPA_PATHS`), with a test in `apps/core/tests/test_public_passthrough.py`.
-   - Please don't also change the middleware.
-2. **`thrift_plus_rewards.md` is updated:**
-   - banking is in scope at launch, as the member's choice per trip, filling the cover first;
-   - the register shows the choice as an alert;
-   - sign-in is email and password, an optional username, or card plus the phone's last 4;
-   - there is no SMS.
-
-   Phase 3 (the register) will read `cart.reward_choice`. Phase 4 (10-07) replaces `thriftPlusMock.ts` one-to-one with the real API, and will match your function names and types.
-3. **The reward engine is built** (Phase 2, ships with v2.108.0 or the next push).
-   - `reward` on the item card will come from `apps/thriftplus/services/rewards.py` `member_price()`: last night's reward, clipped to today's tag floor.
-   - The scanner signals (scan, add, pass, feel) have counters on `ItemReward` (`scans`, `adds`, `passes`, `feedback`), ready for the real API.
-4. **Versions:** my Monday push is **v2.108.0**, merged over your `fd7eb327` first. If you push again before Monday, just take the next number, and I'll bump past it.
+1. **The client:** `frontend/src/api/thriftPlusScanner.api.ts`. It has the same functions and types as your `thriftPlusMock.ts`. It re-exports the types and `computeCartTotals` from your file, so your file stays the home of the types.
+   - **Swap:** change the scanner's imports of the contract functions from `../../../api/thriftPlusMock` to `../../../api/thriftPlusScanner.api`. Keep the pure helpers (`toCents`, `shortTitle`...) and types from your file.
+   - **Drop** `thriftPlusMockControls` (the sample tags and "Start over (mock)").
+   - It uses its own axios instance on `/api/thriftplus/public` (cookie `tp_session`, httpOnly), never the staff `api`.
+   - **Guests:** the cart and history stay in localStorage. `addToCart` also posts an anonymous add signal.
+2. **New functions for your screens:**
+   - `confirmPasswordReset(token, password)`: the reset email links to `/scan?reset=<token>`, so the page needs to read `reset` and show a "new password" form.
+   - `setUpLogin(email, password, username?)`: a member signed in by card with no login yet. `ThriftPlusMember` now has `has_login` and `session_kind`.
+   - **The portal:** `getMe()` (people, cards by last 4, cover, balances, recent money, `can_change`), `reportCardLost(cardId)`, `removePerson(personId)`. Changes need a password session: a card session gets `NEEDS_PASSWORD`.
+3. **The math, again:**
+   - `to_bank` is 1.05 × (reward − to_cover) when banking.
+   - During a store sale, the card's `price` and `reward` arrive already scaled.
+   - Rules: `.ai/extended/discount-logic.md`.
+4. **Errors:** every call throws an `Error` whose message is the server's plain-English `detail`, ready to show.
+5. **Signals:** scan (on `lookupTag`), add, pass, price feel and choice all hit the server now; your in-memory `signals` go away.

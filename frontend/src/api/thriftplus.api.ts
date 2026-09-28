@@ -124,3 +124,48 @@ export async function fetchRewardRuns(): Promise<RewardRunSummary[]> {
   const { data } = await api.get<RewardRunSummary[]>('/thriftplus/rewards/runs/');
   return data;
 }
+
+export interface MemberMoney {
+  banked: string;
+  credit: string;
+  cover: { month: string; amount: string; covered: string; remaining: string; is_covered: boolean; resets_on: string };
+  entries: {
+    id: number;
+    kind: 'cover' | 'bank' | 'credit';
+    amount: string;
+    month: string;
+    reason: string;
+    cart: number | null;
+    sku: string;
+    note: string;
+    actor: string;
+    created_at: string;
+  }[];
+}
+
+/** A membership's cover, banked rewards, store credit and ledger (Phase 4). */
+export async function fetchMemberMoney(accountId: number): Promise<MemberMoney> {
+  const { data } = await api.get<MemberMoney>(`/thriftplus/accounts/${accountId}/money/`);
+  return data;
+}
+
+export async function adjustMemberMoney(accountId: number, body: { kind: 'credit' | 'bank'; amount: string; note: string }): Promise<MemberMoney> {
+  const { data } = await api.post<MemberMoney>(`/thriftplus/accounts/${accountId}/adjust/`, body);
+  return data;
+}
+
+export interface ThriftPlusOverview {
+  days: number;
+  members: { active: number; revoked: number; people: number; verified_18: number; cards_active: number; cards_blank: number; signups: { day: string; n: number }[] };
+  sales: { member_sales: number; member_revenue: string; guest_sales: number; guest_revenue: string };
+  rewards: { instant: string; to_cover: string; banked: string; credit_from_returns: string };
+  owed: { banked: string; credit: string };
+  returns: { count: number; waiting: number };
+  scanner: { scans: number; adds: number; passes: number; add_rate: number | null; items_scanned: number; price_feedback: number };
+}
+
+/** The owner's Thrift+ numbers, last 30 days (Phase 4). */
+export async function fetchThriftOverview(): Promise<ThriftPlusOverview> {
+  const { data } = await api.get<ThriftPlusOverview>('/thriftplus/rewards/overview/');
+  return data;
+}

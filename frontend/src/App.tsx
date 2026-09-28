@@ -87,6 +87,7 @@ import WatchlistPage from './pages/buying/WatchlistPage';
 import WishListPage from './pages/buying/WishListPage';
 import ReportCardsPage from './pages/buying/ReportCardsPage';
 import RequestsPage from './pages/admin/RequestsPage';
+import QAPage from './pages/admin/QAPage';
 import ThriftPlusPage from './pages/thriftplus/ThriftPlusPage';
 import BriefPage from './pages/brief/BriefPage';
 import PartsCommandCenterPage from './pages/restoration/parts/PartsCommandCenterPage';
@@ -379,6 +380,14 @@ export default function App() {
           element={
             <SuperAdminRoute>
               <RequestsPage />
+            </SuperAdminRoute>
+          }
+        />
+        <Route
+          path="/admin/qa"
+          element={
+            <SuperAdminRoute>
+              <QAPage />
             </SuperAdminRoute>
           }
         />

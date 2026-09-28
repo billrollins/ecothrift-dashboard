@@ -43,7 +43,6 @@ from .settings import (
     WEIGHT_DO,
     WEIGHT_SPOT,
     WALK_FLOOR,
-    cap_letter_at,
     letter_for,
     open_hours_for,
     retail_qa_settings,
@@ -1256,16 +1255,28 @@ def _week_context(monday: date, cfg: dict | None = None, extra_days=None, *, pro
     }
 
 
-def _walk_cap(score: float | None, walks: int, cfg: dict) -> tuple[float | None, str | None]:
+def _week_letter(score: float | None, cfg: dict) -> tuple[float | None, str | None]:
+    """Letter straight from the score. Missing spot walks never cap it."""
     if score is None:
         return None, None
-    floor = int(cfg.get('walk_floor', WALK_FLOOR))
-    letter = letter_for(score, cfg)
-    if walks <= 0:
-        letter = cap_letter_at(letter, 'C', cfg)
-    elif walks < floor:
-        letter = cap_letter_at(letter, 'B', cfg)
-    return round(score, 1), letter
+    return round(score, 1), letter_for(score, cfg)
+
+
+def spot_walks_status(walks: int, cfg: dict) -> dict:
+    """Walk count for the superuser nag. `warning` is set only when none happened."""
+    goal = int(cfg.get('walk_floor', WALK_FLOOR))
+    return {
+        'done': walks,
+        'goal': goal,
+        'warning': 'No spot walks this week' if walks <= 0 else None,
+    }
+
+
+def _walked_days(daily: list[dict]) -> int:
+    return sum(
+        1 for row in daily
+        if _counts_toward_week(row) and (row.get('thirds') or {}).get('owner') is not None
+    )
 
 
 def _week_cross(daily: list[dict], *, due: date | None, today: date, project: bool) -> float | None:
@@ -1349,7 +1360,7 @@ def _assemble_week(ctx: dict, *, project: bool = False) -> dict:
     days = week_days(monday)
     daily = [grade_day(day, ctx, project=project and day > today) for day in days]
     doing = _doing_for_week(daily, today=today, project=project)
-    owner, walks = _owner_for_week(daily, today=today, project=project)
+    owner, _walks = _owner_for_week(daily, today=today, project=project)
     due = cross_check_day_for(monday)
     cross = _week_cross(daily, due=due, today=today, project=project)
     spot_w, do_w, cross_w = _weights(cfg)
@@ -1358,7 +1369,7 @@ def _assemble_week(ctx: dict, *, project: bool = False) -> dict:
         ('do', do_w, doing),
         ('cross', cross_w, cross),
     ])
-    score, letter = _walk_cap(blended['score'], walks, cfg)
+    score, letter = _week_letter(blended['score'], cfg)
     open_days = week_days(monday)
     activity = _cashier_activity(open_days)
     return {
@@ -1370,6 +1381,7 @@ def _assemble_week(ctx: dict, *, project: bool = False) -> dict:
         'excluded': blended['excluded'],
         'excluded_reasons': excluded_reasons(blended['excluded'], due=due, period='week'),
         'thirds': {'doing': doing, 'cross': cross, 'owner': owner},
+        'spot_walks': spot_walks_status(_walked_days(daily), cfg),
         'daily_average': doing,
         'cross_check_average': cross,
         'days': daily,
@@ -1396,6 +1408,9 @@ def week_grade(monday: date, cfg: dict | None = None) -> dict:
     if monday < current and ctx['snapshot'] and ctx['snapshot'].payload:
         payload = dict(ctx['snapshot'].payload)
         payload.setdefault('settings', ctx['snapshot'].settings or ctx['cfg'])
+        # Weeks frozen before the walk cap was removed still carry a capped letter.
+        payload['score'], payload['letter'] = _week_letter(payload.get('score'), ctx['cfg'])
+        payload['spot_walks'] = spot_walks_status(_walked_days(payload.get('days') or []), ctx['cfg'])
         return payload
     live = _assemble_week(ctx)
     projected = _assemble_week(ctx, project=True)

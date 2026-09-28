@@ -185,7 +185,7 @@ Acceptance:
 - [ ] The full pre-ship run is GREEN (R-074).
 - [ ] After the ship, the owner adds the Scheduler jobs `assign_reward_families --limit 200` (05:30 UTC) and `recompute_rewards` (06:00 UTC), and reviews the dry run on 10-01.
 
-### Phase 3 — The register · **ship Mon 10-05 (v2.109.0 or later)** · building early (from 09-25)
+### Phase 3 — The register · **ship Mon 10-05 (v2.109.0 or later)** · built early (09-25), tests R-076
 The POS handles members:
 - card scan and attach, the photo, member and guest price, and the 18+ block;
 - the cover ledger, banked rewards and the store-credit ledger;
@@ -224,18 +224,83 @@ The POS handles members:
   - the item's cover and bank entries are reversed;
   - a serial and condition photo is kept for $100+.
 
-**Decisions made in the build (owner to confirm on 10-05):** sales don't stack with rewards; re-ring pays store credit; store credit and banked rewards reduce the amount due but not the taxable subtotal (CPA question stays open).
+**Built as:**
+- **Thrift+ side:**
+  - models `CartMember`, `LedgerEntry` (with `reverses`), `RestrictedProduct`, `SalePhoto` and `ReturnRecord`, in migrations `thriftplus.0005` to `0007`;
+  - `0006` seeds the cover ($10), the test registers (none) and the final-sale categories and words;
+  - services `trip.py` (the split, mirroring the scanner mock), `ledger.py`, `register.py` (live gate, sync, attach, 18+, complete and void hooks, credit, re-ring) and `returns.py`.
+- **API** under `/api/thriftplus/`:
+  - `register/`: `status`, `attach`, `detach`, `choice`, `balance`, `rering`;
+  - `returns/`: `lookup`, create, `photo`, list, `done`;
+  - `restricted/`.
+- **POS:**
+  - `CartLine.thrift_savings` and `Cart.thrift_credit` (`pos.0033`);
+  - `Cart.recalculate` calls `sync_if_live`;
+  - `add-item` and `add-resale-copy` check 18+;
+  - `complete` is one transaction, charges the amount due, and writes the ledger;
+  - `void` reverses it;
+  - the savings summary has a "Thrift+ rewards" bucket;
+  - `CartSerializer.thrift_plus` (left out of list pages).
+- **Terminal:**
+  - a card scan attaches the member;
+  - `ThriftPlusPanel` shows the photo, 18+, the cover, bank or rebate, credit, and the $100+ photo prompts;
+  - the totals show Thrift+ rewards, credit and amount due;
+  - payment charges the amount due;
+  - re-ring after a live sale, and the member return dialog.
+- **Dash:** the Thrift+ page gets a Register tab, with 18+ products and returned items.
+- **Receipts:** `posReceipt.ts` sends `thrift_plus`, and the print server prints it. The print server is unreleased 1.9.0 and needs a rebuild and redeploy before launch.
 
-### Phase 4 — Signup, scanner, portal, Dash · **ship Thu 10-08 (v2.109.0)**
+**Decisions (owner, 2026-09-25, unless marked open):**
+- **Discounts use the true price** (tag − reward). A percent sale scales the tag and the reward alike. Banking is 1.05×. BOGO ranks by true price.
+  - Full rules and the arbitrage checks: [`extended/discount-logic.md`](../extended/discount-logic.md).
+  - BOGO (confirmed): the free item is the one with the smaller true price. Unbanked pays the true price; banked pays the tag and banks 1.05×.
+- **Return credit** is 95% of the pre-tax price paid (`thrift_plus_return_credit_share`), as store credit. The 5% is the cost of not testing in the store. The returns poster must say so.
+- **The return window:** day 3 counts from the sale date, so a Monday sale can come back through Thursday.
+- **The $100+ photo** is a prompt, not a block ("for now").
+- **Open:** re-ring pays the member rebate as store credit rather than cash back. The owner asked what this means; it is explained, and his answer is pending.
+- **Open:** store credit and banked rewards reduce the amount due, but not the taxable subtotal. The CPA question stays open.
+- The returned item keeps its inventory status; staff decide in the Register tab.
+- A return takes back the whole line.
+
+### Phase 4 — Signup, scanner, portal, Dash · **ship Thu 10-08 (v2.109.0 or later)** · built early (09-25), tests R-078
 - Signup at the register.
 - Staff service.
 - The real scanner app, built from the `thrift_scanner` thread's mock and matching its types.
 - The customer portal: self-service for people, card and cover.
 - Thrift+ in Dash: rewards and cover, scans-to-adds, and member stats.
 
-**Gated by:** Phase 3. Detail when Phase 3 is built.
+**Gated by:** Phase 3.
 
-### Phase 5 — Launch readiness · **ship Mon 10-12 (v2.110.0), fixes through Wed 10-14; launch Tue 10-20**
+**Built as:**
+- **Signup at the register:** `ThriftPlusSignupDialog` in the terminal ("Thrift+ sign up"), with the ID check, photo and a blank card. The card goes on the open sale, or re-rings the last one. The fields are shared with Dash (`components/thriftplus/PersonFields.tsx`).
+- **Staff service:**
+  - member money in Dash (`MemberMoney`): the cover, banked, credit, every ledger row, and a manager adjustment with a reason (`accounts/{id}/money/`, `adjust/`);
+  - the Register tab (18+ products, returned items);
+  - the Overview tab (`rewards/overview/`).
+- **Customer sign-in** (`services/member_auth.py`), following the auth map (2026-09-25):
+  - members are not Django users;
+  - a hashed session token in an httpOnly cookie on `/api/thriftplus/public/`, never the staff JWT;
+  - every request re-checks the session, person and account (revoking cuts access at once);
+  - email or username with a password; the card plus the phone's last 4 (5 tries per card, then a 15-minute lock);
+  - a card session can set up a login only if none exists;
+  - reset by a one-use emailed link (1 hour, the same answer either way, signs out every phone);
+  - throttles `thriftplus_login`, `thriftplus_reset` and `thriftplus_scan`.
+- **The scanner API** (`public_views.py`, `services/scanner.py`):
+  - the item card (short title cut at a word, category key, member reward scaled by a store sale, 18+, returnable, available);
+  - the member cart (`AppCart`) with the register's math;
+  - signals (`ScanSignal`, counted on `ItemReward`) and history.
+  - Guests stay on the phone.
+  - **The register alert:** scanning the card picks up the app's bank-or-instant answer, and the panel shows it. A completed sale clears those items from the phone cart.
+- **The portal API:** `me/`, `me/card-lost/` and `me/remove-person/`. Changes need a password session.
+- **The client:** `frontend/src/api/thriftPlusScanner.api.ts` has the same functions and types as `thriftPlusMock.ts`, plus `confirmPasswordReset`, `setUpLogin`, `getMe`, `reportCardLost` and `removePerson`.
+  - **The swap** (the scanner's imports, and dropping `thriftPlusMockControls`) is the `thrift_scanner` thread's, and so are the portal screens. I have told them.
+- **Migrations:** `thriftplus.0008` (MemberLogin, MemberSession, MemberResetToken, AppCart, AppCartLine, ScanSignal).
+
+**Open:**
+- The phone screens for the reset link (`/scan?reset=`), login setup and the portal (the `thrift_scanner` thread).
+- AI short titles: the card uses `ProductProfile.short_name`, else the title, cut at a word.
+
+### Phase 5 — Launch readiness · drafts started (09-25): [`thrift_plus_launch_kit.md`](./thrift_plus_launch_kit.md) · **ship Mon 10-12 (v2.110.0), fixes through Wed 10-14; launch Tue 10-20**
 - Signage, receipt copy, the staff training guide and marketing copy (Claude drafts, the owner approves).
 - An in-store dry run with the switch on for staff.
 - The launch checklist.

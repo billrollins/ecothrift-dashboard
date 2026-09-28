@@ -4,8 +4,6 @@ Failures that exist on main independent of current work. The runner **appends** 
 
 ## py
 
-- `apps/pos/tests/test_delivery_days_api.py::DeliveryDaysAPITests::test_create_delivery_from_past_cart_is_audited` (seeded 2026-09-23 @ `ecc60707`)
-- `apps/pos/tests/test_delivery_run.py::DeliveryRunAPITests::test_line_items_and_optional_scan_verify` (seeded 2026-09-23 @ `ecc60707`)
 - `apps/inventory/tests/test_ai_cleanup_batch.py::AiCleanupBatchTests::test_ai_failure_returns_retryable_502` (confirmed T-001 @ `79739a63`)
 - `apps/inventory/tests/test_ai_cleanup_batch.py::AiCleanupBatchTests::test_batch_merges_ai_fields_and_snapshots_final` (confirmed T-001 @ `79739a63`)
 - `apps/inventory/tests/test_ai_cleanup_batch.py::AiCleanupBatchTests::test_batch_never_touches_manifest_or_creates_products_items` (confirmed T-001 @ `79739a63`)
@@ -161,3 +159,5 @@ _none_
 
 - `webstore: Rename index webstore_an_is_acti_4b2c2c_idx on announcement to webstore_an_is_acti_a90e0e_idx` (pre-dates both; no RenameIndex migration by decision)
 - `webstore: Rename index webstore_st_is_acti_8c1a1a_idx on storehoursoverride to webstore_st_is_acti_8afd4f_idx` (same)
+
+- `src/pages/thriftplus/scanner/useQrCamera.ts`: TS2307 barcode-detector/ponyfill (local main tree only: run `npm install` in frontend to clear; Heroku installs it)

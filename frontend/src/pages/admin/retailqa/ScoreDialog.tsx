@@ -7,7 +7,7 @@ import { CHECKLISTS_LABEL, formatWeight, letterClass, scoreText } from './comman
 import { BoardDialog } from './SummaryDialogs';
 
 const RULES = {
-  spot: 'Average of walks on days that had one. Days without a walk aren\'t counted. Fewer than 3 walks caps the week at B.',
+  spot: 'Average of walks on days that had one. Days without a walk aren\'t counted. Walks never cap the grade.',
   do: "Routines done over routines expected. Call-ins don't reduce expected.",
   cross: 'Weekly only. Sections cross-checked over sections due, counted from the due date.',
 };

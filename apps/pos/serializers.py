@@ -153,14 +153,14 @@ class CartLineSerializer(serializers.ModelSerializer):
             'quantity', 'unit_price', 'line_total',
             'resale_source_sku', 'resale_source_item_id',
             'line_kind', 'meta',
-            'sale_label', 'sale_percent', 'list_total', 'sale_savings',
+            'sale_label', 'sale_percent', 'list_total', 'sale_savings', 'thrift_savings',
             'created_at',
         ]
         read_only_fields = [
             'id', 'line_total', 'created_at',
             'resale_source_sku', 'resale_source_item_id',
             'line_kind', 'meta',
-            'sale_label', 'sale_percent', 'list_total', 'sale_savings',
+            'sale_label', 'sale_percent', 'list_total', 'sale_savings', 'thrift_savings',
         ]
 
 
@@ -178,6 +178,7 @@ class CartSerializer(serializers.ModelSerializer):
     lines = CartLineSerializer(many=True, read_only=True)
     receipt = ReceiptSerializer(read_only=True)
     savings = serializers.SerializerMethodField()
+    thrift_plus = serializers.SerializerMethodField()
 
     class Meta:
         model = Cart
@@ -190,7 +191,7 @@ class CartSerializer(serializers.ModelSerializer):
             'card_type_fixed_at', 'card_type_fixed_by', 'card_type_fixed_by_name',
             'card_type_fix_deadline',
             'completed_at', 'created_at',
-            'lines', 'receipt', 'savings',
+            'lines', 'receipt', 'savings', 'thrift_credit', 'thrift_plus',
         ]
         read_only_fields = [
             'id', 'cashier', 'subtotal', 'tax_amount', 'total', 'tax_rate', 'created_at',
@@ -198,8 +199,17 @@ class CartSerializer(serializers.ModelSerializer):
             'card_charged_total',
             'card_type_fixed_at', 'card_type_fixed_by', 'card_type_fixed_by_name',
             'card_type_fix_deadline',
-            'savings',
+            'savings', 'thrift_credit', 'thrift_plus',
         ]
+
+    def get_thrift_plus(self, obj):
+        """The Thrift+ member, rebates and totals (None while Thrift+ is dark at this register).
+        Left out of list pages, which would otherwise pay for it once per sale."""
+        view = self.context.get('view')
+        if view is not None and getattr(view, 'action', None) == 'list':
+            return None
+        from apps.thriftplus.services.register import cart_block
+        return cart_block(obj)
 
     def get_savings(self, obj):
         from apps.pos.services.sale_mode import cart_savings

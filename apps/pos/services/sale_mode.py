@@ -190,6 +190,9 @@ def sale_display_label(line) -> str:
     return f'Sale {pct_text}%'
 
 
+THRIFT_PLUS_SAVINGS_LABEL = 'Thrift+ rewards'
+
+
 def cart_savings(cart) -> dict:
     """Group every dollar the customer did not pay, by source, in first-seen order.
 
@@ -197,19 +200,20 @@ def cart_savings(cart) -> dict:
     ('Other' or blank becomes 'Discount'). Amounts are positive Decimals as str.
     """
     buckets: dict[str, Decimal] = {}
+
+    def add(label: str, amount: Decimal) -> None:
+        if amount > 0:
+            buckets[label] = buckets.get(label, Decimal('0')) + amount
+
     for line in cart.lines.all():
+        thrift = line.thrift_savings or Decimal('0')  # Thrift+ member rebate, its own bucket
         if line.line_kind == CartLine.LINE_KIND_DISCOUNT:
             reason = str((line.meta or {}).get('reason') or '').strip()
-            label = 'Discount' if reason in ('', 'Other') else reason[:32]
-            amount = -line.line_total
-        elif line.sale_label and line.sale_savings > 0:
-            label = sale_display_label(line)
-            amount = line.sale_savings
-        else:
+            add('Discount' if reason in ('', 'Other') else reason[:32], -line.line_total)
             continue
-        if amount <= 0:
-            continue
-        buckets[label] = buckets.get(label, Decimal('0')) + amount
+        if line.sale_label:
+            add(sale_display_label(line), line.sale_savings - thrift)
+        add(THRIFT_PLUS_SAVINGS_LABEL, thrift)
     lines = [{'label': k, 'amount': str(v.quantize(Decimal('0.01')))} for k, v in buckets.items()]
     total = sum((v for v in buckets.values()), Decimal('0')).quantize(Decimal('0.01'))
     return {'total': str(total), 'lines': lines}

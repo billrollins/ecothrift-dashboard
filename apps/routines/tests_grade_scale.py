@@ -4,7 +4,7 @@ from django.test import TestCase
 
 from apps.routines.command_center import week_tiles
 from apps.routines.grading import (
-    _walk_cap, day_expected, day_is_graded, expected_parts_live, week_grade,
+    _week_letter, day_expected, day_is_graded, expected_parts_live, week_grade,
 )
 from apps.routines.settings import cap_letter_at, letter_for, letter_meets, retail_qa_settings
 
@@ -34,11 +34,33 @@ class GradeScaleTests(TestCase):
         self.assertTrue(letter_meets('B+', 'B'))
         self.assertTrue(letter_meets('A-', 'B+'))
 
-    def test_walk_cap_maps_a_minus_to_b(self):
+    def test_few_walks_no_longer_cap_the_week(self):
         cfg = retail_qa_settings()
         self.assertEqual(cap_letter_at('A-', 'B', cfg), 'B')
-        _score, letter = _walk_cap(90.0, 2, cfg)
-        self.assertEqual(letter, 'B')
+        _score, letter = _week_letter(90.0, cfg)
+        self.assertEqual(letter, letter_for(90.0, cfg))
+        self.assertNotEqual(letter, 'B')
+
+    def test_spot_walks_status_warns_only_at_zero(self):
+        from apps.routines.grading import spot_walks_status
+        cfg = retail_qa_settings()
+        self.assertEqual(spot_walks_status(0, cfg)['warning'], 'No spot walks this week')
+        self.assertIsNone(spot_walks_status(1, cfg)['warning'])
+        self.assertEqual(spot_walks_status(2, cfg)['goal'], int(cfg.get('walk_floor', 3)))
+
+    def test_past_snapshot_with_capped_letter_reads_uncapped(self):
+        from apps.routines.models import WeekScoreSnapshot
+        monday = date(2026, 9, 7)
+        WeekScoreSnapshot.objects.create(
+            week_monday=monday,
+            score=96.9,
+            letter='C',
+            settings=retail_qa_settings(),
+            payload={'score': 96.9, 'letter': 'C', 'days': [], 'thirds': {}},
+        )
+        week = week_grade(monday)
+        self.assertEqual(week['letter'], letter_for(96.9, retail_qa_settings()))
+        self.assertEqual(week['spot_walks']['warning'], 'No spot walks this week')
 
     def test_week_snapshot_stores_a_plus(self):
         from apps.routines.grading import _store_week_snapshot

@@ -5,6 +5,20 @@ Ship: `.ai/protocols/ship-print-server.md`. Script: `python printserver/distribu
 
 ---
 
+## [Unreleased] (1.9.0, before the Thrift+ launch)
+
+### Added
+- **Thrift+ block:** `receipt_data.thrift_plus` prints after payment on ESC/POS, GDI text, and PNG. A member gets:
+  - each rewarded line's tag and member price;
+  - the rewards, the part toward the monthly cover, and the rebate or the banked amount;
+  - any credit spent;
+  - the cover so far, and the banked and store-credit balances;
+  - the member returns line.
+
+  A guest gets the "You lost $X" or "would have earned $X" line. Without `thrift_plus` nothing changes.
+
+---
+
 ## [1.8.0] — 2026-09-09
 
 ### Added

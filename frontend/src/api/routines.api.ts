@@ -726,6 +726,8 @@ export interface QaWeek {
   weights?: GradeWeights;
   excluded?: string[];
   excluded_reasons?: Record<string, string>;
+  /** Walks never cap the grade. `warning` is set when the week has none. */
+  spot_walks?: { done: number; goal: number; warning: string | null };
   projected?: GradeThirds & {
     score: number | null;
     letter: GradeLetter | null;

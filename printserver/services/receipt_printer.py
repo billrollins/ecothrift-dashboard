@@ -161,6 +161,62 @@ def _card_payment_rows(data: dict[str, Any]) -> list[tuple[str, str | None, bool
     return rows
 
 
+def _thrift_plus_rows(data: dict[str, Any]) -> list[tuple[str, str | None, bool]]:
+    """Thrift+ lines after payment (dashboard Phase 3): (label, amount or None, bold).
+
+    Member receipts show:
+    - each rewarded line's tag and member price;
+    - the rewards, and the part toward this month's cover;
+    - the rebate or the banked amount;
+    - credit spent, the cover so far, and the balances.
+
+    A guest receipt shows what a card would have earned. Old dashboards send no ``thrift_plus``, so
+    this is empty.
+    """
+    tp = data.get("thrift_plus")
+    if not isinstance(tp, dict):
+        return []
+    if tp.get("guest_line"):
+        return [(str(tp["guest_line"]), None, True), ("Ask for a free Thrift+ card.", None, False)]
+    member = tp.get("member")
+    if not member:
+        return []
+
+    def money(key: str) -> float:
+        return _as_money(tp.get(key)) or 0.0
+
+    rows: list[tuple[str, str | None, bool]] = [
+        (f"THRIFT+ MEMBER {member} (card ...{tp.get('card_last4', '')})", None, True),
+    ]
+    for ln in tp.get("lines") or []:
+        name = str(ln.get("name", ""))[:18]
+        tag = _as_money(ln.get("tag_price")) or 0.0
+        paid = _as_money(ln.get("member_price")) or 0.0
+        rows.append((f" {name} tag ${tag:.2f}", f"${paid:.2f}", False))
+    rows.append(("Rewards this trip", f"${money('reward_total'):.2f}", True))
+    if money("to_cover") > 0:
+        rows.append(("  Toward this month's cover", f"${money('to_cover'):.2f}", False))
+    if money("savings") > 0:
+        rows.append(("  Off your price today", f"${money('savings'):.2f}", False))
+    if money("to_bank") > 0:
+        rows.append(("  Banked for later", f"${money('to_bank'):.2f}", False))
+    if money("credit_used") > 0:
+        rows.append(("Thrift+ store credit used", f"${money('credit_used'):.2f}", False))
+    if money("bank_used") > 0:
+        rows.append(("Thrift+ banked rewards used", f"${money('bank_used'):.2f}", False))
+    rows.append((f"Cover {tp.get('cover_month', '')}: ${money('cover_covered'):.2f} of ${money('cover_amount'):.2f}", None, False))
+    rows.append(("Banked balance", f"${money('banked'):.2f}", False))
+    rows.append(("Store credit balance", f"${money('credit'):.2f}", False))
+    if tp.get("rering"):
+        rows.append(("Re-rung as a member: your rebate is store credit.", None, False))
+    rows.append(("Members: items that don't work can come back within 3 days for store credit.", None, False))
+    return rows
+
+
+def _payment_rows(data: dict[str, Any]) -> list[tuple[str, str | None, bool]]:
+    return _card_payment_rows(data) + _thrift_plus_rows(data)
+
+
 # cp437 box drawing — a framed coupon reads as a tear-off, not more fine print.
 _TEAR_LINE = ("- " * (W // 2)).rstrip()
 _BOX_INNER = W - 2
@@ -310,7 +366,7 @@ def format_receipt(data: dict[str, Any]) -> bytes:
         buf += _lr("Tendered", f"${data['amount_tendered']:.2f}")
     if data.get("change") is not None:
         buf += _lr("Change", f"${data['change']:.2f}")
-    for label, amount, bold in _card_payment_rows(data):
+    for label, amount, bold in _payment_rows(data):
         if amount is None:
             for wrapped in _wrap_chars(label):
                 buf += _line(wrapped)
@@ -484,7 +540,7 @@ def format_receipt_text(data: dict[str, Any]) -> str:
         lines.append(_txt_lr("Tendered", f"${data['amount_tendered']:.2f}"))
     if data.get("change") is not None:
         lines.append(_txt_lr("Change", f"${data['change']:.2f}"))
-    for label, amount, _bold in _card_payment_rows(data):
+    for label, amount, _bold in _payment_rows(data):
         if amount is None:
             lines.extend(_wrap_chars(label))
         else:
@@ -943,7 +999,7 @@ def render_receipt_to_image(
         _lr_money("Tendered", f"${float(data['amount_tendered']):.2f}", f_sub, f_money)
     if data.get("change") is not None:
         _lr_money("Change", f"${float(data['change']):.2f}", f_sub, f_money)
-    for label, amount, bold in _card_payment_rows(data):
+    for label, amount, bold in _payment_rows(data):
         if amount is None:
             for ln in _wrap_text(label, f_small, draw, inner):
                 draw.text((x0, y), ln, font=f_small, fill=t["muted"])

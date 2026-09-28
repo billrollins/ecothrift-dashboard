@@ -122,3 +122,48 @@ describe('buildReceiptData', () => {
     expect(data.card_surcharge_percent).toBe(3);
   });
 });
+
+describe('Thrift+ on the receipt', () => {
+  const totals = {
+    item_count: 1, price_total: '90.00', reward_total: '13.00', to_cover: '10.00', savings: '3.00', to_bank: '0.00', member_total: '87.00',
+  };
+
+  it('is left out while Thrift+ is dark', () => {
+    expect(buildReceiptData(cart({ thrift_plus: null })).thrift_plus).toBeUndefined();
+  });
+
+  it('gives a guest the would-have-earned line', () => {
+    const data = buildReceiptData(cart({
+      thrift_plus: {
+        live: true, member: null, guest_line: 'No Thrift+ card today. You lost $3.00', totals, lines: {},
+        restricted_line_ids: [], amount_due: '96.30',
+      },
+    }));
+    expect(data.thrift_plus).toEqual({ guest_line: 'No Thrift+ card today. You lost $3.00' });
+  });
+
+  it('gives a member the tag and member price, the cover and balances', () => {
+    const data = buildReceiptData(cart({
+      lines: [line({ id: 7, description: 'Brass lamp', quantity: 1, unit_price: '90.00', line_total: '87.00', thrift_savings: '3.00' })],
+      thrift_plus: {
+        live: true,
+        member: {
+          account_id: 1, person_id: 1, name: 'Ana', role: 'primary', photo_url: null, verified_18: true, card_last4: '0008',
+          choice: 'instant', rering: false, banked: '0.00', credit: '0.00',
+          cover: { month: '2026-10', amount: '10.00', covered: '10.00', remaining: '0.00', is_covered: true, resets_on: '2026-11-01' },
+        },
+        credit_used: '0.00', bank_used: '0.00', guest_line: '', totals,
+        lines: { '7': { reward: '13.00', to_cover: '10.00', savings: '3.00', to_bank: '0.00' } },
+        restricted_line_ids: [], amount_due: '93.09',
+      },
+    }));
+    expect(data.thrift_plus).toMatchObject({
+      member: 'Ana',
+      lines: [{ name: 'Brass lamp', tag_price: 90, member_price: 87, reward: 13 }],
+      to_cover: 10,
+      savings: 3,
+      cover_covered: 10,
+      cover_amount: 10,
+    });
+  });
+});

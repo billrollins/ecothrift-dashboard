@@ -612,6 +612,16 @@ class CartViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
+        # Thrift+ (live registers only): an 18+ item needs a verified 18+ card on the sale.
+        from apps.thriftplus.services.register import RegisterError, check_item
+        try:
+            check_item(cart, item)
+        except RegisterError as exc:
+            return Response(
+                {'detail': str(exc), 'code': exc.code, 'item_id': item.pk, 'sku': item.sku, 'title': item.product.title},
+                status=400,
+            )
+
         # Online Sales hold guard: block ordinary sale of actively held linked Items.
         from apps.webstore.models import Reservation
         from apps.webstore.services.reservations import active_holds_for_item
@@ -771,6 +781,13 @@ class CartViewSet(viewsets.ModelViewSet):
                 },
                 status=400,
             )
+
+        # Thrift+ (live registers only): the copy is the same product, so the same 18+ rule.
+        from apps.thriftplus.services.register import RegisterError, check_item
+        try:
+            check_item(cart, src)
+        except RegisterError as exc:
+            return Response({'detail': str(exc), 'code': exc.code}, status=400)
 
         with transaction.atomic():
             new_item = duplicate_item_for_resale(request.user, src)
@@ -1352,7 +1369,7 @@ class CartViewSet(viewsets.ModelViewSet):
         try:
             card_base = resolve_card_base(
                 payment_method=payment_method if payment_method != 'cash' else 'card',
-                cart_total=cart.total,
+                cart_total=cart.total - (cart.thrift_credit or Decimal('0')),  # Thrift+ credit covers the rest
                 card_amount=request.query_params.get('card_amount'),
             )
         except CardSurchargeError as exc:
@@ -1448,6 +1465,8 @@ class CartViewSet(viewsets.ModelViewSet):
             apply_card_surcharge,
         )
 
+        from apps.thriftplus.services import register as thrift_register
+
         cart = self.get_object()
         if cart.status != 'open':
             return Response({'detail': 'Cart is not open.'}, status=400)
@@ -1456,6 +1475,16 @@ class CartViewSet(viewsets.ModelViewSet):
                 {'detail': 'Cart total cannot be negative.', 'code': 'NEGATIVE_TOTAL'},
                 status=400,
             )
+
+        # Thrift+: a member, spent credit or a live register. Dark registers skip all of it.
+        thrift = thrift_register.touches(cart)
+        if thrift:
+            try:
+                thrift_register.before_complete(cart)
+            except thrift_register.RegisterError as exc:
+                return Response({'detail': str(exc), 'code': exc.code}, status=400)
+        # What cash or card must cover: the total less Thrift+ credit and banked rewards (0 when dark).
+        amount_due = cart.total - (cart.thrift_credit or Decimal('0'))
 
         payment_method = request.data.get('payment_method', 'cash')
         allowed = {choice[0] for choice in Cart.PAYMENT_METHODS}
@@ -1467,73 +1496,77 @@ class CartViewSet(viewsets.ModelViewSet):
             surcharge_fields = apply_card_surcharge(
                 payment_method=payment_method,
                 card_type=card_type,
-                cart_total=cart.total,
+                cart_total=amount_due,
                 card_amount=request.data.get('card_amount'),
                 client_charged_total=request.data.get('card_charged_total'),
             )
         except CardSurchargeError as exc:
             return Response({'detail': str(exc)}, status=400)
 
-        cart.payment_method = payment_method
-        cart.cash_tendered = _as_decimal(request.data.get('cash_tendered'))
-        cart.change_given = _as_decimal(request.data.get('change_given'))
-        cart.card_amount = _as_decimal(request.data.get('card_amount'))
-        cart.card_type = surcharge_fields['card_type']
-        cart.card_surcharge_rate = surcharge_fields['card_surcharge_rate']
-        cart.card_surcharge_amount = surcharge_fields['card_surcharge_amount']
-        cart.card_charged_total = surcharge_fields['card_charged_total']
-        cart.status = 'completed'
-        cart.completed_at = timezone.now()
-        cart.save()
+        with transaction.atomic():
+            cart.payment_method = payment_method
+            cart.cash_tendered = _as_decimal(request.data.get('cash_tendered'))
+            cart.change_given = _as_decimal(request.data.get('change_given'))
+            cart.card_amount = _as_decimal(request.data.get('card_amount'))
+            cart.card_type = surcharge_fields['card_type']
+            cart.card_surcharge_rate = surcharge_fields['card_surcharge_rate']
+            cart.card_surcharge_amount = surcharge_fields['card_surcharge_amount']
+            cart.card_charged_total = surcharge_fields['card_charged_total']
+            cart.status = 'completed'
+            cart.completed_at = timezone.now()
+            cart.save()
 
-        # Update drawer cash_sales_total
-        if payment_method in ('cash', 'split'):
-            cash_amount = cart.total
-            if payment_method == 'split' and cart.card_amount:
-                cash_amount = cart.total - cart.card_amount
-            cart.drawer.cash_sales_total += cash_amount
-            if cart.change_given:
-                cart.drawer.cash_sales_total -= cart.change_given
-            cart.drawer.save(update_fields=['cash_sales_total'])
+            # Update drawer cash_sales_total
+            if payment_method in ('cash', 'split'):
+                cash_amount = amount_due
+                if payment_method == 'split' and cart.card_amount:
+                    cash_amount = amount_due - cart.card_amount
+                cart.drawer.cash_sales_total += cash_amount
+                if cart.change_given:
+                    cart.drawer.cash_sales_total -= cart.change_given
+                cart.drawer.save(update_fields=['cash_sales_total'])
 
-        # Mark items as sold
-        for line in cart.lines.filter(item__isnull=False):
-            item = line.item
-            item.status = 'sold'
-            item.sold_at = timezone.now()
-            qty = line.quantity or 1
-            item.sold_for = (line.line_total / qty).quantize(Decimal('0.01'))
-            item.save()
+            # Mark items as sold
+            for line in cart.lines.filter(item__isnull=False):
+                item = line.item
+                item.status = 'sold'
+                item.sold_at = timezone.now()
+                qty = line.quantity or 1
+                item.sold_for = (line.line_total / qty).quantize(Decimal('0.01'))
+                item.save()
 
-            # Complete matching Online Sales reservation (pickup).
-            reservation_id = None
-            if isinstance(getattr(line, 'meta', None), dict):
-                reservation_id = line.meta.get('web_reservation_id')
-            if reservation_id:
-                from apps.webstore.models import Reservation
-                from apps.webstore.services.reservations import complete_reservation
-                try:
-                    reservation = Reservation.objects.get(pk=int(reservation_id))
-                    complete_reservation(reservation, user=request.user, pos_cart=cart)
-                except (Reservation.DoesNotExist, TypeError, ValueError):
-                    pass
+                # Complete matching Online Sales reservation (pickup).
+                reservation_id = None
+                if isinstance(getattr(line, 'meta', None), dict):
+                    reservation_id = line.meta.get('web_reservation_id')
+                if reservation_id:
+                    from apps.webstore.models import Reservation
+                    from apps.webstore.services.reservations import complete_reservation
+                    try:
+                        reservation = Reservation.objects.get(pk=int(reservation_id))
+                        complete_reservation(reservation, user=request.user, pos_cart=cart)
+                    except (Reservation.DoesNotExist, TypeError, ValueError):
+                        pass
 
-            # Handle consignment items
-            if item.source == 'consignment' and hasattr(item, 'consignment'):
-                ci = item.consignment
-                ci.status = 'sold'
-                ci.sold_at = timezone.now()
-                ci.sale_amount = item.sold_for
-                rate = ci.agreement.commission_rate / Decimal('100')
-                ci.store_commission = (ci.sale_amount * rate).quantize(Decimal('0.01'))
-                ci.consignee_earnings = ci.sale_amount - ci.store_commission
-                ci.save()
+                # Handle consignment items
+                if item.source == 'consignment' and hasattr(item, 'consignment'):
+                    ci = item.consignment
+                    ci.status = 'sold'
+                    ci.sold_at = timezone.now()
+                    ci.sale_amount = item.sold_for
+                    rate = ci.agreement.commission_rate / Decimal('100')
+                    ci.store_commission = (ci.sale_amount * rate).quantize(Decimal('0.01'))
+                    ci.consignee_earnings = ci.sale_amount - ci.store_commission
+                    ci.save()
 
-        # Generate receipt
-        Receipt.objects.create(
-            cart=cart,
-            receipt_number=Receipt.generate_receipt_number(),
-        )
+            if thrift:
+                thrift_register.after_complete(cart, user=request.user)
+
+            # Generate receipt
+            Receipt.objects.create(
+                cart=cart,
+                receipt_number=Receipt.generate_receipt_number(),
+            )
 
         return Response(CartSerializer(cart).data)
 
@@ -1555,6 +1588,10 @@ class CartViewSet(viewsets.ModelViewSet):
                 item.sold_at = None
                 item.sold_for = None
                 item.save()
+
+        # Thrift+: give back what the sale wrote to the member's cover, bank and credit.
+        from apps.thriftplus.services.register import after_void
+        after_void(cart, user=request.user)
 
         return Response(CartSerializer(cart).data)
 
