@@ -27,8 +27,33 @@ export interface AiCatalogModel {
   modality: AiModality;
   status: 'active' | 'archived';
   source: 'manual' | 'discovered';
+  /** USD per 1M tokens; null = unknown. */
+  input_price: string | null;
+  output_price: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface AiTestResult {
+  text: string;
+  model_used: string;
+  seconds: number;
+  input_tokens: number;
+  output_tokens: number;
+  /** USD, null when the model's price isn't set. */
+  input_cost: string | null;
+  output_cost: string | null;
+}
+
+export async function testAiModel(id: number, message: string): Promise<AiTestResult> {
+  const { data } = await api.post<AiTestResult>(`/core/ai/models/${id}/test/`, { message });
+  return data;
+}
+
+/** Save a model's prices (USD per 1M tokens; blank = unknown). */
+export async function saveAiModelPrices(id: number, input_price: string | null, output_price: string | null): Promise<AiCatalogModel> {
+  const { data } = await api.patch<AiCatalogModel>(`/core/ai/models/${id}/`, { input_price, output_price });
+  return data;
 }
 
 export interface AiCatalogModelWrite {

@@ -16,7 +16,21 @@ _lock = threading.Lock()
 _MILLION = Decimal('1000000')
 
 
+def model_prices(model: str) -> tuple[Decimal, Decimal] | None:
+    """(input, output) USD per 1M tokens from Settings > AI, or None when either is unknown."""
+    from apps.core.models import AiModel
+
+    row = AiModel.objects.filter(slug=(model or '').strip()).values_list('input_price', 'output_price').first()
+    if row and row[0] is not None and row[1] is not None:
+        return row[0], row[1]
+    return None
+
+
 def _pricing_for_model(model: str) -> dict[str, Decimal]:
+    prices = model_prices(model)
+    if prices is not None:  # the prices kept in Settings > AI win over the old settings table
+        return {'input': prices[0], 'output': prices[1], 'cache_write': prices[0] * Decimal('1.25'),
+                'cache_read': prices[0] * Decimal('0.1')}
     table = getattr(settings, 'AI_PRICING', {}) or {}
     key = (model or '').strip()
     if key in table:

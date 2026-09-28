@@ -1,8 +1,6 @@
-fix: v2.109.1 morning brief runs in its own process; focuses on what matters; shows its exact input
+feat: v2.109.2 Settings > AI: model prices per 1M tokens, and a test chat with time and cost
 
-- Rewrite ran inside the web worker and died when gunicorn recycled the worker; it now runs as its own process.
-  A brief whose writer stopped says so instead of sitting on "writing".
-- Closed days are not reported; the Monday brief reviews last week; times in Central; items link to their page.
-- The page shows exactly what the AI was given.
+- Input and output prices on each AI model (editable; blank = unknown); cost estimates use them.
+- "Test a model": one message, the answer, seconds, and cost split into input and output.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

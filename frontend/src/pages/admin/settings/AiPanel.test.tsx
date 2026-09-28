@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SnackbarProvider } from 'notistack';
@@ -11,8 +12,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 const models = [
-  { id: 1, slug: 'grok-4.7', label: 'Grok 4.7', provider: 'xai', modality: 'text', status: 'active', source: 'manual', created_at: '', updated_at: '' },
-  { id: 2, slug: 'old-model', label: '', provider: 'google', modality: 'text', status: 'archived', source: 'discovered', created_at: '', updated_at: '' },
+  { id: 1, slug: 'grok-4.7', label: 'Grok 4.7', provider: 'xai', modality: 'text', status: 'active', source: 'manual', input_price: '2.0000', output_price: null, created_at: '', updated_at: '' },
+  { id: 2, slug: 'old-model', label: '', provider: 'google', modality: 'text', status: 'archived', source: 'discovered', input_price: null, output_price: null, created_at: '', updated_at: '' },
 ];
 const actions = [
   { purpose: 'AI_CHAT', label: 'AI chat', modality: 'text', model: null, model_slug: null, effort: 'off', env_model: 'env-chat', updated_by_name: null, updated_at: '' },
@@ -34,9 +35,11 @@ vi.mock('../../../hooks/useAiSettings', () => ({
 
 function renderPanel() {
   render(
-    <SnackbarProvider>
-      <AiPanel />
-    </SnackbarProvider>,
+    <QueryClientProvider client={new QueryClient()}>
+      <SnackbarProvider>
+        <AiPanel />
+      </SnackbarProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -74,5 +77,15 @@ describe('AiPanel', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText(/found 3, added 1 \(gemini-9-flash\)/)).toBeInTheDocument();
     expect(within(dialog).getByText(/not checked - No API key in .env/)).toBeInTheDocument();
+  });
+
+  it('shows prices per million tokens and opens the model test', async () => {
+    renderPanel();
+    expect(screen.getByLabelText('grok-4.7 input price')).toHaveValue('2');
+    expect(screen.getByLabelText('grok-4.7 output price')).toHaveValue('');
+    await userEvent.click(screen.getByRole('button', { name: 'Test a model' }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByLabelText('Say something')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Send' })).toBeDisabled();
   });
 });

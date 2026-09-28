@@ -334,6 +334,37 @@ class AiModelViewSet(viewsets.ModelViewSet):
     def discover(self, request):
         return Response({'providers': discover_models()})
 
+    @action(detail=True, methods=['post'])
+    def test(self, request, pk=None):
+        """Settings > AI "Test": one message to this model; the answer, the time, and the cost."""
+        import time
+        from decimal import Decimal
+
+        from apps.core.services.ai_usage_log import model_prices
+        from apps.core.services.llm_router import llm_complete
+
+        row = self.get_object()
+        message = str(request.data.get('message') or '').strip()
+        if not message:
+            return Response({'detail': 'Type a message.'}, status=status.HTTP_400_BAD_REQUEST)
+        started = time.monotonic()
+        try:
+            result = llm_complete(model_id=row.slug, user=message[:4000], max_tokens=1000, timeout=90,
+                                  log_source='settings_ai_test', log_detail=row.slug)
+        except Exception as exc:
+            return Response({'detail': f'The model call failed: {str(exc)[:300]}'}, status=status.HTTP_502_BAD_GATEWAY)
+        seconds = round(time.monotonic() - started, 2)
+        prices = model_prices(row.slug)
+        million = Decimal('1000000')
+        cost_in = (Decimal(result.input_tokens) * prices[0] / million).quantize(Decimal('0.000001')) if prices else None
+        cost_out = (Decimal(result.output_tokens) * prices[1] / million).quantize(Decimal('0.000001')) if prices else None
+        return Response({
+            'text': result.text, 'model_used': result.model_used, 'seconds': seconds,
+            'input_tokens': result.input_tokens, 'output_tokens': result.output_tokens,
+            'input_cost': str(cost_in) if cost_in is not None else None,
+            'output_cost': str(cost_out) if cost_out is not None else None,
+        })
+
 
 class AiActionViewSet(viewsets.ModelViewSet):
     """Settings > AI per-action model + effort. Super Admin writes; Manager+ reads choices."""

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.109.1] -->
-<!-- Last reviewed: 2026-09-28 (2.109.1) -->
+<!-- Line 1 release: ## [2.109.2] -->
+<!-- Last reviewed: 2026-09-28 (2.109.2) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.109.2] - 2026-09-28
+
+User-facing theme: **Settings → AI shows what each model costs, and you can test any model with one message.**
+
+### Added
+
+- **Prices on each model.** The models table gets "Input $/1M" and "Output $/1M" (US dollars per million tokens), edited in place; blank means unknown.
+  - Claude Opus 5.5 is filled in ($4 / $20).
+  - AI cost estimates everywhere now use these prices, not the old table in settings.
+  - Migration `core.0011`.
+- **Test a model:** a small chat window. Pick a model, type a message and send. It shows the answer, how long it took, and the cost split into input and output.
+
+### Fixed
+
+- The root `package.json` was empty in the first v2.109.1 commit; it was restored before any deploy.
 
 ## [2.109.1] - 2026-09-28
 

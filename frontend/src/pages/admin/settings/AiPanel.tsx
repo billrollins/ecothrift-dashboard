@@ -48,6 +48,8 @@ import {
   useUpdateAiModel,
 } from '../../../hooks/useAiSettings';
 import { formatApiError } from '../labelStudio/labelStudioUtils';
+import { AiTestDialog } from './AiTestDialog';
+import { PriceCell } from './AiPriceCell';
 
 const MODALITY_LABEL: Record<AiModality, string> = { text: 'Text', image: 'Image' };
 
@@ -85,6 +87,7 @@ export function AiPanel() {
   const [draft, setDraft] = useState<ModelDraft | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
   const [discoverResults, setDiscoverResults] = useState<AiDiscoverProviderResult[] | null>(null);
+  const [testOpen, setTestOpen] = useState(false);
 
   const models = useMemo(() => modelsQuery.data ?? [], [modelsQuery.data]);
   const actions = actionsQuery.data ?? [];
@@ -161,6 +164,7 @@ export function AiPanel() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <AiTestDialog open={testOpen} onClose={() => setTestOpen(false)} models={models} />
       <Card variant="outlined">
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -171,6 +175,9 @@ export function AiPanel() {
             />
             <Button variant="outlined" size="small" onClick={() => void runDiscover()} disabled={discover.isPending}>
               {discover.isPending ? 'Checking...' : 'Check for new models'}
+            </Button>
+            <Button variant="outlined" size="small" onClick={() => setTestOpen(true)}>
+              Test a model
             </Button>
             <Button variant="contained" size="small" onClick={() => openDraft(NEW_DRAFT)}>
               Add model
@@ -184,13 +191,15 @@ export function AiPanel() {
                 <TableCell>Provider</TableCell>
                 <TableCell>Type</TableCell>
                 <TableCell>Status</TableCell>
+                <TableCell align="right">Input $/1M</TableCell>
+                <TableCell align="right">Output $/1M</TableCell>
                 <TableCell align="right" />
               </TableRow>
             </TableHead>
             <TableBody>
               {visibleModels.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6}>No models yet. Click Check for new models or Add model.</TableCell>
+                  <TableCell colSpan={8}>No models yet. Click Check for new models or Add model.</TableCell>
                 </TableRow>
               ) : (
                 visibleModels.map((m) => (
@@ -200,6 +209,8 @@ export function AiPanel() {
                     <TableCell>{PROVIDER_LABEL[m.provider]}</TableCell>
                     <TableCell>{MODALITY_LABEL[m.modality]}</TableCell>
                     <TableCell>{m.status === 'active' ? 'Active' : 'Archived'}</TableCell>
+                    <TableCell align="right"><PriceCell model={m} field="input_price" /></TableCell>
+                    <TableCell align="right"><PriceCell model={m} field="output_price" /></TableCell>
                     <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                       <Tooltip title="Edit" enterDelay={250}>
                         <IconButton

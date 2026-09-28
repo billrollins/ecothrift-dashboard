@@ -233,6 +233,10 @@ class AiModel(models.Model):
     modality = models.CharField(max_length=10, choices=MODALITY_CHOICES, default=MODALITY_TEXT)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
     source = models.CharField(max_length=12, choices=SOURCE_CHOICES, default=SOURCE_MANUAL)
+    input_price = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True,
+                                      help_text='USD per 1M input tokens. Blank = unknown.')
+    output_price = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True,
+                                       help_text='USD per 1M output tokens. Blank = unknown.')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

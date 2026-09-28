@@ -172,7 +172,7 @@ class AiModelSerializer(serializers.ModelSerializer):
         model = AiModel
         fields = [
             'id', 'slug', 'label', 'provider', 'modality', 'status', 'source',
-            'created_at', 'updated_at',
+            'input_price', 'output_price', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'status', 'source', 'created_at', 'updated_at']
 

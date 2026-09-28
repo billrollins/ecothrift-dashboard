@@ -220,3 +220,27 @@ class MetaModelListTests(SimpleTestCase):
         with mock.patch.object(ai_catalog, '_get_json', return_value=data):
             rows = ai_catalog.list_meta_models('k')
         self.assertEqual([r[0] for r in rows], ['muse-spark-1.3'])
+
+
+class AiModelTestEndpointTests(TestCase):
+    def test_one_message_gives_the_answer_time_and_cost_split_in_and_out(self):
+        from decimal import Decimal
+        from unittest.mock import patch
+
+        from rest_framework.test import APIClient
+
+        from apps.accounts.models import User
+        from apps.core.services.ai_usage_log import estimate_cost_usd
+        from apps.core.services.llm_router import LLMResult
+
+        boss = User.objects.create_superuser(email='boss-ai@example.com', first_name='B', last_name='O', password='x-pass-123')
+        row = AiModel.objects.create(slug='test-model-x', provider='anthropic', input_price=Decimal('4'), output_price=Decimal('20'))
+        api = APIClient()
+        api.force_authenticate(boss)
+        with patch('apps.core.services.llm_router.llm_complete',
+                   return_value=LLMResult(text='Hello.', model_used='test-model-x', input_tokens=1000, output_tokens=500)):
+            data = api.post(f'/api/core/ai/models/{row.pk}/test/', {'message': 'Hi'}, format='json').json()
+        self.assertEqual((data['text'], data['input_cost'], data['output_cost']), ('Hello.', '0.004000', '0.010000'))
+        self.assertGreaterEqual(data['seconds'], 0)
+        self.assertEqual(estimate_cost_usd('test-model-x', 1000, 500), Decimal('0.014000'))  # usage logs use the same prices
+        self.assertEqual(api.post(f'/api/core/ai/models/{row.pk}/test/', {'message': ' '}, format='json').status_code, 400)
