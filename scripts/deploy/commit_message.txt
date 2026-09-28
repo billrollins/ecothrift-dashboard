@@ -1,3 +1,3 @@
-feat: v2.110.0 Thrift+ register, returns, signup, scanner and member money (dark), data QA checks, spot walks no longer cap the Retail QA grade
+fix: v2.110.1 Dashboard gold Retail card: solid gold background, GOAL HIT pill in the title row
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.110.0] -->
-<!-- Last reviewed: 2026-09-28 (2.110.0) -->
+<!-- Line 1 release: ## [2.110.1] -->
+<!-- Last reviewed: 2026-09-28 (2.110.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.110.1] - 2026-09-28
+
+User-facing theme: **The gold Retail card reads cleanly.**
+
+### Fixed
+
+- **Dashboard Retail card when its goal is hit:** the gold background and the gold day cells are solid, so the dark page no longer shows through and muddies the labels and grid. The "GOAL HIT" pill moved to the card's title row, so it no longer covers the ACTUAL label. Only Retail turns gold; the other department cards have no goal-hit state.
 
 ## [2.110.0] - 2026-09-28
 

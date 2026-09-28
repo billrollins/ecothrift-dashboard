@@ -79,7 +79,7 @@ function GridCell({
     background: fail
       ? failLetterColors.bg
       : achieved
-        ? `linear-gradient(145deg, #fff7cf, ${dashboardPalette.goldSoft} 55%, #fffdf7)`
+        ? 'linear-gradient(145deg, #fff7cf, #fcf0c8 55%, #fffdf7)'
         : isToday
           ? dashboardPalette.greenSoft
           : 'transparent',

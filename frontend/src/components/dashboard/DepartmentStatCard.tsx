@@ -70,18 +70,10 @@ export function DepartmentStatCard({
           ? {
               borderColor: 'rgba(189, 134, 24, 0.72)',
               borderLeft: `4px solid ${dashboardPalette.gold}`,
-              background: `linear-gradient(145deg, #fff9dc 0%, ${dashboardPalette.goldSoft} 48%, ${dashboardPalette.surface} 100%)`,
+              // Opaque stops only: a see-through middle let the dark page show through and muddied the card.
+              background: `linear-gradient(145deg, #fff9dc 0%, #fcf0c8 48%, ${dashboardPalette.surface} 100%)`,
               boxShadow:
                 'inset 0 1px 0 rgba(255,255,255,0.94), 0 0 0 1px rgba(242,201,76,0.28), 0 8px 24px rgba(122,84,14,0.38), 0 18px 40px rgba(20,30,24,0.38)',
-              '&::after': {
-                content: '"★"',
-                position: 'absolute',
-                top: 8,
-                right: 10,
-                color: dashboardPalette.gold,
-                fontSize: '1rem',
-                textShadow: '0 1px 0 #fff',
-              },
             }
           : dashboardAccentLeftSx(accent)),
         ...dashboardCardHoverLiftSx,
@@ -139,6 +131,30 @@ export function DepartmentStatCard({
           >
             {label}
           </Typography>
+          {goalMet ? (
+            <Box
+              sx={{
+                ml: 'auto',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 0.35,
+                px: 0.8,
+                py: 0.25,
+                borderRadius: 99,
+                bgcolor: dashboardPalette.goldBright,
+                color: dashboardPalette.goldDark,
+                fontSize: '0.6rem',
+                fontWeight: 900,
+                letterSpacing: 0.4,
+                lineHeight: 1,
+              }}
+            >
+              <Box component="span" aria-hidden>
+                🏆
+              </Box>
+              GOAL HIT
+            </Box>
+          ) : null}
         </Box>
 
         {/* Fixed metrics band - keeps the divider Y identical across all four cards. */}
@@ -282,34 +298,6 @@ export function DepartmentStatCard({
               {actualNote || ' '}
             </Typography>
           </Box>
-
-          {goalMet ? (
-            <Box
-              sx={{
-                position: 'absolute',
-                top: 0,
-                right: 0,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 0.35,
-                px: 0.7,
-                py: 0.2,
-                borderRadius: 99,
-                bgcolor: 'rgba(242, 201, 76, 0.22)',
-                border: '1px solid rgba(189, 134, 24, 0.35)',
-                color: dashboardPalette.goldDark,
-                fontSize: '0.58rem',
-                fontWeight: 900,
-                letterSpacing: 0.2,
-                pointerEvents: 'none',
-              }}
-            >
-              <Box component="span" aria-hidden>
-                🏆
-              </Box>
-              GOAL HIT
-            </Box>
-          ) : null}
         </Box>
 
         {showWeekDetailButton && onViewWeekDetail ? (
