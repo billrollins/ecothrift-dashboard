@@ -154,11 +154,11 @@ export interface AiPriceCheck {
 
 export async function getAiPriceCheck(): Promise<AiPriceCheck> {
   const { data } = await api.get<AiPriceCheck>('/core/ai/models/price-check/');
-  return { results: [], ...data };
+  return { ...data, results: data.results ?? [] };
 }
 
 /** "Estimate API costs": starts the check (it runs on its own; poll getAiPriceCheck). */
 export async function startAiPriceCheck(): Promise<AiPriceCheck> {
   const { data } = await api.post<AiPriceCheck>('/core/ai/models/price-check/');
-  return { results: [], ...data };
+  return { ...data, results: data.results ?? [] };
 }
