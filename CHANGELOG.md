@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.109.0] -->
-<!-- Last reviewed: 2026-09-28 (2.109.0) -->
+<!-- Line 1 release: ## [2.109.1] -->
+<!-- Last reviewed: 2026-09-28 (2.109.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.109.1] - 2026-09-28
+
+User-facing theme: **The morning brief keeps writing when you leave the page, and it focuses on what matters now.**
+
+### Fixed
+
+- **Rewrite no longer freezes.** The brief was written inside the web worker, and the server recycles its workers every few hundred requests, which cut the writing off. It now runs as its own process. A brief whose writer stops is marked "The writer stopped. Press Rewrite." instead of sitting on "writing".
+
+### Changed
+
+- **The brief focuses on what matters now;** yesterday is one more day of context.
+  - A day the store was closed doesn't get "$0 sales, 0 hours, routines missed".
+  - The Monday brief reviews last week: sales against the week before, hours, and the routines missed most.
+  - Times are in Central.
+- **Links:** items can link to the page they're about (the auction, Requests, POs, routines).
+- **"Exactly what the AI was given"** shows the instructions and the snapshot message, word for word.
 
 ## [2.109.0] - 2026-09-28
 

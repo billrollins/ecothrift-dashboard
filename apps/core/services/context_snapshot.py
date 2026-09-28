@@ -111,6 +111,7 @@ def _routines(day: date) -> dict:
              'who': r.assigned_to.full_name if r.assigned_to_id else '', 'status': r.status}
             for r in missed
         ],
+        'link': '/admin/routines',
     }
 
 
@@ -130,6 +131,7 @@ def _inventory(day: date, now: datetime) -> dict:
         f'on_shelf_over_{AGING_DAYS}_days_value': _money(aged['value']),
         'pos_delivered_not_processed': PurchaseOrder.objects.filter(status='delivered').count(),
         'pos_in_processing': PurchaseOrder.objects.filter(status='processing').count(),
+        'link': '/inventory/orders',
     }
 
 
@@ -147,10 +149,13 @@ def _buying(day: date) -> dict:
         'live_auctions': wish['live_total'],
         'passing_max': wish['eligible'],
         'todays_plan': [
-            {'id': r['id'], 'seller': r['marketplace'], 'category': r['top_category'], 'ends': r['end_time'].isoformat(),
-             'max': str(r['max_bid']) if r['max_bid'] is not None else None, 'priority': r['priority']}
+            {'id': r['id'], 'seller': r['marketplace'], 'category': r['top_category'],
+             'ends_central': timezone.localtime(r['end_time']).strftime('%a %b %d, %I:%M %p'),
+             'max': str(r['max_bid']) if r['max_bid'] is not None else None, 'priority': r['priority'],
+             'link': f"/buying/auctions/{r['id']}"}
             for r in soon
         ],
+        'link': '/buying/wishlist',
         'bid_now': len(nags['ending']),
         'ended_without_result': len(nags['unrecorded']),
         'won_yesterday': Outcome.objects.filter(win=True, captured_at__gte=start, captured_at__lt=end).count(),
@@ -166,6 +171,7 @@ def _requests() -> dict:
         'waiting': waiting.count(),
         'titles': list(waiting.values_list('title', flat=True)[:10]),
         'failed': ApprovalRequest.objects.filter(status=ApprovalRequest.STATUS_FAILED).count(),
+        'link': '/admin/requests',
     }
 
 
@@ -182,6 +188,39 @@ def _thrift_plus(day: date) -> dict:
     }
 
 
+def _store_open(day: date) -> bool | None:
+    try:
+        from apps.webstore.services.hours import is_open_day
+
+        return bool(is_open_day(day))
+    except Exception:
+        return None
+
+
+def _last_week(day: date) -> dict:
+    """Monday's look back: the week that ended on ``day`` (Mon to Sun) against the week before."""
+    from apps.hr.models import TimeEntry
+    from apps.pos.services.dashboard_metrics import _daily_sales_series
+    from apps.routines.models import RoutineRun
+
+    start = day - timedelta(days=6)
+    revenue = _daily_sales_series(start - timedelta(days=7), day)
+    this_week = sum((revenue.get(start + timedelta(days=i), Decimal('0')) for i in range(7)), Decimal('0'))
+    prior = sum((revenue.get(start - timedelta(days=7) + timedelta(days=i), Decimal('0')) for i in range(7)), Decimal('0'))
+    runs = RoutineRun.objects.filter(due_at__gte=_day_bounds(start)[0], due_at__lt=_day_bounds(day)[1])
+    by_routine = (
+        runs.exclude(status=RoutineRun.STATUS_DONE).values('routine__title').annotate(n=Count('pk')).order_by('-n')[:8]
+    )
+    return {
+        'from': start.isoformat(), 'to': day.isoformat(),
+        'revenue': _money(this_week), 'revenue_week_before': _money(prior),
+        'hours_worked': _money(TimeEntry.objects.filter(date__gte=start, date__lte=day).aggregate(h=Sum('total_hours'))['h']),
+        'routines_due': runs.count(), 'routines_done': runs.filter(status=RoutineRun.STATUS_DONE).count(),
+        'most_missed': [{'routine': r['routine__title'], 'missed': r['n']} for r in by_routine],
+        'link': '/admin/routines',
+    }
+
+
 def build_snapshot(day: date | None = None) -> dict[str, Any]:
     """The snapshot for the morning after ``day`` (default: yesterday)."""
     now = timezone.now()
@@ -195,7 +234,12 @@ def build_snapshot(day: date | None = None) -> dict[str, Any]:
         'requests': _requests,
         'thrift_plus': lambda: _thrift_plus(day),
     }
-    data: dict[str, Any] = {'for_day': day.isoformat(), 'built_at': now.isoformat(), 'errors': {}}
+    if day.weekday() == 6:  # the Monday brief looks back at the whole week
+        sections['last_week'] = lambda: _last_week(day)
+    data: dict[str, Any] = {
+        'for_day': day.isoformat(), 'weekday': day.strftime('%A'), 'store_open': _store_open(day),
+        'built_at': timezone.localtime(now).isoformat(), 'errors': {},
+    }
     for name, build in sections.items():
         try:
             data[name] = build()

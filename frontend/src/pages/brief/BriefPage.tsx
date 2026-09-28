@@ -6,6 +6,7 @@ import {
   Box,
   Button,
   LinearProgress,
+  Link,
   MenuItem,
   Paper,
   Stack,
@@ -18,13 +19,24 @@ import { format, parseISO } from 'date-fns';
 import { useState } from 'react';
 import { fetchDailyBrief, writeDailyBrief } from '../../api/brief.api';
 
-function Section({ title, items, tone }: { title: string; items?: string[]; tone?: 'warning' }) {
+type BriefItem = string | { text: string; link?: string };
+
+function Section({ title, items, tone }: { title: string; items?: BriefItem[]; tone?: 'warning' }) {
   if (!items?.length) return null;
   return (
     <Paper variant="outlined" sx={{ p: 1.75, borderColor: tone === 'warning' ? 'warning.main' : undefined }}>
       <Typography variant="overline" sx={{ fontWeight: 800, letterSpacing: '0.1em' }}>{title}</Typography>
       <Stack spacing={0.75} sx={{ mt: 0.5 }}>
-        {items.map((line) => <Typography key={line} variant="body1">• {line}</Typography>)}
+        {items.map((item, i) => {
+          const text = typeof item === 'string' ? item : item.text;
+          const link = typeof item === 'string' ? undefined : item.link;
+          return (
+            <Typography key={`${i}-${text}`} variant="body1">
+              • {text}
+              {link && link.startsWith('/') ? <> <Link href={link} underline="hover">Open</Link></> : null}
+            </Typography>
+          );
+        })}
       </Stack>
     </Paper>
   );
@@ -124,6 +136,20 @@ export default function BriefPage() {
           </AccordionSummary>
           <AccordionDetails>
             <Numbers snapshot={data.snapshot} />
+          </AccordionDetails>
+        </Accordion>
+      ) : null}
+
+      {data?.prompt ? (
+        <Accordion disableGutters>
+          <AccordionSummary expandIcon={<ExpandMoreRounded />}>
+            <Typography sx={{ fontWeight: 700 }}>Exactly what the AI was given</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Typography variant="caption" color="text.secondary">Instructions (today's version):</Typography>
+            <Box component="pre" sx={{ m: 0, mb: 1.5, fontSize: 12, whiteSpace: 'pre-wrap' }}>{data.prompt.system}</Box>
+            <Typography variant="caption" color="text.secondary">Message:</Typography>
+            <Box component="pre" sx={{ m: 0, fontSize: 12, whiteSpace: 'pre-wrap', maxHeight: 480, overflow: 'auto' }}>{data.prompt.user}</Box>
           </AccordionDetails>
         </Accordion>
       ) : null}

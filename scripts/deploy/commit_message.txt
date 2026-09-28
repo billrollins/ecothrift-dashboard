@@ -1,11 +1,8 @@
-feat: v2.109.0 Requests center, Thrift+ members and reward engine (dark), morning brief, security fix
+fix: v2.109.1 morning brief runs in its own process; focuses on what matters; shows its exact input
 
-- Superuser Requests: routine data work staged in production, approved there, with undo.
-- Thrift+ (dark behind the switch): members, cards, card-back PDFs; the nightly reward engine and its dry run.
-- Morning brief: the AI supervisor writes the owner a daily brief from a Context snapshot.
-- www.ecothrift.us/scan passes through to the scanner.
-- POS: editing a line price with cents no longer errors.
-- Security: staff endpoints that only checked sign-in (sale-mode switch, dashboards, AI chat) now need a team member; throttles read the real client IP.
-- Receipts are unchanged.
+- Rewrite ran inside the web worker and died when gunicorn recycled the worker; it now runs as its own process.
+  A brief whose writer stopped says so instead of sitting on "writing".
+- Closed days are not reported; the Monday brief reviews last week; times in Central; items link to their page.
+- The page shows exactly what the AI was given.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

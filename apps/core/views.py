@@ -429,9 +429,9 @@ class ApprovalRequestViewSet(viewsets.ReadOnlyModelViewSet):
 
 def _brief_payload(day):
     from .models import DailyBrief
-    from .services.daily_brief import is_writing
+    from .services.daily_brief import SYSTEM, is_writing, settle, user_message
 
-    brief = DailyBrief.objects.select_related('snapshot').filter(day=day).first()
+    brief = settle(DailyBrief.objects.select_related('snapshot').filter(day=day).first())
     return {
         'day': day.isoformat(),
         'brief': None if brief is None else {
@@ -443,6 +443,7 @@ def _brief_payload(day):
         },
         'writing': is_writing(brief),
         'snapshot': brief.snapshot.data if brief and brief.snapshot_id else None,
+        'prompt': {'system': SYSTEM, 'user': user_message(brief.snapshot.data)} if brief and brief.snapshot_id else None,
         'days': [d.isoformat() for d in DailyBrief.objects.values_list('day', flat=True)[:30]],
     }
 

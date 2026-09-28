@@ -2,7 +2,8 @@ import api from './client';
 
 export interface DailyBriefBody {
   headline?: string;
-  needs_you?: string[];
+  /** Older briefs are plain strings; newer items can carry a link to the page it's about. */
+  needs_you?: (string | { text: string; link?: string })[];
   numbers?: string[];
   watch?: string[];
 }
@@ -12,6 +13,8 @@ export interface DailyBriefPayload {
   brief: { status: 'writing' | 'ready' | 'failed'; body: DailyBriefBody; model_used: string; error: string; finished_at: string | null } | null;
   writing: boolean;
   snapshot: Record<string, unknown> | null;
+  /** Exactly what the model was given: the instructions and the snapshot message. */
+  prompt?: { system: string; user: string } | null;
   days: string[];
 }
 

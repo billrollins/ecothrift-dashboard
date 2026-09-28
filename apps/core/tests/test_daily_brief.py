@@ -61,13 +61,24 @@ class BriefApiTests(APITestCase):
 
     def test_opening_the_page_starts_the_missing_brief_and_shows_a_written_one(self):
         self.client.force_authenticate(self.boss)
-        with patch('apps.core.services.daily_brief.threading.Thread') as thread:
+        with patch('apps.core.services.daily_brief.subprocess.Popen') as spawn:
             data = self.client.get('/api/core/brief/').data
         self.assertTrue(data['writing'])
-        thread.return_value.start.assert_called_once()
+        cmd = spawn.call_args.args[0]
+        self.assertEqual(cmd[2:4], ['build_daily_brief', '--day'])
+        self.assertTrue(spawn.call_args.kwargs['start_new_session'])  # outlives a recycled web worker
         with patch('apps.core.services.daily_brief._ask', return_value=(BODY, 'm')):
             daily_brief.write(DAY)
         data = self.client.get('/api/core/brief/', {'day': '2026-09-27'}).data
         self.assertEqual((data['brief']['status'], data['brief']['body']['headline']), ('ready', BODY['headline']))
         self.assertIn('sales', data['snapshot'])
         self.assertEqual(self.client.get('/api/core/brief/', {'day': 'soon'}).status_code, 400)
+
+    def test_a_brief_whose_writer_died_says_so_instead_of_writing_forever(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        self.client.force_authenticate(self.boss)
+        DailyBrief.objects.create(day=DAY, status=DailyBrief.STATUS_WRITING, started_at=timezone.now() - timedelta(minutes=5))
+        data = self.client.get('/api/core/brief/', {'day': '2026-09-27'}).data
+        self.assertEqual((data['writing'], data['brief']['status']), (False, 'failed'))
+        self.assertIn('Press Rewrite', data['brief']['error'])

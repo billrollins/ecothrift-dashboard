@@ -12,7 +12,7 @@ const payload: DailyBriefPayload = {
     status: 'ready',
     body: {
       headline: 'Sales were flat; 2 lots to bid on today.',
-      needs_you: ['Approve the brand aliases request.', 'Carrie is at 38.5 hours this week.'],
+      needs_you: [{ text: 'Approve the brand aliases request.', link: '/admin/requests' }, 'Carrie is at 38.5 hours this week.'],
       numbers: ['$1,212 in sales, down $80 on last Sunday.'],
       watch: ['1,840 items have sat over 90 days.'],
     },
@@ -23,6 +23,7 @@ const payload: DailyBriefPayload = {
   writing: false,
   snapshot: { for_day: '2026-09-27', sales: { revenue: '1212.00', items_sold: 140 }, errors: {} },
   days: ['2026-09-27'],
+  prompt: { system: 'You are the AI supervisor', user: 'Snapshot (JSON):' },
 };
 
 vi.mock('../../api/brief.api', () => ({
@@ -47,5 +48,8 @@ describe('Morning brief', () => {
     expect(screen.getByText(/written by claude-opus-5-5/)).toBeInTheDocument();
     await user.click(screen.getByText('The numbers behind it'));
     expect(screen.getByText('1212.00', { exact: false })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open' })).toHaveAttribute('href', '/admin/requests');
+    await user.click(screen.getByText('Exactly what the AI was given'));
+    expect(screen.getByText('Snapshot (JSON):')).toBeInTheDocument();
   });
 });
