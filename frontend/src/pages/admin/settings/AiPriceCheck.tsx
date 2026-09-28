@@ -1,8 +1,8 @@
 import { Alert, Box, Button, LinearProgress, Link, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useEffect } from 'react';
-import { getAiPriceCheck, saveAiModelPrices, startAiPriceCheck, type AiPriceCheckRow } from '../../../api/aiSettings.api';
+import { getAiPriceCheck, saveAiModelPrices, type AiPriceCheckRow } from '../../../api/aiSettings.api';
 
 function money(v: string | null): string {
   return v == null ? 'unknown' : `$${Number(v)}`;
@@ -19,10 +19,6 @@ export function AiPriceCheck() {
     queryKey: ['ai-settings', 'price-check'],
     queryFn: getAiPriceCheck,
     refetchInterval: (q) => (q.state.data?.status === 'running' ? 5000 : false),
-  });
-  const start = useMutation({
-    mutationFn: startAiPriceCheck,
-    onSuccess: (data) => queryClient.setQueryData(['ai-settings', 'price-check'], data),
   });
   const s = check.data;
   const running = s?.status === 'running';
@@ -44,13 +40,11 @@ export function AiPriceCheck() {
   const shown = (s?.results ?? []).filter((r) => r.filled || r.differs || r.found_input == null);
   return (
     <Box sx={{ mb: 1.5 }}>
-      <Button variant="outlined" size="small" onClick={() => start.mutate()} disabled={running || start.isPending}>
-        {running ? 'Checking prices...' : 'Estimate API costs'}
-      </Button>
-      <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-        {s?.finished_at ? `Last checked ${new Date(s.finished_at).toLocaleString()} by ${s.checker ?? 'the checker'}. ` : ''}
-        Reads each provider&apos;s pricing page for the exact model id. Blanks are filled; differences wait for you.
-      </Typography>
+      {s?.finished_at ? (
+        <Typography variant="caption" color="text.secondary">
+          Prices last checked {new Date(s.finished_at).toLocaleString()} by {s.checker ?? 'the checker'}, from each provider&apos;s pricing page.
+        </Typography>
+      ) : null}
       {running ? <LinearProgress sx={{ mt: 1 }} /> : null}
       {s?.status === 'failed' ? <Alert severity="error" sx={{ mt: 1 }}>{s.error}</Alert> : null}
       {s?.status === 'done' && !shown.length ? (

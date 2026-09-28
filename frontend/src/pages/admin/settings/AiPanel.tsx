@@ -24,6 +24,8 @@ import {
   Typography,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
+import ChatOutlined from '@mui/icons-material/ChatOutlined';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import {
   AI_EFFORTS,
@@ -51,6 +53,7 @@ import { formatApiError } from '../labelStudio/labelStudioUtils';
 import { AiTestDialog } from './AiTestDialog';
 import { PriceCell } from './AiPriceCell';
 import { AiPriceCheck } from './AiPriceCheck';
+import { startAiPriceCheck } from '../../../api/aiSettings.api';
 
 const MODALITY_LABEL: Record<AiModality, string> = { text: 'Text', image: 'Image' };
 
@@ -74,6 +77,7 @@ interface ModelDraft {
 const NEW_DRAFT: ModelDraft = { id: null, slug: '', label: '', provider: 'anthropic', modality: 'text' };
 
 export function AiPanel() {
+  const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   const modelsQuery = useAiModels();
   const actionsQuery = useAiActions();
@@ -88,7 +92,8 @@ export function AiPanel() {
   const [draft, setDraft] = useState<ModelDraft | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
   const [discoverResults, setDiscoverResults] = useState<AiDiscoverProviderResult[] | null>(null);
-  const [testOpen, setTestOpen] = useState(false);
+  const [testModelId, setTestModelId] = useState<number | null>(null);
+  const [updating, setUpdating] = useState(false);
 
   const models = useMemo(() => modelsQuery.data ?? [], [modelsQuery.data]);
   const actions = actionsQuery.data ?? [];
@@ -145,12 +150,17 @@ export function AiPanel() {
     }
   };
 
-  const runDiscover = async () => {
+  // Update: look for new models at each provider, then check every active model's exact price.
+  const runUpdate = async () => {
+    setUpdating(true);
     try {
       const data = await discover.mutateAsync();
       setDiscoverResults(data.providers);
+      queryClient.setQueryData(['ai-settings', 'price-check'], await startAiPriceCheck());
     } catch (err) {
-      enqueueSnackbar(formatApiError(err, 'Could not check for new models.'), { variant: 'error' });
+      enqueueSnackbar(formatApiError(err, 'Could not update.'), { variant: 'error' });
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -165,24 +175,24 @@ export function AiPanel() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <AiTestDialog open={testOpen} onClose={() => setTestOpen(false)} models={models} />
+      <AiTestDialog
+        key={testModelId ?? 'none'}
+        open={testModelId != null}
+        onClose={() => setTestModelId(null)}
+        models={models}
+        initialModelId={testModelId}
+      />
       <Card variant="outlined">
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
             <Typography variant="h6" sx={{ flex: 1 }}>Models</Typography>
-            <FormControlLabel
-              control={<Switch size="small" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />}
-              label="Show archived"
-            />
-            <Button variant="outlined" size="small" onClick={() => void runDiscover()} disabled={discover.isPending}>
-              {discover.isPending ? 'Checking...' : 'Check for new models'}
-            </Button>
-            <Button variant="outlined" size="small" onClick={() => setTestOpen(true)}>
-              Test a model
-            </Button>
-            <Button variant="contained" size="small" onClick={() => openDraft(NEW_DRAFT)}>
-              Add model
-            </Button>
+            <Tooltip title="Look for new models at each provider, then check every active model's price" enterDelay={400}>
+              <span>
+                <Button variant="contained" size="small" onClick={() => void runUpdate()} disabled={updating}>
+                  {updating ? 'Updating...' : 'Update'}
+                </Button>
+              </span>
+            </Tooltip>
           </Box>
           <AiPriceCheck />
           <Table size="small">
@@ -201,7 +211,7 @@ export function AiPanel() {
             <TableBody>
               {visibleModels.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8}>No models yet. Click Check for new models or Add model.</TableCell>
+                  <TableCell colSpan={8}>No models yet. Click Update.</TableCell>
                 </TableRow>
               ) : (
                 visibleModels.map((m) => (
@@ -214,6 +224,13 @@ export function AiPanel() {
                     <TableCell align="right"><PriceCell model={m} field="input_price" /></TableCell>
                     <TableCell align="right"><PriceCell model={m} field="output_price" /></TableCell>
                     <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                      {m.status === 'active' && m.modality === 'text' ? (
+                        <Tooltip title="Test this model" enterDelay={250}>
+                          <IconButton size="small" aria-label={`Test ${m.slug}`} onClick={() => setTestModelId(m.id)}>
+                            <ChatOutlined fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      ) : null}
                       <Tooltip title="Edit" enterDelay={250}>
                         <IconButton
                           size="small"
@@ -237,6 +254,12 @@ export function AiPanel() {
               )}
             </TableBody>
           </Table>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+            <FormControlLabel
+              control={<Switch size="small" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />}
+              label="Show archived"
+            />
+          </Box>
         </CardContent>
       </Card>
 

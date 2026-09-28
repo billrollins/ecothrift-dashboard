@@ -83,7 +83,7 @@ describe('AiPanel', () => {
 
   it('shows check-for-new results per provider in a dialog', async () => {
     renderPanel();
-    await userEvent.click(screen.getByRole('button', { name: 'Check for new models' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Update' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText(/found 3, added 1 \(gemini-9-flash\)/)).toBeInTheDocument();
     expect(within(dialog).getByText(/not checked - No API key in .env/)).toBeInTheDocument();
@@ -91,10 +91,13 @@ describe('AiPanel', () => {
 
   it('shows prices per million tokens and opens the model test', async () => {
     renderPanel();
-    expect(screen.getByLabelText('grok-4.7 input price')).toHaveValue('2');
-    expect(screen.getByLabelText('grok-4.7 output price')).toHaveValue('');
-    await userEvent.click(screen.getByRole('button', { name: 'Test a model' }));
+    expect(screen.getByRole('button', { name: 'Edit grok-4.7 input price' })).toHaveTextContent('$2');
+    expect(screen.getByRole('button', { name: 'Edit grok-4.7 output price' })).toHaveTextContent('set');
+    await userEvent.click(screen.getByRole('button', { name: 'Edit grok-4.7 input price' }));
+    expect(screen.getByLabelText('grok-4.7 input price')).toHaveValue('2');  // a small input only once clicked
+    await userEvent.click(screen.getByRole('button', { name: 'Test grok-4.7' }));
     const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('Grok 4.7')).toBeInTheDocument();  // the row's model is already picked
     expect(within(dialog).getByLabelText('Say something')).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Send' })).toBeDisabled();
   });
@@ -104,6 +107,6 @@ describe('AiPanel', () => {
     expect(await screen.findByText('$3 / $15')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'page' })).toHaveAttribute('href', 'https://docs.x.ai/pricing');
     expect(screen.getByRole('button', { name: 'Apply' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Estimate API costs' })).toBeEnabled();
+    expect(screen.getByText(/Prices last checked/)).toBeInTheDocument();
   });
 });

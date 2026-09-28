@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.109.3] -->
-<!-- Last reviewed: 2026-09-28 (2.109.3) -->
+<!-- Line 1 release: ## [2.109.4] -->
+<!-- Last reviewed: 2026-09-28 (2.109.4) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.109.4] - 2026-09-28
+
+User-facing theme: **A cleaner Settings → AI models table.**
+
+### Changed
+
+- **Prices** read as plain text with a dotted underline (and a pencil on hover). Clicking turns one into a small input; Enter saves, Escape cancels. Image models show "per image".
+- **Each text model has a test icon** that opens the test chat with that model picked.
+- **One Update button** replaces Add model and Check for new models. It looks for new models at each provider, then checks every active model's price.
+- **"Show archived"** moved to the bottom right of the card.
 
 ## [2.109.3] - 2026-09-28
 

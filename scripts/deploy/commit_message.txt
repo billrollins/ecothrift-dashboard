@@ -1,5 +1,3 @@
-feat: v2.109.3 Settings > AI "Estimate API costs": exact prices from the providers' pricing pages
-
-- Claude with web search checks every active model slug; blanks are filled, differences shown with Apply.
+feat: v2.109.4 Settings > AI: sleek inline prices, per-row test icon, one Update button
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

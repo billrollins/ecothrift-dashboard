@@ -23,9 +23,11 @@ function usd(v: string | null): string {
 }
 
 /** Settings > AI: send one message to a model and see the answer, how long it took, and what it cost. */
-export function AiTestDialog({ open, onClose, models }: { open: boolean; onClose: () => void; models: AiCatalogModel[] }) {
+export function AiTestDialog({ open, onClose, models, initialModelId = null }: {
+  open: boolean; onClose: () => void; models: AiCatalogModel[]; initialModelId?: number | null;
+}) {
   const textModels = models.filter((m) => m.status === 'active' && m.modality === 'text');
-  const [modelId, setModelId] = useState<number | ''>('');
+  const [modelId, setModelId] = useState<number | ''>(initialModelId ?? '');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<AiTestResult | null>(null);
