@@ -150,13 +150,17 @@ export function AiPanel() {
     }
   };
 
-  // Update: look for new models at each provider, then check every active model's exact price.
+  // Update: look for new models; for the ones just added, quietly get prices if the providers list them.
   const runUpdate = async () => {
     setUpdating(true);
     try {
       const data = await discover.mutateAsync();
-      setDiscoverResults(data.providers);
-      queryClient.setQueryData(['ai-settings', 'price-check'], await startAiPriceCheck());
+      const added = data.providers.flatMap((p) => p.added);
+      if (added.length) {
+        await startAiPriceCheck(added);
+        void queryClient.invalidateQueries({ queryKey: ['ai-settings', 'price-check'] });
+      }
+      enqueueSnackbar(added.length ? `Added ${added.join(', ')}. Getting their prices.` : 'No new models.', { variant: 'success' });
     } catch (err) {
       enqueueSnackbar(formatApiError(err, 'Could not update.'), { variant: 'error' });
     } finally {
@@ -388,24 +392,6 @@ export function AiPanel() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={discoverResults != null} onClose={() => setDiscoverResults(null)} fullWidth maxWidth="sm">
-        <DialogTitle>Check for new models</DialogTitle>
-        <DialogContent>
-          <Stack spacing={1} sx={{ mt: 1 }}>
-            {(discoverResults ?? []).map((r) => (
-              <Typography key={r.provider} variant="body2">
-                <strong>{PROVIDER_LABEL[r.provider]}:</strong>{' '}
-                {r.ok
-                  ? `found ${r.found}, added ${r.added.length}${r.added.length ? ` (${r.added.join(', ')})` : ''}`
-                  : `not checked - ${r.error}`}
-              </Typography>
-            ))}
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDiscoverResults(null)}>Close</Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 }

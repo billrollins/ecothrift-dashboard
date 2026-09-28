@@ -339,7 +339,10 @@ class AiModelViewSet(viewsets.ModelViewSet):
         """GET the last "Estimate API costs" check; POST starts a new one (its own process)."""
         from apps.core.services import ai_prices
 
-        return Response(ai_prices.start() if request.method == 'POST' else ai_prices.state())
+        if request.method == 'POST':
+            slugs = [str(x) for x in request.data.get('slugs') or []]
+            return Response(ai_prices.start(slugs) if slugs else {'status': 'done', 'results': []})
+        return Response(ai_prices.state())
 
     @action(detail=True, methods=['post'])
     def test(self, request, pk=None):

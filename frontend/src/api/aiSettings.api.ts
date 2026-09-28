@@ -158,7 +158,7 @@ export async function getAiPriceCheck(): Promise<AiPriceCheck> {
 }
 
 /** "Estimate API costs": starts the check (it runs on its own; poll getAiPriceCheck). */
-export async function startAiPriceCheck(): Promise<AiPriceCheck> {
-  const { data } = await api.post<AiPriceCheck>('/core/ai/models/price-check/');
+export async function startAiPriceCheck(slugs: string[]): Promise<AiPriceCheck> {
+  const { data } = await api.post<AiPriceCheck>('/core/ai/models/price-check/', { slugs });
   return { ...data, results: data.results ?? [] };
 }

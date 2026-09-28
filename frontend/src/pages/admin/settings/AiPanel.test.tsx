@@ -22,14 +22,15 @@ const actions = [
 
 const idle = { mutateAsync: vi.fn(), isPending: false };
 
+const priceCheck = vi.hoisted(() => ({ started: [] as string[][] }));
+
 vi.mock('../../../api/aiSettings.api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../api/aiSettings.api')>()),
-  getAiPriceCheck: async () => ({
-    status: 'done', finished_at: '2026-09-28T20:00:00Z', checker: 'claude-opus-5-5',
-    results: [{ id: 1, slug: 'grok-4.7', found_input: '3.0000', found_output: '15.0000', current_input: '2.0000', current_output: null,
-      filled: false, differs: true, source_url: 'https://docs.x.ai/pricing', note: '' }],
-  }),
-  startAiPriceCheck: async () => ({ status: 'running', results: [] }),
+  getAiPriceCheck: async () => ({ status: 'done', results: [] }),
+  startAiPriceCheck: async (slugs: string[]) => {
+    priceCheck.started.push(slugs);
+    return { status: 'running', results: [] };
+  },
 }));
 
 vi.mock('../../../hooks/useAiSettings', () => ({
@@ -81,12 +82,11 @@ describe('AiPanel', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('shows check-for-new results per provider in a dialog', async () => {
+  it('Update adds new models and gets prices only for the ones just added', async () => {
     renderPanel();
     await userEvent.click(screen.getByRole('button', { name: 'Update' }));
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText(/found 3, added 1 \(gemini-9-flash\)/)).toBeInTheDocument();
-    expect(within(dialog).getByText(/not checked - No API key in .env/)).toBeInTheDocument();
+    expect(await screen.findByText('Added gemini-9-flash. Getting their prices.')).toBeInTheDocument();
+    expect(priceCheck.started).toEqual([['gemini-9-flash']]);
   });
 
   it('shows prices per million tokens and opens the model test', async () => {
@@ -100,13 +100,5 @@ describe('AiPanel', () => {
     expect(within(dialog).getByText('Grok 4.7')).toBeInTheDocument();  // the row's model is already picked
     expect(within(dialog).getByLabelText('Say something')).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Send' })).toBeDisabled();
-  });
-
-  it('shows the price check: what it found against yours, with the source and Apply', async () => {
-    renderPanel();
-    expect(await screen.findByText('$3 / $15')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'page' })).toHaveAttribute('href', 'https://docs.x.ai/pricing');
-    expect(screen.getByRole('button', { name: 'Apply' })).toBeInTheDocument();
-    expect(screen.getByText(/Prices last checked/)).toBeInTheDocument();
   });
 });

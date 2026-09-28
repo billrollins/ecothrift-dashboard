@@ -2,7 +2,8 @@
 Settings > AI "Estimate API costs": a model reads each provider's official pricing page and reports
 the exact input and output price per 1M tokens for every active model slug.
 
-- **Who checks:** Claude, with Anthropic's web search tool, in one call.
+- **Who checks:** the server downloads each provider's official pricing page (the prices are plain
+  text there), and Claude reads that exact page text in one call. No web search.
 - **What it changes:** a blank price is filled in. A price already set that differs is only
   reported; the owner applies it with a click, because a price set by hand wins.
 - **Where the result lives:** the last check, with its sources, is kept in the AppSetting
@@ -12,7 +13,9 @@ the exact input and output price per 1M tokens for every active model slug.
 """
 from __future__ import annotations
 
+import html
 import logging
+import re
 import subprocess
 import sys
 from datetime import datetime, timedelta
@@ -28,12 +31,21 @@ CHECKER = 'claude-opus-5-5'
 STALE = timedelta(minutes=8)
 TOOL = 'report_prices'
 
-SYSTEM = """You check AI model API prices for a small business. For each model slug you are given, find its \
-exact list price on the provider's own official pricing documentation (Anthropic, Google AI / Gemini API, \
-xAI, Meta), using web search. Report the standard price in US dollars per 1 million tokens for input and \
-for output, for this exact slug. If a model has tiers (for example by prompt length), report the base tier \
-and say so in the note. Never guess: if the official page doesn't list this exact slug, report nulls and \
-say what you found. Always give the URL you read the price from. When done, call report_prices once."""
+PAGES = {
+    'anthropic': 'https://platform.claude.com/docs/en/about-claude/pricing',
+    'google': 'https://ai.google.dev/gemini-api/docs/pricing',
+    'openai': 'https://developers.openai.com/api/docs/pricing',
+    'xai': 'https://docs.x.ai/developers/pricing',
+    'meta': 'https://dev.meta.ai/docs/pricing-rate-limits',
+}
+PAGE_CHARS = 80_000
+
+SYSTEM = """You check AI model API prices for a small business. You are given the text of each provider's \
+official pricing page and a list of model slugs. For each slug, read its exact list price from that page \
+(a page may use the display name, e.g. claude-opus-5-5 is "Claude Opus 5.5"). Report the standard price in \
+US dollars per 1 million tokens for input and for output. If a model has tiers (for example by prompt \
+length), report the base tier and say so in the note. Never guess: if the page doesn't list this exact \
+model, report nulls and say what you found. Give the page URL as the source. Call report_prices once."""
 
 SCHEMA = {
     'name': TOOL,
@@ -85,8 +97,8 @@ def state() -> dict:
     return s
 
 
-def start() -> dict:
-    """Start the check as its own process; returns the state at once."""
+def start(slugs: list[str]) -> dict:
+    """Start the check for these (newly added) slugs as its own process; returns the state at once."""
     current = state()
     if current.get('status') == 'running':
         return current
@@ -94,7 +106,8 @@ def start() -> dict:
     _save(s)
     try:
         subprocess.Popen(
-            [sys.executable, str(settings.BASE_DIR / 'manage.py'), 'check_ai_prices'], cwd=str(settings.BASE_DIR),
+            [sys.executable, str(settings.BASE_DIR / 'manage.py'), 'check_ai_prices', '--slugs', ','.join(slugs)],
+            cwd=str(settings.BASE_DIR),
             start_new_session=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
     except OSError as exc:
@@ -103,16 +116,35 @@ def start() -> dict:
     return s
 
 
+def _page_text(url: str) -> str:
+    """The provider's pricing page as plain text (the pages are server-rendered)."""
+    import requests
+
+    r = requests.get(url, timeout=30, headers={'User-Agent': 'Mozilla/5.0 (EcoThrift price check)'})
+    r.raise_for_status()
+    text = re.sub(r'<script.*?</script>|<style.*?</style>|<[^>]+>', ' ', r.text, flags=re.S)
+    return html.unescape(re.sub(r'\s+', ' ', text)).strip()[:PAGE_CHARS]
+
+
 def _ask(rows: list[dict]) -> tuple[dict, str]:
-    """One Claude call with web search; returns (tool input, model used)."""
+    """Download each needed pricing page, then one Claude call reads them; returns (tool input, model used)."""
     import anthropic
 
+    pages = []
+    for provider in sorted({r['provider'] for r in rows}):
+        url = PAGES.get(provider)
+        if not url:
+            continue
+        try:
+            pages.append(f'=== {provider} pricing page: {url} ===\n{_page_text(url)}')
+        except Exception as exc:  # the model then reports nulls for that provider
+            pages.append(f'=== {provider} pricing page: {url} === (could not download: {exc})')
     client = anthropic.Anthropic(api_key=getattr(settings, 'ANTHROPIC_API_KEY', '') or None)
     lines = '\n'.join(f"- {r['slug']} (provider: {r['provider']})" for r in rows)
     response = client.messages.create(
         model=CHECKER, max_tokens=4000, system=SYSTEM, timeout=300,
-        messages=[{'role': 'user', 'content': f'Check these model slugs:\n{lines}'}],
-        tools=[{'type': 'web_search_20250305', 'name': 'web_search', 'max_uses': 12}, SCHEMA],
+        messages=[{'role': 'user', 'content': '\n\n'.join(pages) + f'\n\nCheck these model slugs:\n{lines}'}],
+        tools=[SCHEMA],
     )
     for block in response.content:
         if getattr(block, 'type', '') == 'tool_use' and getattr(block, 'name', '') == TOOL:
@@ -127,11 +159,17 @@ def _dec(value) -> Decimal | None:
         return None
 
 
-def run() -> dict:
+def run(slugs: list[str] | None = None) -> dict:
     """The check itself (the command runs this): ask, fill blanks, keep the report."""
     from apps.core.models import AiModel
 
     models = list(AiModel.objects.filter(status=AiModel.STATUS_ACTIVE, modality=AiModel.MODALITY_TEXT))
+    if slugs is not None:  # Update checks only the models it just added, and only ones with no price yet
+        models = [m for m in models if m.slug in set(slugs) and m.input_price is None and m.output_price is None]
+    if not models:
+        s = {'status': 'done', 'started_at': timezone.now().isoformat(), 'finished_at': timezone.now().isoformat(), 'results': [], 'error': ''}
+        _save(s)
+        return s
     started = _state().get('started_at') or timezone.now().isoformat()
     try:
         body, used = _ask([{'slug': m.slug, 'provider': m.provider} for m in models])

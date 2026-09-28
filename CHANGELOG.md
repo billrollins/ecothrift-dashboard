@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.109.4] -->
-<!-- Last reviewed: 2026-09-28 (2.109.4) -->
+<!-- Line 1 release: ## [2.109.5] -->
+<!-- Last reviewed: 2026-09-28 (2.109.5) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.109.5] - 2026-09-28
+
+User-facing theme: **Update is simple: new models, and their prices when they can be found.**
+
+### Changed
+
+- **Update** looks for new models. Only for the ones it just added, it quietly gets prices: the server downloads each provider's official pricing page (Anthropic, Google, OpenAI, xAI, Meta) and Claude reads the exact price off it, with no web search. Blank if a page doesn't list the model. There is no report table, and prices already in the table are never re-checked.
 
 ## [2.109.4] - 2026-09-28
 

@@ -262,6 +262,9 @@ class AiPriceCheckTests(TestCase):
         ]}
         with patch.object(ai_prices, '_ask', return_value=(answer, 'claude-opus-5-5')) as ask:
             s = ai_prices.run()
+        with patch.object(ai_prices, '_ask') as not_asked:
+            ai_prices.run(['check-mine-x'])  # Update's path: only just-added models with no price get checked
+        not_asked.assert_not_called()
         slugs = [r['slug'] for r in ask.call_args.args[0]]
         self.assertNotIn('check-old-x', slugs)  # archived models are not checked
         blank.refresh_from_db()

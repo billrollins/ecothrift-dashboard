@@ -1,3 +1,3 @@
-feat: v2.109.4 Settings > AI: sleek inline prices, per-row test icon, one Update button
+feat: v2.109.5 Settings > AI Update: new models only, quiet price fill, no report table
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
