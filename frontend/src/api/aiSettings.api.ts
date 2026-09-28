@@ -129,3 +129,36 @@ export function updateAiAction(
 export function getAiActionChoices(purpose: string): Promise<{ data: AiActionChoices }> {
   return api.get<AiActionChoices>(`/core/ai/actions/${encodeURIComponent(purpose)}/choices/`);
 }
+
+export interface AiPriceCheckRow {
+  id: number;
+  slug: string;
+  found_input: string | null;
+  found_output: string | null;
+  current_input: string | null;
+  current_output: string | null;
+  filled: boolean;
+  differs: boolean;
+  source_url: string;
+  note: string;
+}
+
+export interface AiPriceCheck {
+  status?: 'running' | 'done' | 'failed';
+  started_at?: string;
+  finished_at?: string;
+  checker?: string;
+  results: AiPriceCheckRow[];
+  error?: string;
+}
+
+export async function getAiPriceCheck(): Promise<AiPriceCheck> {
+  const { data } = await api.get<AiPriceCheck>('/core/ai/models/price-check/');
+  return { results: [], ...data };
+}
+
+/** "Estimate API costs": starts the check (it runs on its own; poll getAiPriceCheck). */
+export async function startAiPriceCheck(): Promise<AiPriceCheck> {
+  const { data } = await api.post<AiPriceCheck>('/core/ai/models/price-check/');
+  return { results: [], ...data };
+}

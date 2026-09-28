@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.109.2] -->
-<!-- Last reviewed: 2026-09-28 (2.109.2) -->
+<!-- Line 1 release: ## [2.109.3] -->
+<!-- Last reviewed: 2026-09-28 (2.109.3) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.109.3] - 2026-09-28
+
+User-facing theme: **Settings → AI can look up each model's exact price.**
+
+### Added
+
+- **"Estimate API costs"** at the top of the models table.
+  - **What it checks:** Claude, with web search, reads each provider's official pricing page for every active model's exact id and reports the input and output price per 1M tokens, with the source link.
+  - **What it changes:** blank prices are filled in. A price you already set that differs is shown next to what was found, with Apply. Archived models are skipped.
+  - **How it runs:** as its own process (`python manage.py check_ai_prices`); the page polls.
 
 ## [2.109.2] - 2026-09-28
 

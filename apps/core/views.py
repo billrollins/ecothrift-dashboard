@@ -334,6 +334,13 @@ class AiModelViewSet(viewsets.ModelViewSet):
     def discover(self, request):
         return Response({'providers': discover_models()})
 
+    @action(detail=False, methods=['get', 'post'], url_path='price-check')
+    def price_check(self, request):
+        """GET the last "Estimate API costs" check; POST starts a new one (its own process)."""
+        from apps.core.services import ai_prices
+
+        return Response(ai_prices.start() if request.method == 'POST' else ai_prices.state())
+
     @action(detail=True, methods=['post'])
     def test(self, request, pk=None):
         """Settings > AI "Test": one message to this model; the answer, the time, and the cost."""

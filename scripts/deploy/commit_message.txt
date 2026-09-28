@@ -1,6 +1,5 @@
-feat: v2.109.2 Settings > AI: model prices per 1M tokens, and a test chat with time and cost
+feat: v2.109.3 Settings > AI "Estimate API costs": exact prices from the providers' pricing pages
 
-- Input and output prices on each AI model (editable; blank = unknown); cost estimates use them.
-- "Test a model": one message, the answer, seconds, and cost split into input and output.
+- Claude with web search checks every active model slug; blanks are filled, differences shown with Apply.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

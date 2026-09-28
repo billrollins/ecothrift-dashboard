@@ -50,6 +50,7 @@ import {
 import { formatApiError } from '../labelStudio/labelStudioUtils';
 import { AiTestDialog } from './AiTestDialog';
 import { PriceCell } from './AiPriceCell';
+import { AiPriceCheck } from './AiPriceCheck';
 
 const MODALITY_LABEL: Record<AiModality, string> = { text: 'Text', image: 'Image' };
 
@@ -183,6 +184,7 @@ export function AiPanel() {
               Add model
             </Button>
           </Box>
+          <AiPriceCheck />
           <Table size="small">
             <TableHead>
               <TableRow>

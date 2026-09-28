@@ -244,3 +244,30 @@ class AiModelTestEndpointTests(TestCase):
         self.assertGreaterEqual(data['seconds'], 0)
         self.assertEqual(estimate_cost_usd('test-model-x', 1000, 500), Decimal('0.014000'))  # usage logs use the same prices
         self.assertEqual(api.post(f'/api/core/ai/models/{row.pk}/test/', {'message': ' '}, format='json').status_code, 400)
+
+
+class AiPriceCheckTests(TestCase):
+    def test_blank_prices_are_filled_and_a_different_price_you_set_is_only_reported(self):
+        from decimal import Decimal
+        from unittest.mock import patch
+
+        from apps.core.services import ai_prices
+
+        blank = AiModel.objects.create(slug='check-blank-x', provider='google')
+        mine = AiModel.objects.create(slug='check-mine-x', provider='xai', input_price=Decimal('2'), output_price=Decimal('6'))
+        AiModel.objects.create(slug='check-old-x', provider='xai', status=AiModel.STATUS_ARCHIVED)
+        answer = {'prices': [
+            {'slug': 'check-blank-x', 'input_per_million': 0.1, 'output_per_million': 0.4, 'source_url': 'https://g/p', 'note': ''},
+            {'slug': 'check-mine-x', 'input_per_million': 3, 'output_per_million': 15, 'source_url': 'https://x/p', 'note': ''},
+        ]}
+        with patch.object(ai_prices, '_ask', return_value=(answer, 'claude-opus-5-5')) as ask:
+            s = ai_prices.run()
+        slugs = [r['slug'] for r in ask.call_args.args[0]]
+        self.assertNotIn('check-old-x', slugs)  # archived models are not checked
+        blank.refresh_from_db()
+        mine.refresh_from_db()
+        self.assertEqual((blank.input_price, blank.output_price), (Decimal('0.1000'), Decimal('0.4000')))
+        self.assertEqual(mine.input_price, Decimal('2'))  # a price you set is never overwritten
+        rows = {r['slug']: r for r in s['results']}
+        self.assertTrue(rows['check-blank-x']['filled'])
+        self.assertTrue(rows['check-mine-x']['differs'])

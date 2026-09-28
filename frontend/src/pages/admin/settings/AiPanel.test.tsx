@@ -22,6 +22,16 @@ const actions = [
 
 const idle = { mutateAsync: vi.fn(), isPending: false };
 
+vi.mock('../../../api/aiSettings.api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../api/aiSettings.api')>()),
+  getAiPriceCheck: async () => ({
+    status: 'done', finished_at: '2026-09-28T20:00:00Z', checker: 'claude-opus-5-5',
+    results: [{ id: 1, slug: 'grok-4.7', found_input: '3.0000', found_output: '15.0000', current_input: '2.0000', current_output: null,
+      filled: false, differs: true, source_url: 'https://docs.x.ai/pricing', note: '' }],
+  }),
+  startAiPriceCheck: async () => ({ status: 'running', results: [] }),
+}));
+
 vi.mock('../../../hooks/useAiSettings', () => ({
   useAiModels: () => ({ data: models, isLoading: false, isError: false }),
   useAiActions: () => ({ data: actions, isLoading: false, isError: false }),
@@ -87,5 +97,13 @@ describe('AiPanel', () => {
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByLabelText('Say something')).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Send' })).toBeDisabled();
+  });
+
+  it('shows the price check: what it found against yours, with the source and Apply', async () => {
+    renderPanel();
+    expect(await screen.findByText('$3 / $15')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'page' })).toHaveAttribute('href', 'https://docs.x.ai/pricing');
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Estimate API costs' })).toBeEnabled();
   });
 });
