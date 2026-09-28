@@ -1,3 +1,4 @@
+from apps.accounts.permissions import IsTeamMember
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -22,7 +23,7 @@ def default_chat_model() -> str:
 
 class ModelListView(APIView):
     """GET /api/ai/models/ - return curated list of available models."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsTeamMember]
 
     def get(self, request):
         return Response({'models': AVAILABLE_MODELS, 'default': default_chat_model()})
@@ -37,7 +38,7 @@ class ChatProxyView(APIView):
         messages (list): messages array [{role, content}]
         max_tokens (int, optional): defaults to 4096
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsTeamMember]
 
     def post(self, request):
         data = request.data

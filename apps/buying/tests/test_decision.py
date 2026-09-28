@@ -114,7 +114,7 @@ class DecisionTests(TestCase):
         )
         similar = decision(self.auction)['similar']
         self.assertEqual([lot['close'] for lot in similar['lots']], ['1800.00', '2100.00'])
-        self.assertEqual((similar['likely_low'], similar['likely_high']), ('1800.00', '2100.00'))
+        self.assertEqual((similar['likely_low'], similar['likely_high'], similar['basis']), ('1800.00', '2100.00', 'raw'))
 
     def test_a_category_with_no_sales_uses_the_store_wide_rate_and_says_so(self):
         from apps.buying.services.recovery import filled_in, recovery_rate
@@ -131,6 +131,19 @@ class DecisionTests(TestCase):
         self.auction.save()
         landed = decision(self.auction)['landed']
         self.assertEqual((landed['filled_categories'], landed['store_rate']), (['Appliances'], '0.350000'))
+
+    def test_similar_lots_are_scaled_to_this_lots_retail(self):
+        self.auction.total_retail_value = Decimal('20000')
+        self.auction.save()
+        for ext, close, retail in (('s1', '1000', '10000'), ('s2', '1500', '10000')):
+            Auction.objects.create(
+                marketplace=self.mp, external_id=ext, status=Auction.STATUS_CLOSED,
+                end_time=timezone.now() - timedelta(days=2), current_price=Decimal(close), pallet_count=4,
+                total_retail_value=Decimal(retail), manifest_category_distribution={KITCHEN: 100.0},
+            )
+        similar = decision(self.auction)['similar']
+        # 10% and 15% of their retail, applied to this lot's $20,000.
+        self.assertEqual((similar['likely_low'], similar['likely_high'], similar['basis']), ('2000.00', '3000.00', 'scaled'))
 
     def test_need_levels(self):
         self.assertEqual([need_level(80), need_level(50), need_level(20), need_level(None)], ['High', 'Med', 'Low', None])

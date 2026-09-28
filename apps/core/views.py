@@ -11,7 +11,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 
-from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsSuperAdmin
+from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsSuperAdmin, IsTeamMember
 from .models import (
     WorkLocation, AppSetting, AppSettingHistory, S3File, PrintServerRelease,
     EnhancementRequest, EnhancementRequestNote, AiAction, AiModel,
@@ -163,7 +163,7 @@ def app_version(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsTeamMember])
 def print_server_version(request):
     """Return the latest print server release info."""
     release = PrintServerRelease.objects.filter(is_current=True).select_related('s3_file').first()
@@ -176,7 +176,7 @@ def print_server_version(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsTeamMember])
 def print_server_releases(request):
     """List all print server releases."""
     releases = PrintServerRelease.objects.select_related('s3_file').all()
@@ -355,3 +355,133 @@ class AiActionViewSet(viewsets.ModelViewSet):
     )
     def choices(self, request, purpose=None):
         return Response(action_choices(self.get_object()))
+
+
+class ApprovalRequestViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Superuser → Requests. Routine data work staged in production (``stage_request``) waits here
+    for the owner: approve starts the apply in the background, reject closes it, undo reverses an
+    applied one, and resume restarts a failed or stalled one from its cursor.
+    """
+
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+    pagination_class = None
+
+    def get_queryset(self):
+        from .models import ApprovalRequest
+
+        qs = ApprovalRequest.objects.select_related('decided_by').all()
+        if self.action != 'list':
+            return qs  # a sliced queryset would make every detail action a 404
+        status_filter = self.request.query_params.get('status')
+        if status_filter:
+            qs = qs.filter(status__in=status_filter.split(','))
+        return qs[:200]
+
+    def get_serializer_class(self):
+        from .serializers import ApprovalRequestSerializer
+
+        return ApprovalRequestSerializer
+
+    def list(self, request, *args, **kwargs):
+        from .services.approval_requests import resume_stalled
+
+        # Opening the page restarts any apply a deploy or worker recycle cut short.
+        resume_stalled()
+        return super().list(request, *args, **kwargs)
+
+    def _act(self, request, fn, *args):
+        from .services.approval_requests import RequestError
+
+        obj = self.get_object()
+        try:
+            with transaction.atomic():
+                fn(obj, *args)
+        except (RequestError, ValueError) as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        obj.refresh_from_db()
+        return Response(self.get_serializer(obj).data)
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        from .services import approval_requests
+
+        return self._act(request, approval_requests.approve, request.user, str(request.data.get('note') or ''))
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        from .services import approval_requests
+
+        return self._act(request, approval_requests.reject, request.user, str(request.data.get('note') or ''))
+
+    @action(detail=True, methods=['post'])
+    def undo(self, request, pk=None):
+        from .services import approval_requests
+
+        return self._act(request, approval_requests.undo, request.user)
+
+    @action(detail=True, methods=['post'])
+    def resume(self, request, pk=None):
+        from .services import approval_requests
+
+        return self._act(request, approval_requests.resume)
+
+
+def _brief_payload(day):
+    from .models import DailyBrief
+    from .services.daily_brief import is_writing
+
+    brief = DailyBrief.objects.select_related('snapshot').filter(day=day).first()
+    return {
+        'day': day.isoformat(),
+        'brief': None if brief is None else {
+            'status': brief.status,
+            'body': brief.body,
+            'model_used': brief.model_used,
+            'error': brief.error,
+            'finished_at': brief.finished_at,
+        },
+        'writing': is_writing(brief),
+        'snapshot': brief.snapshot.data if brief and brief.snapshot_id else None,
+        'days': [d.isoformat() for d in DailyBrief.objects.values_list('day', flat=True)[:30]],
+    }
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def daily_brief(request):
+    """
+    The AI supervisor's brief (Dash → Brief). ``?day=YYYY-MM-DD``, default yesterday. Opening
+    the default day with no brief yet starts writing it in the background.
+    """
+    from datetime import date as date_cls
+
+    from .models import DailyBrief
+    from .services.daily_brief import default_day, start
+
+    raw = request.query_params.get('day')
+    try:
+        day = date_cls.fromisoformat(raw) if raw else default_day()
+    except ValueError:
+        return Response({'detail': 'day must be YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not raw and not DailyBrief.objects.filter(day=day).exists():
+        start(day)
+    return Response(_brief_payload(day))
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def daily_brief_write(request):
+    """(Re)write the brief for ``day`` (default yesterday) in the background."""
+    from datetime import date as date_cls
+
+    from .services.daily_brief import default_day, start
+
+    raw = request.data.get('day')
+    try:
+        day = date_cls.fromisoformat(raw) if raw else default_day()
+    except ValueError:
+        return Response({'detail': 'day must be YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+    start(day)
+    return Response(_brief_payload(day), status=status.HTTP_202_ACCEPTED)
+

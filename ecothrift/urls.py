@@ -35,6 +35,7 @@ urlpatterns = [
     path('api/labels/', include('apps.labels.urls')),
     path('api/routines/', include('apps.routines.urls')),
     path('api/documents/', include('apps.documents.urls')),
+    path('api/thriftplus/', include('apps.thriftplus.urls')),
 ]
 
 # Serve the React SPA for all non-API routes in production

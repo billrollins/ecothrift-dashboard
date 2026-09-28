@@ -279,3 +279,106 @@ class AiAction(models.Model):
 
     def __str__(self):
         return self.purpose
+
+
+class ApprovalRequest(models.Model):
+    """
+    Routine data work staged in production for the superuser to approve there (Superuser → Requests).
+
+    Claude (or a job) stages a request: a ``kind`` from the registry in
+    ``apps/core/services/approval_requests.py``, its ``params``, and a ``preview`` built at staging
+    time (counts, what will change, sample rows). Nothing changes until the owner approves; then the
+    kind's ``apply`` runs in the background in resumable chunks, logging as it goes, and its
+    ``undo`` can reverse it. The owner never has to test locally and ask for a production apply.
+    """
+
+    STATUS_PENDING = 'pending'
+    STATUS_APPROVED = 'approved'
+    STATUS_RUNNING = 'running'
+    STATUS_APPLIED = 'applied'
+    STATUS_FAILED = 'failed'
+    STATUS_REJECTED = 'rejected'
+    STATUS_UNDONE = 'undone'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Waiting for approval'),
+        (STATUS_APPROVED, 'Approved, starting'),
+        (STATUS_RUNNING, 'Applying'),
+        (STATUS_APPLIED, 'Applied'),
+        (STATUS_FAILED, 'Failed'),
+        (STATUS_REJECTED, 'Rejected'),
+        (STATUS_UNDONE, 'Undone'),
+    ]
+
+    kind = models.CharField(max_length=80, db_index=True)
+    title = models.CharField(max_length=200)
+    summary = models.TextField(blank=True, default='')
+    params = models.JSONField(default=dict, blank=True)
+    preview = models.JSONField(
+        default=dict, blank=True, help_text='{counts: {label: n}, changes: [text], sample: [row dicts]}',
+    )
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    requested_by = models.CharField(max_length=80, blank=True, default='', help_text='Who staged it, e.g. claude:data_platform.')
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decision_note = models.TextField(blank=True, default='')
+    started_at = models.DateTimeField(null=True, blank=True)
+    heartbeat_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    progress = models.JSONField(default=dict, blank=True, help_text='{done, total, cursor}: the apply resumes from here.')
+    log = models.TextField(blank=True, default='')
+    result = models.JSONField(default=dict, blank=True)
+    error = models.TextField(blank=True, default='')
+    undone_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    undone_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.kind} #{self.pk} ({self.status})'
+
+
+class ContextSnapshot(models.Model):
+    """The Context layer for one day: curated numbers the owner and the AI supervisor read (data_platform Phase 2)."""
+
+    day = models.DateField(unique=True, help_text='The day the numbers are about (the brief is read the morning after).')
+    data = models.JSONField(default=dict)
+    built_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-day']
+
+    def __str__(self):
+        return f'Context {self.day}'
+
+
+class DailyBrief(models.Model):
+    """The AI supervisor's morning brief, written only from that day's ContextSnapshot."""
+
+    STATUS_WRITING = 'writing'
+    STATUS_READY = 'ready'
+    STATUS_FAILED = 'failed'
+    STATUS_CHOICES = [(STATUS_WRITING, 'Writing'), (STATUS_READY, 'Ready'), (STATUS_FAILED, 'Failed')]
+
+    day = models.DateField(unique=True)
+    snapshot = models.ForeignKey(ContextSnapshot, on_delete=models.SET_NULL, null=True, blank=True, related_name='briefs')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_WRITING)
+    # {headline, needs_you: [..], numbers: [..], watch: [..]}
+    body = models.JSONField(default=dict, blank=True)
+    model_used = models.CharField(max_length=100, blank=True, default='')
+    error = models.TextField(blank=True, default='')
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-day']
+
+    def __str__(self):
+        return f'Brief {self.day} ({self.status})'

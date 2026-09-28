@@ -3,7 +3,7 @@
 
 # Initiative: Buying intelligence v2
 
-**Status:** **Active**, Phase 1 not started. Plan agreed with the owner on 2026-09-25.
+**Status:** **Active, waiting.** On 2026-09-25 this was re-planned as the *consumer* of [`data_platform`](./data_platform.md): its QA inbox moved there (data_platform Phases 1 and 3), and its price and speed model is built by data_platform's model factory (Phase 5). The buying phases resume after the Thrift+ launch.
 
 **Objective:** The owner buys B-Stock trucks on a truck value he can trust. Today the value is retail × a category rate, and on 201 finished trucks it ran about 30% hot (R-062). Instead, each manifest line should be priced from what similar items really sold for here, and how fast they sold. Only the sales we can make inside our time goal should count, and categories we are already overstocked in should be capped. Four other things come with it:
 - **Product vectors made for matching.** An AI-written "vector text" per product drives dedupe, fast categorization and manifest matching.
@@ -11,7 +11,7 @@
 - **A buying loop that runs itself.** It shortlists and watches lots, polls them near the end, and alerts by email.
 - **One coherent buying workspace.**
 
-**Compass:** this file is the compass. It takes over from [`bstock_daily_buying`](./bstock_daily_buying.md) (Phases 1–6 done in v2.104.0; its open items move here). It absorbs [`product_intelligence`](./product_intelligence.md) Phases 4–6 (dedupe, enrich, intake) and [`data_quality_rails`](./data_quality_rails.md) Phase 3 (the review loop).
+**Compass:** not the compass. [`thrift_plus_rewards`](./thrift_plus_rewards.md) holds it until launch (10-20), then [`data_platform`](./data_platform.md). It takes over from [`bstock_daily_buying`](./bstock_daily_buying.md) (Phases 1–6 done in v2.104.0; its open items move here). It absorbs [`product_intelligence`](./product_intelligence.md) Phases 4–6 (dedupe, enrich, intake) and [`data_quality_rails`](./data_quality_rails.md) Phase 3 (the review loop).
 
 ---
 
@@ -25,7 +25,7 @@
 **Before Phase 1** (carried over from `bstock_daily_buying`):
 - [x] v2.104.0 and v2.105.0 deployed (Heroku v363, 2026-09-25; migrations buying 0032–0036 applied).
 - [x] `fit_seller_factors --save` in production. It used 201 finished trucks: Target 0.791, Amazon 0.670, Walmart 0.856, Costco 0.862, Wayfair 0.303, Home Depot 0.744. `recompute_buying_valuations` followed.
-- [ ] The similar-lots range switches to the retail-scaled one (R-068: the band is 1.32× the median, not 1.89×).
+- [x] The similar-lots range switches to the retail-scaled one (R-068: the band is 1.32× the median, not 1.89×). Done in `decision._similar`, with `basis` = scaled / raw / model; ships with v2.106.0.
 
 ---
 
@@ -36,7 +36,7 @@ On the Buying workspace, the owner opens **Today** and gets three things:
 - a truck value built line by line from similar items' real sales, capped at what sells inside the time goal and at 150% of target weeks of supply;
 - the share of the truck that sells in that time, what is left over, and why.
 
-An email tells him when to bid and asks whether he won. In the **QA inbox** he clears the day's data-quality calls in minutes: merges, placements, profiles and stale records, each with evidence and one-key accept or reject.
+Dash nags tell him when to bid and ask whether he won. In the **QA inbox** he clears the day's data-quality calls in minutes: merges, placements, profiles and stale records, each with evidence and one-key accept or reject.
 
 ---
 
@@ -134,7 +134,7 @@ Scope (detail when Phase 3 is built):
 - **Auto-shortlist.** After each sweep, the top lots by Priority are auto-watched; Priority uses v3 value, Need and profit. Then an **AI review** reads the shortlist with the store context (need, stock, won and on-order, the report cards) and writes a short take on each. It adds flags; it does not re-rank on its own.
 - **Automatic Pull.** Manifests and freight quotes are pulled for the shortlist whenever a login is live. The login hand-off is one tap from the email or the nag, and it stays manual per B-Stock.
 - **Near-end polling.** A worker polls watched lots every minute in the last hour and every 10–15 seconds in the last 10 minutes. The snapshots feed the close model. This needs a worker dyno: the owner decides on the cost.
-- **Alerts.** Email, plus phone push if cheap:
+- **Alerts.** In Dash only; the owner ruled out email and text on 2026-09-25:
   - "Bid now: $X max, ends 3:40";
   - "Did we win?";
   - a morning digest of Today's plan.
@@ -183,6 +183,8 @@ Scope (detail when Phase 4 is built):
 ---
 
 ## Record
+
+**2026-09-25 — Re-planned.** Phase 1 (QA inbox, dedupe and backfill as routine) moved to `data_platform` Phases 1 and 3, and the Phase 3 models are built in `data_platform` Phase 5. The remaining buying work (vector text, truck value v3 wiring, the self-running loop, the workspace) resumes after the data platform's foundations and the Thrift+ launch.
 
 **2026-09-25 — Before Phase 1.** Shipped v2.105.0 and deployed it to Heroku v363, which took v2.104.0 live too. The seller factors are saved in production (the numbers above) and the open auctions were re-valued. The owner asked for all of this to be done for him.
 

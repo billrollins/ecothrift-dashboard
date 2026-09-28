@@ -133,6 +133,23 @@ class CartTotalsAPITests(TestCase):
         self.assertEqual(data['lines'][0]['quantity'], 4)
         assert_cart_totals_match_lines(self, data)
 
+    def test_patch_line_price_with_cents_from_json(self):
+        """The terminal sends an edited price as a JSON number (a float in Python)."""
+        cart = self._create_open_cart()
+        cid = cart['id']
+        r0 = self.client.post(f'/api/pos/carts/{cid}/add-item/', {'sku': 'POS-T-SKU-A'}, format='json')
+        line_id = r0.json()['lines'][0]['id']
+        r = self.client.patch(
+            f'/api/pos/carts/{cid}/lines/{line_id}/',
+            {'quantity': 3, 'description': 'Item A', 'unit_price': 12.99},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.content)
+        data = r.json()
+        self.assertEqual(Decimal(str(data['lines'][0]['unit_price'])), Decimal('12.99'))
+        self.assertEqual(Decimal(str(data['lines'][0]['line_total'])), Decimal('38.97'))
+        assert_cart_totals_match_lines(self, data)
+
     def test_delete_line_totals_stay_coherent(self):
         cart = self._create_open_cart()
         cid = cart['id']

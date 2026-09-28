@@ -25,6 +25,10 @@ _PASSTHROUGH_PREFIXES = ('/api/', '/static/', '/assets/', '/media/', '/db-admin/
 # Exact paths served by Django views on the public host (SEO endpoints).
 _PASSTHROUGH_PATHS = ('/robots.txt', '/sitemap.xml')
 
+# Dashboard SPA routes that customers open on the public host: the Thrift+ scanner
+# (www.ecothrift.us/scan). They pass through to the dashboard app, which serves them publicly.
+_DASHBOARD_SPA_PATHS = ('/scan',)
+
 # Public landing template (Django-rendered; replaced by the public SPA in a later phase).
 _HOLDING_TEMPLATE = 'public/holding.html'
 _HOLD_SHELL_MARKER = '<!--PUBLIC_SHELL-->'
@@ -126,6 +130,8 @@ class PublicSiteMiddleware:
 
         # Keep the shared API, assets, admin, and SEO endpoints working on the public host.
         if path.startswith(_PASSTHROUGH_PREFIXES) or path in _PASSTHROUGH_PATHS:
+            return None
+        if any(path == p or path.startswith(p + '/') for p in _DASHBOARD_SPA_PATHS):
             return None
 
         # Resolve canonical host + any legacy Shopify-URL rewrite into a single 301

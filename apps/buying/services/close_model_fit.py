@@ -5,8 +5,8 @@ Fit the likely-close model (``price_target.expected_close``) from our own ended 
   listed retail and a final price. A seller gets its own ratio at ``MIN_SELLER_N`` auctions
   or more; the rest share the overall median. The same for each seller and condition group
   (R-053: new closes near 0.084 of retail, damaged near 0.037), as ``cells``.
-- **The late bump**: final price ÷ the price 45–75 minutes before the end (the last hour),
-  and 150–210 minutes before (the last 3 hours), from the sweep's price snapshots. It needs
+- **The late bump**: final price ÷ the price 45 to 75 minutes before the end (the last hour),
+  and 150 to 210 minutes before (the last 3 hours), from the sweep's price snapshots. It needs
   a snapshot within ``FINAL_WITHIN`` of the end (else the stored price may itself be early),
   and ``MIN_BUMP_N`` auctions; otherwise the current bump is kept.
 

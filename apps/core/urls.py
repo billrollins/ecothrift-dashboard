@@ -6,6 +6,9 @@ from .views import (
     app_version, print_server_version, print_server_releases,
     print_server_version_public,
     dev_log_config, dev_log_line,
+    ApprovalRequestViewSet,
+    daily_brief,
+    daily_brief_write,
 )
 
 router = DefaultRouter()
@@ -15,6 +18,7 @@ router.register(r'files', S3FileViewSet, basename='s3file')
 router.register(r'enhancement-requests', EnhancementRequestViewSet, basename='enhancementrequest')
 router.register(r'ai/models', AiModelViewSet, basename='ai-model')
 router.register(r'ai/actions', AiActionViewSet, basename='ai-action')
+router.register(r'requests', ApprovalRequestViewSet, basename='approval-request')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -24,4 +28,6 @@ urlpatterns = [
     path('system/print-server-version-public/', print_server_version_public, name='print-server-version-public'),
     path('dev-log/config/', dev_log_config, name='dev-log-config'),
     path('dev-log/line/', dev_log_line, name='dev-log-line'),
+    path('brief/', daily_brief, name='daily-brief'),
+    path('brief/write/', daily_brief_write, name='daily-brief-write'),
 ]

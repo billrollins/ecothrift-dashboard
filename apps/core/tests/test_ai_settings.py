@@ -34,7 +34,8 @@ class _FakeResp:
 @override_settings(AI_PROVIDER='auto', AI_MODEL='env-default')
 class AiModelResolutionTests(TestCase):
     def test_seed_rows(self):
-        self.assertEqual(AiAction.objects.count(), 15)
+        self.assertEqual(AiAction.objects.count(), 17)  # + the supervisor brief and Thrift+ families
+        self.assertTrue(AiAction.objects.filter(purpose__in=['SUPERVISOR_BRIEF', 'THRIFTPLUS_FAMILY']).count() == 2)
         self.assertFalse(AiAction.objects.filter(model__isnull=False).exists())
         self.assertEqual(
             set(AiModel.objects.values_list('slug', flat=True)),

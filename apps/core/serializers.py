@@ -9,6 +9,7 @@ from .models import (
     EnhancementRequestNote,
     AiAction,
     AiModel,
+    ApprovalRequest,
 )
 from apps.core.ai_config import settings_model
 
@@ -240,3 +241,44 @@ class AiActionSerializer(serializers.ModelSerializer):
         if modality == AiModel.MODALITY_IMAGE and effort != AiAction.EFFORT_OFF:
             raise serializers.ValidationError({'effort': 'Image actions have no effort setting.'})
         return attrs
+
+
+class ApprovalRequestSerializer(serializers.ModelSerializer):
+    """Superuser → Requests: a staged change, its preview, and how its apply is going."""
+
+    kind_label = serializers.SerializerMethodField()
+    can_undo = serializers.SerializerMethodField()
+    stale = serializers.SerializerMethodField()
+    decided_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ApprovalRequest
+        fields = [
+            'id', 'kind', 'kind_label', 'title', 'summary', 'preview', 'status', 'requested_by',
+            'decided_by_name', 'decided_at', 'decision_note', 'started_at', 'heartbeat_at', 'finished_at',
+            'progress', 'log', 'result', 'error', 'undone_at', 'can_undo', 'stale', 'created_at',
+        ]
+
+    def get_kind_label(self, obj) -> str:
+        from .services.approval_requests import RequestError, get_kind
+
+        try:
+            return get_kind(obj.kind).label
+        except RequestError:
+            return obj.kind
+
+    def get_can_undo(self, obj) -> bool:
+        from .services.approval_requests import RequestError, get_kind
+
+        try:
+            return obj.status == obj.STATUS_APPLIED and get_kind(obj.kind).undo is not None
+        except RequestError:
+            return False
+
+    def get_stale(self, obj) -> bool:
+        from .services.approval_requests import is_stale
+
+        return is_stale(obj)
+
+    def get_decided_by_name(self, obj) -> str:
+        return obj.decided_by.full_name if obj.decided_by_id else ''

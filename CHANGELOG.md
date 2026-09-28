@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.108.1] -->
-<!-- Last reviewed: 2026-09-25 (2.108.1) -->
+<!-- Line 1 release: ## [2.109.0] -->
+<!-- Last reviewed: 2026-09-28 (2.109.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -9,6 +9,84 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
+
+## [2.109.0] - 2026-09-28
+
+User-facing theme: **Routine data work waits in Superuser → Requests and is approved in production, and Thrift+ members, cards and rewards exist, behind the launch switch.**
+
+Initiatives `data_platform` (Phases 1 and 2) and `thrift_plus_rewards` (Phases 1 and 2).
+
+### Added
+
+- **Superuser → Requests** (Admin, superusers only): routine data work staged in production waits here for the owner.
+  - Each request shows what it will change: counts, the changes in plain words, and sample rows.
+  - **Approve** applies it in the background with a progress bar and a log. **Reject** closes it. **Undo** reverses an applied one.
+  - An apply cut short by a deploy or restart **resumes** from where it stopped: automatically when the page is opened, or with the Resume button.
+  - `J` / `K` move through the list.
+- `python manage.py stage_request <kind> --title ... --params '{...}'` stages a request, building its preview from the database it runs on. `--list` shows the kinds. Nothing is applied.
+- The first kinds (`apps/inventory/approval_kinds.py`):
+  - **load backfill proposals.** Staging only; profiles are untouched. The two 2026-09-23 backfills ship compressed in `apps/inventory/data/backfill/`.
+  - **apply proposals to product profiles.** A value a person set always wins.
+  - **add brand aliases.**
+  - **merge duplicate products.** The plan is frozen when staged, so approval applies exactly what was previewed.
+
+  Each can be undone.
+- Migration `core.0008_approval_request`.
+- **Morning brief** (`/brief`, superuser only; initiative `data_platform` Phase 2). Each morning an AI supervisor writes the owner a short brief from yesterday's numbers: a headline, what needs him today, the key numbers against the same weekday and the week so far, and what to watch.
+  - **Built from a daily Context snapshot:**
+    - sales;
+    - hours, open punches and anyone near 40;
+    - routines;
+    - inventory flow and aging;
+    - buying (Today's plan, bid now, results to record, report cards);
+    - Requests waiting;
+    - Thrift+.
+  - **Checkable:** the brief uses only those numbers, and "The numbers behind it" shows the snapshot.
+  - **Writing it:** opening the page writes the day's brief if there isn't one yet, or run `python manage.py build_daily_brief` from the Scheduler. The model is picked in Settings → AI ("AI supervisor: owner's daily brief").
+  - Delivered in Dash only: no email or texts.
+  - Migrations `core.0009` and `0010`.
+- **Thrift+ members and cards** (initiative `thrift_plus_rewards`, Phase 1). Nothing here reaches the register or customers until the switch goes on at launch; the new app is `apps/thriftplus`.
+  - **Members:** an account has a primary and at most one second adult. Adding the second needs both present and the primary's OK. The primary can remove the second, and the second can remove only themselves.
+  - **Stored per person:** name, phone, photo, and a verified-18+ flag that is set only after an ID check. No ID data is kept.
+  - **Revoking** a membership kills every card on it. Every change is logged.
+  - **Cards:** blank cards are made in batches, each with a random 12-digit code whose last digit is a check digit, never the account id. The QR holds `TP` + the code.
+  - **Card backs:** a PDF with the QR and the printed number, printed through the print server's `/print/pdf-copies` (10 cards a job; no print-server change needed).
+  - **Thrift+ page** (`/thrift-plus`, superuser-only until launch):
+    - Members: find by scanning a card, or by phone or name; sign up; verify ID; photos; issue or kill cards; second adult; revoke; history.
+    - Card batches: make codes, print backs, download the PDF.
+  - **API** under `/api/thriftplus/`. Migrations `thriftplus.0001` and `0002`; `0002` seeds the `thrift_plus_enabled` switch, off.
+- **Thrift+ reward engine, running dark** (`thrift_plus_rewards` Phase 2). Every floor item carries a reward: what a member takes off the tag. Guests always pay the tag. Nothing reads it until launch.
+  - **The rules:**
+    - days 1 to 7, nothing;
+    - from day 8 it grows by the tag ÷ 90 a day;
+    - it stops where a member would pay 10% of the tag (the floor share is a setting; cost plays no part), so a reward never passes the tag and banked rewards never beat what was spent;
+    - it never goes down;
+    - it recomputes overnight only;
+    - consignment is excluded;
+    - day 90 puts the item on the exit list.
+  - **Pacing:** units of one product, and products the model judges the same family, pace by sell-through. On pace the reward holds; behind pace it grows; a family's last unit climbs on its own.
+  - **Logged:** every change of status comes with its reason and the pace numbers.
+  - **Thrift+ → Rewards tab:** what members would pay tomorrow (totals, price bands, the biggest rewards, the exit list) and any item's reward and log by SKU.
+  - **Commands for the Scheduler:**
+    - `python manage.py recompute_rewards` (nightly; `--dry-run` prints tomorrow);
+    - `python manage.py assign_reward_families` (vector neighbours, then one "same family?" model call per product, asked once; the model is picked in Settings → AI).
+  - **Settings:** `thrift_plus_floor_share` (0.10) and `thrift_plus_rewards_start` (blank; the owner decides in October how stock already on the floor starts).
+  - **Request kind** `thriftplus.reset_rewards` clears every reward state while the switch is off.
+  - Migrations `thriftplus.0003` and `0004`.
+
+### Security
+
+- **Staff pages are staff only.** A few staff endpoints checked only that someone was signed in, and online-store customers sign in with the same kind of token. They now need an employee, manager, admin or superuser:
+  - the register's sale-mode switch (it could turn on Labor Day pricing);
+  - the sales dashboards, alerts and goals;
+  - the AI chat proxy;
+  - the print-server version check.
+- **Throttles** (sign-in, password reset, holds) now read the real client address behind Heroku's router (`NUM_PROXIES = 1`), not a header the client can fake.
+
+### Changed
+
+- `load_profile_proposals` reads `.jsonl.gz` and streams the file a chunk at a time, through the shared `services/proposal_load.py`.
+- **Likely close from similar lots is scaled to this lot's size** (R-068). Each similar lot's close as a share of its retail is applied to this lot's retail. The band is about 1.32× the median instead of 1.89×, and the auction page says when the range is scaled.
 
 ## [2.108.1] - 2026-09-25
 

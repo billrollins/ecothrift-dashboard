@@ -24,7 +24,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'essentials',
     label: null,
-    itemIds: ['dashboard', 'kiosk'],
+    itemIds: ['dashboard', 'kiosk', 'brief'],
   },
   {
     id: 'buying',
@@ -51,7 +51,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'storeSales',
     label: 'Cashier',
-    itemIds: ['posTerminal', 'posTransactions', 'posDrawers', 'posCash', 'posPrintables', 'posSetup'],
+    itemIds: ['posTerminal', 'posTransactions', 'posDrawers', 'posCash', 'posPrintables', 'posSetup', 'thriftPlus'],
     guestItemIds: ['retailQa'],
   },
   {
@@ -79,7 +79,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     id: 'admin',
     label: 'Admin',
     roles: ['Manager', 'Admin'],
-    itemIds: ['users', 'departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'settings'],
+    itemIds: ['users', 'departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'settings'],
   },
 ];
 

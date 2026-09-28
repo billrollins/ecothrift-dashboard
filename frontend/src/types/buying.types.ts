@@ -819,8 +819,10 @@ export interface AuctionDecision {
     value_basis_pct: number | null;
   };
   similar: {
-    lots: Array<{ id: number; title: string; category: string | null; origin_city: string; pallets: number | null; close: string | null; retail: string | null }>;
+    lots: Array<{ id: number; title: string; category: string | null; origin_city: string; pallets: number | null; close: string | null; retail: string | null; scaled_close?: string | null }>;
     likely_low: string | null;
+    /** scaled: similar closes ÷ their retail × this retail (R-068); raw: their closes; model: likely close ±15%. */
+    basis?: 'scaled' | 'raw' | 'model' | null;
     likely_high: string | null;
     days: number;
   };

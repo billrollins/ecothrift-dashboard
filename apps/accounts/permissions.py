@@ -32,6 +32,16 @@ class IsEmployee(BasePermission):
         )
 
 
+class IsTeamMember(BasePermission):
+    """Employee, Manager or Admin, or any superuser. For staff endpoints that only checked sign-in:
+    online-store customers sign in with the same kind of token, so IsAuthenticated alone lets them in."""
+    def has_permission(self, request, view):
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        return bool(user.is_superuser or user.role in ('Employee', 'Manager', 'Admin'))
+
+
 class IsConsignee(BasePermission):
     """Allow access only to Consignee role users."""
     def has_permission(self, request, view):

@@ -33,3 +33,7 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='dash.ecothrift.us', cast=Csv())
 PUBLIC_SITE_HOSTS = config(  # noqa: F405
     'PUBLIC_SITE_HOSTS', default='ecothrift.us,www.ecothrift.us', cast=Csv()
 )
+
+# Heroku's router is the one proxy in front of us: DRF throttles then key on the client address it
+# appends, not on a client-supplied X-Forwarded-For (security fix, 2026-09-25).
+REST_FRAMEWORK = {**REST_FRAMEWORK, 'NUM_PROXIES': 1}  # noqa: F405

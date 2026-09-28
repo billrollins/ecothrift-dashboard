@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-23 (manifest pull; ai settings + floorplan AI merged) -->
+<!-- Last updated: 2026-09-25 (ApprovalRequest: Superuser -> Requests) -->
 
 # Eco-Thrift Dashboard — Backend Context
 
@@ -127,8 +127,16 @@ Heroku Scheduler (minimum) and local parity: **`.ai/extended/development.md`** �
 | **PrintServerRelease** | version, s3_file (FK S3File), release_notes, is_current |
 | **EnhancementRequest** | Staff ask (`area` restoration/processing, `body`, `submitted_by`). Superuser triage: `status` (open/planned/done/declined), `priority`, `target_date`, `reviewed_by` / `reviewed_at`. Migration `0002_enhancement_request`. |
 | **EnhancementRequestNote** | Flat comment on a request (`body`, `author`). Owner or superuser only. |
+| **ApprovalRequest** | Superuser → Requests (`core.0008`): `kind`, `title`, `summary`, `params`, `preview` (counts, changes, sample), `status` (pending/approved/running/applied/failed/rejected/undone), decision, heartbeat, `progress` (done, total, cursor), `log`, `result`, `error`, undo. See **Approval requests** below. |
 
 **Enhancement API:** `EnhancementRequestViewSet` at `/api/core/enhancement-requests/` (staff). Create/list for all staff. `PATCH` and `POST …/notes/` require the submitter or a superuser. `POST …/triage/` is superuser-only.
+
+**Approval requests** (data_platform Phase 1; the owner's rule that production data work is approved in production):
+- **Service:** `services/approval_requests.py` holds a `Kind` registry (preview, apply, undo) with `stage`, `approve`, `reject`, `run`, `resume`, `resume_stalled` and `undo`.
+- **Apply:** runs in a daemon thread after commit, in chunks, through `Progress` (heartbeat, done/total, a resumable cursor, log). An apply must be idempotent. After 5 minutes with no heartbeat a run is stale, and listing the page restarts it.
+- **Kinds** live in each app's `approval_kinds.py`, imported in `AppConfig.ready`. Inventory has `load_profile_proposals`, `apply_profile_proposals`, `seed_brand_aliases` and `merge_duplicates`.
+- **API:** `GET /api/core/requests/[?status=a,b]` and `POST …/{id}/approve|reject|undo|resume/` (superuser).
+- **Command:** `stage_request <kind> --title --params JSON [--list]`, run in production (`heroku run`) so the preview uses production data.
 
 ### hr
 

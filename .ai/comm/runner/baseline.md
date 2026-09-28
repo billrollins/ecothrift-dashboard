@@ -147,6 +147,11 @@ Failures that exist on main independent of current work. The runner **appends** 
 
 - `src/pages/routines/TodayPage.test.tsx > TodayPage > shows the desk punch column and the pick-your-shift line` (confirmed T-001 @ `79739a63`)
 - `src/pages/routines/TodayPage.test.tsx > TodayPage > shows the desk punch column, an empty list, and Hours & pay once` (confirmed R-048 @ `73662f5b`)
+- `src/pages/routines/myWork.test.ts > buildMyWork > grades today into Do now, Due soon, Later today; counts all of it, nags on the first two` (confirmed R-071 @ `2e996c56`)
+- `src/pages/routines/myWork.test.ts > buildMyWork > is amber when only soft nags, and quiet when nothing has reached its reminder` (confirmed R-071 @ `2e996c56`)
+- `src/pages/routines/myWork.test.ts > buildMyWork > leads with the shift checklist within the same colour, never above something red` (confirmed R-071 @ `2e996c56`)
+- `src/pages/routines/myWork.test.ts > buildMyWork > never counts drafts, anytime routines, or done work; says Continue for started runs` (confirmed R-071 @ `2e996c56`)
+- `src/pages/routines/myWork.test.ts > buildMyWork > speaks Spanish` (confirmed R-071 @ `2e996c56`)
 
 ## tsc
 

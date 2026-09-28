@@ -74,4 +74,8 @@ Finished tasks, moved out of `queue.md`. Tasks are in `tasks/`, results in `resu
 | R-068 | recon | Similar-lots range scaled by retail | done | buying_intelligence_v2 pre-Phase-1: switch verdict to the retail-scaled range |
 | R-069 | test | Seller revenue factors (after v2.104.0) | GREEN: 0 NEW | shipped in v2.105.0 |
 | R-070 | chore | Fit seller factors on dev (report only) | done | fit_seller_factors --save in production (v2.105.0) |
+| R-071 | test | Tests: Superuser → Requests (data_platform Phase 1) | RED: 1 vitest NEW, 9 py NEW | fixed in R-072 |
+| R-072 | test | Tests: Thrift+ members and cards (Phase 1), plus everything since R-071 | GREEN: 0 NEW | ship candidate for Mon 09-28 |
+| R-073 | test | Tests: the morning brief (data_platform Phase 2) | RED: 1 py NEW | fixed (AiAction seed count; 2 dashes); re-run in R-074 |
+| R-074 | test | Tests: the Thrift+ reward engine (Phase 2), the R-073 fixes, and the Monday pre-ship run | GREEN: 0 NEW | Monday candidate; delta re-run in R-075 |
 

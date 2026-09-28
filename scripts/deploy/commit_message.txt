@@ -1,13 +1,11 @@
-docs: v2.105.1 clean slate before Thrift+ (calendar, plan, runner archive)
+feat: v2.109.0 Requests center, Thrift+ members and reward engine (dark), morning brief, security fix
 
-- New .ai/calendar.md:
-  - the day-by-day plan to the Thrift+ launch (Tue 2026-10-20; last project day Thu 10-15);
-  - ship milestones on the owner's work days (Mon-Thu);
-  - Thrift+ ships go out dark behind a switch.
-- context.md points at the calendar.
-- buying_intelligence_v2 records the v2.105.0 deploy and the seller factors saved in production.
-- Runner: R-056 to R-058 (superseded) moved to the archive; index updated.
-
-Release: v2.105.1
+- Superuser Requests: routine data work staged in production, approved there, with undo.
+- Thrift+ (dark behind the switch): members, cards, card-back PDFs; the nightly reward engine and its dry run.
+- Morning brief: the AI supervisor writes the owner a daily brief from a Context snapshot.
+- www.ecothrift.us/scan passes through to the scanner.
+- POS: editing a line price with cents no longer errors.
+- Security: staff endpoints that only checked sign-in (sale-mode switch, dashboards, AI chat) now need a team member; throttles read the real client IP.
+- Receipts are unchanged.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

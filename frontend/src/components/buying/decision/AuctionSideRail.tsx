@@ -181,6 +181,7 @@ export default function AuctionSideRail({ detail, decision }: { detail: BuyingAu
         {similar.likely_low && similar.likely_high ? (
           <Alert severity="warning" icon={false} sx={{ mt: 1 }}>
             <b>Likely close: {formatCurrencyWhole(similar.likely_low)} to {formatCurrencyWhole(similar.likely_high)}.</b>
+            {similar.basis === 'scaled' ? ' Scaled to this lot’s retail.' : ''}
             {decision.bids.max_bid
               ? Number.parseFloat(decision.bids.max_bid) >= Number.parseFloat(similar.likely_low)
                 ? ' Your max sits inside or above that range.'

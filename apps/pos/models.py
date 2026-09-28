@@ -304,6 +304,10 @@ class CartLine(models.Model):
         return (self.list_total - self.line_total).quantize(Decimal('0.01'))
 
     def save(self, *args, **kwargs):
+        # A price edited at the register arrives from JSON as a float, and some callers pass a
+        # string: make it an exact Decimal first (float × Decimal raises TypeError).
+        self.unit_price = Decimal(str(self.unit_price if self.unit_price is not None else '0')).quantize(Decimal('0.01'))
+        self.quantity = int(self.quantity)
         pct = self.sale_percent if self.sale_percent is not None else Decimal('0')
         factor = Decimal('1') - (pct / Decimal('100'))
         self.line_total = (self.unit_price * self.quantity * factor).quantize(Decimal('0.01'))

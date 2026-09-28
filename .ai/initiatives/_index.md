@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-25 (buying_intelligence_v2 opened; compass) -->
+<!-- Last updated: 2026-09-25 (thrift_plus_rewards compass; data_platform opened) -->
 # Initiatives index
 
 Bounded work (hours–days), one `.md` per initiative. Not a session log.
@@ -13,7 +13,9 @@ Bounded work (hours–days), one `.md` per initiative. Not a session log.
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
-| [buying_intelligence_v2](./buying_intelligence_v2.md) | **Phase 1 (not started)** | Compass. 5 phases, each shipped to production on its own: (1) QA inbox, and dedupe and backfill as routine work; (2) AI vector text as the product vector, used in dedupe, categorization and manifest matching; (3) price and speed model, and truck value v3 with a time horizon and a supply cap; (4) the buying loop runs itself (auto-shortlist, near-end polling, email alerts); (5) the Buying workspace. |
+| [thrift_plus_rewards](./thrift_plus_rewards.md) | **Phase 1** | **Compass until launch.** Free membership whose rewards replace markdowns. Launch Tue 10-20; last project day Thu 10-15. Ships dark behind a switch: members and cards 09-28, reward engine 10-01, register 10-05, signup/scanner/portal/Dash 10-08, launch readiness 10-12/14. |
+| [data_platform](./data_platform.md) | **Phase 1** | Owner's priority besides Thrift+. Operational / Context / Analytical layers. Requests center (production approvals) 09-28, AI supervisor brief 10-01, QA framework 10-29, Analytical layer 11-12, model factory 11-26. |
+| [buying_intelligence_v2](./buying_intelligence_v2.md) | **Waiting** | Re-planned 2026-09-25 as data_platform's consumer: vector text, truck value v3, the self-running buying loop, the Buying workspace. Resumes after launch. |
 | [bstock_daily_buying](./bstock_daily_buying.md) | **Phases 4–6 shipped** | Phases 1–3 in v2.98.0–v2.100.0. Phases 4–6 in v2.104.0: manifest analysis, price targets, Today's best, won → PO, report cards, and the decision-first auction page. Open items move to `buying_intelligence_v2` (seller factors v2.105.0, scaled similar range). No longer the compass. |
 | [data_quality_rails](./data_quality_rails.md) | **Phase 1** | Know the data (register + eras, runner R-009 to R-013), then quality-aware numbers, rails at every lifecycle stage, and cleanup. |
 | [product_intelligence](./product_intelligence.md) | **Phase 2** | Phase 2 structure shipped in v2.101.0: profiles, proposals, review page, pgvector vectors (a title alone places 90.5%), reversible merges. Loading the proposals, merges and embeddings into production waits on owner OK. |

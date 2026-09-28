@@ -195,6 +195,11 @@ def _similar(auction: Auction, stats_top: str | None) -> dict[str, Any]:
             continue
         if auction.pallet_count and other.pallet_count and abs(other.pallet_count - auction.pallet_count) > 2:
             continue
+        retail = auction.total_retail_value or Decimal('0')
+        other_retail = other.total_retail_value or Decimal('0')
+        # R-068: scaled to this lot's size (close ÷ its retail × this retail), the band is 1.32x
+        # the median instead of 1.89x.
+        scaled = (other.current_price / other_retail * retail).quantize(CENT) if retail > 0 and other_retail > 0 else None
         rows.append({
             'id': other.pk,
             'title': other.title,
@@ -203,18 +208,22 @@ def _similar(auction: Auction, stats_top: str | None) -> dict[str, Any]:
             'pallets': other.pallet_count,
             'close': _money(other.current_price),
             'retail': _money(other.total_retail_value),
+            'scaled_close': _money(scaled),
         })
         if len(rows) >= 5:
             break
+    scaled_closes = [Decimal(r['scaled_close']) for r in rows if r['scaled_close']]
     closes = [Decimal(r['close']) for r in rows if r['close']]
     likely = expected_close(auction)
-    if len(closes) >= 2:
-        low, high = min(closes), max(closes)
+    if len(scaled_closes) >= 2:
+        low, high, basis = min(scaled_closes), max(scaled_closes), 'scaled'
+    elif len(closes) >= 2:
+        low, high, basis = min(closes), max(closes), 'raw'
     elif likely is not None:
-        low, high = (likely * Decimal('0.85')).quantize(CENT), (likely * Decimal('1.15')).quantize(CENT)
+        low, high, basis = (likely * Decimal('0.85')).quantize(CENT), (likely * Decimal('1.15')).quantize(CENT), 'model'
     else:
-        low = high = None
-    return {'lots': rows, 'likely_low': _money(low), 'likely_high': _money(high), 'days': SIMILAR_DAYS}
+        low = high = basis = None
+    return {'lots': rows, 'likely_low': _money(low), 'likely_high': _money(high), 'basis': basis, 'days': SIMILAR_DAYS}
 
 
 def _seller(auction: Auction) -> dict[str, Any]:

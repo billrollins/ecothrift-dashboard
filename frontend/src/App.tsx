@@ -86,6 +86,9 @@ import AuctionDetailPage from './pages/buying/AuctionDetailPage';
 import WatchlistPage from './pages/buying/WatchlistPage';
 import WishListPage from './pages/buying/WishListPage';
 import ReportCardsPage from './pages/buying/ReportCardsPage';
+import RequestsPage from './pages/admin/RequestsPage';
+import ThriftPlusPage from './pages/thriftplus/ThriftPlusPage';
+import BriefPage from './pages/brief/BriefPage';
 import PartsCommandCenterPage from './pages/restoration/parts/PartsCommandCenterPage';
 import RestorationQueuePage from './pages/restoration/queue/RestorationQueuePage';
 import RestorationBenchPage from './pages/restoration/RestorationBenchPage';
@@ -352,6 +355,30 @@ export default function App() {
           element={
             <SuperAdminRoute>
               <TimePayrollPage />
+            </SuperAdminRoute>
+          }
+        />
+        <Route
+          path="/brief"
+          element={
+            <SuperAdminRoute>
+              <BriefPage />
+            </SuperAdminRoute>
+          }
+        />
+        <Route
+          path="/thrift-plus"
+          element={
+            <SuperAdminRoute>
+              <ThriftPlusPage />
+            </SuperAdminRoute>
+          }
+        />
+        <Route
+          path="/admin/requests"
+          element={
+            <SuperAdminRoute>
+              <RequestsPage />
             </SuperAdminRoute>
           }
         />

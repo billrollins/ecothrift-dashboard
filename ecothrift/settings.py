@@ -118,6 +118,7 @@ INSTALLED_APPS = [
     'apps.labels',
     'apps.routines',
     'apps.documents',
+    'apps.thriftplus',
 ]
 
 MIDDLEWARE = [

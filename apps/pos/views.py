@@ -10,7 +10,7 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
 
-from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsEmployee, IsSuperAdmin
+from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsEmployee, IsSuperAdmin, IsTeamMember
 from apps.core.models import WorkLocation
 from apps.inventory.models import Item, ItemScanHistory
 from apps.inventory.services.resale_duplicate import duplicate_item_for_resale
@@ -1869,7 +1869,7 @@ class DeliveryJobViewSet(viewsets.ModelViewSet):
 
 
 @api_view(['GET', 'POST'])
-@perm_classes([IsAuthenticated])
+@perm_classes([IsAuthenticated, IsTeamMember])
 def sale_mode(request):
     """Labor Day sale identity and override toggle."""
     if request.method == 'GET':
@@ -2809,7 +2809,7 @@ def delivery_job_append_address(request, pk: int):
 
 
 @api_view(['GET'])
-@perm_classes([IsAuthenticated])
+@perm_classes([IsAuthenticated, IsTeamMember])
 def dashboard_metrics(request):
     """Dashboard: sales overview and department metric stat cards.
 
@@ -2823,7 +2823,7 @@ def dashboard_metrics(request):
 
 
 @api_view(['GET'])
-@perm_classes([IsAuthenticated])
+@perm_classes([IsAuthenticated, IsTeamMember])
 def dashboard_alerts(request):
     """Dashboard alerts for managers."""
     from apps.hr.models import TimeEntry, SickLeaveRequest
@@ -2862,7 +2862,7 @@ def dashboard_alerts(request):
 
 
 @api_view(['GET', 'POST'])
-@perm_classes([IsAuthenticated])
+@perm_classes([IsAuthenticated, IsTeamMember])
 def dashboard_sales_goal(request):
     """Read or upsert the singleton dashboard sales chart goal."""
     if request.method == 'GET':
@@ -2885,7 +2885,7 @@ def dashboard_sales_goal(request):
 
 
 @api_view(['GET', 'POST'])
-@perm_classes([IsAuthenticated])
+@perm_classes([IsAuthenticated, IsTeamMember])
 def dashboard_department_goals(request):
     """Read all department goals, or upsert one (superuser only)."""
     if request.method == 'GET':

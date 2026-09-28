@@ -302,6 +302,30 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'schedule',
     superuserOnly: true,
   },
+  brief: {
+    id: 'brief',
+    path: '/brief',
+    label: 'Brief',
+    // The AI supervisor's morning brief for the owner (data_platform Phase 2).
+    icon: 'article',
+    superuserOnly: true,
+  },
+  thriftPlus: {
+    id: 'thriftPlus',
+    path: '/thrift-plus',
+    label: 'Thrift+',
+    // Member service and card batches. Superuser-only until the Thrift+ launch (2026-10-20).
+    icon: 'payments',
+    superuserOnly: true,
+  },
+  superRequests: {
+    id: 'superRequests',
+    path: '/admin/requests',
+    label: 'Requests',
+    // Routine data work staged in production for the owner to approve (data_platform Phase 1).
+    icon: 'checklist',
+    superuserOnly: true,
+  },
   enhancementRequests: {
     id: 'enhancementRequests',
     path: '/admin/enhancement-requests',
