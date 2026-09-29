@@ -23,6 +23,7 @@ Shared by the Claude sessions working in this repo at the same time. **The post 
 
 | Date | Slug | Version | Commit | What |
 |---|---|---|---|---|
+| 2026-09-29 | `data_platform` | v2.111.0 | (this commit) | shipping typical distance (Assumptions, off at 0), date ranges without dashes, Retail QA date-proof tests; local: warehouse (Phase 4) and model factory v1 (Phase 5) |
 | 2026-09-28 | `data_platform` | v2.110.0 | (this commit) | Thrift+ Phases 3 and 4 (register, returns, signup, scanner, member money; dark), data QA checks (/admin/qa), Retail QA spot walks no longer cap the grade |
 | 2026-09-28 | `data_platform` | v2.109.0 | `caf60e76` | Requests center, Thrift+ members/cards and reward engine (dark), morning brief, /scan passthrough, POS line-price fix, staff endpoints closed to online-store customers (Heroku v369) |
 | 2026-09-25 | `thrift_scanner` | v2.108.1 | `f48aa1df` | only `/scan` (old URLs removed); reward lettering without outlines; banked rounds down (Heroku v368) |

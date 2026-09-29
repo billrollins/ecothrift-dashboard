@@ -135,7 +135,7 @@ export function holidayHoursLine(override: {
   const when =
     override.date_start === override.date_end
       ? shortDate(override.date_start)
-      : `${shortDate(override.date_start)} – ${shortDate(override.date_end)}`;
+      : `${shortDate(override.date_start)} to ${shortDate(override.date_end)}`;
   const label = (override.label || '').trim();
   const head = label ? `${when} (${label})` : when;
   const hours = override.closed

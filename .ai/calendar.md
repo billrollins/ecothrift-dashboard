@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-25 -->
+<!-- Last updated: 2026-09-28 -->
 # Calendar
 
 Claude's clock. **Every session:** compare today's date with this table, say plainly whether we are on track or behind, and update the Status column. Dates are America/Chicago.
@@ -38,9 +38,9 @@ Claude's clock. **Every session:** compare today's date with this table, say pla
 | 10-20 | Tue | **LAUNCH: the Thrift+ switch goes on** | | |
 | 10-21 → 10-28 | | Launch fixes. data_platform Phase 3: QA framework (data quality first) | | built early (09-25); GREEN (R-079 + R-080) |
 | 10-29 | Thu | **Ship** data_platform Phase 3 (QA framework and inbox) | || shipped early in v2.110.0 (09-28, owner packed it together) |
-| 11-02 → 11-11 | | data_platform Phase 4: the Analytical layer (local warehouse, point-in-time tables, misfits, inventory reconstruction) | | |
+| 11-02 → 11-11 | | data_platform Phase 4: the Analytical layer (local warehouse, point-in-time tables, misfits, inventory reconstruction) | | built early (09-28), local only; `lean_test.py warehouse` GREEN. Left: shrink (needs floor counts), score push-back (with Phase 5) |
 | 11-12 | Thu | **Ship** data_platform Phase 4 | | |
-| 11-16 → 11-25 | | data_platform Phase 5: the model factory (the owner's method, the LLM research director) | | |
+| 11-16 → 11-25 | | data_platform Phase 5: the model factory (the owner's method, the LLM research director) | | first version built early (09-28), local: the method, time folds, final holdout, `sold_30` (baseline wins, AUC 0.70) |
 | 11-26 | Thu | **Ship** data_platform Phase 5. Then buying_intelligence_v2 resumes | | |
 
 ## Ship procedure: Mon 09-28 (v2.108.0)

@@ -30,6 +30,9 @@ export function shippingNote(detail: BuyingAuctionDetail, isOverride: boolean): 
   const est = detail.shipping_estimate;
   if (est?.basis === 'formula' && est.pallets) {
     const what = est.mode === 'truckload' ? 'truckload' : `${plural(est.pallets, 'pallet')} LTL`;
+    if (est.distance === 'typical') {
+      return `Estimate, ${what} at a typical ${est.miles?.toLocaleString('en-US')} mi (city unknown)`;
+    }
     return `Estimate, ${what} from ${est.city} (${est.miles?.toLocaleString('en-US')} mi)`;
   }
   if (est?.basis === 'pallets' && est.pallets) {
@@ -53,8 +56,10 @@ export function shippingCaption(detail: BuyingAuctionDetail): string {
   if (est?.basis === 'formula') {
     const range =
       est.low && est.high ? ` Past orders say ${formatCurrencyWhole(est.low)} to ${formatCurrencyWhole(est.high)}.` : '';
-    return `From our shipping formula (distance and pallets, fitted on past orders).${range} `
-      + 'Open it on B-Stock for its exact quote, or click to override ($).';
+    const why = est.distance === 'typical'
+      ? 'We do not know where this lot ships from, so this is our shipping formula at the typical distance in Admin > Assumptions.'
+      : 'From our shipping formula (distance and pallets, fitted on past orders).';
+    return `${why}${range} Open it on B-Stock for its exact quote, or click to override ($).`;
   }
   if (est?.basis === 'pallets') {
     const from = est.city ? `how far ${est.city} is` : 'where this lot ships from';

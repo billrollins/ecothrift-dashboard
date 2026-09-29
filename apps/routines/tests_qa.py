@@ -12,7 +12,8 @@ from rest_framework.test import APITestCase
 from apps.core.models import AppSetting
 from apps.hr.models import Department, Shift, ShiftAssignment, TimeEntry
 from apps.routines.baseline import baseline_from_counts, fit_count_dist, log10_tail_score, tail_probs
-from apps.routines.flags import test_low_findings, test_speed
+# Imported under another name so pytest doesn't collect the flag rule as a test.
+from apps.routines.flags import test_speed as flag_speed
 from apps.routines.grading import residual_parts, verify_score
 from apps.routines.models import (
     QaCallIn,
@@ -331,7 +332,7 @@ class FlagSpeedTests(TestCase):
         RoutineSubmission.objects.filter(pk=sub.pk).update(started_at=start)
         run.submission = sub
         run.save(update_fields=['submission'])
-        hit = test_speed(self.sam.pk, retail_qa_settings(), timezone.now())
+        hit = flag_speed(self.sam.pk, retail_qa_settings(), timezone.now())
         self.assertIsNotNone(hit)
         self.assertEqual(hit['kind'], 'speed')
 
@@ -752,16 +753,21 @@ class CommandCenterTests(APITestCase):
         self.assertFalse(late)
 
     def test_cross_payload_lists_every_section_before_any_are_done(self):
+        from unittest.mock import patch
+
         from apps.routines.command_center import cross_payload
         monday = date(2026, 9, 14)
         due = date(2026, 9, 20)
-        payload = cross_payload(monday, {'cross_checks': [], 'thirds': {'cross': None}}, due=due)
+        # "Due Sun Sep 20" only reads that way before the due date: pin today to the week's Wednesday.
+        with patch('apps.routines.command_center.timezone.localdate', return_value=date(2026, 9, 16)):
+            payload = cross_payload(monday, {'cross_checks': [], 'thirds': {'cross': None}}, due=due)
         housewares = next(row for row in payload['rows'] if row['section_name'] == 'Housewares')
         self.assertEqual(housewares['status_label'], 'Due Sun Sep 20')
         self.assertEqual(housewares['tone'], 'grey')
         self.assertEqual(housewares['owner']['id'], self.sam.pk)
         self.assertEqual(payload['done'], 0)
-        late = cross_payload(monday, {'cross_checks': [], 'thirds': {'cross': None}}, due=date(2026, 9, 16))
+        with patch('apps.routines.command_center.timezone.localdate', return_value=date(2026, 9, 17)):
+            late = cross_payload(monday, {'cross_checks': [], 'thirds': {'cross': None}}, due=date(2026, 9, 16))
         late_row = next(row for row in late['rows'] if row['section_name'] == 'Housewares')
         self.assertEqual(late_row['status_label'], 'Not done')
         self.assertEqual(late_row['tone'], 'bad')
@@ -1149,7 +1155,7 @@ class CommandCenterTests(APITestCase):
 
     def test_pending_ack_heard_clears_and_manager_sees_heard(self):
         from apps.routines.command_center import create_nudge
-        day = timezone.localdate()
+        day = self._today()  # a fixed open day: the Command Center has no jobs on closed Sundays and Mondays
         run = self._open_run(day)
         create_nudge(run=run, message='Please start Opening checklist.', employee=self.sam)
         self.client.force_authenticate(self.sam)
@@ -1444,6 +1450,14 @@ class DaySummaryApiTests(APITestCase):
 
 class AssignmentVisibilityTests(APITestCase):
     def setUp(self):
+        # Written for the week of 2026-09-21: pin the clock to that Tuesday so "this week" stays it.
+        from unittest.mock import patch
+
+        pinned = timezone.make_aware(datetime(2026, 9, 22, 12, 0), TZ)
+        for target, value in (('django.utils.timezone.now', pinned), ('django.utils.timezone.localdate', pinned.date())):
+            p = patch(target, return_value=value)
+            p.start()
+            self.addCleanup(p.stop)
         self.department = Department.objects.create(name='Floor', slug='floor')
         self.david = _staff('david-vis@example.com')
         self.michael = _staff('michael-vis@example.com')

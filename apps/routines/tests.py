@@ -927,7 +927,7 @@ class GradingTests(APITestCase):
         graded = day_grade(self.TUESDAY, self.cfg)
         self.assertEqual(graded['thirds']['doing'], 100.0)
         self.assertIsNone(graded['thirds']['owner'])
-        self.assertEqual(graded['letter'], 'A')
+        self.assertEqual(graded['letter'], 'A+')  # 100 is an A+ on the grade scale
 
     def test_a_missing_close_drops_doing(self):
         self._checklists(self.TUESDAY, missing=[SYSTEM_CLOSE])
@@ -967,7 +967,7 @@ class GradingTests(APITestCase):
         self._run(spot, self.TUESDAY, status=RoutineRun.STATUS_OPEN)
         graded = day_grade(self.TUESDAY, self.cfg)
         self.assertIsNone(graded['thirds']['owner'])
-        self.assertEqual(graded['letter'], 'A')
+        self.assertEqual(graded['letter'], 'A+')  # the untouched spot is left out, so a full day stays 100
 
     def test_a_day_with_expected_work_is_graded_even_without_runs(self):
         graded = day_grade(self.TUESDAY, self.cfg)
@@ -986,9 +986,12 @@ class GradingTests(APITestCase):
         self._checklists(self.TUESDAY)
         self._tally_sections(self.TUESDAY)
         week = week_grade(self.MONDAY, self.cfg)
-        self.assertEqual(week['thirds']['doing'], 71.4)
+        # Only Tuesday's work was done; every other open day with expected work counts as not done.
+        self.assertEqual(week['thirds']['doing'], 18.5)
         self.assertIsNone(week['thirds']['owner'])
-        self.assertEqual(week['letter'], 'C')
+        self.assertIsNone(week['thirds']['cross'])
+        # With no cross-check and no spot walk, the week is its doing third alone.
+        self.assertEqual(week['score'], week['thirds']['doing'])
 
     def test_week_payload_has_thirds_and_people(self):
         self._checklists(self.TUESDAY)

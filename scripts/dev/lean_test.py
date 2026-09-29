@@ -9,6 +9,7 @@ coder or a free runner model can babysit it cheaply.
     python scripts/dev/lean_test.py vitest src/pages/admin/QAPage.test.tsx
     python scripts/dev/lean_test.py tsc
     python scripts/dev/lean_test.py migrations
+    python scripts/dev/lean_test.py warehouse              # rebuild the Analytical layer; its checks
 
 - **The result file:** every run also writes its output to `workspace/lean/last-<name>.txt`. A runner
   pastes that file, nothing else.
@@ -129,6 +130,18 @@ def migrations() -> bool:
     return not ops
 
 
+def warehouse() -> bool:
+    started = time.time()
+    code, out = _run([PY, '-m', 'warehouse.build'], ROOT)
+    failed = [l.strip() for l in out.splitlines() if 'FAILED' in l]
+    say(f"warehouse: {'GREEN' if code == 0 else 'RED'} [{len(failed)} failed checks, {time.time() - started:.0f}s]")
+    if code != 0 and not failed:
+        say(out[-800:])
+    for l in failed[:20]:
+        say('  NEW ' + l[:220])
+    return code == 0
+
+
 def suite(name: str) -> bool:
     if name not in SUITES:
         say(f'Unknown suite {name!r}. Suites: {", ".join(SUITES)}')
@@ -151,7 +164,7 @@ def main() -> int:
         return 2
     kind, rest = sys.argv[1], sys.argv[2:]
     runners = {'suite': lambda: suite(rest[0] if rest else ''), 'py': lambda: py(rest), 'vitest': lambda: vitest(rest),
-               'tsc': tsc, 'migrations': migrations}
+               'tsc': tsc, 'migrations': migrations, 'warehouse': warehouse}
     if kind not in runners:
         print(__doc__)
         return 2

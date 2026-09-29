@@ -89,7 +89,7 @@ def holiday_sentence(override) -> str:
     """Dated customer line: 'Mon, Sep 7 (Labor Day): 9 AM to 6 PM, note.'"""
     start = override.date_start
     end = override.date_end
-    when = _short_date(start) if start == end else f'{_short_date(start)} – {_short_date(end)}'
+    when = _short_date(start) if start == end else f'{_short_date(start)} to {_short_date(end)}'
     label = (override.label or '').strip()
     head = f'{when} ({label})' if label else when
     if override.closed:

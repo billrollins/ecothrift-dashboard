@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.110.1] -->
-<!-- Last reviewed: 2026-09-28 (2.110.1) -->
+<!-- Line 1 release: ## [2.111.0] -->
+<!-- Last reviewed: 2026-09-29 (2.111.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,32 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.111.0] - 2026-09-29
+
+User-facing theme: **Truckload shipping you can trust when the city is unknown, clean date ranges, and the Analytical layer and model factory on the owner's PC.**
+
+### Added
+
+- **Settings → Assumptions: "Shipping estimate: typical distance (mi)".** When a lot has no B-Stock quote and its city is unknown, the shipping formula uses this distance instead of $ per pallet. It ships at 0 (off). The median of recent listings is 1,176 mi. At $100 a pallet a 21-pallet truckload was estimated at $2,100; B-Stock quoted $3,568 for one from Maryland. The auction page says "at a typical 1,176 mi (city unknown)".
+- **The Analytical layer (data_platform Phase 4), local only:** `python -m warehouse.build` builds a DuckDB warehouse from the local copy of production in about 5 seconds:
+  - items, POs, sale lines, misfit sales, item events, tag intervals;
+  - the floor on every day since April, with the tag value on that day;
+  - sell curves by category, supply by week, the floor now with each item's sell odds, and the item outcome table for modelling.
+
+  A failed check makes it exit 1. `scripts/warehouse/nightly.ps1` pulls, then builds.
+- **The model factory (Phase 5), first version, local only:** `python -m factory.run sold_30` runs the owner's method (types, null splits, uniform CDF, lasso, logistic baseline) with time folds and a final holdout, against a gradient-boosting challenger. The baseline wins (AUC 0.70). Its strongest signal: copies of the same product already on the floor slow each sale.
+- `lean_test.py warehouse`: the warehouse build and its checks in one line.
+- Data-quality register: SAL-14, SAL-15, ITM-14, PRD-04 and PRD-05, and the warehouse fill-ins in the imputation catalog.
+
+### Fixed
+
+- **Date ranges read "Oct 1 to Oct 3"** instead of using an en dash: the store-hours closure notice, the holiday-hours list in Settings, and the date-overlap message. The reply-signature cleanup still recognizes dashes.
+- **Retail QA tests that depended on the real date:**
+  - The Command Center tests broke on closed days (Sundays and Mondays) or after the week they were written for. They're now pinned to fixed days.
+  - Three grading tests expected an A where a perfect day is now an A+, and a week average from before days with no runs counted.
+  - Two flag helpers named `test_*` were collected as tests.
+  - The known-failures list (`baseline.md`) now matches a folder-level run. 39 entries that pass were removed, and 14 older order-dependent failures were added (a leak after `test_miss_reason.py`, flagged for its own fix).
 
 ## [2.110.1] - 2026-09-28
 

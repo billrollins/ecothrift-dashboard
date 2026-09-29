@@ -317,6 +317,21 @@ class PalletEstimateTests(TestCase):
         est = self._estimate(self._lot('far', pallet_count=23, origin_city='Pittston, PA'))
         self.assertEqual((est['basis'], est['amount']), ('pallets', Decimal('2300.00')))
 
+    def test_unknown_distance_uses_the_typical_distance_when_set(self):
+        from apps.buying.services import valuation
+        from apps.core.models import AppSetting
+
+        AppSetting.objects.update_or_create(key='buying_shipping_typical_miles', defaults={'value': 1176})
+        valuation._TYPICAL_MILES.clear()
+        est = self._estimate(self._lot('nocity', pallet_count=21, origin_city=''))
+        # a truckload at 1,176 mi: 1000 + 2 x 1176; the city stays unknown
+        self.assertEqual((est['basis'], est['distance'], est['mode'], est['miles']), ('formula', 'typical', 'truckload', 1176))
+        self.assertEqual(est['amount'], Decimal('3352.00'))
+        AppSetting.objects.update_or_create(key='buying_shipping_typical_miles', defaults={'value': 0})
+        valuation._TYPICAL_MILES.clear()
+        est = self._estimate(self._lot('nocity2', pallet_count=21, origin_city=''))
+        self.assertEqual((est['basis'], est['amount']), ('pallets', Decimal('2100.00')))
+
     def test_no_pallets_falls_back_to_rate_x_price(self):
         est = self._estimate(self._lot('parcel', pallet_count=None, origin_city='Franklin, IN'))
         self.assertEqual((est['basis'], est['amount']), ('rate', Decimal('400.00')))

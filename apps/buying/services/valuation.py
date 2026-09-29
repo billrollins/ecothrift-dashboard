@@ -22,7 +22,13 @@ from apps.buying.services.price_target import (
     handling_costs,
     price_target,
 )
-from apps.buying.services.shipping_formula import estimate_for_auction, get_shipping_formula, load_origin_miles
+from apps.buying.services.shipping_formula import (
+    estimate_for_auction,
+    formula_amount,
+    get_shipping_formula,
+    is_truckload,
+    load_origin_miles,
+)
 from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED
 from apps.core.models import AppSetting
 
@@ -220,6 +226,27 @@ def get_shipping_per_pallet(using: str = 'default') -> Decimal:
         return DEFAULT_SHIPPING_PER_PALLET
 
 
+_TYPICAL_MILES: dict[str, tuple[float, int]] = {}
+
+
+def get_shipping_typical_miles(using: str = 'default') -> int:
+    """
+    Admin -> Assumptions ``buying_shipping_typical_miles``: the distance the shipping formula uses when
+    a lot's city is unknown (register AUC-04). 0 (the default) = off: pallets x $ per pallet instead.
+    Cached for a minute, since a bulk recompute asks for every lot.
+    """
+    now = timezone.now().timestamp()
+    hit = _TYPICAL_MILES.get(using)
+    if hit and now - hit[0] < 60:
+        return hit[1]
+    try:
+        v = int(float(AppSetting.objects.using(using).get(key='buying_shipping_typical_miles').value or 0))
+    except Exception:
+        v = 0
+    _TYPICAL_MILES[using] = (now, max(v, 0))
+    return max(v, 0)
+
+
 def shipping_estimate(
     auction: Auction,
     *,
@@ -231,13 +258,33 @@ def shipping_estimate(
     Shipping when there is no override and no B-Stock quote for this listing:
     1. ``formula``: the distance formula (``services/shipping_formula.py``) when the lot has a
        pallet count and we know how far its city is;
-    2. ``pallets``: pallets x the Assumptions $ per pallet when we do not know the distance;
-    3. ``rate``: the marketplace shipping rate x price when there is no pallet count.
+    2. ``formula`` with ``distance='typical'``: the same formula at the Assumptions typical distance
+       when we do not know how far the city is (only when that setting is above 0);
+    3. ``pallets``: pallets x the Assumptions $ per pallet when we do not know the distance;
+    4. ``rate``: the marketplace shipping rate x price when there is no pallet count.
     """
     est = estimate_for_auction(auction, origin_miles=origin_miles, formula=formula)
     if est is not None:
         return est
     pallets = auction.pallet_count or 0
+    typical = get_shipping_typical_miles() if pallets > 0 else 0
+    if typical > 0:
+        formula = formula or get_shipping_formula()
+        truckload = is_truckload(pallets, auction.shipment_type or '', formula)
+        amount = formula_amount(pallets, float(typical), truckload, formula)
+        error = Decimal(str((formula.get('typical_error') or {}).get('truckload' if truckload else 'ltl') or 0))
+        return {
+            'basis': 'formula',
+            'distance': 'typical',
+            'amount': amount,
+            'mode': 'truckload' if truckload else 'ltl',
+            'pallets': pallets,
+            'miles': typical,
+            'city': (auction.origin_city or '').strip(),
+            'typical_error': error,
+            'low': (amount * (1 - error)).quantize(CENT),
+            'high': (amount * (1 + error)).quantize(CENT),
+        }
     if pallets > 0:
         per = per_pallet_default if per_pallet_default is not None else get_shipping_per_pallet()
         return {

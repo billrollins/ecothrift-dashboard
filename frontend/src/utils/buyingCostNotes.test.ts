@@ -33,6 +33,15 @@ describe('shippingNote', () => {
     expect(shippingNote(ltl, false)).toBe('Estimate, 3 pallets LTL from Owatonna, MN (319 mi)');
   });
 
+  it('says the city is unknown when the formula used the typical distance', () => {
+    const d = detail({
+      shipping_source: 'estimate',
+      shipping_estimate: { basis: 'formula', distance: 'typical', amount: '3633.00', mode: 'truckload', pallets: 21, miles: 1176, city: '' },
+    });
+    expect(shippingNote(d, false)).toBe('Estimate, truckload at a typical 1,176 mi (city unknown)');
+    expect(shippingCaption(d)).toMatch(/^We do not know where this lot ships from/);
+  });
+
   it('shows pallets x the default rate when the distance is unknown', () => {
     const d = detail({
       shipping_source: 'estimate',

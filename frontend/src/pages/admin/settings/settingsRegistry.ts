@@ -97,6 +97,12 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'assumptions',
     kind: 'count',
   },
+  buying_shipping_typical_miles: {
+    label: 'Shipping estimate: typical distance (mi)',
+    help: 'Buying: when a lot has no B-Stock quote and its city is unknown, the shipping formula uses this distance instead of $ per pallet. 0 (default) = off. Recent listings: median 1,176 mi.',
+    tab: 'assumptions',
+    kind: 'count',
+  },
   buying_target_cover_weeks: {
     label: 'Need: target weeks of stock',
     help: "Buying: weeks of stock (shelf + pipeline) to hold per category. 0 (default) = the store's own average, so Need compares each category with the store. Need is 50 on target.",

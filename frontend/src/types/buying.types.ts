@@ -223,6 +223,8 @@ export interface BuyingAuctionDetail extends BuyingAuctionListItem {
  */
 export interface BuyingShippingEstimate {
   basis: 'formula' | 'pallets' | 'rate';
+  /** 'typical': the city is unknown, so the formula used the Assumptions typical distance. */
+  distance?: 'typical';
   amount: string;
   mode?: 'truckload' | 'ltl';
   pallets?: number;

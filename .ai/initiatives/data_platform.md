@@ -101,7 +101,31 @@ Built on 2026-09-25, ahead of the calendar:
 - Every variable can be a target (the "autoencode everything" view).
 - A small job pushes scores back to production.
 
-**Gated by:** Phase 3. Detail when Phase 3 is built.
+**Gated by:** Phase 3.
+
+**Built as** (2026-09-28; local only, nothing in production):
+- **The warehouse:** DuckDB reads the local Postgres copy (`scripts/deploy/0_pull_prod_to_local.bat`) and writes `workspace/warehouse/ecothrift.duckdb`, a Parquet file per table, and `build.json`. `python -m warehouse.build` rebuilds everything in about 12 seconds; `--only <name>` rebuilds some. Local requirement: `requirements-warehouse.txt` (never on Heroku).
+- **Tables** (`warehouse/sql/NN_*.sql`, one file per group):
+  - `item` (era, category, the cost and timing rules) and `po` (the $0-is-unknown rules);
+  - `sale_line` (completed and voided carts; SAL-08 duplicates flagged) and `misfit_sale` (no item, `MIS` vendor, no PO, V3 with no manifest line);
+  - `item_event`: history, sold and voided from the carts (checkout writes no history, SAL-14), scans, Thrift+ signals and reward changes;
+  - `item_price`: tag intervals from retags (ITM-14);
+  - `floor_interval` and `floor_daily`: the floor on every day since 2026-04-01 (items, tag and retail value, stale over 90 days, start known, Mixed lots, added);
+  - `auction`, `auction_price`, `category_label` (the proposal history, PRD-04);
+  - `sell_curve_daily` and `sell_curve`: the share sold by each day on the floor per category (Kaplan-Meier, so items still out count fairly), with marks at days 7, 14, 30, 43 (Black Friday for stock out Oct 15), 60, 77 (Dec 31) and 90;
+  - `category_supply`: per week and category, items on the floor, units and revenue sold, weeks of cover;
+  - `floor_now`: every item out at the pull, with its age band and its chance to sell in the next 30 days from its category's curve (input for the October call on rewards for stock already out, and for stale stock, SHR-01);
+  - `item_outcome`: the Phase 5 table, one row per item out since 2026-04-12, with point-in-time features (category, brand, condition, vendor, retail, the tag then, the category's floor and pace the week before) and outcomes (sold, censored, days on the floor, sold_for, recovery).
+- **Data quality:** every fill-in is a column (`era`, `*_source`, `cost_known`, `start_known`, `at_estimated`), listed in the imputation catalog. New register rows: SAL-14, SAL-15, ITM-14, PRD-04, PRD-05.
+- **Checks:** `checks` is counted on every build and printed; a must-be-zero check that fails makes the build exit 1 (RESULT: RED). `python scripts/dev/lean_test.py warehouse` runs it in one line. The floor on the last day matches the items on the shelf exactly, less the 43 SHR-03 items.
+- **Nightly:** `scripts/warehouse/nightly.ps1` pulls, then builds, logging to `workspace/warehouse/nightly.log`. The owner schedules it (Task Scheduler). The pull replaces the local database.
+
+**4b, built the same night:** the tag value on each day (`floor_daily.tag_value`, from price steps), supply by category (`category_supply`), sell curves, `floor_now`, and `item_outcome`.
+
+**Still to build:**
+- Shrink estimates: the floor has never been counted (SHR-01, SHR-02), so this stays **unknown** until Monday floor counts exist; `floor_now` gives the stale list and each item's sell odds meanwhile.
+- More target tables as Phase 5 picks them (auction close, truck sell-through by date, units per week).
+- The job that pushes scores back to production (with Phase 5, when there are scores).
 
 ### Phase 5 — The model factory · target **ship Thu 11-26**
 Codify the owner's method, and have an LLM direct the overnight runs.
@@ -128,7 +152,14 @@ The first targets are the owner's list:
 - final category;
 - price per day.
 
-**Gated by:** Phase 4. Detail when Phase 4 is built.
+**Gated by:** Phase 4.
+
+**Built as** (first version, 2026-09-28; local only):
+- `factory/method.py`: the method's steps 1 to 4, each fit on training rows only: type the variables (categorical, ordinal, continuous, mostly-null dropped over 80% null); split nulls into `is_<var>_null` plus the value; continuous and ordinal to uniform by an estimated CDF (quantiles); lasso (L1 logistic, CV strength) picks features; logistic regression is the baseline, with its weights printed.
+- `factory/run.py`: `python -m factory.run <target>`. Rows ordered by the day the item went out; the last 21 days are the **final holdout**, untouched until both models are fit; 4 expanding time folds for CV. The challenger (gradient boosting) is promoted only if the 95% bootstrap interval of its holdout log-loss gain is above zero. Writes `workspace/factory/<target>/scoreboard.json` with the data-quality notes behind the rows.
+- **First target, `sold_30`** (will an item sell within 30 days of going out): baseline holdout AUC 0.70, log loss 0.514; the challenger lost (AUC 0.59) and the baseline stays. The strongest weight is **copies of the same product already on the floor** (`same_product_on_floor`, added to `item_outcome` for it): deep duplicates sell slowly (216 "Good" 1-inch paint brushes from one Walmart truck, 14 sold).
+
+**Still to build:** the conservative CDF (shrink toward uniform where folds disagree), the other targets (sale price, speed at a price, units per week, auction close, truck sell-through by date, final category, price per day), more challenger families, and the LLM research director.
 
 ---
 

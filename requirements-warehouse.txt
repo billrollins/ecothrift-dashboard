@@ -1,0 +1,8 @@
+# The Analytical layer and the model factory (data_platform Phases 4 and 5) run on the local PC only,
+# never on Heroku. pip install -r requirements-warehouse.txt, then:
+#   python -m warehouse.build          (or: python scripts/dev/lean_test.py warehouse)
+#   python -m factory.run sold_30
+duckdb>=1.1
+pytz            # DuckDB needs it for time-zone values; without it a long query can crash Python
+scikit-learn>=1.5
+pandas>=2.2

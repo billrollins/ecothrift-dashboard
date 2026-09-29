@@ -1,3 +1,3 @@
-fix: v2.110.1 Dashboard gold Retail card: solid gold background, GOAL HIT pill in the title row
+feat: v2.111.0 shipping typical distance setting, date ranges without dashes, Retail QA tests pinned to dates; local warehouse and model factory
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

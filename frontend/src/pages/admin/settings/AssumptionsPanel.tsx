@@ -18,6 +18,7 @@ const ASSUMPTION_ORDER = [
   'buying_manifest_pull_retry_hours',
   'buying_manifest_pull_page_delay_ms',
   'buying_shipping_per_pallet',
+  'buying_shipping_typical_miles',
   'buying_target_cover_weeks',
   'buying_priority_profit_weight',
   'buying_priority_speed_weight',

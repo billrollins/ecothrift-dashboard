@@ -614,7 +614,7 @@ class StoreHoursOverride(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.label} {self.date_start}–{self.date_end}'
+        return f'{self.label} {self.date_start} to {self.date_end}'
 
     def clean(self):
         from django.core.exceptions import ValidationError
@@ -633,7 +633,7 @@ class StoreHoursOverride(models.Model):
         if qs.exists():
             other = qs.first()
             raise ValidationError(
-                {'date_start': f'Overlaps active override "{other.label}" ({other.date_start}–{other.date_end}).'}
+                {'date_start': f'Overlaps active override "{other.label}" ({other.date_start} to {other.date_end}).'}
             )
 
 

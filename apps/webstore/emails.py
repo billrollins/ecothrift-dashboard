@@ -375,7 +375,7 @@ _GREETING_RE = re.compile(
     re.IGNORECASE,
 )
 _TRAILING_SIGNOFF_RE = re.compile(
-    r'\n+(?:[-–—]\s*(?:eco-thrift|.+)?|eco-thrift)\s*$',
+    r'\n+(?:[-\u2013\u2014]\s*(?:eco-thrift|.+)?|eco-thrift)\s*$',
     re.IGNORECASE,
 )
 
