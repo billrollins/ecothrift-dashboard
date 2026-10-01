@@ -45,7 +45,11 @@ JOB_CALL_TIMEOUT_SECONDS = 150.0
 STALE_SECONDS = JOB_CALL_TIMEOUT_SECONDS + 45
 # A row that fails or comes back unusable this many times in one job is left for the next run.
 MAX_ATTEMPTS_PER_ROW = 2
-MAX_CONCURRENCY = 8
+# Batches with the model at one time. Each waits without a database connection (see _one_batch).
+MAX_CONCURRENCY = 48
+# With many workers a provider may answer "too many requests". The batch waits and asks again
+# (seconds before each further try) instead of failing.
+RATE_LIMIT_WAITS = (8, 20, 45)
 ACTIVE = ('running', 'stopping')
 
 _write_lock = threading.Lock()
@@ -129,7 +133,7 @@ def start(order: PurchaseOrder, *, user, model: str, effort: str, batch_size: in
             'started_by': (getattr(user, 'first_name', '') or getattr(user, 'email', '') or '') if user else '',
             'rows_at_start': PreprocessingRow.objects.filter(purchase_order=order, ai_reasoning='').count(),
             'batches_done': 0, 'rows_saved': 0, 'rows_discarded': 0, 'failed_batches': 0,
-            'restarts': 0, 'last_error': '', 'message': '', 'match_candidates': None,
+            'restarts': 0, 'rate_limited': 0, 'last_error': '', 'message': '', 'match_candidates': None,
         }
         row.value = state
         row.updated_by = user if getattr(user, 'pk', None) else None
@@ -204,11 +208,24 @@ def _one_batch(order_id: int, token: str, row_ids: list[int], stop: threading.Ev
             # Undo / Cancel cleanup ran since the job started: nothing more may be saved.
             stop.set()
             return {'cancelled': True, 'row_ids': row_ids}
-        result = run_ai_cleanup_batch(
-            order, row_ids, model_id=model, api_key=api_key, effort=effort, timeout=JOB_CALL_TIMEOUT_SECONDS,
-        )
-        result['row_ids'] = row_ids
-        return result
+        waits = (0, *RATE_LIMIT_WAITS)
+        for attempt, wait_seconds in enumerate(waits):
+            if wait_seconds and stop.wait(wait_seconds):
+                return {'skipped': True, 'row_ids': row_ids}
+            try:
+                result = run_ai_cleanup_batch(
+                    order, row_ids, model_id=model, api_key=api_key, effort=effort, timeout=JOB_CALL_TIMEOUT_SECONDS,
+                    # The model call can take a minute. Holding a connection through it would cost the
+                    # shared database one connection per worker; Django opens a new one for the save.
+                    before_model_call=_release_db,
+                )
+                result['row_ids'] = row_ids
+                return result
+            except Exception as e:  # noqa: BLE001
+                if getattr(e, 'kind', '') != 'rate_limit' or attempt == len(waits) - 1:
+                    raise
+                _update(order_id, token, heartbeat_at=_now(), add_rate_limited=1)
+        raise RuntimeError('unreachable')
     except Exception as e:  # noqa: BLE001 - every failure is reported on the job
         logger.warning('ai_cleanup_job order=%s batch failed: %s', order_id, e)
         return {'failed': True, 'row_ids': row_ids, 'error': f'{type(e).__name__}: {e}'[:400]}

@@ -109,6 +109,34 @@ class AiCleanupJobTests(TestCase):
         self.order.refresh_from_db()
         self.assertEqual(self.order.preprocess_status, 'cleaned')
 
+    def test_up_to_48_workers_and_no_database_connection_is_held_during_the_model_call(self):
+        released = []
+        with mock.patch.object(job, '_release_db', lambda: released.append(len(self.calls))), self._llm():
+            self._start(concurrency=48)
+            state = self.client.get(self.url).data
+            self.assertEqual((state['status'], state['concurrency']), ('done', 48))
+            # each batch let go of its connection before its own model call (and again when it ended)
+            self.assertEqual(released[0], 0)
+            self.assertGreaterEqual(len(released), 2 * len(self.calls))
+            self._start(concurrency=500)
+            self.assertEqual(job.read(self.order.pk)['concurrency'], 48)
+
+    def test_a_rate_limited_batch_waits_and_asks_again_instead_of_failing(self):
+        from apps.core.services.llm_router import LLMAPIError
+
+        seen = []
+
+        def responder(ids, kwargs):
+            seen.append(tuple(ids))
+            if seen.count(tuple(ids)) == 1:
+                raise LLMAPIError('too many requests', kind='rate_limit', status_code=429)
+            return _answer(ids)
+
+        with mock.patch.object(job, 'RATE_LIMIT_WAITS', (0, 0)), self._llm(responder):
+            self._start()
+        state = self.client.get(self.url).data
+        self.assertEqual((state['status'], state['cleaned_rows'], state['failed_batches'], state['rate_limited']), ('done', 7, 0, 3))
+
     def test_effort_defaults_to_the_settings_action_and_bad_values_are_refused(self):
         AiAction.objects.update_or_create(purpose='INVENTORY_CLEANUP', defaults={'label': 'Inventory cleanup', 'effort': 'medium'})
         with self._llm():

@@ -693,6 +693,8 @@ export interface CleanupJobState {
   failed_batches?: number;
   /** Times the job was picked up again after its server process was recycled. */
   restarts?: number;
+  /** Times a batch waited and asked again because the provider said "too many requests". */
+  rate_limited?: number;
   last_error?: string;
   message?: string;
   match_candidates?: MatchCandidatesSummary | null;

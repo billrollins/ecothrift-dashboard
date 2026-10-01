@@ -22,7 +22,7 @@ import {
   type CleanupJobState,
 } from '../../../api/inventory.api';
 import { useCancelAICleanup, useCleanupModels } from '../../../hooks/useInventory';
-import { AI_CLEANUP_BATCH_SIZE_OPTIONS, AI_CLEANUP_DEFAULT_BATCH_SIZE, AI_CLEANUP_DEFAULT_CONCURRENCY } from '../../../utils/aiCleanupPool';
+import { AI_CLEANUP_BATCH_SIZE_OPTIONS, AI_CLEANUP_DEFAULT_BATCH_SIZE } from '../../../utils/aiCleanupPool';
 import { finishedBanner, type CleanupBanner } from './cleanupJobBanner';
 import { preprocessingFonts } from './preprocessingTokens';
 
@@ -30,7 +30,8 @@ interface WebAiCleanupPanelProps {
   orderId: number;
 }
 
-const CONCURRENCY_CHOICES = [1, 2, 4, 8];
+const CONCURRENCY_CHOICES = [8, 16, 32, 48];
+const DEFAULT_CONCURRENCY = 8;
 const EFFORT_CHOICES: CleanupEffort[] = ['off', 'low', 'medium', 'high', 'max'];
 const EFFORT_WORDS: Record<CleanupEffort, string> = { off: 'Off', low: 'Low', medium: 'Medium', high: 'High', max: 'Max' };
 const POLL_MS = 2000;
@@ -53,7 +54,7 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
   const modelsQuery = useCleanupModels(orderId);
   const cancelCleanup = useCancelAICleanup();
 
-  const [concurrency, setConcurrency] = useState(AI_CLEANUP_DEFAULT_CONCURRENCY);
+  const [concurrency, setConcurrency] = useState(DEFAULT_CONCURRENCY);
   const [batchSize, setBatchSize] = useState<number>(AI_CLEANUP_DEFAULT_BATCH_SIZE);
   const [selectedModel, setSelectedModel] = useState('');
   const [effort, setEffort] = useState<CleanupEffort | ''>('');
@@ -236,7 +237,7 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
             disabled={running}
             sx={{ width: 96 }}
           >
-            {CONCURRENCY_CHOICES.map((n) => (
+            {(CONCURRENCY_CHOICES.includes(concurrency) ? CONCURRENCY_CHOICES : [concurrency, ...CONCURRENCY_CHOICES]).map((n) => (
               <MenuItem key={n} value={n}>{n}</MenuItem>
             ))}
           </TextField>
@@ -296,6 +297,9 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
               {job.model} · effort {job.effort ?? 'off'}
               {job.started_by ? ` · started by ${job.started_by}` : ''}
             </Typography>
+            {(job.rate_limited ?? 0) > 0 && (
+              <Typography sx={mono}>provider said "too many requests" {job.rate_limited}x: waiting and retrying (try fewer workers)</Typography>
+            )}
             {(job.restarts ?? 0) > 0 && <Typography sx={mono}>picked up again {job.restarts}x after a server restart</Typography>}
           </Box>
         </Box>

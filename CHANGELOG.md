@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.116.0] -->
-<!-- Last reviewed: 2026-10-01 (2.116.0) -->
+<!-- Line 1 release: ## [2.117.0] -->
+<!-- Last reviewed: 2026-10-01 (2.117.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.117.0] - 2026-10-01
+
+User-facing theme: **Run AI Cleanup can work up to 48 batches at once.** Outside initiatives (owner request).
+
+### Added
+
+- **Workers: 8, 16, 32 or 48** in Run AI Cleanup (it was 1, 2, 4 or 8; the default is now 8). With a slow model, more batches wait on the model at the same time, so a large order finishes sooner.
+- **"Too many requests" is waited out.** When the AI provider limits the rate, the batch waits (8, 20, then 45 seconds) and asks again instead of failing. The progress line says so and suggests fewer workers.
+
+### Changed
+
+- A cleanup batch gives its database connection back while it waits on the model and takes a new one to save. 48 workers no longer mean 48 connections held on the shared database for a minute each.
 
 ## [2.116.0] - 2026-10-01
 

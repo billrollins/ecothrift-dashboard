@@ -442,11 +442,15 @@ def run_ai_cleanup_batch(
     api_key: str,
     effort: str | None = None,
     timeout: float | None = None,
+    before_model_call: Any = None,
 ) -> dict[str, Any]:
     """One web cleanup batch: load rows → one model call → merge ai_* → snapshot final_*.
 
     ``effort`` (off | low | medium | high | max) is passed to the model when it takes one.
     ``timeout`` is for the background job, which may wait longer than a web request can.
+    ``before_model_call`` (the background job) is called once the rows are loaded and before the
+    model is asked: the job gives its database connection back there, so many batches can wait on
+    the model at once without each holding a connection.
 
     Holds no lock during the model call. Re-reads ``ai_cleanup_generation`` after the
     call and discards the save when undo/cancel bumped it (legacy guard, ported).
@@ -485,6 +489,9 @@ def run_ai_cleanup_batch(
     t0 = time.perf_counter()
     user_payload = json.dumps(payload)
     from apps.core.services.llm_router import llm_complete
+
+    if before_model_call is not None:
+        before_model_call()
 
     result = llm_complete(
         model_id=model_id,

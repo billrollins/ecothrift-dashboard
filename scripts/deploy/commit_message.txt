@@ -1,14 +1,9 @@
-feat: v2.116.0 AI cleanup runs as a background job with an Effort choice
+feat: v2.117.0 AI cleanup job: up to 48 workers, rate-limit backoff, no DB connection held during model calls
 
-Release: v2.116.0
+Release: v2.117.0
 
-- Run AI Cleanup starts a server-side job (thread in the web process, state in an
-  AppSetting row per order) and the page polls it: no request waits for a model, so
-  slow models such as Spark Contributor work. GET/POST orders/<id>/ai-cleanup-job/.
-- Effort dropdown (off/low/medium/high/max), default from Settings > AI, sent on
-  every batch; 150 s per model call.
-- Stop, Resume, one retry per failed batch, and self-healing: a poll restarts a job
-  whose process was recycled. Undo during a run stops the job.
-- Repaired the test helper in test_ai_cleanup_batch.py (19 tests pass again).
+- Workers dropdown is 8, 16, 32, 48 (default 8, server cap 48).
+- A batch releases its database connection before the model call and reconnects to save.
+- A rate-limited batch waits 8, 20, 45 s and retries instead of failing; the job reports it.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
