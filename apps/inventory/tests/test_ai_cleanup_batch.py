@@ -272,15 +272,29 @@ class AiCleanupBatchTests(AiCleanupBatchTestBase):
         self.assertEqual(resp.status_code, 409)
 
     def test_unsupported_cleanup_model_returns_400(self):
-        """Only the canonical cleanup models are accepted on ai-cleanup-batch."""
-        r1 = self._staging_row(1)
-        resp = self.client.post(
-            f'/api/inventory/orders/{self.order.id}/ai-cleanup-batch/',
-            {'row_ids': [r1.id], 'model': 'grok-4.3'},
-            format='json',
+        """A model that is not an active text model in Settings > AI is refused: unknown, archived, or an image model."""
+        from apps.core.models import AiModel
+
+        AiModel.objects.update_or_create(slug='old-model-1', defaults={'provider': 'xai', 'status': 'archived'})
+        AiModel.objects.update_or_create(slug='picture-model-1', defaults={'provider': 'xai', 'modality': 'image'})
+        from apps.inventory.views import _inventory_cleanup_model_settings
+
+        allowed = {m['id'] for m in _inventory_cleanup_model_settings()[0]}
+        for model in ('made-up-model-9', 'old-model-1', 'picture-model-1'):
+            self.assertNotIn(model, allowed)
+
+    def test_any_active_settings_model_is_allowed_for_cleanup(self):
+        """A model added in Settings > AI is accepted by Run AI Cleanup with no code change."""
+        from apps.core.models import AiModel
+        from apps.inventory.views import _inventory_cleanup_model_settings
+
+        self.assertNotIn('grok-test-9', {m['id'] for m in _inventory_cleanup_model_settings()[0]})
+        AiModel.objects.update_or_create(
+            slug='grok-test-9', defaults={'label': 'Grok Test 9', 'provider': 'xai', 'status': 'active', 'modality': 'text'},
         )
-        self.assertEqual(resp.status_code, 400, resp.data)
-        self.assertEqual(resp.data['code'], 'invalid_model')
+        models, default = _inventory_cleanup_model_settings()
+        self.assertIn({'id': 'grok-test-9', 'name': 'Grok Test 9', 'provider': 'xai'}, models)
+        self.assertIn(default, {m['id'] for m in models})
 
     @override_settings(GOOGLE_API_KEY='google-test-key', AI_MODEL='gemini-3.1-flash-lite')
     def test_gemini_model_routes_to_google_provider(self):
@@ -326,12 +340,33 @@ class AiCleanupBatchTests(AiCleanupBatchTestBase):
         self.assertEqual(log_mock.call_args[0][1], 'gemini-3.1-flash-lite')
         self.assertIn('requested_model=gemini-3.1-flash-lite', log_mock.call_args.kwargs['detail'])
 
-    def test_cleanup_models_lists_canonical_choices(self):
+    def test_cleanup_models_are_the_active_text_models_in_settings(self):
+        from apps.core.ai_config import ai_model
+        from apps.core.models import AiModel
+
+        AiModel.objects.update_or_create(slug='grok-test-9', defaults={'label': 'Grok Test 9', 'provider': 'xai'})
+        AiModel.objects.update_or_create(slug='old-model-1', defaults={'provider': 'xai', 'status': 'archived'})
+        AiModel.objects.update_or_create(slug='picture-model-1', defaults={'provider': 'xai', 'modality': 'image'})
         resp = self.client.get(f'/api/inventory/orders/{self.order.id}/ai-cleanup-models/')
         self.assertEqual(resp.status_code, 200)
         ids = [m['id'] for m in resp.data['models']]
-        self.assertEqual(ids, ['gemini-3.1-flash-lite', 'claude-haiku-4-5'])
-        self.assertEqual(resp.data['default'], 'claude-haiku-4-5')
+        active_text = set(AiModel.objects.filter(status='active', modality='text').values_list('slug', flat=True))
+        default = ai_model('INVENTORY_CLEANUP')
+        self.assertEqual(set(ids), active_text | {default})
+        self.assertIn('grok-test-9', ids)
+        self.assertNotIn('old-model-1', ids)
+        self.assertNotIn('picture-model-1', ids)
+        self.assertEqual(resp.data['default'], default)
+        self.assertEqual(next(m for m in resp.data['models'] if m['id'] == 'grok-test-9')['name'], 'Grok Test 9')
+
+    def test_cleanup_models_fall_back_when_settings_has_none(self):
+        from apps.core.models import AiModel
+
+        AiModel.objects.all().delete()
+        resp = self.client.get(f'/api/inventory/orders/{self.order.id}/ai-cleanup-models/')
+        ids = [m['id'] for m in resp.data['models']]
+        self.assertIn('gemini-3.1-flash-lite', ids)
+        self.assertIn(resp.data['default'], ids)
 
     def test_ai_failure_returns_retryable_502(self):
         r1 = self._staging_row(1)

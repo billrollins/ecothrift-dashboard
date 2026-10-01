@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.115.1] -->
-<!-- Last reviewed: 2026-10-01 (2.115.1) -->
+<!-- Line 1 release: ## [2.115.2] -->
+<!-- Last reviewed: 2026-10-01 (2.115.2) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.115.2] - 2026-10-01
+
+User-facing theme: **Run AI Cleanup offers every active model from Settings > AI.** Outside initiatives (owner request).
+
+### Fixed
+
+- **Run AI Cleanup: model list.** The Model dropdown was a fixed list of two (Gemini 3.1 Flash Lite, Claude Haiku 4.5). It now lists every **active text model in Settings > AI**, so a model added or archived there appears or disappears here with no code change. The default is the model set for the Inventory cleanup action in Settings > AI, and it is always offered. A batch is refused only for a model that is not on that list.
 
 ## [2.115.1] - 2026-10-01
 

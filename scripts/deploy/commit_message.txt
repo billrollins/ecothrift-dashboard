@@ -1,12 +1,10 @@
-fix: v2.115.1 purchase-order stats query no longer joins items, manifest rows and batch groups
+fix: v2.115.2 Run AI Cleanup lists every active text model from Settings > AI
 
-Release: v2.115.1
+Release: v2.115.2
 
-- _annotate_purchase_order_stats counted three child relations through joins in one
-  query (items x manifest rows x batch groups), sorting on disk: minutes per call on
-  large orders, H12 on the receiving page, and the shared database running out of
-  temporary disk space. Each count is now a correlated subquery.
-- Same annotation names and values. 27 ms, no temp files, on a 14,986-item order.
-- Test: counts are right and no child table is joined.
+- The cleanup Model dropdown was hardcoded to two models. It now reads the active
+  text models in the Settings > AI catalog (AiModel); the action default is always
+  offered. ai-cleanup-batch accepts any model on that list.
+- Fallback to the old two only when the catalog has no active text model.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

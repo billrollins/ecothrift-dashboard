@@ -54,7 +54,7 @@ from apps.inventory.canonical_categories import canonical_category_name
 
 from apps.core.ai_config import ai_effort, ai_model
 from apps.core.logging import get_logger
-from apps.core.models import AppSetting, S3File
+from apps.core.models import AiModel, AppSetting, S3File
 from apps.core.services.ai_usage_log import log_ai_usage
 from .constants import PURCHASE_ORDER_DASHBOARD_VENDOR_NAMES
 from .formula_engine import evaluate_formula, FormulaError
@@ -1344,23 +1344,35 @@ def sync_manifest_row_outputs_to_items(order, rows):
     }
 
 
-INVENTORY_CLEANUP_MODEL_OPTIONS = (
-    {'id': 'gemini-3.1-flash-lite', 'name': 'Gemini 3.1 Flash Lite'},
-    {'id': 'claude-haiku-4-5', 'name': 'Claude Haiku 4.5'},
+# Only used when Settings > AI has no active text model at all (a fresh database).
+INVENTORY_CLEANUP_FALLBACK_MODELS = (
+    {'id': 'gemini-3.1-flash-lite', 'name': 'Gemini 3.1 Flash Lite', 'provider': 'google'},
+    {'id': 'claude-haiku-4-5', 'name': 'Claude Haiku 4.5', 'provider': 'anthropic'},
 )
 
 
 def _inventory_cleanup_model_settings():
-    # Resolve env-configured default at call time (not module import) so settings
-    # overrides - and .env edits between server restarts in tests - take effect.
-    configured_cleanup_model = ai_model('INVENTORY_CLEANUP')
-    models = [dict(m) for m in INVENTORY_CLEANUP_MODEL_OPTIONS]
-    allowed_ids = {m['id'] for m in models}
-    default_model = (
-        configured_cleanup_model
-        if configured_cleanup_model in allowed_ids
-        else models[0]['id']
-    )
+    """The models Run AI Cleanup offers, and its default.
+
+    The list is every **active text model in Settings > AI** (the same catalog every other AI
+    dialog uses), so a model added or archived there shows up or disappears here with no code
+    change. The default is the model set for the Inventory cleanup action in Settings > AI; it is
+    always offered, even if it is not in the catalog.
+    """
+    from apps.core.services.llm_router import resolve_provider
+
+    # Resolved at call time (not module import) so a Settings > AI change takes effect at once.
+    default_model = ai_model('INVENTORY_CLEANUP')
+    rows = AiModel.objects.filter(
+        status=AiModel.STATUS_ACTIVE, modality=AiModel.MODALITY_TEXT,
+    ).order_by('provider', 'slug')
+    models = [{'id': m.slug, 'name': m.label or m.slug, 'provider': m.provider} for m in rows]
+    if not models:
+        models = [dict(m) for m in INVENTORY_CLEANUP_FALLBACK_MODELS]
+    if default_model and all(m['id'] != default_model for m in models):
+        models.insert(0, {'id': default_model, 'name': default_model, 'provider': resolve_provider(default_model)})
+    if not default_model:
+        default_model = models[0]['id']
     return models, default_model
 
 
@@ -4381,7 +4393,10 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         if model_id not in allowed_ids:
             return Response(
                 {
-                    'detail': f'Unsupported cleanup model {model_id!r}. Choose one of: {sorted(allowed_ids)}.',
+                    'detail': (
+                        f'Unsupported cleanup model {model_id!r}. Pick an active text model from '
+                        f'Settings > AI: {sorted(allowed_ids)}.'
+                    ),
                     'code': 'invalid_model',
                 },
                 status=status.HTTP_400_BAD_REQUEST,
