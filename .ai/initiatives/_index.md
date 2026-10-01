@@ -1,126 +1,31 @@
-<!-- Last updated: 2026-09-25 (thrift_plus_rewards compass; data_platform opened) -->
-# Initiatives index
+<!-- Last updated: 2026-09-30 (house-standard shape: Standing tech_target; archive buckets live in ARCHIVE.md) -->
+# Initiatives — ecothrift-dashboard
 
-Bounded work (hours–days), one `.md` per initiative. Not a session log.
+Bounded work (hours to days), one `.md` per initiative. Not a session log. Rules: [`protocols/initiative-create.md`](../protocols/initiative-create.md), [`protocols/initiative-review.md`](../protocols/initiative-review.md) (§ Filing rules). **Human gate:** do not archive without explicit approval.
 
-**Releases:** [`.version`](../../.version) + [`CHANGELOG.md`](../../CHANGELOG.md) only. GitHub: [`ship-push-git.md`](../protocols/ship-push-git.md). Heroku: [`ship-push-heroku.md`](../protocols/ship-push-heroku.md). Print server: [`ship-print-server.md`](../protocols/ship-print-server.md).
+**Releases:** [`.version`](../../.version) + [`CHANGELOG.md`](../../CHANGELOG.md) only. Ship: [`ship-git.md`](../protocols/ship-git.md), [`ship-heroku.md`](../protocols/ship-heroku.md), print server [`ship-print-server.md`](../protocols/ship-print-server.md).
 
-**Create:** [`initiative-create.md`](../protocols/initiative-create.md). **Review:** [`initiative-review.md`](../protocols/initiative-review.md). Filing / moves: [`.ai/extended/initiatives.md`](../extended/initiatives.md). **Human gate:** do not archive without explicit approval.
+## Standing
 
----
+| Initiative | What |
+|------------|------|
+| [`tech_target`](tech_target.md) | Gaps to the house standards (`C:\Coding\.ai\standards\`) |
 
 ## Active
 
 | Initiative | Phase | Notes |
 |------------|-------|-------|
 | [thrift_plus_rewards](./thrift_plus_rewards.md) | **Phase 1** | **Compass until launch.** Free membership whose rewards replace markdowns. Launch Tue 10-20; last project day Thu 10-15. Ships dark behind a switch: members and cards 09-28, reward engine 10-01, register 10-05, signup/scanner/portal/Dash 10-08, launch readiness 10-12/14. |
+| [inventory_count](./inventory_count.md) | **Built, not shipped** | Phone-first shelf count for the owner's weekly inventory: scan queue, beeps, "back up N scans ago", shrink report. Needed Mon 10-05. Worktree `_worktrees\ecothrift-dashboard--inventory-count`. |
 | [data_platform](./data_platform.md) | **Phase 1** | Owner's priority besides Thrift+. Operational / Context / Analytical layers. Requests center (production approvals) 09-28, AI supervisor brief 10-01, QA framework 10-29, Analytical layer 11-12, model factory 11-26. |
+| [sell_time_model](./sell_time_model.md) | **Planned** | Owner's first warehouse project: predict the chance an item sells each day from price and context, then use it in the pricing model. Starts after the standardize run and backfill. |
 | [buying_intelligence_v2](./buying_intelligence_v2.md) | **Waiting** | Re-planned 2026-09-25 as data_platform's consumer: vector text, truck value v3, the self-running buying loop, the Buying workspace. Resumes after launch. |
 | [bstock_daily_buying](./bstock_daily_buying.md) | **Phases 4–6 shipped** | Phases 1–3 in v2.98.0–v2.100.0. Phases 4–6 in v2.104.0: manifest analysis, price targets, Today's best, won → PO, report cards, and the decision-first auction page. Open items move to `buying_intelligence_v2` (seller factors v2.105.0, scaled similar range). No longer the compass. |
 | [data_quality_rails](./data_quality_rails.md) | **Phase 1** | Know the data (register + eras, runner R-009 to R-013), then quality-aware numbers, rails at every lifecycle stage, and cleanup. |
 | [product_intelligence](./product_intelligence.md) | **Phase 2** | Phase 2 structure shipped in v2.101.0: profiles, proposals, review page, pgvector vectors (a title alone places 90.5%), reversible merges. Loading the proposals, merges and embeddings into production waits on owner OK. |
 
----
+## Pending · Backlog · Completed · Abandoned
 
-## Pending
-
-Paused to resume later. Checklists live in each file.
-
-| Initiative | Description | Pending since | Why / resume |
-|------------|-------------|---------------|--------------|
-| [documents](./_archived/_pending/documents.md) | Company-wide read / accept. Individually assigned read / accept / sign. API in-tree; staff UI unwired. | 2026-09-23 | Resume when Documents is the next product. |
-| [universal_object_surfaces](./_archived/_pending/universal_object_surfaces.md) | Permissioned ObjectChip → ObjectSurface. Design only; no code. | 2026-09-23 | Resume when the capability taxonomy and object-surface design are picked up. |
-| [online_sales_workspace](./_archived/_pending/online_sales_workspace.md) | Online Sales long-term vision (channels, marketing, P&L). | 2026-07-21 | MVP shipped via [online_sales_mvp](./_archived/_completed/online_sales_mvp.md) **v2.69.0**. Resume only for scope beyond MVP. |
-| [tars_full_instruction_wizard_guidance](./_archived/_pending/tars_full_instruction_wizard_guidance.md) | TARS process canon / guardrails. | 2026-07-21 | **Superseded — closed to new work.** Scope is [finalize_tars_app](./_archived/_completed/finalize_tars_app.md). |
-| [tars_restoration_workspace](./_archived/_pending/tars_restoration_workspace.md) | TARS queue + live bench (Phases 0–2 + hardening ~v2.39.0). | 2026-07-09 | **Superseded — closed to new work.** Scope is [finalize_tars_app](./_archived/_completed/finalize_tars_app.md). |
-| [public_website](./_archived/_pending/public_website.md) | Public storefront rebuild. Phases 0–4 shipped **v2.26.0**. | 2026-05-30 | Launch ops covered by Online Sales MVP. Resume: Helcim/pay-online only if policy changes. |
-| [historical_sell_through_analysis](./_archived/_pending/historical_sell_through_analysis.md) | Historical sell-through by category; PO extract + `PricingRule` seeds shipped. | 2026-04-10 | Deeper legacy DB / CSV / sales-join deferred. |
-| [print_server_receipt_format](./_archived/_pending/print_server_receipt_format.md) | GDI receipt layout + `receipt_data` parity. | 2026-03-28 | Paused pre-production. |
-| [create_location_label](./_archived/_pending/create_location_label.md) | Inventory-scan thermal location label (3×2, QR + aisle/shelf/category). | 2026-03-28 | Product integration deferred. |
-| [historical_data_export](./_archived/_pending/historical_data_export.md) | Legacy → V3 data path. Phase 1 done. | 2026-03-28 | Phase 2 paused. |
-| [bstock_scraper](./_archived/_pending/bstock_scraper.md) | B-Stock notebook scraper; Phase 1 package in place. | 2026-03-27 | Manifests/pipeline deferred. |
-
----
-
-## Backlog
-
-Not started / future; not scheduled.
-
-| Initiative | Notes |
-|------------|-------|
-| [vendor_avatars](./_archived/_backlog/vendor_avatars.md) | Upload image per vendor; show on PO dashboard + Create PO. |
-| [item_retail_price_on_instance](./_archived/_backlog/item_retail_price_on_instance.md) | Retail/estimated retail on `Item` (not Product). |
-| [category_taxonomy_from_sales_history](./_archived/_backlog/category_taxonomy_from_sales_history.md) | Derive canonical categories from historical sales/inventory. |
-| [schema_public_to_ecothrift](./_archived/_backlog/schema_public_to_ecothrift.md) | Move V3 Django tables from `public` to schema `ecothrift`. |
-
----
-
-## Completed
-
-Name only. Details in each file.
-
-- [ai_settings_floorplan](./_archived/_completed/ai_settings_floorplan.md)
-- [time_kiosk](./_archived/_completed/time_kiosk.md)
-- [departments_admin](./_archived/_completed/departments_admin.md)
-- [retail_qa_scoring_v2](./_archived/_completed/retail_qa_scoring_v2.md)
-- [cardx_surcharge](./_archived/_completed/cardx_surcharge.md)
-- [listing_photos](./_archived/_completed/listing_photos.md)
-- [routines](./_archived/_completed/routines.md)
-- [admin_workspace_overhaul](./_archived/_completed/admin_workspace_overhaul.md)
-- [pos_labor_day_summer_sale](./_archived/_completed/pos_labor_day_summer_sale.md)
-- [finalize_tars_app](./_archived/_completed/finalize_tars_app.md)
-- [enhancement_requests](./_archived/_completed/enhancement_requests.md)
-- [online_sales_mvp](./_archived/_completed/online_sales_mvp.md)
-- [retail_qa_submission_reliability](./_archived/_completed/retail_qa_submission_reliability.md)
-- [delivery_mobile_operations_completion](./_archived/_completed/delivery_mobile_operations_completion.md)
-- [pos_discount_and_delivery](./_archived/_completed/pos_discount_and_delivery.md)
-- [custom_label_studio](./_archived/_completed/custom_label_studio.md)
-- [floorplan_builder](./_archived/_completed/floorplan_builder.md)
-- [retail_quality_audit](./_archived/_completed/retail_quality_audit.md)
-- [hr_time_clock_mvp](./_archived/_completed/hr_time_clock_mvp.md)
-- [product_item_crud_and_processing](./_archived/_completed/product_item_crud_and_processing.md)
-- [intake_processing_improvements](./_archived/_completed/intake_processing_improvements.md)
-- [preprocessing_ai_cleanup_review](./_archived/_completed/preprocessing_ai_cleanup_review.md)
-- [blog_studio](./_archived/_completed/blog_studio.md)
-- [web_ui_cleanup](./_archived/_completed/web_ui_cleanup.md)
-- [order_processing_pipeline_rebuild](./_archived/_completed/order_processing_pipeline_rebuild.md)
-- [staff_nav_redesign](./_archived/_completed/staff_nav_redesign.md)
-- [ui_ux_polish](./_archived/_completed/ui_ux_polish.md)
-- [bstock_auction_intelligence](./_archived/_completed/bstock_auction_intelligence.md)
-- [data_backfill_initiative](./_archived/_completed/data_backfill_initiative.md)
-- [docs_restructure](./_archived/_completed/docs_restructure.md)
-- [category_sales_inventory_and_taxonomy](./_archived/_completed/category_sales_inventory_and_taxonomy.md)
-- [pos_unscannable_manual_line](./_archived/_completed/pos_unscannable_manual_line.md)
-- [pos_sold_item_scan_ux_and_audit_trail](./_archived/_completed/pos_sold_item_scan_ux_and_audit_trail.md)
-- [pos_cart_total_stale_prefetch_bug](./_archived/_completed/pos_cart_total_stale_prefetch_bug.md)
-- [django_admin_legacy_navigation](./_archived/_completed/django_admin_legacy_navigation.md)
-- [add_item_dialog_and_sources](./_archived/_completed/add_item_dialog_and_sources.md)
-- [e2e_retag_quick_reprice_fixes](./_archived/_completed/e2e_retag_quick_reprice_fixes.md)
-- [retag_cutover](./_archived/_completed/retag_cutover.md)
-- [codebase_organization](./_archived/_completed/codebase_organization.md)
-- [print_server_v3_testing_and_migration](./_archived/_completed/print_server_v3_testing_and_migration.md)
-- [print_server_label_price_layout](./_archived/_completed/print_server_label_price_layout.md)
-- [print_server_label_design](./_archived/_completed/print_server_label_design.md)
-
----
-
-## Abandoned
-
-- [inventory_intake_pipeline](./_archived/_abandoned/inventory_intake_pipeline.md)
-
----
-
-## Lifecycle
-
-| Phase | Action |
-|-------|--------|
-| **Draft** | File may exist unlisted until scope is clear. |
-| **Active** | Row in **Active**. |
-| **Pending** | Paused off Active; listed above; files in `_archived/_pending/`. |
-| **Backlog** | Future / not started; `_archived/_backlog/`. |
-| **Completed** | Scope delivered; `_archived/_completed/`. |
-| **Abandoned** | Will not pursue; `_archived/_abandoned/`. |
-
-Create / move: [`extended/initiatives.md`](../extended/initiatives.md). Same pass updates this file and [`ARCHIVE.md`](./_archived/ARCHIVE.md).
+See [`_archived/ARCHIVE.md`](_archived/ARCHIVE.md).
 
 *Parent: [`.ai/context.md`](../context.md).*

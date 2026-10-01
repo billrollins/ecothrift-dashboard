@@ -84,20 +84,7 @@ Built different. Built fast. Built to last.
 
 ### AI steering
 
-| Doc | Purpose |
-|-----|---------|
-| [`.ai/context.md`](.ai/context.md) | Product compass (not a changelog). |
-| [`.ai/initiatives/_index.md`](.ai/initiatives/_index.md) | Active / pending / completed initiatives. |
-| [`.ai/protocols/clean-up.md`](.ai/protocols/clean-up.md) | If given: list junk; delete only the paths you paste back. |
-| [`.ai/protocols/context-load.md`](.ai/protocols/context-load.md) | If given: read compass, version, changelog top, active initiative; then ask. |
-| [`.ai/protocols/check_comm.md`](.ai/protocols/check_comm.md) | If given: pickup parent inbox / write outbox. |
-| [`.ai/protocols/initiative-create.md`](.ai/protocols/initiative-create.md) | If given: ask for missing fields, then write the initiative file. |
-| [`.ai/protocols/initiative-review.md`](.ai/protocols/initiative-review.md) | If given: reconcile Active/Pending/Backlog with what shipped; you approve moves. |
-| [`.ai/protocols/ship-push-git.md`](.ai/protocols/ship-push-git.md) | If given: docs, version, changelog, commit, push GitHub. |
-| [`.ai/protocols/ship-push-heroku.md`](.ai/protocols/ship-push-heroku.md) | If given: same as git, then push Heroku. |
-| [`.ai/protocols/ship-print-server.md`](.ai/protocols/ship-print-server.md) | If given: build/upload print server, update Settings download, install this PC. |
-| [`.ai/extended/initiatives.md`](.ai/extended/initiatives.md) | How initiative files are parked, completed, abandoned. |
-| [`.ai/extended/sql/README.md`](.ai/extended/sql/README.md) | How to refresh `schema.csv`. |
+AI agents start at [`AGENTS.md`](AGENTS.md), which points into [`.ai/context.md`](.ai/context.md) (the compass). The protocol list (start, check messages, ship, initiatives, print server, runner) is in the compass under **Quick reference**. House standards: `C:\Coding\.ai\standards\` (gap list: [`.ai/initiatives/tech_target.md`](.ai/initiatives/tech_target.md)).
 
 **Notebook research:** [`.ai/extended/development.md`](.ai/extended/development.md) (*Jupyter*); category work under **`workspace/notebooks/category-research/`**. **B-Stock / buying:** archived initiative [`.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md`](.ai/initiatives/_archived/_completed/bstock_auction_intelligence.md). Detailed setup: [`.ai/extended/development.md`](.ai/extended/development.md).
 

@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-27 -->
+<!-- Canonical: C:\Coding\.ai\templates\protocols\initiative-review.md — v1 2026-09-30 (from ecothrift-dashboard). Copy unchanged into <project>/.ai/protocols/. Project-only steps go in the marked section at the end. -->
 # Protocol: Review initiatives
 
 Coding often outruns the files. This pass reconciles Active / Pending / Backlog with what actually shipped, then you approve moves.
@@ -67,8 +67,40 @@ The pasted text is the apply set. Ignore headings and blank lines.
 2. **IF** the slug was not on your Pass A list in this chat **THEN** skip it and say so.
 3. **keep** — do nothing to that file.
 4. **update** — edit the file in place: Status, checkboxes that shipped, one Record line dated today (America/Chicago), bump `<!-- Last updated -->` and the `updated=` stamp. Fix the `_index.md` row. Do not move the file.
-5. **complete / pending / backlog / abandon / activate** — update the file the same way, then move it per [`.ai/extended/initiatives.md`](../extended/initiatives.md) (`git mv`, archive comment, `_index.md`, `ARCHIVE.md`). Fix relative links. Today's date on archive comments.
+5. **complete / pending / backlog / abandon / activate** — update the file the same way, then move it per [filing rules in `initiative-review.md`](initiative-review.md#filing-rules) (`git mv`, archive comment, `_index.md`, `ARCHIVE.md`). Fix relative links. Today's date on archive comments.
 6. **IF** `context.md` **Active work** now points at a moved file or stale one-liner **THEN** fix it.
 7. **STOP.** Report applied / skipped. Do not commit. Do not start a ship.
 
 **IF** the paste has no slug lines **THEN** change nothing and STOP.
+
+---
+
+## Filing rules
+
+Bounded work (hours to days). One `.md` per initiative under `.ai/initiatives/` plus a row on `_index.md`. Not a session log.
+
+**Human gate:** never move a file into `_archived/` without the user's approval (Pass B of this protocol is that approval).
+
+| Place | Meaning |
+|-------|---------|
+| `.ai/initiatives/<slug>.md` | Active |
+| `_archived/_pending/` | Paused, not finished — record what would resume it |
+| `_archived/_backlog/` | Future / not started |
+| `_archived/_completed/` | Scope delivered — tie to the `CHANGELOG.md` version when code shipped |
+| `_archived/_abandoned/` | Will not pursue — one-line why |
+
+Every move, in the same pass:
+
+1. `git mv` the file (plain move if the repo has no git).
+2. Add an archive comment at the top: `<!-- Archived YYYY-MM-DD: disposition=<bucket> — <note> -->`.
+3. Update `_index.md` (remove from Active, add to the bucket) and `_archived/ARCHIVE.md` (one row per archived file: slug, bucket, date, note).
+4. Fix relative links broken by the path change. Bump both `<!-- Last updated -->` stamps.
+5. If `context.md` **Active work** pointed at the file, fix it.
+
+Activate (archive → root) is the reverse: `git mv` back, a reactivation note in `## Record`, `_index.md` Active row, remove the `ARCHIVE.md` row.
+
+`tech_target.md` is a **standing** initiative: it is never archived.
+
+## Project steps
+
+(none — add project-specific steps here, never above)

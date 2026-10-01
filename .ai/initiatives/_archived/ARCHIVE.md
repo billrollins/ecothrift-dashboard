@@ -3,7 +3,7 @@
 <!-- NOTE: `_pending/tars_restoration_workspace.md` and `_pending/tars_full_instruction_wizard_guidance.md` are SUPERSEDED. TARS scope is `_completed/finalize_tars_app.md`. -->
 # Archive index — initiatives
 
-Files under **`.ai/initiatives/_archived/`** that are off the [main index](../_index.md). Filing: [`.ai/extended/initiatives.md`](../../extended/initiatives.md). **Human gate:** do not archive without explicit approval.
+Files under **`.ai/initiatives/_archived/`** that are off the [main index](../_index.md). Filing: [`initiative-review.md` § Filing rules](../../protocols/initiative-review.md#filing-rules). **Human gate:** do not archive without explicit approval.
 
 ---
 

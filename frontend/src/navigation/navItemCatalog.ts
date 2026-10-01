@@ -85,6 +85,12 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'factCheck',
     roles: ['Manager', 'Admin'],
   },
+  inventoryCount: {
+    id: 'inventoryCount',
+    path: '/inventory/count',
+    label: 'Inventory count',
+    icon: 'factCheck',
+  },
   quickReprice: {
     id: 'quickReprice',
     path: '/inventory/quick-reprice',

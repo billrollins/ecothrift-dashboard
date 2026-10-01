@@ -1,6 +1,9 @@
 import type { AxiosRequestConfig } from 'axios';
 import type {
   CardBatch,
+  FloorCompare,
+  FloorPlan,
+  FloorPlanChoices,
   ItemRewardDetail,
   NewMember,
   RewardPreview,
@@ -167,5 +170,24 @@ export interface ThriftPlusOverview {
 /** The owner's Thrift+ numbers, last 30 days (Phase 4). */
 export async function fetchThriftOverview(): Promise<ThriftPlusOverview> {
   const { data } = await api.get<ThriftPlusOverview>('/thriftplus/rewards/overview/');
+  return data;
+}
+
+function floorParams(c: FloorPlanChoices): Record<string, string | number> {
+  const p: Record<string, string | number> = { launch: c.launch, offset: c.offset, wait_days: c.wait_days, horizon: c.horizon };
+  if (c.max_age != null) p.max_age = c.max_age;
+  if (c.floor_share != null) p.floor_share = c.floor_share;
+  return p;
+}
+
+/** What members would pay for the stock on the floor under these choices. Changes nothing. */
+export async function fetchFloorPlan(choices: FloorPlanChoices): Promise<FloorPlan> {
+  const { data } = await api.get<FloorPlan>('/thriftplus/rewards/floor-plan/', { params: floorParams(choices) });
+  return data;
+}
+
+/** The usual options side by side, at launch and a few weeks after. */
+export async function fetchFloorCompare(choices: FloorPlanChoices): Promise<FloorCompare> {
+  const { data } = await api.get<FloorCompare>('/thriftplus/rewards/floor-plan/compare/', { params: floorParams(choices) });
   return data;
 }

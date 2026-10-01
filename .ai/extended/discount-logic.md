@@ -65,7 +65,9 @@ Code:
 
 8. **Thrift+ money is a tender.**
    - Paying with store credit or banked rewards does not change P or R.
-   - Tax is on the full amount; the CPA question is open.
+   - **Tax is on the amount actually paid (owner, 2026-09-30).** Rewards or credit spent lower what is paid, so they lower the taxable amount: a $100 item paid with $50 of rewards is taxed on $50. Banking instead (pay the full $100, bank the reward) is taxed on $100. An instant rebate is the same as a lower price, taxed on the price paid.
+   - **Not built yet.** Today the register taxes the full subtotal when store credit or banked rewards are spent as a tender (`Cart.recalculate` in `apps/pos/models.py`). Needs a change and tests before launch; POS must not break.
+   - **Always "no cash value".** Everywhere rewards, banked rewards or store credit are described (receipt, posters, scanner, website, training) the words are "no cash value". They are not a liability to be shown as money. Expiry of store credit is undecided (maybe tiered); it is not in the design yet.
    - **The bank bonus isn't earned on Thrift+ money.** On a trip paid partly with credit or banked rewards, the 5% bonus shrinks in proportion to the part paid with them. This stops banking, spending the bank and banking again from compounding the bonus.
 
 9. **Returns undo the line exactly.**

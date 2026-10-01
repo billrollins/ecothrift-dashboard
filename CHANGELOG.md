@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.111.0] -->
-<!-- Last reviewed: 2026-09-29 (2.111.0) -->
+<!-- Line 1 release: ## [2.112.0] -->
+<!-- Last reviewed: 2026-10-01 (2.112.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.112.0] - 2026-10-01
+
+User-facing theme: **A phone-first shelf inventory count for the weekly Monday count, and a floor-stock calculator for Thrift+ launch.** Outside initiatives: `inventory_count`, `thrift_plus_rewards`, `tech_target`.
+
+### Added
+
+- **Inventory count** (`/inventory/count`, new app `apps/stocktake`, migration `stocktake/0001`): a phone-first shelf count for a Bluetooth or USB scanner. Scans are queued on the phone and looked up in the background, with a beep for found, two beeps for a warning and a buzz plus "back up: N scans ago" for a code with no item. The count freezes what the system says is on the shelf when it starts. Managers get a shrink report (`/inventory/count/<id>/report`) with a CSV of what was not found. Initiative: `inventory_count`.
+- **Thrift+ → Floor stock** (Dash, superuser): a what-if calculator for the stock already on the floor when Thrift+ starts. Sliders for how old old stock counts on launch day (or each item's real age), the floor share, the days after launch to look at, and (under More choices) the launch day, the no-reward days and the days to reach the floor. It shows items in the store, current retail, current prices, new member prices, rewards and items at the floor, by age, price and category, plus the usual choices side by side at launch, +14, +30 and +60 days. It replays the reward engine's own rules over today's on-shelf items (no pacing, so it is the most members could be offered) and changes no price or setting. When a cap on age is chosen it names the `thrift_plus_rewards_start` value that gives the same result. API: `GET /api/thriftplus/rewards/floor-plan/` and `.../floor-plan/compare/` (Manager and up). `apps/thriftplus/services/floor_plan.py`, tests in `apps/thriftplus/tests/test_floor_plan.py` (including a night-by-night match with the engine).
+
+### Changed
+
+- **Settings:** new optional `AWS_LOCATION` (S3 key prefix, house standard D10). Unset keeps today's behaviour (bucket root), so production is unchanged; local dev sets `ecothrift/dev`.
+- **Repo standards (`tech_target`):** `.ai/` in the house shape (canonical protocols `startup`, `check_comm`, `ship-git`, `ship-heroku`, `env-sync`); `scripts/` regrouped into `dev/`, `env/` (house env-sync), `db/`, `deploy/` (`ship_git.bat`, `ship_heroku.bat`); retired numbered deploy scripts; runner test worktrees live in `C:\Coding\_worktrees` and are removed after each run.
 
 ## [2.111.0] - 2026-09-29
 

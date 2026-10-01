@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-24 (bstock Phases 4-6, v2.104.0) -->
+<!-- Last updated: 2026-09-30 (Hidden UI moved here from context.md) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -104,7 +104,7 @@
 
 Separate Vite + React 18.3 + TypeScript build for shoppers (`ecothrift.us` / `www`). **Not** bundled with the staff dashboard.
 
-- **Dev:** `cd frontend-public && npm run dev` → **http://localhost:5174** (proxies `/api` → Django `:8000`). Started by `scripts/dev/start_website.bat` (public only) or `scripts/dev/start_all.bat` (full stack).
+- **Dev:** `cd frontend-public && npm run dev` → **http://localhost:5174** (proxies `/api` → Django `:8000`). Started by `scripts/dev/start_website.bat` (public only) or `scripts/dev/start.bat` (full stack).
 - **Prod:** `npm run build` → `frontend-public/dist`, collected under `STATIC_ROOT/site` (`base: '/static/site/'`). `PublicSiteMiddleware` serves `index.html` on public hosts.
 - **Routes:** `/` Home, `/shop` + `/shop/:slug` catalog, `/checkout`, `/order/:number`, `/blog` + `/blog/:slug`, `/visit`, `/sell`, `/404`.
 - **Stack:** React Router v7, shared design tokens in `styles.css`, `useSeo` + JSON-LD, client cart (`localStorage`), code-split lazy routes.
@@ -151,6 +151,17 @@ Adding a staff nav link: one object in `navItemCatalog.ts` + assign its id to a 
 - **Top nav**: logo, My Items / My Payouts / Summary, Logout
 - **Outlet** for page content
 - Centered content, max-width 1200px
+
+## Hidden UI (`web_ui_cleanup`)
+
+Sidebar entries removed. Consignment bookmarks still work. Documents routes are off until that UI is tuned.
+
+| Area | Hidden from nav | Routes |
+|------|-----------------|--------|
+| **Consignment (staff)** | Accounts, Items, Payouts (+ account detail) | `/consignment/accounts`, `/consignment/accounts/:id`, `/consignment/items`, `/consignment/payouts` |
+| **Documents** | Account-menu link off. Pages stay in `frontend/src/pages/documents/`. | `/documents*` unwired — catch-all goes to Dashboard. Rewire when the UI is tuned. |
+
+**HR (account menu):** Today (`/today`: punch, the day's routines with the runner in place, Hours & pay). Pay, the staff Routines list and My QA are gone (their URLs redirect to Today). Essentials → **Kiosk** (`/kiosk`). Desk Dashboard / Today share `FloorNav` (same names as the phone tab bar). Digit 9 and letter L are free. **Admin:** Users (Employees first and default for Admin, Customers second; Managers only see Customers), Departments (directory + hub), Shifts, Routines / Routine Control (superuser — Routines, Sections), Time & payroll (superuser), Settings (System / Printing / Store / Assumptions / Retail QA / Permissions / AI for superusers). Retail QA Command Center stays on Cashier (`/admin/retail-qa`, Manager+). **Studios:** Label Studio, Floorplans, Blog Studio. **Consignee portal** (`/consignee/*`) unchanged.
 
 ## State Management
 

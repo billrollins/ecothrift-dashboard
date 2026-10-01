@@ -172,7 +172,7 @@ workspace/notebooks/__pycache__/
 # Local copies of production floor plans (not source)
 .ai/reference/
 
-# Deploy — local production DB dumps (scripts/deploy/1_backup_prod.bat)
+# Local DB dumps now go to workspace/db/backups/ (scripts/db/pull_prod_to_local.bat); old location kept ignored
 scripts/deploy/backups/
-# Transient artifacts from 0_pull_prod_to_local.bat (dumps + credential-bearing helper bats)
-scripts/deploy/temp_*
+# Transient credential-bearing helper files from any script
+scripts/**/temp_*

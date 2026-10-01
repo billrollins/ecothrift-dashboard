@@ -120,6 +120,7 @@ INSTALLED_APPS = [
     'apps.documents',
     'apps.thriftplus',
     'apps.qa',
+    'apps.stocktake',
 ]
 
 MIDDLEWARE = [
@@ -330,6 +331,9 @@ if USE_S3:
     AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
     AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
     AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='us-east-2')
+    # Key prefix (house standard D10): dev and prod never share an S3 folder. Local .env sets
+    # 'ecothrift/dev'; production leaves it unset (bucket root) until its prefix move.
+    AWS_LOCATION = config('AWS_LOCATION', default='')
     AWS_S3_FILE_OVERWRITE = False
     AWS_DEFAULT_ACL = None
     AWS_QUERYSTRING_AUTH = True

@@ -186,7 +186,7 @@ describe('Studios and Admin placement', () => {
   });
 
   it('keeps Floorplans on Retail Floor and Messages on Online Sales', () => {
-    expect(retailFloor?.itemIds).toEqual(['inventoryWorkbench', 'productReview', 'quickReprice', 'floorplans']);
+    expect(retailFloor?.itemIds).toEqual(['inventoryWorkbench', 'productReview', 'quickReprice', 'inventoryCount', 'floorplans']);
     expect(onlineSales?.itemIds).toContain('onlineSalesCustomers');
   });
 });

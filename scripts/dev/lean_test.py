@@ -44,7 +44,7 @@ SUITES: dict[str, dict] = {
     'buying': {'py': ['apps/buying'], 'vitest': ['src/pages/buying']},
     'quick': {'tsc': True, 'migrations': True},
     'ship': {
-        'py': ['apps/thriftplus', 'apps/pos', 'apps/core', 'apps/accounts', 'apps/ai', 'apps/qa', 'apps/inventory', 'apps/buying',
+        'py': ['apps/thriftplus', 'apps/pos', 'apps/core', 'apps/accounts', 'apps/ai', 'apps/qa', 'apps/inventory', 'apps/stocktake', 'apps/buying',
                'apps/webstore', 'apps/routines/tests.py::NoDashesTests'],
         'vitest': ['*'], 'tsc': True, 'migrations': True,
     },

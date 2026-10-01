@@ -1,3 +1,17 @@
-feat: v2.111.0 shipping typical distance setting, date ranges without dashes, Retail QA tests pinned to dates; local warehouse and model factory
+feat: v2.112.0 inventory count, Thrift+ floor stock planner, repo standards
+
+Release: v2.112.0
+
+- Inventory count (/inventory/count): a phone-first shelf count for a Bluetooth or
+  USB scanner. Scans are queued on the phone and looked up in the background
+  (beep = found, two beeps = warning, buzz and "back up N scans ago" = no item).
+  The count freezes what is on the shelf when it starts. Managers get a shrink
+  report and a CSV. New app apps/stocktake, migration stocktake/0001 (2 new tables).
+- Thrift+ > Floor stock (Dash, superuser): a what-if calculator for stock already
+  on the floor when Thrift+ starts. Replays the reward engine's rules, changes no
+  price or setting. Endpoints: rewards/floor-plan/ and rewards/floor-plan/compare/.
+- Optional AWS_LOCATION setting (S3 key prefix). Unset = today's behaviour.
+- Repo standards: .ai/ in the house shape, scripts/ regrouped (dev, env, db,
+  deploy), retired numbered deploy scripts.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

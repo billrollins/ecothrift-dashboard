@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-08 (local_shared is the local shared-DB name) -->
+<!-- Last updated: 2026-09-30 (pull script moved to scripts/db/) -->
 
 # Databases — Three Generations
 
@@ -15,7 +15,7 @@ Eco-Thrift uses **multiple PostgreSQL databases** locally: frozen archives for V
 | **Dev** | 3rd (DB3) | `local_shared` | This machine’s copy of the shared Heroku DB (schemas `ecothrift`, `darkhorse`, `public`); **not** the same as “v2 generation” |
 | **Production (Heroku)** | live | Heroku-assigned name (e.g. `d4op06smk6i192`) | Current hosted DB until cutover; **not** renamed by local conventions |
 
-**Local dev after `scripts/deploy/0_pull_prod_to_local.bat`:** Run the bat. It stops ports 8000 / 5173 / 5174, dumps the current local **`ecothrift`** schema for rollback, replaces **only that schema** with production `ecothrift` (not `public` / `darkhorse`), rebuilds trigram indexes, and `migrate`s this checkout’s extra files onto the prod snapshot. It does not start servers again. Dumps stay in **`scripts/deploy/backups/`** until migrate and `check` succeed. Django connects with `search_path=ecothrift` — ORM uses **`ecothrift.*`**. Category research SQL reads **`public.*`** and **`ecothrift.*`** explicitly for exports (same database as **`DATABASE_*`**); **`public`** is not the Django default schema. For a full off-box snapshot of every production schema, use **`1_backup_prod.bat`**.
+**Local dev after `scripts/db/pull_prod_to_local.bat`:** Run the bat. It stops ports 8000 / 5173 / 5174, dumps the current local **`ecothrift`** schema for rollback, replaces **only that schema** with production `ecothrift` (not `public` / `darkhorse`), rebuilds trigram indexes, and `migrate`s this checkout’s extra files onto the prod snapshot. It does not start servers again. Dumps stay in **`scripts/deploy/backups/`** until migrate and `check` succeed. Django connects with `search_path=ecothrift` — ORM uses **`ecothrift.*`**. Category research SQL reads **`public.*`** and **`ecothrift.*`** explicitly for exports (same database as **`DATABASE_*`**); **`public`** is not the Django default schema. For a full off-box snapshot of every production schema, use **`1_backup_prod.bat`**.
 
 **Separate frozen DBs:** **`ecothrift_v1`** and **`ecothrift_v2`** are optional local archives for introspection and commands that connect to DB1/DB2 **by name** (e.g. historical imports). They are **not** the Django `default` connection.
 

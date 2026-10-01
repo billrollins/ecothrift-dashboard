@@ -150,3 +150,59 @@ export interface ItemRewardDetail {
   } | null;
   events: RewardEventRow[];
 }
+
+/** The floor-stock planner (Thrift+ → Floor stock): what members would pay for the stock on the floor. */
+export interface FloorPlanRow {
+  label: string;
+  units: number;
+  with_reward: number;
+  retail_total: string;
+  tag_total: string;
+  reward_total: string;
+  member_total: string;
+  pct_off: number;
+}
+
+export interface FloorPlan {
+  scenario: {
+    launch: string;
+    on: string;
+    offset: number;
+    max_age: number | null;
+    floor_share: string;
+    wait_days: number;
+    horizon: number;
+    start_equivalent: string | null;
+  };
+  totals: FloorPlanRow & {
+    consignment_excluded: number;
+    no_price: number;
+    retail_missing: number;
+    at_floor: number;
+    exit_list: number;
+  };
+  by_age: FloorPlanRow[];
+  by_band: FloorPlanRow[];
+  by_category: FloorPlanRow[];
+  current_settings: { start: string | null; floor_share: string; switch_on: boolean };
+}
+
+export interface FloorCompare {
+  launch: string;
+  offsets: number[];
+  rows: {
+    label: string;
+    max_age: number | null;
+    start_equivalent: string | null;
+    cells: { offset: number; on: string; with_reward: number; reward_total: string; member_total: string; pct_off: number }[];
+  }[];
+}
+
+export interface FloorPlanChoices {
+  launch: string;
+  offset: number;
+  max_age: number | null;
+  floor_share: number | null;
+  wait_days: number;
+  horizon: number;
+}

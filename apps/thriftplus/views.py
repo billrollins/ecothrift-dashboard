@@ -40,7 +40,7 @@ from apps.thriftplus.serializers import (
     CardSerializer,
     PersonSerializer,
 )
-from apps.thriftplus.services import card_pdf, cards, ledger, members, register, returns, rewards
+from apps.thriftplus.services import card_pdf, cards, floor_plan, ledger, members, register, returns, rewards
 from apps.thriftplus.services.members import MemberError
 
 
@@ -280,9 +280,63 @@ class RewardsViewSet(viewsets.ViewSet):
         from apps.thriftplus.services.overview import overview
         return Response(overview())
 
+    @action(detail=False, methods=['get'], url_path='floor-plan')
+    def floor_plan(self, request):
+        """What members would pay for the stock on the floor under the choices in the query (nothing is changed)."""
+        scenario, error = _floor_scenario(request)
+        if error:
+            return error
+        result = floor_plan.simulate(scenario)
+        current = rewards.rules()
+        result['current_settings'] = {'start': current.start.isoformat() if current.start else None,
+                                      'floor_share': str(current.floor_share), 'switch_on': members.is_enabled()}
+        return Response(result)
+
+    @action(detail=False, methods=['get'], url_path='floor-plan/compare')
+    def floor_compare(self, request):
+        """The usual options side by side, at launch and a few weeks after."""
+        scenario, error = _floor_scenario(request)
+        if error:
+            return error
+        return Response(floor_plan.compare(scenario))
+
     @action(detail=False, methods=['get'])
     def runs(self, request):
         return Response([_run_payload(r) for r in RewardRun.objects.all()[:30]])
+
+
+def _floor_scenario(request):
+    """Read the planner's choices from the query. Returns (Scenario, None) or (None, error Response)."""
+    from decimal import Decimal, InvalidOperation
+
+    q = request.query_params
+
+    def bad(msg):
+        return None, Response({'detail': msg}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        launch = date.fromisoformat(q.get('launch') or '2026-10-20')
+    except ValueError:
+        return bad('launch must be YYYY-MM-DD')
+    try:
+        offset = int(q.get('offset') or 0)
+        max_age = int(q['max_age']) if q.get('max_age') not in (None, '') else None
+        wait_days = int(q.get('wait_days') or rewards.WAIT_DAYS)
+        horizon = int(q.get('horizon') or rewards.HORIZON)
+        share = Decimal(q['floor_share']) if q.get('floor_share') not in (None, '') else rewards.rules().floor_share
+    except (ValueError, InvalidOperation):
+        return bad('The numbers must be whole numbers, and floor_share a number between 0 and 1.')
+    if not 0 <= offset <= 365:
+        return bad('offset must be 0 to 365')
+    if max_age is not None and not 1 <= max_age <= 365:
+        return bad('max_age must be 1 to 365')
+    if not 0 <= wait_days <= 30:
+        return bad('wait_days must be 0 to 30')
+    if not 10 <= horizon <= 365:
+        return bad('horizon must be 10 to 365')
+    if not Decimal('0') <= share <= Decimal('1'):
+        return bad('floor_share must be between 0 and 1')
+    return floor_plan.Scenario(launch=launch, offset=offset, max_age=max_age, floor_share=share, wait_days=wait_days, horizon=horizon), None
 
 
 def _run_payload(run: RewardRun) -> dict:

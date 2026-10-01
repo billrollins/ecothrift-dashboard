@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-25 (phone dev: stable <hostname>.local URL, long-lived cert, QR in launcher) -->
+<!-- Last updated: 2026-09-30 (scripts/ in the house layout: dev, env, db, deploy) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -10,8 +10,11 @@
 | `printserver/` | **Local print server** — FastAPI on `127.0.0.1:8888`; build/installer here. Installed exe lives under `%LOCALAPPDATA%\EcoThrift\PrintServer\` (not source). |
 | `.ai/` | AI steering: `context.md`, `protocols/`, `initiatives/`, **`extended/`** (this file and domain deep-dives). |
 | `workspace/` | Local scratch, notebooks, temp artifacts — almost entirely gitignored; generated CSV/JSON under **`workspace/data/`** is not tracked (only **`.gitkeep`**). Jupyter setup is below. |
-| `scripts/dev/` | Windows helpers — `start_all.bat` (Django + staff + public), plus `start_dashboard.bat`, `start_mobile_dashboard.bat`, `start_website.bat`. |
-| `scripts/deploy/` | Deploy-related helpers (e.g. commit message staging). |
+| `scripts/dev/` | Dev servers — `start.bat` (Django + staff + public), `kill.bat` (frees 8000 / 5173 / 5174 only), plus `start_dashboard.bat`, `start_mobile_dashboard.bat`, `start_website.bat`, `lean_test.py`. Helpers in `_helpers/`. |
+| `scripts/env/` | House env-sync: `pull.bat` (Heroku → `.envprod`), `diff.bat` (names only), `push.bat` (changed keys only). See [`env-sync.md`](../protocols/env-sync.md). |
+| `scripts/db/` | `backup_prod.bat` (Heroku capture on the shared add-on `ecothrift-database`), `pull_prod_to_local.bat` (schema `ecothrift` only → `local_shared`; dumps in `workspace/db/backups/`). |
+| `scripts/deploy/` | `ship_git.bat`, `ship_heroku.bat` (refuses unless `HEAD == origin/main`), `commit_message.txt`. Used by the ship protocols. |
+| `scripts/warehouse/`, `scripts/security/` | Project tools: nightly warehouse build; one-off security gate script. |
 | `workspace/notebooks/` | Jupyter — tracked **`.ipynb`**, **`.py`**, **`_shared/config.example.py`**, **`requirements-notebooks.txt`**, category-research **`taxonomy_v1.example.json`**, **`docs/taxonomy_input_schema.md`**, **`discovery_lockin.example.md`**, SQL under **`ai_scripts/sql/`**. |
 
 **Root `package.json`:** Only defines `heroku-postbuild` (install + build frontend). Day-to-day Node commands run from `frontend/` (`npm run dev`, etc.).
@@ -136,18 +139,21 @@ If **POS registers** or **supplemental drawer** rows are missing, run `python ma
 
 | Script | What it does |
 |--------|-------------|
-| `scripts/dev/start_all.bat` | **Full stack:** Django + staff Vite (LAN HTTPS by default) + public site (8000 / 5173 / 5174). |
+| `scripts/dev/start.bat` | **Full stack:** Django + staff Vite (LAN HTTPS by default) + public site (8000 / 5173 / 5174). |
 | `scripts/dev/start_dashboard.bat` | **Staff only, localhost HTTP:** Django + staff Vite (8000 / 5173). No www, no phone/LAN HTTPS. |
 | `scripts/dev/start_mobile_dashboard.bat` | **Staff on LAN HTTPS:** Django + staff Vite bound for a phone on the same Wi-Fi. No www. READY prints the phone URL and a QR code (see **Phone testing** below). |
 | `scripts/dev/start_website.bat` | **Public only (www):** Django + `frontend-public` (8000 / 5174). |
+| `scripts/dev/kill.bat` | Stops this project's dev servers (8000 / 5173 / 5174 only). |
+| `scripts/dev/kill.bat` | Stops this project's dev servers (8000 / 5173 / 5174 only). |
+| `scripts/dev/kill.bat` | Stops this project's dev servers (8000 / 5173 / 5174 only). |
 | `python scripts/data/extract_po_descriptions.py` (if present locally) | **Historical sell-through —** reads POs from local **ecothrift_v1** / **ecothrift_v2** / **ecothrift_v3**; writes CSV under **`workspace/data/`** (**`CHANGELOG`** **2.7.1**). Requires **`psycopg2`** and root **`.env`** DB vars. |
 | `printserver/dev_print_label_test.bat` | Prints sample inventory labels **without** starting the print server (defaults to **Rollo Printer**). Pass `--dry-run` to write PNGs under `printserver/output/` instead. Example: `dev_print_label_test.bat --preset 3x2 --row 0` |
 | `printserver/dev_print_receipt_test.bat` | Renders a sample receipt to **PNG** under `printserver/output/` (no printer). Pass `--print` to also send to Windows (uses `receipt_printer` from settings or `--printer`). Optional JSON path (same shape as POST `/print/receipt` `receipt_data`). |
-| `scripts/deploy/env/pull_from_heroku.bat` | Writes gitignored `.envprod` from Heroku Config Vars; optional merge of shared keys into `.env` (skips local `DEBUG`, `DATABASE_*`, `SECRET_KEY`, hosts). Push the other way with `scripts/deploy/env/sync_to_heroku.bat`. |
+| `scripts/env/pull.bat` / `diff.bat` / `push.bat` | House **env-sync** package (vendored from master; never edit here). `pull` writes `.envprod` from Heroku Config Vars and never touches `.env`; `diff` shows names only; `push` sets changed keys only after you type the app name (risk M: only on the owner's order). Protocol: [`env-sync.md`](../protocols/env-sync.md). Local-only key names: `scripts/env/env_sync.json`. |
 
-**Phone testing (LAN HTTPS, `start_mobile_dashboard.bat` / `start_all.bat`):** bookmark **`https://<hostname>.local:5173/scan`** (this PC: `https://canfield-main.local:5173/`). Windows answers mDNS for its own host name, so the URL survives DHCP moving the PC to a new IP; the `https://<lan-ip>:5173/` line is only a fallback. The self-signed cert lives in **`%LOCALAPPDATA%\EcoThrift\dev-cert\<hostname>\_cert.pem`** (outside `node_modules`, shared by every checkout, 800 days; covers `localhost`, `127.0.0.1`, `<hostname>.local`, `<hostname>`), so each phone accepts the warning once; delete that folder to force a new one. The LAN IP is deliberately not in the cert (browsers would not match it anyway). READY prints a QR code for the phone URL (`scripts/dev/phone-qr.mjs`, uses `frontend/node_modules/qrcode`), writes bigger QR codes to **`%LOCALAPPDATA%\EcoThrift\phone-qr.html`**, and waits for Enter when the `.bat` was double-clicked so the QR stays up. It also warns (never changes anything) when the Wi-Fi profile is **Public** (fix: admin `Set-NetConnectionProfile -InterfaceAlias 'Wi-Fi' -NetworkCategory Private`) or no firewall rule lets **Node.js** in on the current profile. If a logged-in **`tailscale`** CLI is found, it runs `tailscale serve --bg https+insecure://127.0.0.1:5173` and prints `https://<machine>.<tailnet>.ts.net/scan` (real cert, works off Wi-Fi; turn off with `tailscale serve --https=443 off`). `frontend/vite.config.ts` allows `.local` and `.ts.net` hosts (`server.allowedHosts`; Vite still checks the HMR websocket host under HTTPS). Router tip: a DHCP reservation for the PC keeps even the IP fallback fixed.
+**Phone testing (LAN HTTPS, `start_mobile_dashboard.bat` / `start.bat`):** bookmark **`https://<hostname>.local:5173/scan`** (this PC: `https://canfield-main.local:5173/`). Windows answers mDNS for its own host name, so the URL survives DHCP moving the PC to a new IP; the `https://<lan-ip>:5173/` line is only a fallback. The self-signed cert lives in **`%LOCALAPPDATA%\EcoThrift\dev-cert\<hostname>\_cert.pem`** (outside `node_modules`, shared by every checkout, 800 days; covers `localhost`, `127.0.0.1`, `<hostname>.local`, `<hostname>`), so each phone accepts the warning once; delete that folder to force a new one. The LAN IP is deliberately not in the cert (browsers would not match it anyway). READY prints a QR code for the phone URL (`scripts/dev/phone-qr.mjs`, uses `frontend/node_modules/qrcode`), writes bigger QR codes to **`%LOCALAPPDATA%\EcoThrift\phone-qr.html`**, and waits for Enter when the `.bat` was double-clicked so the QR stays up. It also warns (never changes anything) when the Wi-Fi profile is **Public** (fix: admin `Set-NetConnectionProfile -InterfaceAlias 'Wi-Fi' -NetworkCategory Private`) or no firewall rule lets **Node.js** in on the current profile. If a logged-in **`tailscale`** CLI is found, it runs `tailscale serve --bg https+insecure://127.0.0.1:5173` and prints `https://<machine>.<tailnet>.ts.net/scan` (real cert, works off Wi-Fi; turn off with `tailscale serve --https=443 off`). `frontend/vite.config.ts` allows `.local` and `.ts.net` hosts (`server.allowedHosts`; Vite still checks the HMR websocket host under HTTPS). Router tip: a DHCP reservation for the PC keeps even the IP fallback fixed.
 
-**Commit message staging (for scripted commits):** write the next message in `scripts/deploy/commit_message.txt` (placeholder `---` until you replace it). See [`.ai/protocols/ship-push-git.md`](../protocols/ship-push-git.md).
+**Commit message staging (for scripted commits):** write the next message in `scripts/deploy/commit_message.txt` (placeholder `---` until you replace it). See [`.ai/protocols/ship-git.md`](../protocols/ship-git.md).
 
 **Jupyter (DB1 / DB2 / DB3):** From repo root: `pip install -r workspace/notebooks/_shared/requirements-notebooks.txt` (and `jupyter` / `jupyterlab` as needed). Copy **`workspace/notebooks/_shared/config.example.py`** → **`config_local.py`** (gitignored) for multi-DB connection dicts aligned with root **`.env`**.
 
@@ -163,13 +169,13 @@ If **POS registers** or **supplemental drawer** rows are missing, run `python ma
 
 ## Environment Variables
 
-Defined in `.env` (gitignored):
+Defined in `.env` (local values) and `.envprod` (mirror of Heroku Config Vars, written by `scripts\env\pull.bat`); both at the repo root, both gitignored, no other env files (house standard D8). **Production keys never go into `.env`**: local uses dev credentials. Until dev keys exist, some shared names still hold production values locally (tracked in [`tech_target`](../initiatives/tech_target.md) T45).
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `SECRET_KEY` | Django secret key | (generated) |
 | `DEBUG` | Debug mode | `True` |
-| `ENVIRONMENT` | Runtime environment label | `development` |
+| `ENVIRONMENT` | Runtime environment label: `dev` locally, `production` on Heroku (house D10) | `production` if unset |
 | `DATABASE_NAME` | PostgreSQL database name | `local_shared` |
 | `DATABASE_USER` | PostgreSQL user | `postgres` |
 | `DATABASE_PASSWORD` | PostgreSQL password | `password` |
@@ -180,6 +186,7 @@ Defined in `.env` (gitignored):
 | `AWS_SECRET_ACCESS_KEY` | S3 secret key | — |
 | `AWS_STORAGE_BUCKET_NAME` | S3 bucket name | — |
 | `AWS_S3_REGION_NAME` | S3 region | `us-east-2` |
+| `AWS_LOCATION` | S3 key prefix (house D10: dev and prod never share a folder). Local: `ecothrift/dev`. Prod: unset (bucket root) until the prefix move (`tech_target` T34) | empty |
 | `ALLOWED_HOSTS` | Comma-separated hosts | `localhost,127.0.0.1` |
 | `ANTHROPIC_API_KEY` | Anthropic API key (used when a model id is `claude-*`) | — |
 | `XAI_API_KEY` | xAI Grok API key (**`GROK_API_KEY`** is an alias; used for `grok-*` ids) | — |
@@ -214,7 +221,7 @@ Defined in `.env` (gitignored):
 | `ONLINE_SALES_ARCHIVE_RESOLVED_DAYS` | Days before resolved threads auto-archive | `30` |
 | `ONLINE_SALES_PURGE_ABANDONED_DAYS` | Days before never-verified abandoned holds are eligible for `--purge` | `30` |
 | `ONLINE_SALES_CUSTOMER_HISTORY_DAYS` | Default customer History window for ended holds | `90` |
-| `MS_GRAPH_ENABLED` | Send mail via Microsoft Graph (else console/fallback backend) | `False` |
+| `MS_GRAPH_ENABLED` | Send mail via Microsoft Graph (else console/fallback backend). **Local: `False`**. Dev shares prod's Graph keys and must never email customers (D10) | `False` |
 | `MS_GRAPH_TENANT_ID` | Entra tenant id | `''` |
 | `MS_GRAPH_CLIENT_ID` | App registration client id | `''` |
 | `MS_GRAPH_CLIENT_SECRET` | App registration client secret | `''` |
