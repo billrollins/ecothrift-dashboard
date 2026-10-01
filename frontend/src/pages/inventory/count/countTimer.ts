@@ -1,16 +1,4 @@
-/** The count's timer and the short list of earlier runs (kept on the phone, to compare scanning strategies). */
-
-export interface CountRun {
-  /** ISO time the run ended (finished or started over). */
-  at: string;
-  seconds: number;
-  scans: number;
-  counted: number;
-  how: 'finished' | 'started over';
-}
-
-const RUNS_KEY = 'stocktake.runs';
-const RUNS_MAX = 8;
+/** The run timer: time since the run started, on the server's clock. */
 
 /** "0:07", "12:34", "1:02:03". */
 export function formatElapsed(totalSeconds: number): string {
@@ -39,36 +27,9 @@ export function elapsedSeconds(startedAt: string, phoneNowMs: number, offsetMs: 
   return Number.isNaN(start) || Number.isNaN(end) ? 0 : Math.max(0, (end - start) / 1000);
 }
 
-export function loadRuns(): CountRun[] {
-  try {
-    const raw = window.localStorage.getItem(RUNS_KEY);
-    const list = raw ? (JSON.parse(raw) as CountRun[]) : [];
-    return Array.isArray(list) ? list : [];
-  } catch {
-    return [];
-  }
-}
-
-/** Newest first, capped. Returns the new list. */
-export function addRun(run: CountRun): CountRun[] {
-  const list = [run, ...loadRuns()].slice(0, RUNS_MAX);
-  try {
-    window.localStorage.setItem(RUNS_KEY, JSON.stringify(list));
-  } catch {
-    // Storage blocked: the list just does not persist.
-  }
-  return list;
-}
-
-export function clearRuns(): void {
-  try {
-    window.localStorage.removeItem(RUNS_KEY);
-  } catch {
-    // nothing to clear
-  }
-}
-
-export function describeRun(r: CountRun): string {
-  const rate = ratePerMinute(r.scans, r.seconds);
-  return `${r.scans} scans in ${formatElapsed(r.seconds)}${rate ? ` · ${rate}/min` : ''}`;
+/** "9:05 AM". */
+export function clockTime(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }

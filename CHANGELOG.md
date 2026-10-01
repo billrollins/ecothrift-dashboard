@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.113.0] -->
-<!-- Last reviewed: 2026-10-01 (2.113.0) -->
+<!-- Line 1 release: ## [2.114.0] -->
+<!-- Last reviewed: 2026-10-01 (2.114.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,32 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.114.0] - 2026-10-01
+
+User-facing theme: **The inventory count becomes a real tool: sections, runs that add up to one count a day, problems answered in a tap, and a PR Fix-it screen for the items that come back.** Initiative: `inventory_count`.
+
+### Added
+
+- **Sections.** The Super User adds the parts of the floor (on the count's start screen or under Count sessions). A person picks the section they are about to scan.
+- **Runs and the day's count.** Each start-to-stop in a section is a run, with who, when, how many scans and a note. Every run in one day adds up to one count; the first run of the day freezes what the system says is on the shelf.
+- **Stop asks how it went:** the section is complete, not finished, or a bad run. A bad run is kept on record but left out of the totals and out of the "already scanned" check.
+- **Problems, answered in seconds.** A scan that is not a clean find opens a problem with two big buttons: not one of our tags, tag not recognized, system says sold, not on the shelf in the system, already scanned (it says where, who and when). On any scan, **Problem?** reports a wrong title, bad tag, price too high or low, or wrong section. **No tag** reports an item with no tag. Unanswered problems never block scanning; a section can't be marked complete until they are answered.
+- **Carts.** Problem items go into the person's PR cart ("Pat PR Cart 1"); wrong-section items go into their relocate cart with the section they belong in. "My cart is full" starts the next cart.
+- **Undo.** Remove any scan (and put it back). Nothing is deleted.
+- **Type to search.** Tap the scan box to type a code, or words: matching items are listed and one tap counts the item.
+- **Count sessions** (`/inventory/count/days`, managers and up): every day, its sections and runs, scans per minute, notes, problems; mark a run bad or complete after the fact, review and remove single scans, close or reopen the day.
+- **PR Fix-it** (`/inventory/pr-fixit`, Retail Floor menu): the items in the carts, each with its quickest fix. Sold tag: Print as new. Bad tag: Reprint. Wrong title or price: edit, then Save and print (a price in the scanner's note is filled in). No tag: find the item and print, or add it and print. Relocate: Moved. Fixed rows keep Print again and Undo.
+- New tables (`stocktake` migration `0002`): sections, runs, carts, problems; scans gain their run and a removed mark.
+
+### Changed
+
+- The scan screen is slimmer: a thin top bar (section, scans, time, rate), a one-line scan box, the last scan with Problem? and Undo. The large "Scanner ready" box and the Type button are gone.
+- The shrink report leaves out removed scans and bad runs.
+
+### Removed
+
+- **Start over** and the on-phone Earlier runs list. Runs are kept on the server now; a false start is stopped as a bad run. Counts from the first version are closed and listed as trial counts.
 
 ## [2.113.0] - 2026-10-01
 

@@ -7,94 +7,347 @@ from rest_framework.response import Response
 
 from apps.accounts.permissions import IsEmployee, IsManagerOrAdmin
 
-from .models import InventoryCount
-from .services import counting
+from .models import Cart, CountScan, InventoryCount, Issue, Run, Section
+from .services import counting, fixit
+
+STAFF = [IsAuthenticated, IsEmployee]
+MANAGERS = [IsAuthenticated, IsManagerOrAdmin]
 
 
-def _get(pk):
+def _err(detail, code, status=400):
+    return Response({'detail': detail, 'code': code}, status=status)
+
+
+def _not_found(what='Count'):
+    return _err(f'{what} not found.', 'NOT_FOUND', 404)
+
+
+def _is_manager(user) -> bool:
+    return bool(user.is_superuser or user.role in ('Manager', 'Admin'))
+
+
+def _get(model, pk, *related):
+    qs = model.objects.select_related(*related) if related else model.objects
+    return qs.filter(pk=pk).first()
+
+
+# --- sections (the Super User adds and edits them) ------------------------------------------------
+
+@api_view(['GET', 'POST'])
+@permission_classes(STAFF)
+def sections(request):
+    if request.method == 'POST':
+        if not request.user.is_superuser:
+            return _err('Only the Super User adds sections.', 'SUPERUSER_ONLY', 403)
+        name = str(request.data.get('name') or '').strip()[:60]
+        if not name:
+            return _err('Give the section a name.', 'NAME_REQUIRED')
+        if Section.objects.filter(name__iexact=name).exists():
+            return _err('A section with that name already exists.', 'NAME_TAKEN', 409)
+        last = Section.objects.order_by('-order').first()
+        s = Section.objects.create(name=name, order=(last.order + 1) if last else 1, created_by=request.user)
+        return Response(counting.section_payload(s), status=201)
+    return Response([counting.section_payload(s) for s in Section.objects.all()])
+
+
+@api_view(['PATCH'])
+@permission_classes(STAFF)
+def section_detail(request, pk):
+    if not request.user.is_superuser:
+        return _err('Only the Super User edits sections.', 'SUPERUSER_ONLY', 403)
+    s = _get(Section, pk)
+    if s is None:
+        return _not_found('Section')
+    if 'name' in request.data:
+        name = str(request.data.get('name') or '').strip()[:60]
+        if not name:
+            return _err('Give the section a name.', 'NAME_REQUIRED')
+        if Section.objects.filter(name__iexact=name).exclude(pk=s.pk).exists():
+            return _err('A section with that name already exists.', 'NAME_TAKEN', 409)
+        s.name = name
+    if 'order' in request.data:
+        s.order = max(0, int(request.data.get('order') or 0))
+    if 'is_active' in request.data:
+        s.is_active = bool(request.data.get('is_active'))
+    s.save()
+    return Response(counting.section_payload(s))
+
+
+# --- the scan screen ------------------------------------------------------------------------------
+
+@api_view(['GET'])
+@permission_classes(STAFF)
+def today(request):
+    """Today's count, my open run, the sections, my unanswered problems and my carts."""
+    return Response(counting.bootstrap(request.user))
+
+
+@api_view(['POST'])
+@permission_classes(STAFF)
+def runs(request):
+    """Body: ``{"section_id"}``. Starts a run (and today's count, if this is the day's first run)."""
+    section = _get(Section, request.data.get('section_id'))
+    if section is None or not section.is_active:
+        return _err('Pick a section.', 'SECTION_REQUIRED')
     try:
-        return InventoryCount.objects.get(pk=pk)
-    except InventoryCount.DoesNotExist:
-        return None
+        run = counting.start_run(user=request.user, section=section)
+    except counting.CountClosed:
+        return _err("Today's count is closed. A manager can reopen it.", 'COUNT_CLOSED', 409)
+    return Response({'run': counting.run_summary(run), 'day': counting.day_summary(run.count)}, status=201)
 
 
-def _not_found():
-    return Response({'detail': 'Count not found.', 'code': 'COUNT_NOT_FOUND'}, status=404)
+def _run_for(request, pk, *, write=True):
+    """The run, if this person may change it: their own, or any run for a manager."""
+    run = _get(Run, pk, 'section', 'count', 'user')
+    if run is None:
+        return None, _not_found('Run')
+    if write and run.user_id != request.user.pk and not _is_manager(request.user):
+        return None, _err("This is someone else's run.", 'NOT_YOUR_RUN', 403)
+    return run, None
+
+
+@api_view(['GET', 'PATCH'])
+@permission_classes(STAFF)
+def run_detail(request, pk):
+    """PATCH: ``note``, ``bad`` (true/false), ``section_complete`` (true/false)."""
+    run, err = _run_for(request, pk, write=request.method != 'GET')
+    if err:
+        return err
+    if request.method == 'PATCH':
+        try:
+            counting.update_run(
+                run,
+                note=request.data.get('note'),
+                bad=request.data.get('bad'),
+                section_complete=request.data.get('section_complete'),
+            )
+        except counting.PendingIssues as e:
+            return _err(f'{e.n} problems in this run still need an answer.', 'PENDING_ISSUES', 409)
+    return Response(counting.run_summary(run))
 
 
 @api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticated, IsEmployee])
-def counts(request):
-    """GET: recent counts (newest first). POST: start a count; freezes what the system says is on the shelf."""
+@permission_classes(STAFF)
+def run_scans(request, pk):
+    """POST ``{"scans": [{"client_id", "code", "seq", "scanned_at"}]}``: one result per scan, in order.
+
+    GET: the run's scans, newest first (for review and undo).
+    """
+    run, err = _run_for(request, pk, write=request.method == 'POST')
+    if err:
+        return err
+    if request.method == 'GET':
+        return Response({'run': counting.run_summary(run), 'scans': counting.run_scans(run)})
+    scans = request.data.get('scans')
+    if not isinstance(scans, list) or not scans:
+        return _err('scans must be a non-empty list.', 'SCANS_REQUIRED')
+    try:
+        results = counting.record_scans(run, scans)
+    except counting.RunClosed:
+        return _err('This run was stopped. Start a new one.', 'RUN_CLOSED', 409)
+    except counting.CountClosed:
+        return _err("Today's count is closed.", 'COUNT_CLOSED', 409)
+    return Response({'results': results, 'run': counting.run_summary(run), 'day': counting.day_summary(run.count)})
+
+
+@api_view(['POST'])
+@permission_classes(STAFF)
+def run_stop(request, pk):
+    """Body: ``{"outcome": "complete" | "partial" | "bad", "note"}``."""
+    run, err = _run_for(request, pk)
+    if err:
+        return err
+    try:
+        counting.stop_run(run, outcome=str(request.data.get('outcome') or ''), note=request.data.get('note'))
+    except counting.PendingIssues as e:
+        return _err(f'{e.n} problems still need an answer before this section is complete.', 'PENDING_ISSUES', 409)
+    except counting.BadRequest as e:
+        return _err(str(e), 'BAD_REQUEST')
+    return Response({'run': counting.run_summary(run), 'day': counting.day_summary(run.count)})
+
+
+@api_view(['POST'])
+@permission_classes(STAFF)
+def scan_remove(request, pk):
+    return _scan_toggle(request, pk, remove=True)
+
+
+@api_view(['POST'])
+@permission_classes(STAFF)
+def scan_restore(request, pk):
+    return _scan_toggle(request, pk, remove=False)
+
+
+def _scan_toggle(request, pk, *, remove: bool):
+    scan = _get(CountScan, pk, 'run', 'item__product')
+    if scan is None or scan.run is None:
+        return _not_found('Scan')
+    if scan.run.user_id != request.user.pk and not _is_manager(request.user):
+        return _err("This is someone else's scan.", 'NOT_YOUR_RUN', 403)
+    if remove:
+        counting.remove_scan(scan, user=request.user)
+    else:
+        counting.restore_scan(scan)
+    return Response(counting.scan_payload(scan, issue=scan.issues.first()))
+
+
+@api_view(['GET', 'POST'])
+@permission_classes(STAFF)
+def carts(request):
+    """GET: my open carts. POST ``{"kind": "pr" | "relocate"}``: my cart is full, start the next one."""
     if request.method == 'POST':
-        count = counting.start_count(
-            user=request.user,
-            name=str(request.data.get('name') or ''),
-            note=str(request.data.get('note') or ''),
+        try:
+            cart = counting.new_cart(request.user, str(request.data.get('kind') or ''))
+        except counting.BadRequest as e:
+            return _err(str(e), 'BAD_REQUEST')
+        return Response(counting.cart_payload(cart), status=201)
+    return Response({
+        'pr': counting.cart_payload(counting.current_cart(request.user, Cart.KIND_PR, create=False)),
+        'relocate': counting.cart_payload(counting.current_cart(request.user, Cart.KIND_RELOCATE, create=False)),
+    })
+
+
+# --- problems -------------------------------------------------------------------------------------
+
+@api_view(['GET', 'POST'])
+@permission_classes(STAFF)
+def issues(request):
+    """GET: the PR Fix-it list. ``?show=open`` (default), ``fixed`` or ``all``; ``?kind=pr|relocate``.
+
+    POST: report a problem on an item: ``{"run_id", "kind", "action", "scan_id"?, "detail"?, "target_section_id"?}``.
+    """
+    if request.method == 'POST':
+        run, err = _run_for(request, request.data.get('run_id'))
+        if err:
+            return err
+        scan = None
+        if request.data.get('scan_id'):
+            scan = CountScan.objects.select_related('item').filter(pk=request.data['scan_id'], count=run.count).first()
+        try:
+            issue = counting.report_issue(
+                run, user=request.user, kind=str(request.data.get('kind') or ''),
+                action=str(request.data.get('action') or ''), scan=scan,
+                detail=str(request.data.get('detail') or ''), target_section_id=request.data.get('target_section_id'),
+            )
+        except counting.BadRequest as e:
+            return _err(str(e), 'BAD_REQUEST')
+        return Response(counting.issue_payload(counting.issues_qs().get(pk=issue.pk)), status=201)
+
+    qs = counting.issues_qs().filter(action__in=[Issue.ACTION_PR_CART, Issue.ACTION_RELOCATE])
+    show = request.query_params.get('show') or 'open'
+    if show == 'open':
+        qs = qs.filter(fixed_at__isnull=True)
+    elif show == 'fixed':
+        qs = qs.filter(fixed_at__isnull=False).order_by('-fixed_at')
+    kind = request.query_params.get('kind')
+    if kind in (Cart.KIND_PR, Cart.KIND_RELOCATE):
+        qs = qs.filter(action=Issue.ACTION_PR_CART if kind == Cart.KIND_PR else Issue.ACTION_RELOCATE)
+    rows = []
+    for issue in qs[:400]:
+        row = counting.issue_payload(issue)
+        row['label'] = counting.label_for(issue.new_item or issue.item)
+        rows.append(row)
+    return Response(rows)
+
+
+@api_view(['PATCH'])
+@permission_classes(STAFF)
+def issue_detail(request, pk):
+    """Answer a problem (or change the answer): ``{"action", "detail"?, "target_section_id"?}``."""
+    issue = counting.issues_qs().filter(pk=pk).first()
+    if issue is None:
+        return _not_found('Problem')
+    if issue.created_by_id != request.user.pk and not _is_manager(request.user):
+        return _err("This is someone else's problem to answer.", 'NOT_YOUR_RUN', 403)
+    try:
+        counting.answer_issue(
+            issue, user=request.user, action=str(request.data.get('action') or ''),
+            detail=request.data.get('detail'), target_section_id=request.data.get('target_section_id'),
         )
-        return Response(counting.summary(count), status=201)
-    return Response([counting.summary(c) for c in InventoryCount.objects.all()[:30]])
+    except counting.BadRequest as e:
+        return _err(str(e), 'BAD_REQUEST')
+    return Response(counting.issue_payload(issue))
+
+
+@api_view(['POST'])
+@permission_classes(STAFF)
+def issue_fix(request, pk):
+    """PR Fix-it. Body: ``{"fix", ...}``. Returns the problem and the ``label`` to print (or null)."""
+    issue = counting.issues_qs().filter(pk=pk).first()
+    if issue is None:
+        return _not_found('Problem')
+    try:
+        label = fixit.fix_issue(issue, user=request.user, fix=str(request.data.get('fix') or ''), data=request.data)
+    except counting.BadRequest as e:
+        return _err(str(e), 'BAD_REQUEST')
+    issue = counting.issues_qs().get(pk=pk)
+    return Response({'issue': counting.issue_payload(issue), 'label': label})
+
+
+@api_view(['POST'])
+@permission_classes(STAFF)
+def issue_reopen(request, pk):
+    issue = counting.issues_qs().filter(pk=pk).first()
+    if issue is None:
+        return _not_found('Problem')
+    fixit.reopen_issue(issue)
+    return Response(counting.issue_payload(issue))
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated, IsEmployee])
+@permission_classes(STAFF)
+def search(request):
+    """``?q=`` any words on the item: SKU, title, brand, product number."""
+    return Response(counting.search_items(request.query_params.get('q') or ''))
+
+
+# --- overview and report (managers) ---------------------------------------------------------------
+
+@api_view(['GET'])
+@permission_classes(MANAGERS)
+def counts(request):
+    """Every day's count, newest first."""
+    return Response(counting.days())
+
+
+@api_view(['GET'])
+@permission_classes(MANAGERS)
 def count_detail(request, pk):
-    count = _get(pk)
-    return Response(counting.summary(count)) if count else _not_found()
+    count = _get(InventoryCount, pk)
+    return Response(counting.day_detail(count)) if count else _not_found()
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated, IsEmployee])
-def count_scans(request, pk):
-    """Body: ``{"scans": [{"client_id", "code", "seq", "scanned_at"}]}``. Returns one result per scan, in order."""
-    count = _get(pk)
-    if count is None:
-        return _not_found()
-    scans = request.data.get('scans')
-    if not isinstance(scans, list) or not scans:
-        return Response({'detail': 'scans must be a non-empty list.', 'code': 'SCANS_REQUIRED'}, status=400)
-    try:
-        results = counting.record_scans(count, scans)
-    except counting.CountClosed:
-        return Response({'detail': 'This count is closed.', 'code': 'COUNT_CLOSED'}, status=409)
-    return Response({'results': results, 'summary': counting.summary(count)})
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated, IsEmployee])
+@permission_classes(MANAGERS)
 def count_close(request, pk):
-    count = _get(pk)
+    count = _get(InventoryCount, pk)
     if count is None:
         return _not_found()
     counting.close_count(count)
-    return Response(counting.summary(count))
+    return Response(counting.day_summary(count))
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated, IsManagerOrAdmin])
-def count_restart(request, pk):
-    """Discard an open count and its scans, then start a new one. Managers and up."""
-    count = _get(pk)
+@permission_classes(MANAGERS)
+def count_reopen(request, pk):
+    count = _get(InventoryCount, pk)
     if count is None:
         return _not_found()
-    try:
-        fresh = counting.restart_count(count, user=request.user)
-    except counting.CountClosed:
-        return Response({'detail': 'This count is closed. Start a new one instead.', 'code': 'COUNT_CLOSED'}, status=409)
-    return Response(counting.summary(fresh), status=201)
+    counting.reopen_count(count)
+    return Response(counting.day_summary(count))
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated, IsManagerOrAdmin])
+@permission_classes(MANAGERS)
 def count_report(request, pk):
-    count = _get(pk)
+    count = _get(InventoryCount, pk)
     return Response(counting.report(count)) if count else _not_found()
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated, IsManagerOrAdmin])
+@permission_classes(MANAGERS)
 def count_report_csv(request, pk):
-    count = _get(pk)
+    count = _get(InventoryCount, pk)
     if count is None:
         return _not_found()
     data = counting.report(count)

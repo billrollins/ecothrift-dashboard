@@ -48,8 +48,8 @@ export default function CountReportPage() {
           </Typography>
         </Box>
         <Stack direction="row" spacing={1}>
-          <Button component={RouterLink} to="/inventory/count" variant="outlined">
-            Back to counting
+          <Button component={RouterLink} to="/inventory/count/days" variant="outlined">
+            All days
           </Button>
           <Button href={countReportCsvUrl(report.id)} variant="contained">
             Download missing (CSV)

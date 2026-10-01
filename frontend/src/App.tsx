@@ -24,6 +24,8 @@ const BstockLoginHandoffPage = lazy(() => import('./pages/routines/BstockLoginHa
 const ProductReviewPage = lazy(() => import('./pages/inventory/ProductReviewPage'));
 const CountPage = lazy(() => import('./pages/inventory/count/CountPage'));
 const CountReportPage = lazy(() => import('./pages/inventory/count/CountReportPage'));
+const CountDaysPage = lazy(() => import('./pages/inventory/count/CountDaysPage'));
+const PrFixitPage = lazy(() => import('./pages/inventory/count/PrFixitPage'));
 import FloorplanListPage from './pages/floorplan/FloorplanListPage';
 
 // Pages
@@ -253,6 +255,30 @@ export default function App() {
           element={
             <Suspense fallback={<LoadingScreen message="Loading…" />}>
               <CountPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/inventory/count/days"
+          element={
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <CountDaysPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/inventory/count/days/:id"
+          element={
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <CountDaysPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/inventory/pr-fixit"
+          element={
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <PrFixitPage />
             </Suspense>
           }
         />

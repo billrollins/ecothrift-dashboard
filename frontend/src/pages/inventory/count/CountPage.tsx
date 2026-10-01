@@ -11,66 +11,101 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
+  Menu,
+  MenuItem,
   Stack,
   TextField,
   Typography,
 } from '@mui/material';
-import VolumeUpIcon from '@mui/icons-material/VolumeUp';
-import VolumeOffIcon from '@mui/icons-material/VolumeOff';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
-import { closeCount, listCounts, postScans, restartCount, startCount, type CountSummary } from '../../../api/stocktake.api';
+import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
+import {
+  addSection,
+  answerIssue,
+  apiMessage,
+  getToday,
+  newCart,
+  postScans,
+  removeScan,
+  reportIssue,
+  restoreScan,
+  searchItems,
+  startRun,
+  stopRun,
+  updateRun,
+  type Carts,
+  type CartKind,
+  type DaySummary,
+  type Issue,
+  type IssueAction,
+  type IssueKind,
+  type ItemBrief,
+  type RunSummary,
+  type Section,
+} from '../../../api/stocktake.api';
 import { useAuth } from '../../../contexts/AuthContext';
-import { CountQueue, agoText, codeFromScan, soundFor, type QueuedScan } from './countQueue';
+import { CountQueue, agoText, codeFromScan, looksLikeCode, soundFor, type QueuedScan } from './countQueue';
+import { ACTION_WORDS, PROBLEM_RULES } from './countProblems';
 import { playCountSound, unlockSound } from './countSound';
-import { addRun, clearRuns, clockOffset, describeRun, elapsedSeconds, formatElapsed, loadRuns, ratePerMinute, type CountRun } from './countTimer';
+import { clockOffset, clockTime, elapsedSeconds, formatElapsed, ratePerMinute } from './countTimer';
+import ProblemSheet, { type SheetAnswer } from './ProblemSheet';
 
-const storeKey = (id: number) => `stocktake.count.${id}`;
+const storeKey = (runId: number) => `stocktake.run.${runId}`;
 
-function load(id: number): QueuedScan[] | undefined {
+function load(runId: number): QueuedScan[] | undefined {
   try {
-    const raw = window.localStorage.getItem(storeKey(id));
+    const raw = window.localStorage.getItem(storeKey(runId));
     return raw ? (JSON.parse(raw) as QueuedScan[]) : undefined;
   } catch {
     return undefined;
   }
 }
 
-function save(id: number, queue: CountQueue): void {
+function save(runId: number, queue: CountQueue): void {
   try {
-    window.localStorage.setItem(storeKey(id), JSON.stringify(queue.snapshot()));
+    window.localStorage.setItem(storeKey(runId), JSON.stringify(queue.snapshot()));
   } catch {
     // Storage full or blocked: the scans are still in memory and on the server.
   }
 }
 
-const COLORS = {
-  ok: '#2e7d32',
-  unknown: '#c62828',
-  odd: '#ed6c02',
-  already: '#ed6c02',
-  queued: '#757575',
-  sent: '#757575',
-} as const;
+const GREEN = '#2e7d32';
+const RED = '#c62828';
+const ORANGE = '#ed6c02';
+const GREY = '#757575';
 
-function StateIcon({ state }: { state: QueuedScan['state'] }) {
-  const sx = { color: COLORS[state], fontSize: 22 };
-  if (state === 'ok') return <CheckCircleIcon sx={sx} />;
-  if (state === 'unknown') return <ErrorIcon sx={sx} />;
-  if (state === 'odd' || state === 'already') return <WarningAmberIcon sx={sx} />;
+function colorOf(s: QueuedScan): string {
+  if (s.removed) return GREY;
+  if (s.state === 'ok') return GREEN;
+  if (s.state === 'unknown' || s.state === 'bad_format') return RED;
+  if (s.state === 'odd' || s.state === 'already') return ORANGE;
+  return GREY;
+}
+
+function StateIcon({ scan }: { scan: QueuedScan }) {
+  const sx = { color: colorOf(scan), fontSize: 22 };
+  if (scan.removed) return <RemoveCircleOutlineIcon sx={sx} />;
+  if (scan.state === 'ok') return <CheckCircleIcon sx={sx} />;
+  if (scan.state === 'unknown' || scan.state === 'bad_format') return <ErrorIcon sx={sx} />;
+  if (scan.state === 'odd' || scan.state === 'already') return <WarningAmberIcon sx={sx} />;
   return <HourglassEmptyIcon sx={sx} />;
 }
 
 function describe(s: QueuedScan): string {
+  if (s.removed) return `Removed${s.title ? `: ${s.title}` : ''}`;
   switch (s.state) {
     case 'ok':
       return s.title || 'On the shelf';
     case 'unknown':
-      return 'Not found';
+      return 'Tag not recognized';
+    case 'bad_format':
+      return 'Not one of our tags';
     case 'already':
-      return 'Already scanned';
+      return `Already scanned${s.title ? `: ${s.title}` : ''}`;
     case 'odd':
       return `System says ${s.itemStatus || 'not on shelf'}${s.title ? `: ${s.title}` : ''}`;
     default:
@@ -78,108 +113,155 @@ function describe(s: QueuedScan): string {
   }
 }
 
-/** Shelf inventory count. Phone first: scan fast, the lookup happens behind the scenes. */
+/** A problem that still needs an answer: from a scan in this run, or left over from an earlier run today. */
+interface Pending {
+  issueId: number;
+  kind: IssueKind;
+  code: string;
+  title: string;
+  price: string | null;
+  context: string;
+  /** "just now", "3 scans ago". Empty for a problem from an earlier run. */
+  ago?: string;
+  clientId?: string;
+}
+
+function contextFor(kind: IssueKind, s: { itemStatus?: string; firstSeen?: QueuedScan['firstSeen'] }): string {
+  if (kind === 'already_scanned' && s.firstSeen) {
+    return `Scanned before in ${s.firstSeen.section} by ${s.firstSeen.by || 'someone'} at ${clockTime(s.firstSeen.at)}.`;
+  }
+  if (kind === 'not_on_shelf' && s.itemStatus) return `The system has this item as "${s.itemStatus}", not on the shelf.`;
+  return PROBLEM_RULES[kind].help;
+}
+
+function fromIssue(i: Issue): Pending {
+  return {
+    issueId: i.id,
+    kind: i.kind,
+    code: i.code,
+    title: i.item?.title ?? '',
+    price: i.item?.price ?? null,
+    context: `${PROBLEM_RULES[i.kind].help} (From ${i.section}.)`,
+  };
+}
+
+type Sheet = { mode: 'scan'; clientId: string } | { mode: 'notag' } | null;
+
+/** Shelf inventory count. Phone first: pick a section, scan fast, answer problems in a tap. */
 export default function CountPage() {
   const { hasRole, user } = useAuth();
-  const [count, setCount] = useState<CountSummary | null>(null);
+  const isManager = hasRole('Manager') || hasRole('Admin') || !!user?.is_superuser;
+  const isSuper = !!user?.is_superuser;
+
   const [booting, setBooting] = useState(true);
-  const [bootError, setBootError] = useState('');
+  const [error, setError] = useState('');
+  const [flash, setFlash] = useState('');
+  const [sections, setSections] = useState<Section[]>([]);
+  const [day, setDay] = useState<DaySummary | null>(null);
+  const [run, setRun] = useState<RunSummary | null>(null);
+  const [older, setOlder] = useState<Pending[]>([]);
+  const [carts, setCarts] = useState<Carts>({ pr: null, relocate: null });
   const [, force] = useState(0);
   const rerender = useCallback(() => force((n) => n + 1), []);
-  const [scannerReady, setScannerReady] = useState(false);
-  const [keyboardOn, setKeyboardOn] = useState(false);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const [typed, setTyped] = useState('');
+  const [keysOn, setKeysOn] = useState(false);
+  const [matches, setMatches] = useState<ItemBrief[] | null>(null);
   const [muted, setMuted] = useState(false);
   const [offline, setOffline] = useState(false);
-  const [alertScan, setAlertScan] = useState<QueuedScan | null>(null);
-  const [confirmClose, setConfirmClose] = useState(false);
-  const [closing, setClosing] = useState(false);
-  const [typed, setTyped] = useState('');
-  const [confirmRestart, setConfirmRestart] = useState(false);
-  const [restarting, setRestarting] = useState(false);
-  const [runs, setRuns] = useState<CountRun[]>(() => loadRuns());
-  const [, setTick] = useState(0);
-  const offsetRef = useRef(0);
+  const [sheet, setSheet] = useState<Sheet>(null);
+  const [busy, setBusy] = useState(false);
+  const [menuAt, setMenuAt] = useState<HTMLElement | null>(null);
+  const [stopOpen, setStopOpen] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [note, setNote] = useState('');
+  const [newSection, setNewSection] = useState('');
 
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const queueRef = useRef<CountQueue>(new CountQueue());
   const inFlight = useRef(false);
   const lastCode = useRef<{ code: string; at: number }>({ code: '', at: 0 });
+  const offsetRef = useRef(0);
   const mutedRef = useRef(muted);
   mutedRef.current = muted;
-  const countRef = useRef<CountSummary | null>(null);
-  countRef.current = count;
+  const runRef = useRef<RunSummary | null>(null);
+  runRef.current = run;
   const queue = queueRef.current;
 
-  const attach = useCallback((c: CountSummary) => {
-    queueRef.current = new CountQueue(load(c.id));
-    if (c.server_now) offsetRef.current = clockOffset(c.server_now, Date.now());
-    setCount(c);
-    setAlertScan(null);
-    setOffline(false);
+  const say = useCallback((text: string) => {
+    setFlash(text);
+    window.setTimeout(() => setFlash((cur) => (cur === text ? '' : cur)), 4000);
+  }, []);
+
+  const refresh = useCallback(async () => {
+    const t = await getToday();
+    offsetRef.current = clockOffset(t.server_now, Date.now());
+    setSections(t.sections);
+    setDay(t.day);
+    setCarts(t.carts);
+    if (t.run && runRef.current?.id !== t.run.id) queueRef.current = new CountQueue(load(t.run.id));
+    const mine = new Set(queueRef.current.scans.map((s) => s.issueId));
+    setOlder(t.pending.filter((p) => !t.run || !mine.has(p.id)).map(fromIssue));
+    setRun(t.run);
+    setNote(t.run?.note ?? '');
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    listCounts()
-      .then((all) => {
-        if (cancelled) return;
-        const open = all.find((c) => c.status === 'open');
-        if (open) attach(open);
-      })
-      .catch(() => {
-        if (!cancelled) setBootError('Could not load counts. Check the connection and reload.');
-      })
-      .finally(() => {
-        if (!cancelled) setBooting(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [attach]);
+    refresh()
+      .catch(() => setError('Could not load the count. Check the connection and reload.'))
+      .finally(() => setBooting(false));
+  }, [refresh]);
 
-  // The timer redraws once a second while a count is open.
+  // The timer redraws once a second while a run is open.
   useEffect(() => {
-    if (!count || count.status !== 'open') return undefined;
-    const id = window.setInterval(() => setTick((n) => n + 1), 1000);
+    if (!run) return undefined;
+    const id = window.setInterval(rerender, 1000);
     return () => window.clearInterval(id);
-  }, [count?.id, count?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [run?.id, rerender]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The sender: every 300 ms, send whatever is waiting. A failed send goes back in the queue.
   useEffect(() => {
-    if (!count) return undefined;
+    if (!run) return undefined;
     const tick = async () => {
-      const c = countRef.current;
+      const r = runRef.current;
       const q = queueRef.current;
-      if (!c || inFlight.current || q.waiting === 0) return;
+      if (!r || inFlight.current || q.waiting === 0) return;
       const batch = q.takeBatch(100);
       if (batch.length === 0) return;
       inFlight.current = true;
       try {
-        const { results, summary } = await postScans(c.id, batch);
-        const answered = q.apply(results);
+        const res = await postScans(r.id, batch);
+        const answered = q.apply(res.results);
         setOffline(false);
-        setCount((prev) => (prev ? { ...prev, ...summary } : prev));
+        setRun(res.run);
+        setDay(res.day);
         const kind = soundFor(answered);
         if (kind) playCountSound(kind, mutedRef.current);
-        const worst = [...answered].reverse().find((s) => s.state === 'unknown' || s.state === 'odd' || s.state === 'already');
-        if (worst) setAlertScan(worst);
-      } catch {
+      } catch (e) {
         q.requeue(batch.map((b) => b.client_id));
-        setOffline(true);
+        const status = (e as { response?: { status?: number } })?.response?.status;
+        if (status === 409 || status === 403 || status === 404) {
+          // The run was stopped somewhere else (another phone, or a manager).
+          setError(apiMessage(e, 'This run was stopped. Pick a section to start again.'));
+          setRun(null);
+          void refresh().catch(() => undefined);
+        } else {
+          setOffline(true);
+        }
       } finally {
         inFlight.current = false;
-        save(c.id, q);
+        save(r.id, q);
         rerender();
       }
     };
     const id = window.setInterval(() => void tick(), 300);
     return () => window.clearInterval(id);
-  }, [count?.id, rerender]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [run?.id, rerender, refresh]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onScan = useCallback(
     (raw: string) => {
-      const c = countRef.current;
-      if (!c) return;
+      const r = runRef.current;
+      if (!r) return;
       const code = codeFromScan(raw);
       if (!code) return;
       const now = Date.now();
@@ -192,15 +274,15 @@ export default function CountPage() {
       lastCode.current = { code, at: now };
       queueRef.current.add(code);
       if ('vibrate' in navigator) navigator.vibrate?.(8);
-      save(c.id, queueRef.current);
+      save(r.id, queueRef.current);
       rerender();
     },
     [rerender],
   );
 
-  // A Bluetooth or USB scanner types the code and presses Enter, like a keyboard. Keep the scan box focused
-  // whenever the count is open, and catch keystrokes that land anywhere else on the page.
-  const active = !!count && count.status === 'open' && !confirmClose && !confirmRestart;
+  // A Bluetooth or USB scanner types the code and presses Enter, like a keyboard. Keep the scan box
+  // focused while a run is open, and catch keystrokes that land anywhere else on the page.
+  const active = !!run && !sheet && !stopOpen && !noteOpen && !menuAt;
   useEffect(() => {
     if (!active) return undefined;
     const focusBox = () => inputRef.current?.focus({ preventScroll: true });
@@ -209,13 +291,11 @@ export default function CountPage() {
       const el = document.activeElement;
       if (el === inputRef.current || e.ctrlKey || e.metaKey || e.altKey) return;
       if (el instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) return;
-      if (e.key.length === 1) {
-        focusBox(); // the character is typed into the box by the browser
-      }
+      if (e.key.length === 1) focusBox(); // the character is typed into the box by the browser
     };
     window.addEventListener('keydown', onKey, true);
     const keepFocus = window.setInterval(() => {
-      if (document.activeElement !== inputRef.current && !document.querySelector('[role="dialog"]')) focusBox();
+      if (document.activeElement !== inputRef.current && !document.querySelector('[role="dialog"], [role="menu"]')) focusBox();
     }, 1500);
     return () => {
       window.removeEventListener('keydown', onKey, true);
@@ -223,100 +303,262 @@ export default function CountPage() {
     };
   }, [active]);
 
+  // Typed words (not a scan) look items up. A scanner finishes with Enter long before this fires.
+  useEffect(() => {
+    const q = typed.trim();
+    if (q.length < 3) {
+      setMatches(null);
+      return undefined;
+    }
+    const id = window.setTimeout(() => {
+      searchItems(q)
+        .then(setMatches)
+        .catch(() => setMatches([]));
+    }, 300);
+    return () => window.clearTimeout(id);
+  }, [typed]);
+
+  // Search words left in the box are cleared after a pause, so they can't swallow the next scan.
+  useEffect(() => {
+    if (!typed) return undefined;
+    const id = window.setTimeout(() => {
+      setTyped('');
+      setMatches(null);
+    }, 20000);
+    return () => window.clearTimeout(id);
+  }, [typed]);
+
+  const doneTyping = () => {
+    setTyped('');
+    setMatches(null);
+    setKeysOn(false);
+  };
+
   const submitTyped = () => {
     const value = typed.trim();
     if (!value) return;
     unlockSound(); // a keypress counts as a touch: phones allow sound from now on
-    onScan(value);
-    setTyped('');
+    // A scan that lands behind half-typed search words still counts: the tag's code is picked out.
+    const tag = value.match(/ITM\d{6,}/i);
+    if (tag || looksLikeCode(value)) {
+      onScan(tag ? tag[0] : value);
+      doneTyping();
+    } else if (matches?.length === 1) {
+      onScan(matches[0].sku);
+      doneTyping();
+    }
+    // Otherwise it is a search: the matches are listed under the box.
   };
 
-  const begin = async () => {
+  const begin = async (section: Section) => {
     unlockSound();
+    setBusy(true);
+    setError('');
     try {
-      const c = await startCount();
-      attach(c);
-    } catch {
-      setBootError('Could not start the count.');
+      const res = await startRun(section.id);
+      queueRef.current = new CountQueue(load(res.run.id));
+      lastCode.current = { code: '', at: 0 };
+      setRun(res.run);
+      setDay(res.day);
+      setNote('');
+    } catch (e) {
+      setError(apiMessage(e, 'Could not start. Check the connection and try again.'));
+    } finally {
+      setBusy(false);
     }
   };
 
-  const finish = async () => {
-    if (!count) return;
-    setClosing(true);
-    // Everything must be answered by the server before the count is closed.
+  const pendingNow: Pending[] = [
+    ...queue.problems().map(({ scan }) => ({
+      issueId: scan.issueId as number,
+      kind: scan.issueKind as IssueKind,
+      code: scan.code,
+      title: scan.title,
+      price: scan.price,
+      context: contextFor(scan.issueKind as IssueKind, scan),
+      ago: agoText(queue.ago(scan)),
+      clientId: scan.clientId,
+    })),
+    ...older,
+  ];
+
+  const answer = async (p: Pending, action: IssueAction) => {
+    setBusy(true);
+    try {
+      const issue = await answerIssue(p.issueId, { action });
+      queueRef.current.answer(p.issueId, action);
+      setOlder((list) => list.filter((x) => x.issueId !== p.issueId));
+      if (run) save(run.id, queueRef.current);
+      setRun((r) => (r ? { ...r, issues_pending: Math.max(0, r.issues_pending - 1) } : r));
+      say(issue.cart ? `Put it in ${issue.cart}.` : ACTION_WORDS[action]);
+    } catch (e) {
+      setError(apiMessage(e, 'Could not save the answer. Try again.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sheetScan = sheet?.mode === 'scan' ? queue.find(sheet.clientId) : undefined;
+
+  const onSheetAnswer = async (a: SheetAnswer) => {
+    if (!run) return;
+    setBusy(true);
+    try {
+      let issue: Issue;
+      if (sheetScan?.issueId) {
+        issue = await answerIssue(sheetScan.issueId, { action: a.action, detail: a.detail || undefined, target_section_id: a.targetSectionId });
+        queueRef.current.answer(issue.id, a.action);
+      } else {
+        issue = await reportIssue({
+          run_id: run.id,
+          kind: a.kind,
+          action: a.action,
+          scan_id: sheetScan?.serverId ?? null,
+          detail: a.detail,
+          target_section_id: a.targetSectionId,
+        });
+        if (sheetScan) queueRef.current.setIssue(sheetScan.clientId, issue.id, a.kind, a.action);
+      }
+      save(run.id, queueRef.current);
+      say(issue.cart ? `Put it in ${issue.cart}.` : `Noted: ${PROBLEM_RULES[a.kind].title.toLowerCase()}.`);
+      setSheet(null);
+    } catch (e) {
+      setError(apiMessage(e, 'Could not save. Try again.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Undo: take a scan out of the count, or put it back. Nothing is deleted on the server. */
+  const toggleRemoved = async (scan: QueuedScan) => {
+    if (!run) return;
+    if (scan.serverId == null) {
+      queueRef.current.drop(scan.clientId); // never sent: just forget it
+      save(run.id, queueRef.current);
+      setSheet(null);
+      rerender();
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = scan.removed ? await restoreScan(scan.serverId) : await removeScan(scan.serverId);
+      queueRef.current.setRemoved(scan.clientId, res.removed);
+      save(run.id, queueRef.current);
+      say(res.removed ? `Removed ${scan.code}.` : `Put ${scan.code} back.`);
+      setSheet(null);
+    } catch (e) {
+      setError(apiMessage(e, 'Could not change that scan. Try again.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const stop = async (outcome: 'complete' | 'partial' | 'bad') => {
+    if (!run) return;
+    setBusy(true);
+    // Everything must be answered by the server before the run is stopped.
     const started = Date.now();
     while (queueRef.current.waiting > 0 && Date.now() - started < 20000) {
       await new Promise((r) => setTimeout(r, 300));
     }
     if (queueRef.current.waiting > 0) {
-      setClosing(false);
-      setConfirmClose(false);
-      setBootError(`${queueRef.current.waiting} scans are still waiting to send. Get a connection, then finish.`);
+      setBusy(false);
+      setStopOpen(false);
+      setError(`${queueRef.current.waiting} scans are still waiting to send. Get a connection, then stop.`);
       return;
     }
     try {
-      const closed = await closeCount(count.id);
-      window.localStorage.removeItem(storeKey(count.id));
-      setRuns(addRun({
-        at: new Date().toISOString(),
-        seconds: elapsedSeconds(count.started_at, Date.now(), offsetRef.current, closed.closed_at),
-        scans: queueRef.current.lastSeq,
-        counted: closed.counted,
-        how: 'finished',
-      }));
-      setCount(closed);
-    } catch {
-      setBootError('Could not close the count.');
+      await stopRun(run.id, outcome, note);
+      window.localStorage.removeItem(storeKey(run.id));
+      queueRef.current = new CountQueue();
+      setRun(null);
+      setStopOpen(false);
+      say(outcome === 'complete' ? `${run.section.name} is complete.` : outcome === 'bad' ? 'Run marked bad. It will not be counted.' : 'Run stopped.');
+      await refresh();
+    } catch (e) {
+      setError(apiMessage(e, 'Could not stop the run. Try again.'));
+      setStopOpen(false);
     } finally {
-      setClosing(false);
-      setConfirmClose(false);
+      setBusy(false);
     }
   };
 
-  /** Throw this count away and start a fresh one: the timer starts again from zero. */
-  const startOver = async () => {
-    if (!count) return;
-    unlockSound();
-    setRestarting(true);
-    const run: CountRun = {
-      at: new Date().toISOString(),
-      seconds: elapsedSeconds(count.started_at, Date.now(), offsetRef.current),
-      scans: queueRef.current.lastSeq,
-      counted: count.counted,
-      how: 'started over',
-    };
+  const saveNote = async () => {
+    if (!run) return;
+    setBusy(true);
     try {
-      const fresh = await restartCount(count.id);
-      window.localStorage.removeItem(storeKey(count.id));
-      if (run.scans > 0) setRuns(addRun(run));
-      lastCode.current = { code: '', at: 0 };
-      attach(fresh);
-      setBootError('');
-    } catch {
-      setBootError('Could not start over. Check the connection and try again.');
+      setRun(await updateRun(run.id, { note }));
+      setNoteOpen(false);
+      say('Note saved.');
+    } catch (e) {
+      setError(apiMessage(e, 'Could not save the note.'));
     } finally {
-      setRestarting(false);
-      setConfirmRestart(false);
+      setBusy(false);
     }
   };
 
-  const runsList = runs.length > 0 && (
-    <Box sx={{ px: 1.5, pt: 2 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between">
-        <Typography sx={{ fontWeight: 800 }}>Earlier runs</Typography>
-        <Button size="small" onClick={() => { clearRuns(); setRuns([]); }}>Clear list</Button>
-      </Stack>
-      {runs.map((r, i) => (
-        <Typography key={`${r.at}-${i}`} sx={{ fontSize: 14, py: 0.25 }}>
-          {describeRun(r)}
-          <Typography component="span" sx={{ fontSize: 12, color: 'text.secondary' }}>
-            {' '}· {r.how} {new Date(r.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+  const nextCart = async (kind: CartKind) => {
+    setMenuAt(null);
+    try {
+      const cart = await newCart(kind);
+      setCarts((c) => ({ ...c, [kind]: cart }));
+      say(`New cart: ${cart.label}.`);
+    } catch (e) {
+      setError(apiMessage(e, 'Could not start a new cart.'));
+    }
+  };
+
+  const createSection = async () => {
+    const name = newSection.trim();
+    if (!name) return;
+    try {
+      await addSection(name);
+      setNewSection('');
+      await refresh();
+    } catch (e) {
+      setError(apiMessage(e, 'Could not add the section.'));
+    }
+  };
+
+  // The newest problem gets the full card. Older ones wait in a compact row each, still one tap to answer.
+  const pendingCards = pendingNow.map((p, index) => {
+    const rule = PROBLEM_RULES[p.kind];
+    const red = p.kind === 'not_sku' || p.kind === 'not_recognized';
+    const full = index === 0;
+    return (
+      <Box key={p.issueId} role="alert" sx={{ mb: 1, p: full ? 1.5 : 1, borderRadius: 2, color: '#fff', bgcolor: red ? RED : ORANGE }}>
+        <Stack direction="row" alignItems="baseline" spacing={1}>
+          <Typography noWrap sx={{ fontWeight: 900, fontSize: full ? 18 : 15, lineHeight: 1.2, flex: 1, minWidth: 0 }}>
+            {rule.title}
+            {!full && <span style={{ fontFamily: 'monospace', fontWeight: 700 }}> {p.code}</span>}
           </Typography>
-        </Typography>
-      ))}
-    </Box>
-  );
+          {p.ago && <Typography sx={{ fontSize: 12, whiteSpace: 'nowrap' }}>{p.ago}</Typography>}
+        </Stack>
+        {full && (
+          <>
+            <Typography sx={{ fontSize: 22, fontWeight: 900, fontFamily: 'monospace', wordBreak: 'break-all', lineHeight: 1.2 }}>{p.code}</Typography>
+            <Typography sx={{ fontSize: 14 }}>
+              {p.title ? `${p.title}. ` : ''}
+              {p.context}
+            </Typography>
+          </>
+        )}
+        <Stack direction="row" spacing={1} sx={{ mt: full ? 1 : 0.5 }}>
+          {rule.answers.map((a) => (
+            <Button
+              key={a.action}
+              variant="contained"
+              disabled={busy}
+              onClick={() => void answer(p, a.action)}
+              sx={{ flex: 1, py: full ? 1.25 : 0.6, fontSize: full ? 14 : 13, fontWeight: 800, textTransform: 'none', lineHeight: 1.15, bgcolor: '#fff', color: '#111', '&:hover': { bgcolor: '#eee' } }}
+            >
+              {a.label}
+            </Button>
+          ))}
+        </Stack>
+      </Box>
+    );
+  });
 
   if (booting) {
     return (
@@ -326,250 +568,362 @@ export default function CountPage() {
     );
   }
 
-  const isManager = hasRole('Manager') || hasRole('Admin') || !!user?.is_superuser;
-
-  if (!count || count.status === 'closed') {
+  // ---- No open run: pick a section -------------------------------------------------------------
+  if (!run) {
     return (
-      <Box sx={{ p: 2, width: '100%', maxWidth: 520, mx: 'auto' }}>
-        <Typography variant="h5" sx={{ fontWeight: 800, mb: 1 }}>
+      <Box sx={{ p: 2, width: '100%', minWidth: 0, maxWidth: 560, mx: 'auto' }} onClick={unlockSound}>
+        <Typography variant="h5" sx={{ fontWeight: 800 }}>
           Inventory count
         </Typography>
-        {count?.status === 'closed' && (
-          <Alert severity="success" sx={{ mb: 2 }}>
-            Count closed: {count.counted.toLocaleString()} of {count.expected.toLocaleString()} counted.{' '}
-            {isManager && (
-              <Button component={RouterLink} to={`/inventory/count/${count.id}/report`} size="small">
-                See the report
-              </Button>
-            )}
-          </Alert>
-        )}
-        {bootError && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {bootError}
-          </Alert>
-        )}
-        <Typography sx={{ mb: 2, color: 'text.secondary' }}>
-          Scan every item on the floor. The app remembers what the system says is on the shelf right now, and the
-          report shows what was not found.
+        <Typography sx={{ color: 'text.secondary', mb: 1.5 }}>
+          {day
+            ? `Today: ${day.counted.toLocaleString()} of ${day.expected.toLocaleString()} counted · ${day.sections_done} of ${day.sections_total} sections done`
+            : 'No one has scanned today yet. Every run today adds up to one count.'}
         </Typography>
-        <Button variant="contained" size="large" fullWidth onClick={() => void begin()} sx={{ py: 2, fontWeight: 800 }}>
-          Start a new count
-        </Button>
-        <Box sx={{ mx: -1.5 }}>{runsList}</Box>
+        {flash && (
+          <Alert severity="success" sx={{ mb: 1.5 }}>
+            {flash}
+          </Alert>
+        )}
+        {error && (
+          <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setError('')}>
+            {error}
+          </Alert>
+        )}
+        {day?.status === 'closed' && (
+          <Alert severity="info" sx={{ mb: 1.5 }}>
+            Today&apos;s count is closed. A manager can reopen it from Sessions.
+          </Alert>
+        )}
+        {pendingCards.length > 0 && (
+          <Box sx={{ mb: 1 }}>
+            <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Still needs an answer ({pendingCards.length})</Typography>
+            {pendingCards}
+          </Box>
+        )}
+
+        <Typography sx={{ fontWeight: 800, mb: 1 }}>Which section are you about to scan?</Typography>
+        {sections.length === 0 && (
+          <Alert severity="warning" sx={{ mb: 1.5 }}>
+            There are no sections yet. {isSuper ? 'Add the first one below.' : 'The Super User adds them.'}
+          </Alert>
+        )}
+        <Stack spacing={1}>
+          {sections.map((s) => (
+            <Button
+              key={s.id}
+              variant={s.complete ? 'outlined' : 'contained'}
+              size="large"
+              fullWidth
+              disabled={busy || day?.status === 'closed'}
+              onClick={() => void begin(s)}
+              sx={{ py: 1.75, fontWeight: 800, fontSize: 17, textTransform: 'none', justifyContent: 'space-between' }}
+            >
+              {s.name}
+              {s.complete && <Chip size="small" color="success" label="Done today" />}
+            </Button>
+          ))}
+        </Stack>
+
+        {isSuper && (
+          <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+            <TextField
+              value={newSection}
+              onChange={(e) => setNewSection(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void createSection()}
+              placeholder="New section name"
+              size="small"
+              fullWidth
+              inputProps={{ maxLength: 60, 'aria-label': 'New section name' }}
+            />
+            <Button variant="outlined" onClick={() => void createSection()} sx={{ whiteSpace: 'nowrap', textTransform: 'none' }}>
+              Add section
+            </Button>
+          </Stack>
+        )}
+
+        <Stack direction="row" spacing={1} sx={{ mt: 3 }} flexWrap="wrap" useFlexGap>
+          {isManager && (
+            <Button component={RouterLink} to="/inventory/count/days" sx={{ textTransform: 'none' }}>
+              Sessions and reports
+            </Button>
+          )}
+          <Button component={RouterLink} to="/inventory/pr-fixit" sx={{ textTransform: 'none' }}>
+            PR Fix-it
+          </Button>
+        </Stack>
       </Box>
     );
   }
 
-  const live = queue.recent(14);
-  const problems = queue.problems();
-  const pct = count.expected ? Math.min(100, Math.round((count.counted / count.expected) * 100)) : 0;
-  const elapsed = elapsedSeconds(count.started_at, Date.now(), offsetRef.current);
-  const rate = ratePerMinute(queue.lastSeq, elapsed);
+  // ---- A run is open: scan ---------------------------------------------------------------------
+  const elapsed = elapsedSeconds(run.started_at, Date.now(), offsetRef.current);
+  const rate = ratePerMinute(queue.kept, elapsed);
+  const recent = queue.recent(30);
+  const last = recent[0];
+  const lastIsPending = !!last && last.issueAction === 'pending' && !last.removed;
 
   return (
-    <Box sx={{ width: '100%', minWidth: 0, maxWidth: 560, mx: 'auto', pb: 10, overflowX: 'hidden' }} onClick={unlockSound}>
-      <Box sx={{ p: 1.5, position: 'sticky', top: 0, zIndex: 5, bgcolor: 'background.paper', borderBottom: 1, borderColor: 'divider' }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between">
-          <Box>
-            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>{count.name}</Typography>
-            <Typography sx={{ fontSize: 30, fontWeight: 900, lineHeight: 1.05 }}>
-              {count.counted.toLocaleString()}
-              <Typography component="span" sx={{ fontSize: 16, fontWeight: 600, color: 'text.secondary' }}>
-                {' '}
-                of {count.expected.toLocaleString()} ({pct}%)
-              </Typography>
+    <Box sx={{ width: '100%', minWidth: 0, maxWidth: 560, mx: 'auto', pb: 11, overflowX: 'hidden' }} onClick={unlockSound}>
+      <Box sx={{ px: 1.5, py: 1, position: 'sticky', top: 0, zIndex: 5, bgcolor: 'background.paper', borderBottom: 1, borderColor: 'divider' }}>
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography noWrap sx={{ fontWeight: 900, fontSize: 17, lineHeight: 1.2 }}>
+              {run.section.name}
             </Typography>
-            <Typography data-testid="count-timer" sx={{ fontSize: 18, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
-              {formatElapsed(elapsed)}
-              <Typography component="span" sx={{ fontSize: 14, fontWeight: 600, color: 'text.secondary' }}>
-                {' '}· {queue.lastSeq} {queue.lastSeq === 1 ? 'scan' : 'scans'}{rate ? ` · ${rate}/min` : ''}
-              </Typography>
+            <Typography data-testid="count-timer" sx={{ fontSize: 14, color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
+              <b style={{ color: 'inherit' }}>{queue.kept}</b> {queue.kept === 1 ? 'scan' : 'scans'} · {formatElapsed(elapsed)}
+              {rate ? ` · ${rate}/min` : ''}
             </Typography>
           </Box>
-          <Stack direction="row" alignItems="center" spacing={0.5}>
-            {queue.waiting > 0 && <Chip size="small" label={`${queue.waiting} sending`} />}
-            {offline && <Chip size="small" color="warning" label="Offline: saved, will send" />}
-            <IconButton aria-label={muted ? 'Sound off' : 'Sound on'} onClick={() => setMuted((m) => !m)}>
-              {muted ? <VolumeOffIcon /> : <VolumeUpIcon />}
-            </IconButton>
-          </Stack>
+          {queue.waiting > 0 && <Chip size="small" label={`${queue.waiting} sending`} />}
+          {offline && <Chip size="small" color="warning" label="Offline: saved" />}
+          <IconButton aria-label="More" onClick={(e) => setMenuAt(e.currentTarget)}>
+            <MoreVertIcon />
+          </IconButton>
         </Stack>
+        <TextField
+          value={typed}
+          onChange={(e) => setTyped(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === 'Tab') {
+              e.preventDefault();
+              submitTyped();
+            }
+          }}
+          onPointerDown={() => setKeysOn(true)}
+          onBlur={() => setKeysOn(false)}
+          placeholder="Scan. Or tap here to type a code or search."
+          size="small"
+          fullWidth
+          autoFocus
+          inputRef={inputRef}
+          sx={{ mt: 0.75 }}
+          InputProps={{
+            endAdornment: typed ? (
+              <Button size="small" onClick={doneTyping} sx={{ minWidth: 0, textTransform: 'none' }}>
+                Clear
+              </Button>
+            ) : undefined,
+          }}
+          inputProps={{
+            // inputMode none: a phone does not pop up its keyboard for a hardware scanner. A tap on the box turns it on.
+            inputMode: keysOn ? 'search' : 'none',
+            autoCapitalize: 'off',
+            autoComplete: 'off',
+            autoCorrect: 'off',
+            spellCheck: false,
+            'aria-label': 'Scan, or type a code or search',
+          }}
+        />
+        {matches && (
+          <Box sx={{ mt: 0.5, maxHeight: 260, overflowY: 'auto', border: 1, borderColor: 'divider', borderRadius: 1 }}>
+            {matches.length === 0 && <Typography sx={{ p: 1, color: 'text.secondary' }}>No item matches &quot;{typed.trim()}&quot;.</Typography>}
+            {matches.map((m) => (
+              <Stack
+                key={m.id}
+                direction="row"
+                alignItems="center"
+                spacing={1}
+                onClick={() => {
+                  onScan(m.sku);
+                  doneTyping();
+                }}
+                sx={{ px: 1, py: 0.75, cursor: 'pointer', borderBottom: 1, borderColor: 'divider', '&:hover': { bgcolor: 'action.hover' } }}
+              >
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography noWrap sx={{ fontSize: 14, fontWeight: 700 }}>
+                    {m.title}
+                  </Typography>
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary', fontFamily: 'monospace' }}>
+                    {m.sku} · ${Number(m.price).toFixed(2)}
+                    {m.status !== 'on_shelf' ? ` · ${m.status}` : ''}
+                  </Typography>
+                </Box>
+                <Typography sx={{ fontSize: 12, fontWeight: 800, color: 'primary.main', whiteSpace: 'nowrap' }}>Count it</Typography>
+              </Stack>
+            ))}
+          </Box>
+        )}
       </Box>
 
-      {alertScan && (
-        <Box
-          role="alert"
-          onClick={() => setAlertScan(null)}
-          sx={{
-            m: 1.5,
-            p: 1.5,
-            borderRadius: 2,
-            color: '#fff',
-            bgcolor: alertScan.state === 'unknown' ? COLORS.unknown : COLORS.odd,
-            cursor: 'pointer',
-          }}
-        >
-          <Typography sx={{ fontWeight: 900, fontSize: 18 }}>
-            {alertScan.state === 'unknown' && 'Back up: not found'}
-            {alertScan.state === 'odd' && `Back up: system says ${alertScan.itemStatus}`}
-            {alertScan.state === 'already' && 'Already scanned'}
-          </Typography>
-          <Typography sx={{ fontSize: 26, fontWeight: 900, fontFamily: 'monospace', wordBreak: 'break-all' }}>
-            {alertScan.code}
-          </Typography>
-          <Typography sx={{ fontSize: 15 }}>
-            {agoText(queue.ago(alertScan))}
-            {alertScan.title ? ` · ${alertScan.title}` : ''} · tap to dismiss
-          </Typography>
+      {flash && (
+        <Alert severity="success" sx={{ mx: 1.5, mt: 1 }}>
+          {flash}
+        </Alert>
+      )}
+      {error && (
+        <Alert severity="warning" sx={{ mx: 1.5, mt: 1 }} onClose={() => setError('')}>
+          {error}
+        </Alert>
+      )}
+
+      {pendingCards.length > 0 && <Box sx={{ px: 1.5, pt: 1 }}>{pendingCards}</Box>}
+
+      {last && !lastIsPending && (
+        <Box sx={{ mx: 1.5, mt: 1, p: 1.5, borderRadius: 2, border: 2, borderColor: colorOf(last) }}>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <StateIcon scan={last} />
+            <Typography sx={{ fontFamily: 'monospace', fontWeight: 900, fontSize: 20, flex: 1 }}>{last.code}</Typography>
+            {last.price && <Typography sx={{ fontWeight: 900, fontSize: 20 }}>${Number(last.price).toFixed(2)}</Typography>}
+          </Stack>
+          <Typography sx={{ fontSize: 15, mt: 0.25 }}>{describe(last)}</Typography>
+          {last.issueId != null && last.issueKind && (
+            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+              {PROBLEM_RULES[last.issueKind].title}: {ACTION_WORDS[last.issueAction || 'pending']}
+            </Typography>
+          )}
+          <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+            <Button
+              variant="outlined"
+              color="warning"
+              disabled={last.serverId == null || last.removed}
+              onClick={() => setSheet({ mode: 'scan', clientId: last.clientId })}
+              sx={{ flex: 1, fontWeight: 800, textTransform: 'none' }}
+            >
+              Problem?
+            </Button>
+            <Button variant="outlined" color="inherit" disabled={busy} onClick={() => void toggleRemoved(last)} sx={{ flex: 1, fontWeight: 800, textTransform: 'none' }}>
+              {last.removed ? 'Put back' : 'Undo'}
+            </Button>
+          </Stack>
         </Box>
       )}
 
       <Box sx={{ px: 1.5, pt: 1.5 }}>
-        <Box
-          sx={{
-            p: 1.5,
-            borderRadius: 2,
-            border: 2,
-            borderColor: scannerReady ? COLORS.ok : 'warning.main',
-            bgcolor: scannerReady ? 'rgba(46,125,50,0.08)' : 'rgba(237,108,2,0.10)',
-            textAlign: 'center',
-          }}
-        >
-          <Typography sx={{ fontWeight: 900, fontSize: 18 }}>
-            {scannerReady ? 'Scanner ready: scan an item' : 'Tap here, then scan'}
-          </Typography>
-          <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-            Pair a Bluetooth scanner (keyboard mode) or plug in a USB scanner. Each scan is saved at once.
-          </Typography>
-        </Box>
-        <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-          <TextField
-            value={typed}
-            onChange={(e) => setTyped(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === 'Tab') {
-                e.preventDefault();
-                submitTyped();
-              }
-            }}
-            placeholder="Scan here (or type a code, then Enter)"
-            size="small"
-            fullWidth
-            autoFocus
-            inputRef={inputRef}
-            onFocus={() => setScannerReady(true)}
-            onBlur={() => setScannerReady(false)}
-            inputProps={{
-              // inputMode none: a phone does not pop up its keyboard for a hardware scanner.
-              inputMode: keyboardOn ? 'text' : 'none',
-              autoCapitalize: 'characters',
-              autoComplete: 'off',
-              autoCorrect: 'off',
-              spellCheck: false,
-              'aria-label': 'Scan or type a code',
-            }}
-          />
-          <Button variant="outlined" onClick={() => setKeyboardOn((v) => !v)} sx={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
-            {keyboardOn ? 'Hide keys' : 'Type'}
-          </Button>
-        </Stack>
-      </Box>
-
-      <Box sx={{ px: 1.5, pt: 1.5 }}>
-        <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Latest scans</Typography>
-        {live.length === 0 && <Typography sx={{ color: 'text.secondary' }}>Scan the first item.</Typography>}
-        {live.map((s) => (
+        {recent.length === 0 && <Typography sx={{ color: 'text.secondary' }}>Scan the first item in {run.section.name}.</Typography>}
+        {recent.slice(lastIsPending ? 0 : 1).map((s) => (
           <Stack
             key={s.clientId}
             direction="row"
             alignItems="center"
             spacing={1}
-            sx={{ py: 0.75, borderBottom: 1, borderColor: 'divider' }}
+            onClick={() => setSheet({ mode: 'scan', clientId: s.clientId })}
+            sx={{ py: 0.6, borderBottom: 1, borderColor: 'divider', cursor: 'pointer', opacity: s.removed ? 0.55 : 1 }}
           >
-            <StateIcon state={s.state} />
+            <StateIcon scan={s} />
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 14 }}>{s.code}</Typography>
-              <Typography noWrap sx={{ fontSize: 13, color: s.state === 'unknown' ? COLORS.unknown : 'text.secondary' }}>
-                {describe(s)}
+              <Typography noWrap sx={{ fontSize: 13 }}>
+                <span style={{ fontFamily: 'monospace', fontWeight: 700, textDecoration: s.removed ? 'line-through' : 'none' }}>{s.code}</span> {describe(s)}
               </Typography>
+              {s.issueId != null && s.issueKind && s.issueAction !== 'cleared' && (
+                <Typography noWrap sx={{ fontSize: 12, color: s.issueAction === 'pending' ? ORANGE : 'text.secondary' }}>
+                  {PROBLEM_RULES[s.issueKind].title}: {ACTION_WORDS[s.issueAction || 'pending']}
+                </Typography>
+              )}
             </Box>
-            <Typography sx={{ fontSize: 12, color: 'text.secondary', whiteSpace: 'nowrap' }}>
-              {agoText(queue.ago(s))}
-            </Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary', whiteSpace: 'nowrap' }}>{agoText(queue.ago(s))}</Typography>
           </Stack>
         ))}
       </Box>
 
-      {problems.length > 0 && (
-        <Box sx={{ px: 1.5, pt: 2 }}>
-          <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Problems ({problems.length})</Typography>
-          {problems.slice(0, 25).map(({ scan, ago }) => (
-            <Stack key={scan.clientId} direction="row" spacing={1} alignItems="center" sx={{ py: 0.5 }}>
-              <StateIcon state={scan.state} />
-              <Typography sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 14 }}>{scan.code}</Typography>
-              <Typography sx={{ fontSize: 13, color: 'text.secondary', flex: 1 }} noWrap>
-                {describe(scan)}
-              </Typography>
-              <Typography sx={{ fontSize: 12, color: 'text.secondary', whiteSpace: 'nowrap' }}>{agoText(ago)}</Typography>
-            </Stack>
-          ))}
-        </Box>
-      )}
-
-      {bootError && (
-        <Alert severity="warning" sx={{ m: 1.5 }} onClose={() => setBootError('')}>
-          {bootError}
-        </Alert>
-      )}
-
-      {runsList}
-
-      <Box sx={{ position: 'fixed', left: 0, right: 0, bottom: 0, p: 1.5, bgcolor: 'background.paper', borderTop: 1, borderColor: 'divider' }}>
+      <Box sx={{ position: 'fixed', left: 0, right: 0, bottom: 0, p: 1.5, bgcolor: 'background.paper', borderTop: 1, borderColor: 'divider', zIndex: 6 }}>
         <Stack direction="row" spacing={1} sx={{ maxWidth: 560, mx: 'auto' }}>
-          {isManager && (
-            <Button variant="outlined" color="warning" onClick={() => setConfirmRestart(true)} sx={{ py: 1.25, fontWeight: 800, whiteSpace: 'nowrap', flexShrink: 0 }}>
-              Start over
-            </Button>
-          )}
-          <Button variant="contained" color="primary" fullWidth onClick={() => setConfirmClose(true)} sx={{ py: 1.25, fontWeight: 800 }}>
-            Finish count
+          <Button variant="outlined" color="warning" fullWidth onClick={() => setSheet({ mode: 'notag' })} sx={{ py: 1.25, fontWeight: 800, textTransform: 'none' }}>
+            No tag
+          </Button>
+          <Button variant="contained" fullWidth onClick={() => setStopOpen(true)} sx={{ py: 1.25, fontWeight: 800, textTransform: 'none' }}>
+            Stop
           </Button>
         </Stack>
       </Box>
 
-      <Dialog open={confirmClose} onClose={() => !closing && setConfirmClose(false)}>
-        <DialogTitle>Finish this count?</DialogTitle>
+      <Menu anchorEl={menuAt} open={!!menuAt} onClose={() => setMenuAt(null)}>
+        <MenuItem
+          onClick={() => {
+            setMenuAt(null);
+            setNoteOpen(true);
+          }}
+        >
+          {run.note ? 'Edit the note' : 'Add a note'}
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setMuted((m) => !m);
+            setMenuAt(null);
+          }}
+        >
+          {muted ? 'Turn sound on' : 'Turn sound off'}
+        </MenuItem>
+        <MenuItem onClick={() => void nextCart('pr')}>My PR cart is full{carts.pr ? ` (now ${carts.pr.label})` : ''}</MenuItem>
+        <MenuItem onClick={() => void nextCart('relocate')}>My relocate cart is full{carts.relocate ? ` (now ${carts.relocate.label})` : ''}</MenuItem>
+        <MenuItem component={RouterLink} to="/inventory/pr-fixit">
+          PR Fix-it
+        </MenuItem>
+        {isManager && (
+          <MenuItem component={RouterLink} to="/inventory/count/days">
+            Sessions and reports
+          </MenuItem>
+        )}
+      </Menu>
+
+      <ProblemSheet
+        open={!!sheet}
+        onClose={() => setSheet(null)}
+        code={sheet?.mode === 'scan' ? sheetScan?.code ?? '' : ''}
+        title={sheetScan?.title ?? ''}
+        price={sheetScan?.price ?? null}
+        kind={sheet?.mode === 'notag' ? 'no_tag' : sheetScan?.issueKind || null}
+        context={sheetScan?.issueKind ? contextFor(sheetScan.issueKind, sheetScan) : undefined}
+        sections={sections}
+        currentSectionId={run.section.id}
+        busy={busy}
+        onAnswer={(a) => void onSheetAnswer(a)}
+        onRemove={sheetScan ? () => void toggleRemoved(sheetScan) : undefined}
+        removed={sheetScan?.removed}
+      />
+
+      <Dialog open={stopOpen} onClose={() => !busy && setStopOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Stop scanning {run.section.name}?</DialogTitle>
         <DialogContent>
-          <Typography>
-            {count.counted.toLocaleString()} of {count.expected.toLocaleString()} counted. After you finish, nothing more can be
-            scanned into this count.
+          <Typography sx={{ mb: 1.5, color: 'text.secondary' }}>
+            {queue.kept} scans in {formatElapsed(elapsed)}. To scan another section, stop here and pick it next.
           </Typography>
+          <TextField
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            label="Note (optional)"
+            placeholder="How you scanned, what got in the way"
+            fullWidth
+            multiline
+            minRows={2}
+            sx={{ mb: 1.5 }}
+          />
+          <Stack spacing={1}>
+            <Button variant="contained" color="success" disabled={busy || pendingNow.length > 0} onClick={() => void stop('complete')} sx={{ py: 1.5, fontWeight: 800, textTransform: 'none' }}>
+              The section is complete
+            </Button>
+            {pendingNow.length > 0 && (
+              <Typography sx={{ fontSize: 13, color: ORANGE }}>
+                {pendingNow.length} {pendingNow.length === 1 ? 'problem needs' : 'problems need'} an answer before the section can be complete.
+              </Typography>
+            )}
+            <Button variant="outlined" disabled={busy} onClick={() => void stop('partial')} sx={{ py: 1.5, fontWeight: 800, textTransform: 'none' }}>
+              Not finished, more to scan later
+            </Button>
+            <Button variant="outlined" color="error" disabled={busy} onClick={() => void stop('bad')} sx={{ py: 1.5, fontWeight: 800, textTransform: 'none' }}>
+              Bad run, do not count it
+            </Button>
+          </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmClose(false)} disabled={closing}>
-            Keep scanning
-          </Button>
-          <Button variant="contained" onClick={() => void finish()} disabled={closing}>
-            {closing ? 'Finishing…' : 'Finish'}
+          <Button onClick={() => setStopOpen(false)} disabled={busy} sx={{ textTransform: 'none' }}>
+            {busy ? 'Stopping…' : 'Keep scanning'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Dialog open={confirmRestart} onClose={() => !restarting && setConfirmRestart(false)}>
-        <DialogTitle>Start over?</DialogTitle>
+      <Dialog open={noteOpen} onClose={() => !busy && setNoteOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Note for this run</DialogTitle>
         <DialogContent>
-          <Typography>
-            This throws away the {queue.lastSeq} {queue.lastSeq === 1 ? 'scan' : 'scans'} in this count and starts a new one. The timer
-            starts again from zero. This run is kept in the Earlier runs list.
-          </Typography>
+          <TextField value={note} onChange={(e) => setNote(e.target.value)} placeholder="How you scanned, what got in the way" fullWidth multiline minRows={3} autoFocus sx={{ mt: 0.5 }} />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmRestart(false)} disabled={restarting}>
-            Keep this count
+          <Button onClick={() => setNoteOpen(false)} disabled={busy} sx={{ textTransform: 'none' }}>
+            Cancel
           </Button>
-          <Button variant="contained" color="warning" onClick={() => void startOver()} disabled={restarting}>
-            {restarting ? 'Starting over…' : 'Start over'}
+          <Button variant="contained" onClick={() => void saveNote()} disabled={busy} sx={{ textTransform: 'none' }}>
+            Save note
           </Button>
         </DialogActions>
       </Dialog>

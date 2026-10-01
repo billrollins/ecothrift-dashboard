@@ -91,6 +91,12 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Inventory count',
     icon: 'factCheck',
   },
+  prFixit: {
+    id: 'prFixit',
+    path: '/inventory/pr-fixit',
+    label: 'PR Fix-it',
+    icon: 'build',
+  },
   quickReprice: {
     id: 'quickReprice',
     path: '/inventory/quick-reprice',

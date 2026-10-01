@@ -1,11 +1,16 @@
-feat: v2.113.0 inventory count timer, Start over and earlier runs
+feat: v2.114.0 inventory count sections, runs, one-tap problems, carts, sessions overview and PR Fix-it
 
-Release: v2.113.0
+Release: v2.114.0
 
-- Inventory count: a timer in the header (time since the count started, scans and
-  scans per minute), counted from the server clock.
-- Start over (managers and up): discards the open count and starts a new one.
-  POST /api/stocktake/counts/<id>/restart/. A closed count is kept.
-- Earlier runs: the last 8 runs on the phone, to compare scanning strategies.
+- Sections (Super User) and runs: every run in a day adds up to one count.
+- Stop a run as complete, not finished, or bad; bad runs are kept but not counted.
+- Problems open from a scan or from Problem? / No tag and are answered with one tap;
+  items go to a named PR cart or relocate cart.
+- Undo: remove or put back any scan. Type in the scan box to search.
+- Count sessions page for managers; PR Fix-it page with print as new, reprint,
+  edit and print, find or add and print.
+- stocktake migration 0002: Section, Run, Cart, Issue; scan run and removed mark.
+  Counts from the first version are closed.
+- Start over and the on-phone Earlier runs list are removed.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
