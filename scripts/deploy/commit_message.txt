@@ -1,12 +1,12 @@
-feat: v2.115.0 count sessions on a phone, section states, last-time counts, Super User delete
+fix: v2.115.1 purchase-order stats query no longer joins items, manifest rows and batch groups
 
-Release: v2.115.0
+Release: v2.115.1
 
-- Sections show Done / In progress / Not started (start screen, Count sessions).
-- A section shows the count from the last earlier day it was completed, as the
-  number to expect.
-- The Super User can delete a session or a whole day (DELETE runs/<id>/, counts/<id>/).
-- Count sessions uses cards on a phone; tables stay on wide screens.
-- Days list newest day first; a past open day reads Ended.
+- _annotate_purchase_order_stats counted three child relations through joins in one
+  query (items x manifest rows x batch groups), sorting on disk: minutes per call on
+  large orders, H12 on the receiving page, and the shared database running out of
+  temporary disk space. Each count is now a correlated subquery.
+- Same annotation names and values. 27 ms, no temp files, on a 14,986-item order.
+- Test: counts are right and no child table is joined.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

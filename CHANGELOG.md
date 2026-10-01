@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.115.0] -->
-<!-- Last reviewed: 2026-10-01 (2.115.0) -->
+<!-- Line 1 release: ## [2.115.1] -->
+<!-- Last reviewed: 2026-10-01 (2.115.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.115.1] - 2026-10-01
+
+User-facing theme: **Order pages (receiving and the other order actions) stop overloading the shared database.** Outside initiatives (production alert from Heroku, found by the master AI).
+
+### Fixed
+
+- **Purchase-order stats query.** The counts behind an order's page (items by status, manifest rows, batch groups) were taken through three joins in one query, which builds items x manifest rows x batch groups rows and sorts them on disk: on a large order that ran for minutes, timed out the receiving page (H12) and used up the shared database's temporary disk space. Each count is now its own small subquery. Same fields, same numbers. On the largest local order (14,986 items, 1,633 manifest rows) the query runs in 27 ms with no temporary files.
+- New test `test_purchase_order_stats_query.py`: the numbers are right, and the query may not join any of the three child tables.
 
 ## [2.115.0] - 2026-10-01
 

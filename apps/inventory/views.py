@@ -2199,23 +2199,42 @@ class CategoryViewSet(viewsets.ModelViewSet):
     ordering = ['name']
 
 
-def _annotate_purchase_order_stats(qs):
-    """Annotate PO querysets so list/detail avoid N+1 on processing_stats and skip heavy prefetches."""
-    return qs.annotate(
-        _items_intake=Count('items', filter=Q(items__status='intake'), distinct=True),
-        _items_processing=Count('items', filter=Q(items__status='processing'), distinct=True),
-        _items_on_shelf=Count('items', filter=Q(items__status='on_shelf'), distinct=True),
-        _items_sold=Count('items', filter=Q(items__status='sold'), distinct=True),
-        _items_returned=Count('items', filter=Q(items__status='returned'), distinct=True),
-        _items_scrapped=Count('items', filter=Q(items__status='scrapped'), distinct=True),
-        _items_lost=Count('items', filter=Q(items__status='lost'), distinct=True),
-        _manifest_row_count=Count('manifest_rows', distinct=True),
-        _batch_groups_total=Count('batch_groups', distinct=True),
-        _batch_groups_pending=Count(
-            'batch_groups',
-            filter=~Q(batch_groups__status='complete'),
-            distinct=True,
+def _count_per_purchase_order(child_qs):
+    """How many rows of ``child_qs`` belong to the outer purchase order: one small index lookup."""
+    return Coalesce(
+        Subquery(
+            child_qs.filter(purchase_order=OuterRef('pk'))
+            .order_by()
+            .values('purchase_order')
+            .annotate(n=Count('pk'))
+            .values('n'),
+            output_field=IntegerField(),
         ),
+        0,
+    )
+
+
+def _annotate_purchase_order_stats(qs):
+    """Annotate PO querysets so list/detail avoid N+1 on processing_stats and skip heavy prefetches.
+
+    Each count is its own subquery. Counting items, manifest rows and batch groups through joins in
+    one query multiplies them (items x manifest rows x batch groups) and sorts the result on disk:
+    on a large order that took minutes and gigabytes of temporary space on the shared database.
+    Never join more than one of the three child tables here.
+    """
+    items = Item.objects.all()
+    batch_groups = BatchGroup.objects.all()
+    return qs.annotate(
+        _items_intake=_count_per_purchase_order(items.filter(status='intake')),
+        _items_processing=_count_per_purchase_order(items.filter(status='processing')),
+        _items_on_shelf=_count_per_purchase_order(items.filter(status='on_shelf')),
+        _items_sold=_count_per_purchase_order(items.filter(status='sold')),
+        _items_returned=_count_per_purchase_order(items.filter(status='returned')),
+        _items_scrapped=_count_per_purchase_order(items.filter(status='scrapped')),
+        _items_lost=_count_per_purchase_order(items.filter(status='lost')),
+        _manifest_row_count=_count_per_purchase_order(ManifestRow.objects.all()),
+        _batch_groups_total=_count_per_purchase_order(batch_groups),
+        _batch_groups_pending=_count_per_purchase_order(batch_groups.exclude(status='complete')),
     )
 
 
@@ -2233,8 +2252,8 @@ _PURCHASE_ORDER_SLIM_DETAIL_ACTIONS = frozenset(
         'processing_data_build_chunk',
         'clear_processing_data',
         # Check-in / processing mutations: get_object() only needs the PO row.
-        # The annotated COUNT(DISTINCT) over items × manifest_rows × batch_groups
-        # took ~20s on a large PO and made quick check-in look hung.
+        # (The stats annotation used to join items × manifest_rows × batch_groups and
+        # took ~20s on a large PO; it is cheap subqueries now, but these still skip it.)
         'processing_row_check_in_action',
         'processing_check_in_together_action',
         'processing_assign_shared_product_action',
