@@ -1,16 +1,12 @@
-feat: v2.114.0 inventory count sections, runs, one-tap problems, carts, sessions overview and PR Fix-it
+feat: v2.115.0 count sessions on a phone, section states, last-time counts, Super User delete
 
-Release: v2.114.0
+Release: v2.115.0
 
-- Sections (Super User) and runs: every run in a day adds up to one count.
-- Stop a run as complete, not finished, or bad; bad runs are kept but not counted.
-- Problems open from a scan or from Problem? / No tag and are answered with one tap;
-  items go to a named PR cart or relocate cart.
-- Undo: remove or put back any scan. Type in the scan box to search.
-- Count sessions page for managers; PR Fix-it page with print as new, reprint,
-  edit and print, find or add and print.
-- stocktake migration 0002: Section, Run, Cart, Issue; scan run and removed mark.
-  Counts from the first version are closed.
-- Start over and the on-phone Earlier runs list are removed.
+- Sections show Done / In progress / Not started (start screen, Count sessions).
+- A section shows the count from the last earlier day it was completed, as the
+  number to expect.
+- The Super User can delete a session or a whole day (DELETE runs/<id>/, counts/<id>/).
+- Count sessions uses cards on a phone; tables stay on wide screens.
+- Days list newest day first; a past open day reads Ended.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

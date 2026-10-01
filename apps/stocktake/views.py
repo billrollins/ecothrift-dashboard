@@ -106,13 +106,18 @@ def _run_for(request, pk, *, write=True):
     return run, None
 
 
-@api_view(['GET', 'PATCH'])
+@api_view(['GET', 'PATCH', 'DELETE'])
 @permission_classes(STAFF)
 def run_detail(request, pk):
-    """PATCH: ``note``, ``bad`` (true/false), ``section_complete`` (true/false)."""
+    """PATCH: ``note``, ``bad`` (true/false), ``section_complete`` (true/false). DELETE: Super User only."""
     run, err = _run_for(request, pk, write=request.method != 'GET')
     if err:
         return err
+    if request.method == 'DELETE':
+        if not request.user.is_superuser:
+            return _err('Only the Super User deletes a session.', 'SUPERUSER_ONLY', 403)
+        counting.delete_run(run)
+        return Response(status=204)
     if request.method == 'PATCH':
         try:
             counting.update_run(
@@ -310,11 +315,19 @@ def counts(request):
     return Response(counting.days())
 
 
-@api_view(['GET'])
+@api_view(['GET', 'DELETE'])
 @permission_classes(MANAGERS)
 def count_detail(request, pk):
+    """DELETE removes the whole day (Super User only)."""
     count = _get(InventoryCount, pk)
-    return Response(counting.day_detail(count)) if count else _not_found()
+    if count is None:
+        return _not_found()
+    if request.method == 'DELETE':
+        if not request.user.is_superuser:
+            return _err('Only the Super User deletes a day.', 'SUPERUSER_ONLY', 403)
+        counting.delete_count(count)
+        return Response(status=204)
+    return Response(counting.day_detail(count))
 
 
 @api_view(['POST'])

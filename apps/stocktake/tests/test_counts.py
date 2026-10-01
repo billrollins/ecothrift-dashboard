@@ -306,6 +306,56 @@ class ApiTests(Base):
         self.assertFalse(su.patch(f"/api/stocktake/sections/{r.data['id']}/", {'is_active': False}, format='json').data['is_active'])
         self.assertEqual(len(mgr.get('/api/stocktake/today/').data['sections']), 2)
 
+    def test_section_states_and_the_count_from_last_time(self):
+        import datetime
+
+        from django.utils import timezone
+
+        # an earlier day: Front wall was completed with two items in it
+        old = counting.start_run(user=self.user, section=self.front)
+        self.scan(old, 'ITM0000001', 'ITM0000002', 'ITM0000009')
+        for issue in old.issues.all():
+            counting.answer_issue(issue, user=self.user, action='left')
+        counting.stop_run(old, outcome='complete')
+        InventoryCount.objects.filter(pk=old.count_id).update(day=timezone.localdate() - datetime.timedelta(days=7))
+        # today: nothing started yet, but Front wall knows what it held last time
+        emp = self.api(self.user)
+        front, back = emp.get('/api/stocktake/today/').data['sections']
+        self.assertEqual(
+            (front['state'], front['expected'], back['state'], back['expected']), ('not_started', 2, 'not_started', None),
+        )
+        rid = emp.post('/api/stocktake/runs/', {'section_id': self.front.pk}, format='json').data['run']['id']
+        emp.post(f'/api/stocktake/runs/{rid}/scans/', {'scans': [{'client_id': 'a', 'code': 'ITM0000003', 'seq': 1}]}, format='json')
+        boot = emp.get('/api/stocktake/today/').data
+        self.assertEqual((boot['sections'][0]['state'], boot['sections'][0]['counted']), ('in_progress', 1))
+        day = boot['day']
+        self.assertEqual((day['sections_done'], day['sections_in_progress'], day['sections_total']), (0, 1, 2))
+        emp.post(f'/api/stocktake/runs/{rid}/stop/', {'outcome': 'complete'}, format='json')
+        detail = self.api(self.mgr).get(f"/api/stocktake/counts/{day['id']}/").data
+        self.assertEqual(
+            [(s['state'], s['counted'], s['expected']) for s in detail['sections']],
+            [('done', 1, 2), ('not_started', 0, None)],
+        )
+
+    def test_only_the_super_user_deletes_a_session_or_a_day(self):
+        emp, mgr = self.api(self.user), self.api(self.mgr)
+        r = emp.post('/api/stocktake/runs/', {'section_id': self.front.pk}, format='json').data
+        rid, cid = r['run']['id'], r['day']['id']
+        emp.post(f'/api/stocktake/runs/{rid}/scans/', {'scans': [{'client_id': 'a', 'code': 'NOPE', 'seq': 1}]}, format='json')
+        self.assertEqual(mgr.delete(f'/api/stocktake/runs/{rid}/').status_code, 403)
+        self.assertEqual(mgr.delete(f'/api/stocktake/counts/{cid}/').status_code, 403)
+        boss = self._user('boss@example.com', 'Admin', 'Bill')
+        boss.is_superuser = True
+        boss.save()
+        su = self.api(boss)
+        self.assertEqual(su.delete(f'/api/stocktake/runs/{rid}/').status_code, 204)
+        self.assertEqual((Run.objects.count(), CountScan.objects.count(), Issue.objects.count()), (0, 0, 0))
+        # the phone's next batch is told the run is gone
+        gone = emp.post(f'/api/stocktake/runs/{rid}/scans/', {'scans': [{'client_id': 'b', 'code': 'X'}]}, format='json')
+        self.assertEqual(gone.status_code, 404)
+        self.assertEqual(su.delete(f'/api/stocktake/counts/{cid}/').status_code, 204)
+        self.assertEqual(InventoryCount.objects.count(), 0)
+
     def test_search_and_anonymous(self):
         self.assertEqual(self.api(self.user).get('/api/stocktake/search/?q=chair').data[0]['sku'], 'ITM0000002')
         self.assertIn(APIClient().get('/api/stocktake/today/').status_code, (401, 403))

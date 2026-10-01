@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.114.0] -->
-<!-- Last reviewed: 2026-10-01 (2.114.0) -->
+<!-- Line 1 release: ## [2.115.0] -->
+<!-- Last reviewed: 2026-10-01 (2.115.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.115.0] - 2026-10-01
+
+User-facing theme: **Count sessions work well on a phone, show how the sections stand, and tell each section what it held last time.** Initiative: `inventory_count`.
+
+### Added
+
+- **Sections: Done / In progress / Not started.** Three counters with a bar on the count's start screen, on each day in Count sessions and on the day's page. Each section also carries its own state.
+- **What a section held last time.** When a section was completed on an earlier day, its count from that day is shown as the number to expect: on the section buttons ("5 counted · 6 last time"), in the scan screen's top bar, and in Count sessions (with the date).
+- **Super User: delete a session, or a whole day.** For good, with its scans and problems, after a confirmation. Mark bad stays the way to keep the record but leave it out. `DELETE /api/stocktake/runs/<id>/`, `DELETE /api/stocktake/counts/<id>/`.
+
+### Changed
+
+- **Count sessions on a phone:** days, sections, sessions and problems are cards instead of wide tables; a session's scans open full screen; the buttons fit a thumb. Wide screens keep the tables.
+- Days are listed newest day first. A past day that was never closed reads "Ended", not "Open".
 
 ## [2.114.0] - 2026-10-01
 

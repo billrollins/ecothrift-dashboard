@@ -6,7 +6,7 @@ from collections import Counter, defaultdict
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import F, Q
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
@@ -104,6 +104,7 @@ def day_summary(count: InventoryCount) -> dict:
     done = set(
         count.runs.filter(section_complete=True).exclude(status=Run.STATUS_BAD).values_list('section_id', flat=True)
     )
+    started = set(count.runs.exclude(status=Run.STATUS_BAD).values_list('section_id', flat=True))
     return {
         'id': count.pk,
         'name': count.name,
@@ -117,6 +118,7 @@ def day_summary(count: InventoryCount) -> dict:
         'scans': good_scans(count).count(),
         'runs': count.runs.count(),
         'sections_done': len(done),
+        'sections_in_progress': len(started - done),
         'sections_total': Section.objects.filter(Q(is_active=True) | Q(pk__in=done)).count(),
         'issues_pending': issues[Issue.ACTION_PENDING],
         'issues_total': sum(issues.values()) - issues[Issue.ACTION_CLEARED],
@@ -493,16 +495,66 @@ def issues_qs():
     )
 
 
+def section_progress(count: InventoryCount | None) -> dict[int, dict]:
+    """Per section: where it stands today, how many items are counted in it today, and what it held last time.
+
+    ``expected`` is the number of items counted in the section the last earlier day it was completed:
+    the best guess of what should be there now. None when the section has never been completed.
+    """
+    day = count.day if count is not None and count.day else timezone.localdate()
+    out: dict[int, dict] = defaultdict(
+        lambda: {'state': 'not_started', 'counted': 0, 'expected': None, 'expected_day': None}
+    )
+    if count is not None:
+        for section_id, complete in count.runs.exclude(status=Run.STATUS_BAD).values_list('section_id', 'section_complete'):
+            row = out[section_id]
+            if complete:
+                row['state'] = 'done'
+            elif row['state'] != 'done':
+                row['state'] = 'in_progress'
+        items: dict[int, set] = defaultdict(set)
+        on_shelf = good_scans(count).filter(item__isnull=False, item_status='on_shelf')
+        for item_id, section_id in on_shelf.values_list('item_id', 'run__section_id'):
+            items[section_id].add(item_id)
+        for section_id, ids in items.items():
+            out[section_id]['counted'] = len(ids)
+    earlier = (
+        Run.objects.filter(section_complete=True, count__day__lt=day).exclude(status=Run.STATUS_BAD)
+        .order_by('-count__day').values_list('section_id', 'count_id', 'count__day')
+    )
+    seen = set()
+    for section_id, count_id, on_day in earlier:
+        if section_id in seen:
+            continue
+        seen.add(section_id)
+        out[section_id]['expected'] = (
+            CountScan.objects.filter(
+                count_id=count_id, run__section_id=section_id, removed_at__isnull=True,
+                item__isnull=False, item_status='on_shelf',
+            ).exclude(run__status=Run.STATUS_BAD).values('item_id').distinct().count()
+        )
+        out[section_id]['expected_day'] = on_day
+    return out
+
+
+def delete_run(run: Run) -> None:
+    """Remove a run for good, with its scans and problems. Super User only (checked by the view)."""
+    run.delete()
+
+
+def delete_count(count: InventoryCount) -> None:
+    """Remove a whole day's count for good. Super User only (checked by the view)."""
+    count.delete()
+
+
 # --- what the scan screen needs when it opens -----------------------------------------------------
 
 def bootstrap(user) -> dict:
     count = day_count()
     run = open_run_for(user)
-    done, mine = set(), []
+    mine = []
+    progress = section_progress(count)
     if count is not None:
-        done = set(
-            count.runs.filter(section_complete=True).exclude(status=Run.STATUS_BAD).values_list('section_id', flat=True)
-        )
         mine = [
             issue_payload(i)
             for i in issues_qs().filter(count=count, created_by=user, action=Issue.ACTION_PENDING)
@@ -512,7 +564,8 @@ def bootstrap(user) -> dict:
         'day': day_summary(count) if count else None,
         'run': run_summary(run) if run else None,
         'sections': [
-            {**section_payload(s), 'complete': s.pk in done} for s in Section.objects.filter(is_active=True)
+            {**section_payload(s), **progress[s.pk], 'complete': progress[s.pk]['state'] == 'done'}
+            for s in Section.objects.filter(is_active=True)
         ],
         'pending': mine,
         'carts': {
@@ -531,18 +584,14 @@ def day_detail(count: InventoryCount) -> dict:
     by_section: dict[int, list[Run]] = defaultdict(list)
     for r in runs:
         by_section[r.section_id].append(r)
-    per_section_items: dict[int, set] = defaultdict(set)
-    on_shelf = good_scans(count).filter(item__isnull=False, item_status='on_shelf')
-    for item_id, section_id in on_shelf.values_list('item_id', 'run__section_id'):
-        per_section_items[section_id].add(item_id)
+    progress = section_progress(count)
     sections = []
     for s in Section.objects.filter(Q(is_active=True) | Q(pk__in=by_section.keys())):
-        s_runs = by_section.get(s.pk, [])
         sections.append({
             **section_payload(s),
-            'complete': any(r.section_complete and r.status != Run.STATUS_BAD for r in s_runs),
-            'counted': len(per_section_items.get(s.pk, ())),
-            'runs': [run_summary(r) for r in s_runs],
+            **progress[s.pk],
+            'complete': progress[s.pk]['state'] == 'done',
+            'runs': [run_summary(r) for r in by_section.get(s.pk, [])],
         })
     tally = Counter(
         count.issues.exclude(run__status=Run.STATUS_BAD).exclude(action=Issue.ACTION_CLEARED).values_list('kind', flat=True)
@@ -610,7 +659,7 @@ def report(count: InventoryCount) -> dict:
 
 def days(limit: int = 30) -> list[dict]:
     out = []
-    for c in InventoryCount.objects.annotate(n_runs=Count('runs'))[:limit]:
+    for c in InventoryCount.objects.order_by(F('day').desc(nulls_last=True), '-started_at')[:limit]:
         row = day_summary(c)
         row['trial'] = c.day is None
         out.append(row)

@@ -22,13 +22,22 @@ export type CartKind = 'pr' | 'relocate';
 
 export type FixKind = 'reprint' | 'edit' | 'print_as_new' | 'put_on_shelf' | 'use_item' | 'quick_add' | 'moved' | 'dismiss';
 
+/** Where a section stands today. */
+export type SectionState = 'done' | 'in_progress' | 'not_started';
+
 export interface Section {
   id: number;
   name: string;
   order: number;
   is_active: boolean;
-  /** Only on the scan screen's list: someone finished this section today. */
+  /** Someone finished this section today. */
   complete?: boolean;
+  state?: SectionState;
+  /** Items counted in this section today. */
+  counted?: number;
+  /** Items counted here the last earlier day the section was completed: what it should hold now. Null = never done. */
+  expected?: number | null;
+  expected_day?: string | null;
 }
 
 /** One day's count: every run that day adds up to one inventory. */
@@ -45,6 +54,7 @@ export interface DaySummary {
   scans: number;
   runs: number;
   sections_done: number;
+  sections_in_progress: number;
   sections_total: number;
   issues_pending: number;
   issues_total: number;
@@ -171,7 +181,10 @@ export interface Today {
 
 export interface DaySection extends Section {
   complete: boolean;
+  state: SectionState;
   counted: number;
+  expected: number | null;
+  expected_day: string | null;
   runs: RunSummary[];
 }
 
@@ -240,6 +253,16 @@ export async function updateRun(
   patch: { note?: string; bad?: boolean; section_complete?: boolean },
 ): Promise<RunSummary> {
   return (await api.patch<RunSummary>(`${B}/runs/${runId}/`, patch)).data;
+}
+
+/** Remove a session for good, with its scans and problems (Super User). */
+export async function deleteRun(runId: number): Promise<void> {
+  await api.delete(`${B}/runs/${runId}/`);
+}
+
+/** Remove a whole day's count for good (Super User). */
+export async function deleteDay(id: number): Promise<void> {
+  await api.delete(`${B}/counts/${id}/`);
 }
 
 export async function getRunScans(runId: number): Promise<{ run: RunSummary; scans: ScanResult[] }> {

@@ -53,6 +53,7 @@ import { ACTION_WORDS, PROBLEM_RULES } from './countProblems';
 import { playCountSound, unlockSound } from './countSound';
 import { clockOffset, clockTime, elapsedSeconds, formatElapsed, ratePerMinute } from './countTimer';
 import ProblemSheet, { type SheetAnswer } from './ProblemSheet';
+import SectionProgress, { STATE_WORDS, sectionCountLine } from './SectionProgress';
 
 const storeKey = (runId: number) => `stocktake.run.${runId}`;
 
@@ -575,11 +576,20 @@ export default function CountPage() {
         <Typography variant="h5" sx={{ fontWeight: 800 }}>
           Inventory count
         </Typography>
-        <Typography sx={{ color: 'text.secondary', mb: 1.5 }}>
+        <Typography sx={{ color: 'text.secondary', mb: 1 }}>
           {day
-            ? `Today: ${day.counted.toLocaleString()} of ${day.expected.toLocaleString()} counted · ${day.sections_done} of ${day.sections_total} sections done`
+            ? `Today: ${day.counted.toLocaleString()} of ${day.expected.toLocaleString()} items counted`
             : 'No one has scanned today yet. Every run today adds up to one count.'}
         </Typography>
+        {sections.length > 0 && (
+          <Box sx={{ mb: 2 }}>
+            <SectionProgress
+              done={sections.filter((s) => s.state === 'done').length}
+              inProgress={sections.filter((s) => s.state === 'in_progress').length}
+              total={sections.length}
+            />
+          </Box>
+        )}
         {flash && (
           <Alert severity="success" sx={{ mb: 1.5 }}>
             {flash}
@@ -612,15 +622,28 @@ export default function CountPage() {
           {sections.map((s) => (
             <Button
               key={s.id}
-              variant={s.complete ? 'outlined' : 'contained'}
+              variant={s.state === 'done' ? 'outlined' : 'contained'}
+              color={s.state === 'in_progress' ? 'warning' : 'primary'}
               size="large"
               fullWidth
               disabled={busy || day?.status === 'closed'}
               onClick={() => void begin(s)}
-              sx={{ py: 1.75, fontWeight: 800, fontSize: 17, textTransform: 'none', justifyContent: 'space-between' }}
+              sx={{ py: 1.25, textTransform: 'none', justifyContent: 'space-between', textAlign: 'left' }}
             >
-              {s.name}
-              {s.complete && <Chip size="small" color="success" label="Done today" />}
+              <Box sx={{ minWidth: 0 }}>
+                <Typography noWrap sx={{ fontWeight: 800, fontSize: 17, lineHeight: 1.25 }}>
+                  {s.name}
+                </Typography>
+                <Typography noWrap sx={{ fontSize: 13, opacity: 0.9 }}>
+                  {sectionCountLine(s, false) || 'Never counted before'}
+                </Typography>
+              </Box>
+              <Chip
+                size="small"
+                label={STATE_WORDS[s.state ?? 'not_started']}
+                sx={{ ml: 1, flexShrink: 0, bgcolor: s.state === 'done' ? undefined : 'rgba(255,255,255,0.9)', color: s.state === 'done' ? undefined : '#111' }}
+                color={s.state === 'done' ? 'success' : 'default'}
+              />
             </Button>
           ))}
         </Stack>
@@ -662,6 +685,9 @@ export default function CountPage() {
   const recent = queue.recent(30);
   const last = recent[0];
   const lastIsPending = !!last && last.issueAction === 'pending' && !last.removed;
+  const here = sections.find((s) => s.id === run.section.id);
+  // Counted in this section before this run started (earlier runs today) plus this run's finds.
+  const sectionCounted = Math.max(here?.counted ?? 0, run.counted);
 
   return (
     <Box sx={{ width: '100%', minWidth: 0, maxWidth: 560, mx: 'auto', pb: 11, overflowX: 'hidden' }} onClick={unlockSound}>
@@ -675,6 +701,11 @@ export default function CountPage() {
               <b style={{ color: 'inherit' }}>{queue.kept}</b> {queue.kept === 1 ? 'scan' : 'scans'} · {formatElapsed(elapsed)}
               {rate ? ` · ${rate}/min` : ''}
             </Typography>
+            {here?.expected != null && (
+              <Typography data-testid="section-expected" sx={{ fontSize: 13, color: 'text.secondary' }}>
+                {sectionCounted.toLocaleString()} counted here · {here.expected.toLocaleString()} last time
+              </Typography>
+            )}
           </Box>
           {queue.waiting > 0 && <Chip size="small" label={`${queue.waiting} sending`} />}
           {offline && <Chip size="small" color="warning" label="Offline: saved" />}
