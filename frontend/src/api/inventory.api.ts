@@ -590,6 +590,20 @@ export function aiCleanupComplete(orderId: number): Promise<{ data: AiCleanupCom
   return api.post<AiCleanupCompleteResponse>(`/inventory/orders/${orderId}/ai-cleanup-complete/`);
 }
 
+export function getCleanupJob(orderId: number): Promise<{ data: CleanupJobState }> {
+  return api.get<CleanupJobState>(`/inventory/orders/${orderId}/ai-cleanup-job/`);
+}
+
+/** Start the background cleanup, or resume what is left. Returns at once. */
+export function startCleanupJob(orderId: number, body: StartCleanupJobPayload): Promise<{ data: CleanupJobState }> {
+  return api.post<CleanupJobState>(`/inventory/orders/${orderId}/ai-cleanup-job/`, { action: 'start', ...body });
+}
+
+/** Stop after the batches already with the model finish and save. */
+export function stopCleanupJob(orderId: number): Promise<{ data: CleanupJobState }> {
+  return api.post<CleanupJobState>(`/inventory/orders/${orderId}/ai-cleanup-job/`, { action: 'stop' });
+}
+
 export function getAICleanupStatus(orderId: number): Promise<{ data: AICleanupStatusResponse }> {
   return api.get<AICleanupStatusResponse>(`/inventory/orders/${orderId}/ai-cleanup-status/`);
 }
@@ -647,9 +661,48 @@ export interface CleanupModelOption {
   name: string;
 }
 
+export type CleanupEffort = 'off' | 'low' | 'medium' | 'high' | 'max';
+
 export interface CleanupModelsResponse {
   models: CleanupModelOption[];
   default: string;
+  /** The effort saved for the Inventory cleanup action in Settings > AI. */
+  default_effort?: CleanupEffort;
+  efforts?: CleanupEffort[];
+}
+
+/** AI cleanup runs as a background job on the server; the page starts it and polls this. */
+export interface CleanupJobState {
+  status: 'idle' | 'running' | 'stopping' | 'stopped' | 'done' | 'done_with_gaps' | 'cancelled' | 'failed';
+  total_rows: number;
+  cleaned_rows: number;
+  remaining_rows: number;
+  elapsed_seconds: number;
+  model?: string;
+  effort?: CleanupEffort;
+  batch_size?: number;
+  concurrency?: number;
+  started_at?: string;
+  finished_at?: string | null;
+  started_by?: string;
+  /** Rows still uncleaned when this job started. */
+  rows_at_start?: number;
+  batches_done?: number;
+  rows_saved?: number;
+  rows_discarded?: number;
+  failed_batches?: number;
+  /** Times the job was picked up again after its server process was recycled. */
+  restarts?: number;
+  last_error?: string;
+  message?: string;
+  match_candidates?: MatchCandidatesSummary | null;
+}
+
+export interface StartCleanupJobPayload {
+  model: string;
+  effort: CleanupEffort;
+  batch_size: number;
+  concurrency: number;
 }
 
 export interface VerifyCleanupModelResponse {

@@ -1,10 +1,14 @@
-fix: v2.115.2 Run AI Cleanup lists every active text model from Settings > AI
+feat: v2.116.0 AI cleanup runs as a background job with an Effort choice
 
-Release: v2.115.2
+Release: v2.116.0
 
-- The cleanup Model dropdown was hardcoded to two models. It now reads the active
-  text models in the Settings > AI catalog (AiModel); the action default is always
-  offered. ai-cleanup-batch accepts any model on that list.
-- Fallback to the old two only when the catalog has no active text model.
+- Run AI Cleanup starts a server-side job (thread in the web process, state in an
+  AppSetting row per order) and the page polls it: no request waits for a model, so
+  slow models such as Spark Contributor work. GET/POST orders/<id>/ai-cleanup-job/.
+- Effort dropdown (off/low/medium/high/max), default from Settings > AI, sent on
+  every batch; 150 s per model call.
+- Stop, Resume, one retry per failed batch, and self-healing: a poll restarts a job
+  whose process was recycled. Undo during a run stops the job.
+- Repaired the test helper in test_ai_cleanup_batch.py (19 tests pass again).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.115.2] -->
-<!-- Last reviewed: 2026-10-01 (2.115.2) -->
+<!-- Line 1 release: ## [2.116.0] -->
+<!-- Last reviewed: 2026-10-01 (2.116.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,27 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.116.0] - 2026-10-01
+
+User-facing theme: **Run AI Cleanup runs on the server in the background, with an Effort choice, so slow, cheap models (Spark Contributor at low effort) work.** Outside initiatives (owner request).
+
+### Added
+
+- **AI cleanup as a background job.** Run AI Cleanup starts a job on the server and returns at once; the page shows its progress. No web request waits for a model any more, so a model that takes 30 to 70 seconds a batch no longer hits the 30-second limit. The page can be closed and reopened while the job runs. `GET / POST /api/inventory/orders/<id>/ai-cleanup-job/` (`services/ai_cleanup_job.py`).
+- **Effort dropdown** in Run AI Cleanup (Off, Low, Medium, High, Max). It starts at the effort saved for the Inventory cleanup action in Settings > AI and is sent to the model on every batch.
+- **Stop and Resume.** Stop ends the job after the batches already with the model finish and save. Resume cleans only the rows that are left.
+- **Self-healing.** Every saved row is kept, so nothing is lost if the server restarts. A job whose server process was recycled or redeployed is picked up again the next time the page asks for its progress.
+- A batch that fails is tried once more in the same run; rows that still fail are left for Resume and the last error is shown.
+
+### Changed
+
+- The cleanup job allows a model 150 seconds per batch (the page's old limit was 45 seconds, behind Heroku's 30).
+- Undo cleanup while a job runs stops the job; it saves nothing after the undo.
+
+### Fixed
+
+- `test_ai_cleanup_batch.py`: its row helper passed two fields that no longer exist, so 19 tests had been failing on `main`. They pass again.
 
 ## [2.115.2] - 2026-10-01
 

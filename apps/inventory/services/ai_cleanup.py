@@ -440,8 +440,13 @@ def run_ai_cleanup_batch(
     *,
     model_id: str,
     api_key: str,
+    effort: str | None = None,
+    timeout: float | None = None,
 ) -> dict[str, Any]:
     """One web cleanup batch: load rows → one model call → merge ai_* → snapshot final_*.
+
+    ``effort`` (off | low | medium | high | max) is passed to the model when it takes one.
+    ``timeout`` is for the background job, which may wait longer than a web request can.
 
     Holds no lock during the model call. Re-reads ``ai_cleanup_generation`` after the
     call and discards the save when undo/cancel bumped it (legacy guard, ported).
@@ -488,9 +493,10 @@ def run_ai_cleanup_batch(
         user=user_payload,
         max_tokens=8192,
         temperature=0,
-        timeout=ANTHROPIC_REQUEST_TIMEOUT_SECONDS,
+        timeout=timeout or ANTHROPIC_REQUEST_TIMEOUT_SECONDS,
         log_source='ai_cleanup_batch',
-        log_detail=f'order={order.pk} rows={len(rows)} requested_model={model_id}',
+        log_detail=f'order={order.pk} rows={len(rows)} requested_model={model_id} effort={effort or "off"}',
+        effort=effort,
     )
     timing['api_call_ms'] = round((time.perf_counter() - t0) * 1000, 1)
     content_text = result.text

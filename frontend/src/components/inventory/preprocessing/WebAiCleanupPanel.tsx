@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -10,197 +10,166 @@ import {
   Typography,
 } from '@mui/material';
 import AutoFixHighOutlined from '@mui/icons-material/AutoFixHighOutlined';
-import PauseCircleOutline from '@mui/icons-material/PauseCircleOutline';
 import PlayCircleOutline from '@mui/icons-material/PlayCircleOutline';
 import ReplayOutlined from '@mui/icons-material/ReplayOutlined';
-import { useQueryClient } from '@tanstack/react-query';
-import { useSnackbar } from 'notistack';
+import StopCircleOutlined from '@mui/icons-material/StopCircleOutlined';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  aiCleanupBatch,
-  aiCleanupComplete,
-  getAICleanupStatus,
+  getCleanupJob,
+  startCleanupJob,
+  stopCleanupJob,
+  type CleanupEffort,
+  type CleanupJobState,
 } from '../../../api/inventory.api';
-import { useAICleanupStatus, useCancelAICleanup, useCleanupModels } from '../../../hooks/useInventory';
-import {
-  AI_CLEANUP_BATCH_SIZE_OPTIONS,
-  AI_CLEANUP_DEFAULT_BATCH_SIZE,
-  AI_CLEANUP_DEFAULT_CONCURRENCY,
-  partitionRowIds,
-  runCleanupPool,
-  type CleanupPoolProgress,
-} from '../../../utils/aiCleanupPool';
+import { useCancelAICleanup, useCleanupModels } from '../../../hooks/useInventory';
+import { AI_CLEANUP_BATCH_SIZE_OPTIONS, AI_CLEANUP_DEFAULT_BATCH_SIZE, AI_CLEANUP_DEFAULT_CONCURRENCY } from '../../../utils/aiCleanupPool';
+import { finishedBanner, type CleanupBanner } from './cleanupJobBanner';
 import { preprocessingFonts } from './preprocessingTokens';
 
 interface WebAiCleanupPanelProps {
   orderId: number;
 }
 
-type RunState = 'idle' | 'running' | 'pausing';
-
 const CONCURRENCY_CHOICES = [1, 2, 4, 8];
+const EFFORT_CHOICES: CleanupEffort[] = ['off', 'low', 'medium', 'high', 'max'];
+const EFFORT_WORDS: Record<CleanupEffort, string> = { off: 'Off', low: 'Low', medium: 'Medium', high: 'High', max: 'Max' };
+const POLL_MS = 2000;
+
+const isActive = (job: CleanupJobState | null | undefined) => job?.status === 'running' || job?.status === 'stopping';
+
+function apiDetail(err: unknown, fallback: string): string {
+  const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+  return detail || fallback;
+}
 
 /**
- * Step 2 primary path: click-to-run AI cleanup as a browser worker pool of small
- * `ai-cleanup-batch` POSTs (verdict: batch 10, concurrency default 4, cap 8).
- * Pause is client-side (in-flight batches finish and save); resume re-fetches
- * `uncleaned_row_ids` and processes only what's left. A generation bump
- * (undo / Cancel cleanup) stops the pool - the server discards those saves.
+ * Step 2 primary path: AI cleanup as a **background job on the server**. Run starts the job and
+ * returns at once; this panel polls its progress. No web request waits for a model, so slow models
+ * work, and the page can be closed and reopened while it runs. Every saved row is kept: Stop and
+ * Resume (or a server restart) lose nothing.
  */
 export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
   const queryClient = useQueryClient();
-  const { enqueueSnackbar } = useSnackbar();
-  const statusQuery = useAICleanupStatus(orderId);
   const modelsQuery = useCleanupModels(orderId);
   const cancelCleanup = useCancelAICleanup();
 
-  const [runState, setRunState] = useState<RunState>('idle');
   const [concurrency, setConcurrency] = useState(AI_CLEANUP_DEFAULT_CONCURRENCY);
   const [batchSize, setBatchSize] = useState<number>(AI_CLEANUP_DEFAULT_BATCH_SIZE);
   const [selectedModel, setSelectedModel] = useState('');
-  const [progress, setProgress] = useState<CleanupPoolProgress | null>(null);
-  const [banner, setBanner] = useState<{ severity: 'success' | 'info' | 'warning' | 'error'; message: string } | null>(null);
-  const pausedRef = useRef(false);
-  const startedAtRef = useRef(0);
+  const [effort, setEffort] = useState<CleanupEffort | ''>('');
+  const [banner, setBanner] = useState<CleanupBanner | null>(null);
+  const [busy, setBusy] = useState(false);
+  const wasActive = useRef(false);
+
+  const jobQuery = useQuery({
+    queryKey: ['aiCleanupJob', orderId],
+    queryFn: async () => (await getCleanupJob(orderId)).data,
+    refetchInterval: (query) => (isActive(query.state.data) ? POLL_MS : false),
+  });
+  const job = jobQuery.data ?? null;
+  const running = isActive(job);
 
   const cleanupModels = modelsQuery.data?.models ?? [];
-  const envDefaultModel = modelsQuery.data?.default ?? '';
+  const defaultModel = modelsQuery.data?.default ?? '';
+  const defaultEffort = modelsQuery.data?.default_effort ?? 'off';
+  const efforts = modelsQuery.data?.efforts ?? EFFORT_CHOICES;
 
   useEffect(() => {
-    if (!envDefaultModel) return;
-    setSelectedModel((prev) => (prev && cleanupModels.some((m) => m.id === prev) ? prev : envDefaultModel));
-  }, [envDefaultModel, cleanupModels]);
+    if (!defaultModel) return;
+    setSelectedModel((prev) => (prev && cleanupModels.some((m) => m.id === prev) ? prev : defaultModel));
+  }, [defaultModel, cleanupModels]);
 
-  const status = statusQuery.data ?? null;
-  const totalRows = status?.total_rows ?? 0;
-  const cleanedRows = status?.cleaned_rows ?? 0;
-  const remainingRows = status?.remaining_rows ?? 0;
-  const isRunning = runState !== 'idle';
+  useEffect(() => {
+    setEffort((prev) => prev || defaultEffort);
+  }, [defaultEffort]);
 
-  const invalidateAfterRun = () => {
+  // While a job runs, the controls show what that job is using (it may have been started elsewhere).
+  useEffect(() => {
+    if (!running || !job) return;
+    if (job.model) setSelectedModel(job.model);
+    if (job.effort) setEffort(job.effort);
+    if (job.batch_size) setBatchSize(job.batch_size);
+    if (job.concurrency) setConcurrency(job.concurrency);
+  }, [running, job?.model, job?.effort, job?.batch_size, job?.concurrency]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const refreshOrder = () => {
     void queryClient.invalidateQueries({ queryKey: ['aiCleanupStatus', orderId] });
     void queryClient.invalidateQueries({ queryKey: ['preprocessingStatus', orderId] });
     void queryClient.invalidateQueries({ queryKey: ['preprocessingReview', orderId] });
   };
 
-  const rate = useMemo(() => {
-    if (!progress || !startedAtRef.current) return null;
-    const elapsedS = (Date.now() - startedAtRef.current) / 1000;
-    if (elapsedS <= 0 || progress.rowsSaved <= 0) return null;
-    const rowsPerSec = progress.rowsSaved / elapsedS;
-    const batchesLeft = progress.batchesTotal - progress.batchesDone;
-    const etaS = rowsPerSec > 0 ? Math.round((batchesLeft * batchSize) / rowsPerSec) : null;
-    return { rowsPerSec, etaS };
-  }, [progress, batchSize]);
+  // The job just ended: say how it went and refresh what the rest of the page shows.
+  useEffect(() => {
+    if (running) {
+      wasActive.current = true;
+      return;
+    }
+    if (wasActive.current && job) {
+      wasActive.current = false;
+      setBanner(finishedBanner(job));
+      refreshOrder();
+    }
+  }, [running, job]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const totalRows = job?.total_rows ?? 0;
+  const cleanedRows = job?.cleaned_rows ?? 0;
+  const remainingRows = job?.remaining_rows ?? 0;
 
   const handleRun = async () => {
     setBanner(null);
-    pausedRef.current = false;
-    setRunState('running');
-    startedAtRef.current = Date.now();
+    setBusy(true);
     try {
-      const { data: fresh } = await getAICleanupStatus(orderId);
-      const uncleaned = fresh.uncleaned_row_ids ?? [];
-      if (!uncleaned.length) {
-        const { data: completion } = await aiCleanupComplete(orderId);
-        setBanner({
-          severity: 'success',
-          message: `All ${completion.total_rows} row(s) already cleaned - match candidates refreshed (${completion.match_candidates.rows_with_candidates} row(s) with candidates).`,
-        });
-        invalidateAfterRun();
-        return;
-      }
-
-      const batches = partitionRowIds(uncleaned, batchSize);
-      setProgress({ batchesDone: 0, batchesTotal: batches.length, rowsSaved: 0, rowsDiscarded: 0, failedBatches: 0 });
-
-      const outcome = await runCleanupPool(
-        batches,
+      const { data } = await startCleanupJob(orderId, {
+        model: selectedModel,
+        effort: (effort || defaultEffort) as CleanupEffort,
+        batch_size: batchSize,
         concurrency,
-        async (rowIds) => {
-          const { data } = await aiCleanupBatch(orderId, { row_ids: rowIds, model: selectedModel });
-          return {
-            rowIds,
-            rowsSaved: data.rows_saved,
-            discarded: data.discarded_rows.length,
-            cancelled: data.cancelled,
-          };
-        },
-        {
-          isPaused: () => pausedRef.current,
-          onProgress: setProgress,
-        },
-      );
-
-      if (outcome.stoppedByGeneration) {
-        setBanner({
-          severity: 'warning',
-          message: 'Cleanup was cancelled or undone while running - stopped. Nothing from in-flight batches was saved.',
-        });
-        return;
-      }
-      if (outcome.stoppedByPause) {
-        setBanner({
-          severity: 'info',
-          message: `Paused - ${outcome.rowsSaved} row(s) saved this run. Click Run AI Cleanup to resume the remaining rows.`,
-        });
-        return;
-      }
-
-      const failedRowCount = outcome.failedBatches.reduce((sum, f) => sum + f.rowIds.length, 0);
-      const discardNote = outcome.rowsDiscarded ? ` ${outcome.rowsDiscarded} row(s) need another pass (model output discarded).` : '';
-      if (outcome.failedBatches.length || outcome.rowsDiscarded) {
-        setBanner({
-          severity: 'warning',
-          message:
-            `Finished with gaps: ${outcome.rowsSaved} row(s) saved, ${failedRowCount} row(s) in ${outcome.failedBatches.length} failed batch(es).` +
-            `${discardNote} Click Run AI Cleanup to retry just the remaining rows.`,
-        });
-        return;
-      }
-
-      const { data: after } = await getAICleanupStatus(orderId);
-      if ((after.remaining_rows ?? 0) === 0) {
-        const { data: completion } = await aiCleanupComplete(orderId);
-        setBanner({
-          severity: 'success',
-          message: `Cleaned ${outcome.rowsSaved} row(s). Match candidates generated for ${completion.match_candidates.rows_with_candidates} row(s) (${completion.match_candidates.auto_selected} auto-selected).`,
-        });
-      } else {
-        setBanner({
-          severity: 'info',
-          message: `Saved ${outcome.rowsSaved} row(s); ${after.remaining_rows} still uncleaned. Run again to continue.`,
-        });
-      }
-    } catch (err: unknown) {
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setBanner({ severity: 'error', message: detail || 'AI cleanup run failed.' });
+      });
+      wasActive.current = true;
+      queryClient.setQueryData(['aiCleanupJob', orderId], data);
+      void jobQuery.refetch();
+    } catch (err) {
+      setBanner({ severity: 'error', message: apiDetail(err, 'Could not start AI cleanup.') });
     } finally {
-      invalidateAfterRun();
-      setRunState('idle');
-      pausedRef.current = false;
+      setBusy(false);
     }
   };
 
-  const handlePause = () => {
-    pausedRef.current = true;
-    setRunState('pausing');
-    enqueueSnackbar('Pausing - in-flight batches will finish and save.', { variant: 'info' });
+  const handleStop = async () => {
+    setBusy(true);
+    try {
+      const { data } = await stopCleanupJob(orderId);
+      queryClient.setQueryData(['aiCleanupJob', orderId], data);
+    } catch (err) {
+      setBanner({ severity: 'error', message: apiDetail(err, 'Could not stop the cleanup.') });
+    } finally {
+      setBusy(false);
+    }
   };
 
   // Full undo: clears ai_* + final_* + match decisions, resets order flags, bumps the
-  // generation (server cancel-ai-cleanup now mirrors the timeline "Before AI cleanup").
+  // generation (server cancel-ai-cleanup mirrors the timeline "Before AI cleanup").
   const handleUndoCleanup = () => {
     if (!window.confirm('Undo AI cleanup? This clears all AI titles, prices, and product match decisions for this order.')) return;
     cancelCleanup.mutate(orderId, {
       onSuccess: (data) => {
         setBanner({ severity: 'info', message: `Cleanup undone - ${data.rows_cleared} row(s) reset to standardized.` });
-        invalidateAfterRun();
+        refreshOrder();
+        void jobQuery.refetch();
       },
       onError: () => setBanner({ severity: 'error', message: 'Failed to undo cleanup.' }),
     });
   };
 
-  const pct = progress && progress.batchesTotal > 0 ? Math.round((progress.batchesDone / progress.batchesTotal) * 100) : 0;
+  const atStart = job?.rows_at_start ?? 0;
+  const doneThisJob = Math.max(0, atStart - remainingRows);
+  const pct = atStart > 0 ? Math.min(100, Math.round((doneThisJob / atStart) * 100)) : 0;
+  const elapsed = job?.elapsed_seconds ?? 0;
+  const rowsPerSec = running && elapsed > 0 && (job?.rows_saved ?? 0) > 0 ? (job?.rows_saved ?? 0) / elapsed : 0;
+  const etaS = rowsPerSec > 0 ? Math.round(remainingRows / rowsPerSec) : null;
+  const allDone = !running && remainingRows === 0 && totalRows > 0;
+  const partlyDone = remainingRows > 0 && remainingRows < totalRows;
+  const mono = { fontSize: 12, color: '#555', fontFamily: preprocessingFonts.mono };
 
   return (
     <Box sx={{ border: '1px solid #B8D4C8', borderRadius: '8px', p: 3, mb: 2, bgcolor: '#FBFDFC' }}>
@@ -210,7 +179,7 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
             Run AI Cleanup
           </Typography>
           <Typography sx={{ fontSize: 13, color: '#666', fontFamily: preprocessingFonts.sans }}>
-            Cleans rows in batches - progress saves as it goes, and you can pause and resume any time.
+            Runs on the server in the background. Progress saves as it goes; you can leave this page, and stop and resume any time.
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
@@ -223,9 +192,9 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
             select
             size="small"
             label="Model"
-            value={selectedModel}
+            value={cleanupModels.some((m) => m.id === selectedModel) ? selectedModel : ''}
             onChange={(e) => setSelectedModel(e.target.value)}
-            disabled={isRunning || modelsQuery.isLoading || cleanupModels.length === 0}
+            disabled={running || modelsQuery.isLoading || cleanupModels.length === 0}
             sx={{ minWidth: 200 }}
           >
             {cleanupModels.map((m) => (
@@ -235,10 +204,23 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
           <TextField
             select
             size="small"
+            label="Effort"
+            value={effort || defaultEffort}
+            onChange={(e) => setEffort(e.target.value as CleanupEffort)}
+            disabled={running}
+            sx={{ width: 112 }}
+          >
+            {efforts.map((e) => (
+              <MenuItem key={e} value={e}>{EFFORT_WORDS[e] ?? e}</MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            size="small"
             label="Rows/batch"
             value={batchSize}
             onChange={(e) => setBatchSize(Number(e.target.value))}
-            disabled={isRunning}
+            disabled={running}
             sx={{ width: 108 }}
           >
             {AI_CLEANUP_BATCH_SIZE_OPTIONS.map((n) => (
@@ -251,14 +233,25 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
             label="Workers"
             value={concurrency}
             onChange={(e) => setConcurrency(Number(e.target.value))}
-            disabled={isRunning}
+            disabled={running}
             sx={{ width: 96 }}
           >
             {CONCURRENCY_CHOICES.map((n) => (
               <MenuItem key={n} value={n}>{n}</MenuItem>
             ))}
           </TextField>
-          {!isRunning && remainingRows === 0 && totalRows > 0 ? (
+          {running ? (
+            <Button
+              variant="outlined"
+              color="warning"
+              startIcon={<StopCircleOutlined />}
+              onClick={() => void handleStop()}
+              disabled={busy || job?.status === 'stopping'}
+              sx={{ textTransform: 'none', fontWeight: 600 }}
+            >
+              {job?.status === 'stopping' ? 'Stopping…' : 'Stop'}
+            </Button>
+          ) : allDone ? (
             <Button
               variant="outlined"
               color="warning"
@@ -269,53 +262,41 @@ export function WebAiCleanupPanel({ orderId }: WebAiCleanupPanelProps) {
             >
               {cancelCleanup.isPending ? 'Undoing…' : 'Undo cleanup'}
             </Button>
-          ) : !isRunning ? (
-            <Button
-              variant="contained"
-              startIcon={remainingRows < totalRows && remainingRows > 0 ? <PlayCircleOutline /> : <AutoFixHighOutlined />}
-              onClick={() => void handleRun()}
-              disabled={statusQuery.isLoading || modelsQuery.isLoading || !selectedModel || totalRows === 0}
-              sx={{ bgcolor: '#2D6A4F', textTransform: 'none', fontWeight: 600 }}
-            >
-              {remainingRows < totalRows && remainingRows > 0
-                ? `Resume (${remainingRows} left)`
-                : 'Run AI Cleanup'}
-            </Button>
           ) : (
             <Button
-              variant="outlined"
-              color="warning"
-              startIcon={<PauseCircleOutline />}
-              onClick={handlePause}
-              disabled={runState === 'pausing'}
-              sx={{ textTransform: 'none', fontWeight: 600 }}
+              variant="contained"
+              startIcon={partlyDone ? <PlayCircleOutline /> : <AutoFixHighOutlined />}
+              onClick={() => void handleRun()}
+              disabled={busy || jobQuery.isLoading || modelsQuery.isLoading || !selectedModel || totalRows === 0}
+              sx={{ bgcolor: '#2D6A4F', textTransform: 'none', fontWeight: 600 }}
             >
-              {runState === 'pausing' ? 'Pausing…' : 'Pause'}
+              {partlyDone ? `Resume (${remainingRows} left)` : 'Run AI Cleanup'}
             </Button>
           )}
         </Box>
       </Box>
 
-      {isRunning && progress && (
-        <Box sx={{ mt: 1.5 }}>
-          <LinearProgress variant="determinate" value={pct} sx={{ height: 8, borderRadius: 4 }} />
+      {running && job && (
+        <Box sx={{ mt: 1.5 }} data-testid="cleanup-job-progress">
+          <LinearProgress variant={atStart > 0 ? 'determinate' : 'indeterminate'} value={pct} sx={{ height: 8, borderRadius: 4 }} />
           <Box sx={{ display: 'flex', gap: 2, mt: 0.75, flexWrap: 'wrap' }}>
-            <Typography sx={{ fontSize: 12, color: '#555', fontFamily: preprocessingFonts.mono }}>
-              batch {progress.batchesDone}/{progress.batchesTotal}
+            <Typography sx={mono}>
+              {doneThisJob}/{atStart} rows
             </Typography>
-            <Typography sx={{ fontSize: 12, color: '#555', fontFamily: preprocessingFonts.mono }}>
-              {progress.rowsSaved} rows saved
-            </Typography>
-            {progress.failedBatches > 0 && (
-              <Typography sx={{ fontSize: 12, color: '#c0392b', fontFamily: preprocessingFonts.mono }}>
-                {progress.failedBatches} failed batch(es)
+            <Typography sx={mono}>batch {job.batches_done ?? 0}</Typography>
+            {(job.failed_batches ?? 0) > 0 && (
+              <Typography sx={{ ...mono, color: '#c0392b' }}>{job.failed_batches} failed batch(es), will retry</Typography>
+            )}
+            {rowsPerSec > 0 && (
+              <Typography sx={mono}>
+                {rowsPerSec.toFixed(1)} rows/s{etaS != null ? ` - ~${etaS}s left` : ''}
               </Typography>
             )}
-            {rate && (
-              <Typography sx={{ fontSize: 12, color: '#555', fontFamily: preprocessingFonts.mono }}>
-                {rate.rowsPerSec.toFixed(1)} rows/s{rate.etaS != null ? ` - ~${rate.etaS}s left` : ''}
-              </Typography>
-            )}
+            <Typography sx={mono}>
+              {job.model} · effort {job.effort ?? 'off'}
+              {job.started_by ? ` · started by ${job.started_by}` : ''}
+            </Typography>
+            {(job.restarts ?? 0) > 0 && <Typography sx={mono}>picked up again {job.restarts}x after a server restart</Typography>}
           </Box>
         </Box>
       )}

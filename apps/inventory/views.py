@@ -52,7 +52,7 @@ from apps.accounts.permissions import IsManagerOrAdmin, IsStaff, IsSuperAdmin
 from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED, TAXONOMY_V1_CATEGORY_NAMES
 from apps.inventory.canonical_categories import canonical_category_name
 
-from apps.core.ai_config import ai_effort, ai_model
+from apps.core.ai_config import EFFORT_VALUES, ai_effort, ai_model
 from apps.core.logging import get_logger
 from apps.core.models import AiModel, AppSetting, S3File
 from apps.core.services.ai_usage_log import log_ai_usage
@@ -2287,6 +2287,7 @@ _PURCHASE_ORDER_SLIM_DETAIL_ACTIONS = frozenset(
         'ai_cleanup_batch',
         'ai_cleanup_complete',
         'ai_cleanup_models',
+        'ai_cleanup_job',
     },
 )
 
@@ -4421,6 +4422,68 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             )
         return Response(result)
 
+    @action(detail=True, methods=['get', 'post'], url_path='ai-cleanup-job')
+    def ai_cleanup_job(self, request, pk=None):
+        """AI cleanup as a background job (services/ai_cleanup_job.py).
+
+        GET: the job's state and the order's progress. The page polls this.
+        POST ``{"action": "start", "model", "effort", "batch_size", "concurrency"}``: start, or
+        resume what is left. POST ``{"action": "stop"}``: stop after the batches in flight.
+        """
+        from apps.inventory.services import ai_cleanup_job
+        from apps.inventory.services.ai_cleanup import resolve_cleanup_api_key
+
+        order = self.get_object()
+        if request.method == 'GET':
+            return Response(ai_cleanup_job.status(order))
+        if not _preprocessing_staging_active(order):
+            return Response(
+                {'detail': 'AI cleanup requires active preprocessing staging.', 'code': 'staging_required'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        action_name = str(request.data.get('action') or 'start').strip()
+        if action_name == 'stop':
+            ai_cleanup_job.request_stop(order)
+            return Response(ai_cleanup_job.status(order, heal=False))
+        if action_name != 'start':
+            return Response({'detail': 'Unknown action.', 'code': 'invalid_action'}, status=status.HTTP_400_BAD_REQUEST)
+
+        allowed_models, configured_default = _inventory_cleanup_model_settings()
+        allowed_ids = {m['id'] for m in allowed_models}
+        model_id = str(request.data.get('model') or '') or configured_default
+        if model_id not in allowed_ids:
+            return Response(
+                {
+                    'detail': (
+                        f'Unsupported cleanup model {model_id!r}. Pick an active text model from '
+                        f'Settings > AI: {sorted(allowed_ids)}.'
+                    ),
+                    'code': 'invalid_model',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        effort = str(request.data.get('effort') or '').strip().lower() or ai_effort('INVENTORY_CLEANUP')
+        if effort not in EFFORT_VALUES:
+            return Response(
+                {'detail': 'Effort must be off, low, medium, high, or max.', 'code': 'invalid_effort'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            batch_size = int(request.data.get('batch_size') or 10)
+            concurrency = int(request.data.get('concurrency') or 4)
+        except (TypeError, ValueError):
+            return Response(
+                {'detail': 'batch_size and concurrency must be numbers.', 'code': 'invalid_size'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        _api_key, key_error = resolve_cleanup_api_key(model_id)
+        if key_error:
+            return Response({'detail': key_error, 'code': 'ai_key_missing'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        ai_cleanup_job.start(
+            order, user=request.user, model=model_id, effort=effort, batch_size=batch_size, concurrency=concurrency,
+        )
+        return Response(ai_cleanup_job.status(order, heal=False), status=status.HTTP_202_ACCEPTED)
+
     @action(detail=True, methods=['post'], url_path='ai-cleanup-complete')
     def ai_cleanup_complete(self, request, pk=None):
         """Fast, idempotent post-cleanup step: match candidates + order flags. No AI."""
@@ -4472,7 +4535,13 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         _order = self.get_object()
         models, default_model = _inventory_cleanup_model_settings()
         if request.method == 'GET':
-            return Response({'models': models, 'default': default_model})
+            return Response({
+                'models': models,
+                'default': default_model,
+                # The effort saved for the Inventory cleanup action in Settings > AI.
+                'default_effort': ai_effort('INVENTORY_CLEANUP'),
+                'efforts': list(EFFORT_VALUES),
+            })
 
         action_name = str(request.data.get('action') or '').strip()
         model_id = str(request.data.get('id') or request.data.get('model') or '').strip()

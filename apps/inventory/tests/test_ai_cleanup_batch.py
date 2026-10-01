@@ -93,7 +93,6 @@ class AiCleanupBatchTestBase(TestCase):
                 purchase_order=self.order,
                 row_number=row_number,
                 quantity=1,
-                description=f'vendor desc {row_number}',
                 title=f'vendor title {row_number}',
                 brand='vendorbrand',
                 unit_retail=Decimal('20.00'),
@@ -102,7 +101,6 @@ class AiCleanupBatchTestBase(TestCase):
             purchase_order=self.order,
             row_number=row_number,
             manifest_row=mr,
-            standard_description=f'std desc {row_number}',
             **kwargs,
         )
 
