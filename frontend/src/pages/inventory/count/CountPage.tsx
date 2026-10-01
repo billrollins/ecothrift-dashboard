@@ -21,10 +21,11 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
-import { closeCount, listCounts, postScans, startCount, type CountSummary } from '../../../api/stocktake.api';
+import { closeCount, listCounts, postScans, restartCount, startCount, type CountSummary } from '../../../api/stocktake.api';
 import { useAuth } from '../../../contexts/AuthContext';
 import { CountQueue, agoText, codeFromScan, soundFor, type QueuedScan } from './countQueue';
 import { playCountSound, unlockSound } from './countSound';
+import { addRun, clearRuns, clockOffset, describeRun, elapsedSeconds, formatElapsed, loadRuns, ratePerMinute, type CountRun } from './countTimer';
 
 const storeKey = (id: number) => `stocktake.count.${id}`;
 
@@ -79,7 +80,7 @@ function describe(s: QueuedScan): string {
 
 /** Shelf inventory count. Phone first: scan fast, the lookup happens behind the scenes. */
 export default function CountPage() {
-  const { hasRole } = useAuth();
+  const { hasRole, user } = useAuth();
   const [count, setCount] = useState<CountSummary | null>(null);
   const [booting, setBooting] = useState(true);
   const [bootError, setBootError] = useState('');
@@ -94,6 +95,11 @@ export default function CountPage() {
   const [confirmClose, setConfirmClose] = useState(false);
   const [closing, setClosing] = useState(false);
   const [typed, setTyped] = useState('');
+  const [confirmRestart, setConfirmRestart] = useState(false);
+  const [restarting, setRestarting] = useState(false);
+  const [runs, setRuns] = useState<CountRun[]>(() => loadRuns());
+  const [, setTick] = useState(0);
+  const offsetRef = useRef(0);
 
   const queueRef = useRef<CountQueue>(new CountQueue());
   const inFlight = useRef(false);
@@ -106,6 +112,7 @@ export default function CountPage() {
 
   const attach = useCallback((c: CountSummary) => {
     queueRef.current = new CountQueue(load(c.id));
+    if (c.server_now) offsetRef.current = clockOffset(c.server_now, Date.now());
     setCount(c);
     setAlertScan(null);
     setOffline(false);
@@ -129,6 +136,13 @@ export default function CountPage() {
       cancelled = true;
     };
   }, [attach]);
+
+  // The timer redraws once a second while a count is open.
+  useEffect(() => {
+    if (!count || count.status !== 'open') return undefined;
+    const id = window.setInterval(() => setTick((n) => n + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [count?.id, count?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The sender: every 300 ms, send whatever is waiting. A failed send goes back in the queue.
   useEffect(() => {
@@ -186,7 +200,7 @@ export default function CountPage() {
 
   // A Bluetooth or USB scanner types the code and presses Enter, like a keyboard. Keep the scan box focused
   // whenever the count is open, and catch keystrokes that land anywhere else on the page.
-  const active = !!count && count.status === 'open' && !confirmClose;
+  const active = !!count && count.status === 'open' && !confirmClose && !confirmRestart;
   useEffect(() => {
     if (!active) return undefined;
     const focusBox = () => inputRef.current?.focus({ preventScroll: true });
@@ -244,6 +258,13 @@ export default function CountPage() {
     try {
       const closed = await closeCount(count.id);
       window.localStorage.removeItem(storeKey(count.id));
+      setRuns(addRun({
+        at: new Date().toISOString(),
+        seconds: elapsedSeconds(count.started_at, Date.now(), offsetRef.current, closed.closed_at),
+        scans: queueRef.current.lastSeq,
+        counted: closed.counted,
+        how: 'finished',
+      }));
       setCount(closed);
     } catch {
       setBootError('Could not close the count.');
@@ -253,6 +274,50 @@ export default function CountPage() {
     }
   };
 
+  /** Throw this count away and start a fresh one: the timer starts again from zero. */
+  const startOver = async () => {
+    if (!count) return;
+    unlockSound();
+    setRestarting(true);
+    const run: CountRun = {
+      at: new Date().toISOString(),
+      seconds: elapsedSeconds(count.started_at, Date.now(), offsetRef.current),
+      scans: queueRef.current.lastSeq,
+      counted: count.counted,
+      how: 'started over',
+    };
+    try {
+      const fresh = await restartCount(count.id);
+      window.localStorage.removeItem(storeKey(count.id));
+      if (run.scans > 0) setRuns(addRun(run));
+      lastCode.current = { code: '', at: 0 };
+      attach(fresh);
+      setBootError('');
+    } catch {
+      setBootError('Could not start over. Check the connection and try again.');
+    } finally {
+      setRestarting(false);
+      setConfirmRestart(false);
+    }
+  };
+
+  const runsList = runs.length > 0 && (
+    <Box sx={{ px: 1.5, pt: 2 }}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between">
+        <Typography sx={{ fontWeight: 800 }}>Earlier runs</Typography>
+        <Button size="small" onClick={() => { clearRuns(); setRuns([]); }}>Clear list</Button>
+      </Stack>
+      {runs.map((r, i) => (
+        <Typography key={`${r.at}-${i}`} sx={{ fontSize: 14, py: 0.25 }}>
+          {describeRun(r)}
+          <Typography component="span" sx={{ fontSize: 12, color: 'text.secondary' }}>
+            {' '}· {r.how} {new Date(r.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+          </Typography>
+        </Typography>
+      ))}
+    </Box>
+  );
+
   if (booting) {
     return (
       <Box sx={{ p: 4, textAlign: 'center' }}>
@@ -261,7 +326,7 @@ export default function CountPage() {
     );
   }
 
-  const isManager = hasRole('Manager') || hasRole('Admin');
+  const isManager = hasRole('Manager') || hasRole('Admin') || !!user?.is_superuser;
 
   if (!count || count.status === 'closed') {
     return (
@@ -291,6 +356,7 @@ export default function CountPage() {
         <Button variant="contained" size="large" fullWidth onClick={() => void begin()} sx={{ py: 2, fontWeight: 800 }}>
           Start a new count
         </Button>
+        <Box sx={{ mx: -1.5 }}>{runsList}</Box>
       </Box>
     );
   }
@@ -298,6 +364,8 @@ export default function CountPage() {
   const live = queue.recent(14);
   const problems = queue.problems();
   const pct = count.expected ? Math.min(100, Math.round((count.counted / count.expected) * 100)) : 0;
+  const elapsed = elapsedSeconds(count.started_at, Date.now(), offsetRef.current);
+  const rate = ratePerMinute(queue.lastSeq, elapsed);
 
   return (
     <Box sx={{ width: '100%', minWidth: 0, maxWidth: 560, mx: 'auto', pb: 10, overflowX: 'hidden' }} onClick={unlockSound}>
@@ -310,6 +378,12 @@ export default function CountPage() {
               <Typography component="span" sx={{ fontSize: 16, fontWeight: 600, color: 'text.secondary' }}>
                 {' '}
                 of {count.expected.toLocaleString()} ({pct}%)
+              </Typography>
+            </Typography>
+            <Typography data-testid="count-timer" sx={{ fontSize: 18, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+              {formatElapsed(elapsed)}
+              <Typography component="span" sx={{ fontSize: 14, fontWeight: 600, color: 'text.secondary' }}>
+                {' '}· {queue.lastSeq} {queue.lastSeq === 1 ? 'scan' : 'scans'}{rate ? ` · ${rate}/min` : ''}
               </Typography>
             </Typography>
           </Box>
@@ -449,8 +523,15 @@ export default function CountPage() {
         </Alert>
       )}
 
+      {runsList}
+
       <Box sx={{ position: 'fixed', left: 0, right: 0, bottom: 0, p: 1.5, bgcolor: 'background.paper', borderTop: 1, borderColor: 'divider' }}>
         <Stack direction="row" spacing={1} sx={{ maxWidth: 560, mx: 'auto' }}>
+          {isManager && (
+            <Button variant="outlined" color="warning" onClick={() => setConfirmRestart(true)} sx={{ py: 1.25, fontWeight: 800, whiteSpace: 'nowrap', flexShrink: 0 }}>
+              Start over
+            </Button>
+          )}
           <Button variant="contained" color="primary" fullWidth onClick={() => setConfirmClose(true)} sx={{ py: 1.25, fontWeight: 800 }}>
             Finish count
           </Button>
@@ -471,6 +552,24 @@ export default function CountPage() {
           </Button>
           <Button variant="contained" onClick={() => void finish()} disabled={closing}>
             {closing ? 'Finishing…' : 'Finish'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={confirmRestart} onClose={() => !restarting && setConfirmRestart(false)}>
+        <DialogTitle>Start over?</DialogTitle>
+        <DialogContent>
+          <Typography>
+            This throws away the {queue.lastSeq} {queue.lastSeq === 1 ? 'scan' : 'scans'} in this count and starts a new one. The timer
+            starts again from zero. This run is kept in the Earlier runs list.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmRestart(false)} disabled={restarting}>
+            Keep this count
+          </Button>
+          <Button variant="contained" color="warning" onClick={() => void startOver()} disabled={restarting}>
+            {restarting ? 'Starting over…' : 'Start over'}
           </Button>
         </DialogActions>
       </Dialog>

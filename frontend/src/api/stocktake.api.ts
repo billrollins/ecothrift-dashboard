@@ -15,6 +15,8 @@ export interface CountSummary {
   odd: number;
   unknown: number;
   scans: number;
+  /** The server's clock when this was sent (ISO), so the timer does not depend on the phone's clock. */
+  server_now?: string;
 }
 
 export interface ScanPost {
@@ -82,6 +84,12 @@ export async function postScans(
     { scans },
     { timeout: 15000 },
   );
+  return data;
+}
+
+/** Throw an open count away and start a fresh one (managers). */
+export async function restartCount(id: number): Promise<CountSummary> {
+  const { data } = await api.post<CountSummary>(`/stocktake/counts/${id}/restart/`);
   return data;
 }
 

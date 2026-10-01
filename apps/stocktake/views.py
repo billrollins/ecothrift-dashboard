@@ -70,6 +70,20 @@ def count_close(request, pk):
     return Response(counting.summary(count))
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsManagerOrAdmin])
+def count_restart(request, pk):
+    """Discard an open count and its scans, then start a new one. Managers and up."""
+    count = _get(pk)
+    if count is None:
+        return _not_found()
+    try:
+        fresh = counting.restart_count(count, user=request.user)
+    except counting.CountClosed:
+        return Response({'detail': 'This count is closed. Start a new one instead.', 'code': 'COUNT_CLOSED'}, status=409)
+    return Response(counting.summary(fresh), status=201)
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsManagerOrAdmin])
 def count_report(request, pk):

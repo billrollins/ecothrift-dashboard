@@ -1,17 +1,11 @@
-feat: v2.112.0 inventory count, Thrift+ floor stock planner, repo standards
+feat: v2.113.0 inventory count timer, Start over and earlier runs
 
-Release: v2.112.0
+Release: v2.113.0
 
-- Inventory count (/inventory/count): a phone-first shelf count for a Bluetooth or
-  USB scanner. Scans are queued on the phone and looked up in the background
-  (beep = found, two beeps = warning, buzz and "back up N scans ago" = no item).
-  The count freezes what is on the shelf when it starts. Managers get a shrink
-  report and a CSV. New app apps/stocktake, migration stocktake/0001 (2 new tables).
-- Thrift+ > Floor stock (Dash, superuser): a what-if calculator for stock already
-  on the floor when Thrift+ starts. Replays the reward engine's rules, changes no
-  price or setting. Endpoints: rewards/floor-plan/ and rewards/floor-plan/compare/.
-- Optional AWS_LOCATION setting (S3 key prefix). Unset = today's behaviour.
-- Repo standards: .ai/ in the house shape, scripts/ regrouped (dev, env, db,
-  deploy), retired numbered deploy scripts.
+- Inventory count: a timer in the header (time since the count started, scans and
+  scans per minute), counted from the server clock.
+- Start over (managers and up): discards the open count and starts a new one.
+  POST /api/stocktake/counts/<id>/restart/. A closed count is kept.
+- Earlier runs: the last 8 runs on the phone, to compare scanning strategies.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

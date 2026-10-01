@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.112.0] -->
-<!-- Last reviewed: 2026-10-01 (2.112.0) -->
+<!-- Line 1 release: ## [2.113.0] -->
+<!-- Last reviewed: 2026-10-01 (2.113.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.113.0] - 2026-10-01
+
+User-facing theme: **Time an inventory count and start over in one tap, to compare scanning strategies.** Initiative: `inventory_count`.
+
+### Added
+
+- **Inventory count: a timer.** The header shows the time since the count started, the number of scans and scans per minute. It uses the server's clock, so a phone with the wrong time still counts right.
+- **Inventory count: Start over** (managers and up). Throws the open count and its scans away and starts a new one, with the timer back at zero. `POST /api/stocktake/counts/<id>/restart/`; a closed count can't be started over.
+- **Earlier runs.** The last 8 runs on that phone (scans, time, scans per minute, finished or started over) are listed under the count and on the start screen.
 
 ## [2.112.0] - 2026-10-01
 

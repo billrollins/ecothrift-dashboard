@@ -118,7 +118,17 @@ def summary(count: InventoryCount) -> dict:
         'odd': by_result[CountScan.RESULT_ODD],
         'unknown': by_result[CountScan.RESULT_UNKNOWN],
         'scans': sum(by_result.values()),
+        'server_now': timezone.now(),  # so the phone's timer does not depend on its own clock
     }
+
+
+def restart_count(count: InventoryCount, *, user) -> InventoryCount:
+    """Throw an open count away (its scans too) and start a fresh one. For trial runs and false starts."""
+    if count.status != InventoryCount.STATUS_OPEN:
+        raise CountClosed()
+    with transaction.atomic():
+        count.delete()
+        return start_count(user=user)
 
 
 def close_count(count: InventoryCount) -> InventoryCount:

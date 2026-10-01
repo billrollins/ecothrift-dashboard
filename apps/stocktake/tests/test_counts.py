@@ -96,5 +96,26 @@ class CountTests(TestCase):
         r = emp.post(f'/api/stocktake/counts/{cid}/scans/', {'scans': [{'client_id': 'b', 'code': 'ITM0000001'}]}, format='json')
         self.assertEqual(r.status_code, 409)
 
+    def test_start_over_discards_the_count_and_starts_a_fresh_one(self):
+        mgr = self.api(self.mgr)
+        cid = mgr.post('/api/stocktake/counts/', {}, format='json').data['id']
+        mgr.post(f'/api/stocktake/counts/{cid}/scans/', {'scans': [{'client_id': 'a', 'code': 'ITM0000001'}]}, format='json')
+        # an employee cannot throw a count away
+        self.assertEqual(self.api(self.user).post(f'/api/stocktake/counts/{cid}/restart/').status_code, 403)
+        r = mgr.post(f'/api/stocktake/counts/{cid}/restart/')
+        self.assertEqual(r.status_code, 201, r.content)
+        self.assertNotEqual(r.data['id'], cid)
+        self.assertEqual((r.data['counted'], r.data['scans'], r.data['status']), (0, 0, 'open'))
+        self.assertIn('server_now', r.data)
+        self.assertFalse(InventoryCount.objects.filter(pk=cid).exists())
+        self.assertEqual(CountScan.objects.count(), 0)
+        # the same item counts again in the new run
+        again = mgr.post(f"/api/stocktake/counts/{r.data['id']}/scans/", {'scans': [{'client_id': 'a', 'code': 'ITM0000001'}]}, format='json')
+        self.assertEqual(again.data['results'][0]['result'], 'ok')
+        # a closed count is kept: it cannot be started over
+        new_id = r.data['id']
+        mgr.post(f'/api/stocktake/counts/{new_id}/close/')
+        self.assertEqual(mgr.post(f'/api/stocktake/counts/{new_id}/restart/').status_code, 409)
+
     def test_anonymous_blocked(self):
         self.assertIn(APIClient().get('/api/stocktake/counts/').status_code, (401, 403))
