@@ -26,7 +26,7 @@ We work with the data we have, labelled and filled in by stated rules, instead o
 
 ## Out of scope
 
-- Rebuilding or re-importing the old databases (see [`historical_data_export`](./_archived/_pending/historical_data_export.md))
+- Rebuilding or re-importing the old databases (see [`historical_data_export`](./_archived/historical_data_export.md))
 - Deleting old data because it is messy (fixes are reversible and logged)
 - Product vectors themselves (only the hook; see bstock Phase 4)
 
@@ -106,5 +106,5 @@ Still open in Phase 1: a handling decision on every open row, and the lifecycle 
 
 - Register: [`.ai/extended/data-quality.md`](../extended/data-quality.md)
 - Compass: [`bstock_daily_buying`](./bstock_daily_buying.md)
-- Related (pending): [`historical_data_export`](./_archived/_pending/historical_data_export.md), [`historical_sell_through_analysis`](./_archived/_pending/historical_sell_through_analysis.md)
+- Related (pending): [`historical_data_export`](./_archived/historical_data_export.md), [`historical_sell_through_analysis`](./_archived/historical_sell_through_analysis.md)
 - Index: [`_index.md`](./_index.md)

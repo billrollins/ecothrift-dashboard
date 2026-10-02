@@ -18,4 +18,4 @@ echo  Using Python: %PYTHON%
 echo.
 
 %PYTHON% distribute.py --install-local %*
-pause
+exit /b %ERRORLEVEL%

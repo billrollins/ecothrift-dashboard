@@ -1,6 +1,6 @@
 # Runner queue — ecothrift-dashboard
 
-Per [`.ai/protocols/runner.md`](../../protocols/runner.md). The coder adds rows; the runner changes only **Status**. Oldest first. Finished tasks move to [`archive/`](archive/index.md).
+Per [`.ai/protocols/runner.md`](../../protocols/runner.md). The coder adds rows; the runner changes only **Status**. Oldest first. Finished tasks are cleared by the coder; a result worth keeping goes to `.ai/reference/reports/` (the old archive, removed 2026-10-01, is in git history: `git log -- .ai/comm/runner/archive`).
 
 Each task file starts with a **Start here** header, so you can drop that one file into chat.
 

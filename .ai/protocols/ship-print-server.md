@@ -4,7 +4,7 @@
 **IF** this file is `@`-mentioned **OR** the user says ship-print-server / distribute print server / release print server / ship print server
 **THEN** do every numbered step below, in order. Do not skip. Do not invent extra steps.
 
-Print server semver is `VERSION` in [`printserver/config.py`](../../printserver/config.py). It is **not** repo `.version`. Do not run [`ship-push-git.md`](ship-push-git.md) or [`ship-push-heroku.md`](ship-push-heroku.md). Do not commit unless they also asked.
+Print server semver is `VERSION` in [`printserver/config.py`](../../printserver/config.py). It is **not** repo `.version`. Do not run [`ship.md`](ship.md) or [`deploy.md`](deploy.md). Do not commit unless they also asked.
 
 Admin Settings → Printing **Download** is `PrintServerRelease` (`is_current=True`) → `S3File.url`. Local Django and Heroku each have their own row. The exe lives once on S3.
 

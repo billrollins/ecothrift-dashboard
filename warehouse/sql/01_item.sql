@@ -2,6 +2,9 @@
 -- Register: ERA-01 (era from notes), ITM-02/03 (timing only from V3 listed_at), ITM-06 (backfill scrapped
 -- is not shrink), ITM-09 + VEN-01 + PO-09 (cost 0 or placeholder vendor = unknown), ITM-01 (Mixed lots),
 -- ITM-13 (V1/V2 product category not trusted), ITM-04 (no PO).
+-- Category: the Spark backfill's product profile category (product_intelligence; 92% right on the held-out
+-- check) when it has a real one, else the product's own category (right for V3: processing sets it).
+-- category_source says which; category_untrusted is only a V1/V2 product category with no Spark answer.
 CREATE OR REPLACE TABLE item AS
 SELECT
     i.id AS item_id,
@@ -22,10 +25,12 @@ SELECT
     i.location,
     p.title,
     p.brand,
-    c.name AS category,
-    c.name LIKE 'Mixed lots%' AS category_is_mixed,
-    -- ITM-13: a V1/V2 product's category is near-random; treat it as unknown.
-    (i.notes LIKE 'BACKFILL:v1%' OR i.notes LIKE 'BACKFILL:v2%') AS category_untrusted,
+    CASE WHEN pp.category <> '' AND pp.category NOT LIKE 'Mixed lots%' THEN pp.category ELSE c.name END AS category,
+    CASE WHEN pp.category <> '' AND pp.category NOT LIKE 'Mixed lots%' THEN 'spark_profile' ELSE 'product' END AS category_source,
+    (CASE WHEN pp.category <> '' AND pp.category NOT LIKE 'Mixed lots%' THEN pp.category ELSE c.name END) LIKE 'Mixed lots%' AS category_is_mixed,
+    -- ITM-13: a V1/V2 product's own category is near-random; untrusted unless Spark placed it.
+    (i.notes LIKE 'BACKFILL:v1%' OR i.notes LIKE 'BACKFILL:v2%')
+        AND NOT coalesce(pp.category <> '' AND pp.category NOT LIKE 'Mixed lots%', false) AS category_untrusted,
     v.code AS vendor_code,
     i.price,
     NULLIF(i.retail, 0) AS retail,
@@ -45,6 +50,7 @@ SELECT
 FROM pg.inventory_item i
 LEFT JOIN pg.inventory_product p ON p.id = i.product_id
 LEFT JOIN pg.inventory_category c ON c.id = p.category_id
+LEFT JOIN pg.inventory_productprofile pp ON pp.product_id = i.product_id
 LEFT JOIN pg.inventory_purchaseorder po ON po.id = i.purchase_order_id
 LEFT JOIN pg.inventory_vendor v ON v.id = po.vendor_id;
 

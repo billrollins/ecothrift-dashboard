@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-27 -->
+<!-- Canonical: C:\Coding\.ai\templates\protocols\initiative-create.md — v1 2026-09-30 (from ecothrift-dashboard). Copy unchanged into <project>/.ai/protocols/. Project-only steps go in the marked section at the end. -->
 # Protocol: Create initiative
 
 The initiative file **is** the design, start to finish. Later phases may stay high-level until earlier ones are built.
@@ -37,7 +37,7 @@ Optional (use if they said it; do not block on it): related initiatives, domain 
 1. Create `.ai/initiatives/<slug>.md` using the template below. Today's date is `YYYY-MM-DD` America/Chicago.
 2. Add an **Active** row on [`.ai/initiatives/_index.md`](../initiatives/_index.md). Bump its `<!-- Last updated -->`.
 3. **IF** compass is yes **THEN** point `context.md` **Active work** at this file and bump that stamp.
-4. Follow filing rules in [`.ai/extended/initiatives.md`](../extended/initiatives.md).
+4. Follow filing rules in [filing rules in `initiative-review.md`](initiative-review.md#filing-rules).
 5. **STOP.** Give the path and a one-line summary. Do not implement Phase 1 unless they asked in the same message.
 
 ### Template
@@ -102,3 +102,7 @@ Detail when Phase <prior> is built.
 
 - Index: [`_index.md`](./_index.md)
 ```
+
+## Project steps
+
+(none — add project-specific steps here, never above)

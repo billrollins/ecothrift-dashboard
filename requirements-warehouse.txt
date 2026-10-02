@@ -6,3 +6,6 @@ duckdb>=1.1
 pytz            # DuckDB needs it for time-zone values; without it a long query can crash Python
 scikit-learn>=1.5
 pandas>=2.2
+jupyterlab      # the tour: jupyter lab warehouse/notebooks/tour.ipynb
+ipykernel
+matplotlib

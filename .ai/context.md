@@ -1,160 +1,138 @@
-<!-- Last updated: 2026-09-25 (compass: buying_intelligence_v2) -->
-# Eco-Thrift Dashboard — AI Context
+<!-- Last updated: 2026-10-01 (5S pass: standards.md is the one standards list; deviations live there) -->
+# ecothrift-dashboard — AI Context
 
-## Project Summary
+## Project summary
 
-Full-stack business management for a thrift store in Omaha, NE. HR (time clock, sick leave), inventory (vendors, POs, item processing), POS (registers, drawers, carts, receipts), consignment, buying (B-Stock), public storefront + Online Sales, restoration (TARS), admin. Django 5.2 + DRF, React 18.3 + TypeScript + MUI v7, PostgreSQL. Deployed to Heroku.
+Full-stack business management for Eco-Thrift, a thrift store in Omaha, NE. It covers:
+- HR: time clock, kiosk, sick leave
+- inventory: vendors, POs, item processing, product intelligence
+- POS: registers, drawers, carts, receipts
+- Thrift+ member rewards, consignment, and buying (B-Stock)
+- the public storefront and Online Sales
+- restoration (TARS), routines and Retail QA
+- the data platform (Requests center, AI brief, local warehouse)
 
-## Release and version (repo root only)
+Stack: Django 5.2 + DRF, React 18.3 + TypeScript + MUI 7, PostgreSQL (schema `ecothrift` on the shared add-on). Runs on Heroku app `ecothrift-dashboard` (`dash.ecothrift.us`, public site `ecothrift.us`). Tier: core (house standards: `C:\Coding\.ai\standards\projects.md`).
 
-- **Current tag:** [`.version`](../.version) — do not duplicate semver here.
-- **What shipped / WIP:** [`CHANGELOG.md`](../CHANGELOG.md) (latest dated section + `[Unreleased]`).
-- **Release timing (owner's rule):** nothing ships per fix. The owner pushes everything in one release when all active work is done. Until then `.version` stays at the last shipped tag, every change goes under `[Unreleased]`, and nobody commits, pushes, or bumps a version. The ship protocol picks the bump then.
-- **Pushes:** [`ship-push-git.md`](protocols/ship-push-git.md) bumps semver and pushes GitHub. [`ship-push-heroku.md`](protocols/ship-push-heroku.md) does that then Heroku. Prod shows `.version` via `GET /api/core/system/version/` and the sidebar footer. Print server exe: [`ship-print-server.md`](protocols/ship-print-server.md) (`VERSION` in `printserver/config.py`, not `.version`).
+## Release and version
+
+- Current version: [`.version`](../.version). Never restate the semver here.
+- What shipped and what's pending: [`CHANGELOG.md`](../CHANGELOG.md) (`[Unreleased]` + dated sections). Prod shows `.version` at `GET /api/core/system/version/` and in the sidebar footer.
+- **Ship** (GitHub): [`protocols/ship.md`](protocols/ship.md). **Deploy** (Heroku): [`protocols/deploy.md`](protocols/deploy.md). The coder runs every command; the owner only gives the word. Print server exe: [`protocols/ship-print-server.md`](protocols/ship-print-server.md) (its own `VERSION` in `printserver/config.py`).
+- Release timing: each phase ships on its own, when the owner orders it (dates in [`calendar.md`](calendar.md)). Between ships every change goes under `[Unreleased]` and nobody bumps `.version`.
 
 ## Active work
 
-- **CALENDAR:** [`.ai/calendar.md`](calendar.md). Thrift+ launches Tue 2026-10-20, and every project piece is done by Thu 10-15. Read the calendar at the start of every session.
-- **ACTIVE (compass) — Thrift+ Rewards:** [`thrift_plus_rewards`](initiatives/thrift_plus_rewards.md). Launch Tue 2026-10-20; ships dark behind a switch until then.
-- **ACTIVE — Data platform and the AI supervisor:** [`data_platform`](initiatives/data_platform.md). The owner's priority besides Thrift+: Requests center (production approvals), the daily AI brief, QA, the Analytical layer, the model factory.
-- **WAITING — Buying intelligence v2:** [`buying_intelligence_v2`](initiatives/buying_intelligence_v2.md) (data_platform's consumer; resumes after launch). Earlier buying work: [`bstock_daily_buying`](initiatives/bstock_daily_buying.md) (Phases 1–6 done).
-- **ACTIVE — Product intelligence:** [`product_intelligence`](initiatives/product_intelligence.md). Phase 1 is done. Spark backfill proposals for every Mixed product sit in `workspace/backfill/` (files only). Phase 2 (v2.101.0) added profiles, the proposals review page, pgvector product vectors and reversible merges. Loading them into production waits on the owner.
-- **Unreleased, outside initiatives:** own-aisle cross-check fix (`routines/0027_orphan_section_drafts`, runs before B-Stock's `0028`) and kiosk follow-ups (Exit without password, sign-in **Scan your card**). Both are in `[Unreleased]`.
-- **ACTIVE - Data quality and rails:** [`data_quality_rails`](initiatives/data_quality_rails.md). The register is [`extended/data-quality.md`](extended/data-quality.md): every build states the register IDs it touches and the fill-ins it uses. We work with imperfect data rather than drop it. **Read its Eras and Standing decisions before building on any data.** V1/V2 were imported on 2026-04-12 with `BACKFILL:` tags; V3 native is the only clean era. "Scrapped" import rows are not shrink, $0 often means unknown, and enrichment is product-first.
-- **Discounts and member prices:** [`extended/discount-logic.md`](extended/discount-logic.md) holds the rules for every price change at the register (Thrift+ true price = tag − reward; percents scale both; no stacking; bank 1.05×; returns 95% credit before tax) and the arbitrage checks. **Read it before adding or changing any discount.**
-- **Product categories:** [`extended/product-taxonomy.md`](extended/product-taxonomy.md) is the one answer key for category, subcategory and price-tag short name. Every placer uses it (people, rules, AI prompts, the gold set). A questioned placement is settled by adding a ruling (TAX-NN) there.
-- **Runner:** the coder only codes. Tests, recon and small chores go to a runner agent following [`protocols/runner.md`](protocols/runner.md), through [`comm/runner/`](comm/runner/): `queue.md`, `tasks/`, `results/`, and `baseline.md` (known test failures).
+- **Calendar:** [`calendar.md`](calendar.md). Read it every session. Thrift+ launches Tue 2026-10-20, and every project piece is done by Thu 10-15.
+- **Compass — Thrift+ Rewards:** [`thrift_plus_rewards`](initiatives/thrift_plus_rewards.md). Ships dark behind a switch until launch. Launch kit: [`thrift_plus_launch_kit`](initiatives/thrift_plus_launch_kit.md).
+- **Data platform and the AI supervisor:** [`data_platform`](initiatives/data_platform.md). This is the owner's priority besides Thrift+.
+- **Product intelligence:** [`product_intelligence`](initiatives/product_intelligence.md). Standardize and dedupe rules: [`extended/product-standard.md`](extended/product-standard.md).
+- **Data quality and rails:** [`data_quality_rails`](initiatives/data_quality_rails.md).
+- **Waiting:** [`buying_intelligence_v2`](initiatives/buying_intelligence_v2.md) resumes after launch. Earlier buying work is in [`bstock_daily_buying`](initiatives/bstock_daily_buying.md).
+- **Inventory count:** [`inventory_count`](initiatives/inventory_count.md). Shipped 2026-10-01; first real count Mon 10-05.
+- **Standing:** [`standards`](initiatives/standards.md), what this repo still owes the house standards, and when.
+- Full list with phases: [`initiatives/_index.md`](initiatives/_index.md).
 
-Pending 2026-09-23: [`documents`](initiatives/_archived/_pending/documents.md) (staff UI unwired; resume when Documents is next) and [`universal_object_surfaces`](initiatives/_archived/_pending/universal_object_surfaces.md) (design only).
+### Two coders
 
-Completed 2026-09-23: [`ai_settings_floorplan`](initiatives/_archived/_completed/ai_settings_floorplan.md) — merged into `main`; ships with B-Stock Phase 1. After that Heroku release runs `core/0006`, unset the old `AI_MODEL_<PURPOSE>` keys.
+Two coders can share this repo. Each one has one peer inbox, `comm/inbox-<slug>.md`. The rules for it are in [`protocols/check_comm.md`](protocols/check_comm.md). **The post office is always the main checkout's `C:\Coding\ecothrift-dashboard\.ai\comm\`**, whatever tree you work in.
 
-Completed 2026-09-22: [`time_kiosk`](initiatives/_archived/_completed/time_kiosk.md) (**v2.96.0**), [`departments_admin`](initiatives/_archived/_completed/departments_admin.md) and [`retail_qa_scoring_v2`](initiatives/_archived/_completed/retail_qa_scoring_v2.md) (GitHub **v2.95.0**, Heroku with **v2.96.0**), [`cardx_surcharge`](initiatives/_archived/_completed/cardx_surcharge.md) (**v2.92.0–v2.94.0**), [`listing_photos`](initiatives/_archived/_completed/listing_photos.md) (**v2.91.0**). Kiosk and Command Center follow-ups continue without an initiative.
+| Slug | Owns | Workspace | Runner IDs |
+|------|------|-----------|------------|
+| `data_platform` | Thrift+ core (members, cards, reward engine, POS, returns, signup), the Requests center, the data platform and AI brief, buying | main checkout | R-071 to R-099 |
+| `thrift_scanner` | **Retired 2026-09-30** (the owner turned that coder off). Its lane, the Thrift+ customer scanner (`/scan`), is now worked from the main session | worktree `C:\Coding\_worktrees\ecothrift-dashboard--thrift-scanner` (branch `thrift-scanner-mock`) | R-100 and up |
+| `standards` (was `tech_target`) | **Closed 2026-10-02** (the owner ended the Helper session). Everything it owned is the main coder's now: the count app, PR Fix-it, AI cleanup job, public legal pages, the scanner lane, `standards.md` and master's mail. Handoff: [`reference/reports/2026-10-02-helper-handoff.md`](reference/reports/2026-10-02-helper-handoff.md) | - | - |
 
-Routines + Retail QA shipped **v2.87.0**.
+- **Never share a working tree.** `scripts/deploy/ship.bat` stages everything (`git add -A`), so it would commit the other coder's half-done work.
+- **Before every push:** `git fetch origin`, merge `origin/main`, and bump past the newest version on `main`. Never force-push. Ship a tested snapshot from a worktree when the main tree holds later phases ([`ship.md`](protocols/ship.md) Project steps).
+- **Stay in your lane.** Touch another coder's files only through a message in its inbox. In [`calendar.md`](calendar.md), update only the Status cell of your own items.
 
-TARS and enhancement requests shipped **v2.71.0** (GitHub, not Heroku): [`finalize_tars_app`](initiatives/_archived/_completed/finalize_tars_app.md), [`enhancement_requests`](initiatives/_archived/_completed/enhancement_requests.md). Domain: [`extended/restoration.md`](extended/restoration.md).
+## Guardrails
 
-Parked / shipped work lives in [`initiatives/_index.md`](initiatives/_index.md) and [`CHANGELOG.md`](../CHANGELOG.md).
+- Do not commit, push, or deploy unless the user explicitly orders it.
+- If [`comm/RUNNING-NOW.md`](comm/RUNNING-NOW.md) exists, obey it. A long job on the local DB is running.
+- **Production data:** routine data operations in prod go through `stage_request`, and the owner approves them in Dash → Requests. Never pull production into local, or run prod one-offs, without the user's order.
+- **Data:** read the Eras and Standing decisions in [`extended/data-quality.md`](extended/data-quality.md) before building on data. Every build names the register IDs it touches and the fill-ins it uses. Work with imperfect data (flag it) rather than drop it. `$0` often means unknown.
+- **Discounts:** read [`extended/discount-logic.md`](extended/discount-logic.md) before adding or changing any price change at the register. Key rules:
+  - Thrift+ true price = tag − reward.
+  - Percents scale both.
+  - No stacking.
+  - Bank 1.05×.
+- **Legal guide for Thrift+ and what we sell:** [`extended/thrift-plus-legal-memo.md`](extended/thrift-plus-legal-memo.md), accepted by the owner's CPA and attorney (2026-10-01). Follow it by default. What the store sells:
+  - Graphic 18+ adult items (resembling genitalia) are kept separate and out of view.
+  - 18+ as a store rule is fine for non-nicotine vapes, knives and crossbows.
+  - Never sell graphic sex or porn media, tobacco or nicotine products, or actual guns.
+  - Never add an ID scanner that stores data.
+- **Categories:** [`extended/product-taxonomy.md`](extended/product-taxonomy.md) is the one answer key. A questioned placement is settled with a TAX-NN ruling there.
+- **Runner:** tests, recon and small chores can go to a runner agent via [`protocols/runner.md`](protocols/runner.md) and [`comm/runner/`](comm/runner/) (`queue.md`, live `tasks/` and `results/`, `baseline.md` = known failures; kept results go to `reference/reports/`). Targeted tests: `python scripts/dev/lean_test.py <area>`.
+- Substantial work maps to a named initiative. If that's unclear, ask. Never archive an initiative without the user's approval.
+- Don't create documentation files unless asked. The exceptions are this compass, initiatives and `extended/` files the work changes.
+- When a domain changes, update its `extended/` file. When you add an env key, add it to `.env` / `.envprod` and to the table in [`extended/development.md`](extended/development.md). Stamp edited docs `<!-- Last updated: YYYY-MM-DD -->` (America/Chicago).
+- Never put secrets or `.env` values in `.ai/`, comm files, commits or chat. Never invent credentials.
 
-## Hidden UI (`web_ui_cleanup`)
+## Environment
 
-Sidebar entries removed. Consignment bookmarks still work. Documents routes are off until that UI is tuned.
+- Windows + PowerShell (`;` not `&&`).
+- Python: `venv\` at the repo root (3.12, `.python-version`; this PC also has 3.14 as `py`). Node: `engines` 22.x (this PC runs 24.19 since 2026-09-30).
+- Dev ports: Django `8000`, staff Vite `5173`, public Vite `5174` (registered in `C:\Coding\.ai\standards\projects.md`). `scripts\dev\start.bat` / `kill.bat`.
+- Database: local `local_shared`, schema `ecothrift` (`search_path` set in settings). V1/V2 archives: [`extended/databases.md`](extended/databases.md).
+- Env files (house D8): `.env` (local values) and `.envprod` (mirror of Heroku Config Vars), both at the repo root and gitignored. No other env files. Production keys never go into `.env`. Sync with the house env-sync tool in `scripts\env\` via [`protocols/env-sync.md`](protocols/env-sync.md). Names are listed in [`extended/development.md`](extended/development.md), never values.
+- Dev and prod (house D10): local uses the same keys as production but writes only `dashboard-basic/ecothrift/dev/` (`ENVIRONMENT=dev`, `AWS_LOCATION=ecothrift/dev`). Production images copied into the local DB don't load locally (they sit at the bucket root). Local mail is off (`MS_GRAPH_ENABLED=False`).
+- Scratch, logs, test output, DB dumps: `workspace/` (gitignored). Nothing outside the repo.
 
-| Area | Hidden from nav | Routes |
-|------|-----------------|--------|
-| **Consignment (staff)** | Accounts, Items, Payouts (+ account detail) | `/consignment/accounts`, `/consignment/accounts/:id`, `/consignment/items`, `/consignment/payouts` |
-| **Documents** | Account-menu link off. Pages stay in `frontend/src/pages/documents/`. | `/documents*` unwired — catch-all goes to Dashboard. Rewire when the UI is tuned. |
+## Deviations from house standard
 
-**HR (account menu):** Today (`/today`: punch, the day's routines with the runner in place, Hours & pay). Pay, the staff Routines list and My QA are gone (their URLs redirect to Today). Essentials → **Kiosk** (`/kiosk`). Desk Dashboard / Today share `FloorNav` (same names as the phone tab bar). Digit 9 and letter L are free. **Admin:** Users (Employees first and default for Admin, Customers second; Managers only see Customers), Departments (directory + hub), Shifts, Routines / Routine Control (superuser — Routines, Sections), Time & payroll (superuser), Settings (System / Printing / Store / Assumptions / Retail QA / Permissions / AI for superusers). Retail QA Command Center stays on Cashier (`/admin/retail-qa`, Manager+). **Studios:** Label Studio, Floorplans, Blog Studio. **Consignee portal** (`/consignee/*`) unchanged.
+The approved list is in [`initiatives/standards.md`](initiatives/standards.md) § Deviations. It is kept only there.
 
-## File Map
+## Extended docs
 
-```
-ecothrift-dashboard/
-├── ecothrift/              Django settings and root URLs
-├── apps/                   accounts, ai, core, hr, inventory, pos, consignment, buying, webstore, blog, routines, documents
-├── frontend/src/           Staff SPA (api, components, hooks, pages, App.tsx)
-├── frontend-public/        Public storefront SPA
-├── printserver/            Local FastAPI print server
-├── scripts/                dev/start_dashboard.bat, start_mobile_dashboard.bat, start_website.bat
-├── .ai/                    AI steering — see .ai/README.md
-│   ├── context.md          This compass
-│   ├── protocols/          clean-up, context-load, check_comm, initiative-create, initiative-review, ship-push-git, ship-push-heroku, ship-print-server
-│   ├── comm/               Master: inbox.md / outbox.md. Two coders: inbox-<feature>.md
-│   ├── initiatives/        Plan + _archived/
-│   └── extended/           Domain docs + sql/ + initiatives.md
-├── .version                Single-line app semver (vMAJOR.MINOR.PATCH)
-├── CHANGELOG.md            Version-level changelog
-├── .env                    Local config (gitignored)
-└── .envprod                Heroku config mirror (gitignored)
-```
+Load on demand. Do not read them all at session start. When you add, rename or remove a file in `extended/`, update this table.
 
-## Environment files
+| File | Load when |
+|------|-----------|
+| [`app-map.md`](extended/app-map.md) | Staff nav, workspaces and pages in one map (hand to a UX / nav review) |
+| [`auth-and-roles.md`](extended/auth-and-roles.md) | JWT flow, roles, permissions, password flows |
+| [`backend.md`](extended/backend.md) | Django apps, models, serializers, API patterns |
+| [`backfill-plan.md`](extended/backfill-plan.md) | Cleaning or backfilling a field (rules in `warehouse/sql/`, models in `factory/`) |
+| [`brand.md`](extended/brand.md) | Staff colours, same-colour-same-meaning, token files |
+| [`bstock.md`](extended/bstock.md) | B-Stock API, scraper, SOCKS5 |
+| [`cash-management.md`](extended/cash-management.md) | Drops, pickups, drawer reconciliation, safe |
+| [`consignment.md`](extended/consignment.md) | Agreements, items, payouts, portal |
+| [`data-quality.md`](extended/data-quality.md) | Any build on historical data: register, eras, fill-ins, rails |
+| [`databases.md`](extended/databases.md) | V1/V2/V3, `search_path`, `.env` DB keys, the prod → local pull |
+| [`development.md`](extended/development.md) | Setup, starters, env names, logging, Scheduler, Graph mail |
+| [`discount-logic.md`](extended/discount-logic.md) | Any register price change: rewards, sales, BOGO, banking, returns |
+| [`documents.md`](extended/documents.md) | PDF upload, field placement, signing wizard, flatten |
+| [`frontend.md`](extended/frontend.md) | React + MUI, pages, routing, React Query, hidden UI |
+| [`heroku-memory.md`](extended/heroku-memory.md) | Heroku memory checks after a deploy that touches pagination, Gunicorn or caching |
+| [`inventory-pipeline.md`](extended/inventory-pipeline.md) | PO processing, M3, preprocessing, Item Processor |
+| [`thrift-plus-decisions.md`](extended/thrift-plus-decisions.md) | **Read first for any Thrift+ rule:** the owner's final answers (returns at 90%, Thrift+ Balance replaces banked rewards, tax, wording, signup). Wins over older notes |
+| [`thrift-plus-limited-warranty.md`](extended/thrift-plus-limited-warranty.md) | Member returns, Poster C, AS IS signs, receipt warranty lines, the terms (the Limited Warranty text to use) |
+| [`thrift-plus-legal-memo.md`](extended/thrift-plus-legal-memo.md) | Thrift+ and IDs, photos, privacy, 18+ items, returns, store credit, sales tax, advertising (AI research for the attorney, with a design-impact digest) |
+| [`known-issues.md`](extended/known-issues.md) | Known issues and live gaps (check before a ship) |
+| [`pos-system.md`](extended/pos-system.md) | Registers, drawers, carts, terminal, receipts |
+| [`print-server.md`](extended/print-server.md) | Local FastAPI: labels, receipts, drawer kick |
+| [`product-standard.md`](extended/product-standard.md) | What every product must look like; standardize and dedupe |
+| [`product-taxonomy.md`](extended/product-taxonomy.md) | Category, subcategory, price-tag short name (TAX rulings) |
+| [`restoration.md`](extended/restoration.md) | TARS: RestorationJob, queue, bench, scoreboard |
+| [`routines.md`](extended/routines.md) | Periodic / on-demand forms, pooled runs, nag, Retail QA grading |
+| [`ux-spec.md`](extended/ux-spec.md) | Colour, typography, spacing, house UI rules |
+| [`vpn-socks5.md`](extended/vpn-socks5.md) | PIA SOCKS5 setup and diagnostics |
+| [`sql/README.md`](extended/sql/README.md) | `schema.csv`, `cli.md`, and how to run the SQL tools in `scripts/sql/` |
 
-**Exactly two env files exist, and neither is committed: `.env` and `.envprod`.** Edit them at the repo root. No example/template, no fragment layer.
-
-| File | Role |
-|------|------|
-| **`.env`** | Local config. Django (`ecothrift/settings.py` via python-decouple) and Vite (`frontend/vite.config.ts`) both read it. |
-| **`.envprod`** | Production values. `scripts/deploy/env/sync_to_heroku.bat` pushes it to Heroku Config Vars. Keep the shared bottom block identical to `.env`. |
-
-The authoritative list of variable **names** is the Environment Variables table in [`development.md`](extended/development.md). When you need a value, read `.env` on disk. Never invent credentials, and never copy secrets into `.ai/`, committed files, or chat.
-
-## Extended docs — `.ai/extended/` TOC
-
-Load **on demand**. Do not read all at session start.
-
-| File | Domain | Description |
-|------|--------|-------------|
-| [`auth-and-roles.md`](extended/auth-and-roles.md) | Auth | JWT flow, roles, permissions, password flows |
-| [`backend.md`](extended/backend.md) | Backend | Django apps, models, serializers, API patterns |
-| [`bstock.md`](extended/bstock.md) | Buying | B-Stock API, scraper, SOCKS5 |
-| [`cash-management.md`](extended/cash-management.md) | POS | Drops, pickups, drawer reconciliation, safe |
-| [`consignment.md`](extended/consignment.md) | Consignment | Agreements, items, payouts, portal |
-| [`databases.md`](extended/databases.md) | Data | V1/V2/V3, `search_path`, `.env` DB keys |
-| [`development.md`](extended/development.md) | Dev ops | Setup, starters, environment, logging, Scheduler, Graph mail |
-| [`frontend.md`](extended/frontend.md) | Frontend | React + MUI, pages, routing, React Query |
-| [`brand.md`](extended/brand.md) | Brand | Staff hex, same-colour-same-meaning, token files |
-| [`initiatives.md`](extended/initiatives.md) | Initiatives | File layout, buckets, create / park / complete / abandon |
-| [`routines.md`](extended/routines.md) | Routines | Periodic / on-demand fill-in forms, pooled runs, nag |
-| [`documents.md`](extended/documents.md) | Documents | PDF upload, field placement, signing wizard, flatten |
-| [`inventory-pipeline.md`](extended/inventory-pipeline.md) | Inventory | PO processing, M3, preprocessing, Item Processor |
-| [`pos-system.md`](extended/pos-system.md) | POS | Registers, drawers, carts, terminal, receipts |
-| [`print-server.md`](extended/print-server.md) | Print | Local FastAPI — labels, receipts, drawer kick |
-| [`restoration.md`](extended/restoration.md) | TARS | RestorationJob, queue, bench, scoreboard, routes |
-| [`ux-spec.md`](extended/ux-spec.md) | UI/UX | Color, typography, spacing, house rules |
-| [`vpn-socks5.md`](extended/vpn-socks5.md) | Proxy | PIA SOCKS5 setup and diagnostics |
-| [`sql/README.md`](extended/sql/README.md) | SQL | `schema.csv`, daily migration SQL, `cli.md` |
-
-When you add, rename, or remove a file in `.ai/extended/`, update this table.
-
-## Known Issues
-
-- **Inventory — acquisition cost:** `Item.retail_value` is vendor/manifest retail. `Item.cost` is allocated per PO using `PurchaseOrder.est_shrink` and listing retail. Retag floor stock can have null cost — see Item acquisition cost in [`extended/backend.md`](extended/backend.md).
-- **Buying — `DELETE manifest` edge case:** wrong-marketplace CSV can leave misleading `CategoryMapping` prefixes after rows are removed.
-- **`anthropic` package** must be in the venv for AI features (lazy import).
-- Recharts ResponsiveContainer may log a width/height warning on first render (cosmetic).
-- Large JS bundle (~1.7MB).
-- POS cash completion should be hardened for malformed numeric payloads.
-- **POS — already sold:** the dialog is SKU-exact (`status=sold`). Check-in edit no longer births sold units when quantity is raised after a sibling sold (**v2.95.0**). Duplicate physical tags (Quick Reprice / extra copies of one SKU) and cart qty++ on the same SKU still produce the message.
-- **Routines — Opening can run twice a day:** once a pooled run picks up an assignee and is finished, the pooled branch of `materialize_routines` (it looks for `status=open` only) makes a second run for the same period. Seen 2026-09-22 (runs 180 and 187). Fix: skip creation when any run exists for that routine and period.
-- **Tests — `tests_*.py` are not collected by default:** `pytest.ini` `python_files` is `test_*.py tests.py`, so a bare `pytest apps/routines` skips the nine `tests_*.py` files; name them. Pre-existing red (the `Retail` department seed collision, em dashes in six files, grading and clock-dependent asserts) is listed under Later in [`time_kiosk`](initiatives/_archived/_completed/time_kiosk.md).
-
-## Not yet implemented (live gaps)
-
-- No DB link from won **Auction** → **PurchaseOrder**.
-- Email notifications beyond Graph transactional mail (holds, magic links, and password resets are covered).
-- Broad automated test suite (POS and restoration have coverage; most domains do not).
-- Pricing ML model not trained. Buying report cards start empty: only trucks won with "We won it" (v2.104.0+) count, and calibration needs 5 trucks that are 90+ days old and half sold.
-
-## AI Guidelines
-
-1. Do **not** commit, push, or deploy unless explicitly told.
-2. Do **not** create documentation files unless asked (exception: this compass, initiatives, and extended files when the work changes them).
-3. Use timestamps (`YYYY-MM-DD`, America/Chicago) on docs you edit.
-4. Load `.ai/extended/<domain>.md` only when the task touches that domain.
-5. Substantial work maps to a **named initiative**. If unclear, ask. Filing rules: [`extended/initiatives.md`](extended/initiatives.md). Do not archive without explicit approval.
-6. Scratch files go in `workspace/`. Verify before changing; check lints after.
-
-**Maintain:** change a domain → update that extended file. New env key → `.env` / `.envprod` + the table in `development.md`. **IF** the user attaches a protocol **THEN** run that protocol.
-
-## Quick Reference
+## Quick reference
 
 | Need | Where |
 |------|-------|
-| Compass | `.ai/context.md` (this file) |
-| Clean-up | `.ai/protocols/clean-up.md` — if given, list then delete the paste-back |
-| Load context | `.ai/protocols/context-load.md` — if given, do it |
-| Parent comm | `.ai/comm/` + `.ai/protocols/check_comm.md` — if given, pickup master inbox and your feature inbox / write outbox or the other coder's inbox |
-| Create initiative | `.ai/protocols/initiative-create.md` — if given, interview then write |
-| Review initiatives | `.ai/protocols/initiative-review.md` — if given, propose then apply the paste-back |
-| Ship to GitHub | `.ai/protocols/ship-push-git.md` — if given, do it |
-| Ship to Heroku | `.ai/protocols/ship-push-heroku.md` — if given, do it |
-| Ship print server | `.ai/protocols/ship-print-server.md` — if given, do it (S3 + Settings + this PC) |
-| Schema snapshot | `.ai/extended/sql/README.md` — Update schema |
-| Initiative files | `.ai/extended/initiatives.md` |
-| Env names | `.ai/extended/development.md` |
-| Active plan | `.ai/initiatives/_index.md` |
-| Version | `.version` + `CHANGELOG.md` |
-| Dev starters | `scripts/dev/` |
+| Start a session | [`protocols/startup.md`](protocols/startup.md) |
+| Messages from master / the other coder | [`protocols/check_comm.md`](protocols/check_comm.md) |
+| Standards review | [`protocols/standards-review.md`](protocols/standards-review.md) → [`initiatives/standards.md`](initiatives/standards.md) |
+| New / review initiatives | [`protocols/initiative-create.md`](protocols/initiative-create.md), [`protocols/initiative-review.md`](protocols/initiative-review.md) |
+| Ship / deploy | [`protocols/ship.md`](protocols/ship.md), [`protocols/deploy.md`](protocols/deploy.md) |
+| Ship print server (project-only) | [`protocols/ship-print-server.md`](protocols/ship-print-server.md) |
+| Runner: tests, recon, chores (project-only) | [`protocols/runner.md`](protocols/runner.md) |
+| Clean-up (project-only) | [`protocols/clean-up.md`](protocols/clean-up.md) |
+| Env sync: pull / diff / push env, add a key | [`protocols/env-sync.md`](protocols/env-sync.md) (`scripts\env\`) |
+| Dev servers | `scripts\dev\start.bat`, `scripts\dev\kill.bat`; variants `start_dashboard.bat` (staff, plain HTTP), `start_mobile_dashboard.bat` (phone HTTPS), `start_website.bat` (public) |
+| DB backup / prod → local pull | `scripts\db\backup_prod.bat`, `scripts\db\pull_prod_to_local.bat` (schema `ecothrift` only) |
+| Schema snapshot | [`extended/sql/README.md`](extended/sql/README.md) |

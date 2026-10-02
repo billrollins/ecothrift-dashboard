@@ -12,6 +12,18 @@
       "runtimeExecutable": "venv/Scripts/python.exe",
       "runtimeArgs": ["manage.py", "runserver", "127.0.0.1:8000"],
       "port": 8000
+    },
+    {
+      "name": "intake-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:/Coding/ecothrift-intake/frontend", "run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "intake-backend",
+      "runtimeExecutable": "venv/Scripts/python.exe",
+      "runtimeArgs": ["C:/Coding/ecothrift-intake/manage.py", "runserver", "127.0.0.1:8000", "--noreload"],
+      "port": 8000
     }
   ]
 }

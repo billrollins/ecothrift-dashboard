@@ -38,6 +38,10 @@ def embed_texts(texts: Sequence[str], batch_size: int = 256) -> list[list[float]
 
 
 def product_text(product: Product, profile: ProductProfile | None = None) -> str:
+    # A standardized product embeds its vector text (product specs in, item details out), with the canon
+    # category, so dedupe and matching compare like with like (.ai/extended/product-standard.md).
+    if profile and profile.vector_text:
+        return ' | '.join(p for p in (profile.vector_text, profile.category, profile.subcategory) if p)
     brand = (profile.brand if profile and profile.brand else '') or canonical_brand(product.brand)
     parts = [brand, product.title]
     if profile and profile.category and not profile.category.startswith('Mixed'):

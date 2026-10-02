@@ -2648,6 +2648,11 @@ class ProductProfile(models.Model):
     merged_into = models.ForeignKey(
         Product, on_delete=models.SET_NULL, null=True, blank=True, related_name='merged_profiles'
     )
+    # The text that gets embedded (brand, type, key specs, use, audience, synonyms; no filler words).
+    vector_text = models.TextField(blank=True, default='')
+    # Other names for this same product, gathered when products merge or a seller spells it differently:
+    # {"upcs": [...], "models": [...], "titles": [...], "brands": [...]}.
+    aliases = models.JSONField(default=dict, blank=True)
     field_meta = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -2752,6 +2757,38 @@ class ProductVector(models.Model):
 
     def __str__(self):
         return f'vector {self.product_id} ({self.model_name})'
+
+
+class DedupeDecision(models.Model):
+    """
+    Spark's (or a person's) answer to "are these two products the same product?", under one rules version.
+
+    The dedupe loop never asks the same pair again under the same ``rules_version``, so products are not merged
+    and split in circles; a new version of the spec rules (``apps/inventory/spec_rules.py``) may ask again.
+    ``product_a`` is always the lower id.
+    """
+
+    SAME = 'same'
+    DIFFERENT = 'different'
+    DECISIONS = [(SAME, 'Same product'), (DIFFERENT, 'Different products')]
+
+    product_a = models.ForeignKey('Product', on_delete=models.CASCADE, related_name='+')
+    product_b = models.ForeignKey('Product', on_delete=models.CASCADE, related_name='+')
+    decision = models.CharField(max_length=10, choices=DECISIONS)
+    similarity = models.FloatField(null=True, blank=True)
+    reason = models.CharField(max_length=300, blank=True, default='')
+    source = models.CharField(max_length=80, help_text='ai:<model> | human')
+    rules_version = models.CharField(max_length=80)
+    merge = models.ForeignKey('CatalogMerge', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['product_a', 'product_b', 'rules_version'], name='dedupe_pair_per_version'),
+        ]
+
+    def __str__(self):
+        return f'{self.product_a_id}~{self.product_b_id}: {self.decision} ({self.rules_version})'
 
 
 class CatalogMerge(models.Model):

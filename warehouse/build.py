@@ -4,7 +4,7 @@ Build the Analytical layer (data_platform Phase 4) on this PC from the local cop
     python -m warehouse.build              # all tables
     python -m warehouse.build --only item   # SQL files whose name contains "item"
 
-- **Source:** the local Postgres copy that `scripts/deploy/0_pull_prod_to_local.bat` refreshes
+- **Source:** the local Postgres copy that `scripts/db/pull_prod_to_local.bat` refreshes
   (schema `ecothrift`), read by DuckDB. Nothing is written to Postgres or production.
 - **Output:** `workspace/warehouse/ecothrift.duckdb`, one Parquet file per table under
   `workspace/warehouse/parquet/`, and `workspace/warehouse/build.json` (rows, seconds, checks).
@@ -19,6 +19,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import time
 from datetime import datetime
 from pathlib import Path
@@ -28,7 +29,7 @@ import duckdb
 ROOT = Path(__file__).resolve().parent.parent
 SQL_DIR = Path(__file__).resolve().parent / 'sql'
 OUT = ROOT / 'workspace' / 'warehouse'
-BACKUPS = ROOT / 'scripts' / 'deploy' / 'backups'
+BACKUPS = ROOT / 'workspace' / 'db' / 'backups'
 
 PG = os.environ.get(
     'WAREHOUSE_PG',
@@ -55,7 +56,12 @@ def _created_tables(sql: str) -> list[str]:
 def build(only: str | None = None) -> dict:
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / 'parquet').mkdir(exist_ok=True)
-    con = duckdb.connect(str(OUT / 'ecothrift.duckdb'))
+    # Build into a new file and swap it in at the end: the old one stays readable meanwhile.
+    final, building = OUT / 'ecothrift.duckdb', OUT / 'ecothrift.building.duckdb'
+    building.unlink(missing_ok=True)
+    if only and final.exists():
+        shutil.copyfile(final, building)  # --only rebuilds some tables on top of the last build
+    con = duckdb.connect(str(building))
     # No progress bar: DuckDB 1.5 can crash (GIL) printing it from Python on a long query.
     con.execute("INSTALL postgres; LOAD postgres; SET TimeZone = 'America/Chicago'; SET enable_progress_bar = false;")
     con.sql(f"ATTACH '{PG}' AS pg (TYPE postgres, READ_ONLY, SCHEMA 'ecothrift')")
@@ -83,6 +89,11 @@ def build(only: str | None = None) -> dict:
             print(f"  check {name:<46} {count:>9,}{'  <-- FAILED' if name in failed else ''}")
     report['failed'] = failed
     con.close()
+    try:
+        os.replace(building, final)
+    except OSError:
+        print(f'NOTE: {final.name} is open in another program (a notebook kernel?), so this build stays in '
+              f'{building.name}. The Parquet files are updated; restart that kernel and rebuild to swap it in.')
     (OUT / 'build.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
     print(f"source pull {report['source_pull']}; wrote {OUT / 'ecothrift.duckdb'}")
     print(f"RESULT: {'RED (' + ', '.join(failed) + ')' if failed else 'GREEN'}")

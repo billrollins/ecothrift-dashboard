@@ -135,4 +135,4 @@ _none_
 - `webstore: Rename index webstore_an_is_acti_4b2c2c_idx on announcement to webstore_an_is_acti_a90e0e_idx` (pre-dates both; no RenameIndex migration by decision)
 - `webstore: Rename index webstore_st_is_acti_8c1a1a_idx on storehoursoverride to webstore_st_is_acti_8afd4f_idx` (same)
 
-- `src/pages/thriftplus/scanner/useQrCamera.ts`: TS2307 barcode-detector/ponyfill (local main tree only: run `npm install` in frontend to clear; Heroku installs it)
+- `src/pages/thriftplus/scanner/useQrCamera.ts`: TS2307 barcode-detector/ponyfill (local main tree only; Heroku installs it. Cleared on this PC 2026-09-30 with `npm install --no-save barcode-detector`)

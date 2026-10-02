@@ -12,6 +12,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Settings:** new optional `AWS_LOCATION` (S3 key prefix, house standard D10). Unset keeps today's behaviour (bucket root), so production is unchanged; local dev sets `ecothrift/dev`.
+- **Repo standards (`tech_target`):** `.ai/` in the house shape (canonical protocols `startup`, `check_comm`, `ship-git`, `ship-heroku`, `env-sync`); `scripts/` regrouped into `dev/`, `env/` (house env-sync), `db/`, `deploy/` (`ship_git.bat`, `ship_heroku.bat`); retired numbered deploy scripts; runner test worktrees live in `C:\Coding\_worktrees` and are removed after each run.
+
 ## [2.111.0] - 2026-09-29
 
 User-facing theme: **Truckload shipping you can trust when the city is unknown, clean date ranges, and the Analytical layer and model factory on the owner's PC.**

@@ -1,5 +1,7 @@
-<!-- Last updated: 2026-09-25 -->
+<!-- Last updated: 2026-09-30 (working page published) -->
 # Thrift+ launch kit (drafts for the owner)
+
+**Working page (2026-09-30):** https://claude.ai/artifact/WzPhon6EJvA2S7XLk8M3oZ is where the owner ticks the checklist, approves or comments on each draft and answers questions. Status, notes, approvals and questions live in that page's database (collections `tasks`, `drafts`, `questions`); read them with the `ArtifactData` tool, and write status or new questions there too. This file keeps the draft text as the source. If a draft changes here, republish the page so the two match.
 
 Phase 5 of [`thrift_plus_rewards`](./thrift_plus_rewards.md). Claude drafts; the owner approves. Review is planned for Thu 10-08; print and train 10-09 to 10-13; launch Tue 10-20.
 
@@ -8,6 +10,7 @@ Phase 5 of [`thrift_plus_rewards`](./thrift_plus_rewards.md). Claude drafts; the
 - No percentages and no schedules on posters. The schedule is never published.
 - The register opener is **"Do you have a card yet?"** Non-members are **guests**.
 - Plain words, short lines, no em or en dashes.
+- **Wherever rewards, banked rewards or store credit are described, say "no cash value"** (owner, 2026-09-30: always, everywhere). The current drafts do not say it yet.
 
 ---
 
@@ -29,6 +32,9 @@ Phase 5 of [`thrift_plus_rewards`](./thrift_plus_rewards.md). Claude drafts; the
 - **Visual:** a tag with "You'd earn +$X" beside it (the scanner card's look).
 
 ### Poster C: Returns (members only)
+
+> **Superseded 2026-10-01.** The owner chose defect-only returns done as a labeled **Thrift+ Limited Warranty**. Use the poster, receipt and AS IS sign text in [`extended/thrift-plus-limited-warranty.md`](../extended/thrift-plus-limited-warranty.md). The draft below is kept for history only.
+
 - **Headline:** If it doesn't work, bring it back.
 - **Sub:** Thrift+ members can return an item whose main job doesn't work, within 3 days, for store credit.
 - **The fine print, in plain words:**
@@ -122,18 +128,19 @@ within 3 days for store credit.
 
 **Settings and data:**
 - [ ] Rewards for stock already on the floor: the owner's one-time call (10-13). The tools are the start setting, the reset request, and a manual tool if wanted.
-- [ ] Scheduler jobs: `assign_reward_families --limit 200` (05:30 UTC), `recompute_rewards` (06:00 UTC), `build_daily_brief` (morning).
+- [ ] Scheduler jobs: `assign_reward_families --limit 200` (05:30 UTC), `recompute_rewards` (06:00 UTC), `build_daily_brief` (morning). *(09-30: all three commands exist; Heroku Scheduler entries are the owner's step.)*
 
 **Print:**
-- [ ] Print server 1.9.0 built and installed on every register (the Thrift+ receipt block, and the member policy lines if approved).
+- [ ] Print server 1.9.0 built and installed on every register (the Thrift+ receipt block, and the member policy lines if approved). *(09-30: code and `printserver/CHANGELOG.md` ready; `VERSION` is still 1.8.0 and is bumped by `ship-print-server.md` at release. Member and guest receipts render correctly: fixtures `printserver/fixtures/receipt_thriftplus_{member,guest}.json`. Open nit: the "Rewards this trip" row prints in a much larger font than its neighbours; owner to judge.)*
 - [ ] Card backs printed from Dash (Thrift+ → Card batches), and the blanks loaded.
 - [ ] Posters printed (13 × 19) and hung: join at the door, member price at the aisles, returns at the registers.
 
 **People and gear:**
 - [ ] Staff trained on the one-pager (10-13); the dry run with test cards on the test register (10-12).
 - [ ] A photo camera at each register.
-- [ ] The phone screens (scanner reset link, login setup, portal) shipped by `thrift_scanner`.
+- [ ] The phone screens (scanner reset link, login setup, portal) shipped by `thrift_scanner`. *(09-30: the scanner's real-API swap is still waiting; its inbox note from 09-25 is unanswered.)*
 
 **Switch on:**
+- *(09-30: Thrift+ suite GREEN: 57 server tests, 8 front-end test files.)*
 - [ ] 10-20: switch on (`thrift_plus_enabled`), and clear `thrift_plus_test_registers`.
 - [ ] Watch the morning brief and the Thrift+ Overview for the first week.

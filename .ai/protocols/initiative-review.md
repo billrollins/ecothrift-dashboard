@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-08-27 -->
+<!-- Canonical: C:\Coding\.ai\templates\protocols\initiative-review.md — v2 2026-09-30 (from ecothrift-dashboard; flat `_archived/`). Copy unchanged into <project>/.ai/protocols/. Project-only steps go in the marked section at the end. -->
 # Protocol: Review initiatives
 
 Coding often outruns the files. This pass reconciles Active / Pending / Backlog with what actually shipped, then you approve moves.
@@ -20,7 +20,7 @@ Do not start coding. Do not ship. Do not bump semver. Do not commit.
 1. Read [`.version`](../../.version).
 2. Read the top dated section of [`CHANGELOG.md`](../../CHANGELOG.md). If `[Unreleased]` exists, read that too.
 3. Read [`.ai/initiatives/_index.md`](../initiatives/_index.md) and [`.ai/context.md`](../context.md) **Active work**.
-4. Read every **Active** file. Read every **Pending** and **Backlog** file named on `_index.md`. Do not open `_completed/` or `_abandoned/` unless the user named that file.
+4. Read every **Active** file. Read every file `_archived/ARCHIVE.md` lists as **pending** or **backlog**. Do not open completed or abandoned files unless the user named one.
 
 For each file, compare: Status / checkboxes / Record vs CHANGELOG vs the finish line vs `_index.md` notes.
 
@@ -67,8 +67,39 @@ The pasted text is the apply set. Ignore headings and blank lines.
 2. **IF** the slug was not on your Pass A list in this chat **THEN** skip it and say so.
 3. **keep** — do nothing to that file.
 4. **update** — edit the file in place: Status, checkboxes that shipped, one Record line dated today (America/Chicago), bump `<!-- Last updated -->` and the `updated=` stamp. Fix the `_index.md` row. Do not move the file.
-5. **complete / pending / backlog / abandon / activate** — update the file the same way, then move it per [`.ai/extended/initiatives.md`](../extended/initiatives.md) (`git mv`, archive comment, `_index.md`, `ARCHIVE.md`). Fix relative links. Today's date on archive comments.
+5. **complete / pending / backlog / abandon / activate** — update the file the same way, then move it per [filing rules in `initiative-review.md`](initiative-review.md#filing-rules) (`git mv`, archive comment, `_index.md`, `ARCHIVE.md`). Fix relative links. Today's date on archive comments.
 6. **IF** `context.md` **Active work** now points at a moved file or stale one-liner **THEN** fix it.
 7. **STOP.** Report applied / skipped. Do not commit. Do not start a ship.
 
 **IF** the paste has no slug lines **THEN** change nothing and STOP.
+
+---
+
+## Filing rules
+
+Bounded work (hours to days). One `.md` per initiative under `.ai/initiatives/` plus a row on `_index.md`. Not a session log.
+
+**Human gate:** never move a file into `_archived/` without the user's approval (Pass B of this protocol is that approval).
+
+| Place | Meaning |
+|-------|---------|
+| `.ai/initiatives/<slug>.md` | Active |
+| `.ai/initiatives/_archived/<slug>.md` | Everything else — one flat folder. The disposition lives in `ARCHIVE.md` and the file's archive comment, not in a subfolder. |
+
+Dispositions: **pending** (paused — record what would resume it) · **backlog** (future, not started) · **completed** (scope delivered — tie to the `CHANGELOG.md` version) · **abandoned** (won't pursue — one-line why). No subfolders, no `.gitkeep`.
+
+Every move, in the same pass:
+
+1. `git mv` the file (plain move if the repo has no git).
+2. Add an archive comment at the top: `<!-- Archived YYYY-MM-DD: disposition=<bucket> — <note> -->`.
+3. Update `_index.md` (remove from Active) and `_archived/ARCHIVE.md` (one row per archived file: slug, disposition, date, note).
+4. Fix relative links broken by the path change. Bump both `<!-- Last updated -->` stamps.
+5. If `context.md` **Active work** pointed at the file, fix it.
+
+Activate (archive → root) is the reverse: `git mv` back, a reactivation note in `## Record`, `_index.md` Active row, remove the `ARCHIVE.md` row.
+
+`standards.md` is a **standing** initiative: it is never archived.
+
+## Project steps
+
+(none — add project-specific steps here, never above)

@@ -1,6 +1,6 @@
 <!-- Last updated: 2026-09-08 (local_shared) -->
 
-# SQL (`extended/sql/`)
+# SQL (docs here; the runnable `.sql` files are in `scripts/sql/`)
 
 PostgreSQL snippets for **pgAdmin**, **`psql`**, and automation. **[`cli.md`](cli.md)** — terminal connection patterns.
 
@@ -9,9 +9,9 @@ PostgreSQL snippets for **pgAdmin**, **`psql`**, and automation. **[`cli.md`](cl
 | File | Purpose |
 |------|---------|
 | [`cli.md`](cli.md) | **`psql`** / **`manage.py dbshell`** — humans and AI agents. |
-| [`schema_columns_ecothrift.sql`](schema_columns_ecothrift.sql) | **`information_schema`** column listing for **`ecothrift`**. |
-| [`inventory_daily_migration.sql`](inventory_daily_migration.sql) | **v4** bulk interval reconstruction → flat columns **`prefix_suffix`**. Writes **[`daily_migration.csv`](daily_migration.csv)** via **`psql --csv`**. |
-| [`daily_migration.csv`](daily_migration.csv) | Generated report; gitignored unless you choose to commit snapshots. |
+| [`schema_columns_ecothrift.sql`](../../../scripts/sql/schema_columns_ecothrift.sql) | **`information_schema`** column listing for **`ecothrift`**. |
+| [`inventory_daily_migration.sql`](../../../scripts/sql/inventory_daily_migration.sql) | **v4** bulk interval reconstruction → flat columns **`prefix_suffix`**. Writes **`workspace/sql/daily_migration.csv`** via **`psql --csv`**. |
+| `workspace/sql/daily_migration.csv` | Generated report (real sales figures): lives in `workspace/sql/`, never in `.ai/` or git. |
 | **`schema.csv`** | Generated snapshot (not hand-edited). **Intentionally committed.** Refresh with the steps under **Update schema** below. |
 
 ---
@@ -31,8 +31,8 @@ $env:PGPASSWORD = $eb['PASSWORD']
 $pgHost = if ($eb['HOST']) { $eb['HOST'] } else { 'localhost' }
 $pgPort = if ($eb['PORT']) { $eb['PORT'] } else { '5432' }
 psql -h $pgHost -p $pgPort -U $eb['USER'] -d $eb['NAME'] -v ON_ERROR_STOP=1 `
-  --csv -f ".ai/extended/sql/inventory_daily_migration.sql" `
-  -o ".ai/extended/sql/daily_migration.csv"
+  --csv -f "scripts/sql/inventory_daily_migration.sql" `
+  -o "workspace/sql/daily_migration.csv"
 ```
 
 **Flattened column names** (`json_group` + `_` + `json_key`; nested bucket keys use `_from_*` / `_to_*`):
@@ -83,14 +83,14 @@ WHERE NOT EXISTS (
 
 After **migrations**, **new models**, or whenever SQL needs an accurate column list:
 
-1. Run **[`schema_columns_ecothrift.sql`](schema_columns_ecothrift.sql)** against **local** **`local_shared`** (or the DB you are documenting).
+1. Run **[`schema_columns_ecothrift.sql`](../../../scripts/sql/schema_columns_ecothrift.sql)** against **local** **`local_shared`** (or the DB you are documenting).
 2. Write CSV output next to this README as **`schema.csv`** (overwrite).
 
 **Example — PowerShell** (repo root; fill connection flags from **`.env`** — see **`cli.md`**):
 
 ```powershell
 $env:PGPASSWORD = "<DATABASE_PASSWORD from .env>"
-psql -h localhost -p 5432 -U postgres -d local_shared --csv -f ".ai/extended/sql/schema_columns_ecothrift.sql" -o ".ai/extended/sql/schema.csv"
+psql -h localhost -p 5432 -U postgres -d local_shared --csv -f "scripts/sql/schema_columns_ecothrift.sql" -o ".ai/extended/sql/schema.csv"
 ```
 
 **AI agents:** perform that dump when the user asks to refresh schema, when **`apps/*/models.py`** or migrations changed and ad hoc SQL is in scope, or when **`schema.csv`** is missing/stale. Use **`cli.md`** for credentials (**never** invent hosts/passwords). Prefer **read-only** `SELECT` against **local** DB unless the user specifies otherwise.

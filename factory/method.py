@@ -104,7 +104,9 @@ class _Lasso(BaseEstimator, TransformerMixin):
     """Step 4a: keep the columns an L1 logistic (strength by 3-fold CV) gives a non-zero weight."""
 
     def fit(self, X, y):
-        m = LogisticRegressionCV(Cs=8, cv=3, l1_ratios=[1.0], solver='saga', max_iter=400, scoring='neg_log_loss')
+        # liblinear handles L1 on this size of data reliably (saga stopped short of converging).
+        m = LogisticRegressionCV(Cs=8, cv=3, l1_ratios=[1.0], solver='liblinear', max_iter=1000,
+                                 scoring='neg_log_loss', use_legacy_attributes=False)
         m.fit(X, y)
         self.keep_ = np.flatnonzero(np.abs(m.coef_[0]) > 1e-6)
         if self.keep_.size == 0:

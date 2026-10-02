@@ -1,0 +1,45 @@
+{
+  "store_name": "Eco-Thrift",
+  "items": [
+    {
+      "name": "Coat",
+      "quantity": 1,
+      "unit_price": 32.0,
+      "line_total": 32.0
+    }
+  ],
+  "subtotal": 32.0,
+  "tax": 2.24,
+  "total": 34.24,
+  "payment_method": "Cash",
+  "amount_tendered": 40.0,
+  "change": 5.76,
+  "footer": "Var 06 \u2014 cash tendered > total",
+  "thrift_plus": {
+    "member": "Pat R.",
+    "card_last4": "4821",
+    "lines": [
+      {
+        "name": "Cast iron skillet",
+        "tag_price": "24.00",
+        "member_price": "19.20"
+      },
+      {
+        "name": "Wool throw blanket",
+        "tag_price": "18.00",
+        "member_price": "15.30"
+      }
+    ],
+    "reward_total": "7.50",
+    "to_cover": "2.00",
+    "savings": "0.00",
+    "to_bank": "5.78",
+    "credit_used": "0.00",
+    "bank_used": "0.00",
+    "cover_month": "Sep",
+    "cover_covered": "2.00",
+    "cover_amount": "5.00",
+    "banked": "12.40",
+    "credit": "3.25"
+  }
+}

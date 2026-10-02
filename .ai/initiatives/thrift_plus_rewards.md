@@ -131,8 +131,8 @@ A member returns a dead lamp within 3 days for store credit, and the lamp's rewa
 - Cover at $10 vs $20 (after the data comes in).
 - Banking timing.
 - The scanner app's final visual style.
-- CPA: sales tax on rewards and credit, and expiring store credit.
-- Attorney: ID scanning without storage.
+- CPA: the owner's answers (2026-09-30): tax is on what is paid; no liability line (always "no cash value"); the 5% banking extra changes nothing. **Still open:** whether store credit expires (maybe tiered, undecided) and whether the CPA agrees with the tax rule.
+- Attorney: ID scanning without storage. The owner's view: for 18+ items they see the ID as usual (look only, nothing scanned or saved). **Still open for the attorney:** whether keeping the name, phone, customer photo and a verified-18+ flag is fine, retention limits, rules for age-restricted items, and any posted notice or consent for the photo.
 
 ---
 
@@ -168,6 +168,7 @@ Decisions:
 - **Stock already on the floor at launch (owner, 2026-09-25):** the owner decides in October, probably by hand. It's one time, so it can take a while to get right.
   - The engine counts from each item's own floor date until then.
   - The tools: the `thrift_plus_rewards_start` setting, and the reset request (it only runs while the switch is off). A manual tool can be added in Phase 5 if he wants one.
+  - **The calculator (built 2026-09-30):** Dash → Thrift+ → Floor stock. A what-if over the real on-shelf items using the engine's own rules. The choice that matters is how old old stock counts on launch day (a cap of N days = `thrift_plus_rewards_start` of launch − (N − 1) days). On the 09-30 local copy, with each item's real age, 12,479 of 31,701 items (39%) are over 90 days and would sit at the floor on launch day: $322,095 of tags would be $78,903 to a member (75.5% off). Starting everyone fresh gives 0% off on launch day; a 30-day cap gives 25.4%. In the scanner worktree family of branches: `floor-plan`, uncommitted; ships with the next release.
 - **Pacing:**
   - the pace window is the last 14 days of the family's sales;
   - days left are counted from the family's oldest unit;
@@ -258,7 +259,10 @@ The POS handles members:
 - **The return window:** day 3 counts from the sale date, so a Monday sale can come back through Thursday.
 - **The $100+ photo** is a prompt, not a block ("for now").
 - **Open:** re-ring pays the member rebate as store credit rather than cash back. The owner asked what this means; it is explained, and his answer is pending.
-- **Open:** store credit and banked rewards reduce the amount due, but not the taxable subtotal. The CPA question stays open.
+- **Returns decided (owner, 2026-10-01):** defect-only on the main function, done as a labeled **Thrift+ Limited Warranty** ([`extended/thrift-plus-limited-warranty.md`](../extended/thrift-plus-limited-warranty.md)). To build: credit = 95% of the price paid plus the sales tax on that amount (today `returns.py` credits 95% of the line with no tax); a cash fallback when credit can't be used; member receipt lines marked LW or AS IS (`returns.excluded(item)` already knows which); guest receipts all AS IS; the warranty version date on receipts; a manager review of a denial; a phone-number lookup for a lost card. Open: 3 days or 7; the wording of the monthly cover.
+- **Accepted (2026-10-01):** the owner's CPA and attorney agree with the legal memo in full. It is the guide; its recommendations are the default for returns, expiry, tax, wording, ID and photo unless the owner says otherwise.
+- **Legal research (2026-10-01):** see [`extended/thrift-plus-legal-memo.md`](../extended/thrift-plus-legal-memo.md). It refines the tax rule (store credit is a payment, returns credit the tax back), recommends a no-fault member return and non-expiring credit, and says to rename "instant rebate" to "member discount". Several items need the owner's decision.
+- **Decided (owner, 2026-09-30):** sales tax is on the amount paid. Spending store credit or banked rewards lowers the taxable amount ($100 item, $50 of rewards used: tax on $50; banking instead and paying $100: tax on $100). **Not built:** today the register taxes the full subtotal when credit is spent as a tender. Also decided: the 5% banking extra changes nothing about tax, and all copy says rewards and credit have **no cash value**, everywhere.
 - The returned item keeps its inventory status; staff decide in the Register tab.
 - A return takes back the whole line.
 
@@ -297,7 +301,7 @@ The POS handles members:
 - **Migrations:** `thriftplus.0008` (MemberLogin, MemberSession, MemberResetToken, AppCart, AppCartLine, ScanSignal).
 
 **Open:**
-- The phone screens for the reset link (`/scan?reset=`), login setup and the portal (the `thrift_scanner` thread).
+- ~~The phone screens for the reset link (`/scan?reset=`), login setup and the portal.~~ **Built 2026-09-30** (the main session took over the retired `thrift_scanner` thread): the scanner now runs on the real API, `AccountScreens.tsx` has the new-password page, My account and the sign-in setup. Found and fixed a server bug on the way (`me/card-lost/` and `me/remove-person/` answered 405 after acting). In the scanner worktree, uncommitted; ships with the next release.
 - AI short titles: the card uses `ProductProfile.short_name`, else the title, cut at a word.
 
 ### Phase 5 — Launch readiness · drafts started (09-25): [`thrift_plus_launch_kit.md`](./thrift_plus_launch_kit.md) · **ship Mon 10-12 (v2.110.0), fixes through Wed 10-14; launch Tue 10-20**
@@ -319,11 +323,11 @@ The POS handles members:
 
 ## Record
 
-**2026-09-25 — Opened.** The owner's design is complete. Launch is Tue 10-20 and the last project day is Thu 10-15. A parallel thread (`thrift_scanner`) builds the scanner mock today; see [`.ai/comm/threads.md`](../comm/threads.md).
+**2026-09-25 — Opened.** The owner's design is complete. Launch is Tue 10-20 and the last project day is Thu 10-15. A parallel thread (`thrift_scanner`) builds the scanner mock today; see [`.ai/context.md` § Two coders](../context.md#two-coders).
 
 ---
 
 ## See also
 
-- [`data_platform`](./data_platform.md) · [`.ai/calendar.md`](../calendar.md) · [`.ai/comm/threads.md`](../comm/threads.md)
+- [`data_platform`](./data_platform.md) · [`.ai/calendar.md`](../calendar.md) · [`.ai/context.md` § Two coders](../context.md#two-coders)
 - Index: [`_index.md`](./_index.md)

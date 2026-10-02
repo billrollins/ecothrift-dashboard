@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-24 (shift mode: no clock stop; only an end row stops it) -->
+<!-- Last updated: 2026-09-30 (per-run worktree in _worktrees, .env hard link not copy, teardown) -->
 # Protocol: Runner
 
 **What to run depends on what the user gave you:**
@@ -25,7 +25,7 @@ The coder writes code. The runner does everything else that takes time: tests, r
 | `results/R-NNN-slug.md` | The runner | The answer, in the shape the task asks for. |
 | `baseline.md` | The runner appends. The coder prunes. | Test failures known to exist on `main`. |
 | `workspace/runner/R-NNN/` (gitignored) | The runner | Logs, CSVs, scratch scripts. |
-| `archive/tasks/`, `archive/results/`, `archive/index.md` | The coder | Finished tasks, moved out of the queue. Runners ignore `archive/`. |
+| `.ai/reference/reports/YYYY-MM-DD-<slug>.md` | The coder | A finished result worth keeping. `comm/` holds live mail only (house rule): there is no archive here. |
 
 **Status words:** `queued` → `running` → `done`, `partial` or `blocked`. `superseded` means skip the task. `hold` is an empty slot the coder hasn't written yet (shift mode only). `end` means the shift is over.
 
@@ -41,9 +41,9 @@ The coder writes code. The runner does everything else that takes time: tests, r
      ```
    - Write each answer into the file as soon as you have it (for tests, each command's totals), so the coder can use part of it while you work.
    - At the end, change **Status** in the file to `done`, `partial` or `blocked`, and add **Finished:** <time>.
-   - **Then archive it. Never delete.** Move the task file to `archive/tasks/` and the result to `archive/results/`. Remove its row from `queue.md`. Add one line to `archive/index.md` with the ID, type, title, outcome (for tests: GREEN, RED or BLOCKED and NEW counts), and **Merged into** left as `pending`.
+   - **Then leave both files where they are.** Set the task's Status in `queue.md` to the same word. The coder reads the result, merges it, and clears the files; a runner never moves or deletes them.
 1. **No product code.** Do not edit app code, tests, migrations, settings, `.env`, or docs outside `.ai/comm/runner/`. If a task seems to need a code change, write it down in the result and stop that part.
-2. **No git writes.** Do not commit, push, merge, stash, reset or clean. Read-only git (`log`, `show`, `diff`, `grep`, `blame`) is fine. The only exceptions are the test-worktree commands in **Test tasks**.
+2. **No git writes.** Do not commit, push, merge, stash, reset or clean. Read-only git (`log`, `show`, `diff`, `grep`, `blame`) is fine. The only exceptions are the per-run worktree commands in **Test tasks** (add, checkout, remove, prune).
 3. **The dev database is read-only.** Reading through `manage.py shell` (`filter`, `values`, `aggregate`, `count`) is fine. Never call `save`, `create`, `update`, `delete`, `bulk_*`, `migrate`, `flush` or `loaddata`, or any management command, unless the task names it.
 4. **No outside calls** (B-Stock, Google, AI providers, email, Heroku) unless the task says so explicitly. Never use the stored B-Stock login.
 5. **No secrets in results.** Leave out tokens, API keys, passwords and customer names, emails or phones. Counts and IDs are fine.
@@ -87,34 +87,34 @@ Do the numbered steps exactly as written, then report what each step printed. Do
 
 The coder freezes the code as a snapshot ref. You run it in a separate worktree, so the coder's edits never touch your run.
 
-### One-time setup
+### Worktree per run (set up, then tear down)
 
-Skip this if `C:\Coding\ecothrift-test` exists.
+Each test task gets its own worktree at `C:\Coding\_worktrees\ecothrift-dashboard--r<NNN>` (house rule: never at the `C:\Coding` root). It exists only for that run. **A run isn't finished until its worktree is gone.**
 
-```bash
-cd /c/Coding/ecothrift-dashboard
-git worktree add --detach /c/Coding/ecothrift-test HEAD
-cp .env /c/Coding/ecothrift-test/.env
-```
-
-```powershell
-New-Item -ItemType Junction -Path C:\Coding\ecothrift-test\frontend\node_modules -Target C:\Coding\ecothrift-dashboard\frontend\node_modules
-```
-
-### Each test task
-
-1. Check out the snapshot and set up the log folder:
+1. Set up the worktree at the snapshot and the log folder:
 
    ```bash
-   cd /c/Coding/ecothrift-test
-   git checkout --detach --force <Snapshot ref>
-   git rev-parse --short HEAD
+   cd /c/Coding/ecothrift-dashboard
+   WT=/c/Coding/_worktrees/ecothrift-dashboard--r<NNN>
+   git worktree add --detach "$WT" <Snapshot ref>
+   cd "$WT"
+   git rev-parse HEAD
    PY=/c/Coding/ecothrift-dashboard/venv/Scripts/python.exe
    LOG=/c/Coding/ecothrift-dashboard/workspace/runner/<ID>
    mkdir -p "$LOG"
    ```
 
-   If the task says `Deps: npm`, replace the junction first (`cmd //c rmdir frontend\\node_modules`), then run `npm ci` in `frontend`.
+   Link the main checkout's `.env` and `node_modules`. **Never copy `.env`** (house D8: no env file copies). The hard link is the same file, and deleting the link never touches the original:
+
+   ```powershell
+   $WT = 'C:\Coding\_worktrees\ecothrift-dashboard--r<NNN>'
+   New-Item -ItemType HardLink -Path "$WT\.env" -Target C:\Coding\ecothrift-dashboard\.env
+   New-Item -ItemType Junction -Path "$WT\frontend\node_modules" -Target C:\Coding\ecothrift-dashboard\frontend\node_modules
+   ```
+
+   Write the full `git rev-parse HEAD` SHA in the result file. The snapshot also stays on `refs/runner/R-NNN`, so nothing depends on the worktree.
+
+   If the task says `Deps: npm`, skip the junction and run `npm ci` in `frontend` instead.
 2. Run each numbered command in the task, with a log file per step:
 
    | Command | Run | Failure key |
@@ -128,7 +128,7 @@ New-Item -ItemType Junction -Path C:\Coding\ecothrift-test\frontend\node_modules
 3. Classify each failure key:
    - **KNOWN:** it's in `baseline.md`.
    - Otherwise, re-run just those keys at the task's **Compare-to** ref:
-     - `git checkout --detach --force <ref>`.
+     - `git checkout --detach --force <ref>` (in the same run worktree).
      - Use pytest node ids, or the unique files when there are more than 150 ids.
      - Re-run the whole of tsc and migrations-check.
    - **PRE-EXISTING:** it fails there too. Append it to `baseline.md` with `(confirmed R-NNN @ sha)`.
@@ -145,6 +145,19 @@ New-Item -ItemType Junction -Path C:\Coding\ecothrift-test\frontend\node_modules
    - what you added to the baseline;
    - what's now passing.
 
+6. **Tear down**, in this order, even when the run is RED or BLOCKED:
+
+   ```powershell
+   $WT = 'C:\Coding\_worktrees\ecothrift-dashboard--r<NNN>'
+   cmd /c rmdir "$WT\frontend\node_modules"   # junction only: never Remove-Item -Recurse / rm -r a folder holding a junction
+   Remove-Item "$WT\.env"                      # the hard link only; the main .env is untouched
+   cd C:\Coding\ecothrift-dashboard
+   git worktree remove "$WT"
+   git worktree prune
+   ```
+
+   If `git worktree remove` refuses, report it as BLOCKED and leave the folder. Never force-delete it.
+
 ---
 
 ## Coder side (for the coder, not the runner)
@@ -152,7 +165,7 @@ New-Item -ItemType Junction -Path C:\Coding\ecothrift-test\frontend\node_modules
 - **Queue a task:**
   1. Write `tasks/R-NNN-slug.md`: type, why, exact questions or steps, and the result shape. Start it with this header, so the user can drop just that file into chat:
      ```markdown
-     > **Start here (runner).** 1) Load context: steps 1–5 of `.ai/protocols/context-load.md` (skip its STOP: this file is the ask). 2) Follow `.ai/protocols/runner.md` for this one task: rules, progress header, result file, queue status. 3) Do only the task below.
+     > **Start here (runner).** 1) Load context: steps 1–5 of `.ai/protocols/startup.md` (skip its STOP: this file is the ask). 2) Follow `.ai/protocols/runner.md` for this one task: rules, progress header, result file, queue status. 3) Do only the task below.
      ```
   2. Add a `queued` row to `queue.md`.
   3. For a test task, snapshot the tree first (no commit):
@@ -170,11 +183,10 @@ New-Item -ItemType Junction -Path C:\Coding\ecothrift-test\frontend\node_modules
   - before a commit or ship.
 - **RED:** fixing the NEW failures is the next job. Debugging is the coder's job.
 - **Superseded:** when a newer test snapshot covers a queued test, mark the older one `superseded`.
-- **After a runner archives a task:** read the result in `archive/results/`, merge the findings into their home (the data-quality register, an initiative, or code fixes), then replace `pending` in `archive/index.md` with where it went.
-- **Leftovers:** whenever you queue new tasks, archive anything a runner left behind:
-  - move every `done`, `partial`, `blocked` (dealt with) or `superseded` task and its result to `archive/tasks/` and `archive/results/`;
-  - delete their rows from `queue.md`;
-  - add one line each to `archive/index.md` (ID, title, outcome).
-  - Merge recon findings into their home (for example the data-quality register) before archiving.
+- **After a runner finishes a task:** read the result in `results/`, merge the findings into their home (the data-quality register, an initiative, or code fixes). A result worth keeping as it is goes to `.ai/reference/reports/YYYY-MM-DD-<slug>.md`. Then delete the task file and the result file and remove the row from `queue.md` (git history keeps them once committed).
+- **Leftovers:** whenever you queue new tasks, clear anything a runner left behind:
+  - merge recon findings into their home (for example the data-quality register) first;
+  - save a result worth keeping to `.ai/reference/reports/`;
+  - delete every `done`, `partial`, `blocked` (dealt with) or `superseded` task and its result, and their rows in `queue.md`.
 - **Baseline:** prune keys that pass again.
 - **Never** run test suites yourself.

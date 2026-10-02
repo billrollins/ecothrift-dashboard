@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-08 (local_shared is the local shared-DB name) -->
+<!-- Last updated: 2026-09-30 (pull script moved to scripts/db/) -->
 
 # Databases — Three Generations
 
@@ -15,7 +15,7 @@ Eco-Thrift uses **multiple PostgreSQL databases** locally: frozen archives for V
 | **Dev** | 3rd (DB3) | `local_shared` | This machine’s copy of the shared Heroku DB (schemas `ecothrift`, `darkhorse`, `public`); **not** the same as “v2 generation” |
 | **Production (Heroku)** | live | Heroku-assigned name (e.g. `d4op06smk6i192`) | Current hosted DB until cutover; **not** renamed by local conventions |
 
-**Local dev after `scripts/deploy/0_pull_prod_to_local.bat`:** Run the bat. It stops ports 8000 / 5173 / 5174, dumps the current local **`ecothrift`** schema for rollback, replaces **only that schema** with production `ecothrift` (not `public` / `darkhorse`), rebuilds trigram indexes, and `migrate`s this checkout’s extra files onto the prod snapshot. It does not start servers again. Dumps stay in **`scripts/deploy/backups/`** until migrate and `check` succeed. Django connects with `search_path=ecothrift` — ORM uses **`ecothrift.*`**. Category research SQL reads **`public.*`** and **`ecothrift.*`** explicitly for exports (same database as **`DATABASE_*`**); **`public`** is not the Django default schema. For a full off-box snapshot of every production schema, use **`1_backup_prod.bat`**.
+**Local dev after `scripts/db/pull_prod_to_local.bat`:** Run the bat. It stops ports 8000 / 5173 / 5174, dumps the current local **`ecothrift`** schema for rollback, replaces **only that schema** with production `ecothrift` (not `public` / `darkhorse`), rebuilds trigram indexes, and `migrate`s this checkout’s extra files onto the prod snapshot. It does not start servers again. Dumps stay in **`scripts/deploy/backups/`** until migrate and `check` succeed. Django connects with `search_path=ecothrift` — ORM uses **`ecothrift.*`**. Category research SQL reads **`public.*`** and **`ecothrift.*`** explicitly for exports (same database as **`DATABASE_*`**); **`public`** is not the Django default schema. For a full off-box snapshot of every production schema, use **`1_backup_prod.bat`**.
 
 **Separate frozen DBs:** **`ecothrift_v1`** and **`ecothrift_v2`** are optional local archives for introspection and commands that connect to DB1/DB2 **by name** (e.g. historical imports). They are **not** the Django `default` connection.
 
@@ -62,14 +62,14 @@ Each entry: `host`, `port`, `database`, `user`, `password`, and optional `schema
 
 ## Category research (`export_category_bins`)
 
-The management command **`export_category_bins`** uses Django’s **`default`** connection only. It does **not** require a second database alias. In a typical production restore into **`local_shared`**, **V2-era** tables live under **`public`** and **V3** app tables under **`ecothrift`** in the **same** Postgres database; SQL files use schema-qualified names (`public.*`, `ecothrift.*`). See **`.ai/extended/development.md`** (*Jupyter*) and the archived initiative [`.ai/initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md`](../initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md).
+The management command **`export_category_bins`** uses Django’s **`default`** connection only. It does **not** require a second database alias. In a typical production restore into **`local_shared`**, **V2-era** tables live under **`public`** and **V3** app tables under **`ecothrift`** in the **same** Postgres database; SQL files use schema-qualified names (`public.*`, `ecothrift.*`). See **`.ai/extended/development.md`** (*Jupyter*) and the archived initiative [`.ai/initiatives/_archived/category_sales_inventory_and_taxonomy.md`](../initiatives/_archived/category_sales_inventory_and_taxonomy.md).
 
 ---
 
 ## Related
 
-- **`.ai/extended/sql/`** — **`schema_columns_ecothrift.sql`** → **`schema.csv`** column snapshot + **[`sql/README.md`](sql/README.md)** (refresh workflow), **[`cli.md`](sql/cli.md)** (`psql`).
+- **`scripts/sql/schema_columns_ecothrift.sql`** (docs in `.ai/extended/sql/`) → **`schema.csv`** column snapshot + **[`sql/README.md`](sql/README.md)** (refresh workflow), **[`cli.md`](sql/cli.md)** (`psql`).
 - `.ai/extended/backend.md` — backend / ORM notes when maintained
 - **`workspace/notebooks/_shared/config.example.py`** — copy to **`config_local.py`**; **`db-explorer/db_explorer.ipynb`** — multi-DB exploration
 - Optional deps: `workspace/notebooks/_shared/requirements-notebooks.txt` (Jupyter/DB stack + pandas/SQLAlchemy/psycopg2; also ML libs used by pricing commands)
-- **Historical PO extract (V1/V2/V3 by DB name):** ad hoc **`scripts/data/extract_po_descriptions.py`** if you keep a local copy — see **`CHANGELOG`** **[2.7.1]** and [`.ai/initiatives/_archived/_pending/historical_sell_through_analysis.md`](../initiatives/_archived/_pending/historical_sell_through_analysis.md); uses **`ecothrift_v1`**, **`ecothrift_v2`**, **`ecothrift_v3`** with credentials from root **`.env`** (not Django `DATABASE_NAME` alone). Outputs belong under **`workspace/data/`**.
+- **Historical PO extract (V1/V2/V3 by DB name):** ad hoc **`scripts/data/extract_po_descriptions.py`** if you keep a local copy — see **`CHANGELOG`** **[2.7.1]** and [`.ai/initiatives/_archived/historical_sell_through_analysis.md`](../initiatives/_archived/historical_sell_through_analysis.md); uses **`ecothrift_v1`**, **`ecothrift_v2`**, **`ecothrift_v3`** with credentials from root **`.env`** (not Django `DATABASE_NAME` alone). Outputs belong under **`workspace/data/`**.

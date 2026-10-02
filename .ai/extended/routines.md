@@ -1,7 +1,7 @@
 <!-- Last updated: 2026-09-28 (walk cap removed; superuser no-walk warning) -->
 # Routines
 
-Periodic and on-demand fill-in forms. Initiative: [`routines`](../initiatives/_archived/_completed/routines.md) (completed).
+Periodic and on-demand fill-in forms. Initiative: [`routines`](../initiatives/_archived/routines.md) (completed).
 
 ## App
 

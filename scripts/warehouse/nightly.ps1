@@ -10,7 +10,7 @@ New-Item -ItemType Directory -Force (Split-Path $Log) | Out-Null
 function Say($t) { "$(Get-Date -Format s)  $t" | Tee-Object -FilePath $Log -Append }
 
 Say 'pull production -> local'
-& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root 'scripts\deploy\helpers\0_pull_prod_to_local.ps1') *>> $Log
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Root 'scripts\db\_helpers\pull_prod_to_local.ps1') *>> $Log
 if ($LASTEXITCODE -ne 0) { Say "pull FAILED ($LASTEXITCODE); warehouse not rebuilt"; exit 1 }
 
 Say 'build warehouse'

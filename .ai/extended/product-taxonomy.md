@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-23 (gold set and held-out set: rulings TAX-16 to TAX-46) -->
+<!-- Last updated: 2026-09-29 (standardize vet: rulings TAX-47 to TAX-77; tie-breakers) -->
 # Product taxonomy: the placement rulebook
 
 **This is the one answer key** for "what category and subcategory is this?" and "what goes on the price tag?". The rules apply to every placer the same way: processors, rules, vectors, the Spark backfill, the gold set and code. When a placement is questioned, the answer is added here as a ruling. It is not settled in a chat, a prompt or code alone.
@@ -17,8 +17,16 @@
 2. **Rulings win.** If the item matches a ruling below, use it.
 3. **Most specific category wins** over a general one: Automotive over Tools, Lawn & garden over Outdoor furniture.
 4. **Sets:** place by the main piece. A lamp with bulbs is a lamp.
-5. **Unsure between two:** pick one, set confidence to `low`, and let the review queue decide. If the review settles something new, it becomes a ruling.
-6. **Mixed lots & uncategorized** is only for:
+5. **Tie-breakers** (Claude decides placements with these; the owner delegated it on 2026-09-30):
+   1. **Who operates it.** A child operates it (trike, ride-on, kids' drone) → Toys. A parent uses it to carry or care
+      for a child (stroller wagon, high chair) → Baby & kids.
+   2. **The aisle for its kind.** Every bicycle, any size → Sports › Bikes & scooters. Every travel accessory (neck
+      pillow, toiletry bottles, luggage tag, packing cubes) → Apparel › Bags & luggage. Anything that charges and pairs
+      with a phone (smartwatch, tracker) → Electronics.
+   3. **Where it's used.** Outdoor, patio or all-weather wording → Outdoor & patio furniture; the same piece sold for
+      indoors → Furniture.
+6. **Unsure between two:** pick one, set confidence to `low`, and let the review queue decide. If the review settles something new, it becomes a ruling.
+7. **Mixed lots & uncategorized** is only for:
    - a real mixed lot;
    - a `vague title` item (see below).
 
@@ -44,7 +52,7 @@ The web shop shows the first 19. Lawn & garden, Appliances, Arts & crafts and Au
 | Baby & kids | Diapers & wipes · Feeding · Nursery & swaddles · Gear · Kids' backpacks & lunch · Baby toys | Diaper rash cream, breast pump parts, high chairs, nap mats. Baby toys up to 24 months; older kids' toys go to Toys. Bottles go to Kitchen (TAX-16). |
 | Bedding & bath | Comforters & sets · Sheets & pillowcases · Pillows · Mattresses & toppers · Blankets & throws · Towels · Shower & bath accessories | Mattresses and protectors, bedskirts, bath rugs, toilet seats, bidets (TAX-26). Kids' bedding stays here. Decorative throw pillows go to Home décor. |
 | Books & media | Fiction · Kids' books · Manga & comics · Nonfiction · Movies & music · Video games | DVDs, Blu-ray, vinyl, game discs (TAX-18). Consoles and headsets go to Electronics. |
-| Electronics | Cables, chargers & power · Phone & tablet cases · Audio · Computer accessories · Smart home & cameras · Gaming · TV & mounts | Surge protectors (TAX-23), power banks, Toniebox, remotes, tabletop TV stands. |
+| Electronics | Cables, chargers & power · Phone & tablet cases · Audio · Computer accessories · Smart home & cameras · Gaming · TV & mounts · Wearables | Surge protectors (TAX-23), power banks, Toniebox, remotes, tabletop TV stands. |
 | Furniture | Tables · Seating · Desks · Beds & frames · Storage furniture · Kids' furniture · Covers, pads & parts | Chair pads, slipcovers, replacement legs, office chairs, floor TV consoles (TAX-30). Outdoor pieces go to Outdoor & patio. |
 | Health, beauty & personal care | Skin care · Hair care · Body wash & soap · Oral care · Shaving · Makeup · Deodorant · Incontinence & wellness · Vitamins & supplements · OTC & first aid | Hair tools (TAX-21), makeup mirrors, shower chairs and mobility aids (TAX-32). Hair clips and headbands go to Apparel. |
 | Home décor & lighting | Wall art & frames · Mirrors · Lamps & lighting · String & LED lights · Throw pillows · Artificial plants · Candles & fragrance · Curtains & blinds · Indoor rugs · Decorative accents | Fixtures, bulbs, night lights (TAX-20, TAX-34), diffusers, curtains and rods, decorative trays and boxes. Woven storage baskets go to Storage (TAX-39). |
@@ -116,6 +124,37 @@ Add one row whenever a placement is questioned and settled: by the owner, by a r
 | TAX-44 | Over-the-door and cabinet-door organizers (any room) | Storage › Closet | Kitchen | Refines TAX-24 | 2026-09-23 held-out set |
 | TAX-45 | Team and sport socks, athletic apparel | Apparel (by who wears it) | Sports | Clothing aisle | 2026-09-23 held-out set |
 | TAX-46 | Baby feeding items: disposable placemats, bibs, sippy cups | Baby & kids › Feeding | Kitchen | Baby aisle; beats TAX-28 for baby items | 2026-09-23 runner second opinion |
+| TAX-47 | Gun safes and gun cabinets | Sports & outdoors › Hunting & fishing | Tools › Locks | Buy intent: firearms storage | 2026-09-29 standardize vet |
+| TAX-48 | Hardtop gazebos, pergolas (permanent patio shade) | Outdoor & patio furniture › Umbrellas & bases | Sports › Camping | Patio shade; pop-up canopies stay in Sports (TAX-29) | 2026-09-29 standardize vet |
+| TAX-49 | Handheld and electric spin scrubbers | Household & cleaning › Cleaning tools | Appliances › Floor care | Scrub brushes (TAX-22); floor machines stay in Appliances | 2026-09-29 standardize vet |
+| TAX-50 | Bathroom vanities (cabinet, with or without a sink top) | Furniture › Storage furniture | Bedding & bath, Tools › Plumbing | A cabinet; faucets and sink parts stay in Tools › Plumbing | 2026-09-29 standardize vet |
+| TAX-51 | Kids' electric ride-ons: dirt bikes, quads, 12V/24V cars (Razor, Hyper, Power Wheels) | Toys & games › Outdoor & ride-ons | Sports › Bikes & scooters | Kids' toys (open question Q2's rule); adult e-bikes and scooters stay in Sports | 2026-09-29 standardize vet |
+| TAX-52 | Bathtubs, sinks, toilets, faucets (fixtures) | Tools & hardware › Plumbing | Bedding & bath | Remodel aisle; toilet seats and bath rugs stay in Bedding & bath (TAX-26) | 2026-09-29 standardize vet |
+| TAX-53 | Game tables: shuffleboard, pool, air hockey, foosball, ping pong | Sports & outdoors › Team sports | Furniture › Tables | Game room; buy intent is play | 2026-09-29 standardize vet |
+| TAX-54 | Countertop and portable ice makers | Kitchen & dining › Small appliances | Appliances › Major & fridges | Countertop use; TAX-17 is only built-in, undercounter or floor-standing ice makers | 2026-09-29 std-003 vet |
+| TAX-55 | Cube organizers and cubby shelves | Furniture › Storage furniture | Storage › Bins & totes | A piece of furniture; the fabric cube bins themselves stay in Storage › Bins & totes | 2026-09-29 std-003 vet |
+| TAX-56 | Household batteries (AA, AAA, C, D, 9V, coin cells) | Electronics › Cables, chargers & power | Tools › Electrical | Power aisle | 2026-09-29 std-003 vet |
+| TAX-57 | Smoke, carbon monoxide and other battery-operated home-safety detectors | Electronics › Smart home & cameras | Tools › Electrical | Home safety devices | 2026-09-29 std-004 vet |
+| TAX-58 | Tonies figurines (the characters) | Toys & games › Figures | Electronics › Audio | Collected like figures; the Toniebox player stays in Electronics | 2026-09-29 std-004 vet |
+| TAX-59 | Kids' toy organizers and bin or cubby units sold as kids' furniture (Pillowfort) | Furniture › Kids' furniture | Furniture › Storage furniture | Refines TAX-55 for kids' pieces | 2026-09-29 std-004 vet |
+| TAX-60 | Mailboxes, parcel boxes and mailbox posts | Tools & hardware › Fasteners & hardware | Office › Mailing & labels | Home improvement; Mailing & labels is for mailers and stickers | 2026-09-29 std-005 vet |
+| TAX-61 | Lego and other building sets sold as advent calendars or holiday items | Toys & games › Building sets | Party › Holiday | The set defines it; TAX-14 is for holiday décor | 2026-09-29 std-005 vet |
+| TAX-62 | Holiday-themed sheets, comforters and bed linens | Bedding & bath (by type) | Party › Holiday | Shoppers look for bedding in bedding; TAX-14 is décor only | 2026-09-29 std-005 vet |
+| TAX-63 | High chairs | Baby & kids › Feeding | Baby & kids › Gear | Shelved with feeding; Gear is strollers and car seats | 2026-09-29 std-005 vet |
+| TAX-64 | Table bases and pedestals sold without a top | Furniture › Covers, pads & parts | Furniture › Tables | A part, not a table | 2026-09-29 std-005 vet |
+| ~~TAX-65~~ | ~~Travel neck pillows → Bedding & bath › Pillows~~ | replaced by TAX-72 | | | 2026-09-30 |
+| TAX-66 | Rattan or wicker sectional sets and seating groups with cushions | Outdoor & patio furniture › Chairs & benches | Furniture › Seating | Tie-breaker 3: sold as patio or all-weather; the same piece sold for indoors goes to Furniture | 2026-09-30 cat5-001 vet |
+| TAX-67 | Travel-size toiletry bottle and container sets | Apparel & accessories › Bags & luggage | Health › Body wash & soap | Tie-breaker 2: travel accessory | 2026-09-30 cat5-001 vet |
+| TAX-68 | Classroom and educational posters for kids | Toys & games › Learning | Office › Notebooks & paper | A kids' learning aid | 2026-09-30 cat5-001 vet |
+| TAX-69 | Flatware and utensil drawer organizers and trays | Kitchen & dining › Tools & gadgets | Storage › Bins & totes | Kitchen drawer use; refines TAX-24 | 2026-09-30 cat5-002 vet |
+| TAX-70 | Kids' activity easels, art tables and play desks sold as kids' furniture | Furniture › Kids' furniture | Toys › Arts & crafts kits | Furniture; craft kits for play stay in Toys | 2026-09-30 cat5-002 vet |
+| TAX-71 | Ring lights and photo or video lighting | Electronics › Smart home & cameras | Home décor › Lamps & lighting | Camera gear; TAX-20 is home fixtures only | 2026-09-30 cat5-002 vet |
+| TAX-72 | Travel neck pillows | Apparel & accessories › Bags & luggage | Bedding & bath › Pillows | Tie-breaker 2: travel accessory; replaces TAX-65 | 2026-09-30 Claude (delegated) |
+| TAX-73 | Kids' trikes, ride-ons, pedal cars (Radio Flyer, Razor for kids) | Toys & games › Outdoor & ride-ons | Sports, Baby & kids | Tie-breaker 1: a child operates it (Q2) | 2026-09-30 Claude (delegated) |
+| TAX-74 | Stroller wagons and kid-carrying wagons | Baby & kids › Gear | Toys, Lawn & garden | Tie-breaker 1: a parent uses it to carry a child (Q2); utility wagons stay in Lawn & garden (TAX-05) | 2026-09-30 Claude (delegated) |
+| TAX-75 | Kids' drones and toy RC aircraft | Toys & games › RC & vehicles | Electronics | Tie-breaker 1 (Q5); camera drones for adults go to Electronics › Smart home & cameras | 2026-09-30 Claude (delegated) |
+| TAX-76 | Pedal and balance bikes, any size | Sports & outdoors › Bikes & scooters | Toys › Outdoor & ride-ons | Tie-breaker 2: every bicycle (Q7); trikes stay in Toys (TAX-73) | 2026-09-30 Claude (delegated) |
+| TAX-77 | Smartwatches and fitness trackers | Electronics › Wearables | Apparel › Jewelry & watches | Tie-breaker 2: charges and pairs (Q8); plain watches stay in Apparel | 2026-09-30 Claude (delegated) |
 
 `draft` and `gold set` rows are proposed, and they apply until the owner overrides them. `gold set` rows were decided while hand-labelling the 300-product gold set (`workspace/gold/gold_labels.csv`).
 
@@ -131,10 +170,12 @@ Rulings should match **where the store actually shelves things**, and the proces
 | # | Question | Processors do | Rule now | Decide |
 |---|---|---|---|---|
 | ~~Q1~~ | ~~Bottles~~ | | | **Decided 2026-09-24: Kitchen (TAX-16).** |
-| Q2 | Kids' trikes, stroller wagons, ride-ons (Radio Flyer, Razor) | Sports or Baby | Toys › Outdoor & ride-ons | Which aisle? |
+| ~~Q2~~ | ~~Kids' trikes, stroller wagons, ride-ons (Radio Flyer, Razor)~~ | | | **Decided 2026-09-30 by the tie-breakers (TAX-73 to TAX-77).** |
 | Q3 | Wheelchair ramps, back braces | Tools, Sports | Health › OTC & first aid (TAX-32) | OK? |
 | Q4 | Air mattresses | Furniture | Sports › Camping (TAX-04) | OK? |
-| Q5 | Kids' drones | Electronics | Toys | Which? |
+| ~~Q5~~ | ~~Kids' drones~~ | | | **Decided 2026-09-30 by the tie-breakers (TAX-73 to TAX-77).** |
+| ~~Q7~~ | ~~Kids' pedal and balance bikes (non-powered)~~ | | | **Decided 2026-09-30 by the tie-breakers (TAX-73 to TAX-77).** |
+| ~~Q8~~ | ~~Smartwatches and fitness trackers~~ | | | **Decided 2026-09-30 by the tie-breakers (TAX-73 to TAX-77).** |
 | Q6 | TAX-24, TAX-27, TAX-31 (low-confidence rulings) | n/a | See the table above | Confirm |
 
 ---
