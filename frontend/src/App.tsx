@@ -57,7 +57,6 @@ import ProductPage from './pages/inventory/ProductPage';
 import { inventoryWorkbenchUrl, legacyItemParamsToRichSearch } from './utils/richInventorySearch';
 import ItemListPage from './pages/inventory/ItemListPage';
 import ItemDetailPage from './pages/inventory/ItemDetailPage';
-import QuickRepricePage from './pages/inventory/QuickRepricePage';
 import TerminalPage from './pages/pos/TerminalPage';
 import DrawerListPage from './pages/pos/DrawerListPage';
 import CashManagementPage from './pages/pos/CashManagementPage';
@@ -142,6 +141,12 @@ function LegacyManageProductsRedirect() {
   const [searchParams] = useSearchParams();
   const q = (searchParams.get('q') || searchParams.get('search') || '').trim() || undefined;
   return <Navigate to={inventoryWorkbenchUrl({ q })} replace />;
+}
+
+function LegacyQuickRepriceRedirect() {
+  const [params] = useSearchParams();
+  const sku = params.get('sku');
+  return <Navigate to={`/inventory/pr-fixit?tab=reprice${sku ? `&sku=${encodeURIComponent(sku)}` : ''}`} replace />;
 }
 
 function LegacyManageItemsRedirect() {
@@ -244,7 +249,8 @@ export default function App() {
         <Route path="/inventory/items" element={<ItemListPage />} />
         <Route path="/inventory/items/:id" element={<ItemDetailPage />} />
         <Route path="/inventory/inbound" element={<Navigate to="/inventory/processing" replace />} />
-        <Route path="/inventory/quick-reprice" element={<QuickRepricePage />} />
+        {/* Quick reprice lives in PR Fix-it (2026-10-02); old links land on its tab. */}
+        <Route path="/inventory/quick-reprice" element={<LegacyQuickRepriceRedirect />} />
         {/* The review queue is closed (2026-10-02): products get the standard at intake and from the pipeline. */}
         <Route path="/inventory/product-review" element={<Navigate to="/inventory/search" replace />} />
         <Route

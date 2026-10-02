@@ -48,6 +48,7 @@ import {
 import { useAuth } from '../../../contexts/AuthContext';
 import { ACTION_WORDS } from './countProblems';
 import { clockTime, formatElapsed, ratePerMinute } from './countTimer';
+import { CountNav } from './CountNav';
 import SectionProgress, { StateChip, sectionCountLine, shortDay } from './SectionProgress';
 
 const pct = (a: number, b: number) => (b ? `${Math.min(100, Math.round((a / b) * 100))}%` : '');
@@ -667,16 +668,37 @@ function DayView({ id }: { id: number }) {
   );
 }
 
-function DaysList() {
+function DaysList({ isSuper }: { isSuper: boolean }) {
   const narrow = useNarrow();
   const navigate = useNavigate();
   const [days, setDays] = useState<DaySummary[] | null>(null);
   const [error, setError] = useState('');
-  useEffect(() => {
+  const [deleting, setDeleting] = useState<DaySummary | null>(null);
+  const load = useCallback(() => {
     listDays()
       .then(setDays)
       .catch(() => setError('Could not load the counts. This page is for managers.'));
   }, []);
+  useEffect(load, [load]);
+  const confirmDelete = async () => {
+    if (!deleting) return;
+    try {
+      await deleteDay(deleting.id);
+      setDeleting(null);
+      load();
+    } catch (e) {
+      setDeleting(null);
+      setError(apiMessage(e, 'Could not delete the count.'));
+    }
+  };
+  const confirm = (
+    <ConfirmDelete
+      what={deleting ? `the count of ${dayName(deleting)}` : null}
+      detail={deleting ? `Its ${deleting.runs} sessions, ${deleting.scans.toLocaleString()} scans and all its problems are deleted for good.` : ''}
+      onCancel={() => setDeleting(null)}
+      onDelete={() => void confirmDelete()}
+    />
+  );
 
   if (error) return <Alert severity="error">{error}</Alert>;
   if (!days) {
@@ -690,7 +712,17 @@ function DaysList() {
   const status = (d: DaySummary) => <DayChip day={d} />;
 
   if (days.length === 0) {
-    return <Typography sx={{ color: 'text.secondary', mb: 3 }}>No counts yet. The first scan of a day starts that day&apos;s count.</Typography>;
+    return (
+      <Box sx={{ p: { xs: 2.5, md: 4 }, mb: 3, textAlign: 'center', border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper' }}>
+        <Typography sx={{ fontWeight: 800, fontSize: 20 }}>No counts yet</Typography>
+        <Typography sx={{ color: 'text.secondary', maxWidth: 480, mx: 'auto', mt: 0.5 }}>
+          The first scan of a day starts that day&apos;s count. Each day shows here with what was counted, the sessions, and the problems.
+        </Typography>
+        <Button component={RouterLink} to="/inventory/count" variant="contained" sx={{ ...plain, mt: 2 }}>
+          Start counting
+        </Button>
+      </Box>
+    );
   }
   if (narrow) {
     return (
@@ -717,13 +749,27 @@ function DaysList() {
                 </Typography>
               </>
             )}
+            {isSuper && (
+              <Button
+                size="small"
+                color="error"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeleting(d);
+                }}
+                sx={{ ...plain, mt: 0.5, ml: -0.5 }}
+              >
+                Delete this count
+              </Button>
+            )}
           </Box>
         ))}
+        {confirm}
       </Stack>
     );
   }
   return (
-    <Box sx={{ overflowX: 'auto', mb: 3 }}>
+    <Box sx={{ overflowX: 'auto', mb: 3, border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper' }}>
       <Table size="small">
         <TableHead>
           <TableRow>
@@ -738,6 +784,7 @@ function DaysList() {
             <TableCell align="right">Need an answer</TableCell>
             <TableCell align="right">In carts</TableCell>
             <TableCell>Status</TableCell>
+            {isSuper && <TableCell />}
           </TableRow>
         </TableHead>
         <TableBody>
@@ -757,10 +804,26 @@ function DaysList() {
               <TableCell align="right">{d.issues_pending || ''}</TableCell>
               <TableCell align="right">{d.to_fix || ''}</TableCell>
               <TableCell>{status(d)}</TableCell>
+              {isSuper && (
+                <TableCell align="right" sx={{ py: 0 }}>
+                  <Button
+                    size="small"
+                    color="error"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleting(d);
+                    }}
+                    sx={plain}
+                  >
+                    Delete
+                  </Button>
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>
       </Table>
+      {confirm}
     </Box>
   );
 }
@@ -770,25 +833,19 @@ export default function CountDaysPage() {
   const { id } = useParams();
   const { user } = useAuth();
   return (
-    <Box sx={{ p: { xs: 1.5, md: 2 }, width: '100%', minWidth: 0, maxWidth: 1300, mx: 'auto', overflowX: 'hidden' }}>
+    <Box sx={{ p: { xs: 1, md: 2 }, width: '100%', minWidth: 0, maxWidth: 1300, mx: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column' }}>
       {id ? (
         <DayView id={Number(id)} />
       ) : (
         <>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1} sx={{ mb: 2 }}>
+          <CountNav current="sessions" />
+          <Box sx={{ mb: 2 }}>
             <Typography variant="h5" sx={{ fontWeight: 800 }}>
-              Count sessions
+              Sessions
             </Typography>
-            <Stack direction="row" spacing={1}>
-              <Button component={RouterLink} to="/inventory/count" variant="contained" sx={plain}>
-                Scan
-              </Button>
-              <Button component={RouterLink} to="/inventory/pr-fixit" variant="outlined" sx={{ ...plain, whiteSpace: 'nowrap' }}>
-                PR Fix-it
-              </Button>
-            </Stack>
-          </Stack>
-          <DaysList />
+            <Typography sx={{ color: 'text.secondary' }}>Every day&apos;s count: what was counted, by whom, and what still needs an answer.</Typography>
+          </Box>
+          <DaysList isSuper={!!user?.is_superuser} />
           {user?.is_superuser && <SectionsPanel />}
         </>
       )}

@@ -1,7 +1,7 @@
 /**
  * Inventory search: one box, one table, one row per product, with its items one click away.
  * Replaces the old Catalog page (`/inventory/workbench`). Search runs on the server
- * (`apps/inventory/services/inventory_search.py`); the page state lives in the URL (`q`, `sold`, `page`, `open`).
+ * (`apps/inventory/services/inventory_search.py`); the page state lives in the URL (`q`, `sold`, `page`, `sort`, `open`).
  * Bulk work (price changes for managers, tag reprints) lives in `components/objects/bulkTools.tsx`.
  */
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
@@ -10,13 +10,16 @@ import KeyboardArrowDown from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowRight from '@mui/icons-material/KeyboardArrowRight';
 import Search from '@mui/icons-material/Search';
 import {
-  Box, Button, Chip, Collapse, FormControlLabel, IconButton, InputAdornment, LinearProgress, Link, Paper, Stack, Switch,
-  Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, Tooltip, Typography,
+  Box, Button, Checkbox, Chip, Collapse, FormControlLabel, IconButton, InputAdornment, LinearProgress, Link, Paper, Stack, Switch,
+  Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TableSortLabel, TextField, Tooltip,
+  Typography,
 } from '@mui/material';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { Navigate, useSearchParams } from 'react-router-dom';
-import { getSimilarProducts, searchInventory, type InventorySearchRow } from '../../api/inventorySearch.api';
+import {
+  getSimilarProducts, searchInventory, type InventorySearchRow, type InventorySortKey,
+} from '../../api/inventorySearch.api';
 import { PageHeader } from '../../components/common/PageHeader';
 import {
   BulkDrawer, BulkPriceDialog, labelsForSelection, SelectBox, SelectionProvider, useOptionalSelection, usePrintQueue,
@@ -143,24 +146,33 @@ function BulkBar() {
     sel.itemIds.size ? `${sel.itemIds.size} item${sel.itemIds.size === 1 ? '' : 's'}` : '',
   ].filter(Boolean);
 
+  // Nothing ticked and nothing printing: the bar is not there at all.
+  const showBar = sel.size > 0 || !!job;
   return (
     <>
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5, minHeight: 36 }}>
-        {sel.size > 0 ? (
-          <>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>{parts.join(' and ')} selected</Typography>
-            {canPrice && <Button size="small" variant="contained" onClick={() => setPricing(true)}>Change price</Button>}
-            <Button size="small" variant="outlined" disabled={!!job?.running} onClick={() => void reprintSelection()}>Reprint tags</Button>
-            <Button size="small" onClick={sel.clear}>Clear</Button>
-          </>
-        ) : (
-          <Typography variant="caption" color="text.secondary">Tick products or items to change prices or reprint tags in bulk.</Typography>
-        )}
-        <Box sx={{ flex: 1 }} />
-        <Button size="small" onClick={() => setDrawer(true)}>
-          {job?.running ? `Printing ${job.done} of ${job.total}` : 'Bulk work'}
-        </Button>
-      </Stack>
+      {showBar && (
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 0.5, minHeight: 36 }}>
+          {sel.size > 0 && (
+            <>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>{parts.join(' and ')} selected</Typography>
+              {canPrice && <Button size="small" variant="contained" onClick={() => setPricing(true)}>Change price</Button>}
+              <Button size="small" variant="outlined" disabled={!!job?.running} onClick={() => void reprintSelection()}>Reprint tags</Button>
+              <Button size="small" onClick={sel.clear}>Clear</Button>
+            </>
+          )}
+          <Box sx={{ flex: 1 }} />
+          {job && (
+            <Button size="small" onClick={() => setDrawer(true)}>
+              {job.running ? `Printing ${job.done} of ${job.total}` : `Printed ${job.done} of ${job.total}`}
+            </Button>
+          )}
+        </Stack>
+      )}
+      {canPrice && !showBar && (
+        <Link component="button" type="button" underline="hover" onClick={() => setDrawer(true)} sx={{ fontSize: 12, float: 'right', color: 'text.secondary' }}>
+          Price changes
+        </Link>
+      )}
       {pricing && (
         <BulkPriceDialog
           open
@@ -200,8 +212,9 @@ function ResultRow({ row, includeSold, startOpen }: { row: InventorySearchRow; i
             {open ? <KeyboardArrowDown fontSize="small" /> : <KeyboardArrowRight fontSize="small" />}
           </IconButton>
         </TableCell>
-        <TableCell sx={{ maxWidth: 520 }}>
-          <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap title={row.original_title}>
+        <TableCell sx={{ width: '100%', maxWidth: 0, minWidth: 220 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap title={`${row.title}
+Original title: ${row.original_title}`}>
             {row.title}
           </Typography>
           <Typography variant="caption" color="text.secondary" noWrap component="div">
@@ -253,8 +266,44 @@ function ResultRow({ row, includeSold, startOpen }: { row: InventorySearchRow; i
   );
 }
 
-function SearchBody({ q, sold, page, setParam }: {
-  q: string; sold: boolean; page: number; setParam: (changes: Record<string, string | null>) => void;
+/** The header box: ticks every product on this page that has something on the shelf. */
+function SelectAll({ rows }: { rows: InventorySearchRow[] }) {
+  const sel = useOptionalSelection();
+  const ids = rows.filter((r) => r.on_shelf > 0).map((r) => r.product_id);
+  if (!sel || !ids.length) return null;
+  const picked = ids.filter((id) => sel.productIds.has(id)).length;
+  return (
+    <Checkbox
+      size="small"
+      checked={picked === ids.length}
+      indeterminate={picked > 0 && picked < ids.length}
+      onChange={() => sel.setProducts(ids, picked !== ids.length)}
+      inputProps={{ 'aria-label': 'Select every product on this page' }}
+      sx={{ p: 0.25 }}
+    />
+  );
+}
+
+/** A header that sorts every match on the server: first click high to low (A to Z for text), then the other way, then off. */
+function SortHeader({ label, column, sort, onSort, align, text }: {
+  label: string; column: InventorySortKey; sort: string; onSort: (next: string | null) => void; align?: 'right'; text?: boolean;
+}) {
+  const active = sort.replace(/^-/, '') === column;
+  const descending = sort.startsWith('-');
+  const first = text ? column : `-${column}`;
+  const second = text ? `-${column}` : column;
+  const next = !active ? first : sort === first ? second : null;
+  return (
+    <TableCell align={align} sortDirection={active ? (descending ? 'desc' : 'asc') : false}>
+      <TableSortLabel active={active} direction={active && !descending ? 'asc' : 'desc'} onClick={() => onSort(next)}>
+        {label}
+      </TableSortLabel>
+    </TableCell>
+  );
+}
+
+function SearchBody({ q, sold, page, sort, setParam }: {
+  q: string; sold: boolean; page: number; sort: string; setParam: (changes: Record<string, string | null>) => void;
 }) {
   const [text, setText] = useState(q);
   useEffect(() => setText(q), [q]);
@@ -265,11 +314,12 @@ function SearchBody({ q, sold, page, setParam }: {
   }, [text, q, setParam]);
 
   const { data, isFetching, isError } = useQuery({
-    queryKey: ['inventory-search', q, sold, page],
-    queryFn: async ({ signal }) => (await searchInventory({ q, sold, page }, signal)).data,
+    queryKey: ['inventory-search', q, sold, page, sort],
+    queryFn: async ({ signal }) => (await searchInventory({ q, sold, page, sort }, signal)).data,
     placeholderData: keepPreviousData,
   });
   const rows = data?.results ?? [];
+  const onSort = useCallback((next: string | null) => setParam({ sort: next, page: null }), [setParam]);
   const summary = useMemo(() => {
     if (!data) return '';
     const n = `${data.count.toLocaleString()}${data.more ? '+' : ''} product${data.count === 1 ? '' : 's'}`;
@@ -305,18 +355,20 @@ function SearchBody({ q, sold, page, setParam }: {
         {isError ? 'The search failed. Try again.' : summary}
       </Typography>
       <TableContainer component={Paper} variant="outlined">
-        <Table size="small" stickyHeader aria-label="Inventory search results" sx={{ '& th': { whiteSpace: 'nowrap' } }}>
+        <Table size="small" stickyHeader aria-label="Inventory search results" sx={{ '& th': { whiteSpace: 'nowrap' }, '& th, & td': { px: 1 } }}>
           <TableHead>
             <TableRow>
-              <TableCell padding="checkbox" />
-              <TableCell>Product</TableCell>
-              <TableCell align="right">On shelf</TableCell>
-              <TableCell align="right">Retail</TableCell>
-              <TableCell align="right">Price</TableCell>
-              <TableCell align="right">Sold</TableCell>
-              <TableCell align="right">Avg sold</TableCell>
-              <TableCell align="right">Days to sell</TableCell>
-              <TableCell>Last sold</TableCell>
+              <TableCell padding="checkbox" sx={{ whiteSpace: 'nowrap' }}>
+                <SelectAll rows={rows} />
+              </TableCell>
+              <SortHeader label="Product" column="title" text sort={sort} onSort={onSort} />
+              <SortHeader label="Shelf" column="on_shelf" align="right" sort={sort} onSort={onSort} />
+              <SortHeader label="Retail" column="retail" align="right" sort={sort} onSort={onSort} />
+              <SortHeader label="Price" column="price" align="right" sort={sort} onSort={onSort} />
+              <SortHeader label="Sold" column="sold" align="right" sort={sort} onSort={onSort} />
+              <SortHeader label="Avg sold" column="avg_sold" align="right" sort={sort} onSort={onSort} />
+              <SortHeader label="Days" column="days" align="right" sort={sort} onSort={onSort} />
+              <SortHeader label="Last sold" column="last_sold" sort={sort} onSort={onSort} />
               <TableCell>Product #</TableCell>
               <TableCell padding="checkbox" />
             </TableRow>
@@ -361,6 +413,7 @@ export default function InventorySearchPage() {
   const q = params.get('q') ?? '';
   const sold = params.get('sold') === '1';
   const page = Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1);
+  const sort = params.get('sort') ?? '';
 
   const setParam = useCallback(
     (changes: Record<string, string | null>) => {
@@ -384,7 +437,7 @@ export default function InventorySearchPage() {
   return (
     <ObjectModalProvider initial={initial} onChange={onModalChange}>
       <SelectionProvider>
-        <SearchBody q={q} sold={sold} page={page} setParam={setParam} />
+        <SearchBody q={q} sold={sold} page={page} sort={sort} setParam={setParam} />
       </SelectionProvider>
     </ObjectModalProvider>
   );

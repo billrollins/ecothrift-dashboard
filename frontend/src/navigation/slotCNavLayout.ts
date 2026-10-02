@@ -45,8 +45,9 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   },
   {
     id: 'retailFloor',
-    label: 'Retail Floor',
-    itemIds: ['inventoryWorkbench', 'quickReprice', 'inventoryCount', 'prFixit'],
+    label: 'Inventory',
+    itemIds: ['inventoryWorkbench', 'inventoryCount'],
+    guestItemIds: ['prFixit'],
   },
   {
     id: 'storeSales',
@@ -128,9 +129,9 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
   },
   {
     id: 'retailFloor',
-    label: 'Retail Floor',
-    shortLabel: 'Floor',
-    helper: 'Catalog, shelf, and floorplans',
+    label: 'Inventory',
+    shortLabel: 'Inventory',
+    helper: 'Search, counts, and quick fixes',
     icon: 'storefront',
     shortcutColor: '#DB2777',
     shortcutDigit: 4,

@@ -11,6 +11,7 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
+  LinearProgress,
   Menu,
   MenuItem,
   Stack,
@@ -18,6 +19,7 @@ import {
   Typography,
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
+import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
@@ -48,6 +50,7 @@ import {
   type Section,
 } from '../../../api/stocktake.api';
 import { useAuth } from '../../../contexts/AuthContext';
+import { CountNav } from './CountNav';
 import { CountQueue, agoText, codeFromScan, looksLikeCode, soundFor, type QueuedScan } from './countQueue';
 import { ACTION_WORDS, PROBLEM_RULES } from './countProblems';
 import { playCountSound, unlockSound } from './countSound';
@@ -56,6 +59,9 @@ import ProblemSheet, { type SheetAnswer } from './ProblemSheet';
 import SectionProgress, { STATE_WORDS, sectionCountLine } from './SectionProgress';
 
 const storeKey = (runId: number) => `stocktake.run.${runId}`;
+
+/** One-tap starters for an empty store: the usual parts of a thrift floor. The Super User can type any other name. */
+const SECTION_IDEAS = ['Front tables', 'Toys', 'Kitchen', 'Furniture', 'Electronics', 'Clothing', 'Tools', 'Back wall'];
 
 function load(runId: number): QueuedScan[] | undefined {
   try {
@@ -509,8 +515,8 @@ export default function CountPage() {
     }
   };
 
-  const createSection = async () => {
-    const name = newSection.trim();
+  const createSection = async (preset?: string) => {
+    const name = (preset ?? newSection).trim();
     if (!name) return;
     try {
       await addSection(name);
@@ -569,27 +575,58 @@ export default function CountPage() {
     );
   }
 
-  // ---- No open run: pick a section -------------------------------------------------------------
+  // ---- No open run: today at a glance, then pick a section -----------------------------------------
   if (!run) {
+    const doneCount = sections.filter((s) => s.state === 'done').length;
+    const inProgress = sections.filter((s) => s.state === 'in_progress').length;
+    const closed = day?.status === 'closed';
+    const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    // On a phone the three numbers sit in one compact row, so the section buttons stay on the first screen.
+    const tile = { p: { xs: 1, sm: 2 }, borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'background.paper', minWidth: 0 };
+    const big = { fontSize: { xs: 20, sm: 26 }, fontWeight: 800, lineHeight: 1.2 };
+    const small = { fontSize: { xs: 11, sm: 13 }, color: 'text.secondary' };
+    const deskOnly = { display: { xs: 'none', sm: 'block' } };
     return (
-      <Box sx={{ p: 2, width: '100%', minWidth: 0, maxWidth: 560, mx: 'auto' }} onClick={unlockSound}>
-        <Typography variant="h5" sx={{ fontWeight: 800 }}>
-          Inventory count
-        </Typography>
-        <Typography sx={{ color: 'text.secondary', mb: 1 }}>
-          {day
-            ? `Today: ${day.counted.toLocaleString()} of ${day.expected.toLocaleString()} items counted`
-            : 'No one has scanned today yet. Every run today adds up to one count.'}
-        </Typography>
-        {sections.length > 0 && (
-          <Box sx={{ mb: 2 }}>
-            <SectionProgress
-              done={sections.filter((s) => s.state === 'done').length}
-              inProgress={sections.filter((s) => s.state === 'in_progress').length}
-              total={sections.length}
-            />
+      <Box sx={{ p: { xs: 1, md: 2 }, width: '100%', minWidth: 0, maxWidth: 1100, mx: 'auto', display: 'flex', flexDirection: 'column' }} onClick={unlockSound}>
+        <CountNav current="count" />
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="h5" sx={{ fontWeight: 800 }}>
+            Run count
+          </Typography>
+          <Typography sx={{ color: 'text.secondary' }}>{today}. Every run today adds up to one count.</Typography>
+        </Box>
+
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: { xs: 1, sm: 1.5 }, mb: 2 }}>
+          <Box sx={tile}>
+            <Typography sx={small}>Counted today</Typography>
+            <Typography sx={big}>
+              {(day?.counted ?? 0).toLocaleString()}
+              {day ? <Box component="span" sx={{ fontSize: { xs: 11, sm: 15 }, fontWeight: 500 }}> of {day.expected.toLocaleString()}</Box> : null}
+            </Typography>
+            <LinearProgress variant="determinate" value={day && day.expected ? Math.min(100, (100 * day.counted) / day.expected) : 0} sx={{ mt: 1, height: 6, borderRadius: 3 }} />
+            {!day && <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5, ...deskOnly }}>No one has scanned yet today.</Typography>}
           </Box>
-        )}
+          <Box sx={tile}>
+            <Typography sx={small}>Sections done</Typography>
+            <Typography sx={big}>
+              {doneCount}
+              <Box component="span" sx={{ fontSize: { xs: 11, sm: 15 }, fontWeight: 500 }}> of {sections.length}</Box>
+            </Typography>
+            <Box sx={{ mt: 1, ...deskOnly }}>
+              <SectionProgress done={doneCount} inProgress={inProgress} total={sections.length} dense />
+            </Box>
+          </Box>
+          <Box sx={{ ...tile, borderColor: pendingCards.length ? 'warning.main' : 'divider' }}>
+            <Typography sx={small}>Needs an answer</Typography>
+            <Typography sx={{ ...big, color: pendingCards.length ? 'warning.dark' : 'text.primary' }}>
+              {pendingCards.length}
+            </Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5, ...deskOnly }}>
+              {pendingCards.length ? 'Answer these before the next section.' : 'Nothing waiting.'}
+            </Typography>
+          </Box>
+        </Box>
+
         {flash && (
           <Alert severity="success" sx={{ mb: 1.5 }}>
             {flash}
@@ -600,81 +637,110 @@ export default function CountPage() {
             {error}
           </Alert>
         )}
-        {day?.status === 'closed' && (
+        {closed && (
           <Alert severity="info" sx={{ mb: 1.5 }}>
             Today&apos;s count is closed. A manager can reopen it from Sessions.
           </Alert>
         )}
         {pendingCards.length > 0 && (
-          <Box sx={{ mb: 1 }}>
+          <Box sx={{ mb: 1.5, maxWidth: 560 }}>
             <Typography sx={{ fontWeight: 800, mb: 0.5 }}>Still needs an answer ({pendingCards.length})</Typography>
             {pendingCards}
           </Box>
         )}
 
-        <Typography sx={{ fontWeight: 800, mb: 1 }}>Which section are you about to scan?</Typography>
-        {sections.length === 0 && (
-          <Alert severity="warning" sx={{ mb: 1.5 }}>
-            There are no sections yet. {isSuper ? 'Add the first one below.' : 'The Super User adds them.'}
-          </Alert>
-        )}
-        <Stack spacing={1}>
-          {sections.map((s) => (
-            <Button
-              key={s.id}
-              variant={s.state === 'done' ? 'outlined' : 'contained'}
-              color={s.state === 'in_progress' ? 'warning' : 'primary'}
-              size="large"
-              fullWidth
-              disabled={busy || day?.status === 'closed'}
-              onClick={() => void begin(s)}
-              sx={{ py: 1.25, textTransform: 'none', justifyContent: 'space-between', textAlign: 'left' }}
-            >
-              <Box sx={{ minWidth: 0 }}>
-                <Typography noWrap sx={{ fontWeight: 800, fontSize: 17, lineHeight: 1.25 }}>
-                  {s.name}
-                </Typography>
-                <Typography noWrap sx={{ fontSize: 13, opacity: 0.9 }}>
-                  {sectionCountLine(s, false) || 'Never counted before'}
-                </Typography>
+        {sections.length === 0 ? (
+          <Box sx={{ ...tile, p: { xs: 2.5, md: 4 }, textAlign: 'center' }}>
+            <ViewModuleIcon sx={{ fontSize: 44, color: 'primary.main' }} />
+            <Typography sx={{ fontWeight: 800, fontSize: 20, mt: 0.5 }}>Set up the sections first</Typography>
+            <Typography sx={{ color: 'text.secondary', maxWidth: 520, mx: 'auto', mt: 0.5 }}>
+              A section is one part of the floor you count in a single pass, like Toys, Furniture or the back wall.
+              They are added once, and every count uses them.
+            </Typography>
+            {isSuper ? (
+              <Box sx={{ mt: 2 }}>
+                <Stack direction="row" spacing={1} justifyContent="center" flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
+                  {SECTION_IDEAS.map((name) => (
+                    <Chip key={name} label={`+ ${name}`} onClick={() => void createSection(name)} sx={{ fontWeight: 700, height: 36 }} />
+                  ))}
+                </Stack>
+                <Stack direction="row" spacing={1} sx={{ maxWidth: 440, mx: 'auto' }}>
+                  <TextField
+                    value={newSection}
+                    onChange={(e) => setNewSection(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && void createSection()}
+                    placeholder="Or type your own section name"
+                    size="small"
+                    fullWidth
+                    sx={{ '& input': { fontSize: 16 } }}
+                    inputProps={{ maxLength: 60, 'aria-label': 'New section name' }}
+                  />
+                  <Button variant="contained" onClick={() => void createSection()} sx={{ whiteSpace: 'nowrap', textTransform: 'none', fontWeight: 700 }}>
+                    Add
+                  </Button>
+                </Stack>
               </Box>
-              <Chip
-                size="small"
-                label={STATE_WORDS[s.state ?? 'not_started']}
-                sx={{ ml: 1, flexShrink: 0, bgcolor: s.state === 'done' ? undefined : 'rgba(255,255,255,0.9)', color: s.state === 'done' ? undefined : '#111' }}
-                color={s.state === 'done' ? 'success' : 'default'}
-              />
-            </Button>
-          ))}
-        </Stack>
-
-        {isSuper && (
-          <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-            <TextField
-              value={newSection}
-              onChange={(e) => setNewSection(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && void createSection()}
-              placeholder="New section name"
-              size="small"
-              fullWidth
-              inputProps={{ maxLength: 60, 'aria-label': 'New section name' }}
-            />
-            <Button variant="outlined" onClick={() => void createSection()} sx={{ whiteSpace: 'nowrap', textTransform: 'none' }}>
-              Add section
-            </Button>
-          </Stack>
+            ) : (
+              <Typography sx={{ mt: 2, fontWeight: 700 }}>The owner sets these up. Once they are in, they show here and you can start.</Typography>
+            )}
+          </Box>
+        ) : (
+          <>
+            <Typography sx={{ fontWeight: 800, fontSize: 17, mb: 1 }}>Pick the section you are about to scan</Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: 'repeat(3, 1fr)' }, gap: 1.25 }}>
+              {sections.map((s) => {
+                const state = s.state ?? 'not_started';
+                const color = state === 'done' ? 'success.main' : state === 'in_progress' ? 'warning.main' : 'primary.main';
+                return (
+                  <Button
+                    key={s.id}
+                    variant="outlined"
+                    color="inherit"
+                    fullWidth
+                    disabled={busy || closed}
+                    onClick={() => void begin(s)}
+                    sx={{
+                      p: 1.5, minHeight: 76, textTransform: 'none', justifyContent: 'space-between', textAlign: 'left', bgcolor: 'background.paper',
+                      borderColor: 'divider', borderLeft: 6, borderLeftColor: color, borderRadius: 2,
+                    }}
+                  >
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography noWrap sx={{ fontWeight: 800, fontSize: 17, lineHeight: 1.25 }}>
+                        {s.name}
+                      </Typography>
+                      <Typography noWrap sx={{ fontSize: 13, color: 'text.secondary' }}>
+                        {sectionCountLine(s, false) || 'Never counted before'}
+                      </Typography>
+                    </Box>
+                    <Stack alignItems="flex-end" spacing={0.25} sx={{ ml: 1, flexShrink: 0 }}>
+                      <Chip size="small" label={STATE_WORDS[state]} color={state === 'done' ? 'success' : state === 'in_progress' ? 'warning' : 'default'} />
+                      <Typography sx={{ fontSize: 13, fontWeight: 800, color }}>
+                        {state === 'done' ? 'Count again' : state === 'in_progress' ? 'Continue' : 'Start'}
+                      </Typography>
+                    </Stack>
+                  </Button>
+                );
+              })}
+            </Box>
+            {isSuper && (
+              <Stack direction="row" spacing={1} sx={{ mt: 2, maxWidth: 440 }}>
+                <TextField
+                  value={newSection}
+                  onChange={(e) => setNewSection(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && void createSection()}
+                  placeholder="Add another section"
+                  size="small"
+                  fullWidth
+                  sx={{ '& input': { fontSize: 16 } }}
+                  inputProps={{ maxLength: 60, 'aria-label': 'New section name' }}
+                />
+                <Button variant="outlined" onClick={() => void createSection()} sx={{ whiteSpace: 'nowrap', textTransform: 'none' }}>
+                  Add section
+                </Button>
+              </Stack>
+            )}
+          </>
         )}
-
-        <Stack direction="row" spacing={1} sx={{ mt: 3 }} flexWrap="wrap" useFlexGap>
-          {isManager && (
-            <Button component={RouterLink} to="/inventory/count/days" sx={{ textTransform: 'none' }}>
-              Sessions and reports
-            </Button>
-          )}
-          <Button component={RouterLink} to="/inventory/pr-fixit" sx={{ textTransform: 'none' }}>
-            PR Fix-it
-          </Button>
-        </Stack>
       </Box>
     );
   }
@@ -878,9 +944,6 @@ export default function CountPage() {
         </MenuItem>
         <MenuItem onClick={() => void nextCart('pr')}>My PR cart is full{carts.pr ? ` (now ${carts.pr.label})` : ''}</MenuItem>
         <MenuItem onClick={() => void nextCart('relocate')}>My relocate cart is full{carts.relocate ? ` (now ${carts.relocate.label})` : ''}</MenuItem>
-        <MenuItem component={RouterLink} to="/inventory/pr-fixit">
-          PR Fix-it
-        </MenuItem>
         {isManager && (
           <MenuItem component={RouterLink} to="/inventory/count/days">
             Sessions and reports

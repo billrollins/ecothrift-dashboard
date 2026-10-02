@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.127.0] -->
-<!-- Last reviewed: 2026-10-02 (2.127.0) -->
+<!-- Line 1 release: ## [2.128.0] -->
+<!-- Last reviewed: 2026-10-02 (2.128.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,34 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.128.0] - 2026-10-02
+
+User-facing theme: **The Inventory workspace: sortable search, PR Fix-it with Quick reprice inside it, and a Run count that looks finished on a desk and on a phone.** Outside initiatives (owner requests, 2026-10-02).
+
+### Changed
+
+- **Menu:** the workspace is now **Inventory**: **Search**, **Run count**, then PR Fix-it under a line. Quick reprice left the menu.
+- **Search:**
+  - Every column header sorts all the matches (high to low first; A to Z for Product), blanks last; the sort is kept in the address bar.
+  - A select-all box in the header.
+  - No hint line and no "Bulk work" button: the bulk bar shows only when something is ticked or tags are printing; managers get a small "Price changes" link.
+  - The product column shrinks so the number columns fit on a 1440-wide screen.
+- **PR Fix-it:**
+  - One scan box, in the same place on every tab (To fix, To relocate, Fixed, Quick reprice).
+  - Each problem is a card: problem, item and fix side by side on a desk, stacked with thumb-size buttons on a phone. The item shows its price against retail.
+  - A scanned tag that is in no cart offers "Quick reprice" for it.
+- **Quick reprice** lives in PR Fix-it (`/inventory/pr-fixit?tab=reprice`): % off or $ off, presets (10 / 25 / 50%), a "never below" floor, the result card and today's total. Old links and the item's Quick reprice button land there.
+- **Run count:**
+  - A Count / Sessions switch: tabs on a desk, two buttons fixed to the bottom on a phone (managers and up).
+  - The start screen shows today's date, counted today, sections done and what needs an answer (one compact row on a phone), and the sections as cards marked Start, Continue or Count again.
+  - With no sections, a "Set up the sections first" card explains what a section is; the Super User gets one-tap starters and a box to add more.
+  - The PR Fix-it links are gone from the count screens (it is in the menu).
+- **Sessions:** a Delete button on every count row for the Super User (with a confirm step), a card background for the table, and a proper empty state.
+
+### Tests
+
+- `test_inventory_search.py`: sorting both ways with blanks last. `slotCNavLayout.test.ts`: the Inventory workspace. Checked in a browser at desk and phone sizes on a copy of production.
 
 ## [2.127.0] - 2026-10-02
 

@@ -55,6 +55,16 @@ class InventorySearchTests(TestCase):
         self.assertEqual(s.search('ninja 1400w')['count'], 1)
         self.assertEqual(s.search('ninja toaster')['count'], 0)
 
+    def test_a_column_sorts_every_match_both_ways_with_blanks_last(self):
+        ids = lambda **kw: [x['product_id'] for x in s.search('ninja', include_sold=True, **kw)['results']]  # noqa: E731
+        self.assertEqual(ids(sort='-on_shelf'), [self.blender.pk, self.boot.pk, self.sold_only.pk])
+        self.assertEqual(ids(sort='price')[:2], [self.boot.pk, self.blender.pk])           # $5 before $40; none last
+        self.assertEqual(ids(sort='-avg_sold')[:2], [self.blender.pk, self.sold_only.pk])   # $42 then $30; never sold last
+        self.assertEqual(ids(sort='avg_sold')[:2], [self.sold_only.pk, self.blender.pk])
+        # by the title shown: "Ninja Foodi Blender", "Ninja Professional Plus ..." (the standard's), "Silicone ..."
+        self.assertEqual(ids(sort='title'), [self.sold_only.pk, self.blender.pk, self.boot.pk])
+        self.assertEqual(s.search('ninja', sort='nonsense')['sort'], '')
+
     def test_sold_products_show_only_when_asked_and_merged_away_products_never(self):
         self.assertNotIn(self.sold_only.pk, [x['product_id'] for x in s.search('ninja')['results']])
         with_sold = [x['product_id'] for x in s.search('ninja', include_sold=True)['results']]

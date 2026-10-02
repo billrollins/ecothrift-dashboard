@@ -28,6 +28,8 @@ interface SelectionValue {
   productIds: ReadonlySet<number>;
   toggleItem: (id: number) => void;
   toggleProduct: (id: number) => void;
+  /** Tick or untick several products at once (the header box). */
+  setProducts: (ids: number[], on: boolean) => void;
   clear: () => void;
   selection: BulkSelection;
   size: number;
@@ -51,17 +53,24 @@ export function SelectionProvider({ children }: { children: ReactNode }) {
   };
   const toggleItem = useCallback((id: number) => setItemIds((s) => toggle(s, id)), []);
   const toggleProduct = useCallback((id: number) => setProductIds((s) => toggle(s, id)), []);
+  const setProducts = useCallback((ids: number[], on: boolean) => {
+    setProductIds((s) => {
+      const next = new Set(s);
+      ids.forEach((id) => (on ? next.add(id) : next.delete(id)));
+      return next;
+    });
+  }, []);
   const clear = useCallback(() => {
     setItemIds(new Set());
     setProductIds(new Set());
   }, []);
   const value = useMemo(
     () => ({
-      itemIds, productIds, toggleItem, toggleProduct, clear,
+      itemIds, productIds, toggleItem, toggleProduct, setProducts, clear,
       selection: { item_ids: [...itemIds], product_ids: [...productIds] },
       size: itemIds.size + productIds.size,
     }),
-    [itemIds, productIds, toggleItem, toggleProduct, clear],
+    [itemIds, productIds, toggleItem, toggleProduct, setProducts, clear],
   );
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;
 }

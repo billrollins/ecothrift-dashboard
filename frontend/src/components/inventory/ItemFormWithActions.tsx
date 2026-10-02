@@ -64,7 +64,7 @@ export default function ItemFormWithActions({
 
   const handleReprice = () => {
     if (!item) return;
-    navigate(`/inventory/quick-reprice?sku=${encodeURIComponent(item.sku)}`);
+    navigate(`/inventory/pr-fixit?tab=reprice&sku=${encodeURIComponent(item.sku)}`);
   };
 
   const handleDelete = async () => {

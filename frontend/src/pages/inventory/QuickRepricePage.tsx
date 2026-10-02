@@ -12,7 +12,6 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControlLabel,
   IconButton,
   InputAdornment,
   List,
@@ -20,14 +19,13 @@ import {
   ListItemButton,
   ListItemText,
   Paper,
-  Radio,
-  RadioGroup,
   Stack,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from '@mui/material';
 import LocalOffer from '@mui/icons-material/LocalOffer';
-import QrCodeScanner from '@mui/icons-material/QrCodeScanner';
 import CheckCircleOutline from '@mui/icons-material/CheckCircleOutline';
 import ArrowDownward from '@mui/icons-material/ArrowDownward';
 import ExpandMore from '@mui/icons-material/ExpandMore';
@@ -41,6 +39,7 @@ import {
 import type { Item, ItemStatus } from '../../types/inventory.types';
 import { localPrintService } from '../../services/localPrintService';
 import { useAuth } from '../../contexts/AuthContext';
+import { ScanBar } from './count/ScanBar';
 
 const QUICK_REPRICE_ALLOWED_STATUSES = new Set<ItemStatus>([
   'intake',
@@ -101,7 +100,12 @@ function loadPersistedSession(): { entries: SessionEntry[]; savings: number } {
   }
 }
 
-export default function QuickRepricePage() {
+/**
+ * Quick reprice: scan a tag, knock the price down, print the new tag. It lives inside PR Fix-it
+ * (`count/PrFixitPage.tsx`, tab "Quick reprice") since 2026-10-02; `embedded` drops this page's own title.
+ * The scan box is PR Fix-it's shared `ScanBar`, so it looks and sits the same on every tab.
+ */
+export default function QuickRepricePage({ embedded = false }: { embedded?: boolean }) {
   const { enqueueSnackbar } = useSnackbar();
   const { hasRole } = useAuth();
   const isManager = hasRole('Manager') || hasRole('Admin');
@@ -351,15 +355,11 @@ export default function QuickRepricePage() {
     }
   }, [skuInput, discountType, discountValue, minPrice, runQuickReprice]);
 
-  const handleSkuKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleScan();
-  };
-
   const isConfigured = discountValue && !isNaN(Number(discountValue)) && Number(discountValue) > 0;
 
   return (
-    <Box sx={{ p: 3, maxWidth: 680, mx: 'auto' }}>
-      <Stack direction="row" alignItems="center" spacing={1.5} mb={3}>
+    <Box sx={{ p: embedded ? 0 : 3, maxWidth: embedded ? 'none' : 900, mx: embedded ? 0 : 'auto' }}>
+      <Stack direction="row" alignItems="center" spacing={1.5} mb={3} sx={{ display: embedded ? 'none' : 'flex' }}>
         <LocalOffer color="primary" sx={{ fontSize: 32 }} />
         <Box>
           <Typography variant="h5" fontWeight={700}>Quick Reprice</Typography>
@@ -370,93 +370,75 @@ export default function QuickRepricePage() {
         </Box>
       </Stack>
 
-      <Paper variant="outlined" sx={{ p: 2.5, mb: 3 }}>
-        <Typography variant="subtitle1" fontWeight={600} mb={2}>Discount Settings</Typography>
+      <ScanBar
+        inputRef={skuRef}
+        value={skuInput}
+        onChange={setSkuInput}
+        onSubmit={() => void handleScan()}
+        label="Scan to mark down"
+        placeholder={isConfigured ? 'Ready to scan' : 'Set the markdown below first'}
+        actionLabel={loading ? 'Repricing…' : 'Apply'}
+        actionDisabled={!isConfigured || !skuInput.trim() || loading}
+        disabled={!isConfigured || loading}
+        ready={!!isConfigured}
+        helper={
+          isConfigured
+            ? `Each scan takes ${discountType === 'percent' ? `${discountValue}%` : `$${Number(discountValue).toFixed(2)}`} off, never below $${(Number(minPrice) || 0.5).toFixed(2)}, and prints the new tag.`
+            : undefined
+        }
+      />
 
-        <Stack spacing={2}>
-          <RadioGroup
-            row
+      <Paper variant="outlined" sx={{ p: 1.5, mb: 2 }}>
+        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+          <ToggleButtonGroup
+            size="small"
+            exclusive
             value={discountType}
-            onChange={e => {
-              const next = e.target.value as 'percent' | 'fixed';
+            onChange={(_e, next: 'percent' | 'fixed' | null) => {
+              if (!next) return;
               setDiscountType(next);
-              if (next === 'percent') {
-                setDiscountValue(v => (v.trim() === '' ? '10' : v));
-              }
+              setDiscountValue(next === 'percent' ? '10' : '5');
             }}
+            aria-label="Markdown type"
           >
-            <FormControlLabel
-              value="percent"
-              control={<Radio />}
-              label="% off current price (default 10%)"
+            <ToggleButton value="percent" sx={{ textTransform: 'none', px: 2 }}>% off</ToggleButton>
+            <ToggleButton value="fixed" sx={{ textTransform: 'none', px: 2 }}>$ off</ToggleButton>
+          </ToggleButtonGroup>
+          {(discountType === 'percent' ? ['10', '25', '50'] : ['1', '5', '10']).map((v) => (
+            <Chip
+              key={v}
+              label={discountType === 'percent' ? `${v}%` : `$${v}`}
+              color={Number(discountValue) === Number(v) ? 'primary' : 'default'}
+              variant={Number(discountValue) === Number(v) ? 'filled' : 'outlined'}
+              onClick={() => setDiscountValue(v)}
+              sx={{ fontWeight: 700, minWidth: 52, height: 36 }}
             />
-            <FormControlLabel value="fixed" control={<Radio />} label="Fixed amount off (e.g. $5.00)" />
-          </RadioGroup>
-
-          <Stack direction="row" spacing={2}>
-            <TextField
-              label={discountType === 'percent' ? 'Discount %' : 'Discount Amount ($)'}
-              value={discountValue}
-              onChange={e => setDiscountValue(e.target.value)}
-              type="number"
-              inputProps={{ min: 0.01, step: discountType === 'percent' ? 1 : 0.01 }}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    {discountType === 'percent' ? '%' : '$'}
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ width: 180 }}
-              size="small"
-            />
-            <TextField
-              label="Minimum price floor ($)"
-              value={minPrice}
-              onChange={e => setMinPrice(e.target.value)}
-              type="number"
-              inputProps={{ min: 0, step: 0.01 }}
-              InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
-              sx={{ width: 180 }}
-              size="small"
-              helperText="Won't discount below this"
-            />
-          </Stack>
-        </Stack>
-      </Paper>
-
-      <Paper
-        variant="outlined"
-        sx={{
-          p: 2.5, mb: 3,
-          borderColor: isConfigured ? 'primary.main' : 'divider',
-          borderWidth: isConfigured ? 2 : 1,
-        }}
-      >
-        <Stack direction="row" spacing={1.5} alignItems="center">
-          <QrCodeScanner color={isConfigured ? 'primary' : 'disabled'} sx={{ fontSize: 28 }} />
+          ))}
           <TextField
-            inputRef={skuRef}
-            fullWidth
-            label="Scan barcode or type SKU"
-            value={skuInput}
-            onChange={e => setSkuInput(e.target.value)}
-            onKeyDown={handleSkuKeyDown}
-            disabled={!isConfigured || loading}
-            placeholder={isConfigured ? 'Ready to scan...' : 'Set discount above first'}
+            label={discountType === 'percent' ? 'Percent' : 'Amount'}
+            value={discountValue}
+            onChange={e => setDiscountValue(e.target.value)}
+            type="number"
+            inputProps={{ min: 0.01, step: discountType === 'percent' ? 1 : 0.01, inputMode: 'decimal' }}
+            InputProps={{ startAdornment: <InputAdornment position="start">{discountType === 'percent' ? '%' : '$'}</InputAdornment> }}
+            sx={{ width: 120, '& input': { fontSize: 16 } }}
             size="small"
           />
-          <Button
-            variant="contained"
-            onClick={handleScan}
-            disabled={!isConfigured || !skuInput.trim() || loading}
-            sx={{ minWidth: 90 }}
-          >
-            {loading ? 'Repricing...' : 'Apply'}
-          </Button>
+          <TextField
+            label="Never below"
+            value={minPrice}
+            onChange={e => setMinPrice(e.target.value)}
+            type="number"
+            inputProps={{ min: 0, step: 0.01, inputMode: 'decimal' }}
+            InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+            sx={{ width: 120, '& input': { fontSize: 16 } }}
+            size="small"
+          />
         </Stack>
       </Paper>
 
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1.2fr) minmax(0, 1fr)' }, gap: 2, alignItems: 'start' }}>
+      <Box>
       {resolvedPreview && (
         <Stack direction="row" alignItems="center" spacing={1} mb={2} flexWrap="wrap">
           <Typography variant="caption" color="text.secondary">Resolved:</Typography>
@@ -492,7 +474,7 @@ export default function QuickRepricePage() {
                 <Chip size="small" label={formatStatusLabel(lastResult.status)} variant="outlined" />
               )}
             </Stack>
-            <Stack direction="row" spacing={3} alignItems="center">
+            <Stack direction="row" spacing={{ xs: 2, sm: 3 }} alignItems="center" flexWrap="wrap" useFlexGap>
               <Box textAlign="center">
                 <Typography variant="caption" color="text.secondary">Old Price</Typography>
                 <Typography variant="h6" sx={{ textDecoration: 'line-through', color: 'text.secondary' }}>
@@ -516,7 +498,14 @@ export default function QuickRepricePage() {
           </CardContent>
         </Card>
       )}
+      {!lastResult && !error && !resolvedPreview && (
+        <Paper variant="outlined" sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>
+          <Typography>Scan a tag to start. The new price and tag show here.</Typography>
+        </Paper>
+      )}
+      </Box>
 
+      <Box>
       {sessionEntries.length > 0 && (
         <Paper variant="outlined" sx={{ p: 0, overflow: 'hidden' }}>
           <Stack
@@ -592,6 +581,8 @@ export default function QuickRepricePage() {
           </Collapse>
         </Paper>
       )}
+      </Box>
+      </Box>
 
       <Dialog open={soldDialogOpen} onClose={soldDialogBusy ? undefined : closeSoldDialog} maxWidth="sm" fullWidth>
         <DialogTitle>Item is sold</DialogTitle>

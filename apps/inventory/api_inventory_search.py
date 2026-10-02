@@ -1,7 +1,7 @@
 """
 Inventory search (services/inventory_search.py).
 
-GET /api/inventory/search/?q=<text>&sold=1&page=1     one page of products with their numbers
+GET /api/inventory/search/?q=<text>&sold=1&page=1&sort=-sold   one page of products with their numbers
 GET /api/inventory/search/items/?product=<id>&sold=1  the items of one product
 GET /api/inventory/search/similar/?product=<id>       products that mean the same kind of thing, with their numbers
 """
@@ -26,7 +26,8 @@ def inventory_search_view(request):
     except ValueError:
         page = 1
     return Response(inventory_search.search(
-        str(request.query_params.get('q') or ''), include_sold=_flag(request, 'sold'), page=page))
+        str(request.query_params.get('q') or ''), include_sold=_flag(request, 'sold'), page=page,
+        sort=str(request.query_params.get('sort') or '')))
 
 
 @api_view(['GET'])

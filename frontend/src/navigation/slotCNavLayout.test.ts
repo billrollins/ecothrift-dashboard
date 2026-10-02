@@ -57,7 +57,7 @@ describe('workspaceIdForDigit', () => {
 describe('workspaceShortcutLetter', () => {
   it('is the first letter of the short name, uppercased', () => {
     expect(workspaceShortcutLetter(SLOT_C_WORKSPACES[0]!)).toBe('B');
-    expect(workspaceShortcutLetter(SLOT_C_WORKSPACES.find((w) => w.id === 'retailFloor')!)).toBe('F');
+    expect(workspaceShortcutLetter(SLOT_C_WORKSPACES.find((w) => w.id === 'retailFloor')!)).toBe('I');
   });
 
   it('gives every workspace its own letter color', () => {
@@ -74,7 +74,7 @@ describe('workspaceIdForKey', () => {
   it('maps a letter to the workspace whose short name starts with it', () => {
     expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'r')).toBe('restoration');
     expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'R')).toBe('restoration');
-    expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'f')).toBe('retailFloor');
+    expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'i')).toBe('retailFloor');
     expect(workspaceIdForKey(SLOT_C_WORKSPACES, 's')).toBe('studios');
     expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'a')).toBe('admin');
     expect(workspaceIdForKey(SLOT_C_WORKSPACES, 'l')).toBeNull();
@@ -186,7 +186,9 @@ describe('Studios and Admin placement', () => {
   });
 
   it('keeps Floorplans out of Retail Floor (Studios only) and Messages on Online Sales', () => {
-    expect(retailFloor?.itemIds).toEqual(['inventoryWorkbench', 'quickReprice', 'inventoryCount', 'prFixit']);
+    expect(retailFloor?.itemIds).toEqual(['inventoryWorkbench', 'inventoryCount']);
+    expect(retailFloor?.guestItemIds).toEqual(['prFixit']);   // under a line
+    expect(retailFloor?.label).toBe('Inventory');
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'studios')?.itemIds).toContain('floorplans');
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'essentials')?.itemIds).toEqual(['dashboard', 'brief']);
     expect(onlineSales?.itemIds).toContain('onlineSalesCustomers');

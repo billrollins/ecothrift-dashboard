@@ -64,9 +64,12 @@ export interface InventorySearchItemsResponse {
   items: InventorySearchItem[];
 }
 
-export function searchInventory(params: { q: string; sold: boolean; page: number }, signal?: AbortSignal) {
+/** Column keys the server can sort on; a leading `-` means high to low. */
+export type InventorySortKey = 'title' | 'on_shelf' | 'retail' | 'price' | 'sold' | 'avg_sold' | 'days' | 'last_sold';
+
+export function searchInventory(params: { q: string; sold: boolean; page: number; sort?: string }, signal?: AbortSignal) {
   return api.get<InventorySearchResponse>('/inventory/search/', {
-    params: { q: params.q, sold: params.sold ? 1 : undefined, page: params.page },
+    params: { q: params.q, sold: params.sold ? 1 : undefined, page: params.page, sort: params.sort || undefined },
     signal,
   });
 }

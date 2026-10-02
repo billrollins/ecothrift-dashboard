@@ -14,7 +14,10 @@ or an item anywhere on the site. It replaced the old Catalog page (`/inventory/w
 - Nothing found: the closest products by spelling are shown ("Nothing matched exactly").
 - In the items list: click a price to change it (then "Reprint tag" in the confirmation), the printer icon reprints
   a tag, the plus icon on a product adds more of it (a new check-in).
-- Page state is in the URL: `q`, `sold`, `page`, `open=<product|checkin|item>:<id>`.
+- **Sort:** every column header sorts all the matches on the server (high to low first; A to Z for Product), blanks
+  last. The header box ticks every product on the page with something on the shelf.
+- Page state is in the URL: `q`, `sold`, `page`, `sort`, `open=<product|checkin|item>:<id>`.
+- In the menu it is **Inventory > Search** (2026-10-02; with Run count, and PR Fix-it under a line).
 
 ## Speed (target: under a second; measured 15 to 360 ms on a copy of production, 2026-10-02)
 

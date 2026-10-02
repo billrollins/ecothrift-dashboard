@@ -69,7 +69,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
   inventoryWorkbench: {
     id: 'inventoryWorkbench',
     path: '/inventory/search',
-    label: 'Inventory search',
+    label: 'Search',
     icon: 'search',
   },
   floorplans: {
@@ -88,7 +88,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
   inventoryCount: {
     id: 'inventoryCount',
     path: '/inventory/count',
-    label: 'Inventory count',
+    label: 'Run count',
     icon: 'factCheck',
   },
   prFixit: {

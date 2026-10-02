@@ -26,7 +26,7 @@ from django.db.models import (
 )
 
 from django.db.models import Value
-from django.db.models.functions import StrIndex
+from django.db.models.functions import Coalesce, Lower, NullIf, StrIndex
 
 from apps.inventory.models import Item, Product, ProductProfile
 
@@ -140,8 +140,29 @@ def _rows(products: list[Product], matched_sku: dict[int, str] | None = None) ->
     return out
 
 
-def search(q: str, *, include_sold: bool = False, page: int = 1, page_size: int = PAGE_SIZE) -> dict[str, Any]:
-    """One page of products for `q`. `include_sold` also shows products with nothing on the shelf."""
+def _sort_expression(key: str):
+    """The value a column sorts on, computed over every match (only when a sort is asked for)."""
+    shelf, sold = Q(items__status=ON_SHELF), Q(items__sold_at__isnull=False)
+    return {
+        # The title shown in the row: the standard's when the product has one.
+        'title': Lower(Coalesce(NullIf('profile__display_title', Value('')), 'title')),
+        'on_shelf': Count('items', filter=shelf),
+        'retail': Avg('items__retail', filter=Q(items__retail__gt=0)),
+        'price': Min('items__price', filter=shelf),
+        'sold': Count('items', filter=sold),
+        'avg_sold': Avg('items__sold_for', filter=sold),
+        'days': Avg(ExpressionWrapper(F('items__sold_at') - F('items__listed_at'), output_field=DurationField()),
+                    filter=sold & Q(items__listed_at__isnull=False, items__listed_at__lte=F('items__sold_at'))),
+        'last_sold': Max('items__sold_at'),
+    }.get(key)
+
+
+SORT_KEYS = ('title', 'on_shelf', 'retail', 'price', 'sold', 'avg_sold', 'days', 'last_sold')
+
+
+def search(q: str, *, include_sold: bool = False, page: int = 1, page_size: int = PAGE_SIZE, sort: str = '') -> dict[str, Any]:
+    """One page of products for `q`. `include_sold` also shows products with nothing on the shelf.
+    `sort` is a column key from SORT_KEYS, with a leading `-` for high to low; empty = best match first."""
     started = time.perf_counter()
     q = (q or '').strip()[:200]
     page = max(1, page)
@@ -169,6 +190,12 @@ def search(q: str, *, include_sold: bool = False, page: int = 1, page_size: int 
         qs = qs.annotate(pos=StrIndex('search_text', Value(words[0]))).order_by('-has_shelf', 'pos', '-pk')
     else:
         qs = qs.order_by('-pk')
+    key = sort.lstrip('-')
+    if key in SORT_KEYS:
+        column = F('sort_value').desc(nulls_last=True) if sort.startswith('-') else F('sort_value').asc(nulls_last=True)
+        qs = qs.annotate(sort_value=_sort_expression(key)).order_by(column, '-pk')
+    else:
+        sort = ''
 
     # One pass over the matches gives both the count and this page's ids (two passes cost twice as much on a
     # broad word like "toy").
@@ -189,7 +216,7 @@ def search(q: str, *, include_sold: bool = False, page: int = 1, page_size: int 
         fuzzy, count = bool(products), len(products)
 
     return {
-        'q': q, 'page': page, 'page_size': page_size,
+        'q': q, 'page': page, 'page_size': page_size, 'sort': sort,
         'count': min(count, COUNT_CAP), 'more': count > COUNT_CAP, 'fuzzy': fuzzy,
         'results': _rows(products, matched_sku),
         'took_ms': round((time.perf_counter() - started) * 1000),
