@@ -117,3 +117,39 @@ class TaxonomyBucketSqlParityTests(TestCase):
         prod = Product.objects.create(title='p6', category=self._category(MIXED_LOTS_UNCATEGORIZED))
         it = Item.objects.create(sku='ITMTBKT06', product=prod, purchase_order=self.po)
         self._assert_parity(it)
+
+
+class ProfileCategorySwitchTests(TaxonomyBucketSqlParityTests):
+    """ITM-15: with the owner's switch on, a real profile category wins; off, nothing changes."""
+
+    def _item(self, sku, profile_category):
+        from apps.inventory.models import ProductProfile
+
+        prod = Product.objects.create(title='p', category=self._category(MIXED_LOTS_UNCATEGORIZED))
+        ProductProfile.objects.create(product=prod, category=profile_category)
+        return Item.objects.create(sku=sku, product=prod, purchase_order=self.po)
+
+    def _switch(self, on):
+        from apps.core.models import AppSetting
+        from apps.inventory.services import effective_category
+
+        AppSetting.objects.update_or_create(key=effective_category.SWITCH_KEY, defaults={'value': on})
+
+    def test_switch_off_keeps_the_product_category(self):
+        it = self._item('ITMTBKT90', 'Toys & games')
+        self.assertNotIn('productprofile', taxonomy_bucket_case_sql())
+        self.assertEqual(_bucket_from_sql(it.pk), MIXED_LOTS_UNCATEGORIZED)
+        self._assert_parity(it)
+
+    def test_switch_on_uses_a_real_profile_category_in_sql_and_python(self):
+        self._switch(True)
+        it = self._item('ITMTBKT91', 'Toys & games')
+        self.assertEqual(_bucket_from_sql(it.pk), 'Toys & games')
+        self._assert_parity(it)
+
+    def test_switch_on_ignores_a_mixed_or_unknown_profile_category(self):
+        self._switch(True)
+        for sku, cat in (('ITMTBKT92', MIXED_LOTS_UNCATEGORIZED), ('ITMTBKT93', 'Gadgets'), ('ITMTBKT94', '')):
+            it = self._item(sku, cat)
+            self.assertEqual(_bucket_from_sql(it.pk), MIXED_LOTS_UNCATEGORIZED)
+            self._assert_parity(it)

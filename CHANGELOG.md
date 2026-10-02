@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.121.0] -->
-<!-- Last reviewed: 2026-10-02 (2.121.0) -->
+<!-- Line 1 release: ## [2.122.0] -->
+<!-- Last reviewed: 2026-10-02 (2.122.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,27 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.122.0] - 2026-10-02
+
+User-facing theme: **Buying's category numbers can read the new product categories instead of "Mixed lots".** It ships switched off; nothing changes until `category_from_profile` is turned on in Settings > System. Initiative: `data_platform` (data-quality row ITM-15).
+
+### Added
+
+- **Switch `category_from_profile`** (off): with it on, Need, recovery, the category stats and the seller factor count an item under its product standard category when that is a real one (a canon name, not Mixed lots); otherwise the old order stands (the product's own category, then the manifest row's). No data changes; turning it off puts the old numbers back at the next category stats run. On the dev copy, Mixed lots falls from 87.4% to 0.3% of sold items (107,050 to 325). Code: `apps/inventory/services/effective_category.py`, `apps/buying/services/taxonomy_bucket_sql.py`, `category_need.py`, `seller_factor.py`.
+- **`push_vectors`** (run on the owner's PC): writes locally built product vectors into production, only where production's text is exactly the text that was embedded. Building 100,000 vectors on production would slow the register.
+
+### Production data (2026-10-02, the owner's approvals)
+
+- Request #5: the product standard loaded on 135,004 products (992,795 fields). Request #6: the duplicate merges. Vectors: 102,452 pushed from the owner's PC.
+
+### Tests
+
+- `apps/buying/tests/test_taxonomy_bucket_sql.py`: switch off keeps the product category; on, a real profile category wins in SQL and in Python alike; a Mixed or unknown profile category is ignored.
+
+### Migrations
+
+- `inventory/0104_seed_category_from_profile_switch`: adds the switch, off. The release phase runs it.
 
 ## [2.121.0] - 2026-10-02
 

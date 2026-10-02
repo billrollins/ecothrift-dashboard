@@ -1,24 +1,24 @@
-feat: v2.121.0 production load for the product standard, duplicate merges and vectors (three Requests)
+feat: v2.122.0 buying category numbers can read the product standard category (switch off); push_vectors
 
-Release: v2.121.0
+Release: v2.122.0
 
-User-facing theme: **The product standard and the duplicate merges made on the owner's PC can now be loaded into production, through Requests the owner approves.** Nothing changes until a Request is approved. Initiative: `data_platform` (with `product_intelligence`).
+User-facing theme: **Buying's category numbers can read the new product categories instead of "Mixed lots".** It ships switched off; nothing changes until `category_from_profile` is turned on in Settings > System. Initiative: `data_platform` (data-quality row ITM-15).
 
 ### Added
 
-- **Three Requests** (Superuser > Requests), run in this order (`apps/inventory/services/standard_load.py`):
-  - **Load the product standard** (`inventory.load_standard`): sets title, tag name, brand, model, category, subcategory, product specs, vector text and aliases on each product's profile. Undo puts every field back to what it held.
-  - **Merge the duplicates the pipeline decided** (`inventory.merge_decided`): replays the merges in the order they were made and loads the same / different answers behind them. Every merge is reversible.
-  - **Build product vectors** (`inventory.embed_standard`): builds the vector of each standardized, un-merged product from its vector text; a catch-up, since the vectors are pushed from the owner's PC.
-- **The data:** `apps/inventory/data/backfill/standard-2026-10-02.jsonl.gz` (135,005 products), `merges-2026-10-02.jsonl.gz` (32,370), `decisions-2026-10-02.jsonl.gz` (74,181); 14 MB together. Written by `python manage.py export_standard_backfill`.
-- **Guards:** a row is used only when the product still exists and its title is unchanged since the 2026-09-24 copy; the rest are counted in the preview and left alone. A value a person set is never replaced. Every load resumes from its cursor and can run twice.
+- **Switch `category_from_profile`** (off): with it on, Need, recovery, the category stats and the seller factor count an item under its product standard category when that is a real one (a canon name, not Mixed lots); otherwise the old order stands (the product's own category, then the manifest row's). No data changes; turning it off puts the old numbers back at the next category stats run. On the dev copy, Mixed lots falls from 87.4% to 0.3% of sold items (107,050 to 325). Code: `apps/inventory/services/effective_category.py`, `apps/buying/services/taxonomy_bucket_sql.py`, `category_need.py`, `seller_factor.py`.
+- **`push_vectors`** (run on the owner's PC): writes locally built product vectors into production, only where production's text is exactly the text that was embedded. Building 100,000 vectors on production would slow the register.
 
-### Changed
+### Production data (2026-10-02, the owner's approvals)
 
-- A product merge now also moves open order rows (`PreprocessingRow.final_matched_product`, `ProcessingRow.matched_product`) to the survivor, so a check-in never lands on a merged-away product. Undo moves them back.
+- Request #5: the product standard loaded on 135,004 products (992,795 fields). Request #6: the duplicate merges. Vectors: 102,452 pushed from the owner's PC.
 
 ### Tests
 
-- `apps/inventory/tests/test_standard_load.py` (load, human values kept, changed and missing products skipped, undo, resume, merges with open order rows, decisions, vectors).
+- `apps/buying/tests/test_taxonomy_bucket_sql.py`: switch off keeps the product category; on, a real profile category wins in SQL and in Python alike; a Mixed or unknown profile category is ignored.
+
+### Migrations
+
+- `inventory/0104_seed_category_from_profile_switch`: adds the switch, off. The release phase runs it.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

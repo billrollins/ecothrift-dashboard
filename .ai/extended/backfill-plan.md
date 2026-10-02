@@ -177,5 +177,10 @@ The pipeline's **final state** on the owner's PC is exported and loaded; nothing
   person set is never replaced. Every load resumes from its cursor and can run twice.
 - **Merges also move open order rows now** (`PreprocessingRow.final_matched_product`, `ProcessingRow.matched_product`),
   so a check-in never lands on a merged-away product.
-- **Still open, ITM-15:** the app's category numbers read `Product.category`, not the profile. Owner to choose:
-  the app reads the profile category first (recommended, no data change), or the load also writes `Product.category`.
+- **ITM-15 (owner chose A, 2026-10-02):** buying's numbers read the profile category first, behind the switch
+  `category_from_profile` (`apps/inventory/services/effective_category.py`). On the dev copy, Mixed lots falls from
+  87.4% to 0.3% of sold items. No data changes; turning the switch off puts the old numbers back at the next
+  category stats run.
+- **Vectors** are pushed from the owner's PC (`python manage.py push_vectors`, reads `PROD_DATABASE_URL`), because
+  building 100,000 on production would slow the register. Request 3 is only a catch-up.
+- **Loaded 2026-10-02:** Request #5 (standard): 135,004 products, 992,795 fields.

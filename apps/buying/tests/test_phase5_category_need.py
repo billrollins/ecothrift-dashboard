@@ -11,6 +11,14 @@ from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED
 
 
 class TaxonomyBucketTests(SimpleTestCase):
+    def setUp(self):
+        # No database here: the owner's profile-category switch (ITM-15) reads as off.
+        from unittest.mock import patch
+
+        patcher = patch('apps.inventory.services.effective_category.is_enabled', return_value=False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_product_category_exact(self):
         item = MagicMock()
         item.product_id = 1

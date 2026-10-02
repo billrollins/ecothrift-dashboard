@@ -67,6 +67,8 @@ def fit_seller_factors(
     from apps.inventory.models import Item, PurchaseOrder
 
     today = today or timezone.localdate()
+    from apps.inventory.services import effective_category
+
     stats = load_category_stats_dict()
     keep = Decimal('1') - get_global_shrinkage()
     sellers = {m.name.strip().lower() for m in Marketplace.objects.all() if m.name.strip()}
@@ -79,14 +81,15 @@ def fit_seller_factors(
     per_po: dict[int, dict[str, Decimal]] = defaultdict(lambda: {'items': 0, 'sold': 0, 'actual': Decimal('0'), 'predicted': Decimal('0')})
     for row in (
         Item.objects.filter(purchase_order_id__in=list(pos))
-        .values('purchase_order_id', 'product__category__name')
+        .annotate(category_name=effective_category.category_name_expression())
+        .values('purchase_order_id', 'category_name')
         .annotate(items=Count('pk'), sold_n=Count('pk', filter=sold), actual=Sum('sold_for', filter=sold), retail=Sum('retail'))
     ):
         entry = per_po[row['purchase_order_id']]
         entry['items'] += row['items']
         entry['sold'] += row['sold_n']
         entry['actual'] += row['actual'] or Decimal('0')
-        rate = recovery_rate(stats, row['product__category__name'] or '')
+        rate = recovery_rate(stats, row['category_name'] or '')
         entry['predicted'] += (row['retail'] or Decimal('0')) * rate * keep
 
     ratios: dict[str, list[float]] = defaultdict(list)

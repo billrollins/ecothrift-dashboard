@@ -28,6 +28,12 @@ def taxonomy_bucket_for_item(item) -> str:
 
     _TAXONOMY_SET = frozenset(NAMES)
     if item.product_id:
+        from apps.inventory.services import effective_category
+
+        if effective_category.is_enabled():
+            from_profile = effective_category.profile_category(item.product)
+            if from_profile:
+                return from_profile
         try:
             category = item.product.category
             pc = (category.name if category else '').strip()
@@ -265,10 +271,15 @@ def need_coverage() -> dict[str, Any]:
     from apps.buying.taxonomy_v1 import MIXED_LOTS_UNCATEGORIZED
     from apps.inventory.models import Item
 
+    from apps.inventory.services import effective_category
+
     since = timezone.now() - timedelta(days=get_pricing_need_window_days())
+    has_name = Q(product__category__isnull=False) & ~Q(product__category__name=MIXED_LOTS_UNCATEGORIZED)
+    if effective_category.is_enabled():
+        has_name |= Q(product__profile__category__in=effective_category.REAL_CATEGORIES)
     sold = Item.objects.filter(status='sold', sold_at__gte=since).aggregate(
         n=Count('id'),
-        named=Count('id', filter=Q(product__category__isnull=False) & ~Q(product__category__name=MIXED_LOTS_UNCATEGORIZED)),
+        named=Count('id', filter=has_name),
         listed=Count('id', filter=Q(listed_at__isnull=False, listed_at__lte=F('sold_at'))),
     )
     n = sold['n'] or 0
