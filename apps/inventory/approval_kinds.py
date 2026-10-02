@@ -9,6 +9,9 @@ Inventory work that goes through Superuser → Requests (staged in production, a
   not in the table yet. Undo deletes the ones it added.
 - ``inventory.merge_duplicates``: merge the duplicate pairs found at staging (the plan is frozen in
   params, so approval applies exactly what was previewed). It is reversible through ``CatalogMerge``.
+- ``inventory.load_standard``, ``inventory.merge_decided``, ``inventory.embed_standard``: the standardize and
+  dedupe pipeline's results, exported from the owner's PC into ``data/backfill/`` and loaded here
+  (``services/standard_load.py``). Run them in that order.
 """
 from __future__ import annotations
 
@@ -293,4 +296,153 @@ def _merge_undo(request: ApprovalRequest) -> dict:
 register(Kind(
     kind='inventory.merge_duplicates', label='Merge duplicate products',
     preview=_merge_preview, apply=_merge_apply, undo=_merge_undo,
+))
+
+
+# ── The product standard, merges and vectors from the pipeline (services/standard_load.py) ─────────────
+
+def _plus(base: dict, counts: dict) -> dict:
+    """Counts from before a resume plus this run's (zeros kept, unlike Counter addition)."""
+    return {k: int(base.get(k) or 0) + int(counts.get(k) or 0) for k in {*base, *counts}}
+
+
+def _standard_preview(params: dict) -> dict:
+    from apps.inventory.services import standard_load
+
+    info = standard_load.summarize_standard(params['file'])
+    c, h = info['counts'], info['header']
+    top = sorted(info['by_category'].items(), key=lambda kv: -kv[1])[:8]
+    return {
+        'counts': {
+            'Products in the file': c['rows'], 'Will be standardized': c['usable'],
+            'Skipped: title changed since 09-24': c['changed'], 'Skipped: product no longer exists': c['missing'],
+            'Already loaded': c['already'], 'Fields a person set (kept)': c['human_fields'],
+            **{f'Category: {k}': v for k, v in top},
+        },
+        'changes': [
+            f"Sets the standard on {c['usable']:,} products: title, tag name, brand, model, category, subcategory, "
+            f"product specs, vector text (rules {h['rules_version']}).",
+            'A value a person set is never replaced. Product titles, prices and items are not touched.',
+            'Undo puts back what each field held before.',
+        ],
+        'sample': info['sample'],
+    }
+
+
+def _standard_apply(request: ApprovalRequest, progress: Progress) -> dict:
+    from apps.inventory.services import standard_load
+
+    total = (request.preview.get('counts') or {}).get('Products in the file') or 0
+    base = dict(progress.state.get('counts') or {})
+
+    def on_chunk(index: int, counts: dict) -> None:
+        now = _plus(base, counts)
+        progress.update(done=index, total=total, cursor=index, counts=now,
+                        log=f"{index:,} of {total:,}; products {now['products']:,}, fields {now['fields_set']:,}, "
+                            f"kept human {now['kept_human']:,}")
+
+    counts = standard_load.load_standard(request.params['file'], request_id=request.pk, start=int(progress.cursor or 0),
+                                         on_chunk=on_chunk)
+    return _plus(base, counts)
+
+
+def _standard_undo(request: ApprovalRequest) -> dict:
+    from apps.inventory.services import standard_load
+
+    return standard_load.undo_standard(request.pk)
+
+
+register(Kind(
+    kind='inventory.load_standard', label='Load the product standard',
+    preview=_standard_preview, apply=_standard_apply, undo=_standard_undo,
+))
+
+
+def _decided_preview(params: dict) -> dict:
+    from apps.inventory.services import standard_load
+
+    info = standard_load.summarize_merges(params['file'])
+    c = info['counts']
+    return {
+        'counts': {
+            'Merges in the file': c['rows'], 'Will be merged': c['usable'], 'Items moved to the survivor': c['items_moved'],
+            'Skipped: title changed since 09-24': c['changed'], 'Skipped: product no longer exists': c['missing'],
+            'Already merged': c['already'] + c['survivor_merged'],
+        },
+        'changes': [
+            f"Folds {c['usable']:,} duplicate products into their survivor: items, manifest links and open order rows move over.",
+            'Nothing is deleted. The merged product is set inactive, and every merge can be undone.',
+            'Owner rule: a wrong merge is cheaper than a leftover duplicate.',
+            'Also loads the same / different answers behind them, so no pair is asked again.',
+        ],
+        'sample': info['sample'],
+    }
+
+
+def _decided_apply(request: ApprovalRequest, progress: Progress) -> dict:
+    from apps.inventory.services import standard_load
+
+    p = request.params
+    total = (request.preview.get('counts') or {}).get('Merges in the file') or 0
+    decisions = progress.state.get('decisions')
+    if decisions is None and p.get('decisions_file'):
+        decisions = standard_load.load_decisions(p['decisions_file'])
+        progress.update(decisions=decisions, log=f'{decisions:,} decisions loaded')
+
+    def on_step(index: int, counts: dict) -> None:
+        progress.update(done=index, total=total, cursor=index, counts=counts,
+                        log=f"{index:,} of {total:,}; merged {counts['merged']:,}" if index % 1000 == 0 or index >= total else '')
+
+    counts = standard_load.apply_merges(p['file'], start=int(progress.cursor or 0), counts=progress.state.get('counts'),
+                                        on_step=on_step)
+    return {**counts, 'decisions': decisions or 0}
+
+
+def _decided_undo(request: ApprovalRequest) -> dict:
+    from apps.inventory.services import standard_load
+
+    return standard_load.undo_merges(request.started_at, request.finished_at)
+
+
+register(Kind(
+    kind='inventory.merge_decided', label='Merge the duplicates the pipeline decided',
+    preview=_decided_preview, apply=_decided_apply, undo=_decided_undo,
+))
+
+
+def _vectors_preview(params: dict) -> dict:
+    from apps.inventory.services import standard_load
+
+    c = standard_load.vectors_needed()
+    return {
+        'counts': {'Standardized products': c['standardized'], 'Vectors to build': c['to_build']},
+        'changes': [
+            f"Builds the vector of {c['to_build']:,} products from their vector text, so matching and dedupe compare like with like.",
+            'It runs slowly on purpose (the register shares the server). Best approved after closing.',
+            'Nothing a person sees changes. There is no undo: a vector is rebuilt from the text at any time.',
+        ],
+        'sample': [],
+    }
+
+
+def _vectors_apply(request: ApprovalRequest, progress: Progress) -> dict:
+    from apps.inventory.services import standard_load
+
+    total = (request.preview.get('counts') or {}).get('Standardized products') or 0
+    base = dict(progress.state.get('counts') or {})
+    seen = int(progress.state.get('done') or 0)
+
+    def on_chunk(last_id: int, counts: dict) -> None:
+        now = _plus(base, counts)
+        done = seen + counts['created'] + counts['updated'] + counts['skipped']
+        progress.update(done=done, total=total, cursor=last_id, counts=now,
+                        log=f"{done:,} of {total:,}; built {now['created'] + now['updated']:,}")
+
+    counts = standard_load.embed_standard(start=int(progress.cursor or 0), on_chunk=on_chunk)
+    return _plus(base, counts)
+
+
+register(Kind(
+    kind='inventory.embed_standard', label='Build product vectors',
+    preview=_vectors_preview, apply=_vectors_apply,
 ))

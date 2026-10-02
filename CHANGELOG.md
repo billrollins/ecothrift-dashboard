@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.120.0] -->
-<!-- Last reviewed: 2026-10-02 (2.120.0) -->
+<!-- Line 1 release: ## [2.121.0] -->
+<!-- Last reviewed: 2026-10-02 (2.121.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,27 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.121.0] - 2026-10-02
+
+User-facing theme: **The product standard and the duplicate merges made on the owner's PC can now be loaded into production, through Requests the owner approves.** Nothing changes until a Request is approved. Initiative: `data_platform` (with `product_intelligence`).
+
+### Added
+
+- **Three Requests** (Superuser > Requests), run in this order (`apps/inventory/services/standard_load.py`):
+  - **Load the product standard** (`inventory.load_standard`): sets title, tag name, brand, model, category, subcategory, product specs, vector text and aliases on each product's profile. Undo puts every field back to what it held.
+  - **Merge the duplicates the pipeline decided** (`inventory.merge_decided`): replays the merges in the order they were made and loads the same / different answers behind them. Every merge is reversible.
+  - **Build product vectors** (`inventory.embed_standard`): builds the vector of each standardized, un-merged product from its vector text; a catch-up, since the vectors are pushed from the owner's PC.
+- **The data:** `apps/inventory/data/backfill/standard-2026-10-02.jsonl.gz` (135,005 products), `merges-2026-10-02.jsonl.gz` (32,370), `decisions-2026-10-02.jsonl.gz` (74,181); 14 MB together. Written by `python manage.py export_standard_backfill`.
+- **Guards:** a row is used only when the product still exists and its title is unchanged since the 2026-09-24 copy; the rest are counted in the preview and left alone. A value a person set is never replaced. Every load resumes from its cursor and can run twice.
+
+### Changed
+
+- A product merge now also moves open order rows (`PreprocessingRow.final_matched_product`, `ProcessingRow.matched_product`) to the survivor, so a check-in never lands on a merged-away product. Undo moves them back.
+
+### Tests
+
+- `apps/inventory/tests/test_standard_load.py` (load, human values kept, changed and missing products skipped, undo, resume, merges with open order rows, decisions, vectors).
 
 ## [2.120.0] - 2026-10-02
 

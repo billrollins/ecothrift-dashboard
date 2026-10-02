@@ -172,6 +172,8 @@ The first targets are the owner's list:
 
 ## Record
 
+**2026-10-02 — Production load built.** The local results are exported to three files and loaded by three Requests (standard, merges, vectors): [`extended/backfill-plan.md`](../extended/backfill-plan.md) § Production load.
+
 **2026-10-02 — Intake produces the standard (built, switch off).** Preprocessing writes the standard per line, matching compares lines to standardized products by vector, check-in gives a new product its profile and vector: [`extended/product-standard.md`](../extended/product-standard.md) § At intake. Next: load the backfill to production through Requests, turn the switch on, then clean the products created between the 09-24 pull and the switch.
 
 **2026-10-02 — Product standard and dedupe pipeline shipped (code only).** 135,005 products standardized and 32,370 duplicates merged on the local copy; the plan, rules and results are in [`extended/backfill-plan.md`](../extended/backfill-plan.md) and [`extended/product-standard.md`](../extended/product-standard.md). Next: intake produces the standard from the start, then the production loads through Requests.

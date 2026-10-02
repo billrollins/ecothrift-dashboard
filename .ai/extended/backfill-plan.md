@@ -147,10 +147,35 @@ Every filled field carries `<field>_source` (real / rule / model) and is listed 
 
 ## Next (owner, 2026-10-02)
 
-1. **Intake produces good data from the start:** the same standard runs in preprocessing and at check-in (title, tag,
-   brand, category, specs, vector), and a new line is matched to an existing product by vector, so duplicates are not
-   created. Behind a switch. Production needs the Spark key (`META_API_KEY`) on Heroku.
-2. **Load the backfill** to production through Requests the owner approves: profiles, the category onto the product
-   (ITM-15), then the merges.
-3. **Clean the middle:** products created after the 2026-09-24 pull and before the new intake is live get the same
-   standardize run, once.
+1. **Intake produces good data from the start:** shipped in v2.120.0, switch `product_standard_at_intake` off
+   ([`product-standard.md`](product-standard.md) § At intake).
+2. **Load the backfill** to production through Requests the owner approves (below).
+3. **Turn the intake switch on**, then **clean the middle:** products created after the 2026-09-24 pull and before
+   the switch get the same standardize run, once.
+
+Owner rule (2026-10-02): everything goes to production as soon as it is done and tested; nothing is held for the
+Thrift+ launch.
+
+## Production load (built 2026-10-02)
+
+The pipeline's **final state** on the owner's PC is exported and loaded; nothing is re-run in production.
+
+- **Export** (on the PC): `python manage.py export_standard_backfill --tag 2026-10-02` writes three files into
+  `apps/inventory/data/backfill/` (14 MB together), which ship with the release:
+  `standard-…` (135,005 products), `merges-…` (32,370), `decisions-…` (74,181).
+- **Load** (production, in this order; each is a Request the owner approves in Dash > Superuser > Requests). Code:
+  `apps/inventory/services/standard_load.py`, kinds in `approval_kinds.py`.
+
+| # | Stage command (`heroku run python manage.py stage_request …`) | What it does | Undo |
+|---|---|---|---|
+| 1 | `inventory.load_standard --title "Load the product standard" --params '{"file": "standard-2026-10-02.jsonl.gz"}'` | Sets title, tag name, brand, model, category, subcategory, product specs, vector text and aliases on each product's profile. | yes: every field goes back to what it held |
+| 2 | `inventory.merge_decided --title "Merge the duplicates" --params '{"file": "merges-2026-10-02.jsonl.gz", "decisions_file": "decisions-2026-10-02.jsonl.gz"}'` | Replays the merges in order; items, manifest links and open order rows move to the survivor. Loads the same / different answers. | yes: every merge is reversible |
+| 3 | `inventory.embed_standard --title "Build product vectors"` | Builds the vector of each standardized, un-merged product from its vector text. Slow on purpose; best after closing. | none needed |
+
+- **Guards:** product ids match because the copy came from production. A row is used only when the product still
+  exists and its title is unchanged since 09-24; the rest are counted in the preview and left alone. A value a
+  person set is never replaced. Every load resumes from its cursor and can run twice.
+- **Merges also move open order rows now** (`PreprocessingRow.final_matched_product`, `ProcessingRow.matched_product`),
+  so a check-in never lands on a merged-away product.
+- **Still open, ITM-15:** the app's category numbers read `Product.category`, not the profile. Owner to choose:
+  the app reads the profile category first (recommended, no data change), or the load also writes `Product.category`.

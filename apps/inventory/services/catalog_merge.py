@@ -29,6 +29,8 @@ from apps.inventory.models import (
     CatalogMerge,
     Item,
     ManifestRow,
+    PreprocessingRow,
+    ProcessingRow,
     Product,
     ProductProfile,
     RestorationJob,
@@ -44,6 +46,9 @@ MOVABLE = (
     (RestorationJob, 'product'),
     (VendorProductRef, 'product'),
     (BatchGroup, 'product'),
+    # Open orders follow the survivor, so a check-in never lands on a merged-away product.
+    (PreprocessingRow, 'final_matched_product'),
+    (ProcessingRow, 'matched_product'),
 )
 
 VAGUE_TITLE_WORDS = 3  # a normalized title shorter than this is too vague to merge on
