@@ -5,7 +5,8 @@ Inventory search (owner, 2026-10-02): one box, one table, one row per product, u
   model, product number, UPC) and its standard (title, tag name, brand, model, category, subcategory, aliases). A
   trigram index answers "every word appears somewhere in it".
 - **A SKU** (typed or scanned) goes straight to that item's product.
-- **Numbers** (on shelf, price range, sold, average sold price, days to sell) are computed only for the page shown.
+- **Numbers** (on shelf, price range, retail, sold, average sold price, each as a percent of retail, days to sell)
+  are computed only for the page shown.
 - **Nothing found:** the closest products by spelling are offered instead (`fuzzy`).
 
 - **Similar products** (`similar`) come from the stored vectors, for price research.
@@ -21,7 +22,7 @@ from typing import Any
 
 from django.db import connection
 from django.db.models import (
-    Avg, Case, Count, DurationField, Exists, ExpressionWrapper, F, IntegerField, Max, Min, OuterRef, Q, When,
+    Avg, Case, Count, DurationField, Exists, ExpressionWrapper, F, IntegerField, Max, Min, OuterRef, Q, Sum, When,
 )
 
 from django.db.models import Value
@@ -88,9 +89,19 @@ def _stats(ids: list[int]) -> dict[int, dict[str, Any]]:
         items=Count('id'), on_shelf=Count('id', filter=shelf),
         price_min=Min('price', filter=shelf), price_max=Max('price', filter=shelf),
         sold=Count('id', filter=sold), avg_sold=Avg('sold_for', filter=sold), last_sold_at=Max('sold_at'),
+        # Pricing help: what it retails for, and what share of retail the shelf price and the sold price are.
+        retail_avg=Avg('retail', filter=Q(retail__gt=0)),
+        shelf_price_sum=Sum('price', filter=shelf & Q(retail__gt=0)), shelf_retail_sum=Sum('retail', filter=shelf & Q(retail__gt=0)),
+        sold_for_sum=Sum('sold_for', filter=sold & Q(retail__gt=0, sold_for__isnull=False)),
+        sold_retail_sum=Sum('retail', filter=sold & Q(retail__gt=0, sold_for__isnull=False)),
         avg_days=Avg(days, filter=sold & Q(listed_at__isnull=False, listed_at__lte=F('sold_at'))),
     )
     return {r['product_id']: r for r in rows}
+
+
+def _pct(part, whole) -> int | None:
+    """`part` as a whole percent of `whole` (None when there is no retail to compare with)."""
+    return round(100 * part / whole) if part is not None and whole else None
 
 
 def _rows(products: list[Product], matched_sku: dict[int, str] | None = None) -> list[dict[str, Any]]:
@@ -119,6 +130,9 @@ def _rows(products: list[Product], matched_sku: dict[int, str] | None = None) ->
             'price_max': s.get('price_max'),
             'sold': s.get('sold') or 0,
             'avg_sold': round(s['avg_sold'], 2) if s.get('avg_sold') is not None else None,
+            'retail': round(s['retail_avg'], 2) if s.get('retail_avg') is not None else None,
+            'price_pct_of_retail': _pct(s.get('shelf_price_sum'), s.get('shelf_retail_sum')),
+            'sold_pct_of_retail': _pct(s.get('sold_for_sum'), s.get('sold_retail_sum')),
             'avg_days_to_sell': round(s['avg_days'].total_seconds() / 86400, 1) if s.get('avg_days') is not None else None,
             'last_sold_at': s.get('last_sold_at'),
             'matched_sku': (matched_sku or {}).get(p.pk, ''),

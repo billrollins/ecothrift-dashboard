@@ -19,6 +19,11 @@ export interface InventorySearchRow {
   price_max: string | null;
   sold: number;
   avg_sold: string | null;
+  /** Typical retail of this product's items. */
+  retail: string | null;
+  /** The shelf price, and the sold price, as a whole percent of retail (null when there is no retail). */
+  price_pct_of_retail: number | null;
+  sold_pct_of_retail: number | null;
   avg_days_to_sell: number | null;
   last_sold_at: string | null;
   matched_sku: string;

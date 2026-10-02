@@ -37,6 +37,21 @@ function priceRange(row: InventorySearchRow): string {
   return `${formatCurrency(row.price_min)} to ${formatCurrency(row.price_max)}`;
 }
 
+/** A money amount with its share of retail under it: the quickest pricing cue. */
+function WithPct({ text, pct }: { text: string; pct: number | null }) {
+  if (!text) return null;
+  return (
+    <>
+      {text}
+      {pct != null && (
+        <Typography variant="caption" color="text.secondary" component="div" sx={{ lineHeight: 1.1 }}>
+          {pct}% of retail
+        </Typography>
+      )}
+    </>
+  );
+}
+
 function shortDate(iso: string | null): string {
   if (!iso) return '';
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
@@ -69,6 +84,7 @@ function SimilarProducts({ productId }: { productId: number }) {
             <TableCell>Product</TableCell>
             <TableCell align="right">Match</TableCell>
             <TableCell align="right">On shelf</TableCell>
+            <TableCell align="right">Retail</TableCell>
             <TableCell align="right">Price</TableCell>
             <TableCell align="right">Sold</TableCell>
             <TableCell align="right">Avg sold</TableCell>
@@ -83,9 +99,10 @@ function SimilarProducts({ productId }: { productId: number }) {
               </TableCell>
               <TableCell align="right">{s.similarity != null ? `${Math.round(s.similarity * 100)}%` : ''}</TableCell>
               <TableCell align="right">{s.on_shelf}</TableCell>
-              <TableCell align="right">{priceRange(s)}</TableCell>
+              <TableCell align="right">{s.retail != null ? formatCurrency(s.retail) : ''}</TableCell>
+              <TableCell align="right"><WithPct text={priceRange(s)} pct={s.price_pct_of_retail} /></TableCell>
               <TableCell align="right">{s.sold || ''}</TableCell>
-              <TableCell align="right">{s.avg_sold != null ? formatCurrency(s.avg_sold) : ''}</TableCell>
+              <TableCell align="right"><WithPct text={s.avg_sold != null ? formatCurrency(s.avg_sold) : ''} pct={s.sold_pct_of_retail} /></TableCell>
               <TableCell align="right">{s.avg_days_to_sell != null ? s.avg_days_to_sell : ''}</TableCell>
             </TableRow>
           ))}
@@ -193,9 +210,12 @@ function ResultRow({ row, includeSold, startOpen }: { row: InventorySearchRow; i
           </Typography>
         </TableCell>
         <TableCell align="right" sx={{ fontWeight: 700, color: row.on_shelf ? 'success.main' : 'text.disabled' }}>{row.on_shelf}</TableCell>
-        <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>{priceRange(row)}</TableCell>
+        <TableCell align="right">{row.retail != null ? formatCurrency(row.retail) : ''}</TableCell>
+        <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}><WithPct text={priceRange(row)} pct={row.price_pct_of_retail} /></TableCell>
         <TableCell align="right">{row.sold || ''}</TableCell>
-        <TableCell align="right">{row.avg_sold != null ? formatCurrency(row.avg_sold) : ''}</TableCell>
+        <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+          <WithPct text={row.avg_sold != null ? formatCurrency(row.avg_sold) : ''} pct={row.sold_pct_of_retail} />
+        </TableCell>
         <TableCell align="right">{row.avg_days_to_sell != null ? row.avg_days_to_sell : ''}</TableCell>
         <TableCell sx={{ whiteSpace: 'nowrap' }}>{shortDate(row.last_sold_at)}</TableCell>
         <TableCell><ObjectLink type="product" id={row.product_id} label={row.product_number || `#${row.product_id}`} /></TableCell>
@@ -215,7 +235,7 @@ function ResultRow({ row, includeSold, startOpen }: { row: InventorySearchRow; i
         </TableCell>
       </TableRow>
       <TableRow>
-        <TableCell colSpan={10} sx={{ py: 0, bgcolor: 'action.hover', maxWidth: 0 }}>
+        <TableCell colSpan={11} sx={{ py: 0, bgcolor: 'action.hover', maxWidth: 0 }}>
           <Collapse in={open} timeout="auto" unmountOnExit>
             <Box sx={{ py: 1, pl: 5, overflowX: 'auto' }}>
               <ProductItemsTable
@@ -291,6 +311,7 @@ function SearchBody({ q, sold, page, setParam }: {
               <TableCell padding="checkbox" />
               <TableCell>Product</TableCell>
               <TableCell align="right">On shelf</TableCell>
+              <TableCell align="right">Retail</TableCell>
               <TableCell align="right">Price</TableCell>
               <TableCell align="right">Sold</TableCell>
               <TableCell align="right">Avg sold</TableCell>
@@ -311,7 +332,7 @@ function SearchBody({ q, sold, page, setParam }: {
             ))}
             {data && !rows.length && (
               <TableRow>
-                <TableCell colSpan={10}>
+                <TableCell colSpan={11}>
                   <Typography color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>
                     {sold ? 'Nothing found.' : 'Nothing on the shelf matches. Turn on "Include sold" to search everything we have had.'}
                   </Typography>

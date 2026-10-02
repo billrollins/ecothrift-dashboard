@@ -1,21 +1,21 @@
-feat: v2.126.0 menu: Product review, Kiosk and the Floor copy of Floorplans removed; Request to close the review queue
+feat: v2.127.0 Inventory search shows retail and percent of retail on products, similar products and items
 
-Release: v2.126.0
+Release: v2.127.0
 
-User-facing theme: **A shorter menu: Product review, Kiosk and the Floor copy of Floorplans are gone, and the old review queue can be closed in one step.** Outside initiatives (owner request, 2026-10-02).
-
-### Changed
-
-- **Product review** left the menu, and `/inventory/product-review` goes to Inventory search. Products get their standard at intake and from the pipeline; nothing creates review items any more.
-- **Kiosk** left the menu. The `/kiosk` address still works (it is the time clock).
-- **Floorplans** is in Studios only (it was also under Retail Floor).
+User-facing theme: **Inventory search shows retail and "percent of retail", so a price is easier to set.** Outside initiatives (owner request, 2026-10-02).
 
 ### Added
 
-- **Request "Close the product review queue"** (`inventory.close_review_queue`): the open proposals from the 2026-09-23 backfill are closed as superseded for every product that already carries the product standard (those products are not changed), and applied for the few that do not. Undo reopens what was closed.
+- **Search rows:** a Retail column (the typical retail of the product's items), and under the shelf price and under the average sold price, that amount as a percent of retail.
+- **Similar products:** the same Retail column and both percentages.
+- **Items list:** a Retail column and a "% of retail" column (what a sold item sold for, or a shelf item's tag price, against its retail).
+
+### Production data (2026-10-02)
+
+- Request #10 closed the product review queue: 386,056 old proposals closed as superseded, 40 applied on the 11 products that had no standard. Nothing is waiting for review.
 
 ### Tests
 
-- `test_approval_kinds.py`: close, apply and undo of the review queue. `slotCNavLayout.test.ts`: the new menu layout.
+- `test_inventory_search.py`: retail and both percentages on a search row.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

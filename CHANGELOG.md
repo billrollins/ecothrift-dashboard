@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.126.0] -->
-<!-- Last reviewed: 2026-10-02 (2.126.0) -->
+<!-- Line 1 release: ## [2.127.0] -->
+<!-- Last reviewed: 2026-10-02 (2.127.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,24 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.127.0] - 2026-10-02
+
+User-facing theme: **Inventory search shows retail and "percent of retail", so a price is easier to set.** Outside initiatives (owner request, 2026-10-02).
+
+### Added
+
+- **Search rows:** a Retail column (the typical retail of the product's items), and under the shelf price and under the average sold price, that amount as a percent of retail.
+- **Similar products:** the same Retail column and both percentages.
+- **Items list:** a Retail column and a "% of retail" column (what a sold item sold for, or a shelf item's tag price, against its retail).
+
+### Production data (2026-10-02)
+
+- Request #10 closed the product review queue: 386,056 old proposals closed as superseded, 40 applied on the 11 products that had no standard. Nothing is waiting for review.
+
+### Tests
+
+- `test_inventory_search.py`: retail and both percentages on a search row.
 
 ## [2.126.0] - 2026-10-02
 

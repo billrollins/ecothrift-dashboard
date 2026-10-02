@@ -6,8 +6,9 @@ or an item anywhere on the site. It replaced the old Catalog page (`/inventory/w
 
 ## The page (`/inventory/search`)
 
-- One box, one table, **one row per product**: on shelf, price range, sold, average sold price, days to sell, last
-  sold. Click a row for its items (SKU, status, price, condition, location, check-in, order, dates).
+- One box, one table, **one row per product**: on shelf, retail, price range, sold, average sold price, days to sell,
+  last sold. Under the price and under the average sold price: its **percent of retail** (the pricing cue; owner,
+  2026-10-02). The items list and Similar products show the same. Click a row for its items (SKU, status, price, condition, location, check-in, order, dates).
 - On the shelf only by default; **Include sold** searches everything we have had (price research).
 - A typed or scanned SKU jumps to that item's product and opens its items.
 - Nothing found: the closest products by spelling are shown ("Nothing matched exactly").

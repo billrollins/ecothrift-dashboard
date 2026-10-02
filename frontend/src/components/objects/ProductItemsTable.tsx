@@ -30,6 +30,14 @@ function shortDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
 }
 
+/** What the item sold for (or its shelf price) as a share of its retail. */
+function pctOfRetail(item: InventorySearchItem): string {
+  const retail = Number(item.retail);
+  const amount = Number(item.sold_at && item.sold_for ? item.sold_for : item.price);
+  if (!(retail > 0) || !Number.isFinite(amount)) return '';
+  return `${Math.round((100 * amount) / retail)}%`;
+}
+
 function PriceCell({ item, onSaved }: { item: InventorySearchItem; onSaved: (price: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState('');
@@ -149,6 +157,8 @@ export function ProductItemsTable({
             <TableCell>SKU</TableCell>
             <TableCell>Status</TableCell>
             <TableCell align="right">Price</TableCell>
+            <TableCell align="right">Retail</TableCell>
+            <TableCell align="right">% of retail</TableCell>
             <TableCell>Condition</TableCell>
             <TableCell>Location</TableCell>
             <TableCell>Check-in</TableCell>
@@ -186,6 +196,8 @@ export function ProductItemsTable({
                   }}
                 />
               </TableCell>
+              <TableCell align="right">{item.retail && Number(item.retail) > 0 ? formatCurrency(item.retail) : ''}</TableCell>
+              <TableCell align="right">{pctOfRetail(item)}</TableCell>
               <TableCell sx={{ textTransform: 'capitalize' }}>{item.condition.replace(/_/g, ' ')}</TableCell>
               <TableCell>{item.location.replace(/_/g, ' ')}</TableCell>
               <TableCell>{item.check_in_id ? <ObjectLink type="checkin" id={item.check_in_id} /> : ''}</TableCell>

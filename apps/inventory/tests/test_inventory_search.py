@@ -48,6 +48,10 @@ class InventorySearchTests(TestCase):
                          ('Ninja Professional Plus Blender 1400W', 'Ninja Blender 1400W', 'Appliances', 2, 3, 1))
         self.assertEqual((top['price_min'], top['price_max'], top['avg_sold'], top['avg_days_to_sell']),
                          (Decimal('40.00'), Decimal('50.00'), Decimal('42.00'), 4.0))
+        # pricing help: retail, and the shelf price and the sold price as a percent of retail
+        Item.objects.filter(product=self.blender).update(retail=Decimal('100.00'))
+        top = s.search('ninja blender')['results'][0]
+        self.assertEqual((top['retail'], top['price_pct_of_retail'], top['sold_pct_of_retail']), (Decimal('100.00'), 45, 42))
         self.assertEqual(s.search('ninja 1400w')['count'], 1)
         self.assertEqual(s.search('ninja toaster')['count'], 0)
 
