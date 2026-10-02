@@ -917,7 +917,7 @@ export interface PreprocessingReviewRow {
 export interface PreprocessingMatchCandidate {
   product_id: number;
   score: number;
-  source: 'upc' | 'vendor_ref' | 'text';
+  source: 'upc' | 'vendor_ref' | 'text' | 'vector';
   snapshot: {
     title: string;
     brand: string;

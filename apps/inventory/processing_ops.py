@@ -509,6 +509,11 @@ def _check_in_processing_row(
     if row.matched_product_id != product.id:
         row.matched_product = product
         row.save(update_fields=['matched_product', 'updated_at'])
+    # The product standard written at preprocessing becomes the product's profile and vector, after this
+    # check-in commits (behind the owner's switch; never raises).
+    from apps.inventory.services.intake_standard import on_check_in
+
+    on_check_in(product.id, row.preprocessing_row_id)
 
     row_shelf = effective_row_shelf_price(row)
     if price is not None:

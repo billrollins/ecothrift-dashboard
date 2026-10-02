@@ -99,3 +99,22 @@ What each fix did:
 
 Escalations are rewrites, not opinions: the Sonnet answer replaces Spark's for that product
 (`workspace/standardize/escalated.jsonl`, loaded in place of the batch row). Dedupe has no escalation step yet.
+
+## At intake (2026-10-02; switch `product_standard_at_intake`, off until the owner turns it on)
+
+New data is made good from the start, so the catalog does not need a cleanup run again. Code:
+`apps/inventory/services/intake_standard.py`.
+
+| Step | Where | What happens |
+|---|---|---|
+| 1. Preprocessing | the AI cleanup job, after its own batches | Spark (high effort, 6 lines per call, up to 24 calls at once) writes the standard for each line. The same code checks it (`standardize.validate`). It is saved on the staging row under `ai_status['standard']`. |
+| 2. Matching | `product_matching`, tier 4 | A line is compared by vector to **standardized** products. Similarity 0.97 or more, the same category and subcategory, and no hard spec conflict (size, count, storage ...; a `*_type` wording difference does not count) = matched automatically. Similarity 0.90 or more = offered to staff ("Similar"). A merged-away product stands for its survivor. Staff decisions are never changed. |
+| 3. Check-in | `processing_ops._check_in_processing_row` | After the check-in commits, a product with no standard yet takes the line's standard as its profile and gets its vector. No model call at the desk. A value a person set is never replaced. |
+
+- **Safety:** every step is best effort. A model failure, a missing key, or an error leaves cleanup, matching and
+  check-in exactly as before. With the switch off, none of it runs.
+- **Owner rule:** a wrong match is cheaper than a duplicate product; when in doubt, match.
+- **Time:** the standard pass adds about one minute per 100 to 150 lines to a cleanup job.
+- **Not covered yet:** products made without a manifest line (manual add, legacy paths) and lines a person
+  edited after cleanup. A nightly standardize for products with no vector text will pick those up.
+- **Trial (local, order 382, 16 lines):** 16 of 16 standards valid; 14 found their product, 7 automatically.

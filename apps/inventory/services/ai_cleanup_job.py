@@ -233,6 +233,67 @@ def _one_batch(order_id: int, token: str, row_ids: list[int], stop: threading.Ev
         _release_db()
 
 
+def _one_standard_batch(order_id: int, token: str, row_ids: list[int], stop: threading.Event, *,
+                        api_key: str) -> dict[str, Any]:
+    """Runs in a pool thread. Never raises: a failure is part of the answer."""
+    from apps.inventory.services import intake_standard
+
+    _fresh_db()
+    try:
+        if stop.is_set():
+            return {'skipped': True}
+        now = _update(order_id, token, heartbeat_at=_now())
+        if now.get('token') != token or now.get('stop_requested'):
+            stop.set()
+            return {'skipped': True}
+        order = PurchaseOrder.objects.get(pk=order_id)
+        return intake_standard.run_standard_batch(order, row_ids, api_key=api_key,
+                                                  timeout=JOB_CALL_TIMEOUT_SECONDS, before_model_call=_release_db)
+    except Exception as e:  # noqa: BLE001
+        logger.warning('ai_cleanup_job order=%s standard batch failed: %s', order_id, e)
+        return {'failed': True, 'error': f'{type(e).__name__}: {e}'[:400]}
+    finally:
+        _release_db()
+
+
+def _standard_pass(order_id: int, token: str, order: PurchaseOrder, concurrency: int) -> bool:
+    """After cleanup, before matching: the product standard for each cleaned row (`intake_standard`).
+
+    Best effort. Off unless the owner's switch is on; a failure here never fails the cleanup, and rows left
+    without a standard get one on the next run. True when the pass ran."""
+    from apps.inventory.services import intake_standard
+
+    try:
+        if not intake_standard.is_enabled():
+            return False
+        api_key, key_error = resolve_cleanup_api_key(intake_standard.std.MODEL)
+        if key_error:
+            _update(order_id, token, standard_error=key_error)
+            return False
+        stop = threading.Event()
+        size = intake_standard.ROWS_PER_CALL
+        for _round in range(2):  # a second round retries what the first could not do
+            ids = intake_standard.rows_needing_standard(order)
+            if not ids or stop.is_set():
+                break
+            with _executor(min(concurrency, intake_standard.MAX_WORKERS), order_id) as pool:
+                futures = [pool.submit(_one_standard_batch, order_id, token, ids[i:i + size], stop, api_key=api_key)
+                           for i in range(0, len(ids), size)]
+                for future in as_completed(futures):
+                    res = future.result()
+                    if res.get('cancelled'):
+                        stop.set()
+                    if res.get('failed'):
+                        _update(order_id, token, heartbeat_at=_now(), add_standard_failed=1,
+                                standard_error=res['error'])
+                    elif not res.get('skipped'):
+                        _update(order_id, token, heartbeat_at=_now(), add_standard_rows=res.get('rows_saved', 0))
+        return True
+    except Exception:  # noqa: BLE001 - the standard never fails a cleanup
+        logger.exception('ai_cleanup_job order=%s standard pass crashed', order_id)
+        return True
+
+
 def _run(order_id: int, token: str) -> None:
     """The job thread: clean what is uncleaned, a few batches at a time, until done or told to stop."""
     _fresh_db()
@@ -306,6 +367,15 @@ def _run(order_id: int, token: str) -> None:
             _update(order_id, token, status='done_with_gaps', finished_at=_now(),
                     message=f'{remaining} row(s) could not be cleaned this run. Run again to retry just those.')
             return
+        if _standard_pass(order_id, token, order, concurrency):
+            # The pass takes minutes: the job may have been replaced, or cleanup undone, meanwhile.
+            if read(order_id).get('token') != token:
+                return
+            generation = PurchaseOrder.objects.values_list('ai_cleanup_generation', flat=True).get(pk=order_id)
+            if generation != state.get('generation'):
+                _update(order_id, token, status='cancelled', finished_at=_now(),
+                        message='Cleanup was undone while it ran, so it stopped. Batches in flight were not saved.')
+                return
         completion = complete_ai_cleanup(order)
         _update(order_id, token, status='done', finished_at=_now(), message='',
                 match_candidates=completion.get('match_candidates'))

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.119.0] -->
-<!-- Last reviewed: 2026-10-02 (2.119.0) -->
+<!-- Line 1 release: ## [2.120.0] -->
+<!-- Last reviewed: 2026-10-02 (2.120.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,28 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.120.0] - 2026-10-02
+
+User-facing theme: **New products can be made clean from the start: the product standard is written during AI cleanup, lines are matched to products by meaning, and a new product gets its profile at check-in.** It ships switched off; nothing changes until `product_standard_at_intake` is turned on in Settings > System. Initiative: `data_platform` (with `product_intelligence`).
+
+### Added
+
+- **Product standard at intake** (`apps/inventory/services/intake_standard.py`), behind the switch `product_standard_at_intake` (off):
+  - **Preprocessing:** after AI cleanup finishes its own batches, Spark writes the standard for each line (title, tag name, vector text, brand, model, canon category and subcategory, product specs). The same code that checked the catalog run checks every answer. It is saved on the staging row; cleanup's own prompt and pricing are untouched. 6 lines per call, up to 24 calls at once, no database connection held during a call.
+  - **Matching:** a fourth tier after UPC, vendor number and exact title. A line is compared by vector to standardized products. Similarity 0.97 or more with the same category and subcategory and no hard spec conflict (size, count, storage ...) is matched automatically; 0.90 or more is offered to staff as "Similar". A merged-away product stands for the product it was merged into. Staff decisions are never changed.
+  - **Check-in:** after a check-in commits, a product with no standard yet takes the line's standard as its profile and gets its vector. No model call at the desk. A value a person set is never replaced.
+  - Every step is best effort: a model failure, a missing key or an error leaves cleanup, matching and check-in exactly as before.
+- Owner rule in the matching: a wrong match is cheaper than a duplicate product; when in doubt, match.
+
+### Tests
+
+- `apps/inventory/tests/test_intake_standard.py` (11 tests: switch off, the standard pass, a model failure, matching, merged products, staff decisions, check-in).
+- Local trial on 16 real lines (order 382): 16 valid standards, 14 found their product, 7 automatically.
+
+### Migrations
+
+- `inventory/0103_seed_intake_standard_switch`: adds the switch, off. The release phase runs it.
 
 ## [2.119.0] - 2026-10-02
 

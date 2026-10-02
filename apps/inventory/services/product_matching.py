@@ -7,6 +7,8 @@ Matchers, strongest first:
     1. UPC exact            (score 100) - auto-selects ``final_matched_product`` when undecided
     2. VendorProductRef     (score 90)  - vendor item number seen on prior orders
     3. Exact title + brand  (score 80)  - case-insensitive
+    4. Same meaning, by vector (85 / 70) - only with the owner's switch on, for rows that carry the
+       product standard (``services/intake_standard.py``). A hit at the dedupe bar auto-selects.
 
 Staff decisions (``match_source == 'staff'``) are never overridden, including an explicit
 staff "this is new" (null FK with staff source).
@@ -14,6 +16,7 @@ staff "this is new" (null FK with staff source).
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from django.db.models.functions import Lower
@@ -28,6 +31,8 @@ from apps.inventory.manifest_standard_fields import (
 )
 from apps.inventory.models import PreprocessingRow, Product, PurchaseOrder, VendorProductRef
 from apps.inventory.product_identity import identifier_value
+
+logger = logging.getLogger(__name__)
 
 MAX_CANDIDATES_PER_ROW = 5
 
@@ -131,6 +136,21 @@ def generate_match_candidates_for_order(order: PurchaseOrder) -> dict[str, Any]:
             products_by_text.setdefault((title_lc, (p.brand or '').lower()), p)
             products_by_title_only.setdefault(title_lc, p)
 
+    # Tier 4 (behind the owner's switch): products that mean the same thing, by vector, for rows that carry the
+    # product standard. Best effort: any failure leaves the three exact tiers as they were.
+    vector_hits: dict[int, list[dict[str, Any]]] = {}
+    products_by_id: dict[int, Product] = {}
+    try:
+        from apps.inventory.services import intake_standard
+
+        if intake_standard.is_enabled():
+            vector_hits = intake_standard.vector_candidates(rows)
+            wanted_ids = {h['product_id'] for hits in vector_hits.values() for h in hits}
+            products_by_id = Product.objects.in_bulk(wanted_ids) if wanted_ids else {}
+    except Exception:  # noqa: BLE001
+        logger.exception('vector match tier failed for order %s', order.pk)
+        vector_hits = {}
+
     rows_with_candidates = 0
     auto_selected = 0
     to_update: list[PreprocessingRow] = []
@@ -162,6 +182,13 @@ def generate_match_candidates_for_order(order: PurchaseOrder) -> dict[str, Any]:
                 text_hit = products_by_title_only.get(t_lc)
             _add(text_hit, SCORE_TEXT_EXACT, 'text')
 
+        vector_product = None
+        for hit in vector_hits.get(row.id, []):
+            p = products_by_id.get(hit['product_id'])
+            if hit['auto'] and vector_product is None:
+                vector_product = p
+            _add(p, intake_standard.SCORE_VECTOR_SAME if hit['auto'] else intake_standard.SCORE_VECTOR_NEAR, 'vector')
+
         candidates = candidates[:MAX_CANDIDATES_PER_ROW]
 
         update_fields = []
@@ -172,8 +199,9 @@ def generate_match_candidates_for_order(order: PurchaseOrder) -> dict[str, Any]:
             rows_with_candidates += 1
 
         undecided = row.final_matched_product_id is None and row.match_source != 'staff'
-        if undecided and upc_product is not None:
-            row.final_matched_product_id = upc_product.id
+        auto_product = upc_product or vector_product
+        if undecided and auto_product is not None:
+            row.final_matched_product_id = auto_product.id
             row.match_source = 'auto'
             update_fields.extend(['final_matched_product', 'match_source'])
             auto_selected += 1

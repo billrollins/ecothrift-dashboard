@@ -87,6 +87,7 @@ function chipTooltip(row: PreprocessingReviewRow, state: ChipState): string {
 function sourceBadge(source: PreprocessingMatchCandidate['source']): string {
   if (source === 'upc') return 'UPC';
   if (source === 'vendor_ref') return 'Vendor';
+  if (source === 'vector') return 'Similar';
   return 'Text';
 }
 
