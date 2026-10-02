@@ -13,7 +13,7 @@
 | `scripts/dev/` | Dev servers — `start.bat` (Django + staff + public), `kill.bat` (frees 8000 / 5173 / 5174 only), plus `start_dashboard.bat`, `start_mobile_dashboard.bat`, `start_website.bat`, `lean_test.py`. Helpers in `_helpers/`. |
 | `scripts/env/` | House env-sync: `pull.bat` (Heroku → `.envprod`), `diff.bat` (names only), `push.bat` (changed keys only). See [`env-sync.md`](../protocols/env-sync.md). |
 | `scripts/db/` | `backup_prod.bat` (Heroku capture on the shared add-on `ecothrift-database`), `pull_prod_to_local.bat` (schema `ecothrift` only → `local_shared`; dumps in `workspace/db/backups/`). |
-| `scripts/deploy/` | `ship_git.bat`, `ship_heroku.bat` (refuses unless `HEAD == origin/main`), `commit_message.txt`. Used by the ship protocols. |
+| `scripts/deploy/` | `ship.bat` (add, commit from `commit_message.txt`, push to GitHub), `deploy.bat` (pushes the `origin/main` commit to Heroku), `commit_message.txt`. Run by the coder on the owner's word; neither asks anything. |
 | `scripts/warehouse/`, `scripts/security/` | Project tools: nightly warehouse build; one-off security gate script. |
 | `workspace/notebooks/` | Jupyter — tracked **`.ipynb`**, **`.py`**, **`_shared/config.example.py`**, **`requirements-notebooks.txt`**, category-research **`taxonomy_v1.example.json`**, **`docs/taxonomy_input_schema.md`**, **`discovery_lockin.example.md`**, SQL under **`ai_scripts/sql/`**. |
 
@@ -153,7 +153,7 @@ If **POS registers** or **supplemental drawer** rows are missing, run `python ma
 
 **Phone testing (LAN HTTPS, `start_mobile_dashboard.bat` / `start.bat`):** bookmark **`https://<hostname>.local:5173/scan`** (this PC: `https://canfield-main.local:5173/`). Windows answers mDNS for its own host name, so the URL survives DHCP moving the PC to a new IP; the `https://<lan-ip>:5173/` line is only a fallback. The self-signed cert lives in **`%LOCALAPPDATA%\EcoThrift\dev-cert\<hostname>\_cert.pem`** (outside `node_modules`, shared by every checkout, 800 days; covers `localhost`, `127.0.0.1`, `<hostname>.local`, `<hostname>`), so each phone accepts the warning once; delete that folder to force a new one. The LAN IP is deliberately not in the cert (browsers would not match it anyway). READY prints a QR code for the phone URL (`scripts/dev/phone-qr.mjs`, uses `frontend/node_modules/qrcode`), writes bigger QR codes to **`%LOCALAPPDATA%\EcoThrift\phone-qr.html`**, and waits for Enter when the `.bat` was double-clicked so the QR stays up. It also warns (never changes anything) when the Wi-Fi profile is **Public** (fix: admin `Set-NetConnectionProfile -InterfaceAlias 'Wi-Fi' -NetworkCategory Private`) or no firewall rule lets **Node.js** in on the current profile. If a logged-in **`tailscale`** CLI is found, it runs `tailscale serve --bg https+insecure://127.0.0.1:5173` and prints `https://<machine>.<tailnet>.ts.net/scan` (real cert, works off Wi-Fi; turn off with `tailscale serve --https=443 off`). `frontend/vite.config.ts` allows `.local` and `.ts.net` hosts (`server.allowedHosts`; Vite still checks the HMR websocket host under HTTPS). Router tip: a DHCP reservation for the PC keeps even the IP fallback fixed.
 
-**Commit message staging (for scripted commits):** write the next message in `scripts/deploy/commit_message.txt` (placeholder `---` until you replace it). See [`.ai/protocols/ship-git.md`](../protocols/ship-git.md).
+**Commit message staging (for scripted commits):** write the next message in `scripts/deploy/commit_message.txt` (placeholder `---` until you replace it). See [`.ai/protocols/ship.md`](../protocols/ship.md).
 
 **Jupyter (DB1 / DB2 / DB3):** From repo root: `pip install -r workspace/notebooks/_shared/requirements-notebooks.txt` (and `jupyter` / `jupyterlab` as needed). Copy **`workspace/notebooks/_shared/config.example.py`** → **`config_local.py`** (gitignored) for multi-DB connection dicts aligned with root **`.env`**.
 
@@ -169,7 +169,7 @@ If **POS registers** or **supplemental drawer** rows are missing, run `python ma
 
 ## Environment Variables
 
-Defined in `.env` (local values) and `.envprod` (mirror of Heroku Config Vars, written by `scripts\env\pull.bat`); both at the repo root, both gitignored, no other env files (house standard D8). **Production keys never go into `.env`**: local uses dev credentials. Until dev keys exist, some shared names still hold production values locally (tracked in [`tech_target`](../initiatives/tech_target.md) T45).
+Defined in `.env` (local values) and `.envprod` (mirror of Heroku Config Vars, written by `scripts\env\pull.bat`); both at the repo root, both gitignored, no other env files (house standard D8). **Production keys never go into `.env`**: local uses dev credentials. Until dev keys exist, some shared names still hold production values locally (tracked in [`standards`](../initiatives/standards.md) T45).
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -186,11 +186,12 @@ Defined in `.env` (local values) and `.envprod` (mirror of Heroku Config Vars, w
 | `AWS_SECRET_ACCESS_KEY` | S3 secret key | — |
 | `AWS_STORAGE_BUCKET_NAME` | S3 bucket name | — |
 | `AWS_S3_REGION_NAME` | S3 region | `us-east-2` |
-| `AWS_LOCATION` | S3 key prefix (house D10: dev and prod never share a folder). Local: `ecothrift/dev`. Prod: unset (bucket root) until the prefix move (`tech_target` T34) | empty |
+| `AWS_LOCATION` | S3 key prefix (house D10: dev and prod never share a folder). Local: `ecothrift/dev`. Prod: unset (bucket root) until the storage switch (`standards.md` T52) | empty |
 | `ALLOWED_HOSTS` | Comma-separated hosts | `localhost,127.0.0.1` |
 | `ANTHROPIC_API_KEY` | Anthropic API key (used when a model id is `claude-*`) | — |
 | `XAI_API_KEY` | xAI Grok API key (**`GROK_API_KEY`** is an alias; used for `grok-*` ids) | — |
 | `GOOGLE_API_KEY` | Google Gemini API key (**`GEMINI_API_KEY`** is an alias; used for `gemini-*` ids) | — |
+| `META_API_KEY` | Meta API key for the Muse Spark models (`muse-spark-*` ids: the standardize pipeline locally, and Run AI Cleanup in production). Local and prod share one value (house D10). Added to `.envprod` 2026-10-01 for the push | — |
 | `XAI_API_BASE` | OpenAI-compatible base URL for Grok | `https://api.x.ai/v1` |
 | `AI_PROVIDER` | `auto` (route by model id: `grok*` → xAI, `gemini*` → Google, else Anthropic), or force `anthropic` / `xai` / `google`. A catalog row's provider in Settings > AI wins over the prefix rule when `auto` | `auto` |
 | `AI_MODEL` | Emergency fallback model id only. Per-feature model + effort are chosen in **Settings > AI** (superuser; `core.AiAction`). Used when a feature has no model there or the DB cannot be read | `claude-sonnet-4-6` |

@@ -1,7 +1,7 @@
 <!-- Last updated: 2026-08-25 (inspect form, nav badges, hold story) -->
 # Restoration / TARS
 
-Staff restoration: Ashley prices grades, Mike runs the bench, Bill sees what it earned. Design: [`.ai/reference/tars/design.md`](../reference/tars/design.md). Initiative: [`finalize_tars_app`](../initiatives/_archived/_completed/finalize_tars_app.md). Shipped **v2.71.0** (GitHub; not Heroku).
+Staff restoration: Ashley prices grades, Mike runs the bench, Bill sees what it earned. Initiative: [`finalize_tars_app`](../initiatives/_archived/finalize_tars_app.md). Shipped **v2.71.0** (GitHub; not Heroku).
 
 House rule: **nothing may shift the page** when state changes. Standing conditions collect behind a header badge (`StudioNotices.tsx`) and open in a drawer. See [`.ai/extended/frontend.md`](frontend.md).
 

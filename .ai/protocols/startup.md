@@ -1,4 +1,4 @@
-<!-- Canonical: C:\Coding\.ai\templates\protocols\startup.md — v1 2026-09-30. Copy unchanged into <project>/.ai/protocols/. Project-only steps go in the marked section at the end. -->
+<!-- Canonical: C:\Coding\.ai\templates\protocols\startup.md — v1.1 2026-10-01. Copy unchanged into <project>/.ai/protocols/. Project-only steps go in the marked section at the end. -->
 # Protocol: Startup
 
 **IF** this file is `@`-mentioned **OR** the user says start / startup / load context / orient
@@ -9,7 +9,7 @@
 1. Read [`.ai/context.md`](../context.md) — **Guardrails** first, then the rest.
 2. Core projects: read [`.version`](../../.version) and the `[Unreleased]` + top dated section of [`CHANGELOG.md`](../../CHANGELOG.md).
 3. Read [`.ai/initiatives/_index.md`](../initiatives/_index.md). Open an Active initiative only if the task touches it.
-4. If [`.ai/calendar.md`](../calendar.md) exists, read it.
+4. If `.ai/calendar.md` exists, read it.
 5. Peek [`.ai/comm/inbox.md`](../comm/inbox.md). If two coders share this repo, also peek your own `.ai/comm/inbox-<your-slug>.md`. If either is `pending`, **tell the user first**. Run the full [`check_comm.md`](check_comm.md) only if they say check messages.
 6. **STOP.** Ask what they need. One question. Wait.
 

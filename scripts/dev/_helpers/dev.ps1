@@ -727,7 +727,7 @@ if ($allUp) {
     }
     if ($lanMode -and (Test-OwnWindow)) {
         # Double-clicked .bat: this window closes on exit and would take the QR with it.
-        try { $null = Read-Host '  Press Enter to close this window (the servers keep running)' } catch { }
+        Write-Host '  This window closes in 3 minutes (the servers keep running).'; Start-Sleep -Seconds 180
     }
     exit 0
 }

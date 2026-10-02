@@ -1,10 +1,10 @@
-> **Start here (runner, shift mode).** 1) Load context: steps 1–5 of `.ai/protocols/context-load.md` (skip its STOP: this file is the ask). 2) Follow `.ai/protocols/runner.md`, section **Shift mode**. You run until an `end` row appears in `queue.md`. There is no clock stop. Never stop because the queue is empty.
+> **Start here (runner, shift mode).** 1) Load context: steps 1–5 of `.ai/protocols/startup.md` (skip its STOP: this file is the ask). 2) Follow `.ai/protocols/runner.md`, section **Shift mode**. You run until an `end` row appears in `queue.md`. There is no clock stop. Never stop because the queue is empty.
 
 # Runner shift
 
 ## The loop
 1. Re-read [`queue.md`](queue.md) **every time**. The coder adds and edits tasks all night.
-2. Take the lowest `queued` ID, and open **only that** task file. Run it, archive it, and start again at step 1.
+2. Take the lowest `queued` ID, and open **only that** task file. Run it, mark it finished in `queue.md`, and start again at step 1.
 3. Skip `hold` rows. They are slots the coder hasn't filled yet.
 4. **Nothing queued?** Do one idle chunk (below), about 20 minutes, then go back to step 1.
 5. **Stop** only at a row marked `end`. Keep going otherwise, however long it takes.

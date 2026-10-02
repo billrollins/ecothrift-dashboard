@@ -7,7 +7,8 @@ via .ai/reference/to-master/. Standard: C:\\Coding\\.ai\\standards\\scripts-and-
 Commands (run from anywhere; the repo root is two levels up from this file):
   pull   Heroku -> .envprod (the production mirror). Never touches .env.
   diff   Key NAMES only: .envprod vs Heroku, and .env vs .envprod.
-  push   .envprod -> Heroku: only changed/added keys, one release, typed confirmation.
+  push   .envprod -> Heroku: only changed/added keys, one release. A real push needs
+         --confirm <app name>; the tool never waits for typed input.
          Never unsets a key unless named with --unset. Never writes DATABASE_URL.
 
 Values are never printed. Python standard library only.
@@ -25,7 +26,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-VERSION = "1.0.1"
+VERSION = "1.1.0"
 API = "https://api.heroku.com"
 
 # Heroku manages these (add-on attachments, dyno metadata). Never pulled into .envprod, never pushed.
@@ -234,9 +235,8 @@ def cmd_push(args, cfg) -> int:
     if args.dry_run:
         print("Dry run - nothing pushed.")
         return 0
-    answer = input(f"Type the app name ({cfg['app']}) to push this as ONE release (restarts the dynos once): ").strip()
-    if answer != cfg["app"]:
-        print("Cancelled - nothing pushed.")
+    if args.confirm != cfg["app"]:
+        print(f"Nothing pushed. A real push is ONE release (restarts the dynos once): run again with --confirm {cfg['app']}")
         return 1
     body: dict = dict(to_set)
     body.update({k: None for k in unset})
@@ -254,6 +254,7 @@ def main() -> int:
     p = sub.add_parser("push", help=".envprod -> Heroku (changed keys only)")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--unset", help="comma-separated keys to remove from Heroku")
+    p.add_argument("--confirm", metavar="APP", help="the Heroku app name; required for a real push")
     args = ap.parse_args()
     cfg = load_config()
     return {"pull": cmd_pull, "diff": cmd_diff, "push": cmd_push}[args.cmd](args, cfg)

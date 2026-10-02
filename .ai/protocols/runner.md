@@ -25,7 +25,7 @@ The coder writes code. The runner does everything else that takes time: tests, r
 | `results/R-NNN-slug.md` | The runner | The answer, in the shape the task asks for. |
 | `baseline.md` | The runner appends. The coder prunes. | Test failures known to exist on `main`. |
 | `workspace/runner/R-NNN/` (gitignored) | The runner | Logs, CSVs, scratch scripts. |
-| `archive/tasks/`, `archive/results/`, `archive/index.md` | The coder | Finished tasks, moved out of the queue. Runners ignore `archive/`. |
+| `.ai/reference/reports/YYYY-MM-DD-<slug>.md` | The coder | A finished result worth keeping. `comm/` holds live mail only (house rule): there is no archive here. |
 
 **Status words:** `queued` → `running` → `done`, `partial` or `blocked`. `superseded` means skip the task. `hold` is an empty slot the coder hasn't written yet (shift mode only). `end` means the shift is over.
 
@@ -41,7 +41,7 @@ The coder writes code. The runner does everything else that takes time: tests, r
      ```
    - Write each answer into the file as soon as you have it (for tests, each command's totals), so the coder can use part of it while you work.
    - At the end, change **Status** in the file to `done`, `partial` or `blocked`, and add **Finished:** <time>.
-   - **Then archive it. Never delete.** Move the task file to `archive/tasks/` and the result to `archive/results/`. Remove its row from `queue.md`. Add one line to `archive/index.md` with the ID, type, title, outcome (for tests: GREEN, RED or BLOCKED and NEW counts), and **Merged into** left as `pending`.
+   - **Then leave both files where they are.** Set the task's Status in `queue.md` to the same word. The coder reads the result, merges it, and clears the files; a runner never moves or deletes them.
 1. **No product code.** Do not edit app code, tests, migrations, settings, `.env`, or docs outside `.ai/comm/runner/`. If a task seems to need a code change, write it down in the result and stop that part.
 2. **No git writes.** Do not commit, push, merge, stash, reset or clean. Read-only git (`log`, `show`, `diff`, `grep`, `blame`) is fine. The only exceptions are the per-run worktree commands in **Test tasks** (add, checkout, remove, prune).
 3. **The dev database is read-only.** Reading through `manage.py shell` (`filter`, `values`, `aggregate`, `count`) is fine. Never call `save`, `create`, `update`, `delete`, `bulk_*`, `migrate`, `flush` or `loaddata`, or any management command, unless the task names it.
@@ -183,11 +183,10 @@ Each test task gets its own worktree at `C:\Coding\_worktrees\ecothrift-dashboar
   - before a commit or ship.
 - **RED:** fixing the NEW failures is the next job. Debugging is the coder's job.
 - **Superseded:** when a newer test snapshot covers a queued test, mark the older one `superseded`.
-- **After a runner archives a task:** read the result in `archive/results/`, merge the findings into their home (the data-quality register, an initiative, or code fixes), then replace `pending` in `archive/index.md` with where it went.
-- **Leftovers:** whenever you queue new tasks, archive anything a runner left behind:
-  - move every `done`, `partial`, `blocked` (dealt with) or `superseded` task and its result to `archive/tasks/` and `archive/results/`;
-  - delete their rows from `queue.md`;
-  - add one line each to `archive/index.md` (ID, title, outcome).
-  - Merge recon findings into their home (for example the data-quality register) before archiving.
+- **After a runner finishes a task:** read the result in `results/`, merge the findings into their home (the data-quality register, an initiative, or code fixes). A result worth keeping as it is goes to `.ai/reference/reports/YYYY-MM-DD-<slug>.md`. Then delete the task file and the result file and remove the row from `queue.md` (git history keeps them once committed).
+- **Leftovers:** whenever you queue new tasks, clear anything a runner left behind:
+  - merge recon findings into their home (for example the data-quality register) first;
+  - save a result worth keeping to `.ai/reference/reports/`;
+  - delete every `done`, `partial`, `blocked` (dealt with) or `superseded` task and its result, and their rows in `queue.md`.
 - **Baseline:** prune keys that pass again.
 - **Never** run test suites yourself.

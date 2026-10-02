@@ -321,7 +321,7 @@ consignment.ConsignmentPayout → User (consignee)
 - **`GET /api/inventory/orders/:id/ai-cleanup-status/`** — `{ total_rows, cleaned_rows, remaining_rows }` (non-empty **`ai_reasoning`**).
 - **`POST /api/inventory/orders/:id/cancel-ai-cleanup/`** — Clears AI fields on staging or manifest rows; increments **`ai_cleanup_generation`**.
 
-**Benchmark (dev, PO 323, Haiku, API-only via `test_ai_cleanup`):** batch 5 ~7s, batch 10 ~13.5s, batch 25 ~20s avg API per batch. Initiative: [`preprocessing_ai_cleanup_review.md`](../initiatives/_archived/_completed/preprocessing_ai_cleanup_review.md).
+**Benchmark (dev, PO 323, Haiku, API-only via `test_ai_cleanup`):** batch 5 ~7s, batch 10 ~13.5s, batch 25 ~20s avg API per batch. Initiative: [`preprocessing_ai_cleanup_review.md`](../initiatives/_archived/preprocessing_ai_cleanup_review.md).
 
 ### Other inventory AI (unchanged)
 
@@ -332,7 +332,7 @@ consignment.ConsignmentPayout → User (consignee)
 
 ### Preprocessing offline cleanup CSV — shipped Step 2 UI
 
-Contract detail: [`.ai/extended/inventory-pipeline.md`](inventory-pipeline.md) § AI Row Cleanup. Initiative review: [`preprocessing_ai_cleanup_review.md`](../initiatives/_archived/_completed/preprocessing_ai_cleanup_review.md).
+Contract detail: [`.ai/extended/inventory-pipeline.md`](inventory-pipeline.md) § AI Row Cleanup. Initiative review: [`preprocessing_ai_cleanup_review.md`](../initiatives/_archived/preprocessing_ai_cleanup_review.md).
 
 - **`GET /api/inventory/orders/:id/download-cleanup-csv/`** — Pre-AI export: **`row_id`**, **`row_number`**, **`quantity`**, **`unit_retail`**, **`base_cost`**, **`ideal_price`**, then **`description`**, **`brand`**, **`model`**, **`condition`**, **`notes`**, **`identifiers_json`**, **`taxonomy_json`**, **`specifications_json`**, **`tracking_json`**, **`search_tags_json`**; **`base_cost`** / **`ideal_price`** per unit as in preprocessing-status totals.
 - **`POST /api/inventory/orders/:id/upload-cleanup-csv/`** — Multipart **`file`**: **wide** staging CSV (Grok/Excel columns per **`cleanup_csv_contract.md`**, including optional **`ai_status`**) or **narrow** header **`row_id`, `ai_title`, `ai_brand`, `ai_model`, `category`, `condition`, `proposed_price`** only; validates and updates staging **`PreprocessingRow`** or legacy **`ManifestRow`** by **`row_id`** (exact row coverage required).

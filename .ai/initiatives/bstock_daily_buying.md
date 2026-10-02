@@ -7,7 +7,7 @@
 
 **Objective:** The buyer can go from ad-hoc buying (about 5 auctions every week or two, manifests downloaded and uploaded by hand) to buying the best 1–2 B-Stock auctions a day. The app finds candidates, pulls their manifests without a manual step, and scores each truck on what the store already has, what sells, how fast it sells, shelf space, what is already won and on the way, the all-in cost (bid + fees + shipping), and bulk (same or similar items across lines). A won auction becomes a PO without a second manifest upload, so every truck gets a report card that feeds the next score.
 
-**Compass:** this file is the compass. Documents is pending: [`documents`](./_archived/_pending/documents.md).
+**Compass:** this file is the compass. Documents is pending: [`documents`](./_archived/documents.md).
 
 ---
 
@@ -343,5 +343,5 @@ Tests: runner R-059. The dev backfill (`analyze_manifests --all --force`, then r
 ## See also
 
 - Domain: [`.ai/extended/bstock.md`](../extended/bstock.md), [`.ai/extended/vpn-socks5.md`](../extended/vpn-socks5.md), [`.ai/extended/inventory-pipeline.md`](../extended/inventory-pipeline.md)
-- Prior work: [`bstock_auction_intelligence`](./_archived/_completed/bstock_auction_intelligence.md), [`historical_sell_through_analysis`](./_archived/_pending/historical_sell_through_analysis.md)
+- Prior work: [`bstock_auction_intelligence`](./_archived/bstock_auction_intelligence.md), [`historical_sell_through_analysis`](./_archived/historical_sell_through_analysis.md)
 - Index: [`_index.md`](./_index.md)

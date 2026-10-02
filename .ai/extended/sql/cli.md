@@ -73,7 +73,7 @@ Non-interactive one-liners are awkward through `dbshell`; prefer **`psql`** for 
 psql -h localhost -p 5432 -U postgres -d local_shared -c "SELECT table_name FROM information_schema.tables WHERE table_schema = 'ecothrift' AND table_type = 'BASE TABLE' ORDER BY table_name;"
 ```
 
-See **[`README.md`](README.md)** (**Update schema**) — run **[`schema_columns_ecothrift.sql`](schema_columns_ecothrift.sql)** → **`schema.csv`** for full column metadata.
+See **[`README.md`](README.md)** (**Update schema**) — run **[`schema_columns_ecothrift.sql`](../../../scripts/sql/schema_columns_ecothrift.sql)** → **`schema.csv`** for full column metadata.
 
 
 ---
@@ -91,7 +91,7 @@ See **[`README.md`](README.md)** (**Update schema**) — run **[`schema_columns_
 ## Related
 
 - **[`README.md`](README.md)** — **`schema.csv`** refresh workflow (**Update schema**)  
-- **[`inventory_daily_migration.sql`](inventory_daily_migration.sql)** — v4 flat columns → **`daily_migration.csv`** via **`psql --csv`** (**README**)  
-- **[`schema_columns_ecothrift.sql`](schema_columns_ecothrift.sql)** — column dump SQL  
+- **[`inventory_daily_migration.sql`](../../../scripts/sql/inventory_daily_migration.sql)** — v4 flat columns → **`daily_migration.csv`** via **`psql --csv`** (**README**)  
+- **[`schema_columns_ecothrift.sql`](../../../scripts/sql/schema_columns_ecothrift.sql)** — column dump SQL  
 
 - **[`../databases.md`](../databases.md)** — **`ecothrift`** vs **`public`**, restores, test DB  

@@ -169,8 +169,9 @@ workspace/notebooks/db-explorer/pickles/
 workspace/notebooks/.env
 workspace/notebooks/__pycache__/
 
-# Local copies of production floor plans (not source)
-.ai/reference/
+# Delivery shelves between master and the coder (house standard: ai-folder.md). The rest of .ai/reference/ is tracked.
+.ai/reference/from-master/
+.ai/reference/to-master/
 
 # Local DB dumps now go to workspace/db/backups/ (scripts/db/pull_prod_to_local.bat); old location kept ignored
 scripts/deploy/backups/

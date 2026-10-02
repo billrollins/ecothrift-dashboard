@@ -62,14 +62,14 @@ Each entry: `host`, `port`, `database`, `user`, `password`, and optional `schema
 
 ## Category research (`export_category_bins`)
 
-The management command **`export_category_bins`** uses Django’s **`default`** connection only. It does **not** require a second database alias. In a typical production restore into **`local_shared`**, **V2-era** tables live under **`public`** and **V3** app tables under **`ecothrift`** in the **same** Postgres database; SQL files use schema-qualified names (`public.*`, `ecothrift.*`). See **`.ai/extended/development.md`** (*Jupyter*) and the archived initiative [`.ai/initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md`](../initiatives/_archived/_completed/category_sales_inventory_and_taxonomy.md).
+The management command **`export_category_bins`** uses Django’s **`default`** connection only. It does **not** require a second database alias. In a typical production restore into **`local_shared`**, **V2-era** tables live under **`public`** and **V3** app tables under **`ecothrift`** in the **same** Postgres database; SQL files use schema-qualified names (`public.*`, `ecothrift.*`). See **`.ai/extended/development.md`** (*Jupyter*) and the archived initiative [`.ai/initiatives/_archived/category_sales_inventory_and_taxonomy.md`](../initiatives/_archived/category_sales_inventory_and_taxonomy.md).
 
 ---
 
 ## Related
 
-- **`.ai/extended/sql/`** — **`schema_columns_ecothrift.sql`** → **`schema.csv`** column snapshot + **[`sql/README.md`](sql/README.md)** (refresh workflow), **[`cli.md`](sql/cli.md)** (`psql`).
+- **`scripts/sql/schema_columns_ecothrift.sql`** (docs in `.ai/extended/sql/`) → **`schema.csv`** column snapshot + **[`sql/README.md`](sql/README.md)** (refresh workflow), **[`cli.md`](sql/cli.md)** (`psql`).
 - `.ai/extended/backend.md` — backend / ORM notes when maintained
 - **`workspace/notebooks/_shared/config.example.py`** — copy to **`config_local.py`**; **`db-explorer/db_explorer.ipynb`** — multi-DB exploration
 - Optional deps: `workspace/notebooks/_shared/requirements-notebooks.txt` (Jupyter/DB stack + pandas/SQLAlchemy/psycopg2; also ML libs used by pricing commands)
-- **Historical PO extract (V1/V2/V3 by DB name):** ad hoc **`scripts/data/extract_po_descriptions.py`** if you keep a local copy — see **`CHANGELOG`** **[2.7.1]** and [`.ai/initiatives/_archived/_pending/historical_sell_through_analysis.md`](../initiatives/_archived/_pending/historical_sell_through_analysis.md); uses **`ecothrift_v1`**, **`ecothrift_v2`**, **`ecothrift_v3`** with credentials from root **`.env`** (not Django `DATABASE_NAME` alone). Outputs belong under **`workspace/data/`**.
+- **Historical PO extract (V1/V2/V3 by DB name):** ad hoc **`scripts/data/extract_po_descriptions.py`** if you keep a local copy — see **`CHANGELOG`** **[2.7.1]** and [`.ai/initiatives/_archived/historical_sell_through_analysis.md`](../initiatives/_archived/historical_sell_through_analysis.md); uses **`ecothrift_v1`**, **`ecothrift_v2`**, **`ecothrift_v3`** with credentials from root **`.env`** (not Django `DATABASE_NAME` alone). Outputs belong under **`workspace/data/`**.

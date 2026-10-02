@@ -1,4 +1,4 @@
-<!-- Canonical: C:\Coding\.ai\templates\protocols\env-sync.md — v1 2026-09-30. Copy unchanged into <project>/.ai/protocols/ (hosted projects). Project-only steps go in the marked section at the end. -->
+<!-- Canonical: C:\Coding\.ai\templates\protocols\env-sync.md — v1.1 2026-10-02. Copy unchanged into <project>/.ai/protocols/ (hosted projects). Project-only steps go in the marked section at the end. -->
 # Protocol: Env sync
 
 **IF** this file is `@`-mentioned **OR** the user says pull env / push env / env diff / sync env / add an env key
@@ -34,11 +34,11 @@ No other env files: no `.env.example`, `.env.local`, `backend/.env`, `.env.old`,
 3. Code reads it with `config('NAME', default=...)` (python-decouple). Frontend keys start with `VITE_`; they are baked in at build time, so a prod change needs a redeploy.
 4. Production goes live only by **Push** below.
 
-### Push (`.envprod` → Heroku) — risk bucket **M**: only when the user orders this push in this chat
+### Push (`.envprod` → Heroku) — only when the user orders this push in this chat (or says yes when `deploy.md` asks). You run it; the user never types anything
 
 1. `scripts\env\pull.bat --dry-run` or `diff.bat` first: if Heroku has keys you don't, **pull** before editing so you don't push stale values.
 2. `scripts\env\push.bat --dry-run` — show the user the add / change / left-alone names.
-3. `scripts\env\push.bat` — the user types the app name to confirm. One release, one restart. To remove a key: `--unset KEY1,KEY2` (only if the user named them).
+3. `scripts\env\push.bat --confirm <app>` — the app name from `scripts/env/env_sync.json`; the tool refuses a real push without it and never waits for typed input. One release, one restart. To remove a key: `--unset KEY1,KEY2` (only if the user named them).
 4. `scripts\env\pull.bat` to refresh the mirror. Tell the user if a `VITE_` key changed (redeploy needed).
 
 ## Do not

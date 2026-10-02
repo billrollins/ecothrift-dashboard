@@ -67,7 +67,7 @@ Claude's clock. **Every session:** compare today's date with this table, say pla
 | - | 10-16 to 10-19 | none | Freeze. Only a fix for something broken. | Room for issues. |
 | - | **Tue 10-20** | none (a setting) | Switch Thrift+ on | Not a deploy. |
 | - | Data pipeline | its own release | Only when the owner says, and not before launch unless he asks. | Keeps launch week clean. |
-| - | Production platform work (AI keys, database attach, S3 switch, upgrades) | after launch | Order in `tech_target.md`; needs Bill in master's chat. | No production changes before 10-20. |
+| - | Production platform work (AI keys, S3 switch, upgrades) | dated in `standards.md` | Order and due dates in `initiatives/standards.md`. The database attach (T31) was done 2026-10-02. | Owner, 2026-10-02: everything goes to production as soon as it is done and tested; nothing is held for the launch. |
 
 **Release 1 in steps (Thu 10-01).** Built from `_worktrees\ecothrift-dashboard--ship-2112` (branch `ship-v2.112.0`, from `origin/main`). The main tree is never pushed from.
 1. Morning: the full gate on that tree is green (result below). Fix anything new.
@@ -97,6 +97,24 @@ Claude's clock. **Every session:** compare today's date with this table, say pla
 - Two coders pushing: the ship protocol fetches and merges `origin/main` first.
 - `CHANGELOG.md` is edited by every branch; merge it by hand at each release.
 - The scanner's `/scan` page changes what customers see (release 2). If the owner wants it earlier or later, it moves independently of everything else.
+
+**Shipped 2026-10-02 10:57: v2.118.0** (commit `aad4a23c`, Heroku release v384, no migration, no backup): public `/privacy` and `/terms` pages on `ecothrift.us` (house texting standard D17, `standards.md` T58), footer links, sitemap; the owner read and approved the wording. Also the expired-token test (T63). Checked live in a browser: both pages show, dated October 2, 2026. Checks: core + accounts suites on a rebuilt test database (157 passed), public-site and staff `tsc`, migrations. The scanner-on-real-API release becomes v2.119.0.
+
+**Shipped 2026-10-01 17:48: v2.117.0** (commit `3a93c64e`, Heroku release v383; v382 was the owner's `META_API_KEY` push). AI cleanup job: Workers 8 / 16 / 32 / 48, a batch releases its database connection during the model call, a rate-limited batch waits and retries. No migration, no backup. Checks: 39 cleanup tests, `tsc`, migrations, compile, a real local run at the 48-worker limit. The scanner-on-real-API release becomes v2.118.0.
+
+**Shipped 2026-10-01 17:31: v2.116.0** (commit `ae87786c`, Heroku release v381, no migration, no backup): Run AI Cleanup is a background job on the server (`services/ai_cleanup_job.py`, `orders/<id>/ai-cleanup-job/`) with an Effort dropdown, Stop / Resume and self-healing after a process recycle, so slow models (Spark Contributor at low effort) work. Checks: 37 cleanup tests, inventory suite (only the known seed-template failure outside the list), all front-end tests, `tsc`, migrations, plus a real local run on Spark. `META_API_KEY` was missing on Heroku: added to `.envprod` and documented; the owner runs `scripts\env\push.bat` to put it live. The scanner-on-real-API release becomes v2.117.0.
+
+**Shipped 2026-10-01 16:28: v2.115.2** (commit `e16449ca`, Heroku release v380, no migration, no backup at the owner's order): Run AI Cleanup's Model list is every active text model in Settings > AI (it was two hardcoded models). Checks: the four model-list tests and compile only; the other 19 failures in `test_ai_cleanup_batch.py` exist on `main` without this change (its staging-row helper passes `description` to `ManifestRow`).
+
+**Shipped 2026-10-01 16:11: v2.115.1** (commit `24e14ee1`, Heroku release v379, no migration, no backup taken: the 14:00 backup `b014` stands and the database was under load). Fix for the Heroku temp-disk alert on the shared database: the purchase-order stats query no longer joins items, manifest rows and batch groups (each count is its own subquery; 27 ms on a 14,986-item order locally). Found by master; test `test_purchase_order_stats_query.py`.
+
+**Shipped 2026-10-01: v2.115.0** (commit `8ff5a021`, Heroku release v378, backup `b014`): Count sessions as cards on a phone, Done / In progress / Not started counters, each section's count from last time, Super User delete of a session or a day. No migration. Gate: stocktake tests (23), all front-end tests (the 9 known failures only), `tsc`, migrations check, compile; the full server gate was not re-run. The scanner-on-real-API release becomes v2.116.0.
+
+**Shipped 2026-10-01 13:32: v2.114.0** (commit `53462bb2`, Heroku release v377, backup `b013`; branch `count-v2` in the `--ship-2112` worktree). Gate GREEN on the private test database (0 new failures). Smoke: login, `/inventory/count`, `/inventory/pr-fixit` 200; the new APIs answer 401 without a login. Contents: inventory count v2 (sections, runs, one count a day, one-tap problems, carts, undo, type-to-search), Count sessions, PR Fix-it. Migration `stocktake.0002` (new tables; two columns on scans; closes v1 counts). Details: `initiatives/inventory_count.md` § Version 2. The scanner-on-real-API release becomes v2.115.0.
+
+**Shipped 2026-10-01 10:10: v2.113.0** (commit `107bb131`, backup `b011`): the inventory count's timer, Start over and Earlier runs, at the owner's request from the floor. No migration. Gate: stocktake tests, all front-end tests (the 9 known failures only), `tsc`, migrations check and compile; the full server gate was not re-run (only `apps/stocktake` and the count page changed since the green gate on v2.112.0). The scanner-on-real-API release becomes v2.114.0.
+
+**Shipped 2026-10-01 09:41: v2.112.0** (commit `a09cf40e`, Heroku release v375, backup `b010`). The release phase applied `stocktake.0001`. Smoke: login page 200, `/inventory/count` 200, the new APIs answer 401 without a login (they exist). The final gate was GREEN on a private test database (`DATABASE_NAME=ship_gate_2112`); a run on the shared test database failed 21 tests while the pipeline session was using it. Still to do: the owner's scanner trial; catch the main tree up; remove the worktrees.
 
 **Owner's decisions (2026-09-30):** Thursday 10-01 is approved for release 1 (the scanner waits for 10-08). A weekend fix to the inventory count screen may ship on Saturday or Sunday without waiting for Monday; nothing else ships then, and nothing ships Monday before the count.
 

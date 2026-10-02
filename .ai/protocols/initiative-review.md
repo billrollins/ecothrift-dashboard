@@ -1,4 +1,4 @@
-<!-- Canonical: C:\Coding\.ai\templates\protocols\initiative-review.md — v1 2026-09-30 (from ecothrift-dashboard). Copy unchanged into <project>/.ai/protocols/. Project-only steps go in the marked section at the end. -->
+<!-- Canonical: C:\Coding\.ai\templates\protocols\initiative-review.md — v2 2026-09-30 (from ecothrift-dashboard; flat `_archived/`). Copy unchanged into <project>/.ai/protocols/. Project-only steps go in the marked section at the end. -->
 # Protocol: Review initiatives
 
 Coding often outruns the files. This pass reconciles Active / Pending / Backlog with what actually shipped, then you approve moves.
@@ -20,7 +20,7 @@ Do not start coding. Do not ship. Do not bump semver. Do not commit.
 1. Read [`.version`](../../.version).
 2. Read the top dated section of [`CHANGELOG.md`](../../CHANGELOG.md). If `[Unreleased]` exists, read that too.
 3. Read [`.ai/initiatives/_index.md`](../initiatives/_index.md) and [`.ai/context.md`](../context.md) **Active work**.
-4. Read every **Active** file. Read every **Pending** and **Backlog** file named on `_index.md`. Do not open `_completed/` or `_abandoned/` unless the user named that file.
+4. Read every **Active** file. Read every file `_archived/ARCHIVE.md` lists as **pending** or **backlog**. Do not open completed or abandoned files unless the user named one.
 
 For each file, compare: Status / checkboxes / Record vs CHANGELOG vs the finish line vs `_index.md` notes.
 
@@ -84,22 +84,21 @@ Bounded work (hours to days). One `.md` per initiative under `.ai/initiatives/` 
 | Place | Meaning |
 |-------|---------|
 | `.ai/initiatives/<slug>.md` | Active |
-| `_archived/_pending/` | Paused, not finished — record what would resume it |
-| `_archived/_backlog/` | Future / not started |
-| `_archived/_completed/` | Scope delivered — tie to the `CHANGELOG.md` version when code shipped |
-| `_archived/_abandoned/` | Will not pursue — one-line why |
+| `.ai/initiatives/_archived/<slug>.md` | Everything else — one flat folder. The disposition lives in `ARCHIVE.md` and the file's archive comment, not in a subfolder. |
+
+Dispositions: **pending** (paused — record what would resume it) · **backlog** (future, not started) · **completed** (scope delivered — tie to the `CHANGELOG.md` version) · **abandoned** (won't pursue — one-line why). No subfolders, no `.gitkeep`.
 
 Every move, in the same pass:
 
 1. `git mv` the file (plain move if the repo has no git).
 2. Add an archive comment at the top: `<!-- Archived YYYY-MM-DD: disposition=<bucket> — <note> -->`.
-3. Update `_index.md` (remove from Active, add to the bucket) and `_archived/ARCHIVE.md` (one row per archived file: slug, bucket, date, note).
+3. Update `_index.md` (remove from Active) and `_archived/ARCHIVE.md` (one row per archived file: slug, disposition, date, note).
 4. Fix relative links broken by the path change. Bump both `<!-- Last updated -->` stamps.
 5. If `context.md` **Active work** pointed at the file, fix it.
 
 Activate (archive → root) is the reverse: `git mv` back, a reactivation note in `## Record`, `_index.md` Active row, remove the `ARCHIVE.md` row.
 
-`tech_target.md` is a **standing** initiative: it is never archived.
+`standards.md` is a **standing** initiative: it is never archived.
 
 ## Project steps
 

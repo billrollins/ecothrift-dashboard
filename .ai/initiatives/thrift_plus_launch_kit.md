@@ -32,6 +32,9 @@ Phase 5 of [`thrift_plus_rewards`](./thrift_plus_rewards.md). Claude drafts; the
 - **Visual:** a tag with "You'd earn +$X" beside it (the scanner card's look).
 
 ### Poster C: Returns (members only)
+
+> **Superseded 2026-10-01.** The owner chose defect-only returns done as a labeled **Thrift+ Limited Warranty**. Use the poster, receipt and AS IS sign text in [`extended/thrift-plus-limited-warranty.md`](../extended/thrift-plus-limited-warranty.md). The draft below is kept for history only.
+
 - **Headline:** If it doesn't work, bring it back.
 - **Sub:** Thrift+ members can return an item whose main job doesn't work, within 3 days, for store credit.
 - **The fine print, in plain words:**

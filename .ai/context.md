@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-30 (house-standard shape: tech_target) -->
+<!-- Last updated: 2026-10-01 (5S pass: standards.md is the one standards list; deviations live there) -->
 # ecothrift-dashboard — AI Context
 
 ## Project summary
@@ -18,7 +18,7 @@ Stack: Django 5.2 + DRF, React 18.3 + TypeScript + MUI 7, PostgreSQL (schema `ec
 
 - Current version: [`.version`](../.version). Never restate the semver here.
 - What shipped and what's pending: [`CHANGELOG.md`](../CHANGELOG.md) (`[Unreleased]` + dated sections). Prod shows `.version` at `GET /api/core/system/version/` and in the sidebar footer.
-- Ship: [`protocols/ship-git.md`](protocols/ship-git.md), [`protocols/ship-heroku.md`](protocols/ship-heroku.md). Print server exe: [`protocols/ship-print-server.md`](protocols/ship-print-server.md) (its own `VERSION` in `printserver/config.py`).
+- **Ship** (GitHub): [`protocols/ship.md`](protocols/ship.md). **Deploy** (Heroku): [`protocols/deploy.md`](protocols/deploy.md). The coder runs every command; the owner only gives the word. Print server exe: [`protocols/ship-print-server.md`](protocols/ship-print-server.md) (its own `VERSION` in `printserver/config.py`).
 - Release timing: each phase ships on its own, when the owner orders it (dates in [`calendar.md`](calendar.md)). Between ships every change goes under `[Unreleased]` and nobody bumps `.version`.
 
 ## Active work
@@ -29,7 +29,8 @@ Stack: Django 5.2 + DRF, React 18.3 + TypeScript + MUI 7, PostgreSQL (schema `ec
 - **Product intelligence:** [`product_intelligence`](initiatives/product_intelligence.md). Standardize and dedupe rules: [`extended/product-standard.md`](extended/product-standard.md).
 - **Data quality and rails:** [`data_quality_rails`](initiatives/data_quality_rails.md).
 - **Waiting:** [`buying_intelligence_v2`](initiatives/buying_intelligence_v2.md) resumes after launch. Earlier buying work is in [`bstock_daily_buying`](initiatives/bstock_daily_buying.md).
-- **Standing:** [`tech_target`](initiatives/tech_target.md), the gaps to the house standards.
+- **Inventory count:** [`inventory_count`](initiatives/inventory_count.md). Shipped 2026-10-01; first real count Mon 10-05.
+- **Standing:** [`standards`](initiatives/standards.md), what this repo still owes the house standards, and when.
 - Full list with phases: [`initiatives/_index.md`](initiatives/_index.md).
 
 ### Two coders
@@ -40,10 +41,10 @@ Two coders can share this repo. Each one has one peer inbox, `comm/inbox-<slug>.
 |------|------|-----------|------------|
 | `data_platform` | Thrift+ core (members, cards, reward engine, POS, returns, signup), the Requests center, the data platform and AI brief, buying | main checkout | R-071 to R-099 |
 | `thrift_scanner` | **Retired 2026-09-30** (the owner turned that coder off). Its lane, the Thrift+ customer scanner (`/scan`), is now worked from the main session | worktree `C:\Coding\_worktrees\ecothrift-dashboard--thrift-scanner` (branch `thrift-scanner-mock`) | R-100 and up |
-| `tech_target` | House-standard alignment (`.ai/` shape, protocols, `scripts/`) | main checkout | — |
+| `standards` (was `tech_target`) | **Closed 2026-10-02** (the owner ended the Helper session). Everything it owned is the main coder's now: the count app, PR Fix-it, AI cleanup job, public legal pages, the scanner lane, `standards.md` and master's mail. Handoff: [`reference/reports/2026-10-02-helper-handoff.md`](reference/reports/2026-10-02-helper-handoff.md) | - | - |
 
-- **Never share a working tree.** `scripts/deploy/ship_git.bat` stages everything (`git add -A`), so it would commit the other coder's half-done work.
-- **Before every push:** `git fetch origin`, merge `origin/main`, and bump past the newest version on `main`. Never force-push. Ship a tested snapshot from a worktree when the main tree holds later phases ([`ship-git.md`](protocols/ship-git.md) Project steps).
+- **Never share a working tree.** `scripts/deploy/ship.bat` stages everything (`git add -A`), so it would commit the other coder's half-done work.
+- **Before every push:** `git fetch origin`, merge `origin/main`, and bump past the newest version on `main`. Never force-push. Ship a tested snapshot from a worktree when the main tree holds later phases ([`ship.md`](protocols/ship.md) Project steps).
 - **Stay in your lane.** Touch another coder's files only through a message in its inbox. In [`calendar.md`](calendar.md), update only the Status cell of your own items.
 
 ## Guardrails
@@ -57,8 +58,13 @@ Two coders can share this repo. Each one has one peer inbox, `comm/inbox-<slug>.
   - Percents scale both.
   - No stacking.
   - Bank 1.05×.
+- **Legal guide for Thrift+ and what we sell:** [`extended/thrift-plus-legal-memo.md`](extended/thrift-plus-legal-memo.md), accepted by the owner's CPA and attorney (2026-10-01). Follow it by default. What the store sells:
+  - Graphic 18+ adult items (resembling genitalia) are kept separate and out of view.
+  - 18+ as a store rule is fine for non-nicotine vapes, knives and crossbows.
+  - Never sell graphic sex or porn media, tobacco or nicotine products, or actual guns.
+  - Never add an ID scanner that stores data.
 - **Categories:** [`extended/product-taxonomy.md`](extended/product-taxonomy.md) is the one answer key. A questioned placement is settled with a TAX-NN ruling there.
-- **Runner:** tests, recon and small chores can go to a runner agent via [`protocols/runner.md`](protocols/runner.md) and [`comm/runner/`](comm/runner/) (`queue.md`, `tasks/`, `results/`, `baseline.md` = known failures). Targeted tests: `python scripts/dev/lean_test.py <area>`.
+- **Runner:** tests, recon and small chores can go to a runner agent via [`protocols/runner.md`](protocols/runner.md) and [`comm/runner/`](comm/runner/) (`queue.md`, live `tasks/` and `results/`, `baseline.md` = known failures; kept results go to `reference/reports/`). Targeted tests: `python scripts/dev/lean_test.py <area>`.
 - Substantial work maps to a named initiative. If that's unclear, ask. Never archive an initiative without the user's approval.
 - Don't create documentation files unless asked. The exceptions are this compass, initiatives and `extended/` files the work changes.
 - When a domain changes, update its `extended/` file. When you add an env key, add it to `.env` / `.envprod` and to the table in [`extended/development.md`](extended/development.md). Stamp edited docs `<!-- Last updated: YYYY-MM-DD -->` (America/Chicago).
@@ -67,7 +73,7 @@ Two coders can share this repo. Each one has one peer inbox, `comm/inbox-<slug>.
 ## Environment
 
 - Windows + PowerShell (`;` not `&&`).
-- Python: `venv\` at the repo root (3.12, `.python-version`). Node: `engines` 22.x (this PC has 20).
+- Python: `venv\` at the repo root (3.12, `.python-version`; this PC also has 3.14 as `py`). Node: `engines` 22.x (this PC runs 24.19 since 2026-09-30).
 - Dev ports: Django `8000`, staff Vite `5173`, public Vite `5174` (registered in `C:\Coding\.ai\standards\projects.md`). `scripts\dev\start.bat` / `kill.bat`.
 - Database: local `local_shared`, schema `ecothrift` (`search_path` set in settings). V1/V2 archives: [`extended/databases.md`](extended/databases.md).
 - Env files (house D8): `.env` (local values) and `.envprod` (mirror of Heroku Config Vars), both at the repo root and gitignored. No other env files. Production keys never go into `.env`. Sync with the house env-sync tool in `scripts\env\` via [`protocols/env-sync.md`](protocols/env-sync.md). Names are listed in [`extended/development.md`](extended/development.md), never values.
@@ -76,11 +82,7 @@ Two coders can share this repo. Each one has one peer inbox, `comm/inbox-<slug>.
 
 ## Deviations from house standard
 
-| What | Why this project truly differs | Master decision |
-|------|-------------------------------|-----------------|
-| Extra `scripts/dev` starters (`start_dashboard.bat`, `start_mobile_dashboard.bat`, `start_website.bat`, `lean_test.py`) | Two front ends plus the phone scanner need different stacks (DR1) | approved 2026-09-30 |
-| `comm/RUNNING-NOW.md` while a long job runs | A multi-day local job needs a note every session reads; it is deleted when the job ends (DR2) | approved 2026-09-30 |
-| Root `package.json` `version` mirrors `.version` | Heroku builds from the root `package.json` (DR3) | approved 2026-09-30 |
+The approved list is in [`initiatives/standards.md`](initiatives/standards.md) § Deviations. It is kept only there.
 
 ## Extended docs
 
@@ -104,6 +106,9 @@ Load on demand. Do not read them all at session start. When you add, rename or r
 | [`frontend.md`](extended/frontend.md) | React + MUI, pages, routing, React Query, hidden UI |
 | [`heroku-memory.md`](extended/heroku-memory.md) | Heroku memory checks after a deploy that touches pagination, Gunicorn or caching |
 | [`inventory-pipeline.md`](extended/inventory-pipeline.md) | PO processing, M3, preprocessing, Item Processor |
+| [`thrift-plus-decisions.md`](extended/thrift-plus-decisions.md) | **Read first for any Thrift+ rule:** the owner's final answers (returns at 90%, Thrift+ Balance replaces banked rewards, tax, wording, signup). Wins over older notes |
+| [`thrift-plus-limited-warranty.md`](extended/thrift-plus-limited-warranty.md) | Member returns, Poster C, AS IS signs, receipt warranty lines, the terms (the Limited Warranty text to use) |
+| [`thrift-plus-legal-memo.md`](extended/thrift-plus-legal-memo.md) | Thrift+ and IDs, photos, privacy, 18+ items, returns, store credit, sales tax, advertising (AI research for the attorney, with a design-impact digest) |
 | [`known-issues.md`](extended/known-issues.md) | Known issues and live gaps (check before a ship) |
 | [`pos-system.md`](extended/pos-system.md) | Registers, drawers, carts, terminal, receipts |
 | [`print-server.md`](extended/print-server.md) | Local FastAPI: labels, receipts, drawer kick |
@@ -114,7 +119,7 @@ Load on demand. Do not read them all at session start. When you add, rename or r
 | [`routines.md`](extended/routines.md) | Periodic / on-demand forms, pooled runs, nag, Retail QA grading |
 | [`ux-spec.md`](extended/ux-spec.md) | Colour, typography, spacing, house UI rules |
 | [`vpn-socks5.md`](extended/vpn-socks5.md) | PIA SOCKS5 setup and diagnostics |
-| [`sql/README.md`](extended/sql/README.md) | `schema.csv`, daily migration SQL, `cli.md` |
+| [`sql/README.md`](extended/sql/README.md) | `schema.csv`, `cli.md`, and how to run the SQL tools in `scripts/sql/` |
 
 ## Quick reference
 
@@ -122,9 +127,9 @@ Load on demand. Do not read them all at session start. When you add, rename or r
 |------|-------|
 | Start a session | [`protocols/startup.md`](protocols/startup.md) |
 | Messages from master / the other coder | [`protocols/check_comm.md`](protocols/check_comm.md) |
-| Standards review | [`protocols/tech-target-review.md`](protocols/tech-target-review.md) |
+| Standards review | [`protocols/standards-review.md`](protocols/standards-review.md) → [`initiatives/standards.md`](initiatives/standards.md) |
 | New / review initiatives | [`protocols/initiative-create.md`](protocols/initiative-create.md), [`protocols/initiative-review.md`](protocols/initiative-review.md) |
-| Ship | [`protocols/ship-git.md`](protocols/ship-git.md), [`protocols/ship-heroku.md`](protocols/ship-heroku.md) |
+| Ship / deploy | [`protocols/ship.md`](protocols/ship.md), [`protocols/deploy.md`](protocols/deploy.md) |
 | Ship print server (project-only) | [`protocols/ship-print-server.md`](protocols/ship-print-server.md) |
 | Runner: tests, recon, chores (project-only) | [`protocols/runner.md`](protocols/runner.md) |
 | Clean-up (project-only) | [`protocols/clean-up.md`](protocols/clean-up.md) |

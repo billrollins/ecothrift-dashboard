@@ -1,7 +1,25 @@
-<!-- Last updated: 2026-09-30 (built and verified on a phone-sized screen; not shipped) -->
+<!-- Last updated: 2026-10-01 (v2 shipped in v2.114.0: sections, runs, problems, carts, sessions, PR Fix-it) -->
 # Initiative: inventory_count
 
-**Status:** Active. Built 2026-09-30, waiting for the owner's ship order. **Needed by Mon 2026-10-05** for the first shelf count. The owner plans to count every Monday.
+**Status:** Active. v1 shipped 2026-10-01 (v2.112.0, v2.113.0). **v2 shipped 2026-10-01 13:32 in v2.114.0** (commit `53462bb2`, Heroku v377, backup `b013`; branch `count-v2`, worktree `C:\Coding\_worktrees\ecothrift-dashboard--ship-2112`). **Needed by Mon 2026-10-05** for the first shelf count. The owner plans to count every Monday.
+
+## Version 2 (owner's design, 2026-10-01)
+
+Sections "What it does", "Decisions" and the trial sheet below describe v1; where they differ, this section wins.
+
+- **Sections** (`stocktake.Section`): the Super User adds them (start screen, or Count sessions). A stand-in until real location codes exist.
+- **One count per day** (`InventoryCount.day`). The day's first run creates it and freezes what the system says is on the shelf. v1 counts have no day; migration `0002` closes them; they list as "trial".
+- **Run** = one person, one section, start to stop, with a note. One open run per person. **Stop** asks: section complete / not finished / bad run. A bad run is kept but left out of totals and of the "already scanned" check; a manager can count it again. Start over is gone; nothing is deleted.
+- **Scan results:** found; already scanned (says where, who, when); system says sold; not on the shelf in the system; tag not recognized (`ITM` + digits, no item); not one of our tags (anything else).
+- **Problems** (`stocktake.Issue`): opened by a scan, by **Problem?** on a scan (wrong title, bad tag, price too high / low, wrong section), or by **No tag**. Each has 1 to 3 big answers (`frontend/.../count/countProblems.ts`): skip (my mistake), **PR cart**, leave it and note it, **relocate cart** + the section it belongs in. Unanswered problems never block scanning; "section complete" needs them answered.
+- **Carts** (`stocktake.Cart`): "Pat PR Cart 1", "Pat Relocate Cart 1"; numbers restart each day; "My cart is full" starts the next.
+- **Undo:** any scan can be removed and put back (soft, `removed_at`).
+- **Scan box:** one line. A scanner types anywhere. A tap on the box brings up the phone keyboard; a code + Enter counts it; words list matching items, one tap counts one. Leftover words can't swallow a scan (the `ITM` code is picked out; words clear after 20 s).
+- **Count sessions** (`/inventory/count/days`, managers): days → sections → runs (who, start, stop, time, scans, per minute, problems, status, note); mark bad / complete, view and remove scans, close / reopen the day, link to the shrink report.
+- **PR Fix-it** (`/inventory/pr-fixit`, staff, Retail Floor menu): open cart items with the quickest fix. Sold → **Print as new** (`duplicate_item_for_resale`). Bad tag → **Reprint**. Title / price → edit, **Save, print tag** (a shared product is not renamed: the item gets its own). No tag / unknown tag → find the item and print (counts it), or **Add, print** (new `misc` item, note `INVENTORY_COUNT_QUICK_ADD`). Not on shelf in system → **Put on shelf, print**. Relocate → **Moved**. Tags print through the local print server on that computer.
+- **Code:** `apps/stocktake/services/counting.py`, `fixit.py`, `views.py`; tests `apps/stocktake/tests/test_counts.py` (21). Front end `CountPage`, `ProblemSheet`, `CountDaysPage`, `PrFixitPage`, `countQueue`, `countProblems`.
+- **v2.115.0 (shipped 2026-10-01, commit `8ff5a021`, Heroku v378, backup `b014`):** Count sessions as cards on a phone; Done / In progress / Not started counters (`SectionProgress.tsx`); each section's count from the last earlier day it was completed is its expected number (`counting.section_progress`); the Super User can delete a session or a whole day (`DELETE runs/<id>/`, `counts/<id>/`). No migration.
+- **Open after v2:** real trial Mon 10-05; per-section expected counts need item locations (not there yet), so "missing" is still whole-store; a day's summary reads all good scans each batch (fine at a few thousand, watch at 30,000).
 **Owner's ask (2026-09-30):** a simple, mobile-first app. Scan an item number like the POS does; each scan goes into a queue and is looked up in the background, so nobody waits. It beeps on success. On failure it backs up: it shows the code that failed and how many rows ago it was. The counts give a true look at shrink and at what is on the shelves.
 
 ## What it does
@@ -29,7 +47,7 @@
 
 ## Ship
 
-Not shipped. To ship: merge `origin/main` into the branch, bump **v2.112.0** (MINOR: new app and migration), run the pre-ship gate (`lean_test.py suite ship`) on that tree, then `ship-git.md` from the worktree. Production migration creates two new tables only.
+Not shipped. To ship: merge `origin/main` into the branch, bump **v2.112.0** (MINOR: new app and migration), run the pre-ship gate (`lean_test.py suite ship`) on that tree, then `ship.md` from the worktree. Production migration creates two new tables only.
 
 ## Open
 
@@ -37,6 +55,26 @@ Not shipped. To ship: merge `origin/main` into the branch, bump **v2.112.0** (MI
 - [ ] Owner's first count (Mon 10-05), then tune what he hits.
 - [ ] Later, if wanted: count one aisle at a time, a "where is it" for missing items, weekly trend of shrink.
 
+## Thursday trial sheet (owner, about 15 minutes, after v2.112.0 is live)
+
+You need: your phone, the scanner, 15 to 20 items from the floor, one item you know was sold, and a pen.
+
+1. **Pair the scanner** with the phone in keyboard mode (it types the code and presses Enter). Open Dash on the phone, Retail floor, **Inventory count**. Tap **Start a new count**. Name is automatic; that is fine.
+2. **Scan 10 items.** For each one you should hear one short beep and see a green row with the item's name. Note: does it read the tag every time? How many scans a minute feels natural?
+3. **Scan one item twice.** Wait a second between. Expect two quick beeps and an orange "Already scanned" banner.
+4. **Scan the sold item** (or any tag you know is not on the shelf). Expect two beeps and an orange banner "system says sold".
+5. **Scan a code that does not exist**, for example type `ITM0000000`. Expect a long low buzz, a red banner "Back up: not found" with the code and "just now", and the phone vibrating. Scan two more items, then look: does it say "2 scans ago"?
+6. **Tap somewhere else on the screen, then scan.** It should still register (the scan box keeps itself ready).
+7. **Bad connection:** turn on airplane mode, scan 3 items (rows wait with "Looking up"), turn it off. Within a few seconds they should turn green. The header shows "Offline: saved, will send" while offline.
+8. **Reload the page mid-count.** The count and your scans should still be there.
+9. **Finish count**, then open **See the report** (managers only). Check: expected vs counted, the not-found list, a CSV download.
+10. **Write down** anything slow, confusing, or wrong: what you did, what you expected, what happened. Send it to Claude; fixes are built Fri to Sun and may ship Sat or Sun.
+
+Good signs: no missed scans, sounds are clear across the room, and you never wait for a lookup.
+If the scanner adds a Tab instead of Enter, that works too. If it reads only barcodes and not the QR on the tag, tell me: that is a scanner setting or model issue.
+
 ## Record
+
+**2026-10-01 — v2.113.0:** a timer in the header (time since start, scans, scans per minute; server clock), **Start over** for managers (`POST counts/<id>/restart/` discards the open count and starts a new one), and an Earlier runs list kept on the phone (last 8). Asked for by the owner mid-count to time scanning strategies.
 
 **2026-09-30 — Built.** Verified in the browser on a phone-sized screen: start, typed scans (found, repeat, unknown, sold), the banner with rows ago, finish, report. Retested after the change to scanner-only input: scan with no tap, scan after tapping elsewhere, repeat, unknown. Server tests 7, front end 54 (queue logic, nav), `tsc` clean.
