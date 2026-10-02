@@ -8,6 +8,8 @@ Inventory search (owner, 2026-10-02): one box, one table, one row per product, u
 - **Numbers** (on shelf, price range, sold, average sold price, days to sell) are computed only for the page shown.
 - **Nothing found:** the closest products by spelling are offered instead (`fuzzy`).
 
+- **Similar products** (`similar`) come from the stored vectors, for price research.
+
 `rebuild_search_text` keeps the line current: a product or profile save calls it for that product; the bulk loaders
 call it for their chunk; `python manage.py rebuild_product_search` redoes everything.
 """
@@ -154,11 +156,16 @@ def search(q: str, *, include_sold: bool = False, page: int = 1, page_size: int 
     else:
         qs = qs.order_by('-pk')
 
-    count = len(qs.values_list('pk')[:COUNT_CAP + 1]) + len(first)
+    # One pass over the matches gives both the count and this page's ids (two passes cost twice as much on a
+    # broad word like "toy").
+    ids = list(qs.values_list('pk', flat=True)[:COUNT_CAP + 1])
+    count = len(ids) + len(first)
     offset = (page - 1) * page_size
     take = page_size - (len(first) if page == 1 else 0)
     start = max(0, offset - len(first)) if page > 1 else 0
-    products = (first if page == 1 else []) + list(qs[start:start + take])
+    page_ids = ids[start:start + take]
+    by_id = Product.objects.in_bulk(page_ids)
+    products = (first if page == 1 else []) + [by_id[i] for i in page_ids if i in by_id]
 
     fuzzy = False
     if not products and q and page == 1:
@@ -173,6 +180,25 @@ def search(q: str, *, include_sold: bool = False, page: int = 1, page_size: int 
         'results': _rows(products, matched_sku),
         'took_ms': round((time.perf_counter() - started) * 1000),
     }
+
+
+def similar(product_id: int, limit: int = 8, floor: float = 0.75) -> dict[str, Any]:
+    """Products that mean the same kind of thing as this one, closest first, with the same numbers as a search
+    row (price research). It reads the stored vectors only: no model is loaded, so it is safe on the web server."""
+    from apps.inventory.services.product_vectors import similar_products
+
+    product = Product.objects.filter(pk=product_id).first()
+    if product is None:
+        return {'product_id': product_id, 'results': []}
+    near = [n for n in similar_products(product=product, limit=limit * 3) if n['similarity'] >= floor]
+    products = Product.objects.filter(pk__in=[n['product_id'] for n in near]).filter(Exists(Item.objects.filter(product=OuterRef('pk'))))
+    by_id = {p.pk: p for p in products}
+    ordered = [by_id[n['product_id']] for n in near if n['product_id'] in by_id][:limit]
+    score = {n['product_id']: n['similarity'] for n in near}
+    rows = _rows(ordered)
+    for r in rows:
+        r['similarity'] = score.get(r['product_id'])
+    return {'product_id': product_id, 'results': rows}
 
 
 def product_items(product_id: int, *, include_sold: bool = True) -> dict[str, Any]:

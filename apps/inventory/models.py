@@ -1904,6 +1904,8 @@ class Item(models.Model):
             models.Index(fields=['purchase_order', 'status']),
             models.Index(fields=['-checked_in_at', '-created_at'], name='item_checkedin_created_idx'),
             GinIndex(name='item_searchtext_trgm', fields=['search_text'], opclasses=['gin_trgm_ops']),
+            # Inventory search asks "is anything of this product on the shelf" for every match: this keeps it small.
+            models.Index(fields=['product'], name='item_onshelf_product_idx', condition=models.Q(status='on_shelf')),
         ]
 
     def __str__(self):
@@ -2793,6 +2795,32 @@ class DedupeDecision(models.Model):
 
     def __str__(self):
         return f'{self.product_a_id}~{self.product_b_id}: {self.decision} ({self.rules_version})'
+
+
+class BulkPriceChange(models.Model):
+    """
+    One bulk price change from Inventory search (``apps.inventory.services.bulk_price``): who, the rule, and each
+    item's price before and after, so it can be undone and its tags reprinted.
+    """
+
+    rule = models.JSONField(default=dict)
+    description = models.CharField(max_length=120)
+    item_count = models.PositiveIntegerField(default=0)
+    total_before = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_after = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    # [{id, sku, old, new, title, brand, product_number}]
+    changes = models.JSONField(default=list)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+    undone_at = models.DateTimeField(null=True, blank=True)
+    undone_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    undo_result = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'bulk price change {self.pk}: {self.description} ({self.item_count} items)'
 
 
 class CatalogMerge(models.Model):

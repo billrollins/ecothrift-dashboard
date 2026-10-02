@@ -45,9 +45,32 @@ A modal never opens a second modal: a link inside it swaps the content and shows
   nothing the old page could do was lost.
 - `ProductItemsTable` is the items list used under a search row and on the product page.
 
+## Bulk work (Phase 2, built 2026-10-02)
+
+- **Select:** a tick on a product row means every shelf item of that product; a tick on an item row means that item.
+  A bar appears: Change price (managers and the owner), Reprint tags (staff), Clear.
+- **Change price** (a dialog, because it is one quick decision): percent off, dollars off, or set a price; then
+  optional rounding to .99 or to the dollar. The preview shows the count and the total before and after. Only items
+  on the shelf change; no price goes below $0.50; at most 5,000 items at once.
+- **Bulk work drawer** (a drawer, because you close it and reopen it to see how a job is doing): the tag print
+  progress, and for managers the recent price changes, each with **Reprint tags** and **Undo**. Undo puts the old
+  price back on every item that still holds the new one and is still on the shelf.
+- **Record:** `BulkPriceChange` (who, the rule, each item's price before and after) plus a `price_change` history
+  line per item. Code: `apps/inventory/services/bulk_price.py`, `api_bulk_price.py`,
+  `frontend/src/components/objects/bulkTools.tsx`; tests `test_bulk_price.py`.
+- **Similar products** (price research): a link under a product's items lists the closest products by meaning with
+  the same numbers. It reads the stored vectors only (`inventory_search.similar`); no model is loaded on the web
+  server.
+- **Speed:** a partial index for "is anything of this product on the shelf" and one pass for the page and the
+  count. Broad one-word searches went from about 330 ms to about 140 ms on a copy of production.
+
+**Memory (measured 2026-10-02):** the embedding model takes about 200 MB per process once loaded. The web dyno was
+Standard-1X (512 MB, two workers), too small for the intake switch `product_standard_at_intake` (vector matching at
+cleanup, a vector at check-in). The owner moved it to **Standard-2X (1 GB)** on 2026-10-02 for that reason.
+
 ## Phases
 
 1. **Built 2026-10-02:** the search page, the three modals, the product page, price edit in place, reprint, add items.
-2. Bulk price change (set, percent off, round; managers and the owner only) with a preview and a progress drawer;
-   "similar products" by vector when text finds little.
+2. **Built 2026-10-02:** bulk price change with preview, undo and the Bulk work drawer; bulk tag reprint; similar
+   products; faster broad searches.
 3. Id links across the rest of the site; orders and manifests get the same standard view; remove the old page's code.

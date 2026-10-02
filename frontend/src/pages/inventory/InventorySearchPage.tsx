@@ -2,6 +2,7 @@
  * Inventory search: one box, one table, one row per product, with its items one click away.
  * Replaces the old Catalog page (`/inventory/workbench`). Search runs on the server
  * (`apps/inventory/services/inventory_search.py`); the page state lives in the URL (`q`, `sold`, `page`, `open`).
+ * Bulk work (price changes for managers, tag reprints) lives in `components/objects/bulkTools.tsx`.
  */
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import AddBox from '@mui/icons-material/AddBox';
@@ -9,17 +10,22 @@ import KeyboardArrowDown from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowRight from '@mui/icons-material/KeyboardArrowRight';
 import Search from '@mui/icons-material/Search';
 import {
-  Box, Chip, Collapse, FormControlLabel, IconButton, InputAdornment, LinearProgress, Paper, Stack, Switch, Table,
-  TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, Tooltip, Typography,
+  Box, Button, Chip, Collapse, FormControlLabel, IconButton, InputAdornment, LinearProgress, Link, Paper, Stack, Switch,
+  Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSnackbar } from 'notistack';
 import { Navigate, useSearchParams } from 'react-router-dom';
-import { searchInventory, type InventorySearchRow } from '../../api/inventorySearch.api';
+import { getSimilarProducts, searchInventory, type InventorySearchRow } from '../../api/inventorySearch.api';
 import { PageHeader } from '../../components/common/PageHeader';
+import {
+  BulkDrawer, BulkPriceDialog, labelsForSelection, SelectBox, SelectionProvider, useOptionalSelection, usePrintQueue,
+} from '../../components/objects/bulkTools';
 import {
   formatObjectRef, ObjectLink, ObjectModalProvider, parseObjectRef, useObjectModal, type ObjectRef,
 } from '../../components/objects/ObjectModal';
 import { ProductItemsTable } from '../../components/objects/ProductItemsTable';
+import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency } from '../../utils/format';
 import { parseRichSearch, parseWorkbenchSelection } from '../../utils/richInventorySearch';
 
@@ -36,6 +42,134 @@ function shortDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
 }
 
+/** Price research: products that mean the same kind of thing, loaded only when asked for. */
+function SimilarProducts({ productId }: { productId: number }) {
+  const [show, setShow] = useState(false);
+  const { data, isFetching } = useQuery({
+    queryKey: ['inventory-search-similar', productId],
+    queryFn: async ({ signal }) => (await getSimilarProducts(productId, signal)).data.results,
+    enabled: show,
+    staleTime: 5 * 60_000,
+  });
+  if (!show) {
+    return (
+      <Link component="button" type="button" underline="hover" onClick={() => setShow(true)} sx={{ fontSize: 13, mt: 0.75 }}>
+        Show similar products
+      </Link>
+    );
+  }
+  if (isFetching && !data) return <LinearProgress sx={{ mt: 1, maxWidth: 240 }} />;
+  if (!data?.length) return <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.75 }}>No similar products found.</Typography>;
+  return (
+    <Box sx={{ mt: 1 }}>
+      <Typography variant="caption" color="text.secondary">Similar products</Typography>
+      <Table size="small" aria-label="Similar products" sx={{ width: 'auto', '& th, & td': { whiteSpace: 'nowrap' } }}>
+        <TableHead>
+          <TableRow>
+            <TableCell>Product</TableCell>
+            <TableCell align="right">Match</TableCell>
+            <TableCell align="right">On shelf</TableCell>
+            <TableCell align="right">Price</TableCell>
+            <TableCell align="right">Sold</TableCell>
+            <TableCell align="right">Avg sold</TableCell>
+            <TableCell align="right">Days to sell</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {data.map((s) => (
+            <TableRow key={s.product_id}>
+              <TableCell sx={{ maxWidth: 420, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <ObjectLink type="product" id={s.product_id} label={s.title} />
+              </TableCell>
+              <TableCell align="right">{s.similarity != null ? `${Math.round(s.similarity * 100)}%` : ''}</TableCell>
+              <TableCell align="right">{s.on_shelf}</TableCell>
+              <TableCell align="right">{priceRange(s)}</TableCell>
+              <TableCell align="right">{s.sold || ''}</TableCell>
+              <TableCell align="right">{s.avg_sold != null ? formatCurrency(s.avg_sold) : ''}</TableCell>
+              <TableCell align="right">{s.avg_days_to_sell != null ? s.avg_days_to_sell : ''}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </Box>
+  );
+}
+
+/** The bar that appears when something is ticked, plus the dialog and the drawer it drives. */
+function BulkBar() {
+  const sel = useOptionalSelection();
+  const { hasRole } = useAuth();
+  const canPrice = hasRole('Manager');
+  const queryClient = useQueryClient();
+  const { enqueueSnackbar } = useSnackbar();
+  const { job, print, cancel } = usePrintQueue();
+  const [pricing, setPricing] = useState(false);
+  const [drawer, setDrawer] = useState(false);
+  if (!sel) return null;
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ['inventory-search'] });
+    void queryClient.invalidateQueries({ queryKey: ['inventory-search-items'] });
+    void queryClient.invalidateQueries({ queryKey: ['bulk-price-changes'] });
+  };
+  const reprintSelection = async () => {
+    const items = await labelsForSelection(sel.selection);
+    if (!items.length) {
+      enqueueSnackbar('Nothing on the shelf is selected.', { variant: 'info' });
+      return;
+    }
+    setDrawer(true);
+    void print(`${items.length.toLocaleString()} tag${items.length === 1 ? '' : 's'} from the selection`, items);
+  };
+  const parts = [
+    sel.productIds.size ? `${sel.productIds.size} product${sel.productIds.size === 1 ? '' : 's'}` : '',
+    sel.itemIds.size ? `${sel.itemIds.size} item${sel.itemIds.size === 1 ? '' : 's'}` : '',
+  ].filter(Boolean);
+
+  return (
+    <>
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5, minHeight: 36 }}>
+        {sel.size > 0 ? (
+          <>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>{parts.join(' and ')} selected</Typography>
+            {canPrice && <Button size="small" variant="contained" onClick={() => setPricing(true)}>Change price</Button>}
+            <Button size="small" variant="outlined" disabled={!!job?.running} onClick={() => void reprintSelection()}>Reprint tags</Button>
+            <Button size="small" onClick={sel.clear}>Clear</Button>
+          </>
+        ) : (
+          <Typography variant="caption" color="text.secondary">Tick products or items to change prices or reprint tags in bulk.</Typography>
+        )}
+        <Box sx={{ flex: 1 }} />
+        <Button size="small" onClick={() => setDrawer(true)}>
+          {job?.running ? `Printing ${job.done} of ${job.total}` : 'Bulk work'}
+        </Button>
+      </Stack>
+      {pricing && (
+        <BulkPriceDialog
+          open
+          selection={sel.selection}
+          onClose={() => setPricing(false)}
+          onApplied={(change) => {
+            setPricing(false);
+            sel.clear();
+            refresh();
+            setDrawer(true);
+            enqueueSnackbar(`${change.item_count.toLocaleString()} price${change.item_count === 1 ? '' : 's'} changed. Reprint the tags from the Bulk work drawer.`, { variant: 'success' });
+          }}
+        />
+      )}
+      <BulkDrawer
+        open={drawer}
+        onClose={() => setDrawer(false)}
+        job={job}
+        onCancelPrint={cancel}
+        onPrint={(label, items) => void print(label, items)}
+        canPrice={canPrice}
+      />
+    </>
+  );
+}
+
 function ResultRow({ row, includeSold, startOpen }: { row: InventorySearchRow; includeSold: boolean; startOpen: boolean }) {
   const [open, setOpen] = useState(startOpen);
   const { openObject } = useObjectModal();
@@ -43,7 +177,8 @@ function ResultRow({ row, includeSold, startOpen }: { row: InventorySearchRow; i
   return (
     <Fragment>
       <TableRow hover onClick={() => setOpen((v) => !v)} sx={{ cursor: 'pointer', '& > td': { borderBottom: open ? 0 : undefined } }}>
-        <TableCell padding="checkbox">
+        <TableCell padding="checkbox" sx={{ whiteSpace: 'nowrap' }}>
+          {row.on_shelf > 0 && <SelectBox kind="product" id={row.product_id} label={`Select every shelf item of ${row.title}`} />}
           <IconButton size="small" aria-label={open ? 'Hide items' : 'Show items'}>
             {open ? <KeyboardArrowDown fontSize="small" /> : <KeyboardArrowRight fontSize="small" />}
           </IconButton>
@@ -89,6 +224,7 @@ function ResultRow({ row, includeSold, startOpen }: { row: InventorySearchRow; i
                 highlightSku={row.matched_sku}
                 product={{ title: row.tag_name || row.title, brand: row.brand, product_number: row.product_number }}
               />
+              <SimilarProducts productId={row.product_id} />
             </Box>
           </Collapse>
         </TableCell>
@@ -144,6 +280,7 @@ function SearchBody({ q, sold, page, setParam }: {
         />
       </Stack>
       <Box sx={{ height: 4, mb: 0.5 }}>{isFetching && <LinearProgress />}</Box>
+      <BulkBar />
       <Typography variant="caption" color={isError ? 'error' : 'text.secondary'} sx={{ display: 'block', mb: 0.5 }}>
         {isError ? 'The search failed. Try again.' : summary}
       </Typography>
@@ -225,7 +362,9 @@ export default function InventorySearchPage() {
 
   return (
     <ObjectModalProvider initial={initial} onChange={onModalChange}>
-      <SearchBody q={q} sold={sold} page={page} setParam={setParam} />
+      <SelectionProvider>
+        <SearchBody q={q} sold={sold} page={page} setParam={setParam} />
+      </SelectionProvider>
     </ObjectModalProvider>
   );
 }

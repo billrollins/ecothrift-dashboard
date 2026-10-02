@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.124.1] -->
-<!-- Last reviewed: 2026-10-02 (2.124.1) -->
+<!-- Line 1 release: ## [2.125.0] -->
+<!-- Last reviewed: 2026-10-02 (2.125.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,34 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.125.0] - 2026-10-02
+
+User-facing theme: **Inventory search can change prices and reprint tags in bulk, shows similar products for price research, and is faster on broad searches.** Outside initiatives (owner request, 2026-10-02); design in `.ai/extended/inventory-search.md`.
+
+### Added
+
+- **Bulk price change** (managers and the owner): tick products (every shelf item of each) or single items, then Change price: percent off, dollars off or a set price, with optional rounding to .99 or to the dollar. A preview shows the count and the total before and after. Only items on the shelf change; no price goes below $0.50; at most 5,000 items at once.
+- **Bulk work drawer:** tag print progress, and for managers the recent price changes, each with Reprint tags and Undo. Undo puts the old price back on every item that still holds the new one and is still on the shelf.
+- **Bulk tag reprint** (staff) for whatever is ticked.
+- **Similar products:** a link under a product's items lists the closest products by meaning, with on shelf, price, sold, average sold and days to sell. It reads the stored vectors only; no model is loaded on the web server.
+- `BulkPriceChange` (who, the rule, each item's price before and after) and a `price_change` history line per item. API under `/api/inventory/bulk-price/` and `/api/inventory/search/similar/`.
+
+### Changed
+
+- **Speed:** a partial index for "is anything of this product on the shelf", and one pass for the page and the count. On a copy of production a one-letter search went from about 330 ms to about 140 ms.
+
+### Operations
+
+- The web dyno is Standard-2X (1 GB) since 2026-10-02 (it was Standard-1X, 512 MB), at the owner's order: the embedding model takes about 200 MB per process, which the intake switch `product_standard_at_intake` will load.
+
+### Tests
+
+- `apps/inventory/tests/test_bulk_price.py` (the rule math, preview, apply with history, undo, managers only, staff reprint, similar products). Checked in a browser on a copy of production; printing tags in bulk was not tested there (no print server on that machine).
+
+### Migrations
+
+- `inventory/0106_bulk_price_change_and_shelf_index`: the new table and one small index on items. The release phase runs it.
 
 ## [2.124.1] - 2026-10-02
 

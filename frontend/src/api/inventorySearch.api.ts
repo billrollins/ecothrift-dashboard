@@ -72,3 +72,92 @@ export function getProductItems(productId: number, sold: boolean, signal?: Abort
     signal,
   });
 }
+
+/** A search row plus how close it is in meaning (0 to 1). */
+export type SimilarProductRow = InventorySearchRow & { similarity: number | null };
+
+export function getSimilarProducts(productId: number, signal?: AbortSignal) {
+  return api.get<{ product_id: number; results: SimilarProductRow[] }>('/inventory/search/similar/', {
+    params: { product: productId },
+    signal,
+  });
+}
+
+// ── Bulk price change and bulk tag reprint ─────────────────────────────────────
+
+export type BulkPriceMode = 'set' | 'percent_off' | 'amount_off';
+export type BulkPriceRounding = 'none' | '99' | 'dollar';
+
+export interface BulkPriceRule {
+  mode: BulkPriceMode;
+  value: string;
+  round: BulkPriceRounding;
+}
+
+/** What is selected: single items, and whole products (every shelf item of each). */
+export interface BulkSelection {
+  item_ids: number[];
+  product_ids: number[];
+}
+
+/** One item in a bulk change (or a reprint): the prices and what its tag needs. */
+export interface BulkPriceItem {
+  id: number;
+  sku: string;
+  old: string;
+  new: string;
+  title: string;
+  brand: string;
+  product_number: string;
+}
+
+export interface BulkPricePreview {
+  describe: string;
+  selected: number;
+  over_cap: boolean;
+  cap: number;
+  count: number;
+  unchanged: number;
+  total_before: string;
+  total_after: string;
+  at_floor: number;
+  sample: BulkPriceItem[];
+}
+
+export interface BulkPriceChange {
+  id: number;
+  description: string;
+  item_count: number;
+  total_before: string;
+  total_after: string;
+  created_at: string;
+  created_by: string;
+  undone_at: string | null;
+  undone_by: string;
+  undo_result: { restored: number; left_alone: number } | null;
+  items?: BulkPriceItem[];
+}
+
+export function previewBulkPrice(selection: BulkSelection, rule: BulkPriceRule, signal?: AbortSignal) {
+  return api.post<BulkPricePreview>('/inventory/bulk-price/preview/', { ...selection, rule }, { signal });
+}
+
+export function applyBulkPrice(selection: BulkSelection, rule: BulkPriceRule) {
+  return api.post<BulkPriceChange>('/inventory/bulk-price/apply/', { ...selection, rule });
+}
+
+export function getBulkPriceChanges() {
+  return api.get<{ results: BulkPriceChange[] }>('/inventory/bulk-price/');
+}
+
+export function getBulkPriceChange(id: number) {
+  return api.get<BulkPriceChange>(`/inventory/bulk-price/${id}/`);
+}
+
+export function undoBulkPrice(id: number) {
+  return api.post<BulkPriceChange>(`/inventory/bulk-price/${id}/undo/`);
+}
+
+export function getBulkLabels(selection: BulkSelection) {
+  return api.post<{ count: number; over_cap: boolean; items: BulkPriceItem[] }>('/inventory/bulk-price/labels/', selection);
+}

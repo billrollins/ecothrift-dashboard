@@ -16,6 +16,7 @@ import { getProductItems, type InventorySearchItem } from '../../api/inventorySe
 import { printProcessingLabelsAndMarkPrinted } from '../../pages/inventory/processing/printProcessingLabel';
 import { formatCurrency } from '../../utils/format';
 import { StatusBadge } from '../common/StatusBadge';
+import { SelectBox, useOptionalSelection } from './bulkTools';
 import { ObjectLink } from './ObjectModal';
 
 export interface ProductLabelInfo {
@@ -111,6 +112,8 @@ export function ProductItemsTable({
 }) {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
+  const selection = useOptionalSelection();
+  const wholeProduct = !!selection?.productIds.has(productId);
   const { data, isLoading, isError } = useQuery({
     queryKey: ['inventory-search-items', productId, includeSold],
     queryFn: async ({ signal }) => (await getProductItems(productId, includeSold, signal)).data,
@@ -142,6 +145,7 @@ export function ProductItemsTable({
       <Table size="small" aria-label="Items" sx={{ '& th, & td': { whiteSpace: 'nowrap' } }}>
         <TableHead>
           <TableRow>
+            {selection && <TableCell padding="checkbox" />}
             <TableCell>SKU</TableCell>
             <TableCell>Status</TableCell>
             <TableCell align="right">Price</TableCell>
@@ -157,6 +161,13 @@ export function ProductItemsTable({
         <TableBody>
           {data.items.map((item) => (
             <TableRow key={item.id} selected={!!highlightSku && item.sku === highlightSku}>
+              {selection && (
+                <TableCell padding="checkbox">
+                  {item.status === 'on_shelf' && (
+                    <SelectBox kind="item" id={item.id} label={`Select ${item.sku}`} forced={wholeProduct} />
+                  )}
+                </TableCell>
+              )}
               <TableCell><ObjectLink type="item" id={item.id} label={item.sku} /></TableCell>
               <TableCell><StatusBadge status={item.status} size="small" /></TableCell>
               <TableCell align="right">

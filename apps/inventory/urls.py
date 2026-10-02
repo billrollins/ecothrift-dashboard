@@ -1,7 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .api_product_review import product_review_decide, product_review_list
-from .api_inventory_search import inventory_search_items_view, inventory_search_view
+from .api_bulk_price import (
+    bulk_labels_view, bulk_price_apply_view, bulk_price_detail_view, bulk_price_list_view, bulk_price_preview_view,
+    bulk_price_undo_view,
+)
+from .api_inventory_search import inventory_search_items_view, inventory_search_similar_view, inventory_search_view
 from .api_product_similar import similar_products_view
 from .views import (
     VendorViewSet, CategoryViewSet, PurchaseOrderViewSet, CSVTemplateViewSet,
@@ -41,6 +45,13 @@ urlpatterns = [
     path('similar-products/', similar_products_view, name='similar-products'),
     path('search/', inventory_search_view, name='inventory-search'),
     path('search/items/', inventory_search_items_view, name='inventory-search-items'),
+    path('search/similar/', inventory_search_similar_view, name='inventory-search-similar'),
+    path('bulk-price/', bulk_price_list_view, name='bulk-price-list'),
+    path('bulk-price/preview/', bulk_price_preview_view, name='bulk-price-preview'),
+    path('bulk-price/apply/', bulk_price_apply_view, name='bulk-price-apply'),
+    path('bulk-price/labels/', bulk_labels_view, name='bulk-price-labels'),
+    path('bulk-price/<int:pk>/', bulk_price_detail_view, name='bulk-price-detail'),
+    path('bulk-price/<int:pk>/undo/', bulk_price_undo_view, name='bulk-price-undo'),
     path('product-review/<int:product_id>/decide/', product_review_decide, name='product-review-decide'),
     path('', include(router.urls)),
     path('items/lookup/<str:sku>/', item_lookup, name='item-lookup'),

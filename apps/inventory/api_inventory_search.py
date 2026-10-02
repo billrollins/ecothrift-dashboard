@@ -3,6 +3,7 @@ Inventory search (services/inventory_search.py).
 
 GET /api/inventory/search/?q=<text>&sold=1&page=1     one page of products with their numbers
 GET /api/inventory/search/items/?product=<id>&sold=1  the items of one product
+GET /api/inventory/search/similar/?product=<id>       products that mean the same kind of thing, with their numbers
 """
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -35,3 +36,12 @@ def inventory_search_items_view(request):
     if not raw.isdigit():
         return Response({'detail': 'Give product=<id>.'}, status=status.HTTP_400_BAD_REQUEST)
     return Response(inventory_search.product_items(int(raw), include_sold=_flag(request, 'sold')))
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsStaff])
+def inventory_search_similar_view(request):
+    raw = str(request.query_params.get('product') or '')
+    if not raw.isdigit():
+        return Response({'detail': 'Give product=<id>.'}, status=status.HTTP_400_BAD_REQUEST)
+    return Response(inventory_search.similar(int(raw)))
