@@ -183,4 +183,23 @@ The pipeline's **final state** on the owner's PC is exported and loaded; nothing
   category stats run.
 - **Vectors** are pushed from the owner's PC (`python manage.py push_vectors`, reads `PROD_DATABASE_URL`), because
   building 100,000 on production would slow the register. Request 3 is only a catch-up.
-- **Loaded 2026-10-02:** Request #5 (standard): 135,004 products, 992,795 fields.
+- **Loaded 2026-10-02:** Request #5 (standard): 135,004 products, 992,795 fields. Request #6: 32,060 merges and
+  74,181 decisions. Vectors: 102,452 pushed from the PC.
+
+## Later rounds (the "middle", and any catch-up)
+
+Products made after a load get the same treatment on the owner's PC, then go up as a small file set:
+
+1. Pull production (`scripts\db\pull_prod_to_local.bat`), so local equals production.
+2. `python manage.py standardize_all --prefix <round> --size 2000 --no-vet --max-batches 1`: it now skips every product
+   that already carries the standard, so it writes only the new ones.
+3. `python manage.py export_standard_backfill --tag <tag> --batches <round>-001 --after-merge <max merge id> --after-decision <max decision id>`,
+   load it locally with `standard_load.load_standard` (the same code production runs), then `embed_standard`.
+4. Dedupe: `dedupe.candidates()`, keep the pairs that involve a new product, `decide`, `escalate`, `merge_same`.
+5. Export again (now with the merges, the decisions and the survivors' aliases), ship, deploy, stage Requests
+   `inventory.load_standard` and `inventory.merge_decided` with the new files, then `inventory.embed_standard`.
+
+**Round `2026-10-02b` (products made 09-24 to 10-02):** 858 products, 847 valid answers (11 left out: a hard problem);
+117 candidate pairs with a new product, 107 decided; 164 merges (56 with a new product, 108 between older products
+that production had skipped as "already merged" and that follow from the same decisions); 78 survivors gained
+aliases. Cost about $0.60. Left for a later pass: 4,735 candidate pairs among older products (a third pass).

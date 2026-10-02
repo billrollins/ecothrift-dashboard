@@ -1,24 +1,16 @@
-feat: v2.122.0 buying category numbers can read the product standard category (switch off); push_vectors
+feat: v2.123.0 the standard and merges for products made since 09-24 (round 2026-10-02b)
 
-Release: v2.122.0
+Release: v2.123.0
 
-User-facing theme: **Buying's category numbers can read the new product categories instead of "Mixed lots".** It ships switched off; nothing changes until `category_from_profile` is turned on in Settings > System. Initiative: `data_platform` (data-quality row ITM-15).
+User-facing theme: **The products made since the 09-24 copy get the same standard and duplicate merges as the rest of the catalog.** Nothing changes until the Requests are approved. Initiative: `data_platform` (with `product_intelligence`).
 
 ### Added
 
-- **Switch `category_from_profile`** (off): with it on, Need, recovery, the category stats and the seller factor count an item under its product standard category when that is a real one (a canon name, not Mixed lots); otherwise the old order stands (the product's own category, then the manifest row's). No data changes; turning it off puts the old numbers back at the next category stats run. On the dev copy, Mixed lots falls from 87.4% to 0.3% of sold items (107,050 to 325). Code: `apps/inventory/services/effective_category.py`, `apps/buying/services/taxonomy_bucket_sql.py`, `category_need.py`, `seller_factor.py`.
-- **`push_vectors`** (run on the owner's PC): writes locally built product vectors into production, only where production's text is exactly the text that was embedded. Building 100,000 vectors on production would slow the register.
+- **Round `2026-10-02b`** in `apps/inventory/data/backfill/`: the standard for 847 products made 09-24 to 10-02 (plus aliases for 78 survivors), 164 merges and 107 same / different answers. Loaded by the same Requests as the first round (`inventory.load_standard`, `inventory.merge_decided`), then `inventory.embed_standard` for the missing vectors.
+- `export_standard_backfill --batches ... --after-merge ... --after-decision ...`: exports a later round (only the new products, merges and decisions). The procedure is in `.ai/extended/backfill-plan.md` § Later rounds.
 
-### Production data (2026-10-02, the owner's approvals)
+### Changed
 
-- Request #5: the product standard loaded on 135,004 products (992,795 fields). Request #6: the duplicate merges. Vectors: 102,452 pushed from the owner's PC.
-
-### Tests
-
-- `apps/buying/tests/test_taxonomy_bucket_sql.py`: switch off keeps the product category; on, a real profile category wins in SQL and in Python alike; a Mixed or unknown profile category is ignored.
-
-### Migrations
-
-- `inventory/0104_seed_category_from_profile_switch`: adds the switch, off. The release phase runs it.
+- The standardize run skips every product that already carries the standard (a profile with vector text), so a later run writes only the new ones.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

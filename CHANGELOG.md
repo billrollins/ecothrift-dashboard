@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.122.0] -->
-<!-- Last reviewed: 2026-10-02 (2.122.0) -->
+<!-- Line 1 release: ## [2.123.0] -->
+<!-- Last reviewed: 2026-10-02 (2.123.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.123.0] - 2026-10-02
+
+User-facing theme: **The products made since the 09-24 copy get the same standard and duplicate merges as the rest of the catalog.** Nothing changes until the Requests are approved. Initiative: `data_platform` (with `product_intelligence`).
+
+### Added
+
+- **Round `2026-10-02b`** in `apps/inventory/data/backfill/`: the standard for 847 products made 09-24 to 10-02 (plus aliases for 78 survivors), 164 merges and 107 same / different answers. Loaded by the same Requests as the first round (`inventory.load_standard`, `inventory.merge_decided`), then `inventory.embed_standard` for the missing vectors.
+- `export_standard_backfill --batches ... --after-merge ... --after-decision ...`: exports a later round (only the new products, merges and decisions). The procedure is in `.ai/extended/backfill-plan.md` § Later rounds.
+
+### Changed
+
+- The standardize run skips every product that already carries the standard (a profile with vector text), so a later run writes only the new ones.
 
 ## [2.122.0] - 2026-10-02
 

@@ -175,7 +175,8 @@ flags. No prose, no code fences."""
 
 
 def next_products(limit: int, exclude: set[int]) -> list[dict[str, Any]]:
-    """The next products by sold dollars (then items), skipping merged-away ones and ones already done."""
+    """The next products by sold dollars (then items), skipping merged-away ones, ones that already carry the
+    standard (a profile with vector text: the catalog load, or intake) and ones already in a batch file."""
     with connection.cursor() as cur:
         cur.execute("""
             SELECT p.id, p.title, p.brand, p.model, p.identifiers, pp.category, pp.subcategory,
@@ -186,7 +187,7 @@ def next_products(limit: int, exclude: set[int]) -> list[dict[str, Any]]:
             LEFT JOIN inventory_productprofile pp ON pp.product_id = p.id
             LEFT JOIN inventory_item i ON i.product_id = p.id
             LEFT JOIN inventory_manifestrow mr ON mr.id = i.manifest_row_id
-            WHERE pp.merged_into_id IS NULL
+            WHERE pp.merged_into_id IS NULL AND coalesce(pp.vector_text, '') = ''
             GROUP BY p.id, pp.category, pp.subcategory
             HAVING count(i.id) > 0
             ORDER BY sold DESC, items DESC, p.id
