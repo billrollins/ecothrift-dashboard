@@ -1,36 +1,18 @@
-feat: v2.124.0 Inventory search replaces Catalog; standard product / check-in / item modals; product page
+chore: v2.124.1 ship / deploy rules, standards list and scripts in sync with the main checkout (no app code)
 
-Release: v2.124.0
+Release: v2.124.1
 
-User-facing theme: **Inventory search replaces Catalog: one box, one table with one row per product, results in well under a second, and one standard way to open a product, a check-in or an item.** Outside initiatives (owner request, 2026-10-02); design in `.ai/extended/inventory-search.md`.
-
-### Added
-
-- **Inventory search** (`/inventory/search`, in the menu where Catalog was):
-  - One row per product: on shelf, price range, sold, average sold price, days to sell, last sold. Click a row for its items (SKU, status, price, condition, location, check-in, order, dates).
-  - It searches the product and its new standard together: title, tag name, brand, model, category, subcategory, aliases, UPC, product number. Every word must match.
-  - On the shelf only by default; "Include sold" searches everything we have had.
-  - A typed or scanned SKU jumps to that item's product. A misspelling shows the closest products.
-  - In the items list: click a price to change it, the printer icon reprints the tag, the plus icon adds more of the product.
-- **Standard object views** (`frontend/src/components/objects/`): any product, check-in or item id is a link that opens the same modal. A link inside the modal swaps its content (with Back) instead of stacking a second one. They show the existing edit screens, so nothing the old page could do is lost.
-- **Product page** (`/inventory/products/:id`) with tabs: Product, Items, Check-ins.
-- `GET /api/inventory/search/` and `GET /api/inventory/search/items/` (staff only); `python manage.py rebuild_product_search`.
+User-facing theme: **Housekeeping: the repo's instructions, standards list and scripts on GitHub now match the owner's PC.** No app code changes; nothing to deploy. Outside initiatives (house standards D15, D18; rows T55, T56, T57, T64 to T66).
 
 ### Changed
 
-- Old Catalog links (`/inventory/workbench?...`) land on Inventory search with the same item, check-in or product open. The old page is no longer reachable.
+- **Ship and deploy rules (D18):** `.ai/protocols/ship.md` and `deploy.md` replace `ship-git.md` and `ship-heroku.md`. "Ship" = GitHub only; "deploy" = what is on GitHub goes to Heroku, with no backup step. The coder runs every command.
+- **Scripts ask nothing:** `scripts/deploy/ship.bat` and `deploy.bat` replace `ship_git.bat` and `ship_heroku.bat`; prompts removed from `scripts/db/backup_prod.bat`, `printserver/distribute.bat` and the dev starter. env-sync 1.1.0 (`push --confirm <app>`).
+- **Standards list:** `.ai/initiatives/standards.md` replaces `tech_target.md` (one list, every row dated); `standards-review.md` replaces `tech-target-review.md`. Production rows re-dated: the owner's rule is that everything goes to production as soon as it is done and tested.
+- **Docs:** the Thrift+ decisions, legal memo and Limited Warranty text (`.ai/extended/thrift-plus-*.md`); the Helper hand-off report; the flat initiative archive; the runner archive removed from `comm/`; the four SQL tools moved to `scripts/sql/`.
 
-### Speed
+### Fixed
 
-- `Product.search_text` (one line per product) with a trigram index; numbers computed only for the 50 rows shown; items loaded only when a row is opened. Measured on a copy of production (201,000 products): 15 to 140 ms for typical searches, about 350 ms at worst.
-- The line is kept current when a product or its profile is saved and by the bulk loaders. A failed refresh is logged and never fails a check-in.
-
-### Tests
-
-- `apps/inventory/tests/test_inventory_search.py` (the search line, word matching, the numbers, sold and merged products, the SKU jump, misspellings, the items list, staff-only access). Checked in a browser on a copy of production.
-
-### Migrations
-
-- `inventory/0105_product_search_text`: adds the column, fills it for every product in id ranges, then builds the index (34 seconds on a copy of production). The release phase runs it.
+- The main checkout was 15 commits behind `origin/main`; it is merged and current (row T55). The shared database is attached to the app (row T31, done 2026-10-02).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

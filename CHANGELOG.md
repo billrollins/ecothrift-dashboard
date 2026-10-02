@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.124.0] -->
-<!-- Last reviewed: 2026-10-02 (2.124.0) -->
+<!-- Line 1 release: ## [2.124.1] -->
+<!-- Last reviewed: 2026-10-02 (2.124.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.124.1] - 2026-10-02
+
+User-facing theme: **Housekeeping: the repo's instructions, standards list and scripts on GitHub now match the owner's PC.** No app code changes; nothing to deploy. Outside initiatives (house standards D15, D18; rows T55, T56, T57, T64 to T66).
+
+### Changed
+
+- **Ship and deploy rules (D18):** `.ai/protocols/ship.md` and `deploy.md` replace `ship-git.md` and `ship-heroku.md`. "Ship" = GitHub only; "deploy" = what is on GitHub goes to Heroku, with no backup step. The coder runs every command.
+- **Scripts ask nothing:** `scripts/deploy/ship.bat` and `deploy.bat` replace `ship_git.bat` and `ship_heroku.bat`; prompts removed from `scripts/db/backup_prod.bat`, `printserver/distribute.bat` and the dev starter. env-sync 1.1.0 (`push --confirm <app>`).
+- **Standards list:** `.ai/initiatives/standards.md` replaces `tech_target.md` (one list, every row dated); `standards-review.md` replaces `tech-target-review.md`. Production rows re-dated: the owner's rule is that everything goes to production as soon as it is done and tested.
+- **Docs:** the Thrift+ decisions, legal memo and Limited Warranty text (`.ai/extended/thrift-plus-*.md`); the Helper hand-off report; the flat initiative archive; the runner archive removed from `comm/`; the four SQL tools moved to `scripts/sql/`.
+
+### Fixed
+
+- The main checkout was 15 commits behind `origin/main`; it is merged and current (row T55). The shared database is attached to the app (row T31, done 2026-10-02).
 
 ## [2.124.0] - 2026-10-02
 
