@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.118.0] -->
-<!-- Last reviewed: 2026-10-02 (2.118.0) -->
+<!-- Line 1 release: ## [2.119.0] -->
+<!-- Last reviewed: 2026-10-02 (2.119.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,32 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.119.0] - 2026-10-02
+
+User-facing theme: **Every product gets one clean standard (title, tag name, brand, category, specs) and duplicates can be merged, by a pipeline that runs on the owner's PC.** Nothing changes on the live site yet: this release ships the code and two small tables. Initiative: `data_platform` (with `product_intelligence`).
+
+### Added
+
+- **Product standard:** hard rules for what every product must look like (`apps/inventory/spec_rules.py`, spec-v6):
+  - brand policies B1 to B6 (the consumer brand on the box; sub-lines go in the title; licenses go in the franchise spec; a printed seller name is kept and flagged; never a retailer exclusive);
+  - spec rules G1 to G16 (which details make a different product, which stay on the item);
+  - 16 worked examples (`standard_examples.py`);
+  - taxonomy rulings TAX-47 to TAX-77 with three tie-breakers, and a new Electronics subcategory, Wearables.
+- **Standardize** (`standardize_products`, `standardize_all`): Spark writes the title, tag name, vector text, brand, model, category, subcategory and product specs for each product; code checks every answer (canon names, lengths, allowed specs, one brand spelling, answers swapped between products) and saves it as a proposal tagged with the rules version.
+- **Review and vet** (`review_standardized`, `vet_standardize`, `audition_standardize`): Spark re-checks the answers it was unsure of, and Sonnet 5.5 rewrites what that check flags; a vet has Gemini judge a random 200 and Sonnet confirm the flags and propose rules; an audition runs several writer models against several blind critics.
+- **Dedupe** (`dedupe_products --find / --escalate / --vet / --merge`): likely duplicates are found by vector in the same category and subcategory; Spark decides; Sonnet makes the call on the less similar pairs; merges are reversible and keep the merged product's titles, models and UPCs as aliases. Owner rule: a wrong merge is cheaper than a leftover duplicate, so when in doubt, merge.
+- **Product profile:** `vector_text` and `aliases`; vectors embed the vector text once a product is standardized.
+- **Warehouse (local):** `sale_line_po` (register lines with no item assigned to purchase orders), `po_economics` and `item_cost` (truck cost spread over sold items by sale price, shrink buckets, a received date), `warehouse.db.connect()` (reads without locking the file), the floor-start rule for old items (the order's first sale + 5 days), categories from the product profile, a tour notebook and a README.
+
+### Fixed
+
+- Long local runs no longer hold a database connection per worker: workers are capped, and each closes its connection when its call ends (two runs took all 100 local connections on 2026-10-01).
+- The warehouse builds into a new file and swaps it in, so an open notebook can't block a rebuild.
+
+### Migrations
+
+- `inventory/0101_profile_vector_text_aliases`, `inventory/0102_dedupe_decision`. Both only add; the release phase runs them.
 
 ## [2.118.0] - 2026-10-02
 

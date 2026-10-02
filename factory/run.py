@@ -28,6 +28,7 @@ from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.metrics import brier_score_loss, log_loss, roc_auc_score
 
 from factory import method
+from warehouse.db import connect
 
 ROOT = Path(__file__).resolve().parent.parent
 DB = ROOT / 'workspace' / 'warehouse' / 'ecothrift.duckdb'
@@ -60,7 +61,7 @@ TARGETS = {
 
 
 def load(target: str) -> pd.DataFrame:
-    con = duckdb.connect(str(DB), read_only=True)
+    con = connect()  # the Parquet files: never locks the warehouse
     df = con.execute(TARGETS[target]['sql']).df()
     con.close()
     df['condition'] = df['condition'].where(df['condition'].isin(CONDITION))

@@ -104,7 +104,7 @@ Built on 2026-09-25, ahead of the calendar:
 **Gated by:** Phase 3.
 
 **Built as** (2026-09-28; local only, nothing in production):
-- **The warehouse:** DuckDB reads the local Postgres copy (`scripts/deploy/0_pull_prod_to_local.bat`) and writes `workspace/warehouse/ecothrift.duckdb`, a Parquet file per table, and `build.json`. `python -m warehouse.build` rebuilds everything in about 12 seconds; `--only <name>` rebuilds some. Local requirement: `requirements-warehouse.txt` (never on Heroku).
+- **The warehouse:** DuckDB reads the local Postgres copy (`scripts/db/pull_prod_to_local.bat`) and writes `workspace/warehouse/ecothrift.duckdb`, a Parquet file per table, and `build.json`. `python -m warehouse.build` rebuilds everything in about 12 seconds; `--only <name>` rebuilds some. Local requirement: `requirements-warehouse.txt` (never on Heroku).
 - **Tables** (`warehouse/sql/NN_*.sql`, one file per group):
   - `item` (era, category, the cost and timing rules) and `po` (the $0-is-unknown rules);
   - `sale_line` (completed and voided carts; SAL-08 duplicates flagged) and `misfit_sale` (no item, `MIS` vendor, no PO, V3 with no manifest line);
@@ -171,6 +171,8 @@ The first targets are the owner's list:
 ---
 
 ## Record
+
+**2026-10-02 — Product standard and dedupe pipeline shipped (code only).** 135,005 products standardized and 32,370 duplicates merged on the local copy; the plan, rules and results are in [`extended/backfill-plan.md`](../extended/backfill-plan.md) and [`extended/product-standard.md`](../extended/product-standard.md). Next: intake produces the standard from the start, then the production loads through Requests.
 
 **2026-09-25 — Opened.** The owner set the three-layer model and the AI supervisor brief as the priority besides Thrift+. Production data work is to be approved in production, not locally. The owner's modelling method is recorded for Phase 5; debate it only with data in hand.
 

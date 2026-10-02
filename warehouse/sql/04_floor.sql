@@ -1,9 +1,12 @@
 -- floor_interval: when each item was on the sales floor, [start_at, end_at).
 -- One interval per item: the first time on the floor to the first end after it (an item returned and
 -- re-shelved keeps its first interval; rare).
--- Start, best first: the ItemHistory move to on_shelf, V3 listed_at, V3 checked_in_at, V3 created_at
---   (a stand-in, earlier than the floor), or the 2026-04-12 import date for BACKFILL items still on the
---   shelf. V1/V2 items that sold have no floor timing (ITM-02): they are left out.
+-- Start, best first: the ItemHistory move to on_shelf, V3 listed_at, V3 checked_in_at, then for an item
+--   that sold: its order's first sale + 5 days, never after its own sale (the owner's rule, 2026-09-29;
+--   on V3, where the real date is known, items went out a median 4 days after their order's first sale),
+--   then V3 created_at (a stand-in, earlier than the floor), or the 2026-04-12 import date for BACKFILL
+--   items still on the shelf. V1/V2 items get their start from the order rule (ITM-02) but stay out of
+--   floor_daily: what happened to their unsold siblings is unknown (ITM-06), so an old floor would be short.
 -- End, best first: the completed sale, sold_at, the first lost/scrapped move in ItemHistory (SHR-04).
 -- Register: ITM-02/03, ITM-06 (backfill scrapped are unsold imports, not shrink), SAL-04 (sold, no date:
 -- `in_daily` false), SHR-01 (stale: flagged in floor_daily).
@@ -14,6 +17,11 @@ WITH shelf AS (
 ),
 sold AS (
     SELECT item_id, min(event_at) AS event_at FROM item_event WHERE kind = 'sold' GROUP BY 1
+),
+order_first_sale AS (
+    SELECT purchase_order_id, min(sold_at) AS first_sale
+    FROM item WHERE status = 'sold' AND sold_at IS NOT NULL AND purchase_order_id IS NOT NULL
+    GROUP BY 1
 ),
 gone AS (
     SELECT item_id, min(created_at) AS event_at,
@@ -29,6 +37,8 @@ base AS (
             WHEN s.event_at IS NOT NULL THEN s.event_at
             WHEN i.listed_at IS NOT NULL THEN i.listed_at
             WHEN i.era IN ('v3', 'v3_retag') AND i.checked_in_at IS NOT NULL THEN i.checked_in_at
+            WHEN i.status = 'sold' AND i.sold_at IS NOT NULL AND o.first_sale IS NOT NULL
+                THEN least(o.first_sale + INTERVAL 5 DAY, coalesce(sd.event_at, i.sold_at))  -- never after the sale used as the end
             WHEN i.era IN ('v3', 'v3_retag') AND i.status IN ('on_shelf', 'sold', 'lost') THEN i.created_at
             WHEN i.era IN ('v1', 'v2') AND i.status = 'on_shelf' THEN TIMESTAMPTZ '2026-04-12 00:00:00-05'
         END AS start_at,
@@ -36,6 +46,7 @@ base AS (
             WHEN s.event_at IS NOT NULL THEN 'on_shelf_event'
             WHEN i.listed_at IS NOT NULL THEN 'listed_at'
             WHEN i.era IN ('v3', 'v3_retag') AND i.checked_in_at IS NOT NULL THEN 'checked_in_at'
+            WHEN i.status = 'sold' AND i.sold_at IS NOT NULL AND o.first_sale IS NOT NULL THEN 'order_first_sale'
             WHEN i.era IN ('v3', 'v3_retag') AND i.status IN ('on_shelf', 'sold', 'lost') THEN 'created_at'
             WHEN i.era IN ('v1', 'v2') AND i.status = 'on_shelf' THEN 'import_date'
         END AS start_source,
@@ -52,6 +63,7 @@ base AS (
     LEFT JOIN shelf s ON s.item_id = i.item_id
     LEFT JOIN sold sd ON sd.item_id = i.item_id
     LEFT JOIN gone g ON g.item_id = i.item_id
+    LEFT JOIN order_first_sale o ON o.purchase_order_id = i.purchase_order_id
     WHERE NOT i.backfill_unsold
 )
 SELECT
@@ -59,7 +71,8 @@ SELECT
     start_source IN ('on_shelf_event', 'listed_at') AS start_known,
     start_at IS NOT NULL
         AND coalesce(end_reason, '') NOT IN ('sold_no_date', 'ended_no_date')
-        AND (end_at IS NULL OR end_at >= start_at) AS in_daily
+        AND (end_at IS NULL OR end_at >= start_at)
+        AND NOT (era IN ('v1', 'v2') AND start_source = 'order_first_sale') AS in_daily
 FROM base
 WHERE start_at IS NOT NULL;
 

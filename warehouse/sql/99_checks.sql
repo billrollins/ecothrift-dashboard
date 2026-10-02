@@ -16,6 +16,20 @@ SELECT * FROM (VALUES
              AND f.start_at::DATE <= (SELECT max(day) FROM floor_daily)), 0),
     ('floor: SHR-03 on the shelf and sold', (SELECT count(*) FROM item i JOIN floor_interval f USING (item_id)
         WHERE i.status = 'on_shelf' AND f.end_reason IN ('sold', 'sold_at')), NULL),
+    ('floor: start from the order rule (first sale + 5)', (SELECT count(*) FROM floor_interval WHERE start_source = 'order_first_sale'), NULL),
+    ('floor: order-rule start after the item''s own sale', (SELECT count(*) FROM floor_interval WHERE start_source = 'order_first_sale' AND start_at > end_at), 0),
+    ('item: category from the Spark profile', (SELECT count(*) FROM item WHERE category_source = 'spark_profile'), NULL),
+    ('item: category still untrusted (V1/V2, no Spark answer)', (SELECT count(*) FROM item WHERE category_untrusted), NULL),
+    ('item: rows repeated (profile join)', (SELECT count(*) - count(DISTINCT item_id) FROM item), 0),
+    ('assign: no-item lines not assigned at all',
+        (SELECT count(*) FROM sale_line s WHERE s.cart_status = 'completed' AND s.item_id IS NULL AND s.line_kind IN ('item', 'manual')
+           AND NOT EXISTS (SELECT 1 FROM sale_line_po a WHERE a.line_id = s.line_id)), 0),
+    ('assign: shares that do not sum to 1',
+        (SELECT count(*) FROM (SELECT line_id, sum(share) t FROM sale_line_po GROUP BY 1) WHERE abs(t - 1) > 0.001), 0),
+    ('po: rows repeated', (SELECT count(*) - count(DISTINCT purchase_order_id) FROM po_economics), 0),
+    ('po: allocated cost above the truck cost',
+        (SELECT count(*) FROM (SELECT purchase_order_id, sum(allocated_cost) c FROM item_cost GROUP BY 1) x
+         JOIN po_economics e USING (purchase_order_id) WHERE x.c > e.total_cost + 1), 0),
     ('price: overlapping intervals',
         (SELECT count(*) FROM (SELECT item_id, valid_from, lag(valid_to) OVER (PARTITION BY item_id ORDER BY valid_from NULLS FIRST) AS prev_to
                                FROM item_price) WHERE valid_from < prev_to), 0),

@@ -20,6 +20,7 @@ from apps.inventory.models import BrandAlias, Product, ProductProfile, ProductPr
 PROFILE_FIELDS = (
     'short_name', 'display_title', 'brand', 'model_number', 'category', 'subcategory',
     'key_specs', 'flags', 'retail_estimate', 'price_band', 'description', 'search_keywords', 'dup_group',
+    'vector_text', 'aliases',
 )
 MAX_LEN = {'short_name': 40, 'display_title': 120, 'brand': 200, 'model_number': 200,
            'category': 100, 'subcategory': 100, 'price_band': 10, 'dup_group': 64}
