@@ -109,6 +109,8 @@ export default function Layout() {
             <Link to="/blog/navigating-growth">Our story</Link>
             <Link to="/blog">Blog</Link>
             <a href={`mailto:${STORE.email}`}>Contact</a>
+            <Link to="/privacy">Privacy Policy</Link>
+            <Link to="/terms">Terms</Link>
           </div>
           <div>
             <h4>Visit</h4>
@@ -122,7 +124,9 @@ export default function Layout() {
         </div>
         <div className="ftbar">
           <div className="wrap">
-            <span>© 2026 Eco-Thrift</span>
+            <span>
+              © 2026 Eco-Thrift · <Link to="/privacy">Privacy</Link> · <Link to="/terms">Terms</Link>
+            </span>
             <span>{STORE.tagline}</span>
           </div>
         </div>

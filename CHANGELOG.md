@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.117.0] -->
-<!-- Last reviewed: 2026-10-01 (2.117.0) -->
+<!-- Line 1 release: ## [2.118.0] -->
+<!-- Last reviewed: 2026-10-02 (2.118.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.118.0] - 2026-10-02
+
+User-facing theme: **The public site has a Privacy Policy and Terms page, needed before Eco-Thrift's text sender can be registered.** Outside initiatives (house standard: texting, D17; `standards.md` T58).
+
+### Added
+
+- **`ecothrift.us/privacy` and `ecothrift.us/terms`** on the public site, linked from the footer (Company column and the bottom bar) and listed in the sitemap. The Privacy Policy says what is collected and how it is used, and that mobile numbers and text consent are not shared for marketing. The Terms page has the text messaging program: who sends, what kinds of texts, "Message and data rates may apply", STOP, HELP and START, and that consent is not a condition of purchase. No texts are sent yet and no consent is collected yet.
+- The two sentences the phone carriers require are kept as constants (`frontend-public/src/data/legal.ts`); `apps/core/tests/test_public_legal_pages.py` fails if either is reworded, a route is removed, or a footer link is dropped.
+- Test `apps/accounts/tests/test_expired_token.py`: an expired or invalid staff token answers 401 (never 403), so the dashboard renews it instead of signing the person out. Behaviour was already right; the test keeps it so.
 
 ## [2.117.0] - 2026-10-01
 

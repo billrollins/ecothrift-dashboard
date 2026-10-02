@@ -9,6 +9,8 @@ const BlogPage = lazy(() => import('./pages/BlogPage'))
 const BlogPostPage = lazy(() => import('./pages/BlogPostPage'))
 const VisitPage = lazy(() => import('./pages/VisitPage'))
 const SellPage = lazy(() => import('./pages/SellPage'))
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage'))
+const TermsPage = lazy(() => import('./pages/TermsPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 const ShopPage = lazy(() => import('./pages/ShopPage'))
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'))
@@ -169,6 +171,22 @@ export default function App() {
           element={
             <Suspense fallback={<RouteFallback />}>
               <SellPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="privacy"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <PrivacyPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="terms"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <TermsPage />
             </Suspense>
           }
         />

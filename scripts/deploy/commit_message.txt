@@ -1,9 +1,10 @@
-feat: v2.117.0 AI cleanup job: up to 48 workers, rate-limit backoff, no DB connection held during model calls
+feat: v2.118.0 public Privacy Policy and Terms pages (texting standard D17)
 
-Release: v2.117.0
+Release: v2.118.0
 
-- Workers dropdown is 8, 16, 32, 48 (default 8, server cap 48).
-- A batch releases its database connection before the model call and reconnects to save.
-- A rate-limited batch waits 8, 20, 45 s and retries instead of failing; the job reports it.
+- frontend-public: /privacy and /terms, footer links, sitemap entries. Text from the
+  house texting kit; the two carrier-required sentences are constants with a test.
+- No texts are sent and no consent is collected yet.
+- Test: an expired or invalid staff token answers 401 with WWW-Authenticate.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
