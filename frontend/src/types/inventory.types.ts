@@ -188,16 +188,39 @@ export interface PreprocessingQueueResponse {
 }
 
 /** Per-order financial metrics (`page-metrics` / summary profitability). */
+/** Why a number on the Orders page is missing or doubtful. */
+export type OrderNumberFlag =
+  | 'no_manifest'
+  | 'manifest_without_retail'
+  | 'manifest_mismatch'
+  | 'no_listing_retail'
+  | 'no_price_history';
+
+/**
+ * One order's numbers on the Orders page (owner's definitions, 2026-10-02; `purchase_order_financials.py`).
+ * Money is a decimal string; percents are whole-number strings; `null` = not known (the page shows `-`).
+ */
 export interface PurchaseOrderFinancialMetrics {
   cost: string;
+  /** The manifest total when there is one, else the listing retail (older readers). */
   retail: string;
+  /** Same as `priced_start`. */
   priced: string;
-  /** Sum of Item.retail on shelf-eligible (priced) items - manifest + extras. */
-  priced_retail?: string;
   sold: string;
-  /** Net sold revenue in the last 7 days (same rules as `sold`). */
-  sold_last_week?: string;
   profit: string;
+  manifest_retail: string | null;
+  listing_retail: string | null;
+  retail_processed: string | null;
+  retail_processed_pct: string | null;
+  priced_start: string | null;
+  approved_retail: string | null;
+  approved_pct_of_manifest: string | null;
+  unsold_left: string | null;
+  sold_pct: string | null;
+  recovery_expected: string | null;
+  recovery_actual: string | null;
+  items_checked_in: number;
+  flags: OrderNumberFlag[];
 }
 
 /** GET /api/inventory/orders/summary/ KPI aggregates (matches current list filters or selected ids). */
@@ -210,12 +233,21 @@ export interface PurchaseOrderSummary {
   /** Alias of retail_value for profitability strip. */
   retail?: string;
   priced: string;
-  /** Listing retail on shelf-eligible (priced) items - for MFT. */
-  priced_retail?: string;
   sold: string;
-  /** Net sold in the last 7 days across the filtered/selected set. */
-  sold_last_week?: string;
   profit: string;
+  manifest_retail?: string | null;
+  listing_retail?: string | null;
+  retail_processed?: string | null;
+  retail_processed_pct?: string | null;
+  priced_start?: string | null;
+  approved_retail?: string | null;
+  approved_pct_of_manifest?: string | null;
+  unsold_left?: string | null;
+  sold_pct?: string | null;
+  recovery_expected?: string | null;
+  recovery_actual?: string | null;
+  /** How many of the orders carry each flag. */
+  orders_flagged?: Partial<Record<OrderNumberFlag, number>>;
   items_received: number;
   /** Sum of expected pallet_count on matching orders. */
   pallet_count?: number;

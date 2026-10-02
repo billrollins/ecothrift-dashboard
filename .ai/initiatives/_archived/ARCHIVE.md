@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-01 (flat archive: every file sits in `_archived/`; the disposition is a column here) -->
+<!-- Last updated: 2026-10-02 (added `floorplan_rebuild`, pending; flat archive: every file sits in `_archived/`, the disposition is a column here) -->
 
 <!-- NOTE: `tars_restoration_workspace.md` and `tars_full_instruction_wizard_guidance.md` are SUPERSEDED. TARS scope is `finalize_tars_app.md`. -->
 # Archive index — initiatives
@@ -72,6 +72,7 @@ Every archived initiative, in one flat folder (**`.ai/initiatives/_archived/<slu
 
 | File | Disposition | Summary | Archived |
 |------|-------------|---------|----------|
+| [floorplan_rebuild.md](./floorplan_rebuild.md) | pending | Rebuild the Canfield floorplans from evidence: review every element, photo and measure requests from a phone (the Survey), then `Canfield - Main` as built, `Canfield - NEW` and `PR - NEW`. Written, not started. Resume when the owner says activate and answers its Owner decisions. | 2026-10-02 |
 | [documents.md](./documents.md) | pending | Company-wide and individually assigned PDFs. API in-tree; staff UI unwired. Resume when Documents is next. | 2026-09-23 |
 | [universal_object_surfaces.md](./universal_object_surfaces.md) | pending | ObjectChip → ObjectSurface. Design only. Resume when that design is picked up. | 2026-09-23 |
 | [tars_full_instruction_wizard_guidance.md](./tars_full_instruction_wizard_guidance.md) | pending | TARS process canon. **Superseded** by [finalize_tars_app](./finalize_tars_app.md). | 2026-07-21 |

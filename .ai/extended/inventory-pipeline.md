@@ -349,6 +349,25 @@ Cross-reference mapping of vendor identifiers to internal `Product`.
 
 ### Order List Page (`OrderListPage.tsx`)
 
+**The numbers (owner's definitions, 2026-10-02; `apps/inventory/services/purchase_order_financials.py`, initiative
+`intake_updates` Phase 1).** Each row and the summary cards above the table (the filtered or selected orders):
+
+| Column | Main line | Second line |
+|---|---|---|
+| **Cost** | Total cost: price + fees + shipping | Recovery expected: Priced (starting) / Total cost |
+| **Retail** | Total from the manifest: sum of quantity x unit retail on its rows. A `!` when it is more than 2% off the listing retail (`retail_value`, kept only to compare), or there is no manifest | Retail processed: the manifest retail of items checked in from manifest rows, disputed ones left out, and its % of the manifest |
+| **Priced** | Priced (starting): the price at check-in of every item checked in, extras included | The approved retail (`Item.retail`) of every checked-in item / the manifest total (near 100% is normal) |
+| **Sold** | Net sold (register carts after discounts, plus old `sold_for`) | % sold (Sold / Priced starting) and unsold left (today's price of items on the shelf, in processing or returned; lost and scrapped not counted) |
+
+- **Starting price:** the old value of the first `price_change` history line more than 60 seconds after check-in (the
+  check-in writes its own price line), else today's price. Every price write keeps history: item edit, check-in,
+  Quick reprice, PR Fix-it, bulk price change. Register price overrides change the cart line, not the item.
+- **Missing data** is `-` with a reason, never `$0`: no manifest, no listing retail, a manifest without retail, or
+  items with no price history (starting = today's price there; data-quality ITM-14).
+- **Speed:** two grouped statements per page (manifest totals; items with their first price change), never an item x
+  manifest fan-out (v2.115.1). On the dev copy: the largest order (15,013 items) 0.3 s, a page of 50 orders 0.8 s; the
+  all-orders summary is about 5 s, almost all of it the register-cart pass for Sold (it was two such passes before).
+
 - DataGrid with columns: Order #, Vendor, Status, Description, Condition, Items, Ordered, Expected, Delivered, Cost, Retail
 - Filters: status, vendor, date range
 - "New Order" dialog with same section layout as edit: Order # + Date → Details → Costs → Notes

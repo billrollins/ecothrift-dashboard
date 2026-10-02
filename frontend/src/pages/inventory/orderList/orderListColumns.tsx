@@ -60,13 +60,32 @@ function pctRatio(part: number | null, whole: number | null): number | null {
   return (part / whole) * 100;
 }
 
+function numberOrNull(value: string | null | undefined): number | null {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function wholeMoney(value: string | null | undefined): string {
+  return value == null || value === '' ? '-' : formatCurrencyWhole(value);
+}
+
+/** A small warning mark in front of a number that is missing or doubtful (the tooltip says why). */
+function FlagMark() {
+  return (
+    <Box component="span" aria-label="Check this number" sx={{ color: '#b45309', fontWeight: 900, mr: 0.4 }}>
+      !
+    </Box>
+  );
+}
+
 type CoverageStyle = {
   color: string;
   fontWeight: number;
 };
 
 /**
- * Coverage vs manifested retail (MFT).
+ * Share of the manifest (processed, or approved retail): near 100% is normal.
  * Thresholds: &lt;75 → &lt;85 → &lt;90 → &lt;95 → &lt;100 green → 100%+ bright green.
  */
 function coverageStyle(pct: number | null): CoverageStyle {
@@ -80,7 +99,7 @@ function coverageStyle(pct: number | null): CoverageStyle {
 }
 
 /**
- * Recovery ratios (EST REC / ACT REC) vs cost - 100% is break-even.
+ * Recovery vs cost (expected on Cost, actual on Profit) - 100% is break-even.
  * &lt;100 dark red → 150 warm → 200 dark green → 250+ super green.
  */
 function recoveryStyle(pct: number | null): CoverageStyle {
@@ -119,8 +138,8 @@ const W = {
   items: 74,
   cost: 122,
   retail: 148,
-  priced: 148,
-  sold: 112,
+  priced: 140,
+  sold: 150,
   profit: 122,
 } as const;
 
@@ -470,6 +489,7 @@ export function buildOrderListColumns(opts: {
     {
       field: 'cost',
       headerName: 'Cost',
+      description: 'Total cost: price + fees + shipping. Under it: recovery expected, the starting price of everything checked in ÷ total cost.',
       width: W.cost,
       minWidth: W.cost,
       flex: 0,
@@ -478,112 +498,102 @@ export function buildOrderListColumns(opts: {
       sortable: true,
       valueGetter: (_v, row) => row.metrics?.cost ?? row.total_cost,
       renderCell: (p) => {
-        const cost = p.row.metrics?.cost ?? p.row.total_cost;
-        const priced = p.row.metrics?.priced;
-        const estRatio = hasMoney(priced)
-          ? pctRatio(parseMoney(priced), parseMoney(cost))
-          : null;
-        const estPct = estRatio != null ? `${Math.round(estRatio)}%` : null;
+        const m = p.row.metrics;
+        const cost = m?.cost ?? p.row.total_cost;
+        const rec = numberOrNull(m?.recovery_expected);
         return (
-          <TwoLineCell
-            primary={quietCurrency(cost)}
-            secondary={
-              estPct ? (
-                <>
-                  {estPct}
-                  <MetricTag label="EST REC" />
-                </>
-              ) : null
-            }
-            primaryColor={MONEY_COLOR.cost}
-            secondaryStyle={recoveryStyle(estRatio)}
-            align="right"
-          />
+          <Tooltip title={rec != null ? `Recovery expected: ${rec}% (starting price ÷ total cost)` : ''}>
+            <Box sx={{ width: '100%' }}>
+              <TwoLineCell
+                primary={quietCurrency(cost)}
+                secondary={rec != null ? `${rec}% recovery` : null}
+                primaryColor={MONEY_COLOR.cost}
+                secondaryStyle={recoveryStyle(rec)}
+                align="right"
+              />
+            </Box>
+          </Tooltip>
         );
       },
     },
     {
       field: 'retail',
       headerName: 'Retail',
+      description: 'Total retail from the manifest. Under it: the manifest retail of the items checked in from it (not disputed), and its % of the manifest.',
       width: W.retail,
       minWidth: W.retail,
       flex: 0,
       align: 'right',
       headerAlign: 'right',
       sortable: true,
-      valueGetter: (_v, row) => row.metrics?.retail ?? row.retail_value,
+      valueGetter: (_v, row) => row.metrics?.manifest_retail ?? row.retail_value,
       renderCell: (p) => {
-        const listed = p.row.metrics?.retail ?? p.row.retail_value;
-        const priced = p.row.metrics?.priced;
-        const listedN = parseMoney(listed);
-        const pricedN = parseMoney(priced);
-        const pct = pctOf(pricedN, listedN);
-        const pricedText = hasMoney(priced)
-          ? pct
-            ? `${quietCurrency(priced)} (${pct})`
-            : quietCurrency(priced)
-          : null;
+        const m = p.row.metrics;
+        if (!m) return <TwoLineCell primary={quietCurrency(p.row.retail_value)} align="right" />;
+        const flagged = m.flags.includes('manifest_mismatch') || m.flags.includes('no_manifest') || m.flags.includes('manifest_without_retail');
+        const tip = [
+          m.manifest_retail != null ? `Manifest total ${wholeMoney(m.manifest_retail)}` : 'No manifest retail on this order',
+          m.listing_retail != null ? `listing ${wholeMoney(m.listing_retail)}` : 'no listing retail',
+        ].join(', ') + (m.flags.includes('manifest_mismatch') ? '. They differ by more than 2%.' : '.')
+          + (m.retail_processed != null ? ` Processed from the manifest: ${wholeMoney(m.retail_processed)} (${m.retail_processed_pct ?? '-'}%).` : '');
         return (
-          <TwoLineCell
-            primary={quietCurrency(listed)}
-            secondary={
-              pricedText ? (
-                <>
-                  {pricedText}
-                  <MetricTag label="PRC" />
-                </>
-              ) : null
-            }
-            primaryColor={MONEY_COLOR.retail}
-            align="right"
-          />
+          <Tooltip title={tip}>
+            <Box sx={{ width: '100%' }}>
+              <TwoLineCell
+                primary={
+                  <>
+                    {flagged && <FlagMark />}
+                    {m.manifest_retail != null ? quietCurrency(m.manifest_retail) : '-'}
+                  </>
+                }
+                secondary={m.retail_processed != null ? `${quietCurrency(m.retail_processed)} · ${m.retail_processed_pct ?? '-'}%` : null}
+                primaryColor={MONEY_COLOR.retail}
+                secondaryStyle={coverageStyle(numberOrNull(m.retail_processed_pct))}
+                align="right"
+              />
+            </Box>
+          </Tooltip>
         );
       },
     },
     {
       field: 'priced',
       headerName: 'Priced',
+      description: 'Priced (starting): the price at check-in of everything checked in, extras included. Under it: the approved retail of everything checked in ÷ the manifest total (near 100% is normal).',
       width: W.priced,
       minWidth: W.priced,
       flex: 0,
       align: 'right',
       headerAlign: 'right',
       sortable: false,
-      valueGetter: (_v, row) => row.metrics?.priced ?? null,
+      valueGetter: (_v, row) => row.metrics?.priced_start ?? null,
       renderCell: (p) => {
-        const priced = p.row.metrics?.priced;
-        const pricedRetail = p.row.metrics?.priced_retail;
-        const manifested = p.row.metrics?.retail ?? p.row.retail_value;
-        const pricedRetailN = hasMoney(pricedRetail) ? parseMoney(pricedRetail) : null;
-        const coverRatio = pctRatio(pricedRetailN, parseMoney(manifested));
-        const coverPct = coverRatio != null ? `${Math.round(coverRatio)}%` : null;
-        const coverText =
-          pricedRetailN != null
-            ? coverPct
-              ? `${quietCurrency(pricedRetail)} (${coverPct})`
-              : quietCurrency(pricedRetail)
-            : null;
+        const m = p.row.metrics;
+        const pct = numberOrNull(m?.approved_pct_of_manifest);
+        const tip = m
+          ? `Starting price of ${formatNumber(m.items_checked_in)} checked-in items: ${wholeMoney(m.priced_start)}. `
+            + `Their approved retail: ${wholeMoney(m.approved_retail)}${pct != null ? `, ${pct}% of the manifest` : ''}.`
+            + (m.flags.includes('no_price_history') ? ' No price history on these items, so starting = today\'s price.' : '')
+          : '';
         return (
-          <TwoLineCell
-            primary={quietCurrency(priced)}
-            secondary={
-              coverText ? (
-                <>
-                  {coverText}
-                  <MetricTag label="MFT" />
-                </>
-              ) : null
-            }
-            primaryColor={MONEY_COLOR.priced}
-            secondaryStyle={coverageStyle(coverRatio)}
-            align="right"
-          />
+          <Tooltip title={tip}>
+            <Box sx={{ width: '100%' }}>
+              <TwoLineCell
+                primary={quietCurrency(m?.priced_start)}
+                secondary={pct != null ? `${pct}% of manifest` : null}
+                primaryColor={MONEY_COLOR.priced}
+                secondaryStyle={coverageStyle(pct)}
+                align="right"
+              />
+            </Box>
+          </Tooltip>
         );
       },
     },
     {
       field: 'sold',
       headerName: 'Sold',
+      description: 'Net sold. Under it: % sold (sold ÷ starting price) and unsold left (today\'s price of items not sold yet, shrink not counted).',
       width: W.sold,
       minWidth: W.sold,
       flex: 0,
@@ -592,15 +602,18 @@ export function buildOrderListColumns(opts: {
       sortable: false,
       valueGetter: (_v, row) => row.metrics?.sold ?? null,
       renderCell: (p) => {
-        const week = p.row.metrics?.sold_last_week;
-        const secondary = hasMoney(week) ? `${quietCurrency(week)} · 7d` : null;
+        const m = p.row.metrics;
+        const pct = m?.sold_pct;
+        const left = m?.unsold_left;
+        const secondary = pct != null || hasMoney(left)
+          ? `${pct != null ? `${pct}%` : '-'} · ${hasMoney(left) ? `${quietCurrency(left)} left` : 'none left'}`
+          : null;
         return (
-          <TwoLineCell
-            primary={quietCurrency(p.row.metrics?.sold)}
-            secondary={secondary}
-            primaryColor={MONEY_COLOR.sold}
-            align="right"
-          />
+          <Tooltip title={m ? `Sold ${wholeMoney(m.sold)}: ${pct ?? '-'}% of the starting price. Unsold left: ${wholeMoney(left)} at today's prices (the most it could still bring in).` : ''}>
+            <Box sx={{ width: '100%' }}>
+              <TwoLineCell primary={quietCurrency(m?.sold)} secondary={secondary} primaryColor={MONEY_COLOR.sold} align="right" />
+            </Box>
+          </Tooltip>
         );
       },
     },

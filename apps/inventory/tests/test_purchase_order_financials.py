@@ -136,8 +136,8 @@ class PurchaseOrderFinancialsApiTests(TestCase):
         metrics = r.data['orders'][str(self.po.id)]
         # 40 + 55 + 30 (history-only still uses retained tag price)
         self.assertEqual(Decimal(metrics['priced']), Decimal('125.00'))
-        # 50 + 60 + 35 listing retail on the same shelf-eligible items
-        self.assertEqual(Decimal(metrics['priced_retail']), Decimal('145.00'))
+        # 50 + 60 + 35: the processor-approved retail of every checked-in item
+        self.assertEqual(Decimal(metrics['approved_retail']), Decimal('145.00'))
         self.assertEqual(Decimal(metrics['cost']), Decimal('100.00'))
         self.assertEqual(Decimal(metrics['retail']), Decimal('400.00'))
 
@@ -233,7 +233,7 @@ class PurchaseOrderFinancialsApiTests(TestCase):
         # Falls back to item.sold_for = 50
         self.assertEqual(Decimal(r.data['orders'][str(self.po.id)]['sold']), Decimal('50.00'))
 
-    def test_sold_last_week_includes_recent_cart_only(self):
+    def test_sold_counts_every_completed_cart(self):
         recent = Cart.objects.create(drawer=self.drawer, cashier=self.user, status='open')
         CartLine.objects.create(
             cart=recent,
@@ -277,7 +277,7 @@ class PurchaseOrderFinancialsApiTests(TestCase):
         self.assertEqual(r.status_code, 200)
         metrics = r.data['orders'][str(self.po.id)]
         self.assertEqual(Decimal(metrics['sold']), Decimal('65.00'))
-        self.assertEqual(Decimal(metrics['sold_last_week']), Decimal('40.00'))
+        self.assertEqual(metrics['sold_pct'], '43')   # 65 sold / 150 priced (starting: 125 + the old item's 25)
 
     def test_summary_ids_subset_and_filters(self):
         r = self.client.get(
@@ -287,9 +287,9 @@ class PurchaseOrderFinancialsApiTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.data['total_orders'], 1)
         self.assertIn('priced', r.data)
-        self.assertIn('priced_retail', r.data)
+        self.assertIn('priced_start', r.data)
         self.assertIn('sold', r.data)
-        self.assertIn('sold_last_week', r.data)
+        self.assertIn('unsold_left', r.data)
         self.assertIn('profit', r.data)
         self.assertIn('in_transit_count', r.data)
         self.assertIn('pallet_count', r.data)
@@ -336,3 +336,66 @@ class PurchaseOrderFinancialsApiTests(TestCase):
         self.assertEqual(r.status_code, 200)
         ids = [row['id'] for row in r.data['results']]
         self.assertIn(self.po.id, ids)
+
+
+class OwnerDefinitionsTests(TestCase):
+    """Phase 1 of intake_updates: each column's definition, with extras, a dispute, a row not received, a markdown and
+    a lost item (2026-10-02)."""
+
+    def setUp(self):
+        from apps.inventory.models import Dispute, ManifestRow
+        from apps.inventory.services import purchase_order_financials as f
+
+        self.f = f
+        vendor = Vendor.objects.create(name='Def Vendor', code='DEFV')
+        product = Product.objects.create(title='Def Widget', brand='Acme')
+        today = timezone.localdate()
+        self.po = PurchaseOrder.objects.create(vendor=vendor, order_number='PO-DEF-1', ordered_date=today,
+                                               purchase_cost=Decimal('100.00'), retail_value=Decimal('204.00'))
+        row1 = ManifestRow.objects.create(purchase_order=self.po, row_number=1, quantity=2, unit_retail=Decimal('50.00'))
+        row2 = ManifestRow.objects.create(purchase_order=self.po, row_number=2, quantity=1, unit_retail=Decimal('100.00'))
+        ManifestRow.objects.create(purchase_order=self.po, row_number=3, quantity=0, unit_retail=Decimal('0.00'))
+        t0 = timezone.now() - timedelta(days=3)
+        mk = lambda sku, **kw: Item.objects.create(sku=sku, product=product, purchase_order=self.po, checked_in_at=t0, **kw)  # noqa: E731
+        self.marked = mk('DEF-A', manifest_row=row1, price=Decimal('20.00'), retail=Decimal('50.00'), status='on_shelf')
+        disputed = mk('DEF-B', manifest_row=row1, price=Decimal('15.00'), retail=Decimal('50.00'), status='sold',
+                      sold_at=timezone.now(), sold_for=Decimal('12.00'))
+        mk('DEF-C', price=Decimal('10.00'), retail=Decimal('30.00'), status='on_shelf')                    # an extra
+        mk('DEF-D', manifest_row=row2, price=Decimal('40.00'), retail=Decimal('100.00'), status='lost')    # shrink
+        # The check-in's own price line (ignored), then a real markdown from 25 to 20.
+        at_check_in = ItemHistory.objects.create(item=self.marked, event_type='price_change', old_value='0', new_value='25.00')
+        markdown = ItemHistory.objects.create(item=self.marked, event_type='price_change', old_value='25.00', new_value='20.00')
+        ItemHistory.objects.filter(pk=at_check_in.pk).update(created_at=t0 + timedelta(seconds=5))
+        ItemHistory.objects.filter(pk=markdown.pk).update(created_at=t0 + timedelta(hours=2))
+        Dispute.objects.create(purchase_order=self.po, kind='processing', title='Broken', subject_item=disputed)
+
+    def test_each_definition(self):
+        m = self.f.financials_for_orders([self.po.pk])[self.po.pk]
+        self.assertEqual(m['manifest_retail'], Decimal('200.00'))                 # 2 x 50 + 1 x 100
+        self.assertEqual((m['retail_processed'], m['retail_processed_pct']), (Decimal('150.00'), Decimal('75')))  # A + D; not B (disputed), not C (extra)
+        self.assertEqual(m['priced_start'], Decimal('90.00'))                    # 25 (before the markdown) + 15 + 10 + 40
+        self.assertEqual((m['approved_retail'], m['approved_pct_of_manifest']), (Decimal('230.00'), Decimal('115')))
+        self.assertEqual(m['unsold_left'], Decimal('30.00'))                      # A 20 + C 10; sold B and lost D left out
+        self.assertEqual((m['sold'], m['sold_pct']), (Decimal('12.00'), Decimal('13')))
+        self.assertEqual((m['recovery_expected'], m['recovery_actual']), (Decimal('90'), Decimal('12')))
+        self.assertEqual(m['flags'], [])                                         # 204 is within 2% of 200
+
+    def test_missing_data_is_flagged_not_zero(self):
+        vendor = Vendor.objects.get(code='DEFV')
+        bare = PurchaseOrder.objects.create(vendor=vendor, order_number='PO-DEF-2', ordered_date=timezone.localdate(),
+                                            purchase_cost=Decimal('50.00'))
+        Item.objects.create(sku='DEF-OLD', product=Product.objects.get(title='Def Widget'), purchase_order=bare, price=Decimal('9.00'), status='on_shelf')
+        off = PurchaseOrder.objects.create(vendor=vendor, order_number='PO-DEF-3', ordered_date=timezone.localdate(),
+                                           purchase_cost=Decimal('50.00'), retail_value=Decimal('300.00'))
+        from apps.inventory.models import ManifestRow
+        ManifestRow.objects.create(purchase_order=off, row_number=1, quantity=1, unit_retail=Decimal('200.00'))
+        fin = self.f.financials_for_orders([bare.pk, off.pk])
+        self.assertEqual(fin[bare.pk]['flags'], ['no_manifest', 'no_listing_retail', 'no_price_history'])
+        self.assertIsNone(fin[bare.pk]['manifest_retail'])
+        self.assertIsNone(fin[bare.pk]['retail_processed_pct'])
+        self.assertEqual(fin[off.pk]['flags'], ['manifest_mismatch'])
+
+    def test_summary_is_the_same_arithmetic_on_the_sums(self):
+        s = self.f.aggregate_financials(PurchaseOrder.objects.filter(pk=self.po.pk))
+        self.assertEqual((s['manifest_retail'], s['priced_start'], s['unsold_left'], s['sold_pct']), ('200.00', '90.00', '30.00', '13'))
+        self.assertEqual(s['orders_flagged']['manifest_mismatch'], 0)

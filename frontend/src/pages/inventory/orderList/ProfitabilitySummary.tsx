@@ -19,7 +19,7 @@ const MONEY = {
   items: '#334155',
 } as const;
 
-/** Same recovery bands as the orders table (EST REC / ACT REC). */
+/** Same recovery bands as the orders table. */
 function recoveryStyle(pct: number | null): MetricStyle {
   if (pct == null) return { color: '#64748b', fontWeight: 600 };
   if (pct < 100) return { color: '#7f1d1d', fontWeight: 700 };
@@ -29,7 +29,7 @@ function recoveryStyle(pct: number | null): MetricStyle {
   return { color: '#16a34a', fontWeight: 900 };
 }
 
-/** Same MFT bands as the orders table. */
+/** Same share-of-manifest bands as the orders table. */
 function coverageStyle(pct: number | null): MetricStyle {
   if (pct == null) return { color: '#64748b', fontWeight: 600 };
   if (pct < 75) return { color: '#991b1b', fontWeight: 600 };
@@ -183,10 +183,10 @@ export function ProfitabilitySummary({
 }: Props) {
   const cost = summary?.cost ?? summary?.total_cost;
   const retail = summary?.retail ?? summary?.retail_value;
-  const priced = summary?.priced;
-  const pricedRetail = summary?.priced_retail;
+  const manifest = summary?.manifest_retail ?? null;
+  const priced = summary?.priced_start ?? summary?.priced;
   const sold = summary?.sold;
-  const soldWeek = summary?.sold_last_week;
+  const flagged = summary?.orders_flagged ?? {};
   const profit = summary?.profit;
   const items = summary?.items_received ?? 0;
   const pallets = summary?.pallet_count ?? 0;
@@ -194,16 +194,17 @@ export function ProfitabilitySummary({
   const truckCost = summary?.in_transit_cost;
 
   const costN = parseMoney(cost);
-  const retailN = parseMoney(retail);
-  const pricedN = parseMoney(priced);
-  const pricedRetailN = parseMoney(pricedRetail);
   const soldN = parseMoney(sold);
   const profitN = parseMoney(profit);
 
-  const estRec = pctRatio(pricedN, costN);
-  const prc = pctRatio(pricedN, retailN);
-  const mft = pctRatio(pricedRetailN, retailN);
+  const estRec = parseMoney(summary?.recovery_expected ?? null);
+  const processedPct = parseMoney(summary?.retail_processed_pct ?? null);
+  const approvedPct = parseMoney(summary?.approved_pct_of_manifest ?? null);
   const actRec = pctRatio(soldN, costN);
+  const notes = [
+    flagged.manifest_mismatch ? `${flagged.manifest_mismatch} with a manifest more than 2% off the listing retail` : '',
+    flagged.no_manifest ? `${flagged.no_manifest} without a manifest` : '',
+  ].filter(Boolean);
 
   const profitColor =
     profitN == null || profitN === 0 ? '#0f172a' : profitN > 0 ? '#15803d' : '#b91c1c';
@@ -285,56 +286,37 @@ export function ProfitabilitySummary({
           label="Cost"
           primary={money(cost)}
           secondary={
-            estRec != null ? (
-              <>
-                {`${Math.round(estRec)}%`}
-                <MetricTag label="EST REC" />
-              </>
-            ) : null
+            estRec != null ? `${Math.round(estRec)}% recovery expected` : null
           }
           primaryColor={MONEY.cost}
           secondaryStyle={recoveryStyle(estRec)}
           loading={showLoading}
         />
         <SummaryCard
-          label="Retail"
-          primary={money(retail)}
+          label="Retail (manifest)"
+          primary={money(manifest ?? retail)}
           secondary={
-            prc != null ? (
-              <>
-                {`${Math.round(prc)}%`}
-                <MetricTag label="PRC" />
-              </>
-            ) : null
+            processedPct != null ? `${money(summary?.retail_processed)} processed · ${Math.round(processedPct)}%` : null
           }
           primaryColor={MONEY.retail}
+          secondaryStyle={coverageStyle(processedPct)}
           loading={showLoading}
         />
         <SummaryCard
-          label="Priced"
+          label="Priced (starting)"
           primary={money(priced)}
-          secondary={
-            mft != null ? (
-              <>
-                {`${Math.round(mft)}%`}
-                <MetricTag label="MFT" />
-              </>
-            ) : null
-          }
+          secondary={approvedPct != null ? `${Math.round(approvedPct)}% of manifest retail` : null}
           primaryColor={MONEY.priced}
-          secondaryStyle={coverageStyle(mft)}
+          secondaryStyle={coverageStyle(approvedPct)}
           loading={showLoading}
         />
         <SummaryCard
           label="Sold"
           primary={money(sold)}
           secondary={
-            hasMoney(soldWeek) ? (
-              <>
-                {money(soldWeek)}
-                <MetricTag label="7D" />
-              </>
-            ) : null
+            summary?.sold_pct != null || hasMoney(summary?.unsold_left)
+              ? `${summary?.sold_pct ?? '-'}% sold · ${money(summary?.unsold_left)} left`
+              : null
           }
           primaryColor={MONEY.sold}
           loading={showLoading}
@@ -343,18 +325,18 @@ export function ProfitabilitySummary({
           label="Profit"
           primary={money(profit)}
           secondary={
-            actRec != null ? (
-              <>
-                {`${Math.round(actRec)}%`}
-                <MetricTag label="ACT REC" />
-              </>
-            ) : null
+            actRec != null ? `${Math.round(actRec)}% recovered` : null
           }
           primaryColor={profitColor}
           secondaryStyle={recoveryStyle(actRec)}
           loading={showLoading}
         />
       </Box>
+      {notes.length > 0 && (
+        <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.75 }}>
+          Check: {notes.join('; ')}. Their rows show a ! with the reason.
+        </Typography>
+      )}
     </Box>
   );
 }

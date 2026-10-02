@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-01 (Standing: standards; flat archive; inventory_count shipped) -->
+<!-- Last updated: 2026-10-02 (intake_updates opened) -->
 # Initiatives — ecothrift-dashboard
 
 Bounded work (hours to days), one `.md` per initiative. Not a session log. Rules: [`protocols/initiative-create.md`](../protocols/initiative-create.md), [`protocols/initiative-review.md`](../protocols/initiative-review.md) (§ Filing rules). **Human gate:** do not archive without explicit approval.
@@ -22,6 +22,7 @@ Bounded work (hours to days), one `.md` per initiative. Not a session log. Rules
 | [buying_intelligence_v2](./buying_intelligence_v2.md) | **Waiting** | Re-planned 2026-09-25 as data_platform's consumer: vector text, truck value v3, the self-running buying loop, the Buying workspace. Resumes after launch. |
 | [bstock_daily_buying](./bstock_daily_buying.md) | **Phases 4–6 shipped** | Phases 1–3 in v2.98.0–v2.100.0. Phases 4–6 in v2.104.0: manifest analysis, price targets, Today's best, won → PO, report cards, and the decision-first auction page. Open items move to `buying_intelligence_v2` (seller factors v2.105.0, scaled similar range). No longer the compass. |
 | [data_quality_rails](./data_quality_rails.md) | **Phase 1** | Know the data (register + eras, runner R-009 to R-013), then quality-aware numbers, rails at every lifecycle stage, and cleanup. |
+| [intake_updates](./intake_updates.md) | **Phase 1** | Opened 2026-10-02, nothing built yet. 1: Orders page numbers (Cost, Retail, Priced, Sold, owner's definitions). 2: new-order form, order as a standard modal, expected delivery on the list. 3: merge `TGT` into `TRGET` (production Request). 4: dispute refunds off cost. 5: Preprocessing, the AI picks formulas on upload and templates are removed. 6: vendor metrics. 7: the next intake screen. Phases 2, 3 and 5 wait on nothing. |
 | [product_intelligence](./product_intelligence.md) | **Phase 2** | Phase 2 structure shipped in v2.101.0: profiles, proposals, review page, pgvector vectors (a title alone places 90.5%), reversible merges. Loading the proposals, merges and embeddings into production waits on owner OK. |
 
 ## Archived
