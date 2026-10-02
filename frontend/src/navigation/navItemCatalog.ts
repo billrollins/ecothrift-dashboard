@@ -68,9 +68,9 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
   },
   inventoryWorkbench: {
     id: 'inventoryWorkbench',
-    path: '/inventory/workbench',
-    label: 'Catalog',
-    icon: 'inventory',
+    path: '/inventory/search',
+    label: 'Inventory search',
+    icon: 'search',
   },
   floorplans: {
     id: 'floorplans',

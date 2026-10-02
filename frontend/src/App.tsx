@@ -53,7 +53,8 @@ import PreprocessingPage from './pages/inventory/PreprocessingPage';
 import ProcessingEntryRedirect from './pages/inventory/ProcessingEntryRedirect';
 import ProcessingWorkspacePage from './pages/inventory/processing/ProcessingWorkspacePage';
 import RestorationsPage from './pages/inventory/restorations/RestorationsPage';
-import InventoryWorkbenchPage from './pages/inventory/InventoryWorkbenchPage';
+import InventorySearchPage, { LegacyWorkbenchRedirect } from './pages/inventory/InventorySearchPage';
+import ProductPage from './pages/inventory/ProductPage';
 import { inventoryWorkbenchUrl, legacyItemParamsToRichSearch } from './utils/richInventorySearch';
 import ItemListPage from './pages/inventory/ItemListPage';
 import ItemDetailPage from './pages/inventory/ItemDetailPage';
@@ -234,7 +235,10 @@ export default function App() {
           path="/inventory/restoration-returns"
           element={<Navigate to="/inventory/restorations?lane=from" replace />}
         />
-        <Route path="/inventory/workbench" element={<InventoryWorkbenchPage />} />
+        <Route path="/inventory/search" element={<InventorySearchPage />} />
+        <Route path="/inventory/products/:id" element={<ProductPage />} />
+        {/* The old Catalog page: its links land on Inventory search with the same thing open. */}
+        <Route path="/inventory/workbench" element={<LegacyWorkbenchRedirect />} />
         <Route path="/inventory/manage-products" element={<LegacyManageProductsRedirect />} />
         <Route path="/inventory/manage-items" element={<LegacyManageItemsRedirect />} />
         {/* Legacy Search items - kept for code reference until Find item ships */}

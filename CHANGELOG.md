@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.123.0] -->
-<!-- Last reviewed: 2026-10-02 (2.123.0) -->
+<!-- Line 1 release: ## [2.124.0] -->
+<!-- Last reviewed: 2026-10-02 (2.124.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,39 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.124.0] - 2026-10-02
+
+User-facing theme: **Inventory search replaces Catalog: one box, one table with one row per product, results in well under a second, and one standard way to open a product, a check-in or an item.** Outside initiatives (owner request, 2026-10-02); design in `.ai/extended/inventory-search.md`.
+
+### Added
+
+- **Inventory search** (`/inventory/search`, in the menu where Catalog was):
+  - One row per product: on shelf, price range, sold, average sold price, days to sell, last sold. Click a row for its items (SKU, status, price, condition, location, check-in, order, dates).
+  - It searches the product and its new standard together: title, tag name, brand, model, category, subcategory, aliases, UPC, product number. Every word must match.
+  - On the shelf only by default; "Include sold" searches everything we have had.
+  - A typed or scanned SKU jumps to that item's product. A misspelling shows the closest products.
+  - In the items list: click a price to change it, the printer icon reprints the tag, the plus icon adds more of the product.
+- **Standard object views** (`frontend/src/components/objects/`): any product, check-in or item id is a link that opens the same modal. A link inside the modal swaps its content (with Back) instead of stacking a second one. They show the existing edit screens, so nothing the old page could do is lost.
+- **Product page** (`/inventory/products/:id`) with tabs: Product, Items, Check-ins.
+- `GET /api/inventory/search/` and `GET /api/inventory/search/items/` (staff only); `python manage.py rebuild_product_search`.
+
+### Changed
+
+- Old Catalog links (`/inventory/workbench?...`) land on Inventory search with the same item, check-in or product open. The old page is no longer reachable.
+
+### Speed
+
+- `Product.search_text` (one line per product) with a trigram index; numbers computed only for the 50 rows shown; items loaded only when a row is opened. Measured on a copy of production (201,000 products): 15 to 140 ms for typical searches, about 350 ms at worst.
+- The line is kept current when a product or its profile is saved and by the bulk loaders. A failed refresh is logged and never fails a check-in.
+
+### Tests
+
+- `apps/inventory/tests/test_inventory_search.py` (the search line, word matching, the numbers, sold and merged products, the SKU jump, misspellings, the items list, staff-only access). Checked in a browser on a copy of production.
+
+### Migrations
+
+- `inventory/0105_product_search_text`: adds the column, fills it for every product in id ranges, then builds the index (34 seconds on a copy of production). The release phase runs it.
 
 ## [2.123.0] - 2026-10-02
 

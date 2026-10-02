@@ -9,3 +9,4 @@ class InventoryConfig(AppConfig):
     def ready(self):
         # Superuser → Requests kinds (apps/core/services/approval_requests.py).
         from apps.inventory import approval_kinds  # noqa: F401
+        from apps.inventory import signals  # noqa: F401

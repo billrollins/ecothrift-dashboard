@@ -137,6 +137,10 @@ def apply_proposals(proposals: Iterable[ProductProposal], *, user=None) -> dict[
             ProductProfile.objects.bulk_update(
                 touched_profiles, list(touched_fields) + ['field_meta', 'updated_at'], batch_size=1000
             )
+            # bulk_update sends no signal: refresh the inventory search line of these products here.
+            from apps.inventory.services.inventory_search import rebuild_search_text
+
+            rebuild_search_text([profile.product_id for profile in touched_profiles])
         ProductProposal.objects.bulk_update(
             [p for items in by_product.values() for p in items], ['status', 'decided_at', 'decided_by'], batch_size=2000
         )

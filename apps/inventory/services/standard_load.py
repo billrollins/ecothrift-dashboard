@@ -27,6 +27,7 @@ from django.utils import timezone
 
 from apps.inventory.models import CatalogMerge, DedupeDecision, Product, ProductProfile, ProductVector
 from apps.inventory.services.catalog_merge import merge_products, normalize_title, undo_merge
+from apps.inventory.services.inventory_search import rebuild_search_text
 from apps.inventory.services.product_profile import _clean
 
 DATA_DIR = Path(__file__).resolve().parents[1] / 'data' / 'backfill'
@@ -155,6 +156,8 @@ def load_standard(name: str, *, request_id: int, start: int = 0,
                     counts['products'] += 1
             if touched:
                 ProductProfile.objects.bulk_update(touched, [*fields, 'field_meta', 'updated_at'], batch_size=500)
+                # bulk_update sends no signal: refresh the inventory search line of these products here.
+                rebuild_search_text([profile.product_id for profile in touched])
         index += len(chunk)
         if on_chunk:
             on_chunk(index, counts)

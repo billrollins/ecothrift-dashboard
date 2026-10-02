@@ -107,6 +107,7 @@ Load on demand. Do not read them all at session start. When you add, rename or r
 | [`known-issues.md`](extended/known-issues.md) | Known issues and live gaps (check before a ship) |
 | [`pos-system.md`](extended/pos-system.md) | Registers, drawers, carts, terminal, receipts |
 | [`print-server.md`](extended/print-server.md) | Local FastAPI: labels, receipts, drawer kick |
+| [`inventory-search.md`](extended/inventory-search.md) | Inventory search, the product / check-in / item modals, when to use a modal, page, tabs or drawer |
 | [`product-standard.md`](extended/product-standard.md) | What every product must look like; standardize and dedupe |
 | [`product-taxonomy.md`](extended/product-taxonomy.md) | Category, subcategory, price-tag short name (TAX rulings) |
 | [`restoration.md`](extended/restoration.md) | TARS: RestorationJob, queue, bench, scoreboard |

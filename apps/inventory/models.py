@@ -1561,6 +1561,9 @@ class Product(models.Model):
     identifiers = models.JSONField(default=dict, blank=True)
     tags = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)
+    # One lowercased line for inventory search: the product's own fields plus its standard (profile).
+    # Written by apps.inventory.services.inventory_search.rebuild_search_text, never by hand.
+    search_text = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1581,6 +1584,7 @@ class Product(models.Model):
             GinIndex(fields=['tags'], name='inv_product_tags_gin'),
             # Near-duplicate search (product_intelligence Phase 4; R-022: 0.55 s per lookup without it).
             GinIndex(fields=['title'], name='inv_product_title_trgm', opclasses=['gin_trgm_ops']),
+            GinIndex(fields=['search_text'], name='inv_product_search_trgm', opclasses=['gin_trgm_ops']),
         ]
 
     def __str__(self):
