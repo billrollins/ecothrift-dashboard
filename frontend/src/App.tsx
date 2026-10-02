@@ -21,7 +21,6 @@ const ClockPage = lazy(() => import('./pages/kiosk/ClockPage'));
 // Thrift+ price scanner: the customer web app (mock). Public, its own sign-in, owns the window.
 const ThriftPlusScannerPage = lazy(() => import('./pages/thriftplus/scanner/ThriftPlusScannerPage'));
 const BstockLoginHandoffPage = lazy(() => import('./pages/routines/BstockLoginHandoffPage'));
-const ProductReviewPage = lazy(() => import('./pages/inventory/ProductReviewPage'));
 const CountPage = lazy(() => import('./pages/inventory/count/CountPage'));
 const CountReportPage = lazy(() => import('./pages/inventory/count/CountReportPage'));
 const CountDaysPage = lazy(() => import('./pages/inventory/count/CountDaysPage'));
@@ -246,14 +245,8 @@ export default function App() {
         <Route path="/inventory/items/:id" element={<ItemDetailPage />} />
         <Route path="/inventory/inbound" element={<Navigate to="/inventory/processing" replace />} />
         <Route path="/inventory/quick-reprice" element={<QuickRepricePage />} />
-        <Route
-          path="/inventory/product-review"
-          element={
-            <Suspense fallback={<LoadingScreen message="Loading…" />}>
-              <ProductReviewPage />
-            </Suspense>
-          }
-        />
+        {/* The review queue is closed (2026-10-02): products get the standard at intake and from the pipeline. */}
+        <Route path="/inventory/product-review" element={<Navigate to="/inventory/search" replace />} />
         <Route
           path="/inventory/count"
           element={

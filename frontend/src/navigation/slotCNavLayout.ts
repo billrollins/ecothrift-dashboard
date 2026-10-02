@@ -24,7 +24,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'essentials',
     label: null,
-    itemIds: ['dashboard', 'kiosk', 'brief'],
+    itemIds: ['dashboard', 'brief'],
   },
   {
     id: 'buying',
@@ -46,7 +46,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
   {
     id: 'retailFloor',
     label: 'Retail Floor',
-    itemIds: ['inventoryWorkbench', 'productReview', 'quickReprice', 'inventoryCount', 'prFixit', 'floorplans'],
+    itemIds: ['inventoryWorkbench', 'quickReprice', 'inventoryCount', 'prFixit'],
   },
   {
     id: 'storeSales',

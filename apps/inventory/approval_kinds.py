@@ -9,6 +9,9 @@ Inventory work that goes through Superuser → Requests (staged in production, a
   not in the table yet. Undo deletes the ones it added.
 - ``inventory.merge_duplicates``: merge the duplicate pairs found at staging (the plan is frozen in
   params, so approval applies exactly what was previewed). It is reversible through ``CatalogMerge``.
+- ``inventory.close_review_queue``: the old review queue (the 2026-09-23 backfill's proposals) is closed. A
+  product that already carries the product standard keeps it and its old proposals are closed as superseded;
+  a product without the standard gets its proposals applied. Undo reopens what was closed.
 - ``inventory.load_standard``, ``inventory.merge_decided``, ``inventory.embed_standard``: the standardize and
   dedupe pipeline's results, exported from the owner's PC into ``data/backfill/`` and loaded here
   (``services/standard_load.py``). Run them in that order.
@@ -445,4 +448,80 @@ def _vectors_apply(request: ApprovalRequest, progress: Progress) -> dict:
 register(Kind(
     kind='inventory.embed_standard', label='Build product vectors',
     preview=_vectors_preview, apply=_vectors_apply,
+))
+
+
+# ── Close the old review queue (owner, 2026-10-02: no more product review by hand) ──────────────────────
+
+OPEN = (ProductProposal.STATUS_PENDING, ProductProposal.STATUS_AUTO)
+
+
+def _queue_split() -> tuple[set[int], set[int]]:
+    """(products that carry the standard, products that do not), among products with open proposals."""
+    pids = set(ProductProposal.objects.filter(status__in=OPEN).values_list('product_id', flat=True).distinct())
+    standard = set(ProductProfile.objects.filter(product_id__in=pids).exclude(vector_text='').values_list('product_id', flat=True))
+    return standard, pids - standard
+
+
+def _queue_preview(params: dict) -> dict:
+    standard, without = _queue_split()
+    open_qs = ProductProposal.objects.filter(status__in=OPEN)
+    waiting = open_qs.filter(status=ProductProposal.STATUS_PENDING, product__is_active=True).values('product_id').distinct().count()
+    sample = []
+    for p in open_qs.filter(status=ProductProposal.STATUS_PENDING, field='category', product_id__in=list(standard)[:2000]).select_related('product').order_by('-dollars')[:15]:
+        now = ProductProfile.objects.filter(product_id=p.product_id).values_list('category', flat=True).first()
+        sample.append({'product': _short(p.product.title), 'old proposal': _short(p.value), 'standard now': _short(now), 'sold $': str(p.dollars)})
+    return {
+        'counts': {
+            'Products waiting on the review page': waiting,
+            'Open proposals': open_qs.count(),
+            'Products that already have the product standard (proposals closed)': len(standard),
+            'Products without it (proposals applied)': len(without),
+        },
+        'changes': [
+            f'Closes the review queue: the open proposals from the 2026-09-23 backfill for {len(standard):,} products are '
+            'closed as superseded. Those products keep the newer product standard; nothing on them changes.',
+            f'Applies the proposals of the {len(without):,} products that have no standard yet (category, subcategory, short name).',
+            'Undo reopens the closed proposals. The Product review page leaves the menu.',
+        ],
+        'sample': sample,
+    }
+
+
+def _queue_apply(request: ApprovalRequest, progress: Progress) -> dict:
+    from django.utils import timezone
+
+    state = progress.state
+    stamp = state.get('stamp') or timezone.now().isoformat()
+    if 'applied' not in state:
+        standard, without = _queue_split()
+        applied = apply_proposals(list(ProductProposal.objects.filter(status__in=OPEN, product_id__in=without)))
+        pending_ids = list(ProductProposal.objects.filter(status=ProductProposal.STATUS_PENDING, product_id__in=standard).values_list('pk', flat=True))
+        progress.update(stamp=stamp, applied=applied['applied'], pending_ids=pending_ids,
+                        log=f"applied {applied['applied']:,} proposals on {len(without):,} products without the standard")
+    standard_ids = ProductProfile.objects.exclude(vector_text='').values('product_id')
+    total = state.get('total') or ProductProposal.objects.filter(status__in=OPEN, product_id__in=standard_ids).count()
+    closed = int(state.get('done') or 0)
+    while True:
+        ids = list(ProductProposal.objects.filter(status__in=OPEN, product_id__in=standard_ids).order_by('pk').values_list('pk', flat=True)[:5000])
+        if not ids:
+            break
+        closed += ProductProposal.objects.filter(pk__in=ids).update(status=ProductProposal.STATUS_REJECTED, decided_at=stamp)
+        progress.update(done=closed, total=total, log=f'{closed:,} of {total:,} proposals closed')
+    return {'closed': closed, 'applied': progress.state.get('applied', 0), 'stamp': stamp,
+            'pending_ids': progress.state.get('pending_ids', [])}
+
+
+def _queue_undo(request: ApprovalRequest) -> dict:
+    result = request.result or {}
+    closed = ProductProposal.objects.filter(status=ProductProposal.STATUS_REJECTED, decided_at=result.get('stamp'))
+    pending = closed.filter(pk__in=result.get('pending_ids') or []).update(status=ProductProposal.STATUS_PENDING, decided_at=None)
+    auto = ProductProposal.objects.filter(status=ProductProposal.STATUS_REJECTED, decided_at=result.get('stamp')).update(
+        status=ProductProposal.STATUS_AUTO, decided_at=None)
+    return {'reopened_pending': pending, 'reopened_auto': auto}
+
+
+register(Kind(
+    kind='inventory.close_review_queue', label='Close the product review queue',
+    preview=_queue_preview, apply=_queue_apply, undo=_queue_undo,
 ))

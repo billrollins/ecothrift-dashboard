@@ -1,31 +1,21 @@
-feat: v2.125.0 Inventory search: bulk price change with preview and undo, bulk tag reprint, similar products, faster broad searches
+feat: v2.126.0 menu: Product review, Kiosk and the Floor copy of Floorplans removed; Request to close the review queue
 
-Release: v2.125.0
+Release: v2.126.0
 
-User-facing theme: **Inventory search can change prices and reprint tags in bulk, shows similar products for price research, and is faster on broad searches.** Outside initiatives (owner request, 2026-10-02); design in `.ai/extended/inventory-search.md`.
-
-### Added
-
-- **Bulk price change** (managers and the owner): tick products (every shelf item of each) or single items, then Change price: percent off, dollars off or a set price, with optional rounding to .99 or to the dollar. A preview shows the count and the total before and after. Only items on the shelf change; no price goes below $0.50; at most 5,000 items at once.
-- **Bulk work drawer:** tag print progress, and for managers the recent price changes, each with Reprint tags and Undo. Undo puts the old price back on every item that still holds the new one and is still on the shelf.
-- **Bulk tag reprint** (staff) for whatever is ticked.
-- **Similar products:** a link under a product's items lists the closest products by meaning, with on shelf, price, sold, average sold and days to sell. It reads the stored vectors only; no model is loaded on the web server.
-- `BulkPriceChange` (who, the rule, each item's price before and after) and a `price_change` history line per item. API under `/api/inventory/bulk-price/` and `/api/inventory/search/similar/`.
+User-facing theme: **A shorter menu: Product review, Kiosk and the Floor copy of Floorplans are gone, and the old review queue can be closed in one step.** Outside initiatives (owner request, 2026-10-02).
 
 ### Changed
 
-- **Speed:** a partial index for "is anything of this product on the shelf", and one pass for the page and the count. On a copy of production a one-letter search went from about 330 ms to about 140 ms.
+- **Product review** left the menu, and `/inventory/product-review` goes to Inventory search. Products get their standard at intake and from the pipeline; nothing creates review items any more.
+- **Kiosk** left the menu. The `/kiosk` address still works (it is the time clock).
+- **Floorplans** is in Studios only (it was also under Retail Floor).
 
-### Operations
+### Added
 
-- The web dyno is Standard-2X (1 GB) since 2026-10-02 (it was Standard-1X, 512 MB), at the owner's order: the embedding model takes about 200 MB per process, which the intake switch `product_standard_at_intake` will load.
+- **Request "Close the product review queue"** (`inventory.close_review_queue`): the open proposals from the 2026-09-23 backfill are closed as superseded for every product that already carries the product standard (those products are not changed), and applied for the few that do not. Undo reopens what was closed.
 
 ### Tests
 
-- `apps/inventory/tests/test_bulk_price.py` (the rule math, preview, apply with history, undo, managers only, staff reprint, similar products). Checked in a browser on a copy of production; printing tags in bulk was not tested there (no print server on that machine).
-
-### Migrations
-
-- `inventory/0106_bulk_price_change_and_shelf_index`: the new table and one small index on items. The release phase runs it.
+- `test_approval_kinds.py`: close, apply and undo of the review queue. `slotCNavLayout.test.ts`: the new menu layout.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

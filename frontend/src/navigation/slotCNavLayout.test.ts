@@ -140,7 +140,7 @@ describe('Processing workspace pages', () => {
     expect(NAV_ITEM_CATALOG.restorations?.path).toBe('/restoration/overview');
   });
 
-  it('keeps a dual-listed Floorplan on Retail Floor, not Studios', () => {
+  it('opens Floorplans in Studios, its only home (owner, 2026-10-02)', () => {
     const groups = resolveNavGroups(
       { role: 'Admin', is_superuser: true },
       SLOT_C_NAV_GROUPS,
@@ -148,7 +148,7 @@ describe('Processing workspace pages', () => {
     const workspaces = groups.filter((g) => g.id !== 'essentials');
     const isActive = (item: { path: string; pathAliases?: string[] }) =>
       navItemIsActive('/floor-ops/floorplans', '', '', item);
-    expect(resolveWorkspaceForRoute(workspaces, SLOT_C_WORKSPACES, isActive)).toBe('retailFloor');
+    expect(resolveWorkspaceForRoute(workspaces, SLOT_C_WORKSPACES, isActive)).toBe('studios');
   });
 
   it('does not let that shortcut steal Overview away from the Restoration workspace', () => {
@@ -185,8 +185,10 @@ describe('Studios and Admin placement', () => {
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'mail')).toBeUndefined();
   });
 
-  it('keeps Floorplans on Retail Floor and Messages on Online Sales', () => {
-    expect(retailFloor?.itemIds).toEqual(['inventoryWorkbench', 'productReview', 'quickReprice', 'inventoryCount', 'prFixit', 'floorplans']);
+  it('keeps Floorplans out of Retail Floor (Studios only) and Messages on Online Sales', () => {
+    expect(retailFloor?.itemIds).toEqual(['inventoryWorkbench', 'quickReprice', 'inventoryCount', 'prFixit']);
+    expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'studios')?.itemIds).toContain('floorplans');
+    expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'essentials')?.itemIds).toEqual(['dashboard', 'brief']);
     expect(onlineSales?.itemIds).toContain('onlineSalesCustomers');
   });
 });

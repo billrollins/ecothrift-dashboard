@@ -88,3 +88,30 @@ class InventoryKindTests(TestCase):
         self.assertEqual(CatalogMerge.objects.filter(undone_at__isnull=True).count(), 1)
         ar.undo(req, self.boss)
         self.assertEqual(CatalogMerge.objects.filter(undone_at__isnull=True).count(), 0)
+
+
+class CloseReviewQueueTests(TestCase):
+    def test_superseded_proposals_are_closed_the_rest_applied_and_undo_reopens(self):
+        boss = User.objects.create_superuser(email='boss3@example.com', first_name='B', last_name='O', password='x-pass-123')
+        done = Product.objects.create(title='Lego Set')          # already carries the product standard
+        bare = Product.objects.create(title='Mystery Thing')     # no standard yet
+        ProductProfile.objects.create(product=done, category='Toys & games', vector_text='lego set')
+        mk = lambda product, field, value, status: ProductProposal.objects.create(  # noqa: E731
+            product=product, field=field, value=value, source='ai:old', status=status, batch='old-batch')
+        old_pending = mk(done, 'category', 'Mixed lots & uncategorized', 'pending')
+        old_auto = mk(done, 'short_name', 'Old Name', 'auto')
+        mk(bare, 'category', 'Toys & games', 'pending')
+
+        staged = ar.stage('inventory.close_review_queue', title='Close')
+        self.assertEqual(staged.preview['counts']['Products without it (proposals applied)'], 1)
+        ar.approve(staged, boss, start=False)
+        req = ar.run(staged.pk)
+        self.assertEqual((req.status, req.result['closed'], req.result['applied']), ('applied', 2, 1), req.error)
+        self.assertEqual(ProductProfile.objects.get(product=done).category, 'Toys & games')    # the standard is untouched
+        self.assertEqual(ProductProfile.objects.get(product=bare).category, 'Toys & games')    # the old proposal was applied
+        self.assertFalse(ProductProposal.objects.filter(status__in=['pending', 'auto']).exists())
+
+        ar.undo(req, boss)
+        old_pending.refresh_from_db()
+        old_auto.refresh_from_db()
+        self.assertEqual((old_pending.status, old_auto.status), ('pending', 'auto'))

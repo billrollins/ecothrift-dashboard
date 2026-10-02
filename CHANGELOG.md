@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.125.0] -->
-<!-- Last reviewed: 2026-10-02 (2.125.0) -->
+<!-- Line 1 release: ## [2.126.0] -->
+<!-- Last reviewed: 2026-10-02 (2.126.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,24 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.126.0] - 2026-10-02
+
+User-facing theme: **A shorter menu: Product review, Kiosk and the Floor copy of Floorplans are gone, and the old review queue can be closed in one step.** Outside initiatives (owner request, 2026-10-02).
+
+### Changed
+
+- **Product review** left the menu, and `/inventory/product-review` goes to Inventory search. Products get their standard at intake and from the pipeline; nothing creates review items any more.
+- **Kiosk** left the menu. The `/kiosk` address still works (it is the time clock).
+- **Floorplans** is in Studios only (it was also under Retail Floor).
+
+### Added
+
+- **Request "Close the product review queue"** (`inventory.close_review_queue`): the open proposals from the 2026-09-23 backfill are closed as superseded for every product that already carries the product standard (those products are not changed), and applied for the few that do not. Undo reopens what was closed.
+
+### Tests
+
+- `test_approval_kinds.py`: close, apply and undo of the review queue. `slotCNavLayout.test.ts`: the new menu layout.
 
 ## [2.125.0] - 2026-10-02
 
