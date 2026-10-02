@@ -1,31 +1,28 @@
-feat: v2.128.0 Inventory workspace: sortable search, PR Fix-it redesign with Quick reprice, Run count and Sessions redesign
+chore: v2.129.0 release record for the Orders page numbers (intake_updates Phase 1, code shipped in b97cf8de)
 
-Release: v2.128.0
+Release: v2.129.0
 
-User-facing theme: **The Inventory workspace: sortable search, PR Fix-it with Quick reprice inside it, and a Run count that looks finished on a desk and on a phone.** Outside initiatives (owner requests, 2026-10-02).
+User-facing theme: **The Orders page numbers follow the owner's definitions: Cost with recovery expected, Retail from the manifest with how much was processed, Priced at the starting price, and Sold with % sold and what is left.** Initiative: `intake_updates` Phase 1.
+
+The code went out in commit `b97cf8de` (Heroku v398) before this version bump: a failed bump step did not stop the ship script, so that commit carries v2.128.0's message. This release adds only the version, this entry and nothing else.
 
 ### Changed
 
-- **Menu:** the workspace is now **Inventory**: **Search**, **Run count**, then PR Fix-it under a line. Quick reprice left the menu.
-- **Search:**
-  - Every column header sorts all the matches (high to low first; A to Z for Product), blanks last; the sort is kept in the address bar.
-  - A select-all box in the header.
-  - No hint line and no "Bulk work" button: the bulk bar shows only when something is ticked or tags are printing; managers get a small "Price changes" link.
-  - The product column shrinks so the number columns fit on a 1440-wide screen.
-- **PR Fix-it:**
-  - One scan box, in the same place on every tab (To fix, To relocate, Fixed, Quick reprice).
-  - Each problem is a card: problem, item and fix side by side on a desk, stacked with thumb-size buttons on a phone. The item shows its price against retail.
-  - A scanned tag that is in no cart offers "Quick reprice" for it.
-- **Quick reprice** lives in PR Fix-it (`/inventory/pr-fixit?tab=reprice`): % off or $ off, presets (10 / 25 / 50%), a "never below" floor, the result card and today's total. Old links and the item's Quick reprice button land there.
-- **Run count:**
-  - A Count / Sessions switch: tabs on a desk, two buttons fixed to the bottom on a phone (managers and up).
-  - The start screen shows today's date, counted today, sections done and what needs an answer (one compact row on a phone), and the sections as cards marked Start, Continue or Count again.
-  - With no sections, a "Set up the sections first" card explains what a section is; the Super User gets one-tap starters and a box to add more.
-  - The PR Fix-it links are gone from the count screens (it is in the menu).
-- **Sessions:** a Delete button on every count row for the Super User (with a confirm step), a card background for the table, and a proper empty state.
+- **Cost:** total cost; under it, recovery expected (Priced starting / Total cost).
+- **Retail:** the total from the manifest (quantity x unit retail), with a `!` when it is more than 2% off the listing retail or there is no manifest; under it, the manifest retail of the items checked in from manifest rows (disputed ones left out) and its % of the manifest.
+- **Priced:** Priced (starting), the price at check-in of every item checked in, extras included, not today's marked-down tag; under it, the approved retail of everything checked in as a % of the manifest (near 100% is normal).
+- **Sold:** net sold; under it, % sold (of the starting price) and unsold left (today's price of what has not sold, shrink not counted). The 7-day line is gone.
+- The summary cards above the table use the same definitions on the selected or filtered orders, and a line names how many orders have no manifest or a manifest off from the listing.
+- Labels are spelled out (no more PRC / MFT / EST REC); each cell's tooltip explains both lines.
+- Missing data shows `-` with the reason, never `$0`.
+- The summary is about twice as fast: the second register-cart pass (for the 7-day line) is gone.
+
+### Docs
+
+- `.ai/initiatives/intake_updates.md` (the owner's plan, seven phases) and its record; `.ai/extended/inventory-pipeline.md` describes the numbers; also the owner's pending `floorplan_rebuild` initiative and the index.
 
 ### Tests
 
-- `test_inventory_search.py`: sorting both ways with blanks last. `slotCNavLayout.test.ts`: the Inventory workspace. Checked in a browser at desk and phone sizes on a copy of production.
+- `test_purchase_order_financials.py`: each definition with extras, a disputed item, a row not received, a markdown after check-in (and the check-in's own price line ignored), a lost item, missing data flags, and the summary. Hand-checked on three real orders (clean, with a dispute, with extras): every number equal to a second, simpler calculation.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.128.0] -->
-<!-- Last reviewed: 2026-10-02 (2.128.0) -->
+<!-- Line 1 release: ## [2.129.0] -->
+<!-- Last reviewed: 2026-10-02 (2.129.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,31 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.129.0] - 2026-10-02
+
+User-facing theme: **The Orders page numbers follow the owner's definitions: Cost with recovery expected, Retail from the manifest with how much was processed, Priced at the starting price, and Sold with % sold and what is left.** Initiative: `intake_updates` Phase 1.
+
+The code went out in commit `b97cf8de` (Heroku v398) before this version bump: a failed bump step did not stop the ship script, so that commit carries v2.128.0's message. This release adds only the version, this entry and nothing else.
+
+### Changed
+
+- **Cost:** total cost; under it, recovery expected (Priced starting / Total cost).
+- **Retail:** the total from the manifest (quantity x unit retail), with a `!` when it is more than 2% off the listing retail or there is no manifest; under it, the manifest retail of the items checked in from manifest rows (disputed ones left out) and its % of the manifest.
+- **Priced:** Priced (starting), the price at check-in of every item checked in, extras included, not today's marked-down tag; under it, the approved retail of everything checked in as a % of the manifest (near 100% is normal).
+- **Sold:** net sold; under it, % sold (of the starting price) and unsold left (today's price of what has not sold, shrink not counted). The 7-day line is gone.
+- The summary cards above the table use the same definitions on the selected or filtered orders, and a line names how many orders have no manifest or a manifest off from the listing.
+- Labels are spelled out (no more PRC / MFT / EST REC); each cell's tooltip explains both lines.
+- Missing data shows `-` with the reason, never `$0`.
+- The summary is about twice as fast: the second register-cart pass (for the 7-day line) is gone.
+
+### Docs
+
+- `.ai/initiatives/intake_updates.md` (the owner's plan, seven phases) and its record; `.ai/extended/inventory-pipeline.md` describes the numbers; also the owner's pending `floorplan_rebuild` initiative and the index.
+
+### Tests
+
+- `test_purchase_order_financials.py`: each definition with extras, a disputed item, a row not received, a markdown after check-in (and the check-in's own price line ignored), a lost item, missing data flags, and the summary. Hand-checked on three real orders (clean, with a dispute, with extras): every number equal to a second, simpler calculation.
 
 ## [2.128.0] - 2026-10-02
 
