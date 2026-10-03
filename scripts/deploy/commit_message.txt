@@ -1,28 +1,9 @@
-v2.131.0 — The AI picks Preprocessing formulas on upload; manifest templates removed (intake_updates Phase 5)
+v2.132.0 — Drop the old manifest template columns and table (intake_updates Phase 5, step two)
 
-User-facing theme: **The AI picks the Preprocessing formulas as soon as a manifest is uploaded, and manifest templates are gone.** Initiative: `intake_updates` Phase 5.
-
-### Changed
-
-- **Formulas on upload:** every way a manifest reaches an order (upload on the order, won → PO from Buying, the intake test reset) starts one background AI job. The upload does not wait. The job stores the formulas, the model used and the time on the order; a new upload runs it again. A failed call is retried three times; a job whose process restarted starts again on the next look at the page.
-- **Model:** the job uses the model and effort set for **Preprocessing suggest** in Settings → AI.
-- **Preprocessing step 1:** shows each standard field with the AI's formula, its reason and its result on the sample rows, then the raw columns and the formula preview. Any one formula can still be fixed by hand. While the AI is working the step says so and fills in by itself. If the AI fails, the step says so plainly, fills in the built-in column-name guesses and offers "Try the AI again", so Standardize is never blocked.
-- **Standardize** uses the formulas on the page, else the AI's, else the built-in guesses.
-- A new manifest upload also clears the formulas from the old file.
+User-facing theme: **Step two of retiring manifest templates: the old template columns and table are dropped from the database.** Initiative: `intake_updates` Phase 5. Nothing changes on screen.
 
 ### Removed
 
-- The template picker, the new-template name box, **Clear Formulas** and **Use AI** on step 1.
-- Manifest templates in the code: the `CSVTemplate` model, its `/inventory/templates/` endpoint and admin, `PurchaseOrder.template` and its three caches, the header-signature template match, `save_template` / `save_template_as_new` / `template_id`, the prior-template hints in the AI prompt, and every front-end piece (`TemplateSelector`, `getTemplate`, the types). Migration 0107 removes them from Django and lets the old columns take NULL; the next release drops the columns and the table, so no deploy breaks the running dynos.
-
-### Docs
-
-- `.ai/extended/inventory-pipeline.md`: the CSV Template System section is replaced by the AI formula job.
-- `.ai/initiatives/intake_updates.md`: Phase 5 record, with one real manifest per main vendor (Amazon, Target, Walmart): title, quantity and unit retail right on every sample row.
-
-### Tests
-
-- `test_formula_job.py`: the job starts on each upload path (order upload, upload from bytes for won → PO and the test reset, the retry endpoint), stores formulas, model and time, retries, reports a failure, yields to a newer upload, heals after a restart, and builds its prompt from headers and sample rows only.
-- `test_preprocessing_redesign.py`: step 1 receives the AI's formulas; Standardize with the page's formulas and no template fields, with the AI's formulas, and with the built-in guesses after an AI failure. Template tests removed; `test_vendor_merge.py` and `test_po_manifest_meta_surface.py` updated.
+- Migration 0108 drops `PurchaseOrder.template_id` and its three template caches, and the `inventory_csvtemplate` table. v2.131.0 (migration 0107) had already removed them from the code, so no running code reads or writes them.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -269,8 +269,8 @@ page summary for the same orders: spent $143,119.14, manifest $796,516.30, price
 **2026-10-02 — Phase 5 built.** `services/formula_job.py`; `PurchaseOrder.ai_formulas`; templates out of the code and
 the screen. Claude's calls:
 
-- Two-step removal so no deploy breaks the old dynos: migration 0107 drops the template fields and `CSVTemplate` from
-  Django only (old columns may take NULL); the next release's 0108 drops the columns and the table.
+- Two-step removal so no deploy breaks the old dynos: migration 0107 (v2.131.0) dropped the template fields and
+  `CSVTemplate` from Django only (old columns could take NULL); 0108 (v2.132.0) dropped the columns and the table.
 - A new upload also clears `standardization_formulas` (they belonged to the old file).
 - `POST suggest-formulas/` stays as "ask the AI again"; the page offers it only when the AI failed or never ran.
 - `bucket_csv_seed_payloads.py` stays: old migrations 0033-0035 import it.

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.131.0] -->
-<!-- Last reviewed: 2026-10-02 (2.131.0) -->
+<!-- Line 1 release: ## [2.132.0] -->
+<!-- Last reviewed: 2026-10-02 (2.132.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.132.0] - 2026-10-02
+
+User-facing theme: **Step two of retiring manifest templates: the old template columns and table are dropped from the database.** Initiative: `intake_updates` Phase 5. Nothing changes on screen.
+
+### Removed
+
+- Migration 0108 drops `PurchaseOrder.template_id` and its three template caches, and the `inventory_csvtemplate` table. v2.131.0 (migration 0107) had already removed them from the code, so no running code reads or writes them.
 
 ## [2.131.0] - 2026-10-02
 

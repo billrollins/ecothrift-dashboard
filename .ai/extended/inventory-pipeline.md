@@ -180,7 +180,7 @@ have a manifest. Missing data is `null` (`-`), never 0. Old-era orders are count
 ## AI formulas on upload (replaced CSV templates, intake_updates Phase 5)
 
 Manifest templates (`CSVTemplate`, the header-signature match, `save_template`) are gone: they did not work (owner,
-2026-10-02). Migration 0107 removed them from Django; the old columns and table are dropped in the next release (0108).
+2026-10-02). Migration 0107 (v2.131.0) removed them from Django; 0108 (v2.132.0) dropped the old columns and table.
 
 - **Job:** `services/formula_job.py`. Every way a manifest reaches an order calls `formula_job.start` after the save
   commits: upload on the order (`upload-manifest`), and `upload_manifest_from_bytes` (Buying's won → PO and the intake
