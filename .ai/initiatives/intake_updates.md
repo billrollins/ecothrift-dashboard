@@ -83,15 +83,15 @@ Entering a new order takes fewer steps, an order opens as a standard modal over 
 - The Status column shows the badge and, for orders not yet delivered, the receive (truck) button. It does not show the expected delivery date, although the list already returns it.
 
 Acceptance:
-- [ ] **Order opens as a modal.** Clicking an order on the list, or any order link, opens it in the standard object modal (`components/objects/ObjectModal.tsx`, a new `order` type next to product / check-in / item). The modal is the size the order view is today, not the 1,200 px `lg` used for the others. The house rules hold: there is a close X, and a link inside swaps the content with a Back arrow instead of opening a second modal. Everything the order page does today still works inside it.
-- [ ] `/inventory/orders/:id` still works for bookmarks and links from other pages: it opens the Orders list with that order's modal open. `extended/inventory-search.md` moves the order from Full page to Modal.
-- [ ] **New order, top row:** Order Number first. Vendor sits to its right, narrower. Typing the order number fills the vendor from its first segment, before the first `-`: first the vendor most earlier orders with that prefix belong to, then a vendor whose code matches. The vendor can still be changed by hand.
-- [ ] **Dates:** Ordered Date and Paid Date. Expected Delivery is no longer on the new-order form; it can still be set on the order.
-- [ ] **Retail** sits on the Description row: Description takes two parts of the width, Retail one.
-- [ ] **`x+y` in money fields:** Purchase Cost, Fees and Shipping (and Retail, for the same reason) accept sums such as `412.50+38`. The value is split on `+`, each part is read as a number, and the parts are added. The field shows the sum when you leave it, and Total Cost uses it as you type. Pasting keeps the `+`. A part that is not a number shows an error and blocks Create.
-- [ ] **Buttons:** **Create** creates the order and stays on the list: the dialog closes, the list refreshes and a message names the new order. **Create & Open** creates the order and opens its modal. Enter means Create.
-- [ ] **Expected delivery on the list:** when an order has an expected delivery date, a short line under the status badge and truck shows it (for example `EXP · Oct 8`), lined up neatly in the 64 px row.
-- [ ] Tests: the `x+y` parsing (sums, spaces, `$` and commas, a bad part), the vendor guess from a prefix, and that Create does not navigate while Create & Open does.
+- [x] **Order opens as a modal.** Clicking an order on the list, or any order link, opens it in the standard object modal (`components/objects/ObjectModal.tsx`, a new `order` type next to product / check-in / item). The modal is the size the order view is today, not the 1,200 px `lg` used for the others. The house rules hold: there is a close X, and a link inside swaps the content with a Back arrow instead of opening a second modal. Everything the order page does today still works inside it.
+- [x] `/inventory/orders/:id` still works for bookmarks and links from other pages: it opens the Orders list with that order's modal open. `extended/inventory-search.md` moves the order from Full page to Modal.
+- [x] **New order, top row:** Order Number first. Vendor sits to its right, narrower. Typing the order number fills the vendor from its first segment, before the first `-`: first the vendor most earlier orders with that prefix belong to, then a vendor whose code matches. The vendor can still be changed by hand.
+- [x] **Dates:** Ordered Date and Paid Date. Expected Delivery is no longer on the new-order form; it can still be set on the order.
+- [x] **Retail** sits on the Description row: Description takes two parts of the width, Retail one.
+- [x] **`x+y` in money fields:** Purchase Cost, Fees and Shipping (and Retail, for the same reason) accept sums such as `412.50+38`. The value is split on `+`, each part is read as a number, and the parts are added. The field shows the sum when you leave it, and Total Cost uses it as you type. Pasting keeps the `+`. A part that is not a number shows an error and blocks Create.
+- [x] **Buttons:** **Create** creates the order and stays on the list: the dialog closes, the list refreshes and a message names the new order. **Create & Open** creates the order and opens its modal. Enter means Create.
+- [x] **Expected delivery on the list:** when an order has an expected delivery date, a short line under the status badge and truck shows it (for example `EXP · Oct 8`), lined up neatly in the 64 px row.
+- [x] Tests: the `x+y` parsing (sums, spaces, `$` and commas, a bad part), the vendor guess from a prefix, and that Create does not navigate while Create & Open does.
 
 ### Phase 3 — One Target vendor
 Every Target order, template and product reference belongs to `TRGET`, and the old `TGT` vendor is deleted.
@@ -106,7 +106,7 @@ Acceptance:
 - [ ] A read-only count on production shows what points at `TGT` today in every table with a vendor key, plus the order caches (`vendor_code_cache`, `vendor_name_cache`). The counts are written in the Record.
 - [ ] One Request, staged with `stage_request` and approved by the owner, moves every row to `TRGET`. Vendor product refs that clash on vendor item number are merged: times seen are added, and the newest cost and date are kept. Order caches and search text are refreshed. The Request records the old vendor of every moved row so it can be undone.
 - [ ] `TGT` is deleted only after a re-count shows nothing points at it. The Request checks this itself and stops if anything is left.
-- [ ] `backfill_phase1_vendors_pos.py` maps the legacy `TGT` prefix to `TRGET`, so no re-run can bring `TGT` back. A test covers it.
+- [x] `backfill_phase1_vendors_pos.py` maps the legacy `TGT` prefix to `TRGET`, so no re-run can bring `TGT` back. A test covers it.
 - [ ] After the Request, the Vendors list shows one Target (`TRGET`), every Target order lists it as the vendor, and the new-order vendor guess picks it for Target order numbers.
 
 ### Phase 4 — Dispute refunds off cost
@@ -179,14 +179,14 @@ Every percent is weighted: the sum of the top ÷ the sum of the bottom across th
 | **Profit so far** | Sold − Total cost. | The bottom line. |
 
 Acceptance:
-- [ ] **List.** The Vendors list shows Orders (last order date under it), Spent, Landed % of retail, Priced % of retail (starting), Manifest accuracy, % sold, Recovery actual and Days to sell. Each column sorts. Contact and phone move to a second line under the name, so the row fits.
-- [ ] **Vendor page.** It opens with summary cards for every metric in the table, in the same style as the Orders page cards. Its Purchase Orders tab uses the Orders page columns from Phase 1.
-- [ ] **Period.** A period choice applies to the list and the page: Last 90 days, Last 12 months (the default) or All time, by ordered date. Orders from the older data eras (`extended/data-quality.md`) are counted and flagged, not dropped.
-- [ ] Missing data shows `-`, not `0`: a vendor with no checked-in items, or no sales yet.
-- [ ] Speed: the list loads in about 2 seconds for every vendor over All time. It uses grouped queries, not one Phase 1 call per order. If that is not enough, a nightly table holds the numbers and the page shows its date.
-- [ ] Tests cover each definition on a small two-vendor fixture, the weighting, and the period filter.
-- [ ] Hand check: Target's numbers for the last 12 months match a sum of its orders on the Orders page.
-- [ ] `extended/inventory-pipeline.md` lists the vendor metrics and their definitions.
+- [x] **List.** The Vendors list shows Orders (last order date under it), Spent, Landed % of retail, Priced % of retail (starting), Manifest accuracy, % sold, Recovery actual and Days to sell. Each column sorts. Contact and phone move to a second line under the name, so the row fits.
+- [x] **Vendor page.** It opens with summary cards for every metric in the table, in the same style as the Orders page cards. Its Purchase Orders tab uses the Orders page columns from Phase 1.
+- [x] **Period.** A period choice applies to the list and the page: Last 90 days, Last 12 months (the default) or All time, by ordered date. Orders from the older data eras (`extended/data-quality.md`) are counted and flagged, not dropped.
+- [x] Missing data shows `-`, not `0`: a vendor with no checked-in items, or no sales yet.
+- [x] Speed: the list loads in about 2 seconds for every vendor over All time. It uses grouped queries, not one Phase 1 call per order. If that is not enough, a nightly table holds the numbers and the page shows its date.
+- [x] Tests cover each definition on a small two-vendor fixture, the weighting, and the period filter.
+- [x] Hand check: Target's numbers for the last 12 months match a sum of its orders on the Orders page.
+- [x] `extended/inventory-pipeline.md` lists the vendor metrics and their definitions.
 
 ### Phase 7 — Next intake screen
 The next intake screen gets the same care. The owner names which one once Phase 1 is in production: Receiving or Processing.
@@ -238,6 +238,29 @@ recomputed a second, simpler way, all equal:
 
 Order 3's items were never linked to manifest rows (old era), so nothing counts as processed from the manifest. Over all
 351 orders: 45 have no manifest, 17 differ from their listing retail by more than 2%, 305 have no price history.
+
+**2026-10-02 — Phase 2 built.** An order opens in the object modal (`order` type, 1,400 px). `/inventory/orders/:id`
+is the Orders list with that modal open; links with `?drawer=timeline&undo=…` still open the intake drawer. The vendor guess
+is `services/order_vendor_guess.py` (`GET orders/vendor-guess/`). Claude's calls:
+
+- A Paid Date on the new-order form marks the order paid, the same as Mark paid.
+- The `EXP` line shows whenever an order has an expected date, delivered or not, as written.
+- Closing the modal replaces the history entry, so Back after closing does not reopen it.
+
+Checked on the dev copy: `TRGET-…` guessed Target; `412.50+38` showed $450.50; Enter created and stayed on the list;
+Create & Open opened the modal. The two test orders were deleted.
+
+**2026-10-02 — Phase 3 code built.** Request kind `inventory.merge_vendor` (`services/vendor_merge.py`) finds the tables
+from `Vendor`'s own relations (today `PurchaseOrder`, `CSVTemplate`, `VendorProductRef`), so nothing is missed. The
+backfill maps `TGT` to `TRGET`. The production count could not be run from Claude's session (the read was blocked);
+the Request's preview shows the same counts in Dash. Waiting on: staging in production and the owner's approval.
+
+**2026-10-02 — Phase 6 built.** Vendor metrics (`services/vendor_metrics.py`) on the Vendors list (period choice, sortable
+columns, contact under the name) and the vendor page (a card per metric, then the Orders page columns). Speed on the dev
+copy: 12 months 1.6 s, all time 5.9 s, so the list is cached six hours and shows when it was worked out, with Refresh;
+`warm_vendor_metrics` can run nightly in Heroku Scheduler. Hand check, Target last 12 months (24 orders), against the Orders
+page summary for the same orders: spent $143,119.14, manifest $796,516.30, priced $325,383.89, sold $160,015.53, recovery
+227% / 112%, sold 49%, received 39%, accuracy 81%, all equal. Until the Phase 3 Request runs, `TGT` shows as its own row.
 
 ---
 

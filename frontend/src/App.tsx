@@ -45,7 +45,6 @@ import DepartmentDetailPage from './pages/admin/departments/DepartmentDetailPage
 import VendorListPage from './pages/inventory/VendorListPage';
 import VendorDetailPage from './pages/inventory/VendorDetailPage';
 import OrderListPage from './pages/inventory/OrderListPage';
-import OrderDetailPage from './pages/inventory/OrderDetailPage';
 import ReceivingEntryRedirect from './pages/inventory/ReceivingEntryRedirect';
 import ReceivingOrderPage from './pages/inventory/ReceivingOrderPage';
 import PreprocessingPage from './pages/inventory/PreprocessingPage';
@@ -227,7 +226,8 @@ export default function App() {
         <Route path="/inventory/vendors" element={<VendorListPage />} />
         <Route path="/inventory/vendors/:id" element={<VendorDetailPage />} />
         <Route path="/inventory/orders" element={<OrderListPage />} />
-        <Route path="/inventory/orders/:id" element={<OrderDetailPage />} />
+        {/* An order opens as a modal over the list (intake_updates Phase 2). */}
+        <Route path="/inventory/orders/:id" element={<OrderListPage />} />
         <Route path="/inventory/receiving" element={<ReceivingEntryRedirect />} />
         <Route path="/inventory/receiving/:id" element={<ReceivingOrderPage />} />
         <Route path="/inventory/preprocessing" element={<PreprocessingPage />} />

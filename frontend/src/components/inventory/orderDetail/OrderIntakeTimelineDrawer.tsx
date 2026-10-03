@@ -239,7 +239,14 @@ export default function OrderIntakeTimelineDrawer({
   const showTypedGuard = dangerPurge || undoStage === 'manifest_upload';
 
   return (
-    <Drawer anchor="right" open={open} onClose={onClose} PaperProps={{ sx: { width: DRAWER_WIDTH } }}>
+    // Above the order modal: the order now opens in a dialog, which sits over a plain drawer.
+    <Drawer
+      anchor="right"
+      open={open}
+      onClose={onClose}
+      PaperProps={{ sx: { width: DRAWER_WIDTH } }}
+      sx={{ zIndex: (t) => t.zIndex.modal + 1 }}
+    >
       <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5, height: '100%' }}>
         <Box>
           <Typography variant="overline" color="text.secondary">

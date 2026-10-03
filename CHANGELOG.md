@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.129.0] -->
-<!-- Last reviewed: 2026-10-02 (2.129.0) -->
+<!-- Line 1 release: ## [2.130.0] -->
+<!-- Last reviewed: 2026-10-02 (2.130.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,37 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.130.0] - 2026-10-02
+
+User-facing theme: **An order opens as a modal over the Orders list, the New Purchase Order form is faster (order number first, vendor guessed, sums like 412.50+38), the list shows each expected delivery, the Vendors list and each vendor's page show how the vendor performs, and the code to fold the old Target vendor into TRGET is ready for the owner's approval.** Initiative: `intake_updates` Phases 2, 3 and 6.
+
+### Changed
+
+- **Order modal:** clicking an order (or any order link) opens it in the standard object modal, 1,400 px wide, with a close X. `/inventory/orders/:id` opens the Orders list with that order's modal, so bookmarks and links still work, including links that open the intake timeline drawer. In the product, item and check-in modals, the order link swaps the content (Back arrow) instead of leaving the page.
+- **New Purchase Order:** Order Number comes first; Vendor sits to its right and fills itself from the order number's prefix (the vendor most earlier orders with that prefix belong to, then a vendor whose code matches); it can still be picked by hand.
+- **Dates:** Ordered Date and Paid Date. A paid date marks the new order paid. Expected Delivery is set on the order.
+- **Retail** sits on the Description row.
+- **Money boxes add sums:** Purchase Cost, Fees, Shipping and Retail take `412.50+38`; the box shows the sum when you leave it, Total Cost uses it as you type, pasting keeps the `+`, and a part that is not a number shows an error and blocks Create.
+- **Create** stays on the list with a message naming the new order; **Create & Open** opens its modal; Enter means Create.
+- **Orders list:** a short `EXP · Oct 8` line under the status shows the expected delivery date.
+- **Vendors list:** Orders (last order date under it), Spent, Landed %, Priced %, Manifest accuracy, % sold, Recovery and Days to sell, each sortable; contact and phone moved under the name. A period choice (Last 90 days, Last 12 months, All time, by ordered date) applies to the list and the vendor page. The numbers are kept six hours and show when they were worked out, with Refresh.
+- **Vendor page:** a card for every metric (the Orders page card style), then its orders in the Orders page columns; Details moved to the second tab. Missing data shows `-`, never 0; orders from the older data era are counted and named.
+
+### Added
+
+- `GET /api/inventory/orders/vendor-guess/?order_number=` (`services/order_vendor_guess.py`).
+- `GET /api/inventory/vendors/metrics/?period=` and `/vendors/<id>/metrics/` (`services/vendor_metrics.py`), and `python manage.py warm_vendor_metrics` for a nightly Scheduler run.
+- Request kind `inventory.merge_vendor` (`services/vendor_merge.py`): moves every order, manifest template and vendor product ref from `TGT` to `TRGET` (refs that clash on vendor item number are merged: times seen added, newest cost and date kept), refreshes the orders' vendor caches and search text, and deletes `TGT` only after a re-count finds nothing left. Undo puts `TGT` back with its id. Nothing runs until the owner approves it in Dash.
+
+### Fixed
+
+- The legacy backfill (`backfill_phase1_vendors_pos.py`) maps the old `TGT` prefix to `TRGET`, so a re-run cannot bring `TGT` back.
+
+### Tests
+
+- `moneySum.test.ts` (sums, spaces, `$` and commas, a bad part), `CreatePurchaseOrderDialog.test.tsx` (vendor guess, Create stays, Create & Open opens, Enter means Create, a bad part blocks Create), `expectedLine.test.ts`.
+- `test_order_vendor_guess.py` (prefix rules, orders before code, inactive vendors, the endpoint, paid date on create), `test_vendor_merge.py` (every table moved, clash merge, undo, no-op, the backfill mapping, the Request preview), `test_vendor_metrics.py` (each definition on two vendors, the weighting, missing data, the period, the endpoints). Hand check: Target's last 12 months equal the Orders page summary for the same 24 orders.
 
 ## [2.129.0] - 2026-10-02
 

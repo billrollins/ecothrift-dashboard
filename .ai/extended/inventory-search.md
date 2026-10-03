@@ -34,8 +34,8 @@ or an item anywhere on the site. It replaced the old Catalog page (`/inventory/w
 
 | Tool | Use it for | Here |
 |---|---|---|
-| Modal | Look, do one quick thing, done | Item, check-in, product quick look; add items |
-| Full page | Room to do a lot | Product (`/inventory/products/:id`), order |
+| Modal | Look, do one quick thing, done | Item, check-in, product quick look; add items; order (wide, 1,400 px: `/inventory/orders/:id` opens the Orders list with it) |
+| Full page | Room to do a lot | Product (`/inventory/products/:id`) |
 | Tabs | Related views you flip between | Inside the product page: Product, Items, Check-ins |
 | Drawer | Something running that you check on | Bulk progress, print queue (Phase 2) |
 | Inline in the table | What you do 50 times a day | Change a price, reprint a tag |

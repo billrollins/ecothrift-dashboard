@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -11,11 +11,15 @@ import {
   InputAdornment,
   MenuItem,
   TextField,
+  Typography,
 } from '@mui/material';
 import Add from '@mui/icons-material/Add';
+import Refresh from '@mui/icons-material/Refresh';
 import Search from '@mui/icons-material/Search';
-import { DataGrid, type GridColDef } from '@mui/x-data-grid';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { DataGrid, type GridColDef, type GridRenderCellParams } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
+import { getVendorMetrics, type VendorMetrics } from '../../api/inventory.api';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
@@ -23,12 +27,64 @@ import { useVendors, useCreateVendor } from '../../hooks/useInventory';
 import { parseRichSearch, vendorFiltersToApiParams } from '../../utils/richInventorySearch';
 
 import type { Vendor, VendorType } from '../../types/inventory.types';
+import { days, landedColor, money, num, parsePeriod, pct, PeriodChoice, shortDate } from './vendors/vendorMetrics';
 
 const VENDOR_TYPES: VendorType[] = ['liquidation', 'retail', 'direct', 'other'];
+
+type VendorRow = Vendor & { m: VendorMetrics | null };
+
+/** A metric column (intake_updates Phase 6): sorts on the number, shows `-` when there is none. */
+function metricCol(
+  field: string,
+  headerName: string,
+  get: (m: VendorMetrics) => string | number | null,
+  show: (m: VendorMetrics) => string,
+  opts: { width?: number; tip: string; color?: (m: VendorMetrics) => string | undefined; sub?: (m: VendorMetrics) => string },
+): GridColDef<VendorRow> {
+  return {
+    field,
+    headerName,
+    description: opts.tip,
+    width: opts.width ?? 112,
+    type: 'number',
+    valueGetter: (_v, row) => (row.m ? num(get(row.m)) : null),
+    sortComparator: (a, b) => (a ?? -Infinity) - (b ?? -Infinity),
+    renderCell: (p: GridRenderCellParams<VendorRow>) => {
+      const m = p.row.m;
+      return (
+        <Box sx={{ textAlign: 'right', width: '100%', lineHeight: 1.2 }}>
+          <Typography
+            component="div"
+            sx={{ fontWeight: 700, fontSize: 13, fontVariantNumeric: 'tabular-nums', color: m ? opts.color?.(m) : undefined }}
+          >
+            {m ? show(m) : '-'}
+          </Typography>
+          {m && opts.sub ? (
+            <Typography component="div" variant="caption" color="text.secondary" noWrap>
+              {opts.sub(m)}
+            </Typography>
+          ) : null}
+        </Box>
+      );
+    },
+  };
+}
 
 export default function VendorListPage() {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
+  const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const period = parsePeriod(searchParams.get('period'));
+  const setPeriod = (next: string) =>
+    setSearchParams(
+      (prev) => {
+        const n = new URLSearchParams(prev);
+        n.set('period', next);
+        return n;
+      },
+      { replace: true },
+    );
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('');
   const [addOpen, setAddOpen] = useState(false);
@@ -43,7 +99,7 @@ export default function VendorListPage() {
 
   const params = useMemo(() => {
     const parsed = parseRichSearch(search, 'vendors');
-    const p: Record<string, string> = {};
+    const p: Record<string, string | number> = { page_size: 200 };
     const rich = vendorFiltersToApiParams(parsed);
     if (rich.search) p.search = rich.search;
     if (rich.vendor) p.vendor = rich.vendor;
@@ -56,24 +112,90 @@ export default function VendorListPage() {
   const { data, isLoading } = useVendors(params);
   const createVendor = useCreateVendor();
 
-  const vendors = data?.results ?? [];
+  const vendors = useMemo(() => data?.results ?? [], [data?.results]);
+  const metrics = useQuery({
+    queryKey: ['vendorMetrics', period],
+    queryFn: async () => (await getVendorMetrics(period)).data,
+    staleTime: 5 * 60_000,
+  });
+  const [refreshing, setRefreshing] = useState(false);
+  const refresh = async () => {
+    setRefreshing(true);
+    try {
+      const { data: fresh } = await getVendorMetrics(period, true);
+      queryClient.setQueryData(['vendorMetrics', period], fresh);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+  const rows: VendorRow[] = useMemo(
+    () => vendors.map((v) => ({ ...v, m: metrics.data?.vendors[String(v.id)] ?? null })),
+    [vendors, metrics.data],
+  );
+  const computedAt = metrics.data?.computed_at ? new Date(metrics.data.computed_at) : null;
 
-  const columns: GridColDef[] = [
-    { field: 'name', headerName: 'Name', flex: 1, minWidth: 160 },
-    { field: 'code', headerName: 'Code', width: 120 },
+  const columns: GridColDef<VendorRow>[] = [
     {
-      field: 'vendor_type',
-      headerName: 'Type',
-      width: 120,
-      valueFormatter: (value) =>
-        String(value).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+      field: 'name',
+      headerName: 'Vendor',
+      flex: 1,
+      minWidth: 200,
+      renderCell: ({ row }: GridRenderCellParams<VendorRow>) => {
+        const contact = [row.contact_name, row.contact_phone].filter(Boolean).join(' · ');
+        return (
+          <Box sx={{ minWidth: 0, lineHeight: 1.2 }}>
+            <Typography noWrap sx={{ fontWeight: 700, fontSize: 13 }}>
+              {row.name}{' '}
+              <Typography component="span" color="text.secondary" sx={{ fontSize: 12, fontWeight: 600 }}>
+                {row.code}
+              </Typography>
+            </Typography>
+            <Typography noWrap variant="caption" color="text.secondary" component="div">
+              {contact || String(row.vendor_type).replace(/_/g, ' ')}
+            </Typography>
+          </Box>
+        );
+      },
     },
-    { field: 'contact_name', headerName: 'Contact', width: 150 },
-    { field: 'contact_phone', headerName: 'Phone', width: 140 },
+    metricCol('orders', 'Orders', (m) => m.orders, (m) => String(m.orders), {
+      width: 104,
+      tip: 'Number of orders in the period; under it, the last order date.',
+      sub: (m) => shortDate(m.last_ordered),
+    }),
+    metricCol('spent', 'Spent', (m) => m.spent, (m) => money(m.spent), {
+      width: 110,
+      tip: 'Sum of Total cost.',
+      color: () => '#7f1d1d',
+    }),
+    metricCol('landed', 'Landed %', (m) => m.landed_pct, (m) => pct(m.landed_pct), {
+      tip: 'Total cost ÷ manifest total retail (orders with a manifest). About 20% is a normal buy.',
+      color: (m) => landedColor(m.landed_pct),
+    }),
+    metricCol('priced', 'Priced %', (m) => m.priced_pct_of_retail, (m) => pct(m.priced_pct_of_retail), {
+      tip: 'Priced (starting) ÷ processor-approved retail of the items checked in.',
+      color: () => '#14532d',
+    }),
+    metricCol('accuracy', 'Manifest acc.', (m) => m.manifest_accuracy, (m) => pct(m.manifest_accuracy), {
+      width: 120,
+      tip: 'Processor-approved retail of everything checked in ÷ manifest total. Near 100% means the manifests can be trusted.',
+    }),
+    metricCol('sold_pct', '% sold', (m) => m.sold_pct, (m) => pct(m.sold_pct), {
+      width: 96,
+      tip: 'Sold ÷ Priced (starting): sell-through in dollars.',
+      color: () => '#22a35a',
+    }),
+    metricCol('recovery', 'Recovery', (m) => m.recovery_actual, (m) => pct(m.recovery_actual), {
+      width: 104,
+      tip: 'Sold ÷ Total cost (recovery actual).',
+    }),
+    metricCol('days', 'Days to sell', (m) => m.days_to_sell, (m) => days(m.days_to_sell), {
+      width: 110,
+      tip: 'Median days from check-in to sale, sold items only.',
+    }),
     {
       field: 'is_active',
       headerName: 'Status',
-      width: 110,
+      width: 100,
       renderCell: ({ value }) => (
         <StatusBadge status={value ? 'active' : 'closed'} size="small" />
       ),
@@ -91,17 +213,13 @@ export default function VendorListPage() {
     }
   };
 
-  const handleRowClick = ({ id }: { id: unknown }) => {
-    navigate(`/inventory/vendors/${id}`);
-  };
-
   if (isLoading && vendors.length === 0) return <LoadingScreen />;
 
   return (
     <Box>
       <PageHeader
         title="Vendors"
-        subtitle="Manage inventory vendors"
+        subtitle="How each vendor performs. Percents are weighted over the vendor's orders; - means no data yet."
         action={
           <Button variant="contained" startIcon={<Add />} onClick={() => setAddOpen(true)}>
             Add Vendor
@@ -147,15 +265,39 @@ export default function VendorListPage() {
         </Grid>
       </Grid>
 
-      <Box sx={{ height: 500 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: 1.5 }}>
+        <PeriodChoice value={period} onChange={setPeriod} />
+        <Typography variant="caption" color="text.secondary">
+          {metrics.isFetching || refreshing
+            ? 'Working out the numbers…'
+            : computedAt
+              ? `By ordered date. Numbers as of ${computedAt.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`
+              : ''}
+        </Typography>
+        <Button
+          size="small"
+          startIcon={<Refresh fontSize="small" />}
+          onClick={refresh}
+          disabled={refreshing || metrics.isFetching}
+          sx={{ textTransform: 'none' }}
+        >
+          Refresh
+        </Button>
+      </Box>
+
+      <Box sx={{ height: 640 }}>
         <DataGrid
-          rows={vendors}
+          rows={rows}
           columns={columns}
+          rowHeight={52}
           loading={isLoading}
           pageSizeOptions={[10, 25, 50, 100]}
-          initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
-          onRowClick={(params) => handleRowClick({ id: params.id })}
-          getRowId={(row: Vendor) => row.id}
+          initialState={{
+            pagination: { paginationModel: { pageSize: 25 } },
+            sorting: { sortModel: [{ field: 'spent', sort: 'desc' }] },
+          }}
+          onRowClick={(p) => navigate(`/inventory/vendors/${p.id}?period=${period}`)}
+          getRowId={(row: VendorRow) => row.id}
           sx={{
             border: 'none',
             '& .MuiDataGrid-row': { cursor: 'pointer' },

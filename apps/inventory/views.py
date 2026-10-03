@@ -2195,6 +2195,22 @@ class VendorViewSet(viewsets.ModelViewSet):
             qs = qs.filter(pk=int(vendor_raw))
         return qs
 
+    @action(detail=False, methods=['get'], url_path='metrics')
+    def metrics(self, request):
+        """Vendor metrics for the list (``?period=90d|12m|all``, ``&fresh=1`` to work them out again)."""
+        from apps.inventory.services.vendor_metrics import all_vendors
+
+        fresh = (request.query_params.get('fresh') or '') in ('1', 'true')
+        return Response(all_vendors(request.query_params.get('period') or '12m', fresh=fresh))
+
+    @action(detail=True, methods=['get'], url_path='metrics')
+    def vendor_metrics(self, request, pk=None):
+        """One vendor's metrics for its page (``?period=``)."""
+        from apps.inventory.services.vendor_metrics import one_vendor
+
+        vendor = self.get_object()
+        return Response(one_vendor(vendor.id, request.query_params.get('period') or '12m'))
+
     def perform_destroy(self, instance):
         """Soft delete - set is_active=False."""
         instance.is_active = False
@@ -2562,6 +2578,19 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         ordered = [pk for pk in selected if pk in allowed]
         return Response({'orders': serialize_order_metrics(ordered)})
 
+    @action(detail=False, methods=['get'], url_path='vendor-guess')
+    def vendor_guess(self, request):
+        """New-order form: the vendor an order number's prefix points to (``?order_number=``)."""
+        from apps.inventory.services.order_vendor_guess import guess_vendor, order_prefix
+
+        number = request.query_params.get('order_number') or ''
+        found = guess_vendor(number)
+        vendor = None
+        if found:
+            v, source = found
+            vendor = {'id': v.id, 'name': v.name, 'code': v.code, 'source': source}
+        return Response({'prefix': order_prefix(number), 'vendor': vendor})
+
     def perform_create(self, serializer):
         from apps.inventory.services.po_defaults import get_default_po_est_shrink
 
@@ -2573,6 +2602,9 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             extra['order_number'] = PurchaseOrder.generate_order_number()
         if 'ordered_date' not in serializer.validated_data:
             extra['ordered_date'] = timezone.now().date()
+        # A paid date on the new-order form means the order is already paid (same as Mark paid).
+        if serializer.validated_data.get('paid_date') and serializer.validated_data.get('status', 'ordered') == 'ordered':
+            extra['status'] = 'paid'
         serializer.save(**extra)
 
     @action(detail=True, methods=['post'], url_path='mark-paid')

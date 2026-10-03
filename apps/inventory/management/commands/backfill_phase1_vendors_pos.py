@@ -30,7 +30,8 @@ MISFIT_ORDER_NUMBERS = frozenset({'MISFIT-V1-2024', 'MISFIT-V2-2025'})
 
 V1_PREFIX_TO_VENDOR = {
     'AMZ': ('AMZ', 'Amazon'),
-    'TGT': ('TGT', 'Target'),
+    # Old Target orders belong to TRGET; the TGT vendor was merged into it (intake_updates Phase 3).
+    'TGT': ('TRGET', 'Target'),
     'WAL': ('WAL', 'Walmart'),
     'CST': ('CST', 'Costco'),
     'WFR': ('WFR', 'Wayfair'),

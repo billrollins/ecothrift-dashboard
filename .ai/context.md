@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-01 (5S pass: standards.md is the one standards list; deviations live there) -->
+<!-- Last updated: 2026-10-02 (intake_updates in Active work) -->
 # ecothrift-dashboard — AI Context
 
 ## Project summary
@@ -29,6 +29,7 @@ Stack: Django 5.2 + DRF, React 18.3 + TypeScript + MUI 7, PostgreSQL (schema `ec
 - **Product intelligence:** [`product_intelligence`](initiatives/product_intelligence.md). Standardize and dedupe rules: [`extended/product-standard.md`](extended/product-standard.md).
 - **Data quality and rails:** [`data_quality_rails`](initiatives/data_quality_rails.md).
 - **Waiting:** [`buying_intelligence_v2`](initiatives/buying_intelligence_v2.md) resumes after launch. Earlier buying work is in [`bstock_daily_buying`](initiatives/bstock_daily_buying.md).
+- **Intake updates:** [`intake_updates`](initiatives/intake_updates.md). The owner's intake list: Orders numbers, order modal, one Target vendor, AI formulas on upload, vendor metrics.
 - **Inventory count:** [`inventory_count`](initiatives/inventory_count.md). Shipped 2026-10-01; first real count Mon 10-05.
 - **Standing:** [`standards`](initiatives/standards.md), what this repo still owes the house standards, and when.
 - Full list with phases: [`initiatives/_index.md`](initiatives/_index.md).

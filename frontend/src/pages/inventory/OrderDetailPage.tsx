@@ -171,11 +171,15 @@ function ArrowLeftIcon() {
   );
 }
 
-export default function OrderDetailPage() {
+/**
+ * One order. It opens in the standard object modal (`embedded`); `/inventory/orders/:id` opens the Orders list
+ * with this modal over it (intake_updates Phase 2).
+ */
+export default function OrderDetailPage({ orderId: orderIdProp, embedded = false }: { orderId?: number; embedded?: boolean } = {}) {
   const theme = useTheme();
   const compact = useMediaQuery(theme.breakpoints.down(900));
   const { id } = useParams<{ id: string }>();
-  const orderId = id ? Number.parseInt(id, 10) : null;
+  const orderId = orderIdProp ?? (id ? Number.parseInt(id, 10) : null);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -185,11 +189,22 @@ export default function OrderDetailPage() {
   const uploadManifestMutation = useUploadManifest();
   const [manifestViewerOpen, setManifestViewerOpen] = useState(false);
 
-  const drawerOpen = searchParams.get('drawer') === 'timeline';
-  const undoParam = searchParams.get('undo');
-  const dangerPurge = searchParams.get('danger') === 'purge';
+  // The intake drawer lives in the URL on a full page; inside the modal it is local (the host page owns its URL).
+  // Links such as `/inventory/orders/5?drawer=timeline&undo=finalize` still open it, read once on the way in.
+  const [localDrawer, setLocalDrawer] = useState<{ undo: string | null; dangerPurge: boolean } | null>(() =>
+    searchParams.get('drawer') === 'timeline'
+      ? { undo: searchParams.get('undo'), dangerPurge: searchParams.get('danger') === 'purge' }
+      : null,
+  );
+  const drawerOpen = embedded ? localDrawer !== null : searchParams.get('drawer') === 'timeline';
+  const undoParam = embedded ? localDrawer?.undo ?? null : searchParams.get('undo');
+  const dangerPurge = embedded ? Boolean(localDrawer?.dangerPurge) : searchParams.get('danger') === 'purge';
 
   const closeIntakeDrawer = useCallback(() => {
+    if (embedded) {
+      setLocalDrawer(null);
+      return;
+    }
     setSearchParams(
       (prev) => {
         const n = new URLSearchParams(prev);
@@ -200,10 +215,14 @@ export default function OrderDetailPage() {
       },
       { replace: true },
     );
-  }, [setSearchParams]);
+  }, [embedded, setSearchParams]);
 
   const openIntakeDrawer = useCallback(
     (opts?: { undo?: string; dangerPurge?: boolean }) => {
+      if (embedded) {
+        setLocalDrawer({ undo: opts?.undo ?? null, dangerPurge: Boolean(opts?.dangerPurge) });
+        return;
+      }
       setSearchParams(
         (prev) => {
           const n = new URLSearchParams(prev);
@@ -217,7 +236,7 @@ export default function OrderDetailPage() {
         { replace: true },
       );
     },
-    [setSearchParams],
+    [embedded, setSearchParams],
   );
 
   const manifestInputRef = useRef<HTMLInputElement>(null);
@@ -321,6 +340,7 @@ export default function OrderDetailPage() {
   );
 
   useEffect(() => {
+    if (embedded) return undefined;
     const onKeyDown = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.key !== 'n') return;
       if (focusIsInEditableField()) return;
@@ -329,9 +349,10 @@ export default function OrderDetailPage() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [navigate]);
+  }, [navigate, embedded]);
 
   useEffect(() => {
+    if (embedded) return undefined;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       if (focusIsInEditableField()) return;
@@ -339,7 +360,7 @@ export default function OrderDetailPage() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [navigate]);
+  }, [navigate, embedded]);
 
   const uploadManifestFile = async (file: File | undefined) => {
     if (!file || !orderId || !order) return;
@@ -392,8 +413,8 @@ export default function OrderDetailPage() {
 
   if (isLoading && !order) {
     return (
-      <Box sx={{ bgcolor: TOKENS.pageBg, minHeight: '100vh' }}>
-        <Skeleton variant="rectangular" height={TOKENS.topBarH} sx={{ borderRadius: 0 }} />
+      <Box sx={{ bgcolor: TOKENS.pageBg, minHeight: embedded ? 0 : '100vh' }}>
+        {!embedded && <Skeleton variant="rectangular" height={TOKENS.topBarH} sx={{ borderRadius: 0 }} />}
         <Box
           sx={{
             maxWidth: TOKENS.shellMaxW,
@@ -462,12 +483,12 @@ export default function OrderDetailPage() {
     <Box
       sx={{
         bgcolor: TOKENS.pageBg,
-        minHeight: '100vh',
+        minHeight: embedded ? 0 : '100vh',
         color: TOKENS.textBody,
         fontFamily: '"DM Sans", system-ui, sans-serif',
       }}
     >
-      <Box
+      {!embedded && <Box
         sx={{
           bgcolor: 'white',
           borderBottom: `1px solid ${TOKENS.borderCard}`,
@@ -496,7 +517,7 @@ export default function OrderDetailPage() {
           <ArrowLeftIcon />
           Orders
         </Button>
-      </Box>
+      </Box>}
 
       <Box
         sx={{

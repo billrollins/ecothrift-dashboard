@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { keepPreviousData } from '@tanstack/react-query';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -29,6 +29,7 @@ import {
 import { format, parseISO } from 'date-fns';
 import { useSnackbar } from 'notistack';
 import CreatePurchaseOrderDialog from '../../components/inventory/CreatePurchaseOrderDialog';
+import { ObjectModalProvider, useObjectModal, type ObjectRef } from '../../components/objects/ObjectModal';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import {
   usePurchaseOrders,
@@ -129,8 +130,53 @@ const DATE_FIELD_OPTIONS: Array<{ value: OrderDateField; label: string }> = [
   { value: 'ordered_date', label: 'Ordered' },
 ];
 
+/**
+ * The Orders list. An order opens in the standard object modal over it; the open order is in the path
+ * (`/inventory/orders/:id`), so links and bookmarks to an order land here with its modal open.
+ */
 export default function OrderListPage() {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const urlId = id ? Number.parseInt(id, 10) : null;
+  const [initial] = useState<ObjectRef | null>(() => (urlId ? { type: 'order', id: urlId } : null));
+
+  const onModalChange = useCallback(
+    (ref: ObjectRef | null) => {
+      if (ref && ref.type !== 'order') return;
+      const path = ref ? `/inventory/orders/${ref.id}` : '/inventory/orders';
+      if (window.location.pathname === path) return;
+      navigate(path + window.location.search, { replace: !ref });
+    },
+    [navigate],
+  );
+
+  return (
+    <ObjectModalProvider initial={initial} onChange={onModalChange}>
+      <OrderFromPath urlId={urlId} />
+      <OrderListBody />
+    </ObjectModalProvider>
+  );
+}
+
+/** Keeps the modal in step with the path (Back button, links to another order). */
+function OrderFromPath({ urlId }: { urlId: number | null }) {
+  const { current, showObject, closeObject } = useObjectModal();
+  const currentRef = useRef(current);
+  currentRef.current = current;
+  useEffect(() => {
+    const open = currentRef.current;
+    if (urlId) {
+      if (!(open?.type === 'order' && open.id === urlId)) showObject({ type: 'order', id: urlId });
+    } else if (open) {
+      closeObject();
+    }
+  }, [urlId, showObject, closeObject]);
+  return null;
+}
+
+function OrderListBody() {
+  const navigate = useNavigate();
+  const { openObject } = useObjectModal();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { enqueueSnackbar } = useSnackbar();
@@ -602,7 +648,7 @@ export default function OrderListPage() {
             }}
             pageSizeOptions={[25, 50, 100]}
             loading={isFetching}
-            onRowClick={(params) => navigate(`/inventory/orders/${params.id}`)}
+            onRowClick={(params) => openObject({ type: 'order', id: Number(params.id) })}
             sx={{
               border: 0,
               width: '100%',
@@ -630,7 +676,14 @@ export default function OrderListPage() {
         </Paper>
       </Box>
 
-      <CreatePurchaseOrderDialog open={newOpen} onClose={() => setNewOpen(false)} />
+      <CreatePurchaseOrderDialog
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
+        onCreated={(order, openIt) => {
+          if (openIt) openObject({ type: 'order', id: order.id });
+          else enqueueSnackbar(`Order ${order.order_number} created`, { variant: 'success' });
+        }}
+      />
     </Box>
   );
 }

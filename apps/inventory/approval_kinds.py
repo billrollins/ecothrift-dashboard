@@ -15,6 +15,8 @@ Inventory work that goes through Superuser → Requests (staged in production, a
 - ``inventory.load_standard``, ``inventory.merge_decided``, ``inventory.embed_standard``: the standardize and
   dedupe pipeline's results, exported from the owner's PC into ``data/backfill/`` and loaded here
   (``services/standard_load.py``). Run them in that order.
+- ``inventory.merge_vendor``: move everything from one vendor to another and delete the old one (default ``TGT`` into
+  ``TRGET``, intake_updates Phase 3; ``services/vendor_merge.py``). Undo puts the old vendor back.
 """
 from __future__ import annotations
 
@@ -524,4 +526,57 @@ def _queue_undo(request: ApprovalRequest) -> dict:
 register(Kind(
     kind='inventory.close_review_queue', label='Close the product review queue',
     preview=_queue_preview, apply=_queue_apply, undo=_queue_undo,
+))
+
+
+# ── One vendor (intake_updates Phase 3) ────────────────────────────────────────
+
+def _vendor_codes(params: dict) -> tuple[str, str]:
+    return (params.get('from') or 'TGT').strip().upper(), (params.get('to') or 'TRGET').strip().upper()
+
+
+def _vendor_preview(params: dict) -> dict:
+    from apps.inventory.services import vendor_merge
+
+    old, new = _vendor_codes(params)
+    info = vendor_merge.preview(old, new)
+    if info['old'] is None:
+        return {'counts': {f'Rows pointing at {old}': 0}, 'changes': [f'There is no vendor {old}; nothing to do.'], 'sample': []}
+    from apps.inventory.models import PurchaseOrder
+
+    sample = [{'order': o, 'vendor now': old, 'after': new}
+              for o in PurchaseOrder.objects.filter(vendor_id=info['old']['id']).order_by('-ordered_date').values_list('order_number', flat=True)[:15]]
+    return {
+        'counts': {**{f'{k} at {old}': v for k, v in info['counts'].items()}, 'Vendor product refs that clash (merged)': info['clashes']},
+        'changes': [
+            f"Moves every order, manifest template and vendor product ref from {old} ({info['old']['name']}) to "
+            f"{new} ({info['new']['name']}), and refreshes the orders' vendor name, code and search text.",
+            f"{info['clashes']:,} vendor product refs have the same vendor item number at both: they are merged "
+            '(times seen added, the newest cost and date kept).',
+            f'Then deletes the vendor {old}, but only if a re-count shows nothing points at it; otherwise nothing changes.',
+            f'Undo puts {old} back with its old id and moves the same rows back.',
+        ],
+        'sample': sample,
+        'params': {'from': old, 'to': new},
+    }
+
+
+def _vendor_apply(request: ApprovalRequest, progress: Progress) -> dict:
+    from apps.inventory.services import vendor_merge
+
+    old, new = _vendor_codes(request.params or {})
+    result = vendor_merge.merge(old, new)
+    progress.update(log=f"moved {result.get('moved_counts', {})}, merged {result.get('refs_merged', 0)} refs, deleted {old}")
+    return result
+
+
+def _vendor_undo(request: ApprovalRequest) -> dict:
+    from apps.inventory.services import vendor_merge
+
+    return vendor_merge.undo(request.result or {})
+
+
+register(Kind(
+    kind='inventory.merge_vendor', label='Merge one vendor into another (TGT into TRGET)',
+    preview=_vendor_preview, apply=_vendor_apply, undo=_vendor_undo,
 ))

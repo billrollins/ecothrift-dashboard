@@ -20,7 +20,7 @@ const MONEY = {
 } as const;
 
 /** Same recovery bands as the orders table. */
-function recoveryStyle(pct: number | null): MetricStyle {
+export function recoveryStyle(pct: number | null): MetricStyle {
   if (pct == null) return { color: '#64748b', fontWeight: 600 };
   if (pct < 100) return { color: '#7f1d1d', fontWeight: 700 };
   if (pct < 150) return { color: '#9a3412', fontWeight: 700 };
@@ -74,7 +74,7 @@ function MetricTag({ label }: { label: string }) {
   );
 }
 
-function SummaryCard({
+export function SummaryCard({
   label,
   primary,
   secondary,

@@ -14,13 +14,15 @@ import ExpandMore from '@mui/icons-material/ExpandMore';
 import OpenInNew from '@mui/icons-material/OpenInNew';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
+import { guessOrderVendor } from '../../api/inventory.api';
 import { useCreatePurchaseOrder, useVendors } from '../../hooks/useInventory';
-import type { PurchaseOrderCondition, Vendor } from '../../types/inventory.types';
+import type { PurchaseOrder, PurchaseOrderCondition, Vendor } from '../../types/inventory.types';
 import {
   preventWheelChangeNumber,
   sanitizeDecimalPaste,
   selectInputContentsOnFocus,
 } from '../../utils/formInputs';
+import { moneySumDisplay, parseMoneySum, sanitizeMoneySumPaste } from '../../utils/moneySum';
 
 /** Mock-aligned labels; values match backend `PurchaseOrderCondition`. */
 const CREATE_PO_CONDITIONS: { label: string; value: PurchaseOrderCondition }[] = [
@@ -119,11 +121,14 @@ function VendorSelect({
   value,
   onChange,
   onPick,
+  hint,
 }: {
   vendors: Vendor[];
   value: Vendor | null;
   onChange: (v: Vendor | null) => void;
   onPick: () => void;
+  /** Shown under the box when the vendor was filled from the order number. */
+  hint?: string | null;
 }) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [search, setSearch] = useState('');
@@ -180,7 +185,7 @@ function VendorSelect({
         }}
       >
         {value ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' }} title={`${value.name} (${value.code})`}>
             <Box
               sx={{
                 width: 22,
@@ -197,13 +202,10 @@ function VendorSelect({
             >
               {codeChip(value.code)}
             </Box>
-            {value.name}
-            <Typography component="span" sx={{ color: '#94a3b8', fontSize: 12 }}>
-              {value.code}
-            </Typography>
+            <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{value.name}</Box>
           </Box>
         ) : (
-          'Select vendor...'
+          'Select...'
         )}
         <ChevronDownIcon
           sx={{
@@ -223,8 +225,8 @@ function VendorSelect({
         slotProps={{
           paper: {
             sx: {
-              width: panelWidth,
-              maxWidth: '100%',
+              width: Math.max(panelWidth ?? 0, 300),
+              maxWidth: 'calc(100% - 32px)',
               mt: 0.5,
               borderRadius: '10px',
               border: '1px solid #e2e8f0',
@@ -323,6 +325,76 @@ function VendorSelect({
           )}
         </Box>
       </Popover>
+      {hint ? (
+        <Typography sx={{ fontSize: 11, color: '#64748b', mt: 0.5 }}>{hint}</Typography>
+      ) : null}
+    </Box>
+  );
+}
+
+/** A money box that takes a sum such as `412.50+38`; shows the sum when you leave it. */
+function MoneyField({
+  label,
+  value,
+  onChange,
+  error,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  error: string | null;
+}) {
+  return (
+    <Box sx={{ flex: 1, minWidth: 90 }}>
+      <Typography component="label" sx={labelSx}>
+        {label}
+      </Typography>
+      <Box sx={{ position: 'relative' }}>
+        <Typography
+          component="span"
+          sx={{
+            position: 'absolute',
+            left: 10,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            fontSize: 13,
+            color: '#94a3b8',
+            pointerEvents: 'none',
+            fontWeight: 500,
+          }}
+        >
+          $
+        </Typography>
+        <Box
+          component="input"
+          type="text"
+          inputMode="decimal"
+          aria-label={label}
+          aria-invalid={error ? true : undefined}
+          title="You can type a sum, like 412.50+38"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={(e) => onChange(moneySumDisplay(e.target.value))}
+          onFocus={selectInputContentsOnFocus}
+          onWheel={preventWheelChangeNumber}
+          onPaste={(ev: React.ClipboardEvent<HTMLInputElement>) => {
+            ev.preventDefault();
+            const el = ev.currentTarget;
+            const pasted = sanitizeMoneySumPaste(ev.clipboardData.getData('text'));
+            const start = el.selectionStart ?? value.length;
+            const end = el.selectionEnd ?? value.length;
+            onChange(value.slice(0, start) + pasted + value.slice(end));
+          }}
+          placeholder="0.00"
+          sx={{
+            ...inputSx,
+            pl: '22px',
+            fontVariantNumeric: 'tabular-nums',
+            borderColor: error ? '#ef4444' : '#e2e8f0',
+          }}
+        />
+      </Box>
+      {error ? <Typography sx={{ fontSize: 11, color: '#dc2626', mt: 0.5 }}>{error}</Typography> : null}
     </Box>
   );
 }
@@ -330,9 +402,22 @@ function VendorSelect({
 export interface CreatePurchaseOrderDialogProps {
   open: boolean;
   onClose: () => void;
+  /**
+   * Told about the new order. `open` is true for **Create & Open**.
+   * Without it, Create & Open goes to the order's link and Create just closes.
+   */
+  onCreated?: (order: PurchaseOrder, open: boolean) => void;
 }
 
-export default function CreatePurchaseOrderDialog({ open, onClose }: CreatePurchaseOrderDialogProps) {
+const MONEY_FIELDS = [
+  ['purchase', 'Purchase Cost'],
+  ['fees', 'Fees'],
+  ['shipping', 'Shipping'],
+] as const;
+
+type MoneyKey = 'retail' | (typeof MONEY_FIELDS)[number][0];
+
+export default function CreatePurchaseOrderDialog({ open, onClose, onCreated }: CreatePurchaseOrderDialogProps) {
   const navigate = useNavigate();
   const createOrder = useCreatePurchaseOrder();
   const { data: vendorsData } = useVendors({ is_active: true, page_size: 200 });
@@ -343,17 +428,17 @@ export default function CreatePurchaseOrderDialog({ open, onClose }: CreatePurch
   );
 
   const [vendor, setVendor] = useState<Vendor | null>(null);
+  /** True while the vendor came from the order number (a hand pick turns it off). */
+  const [vendorGuessed, setVendorGuessed] = useState(false);
+  const [vendorPicked, setVendorPicked] = useState(false);
   const [orderNumber, setOrderNumber] = useState('');
   const [orderedDate, setOrderedDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
-  const [expectedDelivery, setExpectedDelivery] = useState('');
+  const [paidDate, setPaidDate] = useState('');
   const [description, setDescription] = useState('');
   const [condition, setCondition] = useState<PurchaseOrderCondition | ''>('');
   const [itemCount, setItemCount] = useState('');
   const [palletCount, setPalletCount] = useState('');
-  const [retailValue, setRetailValue] = useState('');
-  const [purchaseCost, setPurchaseCost] = useState('');
-  const [fees, setFees] = useState('');
-  const [shippingCost, setShippingCost] = useState('');
+  const [money, setMoney] = useState<Record<MoneyKey, string>>({ retail: '', purchase: '', fees: '', shipping: '' });
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const orderNumberRef = useRef<HTMLInputElement>(null);
@@ -361,47 +446,81 @@ export default function CreatePurchaseOrderDialog({ open, onClose }: CreatePurch
   useEffect(() => {
     if (!open) return;
     setSubmitError(null);
-    const id = window.setTimeout(() => {
-      const el = document.querySelector(
-        '[data-create-po-vendor-trigger="true"]',
-      ) as HTMLElement | null;
-      el?.focus?.();
-    }, 100);
+    const id = window.setTimeout(() => orderNumberRef.current?.focus(), 100);
     return () => window.clearTimeout(id);
   }, [open]);
 
   useEffect(() => {
     if (!open) {
       setVendor(null);
+      setVendorGuessed(false);
+      setVendorPicked(false);
       setOrderNumber('');
       setOrderedDate(format(new Date(), 'yyyy-MM-dd'));
-      setExpectedDelivery('');
+      setPaidDate('');
       setDescription('');
       setCondition('');
       setItemCount('');
       setPalletCount('');
-      setRetailValue('');
-      setPurchaseCost('');
-      setFees('');
-      setShippingCost('');
+      setMoney({ retail: '', purchase: '', fees: '', shipping: '' });
       setSubmitError(null);
     }
   }, [open]);
 
-  const purchaseN = Number.parseFloat(purchaseCost) || 0;
-  const feesN = Number.parseFloat(fees) || 0;
-  const shipN = Number.parseFloat(shippingCost) || 0;
-  const totalCost = purchaseN + feesN + shipN;
+  // Fill the vendor from the order number's prefix until someone picks one by hand.
+  useEffect(() => {
+    if (!open || vendorPicked) return;
+    const number = orderNumber.trim();
+    if (number.length < 2) {
+      if (vendorGuessed) {
+        setVendor(null);
+        setVendorGuessed(false);
+      }
+      return;
+    }
+    let live = true;
+    const t = window.setTimeout(async () => {
+      try {
+        const { data } = await guessOrderVendor(number);
+        if (!live) return;
+        const match = data.vendor ? vendorOptions.find((v) => v.id === data.vendor!.id) ?? null : null;
+        if (match) {
+          setVendor(match);
+          setVendorGuessed(true);
+        } else if (vendorGuessed) {
+          setVendor(null);
+          setVendorGuessed(false);
+        }
+      } catch {
+        // A failed guess leaves the vendor for the person to pick.
+      }
+    }, 250);
+    return () => {
+      live = false;
+      window.clearTimeout(t);
+    };
+  }, [open, orderNumber, vendorPicked, vendorGuessed, vendorOptions]);
+
+  const parsed = useMemo(
+    () => ({
+      retail: parseMoneySum(money.retail),
+      purchase: parseMoneySum(money.purchase),
+      fees: parseMoneySum(money.fees),
+      shipping: parseMoneySum(money.shipping),
+    }),
+    [money],
+  );
+  const moneyError = Object.values(parsed).some((p) => p.error);
+  const totalCost = (parsed.purchase.value ?? 0) + (parsed.fees.value ?? 0) + (parsed.shipping.value ?? 0);
   const hasCosts = totalCost > 0;
-  const retailN = Number.parseFloat(retailValue) || 0;
+  const retailN = parsed.retail.value ?? 0;
   const marginPct =
     hasCosts && retailN > 0 ? ((retailN - totalCost) / retailN) * 100 : null;
 
-  const canSubmit = Boolean(vendor && orderNumber.trim().length > 0);
+  const canSubmit = Boolean(vendor && orderNumber.trim().length > 0) && !moneyError;
+  const busy = createOrder.isPending;
 
-  const focusOrderNumber = () => {
-    requestAnimationFrame(() => orderNumberRef.current?.focus());
-  };
+  const setMoneyField = (key: MoneyKey) => (v: string) => setMoney((m) => ({ ...m, [key]: v }));
 
   const buildPayload = (): Record<string, unknown> => {
     if (!vendor) throw new Error('Vendor required');
@@ -410,7 +529,7 @@ export default function CreatePurchaseOrderDialog({ open, onClose }: CreatePurch
       order_number: orderNumber.trim(),
     };
     if (orderedDate) payload.ordered_date = orderedDate;
-    if (expectedDelivery.trim()) payload.expected_delivery = expectedDelivery.trim();
+    if (paidDate) payload.paid_date = paidDate;
     if (description.trim()) payload.description = description.trim();
     if (condition) payload.condition = condition;
     if (itemCount.trim()) payload.item_count = Number.parseInt(itemCount, 10);
@@ -418,32 +537,37 @@ export default function CreatePurchaseOrderDialog({ open, onClose }: CreatePurch
       const n = Number.parseInt(palletCount, 10);
       if (Number.isFinite(n) && n >= 0) payload.pallet_count = n;
     }
-    if (retailValue.trim()) payload.retail_value = retailValue.trim();
-    if (purchaseCost.trim()) payload.purchase_cost = purchaseCost.trim();
-    if (shippingCost.trim()) payload.shipping_cost = shippingCost.trim();
-    if (fees.trim()) payload.fees = fees.trim();
+    const put = (field: string, key: MoneyKey) => {
+      const v = parsed[key].value;
+      if (v !== null) payload[field] = v.toFixed(2);
+    };
+    put('retail_value', 'retail');
+    put('purchase_cost', 'purchase');
+    put('shipping_cost', 'shipping');
+    put('fees', 'fees');
     return payload;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canSubmit || createOrder.isPending) return;
+  const submit = async (openAfter: boolean) => {
+    if (!canSubmit || busy) return;
     setSubmitError(null);
     try {
-      const payload = buildPayload();
-      const created = await createOrder.mutateAsync(payload);
+      const created = await createOrder.mutateAsync(buildPayload());
       onClose();
-      navigate(`/inventory/orders/${created.id}`);
+      if (onCreated) onCreated(created, openAfter);
+      else if (openAfter) navigate(`/inventory/orders/${created.id}`);
     } catch (err) {
       setSubmitError(orderCreateErrorMessage(err));
     }
   };
 
-  const handlePasteCurrency =
-    (setter: (v: string) => void) => (ev: React.ClipboardEvent<HTMLInputElement>) => {
-      ev.preventDefault();
-      setter(sanitizeDecimalPaste(ev.clipboardData.getData('text')));
-    };
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void submit(false);
+  };
+
+  const vendorHint =
+    vendorGuessed && vendor ? `From the order number (${vendor.code})` : null;
 
   return (
     <Dialog
@@ -461,7 +585,7 @@ export default function CreatePurchaseOrderDialog({ open, onClose }: CreatePurch
         },
         paper: {
           sx: {
-            width: 500,
+            width: 520,
             maxWidth: 'calc(100% - 32px)',
             maxHeight: 'calc(100vh - 96px)',
             borderRadius: '14px',
@@ -528,41 +652,52 @@ export default function CreatePurchaseOrderDialog({ open, onClose }: CreatePurch
             </Alert>
           ) : null}
 
-          <VendorSelect
-            vendors={vendorOptions}
-            value={vendor}
-            onChange={setVendor}
-            onPick={focusOrderNumber}
-          />
-
-          <Box sx={{ mt: 1.75 }}>
-            <Typography component="label" sx={labelSx}>
-              Order Number <Box component="span" sx={{ color: '#ef4444' }}>*</Box>
-            </Typography>
-            <Box
-              component="input"
-              ref={orderNumberRef}
-              value={orderNumber}
-              onChange={(e) => setOrderNumber(e.target.value)}
-              onBlur={(e) => setOrderNumber(e.target.value.replace(/\r?\n/g, ' ').trim())}
-              onFocus={selectInputContentsOnFocus}
-              placeholder="e.g. AMZON-OQL-CCP4"
-              sx={{
-                ...inputSx,
-                fontFamily: '"DM Mono", "SF Mono", ui-monospace, monospace',
-                fontSize: 13,
-                letterSpacing: '0.02em',
-              }}
-            />
+          <Box sx={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+            <Box sx={{ flex: 2, minWidth: 0 }}>
+              <Typography component="label" htmlFor="create-po-order-number" sx={labelSx}>
+                Order Number <Box component="span" sx={{ color: '#ef4444' }}>*</Box>
+              </Typography>
+              <Box
+                component="input"
+                id="create-po-order-number"
+                ref={orderNumberRef}
+                value={orderNumber}
+                onChange={(e) => setOrderNumber(e.target.value)}
+                onBlur={(e) => setOrderNumber(e.target.value.replace(/\r?\n/g, ' ').trim())}
+                onFocus={selectInputContentsOnFocus}
+                placeholder="e.g. AMZON-OQL-CCP4"
+                autoComplete="off"
+                sx={{
+                  ...inputSx,
+                  fontFamily: '"DM Mono", "SF Mono", ui-monospace, monospace',
+                  fontSize: 13,
+                  letterSpacing: '0.02em',
+                }}
+              />
+            </Box>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <VendorSelect
+                vendors={vendorOptions}
+                value={vendor}
+                onChange={(v) => {
+                  setVendor(v);
+                  setVendorGuessed(false);
+                  setVendorPicked(true);
+                }}
+                onPick={() => requestAnimationFrame(() => orderNumberRef.current?.focus())}
+                hint={vendorHint}
+              />
+            </Box>
           </Box>
 
           <Box sx={{ display: 'flex', gap: '10px', mt: 1.75 }}>
             <Box sx={{ flex: 1 }}>
-              <Typography component="label" sx={labelSx}>
+              <Typography component="label" htmlFor="create-po-ordered" sx={labelSx}>
                 Ordered Date
               </Typography>
               <Box
                 component="input"
+                id="create-po-ordered"
                 type="date"
                 value={orderedDate}
                 onChange={(e) => setOrderedDate(e.target.value)}
@@ -571,14 +706,15 @@ export default function CreatePurchaseOrderDialog({ open, onClose }: CreatePurch
               />
             </Box>
             <Box sx={{ flex: 1 }}>
-              <Typography component="label" sx={labelSx}>
-                Expected Delivery
+              <Typography component="label" htmlFor="create-po-paid" sx={labelSx}>
+                Paid Date
               </Typography>
               <Box
                 component="input"
+                id="create-po-paid"
                 type="date"
-                value={expectedDelivery}
-                onChange={(e) => setExpectedDelivery(e.target.value)}
+                value={paidDate}
+                onChange={(e) => setPaidDate(e.target.value)}
                 onFocus={selectInputContentsOnFocus}
                 sx={inputSx}
               />
@@ -589,19 +725,23 @@ export default function CreatePurchaseOrderDialog({ open, onClose }: CreatePurch
 
           <SectionLabel>Details</SectionLabel>
 
-          <Box>
-            <Typography component="label" sx={labelSx}>
-              Description
-            </Typography>
-            <Box
-              component="input"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              onFocus={selectInputContentsOnFocus}
-              placeholder="e.g. 24 Pallets of FBA Home Improvement"
-              maxLength={500}
-              sx={inputSx}
-            />
+          <Box sx={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+            <Box sx={{ flex: 2, minWidth: 0 }}>
+              <Typography component="label" htmlFor="create-po-description" sx={labelSx}>
+                Description
+              </Typography>
+              <Box
+                component="input"
+                id="create-po-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                onFocus={selectInputContentsOnFocus}
+                placeholder="e.g. 24 Pallets of FBA Home Improvement"
+                maxLength={500}
+                sx={inputSx}
+              />
+            </Box>
+            <MoneyField label="Retail" value={money.retail} onChange={setMoneyField('retail')} error={parsed.retail.error} />
           </Box>
 
           <Box sx={{ display: 'flex', gap: '10px', mt: 1.75, flexWrap: 'wrap' }}>
@@ -685,95 +825,16 @@ export default function CreatePurchaseOrderDialog({ open, onClose }: CreatePurch
             </Box>
           </Box>
 
-          <Box sx={{ mt: 1.75 }}>
-            <Typography component="label" sx={labelSx}>
-              Retail Value
-            </Typography>
-            <Box sx={{ position: 'relative' }}>
-              <Typography
-                component="span"
-                sx={{
-                  position: 'absolute',
-                  left: 10,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  fontSize: 13,
-                  color: '#94a3b8',
-                  pointerEvents: 'none',
-                  fontWeight: 500,
-                }}
-              >
-                $
-              </Typography>
-              <Box
-                component="input"
-                type="text"
-                inputMode="decimal"
-                value={retailValue}
-                onChange={(e) => setRetailValue(e.target.value)}
-                onFocus={selectInputContentsOnFocus}
-                onWheel={preventWheelChangeNumber}
-                onPaste={handlePasteCurrency(setRetailValue)}
-                placeholder="0.00"
-                sx={{
-                  ...inputSx,
-                  pl: '22px',
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              />
-            </Box>
-          </Box>
-
           <DividerLine />
 
           <SectionLabel>Costs</SectionLabel>
+          <Typography sx={{ fontSize: 11, color: '#94a3b8', mt: -1, mb: 1 }}>
+            Money boxes add sums: type 412.50+38.
+          </Typography>
 
-          <Box sx={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            {(
-              [
-                ['Purchase Cost', purchaseCost, setPurchaseCost] as const,
-                ['Fees', fees, setFees] as const,
-                ['Shipping', shippingCost, setShippingCost] as const,
-              ] as const
-            ).map(([lab, val, setVal]) => (
-              <Box key={lab} sx={{ flex: 1, minWidth: 90 }}>
-                <Typography component="label" sx={labelSx}>
-                  {lab}
-                </Typography>
-                <Box sx={{ position: 'relative' }}>
-                  <Typography
-                    component="span"
-                    sx={{
-                      position: 'absolute',
-                      left: 10,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      fontSize: 13,
-                      color: '#94a3b8',
-                      pointerEvents: 'none',
-                      fontWeight: 500,
-                    }}
-                  >
-                    $
-                  </Typography>
-                  <Box
-                    component="input"
-                    type="text"
-                    inputMode="decimal"
-                    value={val}
-                    onChange={(e) => setVal(e.target.value)}
-                    onFocus={selectInputContentsOnFocus}
-                    onWheel={preventWheelChangeNumber}
-                    onPaste={handlePasteCurrency(setVal)}
-                    placeholder="0.00"
-                    sx={{
-                      ...inputSx,
-                      pl: '22px',
-                      fontVariantNumeric: 'tabular-nums',
-                    }}
-                  />
-                </Box>
-              </Box>
+          <Box sx={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            {MONEY_FIELDS.map(([key, lab]) => (
+              <MoneyField key={key} label={lab} value={money[key]} onChange={setMoneyField(key)} error={parsed[key].error} />
             ))}
           </Box>
 
@@ -791,10 +852,10 @@ export default function CreatePurchaseOrderDialog({ open, onClose }: CreatePurch
               fontSize: 13,
               transition: 'all 200ms ease',
             }}
-            aria-hidden
           >
             <Typography sx={{ color: '#64748b', fontWeight: 500, fontSize: 12 }}>Total Cost</Typography>
             <Typography
+              data-testid="create-po-total"
               sx={{
                 fontWeight: 700,
                 color: hasCosts ? '#2e7d32' : '#cbd5e1',
@@ -879,9 +940,11 @@ export default function CreatePurchaseOrderDialog({ open, onClose }: CreatePurch
             Cancel
           </Button>
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {/* Create is the form's submit button, so Enter means Create. */}
             <Button
-              type="submit"
-              disabled={!canSubmit || createOrder.isPending}
+              type="button"
+              disabled={!canSubmit || busy}
+              onClick={() => void submit(true)}
               startIcon={<OpenInNew sx={{ fontSize: 13 }} />}
               sx={{
                 py: '9px',
@@ -890,12 +953,12 @@ export default function CreatePurchaseOrderDialog({ open, onClose }: CreatePurch
                 fontSize: 13,
                 fontWeight: 500,
                 textTransform: 'none',
-                border: `1px solid ${canSubmit && !createOrder.isPending ? '#e2e8f0' : '#f1f5f9'}`,
+                border: `1px solid ${canSubmit && !busy ? '#e2e8f0' : '#f1f5f9'}`,
                 bgcolor: 'white',
-                color: canSubmit && !createOrder.isPending ? '#334155' : '#cbd5e1',
+                color: canSubmit && !busy ? '#334155' : '#cbd5e1',
                 '&:hover': {
                   bgcolor: 'white',
-                  borderColor: canSubmit && !createOrder.isPending ? '#0f172a' : '#f1f5f9',
+                  borderColor: canSubmit && !busy ? '#0f172a' : '#f1f5f9',
                 },
               }}
             >
@@ -903,7 +966,7 @@ export default function CreatePurchaseOrderDialog({ open, onClose }: CreatePurch
             </Button>
             <Button
               type="submit"
-              disabled={!canSubmit || createOrder.isPending}
+              disabled={!canSubmit || busy}
               sx={{
                 py: '9px',
                 px: 2.5,
@@ -912,15 +975,15 @@ export default function CreatePurchaseOrderDialog({ open, onClose }: CreatePurch
                 fontWeight: 600,
                 textTransform: 'none',
                 border: 'none',
-                bgcolor: canSubmit && !createOrder.isPending ? '#0f172a' : '#e2e8f0',
-                color: canSubmit && !createOrder.isPending ? 'white' : '#94a3b8',
+                bgcolor: canSubmit && !busy ? '#0f172a' : '#e2e8f0',
+                color: canSubmit && !busy ? 'white' : '#94a3b8',
                 minWidth: 120,
                 '&:hover': {
-                  bgcolor: canSubmit && !createOrder.isPending ? '#1e293b' : '#e2e8f0',
+                  bgcolor: canSubmit && !busy ? '#1e293b' : '#e2e8f0',
                 },
               }}
             >
-              {createOrder.isPending ? <CircularProgress size={22} color="inherit" /> : 'Create'}
+              {busy ? <CircularProgress size={22} color="inherit" /> : 'Create'}
             </Button>
           </Box>
         </Box>

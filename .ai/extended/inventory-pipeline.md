@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-18 (check-in added units stay on_shelf, v2.95.0) -->
+<!-- Last updated: 2026-10-02 (vendor guess, vendor merge, vendor metrics: intake_updates) -->
 
 # Inventory Pipeline — Extended Context
 
@@ -68,6 +68,36 @@ Orders dashboard queryset filter widening (stale **`vendor_name_cache`**): **`Q(
 - **Soft delete**: `perform_destroy` sets `is_active=False` instead of deleting
 - **Fields**: `name`, `code` (unique), `vendor_type`, contact info, `address`, `notes`, `is_active` (legacy vendor shrinkage analytics fields removed **v2.14.0**)
 - **API**: `/inventory/vendors/` — CRUD, staff-only; filter by `vendor_type`, `is_active`; search by `name`, `code`, `contact_name`
+- **New-order vendor guess**: `GET /inventory/orders/vendor-guess/?order_number=` (`services/order_vendor_guess.py`). The prefix is the
+  part before the first `-` (or the leading letters, `AMZ11175` → `AMZ`); first the vendor most earlier orders with that prefix
+  belong to, then an active vendor whose code is the prefix.
+- **Merging vendors**: Request kind `inventory.merge_vendor` (`services/vendor_merge.py`) moves every row with a vendor key
+  (found from `Vendor`'s relations), merges vendor product refs that clash, refreshes order caches, then deletes the old
+  vendor after a re-count. `TGT` → `TRGET` is its default (intake_updates Phase 3).
+
+### Vendor metrics (intake_updates Phase 6)
+
+`services/vendor_metrics.py`, `GET /inventory/vendors/metrics/?period=90d|12m|all[&fresh=1]` (the list; cached six hours,
+`warm_vendor_metrics` refreshes it) and `GET /inventory/vendors/<id>/metrics/?period=` (one vendor). Period is by ordered
+date; 12 months is the default. The per-order numbers are the Orders page's own (`financials_for_orders`), so a vendor's
+numbers are the sum of its orders there. Every percent is weighted (sum over sum); manifest percents use only orders that
+have a manifest. Missing data is `null` (`-`), never 0. Old-era orders are counted and flagged (`orders_old_data`).
+
+| Metric | Definition |
+|---|---|
+| Orders | Count, with the last ordered date |
+| Spent | Sum of Total cost |
+| Landed % of retail | Total cost ÷ manifest total retail |
+| Priced % of retail | Priced (starting) ÷ processor-approved retail (`Item.retail`) of the items checked in |
+| Manifest accuracy | Approved retail of everything checked in ÷ manifest total |
+| Received from manifest | Retail processed from the manifest (not disputed) ÷ manifest total |
+| Disputes | Opened (not cancelled), still open, and disputed manifest retail ÷ manifest total |
+| Recovery expected / actual | Priced (starting) ÷ Total cost; Sold ÷ Total cost |
+| % sold | Sold ÷ Priced (starting) |
+| Kept of starting price | Net sold ÷ starting price of the items that sold |
+| Days to sell | Median days check-in → sale, sold items only |
+| Per item | Average cost and starting price per item checked in; average sold price per item sold |
+| Profit so far | Sold − Total cost |
 
 ---
 

@@ -329,6 +329,16 @@ function OrderNumberCell({ value }: { value: string }) {
   );
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** `2026-10-08` → `EXP · Oct 8` (the line under the status; null when there is no date). */
+export function expectedLine(value: string | null | undefined): string | null {
+  const m = (value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const month = MONTHS[Number(m[2]) - 1];
+  return month ? `EXP · ${month} ${Number(m[3])}` : null;
+}
+
 function orderSecondaryLine(row: OrderListRowView): string | null {
   const vendor = (row.vendor_name || '').trim();
   const cond = row.condition ? conditionLabel(row.condition) : '';
@@ -351,33 +361,40 @@ export function buildOrderListColumns(opts: {
       minWidth: W.status,
       flex: 0,
       sortable: true,
-      renderCell: (p: GridRenderCellParams<OrderListRowView>) => (
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1,
-            minWidth: 0,
-            width: '100%',
-            height: '100%',
-          }}
-        >
-          <StatusBadge status={p.row.status} size="small" />
-          {statusEligibleForReceiving(p.row.status) ? (
-            <IconButton
-              size="small"
-              aria-label={`Receive shipment - order ${p.row.order_number}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onReceive(p.row.id);
-              }}
-              sx={{ flexShrink: 0, p: 0.35 }}
-            >
-              <LocalShipping fontSize="small" sx={{ color: '#2e7d32' }} />
-            </IconButton>
-          ) : null}
-        </Box>
-      ),
+      renderCell: (p: GridRenderCellParams<OrderListRowView>) => {
+        const expected = expectedLine(p.row.expected_delivery);
+        return (
+          <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0, width: '100%', height: '100%' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, minHeight: 26 }}>
+              <StatusBadge status={p.row.status} size="small" />
+              {statusEligibleForReceiving(p.row.status) ? (
+                <IconButton
+                  size="small"
+                  aria-label={`Receive shipment - order ${p.row.order_number}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReceive(p.row.id);
+                  }}
+                  sx={{ flexShrink: 0, p: 0.35 }}
+                >
+                  <LocalShipping fontSize="small" sx={{ color: '#2e7d32' }} />
+                </IconButton>
+              ) : null}
+            </Box>
+            {expected ? (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                noWrap
+                title={`Expected delivery ${p.row.expected_delivery}`}
+                sx={{ display: 'block', lineHeight: 1.2, mt: 0.25, pl: 0.25, fontWeight: 600, letterSpacing: '0.02em' }}
+              >
+                {expected}
+              </Typography>
+            ) : null}
+          </Box>
+        );
+      },
     },
     {
       field: 'order_number',

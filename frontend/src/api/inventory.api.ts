@@ -299,6 +299,56 @@ export function getVendors(params?: Record<string, unknown>): Promise<{ data: Pa
   return api.get<PaginatedResponse<Vendor>>('/inventory/vendors/', { params });
 }
 
+export type VendorPeriod = '90d' | '12m' | 'all';
+
+/** One vendor's numbers (intake_updates Phase 6). Money and percents are strings; missing data is null. */
+export interface VendorMetrics {
+  orders: number;
+  last_ordered: string | null;
+  spent: string;
+  manifest_retail: string | null;
+  landed_pct: string | null;
+  priced_pct_of_retail: string | null;
+  manifest_accuracy: string | null;
+  received_pct: string | null;
+  disputes: number;
+  disputes_open: number;
+  disputed_pct: string | null;
+  priced_start: string | null;
+  recovery_expected: string | null;
+  sold: string | null;
+  recovery_actual: string | null;
+  sold_pct: string | null;
+  kept_of_start: string | null;
+  items_checked_in: number;
+  items_sold: number;
+  avg_cost: string | null;
+  avg_start: string | null;
+  avg_sold: string | null;
+  profit: string | null;
+  orders_old_data: number;
+  orders_no_manifest: number;
+  days_to_sell: number | null;
+}
+
+export interface VendorMetricsList {
+  period: VendorPeriod;
+  start: string | null;
+  computed_at: string;
+  vendors: Record<string, VendorMetrics>;
+}
+
+export function getVendorMetrics(period: VendorPeriod, fresh = false): Promise<{ data: VendorMetricsList }> {
+  return api.get<VendorMetricsList>('/inventory/vendors/metrics/', { params: { period, ...(fresh ? { fresh: 1 } : {}) } });
+}
+
+export function getOneVendorMetrics(
+  id: number,
+  period: VendorPeriod,
+): Promise<{ data: { period: VendorPeriod; start: string | null; metrics: VendorMetrics | null } }> {
+  return api.get(`/inventory/vendors/${id}/metrics/`, { params: { period } });
+}
+
 export function getVendor(id: number): Promise<{ data: Vendor }> {
   return api.get<Vendor>(`/inventory/vendors/${id}/`);
 }
@@ -341,6 +391,16 @@ export function getPreprocessingQueue(
   params?: Record<string, unknown>,
 ): Promise<{ data: PreprocessingQueueResponse }> {
   return api.get<PreprocessingQueueResponse>('/inventory/orders/preprocessing-queue/', { params });
+}
+
+export interface OrderVendorGuess {
+  prefix: string;
+  vendor: { id: number; name: string; code: string; source: 'orders' | 'code' } | null;
+}
+
+/** New-order form: the vendor an order number's prefix points to. */
+export function guessOrderVendor(orderNumber: string): Promise<{ data: OrderVendorGuess }> {
+  return api.get<OrderVendorGuess>('/inventory/orders/vendor-guess/', { params: { order_number: orderNumber } });
 }
 
 export function getOrder(id: number): Promise<{ data: Order }> {
