@@ -26,10 +26,7 @@ def remove_manifest_database(order: PurchaseOrder) -> str | None:
         order.manifest_category_count = None
         order.manifest_signature = ''
         order.manifest_headers = None
-        order.template = None
-        order.template_name_cache = ''
-        order.template_header_signature_cache = ''
-        order.template_column_mappings_cache = []
+        order.ai_formulas = None
         order.standardization_formulas = {}
         order.standardized_at = None
         order.ai_cleaned_at = None
@@ -46,10 +43,7 @@ def remove_manifest_database(order: PurchaseOrder) -> str | None:
                 'manifest_category_count',
                 'manifest_signature',
                 'manifest_headers',
-                'template',
-                'template_name_cache',
-                'template_header_signature_cache',
-                'template_column_mappings_cache',
+                'ai_formulas',
                 'standardization_formulas',
                 'standardized_at',
                 'ai_cleaned_at',

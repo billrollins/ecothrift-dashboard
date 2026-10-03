@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.inventory.management.commands.backfill_phase1_vendors_pos import V1_PREFIX_TO_VENDOR
-from apps.inventory.models import CSVTemplate, Product, PurchaseOrder, Vendor, VendorProductRef
+from apps.inventory.models import Product, PurchaseOrder, Vendor, VendorProductRef
 from apps.inventory.services import vendor_merge
 
 
@@ -17,7 +17,6 @@ class VendorMergeTests(TestCase):
         self.new = Vendor.objects.create(name='Target', code='QNEWT')
         self.po_old = PurchaseOrder.objects.create(vendor=self.old, order_number='QNEWT-OLD-1', ordered_date=today)
         self.po_new = PurchaseOrder.objects.create(vendor=self.new, order_number='QNEWT-NEW-1', ordered_date=today)
-        self.template = CSVTemplate.objects.create(vendor=self.old, name='old basic')
         p1 = Product.objects.create(title='Lamp')
         p2 = Product.objects.create(title='Mug')
         # A clash on vendor item number 111: merged. 222 only on the old vendor: moved.
@@ -32,7 +31,7 @@ class VendorMergeTests(TestCase):
     def test_preview_counts_every_table(self):
         info = vendor_merge.preview('QOLDT', 'QNEWT')
         self.assertEqual(info['counts']['inventory.PurchaseOrder'], 1)
-        self.assertEqual(info['counts']['inventory.CSVTemplate'], 1)
+        self.assertNotIn('inventory.CSVTemplate', info['counts'])
         self.assertEqual(info['counts']['inventory.VendorProductRef'], 2)
         self.assertEqual(info['counts']['PurchaseOrder.vendor_code_cache'], 1)
         self.assertEqual(info['clashes'], 1)
@@ -44,8 +43,6 @@ class VendorMergeTests(TestCase):
         self.assertEqual(self.po_old.vendor_id, self.new.id)
         self.assertEqual(self.po_old.vendor_code_cache, 'QNEWT')
         self.assertIn('qnewt', self.po_old.search_text)
-        self.template.refresh_from_db()
-        self.assertEqual(self.template.vendor_id, self.new.id)
         self.ref_old_only.refresh_from_db()
         self.assertEqual(self.ref_old_only.vendor_id, self.new.id)
         # The clash: times seen added, the newer cost and date (the old vendor's) kept.
@@ -67,8 +64,6 @@ class VendorMergeTests(TestCase):
         self.po_old.refresh_from_db()
         self.assertEqual(self.po_old.vendor_id, old.pk)
         self.assertEqual(self.po_old.vendor_code_cache, 'QOLDT')
-        self.template.refresh_from_db()
-        self.assertEqual(self.template.vendor_id, old.pk)
         restored = VendorProductRef.objects.get(pk=self.ref_old_clash.pk)
         self.assertEqual((restored.vendor_id, restored.times_seen, restored.last_unit_cost), (old.pk, 2, Decimal('4.00')))
         kept = VendorProductRef.objects.get(pk=self.ref_new_clash.pk)

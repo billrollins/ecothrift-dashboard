@@ -115,10 +115,7 @@ def compute_undo_preview(order: PurchaseOrder, to_stage: str) -> dict[str, Any]:
             'manifest_category_count',
             'manifest_signature',
             'manifest_headers',
-            'template',
-            'template_name_cache',
-            'template_header_signature_cache',
-            'template_column_mappings_cache',
+            'ai_formulas',
             'standardization_formulas',
             'standardized_at',
             'ai_cleaned_at',
@@ -145,10 +142,6 @@ def compute_undo_preview(order: PurchaseOrder, to_stage: str) -> dict[str, Any]:
             'ai_cleaned_at',
             'review_saved_at',
             'finalized_at',
-            'template',
-            'template_name_cache',
-            'template_header_signature_cache',
-            'template_column_mappings_cache',
             'standardization_formulas',
         ]
         base['status_resets'] = {'preprocess_status': 'not_started'}
@@ -224,10 +217,6 @@ def _apply_standardize(order: PurchaseOrder) -> None:
         locked.ai_cleaned_at = None
         locked.review_saved_at = None
         locked.finalized_at = None
-        locked.template = None
-        locked.template_name_cache = ''
-        locked.template_header_signature_cache = ''
-        locked.template_column_mappings_cache = []
         locked.standardization_formulas = {}
         locked.preprocess_status = 'not_started'
         locked.ai_cleanup_generation = (locked.ai_cleanup_generation or 0) + 1
@@ -237,10 +226,6 @@ def _apply_standardize(order: PurchaseOrder) -> None:
                 'ai_cleaned_at',
                 'review_saved_at',
                 'finalized_at',
-                'template',
-                'template_name_cache',
-                'template_header_signature_cache',
-                'template_column_mappings_cache',
                 'standardization_formulas',
                 'preprocess_status',
                 'ai_cleanup_generation',

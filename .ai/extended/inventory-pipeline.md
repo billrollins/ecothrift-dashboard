@@ -177,21 +177,28 @@ have a manifest. Missing data is `null` (`-`), never 0. Old-era orders are count
 
 ---
 
-## CSV Template System
+## AI formulas on upload (replaced CSV templates, intake_updates Phase 5)
 
-**Model**: `CSVTemplate` — vendor-specific column mappings for manifests.
+Manifest templates (`CSVTemplate`, the header-signature match, `save_template`) are gone: they did not work (owner,
+2026-10-02). Migration 0107 removed them from Django; the old columns and table are dropped in the next release (0108).
 
-- **`vendor`** — FK to Vendor
-- **`header_signature`** — MD5 hash of normalized header row (comma-joined, lowercased) for auto-matching
-- **`column_mappings`** — JSON mapping vendor columns to standard fields
-- **`is_default`** — Whether this is the default template for the vendor
-
-**Auto-matching**: On manifest upload, headers are hashed and matched against `CSVTemplate` where `vendor=order.vendor` and `header_signature=sig`. If found, the template is suggested.
-
-**Preprocessing behavior**:
-- `process-manifest` can load mappings from explicit `template_id` or by `header_signature`
-- if no mapping is provided, backend builds default alias-based mappings
-- optional `save_template=true` stores the mapping under the same header signature for reuse
+- **Job:** `services/formula_job.py`. Every way a manifest reaches an order calls `formula_job.start` after the save
+  commits: upload on the order (`upload-manifest`), and `upload_manifest_from_bytes` (Buying's won → PO and the intake
+  test reset). The upload does not wait; one AI call runs in a thread in the web process.
+- **Result on the order:** `PurchaseOrder.ai_formulas` = status (`running` / `done` / `failed`), `mappings` (target,
+  formula, reasoning, confidence), `model`, `finished_at`, `attempts`, `restarts`. A new upload starts it again (and
+  clears `standardization_formulas`, which belonged to the old file).
+- **Retries and restarts:** 3 attempts with waits. The thread writes a heartbeat; a `preprocessing-status` poll that
+  finds a running job with no heartbeat for 240 s starts it again (`restarts`), like the AI cleanup job.
+- **Model:** Settings → AI, purpose **Preprocessing suggest** (`PREPROCESSING_SUGGEST`). Nothing is hard-coded.
+- **Prompt:** the headers and the first 10 sample rows, the standard fields and buckets, the formula syntax and field
+  hints (title, quantity, unit retail, UPC, category). No vendor templates.
+- **Standardize** (`process-manifest`) uses, in order: the formulas the page sends, the AI's formulas when done, the
+  built-in column-name guesses (`default_column_mappings`). It is never blocked.
+- **Step 1:** shows where the formulas came from (the AI with its model and time, still choosing, failed with the
+  built-in guesses filled in, or the formulas used at Standardize), the AI's reason beside each formula, and the sample
+  results. One formula can be fixed by hand. `POST suggest-formulas/` starts the job again (the page offers it only when
+  the AI failed or never ran).
 
 ---
 

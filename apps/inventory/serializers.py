@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from apps.core.serializers import S3FileSerializer
 from .models import (
-    Vendor, Category, PurchaseOrder, CSVTemplate, ManifestRow,
+    Vendor, Category, PurchaseOrder, ManifestRow,
     Product, VendorProductRef, BatchGroup, Item, ItemCheckIn, ProcessingBatch,
     ItemHistory, ItemNote, ItemScanHistory,
     PreprocessingRow,
@@ -466,8 +466,7 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
             'item_count', 'pallet_count', 'notes', 'manifest', 'manifest_file', 'manifest_preview',
             'manifest_filename', 'manifest_uploaded_at', 'manifest_row_count', 'manifest_category_count',
             'manifest_signature', 'manifest_headers',
-            'template', 'template_name_cache', 'template_header_signature_cache',
-            'template_column_mappings_cache', 'standardization_formulas',
+            'standardization_formulas', 'ai_formulas',
             'preprocess_status', 'receiving_status', 'receiving_started_at', 'receiving_done_at',
             'processing_status', 'processing_started_at', 'processing_done_at',
             'uses_legacy_processing',
@@ -488,11 +487,8 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
             'manifest_category_count',
             'manifest_signature',
             'manifest_headers',
-            'template',
-            'template_name_cache',
-            'template_header_signature_cache',
-            'template_column_mappings_cache',
             'standardization_formulas',
+            'ai_formulas',
             'preprocess_status',
             'receiving_status',
             'receiving_started_at',
@@ -686,10 +682,6 @@ class PurchaseOrderDetailSurfaceSerializer(serializers.ModelSerializer):
             'manifest_category_count',
             'manifest_signature',
             'manifest_headers',
-            'template',
-            'template_name_cache',
-            'template_header_signature_cache',
-            'template_column_mappings_cache',
             'standardization_formulas',
             'preprocess_status',
             'receiving_status',
@@ -728,18 +720,6 @@ class PurchaseOrderDetailSurfaceSerializer(serializers.ModelSerializer):
             if data.get(k) == '':
                 data[k] = None
         return data
-
-
-class CSVTemplateSerializer(serializers.ModelSerializer):
-    vendor_name = serializers.CharField(source='vendor.name', read_only=True)
-
-    class Meta:
-        model = CSVTemplate
-        fields = [
-            'id', 'vendor', 'vendor_name', 'name',
-            'header_signature', 'column_mappings', 'is_default', 'created_at',
-        ]
-        read_only_fields = ['id', 'created_at']
 
 
 class ProductSerializer(serializers.ModelSerializer):

@@ -135,17 +135,10 @@ class PurchaseOrder(models.Model):
     )
     manifest_signature = models.CharField(max_length=255, blank=True, default='')
     manifest_headers = models.JSONField(null=True, blank=True)
-    template = models.ForeignKey(
-        'CSVTemplate',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='linked_purchase_orders',
-    )
-    template_name_cache = models.CharField(max_length=200, blank=True, default='')
-    template_header_signature_cache = models.CharField(max_length=255, blank=True, default='')
-    template_column_mappings_cache = models.JSONField(default=list, blank=True)
     standardization_formulas = models.JSONField(default=dict, blank=True)
+    # The AI's formulas, picked as soon as a manifest is uploaded (services/formula_job.py; replaced manifest
+    # templates, intake_updates Phase 5): status, mappings, model, finished time, attempts.
+    ai_formulas = models.JSONField(null=True, blank=True)
     PREPROCESS_STATUS_CHOICES = [
         ('not_started', 'Not started'),
         ('standardized', 'Standardized'),
@@ -352,22 +345,6 @@ class PurchaseOrder(models.Model):
         else:
             num = 1
         return f'PO-{num:05d}'
-
-
-class CSVTemplate(models.Model):
-    """Reusable column mapping for vendor manifests."""
-    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name='templates')
-    name = models.CharField(max_length=200)
-    header_signature = models.CharField(max_length=255, blank=True, default='')
-    column_mappings = models.JSONField(default=list)
-    is_default = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['vendor', 'name']
-
-    def __str__(self):
-        return f'{self.vendor.code} - {self.name}'
 
 
 class ManifestRow(models.Model):

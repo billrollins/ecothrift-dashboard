@@ -13,7 +13,6 @@ import type {
   Item,
   ItemCheckInCatalog,
   ItemStatsResponse,
-  CSVTemplate,
   Category,
   VendorProductRef,
   BatchGroup,
@@ -67,7 +66,6 @@ export type {
   OrderForReceivingRow,
   Product,
   Item,
-  CSVTemplate,
   Category,
   VendorProductRef,
   BatchGroup,
@@ -77,7 +75,6 @@ export type {
 
 type Order = PurchaseOrder;
 type OrderListRow = PurchaseOrderListRow;
-type Template = CSVTemplate;
 type Batch = BatchGroup;
 
 export interface CreateItemsResponse {
@@ -151,11 +148,6 @@ export interface ProcessManifestPayload {
   selected_row_numbers?: number[];
   column_mappings?: (ManifestColumnMapping | FormulaMapping)[];
   standard_mappings?: StandardManifestMapping[];
-  template_id?: number | null;
-  save_template?: boolean;
-  template_name?: string;
-  /** When true, always create a new CSVTemplate row (do not update resolved template). */
-  save_template_as_new?: boolean;
 }
 
 export interface ProcessManifestResponse {
@@ -168,8 +160,6 @@ export interface ProcessManifestResponse {
   row_count_in_file?: number;
   rows_selected?: number;
   header_signature?: string;
-  template_id?: number;
-  template_name?: string;
   standard_columns?: StandardColumnDefinition[];
   mappings_used?: ManifestColumnMapping[];
 }
@@ -177,7 +167,6 @@ export interface ProcessManifestResponse {
 export interface PreviewStandardizePayload {
   rows?: Record<string, unknown>[];
   selected_row_numbers?: number[];
-  template_id?: number | null;
   standard_mappings?: StandardManifestMapping[];
   column_mappings?: (ManifestColumnMapping | FormulaMapping)[];
   preview_limit?: number;
@@ -194,22 +183,11 @@ export interface PreviewStandardizeResponse {
   mappings_used: ManifestColumnMapping[];
   search_term?: string;
   header_signature?: string;
-  template_id?: number;
-  template_name?: string;
 }
 
 export interface ManifestRawRow {
   row_number: number;
   raw: Record<string, string>;
-}
-
-export interface ManifestMatchingTemplate {
-  id: number;
-  name: string;
-  created_at: string | null;
-  is_default: boolean;
-  use_count: number;
-  last_used_at: string | null;
 }
 
 export interface ManifestPricingRowUpdate {
@@ -565,7 +543,18 @@ export function updateManifestPricing(
 
 export interface SuggestFormulasPayload {
   model?: string;
-  template_id?: number;
+}
+
+/** The AI's formulas for a manifest, picked on upload (intake_updates Phase 5). */
+export interface AiFormulasState {
+  status: 'none' | 'running' | 'done' | 'failed';
+  mappings?: Array<{ target: string; formula: string; reasoning?: string; confidence?: string }>;
+  model?: string;
+  error?: string;
+  attempts?: number;
+  restarts?: number;
+  started_at?: string;
+  finished_at?: string | null;
 }
 
 export interface FormulaSuggestion {
@@ -842,18 +831,14 @@ export interface PreprocessingStatusResponse {
     manifest_row_count: number | null;
     manifest_signature: string;
     manifest_category_count?: number | null;
-    template_id: number | null;
-    template_name_cache: string;
-    template_header_signature_cache: string;
-    template_column_mappings_cache: ManifestColumnMapping[];
     standardization_formulas: Record<string, unknown>;
+    ai_formulas: AiFormulasState;
     preprocess_status: string;
     standardized_at: string | null;
     ai_cleaned_at: string | null;
     review_saved_at: string | null;
     finalized_at: string | null;
   };
-  matching_templates: ManifestMatchingTemplate[];
   standard_columns: StandardColumnDefinition[];
   counts: {
     standardized_rows: number;
@@ -1770,27 +1755,6 @@ export function bulkMarkBroken(orderId: number, itemIds: number[]): Promise<{ da
 
 export function bulkUncheckIn(orderId: number, itemIds: number[]): Promise<{ data: { unchecked_in: number } }> {
   return api.post<{ unchecked_in: number }>(`/inventory/orders/${orderId}/uncheck-in-items/`, { item_ids: itemIds });
-}
-
-// Templates CRUD
-export function getTemplates(params?: Record<string, unknown>): Promise<{ data: PaginatedResponse<Template> }> {
-  return api.get<PaginatedResponse<Template>>('/inventory/templates/', { params });
-}
-
-export function getTemplate(id: number): Promise<{ data: Template }> {
-  return api.get<Template>(`/inventory/templates/${id}/`);
-}
-
-export function createTemplate(data: Record<string, unknown>): Promise<{ data: Template }> {
-  return api.post<Template>('/inventory/templates/', data);
-}
-
-export function updateTemplate(id: number, data: Record<string, unknown>): Promise<{ data: Template }> {
-  return api.patch<Template>(`/inventory/templates/${id}/`, data);
-}
-
-export function deleteTemplate(id: number): Promise<{ data: void }> {
-  return api.delete(`/inventory/templates/${id}/`);
 }
 
 // Categories CRUD

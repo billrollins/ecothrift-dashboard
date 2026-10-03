@@ -165,6 +165,6 @@ class PurchaseOrderManifestMetaSurfaceTests(TestCase):
         self.assertFalse(removed.data.get('has_manifest'))
         self.po.refresh_from_db()
         self.assertEqual(self.po.preprocess_status, 'not_started')
-        self.assertIsNone(self.po.template_id)
+        self.assertIsNone(self.po.ai_formulas)
         self.assertFalse(self.po.manifest_signature)
         self.assertIsNone(self.po.manifest_headers)

@@ -1,7 +1,9 @@
 """
-Static CSV headers + formula mappings used by Django data migrations seeding CSVTemplate rows.
+Static CSV headers + formula mappings used by the old data migrations (0033-0035) that seeded CSVTemplate rows.
 
-Must live outside ``migrations/`` so Django does not load this file as a migration module.
+Manifest templates are gone (intake_updates Phase 5, migration 0107); nothing else imports this file. It stays only
+because those old migrations import it, and old migrations stay as they are. Must live outside ``migrations/`` so
+Django does not load this file as a migration module.
 """
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (
-    Vendor, Category, PurchaseOrder, CSVTemplate, ManifestRow,
+    Vendor, Category, PurchaseOrder, ManifestRow,
     Product, VendorProductRef, BatchGroup, Item, ProcessingBatch,
     ItemHistory, ItemNote, ItemScanHistory,
 )
@@ -26,11 +26,6 @@ class PurchaseOrderAdmin(admin.ModelAdmin):
     )
     list_filter = ('status',)
     search_fields = ('order_number',)
-
-
-@admin.register(CSVTemplate)
-class CSVTemplateAdmin(admin.ModelAdmin):
-    list_display = ('name', 'vendor', 'is_default')
 
 
 @admin.register(ManifestRow)

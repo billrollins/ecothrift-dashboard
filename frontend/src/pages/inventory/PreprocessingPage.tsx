@@ -18,6 +18,7 @@ import CheckCircleOutline from '@mui/icons-material/CheckCircleOutline';
 import AutoAwesome from '@mui/icons-material/AutoAwesome';
 import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import ArrowForward from '@mui/icons-material/ArrowForward';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
 import {
@@ -37,7 +38,7 @@ import { useStandardManifest, buildFormulas } from '../../hooks/useStandardManif
 import { StandardManifestBuilder } from '../../components/inventory/StandardManifestBuilder';
 import { PurchaseOrderManifestDialog } from '../../components/inventory/PurchaseOrderManifestDialog';
 import { PreprocessingReviewTable } from '../../components/inventory/PreprocessingReviewTable';
-import { aiCleanupComplete, getPreprocessingReview, getTemplate } from '../../api/inventory.api';
+import { aiCleanupComplete, getPreprocessingReview } from '../../api/inventory.api';
 import type {
   CleanupCsvApplyRowPayload,
   CleanupCsvSoftWarning,
@@ -52,7 +53,6 @@ import type {
 import type { PreprocessingQueueOrder } from '../../types/inventory.types';
 import { preprocessingFonts, preprocessingRootSx, preprocessingStep1 } from '../../components/inventory/preprocessing/preprocessingTokens';
 import { PreprocessingStepper, PREPROCESSING_STEP_LABELS } from '../../components/inventory/preprocessing/PreprocessingStepper';
-import { TemplateSelector } from '../../components/inventory/preprocessing/TemplateSelector';
 import { CleanupStep } from '../../components/inventory/preprocessing/CleanupStep';
 import { PreprocessingPageHeader } from '../../components/inventory/preprocessing/PreprocessingPageHeader';
 import { ConfirmModal } from '../../components/inventory/preprocessing/ConfirmModal';
@@ -68,13 +68,14 @@ import { stableFormulasFingerprint } from '../../utils/stableFormulasFingerprint
 /** Stable fallbacks - avoid `?? []` literals that allocate new refs each render (breaks useStandardManifest deps). */
 const EMPTY_HEADERS: string[] = [];
 const EMPTY_STANDARD_COLUMNS: StandardColumnDefinition[] = [];
-const EMPTY_TEMPLATE_MAPPINGS: ManifestColumnMapping[] = [];
+const EMPTY_SEED_MAPPINGS: ManifestColumnMapping[] = [];
 const EMPTY_EXPECTED_ROW_IDS = new Set<number>();
 
 export default function PreprocessingPage() {
   const { id: idParam } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
+  const queryClient = useQueryClient();
 
   const orderId =
     idParam && /^\d+$/.test(idParam) ? Number.parseInt(idParam, 10) : null;
@@ -117,8 +118,6 @@ export default function PreprocessingPage() {
   const finalizePreprocessingMutation = useFinalizePreprocessing();
   const [updatingMatchRowId, setUpdatingMatchRowId] = useState<number | null>(null);
 
-  const [selectedManifestTemplateId, setSelectedManifestTemplateId] = useState<number | null>(null);
-
   const [cleanupValidatedPayload, setCleanupValidatedPayload] = useState<CleanupCsvApplyRowPayload[] | null>(null);
   const [cleanupApplySoftWarnings, setCleanupApplySoftWarnings] = useState<CleanupCsvSoftWarning[] | null>(null);
   const [cleanupApplyProgress, setCleanupApplyProgress] = useState<string | null>(null);
@@ -127,7 +126,6 @@ export default function PreprocessingPage() {
   const [reviewDirtyCount, setReviewDirtyCount] = useState(0);
   const [reviewTableMountKey, setReviewTableMountKey] = useState(0);
   const [confirmDialog, setConfirmDialog] = useState<null | 'restandardize' | 'finalize'>(null);
-  const [newTemplateName, setNewTemplateName] = useState('');
 
   // Step 1 (Standardize) state
   const [aiReasonings, setAiReasonings] = useState<Record<string, string>>({});
@@ -137,17 +135,10 @@ export default function PreprocessingPage() {
   const [processResult, setProcessResult] = useState<{ rows_created: number } | null>(null);
   const standardizedFormulasRef = useRef<Record<string, string> | null>(null);
 
-  const templateBaselineFingerprintRef = useRef<string | null>(null);
-  const baselineSeedKeySeenRef = useRef('');
-  const baselineOrderAnchorRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (order?.id) localStorage.setItem('lastPreprocessOrderId', String(order.id));
   }, [order?.id]);
-
-  useEffect(() => {
-    setNewTemplateName('');
-  }, [orderId]);
 
   const standardizedRowCount = preprocessingStatus?.counts.standardized_rows ?? 0;
   const cleanedRowCount = preprocessingStatus?.counts.cleaned_rows ?? 0;
@@ -196,14 +187,15 @@ export default function PreprocessingPage() {
     Array.isArray((order.standardization_formulas as { mappings?: unknown }).mappings)
       ? ((order.standardization_formulas as { mappings: ManifestColumnMapping[] }).mappings)
       : null;
-  const templateMappings = (
-    mappingsFromFormulas ??
-    order?.template_column_mappings_cache ??
-    EMPTY_TEMPLATE_MAPPINGS
+  // intake_updates Phase 5: the AI picks the formulas on upload. Step 1 starts from the formulas used at
+  // Standardize, else the AI's, else the built-in column-name guesses (useStandardManifest fills those in).
+  const aiFormulas = order?.ai_formulas ?? null;
+  const aiStatus = aiFormulas?.status ?? 'none';
+  const aiMappings = aiStatus === 'done' ? aiFormulas?.mappings ?? null : null;
+  const seedMappings = (
+    mappingsFromFormulas ?? (aiMappings as ManifestColumnMapping[] | null) ?? EMPTY_SEED_MAPPINGS
   ) as ManifestColumnMapping[];
-  const templateMappingsKey = useMemo(() => JSON.stringify(templateMappings), [templateMappings]);
-  const templateId = order?.template_id ?? undefined;
-  const templateName = order?.template_name_cache ?? '';
+  const formulasFromAi = !mappingsFromFormulas && Boolean(aiMappings?.length);
 
   const manifestSampleRowsForUi = useMemo((): ManifestRawRow[] => {
     const rows = manifestPreview?.rows;
@@ -220,7 +212,6 @@ export default function PreprocessingPage() {
   const rawHeaders: string[] = headers.length
     ? [...headers]
     : (Object.keys(manifestSampleRowsForUi[0]?.raw ?? {}) as string[]);
-  const matchingTemplates = preprocessingStatus?.matching_templates ?? [];
 
   const step1AwaitingStatus = activeStep === 0 && isLoading;
   const step1PreviewMissing =
@@ -248,8 +239,8 @@ export default function PreprocessingPage() {
       row0_raw_key_sample: r0?.raw && typeof r0.raw === 'object' ? Object.keys(r0.raw).slice(0, 10) : [],
       signature_len: (order?.manifest_signature ?? '').length,
       standard_columns_len: preprocessingStatus?.standard_columns?.length ?? 0,
-      template_mappings_len: templateMappings.length,
-      matching_templates_len: preprocessingStatus?.matching_templates?.length ?? 0,
+      seed_mappings_len: seedMappings.length,
+      ai_formulas_status: aiStatus,
       branch_step1AwaitingStatus: step1AwaitingStatus,
       branch_step1PreviewMissing: step1PreviewMissing,
       branch_step1ActionsLocked: step1ActionsLocked,
@@ -260,8 +251,8 @@ export default function PreprocessingPage() {
     activeStep,
     order,
     preprocessingStatus?.standard_columns,
-    preprocessingStatus?.matching_templates,
-    templateMappings,
+    seedMappings,
+    aiStatus,
     step1AwaitingStatus,
     step1PreviewMissing,
     step1ActionsLocked,
@@ -289,8 +280,7 @@ export default function PreprocessingPage() {
       headers_len_for_builder: headers.length,
       flat_columns_from_manifest_fields_len: flatColumnsFromMeta.length,
       manifest_fields_bucket_order_len: bucketOrderUi.length,
-      templateMappings_len: templateMappings.length,
-      matching_templates_len: matchingTemplates.length,
+      seedMappings_len: seedMappings.length,
     });
   }, [
     activeStep,
@@ -298,8 +288,7 @@ export default function PreprocessingPage() {
     headers.length,
     flatColumnsFromMeta.length,
     bucketOrderUi.length,
-    templateMappings.length,
-    matchingTemplates.length,
+    seedMappings.length,
   ]);
 
   useEffect(() => {
@@ -353,10 +342,6 @@ export default function PreprocessingPage() {
     setCleanupExpectedRowIds(null);
     setCleanupRowNumberById({});
   }, [orderId]);
-
-  useEffect(() => {
-    setSelectedManifestTemplateId(templateId ?? null);
-  }, [templateId]);
 
   // ONE whole-order load (page_size 500, minimal fields) feeds the table, the row maps,
   // and order totals. The table virtualizes + filters client-side - no pagination, no
@@ -471,7 +456,7 @@ export default function PreprocessingPage() {
     signature: headerSignature,
     headers,
     flatColumns: flatColumnsFromMeta,
-    initialMappings: templateMappings,
+    initialMappings: seedMappings,
   });
 
   const formulasFingerprint = useMemo(() => stableFormulasFingerprint(formulas), [formulas]);
@@ -534,32 +519,6 @@ export default function PreprocessingPage() {
     }
     return out;
   }, [manifestFieldMeta?.buckets]);
-
-  const baselineSeedKey = useMemo(
-    () =>
-      orderId != null && headerSignature && headers.length
-        ? `${orderId}|${headerSignature}|${templateMappingsKey}`
-        : '',
-    [orderId, headerSignature, templateMappingsKey, headers.length],
-  );
-
-  if (baselineOrderAnchorRef.current !== orderId) {
-    baselineOrderAnchorRef.current = orderId;
-    baselineSeedKeySeenRef.current = '';
-    templateBaselineFingerprintRef.current = null;
-  }
-
-  if (baselineSeedKey && baselineSeedKeySeenRef.current !== baselineSeedKey) {
-    baselineSeedKeySeenRef.current = baselineSeedKey;
-    templateBaselineFingerprintRef.current = formulasFingerprint;
-  }
-
-  const needsSaveAsNew =
-    matchingTemplates.length === 0 ||
-    (templateBaselineFingerprintRef.current !== null &&
-      formulasFingerprint !== templateBaselineFingerprintRef.current);
-
-  const standardizeBlockedByName = needsSaveAsNew && !newTemplateName.trim();
 
   const formulasForEvalRef = useRef(formulasForEval);
   formulasForEvalRef.current = formulasForEval;
@@ -642,61 +601,39 @@ export default function PreprocessingPage() {
     runFormulaPreviewSnapshot,
   ]);
 
-  const effectiveManifestTemplateId = selectedManifestTemplateId ?? templateId;
+  useEffect(() => {
+    const next: Record<string, string> = {};
+    if (formulasFromAi) {
+      for (const m of aiMappings ?? []) {
+        if (m.target && m.reasoning) next[m.target] = m.reasoning;
+      }
+    }
+    setAiReasonings(next);
+  }, [formulasFromAi, aiMappings]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const handleSuggestFormulas = async () => {
+  const handleAskAiAgain = async () => {
     if (!orderId) return;
     try {
-      const result = await suggestFormulasMutation.mutateAsync({
-        orderId,
-        data: { template_id: effectiveManifestTemplateId },
-      });
-      const newFormulas: Record<string, string> = {};
-      const newReasonings: Record<string, string> = {};
-      for (const s of result.suggestions) {
-        if (s.target && s.formula) {
-          newFormulas[s.target] = s.formula;
-          if (s.reasoning) newReasonings[s.target] = s.reasoning;
-        }
-      }
-      setAllFormulas(newFormulas);
-      setAiReasonings(newReasonings);
-      setBucketDraftByTarget({});
-      const snap = computeSampleFormulaSnapshot(newFormulas, columns, manifestSampleRowsForUi, bucketOrderUi);
-      prepS1('handleSuggestFormulas: applied AI suggestions → immediate sample snapshot', {
-        suggestionTargets: Object.keys(newFormulas),
-        sampleCellsFilled: Object.keys(snap.samples).length,
-        sampleErrors: Object.keys(snap.sampleErrors),
-      });
-      enqueueSnackbar(`AI suggested formulas for ${result.suggestions.length} field(s)`, { variant: 'success' });
+      await suggestFormulasMutation.mutateAsync({ orderId });
+      await queryClient.invalidateQueries({ queryKey: ['preprocessingStatus', orderId] });
     } catch {
-      enqueueSnackbar('Failed to get AI suggestions', { variant: 'error' });
+      enqueueSnackbar('Could not start the AI. The built-in guesses stay filled in.', { variant: 'error' });
     }
   };
 
   const executeStandardizeManifestCore = async () => {
     if (!orderId || !order?.has_manifest_file) return;
-    if (needsSaveAsNew && !newTemplateName.trim()) {
-      enqueueSnackbar('Enter a name for the new CSV template before standardizing.', { variant: 'warning' });
-      return;
-    }
     try {
       const result = await processManifest.mutateAsync({
         orderId,
         data: {
-          template_id: effectiveManifestTemplateId,
           column_mappings: formulaMappings,
-          save_template: true,
-          save_template_as_new: needsSaveAsNew,
-          template_name: needsSaveAsNew ? newTemplateName.trim() : templateName || undefined,
         },
       });
       setProcessResult({ rows_created: result.rows_created });
       standardizedFormulasRef.current = { ...formulas };
-      templateBaselineFingerprintRef.current = stableFormulasFingerprint(formulas);
-      setNewTemplateName('');
       enqueueSnackbar(`Standardized ${result.rows_created} staged row(s)`, { variant: 'success' });
       setCleanupValidatedPayload(null);
       setActiveStep(1);
@@ -854,34 +791,6 @@ export default function PreprocessingPage() {
     }
   }, [setAllFormulas]);
 
-  const handleClearFormulas = useCallback(() => {
-    const empty: Record<string, string> = {};
-    for (const key of Object.keys(formulas)) {
-      empty[key] = '';
-    }
-    setBucketDraftByTarget({});
-    setAllFormulas(empty);
-  }, [formulas, setAllFormulas]);
-
-  const handleManifestTemplateSelect = useCallback(async (pickedId: number) => {
-    setSelectedManifestTemplateId(pickedId);
-    setBucketDraftByTarget({});
-    try {
-      const { data } = await getTemplate(pickedId);
-      const mappings = (data.column_mappings ?? []) as ManifestColumnMapping[];
-      const nextFormulas = buildFormulas(headers, columns, mappings);
-      setAllFormulas(nextFormulas);
-      templateBaselineFingerprintRef.current = stableFormulasFingerprint(nextFormulas);
-      const snap = computeSampleFormulaSnapshot(nextFormulas, columns, manifestSampleRowsForUi, bucketOrderUi);
-      prepS1('handleManifestTemplateSelect: template loaded → sample snapshot', {
-        templateId: pickedId,
-        sampleCellsFilled: Object.keys(snap.samples).length,
-      });
-    } catch {
-      enqueueSnackbar('Failed to load template mappings', { variant: 'error' });
-    }
-  }, [columns, enqueueSnackbar, headers, manifestSampleRowsForUi, bucketOrderUi, setAllFormulas]);
-
   const dropdownOrders: PreprocessingQueueOrder[] = useMemo(() => {
     const rows = [...(queueData?.results ?? [])];
     if (order && !rows.some((r) => r.id === order.id)) {
@@ -921,7 +830,7 @@ export default function PreprocessingPage() {
           variant="contained"
           size="small"
           onClick={() => void handleStandardizeManifest()}
-          disabled={!canStandardize || step1ActionsLocked || standardizeBlockedByName}
+          disabled={!canStandardize || step1ActionsLocked}
           sx={{ bgcolor: '#2D6A4F', fontSize: 14, fontWeight: 600, textTransform: 'none', py: '10px', px: '20px' }}
         >
           {processManifest.isPending ? 'Standardizing...' : 'Standardize'}
@@ -945,7 +854,7 @@ export default function PreprocessingPage() {
               variant="contained"
               size="small"
               onClick={() => void handleStandardizeManifest()}
-              disabled={!canStandardize || step1ActionsLocked || standardizeBlockedByName}
+              disabled={!canStandardize || step1ActionsLocked}
               sx={{ bgcolor: '#2D6A4F', fontSize: 14, fontWeight: 600, textTransform: 'none', py: '10px', px: '20px' }}
             >
               {processManifest.isPending ? 'Re-standardizing...' : 'Re-standardize'}
@@ -1092,16 +1001,6 @@ export default function PreprocessingPage() {
                     </Typography>
                   </Box>
                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center', ml: { xs: 0, sm: 'auto' } }}>
-                    {step1State !== 'clear' && (
-                      <Button
-                        variant="text"
-                        size="small"
-                        onClick={handleClearFormulas}
-                        sx={{ color: '#c0392b', fontSize: 12, fontWeight: 600, textTransform: 'none' }}
-                      >
-                        Clear Formulas
-                      </Button>
-                    )}
                     {(step1State === 'edited' || step1State === 'edited_partial') && (
                       <Button
                         variant="text"
@@ -1112,65 +1011,19 @@ export default function PreprocessingPage() {
                         Cancel Edits
                       </Button>
                     )}
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={suggestFormulasMutation.isPending ? <CircularProgress size={14} /> : <AutoAwesome />}
-                      onClick={() => void handleSuggestFormulas()}
-                      disabled={
-                        suggestFormulasMutation.isPending || !headers.length || step1ActionsLocked
-                      }
-                      sx={{
-                        color: '#2D6A4F',
-                        borderColor: '#2D6A4F',
-                        fontSize: 12,
-                        fontWeight: 600,
-                        textTransform: 'none',
-                        py: '6px',
-                        px: '14px',
-                      }}
-                    >
-                      {suggestFormulasMutation.isPending ? 'AI analyzing...' : 'Use AI'}
-                    </Button>
                   </Box>
                 </Box>
 
-                <Box sx={preprocessingStep1.templateRowSx}>
-                  <TemplateSelector
-                    templates={matchingTemplates}
-                    selectedTemplateId={selectedManifestTemplateId ?? templateId ?? null}
-                    disabled={step1ActionsLocked}
-                    onSelectTemplateId={(id) => void handleManifestTemplateSelect(id)}
-                    saveAsNew={
-                      needsSaveAsNew
-                        ? {
-                            value: newTemplateName,
-                            onChange: setNewTemplateName,
-                            error: standardizeBlockedByName,
-                            disabled: step1ActionsLocked,
-                            infoTooltip:
-                              matchingTemplates.length === 0
-                                ? 'No saved templates matched this manifest header signature. When you standardize, we save the current formulas as a new template using the name you enter.'
-                                : 'Formulas differ from the loaded template or preview baseline. When you standardize, we save the current formulas as a new template using the name you enter.',
-                          }
-                        : undefined
-                    }
-                  />
-                  <Typography
-                    sx={{
-                      fontSize: 11,
-                      color: '#888',
-                      fontFamily: preprocessingFonts.mono,
-                      minWidth: 0,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      flexShrink: 0,
-                    }}
-                  >
-                    Header key: {headerSignature || '--'}
-                  </Typography>
-                </Box>
+                <AiFormulasLine
+                  status={aiStatus}
+                  standardized={Boolean(mappingsFromFormulas)}
+                  model={aiFormulas?.model}
+                  finishedAt={aiFormulas?.finished_at ?? null}
+                  error={aiFormulas?.error}
+                  asking={suggestFormulasMutation.isPending}
+                  canAsk={headers.length > 0 && !step1ActionsLocked}
+                  onAsk={() => void handleAskAiAgain()}
+                />
 
                 {manifestFieldsQuery.isError ? (
                   <Alert severity="error" sx={{ mt: 2 }}>
@@ -1426,6 +1279,82 @@ export default function PreprocessingPage() {
         orderId={orderId}
         fallbackFilename={order?.manifest_filename}
       />
+    </Box>
+  );
+}
+
+/** Step 1's line about where the formulas came from (intake_updates Phase 5). */
+function AiFormulasLine({
+  status,
+  standardized,
+  model,
+  finishedAt,
+  error,
+  asking,
+  canAsk,
+  onAsk,
+}: {
+  status: string;
+  standardized: boolean;
+  model?: string;
+  finishedAt: string | null;
+  error?: string;
+  asking: boolean;
+  canAsk: boolean;
+  onAsk: () => void;
+}) {
+  const when = finishedAt
+    ? new Date(finishedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    : '';
+  const askButton = (label: string) => (
+    <Button
+      size="small"
+      variant="text"
+      startIcon={asking ? <CircularProgress size={12} /> : <AutoAwesome sx={{ fontSize: 14 }} />}
+      onClick={onAsk}
+      disabled={asking || !canAsk}
+      sx={{ textTransform: 'none', fontSize: 12, fontWeight: 600, color: '#2D6A4F', py: 0 }}
+    >
+      {label}
+    </Button>
+  );
+  if (standardized) {
+    return (
+      <Typography sx={{ fontSize: 12, color: '#555', mt: 1, mb: 1.5 }}>
+        These are the formulas used at Standardize. Fix any one below and Standardize again.
+      </Typography>
+    );
+  }
+  if (status === 'running') {
+    return (
+      <Alert severity="info" icon={<CircularProgress size={16} />} sx={{ mt: 1, mb: 1.5, py: 0.25 }}>
+        The AI is choosing the formulas for this manifest. They fill in here on their own in a moment.
+      </Alert>
+    );
+  }
+  if (status === 'failed') {
+    return (
+      <Alert severity="warning" sx={{ mt: 1, mb: 1.5, py: 0.25 }} action={askButton('Try the AI again')}>
+        The AI could not choose formulas{error ? ` (${error})` : ''}. The built-in column-name guesses are filled in
+        instead. Check them before you Standardize.
+      </Alert>
+    );
+  }
+  if (status === 'done') {
+    return (
+      <Typography sx={{ fontSize: 12, color: '#2D6A4F', mt: 1, mb: 1.5, display: 'flex', alignItems: 'center', gap: 0.75 }}>
+        <AutoAwesome sx={{ fontSize: 14 }} />
+        The AI chose these formulas{model ? ` (${model}` : ''}{model && when ? `, ${when})` : model ? ')' : ''}. The
+        result on the sample rows shows beside each one; fix any one by hand.
+      </Typography>
+    );
+  }
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, mb: 1.5, flexWrap: 'wrap' }}>
+      <Typography sx={{ fontSize: 12, color: '#555' }}>
+        These are the built-in column-name guesses (this manifest was uploaded before the AI picked formulas).
+      </Typography>
+      {askButton('Ask the AI')}
     </Box>
   );
 }

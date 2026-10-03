@@ -83,7 +83,7 @@ def _validation_error_response_detail(exc):
     return str(exc)
 
 from .models import (
-    Vendor, Category, PurchaseOrder, CSVTemplate, ManifestRow,
+    Vendor, Category, PurchaseOrder, ManifestRow,
     Product, VendorProductRef, BatchGroup, Item, ItemCheckIn, ProcessingBatch,
     ItemHistory, ItemNote, ItemScanHistory,
     PreprocessingRow,
@@ -120,7 +120,7 @@ from .serializers import (
     PreprocessingQueueOrderSerializer,
     PurchaseOrderDetailSerializer,
     PurchaseOrderDetailSurfaceSerializer,
-    CategorySerializer, CSVTemplateSerializer, ManifestRowSerializer, ManualReviewRowSerializer,
+    CategorySerializer, ManifestRowSerializer, ManualReviewRowSerializer,
     PreprocessingReviewRowMinimalSerializer,
     PreprocessingReviewRowSerializer,
     VendorProductRefSerializer, BatchGroupSerializer,
@@ -355,42 +355,6 @@ def default_column_mappings(headers):
             'transforms': [],
         })
     return mappings
-
-
-def matching_templates_payload_for_vendor_signature(vendor, sig):
-    """Template picker options for a header signature (no S3 / CSV parse)."""
-    if vendor is None or not sig:
-        return []
-    usage_sq = (
-        PurchaseOrder.objects.filter(template_id=OuterRef('pk'))
-        .values('template_id')
-        .annotate(n=Count('id'))
-        .values('n')
-    )
-    last_sq = (
-        PurchaseOrder.objects.filter(template_id=OuterRef('pk'))
-        .order_by('-updated_at')
-        .values('updated_at')[:1]
-    )
-    qs = (
-        CSVTemplate.objects.filter(vendor=vendor, header_signature=sig)
-        .annotate(
-            use_count=Coalesce(Subquery(usage_sq, output_field=IntegerField()), Value(0)),
-            last_used_at=Subquery(last_sq, output_field=DateTimeField()),
-        )
-        .order_by('-is_default', '-id')[:25]
-    )
-    return [
-        {
-            'id': tpl.id,
-            'name': tpl.name,
-            'created_at': tpl.created_at.isoformat() if getattr(tpl, 'created_at', None) else None,
-            'is_default': tpl.is_default,
-            'use_count': tpl.use_count,
-            'last_used_at': tpl.last_used_at.isoformat() if tpl.last_used_at else None,
-        }
-        for tpl in qs
-    ]
 
 
 def normalize_standard_mappings(mappings):
@@ -1937,29 +1901,18 @@ def upsert_manifest_row_from_standardized_data(order, row_data, *, pricing):
     return existing, False
 
 
-def resolve_manifest_mappings(order, headers, template_id=None, mappings_payload=None):
-    sig = header_signature(headers)
-    used_template = None
-    if template_id:
-        used_template = CSVTemplate.objects.filter(
-            id=template_id,
-            vendor=order.vendor,
-        ).first()
-    if not used_template:
-        used_template = CSVTemplate.objects.filter(
-            vendor=order.vendor,
-            header_signature=sig,
-        ).order_by('-is_default', '-id').first()
+def resolve_manifest_mappings(order, headers, mappings_payload=None):
+    """Formulas for standardize: what the page sent, else the AI's formulas from upload (``formula_job``), else the
+    built-in column-name guesses. Manifest templates are gone (intake_updates Phase 5)."""
+    from apps.inventory.services.formula_job import done_mappings
 
+    sig = header_signature(headers)
     normalized_mappings = normalize_standard_mappings(mappings_payload or [])
     if not normalized_mappings:
-        if used_template and used_template.column_mappings:
-            normalized_mappings = normalize_standard_mappings(
-                used_template.column_mappings,
-            )
-        if not normalized_mappings:
-            normalized_mappings = default_column_mappings(headers)
-    return sig, used_template, normalized_mappings
+        normalized_mappings = normalize_standard_mappings(done_mappings(order))
+    if not normalized_mappings:
+        normalized_mappings = default_column_mappings(headers)
+    return sig, normalized_mappings
 
 
 def build_normalized_manifest_rows_from_raw_rows(
@@ -1968,7 +1921,6 @@ def build_normalized_manifest_rows_from_raw_rows(
     raw_rows,
     *,
     selected_row_numbers=None,
-    template_id=None,
     mappings_payload=None,
     row_count_in_file=None,
 ):
@@ -1982,10 +1934,9 @@ def build_normalized_manifest_rows_from_raw_rows(
             'error': 'Manifest has no usable rows.',
         }
 
-    sig, used_template, mappings = resolve_manifest_mappings(
+    sig, mappings = resolve_manifest_mappings(
         order=order,
         headers=headers,
-        template_id=template_id,
         mappings_payload=mappings_payload,
     )
 
@@ -2004,7 +1955,6 @@ def build_normalized_manifest_rows_from_raw_rows(
     return {
         'headers': headers,
         'header_signature': sig,
-        'used_template': used_template,
         'mappings': mappings,
         'row_count_in_file': rc_file,
         'rows_selected': len(filtered_rows),
@@ -2016,7 +1966,6 @@ def build_normalized_manifest_rows_from_staging(
     order,
     *,
     selected_row_numbers=None,
-    template_id=None,
     mappings_payload=None,
 ):
     """Normalize from DB staging rows after ``ensure_preprocessing_raw_rows`` (single S3 parse)."""
@@ -2033,7 +1982,6 @@ def build_normalized_manifest_rows_from_staging(
         headers,
         raw_rows,
         selected_row_numbers=selected_row_numbers,
-        template_id=template_id,
         mappings_payload=mappings_payload,
         row_count_in_file=row_count,
     )
@@ -2103,8 +2051,7 @@ def build_order_delete_preview(order, include_items=True):
 
     warnings = [
         (
-            'Shared catalog artifacts are retained: Product, VendorProductRef, '
-            'and CSVTemplate records are not deleted.'
+            'Shared catalog artifacts are retained: Product and VendorProductRef records are not deleted.'
         ),
     ]
     if sold_item_count:
@@ -2783,6 +2730,8 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 order.standardized_at = None
                 order.ai_cleaned_at = None
                 order.review_saved_at = None
+                # The last manifest's formulas do not fit a new file; the AI picks new ones below.
+                order.standardization_formulas = {}
                 order.save(
                     update_fields=[
                         'manifest',
@@ -2797,10 +2746,15 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                         'standardized_at',
                         'ai_cleaned_at',
                         'review_saved_at',
+                        'standardization_formulas',
                         'updated_at',
                     ],
                 )
                 PreprocessingRow.objects.filter(purchase_order=order).delete()
+                # The AI picks the step 1 formulas in the background; the upload does not wait (intake_updates Phase 5).
+                from apps.inventory.services import formula_job
+
+                formula_job.start(order.pk)
         except Exception as e:
             logger.exception('upload_manifest DB save failed order=%s', order.pk)
             try:
@@ -3471,14 +3425,9 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             or request.data.get('column_mappings')
             or []
         )
-        template_id = request.data.get('template_id')
-        save_template = bool(request.data.get('save_template', False))
-        save_template_as_new = bool(request.data.get('save_template_as_new'))
-        template_name = str(request.data.get('template_name') or '').strip()
         header_sig = None
         row_count_in_file = None
         rows_selected = None
-        used_template = None
         normalized_mappings = normalize_standard_mappings(mapping_payload)
 
         if rows:
@@ -3487,7 +3436,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             prepared = build_normalized_manifest_rows_from_staging(
                 order,
                 selected_row_numbers=selected_row_numbers,
-                template_id=template_id,
                 mappings_payload=mapping_payload,
             )
             if prepared.get('error'):
@@ -3496,46 +3444,10 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             header_sig = prepared['header_signature']
-            used_template = prepared['used_template']
             normalized_mappings = prepared['mappings']
             row_count_in_file = prepared['row_count_in_file']
             rows_selected = prepared['rows_selected']
             normalized_rows = prepared['normalized_rows']
-
-            if save_template and normalized_mappings:
-                default_template_name = (
-                    f'{order.vendor.code} Standard Manifest {timezone.now().date().isoformat()}'
-                )
-                if save_template_as_new:
-                    if not template_name:
-                        return Response(
-                            {
-                                'detail': 'template_name is required when save_template_as_new is true.',
-                            },
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
-                    used_template = CSVTemplate.objects.create(
-                        vendor=order.vendor,
-                        name=template_name,
-                        header_signature=header_sig,
-                        column_mappings=normalized_mappings,
-                        is_default=False,
-                    )
-                elif used_template:
-                    used_template.name = template_name or used_template.name
-                    used_template.header_signature = header_sig
-                    used_template.column_mappings = normalized_mappings
-                    used_template.save(
-                        update_fields=['name', 'header_signature', 'column_mappings'],
-                    )
-                else:
-                    used_template = CSVTemplate.objects.create(
-                        vendor=order.vendor,
-                        name=template_name or default_template_name,
-                        header_signature=header_sig,
-                        column_mappings=normalized_mappings,
-                        is_default=False,
-                    )
 
         if not normalized_rows:
             return Response(
@@ -3644,25 +3556,11 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                     ],
                 )
 
-            if used_template:
-                order.template = used_template
-                order.template_name_cache = used_template.name or ''
-                order.template_header_signature_cache = used_template.header_signature or ''
-                order.template_column_mappings_cache = used_template.column_mappings or []
-            else:
-                order.template = None
-                order.template_name_cache = ''
-                order.template_header_signature_cache = ''
-                order.template_column_mappings_cache = []
             order.standardization_formulas = {'mappings': normalized_mappings}
             order.standardized_at = now
             order.preprocess_status = 'standardized'
             order.save(
                 update_fields=[
-                    'template',
-                    'template_name_cache',
-                    'template_header_signature_cache',
-                    'template_column_mappings_cache',
                     'standardization_formulas',
                     'standardized_at',
                     'preprocess_status',
@@ -3687,9 +3585,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             response_data['rows_selected'] = rows_selected
         if header_sig:
             response_data['header_signature'] = header_sig
-        if used_template:
-            response_data['template_id'] = used_template.id
-            response_data['template_name'] = used_template.name
         return Response(response_data)
 
     @action(detail=True, methods=['post'], url_path='preview-standardize')
@@ -3698,7 +3593,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         order = self.get_object()
         rows = request.data.get('rows')
         selected_row_numbers = request.data.get('selected_row_numbers') or []
-        template_id = request.data.get('template_id')
         mapping_payload = (
             request.data.get('standard_mappings')
             or request.data.get('column_mappings')
@@ -3711,7 +3605,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         if rows:
             normalized_rows = rows
             header_sig = None
-            used_template = None
             row_count_in_file = len(rows)
             rows_selected = len(rows)
             mappings_used = normalize_standard_mappings(mapping_payload)
@@ -3735,7 +3628,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 hdrs,
                 raw_sample,
                 selected_row_numbers=selected_row_numbers,
-                template_id=template_id,
                 mappings_payload=mapping_payload,
                 row_count_in_file=row_count_uf,
             )
@@ -3746,7 +3638,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 )
             normalized_rows = prepared['normalized_rows']
             header_sig = prepared['header_signature']
-            used_template = prepared['used_template']
             row_count_in_file = prepared['row_count_in_file']
             rows_selected = prepared['rows_selected']
             mappings_used = prepared['mappings']
@@ -3775,147 +3666,20 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         }
         if header_sig:
             response_data['header_signature'] = header_sig
-        if used_template:
-            response_data['template_id'] = used_template.id
-            response_data['template_name'] = used_template.name
         return Response(response_data)
 
     @action(detail=True, methods=['post'], url_path='suggest-formulas')
     def suggest_formulas(self, request, pk=None):
-        """Suggest formula mappings for standard manifest fields (provider via llm_router)."""
-        import json as json_lib
-
-        from apps.core.services.llm_router import (
-            LLMConfigError,
-            llm_chat_tool_input,
-            suggest_mappings_tools,
-        )
+        """Run the AI formula job again for this order's manifest (it also runs on every upload)."""
+        from apps.inventory.services import formula_job
 
         order = self.get_object()
-        template_id = request.data.get('template_id')
-
-        preview = order.manifest_preview or {}
-        headers_list = list(preview.get('headers') or [])
-        if not headers_list:
+        if not (order.manifest_preview or {}).get('headers'):
             return Response(
                 {'error': 'manifest_preview missing or has no headers; re-upload the manifest.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        rows_preview = preview.get('rows') or []
-        sample_rows = []
-        for r in rows_preview[:10]:
-            if not isinstance(r, dict):
-                continue
-            sample_rows.append({
-                'row_number': r.get('row_number'),
-                'raw': r.get('raw') if isinstance(r.get('raw'), dict) else {},
-            })
-
-        prior_templates = []
-        if template_id:
-            tpl = CSVTemplate.objects.filter(id=template_id, vendor=order.vendor).first()
-            if tpl:
-                prior_templates.append({'name': tpl.name, 'mappings': tpl.column_mappings})
-        if not prior_templates:
-            sig = str(preview.get('signature') or '') or header_signature(headers_list)
-            for tpl in CSVTemplate.objects.filter(vendor=order.vendor, header_signature=sig)[:3]:
-                prior_templates.append({'name': tpl.name, 'mappings': tpl.column_mappings})
-
-        standard_fields_desc = []
-        for col in manifest_standard_flat_columns():
-            standard_fields_desc.append(
-                f"- {col['key']}: {col['label']} ({'required' if col['required'] else 'optional'})",
-            )
-        bucket_lines = []
-        for bid, b in manifest_field_metadata_payload()['buckets'].items():
-            sk = ', '.join(b['suggested_keys']) if b['suggested_keys'] else '(none listed - any ^[a-z][a-z0-9_]*$ sub-key)'
-            bucket_lines.append(
-                f'  - {bid}.<subkey>: {b["label"]}; suggested_keys (hints only): {sk}',
-            )
-
-        system_prompt = (
-            'You are an assistant for a thrift store that processes liquidation manifests. '
-            'Given CSV column headers and sample rows, suggest formula expressions to map '
-            'raw CSV columns into standardized fields.\n\n'
-            'Targets are either FLAT keys (see list below) or DOTTED `bucket.subkey` JSON buckets.\n'
-            'The four bucket prefixes are fixed: identifiers, taxonomy, specifications, tracking. '
-            'Sub-key strings must match the regex ^[a-z][a-z0-9_]*$. suggested_keys lists are autocomplete '
-            'hints only-not a whitelist; prefer them when the column obviously matches '
-            '(e.g. UPC column → identifiers.upc), otherwise emit a sensible custom sub-key.\n'
-            + '\n'.join(bucket_lines)
-            + '\n\nFlat fields:\n'
-            + '\n'.join(standard_fields_desc)
-            + '\n\nFormula syntax:\n'
-            '- Column references: [COLUMN_NAME] (exact header name from the CSV)\n'
-            '- Functions: UPPER(expr), LOWER(expr), TITLE(expr), TRIM(expr), '
-            'REPLACE(expr, "find", "replace"), CONCAT(expr, ...), LEFT(expr, n), RIGHT(expr, n)\n'
-            '- String concatenation: expr + " " + expr\n'
-            '- String literals: "quoted text"\n\n'
-            'Field-specific hints:\n'
-            '- unit_retail (per-unit MSRP): Prefer a vendor stated **unit** retail column such as '
-            '"Unit Retail" or "MSRP". Avoid extended line totals (e.g. "Ext. Retail") when a unit column exists.\n'
-            '- identifiers.upc: map barcode / UPC columns here, not a separate flat upc.\n'
-            '- taxonomy.category: map department/category text here.\n\n'
-            'Omit targets you cannot infer. Use TRIM() liberally. '
-            'You MUST respond only by calling the suggest_mappings tool with valid JSON input.'
-        )
-
-        user_message_parts = [f'CSV Headers: {json_lib.dumps(headers_list)}']
-        if sample_rows:
-            user_message_parts.append(f'Sample rows (first {len(sample_rows)}):')
-            for row in sample_rows:
-                user_message_parts.append(json_lib.dumps(row['raw']))
-        if prior_templates:
-            user_message_parts.append(f'Prior templates for this vendor: {json_lib.dumps(prior_templates)}')
-
-        user_content = '\n'.join(user_message_parts)
-        model_id = ai_model('PREPROCESSING_SUGGEST', request.data.get('model'))
-
-        try:
-            tool_inp, model_used = llm_chat_tool_input(
-                purpose='PREPROCESSING_SUGGEST',
-                model_override=model_id,
-                system=system_prompt,
-                user=user_content,
-                tool_name='suggest_mappings',
-                tools=suggest_mappings_tools(),
-                temperature=0.0,
-                max_tokens=4096,
-                log_source='ai_suggest_formulas',
-                log_detail=f'order={order.pk} suggest-formulas',
-            )
-        except LLMConfigError as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-        except ValueError as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
-        except Exception as e:
-            logger.error('AI error in suggest-formulas: %s', e)
-            log_ai_usage(
-                'ai_suggest_formulas',
-                model_id,
-                0,
-                0,
-                detail=f'order={order.pk} suggest-formulas',
-                success=False,
-                error=str(e),
-            )
-            return Response(
-                {'error': f'AI service error: {e}'},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
-
-        suggestions = tool_inp.get('suggestions') or []
-        return Response({
-            'suggestions': suggestions,
-            'model_used': model_used,
-        })
+        return Response(formula_job.public(formula_job.start(order.pk)))
 
     @action(detail=True, methods=['post'], url_path='ai-cleanup-rows')
     def ai_cleanup_rows(self, request, pk=None):
@@ -5216,11 +4980,8 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 'rows': preview.get('rows') or [],
             }
 
-        sig = str(order.manifest_signature or '').strip()
-        vendor = order.vendor if order.vendor_id else None
-        matching_templates = (
-            matching_templates_payload_for_vendor_signature(vendor, sig) if sig else []
-        )
+        from apps.inventory.services import formula_job
+
         standard_columns = list(manifest_standard_flat_columns())
 
         payload = {
@@ -5237,18 +4998,14 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 'manifest_row_count': order.manifest_row_count,
                 'manifest_signature': order.manifest_signature or '',
                 'manifest_category_count': order.manifest_category_count,
-                'template_id': order.template_id,
-                'template_name_cache': order.template_name_cache or '',
-                'template_header_signature_cache': order.template_header_signature_cache or '',
-                'template_column_mappings_cache': order.template_column_mappings_cache or [],
                 'standardization_formulas': order.standardization_formulas or {},
+                'ai_formulas': formula_job.status(order),
                 'preprocess_status': order.preprocess_status,
                 'standardized_at': order.standardized_at.isoformat() if order.standardized_at else None,
                 'ai_cleaned_at': order.ai_cleaned_at.isoformat() if order.ai_cleaned_at else None,
                 'review_saved_at': order.review_saved_at.isoformat() if order.review_saved_at else None,
                 'finalized_at': order.finalized_at.isoformat() if order.finalized_at else None,
             },
-            'matching_templates': matching_templates,
             'standard_columns': standard_columns,
             'counts': {
                 'standardized_rows': total_rows,
@@ -5283,7 +5040,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 else {
                     'headers': len(ms.get('headers') or []),
                     'rows': len(ms.get('rows') or []),
-                    'matching_templates': len(payload.get('matching_templates') or []),
                     'standard_columns': len(payload.get('standard_columns') or []),
                 },
             )
@@ -6698,14 +6454,6 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             'steps': preview.get('steps', []),
             'manifest_file_shared': manifest_file_shared,
         })
-
-
-class CSVTemplateViewSet(viewsets.ModelViewSet):
-    queryset = CSVTemplate.objects.select_related('vendor').all()
-    serializer_class = CSVTemplateSerializer
-    permission_classes = [IsAuthenticated, IsStaff]
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['vendor', 'header_signature', 'is_default']
 
 
 class ProductViewSet(viewsets.ModelViewSet):

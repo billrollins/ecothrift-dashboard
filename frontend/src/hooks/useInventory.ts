@@ -836,14 +836,15 @@ export function usePreprocessingStatus(orderId: number | null | undefined) {
           manifest_sample_null: ms == null,
           headers_len: ms?.headers?.length ?? 0,
           rows_len: ms?.rows?.length ?? 0,
-          template_mappings_len: (data.order?.template_column_mappings_cache ?? []).length,
-          matching_templates_len: data.matching_templates?.length ?? 0,
+          ai_formulas_status: data.order?.ai_formulas?.status,
           header_sample: (ms?.headers ?? []).slice(0, 8),
         });
       }
       return data;
     },
     enabled: !!orderId,
+    // While the AI is still choosing formulas (it starts on upload), look again every few seconds.
+    refetchInterval: (query) => (query.state.data?.order?.ai_formulas?.status === 'running' ? 3000 : false),
   });
 }
 

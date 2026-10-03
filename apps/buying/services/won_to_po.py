@@ -89,9 +89,9 @@ def order_number_for(auction: Auction) -> str:
 
 def _known_header_order(vendor: Vendor | None, headers: list[str]) -> list[str] | None:
     """
-    The column order an earlier PO from this vendor used for the same columns. The Orders
-    page matches its column template by a hash of the headers *in order*, and the stored
-    manifest lines lost their order (JSON), so borrowing it keeps the template auto-match.
+    The column order an earlier PO from this vendor used for the same columns. The stored
+    manifest lines lost their order (JSON), so borrowing it gives the file the vendor's usual
+    column order, which is easier to read in Preprocessing (the AI picks the formulas either way).
     """
     if vendor is None:
         return None

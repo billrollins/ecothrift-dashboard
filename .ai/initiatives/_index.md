@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-02 (intake_updates Phases 2, 3, 6) -->
+<!-- Last updated: 2026-10-02 (intake_updates Phase 5) -->
 # Initiatives — ecothrift-dashboard
 
 Bounded work (hours to days), one `.md` per initiative. Not a session log. Rules: [`protocols/initiative-create.md`](../protocols/initiative-create.md), [`protocols/initiative-review.md`](../protocols/initiative-review.md) (§ Filing rules). **Human gate:** do not archive without explicit approval.
@@ -22,7 +22,7 @@ Bounded work (hours to days), one `.md` per initiative. Not a session log. Rules
 | [buying_intelligence_v2](./buying_intelligence_v2.md) | **Waiting** | Re-planned 2026-09-25 as data_platform's consumer: vector text, truck value v3, the self-running buying loop, the Buying workspace. Resumes after launch. |
 | [bstock_daily_buying](./bstock_daily_buying.md) | **Phases 4–6 shipped** | Phases 1–3 in v2.98.0–v2.100.0. Phases 4–6 in v2.104.0: manifest analysis, price targets, Today's best, won → PO, report cards, and the decision-first auction page. Open items move to `buying_intelligence_v2` (seller factors v2.105.0, scaled similar range). No longer the compass. |
 | [data_quality_rails](./data_quality_rails.md) | **Phase 1** | Know the data (register + eras, runner R-009 to R-013), then quality-aware numbers, rails at every lifecycle stage, and cleanup. |
-| [intake_updates](./intake_updates.md) | **Phase 5** | Opened 2026-10-02. Shipped: 1 Orders page numbers (v2.129.0); 2 order modal, faster new-order form, EXP date; 6 vendor metrics; 3's Request code (v2.130.0). Waiting: the owner approves the `TGT` → `TRGET` Request in production. Building: 5, the AI picks formulas on upload and templates go. 4 (dispute refunds) and 7 (next intake screen) need the owner's detail. |
+| [intake_updates](./intake_updates.md) | **Phase 4** | Opened 2026-10-02. Shipped: 1 Orders page numbers (v2.129.0); 2 order modal, faster new-order form, EXP date; 6 vendor metrics; 3's Request code (v2.130.0); 5 the AI picks formulas on upload and templates are gone (v2.131.0; the old columns drop in the next release). Waiting: the owner approves Request #11 (`TGT` → `TRGET`) in production. 4 (dispute refunds) and 7 (next intake screen) need the owner's detail. |
 | [product_intelligence](./product_intelligence.md) | **Phase 2** | Phase 2 structure shipped in v2.101.0: profiles, proposals, review page, pgvector vectors (a title alone places 90.5%), reversible merges. Loading the proposals, merges and embeddings into production waits on owner OK. |
 
 ## Archived

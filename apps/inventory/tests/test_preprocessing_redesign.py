@@ -13,7 +13,6 @@ from django.utils import timezone
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.inventory.models import (
-    CSVTemplate,
     Item,
     ManifestRow,
     PreprocessingRow,
@@ -30,7 +29,6 @@ from apps.inventory.views import (
     PurchaseOrderViewSet,
     default_column_mappings,
     ensure_manifest_products_and_items,
-    header_signature,
     normalize_row,
     parse_ai_cleanup_suggestions,
 )
@@ -568,13 +566,16 @@ class PreprocessingRedesignTests(TestCase):
         }
         self.order.manifest_signature = 'abc123'
         self.order.manifest_row_count = 99
-        self.order.template_column_mappings_cache = list(default_column_mappings(['A', 'B']))
+        self.order.ai_formulas = {
+            'status': 'done', 'token': 'secret', 'model': 'test-model',
+            'mappings': [{'target': 'description', 'formula': '[A]', 'reasoning': 'A holds the name'}],
+        }
         self.order.save(
             update_fields=[
                 'manifest_preview',
                 'manifest_signature',
                 'manifest_row_count',
-                'template_column_mappings_cache',
+                'ai_formulas',
             ],
         )
         view = PurchaseOrderViewSet.as_view({'get': 'preprocessing_status'})
@@ -593,49 +594,24 @@ class PreprocessingRedesignTests(TestCase):
         self.assertNotIn('matching_templates', ms)
         self.assertEqual(response.data['order']['manifest_row_count'], 99)
         self.assertEqual(response.data['order']['manifest_signature'], 'abc123')
-        self.assertEqual(response.data['matching_templates'], [])
+        self.assertNotIn('matching_templates', response.data)
         self.assertGreater(len(response.data['standard_columns']), 0)
-        tmc = response.data['order']['template_column_mappings_cache']
-        self.assertIsInstance(tmc, list)
-        self.assertEqual(len(tmc), len(default_column_mappings(['A', 'B'])))
+        # The AI's formulas from upload reach step 1 (the job's token stays on the server).
+        ai = response.data['order']['ai_formulas']
+        self.assertEqual(ai['status'], 'done')
+        self.assertEqual(ai['model'], 'test-model')
+        self.assertEqual(ai['mappings'][0]['formula'], '[A]')
+        self.assertNotIn('token', ai)
+        for key in ('template_id', 'template_name_cache', 'template_column_mappings_cache'):
+            self.assertNotIn(key, response.data['order'])
 
-    def test_preprocessing_status_manifest_sample_matching_templates_by_signature(self):
-        sig = 'abc123'
-        CSVTemplate.objects.create(
-            vendor=self.vendor,
-            name='Vendor Sig Match',
-            header_signature=sig,
-            column_mappings=[{'target': 'description', 'source': 'Item Desc', 'transforms': []}],
-        )
-        self.order.manifest_preview = {
-            'headers': ['Item Desc'],
-            'rows': [{'row_number': 1, 'raw': {'Item Desc': 'x'}}],
-            'delimiter': ',',
-        }
-        self.order.manifest_signature = sig
-        self.order.save(update_fields=['manifest_preview', 'manifest_signature'])
-        view = PurchaseOrderViewSet.as_view({'get': 'preprocessing_status'})
-        request = APIRequestFactory().get(
-            f'/api/inventory/orders/{self.order.pk}/preprocessing-status/',
-        )
-        force_authenticate(request, user=self.user)
-        response = view(request, pk=self.order.pk)
-        self.assertEqual(response.status_code, 200)
-        mt = response.data['matching_templates']
-        self.assertEqual(len(mt), 1)
-        self.assertEqual(mt[0]['name'], 'Vendor Sig Match')
-
-    def test_preprocessing_status_order_template_mappings_cache_may_be_empty_before_standardize(self):
+    def test_preprocessing_status_ai_formulas_none_before_any_upload(self):
         self.order.manifest_preview = {
             'headers': ['Qty', 'Unit Retail', 'Item Description'],
             'rows': [{'row_number': 1, 'raw': {}}],
             'delimiter': ',',
         }
-        self.order.manifest_signature = 'sig1'
-        self.order.template_column_mappings_cache = []
-        self.order.save(
-            update_fields=['manifest_preview', 'manifest_signature', 'template_column_mappings_cache'],
-        )
+        self.order.save(update_fields=['manifest_preview'])
         view = PurchaseOrderViewSet.as_view({'get': 'preprocessing_status'})
         request = APIRequestFactory().get(
             f'/api/inventory/orders/{self.order.pk}/preprocessing-status/',
@@ -643,7 +619,7 @@ class PreprocessingRedesignTests(TestCase):
         force_authenticate(request, user=self.user)
         response = view(request, pk=self.order.pk)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['order']['template_column_mappings_cache'], [])
+        self.assertEqual(response.data['order']['ai_formulas']['status'], 'none')
         self.assertGreater(len(response.data['standard_columns']), 0)
 
     def test_suggest_formulas_returns_400_without_manifest_preview_headers(self):
@@ -1730,32 +1706,10 @@ class PreprocessingRedesignTests(TestCase):
         response = view(request, pk=self.order.pk)
         self.assertEqual(response.status_code, 400)
 
-    def test_process_manifest_save_template_as_new_creates_without_overwriting_prior(self):
+    def _standardize(self, payload, csv_content):
         from apps.core.models import S3File
 
-        csv_content = 'Qty,Item Desc,Unit Retail\n1,Widget A,10.00\n'
-        reader_headers = ['Qty', 'Item Desc', 'Unit Retail']
-        sig = header_signature(reader_headers)
-
-        old_maps = default_column_mappings(reader_headers)
-        new_maps = [
-            {'target': 'quantity', 'source': 'Qty'},
-            {'target': 'description', 'source': 'Item Desc', 'transforms': [{'type': 'upper'}]},
-            {'target': 'unit_retail', 'source': 'Unit Retail'},
-        ]
-
-        tpl_old = CSVTemplate.objects.create(
-            vendor=self.vendor,
-            name='Original Template',
-            header_signature=sig,
-            column_mappings=old_maps,
-            is_default=False,
-        )
-
-        s3 = S3File.objects.create(
-            key=f'manifests/process-manifest-{self.order.pk}.csv',
-            filename='m.csv',
-        )
+        s3 = S3File.objects.create(key=f'manifests/process-manifest-{self.order.pk}.csv', filename='m.csv')
         self.order.manifest = s3
         self.order.save(update_fields=['manifest'])
 
@@ -1769,54 +1723,52 @@ class PreprocessingRedesignTests(TestCase):
             def __exit__(self, *args):
                 return False
 
-        payload = {
-            'column_mappings': new_maps,
-            'save_template': True,
-            'save_template_as_new': True,
-            'template_name': 'Derived From Original',
-            'template_id': tpl_old.id,
-        }
-
         view = PurchaseOrderViewSet.as_view({'post': 'process_manifest'})
         request = APIRequestFactory().post(
-            f'/api/inventory/orders/{self.order.pk}/process-manifest/',
-            payload,
-            format='json',
+            f'/api/inventory/orders/{self.order.pk}/process-manifest/', payload, format='json',
         )
         force_authenticate(request, user=self.user)
-
-        opener = lambda key, mode='rb': _FakeCtx(csv_content.encode('utf-8'))
-
+        opener = lambda key, mode='rb': _FakeCtx(csv_content.encode('utf-8'))  # noqa: E731
         with patch('apps.inventory.views.default_storage.open', side_effect=opener):
-            response = view(request, pk=self.order.pk)
+            return view(request, pk=self.order.pk)
 
+    def test_process_manifest_with_the_page_formulas_and_no_template_fields(self):
+        csv_content = 'Qty,Item Desc,Unit Retail\n1,Widget A,10.00\n'
+        maps = [
+            {'target': 'quantity', 'formula': '[Qty]'},
+            {'target': 'title', 'formula': 'UPPER([Item Desc])'},
+            {'target': 'unit_retail', 'formula': '[Unit Retail]'},
+        ]
+        response = self._standardize({'column_mappings': maps}, csv_content)
         self.assertEqual(response.status_code, 200, getattr(response, 'data', None))
-        self.assertEqual(CSVTemplate.objects.filter(vendor=self.vendor).count(), 2)
-        tpl_old.refresh_from_db()
-        self.assertEqual(tpl_old.column_mappings, old_maps)
-        created = CSVTemplate.objects.get(vendor=self.vendor, name='Derived From Original')
-        self.assertEqual(created.header_signature, sig)
+        self.assertNotIn('template_id', response.data)
         self.assertEqual(response.data['manifest_rows_upserted'], 1)
-        manifest_row = ManifestRow.objects.get(purchase_order=self.order, row_number=1)
-        self.assertEqual(manifest_row.description, 'WIDGET A')
-        staging_row = PreprocessingRow.objects.get(purchase_order=self.order, row_number=1)
-        self.assertEqual(staging_row.manifest_row_id, manifest_row.id)
-        self.assertEqual(staging_row.standard_description, 'WIDGET A')
+        row = ManifestRow.objects.get(purchase_order=self.order, row_number=1)
+        self.assertEqual((row.title, row.quantity, row.unit_retail), ('WIDGET A', 1, Decimal('10.00')))
+        staging = PreprocessingRow.objects.get(purchase_order=self.order, row_number=1)
+        self.assertEqual(staging.manifest_row_id, row.id)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.standardization_formulas['mappings'][1], {'target': 'title', 'formula': 'UPPER([Item Desc])'})
 
-        download = self._download_cleanup_csv()
-        downloaded_rows = list(csv.DictReader(io.StringIO(download.content.decode('utf-8'))))
-        self.assertEqual(downloaded_rows[0]['row_id'], str(manifest_row.id))
-        self.assertEqual(downloaded_rows[0]['description'], 'WIDGET A')
+    def test_process_manifest_uses_the_ai_formulas_when_the_page_sends_none(self):
+        self.order.ai_formulas = {'status': 'done', 'mappings': [
+            {'target': 'quantity', 'formula': '[Qty]'},
+            {'target': 'title', 'formula': 'UPPER([Item Desc])'},
+            {'target': 'unit_retail', 'formula': '[Unit Retail]'},
+        ]}
+        self.order.save(update_fields=['ai_formulas'])
+        response = self._standardize({}, 'Qty,Item Desc,Unit Retail\n2,Widget B,7.50\n')
+        self.assertEqual(response.status_code, 200, getattr(response, 'data', None))
+        row = ManifestRow.objects.get(purchase_order=self.order, row_number=1)
+        self.assertEqual((row.title, row.quantity, row.unit_retail), ('WIDGET B', 2, Decimal('7.50')))
 
-        cleanup_csv = (
-            'row_id,ai_title,ai_brand,ai_model,category,condition,proposed_price\n'
-            f'{manifest_row.id},Widget A Final,Acme,W1,Kitchen & dining,good,12.99\n'
-        )
-        cleanup_response = self._upload_cleanup_csv(cleanup_csv)
-        self.assertEqual(cleanup_response.status_code, 200, cleanup_response.data)
-        staging_row.refresh_from_db()
-        self.assertEqual(staging_row.ai_title, 'Widget A Final')
-        self.assertEqual(staging_row.ai_category, 'Kitchen & dining')
+    def test_process_manifest_falls_back_to_the_built_in_guesses_when_the_ai_failed(self):
+        self.order.ai_formulas = {'status': 'failed', 'mappings': [], 'error': 'down'}
+        self.order.save(update_fields=['ai_formulas'])
+        response = self._standardize({}, 'Qty,Title,Unit Retail\n3,Widget C,4.00\n')
+        self.assertEqual(response.status_code, 200, getattr(response, 'data', None))
+        row = ManifestRow.objects.get(purchase_order=self.order, row_number=1)
+        self.assertEqual((row.quantity, row.unit_retail), (3, Decimal('4.00')))
 
     def test_validate_mapping_target_tracking_custom_subkey(self):
         self.assertIsNone(validate_mapping_target('tracking.warehouse_zone'))
@@ -1849,14 +1801,3 @@ class PreprocessingRedesignTests(TestCase):
         mappings = [{'target': 'taxonomy.department', 'formula': 'TITLE(TRIM([Department]))'}]
         out = normalize_row(raw, 1, mappings)
         self.assertEqual(out['taxonomy']['department'], 'Kitchen')
-
-    def test_seed_basic_bucket_templates_exist(self):
-        names = ['Target Basic', 'Costco Basic', 'Amazon Basic']
-        templates = list(CSVTemplate.objects.filter(name__in=names))
-        self.assertEqual(len(templates), 3)
-        for tpl in templates:
-            mappings = tpl.column_mappings or []
-            self.assertTrue(
-                any((m.get('target') or '').startswith('tracking.') for m in mappings),
-                msg=f'Template {tpl.name!r} missing tracking.* mapping',
-            )

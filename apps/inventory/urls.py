@@ -8,7 +8,7 @@ from .api_bulk_price import (
 from .api_inventory_search import inventory_search_items_view, inventory_search_similar_view, inventory_search_view
 from .api_product_similar import similar_products_view
 from .views import (
-    VendorViewSet, CategoryViewSet, PurchaseOrderViewSet, CSVTemplateViewSet,
+    VendorViewSet, CategoryViewSet, PurchaseOrderViewSet,
     ProductViewSet, VendorProductRefViewSet, BatchGroupViewSet,
     ItemViewSet, ItemCheckInViewSet, ItemHistoryViewSet, ItemNoteViewSet, RestorationJobViewSet,
     RestorationOutputViewSet,
@@ -25,7 +25,6 @@ router = DefaultRouter()
 router.register(r'vendors', VendorViewSet, basename='vendor')
 router.register(r'categories', CategoryViewSet, basename='category')
 router.register(r'orders', PurchaseOrderViewSet, basename='purchaseorder')
-router.register(r'templates', CSVTemplateViewSet, basename='csvtemplate')
 router.register(r'products', ProductViewSet, basename='product')
 router.register(r'product-refs', VendorProductRefViewSet, basename='vendorproductref')
 router.register(r'batch-groups', BatchGroupViewSet, basename='batchgroup')

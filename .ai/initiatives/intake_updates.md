@@ -103,7 +103,7 @@ Every Target order, template and product reference belongs to `TRGET`, and the o
 - In the code today, three tables point at a vendor: `PurchaseOrder.vendor`, `CSVTemplate.vendor` and `VendorProductRef.vendor`. All three are `CASCADE`, so deleting `TGT` before its rows move would delete those orders. If Phase 5 ships first, `CSVTemplate` is already gone and only two tables are left to move.
 
 Acceptance:
-- [ ] A read-only count on production shows what points at `TGT` today in every table with a vendor key, plus the order caches (`vendor_code_cache`, `vendor_name_cache`). The counts are written in the Record.
+- [x] A read-only count on production shows what points at `TGT` today in every table with a vendor key, plus the order caches (`vendor_code_cache`, `vendor_name_cache`). The counts are written in the Record.
 - [ ] One Request, staged with `stage_request` and approved by the owner, moves every row to `TRGET`. Vendor product refs that clash on vendor item number are merged: times seen are added, and the newest cost and date are kept. Order caches and search text are refreshed. The Request records the old vendor of every moved row so it can be undone.
 - [ ] `TGT` is deleted only after a re-count shows nothing points at it. The Request checks this itself and stops if anything is left.
 - [x] `backfill_phase1_vendors_pos.py` maps the legacy `TGT` prefix to `TRGET`, so no re-run can bring `TGT` back. A test covers it.
@@ -126,29 +126,29 @@ As soon as a manifest is uploaded, the AI picks the formulas for step 1, so they
 - `PurchaseOrder` carries a `template` key plus three caches (`template_name_cache`, `template_header_signature_cache`, `template_column_mappings_cache`). Migration `0033` seeds a Target "basic" template. Won → PO in Buying keeps the header order so the template auto-match still works (`apps/buying/services/won_to_po.py`).
 
 Acceptance:
-- [ ] **Runs on upload.** Every way a manifest reaches an order starts one background AI job: upload on the order, won → PO from Buying, and the intake test reset. The upload does not wait for it. The job stores the formulas, the model used and the time on the order, and a new upload runs it again. A failed call is retried; the job uses the same pattern as the AI cleanup job (it survives a process restart).
-- [ ] **Setting.** The job uses the model and effort set for **Preprocessing suggest** in Settings → AI. Nothing about the model is hard-coded.
-- [ ] **Step 1 shows only this:**
+- [x] **Runs on upload.** Every way a manifest reaches an order starts one background AI job: upload on the order, won → PO from Buying, and the intake test reset. The upload does not wait for it. The job stores the formulas, the model used and the time on the order, and a new upload runs it again. A failed call is retried; the job uses the same pattern as the AI cleanup job (it survives a process restart).
+- [x] **Setting.** The job uses the model and effort set for **Preprocessing suggest** in Settings → AI. Nothing about the model is hard-coded.
+- [x] **Step 1 shows only this:**
   - At the top, each standard field with the AI's formula and its result on the sample rows.
   - Below, the raw columns (header and sample values) and the formula preview. One field's formula can still be fixed by hand there.
   - While the job is still running, the step says the AI is choosing formulas. If it still fails after its retries, the step says so plainly and fills in the built-in column-name guesses (the default alias mappings), so Standardize is never blocked.
-- [ ] **Removed from the screen:** the template picker, the new-template name box, **Clear Formulas** and **Use AI**.
-- [ ] **Removed from the code:**
+- [x] **Removed from the screen:** the template picker, the new-template name box, **Clear Formulas** and **Use AI**.
+- [x] **Removed from the code:**
   - The `CSVTemplate` model, its `templates/` endpoint and admin.
   - `PurchaseOrder.template` and the three template caches. A migration drops them; the deploy takes its usual backup first.
   - The header-signature template match and `save_template` / `save_template_as_new` / `template_id` on standardize.
   - The prior-template hints in the AI prompt, and the seeded Target template.
   - Every other template reference: `intake_undo`, `manifest_remove`, `intake_test_reset`, `processing_ops`, serializers, `bucket_csv_seed_payloads`, the template note in `won_to_po`, `TemplateSelector`, `getTemplate`, and the front-end types.
   - Old migrations stay as they are.
-- [ ] Tests:
+- [x] Tests:
   - The job starts on each upload path.
   - The stored result reaches step 1.
   - The fallback works when the AI fails.
   - Standardize works with no template fields.
   - No test still refers to a template.
   - `test_preprocessing_redesign.py` is updated.
-- [ ] Checked on one real manifest per main vendor (Amazon, Target, Walmart): the AI's formulas give a correct title, quantity and unit retail on the sample rows. Results go in the Record.
-- [ ] `extended/inventory-pipeline.md`: § CSV Template System is replaced by the AI formula job.
+- [x] Checked on one real manifest per main vendor (Amazon, Target, Walmart): the AI's formulas give a correct title, quantity and unit retail on the sample rows. Results go in the Record.
+- [x] `extended/inventory-pipeline.md`: § CSV Template System is replaced by the AI formula job.
 
 ### Phase 6 — Vendor metrics
 The Vendors list and each vendor's page show how that vendor performs: how much was bought, at what share of retail, how true its manifests are, what we price at, and how it sells.
@@ -253,7 +253,11 @@ Create & Open opened the modal. The two test orders were deleted.
 **2026-10-02 — Phase 3 code built.** Request kind `inventory.merge_vendor` (`services/vendor_merge.py`) finds the tables
 from `Vendor`'s own relations (today `PurchaseOrder`, `CSVTemplate`, `VendorProductRef`), so nothing is missed. The
 backfill maps `TGT` to `TRGET`. The production count could not be run from Claude's session (the read was blocked);
-the Request's preview shows the same counts in Dash. Waiting on: staging in production and the owner's approval.
+the Request's preview shows the same counts in Dash.
+
+**2026-10-02 — Phase 3 staged.** v2.130.0 shipped (Heroku v400). Request #11 (`inventory.merge_vendor`) staged in
+production. Its preview counts at `TGT`: 69 orders, 69 order caches, 0 manifest templates, 0 vendor product refs,
+0 clashes. Waiting on: the owner's approval in Dash → Requests.
 
 **2026-10-02 — Phase 6 built.** Vendor metrics (`services/vendor_metrics.py`) on the Vendors list (period choice, sortable
 columns, contact under the name) and the vendor page (a card per metric, then the Orders page columns). Speed on the dev
@@ -261,6 +265,27 @@ copy: 12 months 1.6 s, all time 5.9 s, so the list is cached six hours and shows
 `warm_vendor_metrics` can run nightly in Heroku Scheduler. Hand check, Target last 12 months (24 orders), against the Orders
 page summary for the same orders: spent $143,119.14, manifest $796,516.30, priced $325,383.89, sold $160,015.53, recovery
 227% / 112%, sold 49%, received 39%, accuracy 81%, all equal. Until the Phase 3 Request runs, `TGT` shows as its own row.
+
+**2026-10-02 — Phase 5 built.** `services/formula_job.py`; `PurchaseOrder.ai_formulas`; templates out of the code and
+the screen. Claude's calls:
+
+- Two-step removal so no deploy breaks the old dynos: migration 0107 drops the template fields and `CSVTemplate` from
+  Django only (old columns may take NULL); the next release's 0108 drops the columns and the table.
+- A new upload also clears `standardization_formulas` (they belonged to the old file).
+- `POST suggest-formulas/` stays as "ask the AI again"; the page offers it only when the AI failed or never ran.
+- `bucket_csv_seed_payloads.py` stays: old migrations 0033-0035 import it.
+
+Real manifests on the dev copy (model from Settings: `gemini-3.5-flash-lite`, about 1.5 s each); title, quantity and
+unit retail right on every sample row checked:
+
+| Vendor | Order | Title | Quantity | Unit retail |
+|---|---|---|---|---|
+| Amazon | 382 `AMZ0N-O0N-VVGJ` | `[Item Description]` | `[Qty]` (1 each) | `[Unit Retail]` ($299.99, $157.93) |
+| Target | 383 `TRGET-OTP-UP2Q` | `TRIM([Item Description])` | `TRIM([Qty])` (27, 26, 24) | `TRIM([Unit Retail])` ($49.99), not Ext. Retail |
+| Walmart | 374 `WLMRT-O99-8G11` | `TRIM([Item Description])` | `TRIM([Qty])` (580, 60) | `TRIM([Unit Retail])` ($14.99), not Ext. Retail |
+
+End to end on a throwaway order: upload → job `running` → `done` (19 formulas, 1 attempt) → step 1 showed them with
+sample results → Standardize wrote the right titles, quantities and unit retail. The order and its file were removed.
 
 ---
 

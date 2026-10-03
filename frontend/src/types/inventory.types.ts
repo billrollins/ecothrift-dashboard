@@ -312,10 +312,7 @@ export interface PurchaseOrder {
   manifest_category_count?: number | null;
   manifest_signature?: string;
   manifest_headers?: string[] | null;
-  template?: number | null;
-  template_name_cache?: string;
-  template_header_signature_cache?: string;
-  template_column_mappings_cache?: ColumnMapping[];
+  ai_formulas?: Record<string, unknown> | null;
   standardization_formulas?: Record<string, unknown>;
   preprocess_status?: string;
   receiving_status?: string;
@@ -386,10 +383,7 @@ export interface PurchaseOrderDetailSurface {
   manifest_category_count: number | null;
   manifest_signature?: string | null;
   manifest_headers?: string[] | null;
-  template?: number | null;
-  template_name_cache?: string;
-  template_header_signature_cache?: string;
-  template_column_mappings_cache?: ColumnMapping[];
+  ai_formulas?: Record<string, unknown> | null;
   standardization_formulas?: Record<string, unknown>;
   preprocess_status?: string;
   receiving_status?: string;
@@ -410,17 +404,6 @@ export interface PurchaseOrderDetailSurface {
   has_manifest: boolean;
   created_at: string;
   updated_at: string;
-}
-
-export interface CSVTemplate {
-  id: number;
-  vendor: number;
-  vendor_name: string;
-  name: string;
-  header_signature: string;
-  column_mappings: ColumnMapping[];
-  is_default: boolean;
-  created_at: string;
 }
 
 export interface Product {
