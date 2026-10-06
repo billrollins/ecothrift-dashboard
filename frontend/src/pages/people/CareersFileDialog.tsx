@@ -13,7 +13,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useEffect, useRef, useState } from 'react';
-import { checkCareers, draftCareersWithAi, saveCareers, type AiChoices, type CheckResponse } from '../../api/hiring.api';
+import { checkCareers, runAi, saveCareers, type AiChoices, type CheckResponse } from '../../api/hiring.api';
 import { ccTokens } from '../../theme';
 import { downloadJson, parseCareersText } from './careersFile';
 import { errorText } from './peopleUi';
@@ -117,16 +117,17 @@ export function CareersFileDialog({
     return () => clearTimeout(t);
   }, [text, mode, open]);
 
-  async function runAi() {
+  async function askAi() {
     setBusy(true);
     setError('');
     setCheck(null);
     try {
-      const { data } = await draftCareersWithAi(ask, model, effort);
+      const job = await runAi<CheckResponse & { raw: unknown }>({ kind: 'careers', request: ask, model, effort });
+      const data = job.result;
       checkedDoc.current = data.raw;
       setCheck(data);
     } catch (err) {
-      setError(errorText(err, 'The AI did not answer. Try again.'));
+      setError((err as Error).message && !(err as { response?: unknown }).response ? (err as Error).message : errorText(err, 'The AI did not answer. Try again.'));
     } finally {
       setBusy(false);
     }
@@ -242,7 +243,7 @@ export function CareersFileDialog({
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
               The defaults come from Settings &gt; AI (Hiring). Higher effort is slower and costs more.
             </Typography>
-            <Button variant="contained" sx={{ mt: 1.5 }} disabled={busy || !ask.trim()} onClick={runAi}>
+            <Button variant="contained" sx={{ mt: 1.5 }} disabled={busy || !ask.trim()} onClick={askAi}>
               {busy ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : 'Ask the AI'}
             </Button>
             {busy && (

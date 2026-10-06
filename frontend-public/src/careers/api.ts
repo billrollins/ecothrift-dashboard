@@ -141,3 +141,47 @@ export async function shrinkPhoto(file: File): Promise<File> {
     return file
   }
 }
+
+// ── The interview link (/careers/interview?t=…) ─────────────────────────────
+
+export interface InterviewTimeOption {
+  start: string
+  end: string
+  day: string
+  date: string
+  label: string
+}
+
+export interface InterviewState {
+  ok: boolean
+  detail?: string
+  first_name?: string
+  roles?: string[]
+  length_minutes?: number
+  place?: string
+  interview?: { start: string; end: string; when: string; interviewer: string; place: string } | null
+  times?: InterviewTimeOption[]
+}
+
+async function interviewCall(url: string, body?: unknown): Promise<InterviewState> {
+  try {
+    const res = await fetch(url, {
+      method: body ? 'POST' : 'GET',
+      headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) return data as InterviewState
+    const detail =
+      data.detail ||
+      (data.start ? String(Array.isArray(data.start) ? data.start[0] : data.start) : '') ||
+      (res.status === 429 ? 'Too many tries. Please wait a minute.' : 'Something went wrong. Please try again.')
+    return { ok: false, detail }
+  } catch {
+    return { ok: false, detail: 'We could not reach the server. Check your connection and try again.' }
+  }
+}
+
+export const getInterview = (token: string) => interviewCall(`${BASE}/interview/?t=${encodeURIComponent(token)}`)
+export const bookInterview = (token: string, start: string) => interviewCall(`${BASE}/interview/`, { t: token, start })
+export const cancelInterview = (token: string) => interviewCall(`${BASE}/interview/cancel/`, { t: token })

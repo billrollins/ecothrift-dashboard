@@ -1,33 +1,57 @@
-v2.138.0 — No errors on sold tags (move the old sale), Orders If it all sells, old-system rows out of Orders numbers (inventory_effort Phase 5)
+v2.139.0 — Hiring: interview calendar (book from a private link, scorecards), AI help per role and email in the background, People → Emails with per-role versions (hiring_onboarding Phase 2)
 
-User-facing theme: **The register and the inventory count never stop on a tag the system has elsewhere. Two items that shared a tag are sorted out by moving the old sale to a new item number. Orders gains an "If it all sells" view, and its numbers no longer count old-system rows that never had a recorded sale.** Initiative: `inventory_effort` Phase 5, and the owner's "no errors" rule.
-
-### Changed
-
-- **Register: a sold tag in hand rings up.** Two items shared that tag, and the one in hand is real.
-  - Its old sale moves to a new item number (completed register lines and delivery jobs move with it; the money does not change).
-  - The item keeps its tag and is added to the cart as usual.
-  - Consignment and online-listed items still stop for a person.
-- **Inventory count: every scan counts.**
-  - A sold tag gives the warning sound and asks **It's here: keep this tag** (the same fix, done on the spot), **Not sure: PR cart**, or **Leave it**.
-  - An item the system has as intake, lost or scrapped goes back on the shelf and counts, with nothing to answer.
-- **PR Fix-it:** scanning a sold tag keeps it and moves the old sale, with nothing to print. **Keep this tag** is the main button on those cards; **Print as new** stays for consignment and online items.
-- **Orders numbers:** the April import's old-system rows marked "scrapped" (data-quality ITM-06: no recorded sale) are left out of Priced, approved retail, retail processed and the item count, and the order is marked "Old system". Across all orders, Priced goes from $5.69M to $3.24M.
-- **New flags:** more items than the manifest, no cost (placeholder orders), and the status says ordered, paid or shipped while items are checked in.
+User-facing theme: **Interviews: applicants pick their own interview time from a private link, you see every interview in People → Interviews, and you score it on your phone.** Initiative: `hiring_onboarding` Phase 2.
 
 ### Added
 
-- **Orders → If it all sells** (`?view=profit&x=`). Columns:
-  - Order and description, Cost, Retail, Priced, Sold, Left now.
-  - Left at X%, Est. profit (Sold + Left at X% − Cost), % of cost.
-- **X:** quick 100% and 50% or a custom %, with the Orders filters (date range by ordered date) and a Total line.
-- **Code:** `services/duplicate_tag.py`. Migrations `inventory.0109` and `stocktake.0005` change choices only.
+- **Invite to interview** on an applicant:
+  - **Email interview link**, or **Copy link (to text)** to send it from your own phone;
+  - opening the link from the email is the email confirmation;
+  - **Book for them** when you set the time together on the phone.
+- **The applicant's page** (`ecothrift.us/careers/interview?t=…`, phone-first):
+  - pick a day and a time from the open times;
+  - change or cancel later with the same link;
+  - an old or expired link says so.
+- **Emails**, all editable in the careers JSON:
+  - booked, moved and cancelled, each with a calendar file (`.ics`) for the applicant;
+  - a notice, with the calendar file, to the interviewer and the hiring manager;
+  - a reminder the day before, sent by the 10-minute mail job (no new Scheduler entry).
+- **Stages move on their own:** booked → Interview scheduled; cancelled → Contacted; Done → Interviewed; **No-show** opens the Not now draft with No-show picked.
+- **People → Interviews:**
+  - Today / Upcoming / Past;
+  - change the interviewer, reschedule, cancel, No-show, **Scorecard / Done**;
+  - the weekly hours (default Monday to Friday, 9 AM to 5 PM, 30-minute interviews, 14 days ahead, 12 hours' notice);
+  - **Open extra time** and **Block time**.
+- **Scorecard:**
+  - the role's interview questions, each with 1–5 stars and a note;
+  - Overall Hire / Maybe / No;
+  - "Could they lead this area someday?";
+  - notes.
 
-### Tests
+  The three roles get six starter questions each; the last one listens for a future lead.
+- **The careers JSON** now also holds `interviews` (the hours and rules), `defaults` (the hiring manager and interviewers a new role starts with) and the six interview emails, with their keys in the indexes.
+- **Email attachments** now go through Microsoft Graph (`apps/mailbox`), so the calendar files arrive in production.
 
-- `test_counts.py` (57): a sold tag is counted and kept on the spot, a lost item goes back on the shelf, PR Fix-it moves the sale, and consignment needs a person.
-- `test_cart_add_item_audit` / `test_cart_add_resale_copy`: the register rings up a sold tag and moves its sale; consignment and online items still stop.
-- `test_purchase_order_financials`: old-system rows left out and the new flags.
-- `profitColumns.test.ts`: the If it all sells maths.
+### Changed
+
+- **AI help on each role and each email, not a chat.**
+  - In a role's **Edit** dialog and on every email: tap **Polish / Shorter / Fuller / Warmer / In my voice** (or **Just my note**), optionally add a note, and press **Improve**.
+  - The answer fills the editor. Changed fields are outlined in purple, with **Undo AI changes**; nothing saves until Save.
+  - Model and effort default to Settings > AI and can be picked per run.
+- **AI runs in the background.** Dash polls until it's done. Heroku cuts any request off at 30 seconds, and the whole-file Ask AI took about 44 seconds, so it failed with a 503 (H12).
+- **The role editor** now covers the role's application question(s) and interview questions too.
+
+### Added
+
+- **People → Emails:**
+  - every hiring email in one list (applying, interviews, not now);
+  - who it goes to and when;
+  - edit the subject and message, tap a placeholder to insert it;
+  - a live preview with a sample applicant;
+  - AI help;
+  - the sender, reply-to, alert address, review days and reply days.
+- **Universal emails with role versions.** Every email has one version for all roles, and any role can have **its own version** (it starts as a copy; **Use the version for all roles** goes back). Sending picks the applied role's version when it has one. The careers JSON carries them per role (jobs[].emails; keys in indexes.email_templates).
+
+Migration: `hiring.0006` (interviews, extra and blocked times, the booking link), `hiring.0007` (starter interview questions, only where a role has none), `hiring.0008` (AI runs, role email versions).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

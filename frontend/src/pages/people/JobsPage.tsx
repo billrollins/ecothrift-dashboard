@@ -30,11 +30,13 @@ import {
   updateJob,
   type CareersIndexes,
   type Job,
+  type Question,
 } from '../../api/hiring.api';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { PageHeader } from '../../components/common/PageHeader';
 import { ccTokens } from '../../theme';
 import { aiCopyText, downloadJson, previewUrl } from './careersFile';
+import { AiHelpBar } from './AiHelpBar';
 import { CareersFileDialog } from './CareersFileDialog';
 import { errorText } from './peopleUi';
 
@@ -55,13 +57,49 @@ const LIST_FIELDS = [
 ] as const;
 type ListKey = (typeof LIST_FIELDS)[number]['key'];
 
+/** Every field AI help may change, with the name shown in "AI changed: …". */
+const AI_FIELD_LABEL: Record<string, string> = {
+  tagline: 'One line',
+  summary: 'About the role',
+  duties: 'What you’ll do',
+  success: 'What great looks like',
+  looking_for: 'What we’re looking for',
+  nice_to_have: 'Nice to have',
+  physical: 'The physical side',
+  questions: 'Application question',
+  interview_questions: 'Interview questions',
+};
+
 const toLines = (text: string) => text.split('\n').map((d) => d.replace(/^[-•]\s*/, '').trim()).filter(Boolean);
+
+function keyFor(label: string, taken: Set<string>): string {
+  let key = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40) || 'question';
+  while (taken.has(key)) key = `${key.slice(0, 36)}_${taken.size}`;
+  taken.add(key);
+  return key;
+}
+
+/** Lines back to questions; a question whose wording didn't change keeps its key (answers stay linked). */
+function toQuestions(text: string, existing: Question[], type: Question['type'], required: boolean): Question[] {
+  const byLabel = new Map(existing.map((q) => [q.label, q]));
+  const taken = new Set<string>();
+  return toLines(text).map((label) => {
+    const old = byLabel.get(label);
+    if (old && !taken.has(old.key)) {
+      taken.add(old.key);
+      return old;
+    }
+    return { key: keyFor(label, taken), label, type, required };
+  });
+}
 
 type Draft = Record<ListKey, string> & {
   title: string;
   slug: string;
   tagline: string;
   summary: string;
+  questions: string;
+  interview_questions: string;
   works_with: string;
   schedule: string;
   hours: string;
@@ -88,6 +126,8 @@ function toDraft(job: Job | null): Draft {
     looking_for: (job?.looking_for ?? []).join('\n'),
     nice_to_have: (job?.nice_to_have ?? []).join('\n'),
     physical: (job?.physical ?? []).join('\n'),
+    questions: (job?.questions ?? []).map((q) => q.label).join('\n'),
+    interview_questions: (job?.interview_questions ?? []).map((q) => q.label).join('\n'),
     works_with: job?.works_with ?? 'Bill, the owner, and a small team',
     schedule: job?.schedule ?? '',
     hours: job?.hours ?? 'Up to 40 hours a week',
@@ -102,6 +142,12 @@ function toDraft(job: Job | null): Draft {
     interviewers: job?.interviewers ?? [],
   };
 }
+
+type RoleAiResult = { fields: Record<string, string | string[]>; changed: string[] };
+
+const aiChangedSx = {
+  '& .MuiOutlinedInput-notchedOutline': { borderColor: '#6d4fc2', borderWidth: 2 },
+};
 
 function JobDialog({
   open,
@@ -118,16 +164,55 @@ function JobDialog({
 }) {
   const staff = indexes?.staff ?? [];
   const [draft, setDraft] = useState<Draft>(toDraft(job));
+  const [beforeAi, setBeforeAi] = useState<Draft | null>(null);
+  const [aiChanged, setAiChanged] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (open) {
       setDraft(toDraft(job));
+      setBeforeAi(null);
+      setAiChanged([]);
       setError('');
     }
   }, [open, job]);
 
   const set = (key: keyof Draft) => (e: React.ChangeEvent<HTMLInputElement>) => setDraft((d) => ({ ...d, [key]: e.target.value }));
+  const changedSx = (key: string) => (aiChanged.includes(key) ? aiChangedSx : undefined);
+
+  function aiPayload() {
+    return {
+      kind: 'job',
+      fields: {
+        title: draft.title,
+        schedule: draft.schedule,
+        hours: draft.hours,
+        pay_text: draft.pay_text,
+        works_with: draft.works_with,
+        tagline: draft.tagline,
+        summary: draft.summary,
+        duties: toLines(draft.duties),
+        success: toLines(draft.success),
+        looking_for: toLines(draft.looking_for),
+        nice_to_have: toLines(draft.nice_to_have),
+        physical: toLines(draft.physical),
+        questions: toLines(draft.questions),
+        interview_questions: toLines(draft.interview_questions),
+      },
+    };
+  }
+
+  function applyAi(result: RoleAiResult) {
+    setBeforeAi((prev) => prev ?? draft);
+    setDraft((d) => {
+      const next = { ...d };
+      for (const [key, value] of Object.entries(result.fields)) {
+        if (key in next) (next as Record<string, unknown>)[key] = Array.isArray(value) ? value.join('\n') : value;
+      }
+      return next;
+    });
+    setAiChanged(result.changed);
+  }
 
   async function save() {
     setBusy(true);
@@ -142,6 +227,8 @@ function JobDialog({
       looking_for: toLines(draft.looking_for),
       nice_to_have: toLines(draft.nice_to_have),
       physical: toLines(draft.physical),
+      questions: toQuestions(draft.questions, job?.questions ?? [], 'long_text', true),
+      interview_questions: toQuestions(draft.interview_questions, job?.interview_questions ?? [], 'text', false),
       works_with: draft.works_with.trim(),
       schedule: draft.schedule.trim(),
       hours: draft.hours.trim(),
@@ -167,10 +254,42 @@ function JobDialog({
   }
 
   return (
-    <Dialog open={open} onClose={busy ? undefined : onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={busy ? undefined : onClose} maxWidth="md" fullWidth>
       <DialogTitle>{job ? `Edit ${job.title}` : 'New role'}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
+          <AiHelpBar<RoleAiResult>
+            what="this role"
+            payload={aiPayload}
+            disabled={!draft.title.trim()}
+            onResult={(result) => applyAi(result.result)}
+          />
+          {aiChanged.length > 0 && (
+            <Alert
+              severity="info"
+              action={
+                beforeAi && (
+                  <Button
+                    color="inherit"
+                    size="small"
+                    onClick={() => {
+                      setDraft(beforeAi);
+                      setBeforeAi(null);
+                      setAiChanged([]);
+                    }}
+                  >
+                    Undo AI changes
+                  </Button>
+                )
+              }
+            >
+              AI changed: {aiChanged.map((k) => AI_FIELD_LABEL[k] ?? k).join(', ')} (outlined in purple). Read them,
+              edit if you like, then Save. Nothing is saved yet.
+            </Alert>
+          )}
+          {aiChanged.length === 0 && beforeAi && (
+            <Alert severity="info">The AI suggested no changes.</Alert>
+          )}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField label="Title" value={draft.title} onChange={set('title')} fullWidth required />
             <TextField select label="Status" value={draft.status} onChange={set('status')} sx={{ minWidth: 140 }}>
@@ -180,6 +299,41 @@ function JobDialog({
               <MenuItem value="closed">Closed</MenuItem>
             </TextField>
           </Stack>
+          <TextField label="One line (tagline)" value={draft.tagline} onChange={set('tagline')} fullWidth sx={changedSx('tagline')} />
+          <TextField label="About the role (2–3 sentences)" value={draft.summary} onChange={set('summary')} multiline minRows={2}
+            fullWidth sx={changedSx('summary')} />
+          {LIST_FIELDS.map((field) => (
+            <TextField
+              key={field.key}
+              label={`${field.label} (one per line)`}
+              value={draft[field.key]}
+              onChange={set(field.key)}
+              multiline
+              minRows={field.key === 'duties' ? 4 : 2}
+              fullWidth
+              sx={changedSx(field.key)}
+            />
+          ))}
+          <TextField
+            label="Application question for this role (one per line)"
+            helperText="Shown on the apply form when someone ticks this role. Required to answer."
+            value={draft.questions}
+            onChange={set('questions')}
+            multiline
+            minRows={1}
+            fullWidth
+            sx={changedSx('questions')}
+          />
+          <TextField
+            label="Interview questions (one per line)"
+            helperText="The scorecard asks these, each with 1–5 stars and a note."
+            value={draft.interview_questions}
+            onChange={set('interview_questions')}
+            multiline
+            minRows={3}
+            fullWidth
+            sx={changedSx('interview_questions')}
+          />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField
               select
@@ -213,22 +367,9 @@ function JobDialog({
             isOptionEqualToValue={(a, b) => a.id === b.id}
             onChange={(_, people) => setDraft((d) => ({ ...d, interviewers: people.map((p) => p.id) }))}
             renderInput={(params) => (
-              <TextField {...params} label="Interviewers" helperText="Who sits in this role's interviews" />
+              <TextField {...params} label="Interviewers" helperText="Who sits in this role's interviews (changeable per interview)" />
             )}
           />
-          <TextField label="One line (tagline)" value={draft.tagline} onChange={set('tagline')} fullWidth />
-          <TextField label="About the role (2–3 sentences)" value={draft.summary} onChange={set('summary')} multiline minRows={2} fullWidth />
-          {LIST_FIELDS.map((field) => (
-            <TextField
-              key={field.key}
-              label={`${field.label} (one per line)`}
-              value={draft[field.key]}
-              onChange={set(field.key)}
-              multiline
-              minRows={field.key === 'duties' ? 4 : 2}
-              fullWidth
-            />
-          ))}
           <TextField label="Works with" value={draft.works_with} onChange={set('works_with')} fullWidth />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField label="Schedule" value={draft.schedule} onChange={set('schedule')} fullWidth placeholder="Typically Monday through Friday" />
@@ -245,12 +386,6 @@ function JobDialog({
           </Stack>
           <TextField label="What the page says about pay" value={draft.pay_text} onChange={set('pay_text')} fullWidth />
           <TextField label="Order on the page" value={draft.sort_order} onChange={set('sort_order')} sx={{ maxWidth: 160 }} />
-          {job && job.questions.length > 0 && (
-            <Alert severity="info" variant="outlined">
-              Role question{job.questions.length === 1 ? '' : 's'}: {job.questions.map((q) => `“${q.label}”`).join(' ')}. Change
-              questions through the careers file (Copy for AI, or Update from YAML).
-            </Alert>
-          )}
           {error && <Alert severity="error">{error}</Alert>}
         </Stack>
       </DialogContent>

@@ -80,7 +80,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     id: 'people',
     label: 'People',
     roles: ['Manager', 'Admin'],
-    itemIds: ['applicants', 'jobs'],
+    itemIds: ['applicants', 'interviews', 'jobs', 'hiringEmails'],
   },
   {
     id: 'admin',
@@ -181,7 +181,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     id: 'people',
     label: 'People',
     shortLabel: 'People',
-    helper: 'Hiring: applicants, jobs and the careers page',
+    helper: 'Hiring: applicants, interviews, jobs and the careers page',
     icon: 'people',
     shortcutColor: '#7C3AED',
     shortcutDigit: 9,

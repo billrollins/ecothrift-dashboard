@@ -427,21 +427,299 @@ class BundleAndPeopleTests(Base):
         self.staff.post(f'/api/hiring/applications/{app.pk}/create-employee/', {'pay_rate': '15'}, format='json')
         self.assertEqual(User.objects.get(email='dana@example.com').employee.department, self.dept)
 
-    def test_careers_get_lists_models_and_ai_draft_uses_the_choice(self):
-        from unittest import mock
-
+    def test_careers_get_lists_models_and_ai_choices(self):
         from apps.core.models import AiModel
         AiModel.objects.create(slug='test-model-1', label='Test model', provider='anthropic')
         info = self.staff.get('/api/hiring/careers/').data
         self.assertIn('test-model-1', [m['slug'] for m in info['ai']['models']])
         self.assertIn('high', info['ai']['efforts'])
-        doc = json.dumps(careers.export_doc())
-        with mock.patch('apps.core.services.llm_router.llm_chat_text', return_value=(doc, 'test-model-1')) as llm:
-            response = self.staff.post('/api/hiring/careers/ai-draft/',
-                                       {'request': 'No changes', 'model': 'test-model-1', 'effort': 'high'}, format='json')
+
+
+class AiJobTests(Base):
+    """AI edits run in the background (Heroku's 30-second limit); Dash polls. Nothing saves."""
+
+    def setUp(self):
+        super().setUp()
+        from unittest import mock
+
+        from apps.hiring import ai
+        patcher = mock.patch.object(ai, '_spawn', side_effect=ai._work)  # run inline in tests
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def run_ai(self, payload, answer):
+        from unittest import mock
+        with mock.patch('apps.core.services.llm_router.llm_chat_text', return_value=(answer, 'test-model')) as llm:
+            started = self.staff.post('/api/hiring/ai/', payload, format='json')
+        self.assertEqual(started.status_code, 202, started.data)
+        status_ = self.staff.get(f'/api/hiring/ai/{started.data["id"]}/').data
+        return status_, llm
+
+    def test_role_edit_returns_fields_and_what_changed(self):
+        job = Job.objects.get(slug='retail-associate')
+        fields = {'title': job.title, 'tagline': job.tagline, 'summary': job.summary, 'duties': job.duties,
+                  'success': job.success, 'looking_for': job.looking_for, 'nice_to_have': job.nice_to_have,
+                  'physical': job.physical, 'questions': ['What is your register experience?'],
+                  'interview_questions': ['Tell me about a hard customer.']}
+        answer = json.dumps({**fields, 'tagline': 'Make the store shine.', 'duties': job.duties[:6]})
+        result, llm = self.run_ai({'kind': 'job', 'action': 'shorter', 'fields': fields, 'effort': 'low'}, answer)
+        self.assertEqual(result['status'], 'done', result)
+        self.assertEqual(result['result']['changed'], ['tagline', 'duties'])
+        self.assertEqual(result['result']['fields']['tagline'], 'Make the store shine.')
+        self.assertIn('shorter', llm.call_args.kwargs['user'].lower())
+        self.assertEqual(llm.call_args.kwargs['effort'], 'low')
+        self.assertEqual(Job.objects.get(slug='retail-associate').tagline, job.tagline)  # nothing saved
+
+    def test_email_edit_warns_about_unknown_placeholders(self):
+        answer = json.dumps({'subject': 'Hi {first_name}', 'body': 'Thanks {first_name}, see you {date}.'})
+        result, _ = self.run_ai({'kind': 'email', 'key': 'received', 'action': 'warmer',
+                                 'subject': 'We got it, {first_name}', 'body': 'Thanks for applying for {roles}.'},
+                                answer)
+        self.assertEqual(result['status'], 'done', result)
+        warnings = ' '.join(result['result']['warnings'])
+        self.assertIn('{date}', warnings)
+        self.assertIn('{roles}', warnings)
+
+    def test_bad_answers_fail_and_bad_requests_are_refused(self):
+        result, _ = self.run_ai({'kind': 'email', 'key': 'received', 'subject': 's', 'body': 'b'}, 'no json here')
+        self.assertEqual(result['status'], 'failed')
+        self.assertIn('not usable', result['error'])
+        for payload in ({'kind': 'nope'}, {'kind': 'email', 'key': 'nope'}, {'kind': 'job', 'action': 'custom'},
+                        {'kind': 'careers'}, {'kind': 'job', 'model': 'not-a-model'}):
+            self.assertEqual(self.staff.post('/api/hiring/ai/', payload, format='json').status_code, 400, payload)
+
+    def test_whole_file_edit_still_works(self):
+        result, _ = self.run_ai({'kind': 'careers', 'request': 'No changes'}, json.dumps(careers.export_doc()))
+        self.assertEqual((result['status'], result['result']['changes']), ('done', []))
+
+    def test_a_dead_run_is_marked_failed(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.hiring.models import HiringAiJob
+        job = HiringAiJob.objects.create(kind='email', params={})
+        HiringAiJob.objects.filter(pk=job.pk).update(created_at=timezone.now() - timedelta(minutes=10))
+        data = self.staff.get(f'/api/hiring/ai/{job.pk}/').data
+        self.assertEqual(data['status'], 'failed')
+
+
+class RoleEmailTests(Base):
+    """Emails are universal, and a role can carry its own version of any of them."""
+
+    def test_a_roles_own_auto_reply_is_used_for_that_role_only(self):
+        retail = Job.objects.get(slug='retail-associate')
+        retail.emails = {'received': {'subject': 'Retail got you, {first_name}', 'body': 'See you on the floor.'}}
+        retail.save()
+        self.turn_on()
+        self.apply()
+        self.assertEqual(mail.outbox[0].subject, 'Retail got you, Dana')
+        mail.outbox.clear()
+        self.apply(roles=('processing-associate',), email='p@example.com',
+                   answers={**{k: v for k, v in GOOD_ANSWERS.items() if not k.startswith('retail')},
+                            'processing-associate.careful_fast': 'Checklists.'})
+        self.assertEqual(mail.outbox[0].subject, 'We got your application, Dana')
+
+    def test_role_emails_round_trip_and_are_checked(self):
+        doc = careers.export_doc()
+        doc['jobs'][0]['emails'] = {'not_now.default': {'subject': 'S', 'body': 'B'}, 'interview_booked': {}}
+        good = careers.check_doc(doc)
+        self.assertTrue(good['ok'], good['errors'])
+        self.assertEqual(good['doc']['jobs'][0]['emails'], {'not_now.default': {'subject': 'S', 'body': 'B'}})
+        doc['jobs'][0]['emails'] = {'made_up': {'subject': 'S', 'body': 'B'}}
+        self.assertFalse(careers.check_doc(doc)['ok'])
+        job = Job.objects.get(slug='retail-associate')
+        response = self.staff.patch(f'/api/hiring/jobs/{job.pk}/', {'emails': {'alert': {'subject': 'x'}}}, format='json')
+        self.assertEqual(response.status_code, 400)
+
+    def test_not_now_uses_the_roles_version(self):
+        retail = Job.objects.get(slug='retail-associate')
+        retail.emails = {'not_now.default': {'subject': 'Retail: thanks', 'body': 'Hi {first_name}.'}}
+        retail.save()
+        self.turn_on()
+        self.apply()
+        app = Application.objects.get()
+        draft = self.staff.get(f'/api/hiring/applications/{app.pk}/not-now-draft/?reason=hours').data
+        self.assertEqual((draft['subject'], draft['body']), ('Retail: thanks', 'Hi Dana.'))
+
+class InterviewTests(Base):
+    """Phase 2: the interview link, open times, book / change / cancel, emails with .ics, staff actions, reminders."""
+
+    def setUp(self):
+        super().setUp()
+        from apps.hiring.models import Interview
+        self.Interview = Interview
+        self.carrie = _user('carrie@example.com', 'Manager')
+        Job.objects.filter(slug='retail-associate').update(hiring_manager=self.manager)
+        Job.objects.get(slug='retail-associate').interviewers.set([self.carrie])
+        self.turn_on()
+        self.apply()
+        self.app = Application.objects.get()
+        mail.outbox.clear()
+
+    def link_token(self):
+        response = self.staff.post(f'/api/hiring/applications/{self.app.pk}/invite/', {'send': True}, format='json')
         self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual((llm.call_args.kwargs['model_override'], llm.call_args.kwargs['effort']), ('test-model-1', 'high'))
-        self.assertIn('Indexes:', llm.call_args.kwargs['user'])
-        self.assertEqual(response.data['changes'], [])
-        bad = self.staff.post('/api/hiring/careers/ai-draft/', {'request': 'x', 'model': 'not-a-model'}, format='json')
+        self.app.refresh_from_db()
+        return self.app.booking_token
+
+    def test_invite_emails_the_link_and_moves_to_contacted(self):
+        token = self.link_token()
+        self.assertEqual(self.app.stage, 'contacted')
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(f'/careers/interview?t={token}', mail.outbox[0].body)
+        self.assertIn('Pick your interview time', mail.outbox[0].subject)
+        copy = self.staff.post(f'/api/hiring/applications/{self.app.pk}/invite/', {'send': False}, format='json').data
+        self.assertEqual(copy['link'].split('t=')[1], token)  # same live link, no second email
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertTrue(copy['application']['booking_link'].endswith(token))
+
+    def test_public_page_lists_open_times_and_refuses_bad_links(self):
+        token = self.link_token()
+        data = self.public.get(f'/api/hiring/public/interview/?t={token}').data
+        self.assertEqual((data['first_name'], data['roles'], data['interview']), ('Dana', ['Retail Associate'], None))
+        self.assertTrue(data['times'])
+        first = data['times'][0]
+        self.assertTrue({'start', 'end', 'day', 'label', 'date'} <= set(first))
+        self.assertEqual(self.public.get('/api/hiring/public/interview/?t=nope-not-a-real-token-at-all').status_code, 404)
+
+    def test_book_change_and_cancel_from_the_link(self):
+        token = self.link_token()
+        mail.outbox.clear()
+        times = self.public.get(f'/api/hiring/public/interview/?t={token}').data['times']
+        booked = self.public.post('/api/hiring/public/interview/', {'t': token, 'start': times[0]['start']}, format='json')
+        self.assertEqual(booked.status_code, 200, booked.data)
+        self.assertEqual(booked.data['interview']['interviewer'], 'Test')  # Carrie's first name in the test user
+        interview = self.Interview.objects.get()
+        self.assertEqual((interview.interviewer, interview.status), (self.carrie, 'scheduled'))
+        self.app.refresh_from_db()
+        self.assertEqual(self.app.stage, 'interview_scheduled')
+        to_applicant, notice = mail.outbox
+        self.assertEqual(to_applicant.to, ['dana@example.com'])
+        self.assertEqual(to_applicant.attachments[0][0], 'interview.ics')
+        self.assertIn('BEGIN:VEVENT', to_applicant.attachments[0][1].decode() if isinstance(to_applicant.attachments[0][1], bytes) else to_applicant.attachments[0][1])
+        self.assertEqual(set(notice.to), {'carrie@example.com', 'boss@example.com'})
+        self.assertNotIn(times[0]['start'], [t['start'] for t in booked.data['times']])
+
+        mail.outbox.clear()
+        moved = self.public.post('/api/hiring/public/interview/', {'t': token, 'start': times[1]['start']}, format='json')
+        self.assertEqual(moved.status_code, 200, moved.data)
+        interview.refresh_from_db()
+        self.assertEqual((interview.ics_sequence, self.Interview.objects.count()), (1, 1))
+        self.assertIn('moved', mail.outbox[0].subject)
+
+        mail.outbox.clear()
+        cancelled = self.public.post('/api/hiring/public/interview/cancel/', {'t': token}, format='json')
+        self.assertIsNone(cancelled.data['interview'])
+        interview.refresh_from_db()
+        self.app.refresh_from_db()
+        self.assertEqual((interview.status, self.app.stage), ('cancelled', 'contacted'))
+        self.assertIn('cancelled', mail.outbox[0].subject)
+
+    def test_a_taken_time_is_refused(self):
+        token = self.link_token()
+        times = self.public.get(f'/api/hiring/public/interview/?t={token}').data['times']
+        self.staff.post('/api/hiring/interview-times/', {'kind': 'block', 'start': times[0]['start'],
+                                                         'end': times[0]['end']}, format='json')
+        response = self.public.post('/api/hiring/public/interview/', {'t': token, 'start': times[0]['start']},
+                                    format='json')
+        self.assertEqual(response.status_code, 400)
+
+    def test_hours_notice_blocks_and_extra_openings(self):
+        from datetime import datetime, time as dtime, timedelta
+
+        from django.utils import timezone
+
+        from apps.hiring import interviews
+        from apps.hiring.models import InterviewTime
+        now = timezone.now()
+        times = interviews.open_times(now=now)
+        self.assertTrue(all(start >= now + timedelta(hours=12) for start, _ in times))
+        self.assertTrue(all(timezone.localtime(start).weekday() < 5 for start, _ in times))
+        self.assertTrue(all(dtime(9) <= timezone.localtime(start).time() < dtime(17) for start, _ in times))
+        # An extra Saturday morning opens; a block removes its slots.
+        day = timezone.localdate(now) + timedelta(days=(5 - timezone.localdate(now).weekday()) % 7 or 7)
+        tz = timezone.get_current_timezone()
+        sat = timezone.make_aware(datetime.combine(day, dtime(10)), tz)
+        InterviewTime.objects.create(kind='open', start=sat, end=sat + timedelta(hours=1))
+        self.assertIn(sat, [s for s, _ in interviews.open_times(now=now)])
+        InterviewTime.objects.create(kind='block', start=sat, end=sat + timedelta(minutes=30))
+        opened = [s for s, _ in interviews.open_times(now=now)]
+        self.assertNotIn(sat, opened)
+        self.assertIn(sat + timedelta(minutes=30), opened)
+
+    def test_staff_book_then_score_and_no_show(self):
+        times = self.staff.get('/api/hiring/interviews/open-times/').data['times']
+        made = self.staff.post('/api/hiring/interviews/', {'application': self.app.pk, 'start': times[0]['start']},
+                               format='json')
+        self.assertEqual(made.status_code, 201, made.data)
+        self.assertEqual(made.data['booked_by'], 'staff')
+        self.assertEqual(len(made.data['interview_questions']), 6)
+        self.app.refresh_from_db()
+        self.assertTrue(self.app.booking_token)  # their emails carry a change / cancel link
+        pk = made.data['id']
+        bad = self.staff.post(f'/api/hiring/interviews/{pk}/scorecard/', {'answers': [{'key': 'cash', 'rating': 9}]},
+                              format='json')
         self.assertEqual(bad.status_code, 400)
+        done = self.staff.post(f'/api/hiring/interviews/{pk}/scorecard/', {
+            'answers': [{'key': 'cash', 'rating': 4, 'note': 'Balanced drawers at Target'}],
+            'overall': 'hire', 'lead_potential': 'maybe', 'notes': 'Strong', 'done': True,
+        }, format='json')
+        self.assertEqual(done.status_code, 200, done.data)
+        self.assertEqual((done.data['status'], done.data['scorecard']['overall']), ('done', 'hire'))
+        self.assertEqual(done.data['scorecard']['answers'][0]['label'],
+                         'Have you handled cash or a register? How do you make sure your drawer balances?')
+        self.app.refresh_from_db()
+        self.assertEqual(self.app.stage, 'interviewed')
+
+    def test_interviewer_change_and_no_show(self):
+        times = self.staff.get('/api/hiring/interviews/open-times/').data['times']
+        pk = self.staff.post('/api/hiring/interviews/', {'application': self.app.pk, 'start': times[0]['start']},
+                             format='json').data['id']
+        changed = self.staff.post(f'/api/hiring/interviews/{pk}/interviewer/', {'interviewer': self.manager.pk},
+                                  format='json')
+        self.assertEqual(changed.data['interviewer_person']['email'], 'boss@example.com')
+        no_show = self.staff.post(f'/api/hiring/interviews/{pk}/no-show/', {}, format='json')
+        self.assertEqual(no_show.data['status'], 'no_show')
+
+    def test_reminder_goes_once_the_day_before(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.hiring.interviews import send_due_reminders
+        self.link_token()
+        mail.outbox.clear()
+        start = timezone.now() + timedelta(hours=20)
+        self.Interview.objects.create(application=self.app, start=start, end=start + timedelta(minutes=30),
+                                      interviewer=self.carrie)
+        self.assertEqual(send_due_reminders(), 1)
+        self.assertEqual(send_due_reminders(), 0)
+        self.assertIn('Reminder', mail.outbox[0].subject)
+
+    def test_interview_settings_and_defaults_in_the_careers_file(self):
+        bad = careers.check_doc({'interviews': {'start': '9am', 'weekdays': ['Funday']}})
+        self.assertFalse(bad['ok'])
+        good = careers.check_doc({'interviews': {'start': '10:00', 'length_minutes': 45},
+                                  'defaults': {'hiring_manager': 'boss@example.com',
+                                               'interviewers': ['carrie@example.com']},
+                                  'jobs': [{'title': 'Cashier Lead', 'status': 'draft'}]})
+        self.assertTrue(good['ok'], good['errors'])
+        new_job = next(j for j in good['doc']['jobs'] if j['slug'] == 'cashier-lead')
+        self.assertEqual((new_job['hiring_manager'], new_job['interviewers']), ('boss@example.com', ['carrie@example.com']))
+        careers.apply_doc(good['doc'], user=self.manager)
+        self.assertEqual(careers.load_setting()['interviews']['length_minutes'], 45)
+        made = self.staff.post('/api/hiring/jobs/', {'title': 'Driver', 'slug': 'driver'}, format='json')
+        self.assertEqual(made.status_code, 201, made.data)
+        job = Job.objects.get(slug='driver')
+        self.assertEqual((job.hiring_manager, list(job.interviewers.all())), (self.manager, [self.carrie]))
+
+    def test_graph_backend_passes_attachments(self):
+        from django.core.mail import EmailMessage
+
+        from apps.mailbox.backends import GraphEmailBackend
+        message = EmailMessage('s', 'b', 'a@example.com', ['b@example.com'])
+        message.attach('interview.ics', b'BEGIN:VCALENDAR', 'text/calendar')
+        [(name, content, mimetype)] = GraphEmailBackend._attachments(message)
+        content = content.decode() if isinstance(content, bytes) else content
+        self.assertEqual((name, content, mimetype), ('interview.ics', 'BEGIN:VCALENDAR', 'text/calendar'))

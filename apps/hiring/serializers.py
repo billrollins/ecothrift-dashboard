@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from apps.accounts.models import User
-from apps.hiring.models import Application, ApplicationEvent, Job
+from apps.hiring.models import Application, ApplicationEvent, Interview, InterviewTime, Job
 from apps.hiring.services import flags_of
 
 
@@ -24,7 +24,7 @@ class JobSerializer(serializers.ModelSerializer):
             'id', 'slug', 'title', 'tagline', 'summary', 'duties', 'success', 'looking_for', 'nice_to_have', 'physical',
             'works_with', 'schedule', 'hours', 'employment_type',
             'pay_min', 'pay_max', 'pay_text', 'questions', 'interview_questions', 'department', 'status',
-            'hiring_manager', 'interviewers', 'hiring_manager_person', 'interviewer_people',
+            'hiring_manager', 'interviewers', 'hiring_manager_person', 'interviewer_people', 'emails',
             'sort_order', 'application_count', 'updated_at',
         ]
         read_only_fields = ['id', 'application_count', 'updated_at']
@@ -72,6 +72,14 @@ class JobSerializer(serializers.ModelSerializer):
 
     def validate_physical(self, value):
         return self._lines(value, 'The physical side')
+
+    def validate_emails(self, value):
+        from apps.hiring.careers import _check_role_emails
+        errors: list[str] = []
+        cleaned = _check_role_emails(value, 'This role', errors)
+        if errors:
+            raise serializers.ValidationError(errors)
+        return cleaned
 
     def validate_questions(self, value):
         return self._questions(value, 'questions')
@@ -154,13 +162,28 @@ class ApplicationDetailSerializer(ApplicationListSerializer):
     resume_file = serializers.SerializerMethodField()
     not_now_reason_label = serializers.SerializerMethodField()
     employee = serializers.SerializerMethodField()
+    interviews = serializers.SerializerMethodField()
+    booking_link = serializers.SerializerMethodField()
 
     class Meta(ApplicationListSerializer.Meta):
         fields = ApplicationListSerializer.Meta.fields + [
             'answers', 'events', 'resume_file', 'sms_consent', 'sms_consent_at', 'not_now_note', 'not_now_stage',
             'not_now_reason_label', 'not_now_email_status', 'not_now_email_subject', 'not_now_email_body', 'not_now_at',
-            'received_email_sent', 'employee',
+            'received_email_sent', 'employee', 'interviews', 'booking_link', 'invited_at',
         ]
+
+    def get_interviews(self, obj):
+        rows = obj.interviews.select_related('job', 'interviewer', 'scored_by').order_by('-start')
+        return InterviewSerializer(rows, many=True).data
+
+    def get_booking_link(self, obj):
+        """The applicant's live interview link (to copy and text), or '' when there is none."""
+        from django.utils import timezone
+
+        from apps.hiring.interviews import public_link
+        if obj.booking_token and obj.booking_token_expires and obj.booking_token_expires > timezone.now():
+            return public_link(obj.booking_token)
+        return ''
 
     def get_resume_file(self, obj):
         if not obj.resume_id:
@@ -183,3 +206,53 @@ class ApplicationDetailSerializer(ApplicationListSerializer):
             'pay_rate': str(getattr(profile, 'pay_rate', '') or ''),
             'hire_date': getattr(profile, 'hire_date', None),
         }
+
+
+class InterviewSerializer(serializers.ModelSerializer):
+    applicant_name = serializers.CharField(source='application.full_name', read_only=True)
+    applicant_phone = serializers.CharField(source='application.phone', read_only=True)
+    applicant_email = serializers.CharField(source='application.email', read_only=True)
+    roles = serializers.SerializerMethodField()
+    job_title = serializers.CharField(source='job.title', read_only=True, default='')
+    interview_questions = serializers.SerializerMethodField()
+    interviewer_person = serializers.SerializerMethodField()
+    scored_by_name = serializers.SerializerMethodField()
+    when = serializers.SerializerMethodField()
+    status_label = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = Interview
+        fields = [
+            'id', 'application', 'applicant_name', 'applicant_phone', 'applicant_email', 'roles', 'job', 'job_title',
+            'start', 'end', 'when', 'interviewer', 'interviewer_person', 'place', 'status', 'status_label',
+            'booked_by', 'scorecard', 'scored_by_name', 'scored_at', 'interview_questions', 'reminder_sent_at',
+        ]
+        read_only_fields = fields
+
+    def get_roles(self, obj):
+        return [j.title for j in obj.application.jobs.all()]
+
+    def get_interview_questions(self, obj):
+        return list(obj.job.interview_questions or []) if obj.job_id else []
+
+    def get_interviewer_person(self, obj):
+        return _person(obj.interviewer)
+
+    def get_scored_by_name(self, obj):
+        return _person(obj.scored_by)['name'] if obj.scored_by_id else ''
+
+    def get_when(self, obj):
+        from apps.hiring.interviews import when_text
+        return when_text(obj.start)
+
+
+class InterviewTimeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InterviewTime
+        fields = ['id', 'kind', 'start', 'end', 'note', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+    def validate(self, attrs):
+        if attrs['end'] <= attrs['start']:
+            raise serializers.ValidationError({'end': 'The end must be after the start.'})
+        return attrs

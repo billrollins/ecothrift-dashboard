@@ -28,6 +28,8 @@ import {
   setRating,
   setStage,
   uploadResume,
+  bookInterviewForApplicant,
+  inviteToInterview,
   type AnswerEntry,
   type ApplicationDetail,
   type Job,
@@ -36,6 +38,7 @@ import {
 } from '../../api/hiring.api';
 import { ccTokens } from '../../theme';
 import { CreateEmployeeDialog, NotNowDialog } from './ApplicantDialogs';
+import { InterviewCard, PickTimeDialog } from './interviewUi';
 import { FlagDots } from './FlagDots';
 import { answerText, errorText, nextStage, phoneHref, shortDate, STAGE_LABEL, STAGES } from './peopleUi';
 
@@ -81,7 +84,9 @@ export function ApplicantPanel({
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [notNowOpen, setNotNowOpen] = useState(false);
+  const [notNowReason, setNotNowReason] = useState('');
   const [employeeOpen, setEmployeeOpen] = useState(false);
+  const [booking, setBooking] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const detail = useQuery({
@@ -106,6 +111,47 @@ export function ApplicantPanel({
     queryClient.setQueryData(['hiring', 'application', id], updated);
     await queryClient.invalidateQueries({ queryKey: ['hiring', 'applications'] });
     await queryClient.invalidateQueries({ queryKey: ['hiring', 'counts'] });
+  }
+
+  /** After an interview change: reload this applicant and every interview list. */
+  async function reloadAll() {
+    await queryClient.invalidateQueries({ queryKey: ['hiring'] });
+  }
+
+  async function emailLink() {
+    if (!app) return;
+    setBusy(true);
+    try {
+      const { data } = await inviteToInterview(app.id, true);
+      await refreshWith(data.application);
+      enqueueSnackbar(
+        data.sent ? `Interview link emailed to ${app.email}.` : 'The email did not send. Use Copy link and text it.',
+        { variant: data.sent ? 'success' : 'warning' },
+      );
+    } catch (err) {
+      enqueueSnackbar(errorText(err, 'Could not send the link.'), { variant: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copyLink() {
+    if (!app) return;
+    setBusy(true);
+    try {
+      let link = app.booking_link;
+      if (!link) {
+        const { data } = await inviteToInterview(app.id, false);
+        link = data.link;
+        await refreshWith(data.application);
+      }
+      await navigator.clipboard.writeText(link);
+      enqueueSnackbar('Interview link copied. Paste it in a text from your phone.', { variant: 'success' });
+    } catch (err) {
+      enqueueSnackbar(errorText(err, 'Could not copy the link.'), { variant: 'error' });
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function run(action: () => Promise<{ data: ApplicationDetail }>, fallback: string) {
@@ -291,6 +337,47 @@ export function ApplicantPanel({
         )}
       </Box>
 
+      <Section title="Interview">
+        {app.stage !== 'hired' && app.stage !== 'not_now' && (
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1.25 }}>
+            <Button size="small" variant="outlined" disabled={busy || !app.email} onClick={emailLink}>
+              {app.invited_at ? 'Email the link again' : 'Email interview link'}
+            </Button>
+            <Button size="small" variant="outlined" disabled={busy} onClick={copyLink}>
+              Copy link (to text)
+            </Button>
+            {!app.interviews.some((i) => i.status === 'scheduled') && (
+              <Button size="small" disabled={busy} onClick={() => setBooking(true)}>
+                Book for them
+              </Button>
+            )}
+          </Box>
+        )}
+        {app.invited_at && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+            Link sent {shortDate(app.invited_at)}. They pick a time themselves; it lands here and in People → Interviews.
+          </Typography>
+        )}
+        <Stack spacing={1}>
+          {app.interviews.map((interview) => (
+            <InterviewCard
+              key={interview.id}
+              interview={interview}
+              onChanged={reloadAll}
+              onNoShow={() => {
+                setNotNowReason('no_show');
+                setNotNowOpen(true);
+              }}
+            />
+          ))}
+          {app.interviews.length === 0 && (
+            <Typography variant="body2" color="text.secondary">
+              No interview yet.
+            </Typography>
+          )}
+        </Stack>
+      </Section>
+
       {app.flags.length > 0 && (
         <Section title="Must-haves">
           <FlagDots flags={app.flags} showLabels />
@@ -361,11 +448,30 @@ export function ApplicantPanel({
         open={notNowOpen}
         application={app}
         reasons={reasons}
-        onClose={() => setNotNowOpen(false)}
+        initialReason={notNowReason}
+        onClose={() => {
+          setNotNowOpen(false);
+          setNotNowReason('');
+        }}
         onDone={async (updated) => {
           setNotNowOpen(false);
+          setNotNowReason('');
           await refreshWith(updated);
           enqueueSnackbar(`${updated.full_name}: Not now`, { variant: 'success' });
+        }}
+      />
+      <PickTimeDialog
+        open={booking}
+        title={`Book an interview for ${app.full_name}`}
+        confirmLabel="Book it"
+        onClose={() => setBooking(false)}
+        onPick={async (start) => {
+          await bookInterviewForApplicant(app.id, start);
+          setBooking(false);
+          await reloadAll();
+          enqueueSnackbar('Interview booked. They got an email with the time and their change / cancel link.', {
+            variant: 'success',
+          });
         }}
       />
       <CreateEmployeeDialog

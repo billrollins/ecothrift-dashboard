@@ -3,7 +3,7 @@
 
 # Initiative: Hiring and onboarding
 
-**Status:** **Active**. Phase 1 shipped in v2.136.0, with fuller role pages, the JSON bundle for AI and hiring managers in v2.137.0 (2026-10-06). The careers page stays hidden until the owner turns it on. Phase 2 (interview calendar) next. The owner said it is urgent (2026-10-06).
+**Status:** **Active**. Shipped: Phase 1 (v2.136.0), fuller role pages, the JSON for AI and hiring managers (v2.137.0), and Phase 2 interviews, AI help per role and email, and the Emails page (v2.139.0). The careers page is live (Bill turned it on 2026-10-06). Next: Phase 3, offers signed with a finger.
 
 **Objective:** The owner runs hiring from Dash, start to finish:
 
@@ -228,13 +228,48 @@ Acceptance:
 
 ### Phase 2 — Interview calendar
 The owner sets open interview times, and applicants who confirm their email book, change or cancel their own (his item 6).
-**Gated by:** Phase 1.
-Detail when Phase 1 is built. Outline:
+**Gated by:** Phase 1 (shipped). **Shipped** in v2.139.0 (2026-10-06).
 
-- **People → Interview times:** a weekly pattern (for example Tue and Thu 2–4 PM, 30-minute slots), one-off times, interviewer and place. Closed days are skipped (`webstore/services/hours.py`).
-- **Pick a time:** a link in the applicant's email when staff press **Invite to interview**. A 6-digit email code confirms the email, then `/careers/my` shows open times. Text confirmation waits on Bill's D13 ruling.
-- The booking email carries an `.ics` file and a change or cancel link. A reminder goes the day before (a Scheduler command). The stage moves to Interview scheduled on its own.
-- **Today's interviews** for staff, with a scorecard from the role's interview questions, filled on a phone. **No-show** is one tap, and it opens the Not now draft.
+The owner's inputs (2026-10-06):
+
+- Interviews are typically **Monday to Friday, 9 AM to 5 PM**, and he can open more times when needed.
+- **Bill** is the hiring manager on every role. **Carrie** sits in interviews by default. Everything stays changeable, per role and per interview.
+- He likes to answer within 24 hours, but the promise is: after an interview, **you'll hear back within 5 business days**.
+
+Claude's calls:
+
+- **The emailed link is the email confirmation.** Staff press **Invite to interview**; the applicant gets an email with a private booking link. Opening it proves they own the address, so there is no separate 6-digit code. The same link changes or cancels. Staff can also **Copy link** and text it from their own phone (Dash itself texts nothing until Phase 6).
+- **One interview at a time** (a small store). Open times are the weekly hours, plus extra openings, minus blocked times, minus booked interviews. Hours, slot length, days ahead and minimum notice live in the careers file (`interviews`), so the JSON round-trip covers them.
+- **The interviewer** of a new interview is the role's first interviewer (Carrie), changeable on the interview. New roles take the careers file's default hiring manager and interviewers.
+- **Reminders** go the day before, sent by the 10-minute mail tick (`sync_ms_mailbox`), so no new Scheduler job is needed.
+
+Acceptance:
+- [x] **Invite to interview** on the applicant panel. It emails the booking link (template `email.interview_invite`) and shows **Copy link**. The stage moves to Contacted if it was earlier. Logged.
+- [x] Public **`/careers/interview?t=…`**:
+  - the open times for the next 14 days, by day;
+  - pick one, then confirm;
+  - booked: the time, the place and who you'll meet, with **Change time** and **Cancel**;
+  - a used or expired link says so.
+- [x] **Emails:**
+  - booked, to the applicant, with an `.ics` file;
+  - a notice to the interviewer and the hiring manager, also with `.ics`;
+  - changed and cancelled versions;
+  - a reminder the day before.
+
+  All editable in the careers file.
+- [x] **Stages move on their own:** booked → Interview scheduled; cancelled by the applicant → Contacted; Done → Interviewed; No-show opens the Not now draft (reason No-show). Every change is on the timeline.
+- [x] **People → Interviews:**
+  - Today and Upcoming;
+  - change interviewer, reschedule (staff pick a time, for example on the phone), cancel, **Done**, **No-show**;
+  - the weekly hours, plus **Open extra time** and **Block time**.
+- [x] **Scorecard on a phone:**
+  - the role's interview questions, each with a 1–5 rating and a note;
+  - overall **Hire / Maybe / No**, with notes;
+  - shown on the applicant panel.
+
+  The three roles get starter questions (copy), editable in the careers file.
+- [x] Every new setting (`interviews`, the defaults, the new emails, the interview questions) is in the JSON bundle and its indexes.
+- [x] Tests: open times (hours, notice, blocks, extras, booked), the booking link (book, change, cancel, expired), stage moves, the emails and `.ics`, reminders sent once, scorecard save.
 
 ### Phase 3 — Offers signed with a finger
 An offer letter goes out as a link, is signed on a phone, and comes back as a flattened PDF with an audit page.
@@ -444,6 +479,37 @@ Built:
 Checks: 34 hiring tests, 52 front-end tests, both type-checks, migrations. Checked in a browser: the staff list in the hiring-manager picker, a save showing "Hiring manager: Bill Rollins", and the AI dialog's 7 models with "Default: gemini-3.5-flash-lite" and "Default: low".
 
 **Decision:** applicant records are not in the JSON. AI edits settings, never people (decision 7). The onboarding checklist, check-in forms and offer text (later phases) go into this same file and its indexes, so one download always covers all of hiring.
+
+**2026-10-06 — Phase 2, the interview calendar (shipped in v2.139.0).** The owner's inputs: Bill is the hiring manager; Carrie interviews by default, changeable; he answers within 24 hours but promises 5 business days after an interview; interviews Monday to Friday, 9 AM to 5 PM, with more times opened when needed.
+
+Built as in the acceptance above:
+
+- `Interview`, `InterviewTime` and the booking token on `Application`;
+- `apps/hiring/interviews.py` (open times, book, change, cancel, emails with `.ics`, scorecard, reminders);
+- the public page `/careers/interview`;
+- People → Interviews and the applicant panel's Interview section;
+- six starter questions per role (`0007`).
+
+Checks: 44 hiring tests and the mailbox tests (52 together), 52 front-end tests, both type-checks. Checked end to end in a browser: the invite email, booking from a phone-width page (weekdays only, 12 hours' notice), the interview in People → Interviews, then Scorecard → Save & mark done (stage Interviewed, overall Hire, timeline complete). The test data was removed.
+
+Claude's calls while building:
+
+- **The link is stored plain** so staff can copy it again. It only books that applicant's interview.
+- **The applicant's own slot** isn't offered back to them as a new choice.
+- **Reminders ride the 10-minute `sync_ms_mailbox` job**, plus `manage.py send_interview_reminders`.
+- **Graph mail now carries attachments** (`apps/mailbox/graph.py`, `backends.py`).
+
+**2026-10-06 — AI help per role and per email, background AI runs, the Emails page (shipped in v2.139.0).**
+
+The owner hit a 503 using Ask AI in production. The whole-file run took about 44 seconds and Heroku cut it at 30 (H12). He doesn't want to talk with AI; he wants it to help edit the elements, inside the Edit button. He also asked whether emails are per job or universal.
+
+Built:
+
+- **`HiringAiJob` and `apps/hiring/ai.py`:** a background thread, polled from `/api/hiring/ai/`. Three kinds: one role, one email, the whole file.
+- **AI help bar** (`AiHelpBar.tsx`) in the role editor (which now also edits the application and interview questions) and on every email.
+- **People → Emails:** the universal versions, with **per-role versions** (`Job.emails`). `careers.template(key, application)` picks the role's version when it has one.
+
+Checks: 60 backend tests (hiring and mailbox), 52 front-end tests, the type-check. Checked in a browser: Retail → Polish with a note returned in under 10 seconds, with the changed fields outlined and Undo; on the Emails page, a Retail-only auto-reply was created and removed again.
 
 ---
 

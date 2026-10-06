@@ -30,12 +30,15 @@ export function NotNowDialog({
   open,
   application,
   reasons,
+  initialReason = '',
   onClose,
   onDone,
 }: {
   open: boolean;
   application: ApplicationDetail;
   reasons: Option[];
+  /** Pre-picked reason, e.g. 'no_show' right after marking a no-show. */
+  initialReason?: string;
   onClose: () => void;
   onDone: (updated: ApplicationDetail) => void;
 }) {
@@ -48,13 +51,13 @@ export function NotNowDialog({
 
   useEffect(() => {
     if (open) {
-      setReason('');
+      setReason(initialReason);
       setNote('');
       setSubject('');
       setBody('');
       setError('');
     }
-  }, [open]);
+  }, [open, initialReason]);
 
   useEffect(() => {
     if (!open || !reason) return;

@@ -144,3 +144,76 @@ def apply(request):
         )
     services.send_first_touch(application)
     return Response({'ok': True, 'first_name': application.first_name}, status=status.HTTP_201_CREATED)
+
+
+# ── The interview link (/careers/interview?t=…) ─────────────────────────────
+
+
+class InterviewThrottle(AnonRateThrottle):
+    scope = 'hiring_interview'
+    rate = '120/hour'
+
+
+_EXPIRED = ('This interview link has expired or is no longer active. Reply to the email we sent you, or call the '
+            'store, and we will send a new one.')
+
+
+def _interview_state(application) -> dict:
+    from apps.hiring import interviews as service
+    from apps.hiring.views import _time_rows
+
+    current = service.current_interview(application)
+    cfg = service.config()
+    return {
+        'ok': True,
+        'first_name': application.first_name,
+        'roles': [j.title for j in application.jobs.all()],
+        'length_minutes': cfg['length_minutes'],
+        'place': cfg['place'],
+        'interview': None if current is None else {
+            'start': current.start.isoformat(),
+            'end': current.end.isoformat(),
+            'when': service.when_text(current.start),
+            'interviewer': service.first_name(current.interviewer),
+            'place': current.place or cfg['place'],
+        },
+        # Their own booking doesn't block other times, but isn't offered back as a choice either.
+        'times': _time_rows([(s, e) for s, e in service.open_times(exclude=current)
+                             if current is None or s != current.start]),
+    }
+
+
+def _token(request) -> str:
+    return (request.query_params.get('t') or (request.data.get('t') if request.method == 'POST' else '') or '').strip()
+
+
+@api_view(['GET', 'POST'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+@throttle_classes([InterviewThrottle])
+def interview(request):
+    """GET: who you are, your interview (if booked) and the open times. POST {t, start}: book or move it."""
+    from apps.hiring import interviews as service
+
+    application = service.application_for_token(_token(request))
+    if application is None:
+        return Response({'ok': False, 'detail': _EXPIRED}, status=status.HTTP_404_NOT_FOUND)
+    if request.method == 'POST':
+        service.book(application, request.data.get('start'))
+    return Response(_interview_state(application))
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+@throttle_classes([InterviewThrottle])
+def interview_cancel(request):
+    from apps.hiring import interviews as service
+
+    application = service.application_for_token(_token(request))
+    if application is None:
+        return Response({'ok': False, 'detail': _EXPIRED}, status=status.HTTP_404_NOT_FOUND)
+    current = service.current_interview(application)
+    if current is not None:
+        service.cancel(current)
+    return Response(_interview_state(application))

@@ -15,6 +15,7 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 const CareersPage = lazy(() => import('./pages/careers/CareersPage'))
 const CareerRolePage = lazy(() => import('./pages/careers/CareerRolePage'))
 const CareersApplyPage = lazy(() => import('./pages/careers/CareersApplyPage'))
+const InterviewPage = lazy(() => import('./pages/careers/InterviewPage'))
 const ShopPage = lazy(() => import('./pages/ShopPage'))
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'))
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage'))
@@ -174,6 +175,14 @@ export default function App() {
           element={
             <Suspense fallback={<RouteFallback />}>
               <CareersApplyPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="careers/interview"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <InterviewPage />
             </Suspense>
           }
         />

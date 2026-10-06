@@ -28,6 +28,8 @@ const CountDaysPage = lazy(() => import('./pages/inventory/count/CountDaysPage')
 const PrFixitPage = lazy(() => import('./pages/inventory/count/PrFixitPage'));
 const ApplicantsPage = lazy(() => import('./pages/people/ApplicantsPage'));
 const JobsPage = lazy(() => import('./pages/people/JobsPage'));
+const InterviewsPage = lazy(() => import('./pages/people/InterviewsPage'));
+const EmailsPage = lazy(() => import('./pages/people/EmailsPage'));
 import FloorplanListPage from './pages/floorplan/FloorplanListPage';
 
 // Pages
@@ -489,6 +491,26 @@ export default function App() {
             <ManagerRoute>
               <Suspense fallback={<LoadingScreen message="Loading…" />}>
                 <JobsPage />
+              </Suspense>
+            </ManagerRoute>
+          }
+        />
+        <Route
+          path="/people/interviews"
+          element={
+            <ManagerRoute>
+              <Suspense fallback={<LoadingScreen message="Loading…" />}>
+                <InterviewsPage />
+              </Suspense>
+            </ManagerRoute>
+          }
+        />
+        <Route
+          path="/people/emails"
+          element={
+            <ManagerRoute>
+              <Suspense fallback={<LoadingScreen message="Loading…" />}>
+                <EmailsPage />
               </Suspense>
             </ManagerRoute>
           }

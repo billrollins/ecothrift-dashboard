@@ -9,6 +9,15 @@ class Command(BaseCommand):
     help = 'Synchronize the Microsoft 365 inbox into MailMessage records.'
 
     def handle(self, *args, **options):
+        # The 10-minute mail tick also sends hiring's day-before interview reminders (no Scheduler job of its own).
+        try:
+            from apps.hiring.interviews import send_due_reminders
+
+            reminded = send_due_reminders()
+            if reminded:
+                self.stdout.write(f'Interview reminders sent: {reminded}')
+        except Exception as exc:  # noqa: BLE001 - never let reminders break the mailbox sync
+            self.stderr.write(f'Interview reminders failed: {exc}')
         if not graph_enabled():
             self.stdout.write(self.style.WARNING('MS_GRAPH_ENABLED=false; sync skipped.'))
             return

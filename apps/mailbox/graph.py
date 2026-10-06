@@ -72,7 +72,9 @@ class GraphMailClient:
         headers: dict[str, str] | None = None,
         from_email: str = '',
         save_to_sent_items: bool = True,
+        attachments: list[tuple[str, bytes | str, str]] | None = None,
     ) -> None:
+        """``attachments``: (filename, content, mimetype) tuples, sent as Graph file attachments."""
         from_name, from_address = parseaddr(from_email)
         from_address = from_address or self.mailbox or graph_settings()['mailbox']
         from_name = from_name or str(
@@ -90,6 +92,20 @@ class GraphMailClient:
             message['bccRecipients'] = self._recipients(bcc)
         if reply_to:
             message['replyTo'] = self._recipients(reply_to)
+        if attachments:
+            import base64
+
+            message['attachments'] = [
+                {
+                    '@odata.type': '#microsoft.graph.fileAttachment',
+                    'name': name,
+                    'contentType': mimetype or 'application/octet-stream',
+                    'contentBytes': base64.b64encode(
+                        content.encode('utf-8') if isinstance(content, str) else content,
+                    ).decode('ascii'),
+                }
+                for name, content, mimetype in attachments
+            ]
         safe_headers = [
             {'name': name, 'value': str(value)}
             for name, value in (headers or {}).items()

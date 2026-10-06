@@ -12,7 +12,7 @@ from email.utils import parseaddr
 from django.conf import settings
 from django.core.mail import EmailMessage
 
-from apps.hiring.careers import fill, load_setting
+from apps.hiring.careers import fill, load_setting, template as email_template
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,8 @@ def _addresses(raw: str) -> list[str]:
     return [a.strip() for a in (raw or '').replace(';', ',').split(',') if a.strip()]
 
 
-def _send_via_own_mailbox(*, sender: str, to: list[str], subject: str, body: str, reply_to: list[str]) -> bool:
+def _send_via_own_mailbox(*, sender: str, to: list[str], subject: str, body: str, reply_to: list[str],
+                          attachments=None) -> bool:
     from apps.mailbox.auth import graph_enabled
     from apps.mailbox.graph import GraphMailClient
 
@@ -33,6 +34,7 @@ def _send_via_own_mailbox(*, sender: str, to: list[str], subject: str, body: str
     try:
         GraphMailClient(mailbox=address).send_mail(
             subject=subject, body=body, to=to, reply_to=reply_to or None, from_email=sender,
+            attachments=attachments or None,
         )
         return True
     except Exception:
@@ -40,20 +42,27 @@ def _send_via_own_mailbox(*, sender: str, to: list[str], subject: str, body: str
         return False
 
 
-def send(*, to: str | list[str], subject: str, body: str) -> bool:
-    """Plain-text mail from the careers sender. Never raises; returns True when it went out."""
+def send(*, to: str | list[str], subject: str, body: str,
+         attachments: list[tuple[str, bytes | str, str]] | None = None) -> bool:
+    """Plain-text mail from the careers sender. Never raises; returns True when it went out.
+
+    ``attachments``: (filename, content, mimetype), e.g. an interview's ``.ics`` calendar file.
+    """
     recipients = _addresses(to) if isinstance(to, str) else [a for a in to if a]
     if not recipients:
         return False
     email = load_setting()['email']
     reply_to = _addresses(email.get('reply_to') or '')
     sender = (email.get('from') or '').strip()
-    if sender and _send_via_own_mailbox(sender=sender, to=recipients, subject=subject, body=body, reply_to=reply_to):
+    if sender and _send_via_own_mailbox(sender=sender, to=recipients, subject=subject, body=body, reply_to=reply_to,
+                                        attachments=attachments):
         return True
     try:
         message = EmailMessage(
             subject=subject, body=body, from_email=settings.DEFAULT_FROM_EMAIL, to=recipients, reply_to=reply_to,
         )
+        for name, content, mimetype in attachments or ():
+            message.attach(name, content, mimetype)
         return bool(message.send(fail_silently=True))
     except Exception:
         logger.exception('Hiring mail failed: %s → %s', subject, recipients)
@@ -80,7 +89,7 @@ def values_for(application, *, extra: dict | None = None) -> dict:
 
 
 def send_received(application) -> bool:
-    template = load_setting()['email']['received']
+    template = email_template('received', application)
     values = values_for(application)
     return send(to=application.email, subject=fill(template['subject'], values), body=fill(template['body'], values))
 
@@ -107,5 +116,5 @@ def send_alert(application, *, dash_link: str) -> bool:
     misses = [a.get('flag_label') or a.get('label') for a in flags if a.get('ok') is False]
     flag_text = ('RED: ' + ', '.join(misses)) if misses else ('all green' if flags else 'none')
     values = values_for(application, extra={'flags': flag_text, 'dash_link': dash_link})
-    template = email['alert']
+    template = email_template('alert', application)
     return send(to=notify, subject=fill(template['subject'], values), body=fill(template['body'], values))

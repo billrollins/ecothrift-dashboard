@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.138.0] -->
-<!-- Last reviewed: 2026-10-06 (2.138.0) -->
+<!-- Line 1 release: ## [2.139.0] -->
+<!-- Last reviewed: 2026-10-06 (2.139.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,62 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.139.0] - 2026-10-06
+
+User-facing theme: **Interviews: applicants pick their own interview time from a private link, you see every interview in People → Interviews, and you score it on your phone.** Initiative: `hiring_onboarding` Phase 2.
+
+### Added
+
+- **Invite to interview** on an applicant:
+  - **Email interview link**, or **Copy link (to text)** to send it from your own phone;
+  - opening the link from the email is the email confirmation;
+  - **Book for them** when you set the time together on the phone.
+- **The applicant's page** (`ecothrift.us/careers/interview?t=…`, phone-first):
+  - pick a day and a time from the open times;
+  - change or cancel later with the same link;
+  - an old or expired link says so.
+- **Emails**, all editable in the careers JSON:
+  - booked, moved and cancelled, each with a calendar file (`.ics`) for the applicant;
+  - a notice, with the calendar file, to the interviewer and the hiring manager;
+  - a reminder the day before, sent by the 10-minute mail job (no new Scheduler entry).
+- **Stages move on their own:** booked → Interview scheduled; cancelled → Contacted; Done → Interviewed; **No-show** opens the Not now draft with No-show picked.
+- **People → Interviews:**
+  - Today / Upcoming / Past;
+  - change the interviewer, reschedule, cancel, No-show, **Scorecard / Done**;
+  - the weekly hours (default Monday to Friday, 9 AM to 5 PM, 30-minute interviews, 14 days ahead, 12 hours' notice);
+  - **Open extra time** and **Block time**.
+- **Scorecard:**
+  - the role's interview questions, each with 1–5 stars and a note;
+  - Overall Hire / Maybe / No;
+  - "Could they lead this area someday?";
+  - notes.
+
+  The three roles get six starter questions each; the last one listens for a future lead.
+- **The careers JSON** now also holds `interviews` (the hours and rules), `defaults` (the hiring manager and interviewers a new role starts with) and the six interview emails, with their keys in the indexes.
+- **Email attachments** now go through Microsoft Graph (`apps/mailbox`), so the calendar files arrive in production.
+
+### Changed
+
+- **AI help on each role and each email, not a chat.**
+  - In a role's **Edit** dialog and on every email: tap **Polish / Shorter / Fuller / Warmer / In my voice** (or **Just my note**), optionally add a note, and press **Improve**.
+  - The answer fills the editor. Changed fields are outlined in purple, with **Undo AI changes**; nothing saves until Save.
+  - Model and effort default to Settings > AI and can be picked per run.
+- **AI runs in the background.** Dash polls until it's done. Heroku cuts any request off at 30 seconds, and the whole-file Ask AI took about 44 seconds, so it failed with a 503 (H12).
+- **The role editor** now covers the role's application question(s) and interview questions too.
+
+### Added
+
+- **People → Emails:**
+  - every hiring email in one list (applying, interviews, not now);
+  - who it goes to and when;
+  - edit the subject and message, tap a placeholder to insert it;
+  - a live preview with a sample applicant;
+  - AI help;
+  - the sender, reply-to, alert address, review days and reply days.
+- **Universal emails with role versions.** Every email has one version for all roles, and any role can have **its own version** (it starts as a copy; **Use the version for all roles** goes back). Sending picks the applied role's version when it has one. The careers JSON carries them per role (jobs[].emails; keys in indexes.email_templates).
+
+Migration: `hiring.0006` (interviews, extra and blocked times, the booking link), `hiring.0007` (starter interview questions, only where a role has none), `hiring.0008` (AI runs, role email versions).
 
 ## [2.138.0] - 2026-10-06
 

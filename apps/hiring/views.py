@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date
+from datetime import date, timedelta
 
 from django.db.models import Count, Q
 from django.http import Http404
@@ -16,9 +16,9 @@ from apps.accounts.permissions import IsManagerOrAdmin
 from apps.core.files import stream_s3
 from apps.hiring import careers, services
 from apps.hiring.files import save_resume, validate_resume
-from apps.hiring.models import Application, Job
+from apps.hiring.models import Application, Interview, InterviewTime, Job
 from apps.hiring.serializers import (
-    ApplicationDetailSerializer, ApplicationListSerializer, JobSerializer,
+    ApplicationDetailSerializer, ApplicationListSerializer, InterviewSerializer, InterviewTimeSerializer, JobSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,15 @@ class JobViewSet(viewsets.ModelViewSet):
                 .select_related('hiring_manager').prefetch_related('interviewers'))
 
     def perform_create(self, serializer):
-        serializer.save(updated_by=self.request.user)
+        job = serializer.save(updated_by=self.request.user)
+        # A new role starts with the default hiring manager and interviewers (careers file "defaults").
+        defaults = careers.load_setting()['defaults']
+        staff = careers.staff_users()
+        if 'hiring_manager' not in self.request.data and defaults.get('hiring_manager'):
+            job.hiring_manager = staff.filter(email__iexact=defaults['hiring_manager']).first()
+            job.save(update_fields=['hiring_manager'])
+        if 'interviewers' not in self.request.data and defaults.get('interviewers'):
+            job.interviewers.set(staff.filter(email__in=[e.lower() for e in defaults['interviewers']]))
 
     def perform_update(self, serializer):
         serializer.save(updated_by=self.request.user)
@@ -239,6 +247,16 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             raise Http404('No resume.')
         return stream_s3(application.resume, as_attachment=request.query_params.get('download') == '1')
 
+    @action(detail=True, methods=['post'])
+    def invite(self, request, pk=None):
+        """Interview link: email it (send=true) or just make it to copy and text (send=false)."""
+        from apps.hiring import interviews as interview_service
+
+        application = self.get_object()
+        send = request.data.get('send') in (True, 'true', '1', 1)
+        result = interview_service.invite(application, by=request.user, send=send)
+        return Response({**result, 'application': ApplicationDetailSerializer(self._fresh(application)).data})
+
     @action(detail=True, methods=['post'], url_path='create-employee')
     def create_employee(self, request, pk=None):
         application = self.get_object()
@@ -257,6 +275,141 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         )
         return Response({**result, 'application': ApplicationDetailSerializer(self._fresh(application)).data},
                         status=status.HTTP_201_CREATED)
+
+
+# ── Interviews ──────────────────────────────────────────────────────────────
+
+
+class InterviewViewSet(viewsets.ReadOnlyModelViewSet):
+    """People → Interviews. Booking goes through the service (open times, emails, stage moves)."""
+
+    permission_classes = [IsManagerOrAdmin]
+    serializer_class = InterviewSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        from django.utils import timezone
+
+        qs = (Interview.objects.select_related('application', 'job', 'interviewer', 'scored_by')
+              .prefetch_related('application__jobs'))
+        params = self.request.query_params
+        if params.get('application'):
+            qs = qs.filter(application_id=params['application'])
+        when = params.get('when') or ''
+        now = timezone.now()
+        if when == 'today':
+            qs = qs.filter(start__date=timezone.localdate()).exclude(status=Interview.STATUS_CANCELLED)
+        elif when == 'upcoming':
+            qs = qs.filter(start__gte=now, status=Interview.STATUS_SCHEDULED)
+        elif when == 'past':
+            qs = qs.filter(start__lt=now).order_by('-start')[:100]
+        return qs
+
+    def _out(self, interview, status_code=status.HTTP_200_OK):
+        fresh = self.get_queryset().model.objects.select_related('application', 'job', 'interviewer').get(pk=interview.pk)
+        return Response(InterviewSerializer(fresh).data, status=status_code)
+
+    def create(self, request, *args, **kwargs):
+        """Staff book for an applicant (for example on the phone): same open times as the link."""
+        from apps.hiring import interviews as service
+
+        application = Application.objects.filter(pk=request.data.get('application')).first()
+        if application is None:
+            return Response({'application': 'Pick an applicant.'}, status=status.HTTP_400_BAD_REQUEST)
+        interviewer = None
+        if request.data.get('interviewer'):
+            interviewer = careers.staff_users().filter(pk=request.data.get('interviewer')).first()
+        if not application.booking_token:
+            service.ensure_link(application)  # their emails carry a change / cancel link
+        interview = service.book(application, request.data.get('start'), by=request.user, interviewer=interviewer)
+        return self._out(interview, status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def reschedule(self, request, pk=None):
+        from apps.hiring import interviews as service
+
+        interview = self.get_object()
+        if interview.status != Interview.STATUS_SCHEDULED:
+            return Response({'detail': 'Only a scheduled interview can move.'}, status=status.HTTP_400_BAD_REQUEST)
+        service.book(interview.application, request.data.get('start'), by=request.user)
+        return self._out(interview)
+
+    @action(detail=True, methods=['post'])
+    def interviewer(self, request, pk=None):
+        from apps.hiring import interviews as service
+
+        interview = self.get_object()
+        person = None
+        if request.data.get('interviewer'):
+            person = careers.staff_users().filter(pk=request.data.get('interviewer')).first()
+            if person is None:
+                return Response({'interviewer': 'Pick a staff member.'}, status=status.HTTP_400_BAD_REQUEST)
+        service.set_interviewer(interview, person, by=request.user)
+        return self._out(interview)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        from apps.hiring import interviews as service
+
+        interview = self.get_object()
+        service.cancel(interview, by=request.user, notify=request.data.get('notify', True) not in (False, 'false', 0))
+        return self._out(interview)
+
+    @action(detail=True, methods=['post'], url_path='no-show')
+    def no_show(self, request, pk=None):
+        from apps.hiring import interviews as service
+
+        service.mark_no_show(self.get_object(), by=request.user)
+        return self._out(self.get_object())
+
+    @action(detail=True, methods=['post'])
+    def scorecard(self, request, pk=None):
+        from apps.hiring import interviews as service
+
+        interview = self.get_object()
+        done = request.data.get('done') in (True, 'true', '1', 1)
+        service.save_scorecard(interview, request.data, by=request.user, done=done)
+        return self._out(interview)
+
+    @action(detail=False, methods=['get'], url_path='open-times')
+    def open_times(self, request):
+        from apps.hiring import interviews as service
+
+        exclude = Interview.objects.filter(pk=request.query_params.get('exclude')).first() \
+            if request.query_params.get('exclude') else None
+        return Response({'times': _time_rows(service.open_times(exclude=exclude)), 'settings': service.config()})
+
+
+def _time_rows(times) -> list[dict]:
+    from django.utils import timezone
+
+    rows = []
+    for start, end in times:
+        local = timezone.localtime(start)
+        hour = local.strftime('%I').lstrip('0') or '12'
+        rows.append({
+            'start': start.isoformat(), 'end': end.isoformat(),
+            'day': f'{local.strftime("%A, %B")} {local.day}', 'date': local.date().isoformat(),
+            'label': f'{hour}:{local.strftime("%M %p")}',
+        })
+    return rows
+
+
+class InterviewTimeViewSet(viewsets.ModelViewSet):
+    """Extra openings and blocked times."""
+
+    permission_classes = [IsManagerOrAdmin]
+    serializer_class = InterviewTimeSerializer
+    pagination_class = None
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
+
+    def get_queryset(self):
+        from django.utils import timezone
+
+        return InterviewTime.objects.filter(end__gte=timezone.now() - timedelta(days=1))
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
 
 
 # ── The careers file ────────────────────────────────────────────────────────
@@ -370,54 +523,59 @@ def careers_public(request):
     setting = careers.set_public(bool(request.data.get('public')), user=request.user)
     return Response({'public': setting['public']})
 
-
-def _json_from(text: str):
-    text = (text or '').strip()
-    if text.startswith('```'):
-        text = text.split('\n', 1)[1] if '\n' in text else ''
-        text = text.rsplit('```', 1)[0]
-    start, end = text.find('{'), text.rfind('}')
-    if start == -1 or end <= start:
-        return None
-    try:
-        return json.loads(text[start:end + 1])
-    except ValueError:
-        return None
-
-
 @api_view(['POST'])
 @permission_classes([IsManagerOrAdmin])
-def careers_ai_draft(request):
-    """Draft with AI: the model returns the whole file as JSON. Nothing is saved here."""
-    from apps.core.services.llm_router import llm_chat_text
+def ai_start(request):
+    """Start an AI edit in the background: kind = job | email | careers. Poll GET hiring/ai/<id>/."""
+    from apps.hiring import ai
+    from apps.hiring.models import HiringAiJob
 
-    ask = (request.data.get('request') or '').strip()
-    if not ask:
-        return Response({'detail': 'Say what you want written or changed.'}, status=status.HTTP_400_BAD_REQUEST)
+    data = request.data if isinstance(request.data, dict) else {}
+    kind = data.get('kind') or ''
     choices = ai_choices()
-    model_override = (request.data.get('model') or '').strip() or None
-    if model_override and model_override not in {m['slug'] for m in choices['models']}:
+    model = (data.get('model') or '').strip()
+    effort = (data.get('effort') or '').strip()
+    if model and model not in {m['slug'] for m in choices['models']}:
         return Response({'detail': 'That model is not active in Settings > AI.'}, status=status.HTTP_400_BAD_REQUEST)
-    effort = (request.data.get('effort') or '').strip() or None
     if effort and effort not in choices['efforts']:
         return Response({'detail': 'Effort must be one of ' + ', '.join(choices['efforts']) + '.'},
                         status=status.HTTP_400_BAD_REQUEST)
-    current = json.dumps(careers.export_doc(), indent=2, default=str)
-    indexes = json.dumps(careers.indexes(), indent=2, default=str)
-    system = careers_brief() + '\nReturn JSON only (no YAML, no prose): the whole careers file.'
-    user = f'Indexes:\n{indexes}\n\nThe current file:\n{current}\n\nWhat to do:\n{ask[:4000]}'
-    try:
-        text, model = llm_chat_text(purpose='HIRING_CAREERS', system=system, user=user, max_tokens=12000,
-                                    timeout=240, model_override=model_override, effort=effort,
-                                    log_source='hiring.careers_ai_draft')
-    except Exception as exc:
-        logger.exception('Careers AI draft failed')
-        return Response({'detail': f'The AI did not answer: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
-    doc = _json_from(text)
-    if doc is None:
-        return Response({'detail': 'The AI answer was not a file. Try again or rephrase.', 'text': text[:4000]},
-                        status=status.HTTP_502_BAD_GATEWAY)
-    result = careers.check_doc(doc)
-    changes = careers.summarize_changes(careers.export_doc(), result['doc']) if result['ok'] else []
-    return Response({**result, 'raw': doc, 'changes': changes, 'model': model,
-                     'effort': effort or choices['default_effort']})
+    action = data.get('action') or 'polish'
+    if action not in ai.ACTIONS:
+        return Response({'detail': 'Unknown AI action.'}, status=status.HTTP_400_BAD_REQUEST)
+    instruction = (data.get('instruction') or '').strip()[:2000]
+    if action == 'custom' and not instruction:
+        return Response({'detail': 'Say what to change.'}, status=status.HTTP_400_BAD_REQUEST)
+    base = {'model': model, 'effort': effort, 'action': action, 'instruction': instruction}
+    if kind == HiringAiJob.KIND_JOB:
+        fields = data.get('fields') if isinstance(data.get('fields'), dict) else {}
+        params = {**base, 'fields': fields}
+    elif kind == HiringAiJob.KIND_EMAIL:
+        key = data.get('key') or ''
+        if key not in careers.TEMPLATE_KEYS:
+            return Response({'detail': 'Unknown email.'}, status=status.HTTP_400_BAD_REQUEST)
+        params = {**base, 'key': key, 'subject': data.get('subject') or '', 'body': data.get('body') or '',
+                  'role_title': data.get('role_title') or ''}
+    elif kind == HiringAiJob.KIND_CAREERS:
+        ask = (data.get('request') or '').strip()
+        if not ask:
+            return Response({'detail': 'Say what you want written or changed.'}, status=status.HTTP_400_BAD_REQUEST)
+        params = {**base, 'request': ask[:4000]}
+    else:
+        return Response({'detail': 'Unknown AI kind.'}, status=status.HTTP_400_BAD_REQUEST)
+    job = ai.start(kind, params, user=request.user)
+    return Response({'id': str(job.pk), 'status': job.status}, status=status.HTTP_202_ACCEPTED)
+
+
+@api_view(['GET'])
+@permission_classes([IsManagerOrAdmin])
+def ai_status(request, job_id):
+    from apps.hiring import ai
+    from apps.hiring.models import HiringAiJob
+
+    job = HiringAiJob.objects.filter(pk=job_id).first()
+    if job is None:
+        return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+    job = ai.poll(job)
+    return Response({'id': str(job.pk), 'kind': job.kind, 'status': job.status, 'result': job.result,
+                     'error': job.error, 'model': job.model})

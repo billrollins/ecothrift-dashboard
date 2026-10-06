@@ -369,6 +369,24 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     roles: ['Manager', 'Admin'],
     navSearch: 'hiring applications candidates resumes careers',
   },
+  /** Booked interviews, the weekly interview hours, extra openings and blocks, scorecards. */
+  interviews: {
+    id: 'interviews',
+    path: '/people/interviews',
+    label: 'Interviews',
+    icon: 'schedule',
+    roles: ['Manager', 'Admin'],
+    navSearch: 'hiring interview calendar schedule scorecard',
+  },
+  /** Every hiring email: one version for all roles, or a role's own version; AI help on each. */
+  hiringEmails: {
+    id: 'hiringEmails',
+    path: '/people/emails',
+    label: 'Emails',
+    icon: 'email',
+    roles: ['Manager', 'Admin'],
+    navSearch: 'hiring emails templates auto-reply not now interview reminder',
+  },
   /** The roles, the careers page, the form and the hiring emails (one YAML / JSON file). */
   jobs: {
     id: 'jobs',

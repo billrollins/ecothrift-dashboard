@@ -217,7 +217,7 @@ def set_rating(application, rating, *, by) -> Application:
 
 
 def not_now_draft(application, reason: str) -> dict:
-    template = not_now_template(reason)
+    template = not_now_template(reason, application)
     values = emails.values_for(application)
     return {'subject': fill(template['subject'], values), 'body': fill(template['body'], values)}
 

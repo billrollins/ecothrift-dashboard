@@ -44,6 +44,8 @@ export interface Job {
   pay_text: string;
   questions: Question[];
   interview_questions: Question[];
+  /** This role's own versions of emails (template key → subject/body); others use the universal one. */
+  emails: Record<string, { subject: string; body: string }>;
   department: number | null;
   status: 'draft' | 'open' | 'paused' | 'closed';
   /** Owns hiring for this role; gets the new-application alert. */
@@ -138,6 +140,10 @@ export interface ApplicationDetail extends ApplicationRow {
     pay_rate: string;
     hire_date: string | null;
   } | null;
+  interviews: Interview[];
+  /** The applicant's live interview link (to copy and text), or ''. */
+  booking_link: string;
+  invited_at: string | null;
 }
 
 export interface Option {
@@ -215,6 +221,9 @@ export interface CareersDoc {
   page: Record<string, unknown>;
   form: { questions: Question[] };
   email: Record<string, unknown>;
+  interviews?: InterviewSettings;
+  /** Hiring manager and interviewers (staff emails) that new roles start with. */
+  defaults?: { hiring_manager: string; interviewers: string[] };
   jobs: Record<string, unknown>[];
 }
 
@@ -277,9 +286,157 @@ export const saveCareers = (doc: unknown) => api.put<CareersResponse>('/hiring/c
 export const setCareersPublic = (on: boolean) => api.post<{ public: boolean }>('/hiring/careers/public/', { public: on });
 /** The download for AI: instructions + indexes + the current careers file. */
 export const getCareersBundle = () => api.get<Record<string, unknown>>('/hiring/careers/bundle/');
+/** Whole-file AI edit (now a background run; poll with getAiJob). */
 export const draftCareersWithAi = (request: string, model = '', effort = '') =>
-  api.post<CheckResponse & { raw: unknown; effort?: string }>(
-    '/hiring/careers/ai-draft/',
-    { request, model, effort },
-    { timeout: 260_000 },
-  );
+  startAi({ kind: 'careers', request, model, effort });
+
+// ── Interviews (Phase 2) ────────────────────────────────────────────────────
+
+export interface ScorecardAnswer {
+  key: string;
+  label: string;
+  rating: number | null;
+  note: string;
+}
+
+export interface Scorecard {
+  answers?: ScorecardAnswer[];
+  overall?: '' | 'hire' | 'maybe' | 'no';
+  lead_potential?: '' | 'yes' | 'maybe' | 'no';
+  notes?: string;
+}
+
+export interface Interview {
+  id: number;
+  application: number;
+  applicant_name: string;
+  applicant_phone: string;
+  applicant_email: string;
+  roles: string[];
+  job: number | null;
+  job_title: string;
+  start: string;
+  end: string;
+  when: string;
+  interviewer: number | null;
+  interviewer_person: Person | null;
+  place: string;
+  status: 'scheduled' | 'done' | 'no_show' | 'cancelled';
+  status_label: string;
+  booked_by: 'applicant' | 'staff';
+  scorecard: Scorecard;
+  scored_by_name: string;
+  scored_at: string | null;
+  interview_questions: Question[];
+  reminder_sent_at: string | null;
+}
+
+export interface OpenTime {
+  start: string;
+  end: string;
+  day: string;
+  date: string;
+  label: string;
+}
+
+export interface InterviewSettings {
+  weekdays: string[];
+  start: string;
+  end: string;
+  length_minutes: number;
+  days_ahead: number;
+  min_notice_hours: number;
+  link_days: number;
+  place: string;
+}
+
+export interface InterviewTimeBlock {
+  id: number;
+  kind: 'open' | 'block';
+  start: string;
+  end: string;
+  note: string;
+}
+
+export const inviteToInterview = (id: number, send: boolean) =>
+  api.post<{ link: string; sent: boolean; application: ApplicationDetail }>(`/hiring/applications/${id}/invite/`, { send });
+export const getInterviews = (params: { when?: 'today' | 'upcoming' | 'past' | ''; application?: number }) =>
+  api.get<Interview[]>('/hiring/interviews/', { params });
+export const getOpenTimes = (exclude?: number) =>
+  api.get<{ times: OpenTime[]; settings: InterviewSettings }>('/hiring/interviews/open-times/', {
+    params: exclude ? { exclude } : {},
+  });
+export const bookInterviewForApplicant = (application: number, start: string, interviewer?: number | null) =>
+  api.post<Interview>('/hiring/interviews/', { application, start, interviewer: interviewer ?? undefined });
+export const rescheduleInterview = (id: number, start: string) =>
+  api.post<Interview>(`/hiring/interviews/${id}/reschedule/`, { start });
+export const setInterviewInterviewer = (id: number, interviewer: number | null) =>
+  api.post<Interview>(`/hiring/interviews/${id}/interviewer/`, { interviewer });
+export const cancelInterviewStaff = (id: number, notify = true) =>
+  api.post<Interview>(`/hiring/interviews/${id}/cancel/`, { notify });
+export const markNoShow = (id: number) => api.post<Interview>(`/hiring/interviews/${id}/no-show/`, {});
+export const saveScorecard = (id: number, scorecard: Scorecard & { done?: boolean }) =>
+  api.post<Interview>(`/hiring/interviews/${id}/scorecard/`, scorecard);
+export const getInterviewTimes = () => api.get<InterviewTimeBlock[]>('/hiring/interview-times/');
+export const addInterviewTime = (data: { kind: 'open' | 'block'; start: string; end: string; note: string }) =>
+  api.post<InterviewTimeBlock>('/hiring/interview-times/', data);
+export const deleteInterviewTime = (id: number) => api.delete(`/hiring/interview-times/${id}/`);
+
+// ── AI help (background runs; Heroku stops a request at 30 seconds) ─────────
+
+export type AiAction = 'polish' | 'shorter' | 'fuller' | 'warmer' | 'voice' | 'custom';
+
+export const AI_ACTIONS: { key: AiAction; label: string }[] = [
+  { key: 'polish', label: 'Polish' },
+  { key: 'shorter', label: 'Shorter' },
+  { key: 'fuller', label: 'Fuller' },
+  { key: 'warmer', label: 'Warmer' },
+  { key: 'voice', label: 'In my voice' },
+];
+
+export interface AiJob<R = Record<string, unknown>> {
+  id: string;
+  kind: 'job' | 'email' | 'careers';
+  status: 'running' | 'done' | 'failed';
+  result: R;
+  error: string;
+  model: string;
+}
+
+export const startAi = (payload: Record<string, unknown>) =>
+  api.post<{ id: string; status: string }>('/hiring/ai/', payload);
+export const getAiJob = <R = Record<string, unknown>>(id: string) => api.get<AiJob<R>>(`/hiring/ai/${id}/`);
+
+/** Start an AI run and wait for it (polling every 2 s, up to 5 minutes). Throws with the reason on failure. */
+export async function runAi<R = Record<string, unknown>>(
+  payload: Record<string, unknown>,
+  onTick?: (seconds: number) => void,
+): Promise<AiJob<R>> {
+  const { data } = await startAi(payload);
+  const started = Date.now();
+  for (;;) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const seconds = Math.round((Date.now() - started) / 1000);
+    onTick?.(seconds);
+    const { data: job } = await getAiJob<R>(data.id);
+    if (job.status === 'done') return job;
+    if (job.status === 'failed') throw new Error(job.error || 'The AI run failed. Try again.');
+    if (seconds > 300) throw new Error('The AI is taking too long. Try again, or pick a faster model.');
+  }
+}
+
+/** Every email Eco-Thrift sends about hiring, in the order an applicant meets them. */
+export const EMAIL_TEMPLATES: { key: string; label: string; group: string; to: string; when: string }[] = [
+  { key: 'received', group: 'Applying', label: 'Auto-reply', to: 'Applicant', when: 'Right after they apply.' },
+  { key: 'alert', group: 'Applying', label: 'New application alert', to: 'You (notify) and the hiring manager', when: 'Right after someone applies.' },
+  { key: 'interview_invite', group: 'Interviews', label: 'Interview link', to: 'Applicant', when: 'When you press Email interview link.' },
+  { key: 'interview_booked', group: 'Interviews', label: 'Interview booked', to: 'Applicant (with calendar file)', when: 'When they or you book a time.' },
+  { key: 'interview_changed', group: 'Interviews', label: 'Interview moved', to: 'Applicant (with calendar file)', when: 'When the time changes.' },
+  { key: 'interview_cancelled', group: 'Interviews', label: 'Interview cancelled', to: 'Applicant', when: 'When it is cancelled.' },
+  { key: 'interview_reminder', group: 'Interviews', label: 'Reminder', to: 'Applicant', when: 'The day before.' },
+  { key: 'interview_notice', group: 'Interviews', label: 'Staff notice', to: 'Interviewer and hiring manager (with calendar file)', when: 'When an interview is booked, moved, cancelled or reassigned.' },
+  { key: 'not_now.default', group: 'Not now', label: 'Not moving forward', to: 'Applicant', when: 'Only when you press Send in Not now.' },
+  { key: 'not_now.withdrew', group: 'Not now', label: 'Withdrew', to: 'Applicant', when: 'Only when you press Send in Not now.' },
+  { key: 'not_now.position_closed', group: 'Not now', label: 'Position filled', to: 'Applicant', when: 'Only when you press Send in Not now.' },
+  { key: 'not_now.no_show', group: 'Not now', label: 'No-show', to: 'Applicant', when: 'Only when you press Send in Not now.' },
+];

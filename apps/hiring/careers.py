@@ -23,8 +23,13 @@ SETTING_KEY = 'hiring.careers'
 QUESTION_TYPES = ('yes_no', 'text', 'long_text', 'number', 'choice', 'multi', 'date', 'time')
 JOB_STATUSES = ('draft', 'open', 'paused', 'closed')
 JOB_TYPES = ('full_time', 'part_time', 'full_or_part')
-EMAIL_KEYS = ('received', 'alert')
+EMAIL_KEYS = (
+    'received', 'alert', 'interview_invite', 'interview_booked', 'interview_changed', 'interview_cancelled',
+    'interview_reminder', 'interview_notice',
+)
 NOT_NOW_KEYS = ('default', 'withdrew', 'position_closed', 'no_show')
+# Every email template by one flat key; a role can carry its own version of any of them (Job.emails).
+TEMPLATE_KEYS = EMAIL_KEYS + tuple(f'not_now.{key}' for key in NOT_NOW_KEYS)
 
 # Wording shown next to the phone field. Changing it means a new version (D17: record the wording).
 SMS_CONSENT_VERSION = 'hiring-sms-2026-10-06'
@@ -166,18 +171,85 @@ DEFAULT_EMAIL = {
             ),
         },
     },
+    # Interviews (Phase 2). Extra placeholders: {when} {place} {interviewer} {link} {link_days} {length};
+    # the staff notice also has {applicant} {action} {dash_link}.
+    'interview_invite': {
+        'subject': 'Pick your interview time at Eco-Thrift',
+        'body': (
+            "Hi {first_name},\n\nThanks for applying for {roles}. We'd like to meet you. Pick a time that works "
+            'for you here:\n\n{link}\n\nInterviews are at our Canfield store, 8425 West Center Road, and take about '
+            '{length} minutes. This link is just for you and works for {link_days} days; use it later to change or '
+            'cancel.\n\n' + _SIGN_OFF
+        ),
+    },
+    'interview_booked': {
+        'subject': 'Your Eco-Thrift interview: {when}',
+        'body': (
+            "Hi {first_name},\n\nYou're set. Your interview for {roles} is {when} at {place}. You'll meet "
+            '{interviewer}. When you arrive, come to the register and ask for {interviewer}. Plan on about {length} '
+            "minutes.\n\nNeed to change or cancel? Use your link: {link}\n\nThe attached calendar file adds it to "
+            'your phone.\n\n' + _SIGN_OFF
+        ),
+    },
+    'interview_changed': {
+        'subject': 'Your Eco-Thrift interview moved to {when}',
+        'body': (
+            'Hi {first_name},\n\nYour interview for {roles} is now {when} at {place}, with {interviewer}.\n\n'
+            'Need to change it again or cancel? Use your link: {link}\n\n' + _SIGN_OFF
+        ),
+    },
+    'interview_cancelled': {
+        'subject': 'Your Eco-Thrift interview is cancelled',
+        'body': (
+            "Hi {first_name},\n\nYour interview for {roles} on {when} is cancelled. If you'd still like to meet, "
+            'pick a new time here: {link}\n\n' + _SIGN_OFF
+        ),
+    },
+    'interview_reminder': {
+        'subject': 'Reminder: your Eco-Thrift interview {when}',
+        'body': (
+            'Hi {first_name},\n\nA reminder: your interview for {roles} is {when} at {place}. Come to the register '
+            "and ask for {interviewer}.\n\nCan't make it? Change or cancel here: {link}\n\n" + _SIGN_OFF
+        ),
+    },
+    'interview_notice': {
+        'subject': 'Interview {action}: {applicant} ({roles}), {when}',
+        'body': (
+            '{applicant}: interview {action} for {roles}.\n\nWhen: {when}\nWith: {interviewer}\nPhone: {phone}\n'
+            'Email: {email}\n\nOpen in Dash: {dash_link}'
+        ),
+    },
 }
+
+WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+DEFAULT_INTERVIEWS = {
+    'weekdays': ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+    'start': '09:00',
+    'end': '17:00',
+    'length_minutes': 30,
+    'days_ahead': 14,
+    'min_notice_hours': 12,
+    'link_days': 14,
+    'place': 'our Canfield store, 8425 West Center Road, Omaha',
+}
+
+# New roles start with these (staff emails); every role can change them.
+DEFAULT_ROLE_PEOPLE = {'hiring_manager': '', 'interviewers': []}
 
 DEFAULT_SETTING = {
     'public': False,
     'page': DEFAULT_PAGE,
     'form': {'questions': DEFAULT_QUESTIONS},
     'email': DEFAULT_EMAIL,
+    'interviews': DEFAULT_INTERVIEWS,
+    'defaults': DEFAULT_ROLE_PEOPLE,
 }
 
 JOB_FIELDS = (
     'slug', 'title', 'tagline', 'summary', 'duties', 'success', 'looking_for', 'nice_to_have', 'physical', 'works_with',
     'schedule', 'hours', 'employment_type', 'pay_min', 'pay_max', 'pay_text', 'questions', 'interview_questions', 'status', 'sort_order',
+    'emails',
 )
 # Links to other records, written by key (department slug, staff email) so a file stays readable.
 JOB_LINKS = ('department', 'hiring_manager', 'interviewers')
@@ -193,7 +265,7 @@ def load_setting() -> dict:
     row = AppSetting.objects.filter(key=SETTING_KEY).first()
     stored = row.value if row and isinstance(row.value, dict) else {}
     merged = copy.deepcopy(DEFAULT_SETTING)
-    for key in ('public', 'page', 'form', 'email', 'preview_key'):
+    for key in ('public', 'page', 'form', 'email', 'interviews', 'defaults', 'preview_key'):
         if key in stored:
             if isinstance(merged.get(key), dict) and isinstance(stored[key], dict):
                 merged[key] = {**merged[key], **stored[key]}
@@ -266,6 +338,7 @@ def job_to_doc(job) -> dict:
         'questions': list(job.questions or []),
         'interview_questions': list(job.interview_questions or []),
         'sort_order': job.sort_order,
+        'emails': dict(job.emails or {}),
         'department': job.department.slug if job.department_id else '',
         'hiring_manager': (job.hiring_manager.email or '').lower() if job.hiring_manager_id else '',
         'interviewers': sorted((u.email or '').lower() for u in job.interviewers.all()),
@@ -283,6 +356,8 @@ def export_doc() -> dict:
         'page': setting['page'],
         'form': setting['form'],
         'email': setting['email'],
+        'interviews': setting['interviews'],
+        'defaults': setting['defaults'],
         'jobs': [job_to_doc(job) for job in jobs],
     }
 
@@ -341,8 +416,12 @@ def indexes() -> dict:
             'all emails': ['{first_name}', '{last_name}', '{roles}', '{phone}', '{email}', '{review_day}',
                            '{reply_days}'],
             'alert only': ['{flags}', '{dash_link}'],
+            'interview emails': ['{when}', '{place}', '{interviewer}', '{link}', '{link_days}', '{length}'],
+            'interview_notice only': ['{applicant}', '{action}', '{dash_link}'],
         },
         'never_ask': NEVER_ASK,
+        'weekdays': WEEKDAYS,
+        'email_templates': list(TEMPLATE_KEYS),
     }
 
 
@@ -524,8 +603,27 @@ def _check_job(item, index: int, errors: list[str], warnings: list[str], *, link
         'questions': _check_questions(item.get('questions'), title, errors, warnings),
         'interview_questions': _check_questions(item.get('interview_questions'), f'{title} interview', errors, warnings),
         'sort_order': sort_order,
+        'emails': _check_role_emails(item.get('emails'), title, errors),
         **_check_links(item, title, links, errors),
     }
+
+
+def _check_role_emails(raw, title: str, errors: list[str]) -> dict:
+    """A role's own versions of emails: {template key: {subject, body}}. Keys from indexes.email_templates."""
+    if raw in (None, ''):
+        return {}
+    if not isinstance(raw, dict):
+        errors.append(f'{title}: emails must be an object of template key → {{subject, body}}.')
+        return {}
+    out = {}
+    for key, block in raw.items():
+        if key not in TEMPLATE_KEYS:
+            errors.append(f'{title}: "{key}" is not an email template (see indexes.email_templates).')
+            continue
+        if block in (None, '', {}):
+            continue  # empty = use the universal email
+        out[key] = _check_email_block(block, f'{title} emails.{key}', errors)
+    return out
 
 
 def _check_email_block(raw, label: str, errors: list[str]) -> dict:
@@ -536,6 +634,55 @@ def _check_email_block(raw, label: str, errors: list[str]) -> dict:
     if not subject or not body:
         errors.append(f'{label} needs both a subject and a body.')
     return {'subject': subject, 'body': body}
+
+
+_HHMM = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
+
+
+def _check_interviews(raw, current: dict, errors: list[str]) -> dict:
+    """Weekly interview hours and booking rules. Keys left out keep today's values."""
+    out = {**DEFAULT_INTERVIEWS, **(current or {})}
+    if raw is None:
+        return out
+    if not isinstance(raw, dict):
+        errors.append('interviews must be an object.')
+        return out
+    if 'weekdays' in raw:
+        days = raw.get('weekdays') or []
+        if isinstance(days, str):
+            days = [d.strip() for d in days.split(',') if d.strip()]
+        names = []
+        for day in days if isinstance(days, list) else []:
+            name = _text(day).capitalize()
+            if name not in WEEKDAYS:
+                errors.append(f'interviews.weekdays: "{day}" is not a weekday name ({", ".join(WEEKDAYS)}).')
+            elif name not in names:
+                names.append(name)
+        out['weekdays'] = [d for d in WEEKDAYS if d in names]
+    for key in ('start', 'end'):
+        if key in raw:
+            value = _text(raw.get(key))
+            if not _HHMM.match(value):
+                errors.append(f'interviews.{key} must be a 24-hour time like 09:00.')
+            else:
+                out[key] = value
+    if out['start'] >= out['end']:
+        errors.append('interviews.end must be after interviews.start.')
+    for key, low, high in (('length_minutes', 10, 180), ('days_ahead', 1, 60), ('min_notice_hours', 0, 168),
+                           ('link_days', 1, 60)):
+        if key in raw:
+            try:
+                value = int(raw.get(key))
+            except (TypeError, ValueError):
+                errors.append(f'interviews.{key} must be a whole number.')
+                continue
+            if not low <= value <= high:
+                errors.append(f'interviews.{key} must be between {low} and {high}.')
+            else:
+                out[key] = value
+    if 'place' in raw:
+        out['place'] = _text(raw.get('place'), limit=200) or DEFAULT_INTERVIEWS['place']
+    return out
 
 
 def check_doc(raw) -> dict:
@@ -606,22 +753,34 @@ def check_doc(raw) -> dict:
     else:
         errors.append('email must be an object.')
 
+    interviews = _check_interviews(raw.get('interviews'), current['interviews'], errors)
+    links = {
+        'staff': {s['email'] for s in staff_index()},
+        'departments': {
+            **{d['slug'].lower(): d['slug'] for d in department_index()},
+            **{d['name'].lower(): d['slug'] for d in department_index()},
+        },
+    }
+    defaults_raw = raw.get('defaults', current['defaults'])
+    if not isinstance(defaults_raw, dict):
+        errors.append('defaults must be an object (hiring_manager, interviewers).')
+        defaults_raw = current['defaults']
+    defaults_links = _check_links({**current['defaults'], **defaults_raw}, 'defaults', links, errors)
+    defaults = {'hiring_manager': defaults_links['hiring_manager'], 'interviewers': defaults_links['interviewers']}
+
     jobs = []
     jobs_raw = raw.get('jobs')
     if jobs_raw is not None:
         if not isinstance(jobs_raw, list):
             errors.append('jobs must be a list.')
         else:
-            links = {
-                'staff': {s['email'] for s in staff_index()},
-                'departments': {
-                    **{d['slug'].lower(): d['slug'] for d in department_index()},
-                    **{d['name'].lower(): d['slug'] for d in department_index()},
-                },
-            }
             current_jobs = {j['slug']: j for j in export_doc()['jobs']}
             slugs = set()
             for index, item in enumerate(jobs_raw, start=1):
+                if isinstance(item, dict):
+                    slug_guess = slugify(_text(item.get('slug')) or _text(item.get('title')))[:60]
+                    if slug_guess not in current_jobs:
+                        item = {**defaults, **item}  # a new role starts with the default people
                 job = _check_job(item, index, errors, warnings, links=links, current_jobs=current_jobs)
                 if job is None:
                     continue
@@ -637,6 +796,8 @@ def check_doc(raw) -> dict:
         'page': page,
         'form': {'questions': questions},
         'email': email,
+        'interviews': interviews,
+        'defaults': defaults,
         'jobs': jobs,
         'has_jobs': jobs_raw is not None,
     }
@@ -675,6 +836,15 @@ def summarize_changes(current: dict, new: dict) -> list[str]:
     for key in NOT_NOW_KEYS:
         if (current['email'].get('not_now') or {}).get(key) != (new['email'].get('not_now') or {}).get(key):
             out.append(f'Email: the "not now" ({key}) email changes')
+    for key in DEFAULT_INTERVIEWS:
+        if (current.get('interviews') or {}).get(key) != (new.get('interviews') or {}).get(key):
+            value = new['interviews'].get(key)
+            out.append(f'Interviews: {key} → {", ".join(value) if isinstance(value, list) else value}')
+    for key in DEFAULT_ROLE_PEOPLE:
+        if (current.get('defaults') or {}).get(key) != (new.get('defaults') or {}).get(key):
+            value = new['defaults'].get(key)
+            shown = ', '.join(value) if isinstance(value, list) else value
+            out.append(f'Defaults for new roles: {key.replace("_", " ")} → {shown or "(none)"}')
     if new.get('has_jobs'):
         cur_jobs = {j['slug']: j for j in current.get('jobs') or []}
         for job in new['jobs']:
@@ -710,6 +880,8 @@ def apply_doc(doc: dict, *, user) -> None:
         'page': doc['page'],
         'form': doc['form'],
         'email': doc['email'],
+        'interviews': doc.get('interviews') or current['interviews'],
+        'defaults': doc.get('defaults') or current['defaults'],
         'preview_key': current.get('preview_key') or secrets.token_urlsafe(12),
     }, user=user)
     if not doc.get('has_jobs'):
@@ -746,6 +918,24 @@ def fill(template: str, values: dict) -> str:
         return template or ''
 
 
-def not_now_template(reason: str) -> dict:
-    blocks = load_setting()['email'].get('not_now') or {}
-    return blocks.get(reason) or blocks.get('default') or DEFAULT_EMAIL['not_now']['default']
+def universal_template(key: str, setting: dict | None = None) -> dict:
+    email = (setting or load_setting())['email']
+    if key.startswith('not_now.'):
+        blocks = email.get('not_now') or {}
+        return blocks.get(key[len('not_now.'):]) or blocks.get('default') or DEFAULT_EMAIL['not_now']['default']
+    return email.get(key) or DEFAULT_EMAIL[key]
+
+
+def template(key: str, application=None) -> dict:
+    """The email to send: the applied role's own version when it has one, else the universal one."""
+    if application is not None and getattr(application, 'pk', None):
+        for job in application.jobs.order_by('sort_order', 'title'):
+            block = (job.emails or {}).get(key)
+            if isinstance(block, dict) and block.get('subject') and block.get('body'):
+                return block
+    return universal_template(key)
+
+
+def not_now_template(reason: str, application=None) -> dict:
+    key = f'not_now.{reason}' if reason in NOT_NOW_KEYS else 'not_now.default'
+    return template(key, application)

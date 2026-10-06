@@ -39,6 +39,21 @@ class GraphEmailBackend(BaseEmailBackend):
                 return content, True
         return email_message.body, False
 
+    @staticmethod
+    def _attachments(email_message) -> list[tuple[str, bytes | str, str]] | None:
+        """File attachments added with ``attach(filename, content, mimetype)`` (MIME parts are skipped)."""
+        out = []
+        for item in getattr(email_message, 'attachments', ()) or ():
+            filename = getattr(item, 'filename', None)
+            if filename is None and isinstance(item, tuple):
+                filename = item[0]
+            if not filename:
+                continue
+            content = getattr(item, 'content', None) if not isinstance(item, tuple) else item[1]
+            mimetype = getattr(item, 'mimetype', None) if not isinstance(item, tuple) else item[2]
+            out.append((filename, content or b'', mimetype or 'application/octet-stream'))
+        return out or None
+
     def send_messages(self, email_messages):
         messages = list(email_messages or [])
         if not messages:
@@ -63,6 +78,7 @@ class GraphEmailBackend(BaseEmailBackend):
                     reply_to=list(message.reply_to or []),
                     headers=dict(message.extra_headers or {}),
                     from_email=message.from_email,
+                    attachments=self._attachments(message),
                 )
                 sent += 1
             except Exception:

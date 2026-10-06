@@ -6,6 +6,8 @@ here so applications can point at them.
 """
 from __future__ import annotations
 
+import uuid
+
 from django.conf import settings
 from django.db import models
 
@@ -54,6 +56,8 @@ class Job(models.Model):
     # Role questions shown on the form when this role is ticked (same shape as the careers file's form questions).
     questions = models.JSONField(default=list, blank=True)
     interview_questions = models.JSONField(default=list, blank=True)
+    # Per-role versions of any email ({template key: {subject, body}}); missing keys use the universal one.
+    emails = models.JSONField(default=dict, blank=True)
     department = models.ForeignKey(
         'hr.Department', on_delete=models.SET_NULL, null=True, blank=True, related_name='jobs',
     )
@@ -164,6 +168,12 @@ class Application(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='hiring_applications',
     )
 
+    # The private interview link (/careers/interview?t=…). Opening it from the email proves the address.
+    # Kept plain (not hashed) so staff can copy it again; it only books this applicant's interview.
+    booking_token = models.CharField(max_length=64, blank=True, default='', db_index=True)
+    booking_token_expires = models.DateTimeField(null=True, blank=True)
+    invited_at = models.DateTimeField(null=True, blank=True)
+
     received_email_sent = models.BooleanField(default=False)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.CharField(max_length=300, blank=True, default='')
@@ -184,6 +194,104 @@ class Application(models.Model):
         return f'{self.first_name} {self.last_name}'.strip()
 
 
+class Interview(models.Model):
+    """One interview for one application. One at a time across the store (a small team)."""
+
+    STATUS_SCHEDULED = 'scheduled'
+    STATUS_DONE = 'done'
+    STATUS_NO_SHOW = 'no_show'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_CHOICES = [
+        (STATUS_SCHEDULED, 'Scheduled'),
+        (STATUS_DONE, 'Done'),
+        (STATUS_NO_SHOW, 'No-show'),
+        (STATUS_CANCELLED, 'Cancelled'),
+    ]
+
+    BY_APPLICANT = 'applicant'
+    BY_STAFF = 'staff'
+
+    application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='interviews')
+    job = models.ForeignKey(Job, on_delete=models.SET_NULL, null=True, blank=True, related_name='interviews')
+    start = models.DateTimeField(db_index=True)
+    end = models.DateTimeField()
+    interviewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='hiring_interviews',
+    )
+    place = models.CharField(max_length=200, blank=True, default='')
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=STATUS_SCHEDULED, db_index=True)
+    booked_by = models.CharField(max_length=10, default=BY_APPLICANT)
+    # {answers: [{key, label, rating 1-5, note}], overall: hire|maybe|no, lead_potential: yes|maybe|no, notes}
+    scorecard = models.JSONField(default=dict, blank=True)
+    scored_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    scored_at = models.DateTimeField(null=True, blank=True)
+    reminder_sent_at = models.DateTimeField(null=True, blank=True)
+    ics_sequence = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['start']
+
+    def __str__(self):
+        return f'{self.application} @ {self.start}'
+
+
+class InterviewTime(models.Model):
+    """An extra opening outside the weekly hours, or a blocked stretch inside them."""
+
+    KIND_OPEN = 'open'
+    KIND_BLOCK = 'block'
+    KIND_CHOICES = [(KIND_OPEN, 'Extra opening'), (KIND_BLOCK, 'Blocked')]
+
+    kind = models.CharField(max_length=5, choices=KIND_CHOICES)
+    start = models.DateTimeField(db_index=True)
+    end = models.DateTimeField()
+    note = models.CharField(max_length=200, blank=True, default='')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['start']
+
+    def __str__(self):
+        return f'{self.kind} {self.start}–{self.end}'
+
+
+class HiringAiJob(models.Model):
+    """One AI edit run in the background (a request can't outlast Heroku's 30-second limit). Dash polls it."""
+
+    KIND_CAREERS = 'careers'
+    KIND_JOB = 'job'
+    KIND_EMAIL = 'email'
+    KIND_CHOICES = [(KIND_CAREERS, 'Whole careers file'), (KIND_JOB, 'One role'), (KIND_EMAIL, 'One email')]
+
+    STATUS_RUNNING = 'running'
+    STATUS_DONE = 'done'
+    STATUS_FAILED = 'failed'
+    STATUS_CHOICES = [(STATUS_RUNNING, 'Running'), (STATUS_DONE, 'Done'), (STATUS_FAILED, 'Failed')]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_RUNNING)
+    params = models.JSONField(default=dict, blank=True)
+    result = models.JSONField(default=dict, blank=True)
+    error = models.TextField(blank=True, default='')
+    model = models.CharField(max_length=120, blank=True, default='')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
 class ApplicationEvent(models.Model):
     """Every change to an application: who, when, what."""
 
@@ -194,7 +302,9 @@ class ApplicationEvent(models.Model):
     KIND_EMAIL = 'email'
     KIND_EMPLOYEE = 'employee'
     KIND_EDIT = 'edit'
+    KIND_INTERVIEW = 'interview'
     KIND_CHOICES = [
+        (KIND_INTERVIEW, 'Interview'),
         (KIND_CREATED, 'Applied'),
         (KIND_STAGE, 'Stage'),
         (KIND_NOTE, 'Note'),
