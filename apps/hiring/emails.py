@@ -85,9 +85,22 @@ def send_received(application) -> bool:
     return send(to=application.email, subject=fill(template['subject'], values), body=fill(template['body'], values))
 
 
+def alert_recipients(application) -> list[str]:
+    """The careers file's notify address(es) plus the hiring manager of each role applied for."""
+    out: list[str] = []
+    for address in _addresses(load_setting()['email'].get('notify') or ''):
+        if address.lower() not in out:
+            out.append(address.lower())
+    for job in application.jobs.select_related('hiring_manager'):
+        manager = job.hiring_manager
+        if manager and manager.is_active and manager.email and manager.email.lower() not in out:
+            out.append(manager.email.lower())
+    return out
+
+
 def send_alert(application, *, dash_link: str) -> bool:
     email = load_setting()['email']
-    notify = email.get('notify') or ''
+    notify = alert_recipients(application)
     if not notify:
         return False
     flags = [a for a in application.answers or [] if a.get('must_be')]

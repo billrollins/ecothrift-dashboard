@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CareersDoc } from '../../api/hiring.api';
-import { aiBundle, parseCareersText, toYaml } from './careersFile';
+import { aiCopyText, parseCareersText, toYaml } from './careersFile';
 
 const doc: CareersDoc = {
   format: 'ecothrift.careers/1',
@@ -32,9 +32,16 @@ describe('careers file', () => {
     expect(parseCareersText('just words').ok).toBe(false);
   });
 
-  it('puts the brief before the current file', () => {
-    const bundle = aiBundle('You are editing the careers file.', doc);
-    expect(bundle.indexOf('You are editing')).toBeLessThan(bundle.indexOf('format: ecothrift.careers/1'));
-    expect(bundle).toContain('What I want changed:');
+  it('copies the JSON bundle with a line for the request, and the copy pastes straight back', () => {
+    const bundle = {
+      format: 'ecothrift.careers-bundle/1',
+      instructions: 'You are editing the careers file.',
+      indexes: { staff: [{ id: 1, email: 'bill@example.com', name: 'Bill', role: 'Admin' }] },
+      careers: doc,
+    };
+    const text = aiCopyText(bundle);
+    expect(text).toContain('What I want changed:');
+    expect(text.indexOf('What I want changed:')).toBeLessThan(text.indexOf('"instructions":'));
+    expect(parseCareersText(text)).toEqual({ ok: true, doc: bundle });
   });
 });

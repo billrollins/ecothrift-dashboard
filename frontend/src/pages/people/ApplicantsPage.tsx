@@ -58,6 +58,13 @@ function Row({ row, selected, onOpen }: { row: ApplicationRow; selected: boolean
         <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
           {row.phone || row.email || row.source_label}
         </Typography>
+        {row.lead_interest === 'Yes' && (
+          <Chip
+            size="small"
+            label="Wants to lead"
+            sx={{ mt: 0.5, height: 20, fontSize: 11, fontWeight: 700, bgcolor: ccTokens.kraftTint, color: ccTokens.kraftDeep }}
+          />
+        )}
       </Box>
       <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 0.5, flexWrap: 'wrap' }}>
         {row.jobs.map((j) => (

@@ -46,7 +46,8 @@ class JobViewSet(viewsets.ModelViewSet):
     pagination_class = None
 
     def get_queryset(self):
-        return Job.objects.annotate(application_count=Count('applications', distinct=True))
+        return (Job.objects.annotate(application_count=Count('applications', distinct=True))
+                .select_related('hiring_manager').prefetch_related('interviewers'))
 
     def perform_create(self, serializer):
         serializer.save(updated_by=self.request.user)
@@ -271,7 +272,8 @@ Return the WHOLE file (every key, even the ones you did not change) as YAML or J
 
 The parts:
 - public: true shows ecothrift.us/careers; false hides it.
-- page: the careers page text (headline, roles_line, intro as a list of paragraphs, hours_line, pay, what_we_ask, apply_note, photo_url).
+- page: the careers page text (headline, roles_line, intro as a list of paragraphs, hours_line, pay, what_we_ask,
+  apply_note, growth (each area has a lead; strong people can step up), photo_url).
 - form.questions: the questions every applicant answers. Name, phone, email, the roles, the resume and the
   text-message consent are fixed fields; do not add them as questions.
 - email: from (blank = the store mailbox), reply_to, notify (who gets an alert per application),
@@ -279,9 +281,21 @@ The parts:
   (default, withdrew, position_closed, no_show). Email placeholders: {{first_name}} {{last_name}} {{roles}}
   {{phone}} {{email}} {{review_day}} {{reply_days}}; the alert also has {{flags}} and {{dash_link}}.
 - jobs: one entry per role. slug (stable, lowercase), title, status (draft | open | paused | closed),
-  tagline, summary, duties (list), schedule, hours, employment_type (full_time | part_time | full_or_part),
-  pay_min, pay_max (numbers; pay_max is never shown publicly), pay_text (what the page says about pay),
-  questions (role questions, shown when the applicant ticks this role), interview_questions, sort_order.
+  tagline (one line), summary ("About the role": 2-3 sentences, what it is and why it matters to the mission),
+  duties ("What you'll do": 6-8 concrete bullets), success ("What great looks like": 3 bullets a strong
+  performer hits, the kind of person who could grow into the area's lead), looking_for ("What we're looking for": 4-5 qualities
+  and skills), nice_to_have (2-3 bullets), physical ("The physical side": the real physical demands, stated
+  plainly, with "with or without accommodation" on lifting), works_with (one line, who they work with),
+  schedule, hours, employment_type (full_time | part_time | full_or_part), pay_min, pay_max (numbers;
+  pay_max is never shown publicly), pay_text (what the page says about pay), questions (role questions,
+  shown when the applicant ticks this role), interview_questions, sort_order,
+  department (a slug from indexes.departments, or ""), hiring_manager (a staff email from indexes.staff, or "";
+  this person owns hiring for the role and gets an email for each new application), interviewers (a list of
+  staff emails from indexes.staff: who sits in this role's interviews).
+  A role page is about 250-300 words. No degree or "years of experience" requirements for hourly roles
+  (pay is set by skill, not years on a resume). No corporate words (KPIs, liaison, stakeholders).
+  Never invent pay, perks or benefits that are not already in the file.
+  There is one location: the Canfield store, 8425 West Center Road, Omaha. Everyone works with Bill, the owner.
 
 A question is: key (snake_case, stable), label, type (yes_no | text | long_text | number | choice | multi |
 date | time), required (true/false), options (for choice and multi), help (optional),
@@ -291,9 +305,29 @@ flag_label (short name for that flag), after_roles (true = shown after the role 
 Never ask about:
 {never}
 
+Indexes: every value that points at something else (staff emails, department slugs, question types, job
+statuses, employment types, the "not now" email keys) must come from "indexes". Never make one up. If what
+you need is not there, leave that value as it is and say so in one line outside the JSON.
+
 Write plainly: short sentences, warm, direct. Keep the owner's voice ("we're a small team with a big dream").
 Keep keys and slugs that already exist unless the request says to change them.
 """
+
+
+def ai_choices() -> dict:
+    """The models in Settings > AI (active, text) and the hiring purpose's defaults, for the Ask AI dialog."""
+    from apps.core.ai_config import ai_effort, ai_model
+    from apps.core.models import AiAction, AiModel
+
+    models = [{'slug': m.slug, 'label': m.label or m.slug, 'provider': m.provider}
+              for m in AiModel.objects.filter(modality='text', status='active').order_by('provider', 'label', 'slug')]
+    return {
+        'purpose': 'HIRING_CAREERS',
+        'default_model': ai_model('HIRING_CAREERS'),
+        'default_effort': ai_effort('HIRING_CAREERS'),
+        'models': models,
+        'efforts': [key for key, _ in AiAction.EFFORT_CHOICES],
+    }
 
 
 @api_view(['GET', 'PUT'])
@@ -310,7 +344,16 @@ def careers_view(request):
         'preview_key': careers.preview_key(),
         'sms_consent_text': careers.SMS_CONSENT_TEXT,
         'reasons': [{'key': k, 'label': l} for k, l in Application.NOT_NOW_REASONS],
+        'indexes': careers.indexes(),
+        'ai': ai_choices(),
     })
+
+
+@api_view(['GET'])
+@permission_classes([IsManagerOrAdmin])
+def careers_bundle(request):
+    """Download for AI: instructions + indexes + the current careers file, in one JSON."""
+    return Response(careers.bundle(careers_brief()))
 
 
 @api_view(['POST'])
@@ -351,12 +394,22 @@ def careers_ai_draft(request):
     ask = (request.data.get('request') or '').strip()
     if not ask:
         return Response({'detail': 'Say what you want written or changed.'}, status=status.HTTP_400_BAD_REQUEST)
+    choices = ai_choices()
+    model_override = (request.data.get('model') or '').strip() or None
+    if model_override and model_override not in {m['slug'] for m in choices['models']}:
+        return Response({'detail': 'That model is not active in Settings > AI.'}, status=status.HTTP_400_BAD_REQUEST)
+    effort = (request.data.get('effort') or '').strip() or None
+    if effort and effort not in choices['efforts']:
+        return Response({'detail': 'Effort must be one of ' + ', '.join(choices['efforts']) + '.'},
+                        status=status.HTTP_400_BAD_REQUEST)
     current = json.dumps(careers.export_doc(), indent=2, default=str)
-    system = careers_brief() + '\nReturn JSON only (no YAML, no prose), the whole file.'
-    user = f'The current file:\n{current}\n\nWhat to do:\n{ask[:4000]}'
+    indexes = json.dumps(careers.indexes(), indent=2, default=str)
+    system = careers_brief() + '\nReturn JSON only (no YAML, no prose): the whole careers file.'
+    user = f'Indexes:\n{indexes}\n\nThe current file:\n{current}\n\nWhat to do:\n{ask[:4000]}'
     try:
-        text, model = llm_chat_text(purpose='HIRING_CAREERS', system=system, user=user, max_tokens=8000,
-                                    timeout=180, log_source='hiring.careers_ai_draft')
+        text, model = llm_chat_text(purpose='HIRING_CAREERS', system=system, user=user, max_tokens=12000,
+                                    timeout=240, model_override=model_override, effort=effort,
+                                    log_source='hiring.careers_ai_draft')
     except Exception as exc:
         logger.exception('Careers AI draft failed')
         return Response({'detail': f'The AI did not answer: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
@@ -366,4 +419,5 @@ def careers_ai_draft(request):
                         status=status.HTTP_502_BAD_GATEWAY)
     result = careers.check_doc(doc)
     changes = careers.summarize_changes(careers.export_doc(), result['doc']) if result['ok'] else []
-    return Response({**result, 'raw': doc, 'changes': changes, 'model': model})
+    return Response({**result, 'raw': doc, 'changes': changes, 'model': model,
+                     'effort': effort or choices['default_effort']})

@@ -70,6 +70,34 @@ class SeedAndCareersFileTests(Base):
         self.assertTrue(all(j.status == 'open' and j.pay_min == Decimal('15.00') for j in Job.objects.all()))
         self.assertFalse(careers.is_public())
 
+    def test_roles_have_the_full_page_sections(self):
+        for job in Job.objects.all():
+            self.assertGreaterEqual(len(job.duties), 6, job.slug)
+            self.assertEqual(len(job.success), 3, job.slug)
+            self.assertGreaterEqual(len(job.looking_for), 4, job.slug)
+            self.assertTrue(job.nice_to_have and job.physical, job.slug)
+            self.assertTrue(any('with or without accommodation' in p for p in job.physical), job.slug)
+            self.assertEqual(job.works_with, 'Bill, the owner, and a small team')
+        self.assertIn('first thing customers see', Job.objects.get(slug='retail-associate').summary)
+        keys = [q['key'] for q in careers.load_setting()['form']['questions']]
+        self.assertEqual(keys[-3:], ['lead_interest', 'led_before', 'heard_about'])
+        self.assertIn('lead', careers.load_setting()['page']['growth'])
+
+    def test_migration_adds_lead_questions_to_a_saved_form_once(self):
+        from importlib import import_module
+
+        from django.apps import apps as django_apps
+        from apps.core.models import AppSetting
+
+        migration = import_module('apps.hiring.migrations.0004_role_page_text')
+        old = [q for q in careers.DEFAULT_QUESTIONS if q['key'] not in ('lead_interest', 'led_before')]
+        AppSetting.objects.create(key=careers.SETTING_KEY, value={'public': False, 'form': {'questions': old}})
+        migration.add_lead_questions(django_apps, None)
+        migration.add_lead_questions(django_apps, None)
+        keys = [q['key'] for q in AppSetting.objects.get(key=careers.SETTING_KEY).value['form']['questions']]
+        self.assertEqual(keys.count('lead_interest'), 1)
+        self.assertEqual(keys[-3:], ['lead_interest', 'led_before', 'heard_about'])
+
     def test_export_then_check_round_trips_with_no_changes(self):
         doc = careers.export_doc()
         result = careers.check_doc(json.loads(json.dumps(doc)))
@@ -130,6 +158,9 @@ class PublicPageTests(Base):
         self.assertEqual([j['slug'] for j in page['jobs']],
                          ['retail-associate', 'processing-associate', 'restoration-associate'])
         self.assertNotIn('pay_max', page['jobs'][0])
+        for key in ('success', 'looking_for', 'nice_to_have', 'physical', 'works_with'):
+            self.assertTrue(page['jobs'][0][key], key)
+        self.assertTrue(page['page']['growth'])
 
     def test_sitemap_lists_careers_only_when_public(self):
         self.assertNotIn('/careers', self.public.get('/sitemap.xml').content.decode())
@@ -227,6 +258,13 @@ class TrackerTests(Base):
         self.app = Application.objects.get()
         mail.outbox.clear()
 
+    def test_wants_to_lead_shows_on_the_list(self):
+        self.apply(answers={**GOOD_ANSWERS, 'lead_interest': 'Yes', 'led_before': 'I trained two new cashiers.'},
+                   email='lead@example.com')
+        rows = {r['email']: r for r in self.staff.get('/api/hiring/applications/').data['results']}
+        self.assertEqual(rows['lead@example.com']['lead_interest'], 'Yes')
+        self.assertEqual(rows['dana@example.com']['lead_interest'], '')
+
     def test_list_counts_and_flag_filter(self):
         rows = self.staff.get('/api/hiring/applications/?stage=new').data['results']
         self.assertEqual(rows[0]['full_name'], 'Dana Miles')
@@ -310,3 +348,100 @@ class TrackerTests(Base):
         resume = self.staff.get(f'/api/hiring/applications/{app.pk}/resume/')
         self.assertEqual(resume.status_code, 200)
         self.assertIn('no-store', resume['Cache-Control'])
+
+
+class BundleAndPeopleTests(Base):
+    """The JSON bundle for AI (instructions + indexes + file), hiring manager, interviewers, model choice."""
+
+    def setUp(self):
+        super().setUp()
+        from apps.hr.models import Department
+        self.dept = Department.objects.create(name='Retail floor', slug='retail-floor')
+        self.lead = _user('lead@example.com', 'Employee')
+        self.lead.is_staff = True
+        self.lead.save(update_fields=['is_staff'])
+
+    def test_bundle_carries_instructions_indexes_and_the_file(self):
+        data = self.staff.get('/api/hiring/careers/bundle/').data
+        self.assertEqual(data['format'], careers.BUNDLE_FORMAT)
+        self.assertIn('Indexes', data['instructions'])
+        emails = {s['email'] for s in data['indexes']['staff']}
+        self.assertTrue({'boss@example.com', 'lead@example.com'} <= emails)
+        self.assertIn({'id': self.dept.pk, 'slug': 'retail-floor', 'name': 'Retail floor'}, data['indexes']['departments'])
+        self.assertIn('yes_no', data['indexes']['question_types'])
+        self.assertEqual(len(data['careers']['jobs']), 3)
+        self.assertEqual(data['careers']['jobs'][0]['interviewers'], [])
+
+    def test_a_returned_bundle_sets_people_and_department(self):
+        data = self.staff.get('/api/hiring/careers/bundle/').data
+        retail = next(j for j in data['careers']['jobs'] if j['slug'] == 'retail-associate')
+        retail.update({'hiring_manager': 'BOSS@example.com', 'interviewers': ['lead@example.com', 'boss@example.com'],
+                       'department': 'Retail floor'})
+        check = self.staff.post('/api/hiring/careers/check/', {'doc': data}, format='json').data
+        self.assertTrue(check['ok'], check['errors'])
+        self.assertIn('Job "Retail Associate": hiring manager → boss@example.com', check['changes'])
+        self.assertEqual(self.staff.put('/api/hiring/careers/', {'doc': data}, format='json').status_code, 200)
+        job = Job.objects.get(slug='retail-associate')
+        self.assertEqual((job.hiring_manager, job.department), (self.manager, self.dept))
+        self.assertEqual(set(job.interviewers.all()), {self.manager, self.lead})
+        again = self.staff.post('/api/hiring/careers/check/', {'doc': data}, format='json').data
+        self.assertEqual(again['changes'], [])
+
+    def test_unknown_people_and_departments_are_refused(self):
+        doc = careers.export_doc()
+        doc['jobs'][0].update({'hiring_manager': 'nobody@example.com', 'interviewers': ['ghost@example.com'],
+                               'department': 'warehouse'})
+        result = careers.check_doc(doc)
+        self.assertFalse(result['ok'])
+        self.assertEqual(len(result['errors']), 3)
+
+    def test_a_job_that_leaves_keys_out_keeps_them(self):
+        Job.objects.filter(slug='retail-associate').update(hiring_manager=self.manager)
+        result = careers.check_doc({'jobs': [{'slug': 'retail-associate', 'tagline': 'New line'}]})
+        self.assertTrue(result['ok'], result['errors'])
+        job = result['doc']['jobs'][0]
+        self.assertEqual((job['hiring_manager'], job['title']), ('boss@example.com', 'Retail Associate'))
+        self.assertTrue(job['success'])
+
+    def test_alert_goes_to_the_roles_hiring_manager_too(self):
+        Job.objects.filter(slug='retail-associate').update(hiring_manager=self.lead)
+        self.turn_on()
+        self.apply()
+        alert = mail.outbox[1]
+        self.assertEqual(set(alert.to), {'bill_rollins@ecothrift.us', 'lead@example.com'})
+
+    def test_role_editor_sets_people(self):
+        job = Job.objects.get(slug='processing-associate')
+        response = self.staff.patch(f'/api/hiring/jobs/{job.pk}/', {
+            'hiring_manager': self.lead.pk, 'interviewers': [self.lead.pk, self.manager.pk],
+        }, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data['hiring_manager_person']['email'], 'lead@example.com')
+        self.assertEqual(len(response.data['interviewer_people']), 2)
+
+    def test_create_employee_takes_the_roles_department(self):
+        Job.objects.filter(slug='retail-associate').update(department=self.dept)
+        self.turn_on()
+        self.apply()
+        app = Application.objects.get()
+        self.staff.post(f'/api/hiring/applications/{app.pk}/create-employee/', {'pay_rate': '15'}, format='json')
+        self.assertEqual(User.objects.get(email='dana@example.com').employee.department, self.dept)
+
+    def test_careers_get_lists_models_and_ai_draft_uses_the_choice(self):
+        from unittest import mock
+
+        from apps.core.models import AiModel
+        AiModel.objects.create(slug='test-model-1', label='Test model', provider='anthropic')
+        info = self.staff.get('/api/hiring/careers/').data
+        self.assertIn('test-model-1', [m['slug'] for m in info['ai']['models']])
+        self.assertIn('high', info['ai']['efforts'])
+        doc = json.dumps(careers.export_doc())
+        with mock.patch('apps.core.services.llm_router.llm_chat_text', return_value=(doc, 'test-model-1')) as llm:
+            response = self.staff.post('/api/hiring/careers/ai-draft/',
+                                       {'request': 'No changes', 'model': 'test-model-1', 'effort': 'high'}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual((llm.call_args.kwargs['model_override'], llm.call_args.kwargs['effort']), ('test-model-1', 'high'))
+        self.assertIn('Indexes:', llm.call_args.kwargs['user'])
+        self.assertEqual(response.data['changes'], [])
+        bad = self.staff.post('/api/hiring/careers/ai-draft/', {'request': 'x', 'model': 'not-a-model'}, format='json')
+        self.assertEqual(bad.status_code, 400)

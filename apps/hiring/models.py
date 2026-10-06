@@ -36,8 +36,15 @@ class Job(models.Model):
     slug = models.SlugField(max_length=60, unique=True)
     title = models.CharField(max_length=120)
     tagline = models.CharField(max_length=200, blank=True, default='')
+    # The role page: About the role, What you'll do, What great looks like, What we're looking for,
+    # Nice to have, The physical side (the essential physical demands, stated plainly), Who you'll work with.
     summary = models.TextField(blank=True, default='')
     duties = models.JSONField(default=list, blank=True)
+    success = models.JSONField(default=list, blank=True)
+    looking_for = models.JSONField(default=list, blank=True)
+    nice_to_have = models.JSONField(default=list, blank=True)
+    physical = models.JSONField(default=list, blank=True)
+    works_with = models.CharField(max_length=200, blank=True, default='')
     schedule = models.CharField(max_length=200, blank=True, default='')
     hours = models.CharField(max_length=120, blank=True, default='')
     employment_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default=TYPE_EITHER)
@@ -50,6 +57,11 @@ class Job(models.Model):
     department = models.ForeignKey(
         'hr.Department', on_delete=models.SET_NULL, null=True, blank=True, related_name='jobs',
     )
+    # Who owns hiring for this role (gets the new-application alert) and who sits in its interviews.
+    hiring_manager = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='hiring_jobs_managed',
+    )
+    interviewers = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name='hiring_jobs_interviewing')
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_DRAFT, db_index=True)
     sort_order = models.PositiveSmallIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)

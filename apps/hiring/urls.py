@@ -12,6 +12,7 @@ urlpatterns = [
     path('public/apply/', public_views.apply, name='hiring-public-apply'),
     path('careers/', views.careers_view, name='hiring-careers'),
     path('careers/check/', views.careers_check, name='hiring-careers-check'),
+    path('careers/bundle/', views.careers_bundle, name='hiring-careers-bundle'),
     path('careers/public/', views.careers_public, name='hiring-careers-public'),
     path('careers/ai-draft/', views.careers_ai_draft, name='hiring-careers-ai-draft'),
     path('', include(router.urls)),

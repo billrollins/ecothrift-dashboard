@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.136.0] -->
-<!-- Last reviewed: 2026-10-06 (2.136.0) -->
+<!-- Line 1 release: ## [2.137.0] -->
+<!-- Last reviewed: 2026-10-06 (2.137.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,36 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.137.0] - 2026-10-06
+
+User-facing theme: **Fuller role pages on ecothrift.us/careers with a clear path to lead, all of hiring in one JSON file for any AI (or Ask AI in Dash with your model and effort), and a hiring manager and interviewers on every role.** Initiative: `hiring_onboarding` (Phase 1 follow-up, at the owner's request).
+
+### Changed
+
+- **Each role page** now has:
+  - About the role;
+  - What you'll do (7–8 bullets);
+  - What great looks like (from the 2024 job descriptions' performance metrics);
+  - What we're looking for;
+  - Nice to have;
+  - The physical side (lifting "with or without accommodation", step stools and ladders);
+  - Room to grow.
+- **The side box** names the Canfield store and who you work with (Bill, the owner, and a small team). The repeated schedule line under Apply is gone.
+- **The careers page** gets a Room to grow block: each area (retail, processing, restoration) has a lead, and strong people can step up to it.
+- **Google Jobs** gets the full description, plus responsibilities, qualifications and physical requirements.
+- **The form** gets two optional questions: "Would you like to lead your area?" and "Have you led or trained anyone?". **People → Applicants** marks a yes with **Wants to lead**.
+- **Jobs & careers page:** the role editor edits every section. The careers file and the AI brief carry them, with a length guide (about 250–300 words, no degree or years-of-experience rules for hourly roles, no invented perks).
+
+- **Everything in one JSON for AI.** On **Jobs & careers page**:
+  - **Download for AI (.json)** gives one file: instructions, the keys an AI may use (staff with id and email, departments, question types, statuses, Not now reasons, email placeholders, the never-ask list), and the current settings (careers page, screener questions, every role, the emails);
+  - **Copy for AI** puts the same thing on the clipboard;
+  - **Upload or paste JSON** takes the AI's answer (the whole file or just the settings; YAML still works) and lists every change before Save;
+  - a value that isn't in the keys (an unknown email, a department that doesn't exist) is refused.
+- **Ask AI in Dash** has **Model** and **Effort** pickers (the active models in Settings > AI; defaults from the Hiring purpose) and can download what the AI returned.
+- **Each role has a hiring manager and interviewers** (staff), set in the role editor or in the JSON. The hiring manager also gets the new-application alert. A role's department goes to the new hire at **Create employee**.
+
+Migration: `hiring.0003` (the new role fields), `hiring.0004`, `hiring.0005` (hiring manager, interviewers). The text is loaded only where a role still holds the seed text, and the lead questions are added to the saved form.
 
 ## [2.136.0] - 2026-10-06
 

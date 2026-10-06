@@ -3,7 +3,7 @@ import '../../careers/careers.css'
 import { useCareers, type CareerJob } from '../../careers/api'
 import { SITE_URL } from '../../data/content'
 import { useJsonLd, useSeo } from '../../useSeo'
-import { jobMeta, NoOpenings, PreviewBar } from './CareersPage'
+import { NoOpenings, PreviewBar } from './CareersPage'
 
 const TYPE_LABEL: Record<CareerJob['employment_type'], string> = {
   full_time: 'Full time',
@@ -17,21 +17,49 @@ const SCHEMA_TYPE: Record<CareerJob['employment_type'], string[]> = {
   full_or_part: ['FULL_TIME', 'PART_TIME'],
 }
 
+function Section({ title, items }: { title: string; items: string[] }) {
+  if (!items?.length) return null
+  return (
+    <>
+      <h2 className="cr-h2">{title}</h2>
+      <ul>
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </>
+  )
+}
+
 function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 /** Google Jobs reads this (schema.org JobPosting). Pay shows only the floor; the top is never public. */
+function htmlList(heading: string, items: string[]): string {
+  if (!items.length) return ''
+  return `<p><strong>${escapeHtml(heading)}</strong></p><ul>${items.map((d) => `<li>${escapeHtml(d)}</li>`).join('')}</ul>`
+}
+
 function jobPosting(job: CareerJob) {
   const description =
     `<p>${escapeHtml(job.summary)}</p>` +
-    (job.duties.length ? `<ul>${job.duties.map((d) => `<li>${escapeHtml(d)}</li>`).join('')}</ul>` : '') +
+    htmlList("What you'll do", job.duties) +
+    htmlList('What great looks like', job.success) +
+    htmlList("What we're looking for", job.looking_for) +
+    htmlList('Nice to have', job.nice_to_have) +
+    htmlList('The physical side', job.physical) +
+    (job.works_with ? `<p>You'll work with ${escapeHtml(job.works_with)}.</p>` : '') +
     (job.schedule ? `<p>${escapeHtml(job.schedule)}. ${escapeHtml(job.hours)}.</p>` : '')
   const posting: Record<string, unknown> = {
     '@context': 'https://schema.org/',
     '@type': 'JobPosting',
     title: job.title,
     description,
+    responsibilities: job.duties.join('; '),
+    qualifications: job.looking_for.join('; '),
+    skills: job.nice_to_have.join('; '),
+    physicalRequirement: job.physical.join('; '),
     datePosted: (job.updated_at || '').slice(0, 10),
     employmentType: SCHEMA_TYPE[job.employment_type],
     directApply: true,
@@ -95,15 +123,17 @@ export default function CareerRolePage() {
         </div>
         <div className="cr-detail">
           <div className="cr-prose">
+            <h2 className="cr-h2 cr-first">About the role</h2>
             <p>{job.summary}</p>
-            {job.duties.length > 0 && (
+            <Section title="What you’ll do" items={job.duties} />
+            <Section title="What great looks like" items={job.success} />
+            <Section title="What we’re looking for" items={job.looking_for} />
+            <Section title="Nice to have" items={job.nice_to_have} />
+            <Section title="The physical side" items={job.physical} />
+            {careers.page?.growth && (
               <>
-                <h2 className="cr-h2">What you&rsquo;ll do</h2>
-                <ul>
-                  {job.duties.map((d) => (
-                    <li key={d}>{d}</li>
-                  ))}
-                </ul>
+                <h2 className="cr-h2">Room to grow</h2>
+                <p>{careers.page.growth}</p>
               </>
             )}
             {careers.page?.what_we_ask && (
@@ -137,12 +167,20 @@ export default function CareerRolePage() {
                 </>
               )}
               <dt>Where</dt>
-              <dd>8425 West Center Road, Omaha</dd>
+              <dd>Our Canfield store, 8425 West Center Road, Omaha</dd>
+              {job.works_with && (
+                <>
+                  <dt>With</dt>
+                  <dd>{job.works_with}</dd>
+                </>
+              )}
             </dl>
             <Link className="btn btn--primary btn--wide" style={{ width: '100%' }} to={`/careers/apply?role=${job.slug}`}>
               Apply for {job.title}
             </Link>
-            <p style={{ fontSize: 13, color: 'var(--muted)', margin: '10px 0 0' }}>{jobMeta(job)}</p>
+            <p style={{ fontSize: 13, color: 'var(--muted)', margin: '10px 0 0' }}>
+              About 5 minutes. A resume is optional.
+            </p>
           </aside>
         </div>
       </div>

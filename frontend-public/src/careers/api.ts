@@ -24,6 +24,11 @@ export interface CareerJob {
   tagline: string
   summary: string
   duties: string[]
+  success: string[]
+  looking_for: string[]
+  nice_to_have: string[]
+  physical: string[]
+  works_with: string
   schedule: string
   hours: string
   employment_type: 'full_time' | 'part_time' | 'full_or_part'
@@ -41,6 +46,7 @@ export interface CareersPageText {
   pay: string
   what_we_ask: string
   apply_note: string
+  growth: string
   photo_url: string
 }
 

@@ -31,6 +31,11 @@ export interface Job {
   tagline: string;
   summary: string;
   duties: string[];
+  success: string[];
+  looking_for: string[];
+  nice_to_have: string[];
+  physical: string[];
+  works_with: string;
   schedule: string;
   hours: string;
   employment_type: 'full_time' | 'part_time' | 'full_or_part';
@@ -41,6 +46,12 @@ export interface Job {
   interview_questions: Question[];
   department: number | null;
   status: 'draft' | 'open' | 'paused' | 'closed';
+  /** Owns hiring for this role; gets the new-application alert. */
+  hiring_manager: number | null;
+  /** Who sits in this role's interviews. */
+  interviewers: number[];
+  hiring_manager_person: Person | null;
+  interviewer_people: Person[];
   sort_order: number;
   application_count: number;
   updated_at: string;
@@ -75,6 +86,8 @@ export interface ApplicationRow {
   source: string;
   source_label: string;
   has_resume: boolean;
+  /** Answer to 'Would you like to lead your area?' ('Yes', 'Maybe', …) or ''. */
+  lead_interest: string;
   employee_user: number | null;
   not_now_reason: string;
   created_at: string;
@@ -205,12 +218,47 @@ export interface CareersDoc {
   jobs: Record<string, unknown>[];
 }
 
+export interface Person {
+  id: number;
+  email: string;
+  name: string;
+}
+
+export interface StaffEntry extends Person {
+  role: string;
+}
+
+/** Every key a careers file may point at (also what the AI bundle carries). */
+export interface CareersIndexes {
+  staff: StaffEntry[];
+  departments: { id: number; slug: string; name: string }[];
+  question_types: string[];
+  job_statuses: string[];
+  employment_types: string[];
+  not_now_emails: string[];
+  not_now_reasons: Option[];
+  stages: Option[];
+  email_placeholders: Record<string, string[]>;
+  never_ask: string[];
+}
+
+export interface AiChoices {
+  purpose: string;
+  /** The model Settings > AI assigns to hiring (or the app default). */
+  default_model: string;
+  default_effort: string;
+  models: { slug: string; label: string; provider: string }[];
+  efforts: string[];
+}
+
 export interface CareersResponse {
   doc: CareersDoc;
   brief: string;
   preview_key: string;
   sms_consent_text: string;
   reasons: Option[];
+  indexes: CareersIndexes;
+  ai: AiChoices;
 }
 
 export interface CheckResponse {
@@ -227,5 +275,11 @@ export const getCareers = () => api.get<CareersResponse>('/hiring/careers/');
 export const checkCareers = (doc: unknown) => api.post<CheckResponse>('/hiring/careers/check/', { doc });
 export const saveCareers = (doc: unknown) => api.put<CareersResponse>('/hiring/careers/', { doc });
 export const setCareersPublic = (on: boolean) => api.post<{ public: boolean }>('/hiring/careers/public/', { public: on });
-export const draftCareersWithAi = (request: string) =>
-  api.post<CheckResponse & { raw: unknown }>('/hiring/careers/ai-draft/', { request }, { timeout: 200_000 });
+/** The download for AI: instructions + indexes + the current careers file. */
+export const getCareersBundle = () => api.get<Record<string, unknown>>('/hiring/careers/bundle/');
+export const draftCareersWithAi = (request: string, model = '', effort = '') =>
+  api.post<CheckResponse & { raw: unknown; effort?: string }>(
+    '/hiring/careers/ai-draft/',
+    { request, model, effort },
+    { timeout: 260_000 },
+  );

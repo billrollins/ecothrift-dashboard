@@ -1,5 +1,6 @@
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -23,15 +24,17 @@ import { Link as RouterLink } from 'react-router-dom';
 import {
   createJob,
   getCareers,
+  getCareersBundle,
   getJobs,
   setCareersPublic,
   updateJob,
+  type CareersIndexes,
   type Job,
 } from '../../api/hiring.api';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { PageHeader } from '../../components/common/PageHeader';
 import { ccTokens } from '../../theme';
-import { aiBundle, previewUrl, toYaml } from './careersFile';
+import { aiCopyText, downloadJson, previewUrl } from './careersFile';
 import { CareersFileDialog } from './CareersFileDialog';
 import { errorText } from './peopleUi';
 
@@ -42,12 +45,24 @@ const STATUS_COLOR: Record<Job['status'], 'success' | 'default' | 'warning'> = {
   closed: 'default',
 };
 
-type Draft = {
+/** The bullet sections of a role page, edited one line per bullet. */
+const LIST_FIELDS = [
+  { key: 'duties', label: 'What you’ll do' },
+  { key: 'success', label: 'What great looks like' },
+  { key: 'looking_for', label: 'What we’re looking for' },
+  { key: 'nice_to_have', label: 'Nice to have' },
+  { key: 'physical', label: 'The physical side' },
+] as const;
+type ListKey = (typeof LIST_FIELDS)[number]['key'];
+
+const toLines = (text: string) => text.split('\n').map((d) => d.replace(/^[-•]\s*/, '').trim()).filter(Boolean);
+
+type Draft = Record<ListKey, string> & {
   title: string;
   slug: string;
   tagline: string;
   summary: string;
-  duties: string;
+  works_with: string;
   schedule: string;
   hours: string;
   employment_type: Job['employment_type'];
@@ -56,6 +71,10 @@ type Draft = {
   pay_text: string;
   status: Job['status'];
   sort_order: string;
+  /** Ids as strings for the selects; '' = none. */
+  department: string;
+  hiring_manager: string;
+  interviewers: number[];
 };
 
 function toDraft(job: Job | null): Draft {
@@ -65,6 +84,11 @@ function toDraft(job: Job | null): Draft {
     tagline: job?.tagline ?? '',
     summary: job?.summary ?? '',
     duties: (job?.duties ?? []).join('\n'),
+    success: (job?.success ?? []).join('\n'),
+    looking_for: (job?.looking_for ?? []).join('\n'),
+    nice_to_have: (job?.nice_to_have ?? []).join('\n'),
+    physical: (job?.physical ?? []).join('\n'),
+    works_with: job?.works_with ?? 'Bill, the owner, and a small team',
     schedule: job?.schedule ?? '',
     hours: job?.hours ?? 'Up to 40 hours a week',
     employment_type: job?.employment_type ?? 'full_or_part',
@@ -73,10 +97,26 @@ function toDraft(job: Job | null): Draft {
     pay_text: job?.pay_text ?? 'From $15/hr, set by skill',
     status: job?.status ?? 'draft',
     sort_order: String(job?.sort_order ?? 50),
+    department: job?.department ? String(job.department) : '',
+    hiring_manager: job?.hiring_manager ? String(job.hiring_manager) : '',
+    interviewers: job?.interviewers ?? [],
   };
 }
 
-function JobDialog({ open, job, onClose, onSaved }: { open: boolean; job: Job | null; onClose: () => void; onSaved: () => void }) {
+function JobDialog({
+  open,
+  job,
+  indexes,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  job: Job | null;
+  indexes: CareersIndexes | undefined;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const staff = indexes?.staff ?? [];
   const [draft, setDraft] = useState<Draft>(toDraft(job));
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -97,7 +137,12 @@ function JobDialog({ open, job, onClose, onSaved }: { open: boolean; job: Job | 
       slug: draft.slug.trim() || draft.title.trim(),
       tagline: draft.tagline.trim(),
       summary: draft.summary.trim(),
-      duties: draft.duties.split('\n').map((d) => d.replace(/^[-•]\s*/, '').trim()).filter(Boolean),
+      duties: toLines(draft.duties),
+      success: toLines(draft.success),
+      looking_for: toLines(draft.looking_for),
+      nice_to_have: toLines(draft.nice_to_have),
+      physical: toLines(draft.physical),
+      works_with: draft.works_with.trim(),
       schedule: draft.schedule.trim(),
       hours: draft.hours.trim(),
       employment_type: draft.employment_type,
@@ -106,6 +151,9 @@ function JobDialog({ open, job, onClose, onSaved }: { open: boolean; job: Job | 
       pay_text: draft.pay_text.trim(),
       status: draft.status,
       sort_order: Number(draft.sort_order) || 0,
+      department: draft.department ? Number(draft.department) : null,
+      hiring_manager: draft.hiring_manager ? Number(draft.hiring_manager) : null,
+      interviewers: draft.interviewers,
     };
     try {
       if (job) await updateJob(job.id, payload);
@@ -132,9 +180,56 @@ function JobDialog({ open, job, onClose, onSaved }: { open: boolean; job: Job | 
               <MenuItem value="closed">Closed</MenuItem>
             </TextField>
           </Stack>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <TextField
+              select
+              label="Hiring manager"
+              value={draft.hiring_manager}
+              onChange={set('hiring_manager')}
+              helperText="Gets an email for each new application"
+              fullWidth
+            >
+              <MenuItem value="">None (only the careers file's notify address)</MenuItem>
+              {staff.map((p) => (
+                <MenuItem key={p.id} value={String(p.id)}>
+                  {p.name} ({p.role})
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField select label="Department" value={draft.department} onChange={set('department')} fullWidth>
+              <MenuItem value="">None</MenuItem>
+              {(indexes?.departments ?? []).map((d) => (
+                <MenuItem key={d.id} value={String(d.id)}>
+                  {d.name}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Stack>
+          <Autocomplete
+            multiple
+            options={staff}
+            value={staff.filter((p) => draft.interviewers.includes(p.id))}
+            getOptionLabel={(p) => `${p.name} (${p.role})`}
+            isOptionEqualToValue={(a, b) => a.id === b.id}
+            onChange={(_, people) => setDraft((d) => ({ ...d, interviewers: people.map((p) => p.id) }))}
+            renderInput={(params) => (
+              <TextField {...params} label="Interviewers" helperText="Who sits in this role's interviews" />
+            )}
+          />
           <TextField label="One line (tagline)" value={draft.tagline} onChange={set('tagline')} fullWidth />
-          <TextField label="What the job is" value={draft.summary} onChange={set('summary')} multiline minRows={2} fullWidth />
-          <TextField label="Duties (one per line)" value={draft.duties} onChange={set('duties')} multiline minRows={3} fullWidth />
+          <TextField label="About the role (2–3 sentences)" value={draft.summary} onChange={set('summary')} multiline minRows={2} fullWidth />
+          {LIST_FIELDS.map((field) => (
+            <TextField
+              key={field.key}
+              label={`${field.label} (one per line)`}
+              value={draft[field.key]}
+              onChange={set(field.key)}
+              multiline
+              minRows={field.key === 'duties' ? 4 : 2}
+              fullWidth
+            />
+          ))}
+          <TextField label="Works with" value={draft.works_with} onChange={set('works_with')} fullWidth />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField label="Schedule" value={draft.schedule} onChange={set('schedule')} fullWidth placeholder="Typically Monday through Friday" />
             <TextField label="Hours" value={draft.hours} onChange={set('hours')} fullWidth />
@@ -186,28 +281,31 @@ export default function JobsPage() {
     await queryClient.invalidateQueries({ queryKey: ['hiring'] });
   }
 
-  async function copyForAi() {
-    if (!careers.data) return;
+  /** The bundle is fetched fresh each time, so its staff and departments lists are current. */
+  async function downloadForAi() {
     try {
-      await navigator.clipboard.writeText(aiBundle(careers.data.brief, careers.data.doc));
+      const { data } = await getCareersBundle();
+      downloadJson(data, `ecothrift-careers-for-ai-${new Date().toISOString().slice(0, 10)}.json`);
+      enqueueSnackbar('Downloaded. Give the file to any AI with what you want changed, then upload its answer here.', {
+        variant: 'success',
+        autoHideDuration: 8000,
+      });
+    } catch (err) {
+      enqueueSnackbar(errorText(err, 'Could not build the file.'), { variant: 'error' });
+    }
+  }
+
+  async function copyForAi() {
+    try {
+      const { data } = await getCareersBundle();
+      await navigator.clipboard.writeText(aiCopyText(data));
       enqueueSnackbar('Copied. Paste it into any AI chat, write what you want changed, then paste the answer back here.', {
         variant: 'success',
         autoHideDuration: 8000,
       });
     } catch {
-      enqueueSnackbar('Could not copy. Use Export YAML instead.', { variant: 'error' });
+      enqueueSnackbar('Could not copy. Use Download for AI instead.', { variant: 'error' });
     }
-  }
-
-  function exportYaml() {
-    if (!careers.data) return;
-    const blob = new Blob([toYaml(careers.data.doc)], { type: 'text/yaml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `ecothrift-careers-${new Date().toISOString().slice(0, 10)}.yaml`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
   async function applyPublic(on: boolean) {
@@ -289,6 +387,13 @@ export default function JobsPage() {
             <Typography variant="caption" sx={{ color: ccTokens.ink2 }}>
               {[job.schedule, job.pay_text].filter(Boolean).join(' · ')}
             </Typography>
+            <Typography variant="caption" sx={{ color: job.hiring_manager_person ? ccTokens.ink : ccTokens.warnText }}>
+              <b>Hiring manager:</b> {job.hiring_manager_person?.name ?? 'not set'}
+            </Typography>
+            <Typography variant="caption" sx={{ color: ccTokens.ink2 }}>
+              <b>Interviewers:</b>{' '}
+              {job.interviewer_people.length ? job.interviewer_people.map((p) => p.name).join(', ') : 'not set'}
+            </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 'auto', pt: 1 }}>
               <Button size="small" component={RouterLink} to={`/people/applicants?stage=&job=${job.slug}`}>
                 {job.application_count} applied
@@ -303,30 +408,32 @@ export default function JobsPage() {
       </Box>
 
       <Typography variant="h6" fontWeight={700} sx={{ mb: 0.5 }}>
-        The careers file (YAML / JSON)
+        Everything in one JSON (for AI)
       </Typography>
-      <Typography variant="body2" sx={{ color: ccTokens.ink2, mb: 1.5, maxWidth: 760 }}>
-        One file holds the page text, the form questions, every role and the emails (auto-reply, your alert, the Not now
-        drafts). Work on it with any AI: <b>Copy for AI</b>, paste into the chat, say what you want, and paste the answer
-        back with <b>Update from YAML</b>. Or let Dash ask the AI directly. You see every change before Save.
+      <Typography variant="body2" sx={{ color: ccTokens.ink2, mb: 1.5, maxWidth: 780 }}>
+        One file holds all of hiring: the careers page, the screener questions on the application, every role (with its
+        hiring manager and interviewers), and the emails. <b>Download for AI</b> gives you that file with the
+        instructions and the keys an AI needs (staff emails, departments, question types). Give it to any AI, then{' '}
+        <b>Upload JSON</b> with its answer. Or <b>Ask AI in Dash</b>. Either way you see every change before Save.
       </Typography>
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-        <Button variant="outlined" startIcon={<ContentCopyIcon />} onClick={copyForAi} disabled={!careers.data}>
+        <Button variant="contained" startIcon={<DownloadIcon />} onClick={downloadForAi}>
+          Download for AI (.json)
+        </Button>
+        <Button variant="outlined" startIcon={<ContentCopyIcon />} onClick={copyForAi}>
           Copy for AI
         </Button>
         <Button variant="outlined" onClick={() => setFileMode('paste')}>
-          Update from YAML / JSON
+          Upload or paste JSON
         </Button>
         <Button variant="outlined" onClick={() => setFileMode('ai')}>
-          Draft with AI
-        </Button>
-        <Button startIcon={<DownloadIcon />} onClick={exportYaml} disabled={!careers.data}>
-          Export YAML
+          Ask AI in Dash
         </Button>
       </Box>
 
       <JobDialog
         open={editing !== null}
+        indexes={careers.data?.indexes}
         job={editing === 'new' ? null : editing}
         onClose={() => setEditing(null)}
         onSaved={async () => {
@@ -338,6 +445,7 @@ export default function JobsPage() {
       <CareersFileDialog
         open={fileMode !== null}
         mode={fileMode ?? 'paste'}
+        ai={careers.data?.ai}
         onClose={() => setFileMode(null)}
         onSaved={async () => {
           setFileMode(null);

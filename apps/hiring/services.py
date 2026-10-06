@@ -284,6 +284,9 @@ def create_employee(application, *, by, request, pay_rate, start_date: date | No
     if rate <= 0 or rate > 200:
         raise ValidationError({'pay_rate': 'Pay rate looks wrong.'})
     position = (position or '').strip() or ', '.join(j.title for j in application.jobs.all())[:100]
+    if department is None:
+        # The role's department, so the new hire lands in the right place on the schedule.
+        department = next((j.department_id for j in application.jobs.all() if j.department_id), None)
     serializer = UserCreateSerializer(data={
         'email': application.email,
         'first_name': application.first_name,

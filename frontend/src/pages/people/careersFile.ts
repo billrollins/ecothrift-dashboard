@@ -39,9 +39,27 @@ export function parseCareersText(text: string): ParseResult {
   }
 }
 
-/** What "Copy for AI" puts on the clipboard: the brief, then the current file. */
-export function aiBundle(brief: string, doc: CareersDoc): string {
-  return `${brief.trim()}\n\nWhat I want changed:\n(write it here)\n\nThe current file:\n\`\`\`yaml\n${toYaml(doc)}\`\`\`\n`;
+/**
+ * What "Copy for AI" puts on the clipboard: a line for the request, then the same JSON bundle the
+ * download gives (instructions, indexes, the current careers file).
+ */
+export function aiCopyText(bundle: unknown): string {
+  return (
+    'Follow the "instructions" and "how_to_return" inside this JSON, using only values from "indexes".\n' +
+    'What I want changed:\n(write it here)\n\n```json\n' +
+    `${JSON.stringify(bundle, null, 2)}\n\`\`\`\n`
+  );
+}
+
+/** Save any JSON value as a pretty-printed .json file. */
+export function downloadJson(value: unknown, filename: string): void {
+  const blob = new Blob([`${JSON.stringify(value, null, 2)}\n`], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 /** The public link that shows the careers page while it is hidden. */

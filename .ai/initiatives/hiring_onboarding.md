@@ -3,7 +3,7 @@
 
 # Initiative: Hiring and onboarding
 
-**Status:** **Active**. Phase 1 shipped in v2.136.0 (2026-10-06); the careers page stays hidden until the owner turns it on. Phase 2 (interview calendar) next. The owner said it is urgent (2026-10-06).
+**Status:** **Active**. Phase 1 shipped in v2.136.0, with fuller role pages, the JSON bundle for AI and hiring managers in v2.137.0 (2026-10-06). The careers page stays hidden until the owner turns it on. Phase 2 (interview calendar) next. The owner said it is urgent (2026-10-06).
 
 **Objective:** The owner runs hiring from Dash, start to finish:
 
@@ -404,6 +404,46 @@ Claude's calls while building:
 - **The careers sender** stays the store mailbox, with Reply-To Bill, until `jobs@` exists.
 
 **2026-10-06 — Shipped v2.136.0** at the owner's order (ship and deploy), on top of inventory_effort's v2.134.0 and v2.135.0 (changelog merged by hand). The careers page stays hidden until the owner turns it on in People → Jobs & careers page. When it is on, tell master (texting campaign).
+
+**2026-10-06 — Fuller role pages (shipped in v2.137.0).** The owner, looking at the preview: "too simple", but not as much as the old corporate descriptions (Location Manager, Chief of Staff, and the 2024 set of 17 pages: managers, associates, MRR, ARR). His facts:
+
+- one location, the Canfield store at 8425 West Center Road (no warehouse, no office);
+- everyone works with Bill;
+- no perks to list;
+- today's roles are only retail, processing and restoration associates.
+
+Each area has a lead, but the leads work alone and aren't performing well, so the postings should leave room for a strong new person to take the reins. Built:
+
+- **Role sections:** About, What you'll do, What great looks like (from the 2024 performance metrics), What we're looking for, Nice to have, The physical side. About 350 words with the page-level text.
+- **Room to grow** (page-level), and nothing said about the current leads.
+- **Two optional lead questions**, with a **Wants to lead** tag in Applicants.
+- **Migrations `0003` and `0004`:** the text loads only where the seed text is untouched, and the questions are inserted into the saved form.
+
+Checks: 26 hiring tests, 52 front-end tests, both type-checks, migrations. Checked in a browser at desktop width.
+
+**From the 2024 documents, kept for later phases:**
+
+- the MRR (management expectations, signed) becomes the **lead acknowledgment** when someone is made a lead;
+- the job-description acknowledgment becomes ticks on the offer (Phase 3): "I can commute to the store", "I'm comfortable with the pay", "I can do the duties", "I can do the physical requirements";
+- the ARR (admin) is not needed at one location.
+
+**2026-10-06 — Everything in one JSON for AI; hiring manager and interviewers (shipped in v2.137.0).** The owner wants:
+
+- every job description, screener and application setting updatable by JSON, as a download with the AI instructions, the key indexes and the current config, and an upload of the edit;
+- or in-app AI with a model and effort he picks (defaults in Settings);
+- a hiring manager on each role, and who sits in its interviews.
+
+Built:
+
+- **The bundle** `ecothrift.careers-bundle/1`: instructions, indexes, the careers file. Download, Copy and Upload (bundle or file) with a change list before Save.
+- **Ask AI in Dash** with Model and Effort pickers, plus "Download this JSON".
+- **Per role:** `hiring_manager` and `interviewers` (staff), and `department`, written by email or slug in the file and refused when not in the indexes.
+- The hiring manager gets the alert, and Create employee uses the role's department.
+- A role in a file that leaves keys out keeps today's values.
+
+Checks: 34 hiring tests, 52 front-end tests, both type-checks, migrations. Checked in a browser: the staff list in the hiring-manager picker, a save showing "Hiring manager: Bill Rollins", and the AI dialog's 7 models with "Default: gemini-3.5-flash-lite" and "Default: low".
+
+**Decision:** applicant records are not in the JSON. AI edits settings, never people (decision 7). The onboarding checklist, check-in forms and offer text (later phases) go into this same file and its indexes, so one download always covers all of hiring.
 
 ---
 

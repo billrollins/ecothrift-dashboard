@@ -7,13 +7,15 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  MenuItem,
+  Stack,
   TextField,
   Typography,
 } from '@mui/material';
 import { useEffect, useRef, useState } from 'react';
-import { checkCareers, draftCareersWithAi, saveCareers, type CheckResponse } from '../../api/hiring.api';
+import { checkCareers, draftCareersWithAi, saveCareers, type AiChoices, type CheckResponse } from '../../api/hiring.api';
 import { ccTokens } from '../../theme';
-import { parseCareersText } from './careersFile';
+import { downloadJson, parseCareersText } from './careersFile';
 import { errorText } from './peopleUi';
 
 function CheckSummary({ check }: { check: CheckResponse }) {
@@ -55,16 +57,21 @@ function CheckSummary({ check }: { check: CheckResponse }) {
 export function CareersFileDialog({
   open,
   mode,
+  ai,
   onClose,
   onSaved,
 }: {
   open: boolean;
   mode: 'paste' | 'ai';
+  /** Models in Settings > AI and the hiring defaults (Ask AI only). */
+  ai?: AiChoices;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [text, setText] = useState('');
   const [ask, setAsk] = useState('');
+  const [model, setModel] = useState('');
+  const [effort, setEffort] = useState('');
   const [parseError, setParseError] = useState('');
   const [check, setCheck] = useState<CheckResponse | null>(null);
   const [busy, setBusy] = useState(false);
@@ -76,6 +83,8 @@ export function CareersFileDialog({
     if (open) {
       setText('');
       setAsk('');
+      setModel('');
+      setEffort('');
       setParseError('');
       setCheck(null);
       setError('');
@@ -113,7 +122,7 @@ export function CareersFileDialog({
     setError('');
     setCheck(null);
     try {
-      const { data } = await draftCareersWithAi(ask);
+      const { data } = await draftCareersWithAi(ask, model, effort);
       checkedDoc.current = data.raw;
       setCheck(data);
     } catch (err) {
@@ -140,11 +149,11 @@ export function CareersFileDialog({
   return (
     <Dialog open={open} onClose={busy ? undefined : onClose} maxWidth="md" fullWidth>
       <DialogTitle>
-        {mode === 'paste' ? 'Update from YAML or JSON' : 'Draft with AI'}
+        {mode === 'paste' ? 'Upload or paste JSON' : 'Ask AI in Dash'}
         <Typography variant="body2" color="text.secondary">
           {mode === 'paste'
-            ? 'Paste what your AI returned (chat text around it is fine) or upload the file. Nothing changes until Save.'
-            : 'Say what to write or change. The AI returns the whole careers file; you see every change before Save.'}
+            ? 'Upload the .json your AI returned, or paste it (chat text around it is fine; YAML works too). Nothing changes until Save.'
+            : 'Say what to write or change: roles, screener questions, emails, hiring managers, interviewers. The AI returns the whole careers file; you see every change before Save.'}
         </Typography>
       </DialogTitle>
       <DialogContent>
@@ -153,7 +162,7 @@ export function CareersFileDialog({
             <TextField
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder={'format: ecothrift.careers/1\npublic: false\npage:\n  headline: Now hiring\n…'}
+              placeholder={'{\n  "format": "ecothrift.careers-bundle/1",\n  "careers": { … }\n}'}
               multiline
               minRows={12}
               maxRows={22}
@@ -163,7 +172,7 @@ export function CareersFileDialog({
             />
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
               <Button size="small" onClick={() => fileInput.current?.click()}>
-                Upload a .yaml or .json file
+                Upload a .json file
               </Button>
               <input
                 ref={fileInput}
@@ -194,6 +203,45 @@ export function CareersFileDialog({
               fullWidth
               autoFocus
             />
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 1.5 }}>
+              <TextField
+                select
+                size="small"
+                label="Model"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                sx={{ minWidth: 260 }}
+                SelectProps={{ displayEmpty: true }}
+                InputLabelProps={{ shrink: true }}
+              >
+                <MenuItem value="">Default: {ai?.default_model || 'Settings > AI'}</MenuItem>
+                {(ai?.models ?? []).map((m) => (
+                  <MenuItem key={m.slug} value={m.slug}>
+                    {m.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                select
+                size="small"
+                label="Effort"
+                value={effort}
+                onChange={(e) => setEffort(e.target.value)}
+                sx={{ minWidth: 170 }}
+                SelectProps={{ displayEmpty: true }}
+                InputLabelProps={{ shrink: true }}
+              >
+                <MenuItem value="">Default: {ai?.default_effort || 'off'}</MenuItem>
+                {(ai?.efforts ?? []).map((value) => (
+                  <MenuItem key={value} value={value}>
+                    {value}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Stack>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+              The defaults come from Settings &gt; AI (Hiring). Higher effort is slower and costs more.
+            </Typography>
             <Button variant="contained" sx={{ mt: 1.5 }} disabled={busy || !ask.trim()} onClick={runAi}>
               {busy ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : 'Ask the AI'}
             </Button>
@@ -216,6 +264,14 @@ export function CareersFileDialog({
         )}
       </DialogContent>
       <DialogActions>
+        {mode === 'ai' && check?.ok && checkedDoc.current != null && (
+          <Button
+            sx={{ mr: 'auto' }}
+            onClick={() => downloadJson(checkedDoc.current, `ecothrift-careers-ai-${new Date().toISOString().slice(0, 10)}.json`)}
+          >
+            Download this JSON
+          </Button>
+        )}
         <Button onClick={onClose} disabled={busy}>
           Cancel
         </Button>

@@ -67,10 +67,23 @@ DEFAULT_PAGE = {
         "doing and do it. If that's not you, please don't apply. If it is, we'd love to meet you."
     ),
     'apply_note': 'It takes about 5 minutes. A resume is optional.',
+    'growth': (
+        "There's room to grow. Each area (retail, processing and restoration) has a lead. Show us you're great "
+        'at the work and can bring others along, and you can step up to lead it. Pay grows with skill.'
+    ),
     'photo_url': '',
 }
 
 _DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+# Each area has a lead; these two (optional) help the owner spot people who could grow into it.
+LEAD_INTEREST_KEY = 'lead_interest'
+LEAD_QUESTIONS = [
+    {'key': LEAD_INTEREST_KEY, 'label': 'Down the road, would you like to lead your area?', 'type': 'choice',
+     'required': False, 'options': ['Yes', 'Maybe', 'No, I just want to do great work']},
+    {'key': 'led_before', 'label': 'Have you led a team, trained someone, or run something on your own? Tell us about it.',
+     'type': 'long_text', 'required': False},
+]
 
 DEFAULT_QUESTIONS = [
     {'key': 'hours_per_week', 'label': 'How many hours a week do you want?', 'type': 'number', 'required': True,
@@ -91,6 +104,7 @@ DEFAULT_QUESTIONS = [
     {'key': 'why_us', 'label': 'Why Eco-Thrift?', 'type': 'long_text', 'required': True},
     {'key': 'proactive', 'label': 'Tell us about a time you saw something that needed doing and did it without being asked.',
      'type': 'long_text', 'required': True},
+    *LEAD_QUESTIONS,
     {'key': 'heard_about', 'label': 'How did you hear about us?', 'type': 'choice', 'required': False,
      'options': ['Facebook', 'Indeed', 'A friend or someone who works here', 'In the store', 'Google', 'Other'],
      'after_roles': True},
@@ -162,9 +176,13 @@ DEFAULT_SETTING = {
 }
 
 JOB_FIELDS = (
-    'slug', 'title', 'tagline', 'summary', 'duties', 'schedule', 'hours', 'employment_type',
-    'pay_min', 'pay_max', 'pay_text', 'questions', 'interview_questions', 'status', 'sort_order',
+    'slug', 'title', 'tagline', 'summary', 'duties', 'success', 'looking_for', 'nice_to_have', 'physical', 'works_with',
+    'schedule', 'hours', 'employment_type', 'pay_min', 'pay_max', 'pay_text', 'questions', 'interview_questions', 'status', 'sort_order',
 )
+# Links to other records, written by key (department slug, staff email) so a file stays readable.
+JOB_LINKS = ('department', 'hiring_manager', 'interviewers')
+
+BUNDLE_FORMAT = 'ecothrift.careers-bundle/1'
 
 
 # ── Stored setting ──────────────────────────────────────────────────────────
@@ -234,6 +252,11 @@ def job_to_doc(job) -> dict:
         'tagline': job.tagline,
         'summary': job.summary,
         'duties': list(job.duties or []),
+        'success': list(job.success or []),
+        'looking_for': list(job.looking_for or []),
+        'nice_to_have': list(job.nice_to_have or []),
+        'physical': list(job.physical or []),
+        'works_with': job.works_with,
         'schedule': job.schedule,
         'hours': job.hours,
         'employment_type': job.employment_type,
@@ -243,6 +266,9 @@ def job_to_doc(job) -> dict:
         'questions': list(job.questions or []),
         'interview_questions': list(job.interview_questions or []),
         'sort_order': job.sort_order,
+        'department': job.department.slug if job.department_id else '',
+        'hiring_manager': (job.hiring_manager.email or '').lower() if job.hiring_manager_id else '',
+        'interviewers': sorted((u.email or '').lower() for u in job.interviewers.all()),
     }
 
 
@@ -250,13 +276,91 @@ def export_doc() -> dict:
     from apps.hiring.models import Job
 
     setting = load_setting()
+    jobs = Job.objects.select_related('department', 'hiring_manager').prefetch_related('interviewers')
     return {
         'format': FORMAT,
         'public': bool(setting.get('public')),
         'page': setting['page'],
         'form': setting['form'],
         'email': setting['email'],
-        'jobs': [job_to_doc(job) for job in Job.objects.all()],
+        'jobs': [job_to_doc(job) for job in jobs],
+    }
+
+
+# ── Indexes and the AI bundle ───────────────────────────────────────────────
+
+
+STAFF_GROUPS = ('Admin', 'Manager', 'Employee')
+
+
+def staff_users():
+    """Active people with a staff role (or the staff flag): who can own hiring for a role or interview."""
+    from django.db.models import Q
+
+    from apps.accounts.models import User
+
+    return (User.objects.filter(is_active=True).exclude(email='')
+            .filter(Q(is_staff=True) | Q(groups__name__in=STAFF_GROUPS)).distinct())
+
+
+def staff_index() -> list[dict]:
+    """People who can be a hiring manager or an interviewer: active staff, by email."""
+    users = staff_users().prefetch_related('groups').order_by('first_name', 'last_name', 'email')
+    out = []
+    for user in users:
+        roles = [g.name for g in user.groups.all() if g.name in STAFF_GROUPS]
+        out.append({
+            'id': user.pk,
+            'email': user.email.lower(),
+            'name': (user.full_name or '').strip() or user.email,
+            'role': roles[0] if roles else ('Admin' if user.is_superuser else 'Staff'),
+        })
+    return out
+
+
+def department_index() -> list[dict]:
+    from apps.hr.models import Department
+
+    return [{'id': d.pk, 'slug': d.slug, 'name': d.name} for d in Department.objects.order_by('name')]
+
+
+def indexes() -> dict:
+    """Every key a careers file may point at, so an AI (or a person) never has to guess."""
+    from apps.hiring.models import Application
+
+    return {
+        'staff': staff_index(),
+        'departments': department_index(),
+        'question_types': list(QUESTION_TYPES),
+        'job_statuses': list(JOB_STATUSES),
+        'employment_types': list(JOB_TYPES),
+        'not_now_emails': list(NOT_NOW_KEYS),
+        'not_now_reasons': [{'key': k, 'label': l} for k, l in Application.NOT_NOW_REASONS],
+        'stages': [{'key': k, 'label': l} for k, l in Application.STAGE_CHOICES],
+        'email_placeholders': {
+            'all emails': ['{first_name}', '{last_name}', '{roles}', '{phone}', '{email}', '{review_day}',
+                           '{reply_days}'],
+            'alert only': ['{flags}', '{dash_link}'],
+        },
+        'never_ask': NEVER_ASK,
+    }
+
+
+def bundle(instructions: str) -> dict:
+    """The download for AI: instructions, the indexes, and the current file, in one JSON."""
+    from django.utils import timezone
+
+    return {
+        'format': BUNDLE_FORMAT,
+        'exported_at': timezone.localtime().isoformat(timespec='seconds'),
+        'instructions': instructions,
+        'how_to_return': (
+            'Return this whole JSON object with your changes made inside "careers" (or return only the '
+            '"careers" object). Keep every key. Use only values listed in "indexes": staff emails for '
+            'hiring_manager and interviewers, department slugs, question types, job statuses.'
+        ),
+        'indexes': indexes(),
+        'careers': export_doc(),
     }
 
 
@@ -331,10 +435,48 @@ def _check_money(value, label: str, errors: list[str]) -> float | None:
     return float(amount)
 
 
-def _check_job(item, index: int, errors: list[str], warnings: list[str]) -> dict | None:
+def _check_links(item: dict, title: str, links: dict, errors: list[str]) -> dict:
+    """department (slug or name), hiring_manager (staff email), interviewers (staff emails)."""
+    out = {'department': '', 'hiring_manager': '', 'interviewers': []}
+    department = _text(item.get('department')).lower()
+    if department:
+        slug = links['departments'].get(department)
+        if slug is None:
+            errors.append(f'{title}: department "{department}" is not in indexes.departments.')
+        else:
+            out['department'] = slug
+    manager = _text(item.get('hiring_manager')).lower()
+    if manager:
+        if manager not in links['staff']:
+            errors.append(f'{title}: hiring_manager "{manager}" is not a staff email in indexes.staff.')
+        else:
+            out['hiring_manager'] = manager
+    interviewers = item.get('interviewers') or []
+    if isinstance(interviewers, str):
+        interviewers = [e for e in interviewers.replace(';', ',').split(',')]
+    if not isinstance(interviewers, list):
+        errors.append(f'{title}: interviewers must be a list of staff emails.')
+        return out
+    for email in interviewers:
+        email = _text(email).lower()
+        if not email:
+            continue
+        if email not in links['staff']:
+            errors.append(f'{title}: interviewer "{email}" is not a staff email in indexes.staff.')
+        elif email not in out['interviewers']:
+            out['interviewers'].append(email)
+    out['interviewers'].sort()
+    return out
+
+
+def _check_job(item, index: int, errors: list[str], warnings: list[str], *, links: dict,
+               current_jobs: dict) -> dict | None:
     if not isinstance(item, dict):
         errors.append(f'Job {index}: must be an object.')
         return None
+    raw_slug = slugify(_text(item.get('slug')) or _text(item.get('title')))[:60]
+    # A key the file leaves out keeps today's value, as for the rest of the careers file.
+    item = {**current_jobs.get(raw_slug, {}), **item}
     title = _text(item.get('title'), limit=120)
     if not title:
         errors.append(f'Job {index}: title is missing.')
@@ -348,12 +490,15 @@ def _check_job(item, index: int, errors: list[str], warnings: list[str]) -> dict
     if employment_type not in JOB_TYPES:
         errors.append(f'{title}: employment_type must be one of {", ".join(JOB_TYPES)}.')
         return None
-    duties = item.get('duties') or []
-    if isinstance(duties, str):
-        duties = [line.strip('-• ').strip() for line in duties.splitlines() if line.strip()]
-    if not isinstance(duties, list):
-        errors.append(f'{title}: duties must be a list.')
-        return None
+    lists = {}
+    for key in ('duties', 'success', 'looking_for', 'nice_to_have', 'physical'):
+        value = item.get(key) or []
+        if isinstance(value, str):
+            value = [line.strip('-• ').strip() for line in value.splitlines() if line.strip()]
+        if not isinstance(value, list):
+            errors.append(f'{title}: {key} must be a list.')
+            return None
+        lists[key] = [_text(v, limit=300) for v in value if _text(v)]
     pay_min = _check_money(item.get('pay_min'), f'{title} pay_min', errors)
     pay_max = _check_money(item.get('pay_max'), f'{title} pay_max', errors)
     if pay_min is not None and pay_max is not None and pay_max < pay_min:
@@ -368,7 +513,8 @@ def _check_job(item, index: int, errors: list[str], warnings: list[str]) -> dict
         'status': status,
         'tagline': _text(item.get('tagline'), limit=200),
         'summary': _text(item.get('summary'), limit=4000),
-        'duties': [_text(d, limit=300) for d in duties if _text(d)],
+        **lists,
+        'works_with': _text(item.get('works_with'), limit=200),
         'schedule': _text(item.get('schedule'), limit=200),
         'hours': _text(item.get('hours'), limit=120),
         'employment_type': employment_type,
@@ -378,6 +524,7 @@ def _check_job(item, index: int, errors: list[str], warnings: list[str]) -> dict
         'questions': _check_questions(item.get('questions'), title, errors, warnings),
         'interview_questions': _check_questions(item.get('interview_questions'), f'{title} interview', errors, warnings),
         'sort_order': sort_order,
+        **_check_links(item, title, links, errors),
     }
 
 
@@ -398,6 +545,12 @@ def check_doc(raw) -> dict:
     if not isinstance(raw, dict):
         return {'ok': False, 'errors': ['The file must be one object (format, page, form, email, jobs).'],
                 'warnings': [], 'doc': None}
+    if raw.get('format') == BUNDLE_FORMAT or ('careers' in raw and 'jobs' not in raw):
+        # The whole download came back: the file is inside "careers"; instructions and indexes are ignored.
+        raw = raw.get('careers')
+        if not isinstance(raw, dict):
+            return {'ok': False, 'errors': ['"careers" must be the careers file (an object).'], 'warnings': [],
+                    'doc': None}
     fmt = _text(raw.get('format'))
     if fmt and fmt != FORMAT:
         errors.append(f'format must be "{FORMAT}" (got "{fmt}").')
@@ -459,9 +612,17 @@ def check_doc(raw) -> dict:
         if not isinstance(jobs_raw, list):
             errors.append('jobs must be a list.')
         else:
+            links = {
+                'staff': {s['email'] for s in staff_index()},
+                'departments': {
+                    **{d['slug'].lower(): d['slug'] for d in department_index()},
+                    **{d['name'].lower(): d['slug'] for d in department_index()},
+                },
+            }
+            current_jobs = {j['slug']: j for j in export_doc()['jobs']}
             slugs = set()
             for index, item in enumerate(jobs_raw, start=1):
-                job = _check_job(item, index, errors, warnings)
+                job = _check_job(item, index, errors, warnings, links=links, current_jobs=current_jobs)
                 if job is None:
                     continue
                 if job['slug'] in slugs:
@@ -524,6 +685,11 @@ def summarize_changes(current: dict, new: dict) -> list[str]:
             changed = [f for f in JOB_FIELDS if old.get(f) != job.get(f)]
             if changed:
                 out.append(f'Job "{job["title"]}": {", ".join(changed)}')
+            for link in JOB_LINKS:
+                if old.get(link) != job.get(link):
+                    shown = job.get(link)
+                    shown = ', '.join(shown) if isinstance(shown, list) else shown
+                    out.append(f'Job "{job["title"]}": {link.replace("_", " ")} → {shown or "(none)"}')
         for slug, old in cur_jobs.items():
             if slug not in {j['slug'] for j in new['jobs']}:
                 out.append(f'Job "{old["title"]}" is not in the file: left as it is (close it in Jobs to hide it)')
@@ -548,12 +714,20 @@ def apply_doc(doc: dict, *, user) -> None:
     }, user=user)
     if not doc.get('has_jobs'):
         return
+    from apps.hr.models import Department
+
+    def staff(email: str):
+        return staff_users().filter(email__iexact=email).first() if email else None
+
     for job in doc['jobs']:
         values = {f: job[f] for f in JOB_FIELDS if f != 'slug'}
         for money in ('pay_min', 'pay_max'):
             values[money] = Decimal(str(values[money])) if values[money] is not None else None
         values['updated_by'] = user
-        Job.objects.update_or_create(slug=job['slug'], defaults=values)
+        values['department'] = Department.objects.filter(slug=job['department']).first() if job['department'] else None
+        values['hiring_manager'] = staff(job['hiring_manager'])
+        row, _ = Job.objects.update_or_create(slug=job['slug'], defaults=values)
+        row.interviewers.set([u for u in (staff(e) for e in job['interviewers']) if u])
 
 
 # ── Email text ──────────────────────────────────────────────────────────────

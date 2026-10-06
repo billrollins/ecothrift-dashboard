@@ -14,6 +14,13 @@
 .cr-body { padding: 40px 0 70px; }
 .cr-prose p { font-size: 17px; line-height: 1.65; max-width: 68ch; margin: 0 0 14px; }
 .cr-h2 { font-family: var(--fdisp); font-weight: 600; font-size: 28px; margin: 36px 0 16px; }
+.cr-detail .cr-h2 { font-size: 23px; margin: 30px 0 10px; }
+.cr-detail .cr-h2.cr-first { margin-top: 4px; }
+.cr-detail .cr-prose ul { margin: 0; }
+.cr-detail .cr-prose li { margin-bottom: 4px; }
+.cr-growth { margin-top: 18px; padding: 18px 22px; border-left: 4px solid var(--brand); background: var(--surface); border-radius: 0 var(--radius) var(--radius) 0; }
+.cr-growth h3 { margin: 0 0 6px; font-family: var(--fdisp); font-size: 19px; }
+.cr-growth p { margin: 0; line-height: 1.6; }
 
 .cr-roles-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .cr-role { background: var(--surface); border: 1px solid var(--line2); border-radius: var(--radius); padding: 22px; display: flex; flex-direction: column; gap: 8px; }

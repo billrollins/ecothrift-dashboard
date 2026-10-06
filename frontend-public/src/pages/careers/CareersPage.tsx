@@ -116,6 +116,13 @@ export default function CareersPage() {
           {page.pay && <p className="cr-pay">{page.pay}</p>}
         </div>
 
+        {page.growth && (
+          <div className="cr-growth">
+            <h3>Room to grow</h3>
+            <p>{page.growth}</p>
+          </div>
+        )}
+
         <div className="cr-bottom">
           <Link className="btn btn--primary btn--xl" to="/careers/apply">
             Apply now
