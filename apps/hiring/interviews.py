@@ -81,6 +81,8 @@ def open_times(*, now: datetime | None = None, exclude: Interview | None = None)
     blocks = [(t.start, t.end) for t in extras if t.kind == InterviewTime.KIND_BLOCK]
     windows = [(t.start, t.end) for t in extras if t.kind == InterviewTime.KIND_OPEN]
     booked_qs = Interview.objects.filter(status=Interview.STATUS_SCHEDULED, start__lt=range_end, end__gt=range_start)
+    # A practice run never takes a time away from a real applicant.
+    booked_qs = booked_qs.exclude(application__is_practice=True)
     if exclude is not None and exclude.pk:
         booked_qs = booked_qs.exclude(pk=exclude.pk)
     booked = list(booked_qs.values_list('start', 'end'))
@@ -183,7 +185,7 @@ def ics(interview: Interview, *, cancel: bool = False) -> bytes:
         f'METHOD:{"CANCEL" if cancel else "PUBLISH"}', 'BEGIN:VEVENT',
         f'UID:interview-{interview.pk}@ecothrift.us', f'SEQUENCE:{interview.ics_sequence}',
         f'DTSTAMP:{stamp(timezone.now())}', f'DTSTART:{stamp(interview.start)}', f'DTEND:{stamp(interview.end)}',
-        f'SUMMARY:{clean(f"Eco-Thrift interview: {interview.application.full_name} ({roles})")}',
+        f'SUMMARY:{clean(("[Practice] " if interview.application.is_practice else "") + f"Eco-Thrift interview: {interview.application.full_name} ({roles})")}',
         f'LOCATION:{clean(interview.place or config()["place"])}',
         f'DESCRIPTION:{clean(f"With {first_name(interview.interviewer)}. Ask at the register.")}',
         f'STATUS:{"CANCELLED" if cancel else "CONFIRMED"}', 'END:VEVENT', 'END:VCALENDAR',
@@ -195,7 +197,7 @@ def _send_template(key: str, to, values: dict, *, application, attachment: bytes
     template = email_template(key, application)
     attachments = [('interview.ics', attachment, 'text/calendar')] if attachment else None
     return emails.send(to=to, subject=fill(template['subject'], values), body=fill(template['body'], values),
-                       attachments=attachments)
+                       attachments=attachments, practice=application.is_practice)
 
 
 def _staff_recipients(interview: Interview) -> list[str]:
@@ -336,7 +338,7 @@ def invite(application: Application, *, by, send: bool) -> dict:
         })
         template = email_template('interview_invite', application)
         sent = emails.send(to=application.email, subject=fill(template['subject'], values),
-                           body=fill(template['body'], values))
+                           body=fill(template['body'], values), practice=application.is_practice)
     _event(application, 'Interview link emailed' if sent else ('Interview link: email failed' if send else
                                                                'Interview link copied (to text or send)'),
            by=by, data={'sent': sent})

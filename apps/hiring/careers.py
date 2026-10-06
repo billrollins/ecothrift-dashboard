@@ -25,7 +25,7 @@ JOB_STATUSES = ('draft', 'open', 'paused', 'closed')
 JOB_TYPES = ('full_time', 'part_time', 'full_or_part')
 EMAIL_KEYS = (
     'received', 'alert', 'interview_invite', 'interview_booked', 'interview_changed', 'interview_cancelled',
-    'interview_reminder', 'interview_notice',
+    'interview_reminder', 'interview_notice', 'offer_letter', 'offer_sent', 'offer_signed', 'offer_notice',
 )
 NOT_NOW_KEYS = ('default', 'withdrew', 'position_closed', 'no_show')
 # Every email template by one flat key; a role can carry its own version of any of them (Job.emails).
@@ -219,6 +219,73 @@ DEFAULT_EMAIL = {
             'Email: {email}\n\nOpen in Dash: {dash_link}'
         ),
     },
+    # Offers (Phase 3). The letter is what the applicant signs; it is frozen on the offer when sent.
+    # Placeholders: {first_name} {full_name} {role} {pay_rate} {employment_type} {start_date} {start_time}
+    # {schedule} {supervisor} {respond_by} {note} {offer_date} {signer_name} {signer_title}; the emails also
+    # have {link}; the staff notice has {applicant} {action} {reason} {dash_link}.
+    'offer_letter': {
+        'subject': 'Offer of employment: {role}',
+        'body': (
+            'Dear {first_name},\n\n'
+            "We're excited to offer you the position of {role} at Eco-Thrift. Here are the details:\n\n"
+            '- Position: {role}\n'
+            '- Pay: ${pay_rate} an hour\n'
+            '- Type: {employment_type}\n'
+            '- Start: {start_date} at {start_time}\n'
+            '- Schedule: {schedule}\n'
+            '- Where: our Canfield store, 8425 West Center Road, Omaha, NE 68124\n'
+            "- You'll report to: {supervisor}\n\n"
+            '{note}\n\n'
+            'This offer depends on you completing Form I-9 by your first day: showing original documents that '
+            "prove who you are and that you're allowed to work in the United States.\n\n"
+            'Your job with Eco-Thrift is at will. That means you or Eco-Thrift can end it at any time, with or '
+            'without a reason or notice. This letter is not a promise of a job for any set length of time.\n\n'
+            'Please sign by {respond_by}. Questions? Reply to the email this came with, or call the store.\n\n'
+            "We're a small team with a big dream, and we're glad you're joining us.\n\n"
+            '{signer_name}\n{signer_title}'
+        ),
+    },
+    'offer_sent': {
+        'subject': 'Your job offer from Eco-Thrift',
+        'body': (
+            "Hi {first_name},\n\nWe'd like you to join us as {role}. Read your offer and sign it on your phone "
+            "here:\n\n{link}\n\nPlease sign by {respond_by}. If anything in it doesn't look right, reply to this "
+            'email before you sign.\n\n' + _SIGN_OFF
+        ),
+    },
+    'offer_signed': {
+        'subject': 'Welcome to Eco-Thrift, {first_name}',
+        'body': (
+            "Hi {first_name},\n\nThanks for signing. Your signed offer is attached. We'll see you on {start_date} "
+            'at {start_time}.\n\nBefore your first day, look for an email about what to bring and what to expect. '
+            'On day one, bring the documents for your Form I-9.\n\n' + _SIGN_OFF
+        ),
+    },
+    'offer_notice': {
+        'subject': 'Offer {action}: {applicant} ({role})',
+        'body': (
+            '{applicant} {action} the offer for {role}.\n\nPay: ${pay_rate} an hour\nStart: {start_date} at '
+            '{start_time}\n{reason}\n\nOpen in Dash: {dash_link}'
+        ),
+    },
+}
+
+DEFAULT_OFFER = {
+    'respond_days': 3,
+    'signer_name': 'Bill Rollins',
+    'signer_title': 'Owner, Eco-Thrift',
+    # From the 2024 job descriptions' acknowledgment block; each must be ticked to sign.
+    'acknowledgments': [
+        'I can get to 8425 West Center Road for every scheduled shift.',
+        "I'm comfortable with the pay and schedule in this offer.",
+        'I can do the duties described for this role.',
+        'I can meet the physical requirements for this role, with or without accommodation.',
+    ],
+    'consent': (
+        'I agree to sign this offer electronically. My typed name and the signature I draw are my legal '
+        'signature, the same as signing on paper. I can download a copy after I sign. If I would rather sign on '
+        'paper, I can reply to the email and ask.'
+    ),
 }
 
 WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -244,6 +311,7 @@ DEFAULT_SETTING = {
     'email': DEFAULT_EMAIL,
     'interviews': DEFAULT_INTERVIEWS,
     'defaults': DEFAULT_ROLE_PEOPLE,
+    'offer': DEFAULT_OFFER,
 }
 
 JOB_FIELDS = (
@@ -265,7 +333,7 @@ def load_setting() -> dict:
     row = AppSetting.objects.filter(key=SETTING_KEY).first()
     stored = row.value if row and isinstance(row.value, dict) else {}
     merged = copy.deepcopy(DEFAULT_SETTING)
-    for key in ('public', 'page', 'form', 'email', 'interviews', 'defaults', 'preview_key'):
+    for key in ('public', 'page', 'form', 'email', 'interviews', 'defaults', 'offer', 'preview_key'):
         if key in stored:
             if isinstance(merged.get(key), dict) and isinstance(stored[key], dict):
                 merged[key] = {**merged[key], **stored[key]}
@@ -358,6 +426,7 @@ def export_doc() -> dict:
         'email': setting['email'],
         'interviews': setting['interviews'],
         'defaults': setting['defaults'],
+        'offer': setting['offer'],
         'jobs': [job_to_doc(job) for job in jobs],
     }
 
@@ -418,6 +487,11 @@ def indexes() -> dict:
             'alert only': ['{flags}', '{dash_link}'],
             'interview emails': ['{when}', '{place}', '{interviewer}', '{link}', '{link_days}', '{length}'],
             'interview_notice only': ['{applicant}', '{action}', '{dash_link}'],
+            'offer letter and offer emails': ['{first_name}', '{full_name}', '{role}', '{pay_rate}',
+                                              '{employment_type}', '{start_date}', '{start_time}', '{schedule}',
+                                              '{supervisor}', '{respond_by}', '{note}', '{offer_date}',
+                                              '{signer_name}', '{signer_title}', '{link}'],
+            'offer_notice only': ['{applicant}', '{action}', '{reason}', '{dash_link}'],
         },
         'never_ask': NEVER_ASK,
         'weekdays': WEEKDAYS,
@@ -685,6 +759,42 @@ def _check_interviews(raw, current: dict, errors: list[str]) -> dict:
     return out
 
 
+def _check_offer(raw, current: dict, errors: list[str]) -> dict:
+    """Offer rules: reply-by days, who signs for Eco-Thrift, the acknowledgments, the e-sign consent."""
+    out = {**DEFAULT_OFFER, **(current or {})}
+    if raw is None:
+        return out
+    if not isinstance(raw, dict):
+        errors.append('offer must be an object.')
+        return out
+    if 'respond_days' in raw:
+        try:
+            days = int(raw.get('respond_days'))
+            if not 1 <= days <= 30:
+                raise ValueError
+            out['respond_days'] = days
+        except (TypeError, ValueError):
+            errors.append('offer.respond_days must be a whole number from 1 to 30.')
+    for key in ('signer_name', 'signer_title'):
+        if key in raw:
+            out[key] = _text(raw.get(key), limit=160)
+    if 'acknowledgments' in raw:
+        acks = raw.get('acknowledgments') or []
+        if isinstance(acks, str):
+            acks = [a.strip('-• ').strip() for a in acks.splitlines()]
+        if not isinstance(acks, list):
+            errors.append('offer.acknowledgments must be a list of sentences.')
+        else:
+            out['acknowledgments'] = [_text(a, limit=300) for a in acks if _text(a)][:10]
+    if 'consent' in raw:
+        consent = _text(raw.get('consent'), limit=1000)
+        if not consent:
+            errors.append('offer.consent (the e-sign agreement) cannot be empty.')
+        else:
+            out['consent'] = consent
+    return out
+
+
 def check_doc(raw) -> dict:
     """Validate and normalize a careers file. Returns {ok, errors, warnings, doc}."""
     errors: list[str] = []
@@ -754,6 +864,7 @@ def check_doc(raw) -> dict:
         errors.append('email must be an object.')
 
     interviews = _check_interviews(raw.get('interviews'), current['interviews'], errors)
+    offer = _check_offer(raw.get('offer'), current['offer'], errors)
     links = {
         'staff': {s['email'] for s in staff_index()},
         'departments': {
@@ -798,6 +909,7 @@ def check_doc(raw) -> dict:
         'email': email,
         'interviews': interviews,
         'defaults': defaults,
+        'offer': offer,
         'jobs': jobs,
         'has_jobs': jobs_raw is not None,
     }
@@ -840,6 +952,9 @@ def summarize_changes(current: dict, new: dict) -> list[str]:
         if (current.get('interviews') or {}).get(key) != (new.get('interviews') or {}).get(key):
             value = new['interviews'].get(key)
             out.append(f'Interviews: {key} → {", ".join(value) if isinstance(value, list) else value}')
+    for key in DEFAULT_OFFER:
+        if (current.get('offer') or {}).get(key) != (new.get('offer') or {}).get(key):
+            out.append(f'Offer: {key.replace("_", " ")} changes')
     for key in DEFAULT_ROLE_PEOPLE:
         if (current.get('defaults') or {}).get(key) != (new.get('defaults') or {}).get(key):
             value = new['defaults'].get(key)
@@ -882,6 +997,7 @@ def apply_doc(doc: dict, *, user) -> None:
         'email': doc['email'],
         'interviews': doc.get('interviews') or current['interviews'],
         'defaults': doc.get('defaults') or current['defaults'],
+        'offer': doc.get('offer') or current['offer'],
         'preview_key': current.get('preview_key') or secrets.token_urlsafe(12),
     }, user=user)
     if not doc.get('has_jobs'):

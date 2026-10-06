@@ -45,6 +45,22 @@ ALL_PLACEHOLDERS = {
     'first_name', 'last_name', 'roles', 'phone', 'email', 'review_day', 'reply_days', 'flags', 'dash_link',
     'when', 'place', 'interviewer', 'link', 'link_days', 'length', 'applicant', 'action',
 }
+OFFER_PLACEHOLDERS = {
+    'first_name', 'full_name', 'role', 'pay_rate', 'employment_type', 'start_date', 'start_time', 'schedule',
+    'supervisor', 'respond_by', 'note', 'offer_date', 'signer_name', 'signer_title',
+}
+
+
+def allowed_placeholders(key: str) -> set[str]:
+    if key == 'offer_letter':
+        return OFFER_PLACEHOLDERS
+    if key == 'offer_notice':
+        return OFFER_PLACEHOLDERS | {'applicant', 'action', 'reason', 'dash_link', 'link'}
+    if key.startswith('offer_'):
+        return OFFER_PLACEHOLDERS | {'link'}
+    if key in ('alert', 'interview_notice'):
+        return ALL_PLACEHOLDERS
+    return ALL_PLACEHOLDERS - {'flags', 'dash_link', 'applicant', 'action'}
 
 EMAIL_HELP = {
     'received': 'the auto-reply to an applicant right after they apply',
@@ -59,6 +75,11 @@ EMAIL_HELP = {
     'not_now.withdrew': 'the reply when an applicant withdraws',
     'not_now.position_closed': 'the "position filled" email',
     'not_now.no_show': 'the email after an applicant missed their interview',
+    'offer_letter': ('the job offer letter the applicant signs with a finger on a phone. Keep the at-will '
+                     'paragraph and the Form I-9 condition in substance; keep it to one printed page'),
+    'offer_sent': 'the email with the private link to read and sign the job offer',
+    'offer_signed': 'the welcome email to a new hire after they sign the offer (the signed PDF is attached)',
+    'offer_notice': 'the notice to the owner and hiring manager that an offer was signed or declined',
 }
 
 _HOUSE_RULES = (
@@ -202,8 +223,7 @@ def work_email(params: dict) -> tuple[dict, str]:
     subject = str(params.get('subject') or '').strip()
     body = str(params.get('body') or '').strip()
     used = set(PLACEHOLDER.findall(subject + body))
-    allowed = sorted(ALL_PLACEHOLDERS if key in ('alert', 'interview_notice') else
-                     ALL_PLACEHOLDERS - {'flags', 'dash_link', 'applicant', 'action'})
+    allowed = sorted(allowed_placeholders(key))
     role = (params.get('role_title') or '').strip()
     system = (
         "You edit one plain-text email Eco-Thrift sends about hiring. " + _HOUSE_RULES + '\n'

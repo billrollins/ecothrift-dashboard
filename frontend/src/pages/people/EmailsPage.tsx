@@ -19,6 +19,7 @@ import {
   saveCareers,
   updateJob,
   type Job,
+  type OfferSettings,
 } from '../../api/hiring.api';
 import { PageHeader } from '../../components/common/PageHeader';
 import { ccTokens } from '../../theme';
@@ -29,8 +30,15 @@ type Block = { subject: string; body: string };
 
 const COMMON = ['first_name', 'last_name', 'roles', 'phone', 'email', 'review_day', 'reply_days'];
 const INTERVIEW = ['when', 'place', 'interviewer', 'link', 'link_days', 'length'];
+const OFFER = [
+  'first_name', 'full_name', 'role', 'pay_rate', 'employment_type', 'start_date', 'start_time', 'schedule',
+  'supervisor', 'respond_by', 'note', 'offer_date', 'signer_name', 'signer_title',
+];
 
 function placeholdersFor(key: string): string[] {
+  if (key === 'offer_letter') return OFFER;
+  if (key === 'offer_notice') return [...OFFER, 'applicant', 'action', 'reason', 'link', 'dash_link'];
+  if (key.startsWith('offer_')) return [...OFFER, 'link'];
   if (key === 'alert') return [...COMMON, 'flags', 'dash_link'];
   if (key === 'interview_notice') return [...COMMON, ...INTERVIEW, 'applicant', 'action', 'dash_link'];
   if (key.startsWith('interview_')) return [...COMMON, ...INTERVIEW];
@@ -52,10 +60,22 @@ const SAMPLE: Record<string, string> = {
   action: 'booked',
   flags: 'all green',
   dash_link: 'https://dash.ecothrift.us/people/applicants?id=…',
+  full_name: 'Dana Miles',
+  pay_rate: '15.00',
+  employment_type: 'Part time',
+  start_date: 'Monday, October 19, 2026',
+  start_time: '9:00 AM',
+  schedule: 'Saturdays and two weekdays, about 24 hours a week',
+  supervisor: 'Bill Rollins',
+  respond_by: 'Friday, October 9, 2026',
+  note: '',
+  offer_date: 'Tuesday, October 6, 2026',
+  reason: 'Took another job closer to home.',
 };
 
 function fillSample(text: string, values: Record<string, string>): string {
-  return text.replace(/\{([a-z_]+)\}/g, (all, name: string) => values[name] ?? all);
+  // Blank lines left by an empty placeholder fold up, as they do in the real email.
+  return text.replace(/\{([a-z_]+)\}/g, (all, name: string) => values[name] ?? all).replace(/\n{3,}/g, '\n\n');
 }
 
 function universalOf(email: Record<string, unknown> | undefined, key: string): Block {
@@ -120,6 +140,78 @@ function SenderCard({ email }: { email: Record<string, unknown> }) {
   );
 }
 
+/** The letter's own rules: who signs for Eco-Thrift, reply-by days, what they tick, the e-sign consent. */
+function OfferSettingsCard({ offer }: { offer: OfferSettings }) {
+  const queryClient = useQueryClient();
+  const { enqueueSnackbar } = useSnackbar();
+  const pick = () => ({
+    signer_name: offer.signer_name ?? '',
+    signer_title: offer.signer_title ?? '',
+    respond_days: String(offer.respond_days ?? 3),
+    acknowledgments: (offer.acknowledgments ?? []).join('\n'),
+    consent: offer.consent ?? '',
+  });
+  const [draft, setDraft] = useState(pick);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setDraft(pick()), [offer]); // eslint-disable-line react-hooks/exhaustive-deps
+  const changed = JSON.stringify(draft) !== JSON.stringify(pick());
+  const field = (name: keyof typeof draft) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setDraft((d) => ({ ...d, [name]: e.target.value }));
+
+  async function save() {
+    setBusy(true);
+    try {
+      await saveCareers({
+        format: 'ecothrift.careers/1',
+        offer: {
+          signer_name: draft.signer_name,
+          signer_title: draft.signer_title,
+          respond_days: Number(draft.respond_days) || 3,
+          acknowledgments: draft.acknowledgments.split('\n').map((l) => l.trim()).filter(Boolean),
+          consent: draft.consent,
+        },
+      });
+      await queryClient.invalidateQueries({ queryKey: ['hiring'] });
+      enqueueSnackbar('Offer settings saved', { variant: 'success' });
+    } catch (err) {
+      const data = (err as { response?: { data?: { errors?: string[] } } }).response?.data;
+      enqueueSnackbar(data?.errors?.join(' ') || errorText(err, 'Could not save.'), { variant: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Box sx={{ p: 2, borderRadius: ccTokens.r, border: `1px solid ${ccTokens.line}`, bgcolor: '#fafaf7', mb: 2 }}>
+      <Typography fontWeight={700}>Offer settings (all roles)</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+        They tick every line below, agree to sign electronically, type their name and sign with a finger. Changes
+        apply to new offers; an offer already sent keeps its words.
+      </Typography>
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+        <TextField size="small" label="{signer_name}: signs for Eco-Thrift" value={draft.signer_name} onChange={field('signer_name')} fullWidth />
+        <TextField size="small" label="{signer_title}" value={draft.signer_title} onChange={field('signer_title')} fullWidth />
+        <TextField size="small" label="Days to reply" value={draft.respond_days} onChange={field('respond_days')}
+          inputProps={{ inputMode: 'numeric' }} sx={{ minWidth: 140 }} />
+      </Stack>
+      <TextField size="small" label="They tick each of these (one per line)" value={draft.acknowledgments}
+        onChange={field('acknowledgments')} multiline minRows={4} fullWidth sx={{ mt: 1.5 }} />
+      <TextField size="small" label="E-sign agreement (they tick this too)" value={draft.consent}
+        onChange={field('consent')} multiline minRows={3} fullWidth sx={{ mt: 1.5 }} />
+      <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
+        <Button variant="contained" size="small" disabled={busy || !changed} onClick={save}>
+          Save offer settings
+        </Button>
+        {changed && (
+          <Button size="small" disabled={busy} onClick={() => setDraft(pick())}>
+            Discard
+          </Button>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
 export default function EmailsPage() {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
@@ -150,10 +242,15 @@ export default function EmailsPage() {
     () => ({
       ...SAMPLE,
       roles: job?.title ?? 'Retail Associate',
+      role: job?.title ?? 'Retail Associate',
+      signer_name: careers.data?.doc.offer?.signer_name ?? 'Bill Rollins',
+      signer_title: careers.data?.doc.offer?.signer_title ?? 'Owner, Eco-Thrift',
+      action: key === 'offer_notice' ? 'signed' : SAMPLE.action,
+      link: key.startsWith('offer_') ? 'https://ecothrift.us/careers/offer?t=…' : SAMPLE.link,
       review_day: String(email?.review_day ?? 'every business day'),
       reply_days: String(email?.reply_days ?? '5'),
     }),
-    [job, email],
+    [job, email, careers.data, key],
   );
 
   function insert(name: string) {
@@ -198,7 +295,7 @@ export default function EmailsPage() {
     }
   }
 
-  const groups = ['Applying', 'Interviews', 'Not now'];
+  const groups = ['Applying', 'Interviews', 'Offers', 'Not now'];
   const rolesWith = (k: string) => (jobs.data ?? []).filter((j) => j.emails?.[k]).map((j) => j.title);
 
   return (
@@ -322,6 +419,7 @@ export default function EmailsPage() {
               />
             </Box>
           )}
+          {key === 'offer_letter' && !job && careers.data?.doc.offer && <OfferSettingsCard offer={careers.data.doc.offer} />}
           {aiNote.length > 0 && (
             <Alert severity={aiNote.length && aiNote[0].startsWith('AI rewrote') ? 'info' : 'warning'} sx={{ mb: 2 }}
               action={<Button color="inherit" size="small" onClick={() => { setDraft({ ...source }); setAiNote([]); }}>Undo</Button>}>

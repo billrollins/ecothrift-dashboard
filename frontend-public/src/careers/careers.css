@@ -92,7 +92,7 @@
 .cr-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
 .cr-submit { width: 100%; min-height: 56px; font-size: 17px; }
-.cr-done { max-width: 640px; padding: 40px 0 90px; }
+.cr-done { max-width: 640px; padding-top: 40px; padding-bottom: 90px; }
 .cr-done h1 { font-family: var(--fdisp); font-weight: 600; font-size: 38px; margin: 6px 0 12px; }
 .cr-done p { font-size: 17px; line-height: 1.6; }
 
@@ -108,3 +108,19 @@
   .cr-card { padding: 18px 16px; }
   .wrap.cr-form { padding: 0 16px; }
 }
+
+/* Offer page (/careers/offer) */
+.cr-letter p { font-size: 16px; line-height: 1.65; margin: 0 0 12px; white-space: pre-line; }
+.cr-letter ul { margin: 0 0 12px; padding-left: 22px; line-height: 1.65; }
+.cr-terms { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 15px; margin: 4px 0 0; }
+.cr-terms dt { color: var(--muted); font-weight: 600; }
+.cr-terms dd { margin: 0; }
+.cr-ack { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--line2); font-size: 15px; line-height: 1.5; cursor: pointer; }
+.cr-ack:last-of-type { border-bottom: 0; }
+.cr-ack input { width: 22px; height: 22px; flex: 0 0 22px; margin-top: 1px; accent-color: var(--brand); }
+.cr-sigpad { position: relative; border: 1.5px dashed var(--line2); border-radius: 8px; background: #fff; }
+.cr-sigpad canvas { display: block; width: 100%; height: 190px; touch-action: none; cursor: crosshair; }
+.cr-sigpad .cr-sigline { position: absolute; left: 18px; right: 18px; bottom: 42px; border-bottom: 1px solid #c9c9c0; pointer-events: none; }
+.cr-sigpad .cr-sighint { position: absolute; left: 18px; bottom: 16px; font-size: 12.5px; color: var(--muted); pointer-events: none; }
+.cr-sigpad .cr-sigclear { position: absolute; top: 8px; right: 8px; font-size: 13px; padding: 6px 12px; min-height: 0; }
+.cr-bad .cr-sigpad { border-color: #c0392b; }

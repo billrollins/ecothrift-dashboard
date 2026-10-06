@@ -12,6 +12,18 @@ export function PreviewBar({ on }: { on?: boolean }) {
   )
 }
 
+export function PracticeBar({ on, children }: { on?: boolean; children?: React.ReactNode }) {
+  if (!on) return null
+  return (
+    <div className="cr-preview" role="status">
+      <div className="wrap">
+        <b>Practice run.</b>{' '}
+        {children ?? 'This is a test, not a real application. It shows in Dash with a Practice tag, and its emails start with [Practice].'}
+      </div>
+    </div>
+  )
+}
+
 export function NoOpenings() {
   return (
     <div className="wrap">

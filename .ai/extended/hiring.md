@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-06 (AI help per role / email, Emails page, role email versions) -->
+<!-- Last updated: 2026-10-06 (Phase 3 offers, practice runs) -->
 # Hiring
 
 The careers page, applications, and the People workspace. Design and phases: [`initiatives/hiring_onboarding.md`](../initiatives/hiring_onboarding.md).
@@ -63,3 +63,26 @@ The careers page, applications, and the People workspace. Design and phases: [`i
   - A role's own versions are in `Job.emails` (flat keys from `TEMPLATE_KEYS`, for example `received`, `interview_booked`, `not_now.default`).
   - `careers.template(key, application)` picks the first applied role (by sort order) that has its own version, else the universal one.
   - Page: `frontend/src/pages/people/EmailsPage.tsx` (People → Emails).
+
+## Offers (Phase 3)
+
+- **Model:** `Offer` (`0009`): application, job, token, status (sent, viewed, signed, declined, expired, withdrawn), the terms (position, pay_rate, employment_type, start_date, start_time, schedule, supervisor, respond_by, note), the frozen `letter_subject`, `letter_text`, `acknowledgments` and `consent_text`, the timestamps, `signer_name`, `signature` and `signed_pdf` (S3, `hiring/offers/`), signer IP and device, `letter_sha256`.
+- **Service:** `apps/hiring/offers.py`.
+  - `preview` and `make`: the letter is filled from the `offer_letter` template (the role's own version first) and frozen. A new offer withdraws the open one; the stage moves to Offer.
+  - `refresh` marks an open offer Expired after `respond_by`; `mark_viewed` on the first open.
+  - `sign`: every tick, the e-sign consent, a name of 3+ letters, a PNG signature (200 B to 400 KB). Saves the signature and the PDF, moves the stage to Hired, emails `offer_signed` (PDF attached) to the new hire and `offer_notice` to the notify address and the hiring manager.
+  - `decline` (optional reason) sends `offer_notice`; the stage stays Offer.
+  - `build_pdf`: page 1 the letter, page 2 the ticks, the consent, the signature, the audit trail (sent to, opened, signed in UTC, IP, device, SHA-256 of the letter). Fonts are subset (about 50 KB).
+- **Public:** `GET /api/hiring/public/offer/?t=` (404 once withdrawn), `POST …/offer/sign/ {t, name, signature, acks, consent}`, `POST …/offer/decline/ {t, reason}`, `GET …/offer/pdf/?t=` (the signed copy). The page is `frontend-public/src/pages/careers/OfferPage.tsx` (signature pad: pointer events on a canvas).
+- **Staff:** `POST applications/<id>/offer-preview/` and `applications/<id>/offer/ {…terms, send}`; `/api/hiring/offers/<id>/resend|withdraw|pdf/`. UI: `frontend/src/pages/people/offerUi.tsx` (OfferDialog, OfferCard). Create employee fills in from the signed offer.
+- **Settings:** careers file `offer` (`respond_days`, `signer_name`, `signer_title`, `acknowledgments`, `consent`), edited on People → Emails → Offer letter. Templates: `offer_letter`, `offer_sent`, `offer_signed`, `offer_notice`; the letter's placeholders are `OFFER_PLACEHOLDERS` in `ai.py`.
+
+## Practice runs
+
+- `Application.is_practice`. Made by `POST /api/hiring/applications/practice/ {job, first_name, last_name, email, phone}` (`services.create_practice`) or by the public form with `practice=<preview key>` (`?practice=` on `/careers/apply`, kept for the tab in sessionStorage). A stale key gets a 400 "out of date".
+- Blanks: `services.practice_fill` fills every required or must-have answer that is blank or wrong (`practice_answer`: must-haves get the passing answer). Name `Practice Applicant`, phone `402-555-0100`; a blank email stays blank (no emails).
+- `emails.send(practice=True)` adds `[Practice] ` to the subject and a first line; every hiring sender passes `application.is_practice`. The `.ics` summary says `[Practice]` too.
+- `interviews.open_times` ignores practice interviews, so they never block a real applicant. `offers.build_pdf` stamps PRACTICE RUN on each page. `services.create_employee` refuses practice applicants.
+- `POST /api/hiring/applications/practice-clear/` (`services.clear_practice`) deletes them all with their interviews, offers, events and S3 files. `counts/` returns `practice` (how many exist).
+- UI: `frontend/src/pages/people/PracticeDialog.tsx` (with `PracticeChip`); public `PracticeBar` in `CareersPage.tsx`.
+

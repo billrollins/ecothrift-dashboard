@@ -174,6 +174,10 @@ class Application(models.Model):
     booking_token_expires = models.DateTimeField(null=True, blank=True)
     invited_at = models.DateTimeField(null=True, blank=True)
 
+    # A practice run (staff trying the flow). Blank answers got placeholders; its emails say [Practice];
+    # its interviews never block a real applicant's time; it can't become an employee.
+    is_practice = models.BooleanField(default=False, db_index=True)
+
     received_email_sent = models.BooleanField(default=False)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.CharField(max_length=300, blank=True, default='')
@@ -262,6 +266,72 @@ class InterviewTime(models.Model):
         return f'{self.kind} {self.start}–{self.end}'
 
 
+class Offer(models.Model):
+    """A job offer, sent as a private link and signed on a phone. The letter is frozen when sent."""
+
+    STATUS_SENT = 'sent'
+    STATUS_VIEWED = 'viewed'
+    STATUS_SIGNED = 'signed'
+    STATUS_DECLINED = 'declined'
+    STATUS_EXPIRED = 'expired'
+    STATUS_WITHDRAWN = 'withdrawn'
+    STATUS_CHOICES = [
+        (STATUS_SENT, 'Sent'),
+        (STATUS_VIEWED, 'Viewed'),
+        (STATUS_SIGNED, 'Signed'),
+        (STATUS_DECLINED, 'Declined'),
+        (STATUS_EXPIRED, 'Expired'),
+        (STATUS_WITHDRAWN, 'Withdrawn'),
+    ]
+    OPEN = (STATUS_SENT, STATUS_VIEWED)
+
+    application = models.ForeignKey(Application, on_delete=models.CASCADE, related_name='offers')
+    job = models.ForeignKey(Job, on_delete=models.SET_NULL, null=True, blank=True, related_name='offers')
+    token = models.CharField(max_length=64, unique=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_SENT, db_index=True)
+    # The terms.
+    position = models.CharField(max_length=120)
+    pay_rate = models.DecimalField(max_digits=8, decimal_places=2)
+    employment_type = models.CharField(max_length=20, default='part_time')
+    start_date = models.DateField()
+    start_time = models.TimeField(null=True, blank=True)
+    schedule = models.CharField(max_length=300, blank=True, default='')
+    supervisor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    respond_by = models.DateField()
+    note = models.TextField(blank=True, default='')
+    # Frozen at send: exactly what the applicant reads and signs.
+    letter_subject = models.CharField(max_length=200, blank=True, default='')
+    letter_text = models.TextField()
+    acknowledgments = models.JSONField(default=list, blank=True)
+    consent_text = models.TextField(blank=True, default='')
+    # Timeline.
+    sent_at = models.DateTimeField(null=True, blank=True)
+    viewed_at = models.DateTimeField(null=True, blank=True)
+    signed_at = models.DateTimeField(null=True, blank=True)
+    declined_at = models.DateTimeField(null=True, blank=True)
+    decline_reason = models.TextField(blank=True, default='')
+    withdrawn_at = models.DateTimeField(null=True, blank=True)
+    # The signature and its proof.
+    signer_name = models.CharField(max_length=160, blank=True, default='')
+    signature = models.ForeignKey('core.S3File', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    signed_pdf = models.ForeignKey('core.S3File', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    signer_ip = models.GenericIPAddressField(null=True, blank=True)
+    signer_user_agent = models.CharField(max_length=300, blank=True, default='')
+    letter_sha256 = models.CharField(max_length=64, blank=True, default='')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Offer {self.pk}: {self.application} ({self.status})'
+
+
 class HiringAiJob(models.Model):
     """One AI edit run in the background (a request can't outlast Heroku's 30-second limit). Dash polls it."""
 
@@ -303,7 +373,9 @@ class ApplicationEvent(models.Model):
     KIND_EMPLOYEE = 'employee'
     KIND_EDIT = 'edit'
     KIND_INTERVIEW = 'interview'
+    KIND_OFFER = 'offer'
     KIND_CHOICES = [
+        (KIND_OFFER, 'Offer'),
         (KIND_INTERVIEW, 'Interview'),
         (KIND_CREATED, 'Applied'),
         (KIND_STAGE, 'Stage'),

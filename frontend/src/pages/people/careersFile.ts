@@ -63,8 +63,17 @@ export function downloadJson(value: unknown, filename: string): void {
 }
 
 /** The public link that shows the careers page while it is hidden. */
-export function previewUrl(previewKey: string, host = window.location.host): string {
+function publicBase(host: string): string {
   const local = host.startsWith('localhost') || host.startsWith('127.0.0.1');
-  const base = local ? `${window.location.protocol}//${window.location.hostname}:5174` : 'https://ecothrift.us';
-  return `${base}/careers?preview=${encodeURIComponent(previewKey)}`;
+  return local ? `${window.location.protocol}//${window.location.hostname}:5174` : 'https://ecothrift.us';
+}
+
+export function previewUrl(previewKey: string, host = window.location.host): string {
+  return `${publicBase(host)}/careers?preview=${encodeURIComponent(previewKey)}`;
+}
+
+/** The real application form in practice mode: anything left blank gets a placeholder. */
+export function practiceUrl(previewKey: string, roleSlug = '', host = window.location.host): string {
+  const role = roleSlug ? `&role=${encodeURIComponent(roleSlug)}` : '';
+  return `${publicBase(host)}/careers/apply?practice=${encodeURIComponent(previewKey)}${role}`;
 }

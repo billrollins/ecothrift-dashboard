@@ -122,14 +122,16 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def counts(self, request):
-        rows = self._filtered(with_stage=False).values('stage').annotate(n=Count('id', distinct=True))
+        # order_by() drops the default -created_at, which would otherwise split each stage into one row per time.
+        rows = self._filtered(with_stage=False).order_by().values('stage').annotate(n=Count('id', distinct=True))
         counts = {key: 0 for key, _ in Application.STAGE_CHOICES}
         for row in rows:
             counts[row['stage']] = row['n']
         counts['open'] = sum(v for k, v in counts.items() if k not in (Application.STAGE_HIRED, Application.STAGE_NOT_NOW))
         counts['all'] = sum(v for k, v in counts.items() if k not in ('open',))
         return Response({'counts': counts, 'stages': [{'key': k, 'label': l} for k, l in Application.STAGE_CHOICES],
-                         'reasons': [{'key': k, 'label': l} for k, l in Application.NOT_NOW_REASONS]})
+                         'reasons': [{'key': k, 'label': l} for k, l in Application.NOT_NOW_REASONS],
+                         'practice': Application.objects.filter(is_practice=True).count()})
 
     def create(self, request, *args, **kwargs):
         """Add an applicant by hand: a walk-in, a paper application, or an emailed resume."""
@@ -256,6 +258,43 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         send = request.data.get('send') in (True, 'true', '1', 1)
         result = interview_service.invite(application, by=request.user, send=send)
         return Response({**result, 'application': ApplicationDetailSerializer(self._fresh(application)).data})
+
+    @action(detail=True, methods=['post'], url_path='offer-preview')
+    def offer_preview(self, request, pk=None):
+        """The letter as it would be sent with these terms (nothing saved)."""
+        from apps.hiring import offers
+
+        return Response(offers.preview(self.get_object(), request.data))
+
+    @action(detail=True, methods=['post'])
+    def offer(self, request, pk=None):
+        """Make an offer: freeze the letter, email the link (send=true) or just return it to copy."""
+        from apps.hiring import offers
+        from apps.hiring.serializers import OfferSerializer
+
+        application = self.get_object()
+        send = request.data.get('send') in (True, 'true', '1', 1)
+        offer, link, sent = offers.make(application, request.data, by=request.user, send=send)
+        return Response({'offer': OfferSerializer(offer).data, 'link': link, 'sent': sent,
+                         'application': ApplicationDetailSerializer(self._fresh(application)).data},
+                        status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'])
+    def practice(self, request):
+        """Practice run: a mock applicant (placeholders for anything left out); the usual first emails, tagged [Practice]."""
+        data = request.data
+        job_id = str(data.get('job') or '')
+        job = Job.objects.filter(pk=int(job_id)).first() if job_id.isdigit() else None
+        application = services.create_practice(
+            job=job, first_name=data.get('first_name') or '', last_name=data.get('last_name') or '',
+            email=data.get('email') or '', phone=data.get('phone') or '', by=request.user,
+        )
+        return Response(ApplicationDetailSerializer(self._fresh(application)).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], url_path='practice-clear')
+    def practice_clear(self, request):
+        """Delete every practice applicant with their interviews, offers and files."""
+        return Response({'deleted': services.clear_practice()})
 
     @action(detail=True, methods=['post'], url_path='create-employee')
     def create_employee(self, request, pk=None):
@@ -393,6 +432,52 @@ def _time_rows(times) -> list[dict]:
             'label': f'{hour}:{local.strftime("%M %p")}',
         })
     return rows
+
+
+class OfferViewSet(viewsets.ReadOnlyModelViewSet):
+    """Offers: resend, withdraw, and the signed PDF (private, streamed)."""
+
+    permission_classes = [IsManagerOrAdmin]
+    pagination_class = None
+
+    def get_serializer_class(self):
+        from apps.hiring.serializers import OfferSerializer
+        return OfferSerializer
+
+    def get_queryset(self):
+        from apps.hiring.models import Offer
+
+        qs = Offer.objects.select_related('application', 'supervisor', 'signed_pdf')
+        if self.request.query_params.get('application'):
+            qs = qs.filter(application_id=self.request.query_params['application'])
+        return qs
+
+    def _out(self, offer):
+        from apps.hiring.serializers import OfferSerializer
+        return Response(OfferSerializer(self.get_queryset().get(pk=offer.pk)).data)
+
+    @action(detail=True, methods=['post'])
+    def resend(self, request, pk=None):
+        from apps.hiring import offers
+
+        offer = self.get_object()
+        sent = offers.resend(offer, by=request.user)
+        return Response({'sent': sent, 'offer': self._out(offer).data})
+
+    @action(detail=True, methods=['post'])
+    def withdraw(self, request, pk=None):
+        from apps.hiring import offers
+
+        offer = self.get_object()
+        offers.withdraw(offer, by=request.user)
+        return self._out(offer)
+
+    @action(detail=True, methods=['get'])
+    def pdf(self, request, pk=None):
+        offer = self.get_object()
+        if not offer.signed_pdf_id:
+            raise Http404('Not signed yet.')
+        return stream_s3(offer.signed_pdf, as_attachment=request.query_params.get('download') == '1')
 
 
 class InterviewTimeViewSet(viewsets.ModelViewSet):

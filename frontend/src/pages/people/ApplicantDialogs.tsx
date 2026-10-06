@@ -119,7 +119,7 @@ export function NotNowDialog({
               <TextField label="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} fullWidth />
               <TextField label="Message" value={body} onChange={(e) => setBody(e.target.value)} multiline minRows={7} fullWidth />
               <Typography variant="caption" color="text.secondary">
-                The auto-reply already told them: no word in 7 days means another direction. Don&rsquo;t send is fine
+                The auto-reply already told them when to expect word from us. Don&rsquo;t send is fine
                 for early stages. Either way the text is kept on their record.
               </Typography>
             </>
@@ -169,12 +169,20 @@ export function CreateEmployeeDialog({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
+  // A signed offer fills the form with what they agreed to.
+  const signed = application.offers?.find((o) => o.status === 'signed');
+
   useEffect(() => {
     if (open) {
-      setPosition(application.jobs.map((j) => j.title).join(', '));
+      setPosition(signed?.position || application.jobs.map((j) => j.title).join(', '));
+      if (signed) {
+        setPayRate(signed.pay_rate);
+        setStartDate(signed.start_date);
+        setEmploymentType(signed.employment_type);
+      }
       setError('');
     }
-  }, [open, application]);
+  }, [open, application]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function save() {
     setBusy(true);
@@ -208,6 +216,7 @@ export function CreateEmployeeDialog({
           <Typography variant="body2" color="text.secondary">
             Makes their Dash account (Employee) and employee record, and emails {application.email || 'them'} a link
             to set a password.
+            {signed ? ' Filled in from the offer they signed.' : ''}
           </Typography>
           <TextField label="Position" value={position} onChange={(e) => setPosition(e.target.value)} fullWidth />
           <Stack direction="row" spacing={2}>

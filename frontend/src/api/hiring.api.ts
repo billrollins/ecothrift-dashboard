@@ -92,6 +92,8 @@ export interface ApplicationRow {
   lead_interest: string;
   employee_user: number | null;
   not_now_reason: string;
+  /** A practice run: emails say [Practice], its interviews never block a real time, no Create employee. */
+  is_practice: boolean;
   created_at: string;
 }
 
@@ -108,7 +110,7 @@ export interface AnswerEntry {
 
 export interface ApplicationEvent {
   id: number;
-  kind: 'created' | 'stage' | 'note' | 'rating' | 'email' | 'employee' | 'edit';
+  kind: 'created' | 'stage' | 'note' | 'rating' | 'email' | 'employee' | 'edit' | 'interview' | 'offer';
   kind_label: string;
   from_stage: string;
   to_stage: string;
@@ -141,6 +143,7 @@ export interface ApplicationDetail extends ApplicationRow {
     hire_date: string | null;
   } | null;
   interviews: Interview[];
+  offers: Offer[];
   /** The applicant's live interview link (to copy and text), or ''. */
   booking_link: string;
   invited_at: string | null;
@@ -155,6 +158,8 @@ export interface CountsResponse {
   counts: Record<Stage | 'open' | 'all', number>;
   stages: Option[];
   reasons: Option[];
+  /** How many practice applicants exist (all stages, all roles). */
+  practice: number;
 }
 
 export interface Paged<T> {
@@ -192,6 +197,9 @@ export const markNotNow = (
   id: number,
   data: { reason: string; note: string; send: boolean; subject: string; body: string },
 ) => api.post<ApplicationDetail>(`/hiring/applications/${id}/not-now/`, data);
+export const createPractice = (data: { job?: number | null; first_name?: string; last_name?: string; email?: string; phone?: string }) =>
+  api.post<ApplicationDetail>('/hiring/applications/practice/', data);
+export const clearPractice = () => api.post<{ deleted: number }>('/hiring/applications/practice-clear/', {});
 export const uploadResume = (id: number, file: File) => {
   const form = new FormData();
   form.append('resume', file);
@@ -224,6 +232,7 @@ export interface CareersDoc {
   interviews?: InterviewSettings;
   /** Hiring manager and interviewers (staff emails) that new roles start with. */
   defaults?: { hiring_manager: string; interviewers: string[] };
+  offer?: OfferSettings;
   jobs: Record<string, unknown>[];
 }
 
@@ -312,6 +321,7 @@ export interface Interview {
   applicant_name: string;
   applicant_phone: string;
   applicant_email: string;
+  practice: boolean;
   roles: string[];
   job: number | null;
   job_title: string;
@@ -435,8 +445,82 @@ export const EMAIL_TEMPLATES: { key: string; label: string; group: string; to: s
   { key: 'interview_cancelled', group: 'Interviews', label: 'Interview cancelled', to: 'Applicant', when: 'When it is cancelled.' },
   { key: 'interview_reminder', group: 'Interviews', label: 'Reminder', to: 'Applicant', when: 'The day before.' },
   { key: 'interview_notice', group: 'Interviews', label: 'Staff notice', to: 'Interviewer and hiring manager (with calendar file)', when: 'When an interview is booked, moved, cancelled or reassigned.' },
+  { key: 'offer_letter', group: 'Offers', label: 'Offer letter', to: 'Applicant (they sign it)', when: 'Filled in and frozen when you press Make offer.' },
+  { key: 'offer_sent', group: 'Offers', label: 'Offer email', to: 'Applicant', when: 'With the link to read and sign the offer.' },
+  { key: 'offer_signed', group: 'Offers', label: 'Offer signed (welcome)', to: 'New hire (signed PDF attached)', when: 'Right after they sign.' },
+  { key: 'offer_notice', group: 'Offers', label: 'Offer signed / declined notice', to: 'You (notify) and the hiring manager', when: 'When an offer is signed or declined.' },
   { key: 'not_now.default', group: 'Not now', label: 'Not moving forward', to: 'Applicant', when: 'Only when you press Send in Not now.' },
   { key: 'not_now.withdrew', group: 'Not now', label: 'Withdrew', to: 'Applicant', when: 'Only when you press Send in Not now.' },
   { key: 'not_now.position_closed', group: 'Not now', label: 'Position filled', to: 'Applicant', when: 'Only when you press Send in Not now.' },
   { key: 'not_now.no_show', group: 'Not now', label: 'No-show', to: 'Applicant', when: 'Only when you press Send in Not now.' },
 ];
+
+// ── Offers (Phase 3) ────────────────────────────────────────────────────────
+
+export interface Offer {
+  id: number;
+  application: number;
+  job: number | null;
+  status: 'sent' | 'viewed' | 'signed' | 'declined' | 'expired' | 'withdrawn';
+  status_label: string;
+  position: string;
+  pay_rate: string;
+  employment_type: 'part_time' | 'full_time' | 'seasonal';
+  start_date: string;
+  start_time: string | null;
+  schedule: string;
+  supervisor: number | null;
+  supervisor_person: Person | null;
+  respond_by: string;
+  note: string;
+  letter_subject: string;
+  letter_text: string;
+  acknowledgments: string[];
+  sent_at: string | null;
+  viewed_at: string | null;
+  signed_at: string | null;
+  declined_at: string | null;
+  decline_reason: string;
+  withdrawn_at: string | null;
+  signer_name: string;
+  /** The applicant's link while the offer is open, else ''. */
+  link: string;
+  has_pdf: boolean;
+  created_at: string;
+}
+
+export interface OfferTerms {
+  job?: number | null;
+  position?: string;
+  pay_rate: string;
+  start_date: string;
+  start_time?: string;
+  schedule?: string;
+  employment_type?: string;
+  supervisor?: number | null;
+  respond_by?: string;
+  note?: string;
+}
+
+export const previewOffer = (applicationId: number, terms: OfferTerms) =>
+  api.post<{ subject: string; letter: string; acknowledgments: string[]; consent: string }>(
+    `/hiring/applications/${applicationId}/offer-preview/`,
+    terms,
+  );
+export const makeOffer = (applicationId: number, terms: OfferTerms, send: boolean) =>
+  api.post<{ offer: Offer; link: string; sent: boolean; application: ApplicationDetail }>(
+    `/hiring/applications/${applicationId}/offer/`,
+    { ...terms, send },
+  );
+export const resendOffer = (id: number) => api.post<{ sent: boolean; offer: Offer }>(`/hiring/offers/${id}/resend/`, {});
+export const withdrawOffer = (id: number) => api.post<Offer>(`/hiring/offers/${id}/withdraw/`, {});
+export const getOfferPdf = (id: number) => api.get<Blob>(`/hiring/offers/${id}/pdf/`, { responseType: 'blob' });
+
+/** The offer letter's own settings in the careers file. */
+export interface OfferSettings {
+  respond_days: number;
+  signer_name: string;
+  signer_title: string;
+  acknowledgments: string[];
+  consent: string;
+}

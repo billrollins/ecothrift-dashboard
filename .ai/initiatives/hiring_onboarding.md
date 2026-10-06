@@ -3,7 +3,7 @@
 
 # Initiative: Hiring and onboarding
 
-**Status:** **Active**. Shipped: Phase 1 (v2.136.0), fuller role pages, the JSON for AI and hiring managers (v2.137.0), and Phase 2 interviews, AI help per role and email, and the Emails page (v2.139.0). The careers page is live (Bill turned it on 2026-10-06). Next: Phase 3, offers signed with a finger.
+**Status:** **Active**. Shipped: Phase 1 (v2.136.0), fuller role pages, the JSON for AI and hiring managers (v2.137.0), and Phase 2 interviews, AI help per role and email, and the Emails page (v2.139.0). The careers page is live (Bill turned it on 2026-10-06). Phase 3, offers signed with a finger, and practice runs shipped in v2.143.0. Next: Phase 4, onboarding.
 
 **Objective:** The owner runs hiring from Dash, start to finish:
 
@@ -273,17 +273,61 @@ Acceptance:
 
 ### Phase 3 — Offers signed with a finger
 An offer letter goes out as a link, is signed on a phone, and comes back as a flattened PDF with an audit page.
-**Gated by:** Phase 1 (can run beside Phase 2).
-Detail when Phase 1 is built. Outline:
+**Gated by:** Phase 1. **Shipped in v2.143.0** (2026-10-06; the owner: "start phase 3 offers").
 
-- The offer template fills in:
-  - the role, pay and start date and time;
-  - the schedule and the supervisor;
-  - the at-will line, and that the offer depends on the I-9.
+**Claude's call (a change of plan): offers are built inside hiring, not by extending `documents`.**
 
-  The owner edits it in the careers file; the attorney reads it once.
-- `documents` gets **outside signers**: no Dash user, a hashed token link, the email code, and consent to sign electronically. `SignaturePad` and `flatten.py` are reused as they are.
-- Offer states: **Sent · Viewed · Signed · Declined · Expired**. Declined opens Not now (reason: Offer declined). Signed moves the applicant to Hired.
+- `documents` stamps fields onto an uploaded PDF and is staff-only.
+- An offer is text we write, signed on the public site by someone with no Dash login.
+- So hiring renders the letter and captures the finger signature itself. It then writes the signed PDF with PyMuPDF (as `documents/flatten.py` does), with an audit page.
+- The handbook (Phase 4) is signed by people who already have Dash logins, so `documents` fits it as it is.
+
+**More of Claude's calls:**
+
+- **The link is the proof of the email.** The offer goes to the applicant's email as a private link, the same as the interview link. No extra code.
+- **What they sign is frozen.** The letter text and the acknowledgments are saved on the offer when it is sent. Changing the template later never changes a sent offer; a new offer withdraws the open one.
+- **A signed offer moves the applicant to Hired.** **Create employee** then fills the pay, start date and position from the offer.
+- **A declined offer** stays at Offer, marked Declined, with a one-tap **Not now (Offer declined)**.
+- **Consent to sign electronically** (ESIGN / UETA) is a required tick, with the wording saved. Typed legal name plus drawn signature. The audit page records:
+  - the name and the email the link went to;
+  - the time in store time and in UTC;
+  - the IP and the device;
+  - the offer number;
+  - a SHA-256 fingerprint of the exact letter text.
+
+Acceptance:
+- [x] **Make offer** on the applicant panel. It asks for:
+  - the role and the pay rate;
+  - the start date and time, the schedule, the type;
+  - who they report to (default: the hiring manager);
+  - a reply-by date (default 3 days);
+  - an optional personal note.
+
+  Then a **Preview** of the letter, and **Email the offer** or **Copy link**. The stage moves to Offer. Logged.
+- [x] Public **`/careers/offer?t=…`** (phone-first):
+  - the letter;
+  - the acknowledgments (from the 2024 job descriptions: can commute, OK with the pay and schedule, can do the duties, can meet the physical requirements with or without accommodation);
+  - the e-sign consent and the typed legal name;
+  - a finger signature pad;
+  - **Sign and accept** or **Decline** (optional reason);
+  - opening it marks the offer Viewed;
+  - after the reply-by date it says Expired;
+  - after signing, it shows "Signed" and **Download your copy**.
+- [x] **On signing:**
+  - the signed PDF (the letter, the ticked acknowledgments, the signature, the audit page) is stored privately;
+  - it is emailed to the new hire (`offer_signed`);
+  - a notice goes to the hiring manager and the notify address (`offer_notice`).
+- [x] **On declining:** a notice to staff; the applicant panel offers **Not now (Offer declined)**.
+- [x] **Staff:**
+  - the offer card on the applicant panel: status, the letter, **Resend**, **Copy link**, **Withdraw**, **Signed PDF**;
+  - **Create employee** is pre-filled from the signed offer.
+- [x] **The letter and the emails are editable** on People → Emails: the "Offer letter" (with its acknowledgments), "Offer email", "Offer signed" and "Offer notice". Each has AI help and per-role versions, and all are in the careers JSON.
+- [x] Tests:
+  - make, view, sign, decline, expire, withdraw;
+  - the PDF has the signature and the audit page;
+  - a template change never changes a sent offer;
+  - the signature data is checked;
+  - the emails send.
 
 ### Phase 4 — Onboarding
 **Start onboarding** sends the first-day email and runs the checklist to done.
@@ -394,7 +438,9 @@ The first text is master's opt-in confirmation sample. Detail when the gates cle
 ## Acceptance
 
 - [x] Phase 1 as above (v2.136.0)
-- [ ] Phases 2 to 6 when detailed
+- [x] Phase 2 as above (v2.139.0)
+- [x] Phase 3 as above (v2.143.0)
+- [ ] Phases 4 to 6 when detailed
 - [ ] No SSN, bank or routing numbers stored; I-9 files Admin-only and private
 - [ ] No applicant is moved or rejected by AI; no Not now email sends without a person pressing Send
 - [ ] Nothing ships with an inventory or Thrift+ release, in the freeze, or in the database-switch window
@@ -510,6 +556,47 @@ Built:
 - **People → Emails:** the universal versions, with **per-role versions** (`Job.emails`). `careers.template(key, application)` picks the role's version when it has one.
 
 Checks: 60 backend tests (hiring and mailbox), 52 front-end tests, the type-check. Checked in a browser: Retail → Polish with a note returned in under 10 seconds, with the changed fields outlined and Undo; on the Emails page, a Retail-only auto-reply was created and removed again.
+
+**2026-10-06 — Phase 3, offers signed with a finger (shipped in v2.143.0)** at the owner's order (ship and deploy), after inventory_effort's v2.142.0. The owner: "start phase 3 offers". Built as in the acceptance above:
+
+- `Offer` (`0009`) and `apps/hiring/offers.py`: the letter frozen when made, the link, viewed / signed / declined / expired / withdrawn, and the signed PDF (PyMuPDF; the letter, the ticks, the signature, the audit trail);
+- four new templates on People → Emails (Offer letter, Offer email, Offer signed, Offer notice), with an **Offer settings** card (who signs for Eco-Thrift, days to reply, the ticks, the e-sign wording), all in the careers JSON under `offer`;
+- the applicant panel's **Offer** section (Make offer → Preview → Email the offer or Copy link; the offer card with Copy link, Email again, Withdraw, Signed PDF, Show letter, and **Not now (Offer declined)**);
+- **Create employee** fills in from the signed offer;
+- the public page `/careers/offer` with a finger signature pad.
+
+Checks: 65 backend tests (hiring and mailbox), 52 front-end tests, both type-checks, migrations. Checked end to end in a browser (local, ports 8010 / 5185 / 5184; 5183 was taken by another chat):
+
+- made an offer with a personal note, previewed the letter, copied the link (stage Offer);
+- at phone width: the letter, missing ticks marked in red, a drawn signature, signed;
+- the welcome page and **Download your signed copy** (a 2-page PDF);
+- in Dash: Signed with the timeline (made, opened, signed), stage Hired, and Create employee filled with the offer's role, pay, start date and type;
+- a second test offer declined with a reason, then **Not now (Offer declined)** opened with the reason picked.
+
+The test data and the test login were removed.
+
+Claude's calls while building:
+
+- **The signed PDF subsets its fonts.** The first one was 1.25 MB for two pages; now about 50 KB. A test keeps it under 300 KB.
+- **The done pages keep their side margins on a phone.** This also fixes the apply and interview done screens.
+- **The card says "made", not "sent"**, because Copy link doesn't email anything; the history says which.
+- **The Not now note no longer says "7 days"**, since the owner promises 5 business days.
+- **The offer letter needs one read by the attorney** before the first real offer: the at-will and I-9 paragraphs, the four ticks, and the e-sign agreement. **Done:** the owner reported the attorney read and approved it (2026-10-06).
+
+The owner also uploaded `hiring-people-and-timing-2026-10-06.json` in production (Bill hiring manager, Carrie interviewer on all three roles; 5 business days).
+
+**2026-10-06 — Practice runs (shipped with Phase 3 in v2.143.0).** The owner: "a method of testing with Carrie… a mock that skips the need to fill in all the details… placeholders for all not put in." Built:
+
+- `Application.is_practice` (`0010`);
+- **People → Applicants → Practice run**: make a practice applicant (blanks get placeholders; must-haves pass), or copy a practice link to the real form (`/careers/apply?practice=<preview key>`), where everything may be left blank;
+- a **Practice** tag on the list, the applicant and Interviews;
+- `[Practice]` on every email subject and a first line saying it's a test, also on the calendar entry;
+- practice interviews never block a real applicant's time; the offer PDF is stamped PRACTICE RUN; Create employee is refused;
+- **Delete all practice runs** (interviews, offers, files too).
+
+Checks: 69 backend tests (4 new), 53 front-end tests, both type-checks. Checked in a browser: a practice applicant for Carrie (auto-reply and alert both tagged [Practice] in the console mail), the practice form link at phone width sent with only a first name (Processing, placeholders), then Delete all practice runs (2 deleted). The test login was removed.
+
+Found while testing: **the Applicants tab counts were wrong** when two applicants shared a stage; the model's default order leaked into the count's GROUP BY. Fixed (`order_by()`), with a test.
 
 ---
 

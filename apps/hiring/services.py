@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import secrets
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.conf import settings
@@ -104,6 +104,90 @@ def flags_of(application) -> list[dict]:
     ]
 
 
+# ── Practice runs ───────────────────────────────────────────────────────────
+
+PRACTICE_FIRST = 'Practice'
+PRACTICE_LAST = 'Applicant'
+PRACTICE_PHONE = '402-555-0100'  # 555-01xx numbers are reserved for fiction
+
+
+def practice_answer(question: dict):
+    """A stand-in for a blank answer. Must-haves get the passing answer, so a practice run stays green."""
+    qtype = question['type']
+    options = question.get('options') or []
+    if qtype == 'yes_no':
+        return question.get('must_be') or 'yes'
+    if qtype == 'number':
+        return 20
+    if qtype == 'choice':
+        return options[0] if options else 'Practice'
+    if qtype == 'multi':
+        return options[:1] or ['Practice']
+    if qtype == 'date':
+        return (timezone.localdate() + timedelta(days=7)).isoformat()
+    if qtype == 'time':
+        return '09:00'
+    if qtype == 'long_text':
+        return 'Practice answer (left blank).'
+    return 'Practice answer'
+
+
+def practice_fill(*, form_questions: list[dict], jobs: list[Job], raw: dict) -> dict:
+    """The raw answers with every required or must-have question that was left blank (or wrong) filled in."""
+    out = dict(raw)
+    blocks = [(None, q) for q in form_questions]
+    for job in jobs:
+        blocks += [(job, q) for q in (job.questions or [])]
+    for job, question in blocks:
+        key = f'{job.slug}.{question["key"]}' if job else question['key']
+        value, error = _clean_answer(question, raw.get(key))
+        if (value is None or error) and (question.get('required') or question.get('must_be')):
+            out[key] = practice_answer(question)
+    return out
+
+
+def create_practice(*, job: Job | None, first_name: str = '', last_name: str = '', email: str = '',
+                    phone: str = '', by) -> Application:
+    """Dash's Practice run: an applicant with placeholders for everything left out, then the usual first emails."""
+    job = job or Job.objects.filter(status=Job.STATUS_OPEN).first() or Job.objects.first()
+    if job is None:
+        raise ValidationError({'job': 'Add a role first.'})
+    email = (email or '').strip()
+    if email and ('@' not in email or '.' not in email.split('@')[-1]):
+        raise ValidationError({'email': 'Enter an email address, or leave it blank.'})
+    jobs = [job]
+    raw = practice_fill(form_questions=form_questions(), jobs=jobs, raw={})
+    answers, _, red = build_answers(form_questions=form_questions(), jobs=jobs, raw=raw)
+    application = create_application(
+        first_name=(first_name or '').strip() or PRACTICE_FIRST, last_name=(last_name or '').strip() or PRACTICE_LAST,
+        email=email, phone=(phone or '').strip() or PRACTICE_PHONE, jobs=jobs, answers=answers, red_flags=red,
+        source=Application.SOURCE_OTHER, by=by, practice=True, note='Practice run (made in Dash)',
+    )
+    send_first_touch(application)
+    return application
+
+
+def clear_practice() -> int:
+    """Delete every practice applicant with their interviews, offers, history and files."""
+    from django.core.files.storage import default_storage
+
+    apps = list(Application.objects.filter(is_practice=True).select_related('resume'))
+    files = [a.resume for a in apps if a.resume_id]
+    for app in apps:
+        for offer in app.offers.select_related('signature', 'signed_pdf'):
+            files += [f for f in (offer.signature, offer.signed_pdf) if f]
+    with transaction.atomic():
+        for app in apps:
+            app.delete()
+        for s3 in files:
+            try:
+                default_storage.delete(s3.key)
+            except Exception:
+                pass
+            s3.delete()
+    return len(apps)
+
+
 # ── Apply ───────────────────────────────────────────────────────────────────
 
 
@@ -119,7 +203,7 @@ def _event(application, kind: str, *, by=None, text: str = '', from_stage: str =
 def create_application(*, first_name: str, last_name: str, email: str, phone: str, jobs: list[Job],
                        answers: list[dict], red_flags: int, sms_consent: bool = False, resume=None,
                        source: str = Application.SOURCE_WEB, by=None, ip: str | None = None,
-                       user_agent: str = '', note: str = '') -> Application:
+                       user_agent: str = '', note: str = '', practice: bool = False) -> Application:
     now = timezone.now()
     application = Application.objects.create(
         first_name=first_name.strip()[:80],
@@ -140,6 +224,7 @@ def create_application(*, first_name: str, last_name: str, email: str, phone: st
         created_by=by,
         ip_address=ip,
         user_agent=(user_agent or '')[:300],
+        is_practice=practice,
     )
     application.jobs.set(jobs)
     how = dict(Application.SOURCE_CHOICES).get(source, source)
@@ -245,7 +330,7 @@ def mark_not_now(application, *, reason: str, note: str, send: bool, subject: st
     application.not_now_email_body = (body or '').strip()[:6000]
     if send:
         sent = emails.send(to=application.email, subject=application.not_now_email_subject,
-                           body=application.not_now_email_body)
+                           body=application.not_now_email_body, practice=application.is_practice)
         application.not_now_email_status = Application.EMAIL_SENT if sent else Application.EMAIL_FAILED
     else:
         application.not_now_email_status = Application.EMAIL_NOT_SENT
@@ -271,6 +356,9 @@ def create_employee(application, *, by, request, pay_rate, start_date: date | No
     from apps.accounts.models import User
     from apps.accounts.serializers import UserCreateSerializer
 
+    if application.is_practice:
+        raise ValidationError({'detail': 'This is a practice applicant. Create employee makes a real Dash login, '
+                                         'so it is off for practice runs.'})
     if application.employee_user_id:
         raise ValidationError({'detail': 'This applicant already has a Dash account.'})
     if not application.email:

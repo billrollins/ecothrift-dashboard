@@ -9,6 +9,7 @@ import {
   type InterviewTimeOption,
 } from '../../careers/api'
 import { useSeo } from '../../useSeo'
+import { PracticeBar } from './CareersPage'
 
 /** The applicant's private interview page: pick a time, then change or cancel it. Opened from our email. */
 export default function InterviewPage() {
@@ -106,104 +107,107 @@ export default function InterviewPage() {
   const current = days.find((d) => d.date === day)
 
   return (
-    <div className="wrap cr-form">
-      <div className="pagehead" style={{ paddingTop: 32 }}>
-        <span className="eyebrow">Interview at Eco-Thrift</span>
-        <h1>{booked && !changing ? `You're set, ${state.first_name}.` : `Pick a time, ${state.first_name}`}</h1>
-        <p className="lead">
-          {booked && !changing
-            ? `Your interview for ${roles}.`
-            : `For ${roles}. Interviews take about ${state.length_minutes} minutes at ${state.place}.`}
+    <>
+      <PracticeBar on={state.practice} />
+      <div className="wrap cr-form">
+        <div className="pagehead" style={{ paddingTop: 32 }}>
+          <span className="eyebrow">Interview at Eco-Thrift</span>
+          <h1>{booked && !changing ? `You're set, ${state.first_name}.` : `Pick a time, ${state.first_name}`}</h1>
+          <p className="lead">
+            {booked && !changing
+              ? `Your interview for ${roles}.`
+              : `For ${roles}. Interviews take about ${state.length_minutes} minutes at ${state.place}.`}
+          </p>
+        </div>
+
+        {error && (
+          <div className="formerror" style={{ marginTop: 18 }}>
+            {error}
+          </div>
+        )}
+
+        {booked && !changing && (
+          <section className="cr-card" style={{ marginTop: 22 }}>
+            <h2>{booked.when}</h2>
+            <p className="cr-sub" style={{ marginBottom: 6 }}>
+              At {booked.place}. Come to the register and ask for {booked.interviewer}.
+            </p>
+            <p className="cr-sub">We emailed you a calendar file so it&rsquo;s on your phone.</p>
+            <div className="hbtns" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
+              <button type="button" className="btn btn--ghost" onClick={() => setChanging(true)} disabled={busy}>
+                Change time
+              </button>
+              <button type="button" className="btn btn--ghost" onClick={cancel} disabled={busy}>
+                Cancel interview
+              </button>
+            </div>
+          </section>
+        )}
+
+        {(!booked || changing) && (
+          <section className="cr-card" style={{ marginTop: 22 }}>
+            {days.length === 0 ? (
+              <>
+                <h2>No open times right now</h2>
+                <p className="cr-sub">
+                  Every time in the next two weeks is taken. Reply to our email or call the store, and we&rsquo;ll find
+                  one.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2>1. Pick a day</h2>
+                <div className="cr-chips" style={{ marginTop: 10 }}>
+                  {days.map((d) => (
+                    <button
+                      key={d.date}
+                      type="button"
+                      className={`cr-chip${d.date === day ? ' on' : ''}`}
+                      onClick={() => {
+                        setDay(d.date)
+                        setPicked(null)
+                      }}
+                    >
+                      {d.day.replace(/^(\w{3})\w*,/, '$1,')}
+                    </button>
+                  ))}
+                </div>
+                <h2 style={{ marginTop: 22 }}>2. Pick a time</h2>
+                <div className="cr-chips" style={{ marginTop: 10 }}>
+                  {(current?.times ?? []).map((t) => (
+                    <button
+                      key={t.start}
+                      type="button"
+                      className={`cr-chip${picked?.start === t.start ? ' on' : ''}`}
+                      onClick={() => setPicked(t)}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="btn btn--primary cr-submit"
+                  style={{ marginTop: 22 }}
+                  disabled={!picked || busy}
+                  onClick={confirm}
+                >
+                  {busy ? 'Booking…' : picked ? `Book ${picked.day.split(',')[0]} at ${picked.label}` : 'Pick a time'}
+                </button>
+                {changing && (
+                  <button type="button" className="btn btn--ghost" style={{ marginTop: 10 }} onClick={() => setChanging(false)}>
+                    Keep my current time
+                  </button>
+                )}
+              </>
+            )}
+          </section>
+        )}
+
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 10 }}>
+          Eco-Thrift, 8425 West Center Road, Omaha, NE 68124
         </p>
       </div>
-
-      {error && (
-        <div className="formerror" style={{ marginTop: 18 }}>
-          {error}
-        </div>
-      )}
-
-      {booked && !changing && (
-        <section className="cr-card" style={{ marginTop: 22 }}>
-          <h2>{booked.when}</h2>
-          <p className="cr-sub" style={{ marginBottom: 6 }}>
-            At {booked.place}. Come to the register and ask for {booked.interviewer}.
-          </p>
-          <p className="cr-sub">We emailed you a calendar file so it&rsquo;s on your phone.</p>
-          <div className="hbtns" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
-            <button type="button" className="btn btn--ghost" onClick={() => setChanging(true)} disabled={busy}>
-              Change time
-            </button>
-            <button type="button" className="btn btn--ghost" onClick={cancel} disabled={busy}>
-              Cancel interview
-            </button>
-          </div>
-        </section>
-      )}
-
-      {(!booked || changing) && (
-        <section className="cr-card" style={{ marginTop: 22 }}>
-          {days.length === 0 ? (
-            <>
-              <h2>No open times right now</h2>
-              <p className="cr-sub">
-                Every time in the next two weeks is taken. Reply to our email or call the store, and we&rsquo;ll find
-                one.
-              </p>
-            </>
-          ) : (
-            <>
-              <h2>1. Pick a day</h2>
-              <div className="cr-chips" style={{ marginTop: 10 }}>
-                {days.map((d) => (
-                  <button
-                    key={d.date}
-                    type="button"
-                    className={`cr-chip${d.date === day ? ' on' : ''}`}
-                    onClick={() => {
-                      setDay(d.date)
-                      setPicked(null)
-                    }}
-                  >
-                    {d.day.replace(/^(\w{3})\w*,/, '$1,')}
-                  </button>
-                ))}
-              </div>
-              <h2 style={{ marginTop: 22 }}>2. Pick a time</h2>
-              <div className="cr-chips" style={{ marginTop: 10 }}>
-                {(current?.times ?? []).map((t) => (
-                  <button
-                    key={t.start}
-                    type="button"
-                    className={`cr-chip${picked?.start === t.start ? ' on' : ''}`}
-                    onClick={() => setPicked(t)}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                className="btn btn--primary cr-submit"
-                style={{ marginTop: 22 }}
-                disabled={!picked || busy}
-                onClick={confirm}
-              >
-                {busy ? 'Booking…' : picked ? `Book ${picked.day.split(',')[0]} at ${picked.label}` : 'Pick a time'}
-              </button>
-              {changing && (
-                <button type="button" className="btn btn--ghost" style={{ marginTop: 10 }} onClick={() => setChanging(false)}>
-                  Keep my current time
-                </button>
-              )}
-            </>
-          )}
-        </section>
-      )}
-
-      <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 10 }}>
-        Eco-Thrift, 8425 West Center Road, Omaha, NE 68124
-      </p>
-    </div>
+    </>
   )
 }

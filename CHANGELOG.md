@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.142.0] -->
-<!-- Last reviewed: 2026-10-06 (2.142.0) -->
+<!-- Line 1 release: ## [2.143.0] -->
+<!-- Last reviewed: 2026-10-06 (2.143.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,39 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.143.0] - 2026-10-06
+
+User-facing theme: **Offers signed with a finger: make an offer from the applicant, they read and sign it on their phone, and the signed PDF lands in Dash and in their email. Plus practice runs, to try the whole flow with Carrie without a real applicant.** Initiative: `hiring_onboarding` Phase 3.
+
+### Added
+
+- **Make offer** on an applicant (from Interview scheduled on):
+  - the role, pay, type, start date and time, schedule, who they report to (default: the role's hiring manager), a reply-by date (default 3 days) and an optional personal note;
+  - **Preview the letter**, then **Email the offer** or **Make offer, copy link** to text it from your phone;
+  - what you send is frozen; a new offer withdraws the open one. The stage moves to Offer.
+- **The applicant's page** (`ecothrift.us/careers/offer?t=…`, phone-first):
+  - the letter, four ticks (can get to the store, OK with the pay and schedule, can do the duties, can meet the physical requirements with or without accommodation), the e-sign agreement and their typed legal name;
+  - a signature pad for a finger, with Clear;
+  - **Sign and accept**, or **I can't accept this offer** with an optional reason;
+  - after the reply-by date it says Expired; after signing, **Download your signed copy**.
+- **On signing:** the stage moves to Hired; a signed PDF (the letter, the ticks, the signature and an audit trail: sent to, opened, signed, IP, device, a fingerprint of the letter) is stored privately and emailed to the new hire; a notice goes to you and the hiring manager. A decline sends a notice too.
+- **The offer card** on the applicant: status and timeline, **Copy link**, **Email again**, **Withdraw**, **Signed PDF**, **Show letter**, and **Not now (Offer declined)**.
+- **Create employee** fills in the role, pay, start date and type from the signed offer.
+- **Practice run** (People → Applicants):
+  - **Make practice applicant**: pick a role and, optionally, who the emails go to (tap a staff name), a name and a phone. Anything left blank gets a placeholder; must-have answers pass.
+  - **Copy practice form link**: the real application form on their phone, where they can leave everything blank and press Send.
+  - Practice applicants carry a **Practice** tag (Applicants, the applicant, Interviews). Every email about them starts with **[Practice]**, and so does the calendar entry. Their interviews never take a real applicant's time. Their offer PDF is stamped PRACTICE RUN, and Create employee is off.
+  - **Delete all practice runs** removes them with their interviews, offers and files.
+- **People → Emails → Offers:** Offer letter, Offer email, Offer signed (welcome) and the signed / declined notice, with AI help and role versions; an **Offer settings** card for who signs for Eco-Thrift, days to reply, the ticks and the e-sign agreement. All of it is in the careers JSON (`offer`).
+
+### Fixed
+
+- The done screens on the careers pages (applied, interview, offer) keep their side margins on a phone.
+- The Not now dialog no longer promises "7 days".
+- **The Applicants tab counts were wrong** when two applicants were in the same stage (the count showed 1). They count everyone now.
+
+Migration: `hiring.0009` (offers), `hiring.0010` (practice runs).
 
 ## [2.142.0] - 2026-10-06
 

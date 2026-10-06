@@ -9,7 +9,7 @@ import {
   type Question,
 } from '../../careers/api'
 import { useSeo } from '../../useSeo'
-import { NoOpenings, PreviewBar } from './CareersPage'
+import { NoOpenings, PracticeBar, PreviewBar } from './CareersPage'
 
 type Answer = string | string[]
 type Answers = Record<string, Answer>
@@ -193,6 +193,20 @@ export default function CareersApplyPage() {
     )
   }
   if (!careers?.public || careers.jobs.length === 0) return <NoOpenings />
+  const practice = !!careers.practice
+
+  if (doneName !== null && practice) {
+    return (
+      <div className="wrap cr-done">
+        <span className="eyebrow">Practice application sent</span>
+        <h1>Done{doneName ? `, ${doneName}` : ''}.</h1>
+        <p>
+          It&rsquo;s in Dash under People &rarr; Applicants with a Practice tag. Anything you left blank has a
+          placeholder. If you gave an email, the auto-reply is on its way, starting with [Practice].
+        </p>
+      </div>
+    )
+  }
 
   if (doneName !== null) {
     return (
@@ -264,7 +278,7 @@ export default function CareersApplyPage() {
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
     setFormError('')
-    const found = checkLocally()
+    const found = practice ? {} : checkLocally()
     if (Object.keys(found).length) {
       setFormError('Please fill in the marked questions.')
       showErrors(found)
@@ -311,7 +325,10 @@ export default function CareersApplyPage() {
 
   return (
     <>
-      <PreviewBar on={careers.preview} />
+      <PreviewBar on={careers.preview && !practice} />
+      <PracticeBar on={practice}>
+        Leave anything blank and press Send; blanks get placeholders. It shows in Dash with a Practice tag.
+      </PracticeBar>
       <div className="wrap cr-form">
         <div className="pagehead" style={{ paddingTop: 32 }}>
           <Link className="eyebrow" to="/careers">

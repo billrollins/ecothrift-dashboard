@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 
 const BASE = '/api/hiring/public'
 const PREVIEW_KEY = 'ecothrift.careers.preview'
+const PRACTICE_KEY = 'ecothrift.careers.practice'
 
 export type QuestionType = 'yes_no' | 'text' | 'long_text' | 'number' | 'choice' | 'multi' | 'date' | 'time'
 
@@ -53,6 +54,8 @@ export interface CareersPageText {
 export interface Careers {
   public: boolean
   preview?: boolean
+  /** Opened from a Dash practice link: blanks are fine, and the applicant is marked Practice. */
+  practice?: boolean
   page?: CareersPageText
   questions?: Question[]
   sms_consent_text?: string
@@ -73,12 +76,28 @@ export function previewKey(): string {
   }
 }
 
+/** A practice key from Dash's practice link (?practice=…), kept for this tab like the preview key. */
+export function practiceKey(): string {
+  try {
+    const fromUrl = new URLSearchParams(window.location.search).get('practice')
+    if (fromUrl) {
+      sessionStorage.setItem(PRACTICE_KEY, fromUrl)
+      return fromUrl
+    }
+    return sessionStorage.getItem(PRACTICE_KEY) || ''
+  } catch {
+    return ''
+  }
+}
+
 let cached: Promise<Careers> | null = null
 
 export function fetchCareers(): Promise<Careers> {
   if (!cached) {
-    const key = previewKey()
-    const url = key ? `${BASE}/careers/?preview=${encodeURIComponent(key)}` : `${BASE}/careers/`
+    const query = new URLSearchParams()
+    if (previewKey()) query.set('preview', previewKey())
+    if (practiceKey()) query.set('practice', practiceKey())
+    const url = query.toString() ? `${BASE}/careers/?${query}` : `${BASE}/careers/`
     cached = fetch(url, { headers: { Accept: 'application/json' } })
       .then((res) => (res.ok ? res.json() : { public: false, jobs: [] }))
       .catch(() => ({ public: false, jobs: [] }))
@@ -110,6 +129,8 @@ export interface ApplyResult {
 export async function submitApplication(form: FormData): Promise<ApplyResult> {
   const key = previewKey()
   if (key) form.append('preview', key)
+  const practice = practiceKey()
+  if (practice) form.append('practice', practice)
   try {
     const res = await fetch(`${BASE}/apply/`, { method: 'POST', body: form, headers: { Accept: 'application/json' } })
     const data = await res.json().catch(() => ({}))
@@ -155,6 +176,7 @@ export interface InterviewTimeOption {
 export interface InterviewState {
   ok: boolean
   detail?: string
+  practice?: boolean
   first_name?: string
   roles?: string[]
   length_minutes?: number
@@ -185,3 +207,53 @@ async function interviewCall(url: string, body?: unknown): Promise<InterviewStat
 export const getInterview = (token: string) => interviewCall(`${BASE}/interview/?t=${encodeURIComponent(token)}`)
 export const bookInterview = (token: string, start: string) => interviewCall(`${BASE}/interview/`, { t: token, start })
 export const cancelInterview = (token: string) => interviewCall(`${BASE}/interview/cancel/`, { t: token })
+
+// ── The offer link (/careers/offer?t=…) ─────────────────────────────────────
+
+export interface OfferState {
+  ok: boolean
+  detail?: string
+  practice?: boolean
+  errors?: Record<string, string>
+  status?: 'sent' | 'viewed' | 'signed' | 'declined' | 'expired' | 'withdrawn'
+  first_name?: string
+  full_name?: string
+  position?: string
+  pay_rate?: string
+  start?: string
+  respond_by?: string
+  subject?: string
+  letter?: string
+  acknowledgments?: string[]
+  consent?: string
+  signer_name?: string
+  signed_at?: string | null
+  has_pdf?: boolean
+}
+
+async function offerCall(url: string, body?: unknown): Promise<OfferState> {
+  try {
+    const res = await fetch(url, {
+      method: body ? 'POST' : 'GET',
+      headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) return data as OfferState
+    if (res.status === 429) return { ok: false, detail: 'Too many tries. Please wait a minute.' }
+    const errors: Record<string, string> = {}
+    for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+      if (key !== 'detail' && key !== 'ok') errors[key] = String(Array.isArray(value) ? value[0] : value)
+    }
+    const detail = data.detail ? String(Array.isArray(data.detail) ? data.detail[0] : data.detail) : ''
+    return { ok: false, detail: detail || Object.values(errors)[0] || 'Something went wrong. Please try again.', errors }
+  } catch {
+    return { ok: false, detail: 'We could not reach the server. Check your connection and try again.' }
+  }
+}
+
+export const getOffer = (token: string) => offerCall(`${BASE}/offer/?t=${encodeURIComponent(token)}`)
+export const signOffer = (token: string, body: { name: string; signature: string; acks: boolean[]; consent: boolean }) =>
+  offerCall(`${BASE}/offer/sign/`, { t: token, ...body })
+export const declineOffer = (token: string, reason: string) => offerCall(`${BASE}/offer/decline/`, { t: token, reason })
+export const offerPdfUrl = (token: string) => `${BASE}/offer/pdf/?t=${encodeURIComponent(token)}`

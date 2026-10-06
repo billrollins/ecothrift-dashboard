@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from apps.accounts.models import User
-from apps.hiring.models import Application, ApplicationEvent, Interview, InterviewTime, Job
+from apps.hiring.models import Application, ApplicationEvent, Interview, InterviewTime, Job, Offer
 from apps.hiring.services import flags_of
 
 
@@ -125,7 +125,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'first_name', 'last_name', 'full_name', 'email', 'phone', 'jobs', 'stage', 'stage_label',
             'stage_changed_at', 'rating', 'red_flags', 'flags', 'source', 'source_label', 'has_resume',
-            'lead_interest', 'employee_user', 'not_now_reason', 'created_at',
+            'lead_interest', 'employee_user', 'not_now_reason', 'is_practice', 'created_at',
         ]
 
     def get_flags(self, obj):
@@ -163,18 +163,26 @@ class ApplicationDetailSerializer(ApplicationListSerializer):
     not_now_reason_label = serializers.SerializerMethodField()
     employee = serializers.SerializerMethodField()
     interviews = serializers.SerializerMethodField()
+    offers = serializers.SerializerMethodField()
     booking_link = serializers.SerializerMethodField()
 
     class Meta(ApplicationListSerializer.Meta):
         fields = ApplicationListSerializer.Meta.fields + [
             'answers', 'events', 'resume_file', 'sms_consent', 'sms_consent_at', 'not_now_note', 'not_now_stage',
             'not_now_reason_label', 'not_now_email_status', 'not_now_email_subject', 'not_now_email_body', 'not_now_at',
-            'received_email_sent', 'employee', 'interviews', 'booking_link', 'invited_at',
+            'received_email_sent', 'employee', 'interviews', 'offers', 'booking_link', 'invited_at',
         ]
 
     def get_interviews(self, obj):
         rows = obj.interviews.select_related('job', 'interviewer', 'scored_by').order_by('-start')
         return InterviewSerializer(rows, many=True).data
+
+    def get_offers(self, obj):
+        from apps.hiring.offers import refresh
+        rows = list(obj.offers.select_related('supervisor').order_by('-created_at'))
+        for offer in rows:
+            refresh(offer)
+        return OfferSerializer(rows, many=True).data
 
     def get_booking_link(self, obj):
         """The applicant's live interview link (to copy and text), or '' when there is none."""
@@ -212,6 +220,7 @@ class InterviewSerializer(serializers.ModelSerializer):
     applicant_name = serializers.CharField(source='application.full_name', read_only=True)
     applicant_phone = serializers.CharField(source='application.phone', read_only=True)
     applicant_email = serializers.CharField(source='application.email', read_only=True)
+    practice = serializers.BooleanField(source='application.is_practice', read_only=True)
     roles = serializers.SerializerMethodField()
     job_title = serializers.CharField(source='job.title', read_only=True, default='')
     interview_questions = serializers.SerializerMethodField()
@@ -223,7 +232,8 @@ class InterviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = Interview
         fields = [
-            'id', 'application', 'applicant_name', 'applicant_phone', 'applicant_email', 'roles', 'job', 'job_title',
+            'id', 'application', 'applicant_name', 'applicant_phone', 'applicant_email', 'practice', 'roles', 'job',
+            'job_title',
             'start', 'end', 'when', 'interviewer', 'interviewer_person', 'place', 'status', 'status_label',
             'booked_by', 'scorecard', 'scored_by_name', 'scored_at', 'interview_questions', 'reminder_sent_at',
         ]
@@ -256,3 +266,30 @@ class InterviewTimeSerializer(serializers.ModelSerializer):
         if attrs['end'] <= attrs['start']:
             raise serializers.ValidationError({'end': 'The end must be after the start.'})
         return attrs
+
+
+class OfferSerializer(serializers.ModelSerializer):
+    status_label = serializers.CharField(source='get_status_display', read_only=True)
+    supervisor_person = serializers.SerializerMethodField()
+    link = serializers.SerializerMethodField()
+    has_pdf = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Offer
+        fields = [
+            'id', 'application', 'job', 'status', 'status_label', 'position', 'pay_rate', 'employment_type',
+            'start_date', 'start_time', 'schedule', 'supervisor', 'supervisor_person', 'respond_by', 'note',
+            'letter_subject', 'letter_text', 'acknowledgments', 'sent_at', 'viewed_at', 'signed_at', 'declined_at',
+            'decline_reason', 'withdrawn_at', 'signer_name', 'link', 'has_pdf', 'created_at',
+        ]
+        read_only_fields = fields
+
+    def get_supervisor_person(self, obj):
+        return _person(obj.supervisor)
+
+    def get_link(self, obj):
+        from apps.hiring.offers import public_link
+        return public_link(obj.token) if obj.status in Offer.OPEN else ''
+
+    def get_has_pdf(self, obj):
+        return bool(obj.signed_pdf_id)

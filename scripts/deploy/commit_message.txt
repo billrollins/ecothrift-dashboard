@@ -1,23 +1,34 @@
-v2.142.0 — Inventory page opens fast: problems no longer load the inventory's item lists (54 s to 0.08 s on production), light header, kept report, sold so far kept 10 minutes (inventory_effort)
+v2.143.0 — Hiring: offers signed with a finger (make offer, sign on a phone, signed PDF), practice runs to test with Carrie, Applicants counts fixed (hiring_onboarding Phase 3)
 
-User-facing theme: **The inventory page opens fast. It took close to a minute; the header now loads in a fraction of a second, and PR Fix-it's list is quicker too.** Initiative: `inventory_effort` (owner: "this page takes FOREVER").
+User-facing theme: **Offers signed with a finger: make an offer from the applicant, they read and sign it on their phone, and the signed PDF lands in Dash and in their email. Plus practice runs, to try the whole flow with Carrie without a real applicant.** Initiative: `hiring_onboarding` Phase 3.
+
+### Added
+
+- **Make offer** on an applicant (from Interview scheduled on):
+  - the role, pay, type, start date and time, schedule, who they report to (default: the role's hiring manager), a reply-by date (default 3 days) and an optional personal note;
+  - **Preview the letter**, then **Email the offer** or **Make offer, copy link** to text it from your phone;
+  - what you send is frozen; a new offer withdraws the open one. The stage moves to Offer.
+- **The applicant's page** (`ecothrift.us/careers/offer?t=…`, phone-first):
+  - the letter, four ticks (can get to the store, OK with the pay and schedule, can do the duties, can meet the physical requirements with or without accommodation), the e-sign agreement and their typed legal name;
+  - a signature pad for a finger, with Clear;
+  - **Sign and accept**, or **I can't accept this offer** with an optional reason;
+  - after the reply-by date it says Expired; after signing, **Download your signed copy**.
+- **On signing:** the stage moves to Hired; a signed PDF (the letter, the ticks, the signature and an audit trail: sent to, opened, signed, IP, device, a fingerprint of the letter) is stored privately and emailed to the new hire; a notice goes to you and the hiring manager. A decline sends a notice too.
+- **The offer card** on the applicant: status and timeline, **Copy link**, **Email again**, **Withdraw**, **Signed PDF**, **Show letter**, and **Not now (Offer declined)**.
+- **Create employee** fills in the role, pay, start date and type from the signed offer.
+- **Practice run** (People → Applicants):
+  - **Make practice applicant**: pick a role and, optionally, who the emails go to (tap a staff name), a name and a phone. Anything left blank gets a placeholder; must-have answers pass.
+  - **Copy practice form link**: the real application form on their phone, where they can leave everything blank and press Send.
+  - Practice applicants carry a **Practice** tag (Applicants, the applicant, Interviews). Every email about them starts with **[Practice]**, and so does the calendar entry. Their interviews never take a real applicant's time. Their offer PDF is stamped PRACTICE RUN, and Create employee is off.
+  - **Delete all practice runs** removes them with their interviews, offers and files.
+- **People → Emails → Offers:** Offer letter, Offer email, Offer signed (welcome) and the signed / declined notice, with AI help and role versions; an **Offer settings** card for who signs for Eco-Thrift, days to reply, the ticks and the e-sign agreement. All of it is in the careers JSON (`offer`).
 
 ### Fixed
 
-- **The cause** (measured on production, inventory 14):
-  - The inventory page's header made one call that also loaded every session and problem. It took 54 s and 454 queries.
-  - Each problem row also loaded the inventory's two lists of ~31,000 item ids, about 250 MB for 500 rows. PR Fix-it's list used the same query.
-- **Problems now leave those lists out** (`InventoryCount.HEAVY_FIELDS`, deferred). On production the query went from 54 s to 0.08 s.
-- **The header asks for the summary only** (`counts/<id>/?light=1`). The Sessions tab still loads sessions and problems.
+- The done screens on the careers pages (applied, interview, offer) keep their side margins on a phone.
+- The Not now dialog no longer promises "7 days".
+- **The Applicants tab counts were wrong** when two applicants were in the same stage (the count showed 1). They count everyone now.
 
-### Changed
-
-- **Summary tab:** a done inventory keeps its report (`summary_cache['report']`), with problems and fixed read live. The counted items are read once, not twice.
-- **Order estimates:** "sold so far" is kept 10 minutes (it reads every sale of those orders), and the page says when it was read.
-- **Data quality:** "needs a person" is checked in 3 queries instead of about 600.
-
-### Tests
-
-- `test_counts.py` (66): a done inventory's report is kept while its problems stay live, and the header is light.
+Migration: `hiring.0009` (offers), `hiring.0010` (practice runs).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

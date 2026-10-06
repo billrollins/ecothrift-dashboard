@@ -28,6 +28,7 @@ import {
 import { PageHeader } from '../../components/common/PageHeader';
 import { ccTokens } from '../../theme';
 import { InterviewCard } from './interviewUi';
+import { PracticeChip } from './PracticeDialog';
 import { errorText } from './peopleUi';
 
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -239,6 +240,7 @@ export default function InterviewsPage() {
                   >
                     {interview.applicant_name}
                   </Button>
+                  {interview.practice && <PracticeChip />}
                   <Typography variant="body2" color="text.secondary">
                     {interview.applicant_phone}
                   </Typography>

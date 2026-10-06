@@ -25,6 +25,7 @@ import { ccTokens } from '../../theme';
 import { AddApplicantDialog } from './ApplicantDialogs';
 import { ApplicantPanel } from './ApplicantPanel';
 import { FlagDots } from './FlagDots';
+import { PracticeChip, PracticeDialog } from './PracticeDialog';
 import { shortDate, STAGES } from './peopleUi';
 
 const TABS = [{ key: 'open', label: 'Open' }, ...STAGES, { key: '', label: 'All' }];
@@ -58,6 +59,7 @@ function Row({ row, selected, onOpen }: { row: ApplicationRow; selected: boolean
         <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
           {row.phone || row.email || row.source_label}
         </Typography>
+        {row.is_practice && <PracticeChip sx={{ mt: 0.5, mr: 0.5 }} />}
         {row.lead_interest === 'Yes' && (
           <Chip
             size="small"
@@ -103,6 +105,7 @@ export default function ApplicantsPage() {
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
   const [addOpen, setAddOpen] = useState(false);
+  const [practiceOpen, setPracticeOpen] = useState(false);
   const openId = Number(params.get('id')) || null;
 
   useEffect(() => {
@@ -147,6 +150,9 @@ export default function ApplicantsPage() {
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button component={RouterLink} to="/people/jobs">
               Jobs & careers page
+            </Button>
+            <Button variant="outlined" onClick={() => setPracticeOpen(true)}>
+              Practice run{counts.data?.practice ? ` (${counts.data.practice})` : ''}
             </Button>
             <Button variant="contained" onClick={() => setAddOpen(true)}>
               Add applicant
@@ -240,6 +246,22 @@ export default function ApplicantsPage() {
         </Drawer>
       )}
 
+      <PracticeDialog
+        open={practiceOpen}
+        jobs={(jobs.data ?? []).filter((j) => j.status !== 'closed')}
+        practiceCount={counts.data?.practice ?? 0}
+        onClose={() => setPracticeOpen(false)}
+        onCreated={(created) => {
+          setPracticeOpen(false);
+          enqueueSnackbar(
+            created.email
+              ? `Practice applicant made. The auto-reply went to ${created.email}, tagged [Practice].`
+              : 'Practice applicant made (no email; use the copy-link buttons).',
+            { variant: 'success', autoHideDuration: 8000 },
+          );
+          open(created.id);
+        }}
+      />
       <AddApplicantDialog
         open={addOpen}
         jobs={(jobs.data ?? []).filter((j) => j.status !== 'closed')}

@@ -42,15 +42,23 @@ def _send_via_own_mailbox(*, sender: str, to: list[str], subject: str, body: str
         return False
 
 
+PRACTICE_TAG = '[Practice] '
+PRACTICE_NOTE = 'PRACTICE RUN: a test of the hiring emails, not a real application.'
+
+
 def send(*, to: str | list[str], subject: str, body: str,
-         attachments: list[tuple[str, bytes | str, str]] | None = None) -> bool:
+         attachments: list[tuple[str, bytes | str, str]] | None = None, practice: bool = False) -> bool:
     """Plain-text mail from the careers sender. Never raises; returns True when it went out.
 
     ``attachments``: (filename, content, mimetype), e.g. an interview's ``.ics`` calendar file.
+    ``practice``: the email is about a practice applicant; the subject and the first line say so.
     """
     recipients = _addresses(to) if isinstance(to, str) else [a for a in to if a]
     if not recipients:
         return False
+    if practice:
+        subject = subject if subject.startswith(PRACTICE_TAG) else PRACTICE_TAG + subject
+        body = f'{PRACTICE_NOTE}\n\n{body}'
     email = load_setting()['email']
     reply_to = _addresses(email.get('reply_to') or '')
     sender = (email.get('from') or '').strip()
@@ -91,7 +99,8 @@ def values_for(application, *, extra: dict | None = None) -> dict:
 def send_received(application) -> bool:
     template = email_template('received', application)
     values = values_for(application)
-    return send(to=application.email, subject=fill(template['subject'], values), body=fill(template['body'], values))
+    return send(to=application.email, subject=fill(template['subject'], values), body=fill(template['body'], values),
+                practice=application.is_practice)
 
 
 def alert_recipients(application) -> list[str]:
@@ -117,4 +126,5 @@ def send_alert(application, *, dash_link: str) -> bool:
     flag_text = ('RED: ' + ', '.join(misses)) if misses else ('all green' if flags else 'none')
     values = values_for(application, extra={'flags': flag_text, 'dash_link': dash_link})
     template = email_template('alert', application)
-    return send(to=notify, subject=fill(template['subject'], values), body=fill(template['body'], values))
+    return send(to=notify, subject=fill(template['subject'], values), body=fill(template['body'], values),
+                practice=application.is_practice)

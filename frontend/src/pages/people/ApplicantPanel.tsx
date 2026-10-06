@@ -39,6 +39,8 @@ import {
 import { ccTokens } from '../../theme';
 import { CreateEmployeeDialog, NotNowDialog } from './ApplicantDialogs';
 import { InterviewCard, PickTimeDialog } from './interviewUi';
+import { OfferCard, OfferDialog } from './offerUi';
+import { PracticeChip } from './PracticeDialog';
 import { FlagDots } from './FlagDots';
 import { answerText, errorText, nextStage, phoneHref, shortDate, STAGE_LABEL, STAGES } from './peopleUi';
 
@@ -87,6 +89,7 @@ export function ApplicantPanel({
   const [notNowReason, setNotNowReason] = useState('');
   const [employeeOpen, setEmployeeOpen] = useState(false);
   const [booking, setBooking] = useState(false);
+  const [offering, setOffering] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const detail = useQuery({
@@ -208,6 +211,7 @@ export function ApplicantPanel({
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="h5" fontWeight={700} sx={{ lineHeight: 1.2 }}>
             {app.full_name}
+            {app.is_practice && <PracticeChip sx={{ ml: 1, verticalAlign: 'middle' }} />}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             {app.jobs.map((j) => j.title).join(' · ')} · applied {shortDate(app.created_at)} · {app.source_label}
@@ -324,7 +328,13 @@ export function ApplicantPanel({
             .
           </Typography>
         )}
-        {(app.stage === 'offer' || app.stage === 'hired') && !app.employee && (
+        {app.is_practice && (
+          <Typography variant="body2" sx={{ color: ccTokens.ink2 }}>
+            Practice run: its emails say [Practice], its interview never takes a real applicant&rsquo;s time, and
+            Create employee is off. Delete it from Practice run on the Applicants page.
+          </Typography>
+        )}
+        {(app.stage === 'offer' || app.stage === 'hired') && !app.employee && !app.is_practice && (
           <Button variant="outlined" sx={{ alignSelf: 'flex-start', bgcolor: '#fff' }} onClick={() => setEmployeeOpen(true)}>
             Create employee in Dash
           </Button>
@@ -377,6 +387,36 @@ export function ApplicantPanel({
           )}
         </Stack>
       </Section>
+
+      {(['interview_scheduled', 'interviewed', 'offer', 'hired'].includes(app.stage) || app.offers.length > 0) && (
+        <Section title="Offer">
+          {app.stage !== 'not_now' && !app.offers.some((o) => o.status === 'signed') && (
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1.25 }}>
+              <Button size="small" variant="contained" disabled={busy} onClick={() => setOffering(true)}>
+                {app.offers.some((o) => o.status === 'sent' || o.status === 'viewed') ? 'Make a new offer' : 'Make offer'}
+              </Button>
+            </Box>
+          )}
+          <Stack spacing={1}>
+            {app.offers.map((offer) => (
+              <OfferCard
+                key={offer.id}
+                offer={offer}
+                onChanged={reloadAll}
+                onDeclinedNotNow={() => {
+                  setNotNowReason('offer_declined');
+                  setNotNowOpen(true);
+                }}
+              />
+            ))}
+            {app.offers.length === 0 && (
+              <Typography variant="body2" color="text.secondary">
+                No offer yet. They sign it on their phone; the signed PDF lands here.
+              </Typography>
+            )}
+          </Stack>
+        </Section>
+      )}
 
       {app.flags.length > 0 && (
         <Section title="Must-haves">
@@ -472,6 +512,16 @@ export function ApplicantPanel({
           enqueueSnackbar('Interview booked. They got an email with the time and their change / cancel link.', {
             variant: 'success',
           });
+        }}
+      />
+      <OfferDialog
+        open={offering}
+        application={app}
+        onClose={() => setOffering(false)}
+        onDone={async (updated, message) => {
+          setOffering(false);
+          await refreshWith(updated);
+          enqueueSnackbar(message, { variant: 'success', autoHideDuration: 9000 });
         }}
       />
       <CreateEmployeeDialog

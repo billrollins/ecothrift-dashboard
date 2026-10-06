@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CareersDoc } from '../../api/hiring.api';
-import { aiCopyText, parseCareersText, toYaml } from './careersFile';
+import { aiCopyText, parseCareersText, practiceUrl, toYaml } from './careersFile';
 
 const doc: CareersDoc = {
   format: 'ecothrift.careers/1',
@@ -43,5 +43,14 @@ describe('careers file', () => {
     expect(text).toContain('What I want changed:');
     expect(text.indexOf('What I want changed:')).toBeLessThan(text.indexOf('"instructions":'));
     expect(parseCareersText(text)).toEqual({ ok: true, doc: bundle });
+  });
+});
+
+describe('practiceUrl', () => {
+  it('opens the real form in practice mode on ecothrift.us', () => {
+    expect(practiceUrl('k3y', 'retail-associate', 'dash.ecothrift.us')).toBe(
+      'https://ecothrift.us/careers/apply?practice=k3y&role=retail-associate',
+    );
+    expect(practiceUrl('k3y', '', 'dash.ecothrift.us')).toBe('https://ecothrift.us/careers/apply?practice=k3y');
   });
 });

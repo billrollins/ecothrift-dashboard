@@ -723,3 +723,224 @@ class InterviewTests(Base):
         [(name, content, mimetype)] = GraphEmailBackend._attachments(message)
         content = content.decode() if isinstance(content, bytes) else content
         self.assertEqual((name, content, mimetype), ('interview.ics', 'BEGIN:VCALENDAR', 'text/calendar'))
+
+
+def _signature_data_url() -> str:
+    import base64
+
+    import pymupdf
+    pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 240, 80), 0)
+    pix.clear_with(255)
+    for x in range(20, 220):
+        pix.set_pixel(x, 40 + (x % 17) - 8, (20, 20, 20))
+    return 'data:image/png;base64,' + base64.b64encode(pix.tobytes('png')).decode()
+
+
+class OfferTests(Base):
+    """Phase 3: make an offer, the link, sign with a finger, the PDF, decline, expire, withdraw."""
+
+    def setUp(self):
+        super().setUp()
+        Job.objects.filter(slug='retail-associate').update(hiring_manager=self.manager)
+        self.turn_on()
+        self.apply()
+        self.app = Application.objects.get()
+        mail.outbox.clear()
+
+    def terms(self, **extra):
+        from datetime import timedelta
+
+        from django.utils import timezone
+        return {'pay_rate': '16.50', 'start_date': (timezone.localdate() + timedelta(days=6)).isoformat(),
+                'start_time': '09:00', 'employment_type': 'part_time', 'schedule': 'Saturdays and two weekdays',
+                'note': 'Wear closed-toe shoes.', 'send': True, **extra}
+
+    def make(self, **extra):
+        response = self.staff.post(f'/api/hiring/applications/{self.app.pk}/offer/', self.terms(**extra), format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        return response.data
+
+    def token(self, made):
+        return made['link'].split('t=')[1]
+
+    def test_preview_then_make_emails_the_link_and_moves_to_offer(self):
+        preview = self.staff.post(f'/api/hiring/applications/{self.app.pk}/offer-preview/', self.terms(), format='json').data
+        self.assertIn('Retail Associate', preview['letter'])
+        self.assertIn('$16.50 an hour', preview['letter'])
+        self.assertIn('at will', preview['letter'])
+        self.assertIn('Wear closed-toe shoes.', preview['letter'])
+        self.assertEqual(len(preview['acknowledgments']), 4)
+        made = self.make()
+        self.assertEqual(made['offer']['status'], 'sent')
+        self.assertEqual(made['offer']['supervisor_person']['email'], 'boss@example.com')  # the hiring manager
+        self.app.refresh_from_db()
+        self.assertEqual(self.app.stage, 'offer')
+        self.assertIn(f'/careers/offer?t={self.token(made)}', mail.outbox[0].body)
+
+    def test_open_sign_and_get_the_pdf(self):
+        import pymupdf
+
+        token = self.token(self.make())
+        mail.outbox.clear()
+        seen = self.public.get(f'/api/hiring/public/offer/?t={token}').data
+        self.assertEqual((seen['status'], seen['position']), ('viewed', 'Retail Associate'))
+        bad = self.public.post('/api/hiring/public/offer/sign/', {'t': token, 'name': 'Dana Miles', 'signature': 'x',
+                                                                  'acks': [True] * 4, 'consent': True}, format='json')
+        self.assertEqual(bad.status_code, 400)
+        missing = self.public.post('/api/hiring/public/offer/sign/', {
+            't': token, 'name': 'Dana Miles', 'signature': _signature_data_url(), 'acks': [True, True, False, True],
+            'consent': True}, format='json')
+        self.assertIn('acks', missing.data)
+        signed = self.public.post('/api/hiring/public/offer/sign/', {
+            't': token, 'name': 'Dana  Q  Miles', 'signature': _signature_data_url(), 'acks': [True] * 4,
+            'consent': True}, format='json', HTTP_USER_AGENT='Phone Safari')
+        self.assertEqual(signed.status_code, 200, signed.data)
+        self.assertEqual((signed.data['status'], signed.data['signer_name']), ('signed', 'Dana Q Miles'))
+        from apps.hiring.models import Offer
+        offer = Offer.objects.get()
+        self.assertEqual(len(offer.letter_sha256), 64)
+        self.app.refresh_from_db()
+        self.assertEqual(self.app.stage, 'hired')
+        welcome, notice = mail.outbox
+        self.assertIn('Welcome to Eco-Thrift', welcome.subject)
+        self.assertEqual(welcome.attachments[0][2], 'application/pdf')
+        self.assertIn('boss@example.com', notice.to)
+        pdf = self.public.get(f'/api/hiring/public/offer/pdf/?t={token}')
+        raw = b''.join(pdf.streaming_content)
+        doc = pymupdf.open(stream=raw, filetype='pdf')
+        text = ''.join(page.get_text() for page in doc)
+        self.assertEqual(doc.page_count, 2)
+        self.assertLess(len(raw), 300_000)  # fonts subset; a full embed was 1.25 MB
+        self.assertIn('Signing audit trail', text)
+        self.assertIn('Phone Safari', text)
+        self.assertIn(offer.letter_sha256, text)
+        self.assertTrue(doc[1].get_images())  # the drawn signature
+        again = self.public.post('/api/hiring/public/offer/sign/', {'t': token, 'name': 'Dana Miles',
+                                 'signature': _signature_data_url(), 'acks': [True] * 4, 'consent': True}, format='json')
+        self.assertEqual(again.status_code, 400)
+        staff_pdf = self.staff.get(f'/api/hiring/offers/{offer.pk}/pdf/')
+        self.assertEqual(staff_pdf.status_code, 200)
+
+    def test_decline_notifies_staff_and_stays_at_offer(self):
+        token = self.token(self.make())
+        mail.outbox.clear()
+        data = self.public.post('/api/hiring/public/offer/decline/', {'t': token, 'reason': 'Took another job'},
+                                format='json').data
+        self.assertEqual(data['status'], 'declined')
+        self.app.refresh_from_db()
+        self.assertEqual(self.app.stage, 'offer')
+        self.assertIn('declined', mail.outbox[0].subject)
+        self.assertIn('Took another job', mail.outbox[0].body)
+
+    def test_expired_withdrawn_and_frozen_text(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.hiring.models import Offer
+        made = self.make()
+        offer = Offer.objects.get()
+        doc = careers.export_doc()
+        doc['email']['offer_letter'] = {'subject': 'New', 'body': 'A different letter for {first_name}.'}
+        careers.apply_doc(careers.check_doc(doc)['doc'], user=self.manager)
+        seen = self.public.get(f'/api/hiring/public/offer/?t={self.token(made)}').data
+        self.assertIn('Retail Associate', seen['letter'])  # what was sent never changes
+        Offer.objects.filter(pk=offer.pk).update(respond_by=timezone.localdate() - timedelta(days=1))
+        self.assertEqual(self.public.get(f'/api/hiring/public/offer/?t={self.token(made)}').data['status'], 'expired')
+        second = self.make()
+        third = self.make()
+        statuses = dict(Offer.objects.values_list('pk', 'status'))
+        self.assertEqual(statuses[second['offer']['id']], 'withdrawn')
+        self.assertEqual(statuses[third['offer']['id']], 'sent')
+        self.assertEqual(self.public.get(f'/api/hiring/public/offer/?t={self.token(second)}').status_code, 404)
+        withdrawn = self.staff.post(f'/api/hiring/offers/{third["offer"]["id"]}/withdraw/', {}, format='json')
+        self.assertEqual(withdrawn.data['status'], 'withdrawn')
+
+    def test_bad_terms_are_refused(self):
+        response = self.staff.post(f'/api/hiring/applications/{self.app.pk}/offer/',
+                                   {'pay_rate': 'lots', 'start_date': '2020-01-01'}, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertTrue({'pay_rate', 'start_date'} <= set(response.data))
+
+
+class PracticeTests(Base):
+    """Practice runs: placeholders for blanks, [Practice] on every email, free interview times, no employee, clean-up."""
+
+    def setUp(self):
+        super().setUp()
+        Job.objects.filter(slug='retail-associate').update(hiring_manager=self.manager)
+        self.key = careers.preview_key()
+
+    def practice(self, **data):
+        response = self.staff.post('/api/hiring/applications/practice/', {'job': self.retail.pk, **data}, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        return Application.objects.get(pk=response.data['id'])
+
+    def test_dash_practice_run_fills_the_blanks_and_tags_the_emails(self):
+        app = self.practice(email='carrie@example.com')
+        self.assertTrue(app.is_practice)
+        self.assertEqual((app.first_name, app.last_name, app.phone), ('Practice', 'Applicant', '402-555-0100'))
+        self.assertEqual(app.red_flags, 0)
+        flags = [a for a in app.answers if a.get('must_be')]
+        self.assertTrue(flags and all(a['ok'] for a in flags))
+        self.assertTrue(all(a['answer'] not in (None, '', []) for a in app.answers if a['key'] == 'why_us'))
+        to_applicant = next(m for m in mail.outbox if m.to == ['carrie@example.com'])
+        alert = next(m for m in mail.outbox if 'boss@example.com' in m.to)
+        for message in (to_applicant, alert):
+            self.assertTrue(message.subject.startswith('[Practice] '), message.subject)
+            self.assertTrue(message.body.startswith('PRACTICE RUN'))
+        self.practice()
+        listed = self.staff.get('/api/hiring/applications/counts/').data
+        self.assertEqual(listed['practice'], 2)
+        self.assertEqual((listed['counts']['new'], listed['counts']['open'], listed['counts']['all']), (2, 2, 2))
+
+    def test_practice_link_skips_every_required_field_even_while_hidden(self):
+        seen = self.public.get(f'/api/hiring/public/careers/?practice={self.key}').data
+        self.assertTrue(seen['public'] and seen['practice'])
+        import time
+        response = self.public.post('/api/hiring/public/apply/', {
+            'first_name': 'Carrie', 'practice': self.key, 'answers': '{}', 'started_at': str(int(time.time() * 1000)),
+        }, format='multipart')
+        self.assertEqual(response.status_code, 201, response.data)
+        app = Application.objects.get()
+        self.assertTrue(app.is_practice)
+        self.assertEqual((app.first_name, app.last_name, app.email), ('Carrie', 'Applicant', ''))
+        self.assertEqual(app.jobs.count(), 1)
+        self.assertEqual(app.red_flags, 0)
+        stale = self.public.post('/api/hiring/public/apply/', {'first_name': 'X', 'practice': 'old-key'},
+                                 format='multipart')
+        self.assertEqual(stale.status_code, 400)
+
+    def test_practice_interviews_never_block_a_real_time(self):
+        from apps.hiring import interviews
+        app = self.practice()
+        start = interviews.open_times()[0][0]
+        interviews.book(app, start.isoformat(), by=self.manager)
+        self.assertIn(start, [s for s, _ in interviews.open_times()])
+
+    def test_no_employee_a_stamped_pdf_and_one_button_clears_it_all(self):
+        from datetime import timedelta
+
+        import pymupdf
+        from django.utils import timezone
+        app = self.practice(email='carrie@example.com')
+        refused = self.staff.post(f'/api/hiring/applications/{app.pk}/create-employee/', {'pay_rate': '15'},
+                                  format='json')
+        self.assertEqual(refused.status_code, 400)
+        made = self.staff.post(f'/api/hiring/applications/{app.pk}/offer/', {
+            'pay_rate': '15.00', 'start_date': (timezone.localdate() + timedelta(days=5)).isoformat(), 'send': False,
+        }, format='json').data
+        token = made['link'].split('t=')[1]
+        self.assertTrue(self.public.get(f'/api/hiring/public/offer/?t={token}').data['practice'])
+        signed = self.public.post('/api/hiring/public/offer/sign/', {
+            't': token, 'name': 'Carrie Practice', 'signature': _signature_data_url(), 'acks': [True] * 4,
+            'consent': True}, format='json')
+        self.assertEqual(signed.status_code, 200, signed.data)
+        raw = b''.join(self.public.get(f'/api/hiring/public/offer/pdf/?t={token}').streaming_content)
+        text = ''.join(page.get_text() for page in pymupdf.open(stream=raw, filetype='pdf'))
+        self.assertIn('PRACTICE RUN', text)
+        self.turn_on()
+        self.apply()  # a real applicant stays
+        cleared = self.staff.post('/api/hiring/applications/practice-clear/', {}, format='json').data
+        self.assertEqual(cleared['deleted'], 1)
+        self.assertEqual(list(Application.objects.values_list('first_name', flat=True)), ['Dana'])
