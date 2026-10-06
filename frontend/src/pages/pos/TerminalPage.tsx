@@ -215,6 +215,9 @@ export default function TerminalPage() {
   const skuInputRef = useRef<HTMLInputElement>(null);
   const manualDescriptionInputRef = useRef<HTMLInputElement>(null);
   const cartRef = useRef<Cart | null>(null);
+  // One cart per sale, and one add per scan, however slow the server is (see startCart).
+  const pendingCartRef = useRef<Promise<Cart> | null>(null);
+  const scanInFlightRef = useRef('');
   const pendingScrollLineIdRef = useRef<number | null>(null);
   const lineElRefs = useRef<Map<number, HTMLElement>>(new Map());
   const { config, isRegister, registerId } = useDeviceConfig();
@@ -402,6 +405,32 @@ export default function TerminalPage() {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
+  /**
+   * The open cart, or the one being made. Every caller that needs a cart while one is on its way waits for that
+   * same cart. On 2026-10-06 a slow server (right after a deploy) turned repeated scans into 3-4 carts holding the
+   * same item, and voiding the extras put the sold item back on the shelf.
+   */
+  const startCart = useCallback(
+    (drawerId: number): Promise<Cart> => {
+      if (cartRef.current) return Promise.resolve(cartRef.current);
+      if (!pendingCartRef.current) {
+        pendingCartRef.current = createCartMutation
+          .mutateAsync({ drawer: drawerId })
+          .then((created) => {
+            const next = created as unknown as Cart;
+            cartRef.current = next;
+            setCart(next);
+            return next;
+          })
+          .finally(() => {
+            pendingCartRef.current = null;
+          });
+      }
+      return pendingCartRef.current;
+    },
+    [createCartMutation],
+  );
+
   const handleCreateCart = useCallback(async () => {
     // Read from ref so we always get the latest drawer even if closure is stale
     const liveDrawer = todayDrawerRef.current;
@@ -416,8 +445,7 @@ export default function TerminalPage() {
       return;
     }
     try {
-      const result = await createCartMutation.mutateAsync({ drawer: targetDrawerId });
-      setCart(result as unknown as Cart);
+      await startCart(targetDrawerId);
       markRegisterActivity();
     } catch (err: unknown) {
       const errData = (err as { response?: { data?: Record<string, unknown> } })?.response?.data;
@@ -429,7 +457,7 @@ export default function TerminalPage() {
           : 'Failed to create cart');
       enqueueSnackbar(msg, { variant: 'error' });
     }
-  }, [isRegister, managerDrawerId, createCartMutation, enqueueSnackbar, markRegisterActivity]);
+  }, [isRegister, managerDrawerId, startCart, enqueueSnackbar, markRegisterActivity]);
 
   const handleOpenDrawer = useCallback(async () => {
     if (registerId == null || typeof registerId !== 'number') return;
@@ -463,99 +491,103 @@ export default function TerminalPage() {
   const handleScanInput = useCallback(async () => {
     const input = skuInput.trim();
     if (!input) return;
-
-    let activeCart = cart;
-    if (!activeCart) {
-      const liveDrawer = todayDrawerRef.current;
-      const targetDrawerId: number | undefined = isRegister
-        ? (typeof liveDrawer?.id === 'number' ? liveDrawer.id : undefined)
-        : typeof managerDrawerId === 'number'
-          ? managerDrawerId
-          : undefined;
-
-      if (typeof targetDrawerId !== 'number') {
-        enqueueSnackbar('Open a drawer first before scanning items.', { variant: 'warning' });
-        return;
-      }
-      try {
-        const newCart = await createCartMutation.mutateAsync({ drawer: targetDrawerId });
-        activeCart = newCart as unknown as Cart;
-        setCart(activeCart);
-        markRegisterActivity();
-      } catch {
-        enqueueSnackbar('Failed to create cart', { variant: 'error' });
-        return;
-      }
-    }
-
-    const cardCode = thriftCardCode(
-      input,
-      Boolean(activeCart.thrift_plus?.live || thriftStatus.data?.live || (reringArmed && lastSale?.live)),
-    );
-    if (cardCode) {
-      try {
-        if (reringArmed && lastSale) {
-          const rerung = await reringThriftCard(lastSale.id, cardCode);
-          setReringArmed(false);
-          setLastSale(null);
-          enqueueSnackbar(
-            `Re-rung for ${rerung.thrift_plus?.member?.name ?? 'the member'}: ${formatCurrency(rerung.thrift_plus?.totals.savings ?? 0)} store credit`,
-            { variant: 'success' },
-          );
-        } else {
-          const updated = await attachThriftCard(activeCart.id, cardCode);
-          commitCart(updated, { scroll: false });
-          enqueueSnackbar(`Thrift+ member: ${updated.thrift_plus?.member?.name ?? ''}`, { variant: 'info' });
-        }
-      } catch (err: unknown) {
-        enqueueSnackbar(thriftErrorMessage(err), { variant: 'error' });
-      }
-      setSkuInput('');
-      skuInputRef.current?.focus();
-      return;
-    }
-
-    if (/^CUS-\d+$/i.test(input)) {
-      try {
-        const cust = await lookupCustomerMutation.mutateAsync(input.toUpperCase());
-        setCustomer(cust);
-        const updated = await updateCart(activeCart.id, { customer: cust.id });
-        setCart(updated.data as unknown as Cart);
-        enqueueSnackbar(`Customer: ${cust.full_name}`, { variant: 'info' });
-      } catch {
-        enqueueSnackbar('Customer not found', { variant: 'error' });
-      }
-      setSkuInput('');
-      skuInputRef.current?.focus();
-      return;
-    }
-
+    // The same scan again (Enter pressed twice, a re-scan) while the first is still on its way: the first one adds it.
+    if (scanInFlightRef.current === input) return;
+    scanInFlightRef.current = input;
     try {
-      const updated = await addItemMutation.mutateAsync({ cartId: activeCart.id, sku: input });
-      commitCart(updated as unknown as Cart);
-    } catch (err: unknown) {
-      const parsed = parsePosAddItemError(err);
-      if (parsed.kind === 'already_sold' && parsed.itemId != null) {
-        setSoldScanDialog({
-          itemId: parsed.itemId,
-          sku: parsed.sku,
-          title: parsed.title,
-        });
+      let activeCart = cart ?? cartRef.current;
+      if (!activeCart) {
+        const liveDrawer = todayDrawerRef.current;
+        const targetDrawerId: number | undefined = isRegister
+          ? (typeof liveDrawer?.id === 'number' ? liveDrawer.id : undefined)
+          : typeof managerDrawerId === 'number'
+            ? managerDrawerId
+            : undefined;
+
+        if (typeof targetDrawerId !== 'number') {
+          enqueueSnackbar('Open a drawer first before scanning items.', { variant: 'warning' });
+          return;
+        }
+        try {
+          activeCart = await startCart(targetDrawerId);
+          markRegisterActivity();
+        } catch {
+          enqueueSnackbar('Failed to create cart', { variant: 'error' });
+          return;
+        }
+      }
+
+      const cardCode = thriftCardCode(
+        input,
+        Boolean(activeCart.thrift_plus?.live || thriftStatus.data?.live || (reringArmed && lastSale?.live)),
+      );
+      if (cardCode) {
+        try {
+          if (reringArmed && lastSale) {
+            const rerung = await reringThriftCard(lastSale.id, cardCode);
+            setReringArmed(false);
+            setLastSale(null);
+            enqueueSnackbar(
+              `Re-rung for ${rerung.thrift_plus?.member?.name ?? 'the member'}: ${formatCurrency(rerung.thrift_plus?.totals.savings ?? 0)} store credit`,
+              { variant: 'success' },
+            );
+          } else {
+            const updated = await attachThriftCard(activeCart.id, cardCode);
+            commitCart(updated, { scroll: false });
+            enqueueSnackbar(`Thrift+ member: ${updated.thrift_plus?.member?.name ?? ''}`, { variant: 'info' });
+          }
+        } catch (err: unknown) {
+          enqueueSnackbar(thriftErrorMessage(err), { variant: 'error' });
+        }
         setSkuInput('');
+        skuInputRef.current?.focus();
         return;
       }
-      enqueueSnackbar(parsed.message, {
-        variant: snackbarVariantForPosAddItemError(parsed.kind),
-      });
+
+      if (/^CUS-\d+$/i.test(input)) {
+        try {
+          const cust = await lookupCustomerMutation.mutateAsync(input.toUpperCase());
+          setCustomer(cust);
+          const updated = await updateCart(activeCart.id, { customer: cust.id });
+          setCart(updated.data as unknown as Cart);
+          enqueueSnackbar(`Customer: ${cust.full_name}`, { variant: 'info' });
+        } catch {
+          enqueueSnackbar('Customer not found', { variant: 'error' });
+        }
+        setSkuInput('');
+        skuInputRef.current?.focus();
+        return;
+      }
+
+      try {
+        const updated = await addItemMutation.mutateAsync({ cartId: activeCart.id, sku: input });
+        commitCart(updated as unknown as Cart);
+      } catch (err: unknown) {
+        const parsed = parsePosAddItemError(err);
+        if (parsed.kind === 'already_sold' && parsed.itemId != null) {
+          setSoldScanDialog({
+            itemId: parsed.itemId,
+            sku: parsed.sku,
+            title: parsed.title,
+          });
+          setSkuInput('');
+          return;
+        }
+        enqueueSnackbar(parsed.message, {
+          variant: snackbarVariantForPosAddItemError(parsed.kind),
+        });
+      }
+      setSkuInput('');
+      skuInputRef.current?.focus();
+    } finally {
+      scanInFlightRef.current = '';
     }
-    setSkuInput('');
-    skuInputRef.current?.focus();
   }, [
     cart,
     isRegister,
     managerDrawerId,
     skuInput,
-    createCartMutation,
+    startCart,
     addItemMutation,
     commitCart,
     lookupCustomerMutation,
@@ -660,9 +692,7 @@ export default function TerminalPage() {
           return;
         }
         try {
-          const newCart = await createCartMutation.mutateAsync({ drawer: targetDrawerId });
-          activeCart = newCart as unknown as Cart;
-          setCart(activeCart);
+          activeCart = await startCart(targetDrawerId);
           markRegisterActivity();
         } catch {
           enqueueSnackbar('Failed to create cart', { variant: 'error' });
@@ -691,7 +721,7 @@ export default function TerminalPage() {
       manualUnitPrice,
       isRegister,
       managerDrawerId,
-      createCartMutation,
+      startCart,
       addManualLineMutation,
       commitCart,
       enqueueSnackbar,
@@ -712,17 +742,14 @@ export default function TerminalPage() {
       return null;
     }
     try {
-      const newCart = await createCartMutation.mutateAsync({ drawer: targetDrawerId });
-      const created = newCart as unknown as Cart;
-      setCart(created);
-      cartRef.current = created;
+      const created = await startCart(targetDrawerId);
       markRegisterActivity();
       return created;
     } catch {
       enqueueSnackbar('Failed to create cart', { variant: 'error' });
       return null;
     }
-  }, [cart, isRegister, managerDrawerId, createCartMutation, enqueueSnackbar, markRegisterActivity]);
+  }, [cart, isRegister, managerDrawerId, startCart, enqueueSnackbar, markRegisterActivity]);
 
   const handleAddAssembly = useCallback(async () => {
     const activeCart = await ensureOpenCart();

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.144.0] -->
-<!-- Last reviewed: 2026-10-06 (2.144.0) -->
+<!-- Line 1 release: ## [2.144.1] -->
+<!-- Last reviewed: 2026-10-06 (2.144.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.144.1] - 2026-10-06
+
+User-facing theme: **The register makes one sale per scan even when the server is slow, and voiding a sale takes its cash out of the drawer.** Outside initiatives (owner, 2026-10-06: "the drawer fix needs to be in").
+
+### Fixed
+
+- **A slow register no longer opens duplicate sales.** Right after a deploy the server answers slowly. Each repeated scan or Enter made its own sale, so one item landed in 3–4 sales at the same second (12:31 and 14:40 on 10-06). The register now waits for the one sale it is making, and ignores the same scan pressed again while it is on its way.
+- **Voiding a sale that was never paid leaves its items alone.** Voiding those duplicate sales had put the paid item back on the shelf. That happened to 2 items on 10-06; Superuser → Requests #14 marks them sold again.
+- **Voiding a paid cash sale takes its cash out of the drawer**, and only the cash part of a split sale, so the drawer no longer looks short at close. A sale can't be voided twice.
+- **Transactions:** a sale voided before payment shows "Not paid" instead of its cart number, which looked like a broken receipt number.
+
+### Tests
+
+- `apps/pos/tests/test_cart_void.py` (4): a paid cash sale's cash and item come back; split and card; voiding an unpaid copy leaves the paid sale alone; a second void is refused.
 
 ## [2.144.0] - 2026-10-06
 

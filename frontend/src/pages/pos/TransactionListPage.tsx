@@ -301,7 +301,8 @@ export default function TransactionListPage() {
       field: 'receipt_number',
       headerName: 'Receipt #',
       width: 120,
-      valueGetter: (_, row) => row.receipt?.receipt_number ?? row.id ?? '-',
+      // A sale voided before payment never got a receipt; say so instead of showing its cart number.
+      valueGetter: (_, row) => row.receipt?.receipt_number ?? (row.status === 'voided' ? 'Not paid' : `Sale ${row.id}`),
     },
     {
       field: 'status',
@@ -500,7 +501,9 @@ export default function TransactionListPage() {
         fullWidth
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-          Receipt #{selectedCart?.receipt?.receipt_number ?? selectedCart?.id ?? '-'}
+          {selectedCart?.receipt?.receipt_number
+            ? `Receipt #${selectedCart.receipt.receipt_number}`
+            : `Sale ${selectedCart?.id ?? '-'} (no receipt: ${selectedCart?.status === 'voided' ? 'voided before payment' : 'not paid'})`}
           {selectedCart?.status === 'voided' && (
             <Chip size="small" label="Voided" color="error" />
           )}

@@ -73,6 +73,19 @@ _ACTIVE_DELIVERY_JOB_STATUSES = (
 )
 
 
+def _sale_cash(cart) -> Decimal:
+    """The cash a paid sale put in its drawer: what cash covered (less a split's card part and any change).
+    Complete adds it to the drawer's cash sales; void takes the same amount back out."""
+    if cart.payment_method not in ('cash', 'split'):
+        return Decimal('0')
+    cash = cart.total - (cart.thrift_credit or Decimal('0'))
+    if cart.payment_method == 'split' and cart.card_amount:
+        cash -= cart.card_amount
+    if cart.change_given:
+        cash -= cart.change_given
+    return cash
+
+
 def _cancel_delivery_jobs_for_cart(cart):
     DeliveryJob.objects.filter(
         cart=cart,
@@ -1533,14 +1546,9 @@ class CartViewSet(viewsets.ModelViewSet):
             cart.completed_at = timezone.now()
             cart.save()
 
-            # Update drawer cash_sales_total
+            # Update drawer cash_sales_total (void takes the same amount back out)
             if payment_method in ('cash', 'split'):
-                cash_amount = amount_due
-                if payment_method == 'split' and cart.card_amount:
-                    cash_amount = amount_due - cart.card_amount
-                cart.drawer.cash_sales_total += cash_amount
-                if cart.change_given:
-                    cart.drawer.cash_sales_total -= cart.change_given
+                cart.drawer.cash_sales_total += _sale_cash(cart)
                 cart.drawer.save(update_fields=['cash_sales_total'])
 
             # Mark items as sold
@@ -1589,26 +1597,46 @@ class CartViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
     def void(self, request, pk=None):
-        """Void a cart (manager only)."""
-        cart = self.get_object()
+        """Void a cart (manager only).
 
-        cart.status = 'voided'
-        cart.save()
-
-        _cancel_delivery_jobs_for_cart(cart)
-
-        # Revert items to on_shelf
-        for line in cart.lines.filter(item__isnull=False):
-            item = line.item
-            if item.status == 'sold':
-                item.status = 'on_shelf'
-                item.sold_at = None
-                item.sold_for = None
-                item.save()
-
-        # Thrift+: give back what the sale wrote to the member's cover, bank and credit.
+        A paid sale takes its cash back out of the drawer and puts its items back on the shelf.
+        A sale voided before payment touches neither: it never sold anything, and its items may be on
+        the sale that was paid (a slow register can open the same scan in two carts, 2026-10-06).
+        """
         from apps.thriftplus.services.register import after_void
-        after_void(cart, user=request.user)
+
+        cart = self.get_object()
+        with transaction.atomic():
+            cart = Cart.objects.select_for_update().get(pk=cart.pk)
+            if cart.status == 'voided':
+                return Response({'detail': 'This sale is already voided.'}, status=400)
+            was_paid = cart.status == 'completed'
+
+            if was_paid and cart.payment_method in ('cash', 'split'):
+                drawer = Drawer.objects.select_for_update().get(pk=cart.drawer_id)
+                if drawer.status == 'open':
+                    drawer.cash_sales_total -= _sale_cash(cart)
+                    drawer.save(update_fields=['cash_sales_total'])
+
+            cart.status = 'voided'
+            cart.save()
+
+            _cancel_delivery_jobs_for_cart(cart)
+
+            if was_paid:
+                # Back on the shelf, unless another paid sale holds the item.
+                for line in cart.lines.filter(item__isnull=False).select_related('item'):
+                    item = line.item
+                    sold_elsewhere = CartLine.objects.filter(item=item, cart__status='completed').exclude(
+                        cart=cart).exists()
+                    if item.status == 'sold' and not sold_elsewhere:
+                        item.status = 'on_shelf'
+                        item.sold_at = None
+                        item.sold_for = None
+                        item.save()
+
+            # Thrift+: give back what the sale wrote to the member's cover, bank and credit.
+            after_void(cart, user=request.user)
 
         return Response(CartSerializer(cart).data)
 

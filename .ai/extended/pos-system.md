@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-09 (CardX Phase 5 fix card type) -->
+<!-- Last updated: 2026-10-06 (void: drawer cash, unpaid voids; one cart per sale on the register) -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -101,9 +101,14 @@ Denomination counts (JSON) are used at each step for reconciliation.
 
 ## Void Flow
 
-- **Manager only** — `POST /pos/carts/{id}/void/` (IsManagerOrAdmin)
-- Sets cart status to `voided`
-- Reverts items to `on_shelf`; clears `sold_at`, `sold_for`
+- **Manager only** — `POST /pos/carts/{id}/void/` (IsManagerOrAdmin). A second void is a 400.
+- Sets cart status to `voided` (under a row lock).
+- **A paid sale** (`completed`): takes `_sale_cash(cart)` back out of the drawer's `cash_sales_total` (the same amount complete added: cash covered, less a split's card part and change), while the drawer is open. Reverts its items to `on_shelf` and clears `sold_at` / `sold_for`, unless another paid sale holds the item.
+- **A sale voided before payment** (`open`): no drawer change and no item change. It never sold anything, and its item may be on the sale that was paid.
+- Then Thrift+ `after_void` reverses any ledger rows.
+- No receipt: a sale voided before payment never got one. Transactions shows "Not paid" for it.
+
+**One cart per sale (register, 2026-10-06).** `TerminalPage` `startCart` makes the cart once; every scan, manual line or button that needs a cart while it is being made waits for that same cart. The same scan pressed again while it is on its way is ignored. Before this, a slow server (a dyno restart after a deploy) turned repeated scans into 3–4 carts holding the same item, and voiding the extras put the sold item back on the shelf.
 
 ---
 

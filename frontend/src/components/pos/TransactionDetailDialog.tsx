@@ -33,7 +33,9 @@ type Props = {
 /** Full-screen mobile-friendly receipt / transaction detail. */
 export function TransactionDetailDialog({ open, cart, onClose, onCartUpdated }: Props) {
   const { enqueueSnackbar } = useSnackbar();
-  const receiptLabel = cart?.receipt?.receipt_number ?? (cart ? `#${cart.id}` : '-');
+  // A sale voided before payment never got a receipt; don't pass its cart number off as one.
+  const receiptLabel =
+    cart?.receipt?.receipt_number ?? (cart ? `Sale ${cart.id} (${cart.status === 'voided' ? 'voided before payment' : 'not paid'})` : '-');
 
   return (
     <Dialog open={open} onClose={onClose} fullScreen scroll="paper">
