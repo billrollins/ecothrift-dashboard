@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-02 (intake_updates in Active work) -->
+<!-- Last updated: 2026-10-06 (inventory_effort, hiring_onboarding in Active work) -->
 # ecothrift-dashboard — AI Context
 
 ## Project summary
@@ -29,6 +29,8 @@ Stack: Django 5.2 + DRF, React 18.3 + TypeScript + MUI 7, PostgreSQL (schema `ec
 - **Product intelligence:** [`product_intelligence`](initiatives/product_intelligence.md). Standardize and dedupe rules: [`extended/product-standard.md`](extended/product-standard.md).
 - **Data quality and rails:** [`data_quality_rails`](initiatives/data_quality_rails.md).
 - **Waiting:** [`buying_intelligence_v2`](initiatives/buying_intelligence_v2.md) resumes after launch. Earlier buying work is in [`bstock_daily_buying`](initiatives/bstock_daily_buying.md).
+- **Inventory effort:** [`inventory_effort`](initiatives/inventory_effort.md). After the first full count: one inventory across days, PR Fix-it one-scan fixes, shrink worklist, inventory report, "If it all sells" orders view, data quality. The owner's operations priority.
+- **Hiring and onboarding:** [`hiring_onboarding`](initiatives/hiring_onboarding.md). Jobs on ecothrift.us, applications, interviews, offers, onboarding and 30/60/90 check-ins, all run from Dash. Built in its own worktree beside the inventory work (its Concurrent plan).
 - **Intake updates:** [`intake_updates`](initiatives/intake_updates.md). The owner's intake list: Orders numbers, order modal, one Target vendor, AI formulas on upload, vendor metrics.
 - **Inventory count:** [`inventory_count`](initiatives/inventory_count.md). Shipped 2026-10-01; first real count Mon 10-05.
 - **Standing:** [`standards`](initiatives/standards.md), what this repo still owes the house standards, and when.

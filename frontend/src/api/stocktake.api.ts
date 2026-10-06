@@ -20,7 +20,12 @@ export type IssueAction = 'pending' | 'cleared' | 'pr_cart' | 'left' | 'relocate
 
 export type CartKind = 'pr' | 'relocate';
 
-export type FixKind = 'reprint' | 'edit' | 'print_as_new' | 'put_on_shelf' | 'use_item' | 'quick_add' | 'moved' | 'dismiss';
+export type FixKind =
+  | 'reprint' | 'edit' | 'print_as_new' | 'put_on_shelf' | 'use_item' | 'quick_add' | 'moved' | 'dismiss'
+  | 'shrink' | 'set_product' | 'new_from_product';
+
+/** Why an item is shrink: stolen (lost) or broken / scrap (scrapped). */
+export type ShrinkReason = 'stolen' | 'broken' | 'scrap';
 
 /** Where a section stands today. */
 export type SectionState = 'done' | 'in_progress' | 'not_started';
@@ -49,6 +54,10 @@ export interface DaySummary {
   note: string;
   started_at: string;
   closed_at: string | null;
+  /** Who closed it (first name), when closed. */
+  closed_by?: string;
+  /** The days it had runs (YYYY-MM-DD), oldest first. One inventory can run over several days. */
+  days_active?: string[];
   expected: number;
   counted: number;
   scans: number;
@@ -312,9 +321,54 @@ export async function listFixIssues(show: 'open' | 'fixed' | 'all' = 'open'): Pr
 
 export async function fixIssue(
   issueId: number,
-  body: { fix: FixKind; title?: string; price?: string; retail?: string; item_id?: number; note?: string },
+  body: {
+    fix: FixKind;
+    title?: string;
+    price?: string;
+    retail?: string;
+    item_id?: number;
+    product_id?: number;
+    reason?: ShrinkReason;
+    salvage_price?: string;
+    note?: string;
+  },
 ): Promise<{ issue: Issue; label: TagLabel | null }> {
   return (await api.post(`${B}/issues/${issueId}/fix/`, body)).data;
+}
+
+/** PR Fix-it scan (inventory_effort Phase 2): fixed when the fix is certain, else which problem needs an answer. */
+export interface ScanFixResult {
+  status: 'fixed' | 'needs_input' | 'no_problem' | 'unknown';
+  message: string;
+  fix?: FixKind;
+  /** True when the fix wants a new tag printed now. */
+  print?: boolean;
+  label?: TagLabel | null;
+  issue?: Issue;
+  item?: ItemBrief | null;
+}
+
+export async function scanFix(code: string): Promise<ScanFixResult> {
+  return (await api.post<ScanFixResult>(`${B}/fixit/scan/`, { code })).data;
+}
+
+/** A product to answer a "no tag" or "wrong title" problem with. */
+export interface ProductOption {
+  product_id: number;
+  title: string;
+  brand: string;
+  product_number: string;
+  price: string | null;
+  retail: string | null;
+  /** Items of this product the open inventory has not found yet (potential shrink). */
+  not_found: number;
+  claim_item_id: number | null;
+  claim_sku: string | null;
+  can_copy: boolean;
+}
+
+export async function fixitProducts(q: string, issueId: number): Promise<ProductOption[]> {
+  return (await api.get<ProductOption[]>(`${B}/fixit/products/`, { params: { q, issue: issueId } })).data;
 }
 
 export async function reopenIssue(issueId: number): Promise<Issue> {

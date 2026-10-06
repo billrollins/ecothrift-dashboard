@@ -60,10 +60,16 @@ function useNarrow(): boolean {
   return useMediaQuery(theme.breakpoints.down('md'));
 }
 
+const dayLabel = (iso: string, withYear = false) =>
+  new Date(`${iso}T12:00:00`).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', ...(withYear ? { year: 'numeric' } : {}) });
+
+/** "Inventory Mon, Oct 5, 2026", or "Inventory Mon, Oct 5 – Tue, Oct 6, 2026" when it ran over several days. */
 function dayName(d: DaySummary): string {
   if (!d.day) return d.name;
-  const date = new Date(`${d.day}T12:00:00`);
-  return date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  const days = d.days_active?.length ? d.days_active : [d.day];
+  const first = days[0];
+  const last = days[days.length - 1];
+  return first === last ? `Inventory ${dayLabel(first, true)}` : `Inventory ${dayLabel(first)} – ${dayLabel(last, true)}`;
 }
 
 function runSeconds(r: RunSummary, serverNow?: string): number {
@@ -82,11 +88,9 @@ function whereItWent(i: Issue): string {
   return `${i.cart || ACTION_WORDS[i.action]}${i.target_section ? `, belongs in ${i.target_section}` : ''}`;
 }
 
-/** A day is open for scanning only on the day itself. */
+/** An inventory is open for scanning until a manager closes it, over as many days as it takes. */
 function isLive(d: DaySummary): boolean {
-  const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  return d.status === 'open' && d.day === today;
+  return d.status === 'open' && !!d.day;
 }
 
 function DayChip({ day }: { day: DaySummary }) {
@@ -527,7 +531,7 @@ function DayView({ id }: { id: number }) {
     () =>
       getDay(id)
         .then(setDay)
-        .catch(() => setError('Could not load this day.')),
+        .catch(() => setError('Could not load this inventory.')),
     [id],
   );
   useEffect(() => void reload(), [reload]);
@@ -551,7 +555,7 @@ function DayView({ id }: { id: number }) {
         await deleteDay(day.id);
         navigate('/inventory/count/days');
       } catch (e) {
-        setError(apiMessage(e, 'Could not delete the day.'));
+        setError(apiMessage(e, 'Could not delete the inventory.'));
       }
     } else {
       await act(() => deleteRun(target.id));
@@ -578,14 +582,14 @@ function DayView({ id }: { id: number }) {
   return (
     <Box>
       <Button component={RouterLink} to="/inventory/count/days" size="small" sx={{ ...plain, ml: -0.5 }}>
-        ‹ All days
+        ‹ All inventories
       </Button>
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', md: 'center' }} gap={1} sx={{ mb: 2 }}>
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 800 }}>
             {dayName(day)}
           </Typography>
-          <Typography sx={{ color: 'text.secondary' }}>{isLive(day) ? 'Open: numbers change as scans come in.' : day.status === 'closed' ? 'Closed.' : 'Ended.'}</Typography>
+          <Typography sx={{ color: 'text.secondary' }}>{isLive(day) ? 'Open: numbers change as scans come in, over as many days as it takes.' : day.status === 'closed' ? `Closed${day.closed_by ? ` by ${day.closed_by}` : ''}.` : 'Ended.'}</Typography>
         </Box>
         <Stack direction="row" gap={1} flexWrap="wrap">
           <Button onClick={() => void reload()} variant="outlined" sx={{ ...plain, flex: { xs: 1, md: 'none' } }}>
@@ -596,10 +600,13 @@ function DayView({ id }: { id: number }) {
           </Button>
           <Button
             variant="contained"
-            onClick={() => void act(() => (day.status === 'open' ? closeDay(day.id) : reopenDay(day.id)))}
+            onClick={() => {
+              if (day.status === 'open' && !window.confirm('Close this inventory? Open runs stop, and the next run starts a new inventory. You can reopen it while no other is open.')) return;
+              void act(() => (day.status === 'open' ? closeDay(day.id) : reopenDay(day.id)));
+            }}
             sx={{ ...plain, flex: { xs: 1, md: 'none' }, whiteSpace: 'nowrap' }}
           >
-            {day.status === 'open' ? 'Close the day' : 'Reopen'}
+            {day.status === 'open' ? 'Close inventory' : 'Reopen'}
           </Button>
         </Stack>
       </Stack>
@@ -640,7 +647,7 @@ function DayView({ id }: { id: number }) {
       {isSuper && (
         <Box sx={{ mt: 4 }}>
           <Button color="error" onClick={() => setDeleting('day')} sx={plain}>
-            Delete this whole day
+            Delete this whole inventory
           </Button>
         </Box>
       )}
@@ -773,7 +780,7 @@ function DaysList({ isSuper }: { isSuper: boolean }) {
       <Table size="small">
         <TableHead>
           <TableRow>
-            <TableCell>Day</TableCell>
+            <TableCell>Inventory</TableCell>
             <TableCell align="right">Counted</TableCell>
             <TableCell align="right">Expected</TableCell>
             <TableCell align="right">Found</TableCell>
@@ -843,7 +850,7 @@ export default function CountDaysPage() {
             <Typography variant="h5" sx={{ fontWeight: 800 }}>
               Sessions
             </Typography>
-            <Typography sx={{ color: 'text.secondary' }}>Every day&apos;s count: what was counted, by whom, and what still needs an answer.</Typography>
+            <Typography sx={{ color: 'text.secondary' }}>Every inventory: what was counted, by whom, and what still needs an answer. One inventory runs over as many days as it takes.</Typography>
           </Box>
           <DaysList isSuper={!!user?.is_superuser} />
           {user?.is_superuser && <SectionsPanel />}

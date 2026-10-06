@@ -1,9 +1,16 @@
-<!-- Last updated: 2026-10-01 (v2 shipped in v2.114.0: sections, runs, problems, carts, sessions, PR Fix-it) -->
+<!-- Last updated: 2026-10-06 (one inventory across days and PR Fix-it one-scan fixes: see inventory_effort) -->
 # Initiative: inventory_count
 
 **Status:** Active. v1 shipped 2026-10-01 (v2.112.0, v2.113.0). **v2 shipped 2026-10-01 13:32 in v2.114.0** (commit `53462bb2`, Heroku v377, backup `b013`; branch `count-v2`, worktree `C:\Coding\_worktrees\ecothrift-dashboard--ship-2112`). **Needed by Mon 2026-10-05** for the first shelf count. The owner plans to count every Monday.
 
-## Version 2 (owner's design, 2026-10-01)
+## Version 3 (inventory_effort Phases 1 and 2, 2026-10-06)
+
+Wins over Version 2 where they differ. Detail: [`inventory_effort.md`](./inventory_effort.md).
+
+- **One inventory across days**, not one count per day: `InventoryCount` stays open until a manager presses **Close inventory**; only one is open at a time (an advisory lock in `counting.ensure_current_count`). The first full count (10-05) had split at midnight.
+- **Expected** = on the shelf when it started, minus items that left the shelf (sold, scrapped, lost) without being counted (`counting.expected_ids`). Closing keeps that set (`closed_expected_ids`).
+- **PR Fix-it, one scan:** `POST /api/stocktake/fixit/scan/` fixes what is certain and the tag prints with no click (`fixit.auto_fix`); the rest opens its card. No tag: find the product, then **It's ITM…** claims an item the inventory has not found, or **New**. Wrong title: pick the right product. **Shrink** (stolen / broken / scrap, optional salvage).
+
 
 Sections "What it does", "Decisions" and the trial sheet below describe v1; where they differ, this section wins.
 

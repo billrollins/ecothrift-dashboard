@@ -146,11 +146,12 @@ class DayAndRunTests(Base):
         self.scan(run, 'ITM0000001')
         Item.objects.filter(pk=self.c.pk).update(status='sold')  # sold while counting
         rep = counting.report(run.count)
-        self.assertEqual((rep['expected'], rep['counted']), (3, 1))
+        # Sold while counting: not expected any more, so not missing (inventory_effort decision 3).
+        self.assertEqual((rep['expected'], rep['counted']), (2, 1))
         self.assertEqual([r['sku'] for r in rep['missing']], ['ITM0000002'])
         self.assertEqual([r['sku'] for r in rep['sold_meanwhile']], ['ITM0000003'])
         self.assertEqual(rep['missing_price_total'], '10.00')
-        self.assertEqual(rep['shrink_pct'], 33.33)
+        self.assertEqual(rep['shrink_pct'], 50.0)
 
     def test_search_finds_by_words_and_puts_on_shelf_first(self):
         make_item('ITM0000020', status='sold', title='Brass lamp old')
@@ -317,7 +318,11 @@ class ApiTests(Base):
         for issue in old.issues.all():
             counting.answer_issue(issue, user=self.user, action='left')
         counting.stop_run(old, outcome='complete')
-        InventoryCount.objects.filter(pk=old.count_id).update(day=timezone.localdate() - datetime.timedelta(days=7))
+        counting.close_count(old.count)
+        InventoryCount.objects.filter(pk=old.count_id).update(
+            day=timezone.localdate() - datetime.timedelta(days=7),
+            started_at=timezone.now() - datetime.timedelta(days=7),
+        )
         # today: nothing started yet, but Front wall knows what it held last time
         emp = self.api(self.user)
         front, back = emp.get('/api/stocktake/today/').data['sections']
@@ -360,3 +365,197 @@ class ApiTests(Base):
         self.assertEqual(self.api(self.user).get('/api/stocktake/search/?q=chair').data[0]['sku'], 'ITM0000002')
         self.assertIn(APIClient().get('/api/stocktake/today/').status_code, (401, 403))
         self.assertEqual(Cart.objects.count(), 0)
+
+
+class InventoryEffortTests(Base):
+    """inventory_effort Phase 1: one inventory across days, one open at a time."""
+
+    def test_a_run_after_midnight_stays_in_the_same_inventory(self):
+        import datetime
+
+        from django.utils import timezone
+
+        r1 = counting.start_run(user=self.user, section=self.front)
+        self.scan(r1, 'ITM0000001')
+        counting.stop_run(r1, outcome='partial')
+        # The inventory started yesterday; scanning goes on today.
+        InventoryCount.objects.filter(pk=r1.count_id).update(
+            day=timezone.localdate() - datetime.timedelta(days=1),
+            started_at=timezone.now() - datetime.timedelta(hours=14),
+        )
+        r2 = counting.start_run(user=self.other, section=self.back)
+        self.assertEqual(r2.count_id, r1.count_id)
+        self.assertEqual(InventoryCount.objects.count(), 1)
+        self.scan(r2, 'ITM0000001', start=5)
+        self.assertEqual(r2.scans.get().result, 'already')
+
+    def test_an_open_run_in_another_inventory_is_stopped(self):
+        r1 = counting.start_run(user=self.user, section=self.front)
+        counting.close_count(r1.count)
+        self.assertIsNone(counting.open_run_for(self.user))
+        r1.refresh_from_db()
+        self.assertEqual(r1.status, 'stopped')
+
+    def test_after_close_the_next_run_starts_a_new_inventory(self):
+        r1 = counting.start_run(user=self.user, section=self.front)
+        counting.close_count(r1.count, self.mgr)
+        r1.count.refresh_from_db()
+        self.assertEqual(r1.count.closed_by, self.mgr)
+        r2 = counting.start_run(user=self.user, section=self.front)
+        self.assertNotEqual(r2.count_id, r1.count_id)
+        self.assertEqual(counting.current_count().pk, r2.count_id)
+
+    def test_reopen_is_refused_while_another_is_open(self):
+        r1 = counting.start_run(user=self.user, section=self.front)
+        counting.close_count(r1.count)
+        counting.start_run(user=self.user, section=self.front)
+        with self.assertRaises(counting.BadRequest):
+            counting.reopen_count(r1.count)
+        res = self.api(self.mgr).post(f'/api/stocktake/counts/{r1.count_id}/reopen/')
+        self.assertEqual(res.status_code, 409)
+
+    def test_close_keeps_what_it_expected(self):
+        run = counting.start_run(user=self.user, section=self.front)
+        self.scan(run, 'ITM0000001')
+        Item.objects.filter(pk=self.b.pk).update(status='sold')        # sold before it was counted
+        Item.objects.filter(pk=self.a.pk).update(status='sold')        # counted, then sold: still counted
+        counting.close_count(run.count)
+        run.count.refresh_from_db()
+        self.assertEqual(set(run.count.closed_expected_ids), {self.a.pk, self.c.pk})
+        Item.objects.filter(pk=self.c.pk).update(status='sold')        # after the close: no change
+        summary = counting.day_summary(run.count)
+        self.assertEqual((summary['expected'], summary['counted']), (2, 1))
+        counting.reopen_count(run.count)
+        run.count.refresh_from_db()
+        self.assertIsNone(run.count.closed_expected_ids)
+
+
+class MergeCountsTests(Base):
+    """The 10-06 half of the first full count merges into the 10-05 one, and undo splits it again."""
+
+    def setUp(self):
+        super().setUp()
+        import datetime
+
+        r1 = counting.start_run(user=self.user, section=self.front)
+        self.scan(r1, 'ITM0000001', 'ITM0000002')
+        counting.stop_run(r1, outcome='partial')
+        self.first = r1.count
+        # The midnight split: a second open inventory with its own runs (one still open).
+        self.second = InventoryCount.objects.create(
+            name='Count Tue', day=self.first.day + datetime.timedelta(days=1), started_by=self.other,
+            expected_item_ids=list(self.first.expected_item_ids),
+        )
+        self.r2 = Run.objects.create(count=self.second, section=self.back, user=self.other)
+        self.scan(self.r2, 'ITM0000002', 'ITM0000003')     # 2 counted in both; 3 only here
+        # a client id that clashes with one in the first half
+        self.clash = self.r2.scans.order_by('seq').first()
+        CountScan.objects.filter(pk=self.clash.pk).update(client_id=r1.scans.order_by('seq').first().client_id)
+
+    def test_merge_and_undo(self):
+        from apps.core.services.approval_requests import get_kind
+        from apps.stocktake.services import merge
+
+        info = get_kind('stocktake.merge_counts').preview({'into': self.first.pk, 'from': self.second.pk})
+        self.assertEqual(info['params'], {'into': self.first.pk, 'from': self.second.pk})
+
+        record = merge.merge(self.first.pk, self.second.pk)
+        self.assertFalse(InventoryCount.objects.filter(pk=self.second.pk).exists())
+        self.r2.refresh_from_db()
+        self.assertEqual((self.r2.count_id, self.r2.status), (self.first.pk, 'stopped'))
+        results = dict(self.r2.scans.values_list('item__sku', 'result'))
+        self.assertEqual(results, {'ITM0000002': 'already', 'ITM0000003': 'ok'})
+        summary = counting.day_summary(self.first)
+        self.assertEqual(summary['counted'], 3)
+        self.assertEqual(record['moved']['counted_in_both'], 1)
+
+        merge.undo(record)
+        second = InventoryCount.objects.get(pk=self.second.pk)
+        self.r2.refresh_from_db()
+        self.assertEqual((self.r2.count_id, self.r2.status), (second.pk, 'open'))
+        self.assertEqual(dict(self.r2.scans.values_list('item__sku', 'result')), {'ITM0000002': 'ok', 'ITM0000003': 'ok'})
+        self.clash.refresh_from_db()
+        self.assertEqual(self.clash.client_id, self.first.scans.order_by('seq').first().client_id)
+
+
+class OneScanFixTests(FixitTests):
+    """inventory_effort Phase 2: PR Fix-it, one scan, one answer."""
+
+    def test_a_sold_items_tag_prints_as_new_from_the_scan(self):
+        self.issue_for('ITM0000009')
+        res = fixit.scan_fix('itm0000009', user=self.mgr)
+        self.assertEqual((res['status'], res['fix'], res['print']), ('fixed', 'print_as_new', True))
+        issue = Issue.objects.get(pk=res['issue']['id'])
+        self.assertEqual(res['label']['qr_data'], issue.new_item.sku)
+        self.assertEqual(issue.new_item.product_id, self.sold.product_id)
+
+    def test_a_double_counted_tag_prints_as_new(self):
+        self.scan(self.run_, 'ITM0000001')
+        issue = self.issue_for('ITM0000001')          # the second physical item with the same tag
+        self.assertEqual(issue.kind, 'already_scanned')
+        res = fixit.scan_fix('ITM0000001', user=self.mgr)
+        self.assertEqual(res['fix'], 'print_as_new')
+
+    def test_a_lost_item_found_goes_back_on_the_shelf_without_printing(self):
+        lost = make_item('ITM0000061', status='lost', title='Mirror')
+        self.issue_for('ITM0000061')
+        res = fixit.scan_fix('ITM0000061', user=self.mgr)
+        self.assertEqual((res['fix'], res['print']), ('put_on_shelf', False))
+        lost.refresh_from_db()
+        self.assertEqual(lost.status, 'on_shelf')
+
+    def test_a_bad_tag_reprints_and_a_written_price_is_set(self):
+        self.issue_for('ITM0000001', kind='wrong_tag')
+        self.assertEqual(fixit.scan_fix('ITM0000001', user=self.mgr)['fix'], 'reprint')
+        self.issue_for('ITM0000002', kind='price_high', detail='should be $6.50')
+        res = fixit.scan_fix('ITM0000002', user=self.mgr)
+        self.assertEqual((res['fix'], res['label']['text']), ('edit', '$6.50'))
+
+    def test_what_needs_an_answer_says_so(self):
+        self.issue_for('ITM0000003', kind='wrong_title', detail='Wool rug')
+        res = fixit.scan_fix('ITM0000003', user=self.mgr)
+        self.assertEqual(res['status'], 'needs_input')
+        self.assertIsNone(Issue.objects.get(pk=res['issue']['id']).fixed_at)
+        self.assertEqual(fixit.scan_fix('ITM0000002', user=self.mgr)['status'], 'no_problem')
+        self.assertEqual(fixit.scan_fix('ZZZ', user=self.mgr)['status'], 'unknown')
+
+    def test_no_tag_claims_an_item_the_inventory_has_not_found(self):
+        Product.objects.filter(pk=self.c.product_id).update(search_text='rug wool')
+        issue = counting.report_issue(self.run_, user=self.user, kind='no_tag', action='pr_cart')
+        options = fixit.product_options('rug', issue=issue)
+        self.assertEqual((options[0]['not_found'], options[0]['claim_sku']), (1, 'ITM0000003'))
+        fixit.fix_issue(issue, user=self.mgr, fix='use_item', data={'item_id': options[0]['claim_item_id']})
+        self.assertEqual(fixit.product_options('rug', issue=issue)[0]['not_found'], 0)
+        self.assertIn(self.c.pk, counting.counted_ids(self.run_.count))
+
+    def test_no_tag_new_item_from_a_product(self):
+        issue = counting.report_issue(self.run_, user=self.user, kind='no_tag', action='pr_cart')
+        label = fixit.fix_issue(issue, user=self.mgr, fix='new_from_product', data={'product_id': self.a.product_id, 'price': '3'})
+        issue.refresh_from_db()
+        self.assertEqual((issue.new_item.product_id, str(issue.new_item.price), label['text']), (self.a.product_id, '3.00', '$3.00'))
+        self.assertIn(issue.new_item.pk, counting.counted_ids(self.run_.count))
+
+    def test_wrong_title_moves_the_item_to_the_right_product(self):
+        issue = self.issue_for('ITM0000001', kind='wrong_title')
+        label = fixit.fix_issue(issue, user=self.mgr, fix='set_product', data={'product_id': self.b.product_id})
+        self.a.refresh_from_db()
+        self.assertEqual((self.a.product_id, label['product_title']), (self.b.product_id, 'Chair'))
+
+    def test_shrink_with_and_without_salvage(self):
+        issue = self.issue_for('ITM0000001', kind='wrong_tag')
+        self.assertIsNone(fixit.fix_issue(issue, user=self.mgr, fix='shrink', data={'reason': 'stolen'}))
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.status, 'lost')
+        issue2 = self.issue_for('ITM0000002', kind='wrong_tag')
+        label = fixit.fix_issue(issue2, user=self.mgr, fix='shrink', data={'reason': 'broken', 'salvage_price': '2'})
+        self.b.refresh_from_db()
+        issue2.refresh_from_db()
+        self.assertEqual((self.b.status, issue2.new_item.condition, label['text']), ('scrapped', 'salvage', '$2.00'))
+        with self.assertRaises(counting.BadRequest):
+            fixit.fix_issue(self.issue_for('ITM0000003', kind='wrong_tag'), user=self.mgr, fix='shrink', data={'reason': 'x'})
+
+    def test_scan_api(self):
+        self.issue_for('ITM0000009')
+        res = self.api(self.user).post('/api/stocktake/fixit/scan/', {'code': 'ITM0000009'}, format='json')
+        self.assertEqual((res.status_code, res.data['status']), (200, 'fixed'))
+        self.assertEqual(self.api(self.user).get('/api/stocktake/fixit/products/', {'q': 'x'}).status_code, 200)

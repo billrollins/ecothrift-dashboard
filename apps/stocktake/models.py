@@ -1,10 +1,12 @@
 """Shelf inventory counts.
 
 - **Section:** a label for a part of the floor (a stand-in until real location codes exist).
-- **InventoryCount:** one per calendar day (``day``). Every run that day adds up to one inventory.
-  It freezes the items the system says are on the shelf when the day's first run starts
-  (``expected_item_ids``), so sales and new stock during the count don't look like shrink.
-  Rows with ``day`` null are the first version's trial counts.
+- **InventoryCount:** one inventory. It stays open across days until a manager closes it, and only one is
+  open at a time (inventory_effort Phase 1; it used to be one per calendar day, which split the first full
+  count at midnight). ``day`` is the day it started. It freezes the items the system says are on the shelf
+  when its first run starts (``expected_item_ids``), so sales and new stock during the count don't look like
+  shrink; closing keeps what it expected then (``closed_expected_ids``). Rows with ``day`` null are the first
+  version's trial counts.
 - **Run:** one person in one section, start to stop, with a note. A run marked **bad** stays on
   record but is left out of the totals and out of the "already scanned" check.
 - **CountScan:** one scan. Removed scans are kept (``removed_at``) and can be put back.
@@ -38,7 +40,7 @@ class InventoryCount(models.Model):
     STATUS_CHOICES = [(STATUS_OPEN, 'Open'), (STATUS_CLOSED, 'Closed')]
 
     name = models.CharField(max_length=120)
-    day = models.DateField(null=True, blank=True, unique=True, help_text='The store day this count is for (one per day).')
+    day = models.DateField(null=True, blank=True, db_index=True, help_text='The day the inventory started.')
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_OPEN, db_index=True)
     note = models.TextField(blank=True, default='')
     started_by = models.ForeignKey(
@@ -46,8 +48,13 @@ class InventoryCount(models.Model):
     )
     started_at = models.DateTimeField(auto_now_add=True)
     closed_at = models.DateTimeField(null=True, blank=True)
+    closed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
     # Item ids that were status='on_shelf' the moment the count started.
     expected_item_ids = models.JSONField(default=list, blank=True)
+    # What it expected when it was closed (frozen minus what left the shelf uncounted); null while open.
+    closed_expected_ids = models.JSONField(null=True, blank=True)
 
     class Meta:
         ordering = ['-started_at']

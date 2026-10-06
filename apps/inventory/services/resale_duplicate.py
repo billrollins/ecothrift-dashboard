@@ -23,7 +23,7 @@ def duplicate_item_for_resale(user, src: Item) -> Item:
     dup_cost = po.compute_item_cost(src.retail) if po else None
 
     with transaction.atomic():
-        new_item = Item.objects.create(
+        new_item = Item(
             sku=Item.generate_sku(),
             product=src.product,
             purchase_order=src.purchase_order,
@@ -41,6 +41,9 @@ def duplicate_item_for_resale(user, src: Item) -> Item:
             checked_in_at=now,
             checked_in_by=user,
         )
+        # Its cost is set above. An item's cost depends only on its own retail and its order's totals, so the
+        # order-wide recompute an item save runs would rewrite every other item unchanged (30 s on a 5,000-item load).
+        new_item.save(defer_po_cost_recompute=True)
         ItemHistory.objects.create(
             item=new_item,
             event_type='created',

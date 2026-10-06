@@ -1,11 +1,15 @@
-"""Day counts, runs, scans, problems and carts. The PR Fix-it actions live in ``fixit.py``."""
+"""Inventories, runs, scans, problems and carts. The PR Fix-it actions live in ``fixit.py``.
+
+One inventory (``InventoryCount``) stays open across days until a manager closes it (inventory_effort Phase 1,
+2026-10-06: the per-day count split the first full count at midnight). Only one is open at a time.
+"""
 from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict
 from decimal import Decimal
 
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.models import F, Q
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -65,26 +69,36 @@ def section_payload(s: Section) -> dict:
     return {'id': s.pk, 'name': s.name, 'order': s.order, 'is_active': s.is_active}
 
 
-# --- the day's count ------------------------------------------------------------------------------
+# --- the open inventory ---------------------------------------------------------------------------
 
-def day_count(day=None) -> InventoryCount | None:
-    return InventoryCount.objects.filter(day=day or timezone.localdate()).first()
+# One open inventory at a time: two people starting the first run together must not open two.
+_EFFORT_LOCK = 7_250_106
 
 
-def ensure_day_count(user) -> InventoryCount:
-    """Today's count. The first run of the day creates it and freezes what the system says is on the shelf."""
-    day = timezone.localdate()
+def current_count() -> InventoryCount | None:
+    """The open inventory (the oldest, if an old one was left open too). None when none is open."""
+    return (
+        InventoryCount.objects.filter(status=InventoryCount.STATUS_OPEN, day__isnull=False)
+        .order_by('started_at', 'pk').first()
+    )
+
+
+def ensure_current_count(user) -> InventoryCount:
+    """The open inventory. When none is open, the first run starts one and freezes what the system says is
+    on the shelf. It stays open across days until a manager closes it."""
     with transaction.atomic():
-        count = InventoryCount.objects.select_for_update().filter(day=day).first()
+        if connection.vendor == 'postgresql':
+            with connection.cursor() as cur:
+                cur.execute('SELECT pg_advisory_xact_lock(%s)', [_EFFORT_LOCK])
+        count = current_count()
         if count is None:
+            day = timezone.localdate()
             count = InventoryCount.objects.create(
                 day=day,
-                name=f'Count {day:%a %Y-%m-%d}',
+                name=f'Inventory {day:%a %Y-%m-%d}',
                 started_by=user,
                 expected_item_ids=list(Item.objects.filter(status='on_shelf').values_list('id', flat=True)),
             )
-    if count.status != InventoryCount.STATUS_OPEN:
-        raise CountClosed()
     return count
 
 
@@ -97,9 +111,31 @@ def counted_ids(count: InventoryCount) -> set[int]:
     return set(good_scans(count).filter(item__isnull=False).values_list('item_id', flat=True))
 
 
+def expected_ids(count: InventoryCount, seen: set[int] | None = None) -> set[int]:
+    """What the inventory should find: the items on the shelf when it started, minus those that left the shelf
+    since (sold, scrapped, lost) without being counted. Sales during a days-long inventory are not shrink.
+    Items checked in after the start are not expected (they would look missing in sections counted earlier);
+    scanned, they still count. A closed inventory keeps the set it had when it was closed."""
+    if count.status == InventoryCount.STATUS_CLOSED and count.closed_expected_ids is not None:
+        return set(count.closed_expected_ids)
+    frozen = set(count.expected_item_ids or [])
+    if not frozen:
+        return frozen
+    seen = counted_ids(count) if seen is None else seen
+    on_shelf = set(Item.objects.filter(status='on_shelf').values_list('id', flat=True))
+    return frozen - ((frozen - on_shelf) - seen)
+
+
+def days_active(count: InventoryCount) -> list[str]:
+    """The days the inventory had runs, oldest first (local dates)."""
+    tz = timezone.get_current_timezone()
+    dates = {timezone.localtime(t, tz).date() for t in count.runs.values_list('started_at', flat=True)}
+    return [d.isoformat() for d in sorted(dates)]
+
+
 def day_summary(count: InventoryCount) -> dict:
-    expected = set(count.expected_item_ids)
     seen = counted_ids(count)
+    expected = expected_ids(count, seen)
     issues = Counter(count.issues.exclude(run__status=Run.STATUS_BAD).values_list('action', flat=True))
     done = set(
         count.runs.filter(section_complete=True).exclude(status=Run.STATUS_BAD).values_list('section_id', flat=True)
@@ -113,6 +149,8 @@ def day_summary(count: InventoryCount) -> dict:
         'note': count.note,
         'started_at': count.started_at,
         'closed_at': count.closed_at,
+        'closed_by': person(count.closed_by) if count.closed_by_id else '',
+        'days_active': days_active(count),
         'expected': len(expected),
         'counted': len(seen & expected) if expected else len(seen),
         'scans': good_scans(count).count(),
@@ -129,20 +167,32 @@ def day_summary(count: InventoryCount) -> dict:
     }
 
 
-def close_count(count: InventoryCount) -> InventoryCount:
+def close_count(count: InventoryCount, user=None) -> InventoryCount:
+    """Close the inventory: open runs stop, and what it expected is kept as it stands now."""
     if count.status == InventoryCount.STATUS_OPEN:
         now = timezone.now()
-        count.runs.filter(status=Run.STATUS_OPEN).update(status=Run.STATUS_STOPPED, stopped_at=now)
-        count.status = InventoryCount.STATUS_CLOSED
-        count.closed_at = now
-        count.save(update_fields=['status', 'closed_at'])
+        with transaction.atomic():
+            count.runs.filter(status=Run.STATUS_OPEN).update(status=Run.STATUS_STOPPED, stopped_at=now)
+            count.closed_expected_ids = sorted(expected_ids(count))
+            count.status = InventoryCount.STATUS_CLOSED
+            count.closed_at = now
+            count.closed_by = user if getattr(user, 'pk', None) else None
+            count.save(update_fields=['status', 'closed_at', 'closed_by', 'closed_expected_ids'])
     return count
 
 
 def reopen_count(count: InventoryCount) -> InventoryCount:
+    """Open it again. Refused while another inventory is open: only one is open at a time."""
+    if count.status == InventoryCount.STATUS_OPEN:
+        return count
+    other = current_count()
+    if other is not None and other.pk != count.pk:
+        raise BadRequest(f'"{other.name}" is open. Close it before reopening this one.')
     count.status = InventoryCount.STATUS_OPEN
     count.closed_at = None
-    count.save(update_fields=['status', 'closed_at'])
+    count.closed_by = None
+    count.closed_expected_ids = None
+    count.save(update_fields=['status', 'closed_at', 'closed_by', 'closed_expected_ids'])
     return count
 
 
@@ -174,11 +224,12 @@ def _stop_open_runs(user, now=None) -> None:
 
 
 def open_run_for(user) -> Run | None:
-    """The person's open run in today's count. An open run left over from another day is stopped."""
+    """The person's open run in the open inventory. A run left open in any other inventory is stopped."""
     run = Run.objects.filter(user=user, status=Run.STATUS_OPEN).select_related('section', 'count').first()
     if run is None:
         return None
-    if run.count.day != timezone.localdate() or run.count.status != InventoryCount.STATUS_OPEN:
+    current = current_count()
+    if current is None or run.count_id != current.pk:
         _stop_open_runs(user)
         return None
     return run
@@ -186,7 +237,7 @@ def open_run_for(user) -> Run | None:
 
 def start_run(*, user, section: Section) -> Run:
     """Start scanning a section. One open run per person: any other open run of theirs is stopped."""
-    count = ensure_day_count(user)
+    count = ensure_current_count(user)
     with transaction.atomic():
         _stop_open_runs(user)
         return Run.objects.create(count=count, section=section, user=user)
@@ -501,7 +552,6 @@ def section_progress(count: InventoryCount | None) -> dict[int, dict]:
     ``expected`` is the number of items counted in the section the last earlier day it was completed:
     the best guess of what should be there now. None when the section has never been completed.
     """
-    day = count.day if count is not None and count.day else timezone.localdate()
     out: dict[int, dict] = defaultdict(
         lambda: {'state': 'not_started', 'counted': 0, 'expected': None, 'expected_day': None}
     )
@@ -518,10 +568,10 @@ def section_progress(count: InventoryCount | None) -> dict[int, dict]:
             items[section_id].add(item_id)
         for section_id, ids in items.items():
             out[section_id]['counted'] = len(ids)
-    earlier = (
-        Run.objects.filter(section_complete=True, count__day__lt=day).exclude(status=Run.STATUS_BAD)
-        .order_by('-count__day').values_list('section_id', 'count_id', 'count__day')
-    )
+    earlier = Run.objects.filter(section_complete=True, count__day__isnull=False).exclude(status=Run.STATUS_BAD)
+    if count is not None:
+        earlier = earlier.filter(count__started_at__lt=count.started_at)
+    earlier = earlier.order_by('-count__started_at').values_list('section_id', 'count_id', 'count__day')
     seen = set()
     for section_id, count_id, on_day in earlier:
         if section_id in seen:
@@ -550,7 +600,7 @@ def delete_count(count: InventoryCount) -> None:
 # --- what the scan screen needs when it opens -----------------------------------------------------
 
 def bootstrap(user) -> dict:
-    count = day_count()
+    count = current_count()
     run = open_run_for(user)
     mine = []
     progress = section_progress(count)
@@ -613,8 +663,10 @@ def run_scans(run: Run) -> list[dict]:
 
 def report(count: InventoryCount) -> dict:
     """What was not found, what sold meanwhile, what was found but should not be on the shelf."""
-    expected = set(count.expected_item_ids)
-    not_scanned = expected - counted_ids(count)
+    seen = counted_ids(count)
+    expected = expected_ids(count, seen)
+    frozen = set(count.expected_item_ids or [])
+    not_scanned = (expected - seen) | (frozen - expected - seen)
     items = Item.objects.filter(pk__in=not_scanned).select_related('product')
     missing, sold_meanwhile = [], []
     for it in items:
@@ -628,7 +680,7 @@ def report(count: InventoryCount) -> dict:
             'listed_at': it.listed_at,
             'status': it.status,
         }
-        (missing if it.status == 'on_shelf' else sold_meanwhile).append(row)
+        (missing if it.pk in expected else sold_meanwhile).append(row)
     missing.sort(key=lambda r: (r['location'], r['sku']))
     good = good_scans(count)
     odd = [

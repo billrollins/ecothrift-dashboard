@@ -78,21 +78,21 @@ def section_detail(request, pk):
 @api_view(['GET'])
 @permission_classes(STAFF)
 def today(request):
-    """Today's count, my open run, the sections, my unanswered problems and my carts."""
+    """The open inventory, my open run, the sections, my unanswered problems and my carts."""
     return Response(counting.bootstrap(request.user))
 
 
 @api_view(['POST'])
 @permission_classes(STAFF)
 def runs(request):
-    """Body: ``{"section_id"}``. Starts a run (and today's count, if this is the day's first run)."""
+    """Body: ``{"section_id"}``. Starts a run (and an inventory, when none is open)."""
     section = _get(Section, request.data.get('section_id'))
     if section is None or not section.is_active:
         return _err('Pick a section.', 'SECTION_REQUIRED')
     try:
         run = counting.start_run(user=request.user, section=section)
     except counting.CountClosed:
-        return _err("Today's count is closed. A manager can reopen it.", 'COUNT_CLOSED', 409)
+        return _err('This inventory is closed. A manager can reopen it.', 'COUNT_CLOSED', 409)
     return Response({'run': counting.run_summary(run), 'day': counting.day_summary(run.count)}, status=201)
 
 
@@ -299,6 +299,25 @@ def issue_reopen(request, pk):
     return Response(counting.issue_payload(issue))
 
 
+@api_view(['POST'])
+@permission_classes(STAFF)
+def fixit_scan(request):
+    """PR Fix-it scan: ``{"code"}``. Fixes the item when the fix is certain (and returns the tag to print);
+    otherwise names the problem that needs an answer."""
+    try:
+        return Response(fixit.scan_fix(str(request.data.get('code') or ''), user=request.user))
+    except counting.BadRequest as e:
+        return _err(str(e), 'BAD_REQUEST')
+
+
+@api_view(['GET'])
+@permission_classes(STAFF)
+def fixit_products(request):
+    """``?q=`` words, ``&issue=`` the problem: products, each with the items of it the inventory has not found."""
+    issue = Issue.objects.select_related('count').filter(pk=request.query_params.get('issue') or 0).first()
+    return Response(fixit.product_options(request.query_params.get('q') or '', issue=issue))
+
+
 @api_view(['GET'])
 @permission_classes(STAFF)
 def search(request):
@@ -311,20 +330,20 @@ def search(request):
 @api_view(['GET'])
 @permission_classes(MANAGERS)
 def counts(request):
-    """Every day's count, newest first."""
+    """Every inventory, newest first."""
     return Response(counting.days())
 
 
 @api_view(['GET', 'DELETE'])
 @permission_classes(MANAGERS)
 def count_detail(request, pk):
-    """DELETE removes the whole day (Super User only)."""
+    """DELETE removes the whole inventory (Super User only)."""
     count = _get(InventoryCount, pk)
     if count is None:
         return _not_found()
     if request.method == 'DELETE':
         if not request.user.is_superuser:
-            return _err('Only the Super User deletes a day.', 'SUPERUSER_ONLY', 403)
+            return _err('Only the Super User deletes an inventory.', 'SUPERUSER_ONLY', 403)
         counting.delete_count(count)
         return Response(status=204)
     return Response(counting.day_detail(count))
@@ -336,7 +355,7 @@ def count_close(request, pk):
     count = _get(InventoryCount, pk)
     if count is None:
         return _not_found()
-    counting.close_count(count)
+    counting.close_count(count, request.user)
     return Response(counting.day_summary(count))
 
 
@@ -346,7 +365,10 @@ def count_reopen(request, pk):
     count = _get(InventoryCount, pk)
     if count is None:
         return _not_found()
-    counting.reopen_count(count)
+    try:
+        counting.reopen_count(count)
+    except counting.BadRequest as e:
+        return _err(str(e), 'ANOTHER_OPEN', 409)
     return Response(counting.day_summary(count))
 
 

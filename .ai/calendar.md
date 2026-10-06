@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-30 (release plan added; the old 09-28 procedure removed) -->
+<!-- Last updated: 2026-10-06 (two lanes: inventory_effort and hiring_onboarding) -->
 # Calendar
 
 Claude's clock. **Every session:** compare today's date with this table, say plainly whether we are on track or behind, and update the Status column. Dates are America/Chicago.
@@ -8,6 +8,7 @@ Claude's clock. **Every session:** compare today's date with this table, say pla
 - **Thrift+ ships go out dark:** behind a Thrift+ switch that stays off until launch, each one passing the full pre-ship run (POS included). POS must never break.
 - **Parallel threads:** ad hoc projects (such as the scanner mock) run in other Claude sessions and push to production themselves. This thread fetches and merges `origin/main` before every push.
 - **Priority besides Thrift+:** the data platform, and the AI supervisor's daily brief for the owner in Dash.
+- **Two lanes from 10-06:** [`inventory_effort`](initiatives/inventory_effort.md) in the main tree (the owner's operations priority) and [`hiring_onboarding`](initiatives/hiring_onboarding.md) in its own worktree. Their dates are in hiring_onboarding § Concurrent plan. Never in one release, and nothing in the 10-16 to 10-19 freeze.
 
 ## Day by day
 

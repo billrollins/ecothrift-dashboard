@@ -593,18 +593,18 @@ export default function CountPage() {
           <Typography variant="h5" sx={{ fontWeight: 800 }}>
             Run count
           </Typography>
-          <Typography sx={{ color: 'text.secondary' }}>{today}. Every run today adds up to one count.</Typography>
+          <Typography sx={{ color: 'text.secondary' }}>{today}. Every run adds up to one inventory, over as many days as it takes, until a manager closes it.</Typography>
         </Box>
 
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: { xs: 1, sm: 1.5 }, mb: 2 }}>
           <Box sx={tile}>
-            <Typography sx={small}>Counted today</Typography>
+            <Typography sx={small}>Counted</Typography>
             <Typography sx={big}>
               {(day?.counted ?? 0).toLocaleString()}
               {day ? <Box component="span" sx={{ fontSize: { xs: 11, sm: 15 }, fontWeight: 500 }}> of {day.expected.toLocaleString()}</Box> : null}
             </Typography>
             <LinearProgress variant="determinate" value={day && day.expected ? Math.min(100, (100 * day.counted) / day.expected) : 0} sx={{ mt: 1, height: 6, borderRadius: 3 }} />
-            {!day && <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5, ...deskOnly }}>No one has scanned yet today.</Typography>}
+            {!day && <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5, ...deskOnly }}>No inventory is open. The first run starts one.</Typography>}
           </Box>
           <Box sx={tile}>
             <Typography sx={small}>Sections done</Typography>
@@ -639,7 +639,7 @@ export default function CountPage() {
         )}
         {closed && (
           <Alert severity="info" sx={{ mb: 1.5 }}>
-            Today&apos;s count is closed. A manager can reopen it from Sessions.
+            This inventory is closed. A manager can reopen it from Sessions.
           </Alert>
         )}
         {pendingCards.length > 0 && (

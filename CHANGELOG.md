@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.132.0] -->
-<!-- Last reviewed: 2026-10-02 (2.132.0) -->
+<!-- Line 1 release: ## [2.133.0] -->
+<!-- Last reviewed: 2026-10-06 (2.133.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,57 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.133.0] - 2026-10-06
+
+User-facing theme: **One inventory runs over as many days as it takes (no more reset at midnight), and PR Fix-it fixes most problem items from the scan alone, printing the new tag with no click.** Initiative: `inventory_effort` Phases 1 and 2.
+
+### Changed
+
+- **One inventory across days:**
+  - The first full count (10-05) split at midnight into a second count, because a count was one per calendar day.
+  - Now an inventory stays open until a manager presses **Close inventory**, which asks first. Only one is open at a time.
+  - The count screen, Sessions and the report say "inventory" and show the days it ran.
+- **Expected:**
+  - Expected = the items on the shelf when the inventory started, minus items that left the shelf (sold, scrapped, lost) before they were counted. Sales during a days-long inventory no longer look like shrink.
+  - Stock checked in after the start is not expected; scanned, it still counts.
+  - Closing keeps what it expected at that moment.
+- **PR Fix-it, one scan, one answer.** Scanning a tag on To fix does the fix when it is certain, and the new tag prints by itself:
+  - sold or double-counted tag → new item from the same product;
+  - system says intake / lost / scrapped → back on the shelf;
+  - bad tag → reprint;
+  - a price the counter wrote down → set it and reprint.
+
+  Anything else opens its card with the cursor in it.
+- **No tag:** find the product. **It's ITM…** claims the oldest item of it that the inventory has not found yet, so the item leaves the potential shrink and its tag prints. Or **New** prints a new item at the last price.
+- **Wrong title:** "Or pick the right product" moves the item to it and reprints.
+- **Shrink** on any problem item: stolen (lost), broken or scrap (scrapped). Broken and scrap can be salvaged as a new item at a price.
+- A "fixed today" count on PR Fix-it.
+
+### Fixed
+
+- **Print as new took up to 30 s on big loads.** A new item re-costed every item on its order, for no change, since an item's cost depends only on its own retail and its order's totals. `duplicate_item_for_resale` now skips that pass; the new item's cost is set as before.
+
+### Added
+
+- Migration `stocktake.0003`: `InventoryCount.closed_by`, `closed_expected_ids`; `day` is no longer unique.
+- `POST /api/stocktake/fixit/scan/`, `GET /api/stocktake/fixit/products/`.
+- Request kind `stocktake.merge_counts` (merge one inventory into another, with undo), for joining the 10-06 half of the first count back into 10-05 after this deploy.
+
+### Docs
+
+- `.ai/initiatives/inventory_effort.md` (new; seven phases from the owner's list after the first count, with production numbers), `inventory_count.md` (Version 3), index and compass.
+
+### Tests
+
+- `test_counts.py`:
+  - a run after midnight stays in the same inventory;
+  - a run left in another inventory stops;
+  - a new inventory starts after close;
+  - reopen is refused while another is open;
+  - close keeps expected;
+  - merge and undo;
+  - each one-scan fix, claim, new from product, right product, shrink with and without salvage, and the endpoints (45 tests).
 
 ## [2.132.0] - 2026-10-02
 
