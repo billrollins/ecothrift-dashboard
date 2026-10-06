@@ -30,8 +30,8 @@ describe('workspaceIdForDigit', () => {
     expect(workspaceIdForDigit(SLOT_C_WORKSPACES, '8')).toBe('studios');
   });
 
-  it('leaves digit 9 unassigned', () => {
-    expect(workspaceIdForDigit(SLOT_C_WORKSPACES, '9')).toBeNull();
+  it('maps 9 to People (hiring)', () => {
+    expect(workspaceIdForDigit(SLOT_C_WORKSPACES, '9')).toBe('people');
   });
 
   it('refuses a digit past the list rather than wrapping', () => {
@@ -44,7 +44,7 @@ describe('workspaceIdForDigit', () => {
 
   it('numbers the role-filtered list, not the full catalog', () => {
     const employeeSees = SLOT_C_WORKSPACES.filter(
-      (w) => w.id !== 'onlineSales' && w.id !== 'admin' && w.id !== 'studios',
+      (w) => w.id !== 'onlineSales' && w.id !== 'admin' && w.id !== 'studios' && w.id !== 'people',
     );
     expect(employeeSees).toHaveLength(6);
     expect(workspaceIdForDigit(employeeSees, '5')).toBe('storeSales');
@@ -181,8 +181,14 @@ describe('Studios and Admin placement', () => {
   it('puts every studio under Studios', () => {
     expect(studios?.itemIds).toEqual(['labelStudio', 'floorplans', 'announcements', 'blogStudio']);
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'library')).toBeUndefined();
-    expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'people')).toBeUndefined();
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'mail')).toBeUndefined();
+  });
+
+  it('puts hiring in its own People workspace, for managers', () => {
+    const people = SLOT_C_NAV_GROUPS.find((g) => g.id === 'people');
+    expect(people?.itemIds).toEqual(['applicants', 'jobs']);
+    expect(people?.roles).toEqual(['Manager', 'Admin']);
+    expect(NAV_ITEM_CATALOG.applicants?.path).toBe('/people/applicants');
   });
 
   it('keeps Floorplans out of Retail Floor (Studios only) and Messages on Online Sales', () => {

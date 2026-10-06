@@ -1,28 +1,35 @@
-v2.135.0 — Inventory report: totals, who counted, breakdown by any dimension, price % of retail (inventory_effort Phase 4)
+v2.136.0 — Hiring: careers page at ecothrift.us/careers, the application with the screener inside, People → Applicants (hiring_onboarding Phase 1)
 
-User-facing theme: **The inventory report: totals, who counted what, and a breakdown by any dimension (bar or pie, counted next to not found, click through to the items), plus price as % of retail in 1% steps.** Initiative: `inventory_effort` Phase 4.
+User-facing theme: **Hiring starts in Dash. A careers page at ecothrift.us/careers takes applications from a phone in about 5 minutes, and People → Applicants tracks each one from New to Hired or Not now.** Initiative: `hiring_onboarding` Phase 1.
 
 ### Added
 
-- **Inventory report** (`/inventory/count/<id>/report`, the inventory's **Report** button). It replaces the old "missing" report page; the Not found page covers that list now.
-- **Totals:** items counted, $ at price and retail, price as % of retail (weighted), coverage (expected items counted), not found, hours scanning, runs, scans, problems and how many are fixed.
-- **Who counted:**
-  - Each person's items, $ at price and retail, hours, items per hour, runs, bad runs, and problems found.
-  - An item counts for whoever scanned it first. Click a name to list their items.
-- **Breakdown:**
-  - Group by category, subcategory, vendor (both Targets as one), order, time on the shelf, price as % of retail, price or person.
-  - Measure items, $ at price or $ retail. Show counted, not found or both.
-  - Bar or pie chart with a table beside it. Click a bar, slice or number to list the items, with CSV.
-- **Price as % of retail:** a histogram in 1% steps, with the bucket edges marked. The buckets (under 20 / 20–29 / 30–39 / 40–49 / 50–59 / 60+) follow the real distribution of the first count, which peaks at 25%, 35% and 50%.
-- **Print and CSV:** a print button (the menus are left off the page) and a CSV of counted items.
-- **Endpoints:** `GET /api/stocktake/counts/<id>/summary/`, `breakdown/?by=`, `histogram/`. The item list takes `scope=counted` and `person`.
+- **Careers page** (`/careers`, `/careers/<role>`, `/careers/apply`):
+  - the owner's three roles (Retail, Processing, Restoration), the mission and "what we ask";
+  - "From $15/hr, set by skill"; each role page carries Google Jobs data;
+  - hidden until the owner turns it on in Dash. A preview link shows it while it is off.
+- **The application, screener inside:**
+  - name, phone, email, roles, availability, start date, the four yes/no must-haves, pay wanted, two short answers and a question per role;
+  - resume optional (PDF, Word or a photo, shrunk on the phone);
+  - an unticked text-consent box, recorded with its wording (D17);
+  - bot guards: a hidden field, a minimum fill time, a rate limit, and file checks by their bytes.
+- **Emails:** the owner's auto-reply to the applicant, and an alert to the owner with a link into Dash. Replies go to the owner.
+- **People workspace** (key 9), **Applicants:**
+  - tabs by stage with counts;
+  - red and green must-have marks, a 1–5 rating, and search and role filters;
+  - each applicant's answers, resume, call / text / email buttons, notes and a timeline;
+  - **Add applicant** for walk-ins and emailed resumes;
+  - **Not now** with a reason and a drafted email that only sends on **Send**;
+  - **Create employee** makes the Dash user and employee record, then reminds about QuickBooks.
+- **Jobs & careers page:**
+  - edit roles and turn the page on or off;
+  - one careers file (YAML or JSON) holds the page, form, roles and emails: **Copy for AI**, **Update from YAML / JSON** (lists every change before Save), **Draft with AI**, **Export YAML**.
 
-### Removed
+### Changed
 
-- The old count report page (`CountReportPage`); its route now opens the new report.
+- `/terms` and `/privacy` name job-application texts and how applications are kept (dated October 6, 2026).
+- The dev servers take `ECOTHRIFT_API_PORT` / `ECOTHRIFT_STAFF_PORT` / `ECOTHRIFT_PUBLIC_PORT`, so two coders can run side by side. Defaults unchanged.
 
-### Tests
-
-- `test_counts.py`: totals and price % of retail, people (first scan wins), breakdowns by % bucket and person, the histogram, counted items by bucket and by person, and the API with its permissions.
+Migration: `hiring.0001` (new tables) and `hiring.0002` (the three roles, the `HIRING_CAREERS` AI purpose).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

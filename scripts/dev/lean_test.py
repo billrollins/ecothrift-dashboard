@@ -42,9 +42,10 @@ SUITES: dict[str, dict] = {
     'qa': {'py': ['apps/qa'], 'vitest': ['src/pages/admin/QAPage.test.tsx']},
     'core': {'py': ['apps/core', 'apps/accounts', 'apps/ai'], 'vitest': ['src/pages/admin/RequestsPage.test.tsx', 'src/pages/brief']},
     'buying': {'py': ['apps/buying'], 'vitest': ['src/pages/buying']},
+    'hiring': {'py': ['apps/hiring'], 'vitest': ['src/pages/people'], 'tsc': True},
     'quick': {'tsc': True, 'migrations': True},
     'ship': {
-        'py': ['apps/thriftplus', 'apps/pos', 'apps/core', 'apps/accounts', 'apps/ai', 'apps/qa', 'apps/inventory', 'apps/stocktake', 'apps/buying',
+        'py': ['apps/thriftplus', 'apps/pos', 'apps/core', 'apps/accounts', 'apps/ai', 'apps/qa', 'apps/inventory', 'apps/stocktake', 'apps/hiring', 'apps/buying',
                'apps/webstore', 'apps/routines/tests.py::NoDashesTests'],
         'vitest': ['*'], 'tsc': True, 'migrations': True,
     },

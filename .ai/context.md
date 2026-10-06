@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-06 (inventory_effort, hiring_onboarding in Active work) -->
+<!-- Last updated: 2026-10-06 (hiring coder row, extended/hiring.md) -->
 # ecothrift-dashboard — AI Context
 
 ## Project summary
@@ -30,7 +30,7 @@ Stack: Django 5.2 + DRF, React 18.3 + TypeScript + MUI 7, PostgreSQL (schema `ec
 - **Data quality and rails:** [`data_quality_rails`](initiatives/data_quality_rails.md).
 - **Waiting:** [`buying_intelligence_v2`](initiatives/buying_intelligence_v2.md) resumes after launch. Earlier buying work is in [`bstock_daily_buying`](initiatives/bstock_daily_buying.md).
 - **Inventory effort:** [`inventory_effort`](initiatives/inventory_effort.md). After the first full count: one inventory across days, PR Fix-it one-scan fixes, shrink worklist, inventory report, "If it all sells" orders view, data quality. The owner's operations priority.
-- **Hiring and onboarding:** [`hiring_onboarding`](initiatives/hiring_onboarding.md). Jobs on ecothrift.us, applications, interviews, offers, onboarding and 30/60/90 check-ins, all run from Dash. Built in its own worktree beside the inventory work (its Concurrent plan).
+- **Hiring and onboarding:** [`hiring_onboarding`](initiatives/hiring_onboarding.md). Jobs on ecothrift.us, applications, interviews, offers, onboarding and 30/60/90 check-ins, all run from Dash. Phase 1 shipped (careers page, apply, People → Applicants; the page stays hidden until the owner turns it on). Built in its own worktree beside the inventory work (its Concurrent plan).
 - **Intake updates:** [`intake_updates`](initiatives/intake_updates.md). The owner's intake list: Orders numbers, order modal, one Target vendor, AI formulas on upload, vendor metrics.
 - **Inventory count:** [`inventory_count`](initiatives/inventory_count.md). Shipped 2026-10-01; first real count Mon 10-05.
 - **Standing:** [`standards`](initiatives/standards.md), what this repo still owes the house standards, and when.
@@ -44,6 +44,7 @@ Two coders can share this repo. Each one has one peer inbox, `comm/inbox-<slug>.
 |------|------|-----------|------------|
 | `data_platform` | Thrift+ core (members, cards, reward engine, POS, returns, signup), the Requests center, the data platform and AI brief, buying | main checkout | R-071 to R-099 |
 | `thrift_scanner` | **Retired 2026-09-30** (the owner turned that coder off). Its lane, the Thrift+ customer scanner (`/scan`), is now worked from the main session | worktree `C:\Coding\_worktrees\ecothrift-dashboard--thrift-scanner` (branch `thrift-scanner-mock`) | R-100 and up |
+| `hiring` | **Opened 2026-10-06.** [`hiring_onboarding`](initiatives/hiring_onboarding.md): `apps/hiring`, `/careers`, the People workspace. Runs beside the inventory session (main checkout). Dev ports 8010 / 5183 / 5184, test DB `DATABASE_NAME=hiring_gate` | worktree `C:\Coding\_worktrees\ecothrift-dashboard--hiring` (branch `hiring`) | - |
 | `standards` (was `tech_target`) | **Closed 2026-10-02** (the owner ended the Helper session). Everything it owned is the main coder's now: the count app, PR Fix-it, AI cleanup job, public legal pages, the scanner lane, `standards.md` and master's mail. Handoff: [`reference/reports/2026-10-02-helper-handoff.md`](reference/reports/2026-10-02-helper-handoff.md) | - | - |
 
 - **Never share a working tree.** `scripts/deploy/ship.bat` stages everything (`git add -A`), so it would commit the other coder's half-done work.
@@ -108,6 +109,7 @@ Load on demand. Do not read them all at session start. When you add, rename or r
 | [`documents.md`](extended/documents.md) | PDF upload, field placement, signing wizard, flatten |
 | [`frontend.md`](extended/frontend.md) | React + MUI, pages, routing, React Query, hidden UI |
 | [`heroku-memory.md`](extended/heroku-memory.md) | Heroku memory checks after a deploy that touches pagination, Gunicorn or caching |
+| [`hiring.md`](extended/hiring.md) | Careers page, applications, People → Applicants / Jobs, the careers file, hiring mail and rules |
 | [`inventory-pipeline.md`](extended/inventory-pipeline.md) | PO processing, M3, preprocessing, Item Processor |
 | [`thrift-plus-decisions.md`](extended/thrift-plus-decisions.md) | **Read first for any Thrift+ rule:** the owner's final answers (returns at 90%, Thrift+ Balance replaces banked rewards, tax, wording, signup). Wins over older notes |
 | [`thrift-plus-limited-warranty.md`](extended/thrift-plus-limited-warranty.md) | Member returns, Poster C, AS IS signs, receipt warranty lines, the terms (the Limited Warranty text to use) |

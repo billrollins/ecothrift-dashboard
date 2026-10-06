@@ -2,6 +2,7 @@ import { Link, NavLink, Outlet } from 'react-router-dom'
 import logoFooterImg from '../assets/logo-full-white-halfsize.png'
 import logoImg from '../assets/logo-full-halfsize.png'
 import { useAuth } from '../auth'
+import { useCareers } from '../careers/api'
 import { useCart } from '../cart'
 import { retailMapsDirectionsUrl, STORE } from '../data/content'
 import { useStoreHoursLabel } from '../lib/storeHours'
@@ -16,6 +17,9 @@ export default function Layout() {
   const hoursLabel = useStoreHoursLabel()
   const { count, setOpen } = useCart()
   const { user, isLoading: authLoading } = useAuth()
+  // The Careers link shows only while the careers page is public (never from a preview link).
+  const { careers } = useCareers()
+  const hiringOn = !!careers?.public && !careers.preview && careers.jobs.length > 0
   // Treat config load as indeterminate - don't flash "under construction" when shop is on.
   const shopOn = config.online_sales_enabled
   const accountsOn = config.accounts_enabled
@@ -57,6 +61,11 @@ export default function Layout() {
             <NavLink to="/visit" className={navClass}>
               Visit
             </NavLink>
+            {hiringOn && (
+              <NavLink to="/careers" className={navClass}>
+                Careers
+              </NavLink>
+            )}
           </nav>
           <div className="tools">
             {loading ? null : shopOn ? (
@@ -108,6 +117,7 @@ export default function Layout() {
             <h4>Company</h4>
             <Link to="/blog/navigating-growth">Our story</Link>
             <Link to="/blog">Blog</Link>
+            {hiringOn && <Link to="/careers">Careers</Link>}
             <a href={`mailto:${STORE.email}`}>Contact</a>
             <Link to="/privacy">Privacy Policy</Link>
             <Link to="/terms">Terms</Link>

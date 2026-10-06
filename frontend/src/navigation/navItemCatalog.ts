@@ -360,4 +360,22 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'factCheck',
     roles: ['Manager', 'Admin'],
   },
+  /** Hiring: everyone who applied at ecothrift.us/careers, plus walk-ins. */
+  applicants: {
+    id: 'applicants',
+    path: '/people/applicants',
+    label: 'Applicants',
+    icon: 'people',
+    roles: ['Manager', 'Admin'],
+    navSearch: 'hiring applications candidates resumes careers',
+  },
+  /** The roles, the careers page, the form and the hiring emails (one YAML / JSON file). */
+  jobs: {
+    id: 'jobs',
+    path: '/people/jobs',
+    label: 'Jobs & careers page',
+    icon: 'campaign',
+    roles: ['Manager', 'Admin'],
+    navSearch: 'hiring job postings careers page roles',
+  },
 };

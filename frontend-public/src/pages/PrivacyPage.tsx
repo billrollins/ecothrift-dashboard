@@ -46,6 +46,13 @@ export default function PrivacyPage() {
             and the phone carriers).
           </p>
 
+          <h2>Job applications</h2>
+          <p>
+            When you apply for a job, we keep your answers, your resume if you add one, and notes from the
+            people who review it. We use them only to consider you for work at Eco-Thrift, and we keep them for
+            at least a year after we decide. Only the people at Eco-Thrift who handle hiring can see them.
+          </p>
+
           <h2>Who else sees it</h2>
           <p>
             Companies that run our hosting, payments, email and text delivery, only as needed to do that job

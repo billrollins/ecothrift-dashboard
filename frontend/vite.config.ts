@@ -7,6 +7,9 @@ import react from '@vitejs/plugin-react'
 import basicSsl from '@vitejs/plugin-basic-ssl'
 
 const frontendDir = fileURLToPath(new URL('.', import.meta.url))
+// A second coder (another worktree) runs its own servers: ECOTHRIFT_API_PORT / ECOTHRIFT_STAFF_PORT.
+const apiTarget = `http://127.0.0.1:${process.env.ECOTHRIFT_API_PORT || 8000}`
+const staffPort = Number(process.env.ECOTHRIFT_STAFF_PORT) || 5173
 // Mobile bat sets ECOTHRIFT_MOBILE_HTTPS=1; also treat --host 0.0.0.0 as mobile.
 const mobileHttps =
   process.env.ECOTHRIFT_MOBILE_HTTPS === '1' || process.argv.includes('0.0.0.0')
@@ -68,7 +71,7 @@ export default defineConfig({
     publicSiteUrlHint(),
   ],
   server: {
-    port: 5173,
+    port: staffPort,
     // basic-ssl fills cert/key when https is true/undefined; keep explicit for clarity.
     ...(mobileHttps ? { https: true as const } : {}),
     // Vite answers only localhost and raw IPs by default. Over HTTPS it skips the
@@ -78,11 +81,11 @@ export default defineConfig({
     allowedHosts: ['.local', '.ts.net'],
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: apiTarget,
         changeOrigin: true,
       },
       '/db-admin': {
-        target: 'http://127.0.0.1:8000',
+        target: apiTarget,
         changeOrigin: true,
       },
     },

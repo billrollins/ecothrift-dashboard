@@ -121,6 +121,7 @@ INSTALLED_APPS = [
     'apps.thriftplus',
     'apps.qa',
     'apps.stocktake',
+    'apps.hiring',
 ]
 
 MIDDLEWARE = [

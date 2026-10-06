@@ -11,7 +11,7 @@ export interface SlotCWorkspaceMeta {
   shortcutColor: string;
   /**
  * Digit pressed in the open switcher. Same key always opens this workspace
- * when the user can see it. 1-8 are lifecycle + Studios; 0 is Admin. Digit 9 is free.
+ * when the user can see it. 1-8 are lifecycle + Studios; 9 is People (hiring); 0 is Admin.
    */
   shortcutDigit?: number;
 }
@@ -77,6 +77,12 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     itemIds: ['labelStudio', 'floorplans', 'announcements', 'blogStudio'],
   },
   {
+    id: 'people',
+    label: 'People',
+    roles: ['Manager', 'Admin'],
+    itemIds: ['applicants', 'jobs'],
+  },
+  {
     id: 'admin',
     label: 'Admin',
     roles: ['Manager', 'Admin'],
@@ -95,7 +101,6 @@ export const SLOT_C_WORKSPACE_ID_MIGRATION: Record<string, string> = {
   store: 'storeSales',
   floorOps: 'retailFloor',
   cashier: 'storeSales',
-  people: 'admin',
   mail: 'onlineSales',
 };
 
@@ -171,6 +176,15 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     icon: 'palette',
     shortcutColor: '#C026D3',
     shortcutDigit: 8,
+  },
+  {
+    id: 'people',
+    label: 'People',
+    shortLabel: 'People',
+    helper: 'Hiring: applicants, jobs and the careers page',
+    icon: 'people',
+    shortcutColor: '#7C3AED',
+    shortcutDigit: 9,
   },
   {
     id: 'admin',

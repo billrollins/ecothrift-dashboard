@@ -257,8 +257,19 @@ def _public_base_url() -> str:
     return f'https://{host}' if host else 'https://ecothrift.us'
 
 
+def _careers_paths() -> list[str]:
+    """/careers and each open role, only while the careers page is public."""
+    from apps.hiring.careers import is_public
+    from apps.hiring.models import Job
+
+    if not is_public():
+        return []
+    slugs = Job.objects.filter(status=Job.STATUS_OPEN).order_by('sort_order', 'slug').values_list('slug', flat=True)
+    return ['/careers'] + [f'/careers/{slug}' for slug in slugs]
+
+
 def sitemap_xml(request):
-    """XML sitemap: marketing pages + live blog posts + every published web listing."""
+    """XML sitemap: marketing pages + live blog posts + every published web listing + open roles."""
     from apps.blog.models import BlogPost
     from apps.webstore.models import WebListing
 
@@ -274,6 +285,7 @@ def sitemap_xml(request):
         .order_by('slug')
         .values_list('slug', flat=True)
     ]
+    paths += _careers_paths()
 
     lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',

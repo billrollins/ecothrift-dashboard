@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.135.0] -->
-<!-- Last reviewed: 2026-10-06 (2.135.0) -->
+<!-- Line 1 release: ## [2.136.0] -->
+<!-- Last reviewed: 2026-10-06 (2.136.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,40 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.136.0] - 2026-10-06
+
+User-facing theme: **Hiring starts in Dash. A careers page at ecothrift.us/careers takes applications from a phone in about 5 minutes, and People → Applicants tracks each one from New to Hired or Not now.** Initiative: `hiring_onboarding` Phase 1.
+
+### Added
+
+- **Careers page** (`/careers`, `/careers/<role>`, `/careers/apply`):
+  - the owner's three roles (Retail, Processing, Restoration), the mission and "what we ask";
+  - "From $15/hr, set by skill"; each role page carries Google Jobs data;
+  - hidden until the owner turns it on in Dash. A preview link shows it while it is off.
+- **The application, screener inside:**
+  - name, phone, email, roles, availability, start date, the four yes/no must-haves, pay wanted, two short answers and a question per role;
+  - resume optional (PDF, Word or a photo, shrunk on the phone);
+  - an unticked text-consent box, recorded with its wording (D17);
+  - bot guards: a hidden field, a minimum fill time, a rate limit, and file checks by their bytes.
+- **Emails:** the owner's auto-reply to the applicant, and an alert to the owner with a link into Dash. Replies go to the owner.
+- **People workspace** (key 9), **Applicants:**
+  - tabs by stage with counts;
+  - red and green must-have marks, a 1–5 rating, and search and role filters;
+  - each applicant's answers, resume, call / text / email buttons, notes and a timeline;
+  - **Add applicant** for walk-ins and emailed resumes;
+  - **Not now** with a reason and a drafted email that only sends on **Send**;
+  - **Create employee** makes the Dash user and employee record, then reminds about QuickBooks.
+- **Jobs & careers page:**
+  - edit roles and turn the page on or off;
+  - one careers file (YAML or JSON) holds the page, form, roles and emails: **Copy for AI**, **Update from YAML / JSON** (lists every change before Save), **Draft with AI**, **Export YAML**.
+
+### Changed
+
+- `/terms` and `/privacy` name job-application texts and how applications are kept (dated October 6, 2026).
+- The dev servers take `ECOTHRIFT_API_PORT` / `ECOTHRIFT_STAFF_PORT` / `ECOTHRIFT_PUBLIC_PORT`, so two coders can run side by side. Defaults unchanged.
+
+Migration: `hiring.0001` (new tables) and `hiring.0002` (the three roles, the `HIRING_CAREERS` AI purpose).
 
 ## [2.135.0] - 2026-10-06
 
@@ -65,6 +99,7 @@ User-facing theme: **Not found: every item the inventory expected and did not fi
 ### Tests
 
 - `test_counts.py`: the list is expected minus counted; marks move items out of Open; undo by batch and by item; only not-found items can be marked; mark by filter and by group; found later and sold meanwhile leave the list; the API, its permissions and the CSV (51 tests).
+
 
 ## [2.133.0] - 2026-10-06
 

@@ -31,7 +31,8 @@ export default function TermsPage() {
               <strong>Who sends:</strong> Eco-Thrift ({LEGAL_ENTITY}).
             </li>
             <li>
-              <strong>Who it is for:</strong> Thrift+ members and customers who agree to receive texts.
+              <strong>Who it is for:</strong> Thrift+ members, customers and job applicants who agree to receive
+              texts.
             </li>
             <li>
               <strong>What we send:</strong>
@@ -43,6 +44,10 @@ export default function TermsPage() {
                 <li>
                   <strong>Store news texts:</strong> new arrivals, truck days, and sales, up to about 4
                   messages a month.
+                </li>
+                <li>
+                  <strong>Job application texts:</strong> for people who apply at {SITE_URL}/careers and tick
+                  the box: interview times and reminders, and a first-day reminder if you are hired.
                 </li>
               </ul>
             </li>

@@ -12,6 +12,9 @@ const SellPage = lazy(() => import('./pages/SellPage'))
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage'))
 const TermsPage = lazy(() => import('./pages/TermsPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
+const CareersPage = lazy(() => import('./pages/careers/CareersPage'))
+const CareerRolePage = lazy(() => import('./pages/careers/CareerRolePage'))
+const CareersApplyPage = lazy(() => import('./pages/careers/CareersApplyPage'))
 const ShopPage = lazy(() => import('./pages/ShopPage'))
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'))
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage'))
@@ -155,6 +158,30 @@ export default function App() {
           element={
             <Suspense fallback={<RouteFallback />}>
               <BlogPostPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="careers"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <CareersPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="careers/apply"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <CareersApplyPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="careers/:slug"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <CareerRolePage />
             </Suspense>
           }
         />

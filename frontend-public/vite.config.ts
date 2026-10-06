@@ -4,6 +4,9 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 const rootDir = fileURLToPath(new URL('.', import.meta.url))
+// A second coder (another worktree) runs its own servers: ECOTHRIFT_API_PORT / ECOTHRIFT_PUBLIC_PORT.
+const apiTarget = `http://127.0.0.1:${process.env.ECOTHRIFT_API_PORT || 8000}`
+const publicPort = Number(process.env.ECOTHRIFT_PUBLIC_PORT) || 5174
 
 // Production assets are collected into Django STATIC_ROOT/site and served by
 // WhiteNoise at /static/site/* (see ecothrift/settings.py STATICFILES_DIRS).
@@ -13,9 +16,9 @@ export default defineConfig(({ command }) => ({
   envDir: path.resolve(rootDir, '..'),
   plugins: [react()],
   server: {
-    port: 5174,
+    port: publicPort,
     proxy: {
-      '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true },
+      '/api': { target: apiTarget, changeOrigin: true },
     },
   },
   build: {
