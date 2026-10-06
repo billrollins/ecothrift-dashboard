@@ -26,4 +26,9 @@ urlpatterns = [
     path('counts/<int:pk>/reopen/', views.count_reopen, name='stocktake-reopen'),
     path('counts/<int:pk>/report/', views.count_report, name='stocktake-report'),
     path('counts/<int:pk>/report.csv', views.count_report_csv, name='stocktake-report-csv'),
+    path('counts/<int:pk>/shrink/', views.shrink_list, name='stocktake-shrink'),
+    path('counts/<int:pk>/shrink/groups/', views.shrink_groups, name='stocktake-shrink-groups'),
+    path('counts/<int:pk>/shrink/mark/', views.shrink_mark, name='stocktake-shrink-mark'),
+    path('counts/<int:pk>/shrink/unmark/', views.shrink_unmark, name='stocktake-shrink-unmark'),
+    path('counts/<int:pk>/shrink.csv', views.shrink_csv, name='stocktake-shrink-csv'),
 ]

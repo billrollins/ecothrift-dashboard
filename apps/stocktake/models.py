@@ -206,3 +206,41 @@ class Issue(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+
+class ShrinkMark(models.Model):
+    """What an item the inventory did not find really is (inventory_effort Phase 3, owner 2026-10-06).
+
+    A record first: who, when, why, undoable. The item itself changes only when the inventory is closed (Phase 7):
+    back stock stays on the shelf with location "Back stock"; owner took → lost (owner use); sold as generic → sold;
+    stolen → lost; broken / scrap → scrapped.
+    """
+    OUTCOME_BACK_STOCK = 'back_stock'
+    OUTCOME_OWNER_TOOK = 'owner_took'
+    OUTCOME_SOLD_GENERIC = 'sold_generic'
+    OUTCOME_STOLEN = 'stolen'
+    OUTCOME_BROKEN = 'broken'
+    OUTCOME_SCRAP = 'scrap'
+    OUTCOME_CHOICES = [
+        (OUTCOME_BACK_STOCK, 'Back stock'),
+        (OUTCOME_OWNER_TOOK, 'Owner took'),
+        (OUTCOME_SOLD_GENERIC, 'Sold as generic'),
+        (OUTCOME_STOLEN, 'Shrink: stolen'),
+        (OUTCOME_BROKEN, 'Shrink: broken'),
+        (OUTCOME_SCRAP, 'Shrink: scrap'),
+    ]
+
+    count = models.ForeignKey(InventoryCount, on_delete=models.CASCADE, related_name='shrink_marks')
+    item = models.ForeignKey('inventory.Item', on_delete=models.CASCADE, related_name='+')
+    outcome = models.CharField(max_length=20, choices=OUTCOME_CHOICES, db_index=True)
+    note = models.CharField(max_length=300, blank=True, default='')
+    # One bulk action shares a batch, so it can be undone in one go.
+    batch = models.CharField(max_length=36, blank=True, default='', db_index=True)
+    marked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    marked_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-marked_at']
+        constraints = [models.UniqueConstraint(fields=['count', 'item'], name='stocktake_shrink_mark_once')]

@@ -3,7 +3,7 @@
 
 # Initiative: Inventory effort, reports and shrink
 
-**Status:** **Active** — Phases 1 and 2 built; Phase 3 next.
+**Status:** **Active** — Phases 1 and 2 live (v2.133.0); Phase 3 built, not shipped; Phase 4 next.
 
 **Objective:** The owner runs one inventory over as many days as it takes, and every run, scan and fix belongs to it. When it ends he has one clean report (totals, who counted what, breakdowns by any dimension), a worklist that turns "not counted" into explained outcomes (back stock, owner took, sold as generic, shrink), one-scan fixes for every problem item, and an "if it all sells" profit view of his orders. The data errors the count exposed get listed and fixed.
 
@@ -99,7 +99,7 @@ Acceptance:
 - [x] Migration drops the unique rule on `day` and adds `closed_by`. The count screen, sessions list and report read "effort" (one open at a time).
 - [x] `expected` follows decision 3 (frozen ids minus sold or scrapped since, plus checked in since) in `day_summary` and `report`.
 - [x] Request kind `stocktake.merge_counts` (15 into 14, as in decision 2), with preview counts and undo.
-- [ ] Staged in production and applied (the owner said yes, 2026-10-06).
+- [x] Staged in production and applied (the owner said yes, 2026-10-06): Request #12.
 - [x] **Close inventory** / **Reopen** for managers. A closed effort is read-only.
 - [x] Tests:
   - a run past midnight stays in the same effort;
@@ -128,15 +128,15 @@ Every expected item that was not counted is listed, and the owner gives each one
 **Gated by:** Phase 1.
 
 Acceptance:
-- [ ] Page **Inventory → Run count → Efforts → (effort) → Shrink**.
+- [x] Page **Inventory → Run count → Efforts → (effort) → Shrink**.
   - The list = expected (decision 3) minus counted minus already resolved.
   - Columns: SKU, title, order, vendor, category, price, retail, checked in (age), last seen (last scan in any earlier count).
-- [ ] Sort on every column; filter by order, vendor, category, age, price band; search by SKU, title or order.
-- [ ] Select rows, or **all in this filter**, and mark: **Back stock · Owner took · Sold as generic · Shrink (stolen / broken / scrap)**, with an optional note. Undo per mark.
-- [ ] **Group views:** by order, product, vendor and category. Each shows not counted / expected (% missing), $ price and $ retail, sorted by % missing. A whole order or product can be marked in one action, e.g. "WLMRT-O99-8G11 is all in back stock".
-- [ ] Totals across the top: open, each outcome, $ at price and retail.
-- [ ] Speed: 12,000 rows load and filter in about 2 s (server-side paging and sorting).
-- [ ] Tests:
+- [x] Sort on every column; filter by order, vendor, category, age, price band; search by SKU, title or order.
+- [x] Select rows, or **all in this filter**, and mark: **Back stock · Owner took · Sold as generic · Shrink (stolen / broken / scrap)**, with an optional note. Undo per mark.
+- [x] **Group views:** by order, product, vendor and category. Each shows not counted / expected (% missing), $ price and $ retail, sorted by % missing. A whole order or product can be marked in one action, e.g. "WLMRT-O99-8G11 is all in back stock".
+- [x] Totals across the top: open, each outcome, $ at price and retail.
+- [x] Speed: 12,000 rows load and filter in about 2 s (server-side paging and sorting).
+- [x] Tests:
   - expected rules;
   - mark and undo;
   - bulk mark by filter;
@@ -232,6 +232,26 @@ Detail when Phase 3 is built. Outline:
 - **Speed fix found on the way:** a duplicate item (Print as new) re-costed every item on its order (about 30 s on a 5,000-item Walmart load). An item's cost depends only on its own retail and its order's totals, so `duplicate_item_for_resale` now skips that order-wide pass. The scan now takes well under a second.
 
 Checked on the dev copy: a sold tag scanned → new tag sent to print with no click; a written price → set and printed; wrong title → its card opened with the cursor in it; no tag "Tineco" → **It's ITM0218099, print** claimed a not-found item. The inventory list reads "Inventory Tue, Oct 6, 2026 · Open", with **Close inventory**. Printing was stubbed in the test tab, because the PC's print server was running. The test inventory, item and user were removed.
+
+**2026-10-06 — Phases 1 and 2 live.** v2.133.0, commit `e1a83b34`, Heroku v403, deployed 11:46 AM at the owner's word ("asap, do not wait till close"). Request #12 (`stocktake.merge_counts`) merged #15 into #14:
+
+- 10 runs, 2,101 scans and 137 problems moved.
+- 2 items were counted in both halves; the later scan became "already".
+- Carrie's open run was stopped.
+- #14 now has 85 runs and 21,117 scans, and is the one open inventory.
+
+**2026-10-06 — Phase 3 built** (not shipped yet).
+
+- **The page:** **Not found** (`/inventory/count/<id>/shrink`). It is the inventory's "Not found" button now; the old report page stays at `/report`.
+- **Code:** `services/shrink.py`, model `ShrinkMark` (migration `stocktake.0004`), 6 endpoints under `counts/<id>/shrink…` including a CSV.
+- **Categories:** from the product standard (`ProductProfile.category` when it is a real one, else the product's own). Both Targets group as `TRGET`.
+- **Speed on the fresh production copy** (inventory #14, 11,852 not found, $121,143 at price): the list takes 0.5 s, and each grouping (order / product / vendor / category) about 0.45 s.
+- **Groups sort by the most items not found** (Claude's call; any column sorts). The top three orders:
+  - `WLMRT-O99-8G11`: 4,332 of 12,166 (35.6%, $17,155).
+  - `WLMRT-OJU-3V74`: 2,367 of 3,853 (61.4%, $16,174).
+  - No order (legacy): 2,229 of 4,886.
+- **Top product:** one candle product, 670 of 670 not found.
+- Checked in the browser on the local copy (read-only: no marks made). The marks were tested in `test_counts.py` (51 pass).
 
 ---
 

@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from apps.accounts.permissions import IsEmployee, IsManagerOrAdmin
 
 from .models import Cart, CountScan, InventoryCount, Issue, Run, Section
-from .services import counting, fixit
+from .services import counting, fixit, shrink
 
 STAFF = [IsAuthenticated, IsEmployee]
 MANAGERS = [IsAuthenticated, IsManagerOrAdmin]
@@ -392,4 +392,88 @@ def count_report_csv(request, pk):
     w.writerow(['sku', 'title', 'location', 'price', 'retail', 'cost', 'listed_at'])
     for r in data['missing']:
         w.writerow([r['sku'], r['title'], r['location'], r['price'], r['retail'] or '', r['cost'] or '', r['listed_at'] or ''])
+    return resp
+
+
+# --- potential shrink (inventory_effort Phase 3, managers) ----------------------------------------
+
+def _shrink_count(pk):
+    return _get(InventoryCount, pk)
+
+
+@api_view(['GET'])
+@permission_classes(MANAGERS)
+def shrink_list(request, pk):
+    """Items the inventory expected and did not find. ``?q= outcome= vendor= order= category= product= age=
+    price_band= sort= page= page_size=``; ``outcome`` is ``open`` (default), ``marked``, ``all`` or one outcome."""
+    count = _shrink_count(pk)
+    if count is None:
+        return _not_found()
+    try:
+        return Response(shrink.worklist(count, request.query_params.dict()))
+    except (ValueError, counting.BadRequest) as e:
+        return _err(str(e), 'BAD_REQUEST')
+
+
+@api_view(['GET'])
+@permission_classes(MANAGERS)
+def shrink_groups(request, pk):
+    """``?by=order|product|vendor|category``: not found / expected per group, sorted by % not found."""
+    count = _shrink_count(pk)
+    if count is None:
+        return _not_found()
+    try:
+        return Response(shrink.groups(count, request.query_params.get('by') or 'order'))
+    except counting.BadRequest as e:
+        return _err(str(e), 'BAD_REQUEST')
+
+
+@api_view(['POST'])
+@permission_classes(MANAGERS)
+def shrink_mark(request, pk):
+    """``{"outcome", "note"?, and one of "item_ids", "filter" {...list params}, "group" {"by", "key"}}``."""
+    count = _shrink_count(pk)
+    if count is None:
+        return _not_found()
+    try:
+        return Response(shrink.mark(count, user=request.user, body=request.data))
+    except (ValueError, counting.BadRequest) as e:
+        return _err(str(e), 'BAD_REQUEST')
+
+
+@api_view(['POST'])
+@permission_classes(MANAGERS)
+def shrink_unmark(request, pk):
+    """Undo: ``{"batch"}`` (one bulk action) or ``{"item_ids"}``."""
+    count = _shrink_count(pk)
+    if count is None:
+        return _not_found()
+    try:
+        return Response(shrink.unmark(count, body=request.data))
+    except (ValueError, counting.BadRequest) as e:
+        return _err(str(e), 'BAD_REQUEST')
+
+
+@api_view(['GET'])
+@permission_classes(MANAGERS)
+def shrink_csv(request, pk):
+    """The filtered list as CSV (same filters as the list, every row)."""
+    count = _shrink_count(pk)
+    if count is None:
+        return _not_found()
+    params = {**request.query_params.dict(), 'page': 1, 'page_size': shrink.MAX_PAGE}
+    resp = HttpResponse(content_type='text/csv')
+    resp['Content-Disposition'] = f'attachment; filename="inventory-{count.pk}-not-found.csv"'
+    w = csv.writer(resp)
+    w.writerow(['sku', 'title', 'order', 'vendor', 'category', 'subcategory', 'price', 'retail', 'checked_in',
+                'last_seen', 'outcome', 'note', 'location'])
+    page = 1
+    while True:
+        data = shrink.worklist(count, {**params, 'page': page})
+        for r in data['rows']:
+            w.writerow([r['sku'], r['title'], r['order'], r['vendor'], r['category'], r['subcategory'], r['price'],
+                        r['retail'] or '', r['checked_in'] or '', r['last_seen'] or '', r['outcome'], r['note'], r['location']])
+        if page >= data['pages']:
+            break
+        page += 1
     return resp

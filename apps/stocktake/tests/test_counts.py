@@ -559,3 +559,69 @@ class OneScanFixTests(FixitTests):
         res = self.api(self.user).post('/api/stocktake/fixit/scan/', {'code': 'ITM0000009'}, format='json')
         self.assertEqual((res.status_code, res.data['status']), (200, 'fixed'))
         self.assertEqual(self.api(self.user).get('/api/stocktake/fixit/products/', {'q': 'x'}).status_code, 200)
+
+
+class ShrinkWorklistTests(Base):
+    """inventory_effort Phase 3: the not-found list, marks, groups and undo."""
+
+    def setUp(self):
+        super().setUp()
+        from apps.stocktake.services import shrink
+
+        self.shrink = shrink
+        run = counting.start_run(user=self.user, section=self.front)
+        self.scan(run, 'ITM0000001')                       # a counted; b and c not found
+        self.count = run.count
+
+    def test_list_is_expected_minus_counted_and_marks_move_items_out_of_open(self):
+        w = self.shrink.worklist(self.count, {})
+        self.assertEqual(sorted(r['sku'] for r in w['rows']), ['ITM0000002', 'ITM0000003'])
+        self.assertEqual((w['totals']['open']['n'], w['totals']['open']['price']), (2, '20.00'))
+        res = self.shrink.mark(self.count, user=self.mgr, body={'outcome': 'back_stock', 'item_ids': [self.b.pk], 'note': 'in the back'})
+        self.assertEqual(res['marked'], 1)
+        w = self.shrink.worklist(self.count, {})
+        self.assertEqual([r['sku'] for r in w['rows']], ['ITM0000003'])
+        self.assertEqual(w['totals']['back_stock']['n'], 1)
+        marked = self.shrink.worklist(self.count, {'outcome': 'marked'})['rows']
+        self.assertEqual((marked[0]['outcome'], marked[0]['note']), ('back_stock', 'in the back'))
+        self.shrink.unmark(self.count, body={'batch': res['batch']})
+        self.assertEqual(self.shrink.worklist(self.count, {})['totals']['open']['n'], 2)
+
+    def test_only_not_found_items_can_be_marked_and_a_bad_outcome_is_refused(self):
+        res = self.shrink.mark(self.count, user=self.mgr, body={'outcome': 'stolen', 'item_ids': [self.a.pk, self.c.pk]})
+        self.assertEqual(res['marked'], 1)                 # a was counted
+        with self.assertRaises(counting.BadRequest):
+            self.shrink.mark(self.count, user=self.mgr, body={'outcome': 'lost it', 'item_ids': [self.b.pk]})
+
+    def test_mark_everything_in_a_filter_and_a_group(self):
+        Item.objects.filter(pk=self.c.pk).update(price='60.00')
+        res = self.shrink.mark(self.count, user=self.mgr, body={'outcome': 'owner_took', 'filter': {'price_band': '50'}})
+        self.assertEqual(res['marked'], 1)
+        groups = self.shrink.groups(self.count, 'product')
+        chair = next(g for g in groups if g['label'] == 'Chair')
+        self.assertEqual((chair['missing'], chair['expected'], chair['open']), (1, 1, 1))
+        res = self.shrink.mark(self.count, user=self.mgr, body={'outcome': 'sold_generic', 'group': {'by': 'product', 'key': chair['key']}})
+        self.assertEqual(res['marked'], 1)
+        self.assertEqual(self.shrink.worklist(self.count, {})['totals']['open']['n'], 0)
+
+    def test_an_item_found_later_leaves_the_list(self):
+        run = counting.start_run(user=self.other, section=self.back)
+        self.scan(run, 'ITM0000002')
+        self.assertEqual([r['sku'] for r in self.shrink.worklist(self.count, {})['rows']], ['ITM0000003'])
+
+    def test_sold_meanwhile_is_not_on_the_list(self):
+        Item.objects.filter(pk=self.c.pk).update(status='sold')
+        self.assertEqual([r['sku'] for r in self.shrink.worklist(self.count, {})['rows']], ['ITM0000002'])
+
+    def test_api_and_permissions(self):
+        url = f'/api/stocktake/counts/{self.count.pk}/shrink/'
+        self.assertEqual(self.api(self.user).get(url).status_code, 403)
+        mgr = self.api(self.mgr)
+        self.assertEqual(mgr.get(url, {'sort': 'title'}).data['filtered']['n'], 2)
+        self.assertEqual(mgr.get(url + 'groups/', {'by': 'vendor'}).status_code, 200)
+        res = mgr.post(url + 'mark/', {'outcome': 'scrap', 'item_ids': [self.b.pk]}, format='json')
+        self.assertEqual(res.data['marked'], 1)
+        self.assertEqual(mgr.post(url + 'unmark/', {'item_ids': [self.b.pk]}, format='json').data['unmarked'], 1)
+        csv_res = mgr.get(f'/api/stocktake/counts/{self.count.pk}/shrink.csv')
+        self.assertEqual(csv_res.status_code, 200)
+        self.assertIn(b'ITM0000002', csv_res.content)

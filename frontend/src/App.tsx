@@ -23,6 +23,7 @@ const ThriftPlusScannerPage = lazy(() => import('./pages/thriftplus/scanner/Thri
 const BstockLoginHandoffPage = lazy(() => import('./pages/routines/BstockLoginHandoffPage'));
 const CountPage = lazy(() => import('./pages/inventory/count/CountPage'));
 const CountReportPage = lazy(() => import('./pages/inventory/count/CountReportPage'));
+const ShrinkPage = lazy(() => import('./pages/inventory/count/ShrinkPage'));
 const CountDaysPage = lazy(() => import('./pages/inventory/count/CountDaysPage'));
 const PrFixitPage = lazy(() => import('./pages/inventory/count/PrFixitPage'));
 import FloorplanListPage from './pages/floorplan/FloorplanListPage';
@@ -282,6 +283,14 @@ export default function App() {
           element={
             <Suspense fallback={<LoadingScreen message="Loading…" />}>
               <PrFixitPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/inventory/count/:id/shrink"
+          element={
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <ShrinkPage />
             </Suspense>
           }
         />

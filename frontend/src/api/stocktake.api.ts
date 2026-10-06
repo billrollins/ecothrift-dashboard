@@ -424,3 +424,101 @@ export function apiMessage(error: unknown, fallback: string): string {
   const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
   return typeof detail === 'string' && detail ? detail : fallback;
 }
+
+// --- potential shrink (inventory_effort Phase 3, managers) ---
+
+export type ShrinkOutcome = 'back_stock' | 'owner_took' | 'sold_generic' | 'stolen' | 'broken' | 'scrap';
+export type ShrinkGroupBy = 'order' | 'product' | 'vendor' | 'category';
+
+export interface ShrinkMoney {
+  n: number;
+  price: string;
+  retail: string;
+}
+
+export interface ShrinkRow {
+  id: number;
+  sku: string;
+  title: string;
+  order: string;
+  vendor: string;
+  category: string;
+  subcategory: string;
+  price: string;
+  retail: string | null;
+  checked_in: string | null;
+  last_seen: string | null;
+  outcome: ShrinkOutcome | '';
+  note: string;
+  product_id: number;
+  location: string;
+}
+
+export interface ShrinkList {
+  count: { id: number; name: string; status: 'open' | 'closed' };
+  totals: Record<'open' | ShrinkOutcome, ShrinkMoney>;
+  filtered: { n: number; price: string; retail: string };
+  page: number;
+  page_size: number;
+  pages: number;
+  rows: ShrinkRow[];
+  outcomes: { key: ShrinkOutcome; label: string }[];
+  ages: { key: string; label: string }[];
+  price_bands: { key: string; label: string }[];
+}
+
+/** List filters; ``outcome`` is ``open`` (default), ``marked``, ``all`` or one outcome. */
+export interface ShrinkFilter {
+  q?: string;
+  outcome?: string;
+  vendor?: string;
+  order?: string;
+  category?: string;
+  product?: number;
+  age?: string;
+  price_band?: string;
+}
+
+export interface ShrinkGroup {
+  key: string | number;
+  label: string;
+  expected: number;
+  missing: number;
+  open: number;
+  missing_pct: number;
+  price: string;
+  retail: string;
+  open_price: string;
+  outcomes: Partial<Record<ShrinkOutcome, number>>;
+}
+
+export async function getShrinkList(countId: number, params: ShrinkFilter & { sort?: string; page?: number; page_size?: number }): Promise<ShrinkList> {
+  return (await api.get<ShrinkList>(`${B}/counts/${countId}/shrink/`, { params })).data;
+}
+
+export async function getShrinkGroups(countId: number, by: ShrinkGroupBy): Promise<ShrinkGroup[]> {
+  return (await api.get<ShrinkGroup[]>(`${B}/counts/${countId}/shrink/groups/`, { params: { by } })).data;
+}
+
+export async function markShrink(
+  countId: number,
+  body: { outcome: ShrinkOutcome; note?: string; item_ids?: number[]; filter?: ShrinkFilter; group?: { by: ShrinkGroupBy; key: string | number } },
+): Promise<{ marked: number; batch: string; outcome?: ShrinkOutcome }> {
+  return (await api.post(`${B}/counts/${countId}/shrink/mark/`, body)).data;
+}
+
+export async function unmarkShrink(countId: number, body: { batch?: string; item_ids?: number[] }): Promise<{ unmarked: number }> {
+  return (await api.post(`${B}/counts/${countId}/shrink/unmark/`, body)).data;
+}
+
+/** Downloads the filtered not-found list as CSV (through the API, so the sign-in goes with it). */
+export async function downloadShrinkCsv(countId: number, filter: ShrinkFilter): Promise<void> {
+  const params = Object.fromEntries(Object.entries(filter).filter(([, v]) => v !== undefined && v !== ''));
+  const res = await api.get(`${B}/counts/${countId}/shrink.csv`, { params, responseType: 'blob' });
+  const url = URL.createObjectURL(res.data as Blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `inventory-${countId}-not-found.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}

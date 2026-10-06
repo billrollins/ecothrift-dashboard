@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.133.0] -->
-<!-- Last reviewed: 2026-10-06 (2.133.0) -->
+<!-- Line 1 release: ## [2.134.0] -->
+<!-- Last reviewed: 2026-10-06 (2.134.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,33 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.134.0] - 2026-10-06
+
+User-facing theme: **Not found: every item the inventory expected and did not find, with a quick way to mark what each one really is (back stock, owner took, sold as generic, or shrink), one at a time, by selection, by filter, or a whole order, product, vendor or category at once.** Initiative: `inventory_effort` Phase 3.
+
+### Added
+
+- **Not found** (`/inventory/count/<id>/shrink`; the inventory's "Not found" button opens it).
+  - The list is expected minus counted. An item scanned later or claimed in PR Fix-it leaves it by itself.
+  - Columns: SKU, item and category, order, vendor, price, retail, time on the shelf, last counted in an earlier inventory, and its mark.
+  - Server-side sort and paging: 11,852 rows load in about half a second.
+  - Search (SKU, title, order) and filters: marked or not, vendor, category, time on the shelf, price band.
+- **Totals:** Open, Back stock, Owner took, Sold as generic and Shrink (stolen, broken, scrap), each with its value at price. Click one to filter.
+- **Marks:**
+  - Tick rows and mark them, or mark everything in the current filter, with an optional note.
+  - Every mark can be undone, and a bulk mark is undone in one go.
+  - Nothing changes on the items until the inventory is closed (Phase 7).
+- **By order / product / vendor / category:**
+  - Not found against expected, % not found, $ at price and retail, still open, and what has been marked.
+  - The most items not found come first.
+  - Click a name to see its items, or mark a whole group's open items at once. The real top: Walmart `WLMRT-O99-8G11`, 4,332 of 12,166.
+- **CSV** of the current list.
+- **Model:** `ShrinkMark` (migration `stocktake.0004`). Categories come from the product standard when it has a real one. Both Target vendors group as one.
+
+### Tests
+
+- `test_counts.py`: the list is expected minus counted; marks move items out of Open; undo by batch and by item; only not-found items can be marked; mark by filter and by group; found later and sold meanwhile leave the list; the API, its permissions and the CSV (51 tests).
 
 ## [2.133.0] - 2026-10-06
 

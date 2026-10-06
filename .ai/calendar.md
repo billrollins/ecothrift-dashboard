@@ -30,7 +30,7 @@ Claude's clock. **Every session:** compare today's date with this table, say pla
 | 10-08 | Thu | Pre-ship run → **ship v2.109.0** (signup, scanner, portal, Dash; dark). Owner reviews the signage, training and marketing drafts | v2.109.0 || shipped early in v2.110.0 (09-28, owner packed it together) |
 | 10-09 | Fri | Fixes. Final signage (3 posters, 13×19), receipt text, staff training guide, marketing copy | | |
 | 10-10 | Sat | (Owner: physical, e.g. printing) | | |
-| 10-11 | Sun | Buffer | | |
+| 10-11 | Sun | Buffer. **Heroku database plan switch, 3–7 AM CT** (Heroku runs it; all three apps blink for under a minute; master mail 10-06). No deploys or data loads in that window. Master's AI router hand-down arrives after it. | none 3–7 AM | |
 | 10-12 | Mon | In-store dry run with the switch on for staff and test cards. **Ship v2.110.0** with the fixes | v2.110.0 | |
 | 10-13 | Tue | Fixes. Staff training (owner). **Owner: set rewards for stock already on the floor** (a one-time, mostly manual call; tools: the start setting, the reset request, a manual tool if wanted) | | |
 | 10-14 | Wed | Fixes. Final full pre-ship run. Launch checklist | v2.110.x | |
