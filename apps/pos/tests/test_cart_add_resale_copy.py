@@ -104,13 +104,17 @@ class CartAddResaleCopyTests(TestCase):
         self.assertEqual(r.json().get('code'), 'CART_NOT_OPEN')
 
     def test_add_item_already_sold_includes_sku_and_title(self):
+        """Only a sold item a person must sort out (consignment, online) still stops the register."""
+        from unittest.mock import patch
+
         cart = self._create_open_cart()
         cid = cart['id']
-        r = self.client.post(
-            f'/api/pos/carts/{cid}/add-item/',
-            {'sku': 'POS-RESALE-SOLD'},
-            format='json',
-        )
+        with patch('apps.inventory.services.duplicate_tag.why_not', return_value='online'):
+            r = self.client.post(
+                f'/api/pos/carts/{cid}/add-item/',
+                {'sku': 'POS-RESALE-SOLD'},
+                format='json',
+            )
         self.assertEqual(r.status_code, 400, r.content)
         data = r.json()
         self.assertEqual(data.get('code'), 'ITEM_ALREADY_SOLD')

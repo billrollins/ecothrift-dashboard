@@ -87,6 +87,7 @@ const GREY = '#757575';
 
 function colorOf(s: QueuedScan): string {
   if (s.removed) return GREY;
+  if (s.state === 'ok' && s.itemStatus === 'sold' && s.issueAction === 'pending') return ORANGE;
   if (s.state === 'ok') return GREEN;
   if (s.state === 'unknown' || s.state === 'bad_format') return RED;
   if (s.state === 'odd' || s.state === 'already') return ORANGE;
@@ -106,6 +107,8 @@ function describe(s: QueuedScan): string {
   if (s.removed) return `Removed${s.title ? `: ${s.title}` : ''}`;
   switch (s.state) {
     case 'ok':
+      if (s.itemStatus === 'sold') return `Counted. System said sold${s.title ? `: ${s.title}` : ''}`;
+      if (s.itemStatus && s.itemStatus !== 'on_shelf') return `Counted, back on the shelf (was ${s.itemStatus})${s.title ? `: ${s.title}` : ''}`;
       return s.title || 'On the shelf';
     case 'unknown':
       return 'Tag not recognized';

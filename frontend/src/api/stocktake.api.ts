@@ -16,13 +16,14 @@ export type IssueKind =
   | 'wrong_section';
 
 /** What the person did with the item on the floor. `pending` = no answer yet. */
-export type IssueAction = 'pending' | 'cleared' | 'pr_cart' | 'left' | 'relocate';
+/** ``kept``: a sold tag in hand, kept here; its old sale moved to a new item number. */
+export type IssueAction = 'pending' | 'cleared' | 'pr_cart' | 'left' | 'relocate' | 'kept';
 
 export type CartKind = 'pr' | 'relocate';
 
 export type FixKind =
   | 'reprint' | 'edit' | 'print_as_new' | 'put_on_shelf' | 'use_item' | 'quick_add' | 'moved' | 'dismiss'
-  | 'shrink' | 'set_product' | 'new_from_product';
+  | 'shrink' | 'set_product' | 'new_from_product' | 'move_sale';
 
 /** Why an item is shrink: stolen (lost) or broken / scrap (scrapped). */
 export type ShrinkReason = 'stolen' | 'broken' | 'scrap';

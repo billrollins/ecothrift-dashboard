@@ -32,7 +32,7 @@ REPORTABLE_KINDS = {
     Issue.KIND_WRONG_TITLE, Issue.KIND_WRONG_TAG, Issue.KIND_PRICE_HIGH, Issue.KIND_PRICE_LOW,
     Issue.KIND_NO_TAG, Issue.KIND_WRONG_SECTION,
 }
-ANSWERS = {Issue.ACTION_CLEARED, Issue.ACTION_PR_CART, Issue.ACTION_LEFT, Issue.ACTION_RELOCATE}
+ANSWERS = {Issue.ACTION_CLEARED, Issue.ACTION_PR_CART, Issue.ACTION_LEFT, Issue.ACTION_RELOCATE, Issue.ACTION_KEPT}
 
 
 class CountClosed(Exception):
@@ -358,10 +358,14 @@ def record_scans(run: Run, scans: list[dict]) -> list[dict]:
             elif item.pk in seen_items:
                 result, status = CountScan.RESULT_ALREADY, item.status
                 first_seen = _first_seen(count, item)
-            elif item.status == 'on_shelf':
+            elif item.status in ('on_shelf', 'sold'):
+                # A sold tag in hand is counted too: it is here. The person is asked what to do about the old sale.
                 result, status = CountScan.RESULT_OK, item.status
             else:
-                result, status = CountScan.RESULT_ODD, item.status
+                # The system has it somewhere else (intake, lost, scrapped...), but it is on the floor: it goes back
+                # on the shelf and counts, with no problem to answer (owner, 2026-10-06).
+                result, status = CountScan.RESULT_OK, item.status
+                _back_on_shelf(item, run.user)
             row = CountScan.objects.create(
                 count=count,
                 run=run,
@@ -374,10 +378,8 @@ def record_scans(run: Run, scans: list[dict]) -> list[dict]:
                 item_status=status,
             )
             issue = None
-            if result != CountScan.RESULT_OK:
-                kind = RESULT_ISSUE_KIND.get(result) or (
-                    Issue.KIND_ALREADY_SOLD if status == 'sold' else Issue.KIND_NOT_ON_SHELF
-                )
+            if result != CountScan.RESULT_OK or status == 'sold':
+                kind = RESULT_ISSUE_KIND.get(result) or Issue.KIND_ALREADY_SOLD
                 issue = Issue.objects.create(
                     count=count, run=run, scan=row, item=item, code=row.code, kind=kind, created_by=run.user,
                 )
@@ -386,6 +388,19 @@ def record_scans(run: Run, scans: list[dict]) -> list[dict]:
             done[row.client_id] = row
             out.append(scan_payload(row, item, issue, first_seen))
         return out
+
+
+def _back_on_shelf(item: Item, user) -> None:
+    from apps.inventory.models import ItemHistory
+
+    old = item.status
+    item.status = 'on_shelf'
+    item.listed_at = item.listed_at or timezone.now()
+    item.save(update_fields=['status', 'listed_at', 'search_text', 'updated_at'])
+    ItemHistory.objects.create(
+        item=item, event_type='found' if old == 'lost' else 'status_change', old_value=old, new_value='on_shelf',
+        note='Found on the floor in an inventory count', created_by=user,
+    )
 
 
 def remove_scan(scan: CountScan, *, user) -> CountScan:
@@ -442,6 +457,20 @@ def _apply_answer(issue: Issue, *, user, action: str, detail=None, target_sectio
         raise BadRequest('Pick what you did with the item.')
     if issue.fixed_at is not None:
         raise BadRequest('This problem is already fixed.')
+    if action == Issue.ACTION_KEPT:
+        from apps.inventory.services.duplicate_tag import move_sale_to_new_item, why_not
+
+        if issue.item is None or issue.item.status != 'sold':
+            raise BadRequest('Only a tag the system calls sold can be kept this way.')
+        reason = why_not(issue.item)
+        if reason:
+            raise BadRequest('This one needs a person (it is a consignment or online item). Put it in the PR cart.')
+        twin = move_sale_to_new_item(issue.item, user, where='inventory count')
+        issue.new_item = twin
+        issue.fix = 'move_sale'
+        issue.fixed_at = timezone.now()
+        issue.fixed_by = user
+        issue.item.refresh_from_db()
     issue.action = action
     issue.cart = None
     if action == Issue.ACTION_PR_CART:

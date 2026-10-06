@@ -592,6 +592,23 @@ class CartViewSet(viewsets.ModelViewSet):
                 status=404,
             )
 
+        # A sold tag in hand means two items shared one tag: the one here is real. Its old sale moves to a new item
+        # number and this one rings up as usual (owner, 2026-10-06: the register always adds). Only consignment
+        # and online-listed items still stop, for a person to sort out.
+        if item.status == 'sold':
+            from apps.inventory.services.duplicate_tag import move_sale_to_new_item, why_not
+
+            if why_not(item) is None:
+                move_sale_to_new_item(item, request.user, where='register')
+                item.refresh_from_db()
+                ItemScanHistory.objects.create(
+                    item=item,
+                    ip_address=request.META.get('REMOTE_ADDR'),
+                    source='pos_terminal',
+                    outcome='pos_sold_tag_moved',
+                    cart=cart,
+                    created_by=request.user,
+                )
         if item.status == 'sold':
             ItemScanHistory.objects.create(
                 item=item,

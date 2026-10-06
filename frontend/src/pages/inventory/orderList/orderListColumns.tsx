@@ -591,6 +591,7 @@ export function buildOrderListColumns(opts: {
           ? `Starting price of ${formatNumber(m.items_checked_in)} checked-in items: ${wholeMoney(m.priced_start)}. `
             + `Their approved retail: ${wholeMoney(m.approved_retail)}${pct != null ? `, ${pct}% of the manifest` : ''}.`
             + (m.flags.includes('no_price_history') ? ' No price history on these items, so starting = today\'s price.' : '')
+            + (m.legacy_unsold ? ` ${m.legacy_unsold.toLocaleString()} old-system items with no recorded sale are left out.` : '')
           : '';
         return (
           <Tooltip title={tip}>

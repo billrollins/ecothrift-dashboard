@@ -30,7 +30,7 @@ from .counting import BadRequest, counted_ids, expected_ids, issue_payload, issu
 
 FIXES = {
     'reprint', 'edit', 'print_as_new', 'put_on_shelf', 'use_item', 'quick_add', 'moved', 'dismiss',
-    'shrink', 'set_product', 'new_from_product',
+    'shrink', 'set_product', 'new_from_product', 'move_sale',
 }
 SHRINK_REASONS = {'stolen': 'lost', 'broken': 'scrapped', 'scrap': 'scrapped'}
 NOTE = 'Inventory count fix'
@@ -190,6 +190,17 @@ def fix_issue(issue: Issue, *, user, fix: str, data: dict) -> dict | None:
                 _set_price(printed, _money(data['salvage_price'], 'Salvage price'), user)
                 issue.new_item = printed
             data = {**data, 'note': data.get('note') or f'shrink: {reason}'}
+        elif fix == 'move_sale':
+            # Two items, one tag: this one is real. Keep its tag; the old sale moves to a new item number.
+            from apps.inventory.services.duplicate_tag import move_sale_to_new_item, why_not
+
+            item = _need_item(issue)
+            if item.status != 'sold':
+                raise BadRequest('The system does not call this one sold.')
+            if why_not(item):
+                raise BadRequest('A consignment or online item: print it as new instead.')
+            issue.new_item = move_sale_to_new_item(item, user, where='PR Fix-it')
+            _count_it(issue, Item.objects.get(pk=item.pk))
         elif fix == 'set_product':
             item = _need_item(issue)
             product = Product.objects.filter(pk=data.get('product_id')).first()
@@ -251,7 +262,12 @@ def auto_fix(issue: Issue) -> tuple[str, dict, bool] | None:
     item = issue.item
     if item is None:
         return None
-    if issue.kind == Issue.KIND_ALREADY_SCANNED or item.status == 'sold':
+    if item.status == 'sold':
+        # The tag in hand stays; the old sale moves to a new number (owner, 2026-10-06). Nothing to print.
+        from apps.inventory.services.duplicate_tag import why_not
+
+        return ('move_sale', {}, False) if why_not(item) is None else None
+    if issue.kind == Issue.KIND_ALREADY_SCANNED:
         return ('print_as_new', {}, True)
     if issue.kind == Issue.KIND_NOT_ON_SHELF and item.status != 'on_shelf':
         return ('put_on_shelf', {}, False)
@@ -295,6 +311,7 @@ def scan_fix(code: str, *, user) -> dict:
     issue = issues_qs().get(pk=issue.pk)
     words = {
         'print_as_new': f'New tag {issue.new_item.sku if issue.new_item else ""}: this tag was a duplicate.',
+        'move_sale': f'Kept here with its tag; the old sale moved to {issue.new_item.sku if issue.new_item else "a new item"}.',
         'put_on_shelf': 'Back on the shelf and counted. The tag is fine.',
         'reprint': 'Tag reprinted.',
         'edit': f'Price set to ${data.get("price")}. New tag printed.',

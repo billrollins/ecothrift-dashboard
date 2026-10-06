@@ -350,7 +350,7 @@ class OwnerDefinitionsTests(TestCase):
         vendor = Vendor.objects.create(name='Def Vendor', code='DEFV')
         product = Product.objects.create(title='Def Widget', brand='Acme')
         today = timezone.localdate()
-        self.po = PurchaseOrder.objects.create(vendor=vendor, order_number='PO-DEF-1', ordered_date=today,
+        self.po = PurchaseOrder.objects.create(vendor=vendor, order_number='PO-DEF-1', ordered_date=today, status='delivered',
                                                purchase_cost=Decimal('100.00'), retail_value=Decimal('204.00'))
         row1 = ManifestRow.objects.create(purchase_order=self.po, row_number=1, quantity=2, unit_retail=Decimal('50.00'))
         row2 = ManifestRow.objects.create(purchase_order=self.po, row_number=2, quantity=1, unit_retail=Decimal('100.00'))
@@ -378,12 +378,13 @@ class OwnerDefinitionsTests(TestCase):
         self.assertEqual(m['unsold_left'], Decimal('30.00'))                      # A 20 + C 10; sold B and lost D left out
         self.assertEqual((m['sold'], m['sold_pct']), (Decimal('12.00'), Decimal('13')))
         self.assertEqual((m['recovery_expected'], m['recovery_actual']), (Decimal('90'), Decimal('12')))
-        self.assertEqual(m['flags'], [])                                         # 204 is within 2% of 200
+        # 204 is within 2% of 200. Four items on a manifest of three units: the extra is flagged.
+        self.assertEqual(m['flags'], ['items_over_manifest'])
 
     def test_missing_data_is_flagged_not_zero(self):
         vendor = Vendor.objects.get(code='DEFV')
         bare = PurchaseOrder.objects.create(vendor=vendor, order_number='PO-DEF-2', ordered_date=timezone.localdate(),
-                                            purchase_cost=Decimal('50.00'))
+                                            purchase_cost=Decimal('50.00'), status='delivered')
         Item.objects.create(sku='DEF-OLD', product=Product.objects.get(title='Def Widget'), purchase_order=bare, price=Decimal('9.00'), status='on_shelf')
         off = PurchaseOrder.objects.create(vendor=vendor, order_number='PO-DEF-3', ordered_date=timezone.localdate(),
                                            purchase_cost=Decimal('50.00'), retail_value=Decimal('300.00'))
@@ -399,3 +400,25 @@ class OwnerDefinitionsTests(TestCase):
         s = self.f.aggregate_financials(PurchaseOrder.objects.filter(pk=self.po.pk))
         self.assertEqual((s['manifest_retail'], s['priced_start'], s['unsold_left'], s['sold_pct']), ('200.00', '90.00', '30.00', '13'))
         self.assertEqual(s['orders_flagged']['manifest_mismatch'], 0)
+
+    def test_old_system_unsold_rows_are_left_out_and_flagged(self):
+        """inventory_effort Phase 5 audit: the import's "scrapped" rows mean "no recorded sale" (ITM-06)."""
+        product = Product.objects.get(title='Def Widget')
+        for n in range(3):
+            Item.objects.create(sku=f'LEG-{n}', product=product, purchase_order=self.po, price=Decimal('99.00'),
+                                retail=Decimal('300.00'), status='scrapped', notes=f'BACKFILL:v1:LEG-{n}')
+        m = self.f.financials_for_orders([self.po.pk])[self.po.pk]
+        self.assertEqual(m['priced_start'], Decimal('90.00'))       # unchanged: the 3 legacy rows are left out
+        self.assertEqual(m['items_checked_in'], 4)
+        self.assertEqual(m['legacy_unsold'], 3)
+        self.assertIn('old_system_unsold', m['flags'])
+
+    def test_no_cost_and_status_behind(self):
+        vendor = Vendor.objects.get(code='DEFV')
+        placeholder = PurchaseOrder.objects.create(vendor=vendor, order_number='PO-DEF-9', ordered_date=timezone.localdate(),
+                                                   status='paid')
+        Item.objects.create(sku='DEF-PAID', product=Product.objects.get(title='Def Widget'), purchase_order=placeholder,
+                            price=Decimal('5.00'), status='on_shelf', checked_in_at=timezone.now())
+        flags = self.f.financials_for_orders([placeholder.pk])[placeholder.pk]['flags']
+        self.assertIn('no_cost', flags)
+        self.assertIn('status_behind', flags)

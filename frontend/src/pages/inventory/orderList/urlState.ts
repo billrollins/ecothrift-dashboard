@@ -19,6 +19,10 @@ export type OrderListUrlState = {
   page: number;
   pageSize: number;
   ordering: string;
+  /** ``orders`` (the list) or ``profit`` ("If it all sells", inventory_effort Phase 5). */
+  view: 'orders' | 'profit';
+  /** "If it all sells": what is left sells at this % of today's price. */
+  sellAt: number;
 };
 
 export const DEFAULT_ORDER_LIST_STATE: OrderListUrlState = {
@@ -34,6 +38,8 @@ export const DEFAULT_ORDER_LIST_STATE: OrderListUrlState = {
   page: 0,
   pageSize: 25,
   ordering: 'milestones',
+  view: 'orders',
+  sellAt: 100,
 };
 
 const STATUS_BUCKETS: StatusBucket[] = [
@@ -111,6 +117,11 @@ export function parseOrderListSearchParams(params: URLSearchParams): OrderListUr
     page,
     pageSize,
     ordering: params.get('ordering') || 'milestones',
+    view: params.get('view') === 'profit' ? 'profit' : 'orders',
+    sellAt: (() => {
+      const x = Number.parseFloat(params.get('x') || '100');
+      return Number.isFinite(x) && x >= 0 && x <= 500 ? x : 100;
+    })(),
   };
 }
 
@@ -128,6 +139,8 @@ export function orderListStateToSearchParams(state: OrderListUrlState): URLSearc
   if (state.page > 0) p.set('page', String(state.page + 1));
   if (state.pageSize !== 25) p.set('page_size', String(state.pageSize));
   if (state.ordering && state.ordering !== 'milestones') p.set('ordering', state.ordering);
+  if (state.view === 'profit') p.set('view', 'profit');
+  if (state.sellAt !== 100) p.set('x', String(state.sellAt));
   return p;
 }
 

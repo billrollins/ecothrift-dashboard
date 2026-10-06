@@ -35,8 +35,8 @@ export const PROBLEM_RULES: Record<IssueKind, ProblemRule> = {
   },
   already_sold: {
     title: 'System says sold',
-    help: 'This tag was rung up as sold, but the item is here.',
-    answers: [PR, LEAVE],
+    help: 'This tag was rung up as sold, but the item is here. Usually two items shared one tag. Keep it here: it stays counted with this tag, and the old sale moves to a new number. Nothing to print.',
+    answers: [{ action: 'kept', label: "It's here: keep this tag" }, { action: 'pr_cart', label: 'Not sure: PR cart' }, LEAVE],
   },
   not_on_shelf: {
     title: 'Not on the shelf in the system',
@@ -94,6 +94,7 @@ export const ACTION_WORDS: Record<IssueAction, string> = {
   pr_cart: 'PR cart',
   left: 'Left on shelf',
   relocate: 'Relocate cart',
+  kept: 'Kept here; old sale moved',
 };
 
 /** A price in the scanner's note ("should be $5", "7.50") becomes the suggested new price. */

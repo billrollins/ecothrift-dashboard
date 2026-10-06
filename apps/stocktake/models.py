@@ -172,12 +172,14 @@ class Issue(models.Model):
     ACTION_PR_CART = 'pr_cart'      # the item went into a PR cart for processing to fix
     ACTION_LEFT = 'left'            # left on the shelf; only tallied
     ACTION_RELOCATE = 'relocate'    # went into a relocate cart, to move to ``target_section``
+    ACTION_KEPT = 'kept'            # sold tag in hand: kept here, the old sale moved to a new item (fixed on the spot)
     ACTION_CHOICES = [
         (ACTION_PENDING, 'Needs an answer'),
         (ACTION_CLEARED, 'Cleared'),
         (ACTION_PR_CART, 'In a PR cart'),
         (ACTION_LEFT, 'Left on the shelf'),
         (ACTION_RELOCATE, 'In a relocate cart'),
+        (ACTION_KEPT, 'Kept here; old sale moved'),
     ]
 
     count = models.ForeignKey(InventoryCount, on_delete=models.CASCADE, related_name='issues')

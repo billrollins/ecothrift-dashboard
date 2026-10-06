@@ -250,7 +250,7 @@ function FixCard({ issue, onChanged, focus }: RowProps) {
   if (issue.fixed_at) {
     fix = (
       <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-        <Chip size="small" color="success" label={issue.new_item ? `Fixed: new tag ${issue.new_item.sku}` : issue.fix === 'shrink' ? 'Shrink recorded' : 'Fixed'} />
+        <Chip size="small" color="success" label={issue.fix === 'move_sale' ? `Kept; old sale is now ${issue.new_item?.sku ?? 'a new item'}` : issue.new_item ? `Fixed: new tag ${issue.new_item.sku}` : issue.fix === 'shrink' ? 'Shrink recorded' : 'Fixed'} />
         {label && issue.fix !== 'dismiss' && issue.fix !== 'moved' && (
           <Button size="small" disabled={busy} onClick={() => void reprint()} sx={btn}>
             Print again
@@ -313,8 +313,13 @@ function FixCard({ issue, onChanged, focus }: RowProps) {
                 inputProps={{ inputMode: 'decimal', 'aria-label': 'Price' }}
               />
             )}
+            {asNew && item.status === 'sold' && (
+              <Button variant="contained" disabled={busy} onClick={() => void run('move_sale', {}, false)} sx={{ ...btn, flex: { xs: 1, sm: 'none' } }} title="Two items shared this tag. This one stays with its tag; the old sale moves to a new number. Nothing to print.">
+                Keep this tag
+              </Button>
+            )}
             {asNew && (
-              <Button variant="contained" disabled={busy} onClick={() => void run('print_as_new', { price: price || undefined })} sx={{ ...btn, flex: { xs: 1, sm: 'none' } }}>
+              <Button variant={item.status === 'sold' ? 'outlined' : 'contained'} disabled={busy} onClick={() => void run('print_as_new', { price: price || undefined })} sx={{ ...btn, flex: { xs: 1, sm: 'none' } }}>
                 Print as new
               </Button>
             )}

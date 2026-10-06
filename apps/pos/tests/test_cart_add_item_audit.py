@@ -60,30 +60,42 @@ class CartAddItemAuditTests(TestCase):
         self.assertEqual(r.status_code, 201, r.content)
         return r.json()
 
-    def test_add_item_sold_logs_blocked_scan_no_line(self):
+    def test_add_item_sold_tag_in_hand_rings_up_and_its_old_sale_moves(self):
+        """Owner, 2026-10-06: the register always adds. Two items shared the tag; the one in hand is real."""
         cart = self._create_open_cart()
         cid = cart['id']
-        before_scans = ItemScanHistory.objects.filter(item=self.item_sold).count()
         r = self.client.post(
             f'/api/pos/carts/{cid}/add-item/',
             {'sku': 'POS-AUDIT-SOLD'},
             format='json',
         )
+        self.assertIn(r.status_code, (200, 201), r.content)
+        self.assertTrue(CartLine.objects.filter(cart_id=cid, item=self.item_sold).exists())
+        self.item_sold.refresh_from_db()
+        self.assertEqual((self.item_sold.sku, self.item_sold.status), ('POS-AUDIT-SOLD', 'on_shelf'))
+        twin = Item.objects.get(notes__startswith='SALE_MOVED_FROM:POS-AUDIT-SOLD')
+        self.assertEqual(twin.status, 'sold')
+        outcomes = list(ItemScanHistory.objects.filter(item=self.item_sold, cart_id=cid).values_list('outcome', flat=True))
+        self.assertIn('pos_sold_tag_moved', outcomes)
+        self.assertIn('added_to_cart', outcomes)
+
+    def test_add_item_sold_consignment_still_stops_for_a_person(self):
+        from unittest.mock import patch
+
+        cart = self._create_open_cart()
+        cid = cart['id']
+        with patch('apps.inventory.services.duplicate_tag.why_not', return_value='consignment'):
+            r = self.client.post(
+                f'/api/pos/carts/{cid}/add-item/',
+                {'sku': 'POS-AUDIT-SOLD'},
+                format='json',
+            )
         self.assertEqual(r.status_code, 400, r.content)
         data = r.json()
-        self.assertEqual(data.get('code'), 'ITEM_ALREADY_SOLD')
-        self.assertEqual(data.get('item_id'), self.item_sold.pk)
-        self.assertEqual(
-            ItemScanHistory.objects.filter(item=self.item_sold).count(),
-            before_scans + 1,
-        )
+        self.assertEqual((data.get('code'), data.get('item_id')), ('ITEM_ALREADY_SOLD', self.item_sold.pk))
         scan = ItemScanHistory.objects.filter(item=self.item_sold).latest('scanned_at')
         self.assertEqual(scan.outcome, 'pos_blocked_sold')
-        self.assertEqual(scan.cart_id, cid)
-        self.assertEqual(scan.created_by_id, self.user.pk)
-        self.assertFalse(
-            CartLine.objects.filter(cart_id=cid, item=self.item_sold).exists(),
-        )
+        self.assertFalse(CartLine.objects.filter(cart_id=cid, item=self.item_sold).exists())
 
     def test_add_item_unknown_sku_returns_not_found_code(self):
         cart = self._create_open_cart()

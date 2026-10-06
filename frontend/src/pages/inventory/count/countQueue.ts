@@ -212,6 +212,7 @@ export function agoText(n: number): string {
 export function soundFor(answered: QueuedScan[]): 'fail' | 'warn' | 'ok' | null {
   if (!answered.length) return null;
   if (answered.some((s) => s.state === 'unknown' || s.state === 'bad_format')) return 'fail';
-  if (answered.some((s) => s.state === 'odd' || s.state === 'already')) return 'warn';
+  // A sold tag in hand counts, but it still gets the warning sound: someone answers what it is.
+  if (answered.some((s) => s.state === 'odd' || s.state === 'already' || s.itemStatus === 'sold')) return 'warn';
   return 'ok';
 }

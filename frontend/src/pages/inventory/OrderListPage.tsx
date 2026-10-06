@@ -44,6 +44,7 @@ import {
   type OrderListRowView,
 } from './orderList/orderListColumns';
 import { ProfitabilitySummary } from './orderList/ProfitabilitySummary';
+import { buildProfitColumns, profitNumbers, ProfitTotal } from './orderList/profitColumns';
 import {
   activeFilterChips,
   applyDelivered90to60,
@@ -289,13 +290,33 @@ function OrderListBody() {
   );
   const totalCount = ordersData?.count ?? 0;
 
+  const profitView = state.view === 'profit';
   const columns = useMemo(
     () =>
-      buildOrderListColumns({
-        onReceive: (id) => navigate(`/inventory/receiving/${id}`),
-        compact: orderListIsCompact(gridWidth),
-      }),
-    [navigate, gridWidth],
+      profitView
+        ? buildProfitColumns(state.sellAt)
+        : buildOrderListColumns({
+            onReceive: (id) => navigate(`/inventory/receiving/${id}`),
+            compact: orderListIsCompact(gridWidth),
+          }),
+    [navigate, gridWidth, profitView, state.sellAt],
+  );
+  const [customSellAt, setCustomSellAt] = useState('');
+  const profitTotals = useMemo(
+    () =>
+      summary
+        ? profitNumbers(
+            {
+              cost: summary.total_cost,
+              manifest_retail: summary.manifest_retail ?? null,
+              priced_start: summary.priced_start ?? null,
+              sold: summary.sold,
+              unsold_left: summary.unsold_left ?? null,
+            },
+            state.sellAt,
+          )
+        : null,
+    [summary, state.sellAt],
   );
 
   const chips = activeFilterChips(state);
@@ -370,13 +391,80 @@ function OrderListBody() {
           </Button>
         </Box>
 
-        <ProfitabilitySummary
-          summary={summary}
-          loading={summaryLoading}
-          selectedCount={selectedIds.length}
-          matchCount={summary?.total_orders ?? totalCount}
-          onClearSelection={() => setSelectedIds([])}
-        />
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'center', mb: 1.5 }}>
+          <ToggleButtonGroup
+            size="small"
+            exclusive
+            value={state.view}
+            onChange={(_e, v: 'orders' | 'profit' | null) => v && setState((s) => ({ ...s, view: v }))}
+            aria-label="View"
+          >
+            <ToggleButton value="orders" sx={{ textTransform: 'none', fontWeight: 700, px: 2 }}>
+              Orders
+            </ToggleButton>
+            <ToggleButton value="profit" sx={{ textTransform: 'none', fontWeight: 700, px: 2 }}>
+              If it all sells
+            </ToggleButton>
+          </ToggleButtonGroup>
+          {profitView && (
+            <>
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                What is left sells at
+              </Typography>
+              <ToggleButtonGroup
+                size="small"
+                exclusive
+                value={[100, 50].includes(state.sellAt) ? state.sellAt : 'custom'}
+                onChange={(_e, v: number | 'custom' | null) => {
+                  if (v == null || v === 'custom') return;
+                  setCustomSellAt('');
+                  setState((s) => ({ ...s, sellAt: v }));
+                }}
+                aria-label="Sell at"
+              >
+                <ToggleButton value={100} sx={{ textTransform: 'none', fontWeight: 700 }}>
+                  100%
+                </ToggleButton>
+                <ToggleButton value={50} sx={{ textTransform: 'none', fontWeight: 700 }}>
+                  50%
+                </ToggleButton>
+              </ToggleButtonGroup>
+              <TextField
+                size="small"
+                label="Custom %"
+                value={customSellAt || ([100, 50].includes(state.sellAt) ? '' : String(state.sellAt))}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/[^0-9.]/g, '');
+                  setCustomSellAt(raw);
+                  const x = Number.parseFloat(raw);
+                  if (Number.isFinite(x) && x >= 0 && x <= 500) setState((s) => ({ ...s, sellAt: x }));
+                }}
+                sx={{ width: 110 }}
+                inputProps={{ inputMode: 'decimal', 'aria-label': 'Custom sell-at percent' }}
+              />
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                of today&apos;s price. Use the date filter below for orders from one day to another.
+              </Typography>
+            </>
+          )}
+        </Box>
+
+        {profitView ? (
+          <ProfitTotal
+            totals={profitTotals}
+            sellAt={state.sellAt}
+            loading={summaryLoading}
+            label={selectedIds.length ? `${selectedIds.length} selected orders` : `${(summary?.total_orders ?? totalCount).toLocaleString()} orders in this filter`}
+          />
+        ) : (
+          <ProfitabilitySummary
+            summary={summary}
+            loading={summaryLoading}
+            selectedCount={selectedIds.length}
+            matchCount={summary?.total_orders ?? totalCount}
+            onClearSelection={() => setSelectedIds([])}
+          />
+        )}
 
         <Paper variant="outlined" sx={{ p: 2, mb: 1.5, borderColor: '#e2e8f0', borderRadius: 2, bgcolor: '#fff' }}>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'center' }}>
@@ -618,7 +706,7 @@ function OrderListBody() {
             keepNonExistentRowsSelected
             rowSelectionModel={selectionModel}
             onRowSelectionModelChange={handleRowSelectionModelChange}
-            columnVisibilityModel={visibilityModel}
+            columnVisibilityModel={profitView ? {} : visibilityModel}
             paginationMode="server"
             sortingMode="server"
             rowCount={totalCount}

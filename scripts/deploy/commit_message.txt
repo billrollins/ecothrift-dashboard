@@ -1,31 +1,33 @@
-v2.137.0 — Hiring: fuller role pages with a path to lead, all of hiring in one JSON for AI (model and effort pickers), hiring manager and interviewers per role (hiring_onboarding)
+v2.138.0 — No errors on sold tags (move the old sale), Orders If it all sells, old-system rows out of Orders numbers (inventory_effort Phase 5)
 
-User-facing theme: **Fuller role pages on ecothrift.us/careers with a clear path to lead, all of hiring in one JSON file for any AI (or Ask AI in Dash with your model and effort), and a hiring manager and interviewers on every role.** Initiative: `hiring_onboarding` (Phase 1 follow-up, at the owner's request).
+User-facing theme: **The register and the inventory count never stop on a tag the system has elsewhere. Two items that shared a tag are sorted out by moving the old sale to a new item number. Orders gains an "If it all sells" view, and its numbers no longer count old-system rows that never had a recorded sale.** Initiative: `inventory_effort` Phase 5, and the owner's "no errors" rule.
 
 ### Changed
 
-- **Each role page** now has:
-  - About the role;
-  - What you'll do (7–8 bullets);
-  - What great looks like (from the 2024 job descriptions' performance metrics);
-  - What we're looking for;
-  - Nice to have;
-  - The physical side (lifting "with or without accommodation", step stools and ladders);
-  - Room to grow.
-- **The side box** names the Canfield store and who you work with (Bill, the owner, and a small team). The repeated schedule line under Apply is gone.
-- **The careers page** gets a Room to grow block: each area (retail, processing, restoration) has a lead, and strong people can step up to it.
-- **Google Jobs** gets the full description, plus responsibilities, qualifications and physical requirements.
-- **The form** gets two optional questions: "Would you like to lead your area?" and "Have you led or trained anyone?". **People → Applicants** marks a yes with **Wants to lead**.
-- **Jobs & careers page:** the role editor edits every section. The careers file and the AI brief carry them, with a length guide (about 250–300 words, no degree or years-of-experience rules for hourly roles, no invented perks).
+- **Register: a sold tag in hand rings up.** Two items shared that tag, and the one in hand is real.
+  - Its old sale moves to a new item number (completed register lines and delivery jobs move with it; the money does not change).
+  - The item keeps its tag and is added to the cart as usual.
+  - Consignment and online-listed items still stop for a person.
+- **Inventory count: every scan counts.**
+  - A sold tag gives the warning sound and asks **It's here: keep this tag** (the same fix, done on the spot), **Not sure: PR cart**, or **Leave it**.
+  - An item the system has as intake, lost or scrapped goes back on the shelf and counts, with nothing to answer.
+- **PR Fix-it:** scanning a sold tag keeps it and moves the old sale, with nothing to print. **Keep this tag** is the main button on those cards; **Print as new** stays for consignment and online items.
+- **Orders numbers:** the April import's old-system rows marked "scrapped" (data-quality ITM-06: no recorded sale) are left out of Priced, approved retail, retail processed and the item count, and the order is marked "Old system". Across all orders, Priced goes from $5.69M to $3.24M.
+- **New flags:** more items than the manifest, no cost (placeholder orders), and the status says ordered, paid or shipped while items are checked in.
 
-- **Everything in one JSON for AI.** On **Jobs & careers page**:
-  - **Download for AI (.json)** gives one file: instructions, the keys an AI may use (staff with id and email, departments, question types, statuses, Not now reasons, email placeholders, the never-ask list), and the current settings (careers page, screener questions, every role, the emails);
-  - **Copy for AI** puts the same thing on the clipboard;
-  - **Upload or paste JSON** takes the AI's answer (the whole file or just the settings; YAML still works) and lists every change before Save;
-  - a value that isn't in the keys (an unknown email, a department that doesn't exist) is refused.
-- **Ask AI in Dash** has **Model** and **Effort** pickers (the active models in Settings > AI; defaults from the Hiring purpose) and can download what the AI returned.
-- **Each role has a hiring manager and interviewers** (staff), set in the role editor or in the JSON. The hiring manager also gets the new-application alert. A role's department goes to the new hire at **Create employee**.
+### Added
 
-Migration: `hiring.0003` (the new role fields), `hiring.0004`, `hiring.0005` (hiring manager, interviewers). The text is loaded only where a role still holds the seed text, and the lead questions are added to the saved form.
+- **Orders → If it all sells** (`?view=profit&x=`). Columns:
+  - Order and description, Cost, Retail, Priced, Sold, Left now.
+  - Left at X%, Est. profit (Sold + Left at X% − Cost), % of cost.
+- **X:** quick 100% and 50% or a custom %, with the Orders filters (date range by ordered date) and a Total line.
+- **Code:** `services/duplicate_tag.py`. Migrations `inventory.0109` and `stocktake.0005` change choices only.
+
+### Tests
+
+- `test_counts.py` (57): a sold tag is counted and kept on the spot, a lost item goes back on the shelf, PR Fix-it moves the sale, and consignment needs a person.
+- `test_cart_add_item_audit` / `test_cart_add_resale_copy`: the register rings up a sold tag and moves its sale; consignment and online items still stop.
+- `test_purchase_order_financials`: old-system rows left out and the new flags.
+- `profitColumns.test.ts`: the If it all sells maths.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.137.0] -->
-<!-- Last reviewed: 2026-10-06 (2.137.0) -->
+<!-- Line 1 release: ## [2.138.0] -->
+<!-- Last reviewed: 2026-10-06 (2.138.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,38 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.138.0] - 2026-10-06
+
+User-facing theme: **The register and the inventory count never stop on a tag the system has elsewhere. Two items that shared a tag are sorted out by moving the old sale to a new item number. Orders gains an "If it all sells" view, and its numbers no longer count old-system rows that never had a recorded sale.** Initiative: `inventory_effort` Phase 5, and the owner's "no errors" rule.
+
+### Changed
+
+- **Register: a sold tag in hand rings up.** Two items shared that tag, and the one in hand is real.
+  - Its old sale moves to a new item number (completed register lines and delivery jobs move with it; the money does not change).
+  - The item keeps its tag and is added to the cart as usual.
+  - Consignment and online-listed items still stop for a person.
+- **Inventory count: every scan counts.**
+  - A sold tag gives the warning sound and asks **It's here: keep this tag** (the same fix, done on the spot), **Not sure: PR cart**, or **Leave it**.
+  - An item the system has as intake, lost or scrapped goes back on the shelf and counts, with nothing to answer.
+- **PR Fix-it:** scanning a sold tag keeps it and moves the old sale, with nothing to print. **Keep this tag** is the main button on those cards; **Print as new** stays for consignment and online items.
+- **Orders numbers:** the April import's old-system rows marked "scrapped" (data-quality ITM-06: no recorded sale) are left out of Priced, approved retail, retail processed and the item count, and the order is marked "Old system". Across all orders, Priced goes from $5.69M to $3.24M.
+- **New flags:** more items than the manifest, no cost (placeholder orders), and the status says ordered, paid or shipped while items are checked in.
+
+### Added
+
+- **Orders → If it all sells** (`?view=profit&x=`). Columns:
+  - Order and description, Cost, Retail, Priced, Sold, Left now.
+  - Left at X%, Est. profit (Sold + Left at X% − Cost), % of cost.
+- **X:** quick 100% and 50% or a custom %, with the Orders filters (date range by ordered date) and a Total line.
+- **Code:** `services/duplicate_tag.py`. Migrations `inventory.0109` and `stocktake.0005` change choices only.
+
+### Tests
+
+- `test_counts.py` (57): a sold tag is counted and kept on the spot, a lost item goes back on the shelf, PR Fix-it moves the sale, and consignment needs a person.
+- `test_cart_add_item_audit` / `test_cart_add_resale_copy`: the register rings up a sold tag and moves its sale; consignment and online items still stop.
+- `test_purchase_order_financials`: old-system rows left out and the new flags.
+- `profitColumns.test.ts`: the If it all sells maths.
 
 ## [2.137.0] - 2026-10-06
 

@@ -61,7 +61,8 @@ class DayAndRunTests(Base):
     def test_scan_results_and_the_problems_they_open(self):
         run = counting.start_run(user=self.user, section=self.front)
         res = self.scan(run, 'itm0000001', 'ITM0000001', 'NOPE', 'ITM0000777', 'ITM0000009')
-        self.assertEqual([r['result'] for r in res], ['ok', 'already', 'bad_format', 'unknown', 'odd'])
+        # A sold tag in hand is counted; it still opens a question (owner, 2026-10-06: the count always counts).
+        self.assertEqual([r['result'] for r in res], ['ok', 'already', 'bad_format', 'unknown', 'ok'])
         self.assertEqual(
             [r['issue_kind'] for r in res], ['', 'already_scanned', 'not_sku', 'not_recognized', 'already_sold'],
         )
@@ -222,15 +223,14 @@ class FixitTests(Base):
                 user=self.mgr, fix='quick_add', data={'title': '', 'price': '4'},
             )
 
-    def test_put_on_shelf_for_an_item_the_system_lost(self):
+    def test_an_item_the_system_lost_is_counted_and_back_on_the_shelf(self):
         lost = make_item('ITM0000060', status='lost', title='Mirror')
-        issue = self.issue_for('ITM0000060')
-        self.assertEqual(issue.kind, 'not_on_shelf')
-        fixit.fix_issue(issue, user=self.mgr, fix='put_on_shelf', data={})
+        res = self.scan(self.run_, 'ITM0000060', start=50)[0]
+        self.assertEqual((res['result'], res['issue_id']), ('ok', None))
         lost.refresh_from_db()
         self.assertEqual(lost.status, 'on_shelf')
         self.assertTrue(ItemHistory.objects.filter(item=lost, event_type='found').exists())
-
+        self.assertIn(lost.pk, counting.counted_ids(self.run_.count))
 
 class ApiTests(Base):
     def test_flow_from_the_phone(self):
@@ -481,13 +481,15 @@ class MergeCountsTests(Base):
 class OneScanFixTests(FixitTests):
     """inventory_effort Phase 2: PR Fix-it, one scan, one answer."""
 
-    def test_a_sold_items_tag_prints_as_new_from_the_scan(self):
+    def test_a_sold_tag_keeps_its_number_and_the_old_sale_moves(self):
         self.issue_for('ITM0000009')
         res = fixit.scan_fix('itm0000009', user=self.mgr)
-        self.assertEqual((res['status'], res['fix'], res['print']), ('fixed', 'print_as_new', True))
-        issue = Issue.objects.get(pk=res['issue']['id'])
-        self.assertEqual(res['label']['qr_data'], issue.new_item.sku)
-        self.assertEqual(issue.new_item.product_id, self.sold.product_id)
+        self.assertEqual((res['status'], res['fix'], res['print']), ('fixed', 'move_sale', False))
+        self.sold.refresh_from_db()
+        self.assertEqual(self.sold.status, 'on_shelf')                 # the tag in hand stays
+        twin = Issue.objects.get(pk=res['issue']['id']).new_item
+        self.assertEqual((twin.status, twin.product_id), ('sold', self.sold.product_id))
+        self.assertNotEqual(twin.sku, 'ITM0000009')
 
     def test_a_double_counted_tag_prints_as_new(self):
         self.scan(self.run_, 'ITM0000001')
@@ -495,14 +497,6 @@ class OneScanFixTests(FixitTests):
         self.assertEqual(issue.kind, 'already_scanned')
         res = fixit.scan_fix('ITM0000001', user=self.mgr)
         self.assertEqual(res['fix'], 'print_as_new')
-
-    def test_a_lost_item_found_goes_back_on_the_shelf_without_printing(self):
-        lost = make_item('ITM0000061', status='lost', title='Mirror')
-        self.issue_for('ITM0000061')
-        res = fixit.scan_fix('ITM0000061', user=self.mgr)
-        self.assertEqual((res['fix'], res['print']), ('put_on_shelf', False))
-        lost.refresh_from_db()
-        self.assertEqual(lost.status, 'on_shelf')
 
     def test_a_bad_tag_reprints_and_a_written_price_is_set(self):
         self.issue_for('ITM0000001', kind='wrong_tag')
@@ -676,3 +670,61 @@ class InventoryReportTests(Base):
         self.assertEqual(mgr.get(f'/api/stocktake/counts/{self.count.pk}/breakdown/', {'by': 'vendor'}).status_code, 200)
         self.assertEqual(mgr.get(f'/api/stocktake/counts/{self.count.pk}/histogram/').status_code, 200)
         self.assertEqual(self.api(self.user).get(f'/api/stocktake/counts/{self.count.pk}/summary/').status_code, 403)
+
+
+class TwoItemsOneTagTests(Base):
+    """Owner, 2026-10-06: a sold tag in hand is the real item; its old sale moves to a new item number."""
+
+    def setUp(self):
+        super().setUp()
+        from decimal import Decimal
+
+        from django.utils import timezone
+
+        from apps.pos.models import Cart, CartLine, Drawer, Register
+        from apps.core.models import WorkLocation
+
+        loc = WorkLocation.objects.create(name='Store T1')
+        reg = Register.objects.create(location=loc, name='Reg T1', code='T1')
+        drawer = Drawer.objects.create(register=reg, date=timezone.localdate(), opened_by=self.mgr, current_cashier=self.mgr, opened_at=timezone.now(), opening_count={}, opening_total=Decimal('0'))
+        self.cart = Cart.objects.create(drawer=drawer, cashier=self.mgr, status='completed', total=Decimal('10.00'))
+        self.line = CartLine.objects.create(cart=self.cart, item=self.sold, description='Old sold', quantity=1,
+                                            unit_price=Decimal('10.00'), line_total=Decimal('10.00'))
+        Item.objects.filter(pk=self.sold.pk).update(sold_for=Decimal('10.00'), sold_at=timezone.now())
+        self.sold.refresh_from_db()
+
+    def test_move_sale_to_new_item(self):
+        from apps.inventory.services.duplicate_tag import move_sale_to_new_item
+
+        twin = move_sale_to_new_item(self.sold, self.mgr, where='test')
+        self.sold.refresh_from_db()
+        self.line.refresh_from_db()
+        self.assertEqual((self.sold.sku, self.sold.status, self.sold.sold_for), ('ITM0000009', 'on_shelf', None))
+        self.assertEqual((twin.status, str(twin.sold_for), self.line.item_id), ('sold', '10.00', twin.pk))
+        self.assertTrue(twin.notes.startswith('SALE_MOVED_FROM:ITM0000009'))
+
+    def test_count_answer_keep_it_here(self):
+        run = counting.start_run(user=self.user, section=self.front)
+        res = self.scan(run, 'ITM0000009')[0]
+        self.assertEqual((res['result'], res['issue_kind']), ('ok', 'already_sold'))
+        issue = Issue.objects.get(pk=res['issue_id'])
+        counting.answer_issue(issue, user=self.user, action='kept')
+        issue.refresh_from_db()
+        self.sold.refresh_from_db()
+        self.assertEqual((issue.action, issue.fix, self.sold.status), ('kept', 'move_sale', 'on_shelf'))
+        self.assertIsNotNone(issue.fixed_at)
+        self.line.refresh_from_db()
+        self.assertEqual(self.line.item_id, issue.new_item_id)
+
+    def test_consignment_needs_a_person(self):
+        from apps.inventory.services.duplicate_tag import why_not
+
+        with self.settings():
+            from unittest.mock import patch
+
+            with patch('apps.inventory.services.duplicate_tag.why_not', return_value='consignment'):
+                run = counting.start_run(user=self.user, section=self.front)
+                res = self.scan(run, 'ITM0000009')[0]
+                with self.assertRaises(counting.BadRequest):
+                    counting.answer_issue(Issue.objects.get(pk=res['issue_id']), user=self.user, action='kept')
+        self.assertIsNone(why_not(self.sold))

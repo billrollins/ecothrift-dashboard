@@ -194,7 +194,15 @@ export type OrderNumberFlag =
   | 'manifest_without_retail'
   | 'manifest_mismatch'
   | 'no_listing_retail'
-  | 'no_price_history';
+  | 'no_price_history'
+  /** Old-system import rows with no recorded sale, left out of the numbers (data-quality ITM-06). */
+  | 'old_system_unsold'
+  /** More items checked in than the manifest's quantity (by over 10%). */
+  | 'items_over_manifest'
+  /** A placeholder order with no cost. */
+  | 'no_cost'
+  /** Items checked in while the order still says ordered, paid or shipped. */
+  | 'status_behind';
 
 /**
  * One order's numbers on the Orders page (owner's definitions, 2026-10-02; `purchase_order_financials.py`).
@@ -221,6 +229,9 @@ export interface PurchaseOrderFinancialMetrics {
   recovery_actual: string | null;
   items_checked_in: number;
   flags: OrderNumberFlag[];
+  /** Old-system rows with no recorded sale, left out of Priced and the item count. */
+  legacy_unsold?: number;
+  manifest_quantity?: number | null;
 }
 
 /** GET /api/inventory/orders/summary/ KPI aggregates (matches current list filters or selected ids). */

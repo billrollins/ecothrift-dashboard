@@ -17,6 +17,13 @@ The owner's definitions (2026-10-02, `.ai/initiatives/intake_updates.md` Phase 1
 - **Profit:** Sold - Cost.
 
 Missing data is `None` (the page shows `-`) with a flag, never a made-up `0`.
+
+**Old-system rows** (inventory_effort Phase 5 audit, 2026-10-06): the April 2026 import marked every V1 / V2 item
+that had no recorded sale `scrapped` (`notes` starts `BACKFILL:`; data-quality ITM-06: "not a recorded sale", not a
+floor scrap). They are left out of Priced, approved retail, retail processed and the item count, counted in
+`legacy_unsold`, and the order is flagged `old_system_unsold`. Other audit flags: `items_over_manifest` (more items
+than the manifest's quantity, by over 10%), `no_cost` (placeholder orders), `status_behind` (items checked in while
+the order still says ordered / paid / shipped).
 """
 
 from __future__ import annotations
@@ -232,20 +239,37 @@ def _ratio(part: Decimal | None, whole: Decimal | None) -> Decimal | None:
 
 
 def manifest_by_po(po_ids: list[int]) -> dict[int, dict]:
-    """Manifest total retail (quantity x unit retail) per order, and how many rows it has."""
+    """Manifest total retail (quantity x unit retail) per order, how many rows it has, and its total quantity."""
     if not po_ids:
         return {}
     with connection.cursor() as cur:
         cur.execute(
             """
-            SELECT purchase_order_id, COUNT(*), SUM(quantity * unit_retail), COUNT(unit_retail)
+            SELECT purchase_order_id, COUNT(*), SUM(quantity * unit_retail), COUNT(unit_retail), SUM(quantity)
             FROM inventory_manifestrow
             WHERE purchase_order_id = ANY(%s)
             GROUP BY purchase_order_id
             """,
             [po_ids],
         )
-        return {int(r[0]): {'rows': int(r[1]), 'total': _q2(r[2]) if r[3] else None} for r in cur.fetchall()}
+        return {
+            int(r[0]): {'rows': int(r[1]), 'total': _q2(r[2]) if r[3] else None, 'quantity': int(r[4] or 0)}
+            for r in cur.fetchall()
+        }
+
+
+# The import's "no recorded sale" rows (data-quality ITM-06), left out of the order numbers.
+LEGACY_UNSOLD_SQL = "(i.status = 'scrapped' AND i.notes LIKE 'BACKFILL:%%')"
+
+
+def legacy_unsold_by_po(po_ids: list[int]) -> dict[int, int]:
+    if not po_ids:
+        return {}
+    rows = (
+        Item.objects.filter(purchase_order_id__in=po_ids, status='scrapped', notes__startswith='BACKFILL:')
+        .values('purchase_order_id').annotate(n=Count('id')).values_list('purchase_order_id', 'n')
+    )
+    return {int(po): int(n) for po, n in rows}
 
 
 def items_by_po(po_ids: list[int]) -> dict[int, dict]:
@@ -286,6 +310,7 @@ def items_by_po(po_ids: list[int]) -> dict[int, dict]:
             LEFT JOIN inventory_manifestrow mr ON mr.id = i.manifest_row_id
             WHERE i.purchase_order_id = ANY(%s)
               AND NOT (i.status = 'intake' AND i.checked_in_at IS NULL)
+              AND NOT {LEGACY_UNSOLD_SQL}
             GROUP BY i.purchase_order_id
             """,
             [po_ids, po_ids],
@@ -299,7 +324,8 @@ def items_by_po(po_ids: list[int]) -> dict[int, dict]:
         return out
 
 
-def _numbers(cost: Decimal, listing: Decimal | None, manifest: dict | None, items: dict | None, sold: Decimal) -> dict:
+def _numbers(cost: Decimal, listing: Decimal | None, manifest: dict | None, items: dict | None, sold: Decimal,
+             *, legacy_unsold: int = 0, status: str = '') -> dict:
     """The page's numbers for one order (or for a sum of orders: the same arithmetic on the sums)."""
     manifest_total = (manifest or {}).get('total')
     priced_start = (items or {}).get('priced_start')
@@ -314,6 +340,15 @@ def _numbers(cost: Decimal, listing: Decimal | None, manifest: dict | None, item
         flags.append('manifest_mismatch')
     if items and items['items'] and not items['with_history']:
         flags.append('no_price_history')
+    if legacy_unsold:
+        flags.append('old_system_unsold')
+    checked_in = (items or {}).get('items', 0)
+    if manifest and manifest.get('quantity') and checked_in > manifest['quantity'] * 1.10:
+        flags.append('items_over_manifest')
+    if not cost or cost <= 0:
+        flags.append('no_cost')
+    if status in ('ordered', 'paid', 'shipped') and checked_in:
+        flags.append('status_behind')
     return {
         'manifest_retail': manifest_total,
         'listing_retail': listing,
@@ -327,6 +362,8 @@ def _numbers(cost: Decimal, listing: Decimal | None, manifest: dict | None, item
         'recovery_expected': _ratio(priced_start, cost),
         'recovery_actual': _ratio(sold, cost),
         'items_checked_in': (items or {}).get('items', 0),
+        'legacy_unsold': legacy_unsold,
+        'manifest_quantity': (manifest or {}).get('quantity'),
         'flags': flags,
     }
 
@@ -344,16 +381,19 @@ def financials_for_orders(po_ids: Iterable[int]) -> dict[int, dict]:
         }
         for row in PurchaseOrder.objects.filter(pk__in=ids).values('id', 'total_cost', 'retail_value')
     }
+    status = dict(PurchaseOrder.objects.filter(pk__in=ids).values_list('id', 'status'))
     manifests = manifest_by_po(ids)
     items = items_by_po(ids)
     sold = sold_by_po(ids)
+    legacy = legacy_unsold_by_po(ids)
 
     out: dict[int, dict] = {}
     for pk in ids:
         base = cost_retail.get(pk, {'cost': ZERO, 'listing': None})
         s = sold.get(pk, ZERO)
         c = base['cost']
-        numbers = _numbers(c, base['listing'], manifests.get(pk), items.get(pk), s)
+        numbers = _numbers(c, base['listing'], manifests.get(pk), items.get(pk), s,
+                           legacy_unsold=legacy.get(pk, 0), status=status.get(pk, ''))
         out[pk] = {
             'cost': c,
             # Kept for older readers: Retail = the manifest total when there is one, else the listing.
@@ -429,7 +469,10 @@ def aggregate_financials(po_qs) -> dict:
         'recovery_actual': _ratio(sold_total, cost),
         'listing_retail': retail,
         'orders_flagged': {f: sum(1 for v in fin.values() if f in v['flags'])
-                           for f in ('no_manifest', 'manifest_without_retail', 'manifest_mismatch', 'no_listing_retail', 'no_price_history')},
+                           for f in ('no_manifest', 'manifest_without_retail', 'manifest_mismatch', 'no_listing_retail',
+                                     'no_price_history', 'old_system_unsold', 'items_over_manifest', 'no_cost',
+                                     'status_behind')},
+        'legacy_unsold': sum(v['legacy_unsold'] for v in fin.values()),
     }
     delivered_count = po_qs.filter(status='delivered').count()
     in_transit_agg = po_qs.filter(status='shipped').aggregate(

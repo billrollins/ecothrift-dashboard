@@ -2235,6 +2235,7 @@ class ItemScanHistory(models.Model):
     OUTCOME_CHOICES = [
         ('added_to_cart', 'Added to cart'),
         ('pos_blocked_sold', 'POS blocked (already sold)'),
+        ('pos_sold_tag_moved', 'POS: sold tag in hand, old sale moved to a new item'),
         ('public_lookup', 'Public lookup'),
         ('audit_scan', 'Audit scan'),
     ]

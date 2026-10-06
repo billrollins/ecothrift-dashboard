@@ -3,7 +3,7 @@
 
 # Initiative: Inventory effort, reports and shrink
 
-**Status:** **Active** — Phases 1 to 3 live (v2.133.0, v2.134.0); Phase 4 built, not shipped.
+**Status:** **Active** — Phases 1 to 4 live (v2.133.0 to v2.135.0); Phase 5 built, not shipped; Phase 6 (Inventories pages) designed 2026-10-06.
 
 **Objective:** The owner runs one inventory over as many days as it takes, and every run, scan and fix belongs to it. When it ends he has one clean report (totals, who counted what, breakdowns by any dimension), a worklist that turns "not counted" into explained outcomes (back stock, owner took, sold as generic, shrink), one-scan fixes for every problem item, and an "if it all sells" profit view of his orders. The data errors the count exposed get listed and fixed.
 
@@ -166,7 +166,7 @@ A view of each order's profit if everything left sells at X% of today's price, f
 **Gated by:** none. The audit comes first.
 
 Acceptance:
-- [ ] **Audit first:** a read-only production check of the Orders numbers. Results go in the Record with order numbers. It checks:
+- [x] **Audit first:** a read-only production check of the Orders numbers. Results go in the Record with order numbers. It checks:
   - orders whose items outnumber the manifest;
   - items with no order (2,657 counted ones);
   - orders with no manifest;
@@ -174,16 +174,61 @@ Acceptance:
   - cost per item outliers;
   - the flags Phase 1 of intake_updates shows.
   Each finding is fixed or flagged before the view ships.
-- [ ] **Orders → If it all sells** (a tab on the Orders page, same filters, ordered date From–To). Columns:
+- [x] **Orders → If it all sells** (a tab on the Orders page, same filters, ordered date From–To). Columns:
   - Order #, Description, Cost, Retail (manifest), Priced (starting), Sold;
   - **Left at X%** = unsold left (today's price) × X;
   - **Est. profit** = Sold + Left at X% − Cost;
   - **Profit % of cost**.
-- [ ] X: quick **100%** and **50%**, plus **Custom** (any %). A **Total** line on the same definitions (sums, then ratios).
-- [ ] Uses the Phase 1 financials (`purchase_order_financials`). No new arithmetic for the shared columns.
-- [ ] Tests: the X math, the total line, the date filter.
+- [x] X: quick **100%** and **50%**, plus **Custom** (any %). A **Total** line on the same definitions (sums, then ratios).
+- [x] Uses the Phase 1 financials (`purchase_order_financials`). No new arithmetic for the shared columns.
+- [x] Tests: the X math, the total line, the date filter.
 
-### Phase 6 — Data quality from the count
+### Phase 6 — Inventories: one list, one page per inventory (owner's design, 2026-10-06)
+Run count only counts the open inventory; every inventory, current and past, is in one list. Each opens to a page with Summary, Shrinkage, Order estimates and Sessions tabs.
+**Gated by:** Phases 3, 4 and 5 (it reuses them).
+
+**The owner's design** (replaces decisions 4 and the old Phase 7 close step):
+
+- **Two stages only:** **In progress**, then **Done**.
+  - Done is the manager's **End inventory**. There is no extra finalize step.
+  - After Done, the latest inventory still shows its PR Fix-it items and its Shrinkage list, which can be worked and filtered.
+- **Not-found items are shrink estimates.**
+  - Every one starts as **Shrink (general)**.
+  - The owner re-estimates any of them as back stock, owner use, sold as generic, stolen, or broken / scrap.
+  - Totals show each estimate.
+- **Sessions** = one person scanning one section (a run). An inventory is made of sessions and should cover every section. A session can still be deleted when the person thinks they messed it up.
+- **Estimates only (owner's answer A):** marking a not-found item changes nothing on the item. It stays "on the shelf" in the system.
+- **No errors on a tag the system has somewhere else** (owner, 2026-10-06; built with Phase 5, see the Record):
+  - The register always adds the item, and the count always counts it.
+  - A sold tag in hand means two items shared one tag. The tag in hand keeps its number; the old sale moves to a new item number.
+
+Acceptance:
+- [ ] **Menu → Inventory:** Search · Run count · **Inventories** · ── PR Fix-it.
+- [ ] **Run count:**
+  - Scans only into the open inventory.
+  - With none open it says so. A manager presses **Start inventory**; a scan never starts one.
+  - Sections setup (Super User) moves here.
+- [ ] **Inventories** (replaces the Sessions tab and page):
+  - One row per inventory, current on top. Each row shows dates, days, stage, items counted, $ at price, coverage, $ not found, shrink estimate, who counted, sessions, and sections covered (of all).
+  - Click a row to open it.
+- [ ] **Inventory page** (`/inventory/inventories/<id>`), with tabs:
+  - **Summary:** the Phase 4 report.
+  - **Shrinkage:** the Phase 3 list. Unmarked rows read "Shrink (general)", and the marks are estimates.
+  - **Order estimates:** per order, the cost, retail, sold, what the inventory **found** (at price, and at X%), estimated profit and % of cost, with a Total line. A toggle **adds the not-found items estimated as back stock** to what is left.
+  - **Sessions:** sections × sessions (who, when, how many), with mark bad, view scans and delete session. Sections not covered are listed.
+  - Header: stage, **End inventory** / **Reopen**, and "N problems still in carts → PR Fix-it".
+- [ ] **PR Fix-it:**
+  - Opens on the open inventory, or the latest one when none is open; a new inventory takes over by itself.
+  - A picker shows past inventories' carts, for a pile found later.
+- [ ] The old routes (`/inventory/count/days…`, `/inventory/count/<id>/report`, `/shrink`) redirect to the new page.
+- [ ] Tests:
+  - start only by a manager;
+  - no scan without an open inventory;
+  - list metrics;
+  - order estimates from found items, with and without back stock;
+  - PR Fix-it's inventory picker.
+
+### Phase 7 — Data quality from the count
 The errors the count exposed are listed, explained and fixed.
 **Gated by:** none (read-only first).
 
@@ -200,19 +245,14 @@ Acceptance:
 - [ ] Each fix is a Request (preview, approve, undo), or a rule in `extended/data-quality.md` when it cannot be fixed in bulk.
 - [ ] Items with no order get a fill-in owner ("Legacy stock", named in the register), not a guess, per data-quality-first.
 
-### Phase 7 — Close the inventory and shrink analysis
-Closing applies the outcomes, and the shrink numbers point at the loads, vendors and categories prone to theft or breakage.
-**Gated by:** Phases 3 and 4.
-Detail when Phase 3 is built. Outline:
-- **Close inventory** applies decision 4 in one Request.
-- Shrink rate by order, vendor, category and age: stolen and broken separately, owner use left out.
-- A weekly trend across efforts.
+### Later — Shrink analysis
+Shrink rate by order, vendor, category and age (stolen and broken apart, owner use left out), and a trend across inventories. Detail when Phase 6 is built.
 
 ---
 
 ## Acceptance
 
-- [ ] Phases 1 to 6 as above
+- [ ] Phases 1 to 7 as above
 - [ ] Nothing touches POS; every deploy goes out after close unless the owner says otherwise
 - [ ] Every production change is a Request with undo
 - [ ] Out-of-scope items stay out
@@ -253,7 +293,7 @@ Checked on the dev copy: a sold tag scanned → new tag sent to print with no cl
 - **Top product:** one candle product, 670 of 670 not found.
 - Checked in the browser on the local copy (read-only: no marks made). The marks were tested in `test_counts.py` (51 pass).
 
-**2026-10-06 — Phase 4 built** (not shipped yet).
+**2026-10-06 — Phase 4 built; live 12:30 PM** (v2.135.0, commit `ea549c4d`, Heroku v405).
 
 - **The page:** **Inventory report** (`/inventory/count/<id>/report`, the inventory's **Report** button). It replaces the old "missing" report page, which Not found now covers.
 - **Code:** `services/report.py`; endpoints `summary/`, `breakdown/?by=`, `histogram/`. The item list (`shrink/`) takes `scope=counted` and `person`, so a chart slice opens its counted items too.
@@ -268,6 +308,58 @@ Checked on the dev copy: a sold tag scanned → new tag sent to print with no cl
   - Hours are run time with bad runs left out.
   - A pie shows one side (Counted or Not found) with the top 7 and Other; bars show both.
   - Age is time on the shelf as of today.
+
+**2026-10-06 — Phase 5 built** (not shipped yet). The audit ran read-only on the fresh production copy (`workspace/inv_effort/orders_audit.py`, 351 orders).
+
+**Why the Orders numbers looked broken.** The April import marked 83,489 old-system (V1/V2) items `scrapped`, meaning "no recorded sale" (data-quality ITM-06). The Orders page counted them as priced stock:
+
+- old orders showed Priced 7 to 10 times their cost;
+- some showed $0 sold (`AMZ17670`: all 926 items are such rows).
+
+**Fix:** `purchase_order_financials` leaves those rows out of Priced, approved retail, retail processed and the item count, counts them (`legacy_unsold`), and flags the order `old_system_unsold`. Total Priced across all orders goes from $5,685,521 to $3,241,521 (−$2.44M of phantom stock). 309 orders carry the flag.
+
+**Other findings, flagged:**
+
+- `items_over_manifest`: 6 orders have more items than their manifest's quantity (over 10%). Example: `WLMRT-O99-8G11`, 15,017 items against 13,317 (extras and print-as-new copies). There were 18 before the old rows were left out.
+- `no_cost`: 42 placeholder orders (GEN…, MISFIT); profit % shows `-`.
+- `status_behind`: `TGT127616` still says paid with 488 items checked in. The owner can set it to delivered; not changed here.
+
+**Noted only:**
+
+- 397 sold items have neither a cart line nor `sold_for`, so Sold is a little low.
+- 2 orders say delivered or complete with no items (`AMZ24714`, `TRGET-OPK-TCUL`, which is not processed yet).
+
+**The view:** **Orders → If it all sells** (`?view=profit&x=`), with the Orders page's filters, including the date range by ordered date.
+
+- Columns: Order and description, Cost, Retail, Priced, Sold, Left now, Left at X%, Est. profit, % of cost.
+- Quick 100% and 50%, plus a custom %.
+- A Total line on the same definitions (the summary's sums, then the ratios).
+- Checked on the copy, 307 orders including older ones: cost $1,754,867, sold $2,014,511, left $244,061. Est. profit $503,706 (29%) at 100%, $381,675 (22%) at 50%.
+
+**2026-10-06 — The owner reshaped the pages** after the report, Not found and If it all sells were each hard to find. The new Phase 6 is in his words:
+
+- Inventories list, and an inventory page with Summary, Shrinkage, Order estimates and Sessions tabs.
+- Run count counts only the open inventory and never starts one by a scan.
+- Two stages (in progress, done) with no finalize step.
+- Not-found items are shrink estimates, starting as Shrink (general).
+- PR Fix-it follows the newest inventory and can pick a past one.
+- Order estimates use what the count found, with a toggle to add estimated back stock.
+
+The old Phase 7 close step is dropped. Data quality is now Phase 7.
+
+**2026-10-06 — "No errors" built** (not shipped yet; it goes out with Phase 5).
+
+- **The rule (owner):** a tag the system calls sold, intake, lost or scrapped never stops the register or the count.
+- **Two items, one tag:** `services/duplicate_tag.py` (`move_sale_to_new_item`). The tag in hand keeps its number and goes on the shelf. A new item (`SALE_MOVED_FROM:<sku>`, `parent_item` = the tag) takes the old sale: completed cart lines and delivery jobs move to it. The money does not change.
+- **Not automatic:** consignment and online-listed items (`why_not`). The register still stops for those, and the count sends them to the PR cart.
+- **Register:** `add_item` moves the old sale and rings the item up. Scan log outcome `pos_sold_tag_moved` (migration `inventory.0109`, choices only).
+- **Count:**
+  - A sold tag is counted (`ok`), gives the warning sound, and asks: **It's here: keep this tag** (`kept`, done on the spot; migration `stocktake.0005`), **Not sure: PR cart**, or **Leave it**.
+  - Intake, lost, scrapped and the like go back on the shelf and count, with no problem to answer.
+- **PR Fix-it:** a sold tag scanned there is fixed the same way, with nothing to print (`move_sale`). **Print as new** stays for the consignment and online cases.
+- **Tests:**
+  - `test_counts.py`: 57 pass.
+  - Register: `test_cart_add_item_audit` / `test_cart_add_resale_copy`, 8 pass. The other POS tests are unchanged; 5 dashboard tests are date-sensitive and fail on the live release too.
 
 ---
 
