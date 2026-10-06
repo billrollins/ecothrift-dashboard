@@ -3,7 +3,7 @@
 
 # Initiative: Inventory effort, reports and shrink
 
-**Status:** **Active** — Phases 1 and 2 live (v2.133.0); Phase 3 built, not shipped; Phase 4 next.
+**Status:** **Active** — Phases 1 to 3 live (v2.133.0, v2.134.0); Phase 4 built, not shipped.
 
 **Objective:** The owner runs one inventory over as many days as it takes, and every run, scan and fix belongs to it. When it ends he has one clean report (totals, who counted what, breakdowns by any dimension), a worklist that turns "not counted" into explained outcomes (back stock, owner took, sold as generic, shrink), one-scan fixes for every problem item, and an "if it all sells" profit view of his orders. The data errors the count exposed get listed and fixed.
 
@@ -147,19 +147,19 @@ One page that answers "what do we have" for an effort.
 **Gated by:** Phase 1.
 
 Acceptance:
-- [ ] **Totals:** items counted, $ price, $ retail, price as % of retail, and expected vs counted (coverage %). Plus scans, runs, hours, problems, and fixed so far.
-- [ ] **By person** (Bill, Carrie, Michael…):
+- [x] **Totals:** items counted, $ price, $ retail, price as % of retail, and expected vs counted (coverage %). Plus scans, runs, hours, problems, and fixed so far.
+- [x] **By person** (Bill, Carrie, Michael…):
   - runs, hours scanning, items, $ price, $ retail;
   - items per hour;
   - bad runs and problems found.
-- [ ] **Breakdown panel** (decision 5):
+- [x] **Breakdown panel** (decision 5):
   - pie, bar or histogram;
   - Counted vs Not counted toggle;
   - click a slice to see its items.
-- [ ] Price % of retail: the 1% histogram, plus the buckets set from it (decision 6). The chosen edges are recorded here.
-- [ ] Age on shelf buckets (decision 7). Vendor shows both Targets as one, through `TRGET` after Request #11, or grouped by vendor name until then.
-- [ ] Prints cleanly (print stylesheet); **Export CSV** of the counted items with every breakdown column.
-- [ ] Tests on a small fixture: totals, the per-person split, bucket edges, the vendor merge.
+- [x] Price % of retail: the 1% histogram, plus the buckets set from it (decision 6). The chosen edges are recorded here.
+- [x] Age on shelf buckets (decision 7). Vendor shows both Targets as one, through `TRGET` after Request #11, or grouped by vendor name until then.
+- [x] Prints cleanly (print stylesheet); **Export CSV** of the counted items with every breakdown column.
+- [x] Tests on a small fixture: totals, the per-person split, bucket edges, the vendor merge.
 
 ### Phase 5 — Orders: "If it all sells" (and why Orders numbers look broken)
 A view of each order's profit if everything left sells at X% of today's price, filterable by date.
@@ -240,7 +240,7 @@ Checked on the dev copy: a sold tag scanned → new tag sent to print with no cl
 - Carrie's open run was stopped.
 - #14 now has 85 runs and 21,117 scans, and is the one open inventory.
 
-**2026-10-06 — Phase 3 built** (not shipped yet).
+**2026-10-06 — Phase 3 built; live 12:13 PM** (v2.134.0, commit `3943eb5b`, Heroku v404).
 
 - **The page:** **Not found** (`/inventory/count/<id>/shrink`). It is the inventory's "Not found" button now; the old report page stays at `/report`.
 - **Code:** `services/shrink.py`, model `ShrinkMark` (migration `stocktake.0004`), 6 endpoints under `counts/<id>/shrink…` including a CSV.
@@ -252,6 +252,22 @@ Checked on the dev copy: a sold tag scanned → new tag sent to print with no cl
   - No order (legacy): 2,229 of 4,886.
 - **Top product:** one candle product, 670 of 670 not found.
 - Checked in the browser on the local copy (read-only: no marks made). The marks were tested in `test_counts.py` (51 pass).
+
+**2026-10-06 — Phase 4 built** (not shipped yet).
+
+- **The page:** **Inventory report** (`/inventory/count/<id>/report`, the inventory's **Report** button). It replaces the old "missing" report page, which Not found now covers.
+- **Code:** `services/report.py`; endpoints `summary/`, `breakdown/?by=`, `histogram/`. The item list (`shrink/`) takes `scope=counted` and `person`, so a chart slice opens its counted items too.
+- **Price % of retail buckets:** chosen from the real 1% distribution of the 10-05 count. Peaks at 25% (26% of items), 35% (22%) and 50% (11%), the pricing tiers. So the edges are **under 20 / 20–29 / 30–39 / 40–49 / 50–59 / 60+**, plus No retail.
+- **Real numbers (production copy, inventory #14):**
+  - Counted 19,964 items, $201,510 at price, $544,077 retail; price is 36.5% of retail. Coverage 62.7%.
+  - 27.8 hours of scanning in 85 runs.
+  - Carrie 9,536 items (796/h), Bill 7,950 (710/h), Michael 2,478 (536/h).
+  - Each part loads in about 0.4 to 1.1 s.
+- **Claude's calls:**
+  - An item counts for whoever's scan found it first.
+  - Hours are run time with bad runs left out.
+  - A pie shows one side (Counted or Not found) with the top 7 and Other; bars show both.
+  - Age is time on the shelf as of today.
 
 ---
 

@@ -18,7 +18,7 @@ from decimal import Decimal
 from typing import Any
 
 from django.db import transaction
-from django.db.models import Case, CharField, F, OuterRef, Q, Subquery, Value, When
+from django.db.models import Case, CharField, DecimalField, ExpressionWrapper, F, OuterRef, Q, Subquery, Value, When
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
@@ -76,6 +76,10 @@ def annotated(count: InventoryCount, ids):
             category_name=_category(),
             subcategory_name=Coalesce(F('product__profile__subcategory'), Value('')),
             age_from=Coalesce(F('checked_in_at'), F('listed_at'), F('created_at')),
+            pct_value=Case(
+                When(retail__gt=0, then=ExpressionWrapper(F('price') * 100 / F('retail'), output_field=DecimalField())),
+                default=None, output_field=DecimalField(),
+            ),
             outcome=Subquery(mark.values('outcome')[:1]),
             mark_note=Subquery(mark.values('note')[:1]),
         )
@@ -94,7 +98,8 @@ def _filtered(qs, p: dict[str, Any]):
     elif outcome in OUTCOMES:
         qs = qs.filter(outcome=outcome)
     # '__none__' asks for the items with no vendor / order / category.
-    for key, field in (('vendor', 'vendor_key'), ('order', 'order_number'), ('category', 'category_name')):
+    for key, field in (('vendor', 'vendor_key'), ('order', 'order_number'), ('category', 'category_name'),
+                       ('subcategory', 'subcategory_name')):
         if p.get(key):
             value = str(p[key])
             qs = qs.filter(**{field: '' if value == NONE else value})
@@ -110,6 +115,17 @@ def _filtered(qs, p: dict[str, Any]):
         qs = qs.filter(age_from__lte=now - timedelta(days=lo))
         if hi is not None:
             qs = qs.filter(age_from__gt=now - timedelta(days=hi))
+    pct = str(p.get('pct') or '')
+    if pct == 'none':
+        qs = qs.filter(pct_value__isnull=True)
+    elif pct:
+        from .report import PCT_BUCKETS
+
+        bucket = next((b for b in PCT_BUCKETS if b[0] == pct), None)
+        if bucket:
+            qs = qs.filter(pct_value__gte=bucket[2])
+            if bucket[3] is not None:
+                qs = qs.filter(pct_value__lt=bucket[3])
     band = next((b for b in PRICE_BANDS if b[0] == str(p.get('price_band') or '')), None)
     if band:
         qs = qs.filter(price__gte=band[2])
@@ -143,7 +159,17 @@ def _last_seen(count: InventoryCount, item_ids: list[int]) -> dict[int, str]:
 
 
 def worklist(count: InventoryCount, params: dict[str, Any]) -> dict:
-    ids = missing_ids(count)
+    """``scope``: ``missing`` (default: the not-found list) or ``counted`` (the report's items; ``person`` narrows
+    them to who counted them)."""
+    if str(params.get('scope') or 'missing') == 'counted':
+        from .report import counted_ok_ids, person_item_ids
+
+        ids = counted_ok_ids(count)
+        if params.get('person'):
+            ids &= person_item_ids(count, params['person'])
+        params = {**params, 'outcome': params.get('outcome') or 'all'}
+    else:
+        ids = missing_ids(count)
     base = annotated(count, ids)
     totals = _totals(base.values_list('outcome', 'price', 'retail'))
     qs = _filtered(base, params)

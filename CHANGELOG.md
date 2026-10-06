@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.134.0] -->
-<!-- Last reviewed: 2026-10-06 (2.134.0) -->
+<!-- Line 1 release: ## [2.135.0] -->
+<!-- Last reviewed: 2026-10-06 (2.135.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,33 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.135.0] - 2026-10-06
+
+User-facing theme: **The inventory report: totals, who counted what, and a breakdown by any dimension (bar or pie, counted next to not found, click through to the items), plus price as % of retail in 1% steps.** Initiative: `inventory_effort` Phase 4.
+
+### Added
+
+- **Inventory report** (`/inventory/count/<id>/report`, the inventory's **Report** button). It replaces the old "missing" report page; the Not found page covers that list now.
+- **Totals:** items counted, $ at price and retail, price as % of retail (weighted), coverage (expected items counted), not found, hours scanning, runs, scans, problems and how many are fixed.
+- **Who counted:**
+  - Each person's items, $ at price and retail, hours, items per hour, runs, bad runs, and problems found.
+  - An item counts for whoever scanned it first. Click a name to list their items.
+- **Breakdown:**
+  - Group by category, subcategory, vendor (both Targets as one), order, time on the shelf, price as % of retail, price or person.
+  - Measure items, $ at price or $ retail. Show counted, not found or both.
+  - Bar or pie chart with a table beside it. Click a bar, slice or number to list the items, with CSV.
+- **Price as % of retail:** a histogram in 1% steps, with the bucket edges marked. The buckets (under 20 / 20–29 / 30–39 / 40–49 / 50–59 / 60+) follow the real distribution of the first count, which peaks at 25%, 35% and 50%.
+- **Print and CSV:** a print button (the menus are left off the page) and a CSV of counted items.
+- **Endpoints:** `GET /api/stocktake/counts/<id>/summary/`, `breakdown/?by=`, `histogram/`. The item list takes `scope=counted` and `person`.
+
+### Removed
+
+- The old count report page (`CountReportPage`); its route now opens the new report.
+
+### Tests
+
+- `test_counts.py`: totals and price % of retail, people (first scan wins), breakdowns by % bucket and person, the histogram, counted items by bucket and by person, and the API with its permissions.
 
 ## [2.134.0] - 2026-10-06
 

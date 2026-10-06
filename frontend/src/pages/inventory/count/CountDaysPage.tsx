@@ -595,6 +595,9 @@ function DayView({ id }: { id: number }) {
           <Button onClick={() => void reload()} variant="outlined" sx={{ ...plain, flex: { xs: 1, md: 'none' } }}>
             Refresh
           </Button>
+          <Button component={RouterLink} to={`/inventory/count/${day.id}/report`} variant="outlined" sx={{ ...plain, flex: { xs: 1, md: 'none' }, whiteSpace: 'nowrap' }}>
+            Report
+          </Button>
           <Button component={RouterLink} to={`/inventory/count/${day.id}/shrink`} variant="outlined" sx={{ ...plain, flex: { xs: 1, md: 'none' }, whiteSpace: 'nowrap' }}>
             Not found
           </Button>

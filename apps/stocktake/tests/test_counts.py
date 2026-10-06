@@ -625,3 +625,54 @@ class ShrinkWorklistTests(Base):
         csv_res = mgr.get(f'/api/stocktake/counts/{self.count.pk}/shrink.csv')
         self.assertEqual(csv_res.status_code, 200)
         self.assertIn(b'ITM0000002', csv_res.content)
+
+
+class InventoryReportTests(Base):
+    """inventory_effort Phase 4: totals, who counted, breakdowns and the 1% histogram."""
+
+    def setUp(self):
+        super().setUp()
+        from apps.stocktake.services import report
+
+        self.report = report
+        Item.objects.filter(pk=self.a.pk).update(price='25.00', retail='100.00')    # 25% of retail
+        Item.objects.filter(pk=self.b.pk).update(price='35.00', retail='100.00')    # 35%
+        Item.objects.filter(pk=self.c.pk).update(price='10.00', retail=None)        # no retail, not found
+        r1 = counting.start_run(user=self.user, section=self.front)
+        self.scan(r1, 'ITM0000001')
+        r2 = counting.start_run(user=self.other, section=self.back)
+        self.scan(r2, 'ITM0000002', 'ITM0000001')                                   # 1 again: Pat found it first
+        self.count = r1.count
+
+    def test_totals_and_people(self):
+        s = self.report.summary(self.count)
+        self.assertEqual(s['counted'], {'n': 2, 'price': '60.00', 'retail': '200.00', 'price_pct_of_retail': 30.0})
+        self.assertEqual((s['not_found']['n'], s['expected'], s['coverage_pct']), (1, 3, 66.7))
+        people = {p['name']: p for p in s['by_person']}
+        self.assertEqual((people['Pat']['items'], people['Pat']['price']), (1, '25.00'))
+        self.assertEqual((people['Sam']['items'], people['Sam']['price']), (1, '35.00'))
+
+    def test_breakdowns(self):
+        pct = {r['key']: (r['counted']['n'], r['not_found']['n']) for r in self.report.breakdown(self.count, 'pct')}
+        self.assertEqual((pct['20'], pct['30'], pct['none']), ((1, 0), (1, 0), (0, 1)))
+        person = {r['label']: r['counted']['n'] for r in self.report.breakdown(self.count, 'person')}
+        self.assertEqual(person, {'Pat': 1, 'Sam': 1})
+        with self.assertRaises(counting.BadRequest):
+            self.report.breakdown(self.count, 'colour')
+
+    def test_histogram_and_counted_items_list(self):
+        from apps.stocktake.services import shrink
+
+        h = self.report.histogram(self.count)
+        self.assertEqual((h['bins']['counted'][25], h['bins']['counted'][35], h['no_retail']['not_found']), (1, 1, 1))
+        rows = shrink.worklist(self.count, {'scope': 'counted', 'pct': '30'})['rows']
+        self.assertEqual([r['sku'] for r in rows], ['ITM0000002'])
+        mine = shrink.worklist(self.count, {'scope': 'counted', 'person': self.user.pk})['rows']
+        self.assertEqual([r['sku'] for r in mine], ['ITM0000001'])
+
+    def test_api(self):
+        mgr = self.api(self.mgr)
+        self.assertEqual(mgr.get(f'/api/stocktake/counts/{self.count.pk}/summary/').data['counted']['n'], 2)
+        self.assertEqual(mgr.get(f'/api/stocktake/counts/{self.count.pk}/breakdown/', {'by': 'vendor'}).status_code, 200)
+        self.assertEqual(mgr.get(f'/api/stocktake/counts/{self.count.pk}/histogram/').status_code, 200)
+        self.assertEqual(self.api(self.user).get(f'/api/stocktake/counts/{self.count.pk}/summary/').status_code, 403)

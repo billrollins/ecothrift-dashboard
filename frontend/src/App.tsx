@@ -22,7 +22,7 @@ const ClockPage = lazy(() => import('./pages/kiosk/ClockPage'));
 const ThriftPlusScannerPage = lazy(() => import('./pages/thriftplus/scanner/ThriftPlusScannerPage'));
 const BstockLoginHandoffPage = lazy(() => import('./pages/routines/BstockLoginHandoffPage'));
 const CountPage = lazy(() => import('./pages/inventory/count/CountPage'));
-const CountReportPage = lazy(() => import('./pages/inventory/count/CountReportPage'));
+const InventoryReportPage = lazy(() => import('./pages/inventory/count/InventoryReportPage'));
 const ShrinkPage = lazy(() => import('./pages/inventory/count/ShrinkPage'));
 const CountDaysPage = lazy(() => import('./pages/inventory/count/CountDaysPage'));
 const PrFixitPage = lazy(() => import('./pages/inventory/count/PrFixitPage'));
@@ -298,7 +298,7 @@ export default function App() {
           path="/inventory/count/:id/report"
           element={
             <Suspense fallback={<LoadingScreen message="Loading…" />}>
-              <CountReportPage />
+              <InventoryReportPage />
             </Suspense>
           }
         />

@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from apps.accounts.permissions import IsEmployee, IsManagerOrAdmin
 
 from .models import Cart, CountScan, InventoryCount, Issue, Run, Section
-from .services import counting, fixit, shrink
+from .services import counting, fixit, report, shrink
 
 STAFF = [IsAuthenticated, IsEmployee]
 MANAGERS = [IsAuthenticated, IsManagerOrAdmin]
@@ -463,17 +463,50 @@ def shrink_csv(request, pk):
         return _not_found()
     params = {**request.query_params.dict(), 'page': 1, 'page_size': shrink.MAX_PAGE}
     resp = HttpResponse(content_type='text/csv')
-    resp['Content-Disposition'] = f'attachment; filename="inventory-{count.pk}-not-found.csv"'
+    scope = 'counted' if request.query_params.get('scope') == 'counted' else 'not-found'
+    resp['Content-Disposition'] = f'attachment; filename="inventory-{count.pk}-{scope}.csv"'
     w = csv.writer(resp)
-    w.writerow(['sku', 'title', 'order', 'vendor', 'category', 'subcategory', 'price', 'retail', 'checked_in',
-                'last_seen', 'outcome', 'note', 'location'])
+    w.writerow(['sku', 'title', 'order', 'vendor', 'category', 'subcategory', 'price', 'retail', 'pct_of_retail',
+                'checked_in', 'last_seen', 'outcome', 'note', 'location'])
     page = 1
     while True:
         data = shrink.worklist(count, {**params, 'page': page})
         for r in data['rows']:
+            pct = round(100 * float(r['price']) / float(r['retail'])) if r['retail'] and float(r['retail']) > 0 else ''
             w.writerow([r['sku'], r['title'], r['order'], r['vendor'], r['category'], r['subcategory'], r['price'],
-                        r['retail'] or '', r['checked_in'] or '', r['last_seen'] or '', r['outcome'], r['note'], r['location']])
+                        r['retail'] or '', pct, r['checked_in'] or '', r['last_seen'] or '', r['outcome'], r['note'], r['location']])
         if page >= data['pages']:
             break
         page += 1
     return resp
+
+
+# --- the inventory report (inventory_effort Phase 4, managers) ------------------------------------
+
+@api_view(['GET'])
+@permission_classes(MANAGERS)
+def inventory_summary(request, pk):
+    """Totals, coverage and the per-person breakout of one inventory."""
+    count = _get(InventoryCount, pk)
+    return Response(report.summary(count)) if count else _not_found()
+
+
+@api_view(['GET'])
+@permission_classes(MANAGERS)
+def inventory_breakdown(request, pk):
+    """``?by=category|subcategory|vendor|order|age|pct|price_band|person``: counted and not found per group."""
+    count = _get(InventoryCount, pk)
+    if count is None:
+        return _not_found()
+    try:
+        return Response(report.breakdown(count, request.query_params.get('by') or 'category'))
+    except counting.BadRequest as e:
+        return _err(str(e), 'BAD_REQUEST')
+
+
+@api_view(['GET'])
+@permission_classes(MANAGERS)
+def inventory_histogram(request, pk):
+    """Price as % of retail in 1% steps, counted and not found."""
+    count = _get(InventoryCount, pk)
+    return Response(report.histogram(count)) if count else _not_found()

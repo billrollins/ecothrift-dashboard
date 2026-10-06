@@ -31,4 +31,7 @@ urlpatterns = [
     path('counts/<int:pk>/shrink/mark/', views.shrink_mark, name='stocktake-shrink-mark'),
     path('counts/<int:pk>/shrink/unmark/', views.shrink_unmark, name='stocktake-shrink-unmark'),
     path('counts/<int:pk>/shrink.csv', views.shrink_csv, name='stocktake-shrink-csv'),
+    path('counts/<int:pk>/summary/', views.inventory_summary, name='stocktake-summary'),
+    path('counts/<int:pk>/breakdown/', views.inventory_breakdown, name='stocktake-breakdown'),
+    path('counts/<int:pk>/histogram/', views.inventory_histogram, name='stocktake-histogram'),
 ]

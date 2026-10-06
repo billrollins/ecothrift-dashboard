@@ -474,9 +474,16 @@ export interface ShrinkFilter {
   vendor?: string;
   order?: string;
   category?: string;
+  subcategory?: string;
   product?: number;
   age?: string;
   price_band?: string;
+  /** Price as % of retail bucket (``u20``, ``20``, … ``60``, ``none``). */
+  pct?: string;
+  /** ``missing`` (default: not found) or ``counted`` (the report's items). */
+  scope?: 'missing' | 'counted';
+  /** With ``scope: 'counted'``: who counted it (user id). */
+  person?: string | number;
 }
 
 export interface ShrinkGroup {
@@ -518,7 +525,77 @@ export async function downloadShrinkCsv(countId: number, filter: ShrinkFilter): 
   const url = URL.createObjectURL(res.data as Blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `inventory-${countId}-not-found.csv`;
+  a.download = `inventory-${countId}-${filter.scope === 'counted' ? 'counted' : 'not-found'}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// --- the inventory report (inventory_effort Phase 4, managers) ---
+
+export type BreakdownBy = 'category' | 'subcategory' | 'vendor' | 'order' | 'age' | 'pct' | 'price_band' | 'person';
+
+export interface InventoryPerson {
+  user_id: number | null;
+  name: string;
+  runs: number;
+  bad_runs: number;
+  hours: number;
+  items: number;
+  price: string;
+  retail: string;
+  items_per_hour: number | null;
+  problems: number;
+}
+
+export interface InventorySummary {
+  id: number;
+  name: string;
+  status: 'open' | 'closed';
+  day: string | null;
+  started_at: string;
+  closed_at: string | null;
+  counted: { n: number; price: string; retail: string; price_pct_of_retail: number | null };
+  not_found: { n: number; price: string; retail: string };
+  expected: number;
+  coverage_pct: number | null;
+  scans: number;
+  runs: number;
+  bad_runs: number;
+  hours: number;
+  problems: number;
+  fixed: number;
+  by_person: InventoryPerson[];
+  breakdowns: BreakdownBy[];
+  pct_buckets: { key: string; label: string }[];
+}
+
+export interface BreakdownSide {
+  n: number;
+  price: string;
+  retail: string;
+}
+
+export interface BreakdownRow {
+  key: string | number;
+  label: string;
+  counted: BreakdownSide;
+  not_found: BreakdownSide;
+}
+
+export interface PriceHistogram {
+  max: number;
+  bins: { counted: number[]; not_found: number[] };
+  no_retail: { counted: number; not_found: number };
+}
+
+export async function getInventorySummary(countId: number): Promise<InventorySummary> {
+  return (await api.get<InventorySummary>(`${B}/counts/${countId}/summary/`)).data;
+}
+
+export async function getInventoryBreakdown(countId: number, by: BreakdownBy): Promise<BreakdownRow[]> {
+  return (await api.get<BreakdownRow[]>(`${B}/counts/${countId}/breakdown/`, { params: { by } })).data;
+}
+
+export async function getPriceHistogram(countId: number): Promise<PriceHistogram> {
+  return (await api.get<PriceHistogram>(`${B}/counts/${countId}/histogram/`)).data;
 }

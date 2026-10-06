@@ -1,28 +1,28 @@
-v2.134.0 — Not found: mark what each uncounted item really is, by item, filter or group (inventory_effort Phase 3)
+v2.135.0 — Inventory report: totals, who counted, breakdown by any dimension, price % of retail (inventory_effort Phase 4)
 
-User-facing theme: **Not found: every item the inventory expected and did not find, with a quick way to mark what each one really is (back stock, owner took, sold as generic, or shrink), one at a time, by selection, by filter, or a whole order, product, vendor or category at once.** Initiative: `inventory_effort` Phase 3.
+User-facing theme: **The inventory report: totals, who counted what, and a breakdown by any dimension (bar or pie, counted next to not found, click through to the items), plus price as % of retail in 1% steps.** Initiative: `inventory_effort` Phase 4.
 
 ### Added
 
-- **Not found** (`/inventory/count/<id>/shrink`; the inventory's "Not found" button opens it).
-  - The list is expected minus counted. An item scanned later or claimed in PR Fix-it leaves it by itself.
-  - Columns: SKU, item and category, order, vendor, price, retail, time on the shelf, last counted in an earlier inventory, and its mark.
-  - Server-side sort and paging: 11,852 rows load in about half a second.
-  - Search (SKU, title, order) and filters: marked or not, vendor, category, time on the shelf, price band.
-- **Totals:** Open, Back stock, Owner took, Sold as generic and Shrink (stolen, broken, scrap), each with its value at price. Click one to filter.
-- **Marks:**
-  - Tick rows and mark them, or mark everything in the current filter, with an optional note.
-  - Every mark can be undone, and a bulk mark is undone in one go.
-  - Nothing changes on the items until the inventory is closed (Phase 7).
-- **By order / product / vendor / category:**
-  - Not found against expected, % not found, $ at price and retail, still open, and what has been marked.
-  - The most items not found come first.
-  - Click a name to see its items, or mark a whole group's open items at once. The real top: Walmart `WLMRT-O99-8G11`, 4,332 of 12,166.
-- **CSV** of the current list.
-- **Model:** `ShrinkMark` (migration `stocktake.0004`). Categories come from the product standard when it has a real one. Both Target vendors group as one.
+- **Inventory report** (`/inventory/count/<id>/report`, the inventory's **Report** button). It replaces the old "missing" report page; the Not found page covers that list now.
+- **Totals:** items counted, $ at price and retail, price as % of retail (weighted), coverage (expected items counted), not found, hours scanning, runs, scans, problems and how many are fixed.
+- **Who counted:**
+  - Each person's items, $ at price and retail, hours, items per hour, runs, bad runs, and problems found.
+  - An item counts for whoever scanned it first. Click a name to list their items.
+- **Breakdown:**
+  - Group by category, subcategory, vendor (both Targets as one), order, time on the shelf, price as % of retail, price or person.
+  - Measure items, $ at price or $ retail. Show counted, not found or both.
+  - Bar or pie chart with a table beside it. Click a bar, slice or number to list the items, with CSV.
+- **Price as % of retail:** a histogram in 1% steps, with the bucket edges marked. The buckets (under 20 / 20–29 / 30–39 / 40–49 / 50–59 / 60+) follow the real distribution of the first count, which peaks at 25%, 35% and 50%.
+- **Print and CSV:** a print button (the menus are left off the page) and a CSV of counted items.
+- **Endpoints:** `GET /api/stocktake/counts/<id>/summary/`, `breakdown/?by=`, `histogram/`. The item list takes `scope=counted` and `person`.
+
+### Removed
+
+- The old count report page (`CountReportPage`); its route now opens the new report.
 
 ### Tests
 
-- `test_counts.py`: the list is expected minus counted; marks move items out of Open; undo by batch and by item; only not-found items can be marked; mark by filter and by group; found later and sold meanwhile leave the list; the API, its permissions and the CSV (51 tests).
+- `test_counts.py`: totals and price % of retail, people (first scan wins), breakdowns by % bucket and person, the histogram, counted items by bucket and by person, and the API with its permissions.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
