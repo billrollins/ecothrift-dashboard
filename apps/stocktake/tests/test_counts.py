@@ -621,6 +621,15 @@ class ShrinkWorklistTests(Base):
         self.assertEqual(res['marked'], 1)
         self.assertEqual(self.shrink.worklist(self.count, {})['totals']['open']['n'], 0)
 
+    def test_sold_online_is_its_own_estimate_and_changes_nothing(self):
+        """Owner, 2026-10-06: not true shrink, no price asked, not a sale."""
+        res = self.shrink.mark(self.count, user=self.mgr, body={'outcome': 'sold_online', 'item_ids': [self.b.pk]})
+        self.assertEqual(res['marked'], 1)
+        totals = self.shrink.worklist(self.count, {})['totals']
+        self.assertEqual((totals['sold_online']['n'], totals['stolen']['n'], totals['open']['n']), (1, 0, 1))
+        self.b.refresh_from_db()
+        self.assertEqual((self.b.status, self.b.sold_for, self.b.sold_at), ('on_shelf', None, None))
+
     def test_an_item_found_later_leaves_the_list(self):
         run = self.start_run(user=self.other, section=self.back)
         self.scan(run, 'ITM0000002')
@@ -819,3 +828,101 @@ class InventoriesTests(Base):
         # A tag from the past inventory is still found when the screen is on the new one.
         res = fixit.scan_fix('ITM0000009', user=self.mgr, count_id=r2.count_id)
         self.assertEqual(res['issue']['id'], old['issue_id'])
+
+
+class DataQualityTests(Base):
+    """inventory_effort Phase 7: the data errors a count exposes, and the three fixes the owner approves."""
+
+    def setUp(self):
+        super().setUp()
+        import datetime
+
+        from apps.inventory.models import PurchaseOrder, Vendor
+
+        vendor = Vendor.objects.create(name='Amazon', code='AMZ')
+        self.po = PurchaseOrder.objects.create(vendor=vendor, order_number='AMZ37665', ordered_date=datetime.date(2025, 9, 1))
+        self.boss = self._user('boss@example.com', 'Admin', 'Bill')
+        self.boss.is_superuser = True
+        self.boss.save()
+
+    def apply(self, key):
+        from apps.core.models import ApprovalRequest
+        from apps.core.services import approval_requests as ar
+
+        res = self.api(self.mgr).post(f'/api/stocktake/counts/{self.count.pk}/quality/request/', {'key': key}, format='json')
+        self.assertEqual(res.status_code, 201, res.content)
+        req = ApprovalRequest.objects.get(pk=res.data['id'])
+        ar.approve(req, self.boss, start=False)
+        return ar.run(req.pk)
+
+    def undo(self, req):
+        from apps.core.services import approval_requests as ar
+
+        return ar.undo(req, self.boss)
+
+    def test_retagged_items_get_their_old_order_and_undo_unlinks(self):
+        old = make_item('ITMOLDTAG1', status='scrapped')
+        Item.objects.filter(pk=old.pk).update(purchase_order=self.po)
+        new = make_item('ITM0000501', title='Retagged lamp')
+        Item.objects.filter(pk=new.pk).update(notes='RETAGGED_FROM_DB2:ITMOLDTAG1')
+        self.count = counting.start_inventory(self.mgr)
+        f = next(x for x in self.api(self.mgr).get(f'/api/stocktake/counts/{self.count.pk}/quality/').data['findings']
+                 if x['key'] == 'retagged_no_order')
+        self.assertEqual((f['n'], f['fix']['kind']), (1, 'request'))
+        req = self.apply('retagged_no_order')
+        self.assertEqual(req.status, 'applied', req.error)
+        new.refresh_from_db()
+        self.assertEqual(new.purchase_order_id, self.po.pk)
+        self.undo(req)
+        new.refresh_from_db()
+        self.assertIsNone(new.purchase_order_id)
+
+    def test_sold_tags_found_keep_their_tag_and_undo_moves_the_sale_back(self):
+        from apps.stocktake.services import quality
+
+        run = self.start_run(user=self.user, section=self.front)
+        self.scan(run, 'ITM0000009')
+        self.count = run.count
+        self.assertEqual(quality.found_sold_ids(self.count), [self.sold.pk])
+        req = self.apply('sold_found')
+        self.assertEqual(req.status, 'applied', req.error)
+        self.sold.refresh_from_db()
+        self.assertEqual(self.sold.status, 'on_shelf')
+        item_id, twin_id = req.result['moved'][0]
+        self.assertEqual(Item.objects.get(pk=twin_id).status, 'sold')
+        self.assertIsNotNone(Issue.objects.get(item=self.sold, kind='already_sold').fixed_at)
+        self.undo(req)
+        self.sold.refresh_from_db()
+        self.assertEqual(self.sold.status, 'sold')
+        self.assertFalse(Item.objects.filter(pk=twin_id).exists())
+
+    def test_found_on_the_floor_goes_back_on_the_shelf_unless_it_was_retagged(self):
+        from apps.stocktake.services import quality
+
+        scrap = make_item('ITMOLDTAG2', status='scrapped', title='Old bed')
+        copy = make_item('ITMOLDTAG3', status='scrapped', title='Old chair')
+        Item.objects.filter(pk=make_item('ITM0000502').pk).update(notes='RETAGGED_FROM_DB2:ITMOLDTAG3')
+        run = self.start_run(user=self.user, section=self.front)
+        self.scan(run, 'ITMOLDTAG2', 'ITMOLDTAG3')
+        # Before "no errors" (v2.138.0) these stayed scrapped: put them back the way the old data has them.
+        Item.objects.filter(pk__in=[scrap.pk, copy.pk]).update(status='scrapped')
+        self.count = run.count
+        fixable, copies = quality.shelf_fixable(self.count)
+        self.assertEqual((list(fixable), list(copies)), ([scrap.pk], [copy.pk]))
+        req = self.apply('off_shelf_found')
+        self.assertEqual(req.status, 'applied', req.error)
+        scrap.refresh_from_db()
+        copy.refresh_from_db()
+        self.assertEqual((scrap.status, copy.status), ('on_shelf', 'scrapped'))
+        self.undo(req)
+        scrap.refresh_from_db()
+        self.assertEqual(scrap.status, 'scrapped')
+
+    def test_findings_are_for_managers(self):
+        self.count = counting.start_inventory(self.mgr)
+        url = f'/api/stocktake/counts/{self.count.pk}/quality/'
+        self.assertEqual(self.api(self.user).get(url).status_code, 403)
+        keys = [f['key'] for f in self.api(self.mgr).get(url).data['findings']]
+        self.assertEqual(keys[:3], ['retagged_no_order', 'sold_found', 'off_shelf_found'])
+        bad = self.api(self.mgr).post(f'{url}request/', {'key': 'no_retail'}, format='json')
+        self.assertEqual(bad.status_code, 400)

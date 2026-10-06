@@ -3,7 +3,7 @@
 
 # Initiative: Inventory effort, reports and shrink
 
-**Status:** **Active** — Phases 1 to 6 and the no-errors rule live (v2.133.0 to v2.140.0); Phase 7 (data quality from the count) next.
+**Status:** **Active** — Phases 1 to 7 and the no-errors rule live (v2.133.0 to v2.141.0). Next: the owner approves the three data-quality Requests in production; later, shrink analysis.
 
 **Objective:** The owner runs one inventory over as many days as it takes, and every run, scan and fix belongs to it. When it ends he has one clean report (totals, who counted what, breakdowns by any dimension), a worklist that turns "not counted" into explained outcomes (back stock, owner took, sold as generic, shrink), one-scan fixes for every problem item, and an "if it all sells" profit view of his orders. The data errors the count exposed get listed and fixed.
 
@@ -68,13 +68,14 @@ On **Inventory → Run count → Efforts**, the owner opens the October 2026 eff
    - An item counted on both days keeps its first scan as `ok`; the later one becomes `already`.
    - Carrie's open run is stopped at its last scan.
 3. **Sold during the effort is not shrink.** "Expected" = items on the shelf when the effort started, minus items sold or scrapped since, plus items checked in since. Today's sales never look like theft.
-4. **What each shrink outcome does.** Each is a record first: who, when, note, undoable. Item status changes only at **Close inventory**, through one Request.
-   | Outcome | Item at close |
+4. **What each shrink outcome means.** Each is an **estimate only** (owner's decision A, 2026-10-06): who, when, note, undoable. The item never changes; it stays `on_shelf` in the system. With no mark an item is **Shrink (general)**.
+   | Outcome | What it means |
    |---|---|
-   | **Back stock** | stays `on_shelf`, `location = 'Back stock'`, so the next count expects it in the back |
-   | **Owner took** | `lost`, reason `owner_use` (kept out of the theft numbers) |
-   | **Sold as generic** | `sold`, `sold_for` empty, reason `sold_generic` (the till already took the money as a generic sale; no double count) |
-   | **Shrink: stolen / broken / scrap** | `lost` (stolen) or `scrapped` (broken, scrap), reason kept |
+   | **Back stock** | in the back; order estimates can add it to what is left |
+   | **Owner took** | owner use; kept out of the theft numbers |
+   | **Sold as generic** | the till already took the money as a generic sale |
+   | **Sold online** (owner, 2026-10-06) | not true shrink; no price asked, and it counts as no sale. Online sales get tracked properly later |
+   | **Shrink: stolen / broken / scrap** | true shrink |
    | **Found** | rescanned later or claimed in PR Fix-it; leaves the list by itself |
 5. **Charts are one panel, not many pages.** A Breakdown panel with three choices:
    - **Group by:** category, subcategory, vendor (both Targets as one), order, age on shelf, price as % of retail, price band, person.
@@ -233,7 +234,7 @@ The errors the count exposed are listed, explained and fixed.
 **Gated by:** none (read-only first).
 
 Acceptance:
-- [ ] A findings table in the Record, each with count, examples and the fix:
+- [x] A findings table in the Record, each with count, examples and the fix:
   - counted with no retail (412);
   - price above retail (5);
   - on the shelf with no order (2,229 uncounted + 2,657 counted);
@@ -242,11 +243,11 @@ Acceptance:
   - 287 `intake` items with prices;
   - 148 `lost`;
   - duplicate SKUs on the floor.
-- [ ] Each fix is a Request (preview, approve, undo), or a rule in `extended/data-quality.md` when it cannot be fixed in bulk.
-- [ ] Items with no order get a fill-in owner ("Legacy stock", named in the register), not a guess, per data-quality-first.
+- [x] Each fix is a Request (preview, approve, undo), or a rule in `extended/data-quality.md` when it cannot be fixed in bulk.
+- [x] Items with no order: most get their real order back from the old tag in their notes (ITM-16). The rest stay "No order" (ITM-04). No guessed owner was needed.
 
 ### Later — Shrink analysis
-Shrink rate by order, vendor, category and age (stolen and broken apart, owner use left out), and a trend across inventories. Detail when Phase 6 is built.
+Shrink rate by order, vendor, category and age (stolen and broken apart; owner use and sold online left out), and a trend across inventories. Detail when Phase 6 is built.
 
 ---
 
@@ -380,6 +381,42 @@ The old Phase 7 close step is dropped. Data quality is now Phase 7.
 - **Checked locally on the prod copy:**
   - The list loads.
   - Order estimates: 35 orders, cost $153,287, sold $279,679, found and unsold $166,451 (17,281 items), est. profit $292,844 at 100%. 2,652 found items have no order.
+
+**2026-10-06 — "Sold online" estimate** (owner; shipped with Phase 7 in v2.141.0).
+
+- A new Shrinkage estimate beside back stock, owner took and sold as generic. It is not true shrink: no price is asked, and it counts as no sale.
+- Online sales get tracked properly later.
+- It has its own total tile and button. Migration `stocktake.0007` changes choices only.
+
+**2026-10-06 — Phase 7 built: data quality from the count; shipped in v2.141.0.**
+
+Where to see it: **Inventories → the inventory → Data quality**. It shows each finding with its count, examples and fix.
+
+Three fixes are bulk Requests. A button stages one; the Super User approves it on Requests, with a preview and an undo.
+
+Findings (count 14, dev copy of production; production may differ a little):
+
+| Finding | Count | Fix |
+|---|---|---|
+| No order, but the old tag says which (ITM-16) | 9,211 items (4,510 on the shelf: 2,453 counted, 2,062 not found; 4,701 sold; $46k of sales), 89 orders | Request `stocktake.link_retagged_orders` |
+| Sold tags found on the shelf (SHR-05) | 196 (+2 old tags already retagged) | Request `stocktake.keep_found_sold` (moves the old sale; marks the problems fixed) |
+| Found on the floor, system has it elsewhere (SHR-06) | 61: 41 scrapped, 19 intake, 1 lost (+9 old tags already retagged: take the old tag off) | Request `stocktake.back_on_shelf` |
+| No order and nothing says which (ITM-04) | 371 shelf items | Rule: stays "No order" |
+| Counted with no retail (ITM-08) | 412 (most: MISFIT-V2-2025 134, WLMRT-O6C-RMAA 121) | Rule: left out of retail numbers |
+| Priced above retail (ITM-10) | 5 (retail looks typed in cents) | By hand |
+| Price $0 (ITM-07) | 1 | By hand (Quick reprice) |
+| The same tag in two sessions | 37 tags (556 more were double scans in one session) | PR Fix-it prints a new tag |
+| Not our tag (maker's barcode) | 196 scans, 168 codes | None: scan the ITM tag |
+| Our tag, no such item | 4 tags (7 scans) | PR Fix-it |
+| Counted, then sold | 31 | None (normal) |
+
+- **The no-order discovery.** Of the 4,881 shelf items with no order, 4,510 were retagged from the old system. Each keeps its old tag in its notes, and every old tag's item has an order. So the "Legacy stock" fill-in was not needed: they get their real orders back.
+  - The old rows are the import's "scrapped" (ITM-06), which is why they were never counted twice.
+  - Linking uses a plain update, so no order is re-costed. Costs stay unknown.
+- **Guard:** an old tag found on the floor that was already retagged is left alone by both Requests. The fix there is to take the old tag off; otherwise the item would count twice.
+- **Code:** `services/quality.py`; three kinds in `approval_kinds.py`; `duplicate_tag.undo_move_sale`; `GET counts/<id>/quality/`, `POST counts/<id>/quality/request/`; `DataQualityTab.tsx`.
+- **Register:** ITM-16, SHR-05 and SHR-06 added, plus an imputation row.
+- **Tests:** `test_counts.py`: 64 pass (new `DataQualityTests`: each fix applied and undone; the retagged-copy guard; managers only).
 
 **2026-10-06 — "No errors" built; live with Phase 5** (v2.138.0).
 

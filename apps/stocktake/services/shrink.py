@@ -3,8 +3,8 @@
 
 - **The list** = expected (``counting.expected_ids``) minus counted. An item scanned later, or claimed in PR Fix-it,
   leaves it by itself.
-- **Marks** (``ShrinkMark``) are estimates: back stock, owner took, sold as generic, or shrink (stolen / broken /
-  scrap); no mark = "Shrink (general)". One per item per inventory; a bulk action shares a ``batch`` so it can be
+- **Marks** (``ShrinkMark``) are estimates: back stock, owner took, sold as generic, sold online (not true shrink, no
+  price, not a sale), or shrink (stolen / broken / scrap); no mark = "Shrink (general)". One per item per inventory; a bulk action shares a ``batch`` so it can be
   undone in one go. The items never change (owner, 2026-10-06, decision A).
 - **Groups**: by order, product, vendor (both Targets as one) or category, each with not found / expected, so an
   order or vendor that is mostly missing (often: all in back stock) stands out and can be marked in one action.
@@ -275,7 +275,7 @@ def _target_ids(count: InventoryCount, body: dict[str, Any]) -> list[int]:
 def mark(count: InventoryCount, *, user, body: dict[str, Any]) -> dict:
     outcome = str(body.get('outcome') or '')
     if outcome not in OUTCOMES:
-        raise BadRequest('Pick what it is: back stock, owner took, sold as generic, or shrink.')
+        raise BadRequest('Pick what it is: back stock, owner took, sold as generic, sold online, or shrink.')
     ids = _target_ids(count, body)
     if not ids:
         return {'marked': 0, 'batch': ''}

@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from apps.accounts.permissions import IsEmployee, IsManagerOrAdmin
 
 from .models import Cart, CountScan, InventoryCount, Issue, Run, Section
-from .services import counting, fixit, inventories, report, shrink
+from .services import counting, fixit, inventories, quality, report, shrink
 
 STAFF = [IsAuthenticated, IsEmployee]
 MANAGERS = [IsAuthenticated, IsManagerOrAdmin]
@@ -380,6 +380,40 @@ def count_start(request):
 def order_estimates(request, pk):
     count = _get(InventoryCount, pk)
     return Response(inventories.order_estimates(count)) if count else _not_found()
+
+
+@api_view(['GET'])
+@permission_classes(MANAGERS)
+def quality_findings(request, pk):
+    """The data errors this inventory exposed, each with examples and its fix (inventory_effort Phase 7)."""
+    count = _get(InventoryCount, pk)
+    return Response(quality.findings(count)) if count else _not_found()
+
+
+@api_view(['POST'])
+@permission_classes(MANAGERS)
+def quality_request(request, pk):
+    """``{"key"}``: stage the Request that fixes one finding. The Super User approves it on Requests."""
+    from apps.core.services.approval_requests import stage
+
+    count = _get(InventoryCount, pk)
+    if count is None:
+        return _not_found()
+    key = str(request.data.get('key') or '')
+    kind = quality.REQUEST_KINDS.get(key)
+    if kind is None:
+        return _err('This finding has no bulk fix.', 'NO_REQUEST')
+    titles = {
+        'retagged_no_order': 'Link retagged items to their old orders',
+        'sold_found': f'Keep the sold tags found on the shelf in {count.name}',
+        'off_shelf_found': f'Put the items found on the floor in {count.name} back on the shelf',
+    }
+    staged = stage(
+        kind, title=titles[key], params={} if key == 'retagged_no_order' else {'count': count.pk},
+        summary=f'From the Data quality tab of {count.name} (inventory_effort Phase 7).',
+        requested_by=f'dash:{counting.person(request.user) or request.user.pk}',
+    )
+    return Response({'id': staged.pk, 'status': staged.status, 'preview': staged.preview}, status=201)
 
 
 @api_view(['GET', 'DELETE'])

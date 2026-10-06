@@ -217,11 +217,13 @@ class ShrinkMark(models.Model):
 
     An estimate only (owner, 2026-10-06, decision A): who, when, why, undoable. The item itself never changes; it
     stays on the shelf in the system. An item with no mark counts as "Shrink (general)". Order estimates can add
-    the items estimated as back stock.
+    the items estimated as back stock. **Sold online** (owner, 2026-10-06) is not true shrink, asks for no price
+    and counts as no sale; online sales get tracked properly later.
     """
     OUTCOME_BACK_STOCK = 'back_stock'
     OUTCOME_OWNER_TOOK = 'owner_took'
     OUTCOME_SOLD_GENERIC = 'sold_generic'
+    OUTCOME_SOLD_ONLINE = 'sold_online'
     OUTCOME_STOLEN = 'stolen'
     OUTCOME_BROKEN = 'broken'
     OUTCOME_SCRAP = 'scrap'
@@ -229,6 +231,7 @@ class ShrinkMark(models.Model):
         (OUTCOME_BACK_STOCK, 'Back stock'),
         (OUTCOME_OWNER_TOOK, 'Owner took'),
         (OUTCOME_SOLD_GENERIC, 'Sold as generic'),
+        (OUTCOME_SOLD_ONLINE, 'Sold online'),
         (OUTCOME_STOLEN, 'Shrink: stolen'),
         (OUTCOME_BROKEN, 'Shrink: broken'),
         (OUTCOME_SCRAP, 'Shrink: scrap'),

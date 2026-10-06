@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.140.0] -->
-<!-- Last reviewed: 2026-10-06 (2.140.0) -->
+<!-- Line 1 release: ## [2.141.0] -->
+<!-- Last reviewed: 2026-10-06 (2.141.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,35 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.141.0] - 2026-10-06
+
+User-facing theme: **Each inventory gets a Data quality tab: the data errors the count exposed, each with how many, examples, and its fix. Three are fixed in bulk through Requests the owner approves, with an undo. Shrinkage gets a "Sold online" estimate.** Initiative: `inventory_effort` Phase 7.
+
+### Added
+
+- **Inventories → the inventory → Data quality.** Each finding shows how many, examples, the data-quality register ID and the fix. Three fixes are Requests: a button stages one, and the Super User approves it on Requests, with a preview and an undo.
+  - **No order, but the old tag says which** (ITM-16):
+    - Items retagged from the old system in March and April with no order get the order of the old tag named in their notes.
+    - On the dev copy: 9,211 items (4,510 on the shelf, 4,701 sold, $46k of sales), 89 orders.
+    - A plain update, so no order is re-costed.
+  - **Sold tags found on the shelf** (SHR-05): each keeps its tag on the shelf; the old sale moves to a new item number, and its problems are marked fixed. 196 on the dev copy.
+  - **Found on the floor, but the system has it as scrapped, intake or lost** (SHR-06): back on the shelf. 61 on the dev copy.
+  - **Guard:** an old tag that was already retagged in the spring is left alone by both, so no item counts twice. The finding says to take the old tag off (11).
+  - **Listed with their rule:** no order and nothing says which (371), counted with no retail (412), priced above retail (5), price $0 (1), the same tag in two sessions (37), maker's barcodes scanned (196), our tag with no item (4), counted then sold (31, normal).
+- **Shrinkage: "Sold online"** (owner): a new estimate. It is not true shrink, asks for no price, and counts as no sale. It has its own total.
+
+### Changed
+
+- **Code:**
+  - New `services/quality.py` and three kinds in `stocktake/approval_kinds.py`; `duplicate_tag.undo_move_sale`.
+  - Endpoints: `counts/<id>/quality/`, `counts/<id>/quality/request/`.
+  - Migration `stocktake.0007` changes choices only.
+- **Data-quality register:** ITM-16, SHR-05, SHR-06 and an imputation row.
+
+### Tests
+
+- `test_counts.py` (65): each fix applied and undone, the retagged-copy guard, managers only, and "Sold online" changes nothing on the item.
 
 ## [2.140.0] - 2026-10-06
 

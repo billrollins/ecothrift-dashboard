@@ -1,35 +1,30 @@
-v2.140.0 — Inventories list and one page per inventory (Summary, Shrinkage, Order estimates, Sessions); a manager starts each inventory (inventory_effort Phase 6)
+v2.141.0 — Data quality tab per inventory (link retagged items to their orders, keep sold tags found, back on the shelf: Requests with undo), Sold online shrink estimate (inventory_effort Phase 7)
 
-User-facing theme: **Every inventory is in one list, and each one opens to its own page with Summary, Shrinkage, Order estimates and Sessions tabs. A manager starts an inventory; a scan never does.** Initiative: `inventory_effort` Phase 6 (the owner's design).
+User-facing theme: **Each inventory gets a Data quality tab: the data errors the count exposed, each with how many, examples, and its fix. Three are fixed in bulk through Requests the owner approves, with an undo. Shrinkage gets a "Sold online" estimate.** Initiative: `inventory_effort` Phase 7.
 
 ### Added
 
-- **Inventory → Inventories** (managers). One row per inventory, newest on top. Each row shows:
-  - In progress or Done.
-  - Counted (items, $ at price, price % of retail) and not found (items, $).
-  - Coverage, sections done of all, sessions, hours, and who counted.
-  - Problems still in PR Fix-it, and how many not-found items have an estimate.
-- **The inventory page** (`/inventory/inventories/<id>`), with tabs:
-  - **Summary:** the inventory report.
-  - **Shrinkage:** what it did not find. Each item reads "Shrink (general)" until it is estimated as back stock, owner took, sold as generic, stolen, broken or scrap. Estimates only; nothing changes on the item.
-  - **Order estimates:** per order, cost, sold so far and the found items still unsold. Set the sell-at to 100%, 50% or a custom %, with a Total line. A switch adds the items estimated as back stock.
-  - **Sessions:** each section with its sessions (one person, one section), mark bad, scans and delete; it lists the sections not done yet.
-  - **Header:** In progress / Done, PR Fix-it (N in carts), and End inventory or Reopen.
-- **Start inventory** (managers), on Run count or on Inventories.
+- **Inventories → the inventory → Data quality.** Each finding shows how many, examples, the data-quality register ID and the fix. Three fixes are Requests: a button stages one, and the Super User approves it on Requests, with a preview and an undo.
+  - **No order, but the old tag says which** (ITM-16):
+    - Items retagged from the old system in March and April with no order get the order of the old tag named in their notes.
+    - On the dev copy: 9,211 items (4,510 on the shelf, 4,701 sold, $46k of sales), 89 orders.
+    - A plain update, so no order is re-costed.
+  - **Sold tags found on the shelf** (SHR-05): each keeps its tag on the shelf; the old sale moves to a new item number, and its problems are marked fixed. 196 on the dev copy.
+  - **Found on the floor, but the system has it as scrapped, intake or lost** (SHR-06): back on the shelf. 61 on the dev copy.
+  - **Guard:** an old tag that was already retagged in the spring is left alone by both, so no item counts twice. The finding says to take the old tag off (11).
+  - **Listed with their rule:** no order and nothing says which (371), counted with no retail (412), priced above retail (5), price $0 (1), the same tag in two sessions (37), maker's barcodes scanned (196), our tag with no item (4), counted then sold (31, normal).
+- **Shrinkage: "Sold online"** (owner): a new estimate. It is not true shrink, asks for no price, and counts as no sale. It has its own total.
 
 ### Changed
 
-- **Run count** counts only into the inventory in progress. With none in progress it says so, and a manager sees Start inventory. The Super User edits sections there (**Edit sections**). The manager tabs are Count | Inventories.
-- **PR Fix-it** works one inventory at a time: the newest by default, with a picker for an earlier one or all. A scanned tag still finds its problem in any inventory.
-- **Old links** (Count sessions, the report, Not found) open the matching tab of the inventory page.
 - **Code:**
-  - New `services/inventories.py`.
-  - Endpoints: `inventories/`, `counts/start/`, `counts/<id>/orders/`, `fixit/inventories/`; `issues/?count=`.
-  - Migration `stocktake.0006` adds `summary_cache`, the list's numbers kept when an inventory is done.
+  - New `services/quality.py` and three kinds in `stocktake/approval_kinds.py`; `duplicate_tag.undo_move_sale`.
+  - Endpoints: `counts/<id>/quality/`, `counts/<id>/quality/request/`.
+  - Migration `stocktake.0007` changes choices only.
+- **Data-quality register:** ITM-16, SHR-05, SHR-06 and an imputation row.
 
 ### Tests
 
-- `test_counts.py` (60): only a manager starts an inventory, no run without one, the list's numbers kept at End and dropped at Reopen, order estimates count found and back stock once, PR Fix-it per inventory.
-- Nav and count vitest (64).
+- `test_counts.py` (65): each fix applied and undone, the retagged-copy guard, managers only, and "Sold online" changes nothing on the item.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

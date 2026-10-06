@@ -15,6 +15,7 @@ import {
   Typography,
 } from '@mui/material';
 import { apiMessage, closeDay, getDay, reopenDay, type DayDetail } from '../../../api/stocktake.api';
+import DataQualityTab from './DataQualityTab';
 import InventoryReportPage from './InventoryReportPage';
 import InventorySessions from './InventorySessions';
 import { StageChip } from './InventoriesPage';
@@ -22,11 +23,12 @@ import { inventoryName } from './inventoryNames';
 import OrderEstimatesTab from './OrderEstimatesTab';
 import ShrinkPage from './ShrinkPage';
 
-type TabKey = 'summary' | 'shrinkage' | 'orders' | 'sessions';
+type TabKey = 'summary' | 'shrinkage' | 'orders' | 'quality' | 'sessions';
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'summary', label: 'Summary' },
   { key: 'shrinkage', label: 'Shrinkage' },
   { key: 'orders', label: 'Order estimates' },
+  { key: 'quality', label: 'Data quality' },
   { key: 'sessions', label: 'Sessions' },
 ];
 const plain = { textTransform: 'none' as const };
@@ -34,7 +36,8 @@ const fmt = (iso: string) => new Date(iso).toLocaleString([], { month: 'short', 
 
 /**
  * One inventory (inventory_effort Phase 6, owner 2026-10-06): In progress, then Done. Tabs: Summary (the report),
- * Shrinkage (what it did not find, as shrink estimates), Order estimates, Sessions (one person in one section).
+ * Shrinkage (what it did not find, as shrink estimates), Order estimates, Data quality (Phase 7: the data errors it
+ * exposed and their fixes), Sessions (one person in one section).
  * The latest one is still worked after it is done: its PR Fix-it problems and its shrink estimates.
  */
 export default function InventoryPage() {
@@ -146,6 +149,7 @@ export default function InventoryPage() {
       {tab === 'summary' && <InventoryReportPage key={`s${version}`} countId={countId} />}
       {tab === 'shrinkage' && <ShrinkPage key={`k${version}`} countId={countId} />}
       {tab === 'orders' && <OrderEstimatesTab key={`o${version}`} countId={countId} />}
+      {tab === 'quality' && <DataQualityTab key={`q${version}`} countId={countId} />}
       {tab === 'sessions' && <InventorySessions key={`r${version}`} id={countId} />}
 
       <Dialog open={ending} onClose={() => setEnding(false)} fullWidth maxWidth="xs">

@@ -86,3 +86,26 @@ def move_sale_to_new_item(item: Item, user, *, where: str) -> Item:
         created_by=user,
     )
     return twin
+
+
+@transaction.atomic
+def undo_move_sale(item: Item, twin: Item, user) -> bool:
+    """Put a moved sale back on the tag it came from (a Request's undo). False when either changed since."""
+    from apps.pos.models import CartLine, DeliveryJobItem
+
+    item = Item.objects.select_for_update().get(pk=item.pk)
+    twin = Item.objects.select_for_update().filter(pk=twin.pk, parent_item=item, status='sold').first()
+    if twin is None or item.status != 'on_shelf':
+        return False
+    CartLine.objects.filter(item=twin).update(item=item)
+    DeliveryJobItem.objects.filter(source_item=twin).update(source_item=item)
+    item.status = 'sold'
+    item.sold_at = twin.sold_at
+    item.sold_for = twin.sold_for
+    item.save(update_fields=['status', 'sold_at', 'sold_for', 'search_text', 'updated_at'])
+    ItemHistory.objects.create(
+        item=item, event_type='status_change', old_value='on_shelf', new_value='sold',
+        note=f'{NOTE}: undone; the sale moved back from {twin.sku}', created_by=user,
+    )
+    twin.delete()
+    return True

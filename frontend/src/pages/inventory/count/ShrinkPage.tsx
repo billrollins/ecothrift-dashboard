@@ -41,10 +41,12 @@ import {
 } from '../../../api/stocktake.api';
 
 /** The marks, in the order the owner thinks of them; colour = how it reads in the totals. */
-const OUTCOMES: { key: ShrinkOutcome; label: string; short: string; color: 'info' | 'secondary' | 'success' | 'error' | 'warning' }[] = [
+const OUTCOMES: { key: ShrinkOutcome; label: string; short: string; color: 'info' | 'secondary' | 'success' | 'primary' | 'error' | 'warning' }[] = [
   { key: 'back_stock', label: 'Back stock', short: 'Back stock', color: 'info' },
   { key: 'owner_took', label: 'Owner took', short: 'Owner took', color: 'secondary' },
   { key: 'sold_generic', label: 'Sold as generic', short: 'Sold generic', color: 'success' },
+  // Not true shrink; no price asked, and it counts as no sale (owner, 2026-10-06).
+  { key: 'sold_online', label: 'Sold online', short: 'Sold online', color: 'primary' },
   { key: 'stolen', label: 'Shrink: stolen', short: 'Stolen', color: 'error' },
   { key: 'broken', label: 'Shrink: broken', short: 'Broken', color: 'warning' },
   { key: 'scrap', label: 'Shrink: scrap', short: 'Scrap', color: 'warning' },
@@ -347,7 +349,8 @@ export default function ShrinkPage({ countId }: { countId: number }) {
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'flex-end' }} gap={1} sx={{ mb: 1.5 }}>
         <Typography sx={{ color: 'text.secondary', fontSize: 14 }}>
           {allMissing.toLocaleString()} items expected and not found. Each is a shrink estimate: &quot;Shrink (general)&quot; until you
-          estimate it as back stock, owner took, sold as generic, stolen, broken or scrap. Estimates only: nothing changes on the item.
+          estimate it as back stock, owner took, sold as generic, sold online, stolen, broken or scrap. Estimates only: nothing changes
+          on the item, and nothing counts as a sale.
         </Typography>
         <Button startIcon={<Download />} variant="outlined" onClick={() => void downloadShrinkCsv(countId, filter).catch(() => setError('Could not download the CSV.'))} sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}>
           CSV of this list
@@ -355,11 +358,12 @@ export default function ShrinkPage({ countId }: { countId: number }) {
       </Stack>
 
       {t && (
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0,1fr))', sm: 'repeat(3, minmax(0,1fr))', md: 'repeat(5, minmax(0,1fr))' }, gap: 1, mb: 1.5 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0,1fr))', sm: 'repeat(3, minmax(0,1fr))', md: 'repeat(6, minmax(0,1fr))' }, gap: 1, mb: 1.5 }}>
           <Total label="Shrink (general)" n={t.open.n} price={t.open.price} active={filter.outcome === 'open'} onClick={() => setFilter((f) => ({ ...f, outcome: 'open' }))} />
           <Total label="Back stock" n={t.back_stock.n} price={t.back_stock.price} active={filter.outcome === 'back_stock'} onClick={() => setFilter((f) => ({ ...f, outcome: 'back_stock' }))} color="info.main" />
           <Total label="Owner took" n={t.owner_took.n} price={t.owner_took.price} active={filter.outcome === 'owner_took'} onClick={() => setFilter((f) => ({ ...f, outcome: 'owner_took' }))} color="secondary.main" />
           <Total label="Sold as generic" n={t.sold_generic.n} price={t.sold_generic.price} active={filter.outcome === 'sold_generic'} onClick={() => setFilter((f) => ({ ...f, outcome: 'sold_generic' }))} color="success.main" />
+          <Total label="Sold online" n={t.sold_online.n} price={t.sold_online.price} active={filter.outcome === 'sold_online'} onClick={() => setFilter((f) => ({ ...f, outcome: 'sold_online' }))} color="primary.main" />
           <Total label="Shrink" n={shrinkTotal.n} price={shrinkTotal.price} active={['stolen', 'broken', 'scrap'].includes(filter.outcome ?? '')} onClick={() => setFilter((f) => ({ ...f, outcome: 'stolen' }))} color="error.main" />
         </Box>
       )}

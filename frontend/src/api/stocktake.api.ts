@@ -451,7 +451,8 @@ export function apiMessage(error: unknown, fallback: string): string {
 
 // --- potential shrink (inventory_effort Phase 3, managers) ---
 
-export type ShrinkOutcome = 'back_stock' | 'owner_took' | 'sold_generic' | 'stolen' | 'broken' | 'scrap';
+/** ``sold_online``: not true shrink, no price, not a sale (owner, 2026-10-06). */
+export type ShrinkOutcome = 'back_stock' | 'owner_took' | 'sold_generic' | 'sold_online' | 'stolen' | 'broken' | 'scrap';
 export type ShrinkGroupBy = 'order' | 'product' | 'vendor' | 'category';
 
 export interface ShrinkMoney {
@@ -699,4 +700,47 @@ export interface OrderEstimates {
 
 export async function getOrderEstimates(countId: number): Promise<OrderEstimates> {
   return (await api.get<OrderEstimates>(`${B}/counts/${countId}/orders/`)).data;
+}
+
+// --- Data quality (inventory_effort Phase 7) ------------------------------------------------------
+
+export interface QualityExample {
+  id: number | null;
+  sku: string;
+  title: string;
+  status: string;
+  price: string | null;
+  retail: string | null;
+  order: string;
+  detail: string;
+}
+
+export interface QualityRequest {
+  id: number;
+  status: 'pending' | 'approved' | 'running' | 'applied' | 'failed' | 'rejected' | 'undone' | string;
+  created_at: string;
+}
+
+export interface QualityFinding {
+  key: string;
+  title: string;
+  what: string;
+  n: number;
+  /** $ at price of the items it covers, when that means something. */
+  money: string | null;
+  examples: QualityExample[];
+  /** request: a bulk fix the Super User approves on Requests; rule / by_hand / pr_fixit / none: how it is handled. */
+  fix: { kind: 'request' | 'rule' | 'by_hand' | 'pr_fixit' | 'none'; label?: string; how?: string; request_kind?: string };
+  /** The data-quality register ID (`.ai/extended/data-quality.md`). */
+  register: string;
+  /** The latest Requests for this fix (newest first). */
+  requests?: QualityRequest[];
+}
+
+export async function getQualityFindings(countId: number): Promise<{ count: { id: number; name: string }; findings: QualityFinding[] }> {
+  return (await api.get(`${B}/counts/${countId}/quality/`)).data;
+}
+
+export async function stageQualityRequest(countId: number, key: string): Promise<{ id: number; status: string }> {
+  return (await api.post(`${B}/counts/${countId}/quality/request/`, { key })).data;
 }
