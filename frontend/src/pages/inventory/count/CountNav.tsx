@@ -1,14 +1,15 @@
 import FactCheck from '@mui/icons-material/FactCheck';
-import ListAlt from '@mui/icons-material/ListAlt';
+import AssignmentTurnedIn from '@mui/icons-material/AssignmentTurnedIn';
 import { Box, Button, Paper, Tab, Tabs, useMediaQuery, useTheme } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 
-type View = 'count' | 'sessions';
-const PATH: Record<View, string> = { count: '/inventory/count', sessions: '/inventory/count/days' };
+type View = 'count' | 'inventories';
+const PATH: Record<View, string> = { count: '/inventory/count', inventories: '/inventory/inventories' };
 
 /**
- * The switch between running a count and looking at the sessions (managers and up; everyone else only counts).
+ * The switch between running a count and the Inventories list (managers and up; everyone else only counts).
+ * Sessions live inside each inventory now (inventory_effort Phase 6).
  * Tabs across the top on a desk; two thumb-size buttons fixed to the bottom on a phone (owner, 2026-10-02).
  */
 export function CountNav({ current }: { current: View }) {
@@ -22,7 +23,7 @@ export function CountNav({ current }: { current: View }) {
     return (
       <Tabs value={current} onChange={(_e, next: View) => navigate(PATH[next])} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
         <Tab value="count" label="Count" icon={<FactCheck fontSize="small" />} iconPosition="start" sx={{ textTransform: 'none', fontWeight: 700, minHeight: 44 }} />
-        <Tab value="sessions" label="Sessions" icon={<ListAlt fontSize="small" />} iconPosition="start" sx={{ textTransform: 'none', fontWeight: 700, minHeight: 44 }} />
+        <Tab value="inventories" label="Inventories" icon={<AssignmentTurnedIn fontSize="small" />} iconPosition="start" sx={{ textTransform: 'none', fontWeight: 700, minHeight: 44 }} />
       </Tabs>
     );
   }
@@ -51,7 +52,7 @@ export function CountNav({ current }: { current: View }) {
         }}
       >
         {button('count', 'Count', <FactCheck />)}
-        {button('sessions', 'Sessions', <ListAlt />)}
+        {button('inventories', 'Inventories', <AssignmentTurnedIn />)}
       </Paper>
     </>
   );

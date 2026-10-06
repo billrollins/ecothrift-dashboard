@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.139.0] -->
-<!-- Last reviewed: 2026-10-06 (2.139.0) -->
+<!-- Line 1 release: ## [2.140.0] -->
+<!-- Last reviewed: 2026-10-06 (2.140.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,40 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.140.0] - 2026-10-06
+
+User-facing theme: **Every inventory is in one list, and each one opens to its own page with Summary, Shrinkage, Order estimates and Sessions tabs. A manager starts an inventory; a scan never does.** Initiative: `inventory_effort` Phase 6 (the owner's design).
+
+### Added
+
+- **Inventory → Inventories** (managers). One row per inventory, newest on top. Each row shows:
+  - In progress or Done.
+  - Counted (items, $ at price, price % of retail) and not found (items, $).
+  - Coverage, sections done of all, sessions, hours, and who counted.
+  - Problems still in PR Fix-it, and how many not-found items have an estimate.
+- **The inventory page** (`/inventory/inventories/<id>`), with tabs:
+  - **Summary:** the inventory report.
+  - **Shrinkage:** what it did not find. Each item reads "Shrink (general)" until it is estimated as back stock, owner took, sold as generic, stolen, broken or scrap. Estimates only; nothing changes on the item.
+  - **Order estimates:** per order, cost, sold so far and the found items still unsold. Set the sell-at to 100%, 50% or a custom %, with a Total line. A switch adds the items estimated as back stock.
+  - **Sessions:** each section with its sessions (one person, one section), mark bad, scans and delete; it lists the sections not done yet.
+  - **Header:** In progress / Done, PR Fix-it (N in carts), and End inventory or Reopen.
+- **Start inventory** (managers), on Run count or on Inventories.
+
+### Changed
+
+- **Run count** counts only into the inventory in progress. With none in progress it says so, and a manager sees Start inventory. The Super User edits sections there (**Edit sections**). The manager tabs are Count | Inventories.
+- **PR Fix-it** works one inventory at a time: the newest by default, with a picker for an earlier one or all. A scanned tag still finds its problem in any inventory.
+- **Old links** (Count sessions, the report, Not found) open the matching tab of the inventory page.
+- **Code:**
+  - New `services/inventories.py`.
+  - Endpoints: `inventories/`, `counts/start/`, `counts/<id>/orders/`, `fixit/inventories/`; `issues/?count=`.
+  - Migration `stocktake.0006` adds `summary_cache`, the list's numbers kept when an inventory is done.
+
+### Tests
+
+- `test_counts.py` (60): only a manager starts an inventory, no run without one, the list's numbers kept at End and dropped at Reopen, order estimates count found and back stock once, PR Fix-it per inventory.
+- Nav and count vitest (64).
 
 ## [2.139.0] - 2026-10-06
 

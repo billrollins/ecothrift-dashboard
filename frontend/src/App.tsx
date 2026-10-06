@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { isStaffRole } from './auth/roles';
 import { useAuth } from './contexts/AuthContext';
 import { LoadingScreen } from './components/feedback/LoadingScreen';
@@ -22,9 +22,8 @@ const ClockPage = lazy(() => import('./pages/kiosk/ClockPage'));
 const ThriftPlusScannerPage = lazy(() => import('./pages/thriftplus/scanner/ThriftPlusScannerPage'));
 const BstockLoginHandoffPage = lazy(() => import('./pages/routines/BstockLoginHandoffPage'));
 const CountPage = lazy(() => import('./pages/inventory/count/CountPage'));
-const InventoryReportPage = lazy(() => import('./pages/inventory/count/InventoryReportPage'));
-const ShrinkPage = lazy(() => import('./pages/inventory/count/ShrinkPage'));
-const CountDaysPage = lazy(() => import('./pages/inventory/count/CountDaysPage'));
+const InventoriesPage = lazy(() => import('./pages/inventory/count/InventoriesPage'));
+const InventoryPage = lazy(() => import('./pages/inventory/count/InventoryPage'));
 const PrFixitPage = lazy(() => import('./pages/inventory/count/PrFixitPage'));
 const ApplicantsPage = lazy(() => import('./pages/people/ApplicantsPage'));
 const JobsPage = lazy(() => import('./pages/people/JobsPage'));
@@ -147,6 +146,13 @@ function LegacyManageProductsRedirect() {
   return <Navigate to={inventoryWorkbenchUrl({ q })} replace />;
 }
 
+/** Old count links (Sessions, Report, Not found) open the inventory's page on the matching tab (2026-10-06). */
+function LegacyCountRedirect({ tab }: { tab?: string }) {
+  const { id } = useParams();
+  if (!id) return <Navigate to="/inventory/inventories" replace />;
+  return <Navigate to={`/inventory/inventories/${id}${tab ? `?tab=${tab}` : ''}`} replace />;
+}
+
 function LegacyQuickRepriceRedirect() {
   const [params] = useSearchParams();
   const sku = params.get('sku');
@@ -267,21 +273,27 @@ export default function App() {
           }
         />
         <Route
-          path="/inventory/count/days"
+          path="/inventory/inventories"
           element={
-            <Suspense fallback={<LoadingScreen message="Loading…" />}>
-              <CountDaysPage />
-            </Suspense>
+            <ManagerRoute>
+              <Suspense fallback={<LoadingScreen message="Loading…" />}>
+                <InventoriesPage />
+              </Suspense>
+            </ManagerRoute>
           }
         />
         <Route
-          path="/inventory/count/days/:id"
+          path="/inventory/inventories/:id"
           element={
-            <Suspense fallback={<LoadingScreen message="Loading…" />}>
-              <CountDaysPage />
-            </Suspense>
+            <ManagerRoute>
+              <Suspense fallback={<LoadingScreen message="Loading…" />}>
+                <InventoryPage />
+              </Suspense>
+            </ManagerRoute>
           }
         />
+        <Route path="/inventory/count/days" element={<LegacyCountRedirect />} />
+        <Route path="/inventory/count/days/:id" element={<LegacyCountRedirect tab="sessions" />} />
         <Route
           path="/inventory/pr-fixit"
           element={
@@ -290,22 +302,8 @@ export default function App() {
             </Suspense>
           }
         />
-        <Route
-          path="/inventory/count/:id/shrink"
-          element={
-            <Suspense fallback={<LoadingScreen message="Loading…" />}>
-              <ShrinkPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/inventory/count/:id/report"
-          element={
-            <Suspense fallback={<LoadingScreen message="Loading…" />}>
-              <InventoryReportPage />
-            </Suspense>
-          }
-        />
+        <Route path="/inventory/count/:id/shrink" element={<LegacyCountRedirect tab="shrinkage" />} />
+        <Route path="/inventory/count/:id/report" element={<LegacyCountRedirect />} />
         <Route path="/floor-ops/floorplans" element={<FloorplanListPage />} />
         <Route path="/inventory/inbound/receiving" element={<Navigate to="/inventory/receiving" replace />} />
         <Route path="/inventory/inbound/finalization" element={<Navigate to="/inventory/processing" replace />} />

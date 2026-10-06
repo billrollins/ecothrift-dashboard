@@ -3,8 +3,9 @@
 
 - **The list** = expected (``counting.expected_ids``) minus counted. An item scanned later, or claimed in PR Fix-it,
   leaves it by itself.
-- **Marks** (``ShrinkMark``): back stock, owner took, sold as generic, or shrink (stolen / broken / scrap). One per
-  item per inventory; a bulk action shares a ``batch`` so it can be undone in one go. Items change only at close.
+- **Marks** (``ShrinkMark``) are estimates: back stock, owner took, sold as generic, or shrink (stolen / broken /
+  scrap); no mark = "Shrink (general)". One per item per inventory; a bulk action shares a ``batch`` so it can be
+  undone in one go. The items never change (owner, 2026-10-06, decision A).
 - **Groups**: by order, product, vendor (both Targets as one) or category, each with not found / expected, so an
   order or vendor that is mostly missing (often: all in back stock) stands out and can be marked in one action.
 - **Category** is the product standard's (``ProductProfile.category``) when it is a real one, else the product's own.

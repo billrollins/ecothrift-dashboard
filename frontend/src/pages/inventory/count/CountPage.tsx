@@ -36,6 +36,7 @@ import {
   reportIssue,
   restoreScan,
   searchItems,
+  startInventory,
   startRun,
   stopRun,
   updateRun,
@@ -51,6 +52,8 @@ import {
 } from '../../../api/stocktake.api';
 import { useAuth } from '../../../contexts/AuthContext';
 import { CountNav } from './CountNav';
+import { SectionsPanel } from './InventorySessions';
+import { inventoryName } from './inventoryNames';
 import { CountQueue, agoText, codeFromScan, looksLikeCode, soundFor, type QueuedScan } from './countQueue';
 import { ACTION_WORDS, PROBLEM_RULES } from './countProblems';
 import { playCountSound, unlockSound } from './countSound';
@@ -186,6 +189,9 @@ export default function CountPage() {
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState('');
   const [newSection, setNewSection] = useState('');
+  const [canStart, setCanStart] = useState(false);
+  const [startOpen, setStartOpen] = useState(false);
+  const [sectionsOpen, setSectionsOpen] = useState(false);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const queueRef = useRef<CountQueue>(new CountQueue());
@@ -208,6 +214,7 @@ export default function CountPage() {
     offsetRef.current = clockOffset(t.server_now, Date.now());
     setSections(t.sections);
     setDay(t.day);
+    setCanStart(!!t.can_start);
     setCarts(t.carts);
     if (t.run && runRef.current?.id !== t.run.id) queueRef.current = new CountQueue(load(t.run.id));
     const mine = new Set(queueRef.current.scans.map((s) => s.issueId));
@@ -373,9 +380,31 @@ export default function CountPage() {
       setNote('');
     } catch (e) {
       setError(apiMessage(e, 'Could not start. Check the connection and try again.'));
+      void refresh().catch(() => undefined);
     } finally {
       setBusy(false);
     }
+  };
+
+  /** A manager starts the inventory (a scan never does, owner 2026-10-06). */
+  const beginInventory = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await startInventory();
+      setStartOpen(false);
+      await refresh();
+      say('Inventory started. Pick a section to scan.');
+    } catch (e) {
+      setError(apiMessage(e, 'Could not start the inventory.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const closeSections = () => {
+    setSectionsOpen(false);
+    void refresh().catch(() => undefined);
   };
 
   const pendingNow: Pending[] = [
@@ -582,7 +611,8 @@ export default function CountPage() {
   if (!run) {
     const doneCount = sections.filter((s) => s.state === 'done').length;
     const inProgress = sections.filter((s) => s.state === 'in_progress').length;
-    const closed = day?.status === 'closed';
+    // Scanning needs an inventory in progress (the scan screen only ever gets the one in progress).
+    const closed = !day;
     const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
     // On a phone the three numbers sit in one compact row, so the section buttons stay on the first screen.
     const tile = { p: { xs: 1, sm: 2 }, borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'background.paper', minWidth: 0 };
@@ -592,12 +622,23 @@ export default function CountPage() {
     return (
       <Box sx={{ p: { xs: 1, md: 2 }, width: '100%', minWidth: 0, maxWidth: 1100, mx: 'auto', display: 'flex', flexDirection: 'column' }} onClick={unlockSound}>
         <CountNav current="count" />
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="h5" sx={{ fontWeight: 800 }}>
-            Run count
-          </Typography>
-          <Typography sx={{ color: 'text.secondary' }}>{today}. Every run adds up to one inventory, over as many days as it takes, until a manager closes it.</Typography>
-        </Box>
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={1} sx={{ mb: 2 }}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="h5" sx={{ fontWeight: 800 }}>
+              Run count
+            </Typography>
+            <Typography sx={{ color: 'text.secondary' }}>
+              {day
+                ? `${today}. ${inventoryName(day)} is in progress: every run adds to it, over as many days as it takes, until a manager ends it.`
+                : `${today}. No inventory is in progress.`}
+            </Typography>
+          </Box>
+          {isSuper && sections.length > 0 && (
+            <Button size="small" variant="outlined" onClick={() => setSectionsOpen(true)} sx={{ textTransform: 'none', flexShrink: 0 }}>
+              Edit sections
+            </Button>
+          )}
+        </Stack>
 
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: { xs: 1, sm: 1.5 }, mb: 2 }}>
           <Box sx={tile}>
@@ -607,7 +648,7 @@ export default function CountPage() {
               {day ? <Box component="span" sx={{ fontSize: { xs: 11, sm: 15 }, fontWeight: 500 }}> of {day.expected.toLocaleString()}</Box> : null}
             </Typography>
             <LinearProgress variant="determinate" value={day && day.expected ? Math.min(100, (100 * day.counted) / day.expected) : 0} sx={{ mt: 1, height: 6, borderRadius: 3 }} />
-            {!day && <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5, ...deskOnly }}>No inventory is open. The first run starts one.</Typography>}
+            {!day && <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5, ...deskOnly }}>No inventory in progress.</Typography>}
           </Box>
           <Box sx={tile}>
             <Typography sx={small}>Sections done</Typography>
@@ -640,10 +681,29 @@ export default function CountPage() {
             {error}
           </Alert>
         )}
-        {closed && (
-          <Alert severity="info" sx={{ mb: 1.5 }}>
-            This inventory is closed. A manager can reopen it from Sessions.
-          </Alert>
+        {closed && sections.length > 0 && (
+          <Box sx={{ ...tile, p: { xs: 2, md: 3 }, mb: 2, textAlign: 'center', borderColor: 'primary.main' }}>
+            <Typography sx={{ fontWeight: 800, fontSize: 20 }}>No inventory in progress</Typography>
+            {canStart ? (
+              <>
+                <Typography sx={{ color: 'text.secondary', maxWidth: 520, mx: 'auto', mt: 0.5 }}>
+                  Start one when the team is ready to count. Then everyone picks a section here.
+                </Typography>
+                <Button variant="contained" size="large" disabled={busy} onClick={() => setStartOpen(true)} sx={{ mt: 2, textTransform: 'none', fontWeight: 800 }}>
+                  Start inventory
+                </Button>
+              </>
+            ) : (
+              <>
+                <Typography sx={{ color: 'text.secondary', maxWidth: 520, mx: 'auto', mt: 0.5 }}>
+                  A manager starts the inventory. Once it is started, pick your section here.
+                </Typography>
+                <Button variant="outlined" disabled={busy} onClick={() => void refresh().catch(() => setError('Could not load the count.'))} sx={{ mt: 2, textTransform: 'none' }}>
+                  Check again
+                </Button>
+              </>
+            )}
+          </Box>
         )}
         {pendingCards.length > 0 && (
           <Box sx={{ mb: 1.5, maxWidth: 560 }}>
@@ -744,6 +804,38 @@ export default function CountPage() {
             )}
           </>
         )}
+
+        <Dialog open={startOpen} onClose={() => setStartOpen(false)} fullWidth maxWidth="xs">
+          <DialogTitle>Start an inventory?</DialogTitle>
+          <DialogContent>
+            <Typography>
+              It notes every item the system says is on the shelf right now. Sales and new stock after this moment are not
+              counted as missing.
+            </Typography>
+            <Typography sx={{ mt: 1, color: 'text.secondary' }}>
+              One inventory runs at a time, over as many days as it takes. End it on Inventories when every section is done.
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setStartOpen(false)} sx={{ textTransform: 'none' }}>
+              Not yet
+            </Button>
+            <Button variant="contained" disabled={busy} onClick={() => void beginInventory()} sx={{ textTransform: 'none', fontWeight: 700 }}>
+              Start inventory
+            </Button>
+          </DialogActions>
+        </Dialog>
+        <Dialog open={sectionsOpen} onClose={closeSections} fullWidth maxWidth="sm">
+          <DialogTitle>Sections</DialogTitle>
+          <DialogContent>
+            <SectionsPanel />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={closeSections} sx={{ textTransform: 'none' }}>
+              Done
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     );
   }
@@ -948,8 +1040,8 @@ export default function CountPage() {
         <MenuItem onClick={() => void nextCart('pr')}>My PR cart is full{carts.pr ? ` (now ${carts.pr.label})` : ''}</MenuItem>
         <MenuItem onClick={() => void nextCart('relocate')}>My relocate cart is full{carts.relocate ? ` (now ${carts.relocate.label})` : ''}</MenuItem>
         {isManager && (
-          <MenuItem component={RouterLink} to="/inventory/count/days">
-            Sessions and reports
+          <MenuItem component={RouterLink} to={`/inventory/inventories/${run.count_id}?tab=sessions`}>
+            This inventory: sessions and reports
           </MenuItem>
         )}
       </Menu>

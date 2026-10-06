@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-06 (one inventory across days and PR Fix-it one-scan fixes: see inventory_effort) -->
+<!-- Last updated: 2026-10-06 (Inventories pages, a manager starts the inventory: see inventory_effort Phase 6) -->
 # Initiative: inventory_count
 
 **Status:** Active. v1 shipped 2026-10-01 (v2.112.0, v2.113.0). **v2 shipped 2026-10-01 13:32 in v2.114.0** (commit `53462bb2`, Heroku v377, backup `b013`; branch `count-v2`, worktree `C:\Coding\_worktrees\ecothrift-dashboard--ship-2112`). **Needed by Mon 2026-10-05** for the first shelf count. The owner plans to count every Monday.
@@ -7,7 +7,9 @@
 
 Wins over Version 2 where they differ. Detail: [`inventory_effort.md`](./inventory_effort.md).
 
-- **One inventory across days**, not one count per day: `InventoryCount` stays open until a manager presses **Close inventory**; only one is open at a time (an advisory lock in `counting.ensure_current_count`). The first full count (10-05) had split at midnight.
+- **One inventory across days**, not one count per day: `InventoryCount` stays in progress until a manager presses **End inventory**; only one is in progress at a time (an advisory lock in `counting.start_inventory`). The first full count (10-05) had split at midnight.
+- **A manager starts it** (Phase 6): **Start inventory** on Run count or Inventories. A scan never starts one (`NoInventory`, API 409 `NO_INVENTORY`). Stages: In progress, then Done.
+- **Inventories** (`/inventory/inventories`, managers) replaces Count sessions: one row per inventory with its numbers; each opens to Summary / Shrinkage / Order estimates / Sessions (`/inventory/inventories/<id>?tab=`). Sections are edited from Run count (**Edit sections**, Super User). PR Fix-it works one inventory at a time (the latest by default, a picker for earlier ones).
 - **Expected** = on the shelf when it started, minus items that left the shelf (sold, scrapped, lost) without being counted (`counting.expected_ids`). Closing keeps that set (`closed_expected_ids`).
 - **PR Fix-it, one scan:** `POST /api/stocktake/fixit/scan/` fixes what is certain and the tag prints with no click (`fixit.auto_fix`); the rest opens its card. No tag: find the product, then **It's ITM…** claims an item the inventory has not found, or **New**. Wrong title: pick the right product. **Shrink** (stolen / broken / scrap, optional salvage).
 

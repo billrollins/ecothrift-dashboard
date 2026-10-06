@@ -3,7 +3,7 @@
 
 # Initiative: Inventory effort, reports and shrink
 
-**Status:** **Active** — Phases 1 to 4 live (v2.133.0 to v2.135.0); Phase 5 built, not shipped; Phase 6 (Inventories pages) designed 2026-10-06.
+**Status:** **Active** — Phases 1 to 6 and the no-errors rule live (v2.133.0 to v2.140.0); Phase 7 (data quality from the count) next.
 
 **Objective:** The owner runs one inventory over as many days as it takes, and every run, scan and fix belongs to it. When it ends he has one clean report (totals, who counted what, breakdowns by any dimension), a worklist that turns "not counted" into explained outcomes (back stock, owner took, sold as generic, shrink), one-scan fixes for every problem item, and an "if it all sells" profit view of his orders. The data errors the count exposed get listed and fixed.
 
@@ -203,25 +203,25 @@ Run count only counts the open inventory; every inventory, current and past, is 
   - A sold tag in hand means two items shared one tag. The tag in hand keeps its number; the old sale moves to a new item number.
 
 Acceptance:
-- [ ] **Menu → Inventory:** Search · Run count · **Inventories** · ── PR Fix-it.
-- [ ] **Run count:**
+- [x] **Menu → Inventory:** Search · Run count · **Inventories** · ── PR Fix-it.
+- [x] **Run count:**
   - Scans only into the open inventory.
   - With none open it says so. A manager presses **Start inventory**; a scan never starts one.
   - Sections setup (Super User) moves here.
-- [ ] **Inventories** (replaces the Sessions tab and page):
+- [x] **Inventories** (replaces the Sessions tab and page):
   - One row per inventory, current on top. Each row shows dates, days, stage, items counted, $ at price, coverage, $ not found, shrink estimate, who counted, sessions, and sections covered (of all).
   - Click a row to open it.
-- [ ] **Inventory page** (`/inventory/inventories/<id>`), with tabs:
+- [x] **Inventory page** (`/inventory/inventories/<id>`), with tabs:
   - **Summary:** the Phase 4 report.
   - **Shrinkage:** the Phase 3 list. Unmarked rows read "Shrink (general)", and the marks are estimates.
   - **Order estimates:** per order, the cost, retail, sold, what the inventory **found** (at price, and at X%), estimated profit and % of cost, with a Total line. A toggle **adds the not-found items estimated as back stock** to what is left.
   - **Sessions:** sections × sessions (who, when, how many), with mark bad, view scans and delete session. Sections not covered are listed.
   - Header: stage, **End inventory** / **Reopen**, and "N problems still in carts → PR Fix-it".
-- [ ] **PR Fix-it:**
+- [x] **PR Fix-it:**
   - Opens on the open inventory, or the latest one when none is open; a new inventory takes over by itself.
   - A picker shows past inventories' carts, for a pile found later.
-- [ ] The old routes (`/inventory/count/days…`, `/inventory/count/<id>/report`, `/shrink`) redirect to the new page.
-- [ ] Tests:
+- [x] The old routes (`/inventory/count/days…`, `/inventory/count/<id>/report`, `/shrink`) redirect to the new page.
+- [x] Tests:
   - start only by a manager;
   - no scan without an open inventory;
   - list metrics;
@@ -309,7 +309,7 @@ Checked on the dev copy: a sold tag scanned → new tag sent to print with no cl
   - A pie shows one side (Counted or Not found) with the top 7 and Other; bars show both.
   - Age is time on the shelf as of today.
 
-**2026-10-06 — Phase 5 built** (not shipped yet). The audit ran read-only on the fresh production copy (`workspace/inv_effort/orders_audit.py`, 351 orders).
+**2026-10-06 — Phase 5 built; live 1:36 PM** (v2.138.0, commit `cfe57343`, Heroku v408, with the no-errors rule). The audit ran read-only on the fresh production copy (`workspace/inv_effort/orders_audit.py`, 351 orders).
 
 **Why the Orders numbers looked broken.** The April import marked 83,489 old-system (V1/V2) items `scrapped`, meaning "no recorded sale" (data-quality ITM-06). The Orders page counted them as priced stock:
 
@@ -347,7 +347,41 @@ Checked on the dev copy: a sold tag scanned → new tag sent to print with no cl
 
 The old Phase 7 close step is dropped. Data quality is now Phase 7.
 
-**2026-10-06 — "No errors" built** (not shipped yet; it goes out with Phase 5).
+**2026-10-06 — Phase 6 built; shipped in v2.140.0.**
+
+- **Start and stages:**
+  - A manager presses **Start inventory** on Run count or on Inventories (`POST counts/start/`, `counting.start_inventory`). A scan never starts one: `start_run` raises `NoInventory`, and the API answers 409 `NO_INVENTORY`.
+  - The stages are In progress and Done (`stage` on every summary). `latest` marks the newest one.
+- **Inventories list:**
+  - `GET inventories/` (`services/inventories.py`). Each row shows counted, $ at price, price % of retail, not found, coverage, sections done of all, sessions, hours, who counted, open PR Fix-it problems, and how many not-found items have an estimate.
+  - A done inventory keeps its numbers in `InventoryCount.summary_cache` (migration `stocktake.0006`), set at End and cleared by Reopen or a merge. The open problems and the estimates stay live.
+- **Inventory page** `/inventory/inventories/<id>?tab=`:
+  - **Summary** = the Phase 4 report.
+  - **Shrinkage** = the Phase 3 list. Unmarked items read "Shrink (general)"; marks are estimates.
+  - **Order estimates** (`GET counts/<id>/orders/`):
+    - Per order: cost, sold so far, the found items still unsold (n and $ at price), and back-stock estimates.
+    - The page applies 100% / 50% / custom and the back-stock switch, with a Total line.
+    - Found items that sold since are already in "sold", so they are not counted twice.
+  - **Sessions** = the old Sessions page for one inventory, plus a "Not done yet" list of sections.
+  - **Header:** stage, PR Fix-it (N in carts), Run count, and End inventory (with a warning when sections are not done) or Reopen.
+- **Run count:** with none in progress it says so. A manager sees **Start inventory**; others see "A manager starts it". The Super User edits sections from **Edit sections**. The manager tabs are Count | Inventories.
+- **PR Fix-it:**
+  - `issues/?count=<id>|all`; the default is the latest inventory.
+  - `fixit/inventories/` feeds the picker: the latest, plus earlier ones with open problems.
+  - A scan still finds a tag's problem in an earlier inventory.
+- **Redirects:** `/inventory/count/days` → Inventories; `/days/<id>` → Sessions tab; `/count/<id>/report` → Summary; `/count/<id>/shrink` → Shrinkage.
+- **Files:**
+  - `CountDaysPage.tsx` became `InventorySessions.tsx`.
+  - New: `InventoriesPage.tsx`, `InventoryPage.tsx`, `OrderEstimatesTab.tsx`, `inventoryNames.ts`.
+  - `ShrinkPage` and `InventoryReportPage` now take a `countId` prop.
+- **Tests:**
+  - `test_counts.py`: 60 pass (new `InventoriesTests`; scans go through a manager-started inventory).
+  - Nav and count vitest: 64 pass. tsc is clean.
+- **Checked locally on the prod copy:**
+  - The list loads.
+  - Order estimates: 35 orders, cost $153,287, sold $279,679, found and unsold $166,451 (17,281 items), est. profit $292,844 at 100%. 2,652 found items have no order.
+
+**2026-10-06 — "No errors" built; live with Phase 5** (v2.138.0).
 
 - **The rule (owner):** a tag the system calls sold, intake, lost or scrapped never stops the register or the count.
 - **Two items, one tag:** `services/duplicate_tag.py` (`move_sale_to_new_item`). The tag in hand keeps its number and goes on the shelf. A new item (`SALE_MOVED_FROM:<sku>`, `parent_item` = the tag) takes the old sale: completed cart lines and delivery jobs move to it. The money does not change.

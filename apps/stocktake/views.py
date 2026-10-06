@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from apps.accounts.permissions import IsEmployee, IsManagerOrAdmin
 
 from .models import Cart, CountScan, InventoryCount, Issue, Run, Section
-from .services import counting, fixit, report, shrink
+from .services import counting, fixit, inventories, report, shrink
 
 STAFF = [IsAuthenticated, IsEmployee]
 MANAGERS = [IsAuthenticated, IsManagerOrAdmin]
@@ -85,12 +85,14 @@ def today(request):
 @api_view(['POST'])
 @permission_classes(STAFF)
 def runs(request):
-    """Body: ``{"section_id"}``. Starts a run (and an inventory, when none is open)."""
+    """Body: ``{"section_id"}``. Starts a run in the inventory in progress (a manager starts the inventory)."""
     section = _get(Section, request.data.get('section_id'))
     if section is None or not section.is_active:
         return _err('Pick a section.', 'SECTION_REQUIRED')
     try:
         run = counting.start_run(user=request.user, section=section)
+    except counting.NoInventory:
+        return _err('No inventory is in progress. A manager starts one on Run count.', 'NO_INVENTORY', 409)
     except counting.CountClosed:
         return _err('This inventory is closed. A manager can reopen it.', 'COUNT_CLOSED', 409)
     return Response({'run': counting.run_summary(run), 'day': counting.day_summary(run.count)}, status=201)
@@ -239,6 +241,11 @@ def issues(request):
         return Response(counting.issue_payload(counting.issues_qs().get(pk=issue.pk)), status=201)
 
     qs = counting.issues_qs().filter(action__in=[Issue.ACTION_PR_CART, Issue.ACTION_RELOCATE])
+    # ``?count=<id>`` one inventory, ``all`` every one; by default the latest (owner, 2026-10-06).
+    which = request.query_params.get('count') or ''
+    if which != 'all':
+        count = _get(InventoryCount, which) if which.isdigit() else counting.latest_count()
+        qs = qs.filter(count=count) if count else qs.none()
     show = request.query_params.get('show') or 'open'
     if show == 'open':
         qs = qs.filter(fixed_at__isnull=True)
@@ -305,9 +312,25 @@ def fixit_scan(request):
     """PR Fix-it scan: ``{"code"}``. Fixes the item when the fix is certain (and returns the tag to print);
     otherwise names the problem that needs an answer."""
     try:
-        return Response(fixit.scan_fix(str(request.data.get('code') or ''), user=request.user))
+        which = str(request.data.get('count') or '')
+        count_id = int(which) if which.isdigit() else None
+        return Response(fixit.scan_fix(str(request.data.get('code') or ''), user=request.user, count_id=count_id))
     except counting.BadRequest as e:
         return _err(str(e), 'BAD_REQUEST')
+
+
+@api_view(['GET'])
+@permission_classes(STAFF)
+def fixit_inventories(request):
+    """PR Fix-it's picker: the latest inventory first, then any earlier one with problems still open."""
+    latest = counting.latest_count()
+    rows = []
+    for c in InventoryCount.objects.filter(day__isnull=False).order_by('-started_at', '-pk')[:20]:
+        open_n = c.issues.filter(action__in=[Issue.ACTION_PR_CART, Issue.ACTION_RELOCATE], fixed_at__isnull=True).count()
+        if c == latest or open_n:
+            rows.append({'id': c.pk, 'name': c.name, 'day': c.day, 'days_active': counting.days_active(c),
+                         'stage': inventories.stage(c), 'open': open_n, 'latest': latest is not None and c.pk == latest.pk})
+    return Response(rows)
 
 
 @api_view(['GET'])
@@ -332,6 +355,31 @@ def search(request):
 def counts(request):
     """Every inventory, newest first."""
     return Response(counting.days())
+
+
+@api_view(['GET'])
+@permission_classes(MANAGERS)
+def inventory_list(request):
+    """The Inventories list: every real inventory, newest first, with its key numbers."""
+    return Response(inventories.inventories())
+
+
+@api_view(['POST'])
+@permission_classes(MANAGERS)
+def count_start(request):
+    """A manager starts an inventory: ``{"name"?}``. Refused while one is in progress."""
+    try:
+        count = counting.start_inventory(request.user, str(request.data.get('name') or ''))
+    except counting.BadRequest as e:
+        return _err(str(e), 'ANOTHER_OPEN', 409)
+    return Response(counting.day_summary(count), status=201)
+
+
+@api_view(['GET'])
+@permission_classes(MANAGERS)
+def order_estimates(request, pk):
+    count = _get(InventoryCount, pk)
+    return Response(inventories.order_estimates(count)) if count else _not_found()
 
 
 @api_view(['GET', 'DELETE'])

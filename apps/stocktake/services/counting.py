@@ -39,6 +39,10 @@ class CountClosed(Exception):
     pass
 
 
+class NoInventory(Exception):
+    """No inventory is in progress: a manager starts one (a scan never does)."""
+
+
 class RunClosed(Exception):
     pass
 
@@ -83,23 +87,28 @@ def current_count() -> InventoryCount | None:
     )
 
 
-def ensure_current_count(user) -> InventoryCount:
-    """The open inventory. When none is open, the first run starts one and freezes what the system says is
-    on the shelf. It stays open across days until a manager closes it."""
+def start_inventory(user, name: str = '') -> InventoryCount:
+    """A manager starts an inventory (owner, 2026-10-06: a scan never starts one). It freezes what the system says
+    is on the shelf and stays in progress across days until a manager ends it. One at a time."""
     with transaction.atomic():
         if connection.vendor == 'postgresql':
             with connection.cursor() as cur:
                 cur.execute('SELECT pg_advisory_xact_lock(%s)', [_EFFORT_LOCK])
         count = current_count()
-        if count is None:
-            day = timezone.localdate()
-            count = InventoryCount.objects.create(
-                day=day,
-                name=f'Inventory {day:%a %Y-%m-%d}',
-                started_by=user,
-                expected_item_ids=list(Item.objects.filter(status='on_shelf').values_list('id', flat=True)),
-            )
-    return count
+        if count is not None:
+            raise BadRequest(f'"{count.name}" is in progress. End it before starting another.')
+        day = timezone.localdate()
+        return InventoryCount.objects.create(
+            day=day,
+            name=(name or '').strip()[:120] or f'Inventory {day:%a %Y-%m-%d}',
+            started_by=user,
+            expected_item_ids=list(Item.objects.filter(status='on_shelf').values_list('id', flat=True)),
+        )
+
+
+def latest_count() -> InventoryCount | None:
+    """The inventory in progress, else the last one (PR Fix-it's default)."""
+    return current_count() or InventoryCount.objects.filter(day__isnull=False).order_by('-started_at', '-pk').first()
 
 
 def good_scans(count: InventoryCount):
@@ -146,6 +155,10 @@ def day_summary(count: InventoryCount) -> dict:
         'name': count.name,
         'day': count.day,
         'status': count.status,
+        # In progress, then Done (owner, 2026-10-06). The latest one is still worked after it is done.
+        'stage': 'in_progress' if count.status == InventoryCount.STATUS_OPEN else 'done',
+        'latest': not InventoryCount.objects.filter(day__isnull=False, started_at__gt=count.started_at).exists(),
+        'started_by': person(count.started_by) if count.started_by_id else '',
         'note': count.note,
         'started_at': count.started_at,
         'closed_at': count.closed_at,
@@ -178,6 +191,10 @@ def close_count(count: InventoryCount, user=None) -> InventoryCount:
             count.closed_at = now
             count.closed_by = user if getattr(user, 'pk', None) else None
             count.save(update_fields=['status', 'closed_at', 'closed_by', 'closed_expected_ids'])
+        from .inventories import core_numbers
+
+        count.summary_cache = core_numbers(count)
+        count.save(update_fields=['summary_cache'])
     return count
 
 
@@ -192,7 +209,8 @@ def reopen_count(count: InventoryCount) -> InventoryCount:
     count.closed_at = None
     count.closed_by = None
     count.closed_expected_ids = None
-    count.save(update_fields=['status', 'closed_at', 'closed_by', 'closed_expected_ids'])
+    count.summary_cache = None
+    count.save(update_fields=['status', 'closed_at', 'closed_by', 'closed_expected_ids', 'summary_cache'])
     return count
 
 
@@ -237,7 +255,9 @@ def open_run_for(user) -> Run | None:
 
 def start_run(*, user, section: Section) -> Run:
     """Start scanning a section. One open run per person: any other open run of theirs is stopped."""
-    count = ensure_current_count(user)
+    count = current_count()
+    if count is None:
+        raise NoInventory()
     with transaction.atomic():
         _stop_open_runs(user)
         return Run.objects.create(count=count, section=section, user=user)
@@ -647,6 +667,7 @@ def bootstrap(user) -> dict:
             for s in Section.objects.filter(is_active=True)
         ],
         'pending': mine,
+        'can_start': bool(user.is_superuser or getattr(user, 'role', '') in ('Manager', 'Admin')),
         'carts': {
             'pr': cart_payload(current_cart(user, Cart.KIND_PR, create=False)),
             'relocate': cart_payload(current_cart(user, Cart.KIND_RELOCATE, create=False)),

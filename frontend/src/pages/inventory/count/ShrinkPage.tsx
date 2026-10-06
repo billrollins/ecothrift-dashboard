@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useParams, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -112,9 +112,9 @@ function MarkBar({ label, disabled, onMark }: { label: string; disabled?: boolea
  * product, vendor or category as back stock, owner took, sold as generic, or shrink. Every mark can be undone.
  * Items change only when the inventory is closed.
  */
-export default function ShrinkPage() {
-  const { id } = useParams<{ id: string }>();
-  const countId = Number(id);
+/** The Shrinkage tab: what the inventory expected and did not find. Each one is a shrink estimate, "Shrink (general)"
+ * until the owner estimates it as something else. Estimates only: nothing changes on the item (owner, 2026-10-06). */
+export default function ShrinkPage({ countId }: { countId: number }) {
   const [params, setParams] = useSearchParams();
   const view: View = (VIEWS.find((v) => v.key === params.get('view'))?.key ?? 'items') as View;
   const [filter, setFilter] = useState<ShrinkFilter>({ outcome: 'open' });
@@ -266,7 +266,7 @@ export default function ShrinkPage() {
               </Tooltip>
             </Stack>
           ) : (
-            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Open</Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Shrink (general)</Typography>
           ),
       },
     ],
@@ -291,7 +291,7 @@ export default function ShrinkPage() {
     { field: 'missing_pct', headerName: '% not found', width: 110, type: 'number', renderCell: (p) => `${p.row.missing_pct}%` },
     { field: 'price', headerName: '$ price', width: 100, type: 'number', valueGetter: (_v, r) => Number(r.price), renderCell: (p) => money(p.row.price) },
     { field: 'retail', headerName: '$ retail', width: 100, type: 'number', valueGetter: (_v, r) => Number(r.retail), renderCell: (p) => money(p.row.retail) },
-    { field: 'open', headerName: 'Open', width: 80, type: 'number' },
+    { field: 'open', headerName: 'Not estimated', width: 110, type: 'number' },
     {
       field: 'outcomes',
       headerName: 'Marked',
@@ -343,19 +343,12 @@ export default function ShrinkPage() {
   const openFilter = (filter.outcome ?? 'open') === 'open';
 
   return (
-    <Box sx={{ p: { xs: 1, md: 2 }, width: '100%', minWidth: 0, maxWidth: 1500, mx: 'auto' }}>
-      <Button component={RouterLink} to={`/inventory/count/days/${countId}`} size="small" sx={{ textTransform: 'none', ml: -0.5 }}>
-        ‹ Back to the inventory
-      </Button>
+    <Box sx={{ width: '100%', minWidth: 0 }}>
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'flex-end' }} gap={1} sx={{ mb: 1.5 }}>
-        <Box>
-          <Typography variant="h5" sx={{ fontWeight: 800 }}>
-            Not found
-          </Typography>
-          <Typography sx={{ color: 'text.secondary', fontSize: 14 }}>
-            {data?.count.name}: everything it expected and did not find ({allMissing.toLocaleString()} items). Mark what each one really is. Nothing changes on the item until the inventory is closed.
-          </Typography>
-        </Box>
+        <Typography sx={{ color: 'text.secondary', fontSize: 14 }}>
+          {allMissing.toLocaleString()} items expected and not found. Each is a shrink estimate: &quot;Shrink (general)&quot; until you
+          estimate it as back stock, owner took, sold as generic, stolen, broken or scrap. Estimates only: nothing changes on the item.
+        </Typography>
         <Button startIcon={<Download />} variant="outlined" onClick={() => void downloadShrinkCsv(countId, filter).catch(() => setError('Could not download the CSV.'))} sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}>
           CSV of this list
         </Button>
@@ -363,7 +356,7 @@ export default function ShrinkPage() {
 
       {t && (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0,1fr))', sm: 'repeat(3, minmax(0,1fr))', md: 'repeat(5, minmax(0,1fr))' }, gap: 1, mb: 1.5 }}>
-          <Total label="Open" n={t.open.n} price={t.open.price} active={filter.outcome === 'open'} onClick={() => setFilter((f) => ({ ...f, outcome: 'open' }))} />
+          <Total label="Shrink (general)" n={t.open.n} price={t.open.price} active={filter.outcome === 'open'} onClick={() => setFilter((f) => ({ ...f, outcome: 'open' }))} />
           <Total label="Back stock" n={t.back_stock.n} price={t.back_stock.price} active={filter.outcome === 'back_stock'} onClick={() => setFilter((f) => ({ ...f, outcome: 'back_stock' }))} color="info.main" />
           <Total label="Owner took" n={t.owner_took.n} price={t.owner_took.price} active={filter.outcome === 'owner_took'} onClick={() => setFilter((f) => ({ ...f, outcome: 'owner_took' }))} color="secondary.main" />
           <Total label="Sold as generic" n={t.sold_generic.n} price={t.sold_generic.price} active={filter.outcome === 'sold_generic'} onClick={() => setFilter((f) => ({ ...f, outcome: 'sold_generic' }))} color="success.main" />
@@ -404,9 +397,9 @@ export default function ShrinkPage() {
               sx={{ minWidth: 240, flex: 1 }}
               slotProps={{ input: { startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> } }}
             />
-            <TextField select size="small" label="Marked" value={filter.outcome ?? 'open'} onChange={(e) => setFilter((f) => ({ ...f, outcome: e.target.value }))} sx={{ minWidth: 150 }}>
-              <MenuItem value="open">Open (not marked)</MenuItem>
-              <MenuItem value="marked">Marked</MenuItem>
+            <TextField select size="small" label="Estimate" value={filter.outcome ?? 'open'} onChange={(e) => setFilter((f) => ({ ...f, outcome: e.target.value }))} sx={{ minWidth: 150 }}>
+              <MenuItem value="open">Shrink (general), not estimated</MenuItem>
+              <MenuItem value="marked">Estimated</MenuItem>
               <MenuItem value="all">All</MenuItem>
               {OUTCOMES.map((o) => (
                 <MenuItem key={o.key} value={o.key}>

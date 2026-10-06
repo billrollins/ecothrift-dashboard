@@ -281,21 +281,26 @@ def auto_fix(issue: Issue) -> tuple[str, dict, bool] | None:
     return None
 
 
-def _open_issues_for(code: str, item: Item | None):
+def _open_issues_for(code: str, item: Item | None, count_id: int | None = None):
     qs = issues_qs().filter(action=Issue.ACTION_PR_CART, fixed_at__isnull=True)
+    if count_id:
+        qs = qs.filter(count_id=count_id)
     match = Q(code=code)
     if item is not None:
         match |= Q(item=item)
     return qs.filter(match).order_by('created_at', 'pk')
 
 
-def scan_fix(code: str, *, user) -> dict:
-    """PR Fix-it scan: fix it when the fix is certain; otherwise say which problem needs an answer."""
+def scan_fix(code: str, *, user, count_id: int | None = None) -> dict:
+    """PR Fix-it scan: fix it when the fix is certain; otherwise say which problem needs an answer.
+    ``count_id`` keeps it to the inventory on screen; without it, any inventory's open problem for the tag."""
     code = normalize_code(code)
     if not code:
         raise BadRequest('Scan a tag.')
     item = Item.objects.select_related('product').filter(sku=code).first()
-    issue = _open_issues_for(code, item).first()
+    issue = _open_issues_for(code, item, count_id).first() or (
+        _open_issues_for(code, item).first() if count_id else None
+    )
     if issue is None:
         return {
             'status': 'no_problem' if item else 'unknown',

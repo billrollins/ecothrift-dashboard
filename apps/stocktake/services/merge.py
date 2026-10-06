@@ -80,6 +80,7 @@ def merge(into_id: int, from_id: int) -> dict[str, Any]:
     CountScan.objects.filter(pk__in=record['scans']).update(count=into)
     Issue.objects.filter(pk__in=record['issues']).update(count=into)
     src.delete()
+    InventoryCount.objects.filter(pk=into.pk).update(summary_cache=None)   # the list recomputes it
     record['moved'] = {'runs': len(record['runs']), 'scans': len(record['scans']), 'issues': len(record['issues']),
                        'counted_in_both': len(dup), 'runs_stopped': len(stopped)}
     return record
@@ -98,6 +99,7 @@ def undo(record: dict[str, Any]) -> dict[str, Any]:
     CountScan.objects.filter(pk__in=record.get('scans') or []).update(count=src)
     Issue.objects.filter(pk__in=record.get('issues') or []).update(count=src)
     CountScan.objects.filter(pk__in=record.get('already') or []).update(result=CountScan.RESULT_OK)
+    InventoryCount.objects.filter(pk__in=[pk, record.get('into') or 0]).update(summary_cache=None)
     for scan_id, client_id in (record.get('renamed') or {}).items():
         CountScan.objects.filter(pk=int(scan_id)).update(client_id=client_id)
     for r in record.get('stopped_runs') or []:

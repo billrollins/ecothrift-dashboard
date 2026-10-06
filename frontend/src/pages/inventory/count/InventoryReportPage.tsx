@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -425,9 +424,8 @@ function HistogramCard({ hist, edges }: { hist: PriceHistogram; edges: number[] 
  * dimension (bar or pie, counted next to not found, click through to the items), and price as % of retail in 1%
  * steps. Prints cleanly; CSV of the counted items.
  */
-export default function InventoryReportPage() {
-  const { id } = useParams<{ id: string }>();
-  const countId = Number(id);
+/** The Summary tab of an inventory: totals, who counted, breakdowns and the price histogram. */
+export default function InventoryReportPage({ countId }: { countId: number }) {
   const [summary, setSummary] = useState<InventorySummary | null>(null);
   const [hist, setHist] = useState<PriceHistogram | null>(null);
   const [error, setError] = useState('');
@@ -442,7 +440,7 @@ export default function InventoryReportPage() {
 
   const s = summary;
   return (
-    <Box sx={{ p: { xs: 1, md: 2 }, width: '100%', minWidth: 0, maxWidth: 1500, mx: 'auto' }}>
+    <Box sx={{ width: '100%', minWidth: 0 }}>
       <GlobalStyles
         styles={{
           '@media print': {
@@ -451,22 +449,11 @@ export default function InventoryReportPage() {
           },
         }}
       />
-      <Button component={RouterLink} to={`/inventory/count/days/${countId}`} size="small" sx={{ textTransform: 'none', ml: -0.5 }} className="no-print">
-        ‹ Back to the inventory
-      </Button>
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'flex-end' }} gap={1} sx={{ mb: 2 }}>
-        <Box>
-          <Typography variant="h5" sx={{ fontWeight: 800 }}>
-            Inventory report
-          </Typography>
-          <Typography sx={{ color: 'text.secondary' }}>
-            {s ? `${s.name} · ${s.status === 'open' ? 'open: numbers change as scans come in' : 'closed'}` : ''}
-          </Typography>
-        </Box>
+        <Typography sx={{ color: 'text.secondary' }}>
+          {s ? (s.status === 'open' ? 'In progress: the numbers change as scans come in.' : 'Done: what the inventory found.') : ''}
+        </Typography>
         <Stack direction="row" spacing={1} className="no-print">
-          <Button component={RouterLink} to={`/inventory/count/${countId}/shrink`} variant="outlined" sx={{ textTransform: 'none' }}>
-            Not found
-          </Button>
           <Button startIcon={<Download />} variant="outlined" onClick={() => void downloadShrinkCsv(countId, { scope: 'counted', outcome: 'all' })} sx={{ textTransform: 'none' }}>
             CSV of counted items
           </Button>

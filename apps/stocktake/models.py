@@ -1,12 +1,12 @@
 """Shelf inventory counts.
 
 - **Section:** a label for a part of the floor (a stand-in until real location codes exist).
-- **InventoryCount:** one inventory. It stays open across days until a manager closes it, and only one is
-  open at a time (inventory_effort Phase 1; it used to be one per calendar day, which split the first full
-  count at midnight). ``day`` is the day it started. It freezes the items the system says are on the shelf
-  when its first run starts (``expected_item_ids``), so sales and new stock during the count don't look like
-  shrink; closing keeps what it expected then (``closed_expected_ids``). Rows with ``day`` null are the first
-  version's trial counts.
+- **InventoryCount:** one inventory: In progress, then Done. A manager starts it (a scan never does) and ends it;
+  it stays in progress across days, and only one is in progress at a time (inventory_effort Phases 1 and 6; it
+  used to be one per calendar day, which split the first full count at midnight). ``day`` is the day it started.
+  It freezes the items the system says are on the shelf when it starts (``expected_item_ids``), so sales and new
+  stock during the count don't look like shrink; ending it keeps what it expected then (``closed_expected_ids``)
+  and the Inventories list's numbers (``summary_cache``). Rows with ``day`` null are the first version's trials.
 - **Run:** one person in one section, start to stop, with a note. A run marked **bad** stays on
   record but is left out of the totals and out of the "already scanned" check.
 - **CountScan:** one scan. Removed scans are kept (``removed_at``) and can be put back.
@@ -55,6 +55,8 @@ class InventoryCount(models.Model):
     expected_item_ids = models.JSONField(default=list, blank=True)
     # What it expected when it was closed (frozen minus what left the shelf uncounted); null while open.
     closed_expected_ids = models.JSONField(null=True, blank=True)
+    # The Inventories list's numbers, kept when it is done (inventory_effort Phase 6); null while in progress.
+    summary_cache = models.JSONField(null=True, blank=True)
 
     class Meta:
         ordering = ['-started_at']
@@ -213,9 +215,9 @@ class Issue(models.Model):
 class ShrinkMark(models.Model):
     """What an item the inventory did not find really is (inventory_effort Phase 3, owner 2026-10-06).
 
-    A record first: who, when, why, undoable. The item itself changes only when the inventory is closed (Phase 7):
-    back stock stays on the shelf with location "Back stock"; owner took → lost (owner use); sold as generic → sold;
-    stolen → lost; broken / scrap → scrapped.
+    An estimate only (owner, 2026-10-06, decision A): who, when, why, undoable. The item itself never changes; it
+    stays on the shelf in the system. An item with no mark counts as "Shrink (general)". Order estimates can add
+    the items estimated as back stock.
     """
     OUTCOME_BACK_STOCK = 'back_stock'
     OUTCOME_OWNER_TOOK = 'owner_took'

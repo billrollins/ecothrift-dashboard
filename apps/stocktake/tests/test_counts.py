@@ -5,7 +5,7 @@ from rest_framework.test import APIClient
 from apps.accounts.models import User
 from apps.inventory.models import Item, ItemHistory, Product
 from apps.stocktake.models import Cart, CountScan, InventoryCount, Issue, Run, Section
-from apps.stocktake.services import counting, fixit
+from apps.stocktake.services import counting, fixit, inventories
 
 
 def make_item(sku, status='on_shelf', price='10.00', title='Widget'):
@@ -31,6 +31,12 @@ class Base(TestCase):
         u.groups.add(Group.objects.get_or_create(name=role)[0])
         return u
 
+    def start_run(self, *, user, section):
+        """A run, with an inventory started by the manager first when none is in progress."""
+        if counting.current_count() is None:
+            counting.start_inventory(self.mgr)
+        return counting.start_run(user=user, section=section)
+
     def api(self, user):
         c = APIClient()
         c.force_authenticate(user)
@@ -45,21 +51,21 @@ class Base(TestCase):
 
 class DayAndRunTests(Base):
     def test_first_run_of_the_day_freezes_the_shelf_and_later_runs_share_the_count(self):
-        r1 = counting.start_run(user=self.user, section=self.front)
-        r2 = counting.start_run(user=self.other, section=self.back)
+        r1 = self.start_run(user=self.user, section=self.front)
+        r2 = self.start_run(user=self.other, section=self.back)
         self.assertEqual(r1.count_id, r2.count_id)
         self.assertEqual(set(r1.count.expected_item_ids), {self.a.pk, self.b.pk, self.c.pk})
         self.assertEqual(InventoryCount.objects.count(), 1)
 
     def test_one_open_run_per_person(self):
-        r1 = counting.start_run(user=self.user, section=self.front)
-        r2 = counting.start_run(user=self.user, section=self.back)
+        r1 = self.start_run(user=self.user, section=self.front)
+        r2 = self.start_run(user=self.user, section=self.back)
         r1.refresh_from_db()
         self.assertEqual((r1.status, r2.status), ('stopped', 'open'))
         self.assertIsNotNone(r1.stopped_at)
 
     def test_scan_results_and_the_problems_they_open(self):
-        run = counting.start_run(user=self.user, section=self.front)
+        run = self.start_run(user=self.user, section=self.front)
         res = self.scan(run, 'itm0000001', 'ITM0000001', 'NOPE', 'ITM0000777', 'ITM0000009')
         # A sold tag in hand is counted; it still opens a question (owner, 2026-10-06: the count always counts).
         self.assertEqual([r['result'] for r in res], ['ok', 'already', 'bad_format', 'unknown', 'ok'])
@@ -70,7 +76,7 @@ class DayAndRunTests(Base):
         self.assertEqual(run.issues.filter(action='pending').count(), 4)
 
     def test_retry_is_idempotent(self):
-        run = counting.start_run(user=self.user, section=self.front)
+        run = self.start_run(user=self.user, section=self.front)
         batch = [{'client_id': 'x1', 'code': 'ITM0000001', 'seq': 1}]
         first = counting.record_scans(run, batch)
         again = counting.record_scans(run, batch)
@@ -78,13 +84,13 @@ class DayAndRunTests(Base):
         self.assertEqual(run.scans.count(), 1)
 
     def test_already_scanned_reaches_across_runs_but_not_into_bad_ones(self):
-        r1 = counting.start_run(user=self.user, section=self.front)
+        r1 = self.start_run(user=self.user, section=self.front)
         self.scan(r1, 'ITM0000001')
         counting.stop_run(r1, outcome='partial')
-        r2 = counting.start_run(user=self.other, section=self.back)
+        r2 = self.start_run(user=self.other, section=self.back)
         self.assertEqual(self.scan(r2, 'ITM0000001')[0]['result'], 'already')
         counting.update_run(r1, bad=True)
-        r3 = counting.start_run(user=self.user, section=self.front)
+        r3 = self.start_run(user=self.user, section=self.front)
         # r2's "already" scan still holds the item, so it stays counted once
         self.assertEqual(counting.day_summary(r3.count)['counted'], 1)
         counting.stop_run(r2, outcome='bad')
@@ -92,7 +98,7 @@ class DayAndRunTests(Base):
         self.assertEqual(self.scan(r3, 'ITM0000001')[0]['result'], 'ok')
 
     def test_complete_needs_every_problem_answered(self):
-        run = counting.start_run(user=self.user, section=self.front)
+        run = self.start_run(user=self.user, section=self.front)
         res = self.scan(run, 'ITM0000001', 'NOPE')
         with self.assertRaises(counting.PendingIssues):
             counting.stop_run(run, outcome='complete')
@@ -104,7 +110,7 @@ class DayAndRunTests(Base):
         self.assertEqual((day['sections_done'], day['sections_total']), (1, 2))
 
     def test_bad_run_is_kept_but_left_out(self):
-        run = counting.start_run(user=self.user, section=self.front)
+        run = self.start_run(user=self.user, section=self.front)
         self.scan(run, 'ITM0000001', 'NOPE')
         counting.stop_run(run, outcome='bad')
         self.assertEqual(run.scans.count(), 2)
@@ -112,7 +118,7 @@ class DayAndRunTests(Base):
         self.assertEqual((day['counted'], day['scans'], day['issues_pending']), (0, 0, 0))
 
     def test_remove_and_restore_a_scan(self):
-        run = counting.start_run(user=self.user, section=self.front)
+        run = self.start_run(user=self.user, section=self.front)
         res = self.scan(run, 'ITM0000001', 'NOPE')
         bad = CountScan.objects.get(pk=res[1]['id'])
         counting.remove_scan(bad, user=self.user)
@@ -125,7 +131,7 @@ class DayAndRunTests(Base):
         self.assertEqual(run.scans.count(), 2)  # nothing is deleted
 
     def test_carts_are_named_for_the_person_and_numbered(self):
-        run = counting.start_run(user=self.user, section=self.front)
+        run = self.start_run(user=self.user, section=self.front)
         res = self.scan(run, 'ITM0000001', 'ITM0000002')
         s1, s2 = (CountScan.objects.get(pk=r['id']) for r in res)
         i1 = counting.report_issue(run, user=self.user, kind='wrong_title', action='pr_cart', scan=s1, detail='Desk lamp')
@@ -143,7 +149,7 @@ class DayAndRunTests(Base):
             counting.report_issue(run, user=self.user, kind='wrong_tag', action='pr_cart')  # needs the scan
 
     def test_report_missing_sold_meanwhile_and_totals(self):
-        run = counting.start_run(user=self.user, section=self.front)
+        run = self.start_run(user=self.user, section=self.front)
         self.scan(run, 'ITM0000001')
         Item.objects.filter(pk=self.c.pk).update(status='sold')  # sold while counting
         rep = counting.report(run.count)
@@ -166,7 +172,7 @@ class DayAndRunTests(Base):
 class FixitTests(Base):
     def setUp(self):
         super().setUp()
-        self.run_ = counting.start_run(user=self.user, section=self.front)
+        self.run_ = self.start_run(user=self.user, section=self.front)
 
     def issue_for(self, code, kind=None, **kw):
         res = self.scan(self.run_, code, start=self.run_.scans.count() + 1)[0]
@@ -238,6 +244,15 @@ class ApiTests(Base):
         boot = emp.get('/api/stocktake/today/').data
         self.assertIsNone(boot['day'])
         self.assertEqual([s['name'] for s in boot['sections']], ['Front wall', 'Back wall'])
+        self.assertFalse(boot['can_start'])
+        r = emp.post('/api/stocktake/runs/', {'section_id': self.front.pk}, format='json')
+        self.assertEqual((r.status_code, r.data['code']), (409, 'NO_INVENTORY'))
+        self.assertEqual(emp.post('/api/stocktake/counts/start/').status_code, 403)
+        mgr = self.api(self.mgr)
+        self.assertTrue(mgr.get('/api/stocktake/today/').data['can_start'])
+        started = mgr.post('/api/stocktake/counts/start/', {}, format='json')
+        self.assertEqual((started.status_code, started.data['stage']), (201, 'in_progress'))
+        self.assertEqual(mgr.post('/api/stocktake/counts/start/', {}, format='json').status_code, 409)
         r = emp.post('/api/stocktake/runs/', {'section_id': self.front.pk}, format='json')
         self.assertEqual(r.status_code, 201, r.content)
         rid = r.data['run']['id']
@@ -270,6 +285,7 @@ class ApiTests(Base):
 
     def test_overview_report_and_fixit_permissions(self):
         emp, mgr = self.api(self.user), self.api(self.mgr)
+        counting.start_inventory(self.mgr)
         rid = emp.post('/api/stocktake/runs/', {'section_id': self.front.pk}, format='json').data['run']['id']
         res = emp.post(f'/api/stocktake/runs/{rid}/scans/', {'scans': [{'client_id': 'a', 'code': 'ITM0000009', 'seq': 1}]}, format='json').data
         emp.patch(f"/api/stocktake/issues/{res['results'][0]['issue_id']}/", {'action': 'pr_cart'}, format='json')
@@ -313,7 +329,7 @@ class ApiTests(Base):
         from django.utils import timezone
 
         # an earlier day: Front wall was completed with two items in it
-        old = counting.start_run(user=self.user, section=self.front)
+        old = self.start_run(user=self.user, section=self.front)
         self.scan(old, 'ITM0000001', 'ITM0000002', 'ITM0000009')
         for issue in old.issues.all():
             counting.answer_issue(issue, user=self.user, action='left')
@@ -329,6 +345,7 @@ class ApiTests(Base):
         self.assertEqual(
             (front['state'], front['expected'], back['state'], back['expected']), ('not_started', 2, 'not_started', None),
         )
+        counting.start_inventory(self.mgr)
         rid = emp.post('/api/stocktake/runs/', {'section_id': self.front.pk}, format='json').data['run']['id']
         emp.post(f'/api/stocktake/runs/{rid}/scans/', {'scans': [{'client_id': 'a', 'code': 'ITM0000003', 'seq': 1}]}, format='json')
         boot = emp.get('/api/stocktake/today/').data
@@ -344,6 +361,7 @@ class ApiTests(Base):
 
     def test_only_the_super_user_deletes_a_session_or_a_day(self):
         emp, mgr = self.api(self.user), self.api(self.mgr)
+        counting.start_inventory(self.mgr)
         r = emp.post('/api/stocktake/runs/', {'section_id': self.front.pk}, format='json').data
         rid, cid = r['run']['id'], r['day']['id']
         emp.post(f'/api/stocktake/runs/{rid}/scans/', {'scans': [{'client_id': 'a', 'code': 'NOPE', 'seq': 1}]}, format='json')
@@ -375,7 +393,7 @@ class InventoryEffortTests(Base):
 
         from django.utils import timezone
 
-        r1 = counting.start_run(user=self.user, section=self.front)
+        r1 = self.start_run(user=self.user, section=self.front)
         self.scan(r1, 'ITM0000001')
         counting.stop_run(r1, outcome='partial')
         # The inventory started yesterday; scanning goes on today.
@@ -383,39 +401,44 @@ class InventoryEffortTests(Base):
             day=timezone.localdate() - datetime.timedelta(days=1),
             started_at=timezone.now() - datetime.timedelta(hours=14),
         )
-        r2 = counting.start_run(user=self.other, section=self.back)
+        r2 = self.start_run(user=self.other, section=self.back)
         self.assertEqual(r2.count_id, r1.count_id)
         self.assertEqual(InventoryCount.objects.count(), 1)
         self.scan(r2, 'ITM0000001', start=5)
         self.assertEqual(r2.scans.get().result, 'already')
 
     def test_an_open_run_in_another_inventory_is_stopped(self):
-        r1 = counting.start_run(user=self.user, section=self.front)
+        r1 = self.start_run(user=self.user, section=self.front)
         counting.close_count(r1.count)
         self.assertIsNone(counting.open_run_for(self.user))
         r1.refresh_from_db()
         self.assertEqual(r1.status, 'stopped')
 
-    def test_after_close_the_next_run_starts_a_new_inventory(self):
-        r1 = counting.start_run(user=self.user, section=self.front)
+    def test_after_done_a_scan_never_starts_one_a_manager_does(self):
+        r1 = self.start_run(user=self.user, section=self.front)
         counting.close_count(r1.count, self.mgr)
         r1.count.refresh_from_db()
         self.assertEqual(r1.count.closed_by, self.mgr)
+        with self.assertRaises(counting.NoInventory):
+            counting.start_run(user=self.user, section=self.front)
+        second = counting.start_inventory(self.mgr, 'Spring inventory')
+        with self.assertRaises(counting.BadRequest):
+            counting.start_inventory(self.mgr)
         r2 = counting.start_run(user=self.user, section=self.front)
+        self.assertEqual((r2.count_id, second.name), (second.pk, 'Spring inventory'))
         self.assertNotEqual(r2.count_id, r1.count_id)
-        self.assertEqual(counting.current_count().pk, r2.count_id)
 
     def test_reopen_is_refused_while_another_is_open(self):
-        r1 = counting.start_run(user=self.user, section=self.front)
+        r1 = self.start_run(user=self.user, section=self.front)
         counting.close_count(r1.count)
-        counting.start_run(user=self.user, section=self.front)
+        counting.start_inventory(self.mgr)
         with self.assertRaises(counting.BadRequest):
             counting.reopen_count(r1.count)
         res = self.api(self.mgr).post(f'/api/stocktake/counts/{r1.count_id}/reopen/')
         self.assertEqual(res.status_code, 409)
 
     def test_close_keeps_what_it_expected(self):
-        run = counting.start_run(user=self.user, section=self.front)
+        run = self.start_run(user=self.user, section=self.front)
         self.scan(run, 'ITM0000001')
         Item.objects.filter(pk=self.b.pk).update(status='sold')        # sold before it was counted
         Item.objects.filter(pk=self.a.pk).update(status='sold')        # counted, then sold: still counted
@@ -437,7 +460,7 @@ class MergeCountsTests(Base):
         super().setUp()
         import datetime
 
-        r1 = counting.start_run(user=self.user, section=self.front)
+        r1 = self.start_run(user=self.user, section=self.front)
         self.scan(r1, 'ITM0000001', 'ITM0000002')
         counting.stop_run(r1, outcome='partial')
         self.first = r1.count
@@ -563,7 +586,7 @@ class ShrinkWorklistTests(Base):
         from apps.stocktake.services import shrink
 
         self.shrink = shrink
-        run = counting.start_run(user=self.user, section=self.front)
+        run = self.start_run(user=self.user, section=self.front)
         self.scan(run, 'ITM0000001')                       # a counted; b and c not found
         self.count = run.count
 
@@ -599,7 +622,7 @@ class ShrinkWorklistTests(Base):
         self.assertEqual(self.shrink.worklist(self.count, {})['totals']['open']['n'], 0)
 
     def test_an_item_found_later_leaves_the_list(self):
-        run = counting.start_run(user=self.other, section=self.back)
+        run = self.start_run(user=self.other, section=self.back)
         self.scan(run, 'ITM0000002')
         self.assertEqual([r['sku'] for r in self.shrink.worklist(self.count, {})['rows']], ['ITM0000003'])
 
@@ -632,9 +655,9 @@ class InventoryReportTests(Base):
         Item.objects.filter(pk=self.a.pk).update(price='25.00', retail='100.00')    # 25% of retail
         Item.objects.filter(pk=self.b.pk).update(price='35.00', retail='100.00')    # 35%
         Item.objects.filter(pk=self.c.pk).update(price='10.00', retail=None)        # no retail, not found
-        r1 = counting.start_run(user=self.user, section=self.front)
+        r1 = self.start_run(user=self.user, section=self.front)
         self.scan(r1, 'ITM0000001')
-        r2 = counting.start_run(user=self.other, section=self.back)
+        r2 = self.start_run(user=self.other, section=self.back)
         self.scan(r2, 'ITM0000002', 'ITM0000001')                                   # 1 again: Pat found it first
         self.count = r1.count
 
@@ -704,7 +727,7 @@ class TwoItemsOneTagTests(Base):
         self.assertTrue(twin.notes.startswith('SALE_MOVED_FROM:ITM0000009'))
 
     def test_count_answer_keep_it_here(self):
-        run = counting.start_run(user=self.user, section=self.front)
+        run = self.start_run(user=self.user, section=self.front)
         res = self.scan(run, 'ITM0000009')[0]
         self.assertEqual((res['result'], res['issue_kind']), ('ok', 'already_sold'))
         issue = Issue.objects.get(pk=res['issue_id'])
@@ -723,8 +746,76 @@ class TwoItemsOneTagTests(Base):
             from unittest.mock import patch
 
             with patch('apps.inventory.services.duplicate_tag.why_not', return_value='consignment'):
-                run = counting.start_run(user=self.user, section=self.front)
+                run = self.start_run(user=self.user, section=self.front)
                 res = self.scan(run, 'ITM0000009')[0]
                 with self.assertRaises(counting.BadRequest):
                     counting.answer_issue(Issue.objects.get(pk=res['issue_id']), user=self.user, action='kept')
         self.assertIsNone(why_not(self.sold))
+
+
+class InventoriesTests(Base):
+    """inventory_effort Phase 6: In progress / Done, the Inventories list, order estimates, PR Fix-it per inventory."""
+
+    def setUp(self):
+        super().setUp()
+        import datetime
+        from decimal import Decimal
+
+        from apps.inventory.models import PurchaseOrder, Vendor
+
+        vendor = Vendor.objects.create(name='Target', code='TRGET')
+        self.po = PurchaseOrder.objects.create(
+            vendor=vendor, order_number='PO-1', ordered_date=datetime.date(2026, 9, 1), total_cost=Decimal('20.00'),
+        )
+        Item.objects.filter(pk__in=[self.a.pk, self.b.pk, self.c.pk]).update(purchase_order=self.po)
+
+    def test_done_keeps_the_list_numbers_and_reopen_drops_them(self):
+        run = self.start_run(user=self.user, section=self.front)
+        self.scan(run, 'ITM0000001', 'ITM0000002')
+        counting.stop_run(run, outcome='complete')
+        count = run.count
+        self.assertEqual(inventories.inventories()[0]['stage'], 'in_progress')
+        counting.close_count(count, self.mgr)
+        count.refresh_from_db()
+        self.assertEqual((count.summary_cache['counted']['n'], count.summary_cache['not_found']['n']), (2, 1))
+        row = self.api(self.mgr).get('/api/stocktake/inventories/').data[0]
+        self.assertEqual((row['stage'], row['latest'], row['sections_done'], row['people']), ('done', True, 1, ['Pat']))
+        self.assertEqual(self.api(self.user).get('/api/stocktake/inventories/').status_code, 403)
+        counting.reopen_count(count)
+        count.refresh_from_db()
+        self.assertIsNone(count.summary_cache)
+
+    def test_order_estimates_count_the_found_and_the_back_stock_once(self):
+        from apps.stocktake.models import ShrinkMark
+        from apps.stocktake.services import shrink
+
+        run = self.start_run(user=self.user, section=self.front)
+        self.scan(run, 'ITM0000001', 'ITM0000002')
+        Item.objects.filter(pk=self.b.pk).update(status='sold', sold_for='10.00')   # found, then sold
+        shrink.mark(run.count, user=self.mgr, body={'outcome': ShrinkMark.OUTCOME_BACK_STOCK, 'item_ids': [self.c.pk]})
+        res = self.api(self.mgr).get(f'/api/stocktake/counts/{run.count_id}/orders/').data
+        order = res['orders'][0]
+        self.assertEqual(order['order_number'], 'PO-1')
+        self.assertEqual((order['found']['n'], order['found']['price'], order['found_sold_since']), (1, '10.00', 1))
+        self.assertEqual((order['back_stock']['n'], order['sold'], order['cost']), (1, '10.00', '20.00'))
+        self.assertEqual(res['back_stock_marked'], 1)
+
+    def test_pr_fixit_works_one_inventory_at_a_time(self):
+        r1 = self.start_run(user=self.user, section=self.front)
+        old = self.scan(r1, 'ITM0000009')[0]
+        counting.answer_issue(Issue.objects.get(pk=old['issue_id']), user=self.user, action='pr_cart')
+        counting.close_count(r1.count)
+        counting.start_inventory(self.mgr)
+        r2 = counting.start_run(user=self.other, section=self.back)
+        new = self.scan(r2, 'NOPE')[0]
+        counting.answer_issue(Issue.objects.get(pk=new['issue_id']), user=self.other, action='pr_cart')
+        emp = self.api(self.user)
+        self.assertEqual([i['id'] for i in emp.get('/api/stocktake/issues/').data], [new['issue_id']])
+        self.assertEqual([i['id'] for i in emp.get(f'/api/stocktake/issues/?count={r1.count_id}').data], [old['issue_id']])
+        self.assertEqual(len(emp.get('/api/stocktake/issues/?count=all').data), 2)
+        picker = emp.get('/api/stocktake/fixit/inventories/').data
+        self.assertEqual([(p['id'], p['latest'], p['open']) for p in picker],
+                         [(r2.count_id, True, 1), (r1.count_id, False, 1)])
+        # A tag from the past inventory is still found when the screen is on the new one.
+        res = fixit.scan_fix('ITM0000009', user=self.mgr, count_id=r2.count_id)
+        self.assertEqual(res['issue']['id'], old['issue_id'])

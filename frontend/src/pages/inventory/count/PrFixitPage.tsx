@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Alert, Box, Button, Chip, CircularProgress, Divider, Paper, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, CircularProgress, Divider, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
 import {
   apiMessage,
   fixIssue,
   fixitProducts,
   listFixIssues,
+  listFixitInventories,
   reopenIssue,
   scanFix,
+  type FixitInventory,
   type FixKind,
   type Issue,
   type ItemBrief,
@@ -20,6 +22,7 @@ import { localPrintService } from '../../../services/localPrintService';
 import QuickRepricePage from '../QuickRepricePage';
 import { priceFromNote } from './countProblems';
 import { clockTime } from './countTimer';
+import { inventoryName } from './inventoryNames';
 import { ScanBar } from './ScanBar';
 
 type Tab = 'pr' | 'relocate' | 'fixed' | 'reprice';
@@ -415,6 +418,8 @@ type ScanNote = { kind: 'success' | 'info' | 'warning' | 'error'; text: string; 
  * - No tag: find the product; claim one of its items the inventory has not found (it leaves the potential shrink),
  *   or print a new one. Wrong title: pick the right product. Shrink: stolen, broken or scrap, with salvage.
  * - Four tabs: To fix and To relocate (what a count put in carts), Fixed, and Quick reprice. The tab is in the URL.
+ * - One inventory at a time (inventory_effort Phase 6): the latest by default; pick an earlier one for a pile found
+ *   later (``?count=<id>``, or ``all``). A scanned tag still finds its problem in any inventory.
  */
 export default function PrFixitPage() {
   const [rows, setRows] = useState<Issue[] | null>(null);
@@ -428,6 +433,17 @@ export default function PrFixitPage() {
   const [focusId, setFocusId] = useState<number | null>(null);
   const [scanning, setScanning] = useState(false);
   const scanRef = useRef<HTMLInputElement>(null);
+  const [inventories, setInventories] = useState<FixitInventory[]>([]);
+  const countParam = params.get('count');
+  const count: number | 'all' | undefined = countParam === 'all' ? 'all' : countParam && /^\d+$/.test(countParam) ? Number(countParam) : undefined;
+  const latest = inventories.find((i) => i.latest);
+  const countId = typeof count === 'number' ? count : count === 'all' ? undefined : latest?.id;
+  const setCount = (next: string) => {
+    const q = new URLSearchParams(params);
+    if (!next || (latest && next === String(latest.id))) q.delete('count');
+    else q.set('count', next);
+    setParams(q, { replace: true });
+  };
 
   const setTab = (next: Tab, sku?: string) => {
     const q = new URLSearchParams(params);
@@ -442,14 +458,15 @@ export default function PrFixitPage() {
 
   const reload = useCallback(() => {
     setError('');
-    listFixIssues('open')
+    listFixIssues('open', count)
       .then(setRows)
       .catch(() => setError('Could not load the list. Check the connection.'));
-    listFixIssues('fixed')
+    listFixIssues('fixed', count)
       .then((list) => setFixed(list.slice(0, 200)))
       .catch(() => setFixed([]));
+    listFixitInventories().then(setInventories).catch(() => setInventories([]));
     void localPrintService.isAvailable().then(setPrinter);
-  }, []);
+  }, [count]);
   useEffect(reload, [reload]);
   useEffect(() => {
     if (tab !== 'reprice') scanRef.current?.focus();
@@ -471,7 +488,7 @@ export default function PrFixitPage() {
     setScanning(true);
     setFocusId(null);
     try {
-      const res: ScanFixResult = await scanFix(code);
+      const res: ScanFixResult = await scanFix(code, countId);
       if (res.status === 'fixed') {
         if (res.issue) onChanged(res.issue);
         let text = res.message;
@@ -543,6 +560,24 @@ export default function PrFixitPage() {
           </Typography>
         </Box>
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+          {inventories.length > 0 && (
+            <TextField
+              select
+              size="small"
+              label="Inventory"
+              value={count === 'all' ? 'all' : String(countId ?? '')}
+              onChange={(e) => setCount(e.target.value)}
+              sx={{ minWidth: 240 }}
+            >
+              {inventories.map((i) => (
+                <MenuItem key={i.id} value={String(i.id)}>
+                  {inventoryName(i)} · {i.stage === 'in_progress' ? 'in progress' : 'done'}
+                  {i.open ? ` · ${i.open} open` : ''}
+                </MenuItem>
+              ))}
+              <MenuItem value="all">All inventories</MenuItem>
+            </TextField>
+          )}
           {fixedToday > 0 && <Chip size="small" color="success" variant="outlined" label={`${fixedToday} fixed today`} />}
           {printer != null && <Chip size="small" color={printer ? 'success' : 'warning'} label={printer ? 'Tag printer ready' : 'No print server on this device'} />}
           <Button size="small" onClick={reload} sx={{ textTransform: 'none' }}>

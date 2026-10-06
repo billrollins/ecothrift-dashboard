@@ -91,6 +91,15 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     label: 'Run count',
     icon: 'factCheck',
   },
+  // Every inventory with its numbers; each opens to Summary / Shrinkage / Order estimates / Sessions
+  // (inventory_effort Phase 6, owner 2026-10-06).
+  inventories: {
+    id: 'inventories',
+    path: '/inventory/inventories',
+    label: 'Inventories',
+    icon: 'assignmentTurnedIn',
+    roles: ['Manager', 'Admin'],
+  },
   prFixit: {
     id: 'prFixit',
     path: '/inventory/pr-fixit',

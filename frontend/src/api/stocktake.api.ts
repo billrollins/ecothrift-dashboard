@@ -52,6 +52,11 @@ export interface DaySummary {
   name: string;
   day: string | null;
   status: 'open' | 'closed';
+  /** In progress, then Done (owner, 2026-10-06). */
+  stage?: InventoryStage;
+  /** True for the newest inventory: PR Fix-it and the shrink estimates still work on it after it is done. */
+  latest?: boolean;
+  started_by?: string;
   note: string;
   started_at: string;
   closed_at: string | null;
@@ -185,6 +190,8 @@ export interface Today {
   run: RunSummary | null;
   sections: Section[];
   pending: Issue[];
+  /** A manager may start an inventory (a scan never starts one). */
+  can_start?: boolean;
   carts: Carts;
   server_now: string;
 }
@@ -316,8 +323,24 @@ export async function reportIssue(body: {
   return (await api.post<Issue>(`${B}/issues/`, body)).data;
 }
 
-export async function listFixIssues(show: 'open' | 'fixed' | 'all' = 'open'): Promise<Issue[]> {
-  return (await api.get<Issue[]>(`${B}/issues/`, { params: { show } })).data;
+/** ``count``: one inventory's id, ``'all'``, or nothing for the latest inventory. */
+export async function listFixIssues(show: 'open' | 'fixed' | 'all' = 'open', count?: number | 'all'): Promise<Issue[]> {
+  return (await api.get<Issue[]>(`${B}/issues/`, { params: { show, count } })).data;
+}
+
+/** PR Fix-it's inventory picker: the latest first, then earlier ones with problems still open. */
+export interface FixitInventory {
+  id: number;
+  name: string;
+  day: string | null;
+  days_active: string[];
+  stage: InventoryStage;
+  open: number;
+  latest: boolean;
+}
+
+export async function listFixitInventories(): Promise<FixitInventory[]> {
+  return (await api.get<FixitInventory[]>(`${B}/fixit/inventories/`)).data;
 }
 
 export async function fixIssue(
@@ -349,8 +372,8 @@ export interface ScanFixResult {
   item?: ItemBrief | null;
 }
 
-export async function scanFix(code: string): Promise<ScanFixResult> {
-  return (await api.post<ScanFixResult>(`${B}/fixit/scan/`, { code })).data;
+export async function scanFix(code: string, count?: number): Promise<ScanFixResult> {
+  return (await api.post<ScanFixResult>(`${B}/fixit/scan/`, { code, count })).data;
 }
 
 /** A product to answer a "no tag" or "wrong title" problem with. */
@@ -599,4 +622,81 @@ export async function getInventoryBreakdown(countId: number, by: BreakdownBy): P
 
 export async function getPriceHistogram(countId: number): Promise<PriceHistogram> {
   return (await api.get<PriceHistogram>(`${B}/counts/${countId}/histogram/`)).data;
+}
+
+// --- Inventories (inventory_effort Phase 6) -------------------------------------------------------
+
+export type InventoryStage = 'in_progress' | 'done';
+
+/** One row of the Inventories list. */
+export interface InventoryRow {
+  id: number;
+  name: string;
+  day: string | null;
+  stage: InventoryStage;
+  status: 'open' | 'closed';
+  latest: boolean;
+  started_at: string;
+  started_by: string;
+  closed_at: string | null;
+  closed_by: string;
+  days_active: string[];
+  counted: { n: number; price: string; retail: string; price_pct_of_retail: number | null };
+  not_found: { n: number; price: string; retail: string };
+  expected: number;
+  coverage_pct: number | null;
+  hours: number;
+  scans: number;
+  sessions: number;
+  people: string[];
+  sections_done: number;
+  sections_total: number;
+  to_fix: number;
+  /** Not-found items the owner has estimated (any outcome), and how many as back stock. */
+  estimated: number;
+  back_stock: number;
+}
+
+export async function listInventories(): Promise<InventoryRow[]> {
+  return (await api.get<InventoryRow[]>(`${B}/inventories/`)).data;
+}
+
+export async function startInventory(name?: string): Promise<DaySummary> {
+  return (await api.post<DaySummary>(`${B}/counts/start/`, { name })).data;
+}
+
+export interface EstimateMoney {
+  n: number;
+  price: string;
+  retail: string;
+}
+
+export interface OrderEstimate {
+  id: number;
+  order_number: string;
+  vendor: string;
+  ordered_date: string | null;
+  delivered_date: string | null;
+  status: string;
+  cost: string;
+  /** Sold so far (all time). */
+  sold: string;
+  /** Found by the count and still unsold. */
+  found: EstimateMoney;
+  /** Found by the count, sold since (already in ``sold``). */
+  found_sold_since: number;
+  /** Not found, estimated as back stock by the owner, still unsold. */
+  back_stock: EstimateMoney;
+}
+
+export interface OrderEstimates {
+  count: { id: number; name: string; stage: InventoryStage };
+  orders: OrderEstimate[];
+  /** Found items with no order. */
+  no_order: { n: number; price: string };
+  back_stock_marked: number;
+}
+
+export async function getOrderEstimates(countId: number): Promise<OrderEstimates> {
+  return (await api.get<OrderEstimates>(`${B}/counts/${countId}/orders/`)).data;
 }
