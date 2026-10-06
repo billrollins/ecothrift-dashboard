@@ -31,8 +31,14 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractBaseUser, PermissionsMixin):
-    """Custom user model with email as the sole login identifier."""
+    """Custom user model. Staff sign in with their **username** or their email (house standard D16, T61).
+
+    ``username``: unique, lower-case, staff only (customers sign in on the storefront). The first name, then the
+    last initial on a clash (``bill``, ``carrie``; ``services/usernames.py``). ``USERNAME_FIELD`` stays ``email``:
+    the login view finds the email for a username.
+    """
     email = models.EmailField(unique=True)
+    username = models.CharField(max_length=40, unique=True, null=True, blank=True)
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
     phone = models.CharField(max_length=30, blank=True, default='')
@@ -56,6 +62,10 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return f'{self.first_name} {self.last_name}'
+
+    def save(self, *args, **kwargs):
+        self.username = (self.username or '').strip().lower() or None
+        super().save(*args, **kwargs)
 
     @property
     def full_name(self):
@@ -291,3 +301,38 @@ class MagicLinkToken(models.Model):
         if self.used_at is not None:
             return False
         return self.expires_at > timezone.now()
+
+
+class AccountEvent(models.Model):
+    """Account changes, for the record (house standard D16): created, role changed, switched off or on, username
+    changed, password link issued, password set or changed, locked out. Never a password."""
+    KIND_CREATED = 'created'
+    KIND_ROLE = 'role_changed'
+    KIND_OFF = 'switched_off'
+    KIND_ON = 'switched_on'
+    KIND_USERNAME = 'username_changed'
+    KIND_LINK = 'password_link'
+    KIND_PASSWORD_SET = 'password_set'
+    KIND_PASSWORD_CHANGED = 'password_changed'
+    KIND_LOCKED = 'locked_out'
+    KIND_CHOICES = [
+        (KIND_CREATED, 'Created'), (KIND_ROLE, 'Role changed'), (KIND_OFF, 'Switched off'), (KIND_ON, 'Switched on'),
+        (KIND_USERNAME, 'Username changed'), (KIND_LINK, 'Set-password link issued'),
+        (KIND_PASSWORD_SET, 'Password set from a link'), (KIND_PASSWORD_CHANGED, 'Password changed'),
+        (KIND_LOCKED, 'Locked out (too many wrong tries)'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='account_events')
+    kind = models.CharField(max_length=24, choices=KIND_CHOICES, db_index=True)
+    detail = models.CharField(max_length=300, blank=True, default='')
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-at']
+
+    @classmethod
+    def log(cls, user, kind: str, *, actor=None, detail: str = '') -> 'AccountEvent':
+        return cls.objects.create(
+            user=user, kind=kind, detail=detail[:300], actor=actor if getattr(actor, 'pk', None) else None,
+        )

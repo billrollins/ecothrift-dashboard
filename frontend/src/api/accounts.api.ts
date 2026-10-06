@@ -16,8 +16,9 @@ export interface UserParams {
 }
 
 // Auth endpoints
-export function login(email: string, password: string): Promise<{ data: LoginResponse }> {
-  return api.post<LoginResponse>('/auth/login/', { email, password });
+/** ``ident``: a username or an email (T61). */
+export function login(ident: string, password: string): Promise<{ data: LoginResponse }> {
+  return api.post<LoginResponse>('/auth/login/', { login: ident, password });
 }
 
 export function refreshToken(): Promise<{ data: RefreshResponse }> {
@@ -190,6 +191,17 @@ export function sendCustomerSignInLink(id: number): Promise<{ data: { detail: st
 
 export function lookupCustomer(customerNumber: string): Promise<{ data: Customer }> {
   return api.get<Customer>(`/accounts/customers/lookup/${encodeURIComponent(customerNumber)}/`);
+}
+
+/** Set password (T61): a one-time link, 48 hours, shown once with a QR. Nothing is emailed. */
+export interface SetPasswordLink {
+  link: string;
+  expires_at: string;
+  username: string | null;
+}
+
+export function getSetPasswordLink(userId: number): Promise<{ data: SetPasswordLink }> {
+  return api.post<SetPasswordLink>(`/accounts/users/${userId}/set-password-link/`);
 }
 
 // Password reset endpoints

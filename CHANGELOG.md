@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.143.0] -->
-<!-- Last reviewed: 2026-10-06 (2.143.0) -->
+<!-- Line 1 release: ## [2.144.0] -->
+<!-- Last reviewed: 2026-10-06 (2.144.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,35 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.144.0] - 2026-10-06
+
+User-facing theme: **Staff sign in with a simple username (their first name: bill, carrie...) or their email. A manager's Set password button shows a QR and a link; the person picks their own password, and nothing is emailed. Passwords need 8 or more characters, wrong tries lock for 15 minutes, and account changes are logged.** Standards row T61 (house standard D16, Bill 2026-10-06).
+
+### Added
+
+- **Usernames:** the first name in lower case; the last initial on a clash (`bills`, `carrier`). Existing staff get theirs in the migration (bill, carrie, david, ashley, michael, maria). A manager can edit one on the employee panel.
+- **Sign in with username or email:** the box reads "Username or email". Older clients that send `email` still work.
+- **Set password** on the employee panel:
+  - A one-time link, good for 48 hours, shown once with a QR to scan on a phone, plus the person's username. Nothing is emailed.
+  - The person picks their own password; their current one works until then. A new link cancels the old one.
+  - A new employee needs no typed password: create them, then Set password.
+- **Lockout:** 5 wrong tries on a name, or 30 from one address, lock it for 15 minutes. An unknown name counts the same.
+- **Account record** (`AccountEvent`): created, role changed, switched off or on, username changed, link issued, password set or changed, locked out. Never a password. `GET accounts/users/<id>/events/`.
+
+### Changed
+
+- **Passwords:** 8 or more characters with Django's checks (not common, not all digits, not like the name), on Set password, Change password, the reset link and new accounts.
+- **Delete** switches a person off and keeps their history. The owner can't be switched off.
+- **Code:**
+  - `accounts/services/usernames.py`, `lockout.py`; `staff_password.check_password_rules`.
+  - Migrations: `accounts.0009` (username, AccountEvent) and `accounts.0010` (fills staff usernames; reverse clears them).
+- **Still open** (`standards.md`): T68, an owner role and access by area with a route-coverage test; T69, sign-out after 4 hours idle.
+
+### Tests
+
+- `test_usernames_passwords.py` (12): the username rule, sign in by username or email, lockout (and an unknown name), Set password link to a new password and sign-in, the password rules, switch off instead of delete, username edits checked and logged, admins only.
+- Hiring tests (61) pass with the new rules.
 
 ## [2.143.0] - 2026-10-06
 

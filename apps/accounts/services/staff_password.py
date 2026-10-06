@@ -19,13 +19,27 @@ from apps.accounts.models import MagicLinkToken
 
 User = get_user_model()
 
-STAFF_RESET_TTL = timedelta(hours=1)
+STAFF_RESET_TTL = timedelta(hours=1)        # forgot password (emailed)
+SET_PASSWORD_TTL = timedelta(hours=48)       # Set password (shown on screen with a QR; house standard D16)
 STAFF_ROLES = frozenset({'Admin', 'Manager', 'Employee'})
-MIN_PASSWORD_LENGTH = 6
+MIN_PASSWORD_LENGTH = 8
 
 
 def _normalize_email(email: str) -> str:
     return (email or '').strip().lower()
+
+
+def check_password_rules(password: str, user=None) -> None:
+    """8+ characters, and Django's validators: not common, not all digits, not close to the name (D16)."""
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError as DjangoValidationError
+
+    if len(password or '') < MIN_PASSWORD_LENGTH:
+        raise ValidationError({'detail': f'Use at least {MIN_PASSWORD_LENGTH} characters.'})
+    try:
+        validate_password(password, user)
+    except DjangoValidationError as exc:
+        raise ValidationError({'detail': ' '.join(exc.messages)}) from exc
 
 
 def staff_reset_link(token: str) -> str:
@@ -40,8 +54,9 @@ def is_staff_account(user) -> bool:
 
 
 @transaction.atomic
-def issue_staff_reset(*, user, request_ip: str | None = None) -> MagicLinkToken:
-    """Spend any outstanding staff reset tokens for this email, then mint one."""
+def issue_staff_reset(*, user, request_ip: str | None = None, ttl: timedelta = STAFF_RESET_TTL) -> MagicLinkToken:
+    """Spend any outstanding staff reset tokens for this email, then mint one (``ttl``: 1 hour for forgot password,
+    48 hours for a Set password link)."""
     email = _normalize_email(user.email)
     if not email:
         raise ValidationError({'detail': 'This account has no email address.'})
@@ -55,7 +70,7 @@ def issue_staff_reset(*, user, request_ip: str | None = None) -> MagicLinkToken:
     return MagicLinkToken.objects.create(
         email=email,
         purpose=MagicLinkToken.PURPOSE_STAFF_RESET_PASSWORD,
-        expires_at=timezone.now() + STAFF_RESET_TTL,
+        expires_at=timezone.now() + ttl,
         request_ip=request_ip or None,
     )
 
@@ -66,10 +81,6 @@ def consume_staff_reset(*, token: str, new_password: str):
     token = (token or '').strip()
     if not token:
         raise ValidationError({'detail': 'Reset token is required.'})
-    if len(new_password or '') < MIN_PASSWORD_LENGTH:
-        raise ValidationError(
-            {'detail': f'Password must be at least {MIN_PASSWORD_LENGTH} characters.'},
-        )
 
     row = (
         MagicLinkToken.objects.select_for_update()
@@ -86,6 +97,7 @@ def consume_staff_reset(*, token: str, new_password: str):
         row.save(update_fields=['used_at'])
         raise ValidationError({'detail': 'This reset link is invalid or has expired.'})
 
+    check_password_rules(new_password, user)
     row.used_at = timezone.now()
     row.save(update_fields=['used_at'])
 

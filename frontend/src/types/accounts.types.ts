@@ -59,6 +59,8 @@ export interface CustomerProfile {
 export interface User {
   id: number;
   email: string;
+  /** Staff sign-in name: first name lower-case, last initial on a clash (T61). Null for customers. */
+  username?: string | null;
   first_name: string;
   last_name: string;
   phone: string;

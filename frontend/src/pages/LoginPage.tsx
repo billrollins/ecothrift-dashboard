@@ -94,13 +94,14 @@ export default function LoginPage() {
               </Alert>
             ) : null}
             <TextField
-              label="Email"
-              type="email"
+              label="Username or email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
               fullWidth
-              autoComplete="email"
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
               autoFocus
               inputRef={emailRef}
             />

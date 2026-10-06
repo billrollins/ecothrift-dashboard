@@ -23,7 +23,7 @@ from .serializers import (
 from .capabilities import capabilities_for_user, catalog_as_dicts
 from .permissions import IsAdmin, IsManagerOrAdmin
 
-from .models import CustomerProfile
+from .models import AccountEvent, CustomerProfile
 
 User = get_user_model()
 
@@ -99,19 +99,38 @@ def login_view(request):
 
     The refresh token is set as an httpOnly cookie.
     """
+    from .services import lockout
+
     serializer = LoginSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
+    ident = serializer.validated_data['login'].lower()
+    address = _client_ip(request)
+    if lockout.is_locked(ident, address):
+        return Response(
+            {'detail': 'Too many wrong tries. Wait 15 minutes, or ask a manager for a Set password link.',
+             'code': 'LOCKED'},
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
 
+    # A username or an email (D16). The email is what Django authenticates with.
+    email = ident
+    if '@' not in ident:
+        email = User.objects.filter(username=ident).values_list('email', flat=True).first() or ident
     user = authenticate(
         request,
-        username=serializer.validated_data['email'],
+        username=email,
         password=serializer.validated_data['password'],
     )
     if not user:
+        if lockout.record_failure(ident, address):
+            known = User.objects.filter(email__iexact=email).first()
+            if known is not None:
+                AccountEvent.log(known, AccountEvent.KIND_LOCKED, detail=f'from {address or "unknown address"}')
         return Response(
-            {'detail': 'Invalid email or password.'},
+            {'detail': 'Wrong username or password.'},
             status=status.HTTP_401_UNAUTHORIZED,
         )
+    lockout.clear(ident)
     if not user.is_active:
         return Response(
             {'detail': 'Account is disabled.'},
@@ -231,6 +250,8 @@ def verify_password_view(request):
 @permission_classes([IsAuthenticated])
 def change_password_view(request):
     """Change the current user's password."""
+    from .services.staff_password import check_password_rules
+
     serializer = PasswordChangeSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
@@ -239,9 +260,14 @@ def change_password_view(request):
             {'detail': 'Current password is incorrect.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
+    try:
+        check_password_rules(serializer.validated_data['new_password'], request.user)
+    except ValidationError as exc:
+        return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
 
     request.user.set_password(serializer.validated_data['new_password'])
     request.user.save()
+    AccountEvent.log(request.user, AccountEvent.KIND_PASSWORD_CHANGED, actor=request.user)
     return Response({'detail': 'Password changed successfully.'})
 
 
@@ -328,10 +354,11 @@ def reset_password_view(request):
     from apps.accounts.services.staff_password import consume_staff_reset
 
     try:
-        consume_staff_reset(
+        user = consume_staff_reset(
             token=request.data.get('token') or '',
             new_password=request.data.get('new_password') or '',
         )
+        AccountEvent.log(user, AccountEvent.KIND_PASSWORD_SET, actor=user)
     except ValidationError as exc:
         detail = exc.detail
         if isinstance(detail, dict):
@@ -371,6 +398,69 @@ class UserViewSet(viewsets.ModelViewSet):
         if is_active is not None:
             qs = qs.filter(is_active=is_active.lower() in ('true', '1'))
         return qs.distinct()
+
+    def perform_create(self, serializer):
+        user = serializer.save()
+        AccountEvent.log(user, AccountEvent.KIND_CREATED, actor=self.request.user,
+                         detail=f'{user.role or ""} {user.username or user.email}'.strip())
+
+    def perform_update(self, serializer):
+        before = serializer.instance
+        old = {'role': before.role, 'is_active': before.is_active, 'username': before.username}
+        user = serializer.save()
+        actor = self.request.user
+        if user.role != old['role']:
+            AccountEvent.log(user, AccountEvent.KIND_ROLE, actor=actor, detail=f'{old["role"]} → {user.role}')
+        if user.is_active != old['is_active']:
+            AccountEvent.log(user, AccountEvent.KIND_ON if user.is_active else AccountEvent.KIND_OFF, actor=actor)
+        if user.username != old['username']:
+            AccountEvent.log(user, AccountEvent.KIND_USERNAME, actor=actor, detail=f'{old["username"]} → {user.username}')
+
+    def destroy(self, request, *args, **kwargs):
+        """People are switched off, never deleted (D16): history stays. The owner can't be switched off."""
+        user = self.get_object()
+        if user.is_superuser:
+            return Response({'detail': 'The owner cannot be switched off.'}, status=status.HTTP_400_BAD_REQUEST)
+        if user.is_active:
+            user.is_active = False
+            user.save(update_fields=['is_active', 'updated_at'])
+            AccountEvent.log(user, AccountEvent.KIND_OFF, actor=request.user)
+        return Response(UserSerializer(user).data)
+
+    @action(detail=True, methods=['post'], url_path='set-password-link')
+    def set_password_link(self, request, pk=None):
+        """A one-time link (48 hours) for this person to pick their own password: shown once, here, with a QR to
+        scan on their phone. Nothing is emailed and nobody types their password for them (D16, Bill 2026-10-06)."""
+        from apps.accounts.services.staff_password import SET_PASSWORD_TTL, issue_staff_reset, is_staff_account, staff_reset_link
+
+        user = self.get_object()
+        if not is_staff_account(user):
+            return Response({'detail': 'Only staff sign in here. A shopper uses the storefront.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if not user.is_active:
+            return Response({'detail': 'Switch this person on first.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            row = issue_staff_reset(user=user, request_ip=_client_ip(request), ttl=SET_PASSWORD_TTL)
+        except ValidationError as exc:
+            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
+        AccountEvent.log(user, AccountEvent.KIND_LINK, actor=request.user)
+        from apps.accounts.services.usernames import assign_username
+
+        return Response({
+            'link': staff_reset_link(row.token) + '&set=1',
+            'expires_at': row.expires_at,
+            'username': assign_username(user),
+        })
+
+    @action(detail=True, methods=['get'], url_path='events')
+    def events(self, request, pk=None):
+        """This person's account record (newest first). Never a password."""
+        user = self.get_object()
+        return Response([
+            {'kind': e.kind, 'label': e.get_kind_display(), 'detail': e.detail, 'at': e.at,
+             'by': e.actor.full_name if e.actor_id else ''}
+            for e in user.account_events.select_related('actor')[:100]
+        ])
 
     @action(detail=True, methods=['patch'])
     def employee_profile(self, request, pk=None):

@@ -21,6 +21,7 @@ import {
   Typography,
 } from '@mui/material';
 import Close from '@mui/icons-material/Close';
+import Key from '@mui/icons-material/Key';
 import LockReset from '@mui/icons-material/LockReset';
 import { useQuery } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -39,6 +40,7 @@ import { useIsMobileLayout } from '../../hooks/useIsMobileLayout';
 import { formatPhone, maskPhoneInput, stripPhone } from '../../utils/formatPhone';
 import { DrawerSection, Fact, PersonAvatar, formatDay, tenureFrom } from './userChrome';
 import { BadgeBlock } from './BadgeBlock';
+import { SetPasswordLinkDialog } from './SetPasswordLinkDialog';
 
 type Props = {
   userId: number | null;
@@ -77,6 +79,7 @@ function actionError(err: unknown, fallback: string): string {
 type AccountForm = {
   first_name: string;
   last_name: string;
+  username: string;
   email: string;
   phone: string;
   role: string;
@@ -98,7 +101,7 @@ type ProfileForm = {
 };
 
 const EMPTY_ACCOUNT: AccountForm = {
-  first_name: '', last_name: '', email: '', phone: '', role: 'Employee',
+  first_name: '', last_name: '', username: '', email: '', phone: '', role: 'Employee',
 };
 
 const EMPTY_PROFILE: ProfileForm = {
@@ -132,12 +135,14 @@ export default function EmployeeDetailDrawer({ userId, open, onClose }: Props) {
   const [profile, setProfile] = useState<ProfileForm>(EMPTY_PROFILE);
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [linkFor, setLinkFor] = useState<number | null>(null);
 
   useEffect(() => {
     if (!user) return;
     setAccount({
       first_name: user.first_name || '',
       last_name: user.last_name || '',
+      username: user.username || '',
       email: user.email || '',
       phone: user.phone || '',
       role: user.role || 'Employee',
@@ -178,6 +183,7 @@ export default function EmployeeDetailDrawer({ userId, open, onClose }: Props) {
         data: {
           first_name: account.first_name.trim(),
           last_name: account.last_name.trim(),
+          username: account.username.trim().toLowerCase() || null,
           email: account.email.trim(),
           phone: account.phone,
           role: account.role,
@@ -317,6 +323,7 @@ export default function EmployeeDetailDrawer({ userId, open, onClose }: Props) {
                 value={user.has_password ? 'Yes' : 'No password set'}
                 tone={user.has_password ? 'good' : 'warn'}
               />
+              <Fact label="Username" value={user.username || 'None yet'} tone={user.username ? 'neutral' : 'muted'} />
               {/* Blank means we have no record, not that they never signed in -
                   sign-in times were only stamped from Aug 2026 onward. */}
               <Fact
@@ -326,6 +333,15 @@ export default function EmployeeDetailDrawer({ userId, open, onClose }: Props) {
               />
               <Fact label="Account created" value={formatDay(user.date_joined)} />
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
+                <Button
+                  size="small"
+                  variant="contained"
+                  startIcon={<Key />}
+                  onClick={() => setLinkFor(user.id)}
+                  disabled={!user.is_active}
+                >
+                  Set password
+                </Button>
                 <Button
                   size="small"
                   variant="outlined"
@@ -384,14 +400,24 @@ export default function EmployeeDetailDrawer({ userId, open, onClose }: Props) {
                     onChange={(e) => setA('last_name', e.target.value)}
                   />
                 </Stack>
-                <TextField
-                  label="Email"
-                  size="small"
-                  fullWidth
-                  value={account.email}
-                  onChange={(e) => setA('email', e.target.value)}
-                  helperText="This is their sign-in."
-                />
+                <Stack direction="row" spacing={1.5}>
+                  <TextField
+                    label="Username"
+                    size="small"
+                    fullWidth
+                    value={account.username}
+                    onChange={(e) => setA('username', e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))}
+                    helperText="What they sign in with."
+                  />
+                  <TextField
+                    label="Email"
+                    size="small"
+                    fullWidth
+                    value={account.email}
+                    onChange={(e) => setA('email', e.target.value)}
+                    helperText="Signs in too."
+                  />
+                </Stack>
                 <Stack direction="row" spacing={1.5}>
                   <TextField
                     label="Phone"
@@ -608,6 +634,14 @@ export default function EmployeeDetailDrawer({ userId, open, onClose }: Props) {
         loading={sendReset.isPending}
         onConfirm={onSendReset}
         onCancel={() => setConfirmReset(false)}
+      />
+
+      <SetPasswordLinkDialog
+        userId={linkFor}
+        name={user?.full_name || ''}
+        onClose={() => {
+          setLinkFor(null);
+        }}
       />
 
       <ConfirmDialog

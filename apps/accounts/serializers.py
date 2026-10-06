@@ -77,7 +77,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id', 'email', 'first_name', 'last_name', 'phone',
+            'id', 'email', 'username', 'first_name', 'last_name', 'phone',
             'is_active', 'is_staff', 'is_superuser', 'language',
             'date_joined', 'updated_at',
             'last_login',
@@ -100,7 +100,9 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UserCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating new users with role assignment."""
-    password = serializers.CharField(write_only=True, min_length=6)
+    # Optional: nobody types someone else's password (D16). Without one, the person gets a Set password link.
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    username = serializers.CharField(required=False, allow_blank=True, max_length=40)
     role = serializers.ChoiceField(
         choices=['Admin', 'Manager', 'Employee', 'Consignee'],
         write_only=True,
@@ -129,15 +131,26 @@ class UserCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'email', 'first_name', 'last_name', 'phone', 'password', 'role', 'is_active',
+            'email', 'username', 'first_name', 'last_name', 'phone', 'password', 'role', 'is_active',
             'department', 'position', 'employment_type', 'pay_rate',
             'hire_date', 'work_location',
             'commission_rate', 'payout_method',
         ]
 
+    def validate_username(self, value):
+        return clean_username(value)
+
+    def validate(self, attrs):
+        if attrs.get('password'):
+            from apps.accounts.services.staff_password import check_password_rules
+
+            check_password_rules(attrs['password'], User(email=attrs.get('email', ''), first_name=attrs.get('first_name', ''),
+                                                          last_name=attrs.get('last_name', '')))
+        return attrs
+
     def create(self, validated_data):
         role = validated_data.pop('role')
-        password = validated_data.pop('password')
+        password = validated_data.pop('password', '') or None
         # Pop profile fields
         department = validated_data.pop('department', None)
         position = validated_data.pop('position', '')
@@ -152,11 +165,15 @@ class UserCreateSerializer(serializers.ModelSerializer):
         if role in ('Admin', 'Manager', 'Employee'):
             validated_data['is_staff'] = True
 
-        user = User.objects.create_user(password=password, **validated_data)
+        user = User.objects.create_user(password=password, **validated_data)   # no password = unusable
 
         # Assign group
         group, _ = Group.objects.get_or_create(name=role)
         user.groups.add(group)
+        if not user.username:
+            from apps.accounts.services.usernames import assign_username
+
+            assign_username(user)
 
         # Create profiles based on role
         if role in ('Admin', 'Manager', 'Employee'):
@@ -190,9 +207,14 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         required=False,
     )
 
+    username = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=40)
+
     class Meta:
         model = User
-        fields = ['email', 'first_name', 'last_name', 'phone', 'is_active', 'role']
+        fields = ['email', 'username', 'first_name', 'last_name', 'phone', 'is_active', 'role']
+
+    def validate_username(self, value):
+        return clean_username(value, exclude_pk=self.instance.pk if self.instance else None)
 
     def update(self, instance, validated_data):
         role = validated_data.pop('role', None)
@@ -237,10 +259,36 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 
 
 class LoginSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+    """``login``: a username or an email (D16). ``email`` is still read, for older clients."""
+    login = serializers.CharField(required=False, allow_blank=True)
+    email = serializers.CharField(required=False, allow_blank=True)
     password = serializers.CharField()
+
+    def validate(self, attrs):
+        ident = (attrs.get('login') or attrs.get('email') or '').strip()
+        if not ident:
+            raise serializers.ValidationError({'login': 'Enter your username or email.'})
+        attrs['login'] = ident
+        return attrs
 
 
 class PasswordChangeSerializer(serializers.Serializer):
     old_password = serializers.CharField()
-    new_password = serializers.CharField(min_length=6)
+    new_password = serializers.CharField()
+
+
+def clean_username(value, exclude_pk=None):
+    """Lower-case letters and digits, 2 to 40, unique. Blank = none."""
+    import re
+
+    value = (value or '').strip().lower()
+    if not value:
+        return None
+    if not re.fullmatch(r'[a-z0-9]{2,40}', value):
+        raise serializers.ValidationError('Use 2 to 40 lower-case letters or digits, no spaces.')
+    qs = User.objects.filter(username=value)
+    if exclude_pk:
+        qs = qs.exclude(pk=exclude_pk)
+    if qs.exists():
+        raise serializers.ValidationError('That username is taken.')
+    return value

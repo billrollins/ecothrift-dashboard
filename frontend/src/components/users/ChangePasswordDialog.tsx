@@ -18,7 +18,7 @@ import {
 import { useSnackbar } from 'notistack';
 import { changePassword } from '../../api/accounts.api';
 
-const MIN_LENGTH = 6;
+const MIN_LENGTH = 8;
 
 export default function ChangePasswordDialog({
   open,

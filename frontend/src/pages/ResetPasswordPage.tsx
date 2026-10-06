@@ -12,13 +12,15 @@ import { useSnackbar } from 'notistack';
 import { resetPassword } from '../api/accounts.api';
 import { AuthCard } from './auth/AuthCard';
 
-const MIN_LENGTH = 6;
+const MIN_LENGTH = 8;
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const token = searchParams.get('token') || '';
+  // A Set password link from a manager (T61), not a forgot-password email.
+  const firstTime = searchParams.get('set') === '1';
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -71,8 +73,8 @@ export default function ResetPasswordPage() {
 
   return (
     <AuthCard
-      title="Set a new password"
-      subtitle={`Pick something at least ${MIN_LENGTH} characters long.`}
+      title={firstTime ? 'Set your password' : 'Set a new password'}
+      subtitle={`Pick your own: ${MIN_LENGTH} or more characters, not your name, not all numbers.`}
       message={message}
       tone={tone}
     >
