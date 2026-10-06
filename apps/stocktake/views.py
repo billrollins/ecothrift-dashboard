@@ -325,7 +325,7 @@ def fixit_inventories(request):
     """PR Fix-it's picker: the latest inventory first, then any earlier one with problems still open."""
     latest = counting.latest_count()
     rows = []
-    for c in InventoryCount.objects.filter(day__isnull=False).order_by('-started_at', '-pk')[:20]:
+    for c in InventoryCount.objects.filter(day__isnull=False).defer(*InventoryCount.HEAVY_FIELDS).order_by('-started_at', '-pk')[:20]:
         open_n = c.issues.filter(action__in=[Issue.ACTION_PR_CART, Issue.ACTION_RELOCATE], fixed_at__isnull=True).count()
         if c == latest or open_n:
             rows.append({'id': c.pk, 'name': c.name, 'day': c.day, 'days_active': counting.days_active(c),
@@ -419,7 +419,7 @@ def quality_request(request, pk):
 @api_view(['GET', 'DELETE'])
 @permission_classes(MANAGERS)
 def count_detail(request, pk):
-    """DELETE removes the whole inventory (Super User only)."""
+    """``?light=1``: the summary only (the inventory page's header). DELETE removes the whole inventory (Super User)."""
     count = _get(InventoryCount, pk)
     if count is None:
         return _not_found()
@@ -428,6 +428,8 @@ def count_detail(request, pk):
             return _err('Only the Super User deletes an inventory.', 'SUPERUSER_ONLY', 403)
         counting.delete_count(count)
         return Response(status=204)
+    if request.query_params.get('light'):
+        return Response(counting.day_summary(count))
     return Response(counting.day_detail(count))
 
 

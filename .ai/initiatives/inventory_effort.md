@@ -382,6 +382,25 @@ The old Phase 7 close step is dropped. Data quality is now Phase 7.
   - The list loads.
   - Order estimates: 35 orders, cost $153,287, sold $279,679, found and unsold $166,451 (17,281 items), est. profit $292,844 at 100%. 2,652 found items have no order.
 
+**2026-10-06 — Speed: the inventory page took close to a minute** (owner: "takes FOREVER"; shipped in v2.142.0).
+
+- **The cause** (measured on production, inventory 14):
+  - The header made one call that also loads all sessions and problems: 54 s and 454 queries.
+  - Every problem row also loaded the inventory's two lists of ~31,000 item ids. 500 rows came to about 250 MB, enough to crash a test process. PR Fix-it's list used the same query.
+- **The fixes:**
+  - The heavy fields are deferred wherever many rows load an inventory (`InventoryCount.HEAVY_FIELDS`). The problems query went from 54 s to 0.08 s.
+  - The header asks for the summary only (`counts/<id>/?light=1`).
+  - A done inventory keeps its Summary report (`summary_cache['report']`); its problems and fixed numbers are read live. The report reads the counted items once, not twice.
+  - Order estimates keep "sold so far" for 10 minutes. It reads every sale of those orders (5.8 s), and the page says "as of".
+  - Data quality checks "needs a person" in 3 queries instead of about 600.
+- **On the dev copy:**
+  - header 0.13 s;
+  - Sessions tab 1.4 s;
+  - Summary 0.9 s;
+  - order estimates 3.6 s first, then 0.8 s;
+  - data quality 2.8 s.
+- **Tests:** 66 pass.
+
 **2026-10-06 — "Sold online" estimate** (owner; shipped with Phase 7 in v2.141.0).
 
 - A new Shrinkage estimate beside back stock, owner took and sold as generic. It is not true shrink: no price is asked, and it counts as no sale.

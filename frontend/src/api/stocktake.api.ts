@@ -427,6 +427,11 @@ export async function getDay(id: number): Promise<DayDetail> {
   return (await api.get<DayDetail>(`${B}/counts/${id}/`)).data;
 }
 
+/** Just the inventory's summary (no sessions or problems): the inventory page's header. */
+export async function getDaySummary(id: number): Promise<DaySummary> {
+  return (await api.get<DaySummary>(`${B}/counts/${id}/`, { params: { light: 1 } })).data;
+}
+
 export async function closeDay(id: number): Promise<DaySummary> {
   return (await api.post<DaySummary>(`${B}/counts/${id}/close/`)).data;
 }
@@ -695,6 +700,8 @@ export interface OrderEstimates {
   orders: OrderEstimate[];
   /** Found items with no order. */
   no_order: { n: number; price: string };
+  /** When "sold so far" was read (it is kept 10 minutes: it reads every sale of those orders). */
+  sold_as_of?: string;
   back_stock_marked: number;
 }
 

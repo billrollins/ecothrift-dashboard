@@ -794,6 +794,23 @@ class InventoriesTests(Base):
         count.refresh_from_db()
         self.assertIsNone(count.summary_cache)
 
+    def test_a_done_inventory_keeps_its_report_and_the_header_is_light(self):
+        from apps.stocktake.services import report
+
+        run = self.start_run(user=self.user, section=self.front)
+        res = self.scan(run, 'ITM0000001', 'NOPE')
+        counting.close_count(run.count, self.mgr)
+        count = InventoryCount.objects.get(pk=run.count_id)
+        self.assertEqual(count.summary_cache['report']['counted']['n'], 1)
+        self.assertNotIn('report', inventories.inventories()[0])
+        before = report.summary(count)['problems']
+        Issue.objects.filter(pk=res[1]['issue_id']).update(action='pr_cart')     # PR Fix-it work goes on after End
+        self.assertEqual(report.summary(count)['problems'], before)
+        Issue.objects.filter(pk=res[1]['issue_id']).update(fixed_at=count.closed_at)
+        self.assertEqual(report.summary(count)['fixed'], 1)
+        light = self.api(self.mgr).get(f'/api/stocktake/counts/{count.pk}/', {'light': 1}).data
+        self.assertEqual((light['stage'], 'sections' in light), ('done', False))
+
     def test_order_estimates_count_the_found_and_the_back_stock_once(self):
         from apps.stocktake.models import ShrinkMark
         from apps.stocktake.services import shrink

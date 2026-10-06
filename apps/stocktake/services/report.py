@@ -86,12 +86,36 @@ def _rows(count: InventoryCount, ids):
     )
 
 
+# Live on every read, even from the kept report: PR Fix-it keeps working after an inventory is done.
+LIVE_KEYS = ('id', 'name', 'status', 'day', 'started_at', 'closed_at', 'problems', 'fixed')
+
+
 def summary(count: InventoryCount) -> dict[str, Any]:
+    """The Summary tab. A done inventory keeps it in ``summary_cache['report']`` (counts stop moving at End), with
+    the problems and fixed numbers read live."""
+    if count.status == InventoryCount.STATUS_CLOSED:
+        kept = (count.summary_cache or {}).get('report')
+        if kept is None:
+            kept = {k: v for k, v in _summary(count).items() if k not in LIVE_KEYS}
+            InventoryCount.objects.filter(pk=count.pk).update(summary_cache={**(count.summary_cache or {}), 'report': kept})
+        issues = count.issues.exclude(run__status=Run.STATUS_BAD).exclude(action=Issue.ACTION_CLEARED)
+        return {
+            'id': count.pk, 'name': count.name, 'status': count.status, 'day': count.day,
+            'started_at': count.started_at, 'closed_at': count.closed_at,
+            **kept,
+            'problems': issues.count(), 'fixed': issues.filter(fixed_at__isnull=False).count(),
+        }
+    return _summary(count)
+
+
+def _summary(count: InventoryCount) -> dict[str, Any]:
     ok = counted_ok_ids(count)
     expected = expected_ids(count)
     missing = missing_ids(count)
     price = retail = priced_with_retail = Decimal('0')
-    for _pk, p, r, *_rest in _rows(count, ok):
+    item_price: dict[int, tuple[Decimal, Decimal]] = {}
+    for pk, p, r, *_rest in _rows(count, ok):
+        item_price[pk] = (_d(p), _d(r))
         price += _d(p)
         if r and _d(r) > 0:
             retail += _d(r)
@@ -105,7 +129,6 @@ def summary(count: InventoryCount) -> dict[str, Any]:
     runs = list(count.runs.select_related('user'))
     issues = count.issues.exclude(run__status=Run.STATUS_BAD).exclude(action=Issue.ACTION_CLEARED)
     who = counted_by(count)
-    item_price = {pk: (_d(p), _d(r)) for pk, p, r, *_rest in _rows(count, ok)}
     people: dict[int | None, dict] = defaultdict(lambda: {
         'name': '', 'runs': 0, 'bad_runs': 0, 'seconds': 0.0, 'items': 0, 'price': Decimal('0'), 'retail': Decimal('0'),
         'problems': 0,

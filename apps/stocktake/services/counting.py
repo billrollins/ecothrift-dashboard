@@ -193,7 +193,9 @@ def close_count(count: InventoryCount, user=None) -> InventoryCount:
             count.save(update_fields=['status', 'closed_at', 'closed_by', 'closed_expected_ids'])
         from .inventories import core_numbers
 
-        count.summary_cache = core_numbers(count)
+        core = core_numbers(count)   # also keeps the Summary tab's report (``summary_cache['report']``)
+        kept = InventoryCount.objects.filter(pk=count.pk).values_list('summary_cache', flat=True).first() or {}
+        count.summary_cache = {**kept, **core}
         count.save(update_fields=['summary_cache'])
     return count
 
@@ -592,7 +594,7 @@ def issue_payload(issue: Issue) -> dict:
 def issues_qs():
     return Issue.objects.select_related(
         'count', 'run__section', 'cart', 'target_section', 'created_by', 'fixed_by', 'item__product', 'new_item__product',
-    )
+    ).defer(*[f'count__{f}' for f in InventoryCount.HEAVY_FIELDS])
 
 
 def section_progress(count: InventoryCount | None) -> dict[int, dict]:
@@ -761,7 +763,7 @@ def report(count: InventoryCount) -> dict:
 
 def days(limit: int = 30) -> list[dict]:
     out = []
-    for c in InventoryCount.objects.order_by(F('day').desc(nulls_last=True), '-started_at')[:limit]:
+    for c in InventoryCount.objects.order_by(F('day').desc(nulls_last=True), '-started_at').defer('summary_cache')[:limit]:
         row = day_summary(c)
         row['trial'] = c.day is None
         out.append(row)

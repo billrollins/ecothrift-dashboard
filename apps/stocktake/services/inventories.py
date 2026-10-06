@@ -13,7 +13,9 @@ from collections import Counter
 from decimal import Decimal
 from typing import Any
 
+from django.core.cache import cache
 from django.db.models import Q
+from django.utils import timezone
 
 from apps.inventory.models import Item, PurchaseOrder
 from apps.inventory.services.purchase_order_financials import sold_by_po
@@ -22,6 +24,7 @@ from ..models import InventoryCount, Issue, Run, Section, ShrinkMark
 from .counting import days_active, person
 
 ZERO = Decimal('0')
+SOLD_TTL = 600  # seconds "sold so far" is kept (it reads every sale of every item of those orders)
 
 
 def _m(v) -> str:
@@ -52,11 +55,13 @@ def core_numbers(count: InventoryCount) -> dict[str, Any]:
 
 def list_row(count: InventoryCount, *, fresh: bool = False) -> dict[str, Any]:
     """One row of the Inventories list. ``fresh`` recomputes even a done inventory's numbers."""
-    core = None if fresh or count.status == InventoryCount.STATUS_OPEN else count.summary_cache
+    kept = count.summary_cache or {}
+    core = kept if count.status == InventoryCount.STATUS_CLOSED and not fresh and 'counted' in kept else None
     if core is None:
         core = core_numbers(count)
         if count.status == InventoryCount.STATUS_CLOSED and not fresh:
-            InventoryCount.objects.filter(pk=count.pk).update(summary_cache=core)
+            InventoryCount.objects.filter(pk=count.pk).update(summary_cache={**kept, **core})
+    core = {k: v for k, v in core.items() if k != 'report'}   # the Summary tab's kept report is not for the list
     marks = Counter(ShrinkMark.objects.filter(count=count).values_list('outcome', flat=True))
     return {
         **core,
@@ -76,6 +81,7 @@ def inventories(limit: int = 50) -> list[dict]:
     ``latest`` marks the one PR Fix-it and the shrink estimates still work on after it is done."""
     qs = list(
         InventoryCount.objects.filter(day__isnull=False).select_related('started_by', 'closed_by')
+        .defer('expected_item_ids', 'closed_expected_ids')
         .order_by('-started_at', '-pk')[:limit]
     )
     rows = [list_row(c) for c in qs]
@@ -120,8 +126,13 @@ def order_estimates(count: InventoryCount) -> dict[str, Any]:
     no_order_n = no_order.count()
     no_order_price = sum((p or ZERO for p in no_order.values_list('price', flat=True)), ZERO)
 
-    ids = list(per_po)
-    sold = sold_by_po(ids)
+    ids = sorted(per_po)
+    key = f'stocktake:sold_by_po:{count.pk}:{hash(tuple(ids))}'
+    cached = cache.get(key)
+    if cached is None:
+        cached = {'sold': {str(k): str(v) for k, v in sold_by_po(ids).items()}, 'as_of': timezone.now().isoformat()}
+        cache.set(key, cached, SOLD_TTL)
+    sold = {int(k): Decimal(v) for k, v in cached['sold'].items()}
     orders = {
         o['id']: o for o in PurchaseOrder.objects.filter(pk__in=ids).values(
             'id', 'order_number', 'vendor__code', 'vendor__name', 'ordered_date', 'delivered_date', 'status',
@@ -146,5 +157,6 @@ def order_estimates(count: InventoryCount) -> dict[str, Any]:
         'count': {'id': count.pk, 'name': count.name, 'stage': stage(count)},
         'orders': out,
         'no_order': {'n': no_order_n, 'price': _m(no_order_price)},
+        'sold_as_of': cached['as_of'],
         'back_stock_marked': len(back - found),
     }

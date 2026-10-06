@@ -193,6 +193,7 @@ export default function OrderEstimatesTab({ countId }: { countId: number }) {
         <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 1 }}>
           Found = items this inventory counted that are still unsold. Items it found that sold since are in Sold so far.
           {data.no_order.n ? ` ${data.no_order.n.toLocaleString()} found items have no order (${money(num(data.no_order.price))} at price) and are left out.` : ''}
+          {data.sold_as_of ? ` Sold so far as of ${new Date(data.sold_as_of).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` : ''}
         </Typography>
       </Paper>
 

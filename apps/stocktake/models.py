@@ -58,6 +58,10 @@ class InventoryCount(models.Model):
     # The Inventories list's numbers, kept when it is done (inventory_effort Phase 6); null while in progress.
     summary_cache = models.JSONField(null=True, blank=True)
 
+    # Big JSON (two lists of ~31,000 item ids at a full count). Defer them wherever many rows load an inventory
+    # alongside (problems, lists): 500 problems once pulled 250 MB and took 54 s (2026-10-06).
+    HEAVY_FIELDS = ('expected_item_ids', 'closed_expected_ids', 'summary_cache')
+
     class Meta:
         ordering = ['-started_at']
 

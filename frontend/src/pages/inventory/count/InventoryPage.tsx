@@ -14,7 +14,7 @@ import {
   Tabs,
   Typography,
 } from '@mui/material';
-import { apiMessage, closeDay, getDay, reopenDay, type DayDetail } from '../../../api/stocktake.api';
+import { apiMessage, closeDay, getDaySummary, reopenDay, type DaySummary } from '../../../api/stocktake.api';
 import DataQualityTab from './DataQualityTab';
 import InventoryReportPage from './InventoryReportPage';
 import InventorySessions from './InventorySessions';
@@ -45,14 +45,14 @@ export default function InventoryPage() {
   const countId = Number(id);
   const [params, setParams] = useSearchParams();
   const tab: TabKey = TABS.find((t) => t.key === params.get('tab'))?.key ?? 'summary';
-  const [day, setDay] = useState<DayDetail | null>(null);
+  const [day, setDay] = useState<DaySummary | null>(null);
   const [error, setError] = useState('');
   const [ending, setEnding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [version, setVersion] = useState(0);
 
   const load = useCallback(() => {
-    getDay(countId)
+    getDaySummary(countId)
       .then(setDay)
       .catch((e) => setError(apiMessage(e, 'Could not load this inventory.')));
   }, [countId]);

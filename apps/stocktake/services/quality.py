@@ -124,6 +124,19 @@ def sold_fixable(count: InventoryCount) -> tuple[list[int], dict[int, list[str]]
     return [pk for pk in ids if pk not in copies], copies
 
 
+def needs_a_person(item_ids) -> set[int]:
+    """Of these items, the consignment and online ones (``duplicate_tag.why_not``, in three queries)."""
+    from apps.consignment.models import ConsignmentItem
+    from apps.webstore.models import Reservation, WebListing
+
+    ids = list(item_ids)
+    return (
+        set(ConsignmentItem.objects.filter(item_id__in=ids).values_list('item_id', flat=True))
+        | set(WebListing.objects.filter(item_id__in=ids).values_list('item_id', flat=True))
+        | set(Reservation.objects.filter(item_id__in=ids).values_list('item_id', flat=True))
+    )
+
+
 # --- the findings -----------------------------------------------------------------------------------
 
 def _requests(kind: str, count_id: int | None) -> list[dict]:
@@ -177,11 +190,9 @@ def findings(count: InventoryCount) -> dict[str, Any]:
     )
 
     # 2. Sold tags found on the shelf.
-    from apps.inventory.services.duplicate_tag import why_not
-
     sold_ids, sold_copies = sold_fixable(count)
     sold_items = Item.objects.filter(pk__in=sold_ids)
-    needs_person = [it.sku for it in sold_items if why_not(it)]
+    needs_person = needs_a_person(sold_ids)
     add(
         'sold_found', 'Sold tags found on the shelf',
         f'{len(sold_ids):,} tags the system calls sold were scanned on the floor and are still sold. Two items shared '

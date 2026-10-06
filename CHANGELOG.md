@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.141.0] -->
-<!-- Last reviewed: 2026-10-06 (2.141.0) -->
+<!-- Line 1 release: ## [2.142.0] -->
+<!-- Last reviewed: 2026-10-06 (2.142.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,28 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.142.0] - 2026-10-06
+
+User-facing theme: **The inventory page opens fast. It took close to a minute; the header now loads in a fraction of a second, and PR Fix-it's list is quicker too.** Initiative: `inventory_effort` (owner: "this page takes FOREVER").
+
+### Fixed
+
+- **The cause** (measured on production, inventory 14):
+  - The inventory page's header made one call that also loaded every session and problem. It took 54 s and 454 queries.
+  - Each problem row also loaded the inventory's two lists of ~31,000 item ids, about 250 MB for 500 rows. PR Fix-it's list used the same query.
+- **Problems now leave those lists out** (`InventoryCount.HEAVY_FIELDS`, deferred). On production the query went from 54 s to 0.08 s.
+- **The header asks for the summary only** (`counts/<id>/?light=1`). The Sessions tab still loads sessions and problems.
+
+### Changed
+
+- **Summary tab:** a done inventory keeps its report (`summary_cache['report']`), with problems and fixed read live. The counted items are read once, not twice.
+- **Order estimates:** "sold so far" is kept 10 minutes (it reads every sale of those orders), and the page says when it was read.
+- **Data quality:** "needs a person" is checked in 3 queries instead of about 600.
+
+### Tests
+
+- `test_counts.py` (66): a done inventory's report is kept while its problems stay live, and the header is light.
 
 ## [2.141.0] - 2026-10-06
 

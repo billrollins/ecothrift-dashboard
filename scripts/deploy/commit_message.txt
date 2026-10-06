@@ -1,30 +1,23 @@
-v2.141.0 — Data quality tab per inventory (link retagged items to their orders, keep sold tags found, back on the shelf: Requests with undo), Sold online shrink estimate (inventory_effort Phase 7)
+v2.142.0 — Inventory page opens fast: problems no longer load the inventory's item lists (54 s to 0.08 s on production), light header, kept report, sold so far kept 10 minutes (inventory_effort)
 
-User-facing theme: **Each inventory gets a Data quality tab: the data errors the count exposed, each with how many, examples, and its fix. Three are fixed in bulk through Requests the owner approves, with an undo. Shrinkage gets a "Sold online" estimate.** Initiative: `inventory_effort` Phase 7.
+User-facing theme: **The inventory page opens fast. It took close to a minute; the header now loads in a fraction of a second, and PR Fix-it's list is quicker too.** Initiative: `inventory_effort` (owner: "this page takes FOREVER").
 
-### Added
+### Fixed
 
-- **Inventories → the inventory → Data quality.** Each finding shows how many, examples, the data-quality register ID and the fix. Three fixes are Requests: a button stages one, and the Super User approves it on Requests, with a preview and an undo.
-  - **No order, but the old tag says which** (ITM-16):
-    - Items retagged from the old system in March and April with no order get the order of the old tag named in their notes.
-    - On the dev copy: 9,211 items (4,510 on the shelf, 4,701 sold, $46k of sales), 89 orders.
-    - A plain update, so no order is re-costed.
-  - **Sold tags found on the shelf** (SHR-05): each keeps its tag on the shelf; the old sale moves to a new item number, and its problems are marked fixed. 196 on the dev copy.
-  - **Found on the floor, but the system has it as scrapped, intake or lost** (SHR-06): back on the shelf. 61 on the dev copy.
-  - **Guard:** an old tag that was already retagged in the spring is left alone by both, so no item counts twice. The finding says to take the old tag off (11).
-  - **Listed with their rule:** no order and nothing says which (371), counted with no retail (412), priced above retail (5), price $0 (1), the same tag in two sessions (37), maker's barcodes scanned (196), our tag with no item (4), counted then sold (31, normal).
-- **Shrinkage: "Sold online"** (owner): a new estimate. It is not true shrink, asks for no price, and counts as no sale. It has its own total.
+- **The cause** (measured on production, inventory 14):
+  - The inventory page's header made one call that also loaded every session and problem. It took 54 s and 454 queries.
+  - Each problem row also loaded the inventory's two lists of ~31,000 item ids, about 250 MB for 500 rows. PR Fix-it's list used the same query.
+- **Problems now leave those lists out** (`InventoryCount.HEAVY_FIELDS`, deferred). On production the query went from 54 s to 0.08 s.
+- **The header asks for the summary only** (`counts/<id>/?light=1`). The Sessions tab still loads sessions and problems.
 
 ### Changed
 
-- **Code:**
-  - New `services/quality.py` and three kinds in `stocktake/approval_kinds.py`; `duplicate_tag.undo_move_sale`.
-  - Endpoints: `counts/<id>/quality/`, `counts/<id>/quality/request/`.
-  - Migration `stocktake.0007` changes choices only.
-- **Data-quality register:** ITM-16, SHR-05, SHR-06 and an imputation row.
+- **Summary tab:** a done inventory keeps its report (`summary_cache['report']`), with problems and fixed read live. The counted items are read once, not twice.
+- **Order estimates:** "sold so far" is kept 10 minutes (it reads every sale of those orders), and the page says when it was read.
+- **Data quality:** "needs a person" is checked in 3 queries instead of about 600.
 
 ### Tests
 
-- `test_counts.py` (65): each fix applied and undone, the retagged-copy guard, managers only, and "Sold online" changes nothing on the item.
+- `test_counts.py` (66): a done inventory's report is kept while its problems stay live, and the header is light.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
