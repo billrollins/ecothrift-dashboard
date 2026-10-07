@@ -242,6 +242,13 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'store',
     kind: 'hours',
   },
+  // Edited by its own card on Store (owner only); hidden from the raw lists.
+  'pos.staff_purchases': {
+    label: 'Staff purchases',
+    help: 'Payroll deduction at the register for staff, and Thrift+ free for staff. Both start off.',
+    tab: 'store',
+    kind: 'hidden',
+  },
   'pos.card_surcharge': {
     label: 'Credit card surcharge',
     help:

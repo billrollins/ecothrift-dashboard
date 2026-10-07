@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { dutyColors } from '../../components/duty/tokens';
 import { TodayDesk } from '../../components/routines/today/TodayDesk';
 import { TodayPhone } from '../../components/routines/today/TodayPhone';
+import { MyOnboardingBanner } from '../people/MyOnboardingBanner';
 import { hasRunner } from './todayRunner';
 
 /** Today: the shift, today's routines (and the runner beside them), hours and pay. */
@@ -14,6 +15,7 @@ export default function TodayPage() {
   const fill = !isDesk && hasRunner(params);
   return (
     <Box sx={{ bgcolor: dutyColors.paper, minHeight: '100%', height: fill ? '100%' : undefined, display: fill ? 'flex' : undefined, flexDirection: 'column' }}>
+      {!fill && <MyOnboardingBanner />}
       {isDesk ? <TodayDesk /> : <TodayPhone />}
     </Box>
   );

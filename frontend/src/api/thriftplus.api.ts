@@ -57,6 +57,12 @@ export async function addSecondAdult(
   return data;
 }
 
+/** Mark a membership as a staff member's own (no cover while the owner's switch is on), or not (null). */
+export async function setMemberStaff(accountId: number, userId: number | null): Promise<ThriftPlusAccount> {
+  const { data } = await api.post<ThriftPlusAccount>(`/thriftplus/accounts/${accountId}/staff/`, { user: userId });
+  return data;
+}
+
 export async function revokeMember(accountId: number, reason: string): Promise<ThriftPlusAccount> {
   const { data } = await api.post<ThriftPlusAccount>(`/thriftplus/accounts/${accountId}/revoke/`, { reason });
   return data;

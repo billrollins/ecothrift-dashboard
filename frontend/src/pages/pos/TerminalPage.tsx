@@ -93,7 +93,8 @@ import { useDeviceConfig } from '../../hooks/useDeviceConfig';
 import { useLocalPrintStatus } from '../../hooks/useLocalPrintStatus';
 import { useLookupCustomer } from '../../hooks/useEmployees';
 import { useAuth } from '../../contexts/AuthContext';
-import { updateCart, getCarts, getCartCardPreview, suggestDeliveryAddresses } from '../../api/pos.api';
+import { updateCart, getCarts, getCartCardPreview, getStaffPurchaseSettings, suggestDeliveryAddresses } from '../../api/pos.api';
+import { PayrollPicker } from '../../components/pos/PayrollPicker';
 import type { DeliveryAddressSuggestion } from '../../api/pos.api';
 import { localPrintService } from '../../services/localPrintService';
 import type { CardPreview, Cart, CartLine, Drawer, PaymentMethod, POSDeviceConfig } from '../../types/pos.types';
@@ -244,6 +245,15 @@ export default function TerminalPage() {
   const [skuInput, setSkuInput] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [cashTendered, setCashTendered] = useState('');
+  const [payrollEmployee, setPayrollEmployee] = useState<number | ''>('');
+  // Payroll deduction is offered only while the owner has it switched on (Settings → Store).
+  const staffPurchases = useQuery({
+    queryKey: ['pos', 'staff-purchase-settings'],
+    queryFn: async () => (await getStaffPurchaseSettings()).data,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  const payrollOn = Boolean(staffPurchases.data?.payroll_deduction);
   const [cardTenderOpen, setCardTenderOpen] = useState(false);
   const [cardPreview, setCardPreview] = useState<CardPreview | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -1125,6 +1135,7 @@ export default function TerminalPage() {
       cartRef.current = null;
       setCustomer(null);
       setCashTendered('');
+      setPayrollEmployee('');
       setVoidConfirmOpen(false);
       setEditingLineId(null);
     } catch {
@@ -1166,6 +1177,7 @@ export default function TerminalPage() {
       cartRef.current = null;
       setCustomer(null);
       setCashTendered('');
+      setPayrollEmployee('');
       setCardTenderOpen(false);
       setCardPreview(null);
     },
@@ -1217,6 +1229,15 @@ export default function TerminalPage() {
       }
     }
 
+    if (paymentMethod === 'payroll') {
+      if (payrollEmployee === '') {
+        enqueueSnackbar('Pick the staff member who is buying.', { variant: 'error' });
+        return;
+      }
+      await postComplete({ payment_method: 'payroll', payroll_employee: payrollEmployee });
+      return;
+    }
+
     const payload: Record<string, unknown> = { payment_method: paymentMethod };
     if (paymentMethod === 'cash' || paymentMethod === 'split')
       payload.cash_tendered = cashTendered ? parseFloat(cashTendered) : 0;
@@ -1246,7 +1267,7 @@ export default function TerminalPage() {
     } catch {
       enqueueSnackbar('Could not load card totals from the server.', { variant: 'error' });
     }
-  }, [cart, paymentMethod, cashTendered, postComplete, enqueueSnackbar]);
+  }, [cart, paymentMethod, cashTendered, payrollEmployee, postComplete, enqueueSnackbar]);
 
   const changeDue = (() => {
     if (paymentMethod !== 'cash' && paymentMethod !== 'split') return 0;
@@ -2051,8 +2072,14 @@ export default function TerminalPage() {
                     <MenuItem value="cash">Cash</MenuItem>
                     <MenuItem value="card">Card</MenuItem>
                     <MenuItem value="split">Split</MenuItem>
+                    {(payrollOn || paymentMethod === 'payroll') && (
+                      <MenuItem value="payroll">Payroll deduction (staff)</MenuItem>
+                    )}
                   </Select>
                 </FormControl>
+                {paymentMethod === 'payroll' && (
+                  <PayrollPicker amount={amountDue(cart)} value={payrollEmployee} onChange={setPayrollEmployee} />
+                )}
 
                 {(paymentMethod === 'cash' || paymentMethod === 'split') && (
                   <TextField

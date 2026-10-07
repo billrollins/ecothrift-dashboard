@@ -128,6 +128,29 @@ class AccountViewSet(viewsets.ReadOnlyModelViewSet):
         return self.money(request, pk)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
+    def staff(self, request, pk=None):
+        """Mark this membership as a staff member's own ({user: id}), or not ({user: null}). With the owner's
+        "Thrift+ free for staff" on, it pays no monthly cover while that person is active staff."""
+        from apps.accounts.models import User
+        from apps.pos.services.staff_purchases import is_staff_member
+
+        account = self.get_object()
+        raw = request.data.get('user')
+        user = None
+        if raw not in (None, ''):
+            user = User.objects.filter(pk=raw).first()
+            if not is_staff_member(user):
+                return Response({'detail': 'Pick an active staff member.'}, status=status.HTTP_400_BAD_REQUEST)
+            other = Account.objects.filter(staff_user=user).exclude(pk=account.pk).first()
+            if other:
+                return Response({'detail': f'{user.full_name} already has Thrift+ membership {other.pk}.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+        account.staff_user = user
+        account.save(update_fields=['staff_user', 'updated_at'])
+        members.log('staff', account=account, actor=request.user, staff_user=user.pk if user else None)
+        return Response(AccountDetailSerializer(account).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
     def revoke(self, request, pk=None):
         try:
             account = members.revoke(self.get_object(), reason=request.data.get('reason', ''), user=request.user)

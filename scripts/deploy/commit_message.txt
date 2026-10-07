@@ -1,45 +1,41 @@
-v2.145.0 — Thrift+ behind one switch in Settings (scanner and portal closed until launch, staff preview code), scanner on real prices with My account, rewards Calculator
+v2.146.0 — Hiring: onboarding (first-day email, checklist, I-9 for Admins, staff handbook signed in Dash), staff purchases off at first (payroll deduction, Thrift+ free for staff) (hiring_onboarding Phase 4)
 
-User-facing theme: **Everything Thrift+ waits for one switch in Settings, which is off until launch. The customer scanner now runs on real tags and prices, with My account and a new-password page. Thrift+ gets a rewards Calculator: the last inventory's stock under any reward rules, guests and members side by side.** Initiative: `thrift_plus_rewards` (owner, 2026-10-07).
+User-facing theme: **Onboarding: Start onboarding emails the first-day note and gives each new hire a checklist that runs to done; the I-9 is kept apart for Admins; the new hire signs the staff handbook on their phone. Plus staff purchases (payroll deduction, Thrift+ free for staff), switched off until the owner turns them on.** Initiative: `hiring_onboarding` Phases 4 and 4b.
 
 ### Added
 
-- **Settings → Store → Thrift+** (Super User only): the **Thrift+ is on** switch (off in production), the staff preview code, test registers, the rewards start and the floor.
-- **While Thrift+ is off:**
-  - The scanner and member portal API (`/api/thriftplus/public/*`) answers 403 `THRIFT_PLUS_OFF`, and `/scan` shows "Thrift+ coming soon. Ask at the register."
-  - A staff phone opens it at `/scan?preview=<code>` (setting `thrift_plus_preview_code`, random at first; migration `thriftplus.0009`).
-  - Registers charge the tag except the test registers (as before), and Dash's Thrift+ page stays Super-User-only.
-- **Thrift+ → Calculator** (what-if only; nothing changes):
-  - **Which stock:** the stock the last inventory counted that is still on the shelf, or all shelf stock.
-  - **What it shows:** items, $ retail; guests (the tag) and members (tag − reward), each with total, average price and % of retail. Also a line over the 90 days after launch, and breakdowns by age, % off, price and category.
-  - **Inputs:**
-    - wait, % of the tag a day, steps (nightly or weekly), curve, floor;
-    - same product and similar items (same brand and category) grow slower, with back-stock estimates; demand by category (beta, credibility-blended);
-    - shotgun start: oldest age on launch day, old stock at X% of its real age, most % off on launch day.
-  - The defaults are the live engine, tested to the cent.
-- **Scanner on the real API** (`/api/thriftplus/public/`): real tag lookups and prices, real sign-in, cart, history and price signals.
-- **My account** (`/scan?view=account`): rewards, credit and cover, people and cards, recent activity; stop a lost card, take the second adult off, leave.
-- **New-password page** (`/scan?reset=<token>`).
+- **Start onboarding**, from Create employee (on by default) or from People → Onboarding for any employee:
+  - a checklist from the careers file, with due dates from the first day (before day 1, day 1, 3 business days, week 1, day 20);
+  - the **first-day email**: when and where, who to ask for, what to wear, and the I-9 documents to bring. It's editable on People → Emails → Onboarding.
+- **People → Onboarding**:
+  - the list, with progress and overdue items in red;
+  - each person's checklist: ticks, "Not needed", and T-shirts with a count and size;
+  - **Set password code** (the QR for day one), **Email the first-day note again**, and **Cancel onboarding**.
+- **Items Dash ticks itself:** the emergency contact, signing in to Dash, the first clock-in, a shift on the schedule, the kiosk badge, the handbook, and the I-9.
+- **Form I-9 (Admin only, kept apart from the employee record):** upload the form and copies of the documents, note what was seen, then **Section 2 done**. Each I-9 shows its keep-until date.
+- **The staff handbook:**
+  - a short first draft on People → Onboarding → Handbook, with a preview;
+  - facts still to settle are marked `[confirm: …]`, and publishing waits until none are left;
+  - each published version is signed in Dash with a tick, a typed name and a finger signature, and the signed PDF has an audit trail.
+- **My onboarding** (`/onboarding`) for the new hire: the emergency contact, the handbook to read and sign, and their own ticks. A banner on **Today** links to it.
+- The careers JSON carries `onboarding` (the checklist) and `handbook` (the draft) for AI edits.
 
-### Removed
-
-- The scanner's sample tags, "Start over (mock)" and the "mock sign-in" note.
-
-### Fixed
-
-- Thrift+ portal: stopping a card and removing a person did the change, then answered 405. They now return the updated membership.
+- **Staff purchases** (owner, 2026-10-07), both **off** until the owner turns them on in Settings → Store → Staff purchases (Admin only):
+  - **Payroll deduction** at the register ("Payroll deduction (staff)"): pick the staff member, and the sale comes out of their next paycheck, all at once. It is capped at 25% (a setting) of their last paycheck for the whole pay period, so new hires with no paycheck yet don't qualify. Someone else must ring it, and each item has been on the floor a day.
+  - **People → Payroll deductions**: each pay period's purchases per person, to enter in QuickBooks Payroll, with **Mark entered**.
+  - **Thrift+ free for staff**: a membership marked as a staff member's own (Thrift+ → Members) pays no monthly cover while they are active staff.
 
 ### Changed
 
-- Every `thrift_plus_*` setting can be changed only by the Super User.
-- The owner's demand dimensions (specialty, collectible, expired consumable, high volume...) are written up as a future improvement: `.ai/extended/thrift-plus-demand-dimensions.md`.
+- **Create employee no longer emails a set-password link.** On day one the new hire scans the Set password code and picks their own password (D16). A manager can show it for a new hire from onboarding.
 
-### Tests
+### Fixed
 
-- `apps/thriftplus` (78):
-  - the switch: off says opens soon, the preview code gets in, on lets everyone in, only the Super User changes it;
-  - the calculator (6);
-  - the portal fix.
-- Frontend: the scanner (coming soon while off), the calculator, settings (48).
+- Calendar dates on the onboarding pages show the right day; the time formatter read them as UTC.
+- **Signed offer PDFs:** the letter's fingerprint (SHA-256) is set in monospace. A proportional font joined "ff" in the hash into one ligature, so a hash copied out of the PDF didn't match.
+- **A core test** expected 18 seeded AI actions; hiring's careers action (since v2.136.0) makes 19.
+- **The handbook draft** has the owner's answers (breaks, call-ins, payday, shirts, phones, staff buying, reporting) and what still fits from the 2024 handbook. One fact is left to confirm: paid sick leave.
+
+Migration: `hiring.0011` (onboarding, I-9, handbook), `pos.0034` (payroll deduction; seeds the switches off), `thriftplus.0010` (staff memberships).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

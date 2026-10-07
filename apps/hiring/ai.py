@@ -51,7 +51,12 @@ OFFER_PLACEHOLDERS = {
 }
 
 
+FIRST_DAY_PLACEHOLDERS = {'first_name', 'role', 'start_date', 'start_time', 'supervisor', 'place'}
+
+
 def allowed_placeholders(key: str) -> set[str]:
+    if key == 'first_day':
+        return FIRST_DAY_PLACEHOLDERS
     if key == 'offer_letter':
         return OFFER_PLACEHOLDERS
     if key == 'offer_notice':
@@ -80,6 +85,8 @@ EMAIL_HELP = {
     'offer_sent': 'the email with the private link to read and sign the job offer',
     'offer_signed': 'the welcome email to a new hire after they sign the offer (the signed PDF is attached)',
     'offer_notice': 'the notice to the owner and hiring manager that an offer was signed or declined',
+    'first_day': ('the first-day email to a new hire: when and where, who to ask for, what to wear, and the I-9 '
+                  'documents to bring (List A, or List B plus List C)'),
 }
 
 _HOUSE_RULES = (

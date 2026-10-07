@@ -45,10 +45,15 @@ class AppSettingViewSet(viewsets.ModelViewSet):
 
     # The Thrift+ switch and its settings: the owner's call alone (2026-10-07).
     SUPERUSER_PREFIXES = ('thrift_plus_',)
+    # Staff purchases (payroll deduction, staff Thrift+): the owner (Admin) only, though managers edit the rest.
+    ADMIN_ONLY = {'pos.staff_purchases'}
 
     def _owner_only(self, key: str) -> None:
-        if key.startswith(self.SUPERUSER_PREFIXES) and not self.request.user.is_superuser:
+        user = self.request.user
+        if key.startswith(self.SUPERUSER_PREFIXES) and not user.is_superuser:
             raise PermissionDenied('Only the Super User changes Thrift+ settings.')
+        if key in self.ADMIN_ONLY and not (user.is_superuser or getattr(user, 'role', None) == 'Admin'):
+            raise PermissionDenied('Only the owner (Admin) changes this setting.')
 
     def perform_create(self, serializer):
         self._owner_only(str(serializer.validated_data.get('key') or ''))

@@ -190,6 +190,7 @@ class Cart(models.Model):
         ('cash', 'Cash'),
         ('card', 'Card'),
         ('split', 'Split'),
+        ('payroll', 'Payroll deduction'),  # staff only; services/staff_purchases.py
     ]
     CARD_TYPES = [
         ('', ''),
@@ -226,6 +227,11 @@ class Cart(models.Model):
         null=True,
         blank=True,
         related_name='card_type_fixed_carts',
+    )
+    payroll_employee = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='payroll_purchases',
+        help_text='Payroll deduction: whose next paycheck this sale comes out of.',
     )
     thrift_credit = models.DecimalField(
         max_digits=10, decimal_places=2, default=Decimal('0'),
@@ -1561,4 +1567,21 @@ class DeliveryTestArtifact(models.Model):
 
     def __str__(self):
         return f'Artifact {self.artifact_type} dataset={self.dataset_id}'
+
+
+class PayrollDeductionMark(models.Model):
+    """A pay period's payroll-deduction total for one person, entered in QuickBooks Payroll (by hand)."""
+
+    employee = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='+')
+    period_start = models.DateField()
+    period_end = models.DateField()
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    marked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    marked_at = models.DateTimeField()
+
+    class Meta:
+        unique_together = [('employee', 'period_start')]
+        ordering = ['-period_start']
 

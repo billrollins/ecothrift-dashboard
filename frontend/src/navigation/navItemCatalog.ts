@@ -388,6 +388,24 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     navSearch: 'hiring interview calendar schedule scorecard',
   },
   /** Every hiring email: one version for all roles, or a role's own version; AI help on each. */
+  /** New hires' first weeks: the first-day email, the checklist, the I-9 (Admin), the handbook. */
+  onboarding: {
+    id: 'onboarding',
+    path: '/people/onboarding',
+    label: 'Onboarding',
+    icon: 'checklist',
+    roles: ['Manager', 'Admin'],
+    navSearch: 'onboarding new hire checklist i9 i-9 handbook first day quickbooks',
+  },
+  /** Staff purchases by payroll deduction, per pay period, to enter in QuickBooks Payroll. */
+  payrollDeductions: {
+    id: 'payrollDeductions',
+    path: '/people/payroll-deductions',
+    label: 'Payroll deductions',
+    icon: 'payments',
+    roles: ['Manager', 'Admin'],
+    navSearch: 'payroll deduction staff purchases quickbooks paycheck',
+  },
   hiringEmails: {
     id: 'hiringEmails',
     path: '/people/emails',

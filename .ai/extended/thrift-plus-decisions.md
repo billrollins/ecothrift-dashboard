@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-01 (the owner's final answers) -->
+<!-- Last updated: 2026-10-07 (staff memberships: no cover) -->
 # Thrift+ decisions (owner's final answers, 2026-10-01)
 
 **This file is the current word on Thrift+ rules.** Where it differs from [`thrift-plus-legal-memo.md`](thrift-plus-legal-memo.md) or [`thrift-plus-limited-warranty.md`](thrift-plus-limited-warranty.md), this file wins (the differences come from a later warranty and tax discussion). Where it differs from older notes in `discount-logic.md` or `thrift_plus_rewards.md` (banked rewards, the cover, 95% returns, "instant rebate"), this file wins and those need updating as each piece is built. Items marked **OPEN** still wait for the owner.
@@ -86,6 +86,13 @@ When a member banks a reward, it becomes a **real gift-card purchase**, not a re
 ## Warranty poster
 
 Use the final text in [`thrift-plus-limited-warranty.md`](thrift-plus-limited-warranty.md), with **90%**, the **NO THRIFT+ WARRANTY** exclusion (not "untested"), and the line "We can't test most items. This warranty covers them anyway." Print a version date on the poster and on receipts. Keep every past version.
+
+## Staff memberships (owner, 2026-10-07)
+
+- **Thrift+ is free for staff: no monthly cover.** There is no staff discount; this, and payroll deduction at the register, take its place.
+- A membership is marked as a staff member's own in Dash (Thrift+ → Members → **This is a staff member's own membership**; `Account.staff_user`, one per person).
+- `ledger.cover()` is $0 while the owner's switch is on (Settings → Store → Staff purchases, `pos.staff_purchases.thrift_plus_free`, **off at first**) and the person is active staff. When they leave, the cover comes back by itself.
+- Code: `apps/thriftplus/services/ledger.py` `staff_free`, the `staff` action on the accounts API, `apps/pos/services/staff_purchases.py`.
 
 ## Still open (the owner writes back)
 

@@ -45,6 +45,8 @@ export interface ThriftPlusAccount {
   revoked_reason: string;
   created_at: string;
   people: ThriftPlusPerson[];
+  /** A staff member's own membership; ``free`` = no monthly cover now (the owner's switch is on). */
+  staff?: { id: number; name: string; free: boolean } | null;
   /** Detail only. */
   events?: ThriftPlusEvent[];
 }

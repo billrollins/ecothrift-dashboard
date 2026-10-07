@@ -173,6 +173,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
 
 class CartSerializer(serializers.ModelSerializer):
     cashier_name = serializers.CharField(source='cashier.full_name', read_only=True, default=None)
+    payroll_employee_name = serializers.CharField(source='payroll_employee.full_name', read_only=True, default=None)
     card_type_fixed_by_name = serializers.SerializerMethodField()
     card_type_fix_deadline = serializers.SerializerMethodField()
     lines = CartLineSerializer(many=True, read_only=True)
@@ -189,7 +190,7 @@ class CartSerializer(serializers.ModelSerializer):
             'card_type', 'card_surcharge_rate', 'card_surcharge_amount',
             'card_charged_total',
             'card_type_fixed_at', 'card_type_fixed_by', 'card_type_fixed_by_name',
-            'card_type_fix_deadline',
+            'card_type_fix_deadline', 'payroll_employee', 'payroll_employee_name',
             'completed_at', 'created_at',
             'lines', 'receipt', 'savings', 'thrift_credit', 'thrift_plus',
         ]
@@ -198,7 +199,7 @@ class CartSerializer(serializers.ModelSerializer):
             'card_type', 'card_surcharge_rate', 'card_surcharge_amount',
             'card_charged_total',
             'card_type_fixed_at', 'card_type_fixed_by', 'card_type_fixed_by_name',
-            'card_type_fix_deadline',
+            'card_type_fix_deadline', 'payroll_employee', 'payroll_employee_name',
             'savings', 'thrift_credit', 'thrift_plus',
         ]
 

@@ -378,8 +378,17 @@ _CSS = (
     'body{font-family:sans-serif;font-size:11pt;line-height:1.45;color:#1a1f1c}'
     'h1{font-size:16pt;margin:0 0 4pt 0}h2{font-size:13pt;margin:10pt 0 4pt 0}'
     '.date{color:#5b635e;margin:0 0 12pt 0}p{margin:0 0 8pt 0}ul{margin:0 0 8pt 0}'
-    '.small{font-size:8.5pt;color:#5b635e}'
+    '.small{font-size:8.5pt;color:#5b635e}.mono{font-family:monospace}'
 )
+
+
+def audit_rows(audit: list[tuple[str, str]]) -> str:
+    """The audit trail as HTML. A fingerprint is set in monospace: a proportional font joins "ff" or "fi" into
+    one ligature, and then the hash copied out of the PDF no longer matches."""
+    def value(key: str, text: str) -> str:
+        return f'<span class="mono">{html.escape(text)}</span>' if 'fingerprint' in key.lower() else html.escape(text)
+
+    return ''.join(f'<p class="small"><b>{html.escape(k)}:</b> {value(k, v)}</p>' for k, v in audit)
 
 
 def build_pdf(offer: Offer, signature_png: bytes) -> bytes:
@@ -418,7 +427,7 @@ def build_pdf(offer: Offer, signature_png: bytes) -> bytes:
             ('Device', offer.signer_user_agent or 'unknown'),
             ('Letter fingerprint', f'SHA-256 {offer.letter_sha256}'),
         ]
-        rows = ''.join(f'<p class="small"><b>{html.escape(k)}:</b> {html.escape(v)}</p>' for k, v in audit)
+        rows = audit_rows(audit)
         page.insert_htmlbox(pymupdf.Rect(margin, audit_top, width - margin, height - margin),
                             f'<h2>Signing audit trail</h2>{rows}', css=_CSS)
         if offer.application.is_practice:

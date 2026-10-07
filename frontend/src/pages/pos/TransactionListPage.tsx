@@ -468,6 +468,7 @@ export default function TransactionListPage() {
               <MenuItem value="cash">Cash</MenuItem>
               <MenuItem value="card">Card</MenuItem>
               <MenuItem value="split">Split</MenuItem>
+              <MenuItem value="payroll">Payroll deduction</MenuItem>
               <MenuItem value="credit">Credit</MenuItem>
               <MenuItem value="debit">Debit</MenuItem>
             </Select>
@@ -559,6 +560,9 @@ export default function TransactionListPage() {
                 <Box sx={{ mt: 1 }}>
                   <Typography variant="body2" color="text.secondary">
                     Payment: {String(selectedCart.payment_method).replace(/_/g, ' ')}
+                    {selectedCart.payment_method === 'payroll' && selectedCart.payroll_employee_name
+                      ? ` deduction, from ${selectedCart.payroll_employee_name}'s next paycheck`
+                      : ''}
                     {selectedCart.payment_method === 'split' && selectedCart.cash_tendered != null && selectedCart.card_amount != null && (
                       <> · Cash {formatCurrency(selectedCart.cash_tendered)} + Card {formatCurrency(selectedCart.card_amount)}</>
                     )}

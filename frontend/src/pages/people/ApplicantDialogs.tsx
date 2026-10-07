@@ -2,11 +2,13 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Chip,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   MenuItem,
   Stack,
   TextField,
@@ -164,8 +166,11 @@ export function CreateEmployeeDialog({
 }) {
   const [payRate, setPayRate] = useState('15.00');
   const [startDate, setStartDate] = useState(nextMonday());
+  const [startTime, setStartTime] = useState('09:00');
   const [position, setPosition] = useState('');
   const [employmentType, setEmploymentType] = useState('part_time');
+  const [startOnboarding, setStartOnboarding] = useState(true);
+  const [sendFirstDay, setSendFirstDay] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -178,6 +183,7 @@ export function CreateEmployeeDialog({
       if (signed) {
         setPayRate(signed.pay_rate);
         setStartDate(signed.start_date);
+        if (signed.start_time) setStartTime(signed.start_time.slice(0, 5));
         setEmploymentType(signed.employment_type);
       }
       setError('');
@@ -194,12 +200,19 @@ export function CreateEmployeeDialog({
         position,
         employment_type: employmentType,
         department: null,
+        start_onboarding: startOnboarding,
+        send_first_day: startOnboarding && sendFirstDay,
+        start_time: startTime,
       });
       onDone(
         data.application,
-        data.password_email_sent
-          ? `Dash account ${data.employee_number} made; the set-password email went to ${application.email}.`
-          : `Dash account ${data.employee_number} made, but the set-password email did not send. Use Admin → Users → Send reset.`,
+        `Dash account ${data.employee_number} made (sign-in: ${data.username}).` +
+          (data.onboarding
+            ? data.first_day_sent
+              ? ` Onboarding started; the first-day email went to ${application.email}.`
+              : ' Onboarding started.'
+            : '') +
+          ' On day one, show them the Set password code (People → Onboarding).',
       );
     } catch (err) {
       setError(errorText(err, 'Could not create the employee.'));
@@ -214,8 +227,8 @@ export function CreateEmployeeDialog({
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
           <Typography variant="body2" color="text.secondary">
-            Makes their Dash account (Employee) and employee record, and emails {application.email || 'them'} a link
-            to set a password.
+            Makes their Dash account (Employee) and employee record. Nothing about passwords is emailed: on day one they
+            scan a Set password code and pick their own.
             {signed ? ' Filled in from the offer they signed.' : ''}
           </Typography>
           <TextField label="Position" value={position} onChange={(e) => setPosition(e.target.value)} fullWidth />
@@ -236,14 +249,33 @@ export function CreateEmployeeDialog({
               fullWidth
             />
           </Stack>
+          <TextField
+            label="First day starts at"
+            type="time"
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            fullWidth
+          />
           <TextField select label="Type" value={employmentType} onChange={(e) => setEmploymentType(e.target.value)} fullWidth>
             <MenuItem value="part_time">Part time</MenuItem>
             <MenuItem value="full_time">Full time</MenuItem>
             <MenuItem value="seasonal">Seasonal</MenuItem>
           </TextField>
+          <FormControlLabel
+            control={<Checkbox checked={startOnboarding} onChange={(e) => setStartOnboarding(e.target.checked)} />}
+            label="Start onboarding (the checklist)"
+          />
+          {startOnboarding && (
+            <FormControlLabel
+              sx={{ mt: -1.5 }}
+              control={<Checkbox checked={sendFirstDay} onChange={(e) => setSendFirstDay(e.target.checked)} />}
+              label={`Email the first-day note to ${application.email || 'them'}`}
+            />
+          )}
           <Alert severity="info" variant="outlined">
             Then add them in QuickBooks Payroll (name, phone, email). QuickBooks sends them the W-4 and direct
-            deposit setup.
+            deposit setup. It's the first item on their checklist.
           </Alert>
           {error && <Alert severity="error">{error}</Alert>}
         </Stack>

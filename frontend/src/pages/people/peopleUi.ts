@@ -34,6 +34,12 @@ export function errorText(err: unknown, fallback: string): string {
   return fallback;
 }
 
+/** A calendar date ("2026-10-12") as "Mon, Oct 12". shortDate is for moments in time (it treats a bare date as UTC). */
+export function dayText(iso: string | null | undefined): string {
+  if (!iso) return '';
+  return new Date(`${iso.slice(0, 10)}T12:00`).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
 export function shortDate(iso: string | null | undefined): string {
   if (!iso) return '';
   const d = new Date(iso);

@@ -165,17 +165,32 @@ class ApplicationDetailSerializer(ApplicationListSerializer):
     interviews = serializers.SerializerMethodField()
     offers = serializers.SerializerMethodField()
     booking_link = serializers.SerializerMethodField()
+    onboarding = serializers.SerializerMethodField()
 
     class Meta(ApplicationListSerializer.Meta):
         fields = ApplicationListSerializer.Meta.fields + [
             'answers', 'events', 'resume_file', 'sms_consent', 'sms_consent_at', 'not_now_note', 'not_now_stage',
             'not_now_reason_label', 'not_now_email_status', 'not_now_email_subject', 'not_now_email_body', 'not_now_at',
-            'received_email_sent', 'employee', 'interviews', 'offers', 'booking_link', 'invited_at',
+            'received_email_sent', 'employee', 'interviews', 'offers', 'booking_link', 'invited_at', 'onboarding',
         ]
 
     def get_interviews(self, obj):
         rows = obj.interviews.select_related('job', 'interviewer', 'scored_by').order_by('-start')
         return InterviewSerializer(rows, many=True).data
+
+    def get_onboarding(self, obj):
+        """Progress of this applicant's onboarding (after Create employee), or None."""
+        from apps.hiring.models import Onboarding, OnboardingTask
+        from apps.hiring.onboarding import overdue, refresh
+
+        row = Onboarding.objects.filter(application=obj).first()
+        if row is None:
+            return None
+        refresh(row)
+        tasks = list(row.tasks.all())
+        return {'id': row.pk, 'status': row.status, 'start_date': row.start_date,
+                'done': sum(t.status != OnboardingTask.STATUS_OPEN for t in tasks), 'total': len(tasks),
+                'overdue': sum(overdue(t) for t in tasks), 'first_day_email_sent_at': row.first_day_email_sent_at}
 
     def get_offers(self, obj):
         from apps.hiring.offers import refresh

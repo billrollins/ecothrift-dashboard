@@ -795,3 +795,58 @@ export function getHistoricalRevenue(params?: {
 }): Promise<{ data: HistoricalRevenueResponse }> {
   return api.get<HistoricalRevenueResponse>('/pos/historical-revenue/', { params });
 }
+
+// ── Staff purchases (owner, 2026-10-07): payroll deduction, and Thrift+ free for staff ─────────
+
+export interface StaffPurchaseSettings {
+  payroll_deduction: boolean;
+  /** Everything bought by payroll deduction in one pay period stays at or under this % of the last paycheck. */
+  payroll_max_percent: number;
+  thrift_plus_free: boolean;
+}
+
+export interface PayrollEligibility {
+  eligible: boolean;
+  reason: string;
+  percent: number;
+  employee: { id: number; name: string } | null;
+  last_paycheck: { start: string | null; end: string | null; hours: string; gross: string };
+  deduct_from: { start: string; end: string };
+  limit: string;
+  used: string;
+  available: string;
+}
+
+export interface PayrollDeductionList {
+  start: string;
+  end: string;
+  previous_start: string;
+  next_start: string;
+  total: string;
+  people: {
+    employee: { id: number; name: string };
+    total: string;
+    sales: { cart: number; receipt: string; at: string; amount: string; cashier: string }[];
+    entered: { amount: string; at: string; by: string; matches: boolean } | null;
+  }[];
+}
+
+export function getStaffPurchaseSettings() {
+  return api.get<StaffPurchaseSettings>('/pos/staff-purchases/settings/');
+}
+export function saveStaffPurchaseSettings(data: Partial<StaffPurchaseSettings>) {
+  return api.put<StaffPurchaseSettings>('/pos/staff-purchases/settings/', data);
+}
+export function getPayrollPeople() {
+  return api.get<{ id: number; name: string }[]>('/pos/staff-purchases/people/');
+}
+export function getPayrollEligibility(employee: number, amount?: number) {
+  return api.get<PayrollEligibility>('/pos/staff-purchases/eligibility/', { params: { employee, amount } });
+}
+export function getPayrollDeductions(day?: string) {
+  return api.get<PayrollDeductionList>('/pos/staff-purchases/deductions/', { params: day ? { day } : {} });
+}
+export function markPayrollEntered(employee: number, periodStart: string) {
+  return api.post<PayrollDeductionList>('/pos/staff-purchases/deductions/mark/', { employee, period_start: periodStart });
+}
+

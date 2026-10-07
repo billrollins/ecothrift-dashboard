@@ -15,6 +15,7 @@ import {
   List,
   ListItemButton,
   ListItemText,
+  MenuItem,
   Paper,
   Stack,
   TextField,
@@ -40,6 +41,42 @@ import {
 import type { NewMember, ThriftPlusAccount, ThriftPlusPerson } from '../../types/thriftplus.types';
 import PersonFields from '../../components/thriftplus/PersonFields';
 import MemberMoney from './MemberMoney';
+import { getPayrollPeople } from '../../api/pos.api';
+import { setMemberStaff } from '../../api/thriftplus.api';
+
+/** A staff member's own membership pays no monthly cover while the owner's "Thrift+ free for staff" is on. */
+function StaffLink({ account, onChanged }: { account: ThriftPlusAccount; onChanged: (a: ThriftPlusAccount) => void }) {
+  const { enqueueSnackbar } = useSnackbar();
+  const [picking, setPicking] = useState(false);
+  const people = useQuery({ queryKey: ['pos', 'payroll-people'], queryFn: async () => (await getPayrollPeople()).data, enabled: picking });
+  const save = async (userId: number | null) => {
+    try {
+      onChanged(await setMemberStaff(account.id, userId));
+      setPicking(false);
+    } catch (err) {
+      enqueueSnackbar(detail(err), { variant: 'error' });
+    }
+  };
+  if (account.staff) {
+    return (
+      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+        <Chip
+          color={account.staff.free ? 'success' : 'default'}
+          label={`Staff: ${account.staff.name}${account.staff.free ? ' (no monthly cover)' : ' (cover applies: staff Thrift+ is off in Settings)'}`}
+        />
+        <Button size="small" color="inherit" onClick={() => void save(null)}>Not a staff membership</Button>
+      </Stack>
+    );
+  }
+  return picking ? (
+    <TextField select size="small" label="Staff member" value="" sx={{ maxWidth: 320 }}
+      onChange={(e) => void save(Number(e.target.value))}>
+      {(people.data ?? []).map((p) => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
+    </TextField>
+  ) : (
+    <Box><Button size="small" onClick={() => setPicking(true)}>This is a staff member&rsquo;s own membership</Button></Box>
+  );
+}
 
 function detail(err: unknown): string {
   if (isAxiosError(err) && typeof err.response?.data?.detail === 'string') return err.response.data.detail;
@@ -153,6 +190,7 @@ function AccountDetail({ id }: { id: number }) {
         {account.status === 'revoked' ? <Chip color="error" label={`Revoked: ${account.revoked_reason}`} /> : null}
       </Stack>
       {account.people.map((p) => <PersonCard key={p.id} person={p} account={account} onChanged={onChanged} />)}
+      <StaffLink account={account} onChanged={onChanged} />
       <MemberMoney accountId={account.id} />
       {account.status === 'active' ? (
         <Stack direction="row" spacing={1}>

@@ -80,7 +80,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     id: 'people',
     label: 'People',
     roles: ['Manager', 'Admin'],
-    itemIds: ['applicants', 'interviews', 'jobs', 'hiringEmails'],
+    itemIds: ['applicants', 'interviews', 'onboarding', 'payrollDeductions', 'jobs', 'hiringEmails'],
   },
   {
     id: 'admin',

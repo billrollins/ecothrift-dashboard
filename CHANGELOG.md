@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.145.0] -->
-<!-- Last reviewed: 2026-10-07 (2.145.0) -->
+<!-- Line 1 release: ## [2.146.0] -->
+<!-- Last reviewed: 2026-10-07 (2.146.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,46 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.146.0] - 2026-10-07
+
+User-facing theme: **Onboarding: Start onboarding emails the first-day note and gives each new hire a checklist that runs to done; the I-9 is kept apart for Admins; the new hire signs the staff handbook on their phone. Plus staff purchases (payroll deduction, Thrift+ free for staff), switched off until the owner turns them on.** Initiative: `hiring_onboarding` Phases 4 and 4b.
+
+### Added
+
+- **Start onboarding**, from Create employee (on by default) or from People → Onboarding for any employee:
+  - a checklist from the careers file, with due dates from the first day (before day 1, day 1, 3 business days, week 1, day 20);
+  - the **first-day email**: when and where, who to ask for, what to wear, and the I-9 documents to bring. It's editable on People → Emails → Onboarding.
+- **People → Onboarding**:
+  - the list, with progress and overdue items in red;
+  - each person's checklist: ticks, "Not needed", and T-shirts with a count and size;
+  - **Set password code** (the QR for day one), **Email the first-day note again**, and **Cancel onboarding**.
+- **Items Dash ticks itself:** the emergency contact, signing in to Dash, the first clock-in, a shift on the schedule, the kiosk badge, the handbook, and the I-9.
+- **Form I-9 (Admin only, kept apart from the employee record):** upload the form and copies of the documents, note what was seen, then **Section 2 done**. Each I-9 shows its keep-until date.
+- **The staff handbook:**
+  - a short first draft on People → Onboarding → Handbook, with a preview;
+  - facts still to settle are marked `[confirm: …]`, and publishing waits until none are left;
+  - each published version is signed in Dash with a tick, a typed name and a finger signature, and the signed PDF has an audit trail.
+- **My onboarding** (`/onboarding`) for the new hire: the emergency contact, the handbook to read and sign, and their own ticks. A banner on **Today** links to it.
+- The careers JSON carries `onboarding` (the checklist) and `handbook` (the draft) for AI edits.
+
+- **Staff purchases** (owner, 2026-10-07), both **off** until the owner turns them on in Settings → Store → Staff purchases (Admin only):
+  - **Payroll deduction** at the register ("Payroll deduction (staff)"): pick the staff member, and the sale comes out of their next paycheck, all at once. It is capped at 25% (a setting) of their last paycheck for the whole pay period, so new hires with no paycheck yet don't qualify. Someone else must ring it, and each item has been on the floor a day.
+  - **People → Payroll deductions**: each pay period's purchases per person, to enter in QuickBooks Payroll, with **Mark entered**.
+  - **Thrift+ free for staff**: a membership marked as a staff member's own (Thrift+ → Members) pays no monthly cover while they are active staff.
+
+### Changed
+
+- **Create employee no longer emails a set-password link.** On day one the new hire scans the Set password code and picks their own password (D16). A manager can show it for a new hire from onboarding.
+
+### Fixed
+
+- Calendar dates on the onboarding pages show the right day; the time formatter read them as UTC.
+- **Signed offer PDFs:** the letter's fingerprint (SHA-256) is set in monospace. A proportional font joined "ff" in the hash into one ligature, so a hash copied out of the PDF didn't match.
+- **A core test** expected 18 seeded AI actions; hiring's careers action (since v2.136.0) makes 19.
+- **The handbook draft** has the owner's answers (breaks, call-ins, payday, shirts, phones, staff buying, reporting) and what still fits from the 2024 handbook. One fact is left to confirm: paid sick leave.
+
+Migration: `hiring.0011` (onboarding, I-9, handbook), `pos.0034` (payroll deduction; seeds the switches off), `thriftplus.0010` (staff memberships).
 
 ## [2.145.0] - 2026-10-07
 

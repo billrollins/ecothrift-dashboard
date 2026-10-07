@@ -36,10 +36,19 @@ def _sum(qs) -> Decimal:
     return (qs.aggregate(s=Sum('amount'))['s'] or ZERO).quantize(Decimal('0.01'))
 
 
+def staff_free(account: Account) -> bool:
+    """A staff member's own membership pays no cover while the owner's switch is on (pos.staff_purchases)."""
+    if not account.staff_user_id:
+        return False
+    from apps.pos.services.staff_purchases import is_staff_member, thrift_plus_free_on
+
+    return thrift_plus_free_on() and is_staff_member(account.staff_user)
+
+
 def cover(account: Account, on: date | None = None) -> dict:
-    """This month's cover: the amount, how much rewards have filled, and what is left."""
+    """This month's cover: the amount, how much rewards have filled, and what is left (none for staff)."""
     on = on or timezone.localdate()
-    amount = cover_amount()
+    amount = ZERO if staff_free(account) else cover_amount()
     covered = min(amount, max(ZERO, _sum(account.ledger.filter(kind=LedgerEntry.KIND_COVER, month=month_of(on)))))
     return {
         'month': month_of(on), 'amount': str(amount), 'covered': str(covered), 'remaining': str(amount - covered),

@@ -32,6 +32,10 @@ class Account(models.Model):
     revoked_reason = models.CharField(max_length=200, blank=True, default='')
     revoked_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    # A staff member's own membership: no monthly cover while the owner's "Thrift+ free for staff" is on (2026-10-07).
+    staff_user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='thrift_plus_account',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

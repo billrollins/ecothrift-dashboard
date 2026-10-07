@@ -1,7 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from apps.hiring import public_views, views
+from apps.hiring import onboarding_views as onb, public_views, views
 
 router = DefaultRouter()
 router.register('jobs', views.JobViewSet, basename='hiring-job')
@@ -23,6 +23,24 @@ urlpatterns = [
     path('careers/check/', views.careers_check, name='hiring-careers-check'),
     path('careers/bundle/', views.careers_bundle, name='hiring-careers-bundle'),
     path('careers/public/', views.careers_public, name='hiring-careers-public'),
+    path('onboarding/', onb.onboarding_list, name='hiring-onboarding'),
+    path('onboarding/people/', onb.onboarding_people, name='hiring-onboarding-people'),
+    path('onboarding/<int:pk>/', onb.onboarding_detail, name='hiring-onboarding-detail'),
+    path('onboarding/<int:pk>/tasks/<int:task_id>/', onb.onboarding_task, name='hiring-onboarding-task'),
+    path('onboarding/<int:pk>/first-day-email/', onb.onboarding_first_day, name='hiring-onboarding-first-day'),
+    path('onboarding/<int:pk>/cancel/', onb.onboarding_cancel, name='hiring-onboarding-cancel'),
+    path('onboarding/<int:pk>/set-password-link/', onb.onboarding_password_link, name='hiring-onboarding-password'),
+    path('onboarding/<int:pk>/i9/', onb.i9_detail, name='hiring-i9'),
+    path('onboarding/<int:pk>/i9/files/', onb.i9_files, name='hiring-i9-files'),
+    path('onboarding/<int:pk>/i9/files/<int:file_id>/', onb.i9_file, name='hiring-i9-file'),
+    path('onboarding/<int:pk>/i9/section2/', onb.i9_section2, name='hiring-i9-section2'),
+    path('handbook/', onb.handbook, name='hiring-handbook'),
+    path('handbook/publish/', onb.handbook_publish, name='hiring-handbook-publish'),
+    path('handbook/signatures/<int:signature_id>/pdf/', onb.handbook_signature_pdf, name='hiring-handbook-pdf'),
+    path('me/onboarding/', onb.my_onboarding, name='hiring-my-onboarding'),
+    path('me/onboarding/tasks/<int:task_id>/', onb.my_task, name='hiring-my-task'),
+    path('me/emergency-contact/', onb.my_emergency_contact, name='hiring-my-emergency-contact'),
+    path('me/handbook/sign/', onb.my_handbook_sign, name='hiring-my-handbook-sign'),
     path('ai/', views.ai_start, name='hiring-ai-start'),
     path('ai/<uuid:job_id>/', views.ai_status, name='hiring-ai-status'),
     path('', include(router.urls)),

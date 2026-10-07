@@ -402,3 +402,158 @@ class ApplicationEvent(models.Model):
 
     def __str__(self):
         return f'{self.application_id} {self.kind} @ {self.at}'
+
+
+# ── Onboarding (Phase 4) ────────────────────────────────────────────────────
+
+
+class Onboarding(models.Model):
+    """A new hire's first weeks: the first-day email and a checklist copied from the careers file at the start."""
+
+    STATUS_ACTIVE = 'active'
+    STATUS_DONE = 'done'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_CHOICES = [(STATUS_ACTIVE, 'In progress'), (STATUS_DONE, 'Done'), (STATUS_CANCELLED, 'Cancelled')]
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='onboardings')
+    application = models.OneToOneField(
+        Application, on_delete=models.SET_NULL, null=True, blank=True, related_name='onboarding',
+    )
+    job = models.ForeignKey(Job, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    position = models.CharField(max_length=120, blank=True, default='')
+    start_date = models.DateField()
+    start_time = models.TimeField(null=True, blank=True)
+    manager = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='onboardings_managed',
+    )
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_ACTIVE, db_index=True)
+    first_day_email_sent_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-start_date', '-id']
+
+    def __str__(self):
+        return f'Onboarding {self.user_id} from {self.start_date}'
+
+
+class OnboardingTask(models.Model):
+    """One checklist item, with its due date worked out from the start date when onboarding began."""
+
+    STATUS_OPEN = 'open'
+    STATUS_DONE = 'done'
+    STATUS_SKIPPED = 'skipped'
+    STATUS_CHOICES = [(STATUS_OPEN, 'To do'), (STATUS_DONE, 'Done'), (STATUS_SKIPPED, 'Not needed')]
+
+    onboarding = models.ForeignKey(Onboarding, on_delete=models.CASCADE, related_name='tasks')
+    key = models.CharField(max_length=40)
+    label = models.CharField(max_length=200)
+    help = models.CharField(max_length=400, blank=True, default='')
+    owner = models.CharField(max_length=10)  # new_hire, manager, owner
+    due = models.CharField(max_length=12)  # before_day1, day1, i9, week1, day20
+    due_date = models.DateField()
+    kind = models.CharField(max_length=10)  # tick, count, i9, handbook, auto
+    auto = models.CharField(max_length=20, blank=True, default='')
+    sort = models.PositiveSmallIntegerField(default=0)
+    status = models.CharField(max_length=8, choices=STATUS_CHOICES, default=STATUS_OPEN)
+    done_at = models.DateTimeField(null=True, blank=True)
+    done_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    note = models.CharField(max_length=500, blank=True, default='')
+    data = models.JSONField(default=dict, blank=True)  # count: {"count": 2, "size": "L"}
+
+    class Meta:
+        ordering = ['sort', 'id']
+        unique_together = [('onboarding', 'key')]
+
+
+class I9Record(models.Model):
+    """A new hire's Form I-9: Admin only, kept apart from the employee record (decision 12).
+
+    Kept for 3 years from the start, or 1 year after the person leaves, whichever is later.
+    """
+
+    onboarding = models.OneToOneField(Onboarding, on_delete=models.CASCADE, related_name='i9')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='i9_records')
+    hire_date = models.DateField()
+    documents_seen = models.CharField(max_length=300, blank=True, default='')  # e.g. "List B driver's license + List C"
+    section2_done_at = models.DateTimeField(null=True, blank=True)
+    section2_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    left_on = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def keep_until(self):
+        def plus_years(day, years):
+            try:
+                return day.replace(year=day.year + years)
+            except ValueError:  # Feb 29
+                return day.replace(year=day.year + years, day=28)
+
+        three_years = plus_years(self.hire_date, 3)
+        return max(three_years, plus_years(self.left_on, 1)) if self.left_on else three_years
+
+
+class I9File(models.Model):
+    """A scan: the I-9 form itself, or a copy of a document seen for it (copies are kept for everyone)."""
+
+    KIND_FORM = 'form'
+    KIND_DOCUMENT = 'document'
+    KIND_CHOICES = [(KIND_FORM, 'Form I-9'), (KIND_DOCUMENT, 'Document copy')]
+
+    record = models.ForeignKey(I9Record, on_delete=models.CASCADE, related_name='files')
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES, default=KIND_FORM)
+    label = models.CharField(max_length=120, blank=True, default='')
+    file = models.ForeignKey('core.S3File', on_delete=models.PROTECT, related_name='+')
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['uploaded_at', 'id']
+
+
+class Handbook(models.Model):
+    """A published version of the staff handbook (the draft lives in the careers file)."""
+
+    version = models.PositiveIntegerField(unique=True)
+    title = models.CharField(max_length=160)
+    text = models.TextField()
+    acknowledgment = models.TextField()
+    sha256 = models.CharField(max_length=64)
+    published_at = models.DateTimeField(auto_now_add=True)
+    published_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+
+    class Meta:
+        ordering = ['-version']
+
+    def __str__(self):
+        return f'Handbook v{self.version}'
+
+
+class HandbookSignature(models.Model):
+    """One person's signature on one handbook version: typed name, drawn signature, and a signed PDF."""
+
+    handbook = models.ForeignKey(Handbook, on_delete=models.PROTECT, related_name='signatures')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='handbook_signatures')
+    signer_name = models.CharField(max_length=160)
+    consent_text = models.TextField()
+    signature = models.ForeignKey('core.S3File', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    signed_pdf = models.ForeignKey('core.S3File', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    signer_ip = models.GenericIPAddressField(null=True, blank=True)
+    signer_user_agent = models.CharField(max_length=300, blank=True, default='')
+    signed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-signed_at']
+        unique_together = [('handbook', 'user')]

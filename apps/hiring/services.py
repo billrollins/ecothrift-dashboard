@@ -1,7 +1,6 @@
 """Applications: build the answer snapshot, apply, move stages, Not now, create the employee."""
 from __future__ import annotations
 
-import secrets
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -352,7 +351,8 @@ def mark_not_now(application, *, reason: str, note: str, send: bool, subject: st
 @transaction.atomic
 def create_employee(application, *, by, request, pay_rate, start_date: date | None, position: str = '',
                     department: int | None = None, employment_type: str = 'part_time') -> dict:
-    """Hired → a Dash user (Employee role) with an employee profile, and the set-password email."""
+    """Hired → a Dash user (Employee role) with an employee profile. Nothing is emailed: the new hire picks a password
+    from a one-time link shown as a QR on day one (D16; People → Onboarding → Set password)."""
     from apps.accounts.models import User
     from apps.accounts.serializers import UserCreateSerializer
 
@@ -380,7 +380,6 @@ def create_employee(application, *, by, request, pay_rate, start_date: date | No
         'first_name': application.first_name,
         'last_name': application.last_name,
         'phone': application.phone,
-        'password': secrets.token_urlsafe(24),
         'role': 'Employee',
         'is_active': True,
         'position': position,
@@ -391,8 +390,9 @@ def create_employee(application, *, by, request, pay_rate, start_date: date | No
     })
     serializer.is_valid(raise_exception=True)
     user = serializer.save()
-    user.set_unusable_password()
-    user.save(update_fields=['password'])
+    if user.has_usable_password():
+        user.set_unusable_password()
+        user.save(update_fields=['password'])
 
     previous = application.stage
     application.employee_user = user
@@ -403,18 +403,15 @@ def create_employee(application, *, by, request, pay_rate, start_date: date | No
     if previous != Application.STAGE_HIRED:
         _event(application, ApplicationEvent.KIND_STAGE, by=by, from_stage=previous, to_stage=Application.STAGE_HIRED)
 
-    from apps.accounts.views import _send_staff_reset
+    from apps.accounts.services.usernames import assign_username
 
-    response = _send_staff_reset(user, request=request, requested_by_admin=True)
-    email_sent = getattr(response, 'status_code', 500) < 300
+    username = assign_username(user) or ''
     profile = getattr(user, 'employee', None)
     _event(application, ApplicationEvent.KIND_EMPLOYEE, by=by,
-           text=f'Dash account created ({profile.employee_number if profile else user.email})'
-                + ('; set-password email sent' if email_sent else '; set-password email could not be sent'),
+           text=f'Dash account created ({profile.employee_number if profile else user.email}, username {username})',
            data={'user_id': user.pk, 'pay_rate': str(rate), 'start_date': serializer.validated_data.get('hire_date').isoformat()
                  if serializer.validated_data.get('hire_date') else None})
-    return {'user_id': user.pk, 'employee_number': profile.employee_number if profile else '',
-            'password_email_sent': email_sent}
+    return {'user_id': user.pk, 'employee_number': profile.employee_number if profile else '', 'username': username}
 
 
 def public_job_list() -> list[Job]:

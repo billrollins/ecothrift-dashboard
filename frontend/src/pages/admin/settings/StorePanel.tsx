@@ -5,6 +5,7 @@ import { metaForKey } from './settingsRegistry';
 import { SettingRow } from './SettingRow';
 import { CardSurchargeEditor } from './CardSurchargeEditor';
 import { HolidayHoursCard } from './HolidayHoursCard';
+import { StaffPurchasesEditor } from './StaffPurchasesEditor';
 import { StoreHoursEditor } from './StoreHoursEditor';
 import { settingByKey, useAppSettings } from './useAppSettings';
 
@@ -80,6 +81,17 @@ export function StorePanel() {
               Credit card surcharge is not in the database yet.
             </Typography>
           )}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent>
+          <Typography variant="subtitle1" sx={{ mb: 0.5 }}>
+            {metaForKey('pos.staff_purchases').label}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {metaForKey('pos.staff_purchases').help}
+          </Typography>
+          <StaffPurchasesEditor />
         </CardContent>
       </Card>
       <Card>

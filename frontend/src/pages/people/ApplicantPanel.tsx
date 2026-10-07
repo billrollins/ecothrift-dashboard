@@ -21,6 +21,7 @@ import DescriptionOutlined from '@mui/icons-material/DescriptionOutlined';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useMemo, useRef, useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import {
   addNote,
   getApplication,
@@ -40,6 +41,7 @@ import { ccTokens } from '../../theme';
 import { CreateEmployeeDialog, NotNowDialog } from './ApplicantDialogs';
 import { InterviewCard, PickTimeDialog } from './interviewUi';
 import { OfferCard, OfferDialog } from './offerUi';
+import { StartOnboardingDialog } from './onboardingUi';
 import { PracticeChip } from './PracticeDialog';
 import { FlagDots } from './FlagDots';
 import { answerText, errorText, nextStage, phoneHref, shortDate, STAGE_LABEL, STAGES } from './peopleUi';
@@ -90,6 +92,7 @@ export function ApplicantPanel({
   const [employeeOpen, setEmployeeOpen] = useState(false);
   const [booking, setBooking] = useState(false);
   const [offering, setOffering] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const detail = useQuery({
@@ -342,7 +345,20 @@ export function ApplicantPanel({
         {app.employee && (
           <Alert severity="success" variant="outlined" sx={{ bgcolor: '#fff' }}>
             Employee {app.employee.employee_number} · {app.employee.position} · ${app.employee.pay_rate}/hr · starts{' '}
-            {app.employee.hire_date}. Next: add them in QuickBooks Payroll (name, phone, email).
+            {app.employee.hire_date}.{' '}
+            {app.onboarding ? (
+              <>
+                Onboarding: {app.onboarding.done} of {app.onboarding.total} done
+                {app.onboarding.overdue ? `, ${app.onboarding.overdue} overdue` : ''}.{' '}
+                <Button size="small" component={RouterLink} to={`/people/onboarding?id=${app.onboarding.id}`}>
+                  Open onboarding
+                </Button>
+              </>
+            ) : (
+              <Button size="small" variant="contained" sx={{ ml: 0.5 }} onClick={() => setOnboardingOpen(true)}>
+                Start onboarding
+              </Button>
+            )}
           </Alert>
         )}
       </Box>
@@ -522,6 +538,19 @@ export function ApplicantPanel({
           setOffering(false);
           await refreshWith(updated);
           enqueueSnackbar(message, { variant: 'success', autoHideDuration: 9000 });
+        }}
+      />
+      <StartOnboardingDialog
+        open={onboardingOpen}
+        applicationId={app.id}
+        defaults={{ name: app.full_name, email: app.email }}
+        onClose={() => setOnboardingOpen(false)}
+        onDone={async (_detail, sent) => {
+          setOnboardingOpen(false);
+          await reloadAll();
+          enqueueSnackbar(sent ? `Onboarding started; the first-day email went to ${app.email}.` : 'Onboarding started.', {
+            variant: 'success',
+          });
         }}
       />
       <CreateEmployeeDialog

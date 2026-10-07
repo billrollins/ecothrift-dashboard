@@ -12,9 +12,11 @@ type Props = {
   userId: number | null;
   name: string;
   onClose: () => void;
+  /** Where the link comes from (default: Admin → Users). Onboarding passes its own, open to managers for new hires. */
+  fetchLink?: (userId: number) => Promise<{ data: SetPasswordLink }>;
 };
 
-export function SetPasswordLinkDialog({ userId, name, onClose }: Props) {
+export function SetPasswordLinkDialog({ userId, name, onClose, fetchLink = getSetPasswordLink }: Props) {
   const [link, setLink] = useState<SetPasswordLink | null>(null);
   const [qr, setQr] = useState('');
   const [error, setError] = useState('');
@@ -26,7 +28,7 @@ export function SetPasswordLinkDialog({ userId, name, onClose }: Props) {
     setError('');
     setCopied(false);
     if (userId == null) return;
-    getSetPasswordLink(userId)
+    fetchLink(userId)
       .then(({ data }) => {
         setLink(data);
         return QRCode.toDataURL(data.link, { margin: 1, width: 240 });
@@ -36,7 +38,7 @@ export function SetPasswordLinkDialog({ userId, name, onClose }: Props) {
         const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
         setError(detail || 'Could not make the link.');
       });
-  }, [userId]);
+  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const copy = async () => {
     if (!link) return;

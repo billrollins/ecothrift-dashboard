@@ -944,3 +944,175 @@ class PracticeTests(Base):
         cleared = self.staff.post('/api/hiring/applications/practice-clear/', {}, format='json').data
         self.assertEqual(cleared['deleted'], 1)
         self.assertEqual(list(Application.objects.values_list('first_name', flat=True)), ['Dana'])
+
+
+class OnboardingTests(Base):
+    """Phase 4: Start onboarding, the first-day email, the checklist, auto items, the I-9 (Admin) and the handbook."""
+
+    def setUp(self):
+        super().setUp()
+        self.owner = _user('owner@example.com', 'Admin')
+        self.admin = APIClient()
+        self.admin.force_authenticate(self.owner)
+        self.turn_on()
+        self.apply()
+        self.app = Application.objects.get()
+        mail.outbox.clear()
+
+    def hire(self, **extra):
+        response = self.staff.post(f'/api/hiring/applications/{self.app.pk}/create-employee/', {
+            'pay_rate': '15.00', 'start_date': '2026-10-16', 'start_time': '10:00', 'position': 'Retail Associate',
+            'start_onboarding': True, 'send_first_day': True, **extra}, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        self.new_hire = User.objects.get(email='dana@example.com')
+        self.me = APIClient()
+        self.me.force_authenticate(self.new_hire)
+        self.app.refresh_from_db()
+        return response.data
+
+    def detail(self, client=None):
+        oid = self.app.onboarding.pk
+        return (client or self.staff).get(f'/api/hiring/onboarding/{oid}/').data
+
+    def task(self, key, data=None):
+        return next(t for t in (data or self.detail())['tasks'] if t['key'] == key)
+
+    def test_create_employee_starts_onboarding_and_sends_the_first_day_email(self):
+        from datetime import date
+
+        made = self.hire()
+        self.assertTrue(made['first_day_sent'])
+        self.assertTrue(made['username'])
+        self.assertFalse(self.new_hire.has_usable_password())
+        self.assertEqual(len(mail.outbox), 1)  # the first-day email only; no password email (D16)
+        first = mail.outbox[0]
+        self.assertIn('first day', first.subject.lower())
+        self.assertIn('List A', first.body)
+        self.assertIn('Friday, October 16 at 10:00 AM', first.body)
+        data = self.detail()
+        self.assertEqual(data['status'], 'active')
+        self.assertEqual(data['total'], len(careers.DEFAULT_ONBOARDING['items']))
+        self.assertEqual(str(self.task('i9_section2', data)['due_date']), str(date(2026, 10, 21)))
+        self.assertEqual(str(self.task('quickbooks_added', data)['due_date']), str(date(2026, 10, 15)))
+        summary = self.staff.get(f'/api/hiring/applications/{self.app.pk}/').data['onboarding']
+        self.assertEqual((summary['done'], summary['total']), (0, data['total']))
+
+    def test_ticks_counts_and_the_items_dash_sees_itself(self):
+        self.hire()
+        oid = self.app.onboarding.pk
+        qb = self.task('quickbooks_added')
+        self.assertEqual(self.staff.post(f'/api/hiring/onboarding/{oid}/tasks/{qb["id"]}/', {'status': 'done'},
+                                         format='json').status_code, 200)
+        shirts = self.task('shirts')
+        bad = self.staff.post(f'/api/hiring/onboarding/{oid}/tasks/{shirts["id"]}/', {'status': 'done'}, format='json')
+        self.assertEqual(bad.status_code, 400)
+        good = self.staff.post(f'/api/hiring/onboarding/{oid}/tasks/{shirts["id"]}/',
+                               {'status': 'done', 'data': {'count': 2, 'size': 'L'}}, format='json').data
+        self.assertEqual(self.task('shirts', good)['data'], {'count': 2, 'size': 'L'})
+        # The new hire: their own tick items only, and the emergency contact.
+        mine = self.me.get('/api/hiring/me/onboarding/').data
+        self.assertEqual(mine['onboarding']['id'], oid)
+        trained = self.task('trained', mine['onboarding'])
+        self.assertEqual(self.me.post(f'/api/hiring/me/onboarding/tasks/{trained["id"]}/', {'status': 'done'},
+                                      format='json').status_code, 403)
+        setup = self.task('quickbooks_setup', mine['onboarding'])
+        self.assertEqual(self.me.post(f'/api/hiring/me/onboarding/tasks/{setup["id"]}/', {'status': 'done'},
+                                      format='json').status_code, 200)
+        ice = self.me.post('/api/hiring/me/emergency-contact/', {'name': 'Pat Miles', 'phone': '402-555-0123'},
+                           format='json').data
+        self.assertEqual(self.task('emergency_contact', ice['onboarding'])['status'], 'done')
+        # Clock-in, badge, sign-in and schedule come from the rest of Dash.
+        from django.utils import timezone
+
+        from apps.hr.models import Department, Shift, ShiftAssignment, TimeEntry
+        TimeEntry.objects.create(employee=self.new_hire, date=timezone.localdate(), clock_in=timezone.now())
+        profile = self.new_hire.employee
+        profile.badge_issued_at = timezone.now()
+        profile.save(update_fields=['badge_issued_at'])
+        self.new_hire.set_password('a-long-pass-123')
+        self.new_hire.last_login = timezone.now()
+        self.new_hire.save()
+        dept = Department.objects.first() or Department.objects.create(name='Retail Test', slug='retail-test')
+        shift = Shift.objects.create(name='Open test', department=dept, time_in='09:00', time_out='15:00',
+                                     weekdays=[5])
+        ShiftAssignment.objects.create(employee=self.new_hire, shift=shift, weekdays=[5])
+        data = self.detail()
+        for key in ('first_clock_in', 'kiosk_badge', 'dash_login', 'schedule'):
+            self.assertEqual((key, self.task(key, data)['status'], self.task(key, data)['done_by']), (key, 'done', 'Dash'))
+
+    def test_the_i9_is_admin_only_and_section_2_needs_the_form(self):
+        self.hire()
+        oid = self.app.onboarding.pk
+        self.assertEqual(self.staff.get(f'/api/hiring/onboarding/{oid}/i9/').status_code, 403)
+        self.assertFalse(self.detail()['i9']['can_open'])
+        early = self.admin.post(f'/api/hiring/onboarding/{oid}/i9/section2/', {'documents_seen': 'List A passport'},
+                                format='json')
+        self.assertEqual(early.status_code, 400)
+        scan = SimpleUploadedFile('i9.pdf', b'%PDF-1.4 i9 form', content_type='application/pdf')
+        up = self.admin.post(f'/api/hiring/onboarding/{oid}/i9/files/', {'file': scan, 'kind': 'form'},
+                             format='multipart')
+        self.assertEqual(up.status_code, 201, up.data)
+        self.assertEqual(len(up.data['files']), 1)
+        word = SimpleUploadedFile('i9.docx', b'PK\x03\x04 word file', content_type='application/msword')
+        self.assertEqual(self.admin.post(f'/api/hiring/onboarding/{oid}/i9/files/', {'file': word},
+                                         format='multipart').status_code, 400)
+        done = self.admin.post(f'/api/hiring/onboarding/{oid}/i9/section2/', {'documents_seen': 'List A passport'},
+                               format='json')
+        self.assertEqual(done.status_code, 200, done.data)
+        self.assertEqual(str(done.data['keep_until']), '2029-10-16')
+        self.assertEqual(self.task('i9_section2')['status'], 'done')
+        locked = self.admin.delete(f'/api/hiring/onboarding/{oid}/i9/files/{up.data["files"][0]["id"]}/')
+        self.assertEqual(locked.status_code, 400)
+
+    def test_the_handbook_waits_for_its_confirm_marks_then_is_signed_once(self):
+        import pymupdf
+
+        self.hire()
+        marked = {'title': 'Staff handbook', 'text': '## Pay\n[confirm: which day?]', 'acknowledgment': 'I read it.'}
+        careers.apply_doc(careers.check_doc({'format': careers.FORMAT, 'handbook': marked})['doc'], user=self.owner)
+        blocked = self.admin.post('/api/hiring/handbook/publish/', {}, format='json')
+        self.assertEqual(blocked.status_code, 400)
+        self.assertIn('confirm', str(blocked.data['detail']))
+        draft = {'title': 'Staff handbook', 'text': '## Welcome\nHello.\n\n## Safety\n- Lift with help.',
+                 'acknowledgment': 'I read it.'}
+        checked = careers.check_doc({'format': careers.FORMAT, 'handbook': draft})
+        self.assertTrue(checked['ok'], checked['errors'])
+        careers.apply_doc(checked['doc'], user=self.owner)
+        self.assertEqual(self.staff.post('/api/hiring/handbook/publish/', {}, format='json').status_code, 403)
+        published = self.admin.post('/api/hiring/handbook/publish/', {}, format='json')
+        self.assertEqual(published.status_code, 201, published.data)
+        self.assertEqual(published.data['version'], 1)
+        self.assertEqual(self.admin.post('/api/hiring/handbook/publish/', {}, format='json').status_code, 400)
+        mine = self.me.get('/api/hiring/me/onboarding/').data
+        self.assertEqual(mine['handbook']['version'], 1)
+        missing = self.me.post('/api/hiring/me/handbook/sign/', {
+            'name': 'Dana Miles', 'signature': _signature_data_url(), 'acknowledged': True}, format='json')
+        self.assertIn('consent', missing.data)
+        body = {'name': 'Dana Miles', 'signature': _signature_data_url(), 'acknowledged': True, 'consent': True}
+        signed = self.me.post('/api/hiring/me/handbook/sign/', body, format='json')
+        self.assertEqual(signed.status_code, 201, signed.data)
+        self.assertEqual(self.task('handbook', signed.data['onboarding'])['status'], 'done')
+        self.assertEqual(self.me.post('/api/hiring/me/handbook/sign/', body, format='json').status_code, 400)
+        sig = self.detail()['handbook']['signature']
+        raw = b''.join(self.staff.get(f'/api/hiring/handbook/signatures/{sig}/pdf/').streaming_content)
+        text = ''.join(page.get_text() for page in pymupdf.open(stream=raw, filetype='pdf'))
+        self.assertIn('Lift with help.', text)
+        self.assertIn('Signing audit trail', text)
+
+    def test_done_when_nothing_is_left_and_a_set_password_code_for_day_one(self):
+        self.hire()
+        oid = self.app.onboarding.pk
+        link = self.staff.post(f'/api/hiring/onboarding/{oid}/set-password-link/', {}, format='json')
+        self.assertEqual(link.status_code, 200, link.data)
+        self.assertIn('set=1', link.data['link'])
+        for task in self.detail()['tasks']:
+            self.staff.post(f'/api/hiring/onboarding/{oid}/tasks/{task["id"]}/', {'status': 'skipped'}, format='json')
+        self.assertEqual(self.detail()['status'], 'done')
+        self.assertEqual(self.staff.get('/api/hiring/onboarding/?status=done').data[0]['id'], oid)
+
+    def test_three_business_days_skip_the_weekend(self):
+        from datetime import date
+
+        from apps.hiring.onboarding import add_business_days, due_date_for
+        self.assertEqual(add_business_days(date(2026, 10, 16), 3), date(2026, 10, 21))  # Fri → Wed
+        self.assertEqual(due_date_for('day20', date(2026, 10, 16)), date(2026, 11, 5))

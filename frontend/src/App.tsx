@@ -29,6 +29,9 @@ const ApplicantsPage = lazy(() => import('./pages/people/ApplicantsPage'));
 const JobsPage = lazy(() => import('./pages/people/JobsPage'));
 const InterviewsPage = lazy(() => import('./pages/people/InterviewsPage'));
 const EmailsPage = lazy(() => import('./pages/people/EmailsPage'));
+const OnboardingPage = lazy(() => import('./pages/people/OnboardingPage'));
+const MyOnboardingPage = lazy(() => import('./pages/people/MyOnboardingPage'));
+const PayrollDeductionsPage = lazy(() => import('./pages/people/PayrollDeductionsPage'));
 import FloorplanListPage from './pages/floorplan/FloorplanListPage';
 
 // Pages
@@ -211,6 +214,14 @@ export default function App() {
       >
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/today" element={<TodayPage />} />
+        <Route
+          path="/onboarding"
+          element={
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <MyOnboardingPage />
+            </Suspense>
+          }
+        />
         <Route path="/routines" element={<RoutinesPage />} />
         <Route path="/routines/qa" element={<Navigate to="/today" replace />} />
         <Route path="/routines/catalog" element={<RoutinesPage />} />
@@ -499,6 +510,26 @@ export default function App() {
             <ManagerRoute>
               <Suspense fallback={<LoadingScreen message="Loading…" />}>
                 <InterviewsPage />
+              </Suspense>
+            </ManagerRoute>
+          }
+        />
+        <Route
+          path="/people/onboarding"
+          element={
+            <ManagerRoute>
+              <Suspense fallback={<LoadingScreen message="Loading…" />}>
+                <OnboardingPage />
+              </Suspense>
+            </ManagerRoute>
+          }
+        />
+        <Route
+          path="/people/payroll-deductions"
+          element={
+            <ManagerRoute>
+              <Suspense fallback={<LoadingScreen message="Loading…" />}>
+                <PayrollDeductionsPage />
               </Suspense>
             </ManagerRoute>
           }

@@ -36,6 +36,7 @@ const OFFER = [
 ];
 
 function placeholdersFor(key: string): string[] {
+  if (key === 'first_day') return ['first_name', 'role', 'start_date', 'start_time', 'supervisor', 'place'];
   if (key === 'offer_letter') return OFFER;
   if (key === 'offer_notice') return [...OFFER, 'applicant', 'action', 'reason', 'link', 'dash_link'];
   if (key.startsWith('offer_')) return [...OFFER, 'link'];
@@ -247,6 +248,7 @@ export default function EmailsPage() {
       signer_title: careers.data?.doc.offer?.signer_title ?? 'Owner, Eco-Thrift',
       action: key === 'offer_notice' ? 'signed' : SAMPLE.action,
       link: key.startsWith('offer_') ? 'https://ecothrift.us/careers/offer?t=…' : SAMPLE.link,
+      place: key === 'first_day' ? 'our Canfield store, 8425 West Center Road, Omaha' : SAMPLE.place,
       review_day: String(email?.review_day ?? 'every business day'),
       reply_days: String(email?.reply_days ?? '5'),
     }),
@@ -295,7 +297,7 @@ export default function EmailsPage() {
     }
   }
 
-  const groups = ['Applying', 'Interviews', 'Offers', 'Not now'];
+  const groups = ['Applying', 'Interviews', 'Offers', 'Onboarding', 'Not now'];
   const rolesWith = (k: string) => (jobs.data ?? []).filter((j) => j.emails?.[k]).map((j) => j.title);
 
   return (

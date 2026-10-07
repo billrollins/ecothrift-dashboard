@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-06 (Phase 3 offers, practice runs) -->
+<!-- Last updated: 2026-10-06 (Phase 4 onboarding) -->
 # Hiring
 
 The careers page, applications, and the People workspace. Design and phases: [`initiatives/hiring_onboarding.md`](../initiatives/hiring_onboarding.md).
@@ -85,4 +85,31 @@ The careers page, applications, and the People workspace. Design and phases: [`i
 - `interviews.open_times` ignores practice interviews, so they never block a real applicant. `offers.build_pdf` stamps PRACTICE RUN on each page. `services.create_employee` refuses practice applicants.
 - `POST /api/hiring/applications/practice-clear/` (`services.clear_practice`) deletes them all with their interviews, offers, events and S3 files. `counts/` returns `practice` (how many exist).
 - UI: `frontend/src/pages/people/PracticeDialog.tsx` (with `PracticeChip`); public `PracticeBar` in `CareersPage.tsx`.
+
+## Onboarding (Phase 4)
+
+- **Models (`0011`):**
+  - `Onboarding`: user, application, job, position, start date and time, manager, status (active, done, cancelled), when the first-day email went;
+  - `OnboardingTask`: key, label, help, owner, due, due_date, kind, auto, status (open, done, skipped), done_by (blank = Dash), note, data;
+  - `I9Record` and `I9File`: Admin only. `keep_until` is 3 years from hire, or 1 year after `left_on`;
+  - `Handbook` (numbered versions) and `HandbookSignature`.
+- **Service:** `apps/hiring/onboarding.py`.
+  - `start` copies `careers.onboarding.items` with `due_date_for` (before_day1 = start − 1; day1; i9 = 3 business days; week1 = +6; day20 = +20), makes the I-9 record, and sends `first_day`.
+  - `refresh` ticks the items Dash can see (`auto_state`) and finishes the onboarding when nothing is open. It reopens an auto item it had ticked when the fact goes away, e.g. a revoked badge.
+  - `set_task`: tick and count kinds only; a new hire only their own tick items; anything can be "Not needed".
+  - `password_link`: the set-password link for a new hire (Employee role; an Admin for anyone). Nothing is emailed.
+  - The I-9: `i9_upload` (PDF, JPEG, PNG or HEIC, 20 MB, S3 `hiring/i9`), `i9_delete_file` (only before Section 2), and `i9_section2` (needs a form file and "documents seen").
+  - The handbook: `publish_handbook` (refused while a `[confirm` mark remains or nothing changed), and `sign_handbook` (the latest version, once per person; the PDF is the text through `pymupdf.Story`, plus a page with the signature and the audit, under S3 `hiring/handbook`).
+- **API** (`apps/hiring/onboarding_views.py`):
+  - managers: `/api/hiring/onboarding/` (GET `?status=active|done|cancelled|all`; POST starts it: `{application | user, start_date, start_time, manager, position, send_email}`), plus `people/`, `<id>/`, `<id>/tasks/<task>/`, `<id>/first-day-email/`, `<id>/cancel/` and `<id>/set-password-link/`;
+  - Admin only: `<id>/i9/`, `<id>/i9/files/[<file>/]` and `<id>/i9/section2/`;
+  - `/api/hiring/handbook/` (publishing is Admin only) and `handbook/signatures/<id>/pdf/`;
+  - the new hire (IsTeamMember): `/api/hiring/me/onboarding/`, `me/onboarding/tasks/<id>/`, `me/emergency-contact/` and `me/handbook/sign/`.
+  - Create employee takes `start_onboarding` and `send_first_day`.
+- **UI:**
+  - `frontend/src/pages/people/OnboardingPage.tsx` (People → Onboarding, with the Handbook tab);
+  - `MyOnboardingPage.tsx` (`/onboarding`) and `MyOnboardingBanner.tsx` (on Today);
+  - `onboardingUi.tsx` (Checklist, CountDialog, I9Dialog, StartOnboardingDialog, HandbookText) and `SignaturePad.tsx`;
+  - `SetPasswordLinkDialog` takes `fetchLink`.
+- **Careers file:** `onboarding.items` (owner, due and kind are checked against `ONBOARDING_*`), `handbook` (title, text, acknowledgment; `## ` headings, `- ` bullets), and the `first_day` email.
 

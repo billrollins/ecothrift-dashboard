@@ -109,6 +109,9 @@ export function TransactionDetailDialog({ open, cart, onClose, onCartUpdated }: 
               <Box sx={{ mt: 1 }}>
                 <Typography variant="body2" color="text.secondary">
                   Payment: {String(cart.payment_method).replace(/_/g, ' ')}
+                  {cart.payment_method === 'payroll' && cart.payroll_employee_name
+                    ? ` deduction, from ${cart.payroll_employee_name}'s next paycheck`
+                    : ''}
                   {cart.payment_method === 'split' &&
                     cart.cash_tendered != null &&
                     cart.card_amount != null && (

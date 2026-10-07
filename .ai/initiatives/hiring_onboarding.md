@@ -3,7 +3,7 @@
 
 # Initiative: Hiring and onboarding
 
-**Status:** **Active**. Shipped: Phase 1 (v2.136.0), fuller role pages, the JSON for AI and hiring managers (v2.137.0), and Phase 2 interviews, AI help per role and email, and the Emails page (v2.139.0). The careers page is live (Bill turned it on 2026-10-06). Phase 3, offers signed with a finger, and practice runs shipped in v2.143.0. Next: Phase 4, onboarding.
+**Status:** **Active**. Shipped: Phase 1 (v2.136.0), fuller role pages, the JSON for AI and hiring managers (v2.137.0), and Phase 2 interviews, AI help per role and email, and the Emails page (v2.139.0). The careers page is live (Bill turned it on 2026-10-06). Phase 3, offers signed with a finger, and practice runs shipped in v2.143.0. Phase 4, onboarding, and Phase 4b, staff purchases (switched off at first), shipped in v2.146.0. The handbook draft is complete and waits for the attorney's read before Bill publishes it. Next: Phase 5, the 30/60/90-day check-ins.
 
 **Objective:** The owner runs hiring from Dash, start to finish:
 
@@ -331,37 +331,32 @@ Acceptance:
 
 ### Phase 4 — Onboarding
 **Start onboarding** sends the first-day email and runs the checklist to done.
-**Gated by:** Phase 3 (Create employee from Phase 1 is the first step).
-Detail when Phase 3 is built. Outline:
+**Gated by:** Phase 3. **Shipped in v2.146.0** (2026-10-07; the owner: "start phase 4 onboarding").
 
-- **First-day email** covers:
-  - when, where to park and enter, who to ask for;
+**Claude's calls:**
+
+- **The handbook is signed inside hiring, not through `documents`.** `documents` stamps fields onto uploaded PDFs, and its pages aren't routed yet. The handbook is text the owner edits, so it is signed the way an offer is: a tick, the e-sign consent, a typed name, a finger signature, and a PDF with an audit trail.
+- **Create employee no longer emails a password link.** Per D16 (T61, v2.144.0), the new hire scans a **Set password code** on day one and picks their own. Managers can show it for a new hire (Employee role) from onboarding; the accounts endpoint stays Admin-only.
+- **Auto items** come from what Dash already knows:
+  - emergency contact: `emergency_name` and `emergency_phone` on the profile;
+  - Dash login: a usable password and a `last_login`;
+  - first clock-in: a `TimeEntry`;
+  - schedule: a `ShiftAssignment`;
+  - kiosk badge: `badge_issued_at`, and not revoked.
+- **The handbook can't be published while a `[confirm` mark is left.** The draft marks the facts the owner hasn't settled (breaks, call-ins, payday, shirts, phones, the staff discount, buying rules, the second person to report to).
+
+Acceptance:
+- [x] **Start onboarding** from Create employee (two ticks, both on by default) or from People → Onboarding (any employee). It copies the checklist from the careers file (`onboarding.items`) with due dates from the start date: before day 1; day 1; 3 business days (I-9); week 1; day 20.
+- [x] **First-day email** (`first_day`, editable on People → Emails, with AI help and role versions) covers:
+  - when and where, and who to ask for;
   - what to wear;
-  - what to bring: the I-9 document choices (one List A, or one List B plus one List C).
-- **Checklist** from the careers file (`onboarding:`). Each item has an owner (new hire, manager or owner), a due point (before day 1, day 1, week 1, by day 20) and a kind (tick, upload, sign, or auto). Starting items:
-  - **Added in QuickBooks Payroll** (name, phone, email). Then **QuickBooks setup finished** by the new hire (W-4, direct deposit);
-  - **Nebraska new-hire report** by day 20 (a tick if QuickBooks does not file it);
-  - I-9 Section 1 (day 1), then I-9 Section 2 with the scans uploaded (within 3 business days; decision 13);
-  - Emergency contact, ICE (auto, from the profile);
-  - Handbook signed;
-  - Logged into Dash on a personal device;
-  - Time clock explained, then the first clock-in (auto, from `TimeEntry`);
-  - Schedule filled in (auto, from `ShiftAssignment`);
-  - Kiosk badge issued (auto);
-  - Trained with manager;
-  - Introduced to the team;
-  - T-shirts given (count and size).
-- **My onboarding** in Dash for the new hire. **People → Onboarding** for managers, with overdue items in red.
-- **Handbook v1, super basic.** Claude drafts it from the owner's rules:
-  - the welcome and the mission;
-  - at-will;
-  - hours, time clock, breaks and call-ins;
-  - pay days;
-  - dress and T-shirts;
-  - phones, the staff discount, and Thrift+ rules for staff;
-  - safety, harassment and how to report it, and leaving.
-
-  Each version is signed through documents. The attorney reads it before the first signature.
+  - the I-9 documents to bring (List A, or List B plus List C, originals).
+- [x] **Checklist** (15 items) with owner, due date, overdue in red, ticks, "Not needed", T-shirts with a count and size, and auto items.
+- [x] **I-9 (Admin only, apart from the employee record):** upload the form and document copies, and record what was seen. **Section 2 done** needs the form, and shows the keep-until date (3 years from hire, or 1 year after leaving).
+- [x] **Handbook v1 draft** on People → Onboarding → Handbook, with a preview and the `[confirm` marks highlighted. **Publish** (Admin) makes numbered versions, and new hires sign the latest one in Dash.
+- [x] **My onboarding** (`/onboarding`) for the new hire: the emergency contact, the handbook to read and sign, and their own ticks. A banner on **Today** links to it while onboarding is in progress.
+- [x] **People → Onboarding** for managers: in progress and done, progress bars, overdue counts, the Set password code, the first-day email again, cancel.
+- [x] Tests: start and the email, ticks and counts, auto items, I-9 rights and the Section 2 rule, handbook publish (blocked by marks) and sign once, done when nothing is left, business days.
 
 ### Phase 5 — 30, 60 and 90-day check-ins
 The check-ins appear when due, are filled in during an in-person meeting, signed by both, and readable by the employee in Dash.
@@ -440,7 +435,8 @@ The first text is master's opt-in confirmation sample. Detail when the gates cle
 - [x] Phase 1 as above (v2.136.0)
 - [x] Phase 2 as above (v2.139.0)
 - [x] Phase 3 as above (v2.143.0)
-- [ ] Phases 4 to 6 when detailed
+- [x] Phase 4 and 4b as above (v2.146.0)
+- [ ] Phases 5 and 6 when detailed
 - [ ] No SSN, bank or routing numbers stored; I-9 files Admin-only and private
 - [ ] No applicant is moved or rejected by AI; no Not now email sends without a person pressing Send
 - [ ] Nothing ships with an inventory or Thrift+ release, in the freeze, or in the database-switch window
@@ -597,6 +593,85 @@ The owner also uploaded `hiring-people-and-timing-2026-10-06.json` in production
 Checks: 69 backend tests (4 new), 53 front-end tests, both type-checks. Checked in a browser: a practice applicant for Carrie (auto-reply and alert both tagged [Practice] in the console mail), the practice form link at phone width sent with only a first name (Processing, placeholders), then Delete all practice runs (2 deleted). The test login was removed.
 
 Found while testing: **the Applicants tab counts were wrong** when two applicants shared a stage; the model's default order leaked into the count's GROUP BY. Fixed (`order_by()`), with a test.
+
+**2026-10-06 — Phase 4, onboarding (shipped in v2.146.0).** The owner: "approved #14, start phase 4 onboarding". Built as in the acceptance above:
+
+- models `Onboarding`, `OnboardingTask`, `I9Record`, `I9File`, `Handbook`, `HandbookSignature` (`0011`);
+- `apps/hiring/onboarding.py` and `onboarding_views.py`;
+- the careers file's `onboarding` and `handbook`, and the `first_day` email;
+- People → Onboarding, My onboarding, and the Today banner.
+
+Checks:
+
+- 226 backend tests (hiring, mail, accounts, hr; 6 new onboarding tests);
+- the front-end tests in people, navigation, routines and users. The 5 failures in `myWork.test.ts` were there before;
+- the type-check and migrations.
+
+Checked end to end in a browser (local):
+
+- Create employee with onboarding: the first-day email in the console mail, username `jordan`, 0 of 15;
+- the Set password QR;
+- ticks, and T-shirts 2;
+- the I-9: upload a PDF, Section 2 done, keep until October 12, 2029; the item ticked itself;
+- the Handbook tab: 8 marks highlighted. A test draft without marks published as version 1;
+- signed in as the new hire with the username: the Today banner, then My onboarding at phone width. The emergency contact ticked itself; the handbook was signed with a finger, and the PDF has 2 pages with the audit trail.
+
+The test data was removed and the handbook draft restored.
+
+Found while testing:
+
+- **I-9 scans** need `multipart/form-data` on the client (it was a 415);
+- **calendar dates** need their own formatter (`dayText`): the moment formatter read "2026-10-12" as UTC and showed "Today 7:00 PM".
+
+**2026-10-07 — The owner's handbook answers.**
+
+- Breaks and call-ins: as drafted. Call your *manager* 2 hours ahead.
+- Payday: payroll goes in after each two-week period, and the money usually lands Thursday or Friday; holidays can move it.
+- Two T-shirts. Phones as drafted.
+- No staff discount. Staff get a free Thrift+ membership with no cover, and payroll deduction (below).
+- Staff may buy an item once it has been on the floor for one day ("I think"). No holds without Bill's OK.
+- Problems go to the manager (the area lead). The lead decides whether to escalate and tells Bill; anyone can go straight to Bill.
+
+He shared the 2024 handbook (49 pages, July 2024). Kept from it:
+
+- clock in or out no more than 5 minutes early or late; no off-the-clock work;
+- overtime at time and a half, OK'd in advance;
+- unpaid time off and holidays;
+- no smoking within 25 feet of the doors;
+- no drugs or alcohol; theft and violence;
+- confidentiality, with "talking about your own pay is always OK";
+- 4 weeks' notice for leads.
+
+Left out: the old locations and structure, the 90-day introductory period, and the unfilled template blanks. One `[confirm` mark was added: **paid sick leave**. Nebraska's law took effect 2025-10-01, and a 2025 amendment may exempt small employers; the attorney confirms what we owe.
+
+**2026-10-07 — Staff purchases (Phase 4b, shipped in v2.146.0 at the owner's order, after inventory_effort's v2.145.0).** The owner:
+
+- paid sick leave doesn't apply at this size; Eco-Thrift adopts Nebraska's rules at the start of 2027. The handbook says so, and no `[confirm` mark is left;
+- "payroll deduction and free Thrift+ for staff: implement now… start with this off in settings… defaults 25% of last paycheck (new hires with no past pay do not qualify)".
+
+Built:
+
+- the `pos.staff_purchases` setting (seeded off, 25%); Admin only, including through the generic settings API;
+- **Payroll deduction** at the register (`payment_method='payroll'`, `Cart.payroll_employee`) with its checks:
+  - the switch is on and the buyer is active staff;
+  - not their own sale;
+  - a last paycheck over $0;
+  - the pay period's payroll sales stay within the cap;
+  - each item has been on the floor 24 hours;
+- **People → Payroll deductions** for QuickBooks, with **Mark entered** (`PayrollDeductionMark`);
+- **Thrift+ free for staff**: `Account.staff_user` and `ledger.staff_free`, linked from Thrift+ → Members.
+
+Records: `.ai/extended/pos-system.md` § Payroll deduction and `thrift-plus-decisions.md` § Staff memberships.
+
+Checks:
+
+- 7 new tests (`apps/pos/tests/test_staff_purchases.py`);
+- 532 backend tests (pos, thriftplus, hiring, core, accounts);
+- 173 front-end tests and the type-check.
+
+Checked in a browser: the Settings card (both off, 25%) and the Payroll deductions page.
+
+Found: `apps/core` `test_seed_rows` had expected 18 AI actions since hiring 0002 added the 19th; the count is fixed.
 
 ---
 

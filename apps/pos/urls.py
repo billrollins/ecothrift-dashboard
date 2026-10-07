@@ -1,4 +1,6 @@
 from django.urls import path, include
+
+from . import staff_views
 from rest_framework.routers import DefaultRouter
 from .views import (
     RegisterViewSet, DrawerViewSet, SupplementalViewSet,
@@ -43,6 +45,11 @@ router.register(r'deliveries', DeliveryViewSet, basename='delivery')
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('staff-purchases/settings/', staff_views.staff_purchase_settings, name='staff-purchase-settings'),
+    path('staff-purchases/people/', staff_views.payroll_people, name='staff-purchase-people'),
+    path('staff-purchases/eligibility/', staff_views.payroll_eligibility, name='staff-purchase-eligibility'),
+    path('staff-purchases/deductions/', staff_views.payroll_deductions, name='staff-purchase-deductions'),
+    path('staff-purchases/deductions/mark/', staff_views.payroll_mark_entered, name='staff-purchase-mark'),
     path('delivery/address-suggest/', delivery_address_suggest, name='delivery-address-suggest'),
     path('delivery/quote/', delivery_distance_quote, name='delivery-distance-quote'),
     path('delivery/optimize-route/', delivery_optimize_route, name='delivery-optimize-route'),

@@ -147,6 +147,15 @@ export interface ApplicationDetail extends ApplicationRow {
   /** The applicant's live interview link (to copy and text), or ''. */
   booking_link: string;
   invited_at: string | null;
+  onboarding: {
+    id: number;
+    status: 'active' | 'done' | 'cancelled';
+    start_date: string;
+    done: number;
+    total: number;
+    overdue: number;
+    first_day_email_sent_at: string | null;
+  } | null;
 }
 
 export interface Option {
@@ -211,9 +220,25 @@ export const getResumeBlob = (id: number) =>
   api.get<Blob>(`/hiring/applications/${id}/resume/`, { responseType: 'blob' });
 export const createEmployee = (
   id: number,
-  data: { pay_rate: string; start_date: string; position: string; employment_type: string; department: number | null },
+  data: {
+    pay_rate: string;
+    start_date: string;
+    position: string;
+    employment_type: string;
+    department: number | null;
+    start_onboarding?: boolean;
+    send_first_day?: boolean;
+    start_time?: string;
+  },
 ) =>
-  api.post<{ user_id: number; employee_number: string; password_email_sent: boolean; application: ApplicationDetail }>(
+  api.post<{
+    user_id: number;
+    employee_number: string;
+    username: string;
+    onboarding: number | null;
+    first_day_sent: boolean;
+    application: ApplicationDetail;
+  }>(
     `/hiring/applications/${id}/create-employee/`,
     data,
   );
@@ -233,6 +258,8 @@ export interface CareersDoc {
   /** Hiring manager and interviewers (staff emails) that new roles start with. */
   defaults?: { hiring_manager: string; interviewers: string[] };
   offer?: OfferSettings;
+  onboarding?: { items: Record<string, unknown>[] };
+  handbook?: { title: string; text: string; acknowledgment: string };
   jobs: Record<string, unknown>[];
 }
 
@@ -449,6 +476,7 @@ export const EMAIL_TEMPLATES: { key: string; label: string; group: string; to: s
   { key: 'offer_sent', group: 'Offers', label: 'Offer email', to: 'Applicant', when: 'With the link to read and sign the offer.' },
   { key: 'offer_signed', group: 'Offers', label: 'Offer signed (welcome)', to: 'New hire (signed PDF attached)', when: 'Right after they sign.' },
   { key: 'offer_notice', group: 'Offers', label: 'Offer signed / declined notice', to: 'You (notify) and the hiring manager', when: 'When an offer is signed or declined.' },
+  { key: 'first_day', group: 'Onboarding', label: 'First-day email', to: 'New hire', when: 'When you press Start onboarding (or send it again).' },
   { key: 'not_now.default', group: 'Not now', label: 'Not moving forward', to: 'Applicant', when: 'Only when you press Send in Not now.' },
   { key: 'not_now.withdrew', group: 'Not now', label: 'Withdrew', to: 'Applicant', when: 'Only when you press Send in Not now.' },
   { key: 'not_now.position_closed', group: 'Not now', label: 'Position filled', to: 'Applicant', when: 'Only when you press Send in Not now.' },
@@ -524,3 +552,138 @@ export interface OfferSettings {
   acknowledgments: string[];
   consent: string;
 }
+
+// ── Onboarding (Phase 4) ────────────────────────────────────────────────────
+
+export type OnboardingOwner = 'new_hire' | 'manager' | 'owner';
+export type OnboardingKind = 'tick' | 'count' | 'i9' | 'handbook' | 'auto';
+
+export interface OnboardingTask {
+  id: number;
+  key: string;
+  label: string;
+  help: string;
+  owner: OnboardingOwner;
+  owner_label: string;
+  due: string;
+  due_label: string;
+  due_date: string;
+  kind: OnboardingKind;
+  auto: string;
+  status: 'open' | 'done' | 'skipped';
+  done_at: string | null;
+  /** Who ticked it, or "Dash" when Dash saw it done. */
+  done_by: string;
+  note: string;
+  data: { count?: number; size?: string };
+  overdue: boolean;
+}
+
+export interface OnboardingRow {
+  id: number;
+  user: { id: number; name: string; email: string; username: string; has_password: boolean; last_login: string | null };
+  application: number | null;
+  position: string;
+  start_date: string;
+  start_time: string | null;
+  manager: Person | null;
+  status: 'active' | 'done' | 'cancelled';
+  status_label: string;
+  first_day_email_sent_at: string | null;
+  created_at: string;
+  completed_at: string | null;
+  done: number;
+  total: number;
+  overdue: number;
+  next_due: string | null;
+}
+
+export interface OnboardingDetail extends OnboardingRow {
+  tasks: OnboardingTask[];
+  i9: { done: boolean; section2_done_at: string | null; keep_until: string | null; can_open: boolean };
+  handbook: { signature: number; version: number; signed_at: string; has_pdf: boolean } | null;
+}
+
+export interface I9Detail {
+  id: number;
+  hire_date: string;
+  documents_seen: string;
+  section2_done_at: string | null;
+  section2_by: string;
+  keep_until: string;
+  files: { id: number; kind: 'form' | 'document'; kind_label: string; label: string; filename: string; content_type: string; size: number; uploaded_at: string }[];
+}
+
+export interface HandbookState {
+  draft: { title: string; text: string; acknowledgment: string };
+  confirm_marks: number;
+  draft_changed: boolean;
+  versions: { version: number; title: string; published_at: string; signatures: number }[];
+}
+
+export interface MyOnboarding {
+  onboarding: OnboardingDetail | null;
+  emergency_contact: { name: string; phone: string };
+  handbook: {
+    version: number;
+    title: string;
+    text: string;
+    acknowledgment: string;
+    consent: string;
+    signed: { id: number; signed_at: string; signer_name: string } | null;
+  } | null;
+  place: string;
+}
+
+export const getOnboardings = (status: 'active' | 'done' | 'cancelled' | 'all' = 'active') =>
+  api.get<OnboardingRow[]>('/hiring/onboarding/', { params: { status } });
+export const getOnboarding = (id: number) => api.get<OnboardingDetail>(`/hiring/onboarding/${id}/`);
+export const getOnboardingPeople = () => api.get<StaffEntry[]>('/hiring/onboarding/people/');
+export const startOnboarding = (data: {
+  user?: number;
+  application?: number;
+  start_date?: string;
+  start_time?: string;
+  manager?: number | null;
+  position?: string;
+  send_email: boolean;
+}) => api.post<{ onboarding: OnboardingDetail; sent: boolean }>('/hiring/onboarding/', data);
+export const setOnboardingTask = (
+  id: number,
+  taskId: number,
+  data: { status: 'open' | 'done' | 'skipped'; data?: { count: number; size: string }; note?: string },
+) => api.post<OnboardingDetail>(`/hiring/onboarding/${id}/tasks/${taskId}/`, data);
+export const sendFirstDayEmail = (id: number) =>
+  api.post<{ sent: boolean; onboarding: OnboardingDetail }>(`/hiring/onboarding/${id}/first-day-email/`, {});
+export const cancelOnboarding = (id: number) => api.post<OnboardingDetail>(`/hiring/onboarding/${id}/cancel/`, {});
+export const getOnboardingPasswordLink = (id: number) =>
+  api.post<{ link: string; expires_at: string; username: string | null }>(`/hiring/onboarding/${id}/set-password-link/`, {});
+
+export const getI9 = (id: number) => api.get<I9Detail>(`/hiring/onboarding/${id}/i9/`);
+export const uploadI9File = (id: number, file: File, kind: 'form' | 'document', label: string) => {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('kind', kind);
+  form.append('label', label);
+  return api.post<I9Detail>(`/hiring/onboarding/${id}/i9/files/`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+};
+export const deleteI9File = (id: number, fileId: number) => api.delete<I9Detail>(`/hiring/onboarding/${id}/i9/files/${fileId}/`);
+export const getI9FileBlob = (id: number, fileId: number) =>
+  api.get<Blob>(`/hiring/onboarding/${id}/i9/files/${fileId}/`, { responseType: 'blob' });
+export const finishI9Section2 = (id: number, documents_seen: string) =>
+  api.post<I9Detail>(`/hiring/onboarding/${id}/i9/section2/`, { documents_seen });
+
+export const getHandbook = () => api.get<HandbookState>('/hiring/handbook/');
+export const publishHandbook = () => api.post<HandbookState & { version: number }>('/hiring/handbook/publish/', {});
+export const getHandbookPdf = (signatureId: number) =>
+  api.get<Blob>(`/hiring/handbook/signatures/${signatureId}/pdf/`, { responseType: 'blob' });
+
+export const getMyOnboarding = () => api.get<MyOnboarding>('/hiring/me/onboarding/');
+export const tickMyTask = (taskId: number, status: 'open' | 'done') =>
+  api.post<MyOnboarding>(`/hiring/me/onboarding/tasks/${taskId}/`, { status });
+export const saveMyEmergencyContact = (name: string, phone: string) =>
+  api.post<MyOnboarding>('/hiring/me/emergency-contact/', { name, phone });
+export const signMyHandbook = (body: { name: string; signature: string; acknowledged: boolean; consent: boolean }) =>
+  api.post<MyOnboarding>('/hiring/me/handbook/sign/', body);

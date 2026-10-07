@@ -1,7 +1,8 @@
 /**
  * Payment method choices
  */
-export type PaymentMethod = 'cash' | 'card' | 'split';
+/** payroll: payroll deduction, staff only (pos.staff_purchases). */
+export type PaymentMethod = 'cash' | 'card' | 'split' | 'payroll';
 
 export type CardType = '' | 'credit' | 'debit';
 
@@ -227,6 +228,9 @@ export interface Cart {
   card_type_fixed_by?: number | null;
   card_type_fixed_by_name?: string | null;
   card_type_fix_deadline?: string | null;
+  /** Payroll deduction: whose next paycheck this sale comes out of. */
+  payroll_employee?: number | null;
+  payroll_employee_name?: string | null;
   completed_at: string | null;
   created_at: string;
   lines: CartLine[];

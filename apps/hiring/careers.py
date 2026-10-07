@@ -26,6 +26,7 @@ JOB_TYPES = ('full_time', 'part_time', 'full_or_part')
 EMAIL_KEYS = (
     'received', 'alert', 'interview_invite', 'interview_booked', 'interview_changed', 'interview_cancelled',
     'interview_reminder', 'interview_notice', 'offer_letter', 'offer_sent', 'offer_signed', 'offer_notice',
+    'first_day',
 )
 NOT_NOW_KEYS = ('default', 'withdrew', 'position_closed', 'no_show')
 # Every email template by one flat key; a role can carry its own version of any of them (Job.emails).
@@ -268,6 +269,26 @@ DEFAULT_EMAIL = {
             '{start_time}\n{reason}\n\nOpen in Dash: {dash_link}'
         ),
     },
+    # Onboarding (Phase 4), sent by Start onboarding. Placeholders: {first_name} {role} {start_date}
+    # {start_time} {supervisor} {place}.
+    'first_day': {
+        'subject': 'Your first day at Eco-Thrift: {start_date}',
+        'body': (
+            "Hi {first_name},\n\nWe're looking forward to your first day as {role}: {start_date} at {start_time}.\n\n"
+            'Where: {place}. Park in the store lot and come in the front door. Ask for {supervisor} at the '
+            'register.\n\n'
+            "What to wear: comfortable clothes you can lift and move in, and closed-toe shoes. We'll give you "
+            'Eco-Thrift T-shirts.\n\n'
+            'What to bring: original documents for your Form I-9. Photocopies and pictures on a phone '
+            "can't be accepted. Bring either:\n"
+            '- one document from List A, such as a U.S. passport or a permanent resident card, or\n'
+            "- one from List B, such as a driver's license or a state ID, and one from List C, such as a Social "
+            'Security card or a birth certificate.\n\n'
+            'The full list: uscis.gov/i-9-central/form-i-9-acceptable-documents\n\n'
+            "Also bring your phone. We'll get you signed in to Dash, where you'll see your schedule and your "
+            'hours.\n\nQuestions before then? Reply to this email or call the store.\n\n' + _SIGN_OFF
+        ),
+    },
 }
 
 DEFAULT_OFFER = {
@@ -285,6 +306,137 @@ DEFAULT_OFFER = {
         'I agree to sign this offer electronically. My typed name and the signature I draw are my legal '
         'signature, the same as signing on paper. I can download a copy after I sign. If I would rather sign on '
         'paper, I can reply to the email and ask.'
+    ),
+}
+
+# Onboarding (Phase 4): the checklist every new hire gets. Each item:
+#   owner  who does it: new_hire, manager or owner
+#   due    before_day1, day1, i9 (3 business days after the start), week1, day20 (Nebraska new-hire report)
+#   kind   tick; count (how many and what size); i9 (the I-9 files, Admin only); handbook (signed in Dash);
+#          auto (Dash marks it done itself; see ONBOARDING_AUTO)
+ONBOARDING_OWNERS = ('new_hire', 'manager', 'owner')
+ONBOARDING_DUES = ('before_day1', 'day1', 'i9', 'week1', 'day20')
+ONBOARDING_KINDS = ('tick', 'count', 'i9', 'handbook', 'auto')
+ONBOARDING_AUTO = ('emergency_contact', 'dash_login', 'first_clock_in', 'schedule', 'kiosk_badge')
+
+DEFAULT_ONBOARDING = {
+    'items': [
+        {'key': 'quickbooks_added', 'label': 'Added in QuickBooks Payroll (name, phone, email)', 'owner': 'owner',
+         'due': 'before_day1', 'kind': 'tick',
+         'help': 'QuickBooks then emails them the W-4 and the direct deposit setup.'},
+        {'key': 'schedule', 'label': 'On the schedule for their first two weeks', 'owner': 'manager',
+         'due': 'before_day1', 'kind': 'auto', 'auto': 'schedule'},
+        {'key': 'i9_section1', 'label': 'Form I-9 Section 1 filled in (on paper)', 'owner': 'new_hire', 'due': 'day1',
+         'kind': 'tick', 'help': 'By the end of the first day. They fill it in themselves.'},
+        {'key': 'i9_section2', 'label': 'Form I-9 Section 2: original documents seen in person, form and copies '
+         'uploaded', 'owner': 'owner', 'due': 'i9', 'kind': 'i9',
+         'help': 'Within 3 business days of the start. Kept apart from the employee record, Admin only.'},
+        {'key': 'quickbooks_setup', 'label': 'QuickBooks setup finished (W-4 and direct deposit)', 'owner': 'new_hire',
+         'due': 'day1', 'kind': 'tick', 'help': 'From the QuickBooks email. Bank numbers never go in Dash.'},
+        {'key': 'emergency_contact', 'label': 'Emergency contact (ICE) on their profile', 'owner': 'new_hire',
+         'due': 'day1', 'kind': 'auto', 'auto': 'emergency_contact'},
+        {'key': 'dash_login', 'label': 'Signed in to Dash on their own phone', 'owner': 'new_hire', 'due': 'day1',
+         'kind': 'auto', 'auto': 'dash_login', 'help': 'Show them the Set password code on day one.'},
+        {'key': 'handbook', 'label': 'Handbook read and signed', 'owner': 'new_hire', 'due': 'day1',
+         'kind': 'handbook'},
+        {'key': 'time_clock', 'label': 'Time clock explained', 'owner': 'manager', 'due': 'day1', 'kind': 'tick'},
+        {'key': 'kiosk_badge', 'label': 'Kiosk badge issued', 'owner': 'manager', 'due': 'day1', 'kind': 'auto',
+         'auto': 'kiosk_badge'},
+        {'key': 'first_clock_in', 'label': 'First clock-in', 'owner': 'new_hire', 'due': 'day1', 'kind': 'auto',
+         'auto': 'first_clock_in'},
+        {'key': 'team_intro', 'label': 'Introduced to the team', 'owner': 'manager', 'due': 'day1', 'kind': 'tick'},
+        {'key': 'shirts', 'label': 'T-shirts given', 'owner': 'manager', 'due': 'day1', 'kind': 'count',
+         'help': 'How many, and what size.'},
+        {'key': 'trained', 'label': 'Trained with their manager', 'owner': 'manager', 'due': 'week1', 'kind': 'tick'},
+        {'key': 'new_hire_report', 'label': 'Nebraska new-hire report filed', 'owner': 'owner', 'due': 'day20',
+         'kind': 'tick', 'help': 'Within 20 days of hire. Tick it when QuickBooks has filed it, or file it yourself.'},
+    ],
+}
+
+# The staff handbook draft. Publishing makes a numbered version that new hires sign in Dash; it is refused while
+# any "[confirm" mark is left (facts the owner still has to settle). The attorney reads it before the first signature.
+HANDBOOK_CONFIRM = '[confirm'
+DEFAULT_HANDBOOK = {
+    'title': 'Eco-Thrift staff handbook',
+    'text': (
+        '## Welcome\n'
+        'Welcome to Eco-Thrift. Our mission: another chance for everything and everyone. We are a small team with a '
+        'big dream, and we hire people who are proactive and give 100%. This handbook is short on purpose. If '
+        "something isn't covered, ask your manager or Bill.\n\n"
+        '## Your job is at will\n'
+        'You or Eco-Thrift can end your job at any time, with or without a reason or notice. Nothing in this '
+        'handbook is a contract or a promise of a job for any length of time. Eco-Thrift may change this handbook '
+        'and will tell you when it does.\n\n'
+        '## Hours and the time clock\n'
+        '- Your schedule is in Dash. Check it every week.\n'
+        '- Clock in at the kiosk when you start working and clock out when you stop, including for meal breaks. '
+        'Clock in no more than 5 minutes before your shift, and out no more than 5 minutes after it.\n'
+        '- Never work off the clock, and never clock in or out for someone else.\n'
+        '- Forgot, or made a mistake? Send a time change request in Dash the same day.\n'
+        '- Work the hours you are scheduled, unless your manager asks you to stay. All time worked is paid.\n\n'
+        '## Breaks\n'
+        'Shifts of 6 hours or more include an unpaid 30-minute meal break; clock out for it. Rest breaks of 10 '
+        'minutes or less are paid: one for every 4 hours, when the floor is covered.\n\n'
+        "## Running late, or can't come in\n"
+        "Call or text your manager at least 2 hours before your shift. A message to a coworker doesn't count. "
+        'Missing a shift without telling anyone (a no-call, no-show) twice can end your job.\n\n'
+        '## Pay\n'
+        '- Pay periods are two weeks, Monday through the second Sunday.\n'
+        '- You are paid by direct deposit through QuickBooks Payroll. Payroll goes in after each pay period ends, '
+        'and the money usually lands that Thursday or Friday. Holidays can move it.\n'
+        '- Hours over 40 in a week (Monday to Sunday) are paid at time and a half. Get your manager\'s OK before '
+        'working them.\n'
+        '- Your hours and pay are in Dash. If something looks wrong, tell Bill right away.\n'
+        '- When your job ends, your final pay comes on the next regular payday or within two weeks, whichever is '
+        'sooner.\n\n'
+        '## Time off\n'
+        '- Ask your manager for time off at least two weeks ahead.\n'
+        "- Eco-Thrift doesn't offer paid vacation or paid holidays. The store may be open on holidays, and holiday "
+        'shifts are shared.\n'
+        '- Sick days are unpaid for now. Tell your manager as early as you can. Paid sick leave, under Nebraska\'s '
+        'paid sick leave rules, starts at the beginning of 2027.\n\n'
+        '## What to wear\n'
+        '- An Eco-Thrift T-shirt on every shift. We give you two.\n'
+        '- Closed-toe shoes, and clothes you can lift and move in.\n\n'
+        '## Phones\n'
+        'Keep your personal phone put away on the floor, except to use Dash or to call for help. Use it freely on '
+        'breaks.\n\n'
+        '## Shopping at Eco-Thrift\n'
+        '- There is no staff discount. Instead, staff get a free Thrift+ membership with no monthly cover.\n'
+        '- You can pay by payroll deduction: the whole amount comes out of your next paycheck, never spread over '
+        'more than one, and never more than 25% of your last paycheck.\n'
+        '- Someone else rings up your purchase. Never ring your own sale.\n'
+        '- An item must be out on the floor for customers for at least one full day before staff may buy it. '
+        "Don't hold or set items aside for yourself or friends without Bill's OK.\n\n"
+        '## Thrift+ and IDs\n'
+        "- You may look at a customer's ID to confirm their name and that they are 18 or older. Never scan, copy or "
+        'photograph an ID, and never type ID numbers, birth dates or addresses into Dash, notes included.\n'
+        '- For an 18+ item, check that the photo on screen matches the person at the counter. If you are not sure, '
+        'ask for ID. 18+ items stay behind the counter.\n\n'
+        '## Safety\n'
+        '- Lift with your legs, and get help with anything heavy or awkward. Use the carts and dollies.\n'
+        '- Keep aisles and exits clear.\n'
+        '- Report any injury, even a small one, to Bill the same day.\n'
+        '- No smoking or vaping inside, or within 25 feet of the doors.\n\n'
+        '## Conduct\n'
+        "- No alcohol or drugs at work, and don't come to work impaired. Tell your manager if a medicine could "
+        'affect your work.\n'
+        '- Theft, violence or threats end your job.\n'
+        "- Keep the store's numbers, customer details and what's in Dash private. Talking about your own pay and "
+        'working conditions is always OK.\n\n'
+        '## Respect, and how to report a problem\n'
+        "Eco-Thrift doesn't allow harassment or discrimination of any kind, by anyone: staff, customers or vendors. "
+        'If something happens to you, or you see it, tell your manager (the lead of your area). Your manager '
+        'decides whether it needs to go higher, and lets Bill know when it does. If the problem is with your '
+        "manager, or you'd rather not go to them, tell Bill directly. You won't be punished for reporting in good "
+        'faith, and every report is looked into.\n\n'
+        '## Leaving\n'
+        'Please give at least two weeks of notice if you can (four weeks for a lead), and hand in your kiosk badge on '
+        'your last day.'
+    ),
+    'acknowledgment': (
+        'I have read this handbook. I understand it is not a contract, that my job is at will, and that Eco-Thrift '
+        'may change the handbook and will tell me when it does.'
     ),
 }
 
@@ -312,6 +464,8 @@ DEFAULT_SETTING = {
     'interviews': DEFAULT_INTERVIEWS,
     'defaults': DEFAULT_ROLE_PEOPLE,
     'offer': DEFAULT_OFFER,
+    'onboarding': DEFAULT_ONBOARDING,
+    'handbook': DEFAULT_HANDBOOK,
 }
 
 JOB_FIELDS = (
@@ -333,7 +487,8 @@ def load_setting() -> dict:
     row = AppSetting.objects.filter(key=SETTING_KEY).first()
     stored = row.value if row and isinstance(row.value, dict) else {}
     merged = copy.deepcopy(DEFAULT_SETTING)
-    for key in ('public', 'page', 'form', 'email', 'interviews', 'defaults', 'offer', 'preview_key'):
+    for key in ('public', 'page', 'form', 'email', 'interviews', 'defaults', 'offer', 'onboarding', 'handbook',
+                'preview_key'):
         if key in stored:
             if isinstance(merged.get(key), dict) and isinstance(stored[key], dict):
                 merged[key] = {**merged[key], **stored[key]}
@@ -427,6 +582,8 @@ def export_doc() -> dict:
         'interviews': setting['interviews'],
         'defaults': setting['defaults'],
         'offer': setting['offer'],
+        'onboarding': setting['onboarding'],
+        'handbook': setting['handbook'],
         'jobs': [job_to_doc(job) for job in jobs],
     }
 
@@ -492,7 +649,12 @@ def indexes() -> dict:
                                               '{supervisor}', '{respond_by}', '{note}', '{offer_date}',
                                               '{signer_name}', '{signer_title}', '{link}'],
             'offer_notice only': ['{applicant}', '{action}', '{reason}', '{dash_link}'],
+            'first_day': ['{first_name}', '{role}', '{start_date}', '{start_time}', '{supervisor}', '{place}'],
         },
+        'onboarding_owners': list(ONBOARDING_OWNERS),
+        'onboarding_dues': list(ONBOARDING_DUES),
+        'onboarding_kinds': list(ONBOARDING_KINDS),
+        'onboarding_auto': list(ONBOARDING_AUTO),
         'never_ask': NEVER_ASK,
         'weekdays': WEEKDAYS,
         'email_templates': list(TEMPLATE_KEYS),
@@ -795,6 +957,69 @@ def _check_offer(raw, current: dict, errors: list[str]) -> dict:
     return out
 
 
+def _check_onboarding(raw, current: dict, errors: list[str]) -> dict:
+    """The onboarding checklist: key, label, help, owner, due, kind (and auto for kind auto)."""
+    out = {**DEFAULT_ONBOARDING, **(current or {})}
+    if raw is None:
+        return out
+    if not isinstance(raw, dict) or not isinstance(raw.get('items', out['items']), list):
+        errors.append('onboarding must be an object with an items list.')
+        return out
+    items, seen = [], set()
+    for index, item in enumerate(raw.get('items', out['items']), start=1):
+        if not isinstance(item, dict):
+            errors.append(f'onboarding item {index}: must be an object (key, label, owner, due, kind).')
+            continue
+        label = _text(item.get('label'), limit=200)
+        key = slugify(_text(item.get('key')) or label).replace('-', '_')[:40]
+        where = f'onboarding item {index} ({label or key or "?"})'
+        if not label or not key:
+            errors.append(f'{where}: needs a label.')
+            continue
+        if key in seen:
+            errors.append(f'{where}: two items share the key "{key}".')
+            continue
+        seen.add(key)
+        owner, due, kind = (_text(item.get(f)) for f in ('owner', 'due', 'kind'))
+        if owner not in ONBOARDING_OWNERS:
+            errors.append(f'{where}: owner must be one of {", ".join(ONBOARDING_OWNERS)}.')
+        if due not in ONBOARDING_DUES:
+            errors.append(f'{where}: due must be one of {", ".join(ONBOARDING_DUES)}.')
+        if kind not in ONBOARDING_KINDS:
+            errors.append(f'{where}: kind must be one of {", ".join(ONBOARDING_KINDS)}.')
+        entry = {'key': key, 'label': label, 'owner': owner, 'due': due, 'kind': kind}
+        if kind == 'auto':
+            auto = _text(item.get('auto'))
+            if auto not in ONBOARDING_AUTO:
+                errors.append(f'{where}: auto must be one of {", ".join(ONBOARDING_AUTO)}.')
+            entry['auto'] = auto
+        if _text(item.get('help')):
+            entry['help'] = _text(item.get('help'), limit=400)
+        items.append(entry)
+    if not items:
+        errors.append('onboarding needs at least one item.')
+    out['items'] = items
+    return out
+
+
+def _check_handbook(raw, current: dict, errors: list[str]) -> dict:
+    """The handbook draft (title, text, acknowledgment). Publishing it is a separate step in Dash."""
+    out = {**DEFAULT_HANDBOOK, **(current or {})}
+    if raw is None:
+        return out
+    if not isinstance(raw, dict):
+        errors.append('handbook must be an object (title, text, acknowledgment).')
+        return out
+    for key, limit in (('title', 160), ('text', 30000), ('acknowledgment', 1000)):
+        if key in raw:
+            value = _text(raw.get(key), limit=limit)
+            if not value:
+                errors.append(f'handbook.{key} cannot be empty.')
+            else:
+                out[key] = value
+    return out
+
+
 def check_doc(raw) -> dict:
     """Validate and normalize a careers file. Returns {ok, errors, warnings, doc}."""
     errors: list[str] = []
@@ -865,6 +1090,8 @@ def check_doc(raw) -> dict:
 
     interviews = _check_interviews(raw.get('interviews'), current['interviews'], errors)
     offer = _check_offer(raw.get('offer'), current['offer'], errors)
+    onboarding = _check_onboarding(raw.get('onboarding'), current['onboarding'], errors)
+    handbook = _check_handbook(raw.get('handbook'), current['handbook'], errors)
     links = {
         'staff': {s['email'] for s in staff_index()},
         'departments': {
@@ -910,6 +1137,8 @@ def check_doc(raw) -> dict:
         'interviews': interviews,
         'defaults': defaults,
         'offer': offer,
+        'onboarding': onboarding,
+        'handbook': handbook,
         'jobs': jobs,
         'has_jobs': jobs_raw is not None,
     }
@@ -955,6 +1184,19 @@ def summarize_changes(current: dict, new: dict) -> list[str]:
     for key in DEFAULT_OFFER:
         if (current.get('offer') or {}).get(key) != (new.get('offer') or {}).get(key):
             out.append(f'Offer: {key.replace("_", " ")} changes')
+    cur_items = {i['key']: i for i in (current.get('onboarding') or {}).get('items', [])}
+    new_items = {i['key']: i for i in (new.get('onboarding') or {}).get('items', [])}
+    for key, item in new_items.items():
+        if key not in cur_items:
+            out.append(f'Onboarding: new item "{item["label"]}"')
+        elif cur_items[key] != item:
+            out.append(f'Onboarding: "{item["label"]}" changes')
+    for key, item in cur_items.items():
+        if key not in new_items:
+            out.append(f'Onboarding: item "{item["label"]}" removed (new hires only)')
+    for key in DEFAULT_HANDBOOK:
+        if (current.get('handbook') or {}).get(key) != (new.get('handbook') or {}).get(key):
+            out.append(f'Handbook draft: {key} changes (publish it in People → Onboarding to use it)')
     for key in DEFAULT_ROLE_PEOPLE:
         if (current.get('defaults') or {}).get(key) != (new.get('defaults') or {}).get(key):
             value = new['defaults'].get(key)
@@ -998,6 +1240,8 @@ def apply_doc(doc: dict, *, user) -> None:
         'interviews': doc.get('interviews') or current['interviews'],
         'defaults': doc.get('defaults') or current['defaults'],
         'offer': doc.get('offer') or current['offer'],
+        'onboarding': doc.get('onboarding') or current['onboarding'],
+        'handbook': doc.get('handbook') or current['handbook'],
         'preview_key': current.get('preview_key') or secrets.token_urlsafe(12),
     }, user=user)
     if not doc.get('has_jobs'):

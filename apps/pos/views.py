@@ -1521,6 +1521,21 @@ class CartViewSet(viewsets.ModelViewSet):
         if payment_method not in allowed:
             return Response({'detail': 'Invalid payment method.'}, status=400)
 
+        # Payroll deduction (staff only): the owner's switch, the cap and the rules, before anything is written.
+        payroll_employee = None
+        if payment_method == 'payroll':
+            from apps.accounts.models import User
+            from apps.pos.services.staff_purchases import StaffPurchaseError, check_floor_day, eligibility
+
+            payroll_employee = User.objects.filter(pk=request.data.get('payroll_employee') or 0).first()
+            check = eligibility(payroll_employee, cashier=request.user, amount=amount_due)
+            if not check['eligible']:
+                return Response({'detail': check['reason'], 'code': 'PAYROLL_NOT_ALLOWED'}, status=400)
+            try:
+                check_floor_day(cart)
+            except StaffPurchaseError as exc:
+                return Response({'detail': str(exc), 'code': exc.code}, status=400)
+
         card_type = (request.data.get('card_type') or '').strip()
         try:
             surcharge_fields = apply_card_surcharge(
@@ -1542,6 +1557,7 @@ class CartViewSet(viewsets.ModelViewSet):
             cart.card_surcharge_rate = surcharge_fields['card_surcharge_rate']
             cart.card_surcharge_amount = surcharge_fields['card_surcharge_amount']
             cart.card_charged_total = surcharge_fields['card_charged_total']
+            cart.payroll_employee = payroll_employee
             cart.status = 'completed'
             cart.completed_at = timezone.now()
             cart.save()

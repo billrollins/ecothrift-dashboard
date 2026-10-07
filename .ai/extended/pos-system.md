@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-06 (void: drawer cash, unpaid voids; one cart per sale on the register) -->
+<!-- Last updated: 2026-10-07 (payroll deduction for staff) -->
 
 # Eco-Thrift Dashboard — POS System Context
 
@@ -98,6 +98,19 @@ Denomination counts (JSON) are used at each step for reconciliation.
 7. **Fix card type** — `POST /pos/carts/{id}/card-type/` with `{card_type: credit|debit}` on a completed card/split sale. Recomputes surcharge from stored `card_amount` via `apply_card_surcharge`. 400 if not completed, cash, invalid/same type. 403 `CARD_TYPE_FIX_LOCKED` after 15 minutes unless `is_superuser`. Stamps `card_type_fixed_at` / `card_type_fixed_by`. Does not change `total`, `sold_for`, or drawer cash.
 
 ---
+
+## Payroll deduction (staff, owner 2026-10-07)
+
+- **Payment method `payroll`** ("Payroll deduction (staff)" on the register). It shows only while the owner's switch is on: AppSetting `pos.staff_purchases` = `{payroll_deduction, payroll_max_percent (25), thrift_plus_free}`, all off at first. It's edited on Settings → Store → Staff purchases, by Admin only. The generic settings API refuses this key to managers (`AppSettingViewSet.OWNER_ONLY`).
+- **Complete** with `{payment_method: 'payroll', payroll_employee: <user id>}`. `Cart.payroll_employee` records whose paycheck it comes from. The checks, in `apps/pos/services/staff_purchases.py` `eligibility` and `check_floor_day`:
+  - the switch is on, and the buyer is active staff;
+  - the cashier is not the buyer;
+  - the buyer had a last paycheck: the gross for the previous biweekly period, time-clock hours × pay rate, more than $0. New hires don't qualify;
+  - this pay period's payroll sales plus this one stay ≤ the cap % of that paycheck;
+  - every item has been on the floor 24 hours (`Item.listed_at`; no date means allowed).
+- No drawer cash and no card fields (`apply_card_surcharge` treats it like cash). A void takes it off the list.
+- **People → Payroll deductions** (`/people/payroll-deductions`): per pay period, per person, the sales and a total to enter in QuickBooks Payroll for the paycheck after the period. **Mark entered** writes `PayrollDeductionMark` (the amount then); a later void shows a mismatch.
+- API: `/api/pos/staff-purchases/settings/` (GET staff, PUT Admin), `people/`, `eligibility/?employee=&amount=`, `deductions/?day=`, `deductions/mark/`.
 
 ## Void Flow
 

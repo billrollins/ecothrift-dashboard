@@ -312,6 +312,17 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             position=data.get('position') or '', department=int(department) if str(department or '').isdigit() else None,
             employment_type=data.get('employment_type') or 'part_time',
         )
+        # Usually straight on to onboarding: the checklist, and the first-day email when asked.
+        result['onboarding'] = None
+        result['first_day_sent'] = False
+        if data.get('start_onboarding') in (True, 'true', '1', 1):
+            from apps.hiring.onboarding_views import start_from_request
+
+            application.refresh_from_db()
+            onboarding, sent = start_from_request(
+                {'application': application.pk, 'start_date': data.get('start_date'),
+                 'start_time': data.get('start_time'), 'send_email': data.get('send_first_day')}, by=request.user)
+            result['onboarding'], result['first_day_sent'] = onboarding.pk, sent
         return Response({**result, 'application': ApplicationDetailSerializer(self._fresh(application)).data},
                         status=status.HTTP_201_CREATED)
 
