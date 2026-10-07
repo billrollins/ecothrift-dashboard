@@ -32,6 +32,8 @@ const EmailsPage = lazy(() => import('./pages/people/EmailsPage'));
 const OnboardingPage = lazy(() => import('./pages/people/OnboardingPage'));
 const MyOnboardingPage = lazy(() => import('./pages/people/MyOnboardingPage'));
 const PayrollDeductionsPage = lazy(() => import('./pages/people/PayrollDeductionsPage'));
+const CheckInsPage = lazy(() => import('./pages/people/CheckInsPage'));
+const MyCheckInsPage = lazy(() => import('./pages/people/MyCheckInsPage'));
 import FloorplanListPage from './pages/floorplan/FloorplanListPage';
 
 // Pages
@@ -214,6 +216,14 @@ export default function App() {
       >
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/today" element={<TodayPage />} />
+        <Route
+          path="/check-ins"
+          element={
+            <Suspense fallback={<LoadingScreen message="Loading…" />}>
+              <MyCheckInsPage />
+            </Suspense>
+          }
+        />
         <Route
           path="/onboarding"
           element={
@@ -520,6 +530,16 @@ export default function App() {
             <ManagerRoute>
               <Suspense fallback={<LoadingScreen message="Loading…" />}>
                 <OnboardingPage />
+              </Suspense>
+            </ManagerRoute>
+          }
+        />
+        <Route
+          path="/people/checkins"
+          element={
+            <ManagerRoute>
+              <Suspense fallback={<LoadingScreen message="Loading…" />}>
+                <CheckInsPage />
               </Suspense>
             </ManagerRoute>
           }

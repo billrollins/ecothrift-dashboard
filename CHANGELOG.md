@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.147.0] -->
-<!-- Last reviewed: 2026-10-07 (2.147.0) -->
+<!-- Line 1 release: ## [2.148.0] -->
+<!-- Last reviewed: 2026-10-07 (2.148.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,47 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.148.0] - 2026-10-07
+
+User-facing theme: **30, 60 and 90-day check-ins: they show up when due, are filled in together in a meeting, signed by both with a finger, and the employee reads them in Dash. Applicants is a timeline that works on a phone, and every hiring email can be read and edited before it goes.** Initiative: `hiring_onboarding` Phase 5.
+
+### Added
+
+- **Check-ins**, made when onboarding starts (30, 60 and 90 days after the first day; the days are in the careers file) and assigned to the new hire's manager. **Schedule check-ins** covers someone hired earlier. Onboardings already started get theirs.
+- **People → Check-ins**:
+  - due this week (overdue in red), coming up, and done;
+  - fill it in the meeting on a phone or tablet: what is going well, more training needed, goals for the next 30 days, five areas each rated Doing well / On track / Needs work with a note, and the employee's comments;
+  - **Sign together**: both names and both finger signatures on that device. Then it locks and a PDF with an audit trail is kept;
+  - the last check-in can close onboarding; **Skip** takes a reason.
+- **My check-ins** (`/check-ins`) for the employee: the dates coming up, and each signed check-in to read, with its PDF. The banner on Today points there when one is due this week or was just signed.
+- **The AI brief** has a hiring section: check-ins due or overdue, overdue onboarding items, applicants waiting, interviews today and offers out.
+- The careers JSON carries `checkin` (days, questions, areas, ratings, the employee's statement).
+- **Dev test data:** `python manage.py seed_hiring_demo` (re)builds applicants in every stage and three hires with onboarding and check-ins, with dates relative to today. `--clear` removes them. It runs only with DEBUG on and sends no email.
+
+### Changed
+
+- **People → Applicants is a timeline** (owner's ask, 2026-10-07):
+  - The stages run down the left as a timeline. Each stage shows its count and the names in it, with a note beside each name: the interview time ("Tomorrow 10:00 AM"), where the offer stands (Opened, Signed), or how many days they have waited (amber when long).
+  - **Interviews today** sits at the top. Hired and Not now are folded; open them, or search, to see their names.
+  - Pick a name and they open in the main part of the page, not a drawer. With nobody picked, it shows who needs you first: interviews today, new applicants waiting longest, interviewed people to decide on, and offers out.
+- **The applicant page is laid out around the next step.** One card says what to do now and holds the buttons for it:
+  - send the interview link;
+  - the booked interview, with its scorecard;
+  - the finished interview, to decide on;
+  - the offer and where it stands;
+  - Create employee, or onboarding.
+  - Below it: must-haves and answers, with notes and history beside them.
+- **On a phone** the timeline is the list, with big rows. A name opens a full page with Back (the phone's Back button works too), a bar that stays at the top, answers that fold, and **Call · Text · Email · Resume** fixed at the bottom.
+- **Read every hiring email before it goes** (owner's ask, 2026-10-07). The buttons that email an applicant open the email first, filled in for that person, with **Send** and **Cancel**: Email interview link, Book a time for them, Reschedule, Cancel interview, Email the offer, Email again, the first-day note (Create employee, Start onboarding, send again) and Not now.
+  - Every value Dash fills in (name, interview time, link, pay…) is a green chip. Tap one to **type over it**: it turns amber, says "no longer from Dash", and can be put back.
+  - Edits are for this email only; **Edit the template** opens it on People → Emails. Untouched values are filled in when it goes, so the link is the real one.
+  - **Cancel** undoes the whole action (nothing is booked, moved, cancelled or made). Booking, moving, cancelling and starting onboarding also offer **Do it without emailing**. With no email on file, Copy the message is there to text it.
+  - The applicant's history keeps the exact words sent (**See the email**), marked **edited** when they differ from the template.
+  - On a phone the email opens full screen; on a computer it slides in from the right.
+- **Hiring emails come from retail@ecothrift.us.** On People → Emails, Send from, Replies go to and New-application alerts are dropdowns of the store mailboxes (retail@, bill_rollins@ and warehouse@ecothrift.us); alerts can go to more than one. The careers file refuses any other address. The email groups (Applying, Interviews, Offers, Onboarding, Not now) start closed and open with a click.
+
+Migration: `hiring.0012` (check-ins; backfills onboardings already started).
 
 ## [2.147.0] - 2026-10-07
 

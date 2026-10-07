@@ -21,7 +21,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from apps.core.files import save_upload, upload_has_signature
 from apps.hiring import emails
-from apps.hiring.careers import HANDBOOK_CONFIRM, fill, load_setting, template as email_template
+from apps.hiring.careers import HANDBOOK_CONFIRM, load_setting, template as email_template
 from apps.hiring.models import (
     ApplicationEvent, Handbook, HandbookSignature, I9File, I9Record, Onboarding, OnboardingTask,
 )
@@ -103,6 +103,9 @@ def start(*, user, by, start_date: date, start_time=None, manager=None, position
         for index, item in enumerate(items)
     ])
     I9Record.objects.create(onboarding=onboarding, user=user, hire_date=start_date)
+    from apps.hiring.checkins import schedule
+
+    schedule(user=user, start_date=start_date, manager=manager, onboarding=onboarding)
     refresh(onboarding)
     _event(onboarding, f'Onboarding started: first day {_date_text(start_date)}', by=by)
     sent = send_first_day(onboarding, by=by) if send_email else False
@@ -126,15 +129,19 @@ def first_day_values(onboarding: Onboarding) -> dict:
 def send_first_day(onboarding: Onboarding, *, by=None) -> bool:
     if not onboarding.user.email:
         raise ValidationError({'detail': 'This person has no email address.'})
-    block = email_template('first_day', onboarding.application)
-    values = first_day_values(onboarding)
-    sent = emails.send(to=onboarding.user.email, subject=fill(block['subject'], values),
-                       body=fill(block['body'], values))
-    if sent:
+    from apps.hiring import compose
+
+    review = compose.current()
+    if review is not None and review.skip:  # "Do it without emailing"
+        _event(onboarding, 'First-day email not sent (done without emailing)', by=by, data={'sent': False})
+        return False
+    sent = emails.send_template('first_day', to=onboarding.user.email,
+                                template=email_template('first_day', onboarding.application),
+                                values=first_day_values(onboarding), application=onboarding.application)
+    if sent and not compose.capturing():
         onboarding.first_day_email_sent_at = timezone.now()
         onboarding.save(update_fields=['first_day_email_sent_at'])
-    _event(onboarding, 'First-day email sent' if sent else 'First-day email could not be sent', by=by,
-           data={'sent': sent})
+    # The email goes on the applicant's history with its words (send_template).
     return sent
 
 

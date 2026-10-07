@@ -15,7 +15,7 @@ from rest_framework.response import Response
 
 from apps.accounts.permissions import IsManagerOrAdmin, IsTeamMember
 from apps.core.files import stream_s3
-from apps.hiring import onboarding as service
+from apps.hiring import compose, onboarding as service
 from apps.hiring.models import Application, HandbookSignature, I9File, Onboarding, OnboardingTask
 
 
@@ -149,9 +149,12 @@ def start_from_request(data, *, by) -> tuple[Onboarding, bool]:
 @permission_classes([IsManagerOrAdmin])
 def onboarding_list(request):
     if request.method == 'POST':
-        onboarding, sent = start_from_request(request.data, by=request.user)
-        return Response({'onboarding': _row(onboarding, full=True, viewer=request.user), 'sent': sent},
-                        status=status.HTTP_201_CREATED)
+        def act():
+            onboarding, sent = start_from_request(request.data, by=request.user)
+            return Response({'onboarding': _row(onboarding, full=True, viewer=request.user), 'sent': sent},
+                            status=status.HTTP_201_CREATED)
+
+        return compose.run(request, act)  # the first-day email is reviewed first
     which = request.query_params.get('status') or 'active'
     qs = Onboarding.objects.select_related('user', 'manager').order_by('-start_date', '-id')
     if which != 'all':
@@ -199,8 +202,12 @@ def onboarding_task(request, pk, task_id):
 @permission_classes([IsManagerOrAdmin])
 def onboarding_first_day(request, pk):
     o = _onboarding(pk)
-    sent = service.send_first_day(o, by=request.user)
-    return Response({'sent': sent, 'onboarding': _row(_onboarding(pk), full=True, viewer=request.user)})
+
+    def act():
+        sent = service.send_first_day(o, by=request.user)
+        return Response({'sent': sent, 'onboarding': _row(_onboarding(pk), full=True, viewer=request.user)})
+
+    return compose.run(request, act, skip_allowed=False)
 
 
 @api_view(['POST'])

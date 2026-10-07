@@ -1,0 +1,65 @@
+/* The review screen's email editor: plain words, Dash's values as chips, typed-over words in amber. */
+.ef-box {
+  border: 1px solid #cfd3c9;
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px 12px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.ef-box:focus-within {
+  border-color: #4a7a45;
+  box-shadow: 0 0 0 1px #4a7a45;
+}
+.ef-doc {
+  outline: none;
+  font-size: 15px;
+  line-height: 1.7;
+  color: #22271f;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 12em;
+}
+.ef-doc--line {
+  min-height: 0;
+  font-weight: 600;
+}
+.ef-doc p {
+  margin: 0;
+  min-height: 1.7em;
+}
+.ef-chip {
+  background: #e4efe1;
+  color: #2f6a30;
+  border: 1px solid #c4dcbd;
+  border-radius: 6px;
+  padding: 0 5px;
+  cursor: pointer;
+  font-weight: 600;
+  white-space: pre-wrap;
+}
+.ef-chip:hover {
+  background: #d6e8d1;
+}
+.ef-chip--blank {
+  color: #8e948a;
+  font-weight: 400;
+  font-style: italic;
+}
+.ef-doc .ProseMirror-selectednode.ef-chip,
+.ef-chip.ProseMirror-selectednode {
+  outline: 2px solid #4a7a45;
+  outline-offset: 1px;
+}
+.ef-typed {
+  background: #f7edd6;
+  color: #6b4a10;
+  border-bottom: 2px dotted #c98a1e;
+  border-radius: 3px;
+  cursor: pointer;
+}
+/* Legend swatches on the review screen. */
+.ef-swatch {
+  display: inline-block;
+  font-size: 12px;
+  line-height: 1.6;
+}

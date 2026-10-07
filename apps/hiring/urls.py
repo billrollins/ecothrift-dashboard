@@ -1,7 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from apps.hiring import onboarding_views as onb, public_views, views
+from apps.hiring import checkin_views as chk, onboarding_views as onb, public_views, views
 
 router = DefaultRouter()
 router.register('jobs', views.JobViewSet, basename='hiring-job')
@@ -37,6 +37,13 @@ urlpatterns = [
     path('handbook/', onb.handbook, name='hiring-handbook'),
     path('handbook/publish/', onb.handbook_publish, name='hiring-handbook-publish'),
     path('handbook/signatures/<int:signature_id>/pdf/', onb.handbook_signature_pdf, name='hiring-handbook-pdf'),
+    path('checkins/', chk.checkin_list, name='hiring-checkins'),
+    path('checkins/schedule/', chk.checkin_schedule, name='hiring-checkins-schedule'),
+    path('checkins/<int:pk>/', chk.checkin_detail, name='hiring-checkin'),
+    path('checkins/<int:pk>/sign/', chk.checkin_sign, name='hiring-checkin-sign'),
+    path('checkins/<int:pk>/skip/', chk.checkin_skip, name='hiring-checkin-skip'),
+    path('checkins/<int:pk>/pdf/', chk.checkin_pdf, name='hiring-checkin-pdf'),
+    path('me/checkins/', chk.my_checkins, name='hiring-my-checkins'),
     path('me/onboarding/', onb.my_onboarding, name='hiring-my-onboarding'),
     path('me/onboarding/tasks/<int:task_id>/', onb.my_task, name='hiring-my-task'),
     path('me/emergency-contact/', onb.my_emergency_contact, name='hiring-my-emergency-contact'),

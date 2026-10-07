@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-06 (Phase 4 onboarding) -->
+<!-- Last updated: 2026-10-07 (Phase 5 check-ins, Applicants timeline, read-before-send, store mailboxes) -->
 # Hiring
 
 The careers page, applications, and the People workspace. Design and phases: [`initiatives/hiring_onboarding.md`](../initiatives/hiring_onboarding.md).
@@ -10,13 +10,14 @@ The careers page, applications, and the People workspace. Design and phases: [`i
 | Models | `apps/hiring/models.py`: `Job` (role page sections: summary, duties, success, looking_for, nice_to_have, physical, works_with; department, hiring_manager, interviewers), `Application` (one or more roles, an answer snapshot, red flags, text consent, Not now, the linked employee), `ApplicationEvent` (every change: who, when) |
 | The careers file | `apps/hiring/careers.py`: format `ecothrift.careers/1` in AppSetting `hiring.careers` (page text, form questions, emails, sender, `public`, `preview_key`). Jobs are rows, and the export carries them |
 | Apply, stages, Not now, Create employee | `apps/hiring/services.py` |
-| Mail | `apps/hiring/emails.py`. Plain text; sender from the careers file. A `from` of its own goes through that Graph mailbox, with a fall back to the store mailbox with Reply-To |
+| Mail | `apps/hiring/emails.py`. Plain text; sender from the careers file (`email.from`, default retail@). It goes through that Graph mailbox as "Eco-Thrift", with a fall back to the store mailbox with Reply-To. `from`, `reply_to` and `notify` must be in `careers.MAILBOXES` (retail@, bill_rollins@, warehouse@ecothrift.us; the dropdowns on People → Emails) |
+| Review before send | `apps/hiring/compose.py`. A staff endpoint wrapped in `compose.run`: `preview: true` runs the action in a savepoint with mail held back, rolls it all back, and returns the draft (template, values, field labels, to, from, attachments, source). The real call carries `email: {subject, body}` (linked values still `{placeholders}`, filled at send) or `{skip: true}`. Reviewed keys: `compose.REVIEWED` (+ Not now through `not-now-draft`). `emails.send_template` applies it and logs the exact words on the history (`edited`, `typed_over`). Frontend: `EmailReview.tsx` (`useEmailReview`, `EmailCompose`), `EmailEditor.tsx` (TipTap: `field` chip node, `typedOver` mark), `emailTemplate.ts` |
 | Resumes | `apps/hiring/files.py`: PDF, DOC/DOCX, JPEG/PNG/WEBP/HEIC by first bytes, 10 MB, S3 `hiring/resumes/`, streamed to staff only |
 | Public API | `/api/hiring/public/careers/` (`?preview=<key>` while off), `/api/hiring/public/apply/` (multipart; honeypot `website`, `started_at`, 8/hour per IP) |
 | Staff API (Manager, Admin) | `/api/hiring/applications/` (+ `counts/`, `<id>/stage|note|rating|not-now|not-now-draft|resume|create-employee/`), `/api/hiring/jobs/`, `/api/hiring/careers/` (+ `check/`, `public/`, `ai-draft/`) |
 | Public pages | `frontend-public/src/pages/careers/`, `src/careers/` (API, CSS). Links show in the header and footer only while public |
-| Staff pages | `frontend/src/pages/people/` (Applicants, Jobs & careers page); nav workspace `people`, key 9 |
-| Tests | `apps/hiring/tests/test_hiring.py`; `frontend/src/pages/people/careersFile.test.ts`; `lean_test.py suite hiring` |
+| Staff pages | `frontend/src/pages/people/` (Applicants, Jobs & careers page); nav workspace `people`, key 9. Applicants = `StageTimeline` (left; ordering and hints in `applicantTimeline.ts`) + `ApplicantView` (main; a Next step card per stage). A phone gets the timeline as the list, then a full page with Back and a fixed Call/Text/Email/Resume bar. The list API adds `next_interview` and `offer_status` (prefetched) |
+| Tests | `apps/hiring/tests/test_hiring.py`; `frontend/src/pages/people/careersFile.test.ts`, `applicantTimeline.test.ts`; `lean_test.py suite hiring` |
 
 ## Rules
 
@@ -112,4 +113,32 @@ The careers page, applications, and the People workspace. Design and phases: [`i
   - `onboardingUi.tsx` (Checklist, CountDialog, I9Dialog, StartOnboardingDialog, HandbookText) and `SignaturePad.tsx`;
   - `SetPasswordLinkDialog` takes `fetchLink`.
 - **Careers file:** `onboarding.items` (owner, due and kind are checked against `ONBOARDING_*`), `handbook` (title, text, acknowledgment; `## ` headings, `- ` bullets), and the `first_day` email.
+
+## Check-ins (Phase 5)
+
+- **Model** `CheckIn` (`0012`): user, manager, onboarding, day, due_date, status (scheduled, done, skipped); `form` (its own copy of the careers file's `checkin`, made at the first save), `answers` (`{questions: {key: text}, areas: {area: {rating, note}}}`), employee_comments, close_onboarding; both names and signatures, the PDF, signed_at and signed_by, IP and device.
+- **Service:** `apps/hiring/checkins.py`.
+  - `schedule` makes one per `checkin.days`, called from `onboarding.start`.
+  - `is_due` means within 7 days; `is_overdue` means past due.
+  - `save` works until signed. `close_onboarding` only counts on the last one.
+  - `sign` needs both names, both PNG signatures, the statement ticked, and something answered. It locks the check-in and builds the PDF (`pymupdf.Story`, then a page with the signatures and the audit).
+  - With `close_onboarding`, open onboarding tasks are skipped and the onboarding is done.
+  - `skip` needs a reason.
+- **API** (`checkin_views.py`):
+  - managers: `/api/hiring/checkins/?when=due|upcoming|done|all`, `checkins/schedule/`, `checkins/<id>/` (GET and PATCH), `<id>/sign/`, `<id>/skip/` and `<id>/pdf/` (the PDF is also open to the employee it's about);
+  - the employee: `/api/hiring/me/checkins/`.
+- **UI:** `CheckInsPage.tsx` (People → Check-ins), `MyCheckInsPage.tsx` (`/check-ins`), `checkinUi.tsx`, and the banner in `MyOnboardingBanner.tsx`.
+- **Brief:** `context_snapshot._hiring` (the `hiring` section).
+
+## Test data on dev
+
+`python manage.py seed_hiring_demo` builds a full set of hiring test data with dates relative to today. Run it again after copying production into dev and everything comes back.
+
+- **Applicants:** one in every stage (New; Reviewed with a red must-have; Contacted with a link; Interview scheduled; Interviewed with a scorecard; Offer, with an open offer; Not now), plus a practice run.
+- **Three hires**, each a Dash Employee with no password (show the Set password code to sign in as one):
+  - 3 days in, onboarding in progress;
+  - 31 days in, the 30-day check-in overdue;
+  - 92 days in, onboarding done, the 30 and 60-day check-ins signed, the 90-day due.
+
+It only runs with DEBUG on, sends no email (`emails.send` is patched while it runs), and puts everything on `@seed.example.test`. Re-running clears the old set first; `--clear` removes it. Tested in `SeedDemoTests`.
 

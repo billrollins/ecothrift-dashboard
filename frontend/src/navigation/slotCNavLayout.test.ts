@@ -186,7 +186,7 @@ describe('Studios and Admin placement', () => {
 
   it('puts hiring in its own People workspace, for managers', () => {
     const people = SLOT_C_NAV_GROUPS.find((g) => g.id === 'people');
-    expect(people?.itemIds).toEqual(['users', 'applicants', 'interviews', 'onboarding', 'payrollDeductions', 'jobs', 'hiringEmails']);
+    expect(people?.itemIds).toEqual(['users', 'applicants', 'interviews', 'onboarding', 'checkins', 'payrollDeductions', 'jobs', 'hiringEmails']);
     expect(people?.roles).toEqual(['Manager', 'Admin']);
     expect(NAV_ITEM_CATALOG.applicants?.path).toBe('/people/applicants');
   });

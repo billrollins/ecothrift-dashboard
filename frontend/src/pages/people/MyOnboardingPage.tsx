@@ -13,6 +13,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useEffect, useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import {
   getMyOnboarding,
   saveMyEmergencyContact,
@@ -228,6 +229,14 @@ export default function MyOnboardingPage() {
         />
       </Card>
       {data.emergency_contact.name && data.emergency_contact.phone && <EmergencyContact data={data} onSaved={commit} />}
+      <Card title="Check-ins">
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          You meet with your manager about 30, 60 and 90 days after you start.
+        </Typography>
+        <Button component={RouterLink} to="/check-ins" variant="outlined" size="small">
+          My check-ins
+        </Button>
+      </Card>
     </Box>
   );
 }

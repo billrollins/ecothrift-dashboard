@@ -1,9 +1,9 @@
 <!-- initiative: slug=hiring-onboarding status=active updated=2026-10-06 -->
-<!-- Last updated: 2026-10-06 (owner's answers; Phase 1 = careers page, form, tracker; building) -->
+<!-- Last updated: 2026-10-07 (Phase 5, Applicants timeline and read-before-send shipped in v2.148.0) -->
 
 # Initiative: Hiring and onboarding
 
-**Status:** **Active**. Shipped: Phase 1 (v2.136.0), fuller role pages, the JSON for AI and hiring managers (v2.137.0), and Phase 2 interviews, AI help per role and email, and the Emails page (v2.139.0). The careers page is live (Bill turned it on 2026-10-06). Phase 3, offers signed with a finger, and practice runs shipped in v2.143.0. Phase 4, onboarding, and Phase 4b, staff purchases (switched off at first), shipped in v2.146.0. The handbook draft is complete and waits for the attorney's read before Bill publishes it. Next: Phase 5, the 30/60/90-day check-ins.
+**Status:** **Active**. Shipped: Phase 1 (v2.136.0), fuller role pages, the JSON for AI and hiring managers (v2.137.0), and Phase 2 interviews, AI help per role and email, and the Emails page (v2.139.0). The careers page is live (Bill turned it on 2026-10-06). Phase 3, offers signed with a finger, and practice runs shipped in v2.143.0. Phase 4, onboarding, and Phase 4b, staff purchases (switched off at first), shipped in v2.146.0. The handbook draft is complete and waits for the attorney's read before Bill publishes it. Phase 5, check-ins, shipped in v2.148.0 with the Applicants timeline (phone-first), read-before-send for hiring emails, and the dev test data. Next: Phase 6, texts, when its gates clear.
 
 **Objective:** The owner runs hiring from Dash, start to finish:
 
@@ -360,17 +360,25 @@ Acceptance:
 
 ### Phase 5 — 30, 60 and 90-day check-ins
 The check-ins appear when due, are filled in during an in-person meeting, signed by both, and readable by the employee in Dash.
-**Gated by:** Phase 4.
-Detail when Phase 4 is built. Outline:
+**Gated by:** Phase 4. **Shipped in v2.148.0** (2026-10-07; the owner: "start phase 5 check-ins").
 
-- Check-ins are created at Create employee for days 30, 60 and 90 from the start date, assigned to the manager. They appear in People → Check-ins when due, and as a line in the AI brief.
-- The form lives in the careers file (`checkin:`). It asks:
-  - what is going well;
-  - training gaps;
-  - goals for the next 30 days;
-  - the manager's notes per area;
-  - the employee's comments.
-- It is filled on a phone or tablet in the meeting, and both sign with a finger. The employee reads it under **My check-ins**. The 90-day check-in can close onboarding.
+Acceptance:
+- [x] **Made when onboarding starts**, one per day in the careers file's `checkin.days` (30, 60, 90), assigned to the new hire's manager. **Schedule check-ins** covers someone hired before onboarding existed. Migration `0012` backfills onboardings already started.
+- [x] **The form** in the careers file (`checkin`):
+  - questions: what is going well, where more training is needed, goals for the next 30 days;
+  - five areas, each with Doing well / On track / Needs work and a note;
+  - the employee's comments, and the statement they tick.
+
+  A check-in keeps its own copy of the form from its first save.
+- [x] **People → Check-ins:** due this week (overdue in red), coming up, done. Fill it in the meeting on a phone or tablet and save as you go. **Sign together** takes both typed names and both finger signatures on that device. Then it locks and a PDF with an audit trail is kept. **Skip** needs a reason.
+- [x] **The last check-in can close onboarding:** anything still open is marked not needed.
+- [x] **My check-ins** (`/check-ins`) for the employee: the dates coming up, and each signed one in full with its PDF. The Today banner points to it when one is due within a week or was signed in the last two weeks.
+- [x] **The AI brief** gets a `hiring` section: check-ins due or overdue, overdue onboarding items, applicants waiting, interviews today, offers out.
+- [x] Tests:
+  - three made with onboarding;
+  - fill, sign, lock, the employee reads it, and a stranger can't;
+  - the last one closes onboarding;
+  - the due list, skip, and the brief line.
 
 ### Phase 6 — Texts to applicants and new hires
 Interview confirmations and reminders, and the first-day reminder, by text for those who ticked the box.
@@ -436,7 +444,8 @@ The first text is master's opt-in confirmation sample. Detail when the gates cle
 - [x] Phase 2 as above (v2.139.0)
 - [x] Phase 3 as above (v2.143.0)
 - [x] Phase 4 and 4b as above (v2.146.0)
-- [ ] Phases 5 and 6 when detailed
+- [x] Phase 5 as above (v2.148.0)
+- [ ] Phase 6 when detailed
 - [ ] No SSN, bank or routing numbers stored; I-9 files Admin-only and private
 - [ ] No applicant is moved or rejected by AI; no Not now email sends without a person pressing Send
 - [ ] Nothing ships with an inventory or Thrift+ release, in the freeze, or in the database-switch window
@@ -672,6 +681,44 @@ Checks:
 Checked in a browser: the Settings card (both off, 25%) and the Payroll deductions page.
 
 Found: `apps/core` `test_seed_rows` had expected 18 AI actions since hiring 0002 added the 19th; the count is fixed.
+
+**2026-10-07 — Phase 5, check-ins (shipped in v2.148.0 at the owner's order, after inventory_effort's v2.147.0).** The owner: "start phase 5 checkins". Built as in the acceptance above:
+
+- `CheckIn` (`0012`, with the backfill), `apps/hiring/checkins.py` and `checkin_views.py`;
+- the careers file's `checkin`;
+- People → Check-ins (`CheckInsPage.tsx`), My check-ins (`MyCheckInsPage.tsx`), and the Today banner;
+- the brief's `hiring` section (`apps/core/services/context_snapshot.py`).
+
+Checks: 171 hiring and core tests (4 new), the front-end tests and the type-check. Checked in a browser at tablet size:
+
+- a test hire 31 days in, so the 30-day check-in was overdue;
+- the form filled in, an area rated, Save;
+- **Sign together** with two finger signatures and the statement ticked;
+- it locked and showed the read-only view.
+
+The test data was removed.
+
+Claude's calls:
+
+- **Both sign on one device**, the manager's, in the meeting. The employee's statement says the signature means they saw it and could comment, not that they agree.
+- **A check-in without a manager** still shows to every manager. It takes the onboarding's manager when there is one.
+
+**2026-10-07 — Shipped with Phase 5 in v2.148.0: test data, the Applicants timeline, read-before-send, and the sender.** The owner, testing on dev:
+
+- "add some test data… so if we bring in prod data it will be able to set up quickly again": `python manage.py seed_hiring_demo` (DEBUG only, no email, the `seed.example.test` domain; `--clear`).
+- "a Timeline type UI on the left as a sort of selector… brings them up not in a drawer but the main content… then do this all over for a Mobile experience (SUPER high priority as interview days are often on the move)":
+  - `StageTimeline` + `ApplicantView` (a Next step card per stage);
+  - on a phone, the timeline is the list, then a full page with a fixed Call / Text / Email / Resume bar;
+  - the list API adds `next_interview` and `offer_status`.
+- "take to the Emails page and fill it in and have send available and cancel… notate if the data is being calculated… if user types over that show the calc is broken": read-before-send (`compose.py`, `EmailReview.tsx`, `EmailEditor.tsx`). Claude's proposal, approved: the email opens over the applicant, not on the Emails page; Dash's values are chips you type over (amber), not a broken highlight; edits are this email only; Cancel undoes the whole action; only emails sent with a button are reviewed.
+- "emails should be selectable… bill_rollins, retail and warehouse", "default all to come from retail@": `careers.MAILBOXES`, sender retail@, the email groups fold.
+
+Claude's calls:
+
+- **A preview is a dry run.** The real action runs in a savepoint with mail held back, then rolls back, so the draft is exactly what would go.
+- **The interview link is made before the review**, so the link shown is the link sent. A new offer's link cannot exist before the offer, so the review says "made when you send".
+- **Within a stage, whoever has waited longest comes first.** Booked interviews are ordered by time; Hired and Not now newest first.
+- **`careers.fill` matches `{placeholders}` with a regex** (it was `format_map`), so a stray brace in edited words no longer stops every value being filled.
 
 ---
 

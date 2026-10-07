@@ -1,17 +1,18 @@
 """Hiring mail: the applicant's auto-reply, the alert to the owner, and "Not now" emails.
 
-Sender and Reply-To come from the careers file. With Microsoft Graph on and a sender of
-its own (jobs@ecothrift.us), mail goes through that mailbox; if that fails it falls back
-to the store mailbox with Reply-To set, so an applicant always gets their reply.
+Sender and Reply-To come from the careers file (one of the store mailboxes; retail@ by default).
+With Microsoft Graph on, mail goes through the sender's mailbox as "Eco-Thrift <sender>"; if that
+fails it falls back to the store mailbox with Reply-To set, so an applicant always gets their reply.
 """
 from __future__ import annotations
 
 import logging
-from email.utils import parseaddr
+from email.utils import formataddr, parseaddr
 
 from django.conf import settings
 from django.core.mail import EmailMessage
 
+from apps.hiring import compose
 from apps.hiring.careers import fill, load_setting, template as email_template
 
 logger = logging.getLogger(__name__)
@@ -28,12 +29,13 @@ def _send_via_own_mailbox(*, sender: str, to: list[str], subject: str, body: str
 
     if not graph_enabled():
         return False
-    _, address = parseaddr(sender)
+    name, address = parseaddr(sender)
     if not address:
         return False
     try:
         GraphMailClient(mailbox=address).send_mail(
-            subject=subject, body=body, to=to, reply_to=reply_to or None, from_email=sender,
+            subject=subject, body=body, to=to, reply_to=reply_to or None,
+            from_email=formataddr((name or 'Eco-Thrift', address)),
             attachments=attachments or None,
         )
         return True
@@ -56,6 +58,8 @@ def send(*, to: str | list[str], subject: str, body: str,
     recipients = _addresses(to) if isinstance(to, str) else [a for a in to if a]
     if not recipients:
         return False
+    if compose.capturing():  # a preview: nothing leaves
+        return True
     if practice:
         subject = subject if subject.startswith(PRACTICE_TAG) else PRACTICE_TAG + subject
         body = f'{PRACTICE_NOTE}\n\n{body}'
@@ -75,6 +79,50 @@ def send(*, to: str | list[str], subject: str, body: str,
     except Exception:
         logger.exception('Hiring mail failed: %s → %s', subject, recipients)
         return False
+
+
+def send_template(key: str, *, to, template: dict, values: dict, application=None,
+                  attachments: list[tuple[str, bytes | str, str]] | None = None, practice: bool = False,
+                  made_on_send: tuple[str, ...] = ()) -> bool:
+    """Fill one of the careers emails and send it.
+
+    A reviewed email (``compose.REVIEWED``) follows the review: held back as a draft in a preview, the edited words
+    when the request gave some (linked values filled now), nothing when skipped, and a line with the exact words on
+    the applicant's history. ``made_on_send``: values only made when it really goes (a new offer's link); the review
+    says so instead of showing one that will not be used.
+    """
+    review = compose.current() if key in compose.REVIEWED else None
+    if review is not None and review.capture is not None:
+        shown = {**values, **{name: f'({compose.FIELD_LABELS.get(name, name).lower()}, made when you send)'
+                              for name in made_on_send if name in values}}
+        review.capture.append(compose.draft(key, to=to, template=template, values=shown, attachments=attachments,
+                                            practice=practice))
+        return True
+    label = compose.EMAIL_LABELS.get(key, key)
+    by = review.user if review is not None else None
+    if review is not None and review.skip:
+        if application is not None:
+            _log(application, by=by, text=f'Not emailed: {label} (done without emailing)', data={'email': key})
+        return False
+    used = template
+    if review is not None and review.body is not None:
+        used = {'subject': review.subject, 'body': review.body}
+    subject, body = fill(used['subject'], values), fill(used['body'], values)
+    sent = send(to=to, subject=subject, body=body, attachments=attachments, practice=practice)
+    if application is not None and key in compose.REVIEWED:
+        changed = compose.edited(template, used)
+        _log(application, by=by,
+             text=(f'Emailed: {label}' if sent else f'Email could not be sent: {label}') + (' (edited)' if changed else ''),
+             data={'email': key, 'sent': sent, 'subject': subject, 'body': body, 'edited': changed,
+                   'typed_over': compose.typed_over(template, used)})
+    return sent
+
+
+def _log(application, *, by, text: str, data: dict) -> None:
+    from apps.hiring.models import ApplicationEvent
+
+    ApplicationEvent.objects.create(application=application, kind=ApplicationEvent.KIND_EMAIL, by=by, text=text,
+                                    data=data)
 
 
 def values_for(application, *, extra: dict | None = None) -> dict:

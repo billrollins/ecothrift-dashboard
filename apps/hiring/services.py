@@ -301,9 +301,15 @@ def set_rating(application, rating, *, by) -> Application:
 
 
 def not_now_draft(application, reason: str) -> dict:
-    template = not_now_template(reason, application)
-    values = emails.values_for(application)
-    return {'subject': fill(template['subject'], values), 'body': fill(template['body'], values)}
+    """The review screen's draft: the reason's template, and the values Dash fills in."""
+    from apps.hiring import compose
+    from apps.hiring.careers import NOT_NOW_KEYS
+
+    out = compose.draft('not_now', to=application.email or '', template=not_now_template(reason, application),
+                        values=emails.values_for(application), practice=application.is_practice)
+    # The template's key on People → Emails (Edit the template opens it).
+    key = f'not_now.{reason}' if reason in NOT_NOW_KEYS else 'not_now.default'
+    return {**out, 'key': key, 'skip_allowed': True}
 
 
 @transaction.atomic
@@ -317,6 +323,15 @@ def mark_not_now(application, *, reason: str, note: str, send: bool, subject: st
             raise ValidationError({'send': 'This applicant has no email address. Choose Don\'t send.'})
         if not (subject or '').strip() or not (body or '').strip():
             raise ValidationError({'body': 'The email needs a subject and a message.'})
+    # The words come from the review screen with linked values still {placeholders}: fill them now.
+    from apps.hiring import compose
+
+    template = not_now_template(reason, application)
+    used = {'subject': subject or '', 'body': body or ''}
+    edited = send and compose.edited(template, used)
+    typed_over = compose.typed_over(template, used) if send else []
+    values = emails.values_for(application)
+    subject, body = fill(subject or '', values), fill(body or '', values)
     previous = application.stage
     now = timezone.now()
     application.stage = Application.STAGE_NOT_NOW
@@ -338,13 +353,14 @@ def mark_not_now(application, *, reason: str, note: str, send: bool, subject: st
     _event(application, ApplicationEvent.KIND_STAGE, by=by, from_stage=previous, to_stage=Application.STAGE_NOT_NOW,
            text=text, data={'reason': reason})
     email_text = {
-        Application.EMAIL_SENT: 'Not now email sent',
-        Application.EMAIL_FAILED: 'Not now email could not be sent',
+        Application.EMAIL_SENT: 'Emailed: Not now email',
+        Application.EMAIL_FAILED: 'Email could not be sent: Not now email',
         Application.EMAIL_NOT_SENT: "Not now: no email (Don't send)",
-    }[application.not_now_email_status]
+    }[application.not_now_email_status] + (' (edited)' if edited else '')
     _event(application, ApplicationEvent.KIND_EMAIL, by=by, text=email_text,
            data={'email': 'not_now', 'status': application.not_now_email_status,
-                 'subject': application.not_now_email_subject, 'body': application.not_now_email_body})
+                 'subject': application.not_now_email_subject, 'body': application.not_now_email_body,
+                 'edited': edited, 'typed_over': typed_over})
     return application
 
 

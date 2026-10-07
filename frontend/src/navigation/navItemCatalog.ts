@@ -397,6 +397,15 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     roles: ['Manager', 'Admin'],
     navSearch: 'onboarding new hire checklist i9 i-9 handbook first day quickbooks',
   },
+  /** 30, 60 and 90-day check-ins: due this week, coming up, done (filled in a meeting, signed by both). */
+  checkins: {
+    id: 'checkins',
+    path: '/people/checkins',
+    label: 'Check-ins',
+    icon: 'checklist',
+    roles: ['Manager', 'Admin'],
+    navSearch: 'check-ins checkin 30 60 90 day review new hire meeting',
+  },
   /** Staff purchases by payroll deduction, per pay period, to enter in QuickBooks Payroll. */
   payrollDeductions: {
     id: 'payrollDeductions',

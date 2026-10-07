@@ -20,6 +20,8 @@ import {
   getOfferPdf,
   makeOffer,
   previewOffer,
+  previewOfferEmail,
+  previewResendOffer,
   resendOffer,
   withdrawOffer,
   type ApplicationDetail,
@@ -27,6 +29,7 @@ import {
   type OfferTerms,
 } from '../../api/hiring.api';
 import { ccTokens } from '../../theme';
+import { useEmailReview } from './EmailReview';
 import { errorText } from './peopleUi';
 
 function isoDate(d: Date): string {
@@ -101,6 +104,7 @@ export function OfferDialog({
   const [preview, setPreview] = useState<{ subject: string; letter: string; acknowledgments: string[] } | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const { review, dialog: reviewDialog } = useEmailReview();
 
   useEffect(() => {
     if (!open) return;
@@ -138,7 +142,15 @@ export function OfferDialog({
     setBusy(true);
     setError('');
     try {
-      const { data } = await makeOffer(application.id, clean(), email);
+      const data = email
+        ? await review({
+            title: `Email the offer to ${application.first_name}`,
+            preview: () => previewOfferEmail(application.id, clean()),
+            commit: async (choice) => (await makeOffer(application.id, clean(), true, choice)).data,
+            sendLabel: 'Make the offer and send',
+          })
+        : (await makeOffer(application.id, clean(), false)).data;
+      if (!data) return; // Cancel: no offer made
       if (!email) await navigator.clipboard.writeText(data.link).catch(() => undefined);
       onDone(
         data.application,
@@ -237,6 +249,7 @@ export function OfferDialog({
           Email the offer
         </Button>
       </DialogActions>
+      {reviewDialog}
     </Dialog>
   );
 }
@@ -266,6 +279,7 @@ export function OfferCard({
   const { enqueueSnackbar } = useSnackbar();
   const [busy, setBusy] = useState(false);
   const [showLetter, setShowLetter] = useState(false);
+  const { review, dialog: reviewDialog } = useEmailReview();
   const open = offer.status === 'sent' || offer.status === 'viewed';
 
   async function run(action: () => Promise<unknown>, done: string, fallback: string) {
@@ -276,6 +290,26 @@ export function OfferCard({
       onChanged();
     } catch (err) {
       enqueueSnackbar(errorText(err, fallback), { variant: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function emailAgain() {
+    setBusy(true);
+    try {
+      const data = await review({
+        title: 'Email the offer again',
+        preview: () => previewResendOffer(offer.id),
+        commit: async (email) => (await resendOffer(offer.id, email)).data,
+      });
+      if (!data) return; // Cancel: nothing sent
+      enqueueSnackbar(data.sent ? 'Offer emailed again.' : 'The email did not send. Use Copy link and text it.', {
+        variant: data.sent ? 'success' : 'warning',
+      });
+      onChanged();
+    } catch (err) {
+      enqueueSnackbar(errorText(err, 'Could not resend.'), { variant: 'error' });
     } finally {
       setBusy(false);
     }
@@ -321,8 +355,7 @@ export function OfferCard({
               onClick={() => run(() => navigator.clipboard.writeText(offer.link), 'Offer link copied.', 'Could not copy.')}>
               Copy link
             </Button>
-            <Button size="small" disabled={busy}
-              onClick={() => run(() => resendOffer(offer.id), 'Offer emailed again.', 'Could not resend.')}>
+            <Button size="small" disabled={busy} onClick={emailAgain}>
               Email again
             </Button>
             <Button size="small" color="inherit" disabled={busy}
@@ -353,6 +386,7 @@ export function OfferCard({
           <LetterText text={offer.letter_text} />
         </Box>
       )}
+      {reviewDialog}
     </Box>
   );
 }

@@ -16,7 +16,7 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from apps.hiring import emails
-from apps.hiring.careers import WEEKDAYS, fill, load_setting, staff_users, template as email_template
+from apps.hiring.careers import WEEKDAYS, load_setting, staff_users, template as email_template
 from apps.hiring.models import Application, ApplicationEvent, Interview, InterviewTime
 
 _LOCK_KEY = 738_204_117  # pg advisory lock: one booking decision at a time
@@ -194,10 +194,9 @@ def ics(interview: Interview, *, cancel: bool = False) -> bytes:
 
 
 def _send_template(key: str, to, values: dict, *, application, attachment: bytes | None = None) -> bool:
-    template = email_template(key, application)
     attachments = [('interview.ics', attachment, 'text/calendar')] if attachment else None
-    return emails.send(to=to, subject=fill(template['subject'], values), body=fill(template['body'], values),
-                       attachments=attachments, practice=application.is_practice)
+    return emails.send_template(key, to=to, template=email_template(key, application), values=values,
+                                application=application, attachments=attachments, practice=application.is_practice)
 
 
 def _staff_recipients(interview: Interview) -> list[str]:
@@ -210,9 +209,12 @@ def _staff_recipients(interview: Interview) -> list[str]:
 
 
 def _notify(interview: Interview, *, applicant_key: str, action: str, cancel: bool = False) -> bool:
+    from apps.hiring import compose
+
     calendar = ics(interview, cancel=cancel)
     sent = False
-    if interview.application.email:
+    # No address: a review still shows the words, so they can be copied into a text.
+    if interview.application.email or compose.capturing():
         sent = _send_template(applicant_key, interview.application.email, _values(interview),
                               application=interview.application, attachment=calendar)
     staff = _staff_recipients(interview)
@@ -336,12 +338,10 @@ def invite(application: Application, *, by, send: bool) -> dict:
         values = emails.values_for(application, extra={
             'link': link, 'link_days': config()['link_days'], 'length': config()['length_minutes'],
         })
-        template = email_template('interview_invite', application)
-        sent = emails.send(to=application.email, subject=fill(template['subject'], values),
-                           body=fill(template['body'], values), practice=application.is_practice)
-    _event(application, 'Interview link emailed' if sent else ('Interview link: email failed' if send else
-                                                               'Interview link copied (to text or send)'),
-           by=by, data={'sent': sent})
+        # The email itself goes on the history, with its words.
+        sent = _send_template('interview_invite', application.email, values, application=application)
+    else:
+        _event(application, 'Interview link copied (to text or send)', by=by, data={'sent': False})
     if application.stage in (Application.STAGE_NEW, Application.STAGE_REVIEWED):
         _move_stage(application, Application.STAGE_CONTACTED, by=by, text='')
     return {'link': link, 'sent': sent}

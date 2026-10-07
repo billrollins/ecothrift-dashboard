@@ -189,6 +189,32 @@ def _thrift_plus(day: date) -> dict:
     }
 
 
+def _hiring(day: date) -> dict:
+    """Hiring and new hires: who applied, who waits, interviews today, onboarding overdue, check-ins due."""
+    from apps.hiring import checkins
+    from apps.hiring.models import Application, CheckIn, Interview, Onboarding, OnboardingTask
+
+    start, end = _day_bounds(day)
+    today = timezone.localdate()
+    real = Application.objects.filter(is_practice=False)
+    due = [c for c in CheckIn.objects.filter(status=CheckIn.STATUS_SCHEDULED).select_related('user')
+           if checkins.is_due(c, today)]
+    return {
+        'applied_yesterday': real.filter(created_at__gte=start, created_at__lt=end).count(),
+        'new_waiting': real.filter(stage=Application.STAGE_NEW).count(),
+        'interviews_today': Interview.objects.filter(status=Interview.STATUS_SCHEDULED, start__date=today).count(),
+        'offers_waiting': real.filter(stage=Application.STAGE_OFFER).count(),
+        'onboarding_in_progress': Onboarding.objects.filter(status=Onboarding.STATUS_ACTIVE).count(),
+        'onboarding_overdue_items': OnboardingTask.objects.filter(
+            onboarding__status=Onboarding.STATUS_ACTIVE, status=OnboardingTask.STATUS_OPEN, due_date__lt=today).count(),
+        'checkins_due': [
+            {'who': (c.user.full_name or c.user.email), 'day': c.day, 'due': c.due_date.isoformat(),
+             'overdue': checkins.is_overdue(c, today)} for c in due[:10]
+        ],
+        'link': '/people/checkins',
+    }
+
+
 def _qa() -> dict:
     """The last nightly QA run: what got worse, what is high severity with rows, and the AI's headline."""
     from apps.qa.models import QARun
@@ -254,6 +280,7 @@ def build_snapshot(day: date | None = None) -> dict[str, Any]:
         'requests': _requests,
         'thrift_plus': lambda: _thrift_plus(day),
         'qa': _qa,
+        'hiring': lambda: _hiring(day),
     }
     if day.weekday() == 6:  # the Monday brief looks back at the whole week
         sections['last_week'] = lambda: _last_week(day)

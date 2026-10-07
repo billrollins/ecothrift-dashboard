@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-06 (hiring Phase 3 and practice runs shipped) -->
+<!-- Last updated: 2026-10-07 (hiring Phase 5, Applicants timeline, read-before-send shipped) -->
 # ecothrift-dashboard — AI Context
 
 ## Project summary
@@ -30,7 +30,7 @@ Stack: Django 5.2 + DRF, React 18.3 + TypeScript + MUI 7, PostgreSQL (schema `ec
 - **Data quality and rails:** [`data_quality_rails`](initiatives/data_quality_rails.md).
 - **Waiting:** [`buying_intelligence_v2`](initiatives/buying_intelligence_v2.md) resumes after launch. Earlier buying work is in [`bstock_daily_buying`](initiatives/bstock_daily_buying.md).
 - **Inventory effort:** [`inventory_effort`](initiatives/inventory_effort.md). After the first full count: one inventory across days, PR Fix-it one-scan fixes, shrink worklist, inventory report, "If it all sells" orders view, data quality. The owner's operations priority.
-- **Hiring and onboarding:** [`hiring_onboarding`](initiatives/hiring_onboarding.md). Jobs on ecothrift.us, applications, interviews, offers, onboarding and 30/60/90 check-ins, all run from Dash. Shipped: Phase 1 (careers page, apply, People → Applicants; live since 10-06), Phase 2 (interviews), Phase 3 (offers signed with a finger) and practice runs. Phase 4 (onboarding: checklist, I-9, handbook) and staff purchases (payroll deduction, staff Thrift+; off at first) shipped in v2.146.0. Next: Phase 5 check-ins. Built in its own worktree beside the inventory work (its Concurrent plan).
+- **Hiring and onboarding:** [`hiring_onboarding`](initiatives/hiring_onboarding.md). Jobs on ecothrift.us, applications, interviews, offers, onboarding and 30/60/90 check-ins, all run from Dash. Shipped: Phase 1 (careers page, apply, People → Applicants; live since 10-06), Phase 2 (interviews), Phase 3 (offers signed with a finger) and practice runs. Phase 4 (onboarding: checklist, I-9, handbook) and staff purchases (payroll deduction, staff Thrift+; off at first) shipped in v2.146.0. Phase 5 (check-ins), the Applicants timeline (phone-first) and read-before-send for hiring emails are shipped. Next: Phase 6 texts, when its gates clear. Built in its own worktree beside the inventory work (its Concurrent plan).
 - **Intake updates:** [`intake_updates`](initiatives/intake_updates.md). The owner's intake list: Orders numbers, order modal, one Target vendor, AI formulas on upload, vendor metrics.
 - **Inventory count:** [`inventory_count`](initiatives/inventory_count.md). Shipped 2026-10-01; first real count Mon 10-05.
 - **Standing:** [`standards`](initiatives/standards.md), what this repo still owes the house standards, and when.
@@ -109,7 +109,7 @@ Load on demand. Do not read them all at session start. When you add, rename or r
 | [`documents.md`](extended/documents.md) | PDF upload, field placement, signing wizard, flatten |
 | [`frontend.md`](extended/frontend.md) | React + MUI, pages, routing, React Query, hidden UI |
 | [`heroku-memory.md`](extended/heroku-memory.md) | Heroku memory checks after a deploy that touches pagination, Gunicorn or caching |
-| [`hiring.md`](extended/hiring.md) | Careers page, applications, People → Applicants / Jobs / Interviews / Emails, the careers file, hiring mail and rules, offers, practice runs |
+| [`hiring.md`](extended/hiring.md) | Careers page, applications, People → Applicants / Jobs / Interviews / Emails, the careers file, hiring mail and rules, read-before-send, offers, practice runs, onboarding, check-ins, test data |
 | [`inventory-pipeline.md`](extended/inventory-pipeline.md) | PO processing, M3, preprocessing, Item Processor |
 | [`thrift-plus-decisions.md`](extended/thrift-plus-decisions.md) | **Read first for any Thrift+ rule:** the owner's final answers (returns at 90%, Thrift+ Balance replaces banked rewards, tax, wording, signup). Wins over older notes |
 | [`thrift-plus-limited-warranty.md`](extended/thrift-plus-limited-warranty.md) | Member returns, Poster C, AS IS signs, receipt warranty lines, the terms (the Limited Warranty text to use) |

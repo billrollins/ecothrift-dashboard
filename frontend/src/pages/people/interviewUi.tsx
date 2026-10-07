@@ -23,6 +23,8 @@ import {
   getCareers,
   getOpenTimes,
   markNoShow,
+  previewCancelInterview,
+  previewReschedule,
   rescheduleInterview,
   saveScorecard,
   setInterviewInterviewer,
@@ -32,6 +34,7 @@ import {
   type ScorecardAnswer,
 } from '../../api/hiring.api';
 import { ccTokens } from '../../theme';
+import { useEmailReview } from './EmailReview';
 import { errorText } from './peopleUi';
 
 // ── Pick a time ─────────────────────────────────────────────────────────────
@@ -316,6 +319,7 @@ export function InterviewCard({
   const [error, setError] = useState('');
   const [moving, setMoving] = useState(false);
   const [scoring, setScoring] = useState(false);
+  const { review, dialog: reviewDialog } = useEmailReview();
   const careers = useQuery({ queryKey: ['hiring', 'careers'], queryFn: async () => (await getCareers()).data });
   const staff = careers.data?.indexes.staff ?? [];
   const scheduled = interview.status === 'scheduled';
@@ -393,10 +397,19 @@ export function InterviewCard({
               size="small"
               color="inherit"
               disabled={busy}
-              onClick={() => {
-                if (window.confirm('Cancel this interview? The applicant gets an email with their link to pick again.'))
-                  void run(() => cancelInterviewStaff(interview.id), 'Could not cancel.');
-              }}
+              onClick={() =>
+                void run(
+                  () =>
+                    review({
+                      title: `Cancel ${interview.applicant_name}'s interview`,
+                      preview: () => previewCancelInterview(interview.id),
+                      commit: async (email) => (await cancelInterviewStaff(interview.id, email)).data,
+                      sendLabel: 'Cancel it and send',
+                      skipLabel: 'Cancel it without emailing',
+                    }),
+                  'Could not cancel.',
+                )
+              }
             >
               Cancel
             </Button>
@@ -416,11 +429,19 @@ export function InterviewCard({
         confirmLabel="Move it"
         onClose={() => setMoving(false)}
         onPick={async (start) => {
-          await rescheduleInterview(interview.id, start);
+          const moved = await review({
+            title: `Move ${interview.applicant_name}'s interview`,
+            preview: () => previewReschedule(interview.id, start),
+            commit: async (email) => (await rescheduleInterview(interview.id, start, email)).data,
+            sendLabel: 'Move it and send',
+            skipLabel: 'Move it without emailing',
+          });
+          if (!moved) return; // Cancel: back to the times, nothing moved
           setMoving(false);
           onChanged();
         }}
       />
+      {reviewDialog}
       <ScorecardDialog
         open={scoring}
         interview={interview}

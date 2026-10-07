@@ -1,8 +1,11 @@
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Chip,
+  Collapse,
   MenuItem,
   Stack,
   TextField,
@@ -11,7 +14,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   EMAIL_TEMPLATES,
   getCareers,
@@ -88,23 +91,36 @@ function universalOf(email: Record<string, unknown> | undefined, key: string): B
   return (email[key] as Block) ?? { subject: '', body: '' };
 }
 
-function SenderCard({ email }: { email: Record<string, unknown> }) {
+const MAILBOXES = ['retail@ecothrift.us', 'bill_rollins@ecothrift.us', 'warehouse@ecothrift.us'];
+
+const addressList = (raw: unknown) =>
+  String(raw ?? '')
+    .split(/[,;]/)
+    .map((a) => a.replace(/^.*</, '').replace(/>.*$/, '').trim().toLowerCase())
+    .filter(Boolean);
+
+function SenderCard({ email, mailboxes }: { email: Record<string, unknown>; mailboxes: string[] }) {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   const pick = () => ({
-    from: String(email.from ?? ''),
-    reply_to: String(email.reply_to ?? ''),
-    notify: String(email.notify ?? ''),
+    from: addressList(email.from)[0] ?? mailboxes[0],
+    reply_to: addressList(email.reply_to)[0] ?? '',
+    notify: addressList(email.notify),
     review_day: String(email.review_day ?? ''),
     reply_days: String(email.reply_days ?? '7'),
   });
   const [draft, setDraft] = useState(pick);
   useEffect(() => setDraft(pick()), [email]); // eslint-disable-line react-hooks/exhaustive-deps
   const changed = JSON.stringify(draft) !== JSON.stringify(pick());
+  // A saved address that is no longer a store mailbox still shows, so the select never goes blank.
+  const options = (...current: string[]) => [...mailboxes, ...current.filter((a) => a && !mailboxes.includes(a))];
 
   async function save() {
     try {
-      await saveCareers({ format: 'ecothrift.careers/1', email: { ...draft, reply_days: Number(draft.reply_days) || 5 } });
+      await saveCareers({
+        format: 'ecothrift.careers/1',
+        email: { ...draft, notify: draft.notify.join(', '), reply_days: Number(draft.reply_days) || 5 },
+      });
       await queryClient.invalidateQueries({ queryKey: ['hiring'] });
       enqueueSnackbar('Email settings saved', { variant: 'success' });
     } catch (err) {
@@ -119,14 +135,35 @@ function SenderCard({ email }: { email: Record<string, unknown> }) {
         Who it comes from, and where replies go
       </Typography>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-        <TextField size="small" label="Replies go to" value={draft.reply_to} fullWidth
-          onChange={(e) => setDraft((d) => ({ ...d, reply_to: e.target.value }))} />
-        <TextField size="small" label="New-application alerts to" value={draft.notify} fullWidth
-          helperText="Plus each role's hiring manager"
-          onChange={(e) => setDraft((d) => ({ ...d, notify: e.target.value }))} />
-        <TextField size="small" label="Send from (blank = store mailbox)" value={draft.from} fullWidth
-          helperText="e.g. Eco-Thrift Jobs <jobs@ecothrift.us> once that mailbox exists"
-          onChange={(e) => setDraft((d) => ({ ...d, from: e.target.value }))} />
+        <TextField select size="small" label="Send from" value={draft.from} fullWidth
+          helperText="Every hiring email, as Eco-Thrift"
+          onChange={(e) => setDraft((d) => ({ ...d, from: e.target.value }))}>
+          {options(draft.from).map((a) => <MenuItem key={a} value={a}>{a}</MenuItem>)}
+        </TextField>
+        <TextField select size="small" label="Replies go to" value={draft.reply_to} fullWidth
+          helperText="When an applicant presses Reply"
+          onChange={(e) => setDraft((d) => ({ ...d, reply_to: e.target.value }))}>
+          {options(draft.reply_to).map((a) => <MenuItem key={a} value={a}>{a}</MenuItem>)}
+        </TextField>
+        <TextField select size="small" label="New-application alerts to" value={draft.notify} fullWidth
+          helperText="Pick one or more. Each role's hiring manager gets them too."
+          SelectProps={{
+            multiple: true,
+            displayEmpty: true,
+            renderValue: (v) => (v as string[]).join(', ') || 'Only the hiring managers',
+          }}
+          InputLabelProps={{ shrink: true }}
+          onChange={(e) => {
+            const v = e.target.value as unknown as string[] | string;
+            setDraft((d) => ({ ...d, notify: typeof v === 'string' ? v.split(',') : v }));
+          }}>
+          {options(...draft.notify).map((a) => (
+            <MenuItem key={a} value={a}>
+              <Checkbox size="small" checked={draft.notify.includes(a)} sx={{ p: 0.5, mr: 1 }} />
+              {a}
+            </MenuItem>
+          ))}
+        </TextField>
       </Stack>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mt: 1.5 }}>
         <TextField size="small" label="{review_day}: we read applications…" value={draft.review_day} fullWidth
@@ -219,7 +256,10 @@ export default function EmailsPage() {
   const careers = useQuery({ queryKey: ['hiring', 'careers'], queryFn: async () => (await getCareers()).data });
   const jobs = useQuery({ queryKey: ['hiring', 'jobs'], queryFn: async () => (await getJobs()).data });
   const email = careers.data?.doc.email;
-  const [key, setKey] = useState('received');
+  const [params] = useSearchParams();
+  // ?key= (from a review screen's Edit the template) opens that email and its group.
+  const asked = EMAIL_TEMPLATES.find((t) => t.key === params.get('key'));
+  const [key, setKey] = useState(asked?.key ?? 'received');
   const [scope, setScope] = useState<string>(''); // '' = all roles, else a job slug
   const [draft, setDraft] = useState<Block>({ subject: '', body: '' });
   const [aiNote, setAiNote] = useState<string[]>([]);
@@ -298,6 +338,8 @@ export default function EmailsPage() {
   }
 
   const groups = ['Applying', 'Interviews', 'Offers', 'Onboarding', 'Not now'];
+  const [open, setOpen] = useState<string[]>(asked ? [asked.group] : []); // every group starts closed
+  const toggle = (group: string) => setOpen((o) => (o.includes(group) ? o.filter((g) => g !== group) : [...o, group]));
   const rolesWith = (k: string) => (jobs.data ?? []).filter((j) => j.emails?.[k]).map((j) => j.title);
 
   return (
@@ -311,15 +353,38 @@ export default function EmailsPage() {
           </Button>
         }
       />
-      {email && <SenderCard email={email} />}
+      {email && <SenderCard email={email} mailboxes={careers.data?.indexes.mailboxes ?? MAILBOXES} />}
       <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', md: '280px minmax(0, 1fr)' } }}>
         <Box>
-          {groups.map((group) => (
-            <Box key={group} sx={{ mb: 2 }}>
-              <Typography variant="overline" sx={{ color: ccTokens.ink2, fontWeight: 700 }}>
-                {group}
-              </Typography>
-              {EMAIL_TEMPLATES.filter((t) => t.group === group).map((t) => {
+          {groups.map((group) => {
+            const inGroup = EMAIL_TEMPLATES.filter((t) => t.group === group);
+            const isOpen = open.includes(group);
+            const holdsCurrent = inGroup.some((t) => t.key === key);
+            return (
+            <Box key={group} sx={{ mb: 0.5 }}>
+              <Box
+                role="button"
+                tabIndex={0}
+                aria-expanded={isOpen}
+                onClick={() => toggle(group)}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), toggle(group))}
+                sx={{
+                  display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.75, borderRadius: '8px', cursor: 'pointer',
+                  '&:hover': { bgcolor: '#f4f4f0' },
+                }}
+              >
+                <ExpandMoreIcon fontSize="small" sx={{ color: ccTokens.ink2, transition: 'transform .15s',
+                  transform: isOpen ? 'none' : 'rotate(-90deg)' }} />
+                <Typography variant="overline" sx={{ color: ccTokens.ink2, fontWeight: 700, flex: 1, lineHeight: 1.6 }}>
+                  {group}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {holdsCurrent && !isOpen ? `${meta.label} · ` : ''}
+                  {inGroup.length}
+                </Typography>
+              </Box>
+              <Collapse in={isOpen} unmountOnExit>
+              {inGroup.map((t) => {
                 const own = rolesWith(t.key);
                 return (
                   <Box
@@ -348,8 +413,10 @@ export default function EmailsPage() {
                   </Box>
                 );
               })}
+              </Collapse>
             </Box>
-          ))}
+            );
+          })}
         </Box>
 
         <Box sx={{ p: 2, borderRadius: ccTokens.r, border: `1px solid ${ccTokens.line}`, bgcolor: ccTokens.card }}>

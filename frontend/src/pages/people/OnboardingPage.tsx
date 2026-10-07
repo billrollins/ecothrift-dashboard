@@ -29,6 +29,7 @@ import {
   getOnboardings,
   publishHandbook,
   saveCareers,
+  previewFirstDayEmail,
   sendFirstDayEmail,
   setOnboardingTask,
   type OnboardingDetail,
@@ -39,6 +40,7 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { SetPasswordLinkDialog } from '../../components/users/SetPasswordLinkDialog';
 import { useAuth } from '../../hooks/useAuth';
 import { ccTokens } from '../../theme';
+import { useEmailReview } from './EmailReview';
 import { Checklist, CountDialog, HandbookText, I9Dialog, openHandbookPdf, StartOnboardingDialog } from './onboardingUi';
 import { dayText, errorText, shortDate } from './peopleUi';
 
@@ -87,6 +89,7 @@ function Panel({ id, onClose }: { id: number; onClose: () => void }) {
   const [countTask, setCountTask] = useState<OnboardingTask | null>(null);
   const [i9Open, setI9Open] = useState(false);
   const [passwordFor, setPasswordFor] = useState<number | null>(null);
+  const { review, dialog: reviewDialog } = useEmailReview();
   const o = detail.data;
 
   async function commit(next: OnboardingDetail) {
@@ -146,7 +149,12 @@ function Panel({ id, onClose }: { id: number; onClose: () => void }) {
             variant="outlined"
             onClick={async () => {
               try {
-                const { data } = await sendFirstDayEmail(o.id);
+                const data = await review({
+                  title: 'Email the first-day note',
+                  preview: () => previewFirstDayEmail(o.id),
+                  commit: async (email) => (await sendFirstDayEmail(o.id, email)).data,
+                });
+                if (!data) return; // Cancel: nothing sent
                 await commit(data.onboarding);
                 enqueueSnackbar(data.sent ? `First-day email sent to ${o.user.email}.` : 'The email did not send.', {
                   variant: data.sent ? 'success' : 'warning',
@@ -254,6 +262,7 @@ function Panel({ id, onClose }: { id: number; onClose: () => void }) {
         }}
         fetchLink={() => getOnboardingPasswordLink(o.id)}
       />
+      {reviewDialog}
     </Box>
   );
 }

@@ -4,6 +4,7 @@ import {
   Button,
   Checkbox,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -13,6 +14,8 @@ import {
   Stack,
   TextField,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -20,10 +23,13 @@ import {
   createEmployee,
   getNotNowDraft,
   markNotNow,
+  previewCreateEmployee,
   type ApplicationDetail,
+  type EmailDraft,
   type Job,
   type Option,
 } from '../../api/hiring.api';
+import { EmailCompose, useEmailReview } from './EmailReview';
 import { errorText } from './peopleUi';
 
 // ── Not now ─────────────────────────────────────────────────────────────────
@@ -44,10 +50,12 @@ export function NotNowDialog({
   onClose: () => void;
   onDone: (updated: ApplicationDetail) => void;
 }) {
+  const theme = useTheme();
+  const phone = useMediaQuery(theme.breakpoints.down('md'));
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
-  const [subject, setSubject] = useState('');
-  const [body, setBody] = useState('');
+  const [draft, setDraft] = useState<EmailDraft | null>(null);
+  const [words, setWords] = useState({ subject: '', body: '' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -55,20 +63,21 @@ export function NotNowDialog({
     if (open) {
       setReason(initialReason);
       setNote('');
-      setSubject('');
-      setBody('');
+      setDraft(null);
       setError('');
     }
   }, [open, initialReason]);
 
+  // Each reason has its own email: the template, with the values Dash fills in as chips.
   useEffect(() => {
     if (!open || !reason) return;
     let alive = true;
+    setDraft(null);
     getNotNowDraft(application.id, reason)
       .then(({ data }) => {
         if (!alive) return;
-        setSubject(data.subject);
-        setBody(data.body);
+        setDraft(data);
+        setWords({ subject: data.subject, body: data.body });
       })
       .catch(() => undefined);
     return () => {
@@ -84,7 +93,7 @@ export function NotNowDialog({
     }
     setBusy(true);
     try {
-      const { data } = await markNotNow(application.id, { reason, note, send, subject, body });
+      const { data } = await markNotNow(application.id, { reason, note, send, subject: words.subject, body: words.body });
       onDone(data);
     } catch (err) {
       setError(errorText(err, 'Could not save.'));
@@ -94,7 +103,7 @@ export function NotNowDialog({
   }
 
   return (
-    <Dialog open={open} onClose={busy ? undefined : onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={busy ? undefined : onClose} maxWidth="md" fullWidth fullScreen={phone}>
       <DialogTitle>Not now: {application.full_name}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
@@ -113,30 +122,30 @@ export function NotNowDialog({
             minRows={2}
             fullWidth
           />
-          {reason && (
+          {reason && !draft && <CircularProgress size={22} />}
+          {reason && draft && (
             <>
               <Typography variant="subtitle2" sx={{ mt: 1 }}>
-                Email to {application.email || 'the applicant (no email on file)'}
+                The email
               </Typography>
-              <TextField label="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} fullWidth />
-              <TextField label="Message" value={body} onChange={(e) => setBody(e.target.value)} multiline minRows={7} fullWidth />
+              <EmailCompose key={reason} draft={draft} onChange={setWords} />
               <Typography variant="caption" color="text.secondary">
                 The auto-reply already told them when to expect word from us. Don&rsquo;t send is fine
-                for early stages. Either way the text is kept on their record.
+                for early stages. Either way the words are kept on their record.
               </Typography>
             </>
           )}
           {error && <Alert severity="error">{error}</Alert>}
         </Stack>
       </DialogContent>
-      <DialogActions sx={{ flexWrap: 'wrap', gap: 1 }}>
+      <DialogActions sx={{ flexWrap: 'wrap', gap: 1, '& .MuiButton-root': { minHeight: phone ? 44 : undefined } }}>
         <Button onClick={onClose} disabled={busy}>
           Cancel
         </Button>
         <Button onClick={() => finish(false)} disabled={busy || !reason}>
           Don&rsquo;t send
         </Button>
-        <Button variant="contained" onClick={() => finish(true)} disabled={busy || !reason || !application.email}>
+        <Button variant="contained" onClick={() => finish(true)} disabled={busy || !reason || !draft || !application.email}>
           Send email
         </Button>
       </DialogActions>
@@ -173,6 +182,7 @@ export function CreateEmployeeDialog({
   const [sendFirstDay, setSendFirstDay] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const { review, dialog: reviewDialog } = useEmailReview();
 
   // A signed offer fills the form with what they agreed to.
   const signed = application.offers?.find((o) => o.status === 'signed');
@@ -194,7 +204,7 @@ export function CreateEmployeeDialog({
     setBusy(true);
     setError('');
     try {
-      const { data } = await createEmployee(application.id, {
+      const request = {
         pay_rate: payRate,
         start_date: startDate,
         position,
@@ -203,7 +213,18 @@ export function CreateEmployeeDialog({
         start_onboarding: startOnboarding,
         send_first_day: startOnboarding && sendFirstDay,
         start_time: startTime,
-      });
+      };
+      // With the first-day note: read it first (a dry run makes nobody), then create.
+      const data = request.send_first_day
+        ? await review({
+            title: `Create ${application.first_name}'s account`,
+            preview: () => previewCreateEmployee(application.id, request),
+            commit: async (email) => (await createEmployee(application.id, { ...request, email })).data,
+            sendLabel: 'Create and send',
+            skipLabel: 'Create without emailing',
+          })
+        : (await createEmployee(application.id, request)).data;
+      if (!data) return; // Cancel: nobody made
       onDone(
         data.application,
         `Dash account ${data.employee_number} made (sign-in: ${data.username}).` +
@@ -285,9 +306,10 @@ export function CreateEmployeeDialog({
           Cancel
         </Button>
         <Button variant="contained" onClick={save} disabled={busy || !application.email}>
-          Create employee
+          {startOnboarding && sendFirstDay ? 'Next: read the email' : 'Create employee'}
         </Button>
       </DialogActions>
+      {reviewDialog}
     </Dialog>
   );
 }

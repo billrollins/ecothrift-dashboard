@@ -557,3 +557,52 @@ class HandbookSignature(models.Model):
     class Meta:
         ordering = ['-signed_at']
         unique_together = [('handbook', 'user')]
+
+
+# ── Check-ins (Phase 5) ─────────────────────────────────────────────────────
+
+
+class CheckIn(models.Model):
+    """A 30, 60 or 90-day check-in: filled in a meeting, signed by the manager and the employee with a finger."""
+
+    STATUS_SCHEDULED = 'scheduled'
+    STATUS_DONE = 'done'
+    STATUS_SKIPPED = 'skipped'
+    STATUS_CHOICES = [(STATUS_SCHEDULED, 'Coming up'), (STATUS_DONE, 'Done'), (STATUS_SKIPPED, 'Skipped')]
+
+    onboarding = models.ForeignKey(Onboarding, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='checkins')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='checkins')
+    manager = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name='checkins_held')
+    day = models.PositiveSmallIntegerField()
+    due_date = models.DateField(db_index=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_SCHEDULED, db_index=True)
+    # The form as it was when this check-in was first saved (careers file ``checkin``), and the answers:
+    # {"questions": {key: text}, "areas": {area: {"rating": str, "note": str}}}.
+    form = models.JSONField(default=dict, blank=True)
+    answers = models.JSONField(default=dict, blank=True)
+    employee_comments = models.TextField(blank=True, default='')
+    close_onboarding = models.BooleanField(default=False)
+    skipped_reason = models.CharField(max_length=300, blank=True, default='')
+
+    manager_name = models.CharField(max_length=160, blank=True, default='')
+    manager_signature = models.ForeignKey('core.S3File', on_delete=models.SET_NULL, null=True, blank=True,
+                                          related_name='+')
+    employee_name = models.CharField(max_length=160, blank=True, default='')
+    employee_signature = models.ForeignKey('core.S3File', on_delete=models.SET_NULL, null=True, blank=True,
+                                           related_name='+')
+    signed_pdf = models.ForeignKey('core.S3File', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    signed_at = models.DateTimeField(null=True, blank=True)
+    signed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name='+')
+    signer_ip = models.GenericIPAddressField(null=True, blank=True)
+    signer_user_agent = models.CharField(max_length=300, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['due_date', 'id']
+
+    def __str__(self):
+        return f'{self.day}-day check-in for {self.user_id}'

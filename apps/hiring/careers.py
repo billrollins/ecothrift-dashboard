@@ -118,8 +118,12 @@ DEFAULT_QUESTIONS = [
 
 _SIGN_OFF = 'Eco-Thrift\n8425 West Center Road, Omaha, NE 68124\nAnother Chance for Everything and Everyone'
 
+# The store's mailboxes Dash can send from (Microsoft Graph). Sender, Reply-To and the alert list pick from these;
+# the first is the default sender.
+MAILBOXES = ('retail@ecothrift.us', 'bill_rollins@ecothrift.us', 'warehouse@ecothrift.us')
+
 DEFAULT_EMAIL = {
-    'from': '',
+    'from': MAILBOXES[0],
     'reply_to': 'bill_rollins@ecothrift.us',
     'notify': 'bill_rollins@ecothrift.us',
     'review_day': 'a few times a week',
@@ -353,6 +357,31 @@ DEFAULT_ONBOARDING = {
     ],
 }
 
+# Check-ins (Phase 5): made when onboarding starts, one per day in ``days`` after the start, assigned to the manager.
+# Filled in an in-person meeting on one phone or tablet, signed by both with a finger. The form is copied onto each
+# check-in when it is first saved, so a later edit here never changes one already started.
+CHECKIN_TYPES = ('text', 'long_text')
+DEFAULT_CHECKIN = {
+    'days': [30, 60, 90],
+    'questions': [
+        {'key': 'going_well', 'label': 'What is going well?', 'type': 'long_text'},
+        {'key': 'training', 'label': 'Where is more training needed?', 'type': 'long_text'},
+        {'key': 'goals', 'label': 'Goals for the next 30 days', 'type': 'long_text'},
+    ],
+    'areas': [
+        'Showing up on time, and the time clock',
+        'Quality and care in the work',
+        'Teamwork and communication',
+        'Customers and store rules',
+        'Learning the role',
+    ],
+    'area_ratings': ['Doing well', 'On track', 'Needs work'],
+    'employee_statement': (
+        'I met with my manager about this check-in. My signature means I saw it and had the chance to comment, '
+        'not that I agree with all of it.'
+    ),
+}
+
 # The staff handbook draft. Publishing makes a numbered version that new hires sign in Dash; it is refused while
 # any "[confirm" mark is left (facts the owner still has to settle). The attorney reads it before the first signature.
 HANDBOOK_CONFIRM = '[confirm'
@@ -466,6 +495,7 @@ DEFAULT_SETTING = {
     'offer': DEFAULT_OFFER,
     'onboarding': DEFAULT_ONBOARDING,
     'handbook': DEFAULT_HANDBOOK,
+    'checkin': DEFAULT_CHECKIN,
 }
 
 JOB_FIELDS = (
@@ -488,12 +518,14 @@ def load_setting() -> dict:
     stored = row.value if row and isinstance(row.value, dict) else {}
     merged = copy.deepcopy(DEFAULT_SETTING)
     for key in ('public', 'page', 'form', 'email', 'interviews', 'defaults', 'offer', 'onboarding', 'handbook',
-                'preview_key'):
+                'checkin', 'preview_key'):
         if key in stored:
             if isinstance(merged.get(key), dict) and isinstance(stored[key], dict):
                 merged[key] = {**merged[key], **stored[key]}
             else:
                 merged[key] = stored[key]
+    if not str(merged['email'].get('from') or '').strip():  # older files: blank meant the store mailbox
+        merged['email']['from'] = DEFAULT_EMAIL['from']
     return merged
 
 
@@ -584,6 +616,7 @@ def export_doc() -> dict:
         'offer': setting['offer'],
         'onboarding': setting['onboarding'],
         'handbook': setting['handbook'],
+        'checkin': setting['checkin'],
         'jobs': [job_to_doc(job) for job in jobs],
     }
 
@@ -656,6 +689,7 @@ def indexes() -> dict:
         'onboarding_kinds': list(ONBOARDING_KINDS),
         'onboarding_auto': list(ONBOARDING_AUTO),
         'never_ask': NEVER_ASK,
+        'mailboxes': list(MAILBOXES),
         'weekdays': WEEKDAYS,
         'email_templates': list(TEMPLATE_KEYS),
     }
@@ -872,6 +906,24 @@ def _check_email_block(raw, label: str, errors: list[str]) -> dict:
     return {'subject': subject, 'body': body}
 
 
+def _check_mailboxes(raw, label: str, errors: list[str], *, many: bool = False) -> str:
+    """One of MAILBOXES (``many``: a comma list of them). "Eco-Thrift <retail@…>" is fine; blank is blank."""
+    from email.utils import getaddresses
+
+    picked = []
+    for _, address in getaddresses([str(raw or '').replace(';', ',')]):
+        address = address.strip().lower()
+        if not address or address in picked:
+            continue
+        if address not in MAILBOXES:
+            errors.append(f'{label}: {address} is not a store mailbox (use {", ".join(MAILBOXES)}).')
+            continue
+        picked.append(address)
+    if not many and len(picked) > 1:
+        errors.append(f'{label} takes one address.')
+    return ', '.join(picked if many else picked[:1])
+
+
 _HHMM = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
 
 
@@ -1020,6 +1072,58 @@ def _check_handbook(raw, current: dict, errors: list[str]) -> dict:
     return out
 
 
+def _check_checkin(raw, current: dict, errors: list[str]) -> dict:
+    """The check-in form: days after the start, questions (text or long_text), areas and their ratings."""
+    out = {**DEFAULT_CHECKIN, **(current or {})}
+    if raw is None:
+        return out
+    if not isinstance(raw, dict):
+        errors.append('checkin must be an object (days, questions, areas, area_ratings, employee_statement).')
+        return out
+    if 'days' in raw:
+        try:
+            days = sorted({int(d) for d in raw.get('days') or []})
+            if not days or len(days) > 6 or days[0] < 7 or days[-1] > 365:
+                raise ValueError
+            out['days'] = days
+        except (TypeError, ValueError):
+            errors.append('checkin.days must be 1 to 6 whole numbers of days, from 7 to 365.')
+    if 'questions' in raw:
+        items, seen = [], set()
+        for index, item in enumerate(raw.get('questions') or [], start=1):
+            if not isinstance(item, dict) or not _text(item.get('label')):
+                errors.append(f'checkin question {index}: needs a label.')
+                continue
+            key = slugify(_text(item.get('key')) or _text(item.get('label'))).replace('-', '_')[:40]
+            kind = _text(item.get('type')) or 'long_text'
+            if kind not in CHECKIN_TYPES:
+                errors.append(f'checkin question {index}: type must be text or long_text.')
+            if key in seen:
+                errors.append(f'checkin question {index}: two questions share the key "{key}".')
+                continue
+            seen.add(key)
+            items.append({'key': key, 'label': _text(item.get('label'), limit=200), 'type': kind})
+        out['questions'] = items
+    for key, limit in (('areas', 10), ('area_ratings', 5)):
+        if key in raw:
+            values = raw.get(key) or []
+            if isinstance(values, str):
+                values = [v.strip('-• ').strip() for v in values.splitlines()]
+            values = [_text(v, limit=120) for v in values if _text(v)]
+            if key == 'area_ratings' and len(values) < 2:
+                errors.append('checkin.area_ratings needs at least 2 choices.')
+            out[key] = values[:limit]
+    if 'employee_statement' in raw:
+        statement = _text(raw.get('employee_statement'), limit=600)
+        if not statement:
+            errors.append('checkin.employee_statement cannot be empty.')
+        else:
+            out['employee_statement'] = statement
+    if not out['questions'] and not out['areas']:
+        errors.append('The check-in needs at least one question or area.')
+    return out
+
+
 def check_doc(raw) -> dict:
     """Validate and normalize a careers file. Returns {ok, errors, warnings, doc}."""
     errors: list[str] = []
@@ -1068,9 +1172,13 @@ def check_doc(raw) -> dict:
     email = copy.deepcopy(current['email'])
     email['not_now'] = {**copy.deepcopy(DEFAULT_EMAIL['not_now']), **(email.get('not_now') or {})}
     if isinstance(email_raw, dict):
-        for key in ('from', 'reply_to', 'notify', 'review_day'):
+        if 'review_day' in email_raw:
+            email['review_day'] = _text(email_raw.get('review_day'), limit=200)
+        for key in ('from', 'reply_to', 'notify'):
             if key in email_raw:
-                email[key] = _text(email_raw.get(key), limit=200)
+                email[key] = _check_mailboxes(email_raw.get(key), f'email.{key}', errors, many=key == 'notify')
+        if not email.get('from'):
+            email['from'] = DEFAULT_EMAIL['from']
         try:
             email['reply_days'] = max(1, min(60, int(email_raw.get('reply_days', email['reply_days']))))
         except (TypeError, ValueError):
@@ -1092,6 +1200,7 @@ def check_doc(raw) -> dict:
     offer = _check_offer(raw.get('offer'), current['offer'], errors)
     onboarding = _check_onboarding(raw.get('onboarding'), current['onboarding'], errors)
     handbook = _check_handbook(raw.get('handbook'), current['handbook'], errors)
+    checkin = _check_checkin(raw.get('checkin'), current['checkin'], errors)
     links = {
         'staff': {s['email'] for s in staff_index()},
         'departments': {
@@ -1139,6 +1248,7 @@ def check_doc(raw) -> dict:
         'offer': offer,
         'onboarding': onboarding,
         'handbook': handbook,
+        'checkin': checkin,
         'jobs': jobs,
         'has_jobs': jobs_raw is not None,
     }
@@ -1170,7 +1280,7 @@ def summarize_changes(current: dict, new: dict) -> list[str]:
         out.append('Form: question order changes')
     for key in ('from', 'reply_to', 'notify', 'review_day', 'reply_days'):
         if current['email'].get(key) != new['email'].get(key):
-            out.append(f'Email: {key} → {new["email"].get(key) or "(store mailbox)"}')
+            out.append(f'Email: {key} → {new["email"].get(key) or "(none)"}')
     for key in EMAIL_KEYS:
         if current['email'].get(key) != new['email'].get(key):
             out.append(f'Email: the {key} email changes')
@@ -1197,6 +1307,9 @@ def summarize_changes(current: dict, new: dict) -> list[str]:
     for key in DEFAULT_HANDBOOK:
         if (current.get('handbook') or {}).get(key) != (new.get('handbook') or {}).get(key):
             out.append(f'Handbook draft: {key} changes (publish it in People → Onboarding to use it)')
+    for key in DEFAULT_CHECKIN:
+        if (current.get('checkin') or {}).get(key) != (new.get('checkin') or {}).get(key):
+            out.append(f'Check-ins: {key.replace("_", " ")} changes (new check-ins only)')
     for key in DEFAULT_ROLE_PEOPLE:
         if (current.get('defaults') or {}).get(key) != (new.get('defaults') or {}).get(key):
             value = new['defaults'].get(key)
@@ -1242,6 +1355,7 @@ def apply_doc(doc: dict, *, user) -> None:
         'offer': doc.get('offer') or current['offer'],
         'onboarding': doc.get('onboarding') or current['onboarding'],
         'handbook': doc.get('handbook') or current['handbook'],
+        'checkin': doc.get('checkin') or current['checkin'],
         'preview_key': current.get('preview_key') or secrets.token_urlsafe(12),
     }, user=user)
     if not doc.get('has_jobs'):
@@ -1265,17 +1379,16 @@ def apply_doc(doc: dict, *, user) -> None:
 # ── Email text ──────────────────────────────────────────────────────────────
 
 
-class _Blank(dict):
-    def __missing__(self, key):
-        return '{' + key + '}'
-
-
 def fill(template: str, values: dict) -> str:
-    """Fill {placeholders}; unknown ones stay as written (never raises on a stray brace)."""
-    try:
-        return (template or '').format_map(_Blank({k: ('' if v is None else v) for k, v in values.items()}))
-    except (ValueError, IndexError):
-        return template or ''
+    """Fill {placeholders}; unknown ones stay as written, and a stray brace in edited words is just a brace."""
+    def one(match):
+        name = match.group(1)
+        if name not in values:
+            return match.group(0)
+        value = values[name]
+        return '' if value is None else str(value)
+
+    return re.sub(r'\{([a-z_]+)\}', one, template or '')
 
 
 def universal_template(key: str, setting: dict | None = None) -> dict:

@@ -207,7 +207,7 @@ def make(application: Application, raw: dict, *, by, send: bool) -> tuple[Offer,
         created_by=by,
     )
     link = public_link(offer.token)
-    sent = _send(offer, 'offer_sent', application.email) if send else False
+    sent = _send(offer, 'offer_sent', application.email, new_link=True) if send else False
     _event(application, f'Offer made: {offer.position}, ${money(offer.pay_rate)} an hour, starts '
                         f'{date_text(offer.start_date)}' + (' (emailed)' if sent else ' (link copied)'),
            by=by, data={'offer': offer.pk, 'sent': sent})
@@ -226,23 +226,23 @@ def _offer_values(offer: Offer, **extra) -> dict:
             'applicant': offer.application.full_name, 'dash_link': dash_link(offer.application), **extra}
 
 
-def _send(offer: Offer, key: str, to, *, attachment: bytes | None = None, **extra) -> bool:
-    block = _template(key, offer.application, offer.job)
-    filled = _offer_values(offer, **extra)
+def _send(offer: Offer, key: str, to, *, attachment: bytes | None = None, new_link: bool = False, **extra) -> bool:
     attachments = [(f'Eco-Thrift offer - {offer.application.full_name}.pdf', attachment, 'application/pdf')] \
         if attachment else None
-    return emails.send(to=to, subject=fill(block['subject'], filled), body=fill(block['body'], filled),
-                       attachments=attachments, practice=offer.application.is_practice)
+    return emails.send_template(key, to=to, template=_template(key, offer.application, offer.job),
+                                values=_offer_values(offer, **extra), application=offer.application,
+                                attachments=attachments, practice=offer.application.is_practice,
+                                made_on_send=('link',) if new_link else ())
 
 
 def resend(offer: Offer, *, by) -> bool:
+    """Email the open offer again (the email goes on the history with its words)."""
     refresh(offer)
     if offer.status not in Offer.OPEN:
         raise ValidationError({'detail': 'Only an open offer can be sent again.'})
-    sent = _send(offer, 'offer_sent', offer.application.email)
-    _event(offer.application, 'Offer emailed again' if sent else 'Offer email could not be sent', by=by,
-           data={'offer': offer.pk})
-    return sent
+    if not offer.application.email:
+        raise ValidationError({'detail': 'This applicant has no email. Use Copy link and text it instead.'})
+    return _send(offer, 'offer_sent', offer.application.email)
 
 
 def withdraw(offer: Offer, *, by, quiet: bool = False) -> Offer:

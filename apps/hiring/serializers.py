@@ -119,17 +119,34 @@ class ApplicationListSerializer(serializers.ModelSerializer):
     flags = serializers.SerializerMethodField()
     has_resume = serializers.SerializerMethodField()
     lead_interest = serializers.SerializerMethodField()
+    next_interview = serializers.SerializerMethodField()
+    offer_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Application
         fields = [
             'id', 'first_name', 'last_name', 'full_name', 'email', 'phone', 'jobs', 'stage', 'stage_label',
             'stage_changed_at', 'rating', 'red_flags', 'flags', 'source', 'source_label', 'has_resume',
-            'lead_interest', 'employee_user', 'not_now_reason', 'is_practice', 'created_at',
+            'lead_interest', 'employee_user', 'not_now_reason', 'is_practice', 'created_at', 'next_interview',
+            'offer_status',
         ]
 
     def get_flags(self, obj):
         return flags_of(obj)
+
+    def get_next_interview(self, obj):
+        """When the next scheduled interview starts (the list prefetches them), or None."""
+        rows = getattr(obj, 'scheduled_interviews', None)
+        if rows is None:
+            rows = list(obj.interviews.filter(status='scheduled').order_by('start')[:1])
+        return rows[0].start if rows else None
+
+    def get_offer_status(self, obj):
+        """The newest offer's status (sent, viewed, signed, declined…), or ''."""
+        rows = getattr(obj, 'newest_offers', None)
+        if rows is None:
+            rows = list(obj.offers.order_by('-created_at', '-id')[:1])
+        return rows[0].status if rows else ''
 
     def get_has_resume(self, obj):
         return bool(obj.resume_id)

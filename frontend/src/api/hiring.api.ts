@@ -95,6 +95,10 @@ export interface ApplicationRow {
   /** A practice run: emails say [Practice], its interviews never block a real time, no Create employee. */
   is_practice: boolean;
   created_at: string;
+  /** Start of the next scheduled interview, or null. */
+  next_interview: string | null;
+  /** The newest offer's status ('sent', 'viewed', 'signed', 'declined', …) or ''. */
+  offer_status: string;
 }
 
 export interface AnswerEntry {
@@ -200,8 +204,41 @@ export const addNote = (id: number, text: string) =>
   api.post<ApplicationDetail>(`/hiring/applications/${id}/note/`, { text });
 export const setRating = (id: number, rating: number | null) =>
   api.post<ApplicationDetail>(`/hiring/applications/${id}/rating/`, { rating });
+// ── Review before send ─────────────────────────────────────────────────────
+
+/** An email as the review screen shows it: the template, and the values Dash fills in (one chip each). */
+export interface EmailDraft {
+  key: string;
+  label: string;
+  to: string[];
+  from: string;
+  /** The template, with {placeholders} for the values Dash fills in. */
+  subject: string;
+  body: string;
+  values: Record<string, string>;
+  /** What each value is ("Interview time"). */
+  fields: Record<string, string>;
+  attachments: string[];
+  practice: boolean;
+  /** "The version for all roles" or "Retail Associate's own version". */
+  source: string;
+  /** "Do it without emailing" makes sense for this one. */
+  skip_allowed?: boolean;
+}
+
+/** What to send: the edited template (linked values still {placeholders}), or nothing. */
+export type EmailChoice = { subject: string; body: string } | { skip: true };
+
+export interface EmailPreview {
+  /** null: this action emails nobody (no address on file). */
+  email: EmailDraft | null;
+}
+
+/** The action as a dry run: nothing saved, nothing sent; the email it would send comes back. */
+const previewPost = (url: string, body: object) => api.post<EmailPreview>(url, { ...body, preview: true });
+
 export const getNotNowDraft = (id: number, reason: string) =>
-  api.get<{ subject: string; body: string }>(`/hiring/applications/${id}/not-now-draft/`, { params: { reason } });
+  api.get<EmailDraft>(`/hiring/applications/${id}/not-now-draft/`, { params: { reason } });
 export const markNotNow = (
   id: number,
   data: { reason: string; note: string; send: boolean; subject: string; body: string },
@@ -229,6 +266,7 @@ export const createEmployee = (
     start_onboarding?: boolean;
     send_first_day?: boolean;
     start_time?: string;
+    email?: EmailChoice;
   },
 ) =>
   api.post<{
@@ -242,6 +280,8 @@ export const createEmployee = (
     `/hiring/applications/${id}/create-employee/`,
     data,
   );
+export const previewCreateEmployee = (id: number, data: Omit<Parameters<typeof createEmployee>[1], 'email'>) =>
+  previewPost(`/hiring/applications/${id}/create-employee/`, data);
 
 export const getJobs = () => api.get<Job[]>('/hiring/jobs/');
 export const createJob = (data: Partial<Job>) => api.post<Job>('/hiring/jobs/', data);
@@ -285,6 +325,8 @@ export interface CareersIndexes {
   stages: Option[];
   email_placeholders: Record<string, string[]>;
   never_ask: string[];
+  /** The store mailboxes hiring mail may come from, reply to or alert. */
+  mailboxes?: string[];
 }
 
 export interface AiChoices {
@@ -395,22 +437,31 @@ export interface InterviewTimeBlock {
   note: string;
 }
 
-export const inviteToInterview = (id: number, send: boolean) =>
-  api.post<{ link: string; sent: boolean; application: ApplicationDetail }>(`/hiring/applications/${id}/invite/`, { send });
+export const inviteToInterview = (id: number, send: boolean, email?: EmailChoice) =>
+  api.post<{ link: string; sent: boolean; application: ApplicationDetail }>(`/hiring/applications/${id}/invite/`, {
+    send,
+    email,
+  });
+export const previewInvite = (id: number) => previewPost(`/hiring/applications/${id}/invite/`, { send: true });
 export const getInterviews = (params: { when?: 'today' | 'upcoming' | 'past' | ''; application?: number }) =>
   api.get<Interview[]>('/hiring/interviews/', { params });
 export const getOpenTimes = (exclude?: number) =>
   api.get<{ times: OpenTime[]; settings: InterviewSettings }>('/hiring/interviews/open-times/', {
     params: exclude ? { exclude } : {},
   });
-export const bookInterviewForApplicant = (application: number, start: string, interviewer?: number | null) =>
-  api.post<Interview>('/hiring/interviews/', { application, start, interviewer: interviewer ?? undefined });
-export const rescheduleInterview = (id: number, start: string) =>
-  api.post<Interview>(`/hiring/interviews/${id}/reschedule/`, { start });
+export const bookInterviewForApplicant = (application: number, start: string, email?: EmailChoice) =>
+  api.post<Interview>('/hiring/interviews/', { application, start, email });
+export const previewBookInterview = (application: number, start: string) =>
+  previewPost('/hiring/interviews/', { application, start });
+export const rescheduleInterview = (id: number, start: string, email?: EmailChoice) =>
+  api.post<Interview>(`/hiring/interviews/${id}/reschedule/`, { start, email });
+export const previewReschedule = (id: number, start: string) =>
+  previewPost(`/hiring/interviews/${id}/reschedule/`, { start });
 export const setInterviewInterviewer = (id: number, interviewer: number | null) =>
   api.post<Interview>(`/hiring/interviews/${id}/interviewer/`, { interviewer });
-export const cancelInterviewStaff = (id: number, notify = true) =>
-  api.post<Interview>(`/hiring/interviews/${id}/cancel/`, { notify });
+export const cancelInterviewStaff = (id: number, email?: EmailChoice) =>
+  api.post<Interview>(`/hiring/interviews/${id}/cancel/`, { email });
+export const previewCancelInterview = (id: number) => previewPost(`/hiring/interviews/${id}/cancel/`, {});
 export const markNoShow = (id: number) => api.post<Interview>(`/hiring/interviews/${id}/no-show/`, {});
 export const saveScorecard = (id: number, scorecard: Scorecard & { done?: boolean }) =>
   api.post<Interview>(`/hiring/interviews/${id}/scorecard/`, scorecard);
@@ -535,12 +586,16 @@ export const previewOffer = (applicationId: number, terms: OfferTerms) =>
     `/hiring/applications/${applicationId}/offer-preview/`,
     terms,
   );
-export const makeOffer = (applicationId: number, terms: OfferTerms, send: boolean) =>
+export const makeOffer = (applicationId: number, terms: OfferTerms, send: boolean, email?: EmailChoice) =>
   api.post<{ offer: Offer; link: string; sent: boolean; application: ApplicationDetail }>(
     `/hiring/applications/${applicationId}/offer/`,
-    { ...terms, send },
+    { ...terms, send, email },
   );
-export const resendOffer = (id: number) => api.post<{ sent: boolean; offer: Offer }>(`/hiring/offers/${id}/resend/`, {});
+export const previewOfferEmail = (applicationId: number, terms: OfferTerms) =>
+  previewPost(`/hiring/applications/${applicationId}/offer/`, { ...terms, send: true });
+export const resendOffer = (id: number, email?: EmailChoice) =>
+  api.post<{ sent: boolean; offer: Offer }>(`/hiring/offers/${id}/resend/`, { email });
+export const previewResendOffer = (id: number) => previewPost(`/hiring/offers/${id}/resend/`, {});
 export const withdrawOffer = (id: number) => api.post<Offer>(`/hiring/offers/${id}/withdraw/`, {});
 export const getOfferPdf = (id: number) => api.get<Blob>(`/hiring/offers/${id}/pdf/`, { responseType: 'blob' });
 
@@ -647,14 +702,18 @@ export const startOnboarding = (data: {
   manager?: number | null;
   position?: string;
   send_email: boolean;
+  email?: EmailChoice;
 }) => api.post<{ onboarding: OnboardingDetail; sent: boolean }>('/hiring/onboarding/', data);
+export const previewStartOnboarding = (data: Omit<Parameters<typeof startOnboarding>[0], 'email'>) =>
+  previewPost('/hiring/onboarding/', data);
 export const setOnboardingTask = (
   id: number,
   taskId: number,
   data: { status: 'open' | 'done' | 'skipped'; data?: { count: number; size: string }; note?: string },
 ) => api.post<OnboardingDetail>(`/hiring/onboarding/${id}/tasks/${taskId}/`, data);
-export const sendFirstDayEmail = (id: number) =>
-  api.post<{ sent: boolean; onboarding: OnboardingDetail }>(`/hiring/onboarding/${id}/first-day-email/`, {});
+export const sendFirstDayEmail = (id: number, email?: EmailChoice) =>
+  api.post<{ sent: boolean; onboarding: OnboardingDetail }>(`/hiring/onboarding/${id}/first-day-email/`, { email });
+export const previewFirstDayEmail = (id: number) => previewPost(`/hiring/onboarding/${id}/first-day-email/`, {});
 export const cancelOnboarding = (id: number) => api.post<OnboardingDetail>(`/hiring/onboarding/${id}/cancel/`, {});
 export const getOnboardingPasswordLink = (id: number) =>
   api.post<{ link: string; expires_at: string; username: string | null }>(`/hiring/onboarding/${id}/set-password-link/`, {});
@@ -687,3 +746,70 @@ export const saveMyEmergencyContact = (name: string, phone: string) =>
   api.post<MyOnboarding>('/hiring/me/emergency-contact/', { name, phone });
 export const signMyHandbook = (body: { name: string; signature: string; acknowledged: boolean; consent: boolean }) =>
   api.post<MyOnboarding>('/hiring/me/handbook/sign/', body);
+
+// ── Check-ins (Phase 5) ─────────────────────────────────────────────────────
+
+export interface CheckInForm {
+  questions: { key: string; label: string; type: 'text' | 'long_text' }[];
+  areas: string[];
+  area_ratings: string[];
+  employee_statement: string;
+}
+
+export interface CheckInAnswers {
+  questions: Record<string, string>;
+  areas: Record<string, { rating: string; note: string }>;
+}
+
+export interface CheckInRow {
+  id: number;
+  day: number;
+  due_date: string;
+  status: 'scheduled' | 'done' | 'skipped';
+  status_label: string;
+  user: Person;
+  manager: Person | null;
+  onboarding: number | null;
+  due: boolean;
+  overdue: boolean;
+  signed_at: string | null;
+  has_pdf: boolean;
+  skipped_reason: string;
+  started: boolean;
+}
+
+export interface CheckInDetail extends CheckInRow {
+  form: CheckInForm;
+  answers: CheckInAnswers;
+  employee_comments: string;
+  close_onboarding: boolean;
+  can_close_onboarding: boolean;
+  manager_name: string;
+  employee_name: string;
+}
+
+export const getCheckins = (when: 'due' | 'upcoming' | 'done' | 'all' = 'due') =>
+  api.get<CheckInRow[]>('/hiring/checkins/', { params: { when } });
+export const getCheckin = (id: number) => api.get<CheckInDetail>(`/hiring/checkins/${id}/`);
+export const saveCheckin = (
+  id: number,
+  data: Partial<{ answers: CheckInAnswers; employee_comments: string; close_onboarding: boolean; manager: number }>,
+) => api.patch<CheckInDetail>(`/hiring/checkins/${id}/`, data);
+export const signCheckin = (
+  id: number,
+  data: {
+    answers: CheckInAnswers;
+    employee_comments: string;
+    close_onboarding: boolean;
+    manager_name: string;
+    manager_signature: string;
+    employee_name: string;
+    employee_signature: string;
+    acknowledged: boolean;
+  },
+) => api.post<CheckInDetail>(`/hiring/checkins/${id}/sign/`, data);
+export const skipCheckin = (id: number, reason: string) => api.post<CheckInDetail>(`/hiring/checkins/${id}/skip/`, { reason });
+export const getCheckinPdf = (id: number) => api.get<Blob>(`/hiring/checkins/${id}/pdf/`, { responseType: 'blob' });
+export const scheduleCheckins = (data: { user: number; start_date: string; manager?: number | null }) =>
+  api.post<CheckInRow[]>('/hiring/checkins/schedule/', data);
+export const getMyCheckins = () => api.get<(CheckInRow & Partial<CheckInDetail>)[]>('/hiring/me/checkins/');

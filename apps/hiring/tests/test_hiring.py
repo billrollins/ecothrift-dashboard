@@ -138,6 +138,19 @@ class SeedAndCareersFileTests(Base):
         changes = careers.summarize_changes(careers.export_doc(), result['doc'])
         self.assertEqual(changes, ['Email: reply_days → 5'])
 
+    def test_email_addresses_are_store_mailboxes_only(self):
+        self.assertEqual(careers.load_setting()['email']['from'], 'retail@ecothrift.us')
+        bad = careers.check_doc({'email': {'from': 'someone@gmail.com', 'notify': 'retail@ecothrift.us, x@y.com'}})
+        self.assertFalse(bad['ok'])
+        self.assertEqual(len(bad['errors']), 2)
+        good = careers.check_doc({'email': {'from': 'Eco-Thrift <Warehouse@ecothrift.us>', 'reply_to': '',
+                                            'notify': 'retail@ecothrift.us; bill_rollins@ecothrift.us'}})
+        self.assertTrue(good['ok'], good['errors'])
+        self.assertEqual(good['doc']['email']['from'], 'warehouse@ecothrift.us')
+        self.assertEqual(good['doc']['email']['notify'], 'retail@ecothrift.us, bill_rollins@ecothrift.us')
+        blank = careers.check_doc({'email': {'from': ''}})
+        self.assertEqual(blank['doc']['email']['from'], 'retail@ecothrift.us')
+
     def test_careers_api_is_manager_only(self):
         employee = APIClient()
         employee.force_authenticate(_user('emp@example.com', 'Employee'))
@@ -274,6 +287,28 @@ class TrackerTests(Base):
         self.assertEqual(len(self.staff.get('/api/hiring/applications/?flag=green').data['results']), 0)
         self.assertEqual(len(self.staff.get('/api/hiring/applications/?q=402555').data['results']), 1)
 
+    def test_list_carries_the_next_interview_and_the_offer_status(self):
+        from datetime import timedelta
+
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        from django.utils import timezone
+
+        from apps.hiring.models import Interview
+
+        row = self.staff.get('/api/hiring/applications/').data['results'][0]
+        self.assertEqual((row['next_interview'], row['offer_status']), (None, ''))
+        soon = timezone.now() + timedelta(days=2)
+        Interview.objects.create(application=self.app, start=soon, end=soon + timedelta(minutes=30))
+        Interview.objects.create(application=self.app, start=soon - timedelta(days=5), end=soon,
+                                 status=Interview.STATUS_DONE)
+        for i in range(3):  # more rows must not mean more queries
+            self.apply(email=f'more{i}@example.com', phone=f'402555020{i}')
+        with CaptureQueriesContext(connection) as queries:
+            rows = {r['id']: r for r in self.staff.get('/api/hiring/applications/?stage=open').data['results']}
+        self.assertLess(len(queries), 15)
+        self.assertEqual(rows[self.app.pk]['next_interview'], soon)
+
     def test_stage_note_rating_are_logged(self):
         url = f'/api/hiring/applications/{self.app.pk}/'
         self.assertEqual(self.staff.post(url + 'stage/', {'stage': 'contacted'}, format='json').status_code, 200)
@@ -301,15 +336,20 @@ class TrackerTests(Base):
 
     def test_not_now_draft_then_send(self):
         draft = self.staff.get(f'/api/hiring/applications/{self.app.pk}/not-now-draft/?reason=position_closed').data
-        self.assertIn('Retail Associate position has been filled', draft['body'])
+        # The draft is the template; the review screen shows each {value} as a chip.
+        self.assertIn('{roles}', draft['body'])
+        self.assertEqual(draft['values']['roles'], 'Retail Associate')
+        self.assertEqual(draft['fields']['roles'], 'Roles applied for')
         response = self.staff.post(f'/api/hiring/applications/{self.app.pk}/not-now/', {
             'reason': 'position_closed', 'send': True, 'subject': draft['subject'], 'body': draft['body'] + '\nThanks!',
         }, format='json')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('Retail Associate position has been filled', mail.outbox[0].body)
         self.assertTrue(mail.outbox[0].body.endswith('Thanks!'))
         self.app.refresh_from_db()
         self.assertEqual(self.app.not_now_email_status, 'sent')
+        self.assertTrue(self.app.events.filter(text='Emailed: Not now email (edited)').exists())
         # Re-opening clears the reason; the timeline keeps it.
         self.staff.post(f'/api/hiring/applications/{self.app.pk}/stage/', {'stage': 'reviewed'}, format='json')
         self.app.refresh_from_db()
@@ -540,7 +580,8 @@ class RoleEmailTests(Base):
         self.apply()
         app = Application.objects.get()
         draft = self.staff.get(f'/api/hiring/applications/{app.pk}/not-now-draft/?reason=hours').data
-        self.assertEqual((draft['subject'], draft['body']), ('Retail: thanks', 'Hi Dana.'))
+        self.assertEqual((draft['subject'], draft['body']), ('Retail: thanks', 'Hi {first_name}.'))
+        self.assertEqual((draft['values'], draft['source']), ({'first_name': 'Dana'}, "Retail Associate's own version"))
 
 class InterviewTests(Base):
     """Phase 2: the interview link, open times, book / change / cancel, emails with .ics, staff actions, reminders."""
@@ -573,6 +614,74 @@ class InterviewTests(Base):
         self.assertEqual(copy['link'].split('t=')[1], token)  # same live link, no second email
         self.assertEqual(len(mail.outbox), 1)
         self.assertTrue(copy['application']['booking_link'].endswith(token))
+
+    def test_review_preview_sends_nothing_and_saves_nothing(self):
+        url = f'/api/hiring/applications/{self.app.pk}/invite/'
+        draft = self.staff.post(url, {'send': True, 'preview': True}, format='json').data['email']
+        self.assertEqual((draft['key'], draft['to'], draft['skip_allowed']), ('interview_invite', ['dana@example.com'], False))
+        self.assertIn('{link}', draft['body'])
+        self.assertIn('/careers/interview?t=', draft['values']['link'])
+        self.assertEqual(draft['fields']['link'], 'Their private link')
+        self.assertEqual(draft['source'], 'The version for all roles')
+        self.app.refresh_from_db()
+        self.assertEqual((self.app.stage, self.app.invited_at, len(mail.outbox)), ('new', None, 0))
+        # The private link is made before the review, so the link shown is the one that goes out.
+        self.assertTrue(draft['values']['link'].endswith(self.app.booking_token))
+        self.assertFalse(self.app.events.filter(kind='email', data__email='interview_invite').exists())
+
+    def test_review_sends_the_edited_words_fills_linked_values_and_logs_it(self):
+        url = f'/api/hiring/applications/{self.app.pk}/invite/'
+        draft = self.staff.post(url, {'send': True, 'preview': True}, format='json').data['email']
+        body = draft['body'].replace('{first_name}', 'Dana Banana') + '\nSee you soon {'
+        response = self.staff.post(url, {'send': True, 'email': {'subject': draft['subject'], 'body': body}},
+                                   format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        sent = mail.outbox[0]
+        self.assertIn('Hi Dana Banana,', sent.body)
+        self.app.refresh_from_db()
+        self.assertIn(f'/careers/interview?t={self.app.booking_token}', sent.body)  # linked: filled when sent
+        self.assertTrue(sent.body.endswith('See you soon {'))  # a stray brace is just a brace
+        event = self.app.events.get(kind='email', data__email='interview_invite')
+        self.assertEqual(event.text, 'Emailed: Interview link (edited)')
+        self.assertEqual((event.data['typed_over'], event.data['body']), (['first_name'], sent.body))
+        self.assertEqual(self.app.stage, 'contacted')
+
+    def test_untouched_review_is_not_marked_edited_and_skip_is_refused_for_the_link(self):
+        url = f'/api/hiring/applications/{self.app.pk}/invite/'
+        refused = self.staff.post(url, {'send': True, 'email': {'skip': True}}, format='json')
+        self.assertEqual(refused.status_code, 400)
+        draft = self.staff.post(url, {'send': True, 'preview': True}, format='json').data['email']
+        self.staff.post(url, {'send': True, 'email': {'subject': draft['subject'], 'body': draft['body']}}, format='json')
+        self.assertEqual(self.app.events.get(kind='email', data__email='interview_invite').text, 'Emailed: Interview link')
+
+    def test_staff_booking_reviewed_then_done_without_emailing(self):
+        token = self.link_token()
+        mail.outbox.clear()
+        start = self.public.get(f'/api/hiring/public/interview/?t={token}').data['times'][0]['start']
+        payload = {'application': self.app.pk, 'start': start}
+        draft = self.staff.post('/api/hiring/interviews/', {**payload, 'preview': True}, format='json').data['email']
+        self.assertEqual((draft['key'], draft['attachments'], draft['skip_allowed']),
+                         ('interview_booked', ['interview.ics'], True))
+        self.assertEqual(draft['fields']['when'], 'Interview time')
+        self.assertFalse(self.Interview.objects.exists())
+        self.assertEqual(len(mail.outbox), 0)
+        response = self.staff.post('/api/hiring/interviews/', {**payload, 'email': {'skip': True}}, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(len(mail.outbox), 1)  # the staff notice still goes
+        self.assertNotIn('dana@example.com', mail.outbox[0].to)
+        self.assertTrue(self.app.events.filter(text='Not emailed: Interview booked (done without emailing)').exists())
+
+    def test_no_email_on_file_still_shows_the_words_to_copy(self):
+        Application.objects.filter(pk=self.app.pk).update(email='')
+        from apps.hiring import interviews
+
+        start = interviews.open_times()[0][0].isoformat()
+        payload = {'application': self.app.pk, 'start': start}
+        draft = self.staff.post('/api/hiring/interviews/', {**payload, 'preview': True}, format='json').data['email']
+        self.assertEqual((draft['key'], draft['to']), ('interview_booked', []))
+        response = self.staff.post('/api/hiring/interviews/', {**payload, 'email': {'skip': True}}, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertNotIn('', [address for m in mail.outbox for address in m.to])
 
     def test_public_page_lists_open_times_and_refuses_bad_links(self):
         token = self.link_token()
@@ -762,6 +871,21 @@ class OfferTests(Base):
 
     def token(self, made):
         return made['link'].split('t=')[1]
+
+    def test_offer_email_review_makes_nothing_until_sent(self):
+        from apps.hiring.models import Offer
+
+        url = f'/api/hiring/applications/{self.app.pk}/offer/'
+        response = self.staff.post(url, {**self.terms(), 'preview': True}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        draft = response.data['email']
+        self.assertEqual((draft['key'], draft['values']['role']), ('offer_sent', 'Retail Associate'))
+        self.assertEqual(draft['values']['link'], '(their private link, made when you send)')
+        self.assertFalse(Offer.objects.exists())
+        self.assertEqual(len(mail.outbox), 0)
+        made = self.make(email={'subject': draft['subject'], 'body': draft['body'] + '\nCall me with questions.'})
+        self.assertIn(f'/careers/offer?t={self.token(made)}', mail.outbox[0].body)
+        self.assertTrue(mail.outbox[0].body.endswith('Call me with questions.'))
 
     def test_preview_then_make_emails_the_link_and_moves_to_offer(self):
         preview = self.staff.post(f'/api/hiring/applications/{self.app.pk}/offer-preview/', self.terms(), format='json').data
@@ -977,6 +1101,22 @@ class OnboardingTests(Base):
     def task(self, key, data=None):
         return next(t for t in (data or self.detail())['tasks'] if t['key'] == key)
 
+    def test_first_day_email_review_creates_nobody_until_sent(self):
+        from apps.hiring.models import Onboarding
+
+        response = self.staff.post(f'/api/hiring/applications/{self.app.pk}/create-employee/', {
+            'pay_rate': '15.00', 'start_date': '2026-10-16', 'start_time': '10:00', 'position': 'Retail Associate',
+            'start_onboarding': True, 'send_first_day': True, 'preview': True}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        draft = response.data['email']
+        self.assertEqual((draft['key'], draft['values']['start_time']), ('first_day', '10:00 AM'))
+        self.assertFalse(User.objects.filter(email='dana@example.com').exists())
+        self.assertFalse(Onboarding.objects.exists())
+        self.assertEqual(len(mail.outbox), 0)
+        self.hire(email={'skip': True})
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertTrue(self.app.events.filter(text__startswith='First-day email not sent').exists())
+
     def test_create_employee_starts_onboarding_and_sends_the_first_day_email(self):
         from datetime import date
 
@@ -1116,3 +1256,119 @@ class OnboardingTests(Base):
         from apps.hiring.onboarding import add_business_days, due_date_for
         self.assertEqual(add_business_days(date(2026, 10, 16), 3), date(2026, 10, 21))  # Fri → Wed
         self.assertEqual(due_date_for('day20', date(2026, 10, 16)), date(2026, 11, 5))
+
+
+class CheckInTests(OnboardingTests):
+    """Phase 5: 30/60/90-day check-ins, made with onboarding, filled in a meeting, signed by both, read by the hire."""
+
+    def test_onboarding_makes_three_check_ins_with_the_manager(self):
+        from apps.hiring.models import CheckIn
+
+        Job.objects.filter(slug='retail-associate').update(hiring_manager=self.manager)
+        self.hire()
+        rows = list(CheckIn.objects.filter(user=self.new_hire).order_by('day'))
+        self.assertEqual([(c.day, str(c.due_date)) for c in rows],
+                         [(30, '2026-11-15'), (60, '2026-12-15'), (90, '2027-01-14')])
+        self.assertTrue(all(c.manager_id == self.manager.pk for c in rows))  # the role's hiring manager
+        mine = self.me.get('/api/hiring/me/checkins/').data
+        self.assertEqual([c['day'] for c in mine], [30, 60, 90])
+        self.assertNotIn('answers', mine[0])  # nothing to read until it is signed
+
+    def fill_and_sign(self, row_id, **extra):
+        filled = self.staff.patch(f'/api/hiring/checkins/{row_id}/', {
+            'answers': {'questions': {'going_well': 'Great with customers.', 'goals': 'Learn pricing.'},
+                        'areas': {'Learning the role': {'rating': 'On track', 'note': 'Picking it up fast.'}}},
+            'employee_comments': 'Happy here.'}, format='json')
+        self.assertEqual(filled.status_code, 200, filled.data)
+        return self.staff.post(f'/api/hiring/checkins/{row_id}/sign/', {
+            'manager_name': 'Test Manager', 'manager_signature': _signature_data_url(),
+            'employee_name': 'Dana Miles', 'employee_signature': _signature_data_url(), 'acknowledged': True, **extra,
+        }, format='json')
+
+    def test_fill_sign_lock_and_the_employee_reads_it(self):
+        import pymupdf
+
+        from apps.hiring.models import CheckIn
+        self.hire()
+        first = CheckIn.objects.get(user=self.new_hire, day=30)
+        bad = self.staff.patch(f'/api/hiring/checkins/{first.pk}/', {
+            'answers': {'areas': {'Learning the role': {'rating': 'Superb'}}}}, format='json')
+        self.assertEqual(bad.status_code, 400)
+        empty = self.staff.post(f'/api/hiring/checkins/{first.pk}/sign/', {
+            'manager_name': 'Test Manager', 'manager_signature': _signature_data_url(), 'employee_name': 'Dana Miles',
+            'employee_signature': _signature_data_url(), 'acknowledged': True}, format='json')
+        self.assertIn('answers', empty.data)
+        signed = self.fill_and_sign(first.pk)
+        self.assertEqual(signed.status_code, 200, signed.data)
+        self.assertEqual(signed.data['status'], 'done')
+        self.assertFalse(signed.data['close_onboarding'])  # not the last one
+        again = self.staff.patch(f'/api/hiring/checkins/{first.pk}/', {'employee_comments': 'changed'}, format='json')
+        self.assertEqual(again.status_code, 400)
+        mine = self.me.get('/api/hiring/me/checkins/').data
+        self.assertEqual(mine[0]['answers']['questions']['going_well'], 'Great with customers.')
+        raw = b''.join(self.me.get(f'/api/hiring/checkins/{first.pk}/pdf/').streaming_content)
+        text = ''.join(p.get_text() for p in pymupdf.open(stream=raw, filetype='pdf'))
+        for needed in ('Great with customers.', 'On track', 'Happy here.', 'Signing audit trail', 'Dana Miles'):
+            self.assertIn(needed, text)
+        other = _user('other@example.com', 'Employee')
+        stranger = APIClient()
+        stranger.force_authenticate(other)
+        self.assertEqual(stranger.get(f'/api/hiring/checkins/{first.pk}/pdf/').status_code, 404)
+
+    def test_the_last_check_in_can_close_onboarding(self):
+        from apps.hiring.models import CheckIn
+        self.hire()
+        last = CheckIn.objects.get(user=self.new_hire, day=90)
+        signed = self.fill_and_sign(last.pk, close_onboarding=True)
+        self.assertEqual(signed.status_code, 200, signed.data)
+        self.assertTrue(signed.data['close_onboarding'])
+        data = self.detail()
+        self.assertEqual(data['status'], 'done')
+        self.assertTrue(all(t['status'] != 'open' for t in data['tasks']))
+
+    def test_due_list_skip_and_the_brief_line(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.core.services.context_snapshot import build_snapshot
+        from apps.hiring.models import CheckIn
+        self.hire()
+        first = CheckIn.objects.get(user=self.new_hire, day=30)
+        first.due_date = timezone.localdate() - timedelta(days=1)
+        first.save()
+        due = self.staff.get('/api/hiring/checkins/').data
+        self.assertEqual([(c['id'], c['overdue']) for c in due], [(first.pk, True)])
+        hiring = build_snapshot()['hiring']
+        self.assertEqual(hiring['checkins_due'][0]['day'], 30)
+        self.assertTrue(hiring['checkins_due'][0]['overdue'])
+        self.assertEqual(self.staff.post(f'/api/hiring/checkins/{first.pk}/skip/', {}, format='json').status_code, 400)
+        skipped = self.staff.post(f'/api/hiring/checkins/{first.pk}/skip/', {'reason': 'Left the job'}, format='json')
+        self.assertEqual(skipped.data['status'], 'skipped')
+        self.assertEqual(self.staff.get('/api/hiring/checkins/').data, [])
+
+
+class SeedDemoTests(Base):
+    """The dev seed builds every hiring stage and clears itself, and refuses to run without DEBUG."""
+
+    def test_seed_builds_clears_and_stays_off_production(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        from apps.hiring.models import CheckIn, Onboarding
+
+        _user('owner@example.com', 'Admin').__class__.objects.filter(email='owner@example.com').update(is_superuser=True)
+        with self.assertRaises(CommandError):
+            call_command('seed_hiring_demo')
+        with override_settings(DEBUG=True):
+            call_command('seed_hiring_demo')
+            seeded = Application.objects.filter(email__endswith='@seed.example.test')
+            self.assertEqual(seeded.count(), 11)
+            self.assertEqual(set(seeded.values_list('stage', flat=True)),
+                             {'new', 'reviewed', 'contacted', 'interview_scheduled', 'interviewed', 'offer', 'not_now',
+                              'hired'})
+            self.assertEqual(Onboarding.objects.filter(user__email__endswith='@seed.example.test').count(), 3)
+            self.assertEqual(CheckIn.objects.filter(status='done').count(), 2)
+            self.assertEqual(len(mail.outbox), 0)
+            call_command('seed_hiring_demo', clear=True)
+            self.assertFalse(Application.objects.filter(email__endswith='@seed.example.test').exists())

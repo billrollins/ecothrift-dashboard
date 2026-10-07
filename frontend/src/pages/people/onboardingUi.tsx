@@ -25,6 +25,7 @@ import {
   getI9,
   getI9FileBlob,
   getOnboardingPeople,
+  previewStartOnboarding,
   setOnboardingTask,
   startOnboarding,
   uploadI9File,
@@ -32,6 +33,7 @@ import {
   type OnboardingTask,
 } from '../../api/hiring.api';
 import { ccTokens } from '../../theme';
+import { useEmailReview } from './EmailReview';
 import { errorText, shortDate } from './peopleUi';
 
 /** The handbook's light markup: "## " headings, "- " bullet lines, blank lines between paragraphs. */
@@ -436,6 +438,7 @@ export function StartOnboardingDialog({
   const [send, setSend] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const { review, dialog: reviewDialog } = useEmailReview();
 
   useEffect(() => {
     if (!open) return;
@@ -452,14 +455,25 @@ export function StartOnboardingDialog({
     setBusy(true);
     setError('');
     try {
-      const { data } = await startOnboarding({
+      const request = {
         ...(applicationId ? { application: applicationId } : { user: user === '' ? undefined : user }),
         start_date: startDate,
         start_time: startTime,
         manager: manager === '' ? null : manager,
         position,
         send_email: send,
-      });
+      };
+      // With the first-day note: read it first (the review), then start.
+      const data = send
+        ? await review({
+            title: 'Start onboarding',
+            preview: () => previewStartOnboarding(request),
+            commit: async (email) => (await startOnboarding({ ...request, email })).data,
+            sendLabel: 'Start and send',
+            skipLabel: 'Start without emailing',
+          })
+        : (await startOnboarding(request)).data;
+      if (!data) return; // Cancel: nothing started
       await queryClient.invalidateQueries({ queryKey: ['hiring'] });
       onDone(data.onboarding, data.sent);
     } catch (err) {
@@ -523,9 +537,10 @@ export function StartOnboardingDialog({
           Cancel
         </Button>
         <Button variant="contained" onClick={save} disabled={busy || (!applicationId && user === '')}>
-          Start onboarding
+          {send ? 'Next: read the email' : 'Start onboarding'}
         </Button>
       </DialogActions>
+      {reviewDialog}
     </Dialog>
   );
 }

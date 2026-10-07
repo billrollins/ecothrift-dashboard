@@ -81,7 +81,7 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     label: 'People',
     roles: ['Manager', 'Admin'],
     // Staff start to finish (owner, 2026-10-07): Users moved here from Admin.
-    itemIds: ['users', 'applicants', 'interviews', 'onboarding', 'payrollDeductions', 'jobs', 'hiringEmails'],
+    itemIds: ['users', 'applicants', 'interviews', 'onboarding', 'checkins', 'payrollDeductions', 'jobs', 'hiringEmails'],
   },
   {
     id: 'admin',

@@ -5,7 +5,7 @@ import json
 import logging
 from datetime import date, timedelta
 
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from django.http import Http404
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
@@ -14,7 +14,7 @@ from rest_framework.response import Response
 
 from apps.accounts.permissions import IsManagerOrAdmin
 from apps.core.files import stream_s3
-from apps.hiring import careers, services
+from apps.hiring import careers, compose, services
 from apps.hiring.files import save_resume, validate_resume
 from apps.hiring.models import Application, Interview, InterviewTime, Job
 from apps.hiring.serializers import (
@@ -115,7 +115,14 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                        'stage_changed_at', '-stage_changed_at', 'red_flags', '-red_flags'}
             if ordering not in allowed:
                 ordering = '-created_at'
-            return self._filtered(with_stage=True).prefetch_related('jobs').order_by(ordering, '-id')
+            from apps.hiring.models import Offer
+
+            return self._filtered(with_stage=True).prefetch_related(
+                'jobs',
+                Prefetch('interviews', to_attr='scheduled_interviews',
+                         queryset=Interview.objects.filter(status=Interview.STATUS_SCHEDULED).order_by('start')),
+                Prefetch('offers', to_attr='newest_offers', queryset=Offer.objects.order_by('-created_at', '-id')),
+            ).order_by(ordering, '-id')
         return Application.objects.select_related('resume', 'employee_user__employee').prefetch_related(
             'jobs', 'events__by',
         )
@@ -256,8 +263,15 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         application = self.get_object()
         send = request.data.get('send') in (True, 'true', '1', 1)
-        result = interview_service.invite(application, by=request.user, send=send)
-        return Response({**result, 'application': ApplicationDetailSerializer(self._fresh(application)).data})
+        if send and application.email:
+            # Make the private link before any review, so the link they read is the link that goes out.
+            interview_service.ensure_link(application)
+
+        def act():
+            result = interview_service.invite(application, by=request.user, send=send)
+            return Response({**result, 'application': ApplicationDetailSerializer(self._fresh(application)).data})
+
+        return compose.run(request, act, skip_allowed=False)
 
     @action(detail=True, methods=['post'], url_path='offer-preview')
     def offer_preview(self, request, pk=None):
@@ -274,10 +288,14 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         application = self.get_object()
         send = request.data.get('send') in (True, 'true', '1', 1)
-        offer, link, sent = offers.make(application, request.data, by=request.user, send=send)
-        return Response({'offer': OfferSerializer(offer).data, 'link': link, 'sent': sent,
-                         'application': ApplicationDetailSerializer(self._fresh(application)).data},
-                        status=status.HTTP_201_CREATED)
+
+        def act():
+            offer, link, sent = offers.make(application, request.data, by=request.user, send=send)
+            return Response({'offer': OfferSerializer(offer).data, 'link': link, 'sent': sent,
+                             'application': ApplicationDetailSerializer(self._fresh(application)).data},
+                            status=status.HTTP_201_CREATED)
+
+        return compose.run(request, act, skip_allowed=False)
 
     @action(detail=False, methods=['post'])
     def practice(self, request):
@@ -307,24 +325,30 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             except ValueError:
                 return Response({'start_date': 'Use a date like 2026-10-12.'}, status=status.HTTP_400_BAD_REQUEST)
         department = data.get('department')
-        result = services.create_employee(
-            application, by=request.user, request=request, pay_rate=data.get('pay_rate'), start_date=start,
-            position=data.get('position') or '', department=int(department) if str(department or '').isdigit() else None,
-            employment_type=data.get('employment_type') or 'part_time',
-        )
-        # Usually straight on to onboarding: the checklist, and the first-day email when asked.
-        result['onboarding'] = None
-        result['first_day_sent'] = False
-        if data.get('start_onboarding') in (True, 'true', '1', 1):
-            from apps.hiring.onboarding_views import start_from_request
 
-            application.refresh_from_db()
-            onboarding, sent = start_from_request(
-                {'application': application.pk, 'start_date': data.get('start_date'),
-                 'start_time': data.get('start_time'), 'send_email': data.get('send_first_day')}, by=request.user)
-            result['onboarding'], result['first_day_sent'] = onboarding.pk, sent
-        return Response({**result, 'application': ApplicationDetailSerializer(self._fresh(application)).data},
-                        status=status.HTTP_201_CREATED)
+        def act():
+            result = services.create_employee(
+                application, by=request.user, request=request, pay_rate=data.get('pay_rate'), start_date=start,
+                position=data.get('position') or '',
+                department=int(department) if str(department or '').isdigit() else None,
+                employment_type=data.get('employment_type') or 'part_time',
+            )
+            # Usually straight on to onboarding: the checklist, and the first-day email when asked.
+            result['onboarding'] = None
+            result['first_day_sent'] = False
+            if data.get('start_onboarding') in (True, 'true', '1', 1):
+                from apps.hiring.onboarding_views import start_from_request
+
+                application.refresh_from_db()
+                onboarding, sent = start_from_request(
+                    {'application': application.pk, 'start_date': data.get('start_date'),
+                     'start_time': data.get('start_time'), 'send_email': data.get('send_first_day')}, by=request.user)
+                result['onboarding'], result['first_day_sent'] = onboarding.pk, sent
+            return Response({**result, 'application': ApplicationDetailSerializer(self._fresh(application)).data},
+                            status=status.HTTP_201_CREATED)
+
+        # The first-day email is reviewed first (a preview makes nothing: it is all rolled back).
+        return compose.run(request, act)
 
 
 # ── Interviews ──────────────────────────────────────────────────────────────
@@ -369,10 +393,16 @@ class InterviewViewSet(viewsets.ReadOnlyModelViewSet):
         interviewer = None
         if request.data.get('interviewer'):
             interviewer = careers.staff_users().filter(pk=request.data.get('interviewer')).first()
+
         if not application.booking_token:
-            service.ensure_link(application)  # their emails carry a change / cancel link
-        interview = service.book(application, request.data.get('start'), by=request.user, interviewer=interviewer)
-        return self._out(interview, status.HTTP_201_CREATED)
+            # Their emails carry a change / cancel link; made before any review so the link shown is the one sent.
+            service.ensure_link(application)
+
+        def act():
+            interview = service.book(application, request.data.get('start'), by=request.user, interviewer=interviewer)
+            return self._out(interview, status.HTTP_201_CREATED)
+
+        return compose.run(request, act)
 
     @action(detail=True, methods=['post'])
     def reschedule(self, request, pk=None):
@@ -381,8 +411,12 @@ class InterviewViewSet(viewsets.ReadOnlyModelViewSet):
         interview = self.get_object()
         if interview.status != Interview.STATUS_SCHEDULED:
             return Response({'detail': 'Only a scheduled interview can move.'}, status=status.HTTP_400_BAD_REQUEST)
-        service.book(interview.application, request.data.get('start'), by=request.user)
-        return self._out(interview)
+
+        def act():
+            service.book(interview.application, request.data.get('start'), by=request.user)
+            return self._out(interview)
+
+        return compose.run(request, act)
 
     @action(detail=True, methods=['post'])
     def interviewer(self, request, pk=None):
@@ -402,8 +436,13 @@ class InterviewViewSet(viewsets.ReadOnlyModelViewSet):
         from apps.hiring import interviews as service
 
         interview = self.get_object()
-        service.cancel(interview, by=request.user, notify=request.data.get('notify', True) not in (False, 'false', 0))
-        return self._out(interview)
+
+        def act():
+            service.cancel(interview, by=request.user,
+                           notify=request.data.get('notify', True) not in (False, 'false', 0))
+            return self._out(interview)
+
+        return compose.run(request, act)
 
     @action(detail=True, methods=['post'], url_path='no-show')
     def no_show(self, request, pk=None):
@@ -472,8 +511,12 @@ class OfferViewSet(viewsets.ReadOnlyModelViewSet):
         from apps.hiring import offers
 
         offer = self.get_object()
-        sent = offers.resend(offer, by=request.user)
-        return Response({'sent': sent, 'offer': self._out(offer).data})
+
+        def act():
+            sent = offers.resend(offer, by=request.user)
+            return Response({'sent': sent, 'offer': self._out(offer).data})
+
+        return compose.run(request, act, skip_allowed=False)
 
     @action(detail=True, methods=['post'])
     def withdraw(self, request, pk=None):
@@ -525,7 +568,8 @@ The parts:
   apply_note, growth (each area has a lead; strong people can step up), photo_url).
 - form.questions: the questions every applicant answers. Name, phone, email, the roles, the resume and the
   text-message consent are fixed fields; do not add them as questions.
-- email: from (blank = the store mailbox), reply_to, notify (who gets an alert per application),
+- email: from, reply_to (one address each) and notify (who gets an alert per application; a comma list),
+  each from indexes.mailboxes only (retail@, bill_rollins@ and warehouse@ecothrift.us);
   review_day, reply_days, and the emails: received (auto-reply), alert (to the owner), not_now
   (default, withdrew, position_closed, no_show). Email placeholders: {{first_name}} {{last_name}} {{roles}}
   {{phone}} {{email}} {{review_day}} {{reply_days}}; the alert also has {{flags}} and {{dash_link}}.
