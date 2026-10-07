@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-06 (two lanes: inventory_effort and hiring_onboarding) -->
+<!-- Last updated: 2026-10-07 (owners' meeting held; new Thrift+ build items for 10-09 to 10-12) -->
 # Calendar
 
 Claude's clock. **Every session:** compare today's date with this table, say plainly whether we are on track or behind, and update the Status column. Dates are America/Chicago.
@@ -27,11 +27,11 @@ Claude's clock. **Every session:** compare today's date with this table, say pla
 | 10-05 | Mon | Full POS gate → **ship v2.108.0** (POS and returns, dark). Owner tries it on a test register | v2.108.0 || shipped early in v2.110.0 (09-28, owner packed it together) |
 | 10-06 | Tue | Signup at the register (ID check sets 18+, photo, scan a blank card, apply to the sale, unverified cards). Staff service in Dash | | built early (09-25); tests R-078. **On track.** The day went to inventory_effort Phases 1–7 (v2.133.0–v2.142.0) and T61 usernames and passwords (v2.144.0); hiring shipped v2.136.0–v2.144.1 |
 | 10-07 | Wed | Scanner app for real (from the mock) and the customer portal (self-service: people, card, cover progress). Thrift+ Dash (rewards and cover dashboard, scans-to-adds) | | backend, client and Dash built early (09-25); tests R-078. Phone screens: `thrift_scanner` | **09-30: scanner on the real API; reset, sign-in setup and My account built and checked in the browser (uncommitted).** **10-06: applied on main from the 10-02 handoff patch. 10-07: shipped in v2.145.0 with the rewards Calculator and everything Thrift+ behind the switch (Settings → Store → Thrift+; staff preview at /scan?preview=<code>).**
-| 10-08 | Thu | Pre-ship run → **ship v2.109.0** (signup, scanner, portal, Dash; dark). Owner reviews the signage, training and marketing drafts | v2.109.0 || shipped early in v2.110.0 (09-28, owner packed it together) |
-| 10-09 | Fri | Fixes. Final signage (3 posters, 13×19), receipt text, staff training guide, marketing copy | | |
+| 10-08 | Thu | Pre-ship run → **ship v2.109.0** (signup, scanner, portal, Dash; dark). Owner reviews the signage, training and marketing drafts | v2.109.0 || shipped early in v2.110.0 (09-28, owner packed it together). **10-07: the scanner on real prices also shipped (v2.145.0), all behind the switch (off). On track.** **10-07: the owners' meeting was held a day early. Decisions: `initiatives/thrift_plus_launch_kit.md` § Owners' meeting decisions. The launch kit page is now one to-do in six groups (artifact `todos`). Tight but on track: the new build items (signup gate, gift cards, 7-day warranty, details page) land 10-09 to 10-12.** |
+| 10-09 | Fri | Fixes. Final signage (3 posters, 13×19), receipt text, staff training guide, marketing copy. **Added 10-07 (owners' meeting):** new words everywhere (Member Price Always, gift card refill + 5% bonus); terms, gift card terms and Limited Warranty text for the attorney; AS IS print files; the register tax change (needs the owner's go). Owner: 8 decisions on the launch kit page, the tagline, the card back, cameras and supplies | | |
 | 10-10 | Sat | (Owner: physical, e.g. printing) | | |
 | 10-11 | Sun | Buffer. **Heroku database plan switch, 3–7 AM CT** (Heroku runs it; all three apps blink for under a minute; master mail 10-06). No deploys or data loads in that window. Master's AI router hand-down arrives after it. | none 3–7 AM | |
-| 10-12 | Mon | In-store dry run with the switch on for staff and test cards. **Ship v2.110.0** with the fixes | v2.110.0 | |
+| 10-12 | Mon | In-store dry run with the switch on for staff and test cards. **Ship** the fixes. **Added 10-07:** signup gate (photo, info, ID check, signature), gift card balance, Limited Warranty 7 days as a gift card, the website details page, receipt variations, print server 1.9.0 | next free version | |
 | 10-13 | Tue | Fixes. Staff training (owner). **Owner: set rewards for stock already on the floor** (a one-time, mostly manual call; tools: the start setting, the reset request, a manual tool if wanted) | | |
 | 10-14 | Wed | Fixes. Final full pre-ship run. Launch checklist | v2.110.x | |
 | 10-15 | Thu | **Last project day.** Everything done; the switch is ready | | |

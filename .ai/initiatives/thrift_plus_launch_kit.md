@@ -1,16 +1,30 @@
-<!-- Last updated: 2026-09-30 (working page published) -->
+<!-- Last updated: 2026-10-07 (owners' meeting decisions; working page is now a simple to-do) -->
 # Thrift+ launch kit (drafts for the owner)
 
-**Working page (2026-09-30):** https://claude.ai/artifact/WzPhon6EJvA2S7XLk8M3oZ is where the owner ticks the checklist, approves or comments on each draft and answers questions. Status, notes, approvals and questions live in that page's database (collections `tasks`, `drafts`, `questions`); read them with the `ArtifactData` tool, and write status or new questions there too. This file keeps the draft text as the source. If a draft changes here, republish the page so the two match.
+**Working page (2026-10-07):** https://claude.ai/artifact/WzPhon6EJvA2S7XLk8M3oZ is now one simple to-do in six groups: Decisions, Dash, Creatives, Printing and ordering, Training, Research. The owner ticks items, picks options on decisions and writes notes there. Everything lives in the page's database collection `todos` (fields `title`, `detail`, `cat`, `who`, `due`, `status` todo/doing/done, `note`, and on decisions `options` and `choice`). Read and write it with the `ArtifactData` tool; read the notes and choices at the start of each Thrift+ session. The old collections `tasks`, `questions` and `drafts` are kept but no longer shown. This file keeps the draft text as the source.
 
-Phase 5 of [`thrift_plus_rewards`](./thrift_plus_rewards.md). Claude drafts; the owner approves. Review is planned for Thu 10-08; print and train 10-09 to 10-13; launch Tue 10-20.
+Phase 5 of [`thrift_plus_rewards`](./thrift_plus_rewards.md). Claude drafts; the owner approves. Print and train 10-09 to 10-15; launch Tue 10-20.
+
+## Owners' meeting decisions (2026-10-07)
+
+These replace anything older below. The drafts in sections 1 to 4 still use the old voice and get rewritten.
+
+- **Voice:** never "wait", "less" or "pay". Say what you get now and why not to wait: "it might be gone tomorrow". Show the benefit fast and clear. Any number on a sign (for example "over 90% of items") must be true on launch day; Claude checks it in the Calculator first. Never say "cash back": savings go onto a gift card, not cash.
+- **The discount:** "Member Price Always".
+- **Banking:** a gift card balance refill, bought automatically with your savings, plus a 5% bonus.
+- **No expiry and no fees** on anything (gift card balances, banked savings, warranty refunds). No legal grey areas.
+- **Limited Warranty, 7 days** (was 3). Qualifying items with a qualifying defect (the main function does not work) get X% (about 90%) of the total back as a gift card. The owners hate "store credit for most of what you paid": do not use it. Signs and receipts give a simple line plus a QR or web address for the full details.
+- **Signup:** a card works only after four things: a photo, the required information, an ID check (the ID confirms the information and the photo) and a signature. The signature covers the releases (photo and the rest); at the register it acknowledges "I have access to the full details", which live on the website.
+- **No Thrift+ shortcut for 18+ items:** staff check ID every time.
+- **Receipts:** close; tune them nearer testing. Wanted later: many variations with thought behind each; split AS IS lines from Limited Warranty lines (no warranty block when there are no LW lines; a short line plus a QR or web address when there are); keep the bold NO REFUNDS block; Thrift+ gets "a cool thing at the bottom" (lifetime savings or the gift card balance). Use the website for details.
+- **Tax (the owner's question):** buying or refilling a gift card is not taxed; the sale is taxed when the card is spent, on the full price. The member price lowers the taxable price. A warranty refund credits back the tax on the refunded part. Open for the CPA: how the 5% bonus is taxed when spent.
 
 **House rules for every word here:**
-- Never say fee, dues, unlock, cash back, points, bonus or clawback.
-- No percentages and no schedules on posters. The schedule is never published.
+- Never say fee, dues, unlock, cash back, points or clawback. ("5% bonus" on banking is the owner's own wording, 10-07.)
+- No schedules on posters. The schedule is never published. A percentage is fine only when it is true on launch day.
 - The register opener is **"Do you have a card yet?"** Non-members are **guests**.
 - Plain words, short lines, no em or en dashes.
-- **Wherever rewards, banked rewards or store credit are described, say "no cash value"** (owner, 2026-09-30: always, everywhere). The current drafts do not say it yet.
+- **Wherever the member price or rewards are described, say "no cash value"** (owner, 2026-09-30: always, everywhere). Gift card balances (banking and warranty refunds, 10-07) say "not redeemable for cash except where the law requires" instead; the attorney checks the exact gift card wording. The current drafts do not say either yet.
 
 ---
 

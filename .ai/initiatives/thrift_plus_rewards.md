@@ -353,6 +353,11 @@ The POS handles members:
 - **Code:** `services/calculator.py`, `GET rewards/calculator/`, `CalculatorTab.tsx`; tests `test_calculator.py` (6), `CalculatorTab.test.tsx`.
 - **The owner's demand dimensions** (specialty, collectible, expired consumable, high volume...) are written up as a future improvement in [`extended/thrift-plus-demand-dimensions.md`](../extended/thrift-plus-demand-dimensions.md).
 
+
+### 2026-10-07 — Owners' meeting
+- **Decided:** "Member Price Always" for the discount. Banking buys a gift card refill with your savings, plus a 5% bonus. Nothing expires and there are no fees. Limited Warranty is 7 days: a qualifying defect gets about 90% back as a gift card. A card works only after a photo, the required info, an ID check and a signature. Receipts wait until nearer testing, with many variations.
+- **Voice:** what you get now and "it might be gone tomorrow"; never wait, less or pay.
+- **Details and open items:** [`thrift_plus_launch_kit.md`](./thrift_plus_launch_kit.md) § Owners' meeting decisions. The launch to-do (one page, six groups) is the artifact's `todos` collection.
 ---
 
 ## See also

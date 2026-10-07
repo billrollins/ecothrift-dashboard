@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.148.1] -->
-<!-- Last reviewed: 2026-10-07 (2.148.1) -->
+<!-- Line 1 release: ## [2.148.2] -->
+<!-- Last reviewed: 2026-10-07 (2.148.2) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.148.2] - 2026-10-07
+
+User-facing theme: **The website's contact email is retail@ecothrift.us.** House rule from Bill via master (2026-10-07, standards T70): Eco-Thrift has three mailboxes (`bill_rollins@`, `retail@`, `warehouse@`), and every public or default address is `retail@`.
+
+### Changed
+
+- **Public site (`ecothrift.us`):** the contact email is `retail@ecothrift.us` (was `sales.ecothrift@outlook.com`). It shows in the footer Contact link, on `/terms` and on `/privacy`. Twilio had rejected a profile partly because the email's domain did not match the website.
+- **`/terms` and `/privacy`** say "Last updated: October 7, 2026".
+- Checked, no change needed: Dash and online-sales email senders and reply-tos already use `retail@` (code defaults and production config); hiring sends from the store mailbox (v2.148.0).
+
+### Docs
+
+- Thrift+ owners' meeting decisions recorded (`thrift_plus_launch_kit.md`, `thrift_plus_rewards.md`, `calendar.md`): Member Price Always, gift card refill with a 5% bonus, nothing expires, a 7-day Limited Warranty refunded as a gift card, signup needs photo, info, ID check and signature. The launch kit page is now one to-do in six groups.
+- `standards.md`: T70 (email rule), T71 (applicant text tick covers the first day, hiring coder), T60 closed (replaced: Eco owns the texting sender).
 
 ## [2.148.1] - 2026-10-07
 

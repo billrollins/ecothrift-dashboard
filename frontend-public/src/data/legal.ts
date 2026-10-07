@@ -7,7 +7,7 @@
  *  - TERMS_RATES (Terms)
  * Change the date below whenever the wording of either page changes.
  */
-export const LEGAL_LAST_UPDATED = 'October 6, 2026'
+export const LEGAL_LAST_UPDATED = 'October 7, 2026'
 
 export const LEGAL_ENTITY = 'EcoThrift LLC'
 

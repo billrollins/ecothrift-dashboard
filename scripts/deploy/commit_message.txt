@@ -1,25 +1,16 @@
-v2.148.1 — B-Stock log in workspace/logs (console only on Heroku); old AI_MODEL_<PURPOSE> keys gone from Heroku (standards T43, T23)
+v2.148.2 — Website contact email is retail@ecothrift.us (standards T70); Thrift+ meeting decisions in the docs
 
-<!-- Last reviewed: 2026-10-07 (2.148.1) -->
-# Changelog
-
-All notable changes to this project are documented here at the **version level**.
-Commit-level detail belongs in commit messages, not here.
-
-Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-Versioning follows [Semantic Versioning](https://semver.org/).
-
----
-
-## [Unreleased]
-
-## [2.148.1] - 2026-10-07
-
-User-facing theme: **Housekeeping from the house standards: no stray AI keys on Heroku, and the B-Stock log in `workspace/`.** Outside initiatives (standards T23, T43).
+User-facing theme: **The website's contact email is retail@ecothrift.us.** House rule from Bill via master (2026-10-07, standards T70): Eco-Thrift has three mailboxes (`bill_rollins@`, `retail@`, `warehouse@`), and every public or default address is `retail@`.
 
 ### Changed
 
-- **The B-Stock request log** (`buying.scraper`) goes to `workspace/logs/bstock_api.log` on a PC, not `logs/`. On Heroku it goes to the console only (`heroku logs`): no file, and no folder made at start-up, since a dyno's disk does not last. (T43)
-- **Production config:** the 12 old `AI_MODEL_<PURPOSE>` keys are removed from Heroku (Heroku v420, 2026-10-07; no code change). Settings → AI chooses every model; `AI_MODEL` stays as the fallback. (T23)
+- **Public site (`ecothrift.us`):** the contact email is `retail@ecothrift.us` (was `sales.ecothrift@outlook.com`). It shows in the footer Contact link, on `/terms` and on `/privacy`. Twilio had rejected a profile partly because the email's domain did not match the website.
+- **`/terms` and `/privacy`** say "Last updated: October 7, 2026".
+- Checked, no change needed: Dash and online-sales email senders and reply-tos already use `retail@` (code defaults and production config); hiring sends from the store mailbox (v2.148.0).
+
+### Docs
+
+- Thrift+ owners' meeting decisions recorded (`thrift_plus_launch_kit.md`, `thrift_plus_rewards.md`, `calendar.md`): Member Price Always, gift card refill with a 5% bonus, nothing expires, a 7-day Limited Warranty refunded as a gift card, signup needs photo, info, ID check and signature. The launch kit page is now one to-do in six groups.
+- `standards.md`: T70 (email rule), T71 (applicant text tick covers the first day, hiring coder), T60 closed (replaced: Eco owns the texting sender).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

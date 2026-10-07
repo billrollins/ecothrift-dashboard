@@ -24,7 +24,7 @@ export const STORE = {
   tagline: 'Restore, Reuse, Reimagine Our Future',
   metaDescription:
     'Eco-Thrift is a liquidation and thrift store in Omaha, NE that aims to stimulate a circular economy.',
-  email: 'sales.ecothrift@outlook.com',
+  email: 'retail@ecothrift.us',
   retail: {
     name: 'Eco-Thrift - Canfield',
     address: '8425 W Center Rd, Omaha, NE 68124',

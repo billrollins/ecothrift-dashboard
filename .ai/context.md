@@ -43,7 +43,7 @@ Two coders can share this repo. Each one has one peer inbox, `comm/inbox-<slug>.
 | Slug | Owns | Workspace | Runner IDs |
 |------|------|-----------|------------|
 | `data_platform` | Thrift+ core (members, cards, reward engine, POS, returns, signup), the Requests center, the data platform and AI brief, buying | main checkout | R-071 to R-099 |
-| `thrift_scanner` | **Retired 2026-09-30** (the owner turned that coder off). Its lane, the Thrift+ customer scanner (`/scan`), is now worked from the main session | worktree `C:\Coding\_worktrees\ecothrift-dashboard--thrift-scanner` (branch `thrift-scanner-mock`) | R-100 and up |
+| `thrift_scanner` | **Retired 2026-09-30** (the owner turned that coder off). Its lane, the Thrift+ customer scanner (`/scan`), is now worked from the main session | worktree and branch removed 2026-10-07 (its work shipped in v2.145.0) | R-100 and up |
 | `hiring` | **Opened 2026-10-06.** [`hiring_onboarding`](initiatives/hiring_onboarding.md): `apps/hiring`, `/careers`, the People workspace. Runs beside the inventory session (main checkout). Dev ports 8010 / 5185 / 5184 (5183 is another project's), test DB `DATABASE_NAME=hiring_gate` | worktree `C:\Coding\_worktrees\ecothrift-dashboard--hiring` (branch `hiring`) | - |
 | `standards` (was `tech_target`) | **Closed 2026-10-02** (the owner ended the Helper session). Everything it owned is the main coder's now: the count app, PR Fix-it, AI cleanup job, public legal pages, the scanner lane, `standards.md` and master's mail. Handoff: [`reference/reports/2026-10-02-helper-handoff.md`](reference/reports/2026-10-02-helper-handoff.md) | - | - |
 
