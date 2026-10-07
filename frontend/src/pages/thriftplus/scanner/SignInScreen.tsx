@@ -13,7 +13,7 @@ type Mode = 'password' | 'forgot' | 'card';
 /**
  * Customer sign-in: email or username and password (email always works),
  * "Forgot password?" by email, or scan the Thrift+ card with the phone's last
- * 4 digits as the check. Mock: any login works; nothing is emailed.
+ * 4 digits as the check.
  */
 export function SignInScreen() {
   const auth = useSignIn();
@@ -76,9 +76,6 @@ export function SignInScreen() {
               </ButtonBase>
             </>
           )}
-          <Box sx={{ fontSize: u(24), color: sc.ink3, mt: u(28), lineHeight: 1.35 }}>
-            Mock sign-in: any email or username and password work. Nothing is emailed.
-          </Box>
         </Box>
 
         <Box sx={{ textAlign: 'center', mt: u(44), mb: u(60) }}>
@@ -277,7 +274,7 @@ function CardForm({ run, onBack }: { run: (fn: () => Promise<unknown>) => void; 
   );
 }
 
-function Title({ children }: { children: React.ReactNode }) {
+export function Title({ children }: { children: React.ReactNode }) {
   return (
     <Box component="h1" sx={{ m: 0, fontFamily: sc.condensed, fontWeight: 700, fontSize: u(58), color: sc.titleGreen, lineHeight: 1.1 }}>
       {children}
@@ -285,11 +282,11 @@ function Title({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Sub({ children }: { children: React.ReactNode }) {
+export function Sub({ children }: { children: React.ReactNode }) {
   return <Box sx={{ fontSize: u(31), color: sc.ink2, mt: u(10), mb: u(30), lineHeight: 1.4 }}>{children}</Box>;
 }
 
-function Field({ children, sx }: { children: React.ReactNode; sx?: object }) {
+export function Field({ children, sx }: { children: React.ReactNode; sx?: object }) {
   return (
     <Box
       sx={{
@@ -309,7 +306,7 @@ function Field({ children, sx }: { children: React.ReactNode; sx?: object }) {
   );
 }
 
-function Primary({ busy, label }: { busy: boolean; label: string }) {
+export function Primary({ busy, label }: { busy: boolean; label: string }) {
   return (
     <ButtonBase
       type="submit"
@@ -331,7 +328,7 @@ function Primary({ busy, label }: { busy: boolean; label: string }) {
   );
 }
 
-function Secondary({ label, onClick }: { label: string; onClick: () => void }) {
+export function Secondary({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <ButtonBase type="button" onClick={onClick} sx={{ mt: u(18), width: '100%', py: u(18), borderRadius: u(16), fontSize: u(30), color: sc.ink2 }}>
       {label}

@@ -25,6 +25,9 @@ from apps.thriftplus.models import Account, Card, Event, Person
 from apps.thriftplus.services.cards import parse
 
 ENABLED_KEY = 'thrift_plus_enabled'
+# Staff try the scanner before launch: /scan?preview=<code> keeps the code on the phone and sends it as a header.
+PREVIEW_KEY = 'thrift_plus_preview_code'
+PREVIEW_HEADER = 'HTTP_X_THRIFTPLUS_PREVIEW'
 
 
 class MemberError(ValueError):
@@ -34,6 +37,19 @@ class MemberError(ValueError):
 def is_enabled() -> bool:
     value = AppSetting.objects.filter(key=ENABLED_KEY).values_list('value', flat=True).first()
     return value is True or str(value).lower() in ('true', '1', 'yes', 'on')
+
+
+def open_to(request) -> bool:
+    """The scanner and portal answer this request: Thrift+ is on, or the phone carries the staff preview code."""
+    import hmac
+
+    if is_enabled():
+        return True
+    sent = (request.META.get(PREVIEW_HEADER) or '').strip()
+    if not sent:
+        return False
+    code = str(AppSetting.objects.filter(key=PREVIEW_KEY).values_list('value', flat=True).first() or '').strip()
+    return bool(code) and hmac.compare_digest(sent, code)
 
 
 def normalize_phone(raw: str | None) -> str:

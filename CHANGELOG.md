@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.144.1] -->
-<!-- Last reviewed: 2026-10-06 (2.144.1) -->
+<!-- Line 1 release: ## [2.145.0] -->
+<!-- Last reviewed: 2026-10-07 (2.145.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,50 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.145.0] - 2026-10-07
+
+User-facing theme: **Everything Thrift+ waits for one switch in Settings, which is off until launch. The customer scanner now runs on real tags and prices, with My account and a new-password page. Thrift+ gets a rewards Calculator: the last inventory's stock under any reward rules, guests and members side by side.** Initiative: `thrift_plus_rewards` (owner, 2026-10-07).
+
+### Added
+
+- **Settings → Store → Thrift+** (Super User only): the **Thrift+ is on** switch (off in production), the staff preview code, test registers, the rewards start and the floor.
+- **While Thrift+ is off:**
+  - The scanner and member portal API (`/api/thriftplus/public/*`) answers 403 `THRIFT_PLUS_OFF`, and `/scan` shows "Thrift+ coming soon. Ask at the register."
+  - A staff phone opens it at `/scan?preview=<code>` (setting `thrift_plus_preview_code`, random at first; migration `thriftplus.0009`).
+  - Registers charge the tag except the test registers (as before), and Dash's Thrift+ page stays Super-User-only.
+- **Thrift+ → Calculator** (what-if only; nothing changes):
+  - **Which stock:** the stock the last inventory counted that is still on the shelf, or all shelf stock.
+  - **What it shows:** items, $ retail; guests (the tag) and members (tag − reward), each with total, average price and % of retail. Also a line over the 90 days after launch, and breakdowns by age, % off, price and category.
+  - **Inputs:**
+    - wait, % of the tag a day, steps (nightly or weekly), curve, floor;
+    - same product and similar items (same brand and category) grow slower, with back-stock estimates; demand by category (beta, credibility-blended);
+    - shotgun start: oldest age on launch day, old stock at X% of its real age, most % off on launch day.
+  - The defaults are the live engine, tested to the cent.
+- **Scanner on the real API** (`/api/thriftplus/public/`): real tag lookups and prices, real sign-in, cart, history and price signals.
+- **My account** (`/scan?view=account`): rewards, credit and cover, people and cards, recent activity; stop a lost card, take the second adult off, leave.
+- **New-password page** (`/scan?reset=<token>`).
+
+### Removed
+
+- The scanner's sample tags, "Start over (mock)" and the "mock sign-in" note.
+
+### Fixed
+
+- Thrift+ portal: stopping a card and removing a person did the change, then answered 405. They now return the updated membership.
+
+### Changed
+
+- Every `thrift_plus_*` setting can be changed only by the Super User.
+- The owner's demand dimensions (specialty, collectible, expired consumable, high volume...) are written up as a future improvement: `.ai/extended/thrift-plus-demand-dimensions.md`.
+
+### Tests
+
+- `apps/thriftplus` (78):
+  - the switch: off says opens soon, the preview code gets in, on lets everyone in, only the Super User changes it;
+  - the calculator (6);
+  - the portal fix.
+- Frontend: the scanner (coming soon while off), the calculator, settings (48).
 
 ## [2.144.1] - 2026-10-06
 

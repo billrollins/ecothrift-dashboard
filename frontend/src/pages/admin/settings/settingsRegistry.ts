@@ -37,7 +37,11 @@ export type SettingKind =
   | 'seconds'
   | 'ratio'
   | 'ladder'
-  | 'severity_groups';
+  | 'severity_groups'
+  // On or off (stored true / false).
+  | 'switch'
+  // Plain text.
+  | 'text';
 
 export interface SettingMeta {
   label: string;
@@ -47,6 +51,37 @@ export interface SettingMeta {
 }
 
 export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
+  // Thrift+ (owner, 2026-10-07: everything Thrift+ is behind one switch). Super User only; Store tab, Thrift+ card.
+  thrift_plus_enabled: {
+    label: 'Thrift+ is on',
+    help: 'Off: customers see "Thrift+ coming soon" at /scan, the portal is closed, and registers charge the tag (only test registers try member prices). On: Thrift+ is live for everyone.',
+    tab: 'store',
+    kind: 'switch',
+  },
+  thrift_plus_preview_code: {
+    label: 'Thrift+ staff preview code',
+    help: 'While Thrift+ is off, a staff phone opens the scanner at /scan?preview=<this code>. Change it to shut old phones out.',
+    tab: 'store',
+    kind: 'text',
+  },
+  thrift_plus_test_registers: {
+    label: 'Thrift+ test registers',
+    help: 'Register codes that try Thrift+ while it is off, as a list, e.g. ["R3"].',
+    tab: 'store',
+    kind: 'raw',
+  },
+  thrift_plus_rewards_start: {
+    label: 'Thrift+ rewards start',
+    help: 'No item counts as on the floor before this date (YYYY-MM-DD). Blank = each item counts from its own floor date. See Thrift+ → Calculator.',
+    tab: 'store',
+    kind: 'text',
+  },
+  thrift_plus_floor_share: {
+    label: 'Thrift+ lowest a member pays',
+    help: 'Share of the tag a member always pays (10% = never more than 90% off).',
+    tab: 'store',
+    kind: 'weight',
+  },
   po_default_est_shrink: {
     label: 'Default PO est. shrink',
     help:

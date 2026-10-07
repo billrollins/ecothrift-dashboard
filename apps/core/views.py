@@ -43,8 +43,24 @@ class AppSettingViewSet(viewsets.ModelViewSet):
     # DefaultRouter uses [^/.]+ which 404s dotted keys like online_sales.hours.
     lookup_value_regex = r'[^/]+'
 
+    # The Thrift+ switch and its settings: the owner's call alone (2026-10-07).
+    SUPERUSER_PREFIXES = ('thrift_plus_',)
+
+    def _owner_only(self, key: str) -> None:
+        if key.startswith(self.SUPERUSER_PREFIXES) and not self.request.user.is_superuser:
+            raise PermissionDenied('Only the Super User changes Thrift+ settings.')
+
+    def perform_create(self, serializer):
+        self._owner_only(str(serializer.validated_data.get('key') or ''))
+        serializer.save(updated_by=self.request.user)
+
+    def perform_destroy(self, instance):
+        self._owner_only(instance.key)
+        instance.delete()
+
     def perform_update(self, serializer):
         instance = self.get_object()
+        self._owner_only(instance.key)
         old = instance.value
         saved = serializer.save(updated_by=self.request.user)
         if old != saved.value:

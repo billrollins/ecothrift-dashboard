@@ -1,18 +1,23 @@
-/** React Query wrappers around the Thrift+ data module (the mock today, the real API on 10/07). */
+/** React Query wrappers around the Thrift+ scanner API (`/api/thriftplus/public`). */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   addToCart,
   clearCart,
+  confirmPasswordReset,
   continueAsGuest,
   getCart,
   getHistory,
+  getMe,
   getSession,
   passItem,
   removeFromCart,
+  removePerson,
+  reportCardLost,
   requestPasswordReset,
   sendPriceFeel,
   setCartQty,
   setRewardChoice,
+  setUpLogin,
   signIn,
   signInWithCard,
   signOut,
@@ -21,13 +26,14 @@ import {
   type ThriftPlusCart,
   type ThriftPlusItemCard,
   type ThriftPlusSession,
-} from '../../../api/thriftPlusMock';
+} from '../../../api/thriftPlusScanner.api';
 
 export const thriftPlusKeys = {
   all: ['thriftPlus'] as const,
   session: ['thriftPlus', 'session'] as const,
   cart: ['thriftPlus', 'cart'] as const,
   history: ['thriftPlus', 'history'] as const,
+  me: ['thriftPlus', 'me'] as const,
 };
 
 export function useThriftPlusSession() {
@@ -85,6 +91,46 @@ export function useCartActions() {
     }),
     feel: useMutation({
       mutationFn: ({ sku, feel }: { sku: string; feel: PriceFeel }) => sendPriceFeel(sku, feel),
+    }),
+  };
+}
+
+/** The link in the reset email opens `/scan?reset=<token>`: set a new password and sign in. */
+export function useConfirmReset() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ token, password }: { token: string; password: string }) => confirmPasswordReset(token, password),
+    onSuccess: (s: ThriftPlusSession) => {
+      qc.setQueryData(thriftPlusKeys.session, s);
+      void qc.invalidateQueries({ queryKey: thriftPlusKeys.cart });
+    },
+  });
+}
+
+export function useMe(enabled = true) {
+  return useQuery({ queryKey: thriftPlusKeys.me, queryFn: getMe, staleTime: 0, enabled });
+}
+
+/** The portal's changes. Each refreshes "me"; removing yourself signs you out. */
+export function useAccountActions() {
+  const qc = useQueryClient();
+  const refresh = () => void qc.invalidateQueries({ queryKey: thriftPlusKeys.me });
+  return {
+    cardLost: useMutation({ mutationFn: (cardId: number) => reportCardLost(cardId), onSuccess: refresh }),
+    removePerson: useMutation({
+      mutationFn: (personId: number) => removePerson(personId),
+      onSuccess: (r) => {
+        if ('status' in r && r.status === 'signed_out') qc.setQueryData(thriftPlusKeys.session, { status: 'signed_out' });
+        refresh();
+      },
+    }),
+    setUpLogin: useMutation({
+      mutationFn: ({ email, password, username }: { email: string; password: string; username?: string }) =>
+        setUpLogin(email, password, username),
+      onSuccess: (s: ThriftPlusSession) => {
+        qc.setQueryData(thriftPlusKeys.session, s);
+        refresh();
+      },
     }),
   };
 }

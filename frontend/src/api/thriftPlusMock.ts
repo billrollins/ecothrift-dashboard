@@ -106,6 +106,10 @@ export interface ThriftPlusMember {
   banked_rewards: Money;
   /** Store credit balance. */
   credit_balance: Money;
+  /** How this session signed in. A card session cannot change the account. (Real API only.) */
+  session_kind?: 'password' | 'card';
+  /** False until they set up an email and password. (Real API only.) */
+  has_login?: boolean;
 }
 
 export type ThriftPlusSession =

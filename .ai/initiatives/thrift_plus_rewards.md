@@ -325,6 +325,34 @@ The POS handles members:
 
 **2026-09-25 — Opened.** The owner's design is complete. Launch is Tue 10-20 and the last project day is Thu 10-15. A parallel thread (`thrift_scanner`) builds the scanner mock today; see [`.ai/context.md` § Two coders](../context.md#two-coders).
 
+**2026-10-07 — Everything Thrift+ behind one switch (owner), shipped with the scanner on real prices and the calculator in v2.145.0.**
+
+- **The switch:** Settings → Store → **Thrift+** card (Super User only): "Thrift+ is on". Off in production until launch.
+- **While it is off:**
+  - **The scanner and the member portal** (`/api/thriftplus/public/*`) answer 403 `THRIFT_PLUS_OFF`, and `/scan` says "Thrift+ coming soon. Ask at the register."
+  - **A staff phone** opens the scanner at `/scan?preview=<code>`. The code is the `thrift_plus_preview_code` setting, random at first (migration `thriftplus.0009`) and shown on the Thrift+ card.
+  - **Registers** charge the tag, except the test registers (`thrift_plus_test_registers`), as before.
+  - **Dash's Thrift+ page** stays Super-User-only.
+- **Owner only:** every `thrift_plus_*` setting can be changed only by the Super User (`AppSettingViewSet._owner_only`).
+- **Launch day:** turn the switch on (Settings → Store → Thrift+).
+
+**2026-10-07 — Rewards calculator (owner's ask; shipped in v2.145.0).** Thrift+ → **Calculator**: the stock the last inventory counted (still on the shelf), or all shelf stock, under any rules.
+
+- **It shows:** items and $ retail; guests (pay the tag) and members (tag − reward) side by side, each with total, average price and % of retail. Also a day-by-day line over the 90 days after launch, and breakdowns by age, % off, price and category.
+- **Inputs:**
+  - **Basic discount:** wait, % of the tag a day, how often it steps (nightly or weekly), curve (straight, slow start, fast start), floor.
+  - **More than one:** same product slower per extra unit, with back-stock estimates from the last inventory; similar items (same brand and category) slower; a cap on the slowdown.
+  - **Demand (beta):** category days to sell, credibility-blended.
+  - **Shotgun start:** oldest it can count on launch day (= the rewards start setting), old stock at X% of its real age, most % off on launch day.
+- **The defaults are the live engine**, tested to the cent against `floor_plan.reward_for`. What-if only: no setting changes.
+- **First reading (dev copy of production, 19,933 items):**
+  - Guests pay 36.6% of retail.
+  - With today's rules and **real age**, members would pay **11.7% of retail on launch day** (68% off on average), because most floor stock is old.
+  - With old stock counted as at most 30 days old: 27.6%.
+  - The shotgun choice matters a lot.
+- **Code:** `services/calculator.py`, `GET rewards/calculator/`, `CalculatorTab.tsx`; tests `test_calculator.py` (6), `CalculatorTab.test.tsx`.
+- **The owner's demand dimensions** (specialty, collectible, expired consumable, high volume...) are written up as a future improvement in [`extended/thrift-plus-demand-dimensions.md`](../extended/thrift-plus-demand-dimensions.md).
+
 ---
 
 ## See also

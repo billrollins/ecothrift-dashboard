@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Button, Chip, MenuItem, TextField, Typography } from '@mui/material';
+import { Box, Button, Chip, MenuItem, Switch, TextField, Typography } from '@mui/material';
 import Save from '@mui/icons-material/Save';
 import { useSnackbar } from 'notistack';
 import { useQueryClient } from '@tanstack/react-query';
@@ -8,6 +8,10 @@ import type { SettingKind, SettingMeta } from './settingsRegistry';
 
 const WEEKDAY_CHIPS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const DEFAULT_SECTION_DAYS = [true, true, true, true, true, true, false];
+
+function isOn(value: unknown): boolean {
+  return value === true || ['true', '1', 'yes', 'on'].includes(String(value).toLowerCase());
+}
 
 function displayValue(kind: SettingKind, value: unknown): string {
   if (kind === 'percent' || kind === 'weight') {
@@ -22,6 +26,9 @@ function displayValue(kind: SettingKind, value: unknown): string {
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     const n = Number(value);
     return Number.isInteger(n) && n >= 0 && n <= 6 ? days[n] : String(value ?? '');
+  }
+  if (kind === 'switch') {
+    return isOn(value) ? 'On' : 'Off';
   }
   if (kind === 'weekdays') {
     const flags = Array.isArray(value) ? value : DEFAULT_SECTION_DAYS;
@@ -117,6 +124,9 @@ function parseEdit(kind: SettingKind, raw: string): { ok: true; value: unknown }
       return { ok: false, error: 'JSON is not valid.' };
     }
   }
+  if (kind === 'text') {
+    return { ok: true, value: raw.trim() };
+  }
   if (kind === 'raw') {
     const trimmed = raw.trim();
     if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
@@ -170,6 +180,39 @@ export function SettingRow({
 
   const asPercent = meta.kind === 'percent' || meta.kind === 'weight';
   const shown = asPercent ? `${displayValue(meta.kind, value)}%` : displayValue(meta.kind, value);
+
+  if (meta.kind === 'switch') {
+    const on = isOn(value);
+    const flip = async () => {
+      const next = !on;
+      if (next && !window.confirm(`Turn on "${meta.label}"? ${meta.help}`)) return;
+      try {
+        try {
+          await updateSetting(settingKey, { value: next });
+        } catch {
+          await createSetting({ key: settingKey, value: next, description: meta.help });
+        }
+        queryClient.invalidateQueries({ queryKey: ['settings'] });
+        enqueueSnackbar(next ? 'Turned on' : 'Turned off', { variant: 'success' });
+      } catch {
+        enqueueSnackbar('Failed to save setting', { variant: 'error' });
+      }
+    };
+    return (
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 2, py: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+        <Box sx={{ flex: '1 1 200px' }}>
+          <Typography variant="subtitle1">{meta.label}</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {meta.help}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: '1 1 240px' }}>
+          <Switch checked={on} onChange={() => void flip()} inputProps={{ 'aria-label': meta.label }} />
+          <Typography sx={{ fontWeight: 700, color: on ? 'success.main' : 'text.secondary' }}>{on ? 'On' : 'Off'}</Typography>
+        </Box>
+      </Box>
+    );
+  }
 
   if (meta.kind === 'weekdays') {
     const flags = (Array.isArray(value) && value.length === 7 ? value : DEFAULT_SECTION_DAYS).map(Boolean);
@@ -264,7 +307,7 @@ export function SettingRow({
                 value={editValue}
                 onChange={(e) => setEditValue(e.target.value)}
                 sx={{ minWidth: 160, flex: 1 }}
-                type={meta.kind === 'raw' || meta.kind === 'ladder' || meta.kind === 'severity_groups' ? 'text' : 'number'}
+                type={meta.kind === 'raw' || meta.kind === 'text' || meta.kind === 'ladder' || meta.kind === 'severity_groups' ? 'text' : 'number'}
               />
             )}
             <Button size="small" variant="contained" startIcon={<Save />} onClick={() => void save()}>

@@ -206,3 +206,65 @@ export interface FloorPlanChoices {
   wait_days: number;
   horizon: number;
 }
+
+// ── Rewards calculator (owner, 2026-10-07) ─────────────────────────────────────
+
+export type CalculatorCurve = 'linear' | 'slow_start' | 'fast_start';
+
+/** The calculator's inputs. Blank (null) = the default (today's engine). */
+export interface CalculatorChoices {
+  population: 'counted' | 'shelf';
+  launch: string;
+  offset: number;
+  wait_days: number;
+  pct_per_day: number;
+  step_days: number;
+  curve: CalculatorCurve;
+  floor_share: number;
+  same_slowdown: number;
+  count_back_stock: boolean;
+  similar_slowdown: number;
+  max_slowdown: number;
+  demand: boolean;
+  demand_strength: number;
+  max_age: number | null;
+  age_factor: number;
+  max_start_pct: number | null;
+}
+
+export interface CalculatorSide {
+  total: number;
+  avg: number;
+  pct_of_retail: number | null;
+}
+
+export interface CalculatorRow {
+  label: string;
+  items: number;
+  with_reward: number;
+  with_retail: number;
+  retail_total: number;
+  guest: CalculatorSide;
+  member: CalculatorSide;
+  reward_total: number;
+  pct_off: number | null;
+}
+
+export interface CalculatorResult {
+  params: CalculatorChoices & { start_equivalent: string | null; on: string };
+  source: { population: string; count?: { id: number; name: string; day: string | null; counted: number } | null };
+  excluded: { consignment: number; no_floor_date: number };
+  totals: CalculatorRow;
+  by_age: CalculatorRow[];
+  by_band: CalculatorRow[];
+  by_off: CalculatorRow[];
+  by_category: CalculatorRow[];
+  timeline: (CalculatorRow & { offset: number; on: string })[];
+  rate_changes: { slower: number; faster: number; items: number };
+  demand?: {
+    store_median_days: number | null;
+    sales: number;
+    categories: { category: string; median_days: number; sales: number; credibility: number; blended_days: number; multiplier: number | null }[];
+  };
+  current_settings: { start: string | null; floor_share: string; switch_on: boolean };
+}

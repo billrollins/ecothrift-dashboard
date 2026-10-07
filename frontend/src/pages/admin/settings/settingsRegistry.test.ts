@@ -75,10 +75,20 @@ describe('settingsRegistry', () => {
     expect(metaForKey('pos.card_surcharge').tab).toBe('store');
     expect(metaForKey('pos.card_surcharge').kind).toBe('surcharge');
     expect(keysForTab('store', Object.keys(SETTINGS_REGISTRY))).toEqual([
+      'thrift_plus_enabled',
+      'thrift_plus_preview_code',
+      'thrift_plus_test_registers',
+      'thrift_plus_rewards_start',
+      'thrift_plus_floor_share',
       'tax_rate',
       'online_sales.hours',
       'pos.card_surcharge',
     ]);
+  });
+
+  it('puts the Thrift+ switch on Store as an on/off toggle (owner, 2026-10-07)', () => {
+    expect(metaForKey('thrift_plus_enabled').kind).toBe('switch');
+    expect(metaForKey('thrift_plus_preview_code').kind).toBe('text');
   });
 
   it('edits tails, weekdays, ladders, and letter scores on Retail QA', () => {

@@ -1,5 +1,7 @@
 import type { AxiosRequestConfig } from 'axios';
 import type {
+  CalculatorChoices,
+  CalculatorResult,
   CardBatch,
   FloorCompare,
   FloorPlan,
@@ -189,5 +191,16 @@ export async function fetchFloorPlan(choices: FloorPlanChoices): Promise<FloorPl
 /** The usual options side by side, at launch and a few weeks after. */
 export async function fetchFloorCompare(choices: FloorPlanChoices): Promise<FloorCompare> {
   const { data } = await api.get<FloorCompare>('/thriftplus/rewards/floor-plan/compare/', { params: floorParams(choices) });
+  return data;
+}
+
+/** The rewards calculator: the last inventory's stock under these rules (what-if only, nothing changes). */
+export async function fetchCalculator(choices: CalculatorChoices): Promise<CalculatorResult> {
+  const params: Record<string, string | number> = {};
+  for (const [k, v] of Object.entries(choices)) {
+    if (v === null || v === undefined || v === '') continue;
+    params[k] = typeof v === 'boolean' ? (v ? 1 : 0) : v;
+  }
+  const { data } = await api.get<CalculatorResult>('/thriftplus/rewards/calculator/', { params });
   return data;
 }

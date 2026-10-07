@@ -24,6 +24,7 @@ BASE = '/api/thriftplus/public/'
 class PublicApiTests(TestCase):
     def setUp(self):
         cache.clear()
+        AppSetting.objects.update_or_create(key=members.ENABLED_KEY, defaults={'value': True})   # Thrift+ is on
         no_sale = patch.object(scanner, '_sale_factor', return_value=D('1'))  # a Labor Day window must not move the numbers
         no_sale.start()
         self.addCleanup(no_sale.stop)
@@ -129,6 +130,30 @@ class PublicApiTests(TestCase):
         self.assertEqual(reused.json()['code'], 'BAD_RESET')
         self.assertNotIn('blue-coat', MemberLogin.objects.get().password)  # only a hash is kept
 
+    def test_the_portal_changes_answer_with_the_updated_membership_and_a_card_session_cannot_make_them(self):
+        card_phone = APIClient()
+        card_phone.post(BASE + 'session/card/', {'card_code': f'TP{self.code}', 'phone_last4': '0101'}, format='json')
+        card_id = self.person.cards.get().pk
+        refused = card_phone.post(BASE + 'me/card-lost/', {'card': card_id}, format='json')
+        self.assertEqual((refused.status_code, refused.json()['code']), (403, 'NEEDS_PASSWORD'))
+        self.assertEqual(card_phone.get(BASE + 'me/').json()['can_change'], False)
+
+        member_auth.set_up_login(self.person, email='ana@example.com', username=None, password='green-lamp-4455')
+        second = members.add_second_adult(self.account, both_present=True, primary_approves=True, first_name='Ben',
+                                          id_checked=True, verified_18=True, card_code=self.other_code)
+        phone = APIClient()
+        phone.post(BASE + 'session/password/', {'login': 'ana@example.com', 'password': 'green-lamp-4455'}, format='json')
+
+        stopped = phone.post(BASE + 'me/card-lost/', {'card': card_id}, format='json')
+        self.assertEqual(stopped.status_code, 200, stopped.content)
+        ana = next(p for p in stopped.json()['people'] if p['is_you'])
+        self.assertEqual([c['status'] for c in ana['cards']], ['dead'])
+        self.assertEqual(stopped.json()['can_change'], True)
+
+        removed = phone.post(BASE + 'me/remove-person/', {'person': second.pk}, format='json')
+        self.assertEqual(removed.status_code, 200, removed.content)
+        self.assertEqual([p['first_name'] for p in removed.json()['people']], ['Ana'])
+
     def test_the_register_picks_up_the_choice_made_in_the_app(self):
         from apps.core.models import WorkLocation
         from apps.pos.models import Drawer, Register
@@ -147,3 +172,44 @@ class PublicApiTests(TestCase):
         self.assertEqual(member.reward_choice, 'bank')
         self.assertEqual(register.cart_block(cart)['app_choice'], 'bank')
         self.assertTrue(AppCart.objects.filter(account=self.account).exists())
+
+
+class SwitchTests(TestCase):
+    """Owner, 2026-10-07: everything Thrift+ customers see is behind the switch."""
+
+    def setUp(self):
+        cache.clear()
+        AppSetting.objects.update_or_create(key=members.ENABLED_KEY, defaults={'value': False})
+        AppSetting.objects.update_or_create(key=members.PREVIEW_KEY, defaults={'value': 'staff123'})
+        Item.objects.create(sku='ITMTPSW1', product=Product.objects.create(title='Lamp'), price=D('9.00'), status='on_shelf')
+
+    def test_off_the_scanner_and_portal_say_opens_soon(self):
+        api = APIClient()
+        for method, url in (('get', '/api/thriftplus/public/session/'), ('get', '/api/thriftplus/public/tag/ITMTPSW1/'),
+                            ('post', '/api/thriftplus/public/session/password/'), ('get', '/api/thriftplus/public/me/')):
+            res = getattr(api, method)(url, {}, format='json') if method == 'post' else api.get(url)
+            self.assertEqual((res.status_code, res.json()['code']), (403, 'THRIFT_PLUS_OFF'), url)
+
+    def test_a_staff_phone_with_the_preview_code_gets_in(self):
+        api = APIClient()
+        self.assertEqual(api.get('/api/thriftplus/public/tag/ITMTPSW1/', HTTP_X_THRIFTPLUS_PREVIEW='wrong').status_code, 403)
+        res = api.get('/api/thriftplus/public/tag/ITMTPSW1/', HTTP_X_THRIFTPLUS_PREVIEW='staff123')
+        self.assertEqual((res.status_code, res.data['status']), (200, 'found'))
+
+    def test_on_everyone_gets_in(self):
+        AppSetting.objects.filter(key=members.ENABLED_KEY).update(value=True)
+        self.assertEqual(APIClient().get('/api/thriftplus/public/tag/ITMTPSW1/').status_code, 200)
+
+    def test_only_the_super_user_changes_thrift_plus_settings(self):
+        mgr = User.objects.create_user(email='mgr@example.com', first_name='Mo', last_name='M', password='Shelf-life-42')
+        mgr.groups.add(Group.objects.get_or_create(name='Manager')[0])
+        boss = User.objects.create_user(email='boss@example.com', first_name='Bill', last_name='R', password='Shelf-life-42',
+                                        is_superuser=True, is_staff=True)
+        boss.groups.add(Group.objects.get_or_create(name='Admin')[0])
+        url = f'/api/core/settings/{members.ENABLED_KEY}/'
+        api = APIClient()
+        api.force_authenticate(mgr)
+        self.assertEqual(api.patch(url, {'value': True}, format='json').status_code, 403)
+        api.force_authenticate(boss)
+        self.assertEqual(api.patch(url, {'value': True}, format='json').status_code, 200)
+        self.assertTrue(members.is_enabled())

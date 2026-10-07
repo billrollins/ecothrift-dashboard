@@ -39,6 +39,40 @@ export type {
 
 const http = axios.create({ baseURL: '/api/thriftplus/public', withCredentials: true });
 
+// Thrift+ is behind a switch (owner, 2026-10-07). Before launch, staff open /scan?preview=<code>; the phone keeps the
+// code and sends it with every call, and the server lets that phone in.
+const PREVIEW_KEY = 'thriftPlus.preview';
+
+export function setPreviewCode(code: string | null): void {
+  try {
+    if (code) window.localStorage.setItem(PREVIEW_KEY, code);
+    else window.localStorage.removeItem(PREVIEW_KEY);
+  } catch {
+    // Private mode: the preview lasts this page only.
+  }
+}
+
+http.interceptors.request.use((config) => {
+  try {
+    const code = window.localStorage.getItem(PREVIEW_KEY);
+    if (code) config.headers.set('X-ThriftPlus-Preview', code);
+  } catch {
+    // No storage: no preview.
+  }
+  return config;
+});
+
+/** False while Thrift+ is off for this phone (the server answers THRIFT_PLUS_OFF). Offline counts as open. */
+export async function isOpen(): Promise<boolean> {
+  try {
+    await http.get('/session/');
+    return true;
+  } catch (err) {
+    const code = axios.isAxiosError(err) ? (err.response?.data as { code?: string } | undefined)?.code : undefined;
+    return code !== 'THRIFT_PLUS_OFF';
+  }
+}
+
 const LS = {
   guest: 'thriftPlus.real.guest',
   cart: 'thriftPlus.real.guestCart',

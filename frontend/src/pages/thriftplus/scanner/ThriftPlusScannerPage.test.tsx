@@ -6,6 +6,18 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { thriftPlusMockControls } from '../../../api/thriftPlusMock';
 import ThriftPlusScannerPage from './ThriftPlusScannerPage';
 
+// The page talks to the real API module; these tests stand the in-memory mock in for the server.
+vi.mock('../../../api/thriftPlusScanner.api', async () => ({
+  ...(await vi.importActual<typeof import('../../../api/thriftPlusMock')>('../../../api/thriftPlusMock')),
+  confirmPasswordReset: vi.fn(),
+  getMe: vi.fn(),
+  reportCardLost: vi.fn(),
+  removePerson: vi.fn(),
+  setUpLogin: vi.fn(),
+  isOpen: vi.fn(async () => true),
+  setPreviewCode: vi.fn(),
+}));
+
 // jsdom has no camera or WebAssembly decoder; the page falls back to typing a tag.
 vi.mock('./useQrCamera', async (orig) => ({
   ...(await orig<typeof import('./useQrCamera')>()),
@@ -44,6 +56,14 @@ beforeEach(() => {
 });
 
 describe('Thrift+ price scanner', () => {
+  it('says coming soon while Thrift+ is off (owner, 2026-10-07)', async () => {
+    const api = await import('../../../api/thriftPlusScanner.api');
+    vi.mocked(api.isOpen).mockResolvedValueOnce(false);
+    renderPage();
+    expect(await screen.findByText('Coming soon')).toBeInTheDocument();
+    expect(screen.getByText('Ask at the register.')).toBeInTheDocument();
+  });
+
   it('walks through Scan, Bank, Cart once, then scans, adds, banks and shows the cart', async () => {
     const user = userEvent.setup();
     renderPage();

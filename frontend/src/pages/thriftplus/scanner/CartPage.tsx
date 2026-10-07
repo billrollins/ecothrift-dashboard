@@ -7,7 +7,6 @@ import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import RemoveRounded from '@mui/icons-material/RemoveRounded';
 import SearchRounded from '@mui/icons-material/SearchRounded';
 import {
-  thriftPlusMockControls,
   toCents,
   type RewardChoice,
   type ThriftPlusCart,
@@ -31,12 +30,14 @@ interface Props {
   onTour: () => void;
   onSignIn: () => void;
   onSignOut: () => void;
+  /** Members only: opens My account. */
+  onAccount?: () => void;
 }
 
 const cents = (m: string) => toCents(m);
 
 /** The cart: what you'll pay, what your rewards do, the items, then everything you scanned. */
-export function CartPage({ cart, member, isGuest, onBack, onAdd, onChoose, onExplain, onTour, onSignIn, onSignOut }: Props) {
+export function CartPage({ cart, member, isGuest, onBack, onAdd, onChoose, onExplain, onTour, onSignIn, onSignOut, onAccount }: Props) {
   const actions = useCartActions();
   const history = useThriftPlusHistory();
   const lines = cart?.lines ?? [];
@@ -146,22 +147,13 @@ export function CartPage({ cart, member, isGuest, onBack, onAdd, onChoose, onExp
           <ButtonBase onClick={onTour} sx={{ px: u(30), py: u(16), borderRadius: 99, color: sc.priceGreen, fontSize: u(28), fontWeight: 700 }}>
             How Thrift+ works
           </ButtonBase>
+          {onAccount && (
+            <ButtonBase onClick={onAccount} sx={{ px: u(30), py: u(16), borderRadius: 99, color: sc.priceGreen, fontSize: u(28), fontWeight: 700 }}>
+              My account
+            </ButtonBase>
+          )}
           <ButtonBase onClick={onSignOut} sx={{ px: u(30), py: u(16), borderRadius: 99, color: sc.ink2, fontSize: u(28) }}>
             {member ? 'Sign out' : 'Sign in'}
-          </ButtonBase>
-          <ButtonBase
-            onClick={() => {
-              thriftPlusMockControls.reset();
-              try {
-                window.localStorage.removeItem('thriftPlus.introSeen');
-              } catch {
-                // Blocked storage: nothing to forget.
-              }
-              window.location.reload();
-            }}
-            sx={{ px: u(30), py: u(16), borderRadius: 99, color: sc.ink3, fontSize: u(28) }}
-          >
-            Start over (mock)
           </ButtonBase>
         </Box>
       </Box>

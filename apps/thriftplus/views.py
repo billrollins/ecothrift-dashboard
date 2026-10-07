@@ -40,7 +40,7 @@ from apps.thriftplus.serializers import (
     CardSerializer,
     PersonSerializer,
 )
-from apps.thriftplus.services import card_pdf, cards, floor_plan, ledger, members, register, returns, rewards
+from apps.thriftplus.services import calculator, card_pdf, cards, floor_plan, ledger, members, register, returns, rewards
 from apps.thriftplus.services.members import MemberError
 
 
@@ -303,6 +303,67 @@ class RewardsViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def runs(self, request):
         return Response([_run_payload(r) for r in RewardRun.objects.all()[:30]])
+
+    @action(detail=False, methods=['get'])
+    def calculator(self, request):
+        """The rewards calculator (owner, 2026-10-07): the last inventory's stock under the rules in the query.
+        What-if only: nothing is changed."""
+        params, error = _calculator_params(request)
+        if error:
+            return error
+        result = calculator.simulate(params)
+        current = rewards.rules()
+        result['current_settings'] = {'start': current.start.isoformat() if current.start else None,
+                                      'floor_share': str(current.floor_share), 'switch_on': members.is_enabled()}
+        return Response(result)
+
+
+def _calculator_params(request):
+    """Read the calculator's inputs. Returns (Params, None) or (None, error Response). Blank = the default."""
+    q = request.query_params
+    d = calculator.Params()
+
+    def bad(msg):
+        return None, Response({'detail': msg}, status=status.HTTP_400_BAD_REQUEST)
+
+    def num(key, default, lo, hi, cast=float):
+        raw = q.get(key)
+        if raw in (None, ''):
+            return default
+        value = cast(raw)
+        if not lo <= value <= hi:
+            raise ValueError(f'{key} must be {lo} to {hi}')
+        return value
+
+    try:
+        launch = date.fromisoformat(q['launch']) if q.get('launch') else d.launch
+        population = q.get('population') or d.population
+        if population not in ('counted', 'shelf'):
+            return bad('population must be counted or shelf')
+        curve = q.get('curve') or d.curve
+        if curve not in calculator.CURVES:
+            return bad(f'curve must be one of {", ".join(calculator.CURVES)}')
+        params = calculator.Params(
+            population=population, launch=launch,
+            offset=num('offset', d.offset, 0, 365, int),
+            wait_days=num('wait_days', d.wait_days, 0, 60, int),
+            pct_per_day=num('pct_per_day', d.pct_per_day, 0, 20),
+            step_days=num('step_days', d.step_days, 1, 60, int),
+            curve=curve,
+            floor_share=num('floor_share', d.floor_share, 0, 1),
+            same_slowdown=num('same_slowdown', d.same_slowdown, 0, 100),
+            count_back_stock=_truthy(q.get('count_back_stock', '1')),
+            similar_slowdown=num('similar_slowdown', d.similar_slowdown, 0, 100),
+            max_slowdown=num('max_slowdown', d.max_slowdown, 0, 95),
+            demand=_truthy(q.get('demand', '')),
+            demand_strength=num('demand_strength', d.demand_strength, 0, 2),
+            max_age=num('max_age', None, 1, 3650, int),
+            age_factor=num('age_factor', d.age_factor, 0, 1),
+            max_start_pct=num('max_start_pct', None, 0, 100),
+        )
+    except ValueError as exc:
+        return bad(str(exc) if 'must be' in str(exc) else 'The inputs must be numbers (dates as YYYY-MM-DD).')
+    return params, None
 
 
 def _floor_scenario(request):

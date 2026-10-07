@@ -274,10 +274,7 @@ def history(request):
 
 # ── The portal: self-service for people, cards and money ───────────────────────
 
-@api_view(['GET'])
-@authentication_classes(AUTH)
-@permission_classes([IsMember])
-def me(request):
+def _me_payload(request) -> dict:
     """The membership as its member sees it: people, cards (last 4 only), the cover, balances, recent money."""
     account = request.user.account
     people = []
@@ -287,11 +284,19 @@ def me(request):
             'cards': [{'id': c.pk, 'last4': c.code[-4:], 'status': c.status} for c in p.cards.exclude(status='unissued')],
         })
     entries = account.ledger.order_by('-created_at', '-pk')[:20]
-    return Response({
+    return {
         **ledger.balances(account), 'people': people,
         'money': [{'kind': e.kind, 'amount': str(e.amount), 'reason': e.reason, 'created_at': e.created_at} for e in entries],
         'can_change': request.user.session.kind == MemberSession.KIND_PASSWORD,
-    })
+    }
+
+
+@api_view(['GET'])
+@authentication_classes(AUTH)
+@permission_classes([IsMember])
+def me(request):
+    """The membership as its member sees it: people, cards (last 4 only), the cover, balances, recent money."""
+    return Response(_me_payload(request))
 
 
 def _password_session(request) -> Response | None:
@@ -318,7 +323,7 @@ def card_lost(request):
     from apps.thriftplus.services import members
 
     members.kill_card(card, reason='reported lost by the member')
-    return me(request._request)
+    return Response(_me_payload(request))
 
 
 @api_view(['POST'])
@@ -344,4 +349,4 @@ def remove_person(request):
         return _error(exc)
     if target.pk == you.pk:
         return member_auth.clear_cookie(Response({'status': 'signed_out'}))
-    return me(request._request)
+    return Response(_me_payload(request))

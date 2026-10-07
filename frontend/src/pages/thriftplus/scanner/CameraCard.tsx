@@ -3,7 +3,6 @@ import { Box, ButtonBase, CircularProgress, InputBase } from '@mui/material';
 import KeyboardRounded from '@mui/icons-material/KeyboardRounded';
 import NoPhotographyRounded from '@mui/icons-material/NoPhotographyRounded';
 import PhotoCameraRounded from '@mui/icons-material/PhotoCameraRounded';
-import { thriftPlusMockControls } from '../../../api/thriftPlusMock';
 import { cardFaceSx } from './ItemCard';
 import type { CameraStatus } from './useQrCamera';
 import { sc, u } from './scannerTheme';
@@ -177,21 +176,6 @@ export function CameraCard({ videoRef, status, error, underneath, flash, onWake,
               >
                 Look up
               </ButtonBase>
-            </Box>
-            <Box sx={{ display: 'flex', gap: u(10), flexWrap: 'wrap', mt: u(14), alignItems: 'center' }}>
-              <Box sx={{ color: 'rgba(255,255,255,0.7)', fontSize: u(24), mr: u(4) }}>Samples:</Box>
-              {thriftPlusMockControls.sampleTags().slice(0, 4).map((t) => (
-                <ButtonBase
-                  key={t.sku}
-                  onClick={() => {
-                    setTyping(false);
-                    onCode(t.sku);
-                  }}
-                  sx={{ px: u(18), py: u(8), borderRadius: 99, bgcolor: 'rgba(255,255,255,0.14)', color: '#fff', fontSize: u(24) }}
-                >
-                  {t.title}
-                </ButtonBase>
-              ))}
             </Box>
             {typing && !noCamera && (
               <ButtonBase onClick={() => setTyping(false)} sx={{ mt: u(10), width: '100%', py: u(10), color: '#fff', fontSize: u(26), opacity: 0.85, borderRadius: u(16) }}>

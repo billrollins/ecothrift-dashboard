@@ -1,5 +1,5 @@
 /**
- * Thrift+ price scanner (customer web app, MOCK). Route: /scan.
+ * Thrift+ price scanner (customer web app). Route: /scan.
  *
  * Sign in, then one screen matched to the owner's design: header, banked
  * rewards and cover tiles, and a card stack whose bottom card is the live
@@ -8,22 +8,24 @@
  * cart, left to pass. The first add asks bank-or-rebate. The cart opens from
  * the pill with the scan history under it. Tiles explain themselves when
  * tapped; a first-run walkthrough covers Scan, Bank and Cart.
- * Data: ../../../api/thriftPlusMock.ts.
+ * Data: ../../../api/thriftPlusScanner.api.ts (the real API). Money helpers: thriftPlusMock.ts.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Box, ButtonBase, CircularProgress } from '@mui/material';
+import { fromCents, toCents } from '../../../api/thriftPlusMock';
 import {
-  fromCents,
+  isOpen,
   lookupTag,
-  toCents,
+  setPreviewCode,
   type RewardChoice,
   type TagLookup,
   type ThriftPlusCart,
   type ThriftPlusItemCard,
   type ThriftPlusSession,
-} from '../../../api/thriftPlusMock';
+} from '../../../api/thriftPlusScanner.api';
+import { AccountPage, ResetPasswordScreen } from './AccountScreens';
 import { CameraCard } from './CameraCard';
 import { CartPage } from './CartPage';
 import { InfoPopup, IntroTour, introSeen, markIntroSeen, type Origin, type Topic } from './Explainers';
@@ -37,6 +39,18 @@ import { thriftPlusKeys, useCartActions, useSignIn, useThriftPlusCart, useThrift
 
 export default function ThriftPlusScannerPage() {
   useScannerFonts();
+  const [pageParams, setPageParams] = useSearchParams();
+  const resetToken = pageParams.get('reset');
+  // A staff phone before launch: /scan?preview=<code> (owner, 2026-10-07). Kept on the phone, then off the address.
+  const preview = pageParams.get('preview');
+  if (preview) setPreviewCode(preview);
+  useEffect(() => {
+    if (!preview) return;
+    const next = new URLSearchParams(pageParams);
+    next.delete('preview');
+    setPageParams(next, { replace: true });
+  }, [preview]); // eslint-disable-line react-hooks/exhaustive-deps
+  const open = useQuery({ queryKey: ['thriftPlus', 'open'], queryFn: isOpen, staleTime: 60_000 });
   const session = useThriftPlusSession();
 
   useEffect(() => {
@@ -75,7 +89,13 @@ export default function ThriftPlusScannerPage() {
           '& button, & input': { fontFamily: 'inherit' },
         }}
       >
-        {!session.data ? (
+        {open.data === false ? (
+          <ComingSoon />
+        ) : resetToken ? (
+          <Box sx={{ flex: 1, overflowY: 'auto' }}>
+            <ResetPasswordScreen token={resetToken} onDone={() => setPageParams({}, { replace: true })} />
+          </Box>
+        ) : !session.data ? (
           <Box sx={{ flex: 1, display: 'grid', placeItems: 'center' }}>
             <CircularProgress sx={{ color: sc.green }} />
           </Box>
@@ -86,6 +106,19 @@ export default function ThriftPlusScannerPage() {
         ) : (
           <ScannerScreen session={session.data} />
         )}
+      </Box>
+    </Box>
+  );
+}
+
+/** Thrift+ is off: what a customer sees at /scan until launch. */
+function ComingSoon() {
+  return (
+    <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', p: 4, textAlign: 'center' }}>
+      <Box>
+        <Box sx={{ fontSize: 34, fontWeight: 900, color: sc.green, mb: 1 }}>Thrift+</Box>
+        <Box sx={{ fontSize: 20, fontWeight: 800, mb: 1 }}>Coming soon</Box>
+        <Box sx={{ fontSize: 16, color: sc.ink, opacity: 0.75 }}>Ask at the register.</Box>
       </Box>
     </Box>
   );
@@ -113,6 +146,7 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
   const location = useLocation();
   const navigate = useNavigate();
   const cartOpen = params.get('view') === 'cart';
+  const accountOpen = params.get('view') === 'account' && !!member;
 
   const [top, setTop] = useState<Top | null>(null);
   const [flash, setFlash] = useState(false);
@@ -141,7 +175,7 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
   const handleCodeRef = useRef<(raw: string, from: 'camera' | 'typed') => void>(() => undefined);
   const camera = useQrCamera({
     enabled: true,
-    paused: top != null || cartOpen || askBank || tour || explain != null,
+    paused: top != null || cartOpen || accountOpen || askBank || tour || explain != null,
     onDecode: (raw) => handleCodeRef.current(raw, 'camera'),
   });
 
@@ -194,7 +228,7 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
 
   // Arrow keys on a laptop: right adds, left passes.
   useEffect(() => {
-    if (!top || cartOpen || askBank) return;
+    if (!top || cartOpen || accountOpen || askBank) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
       if (e.key === 'ArrowRight') cardRef.current?.fling('right');
@@ -202,8 +236,9 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [top, cartOpen, askBank]);
+  }, [top, cartOpen, accountOpen, askBank]);
 
+  const openAccount = () => setParams({ view: 'account' }, { state: { tpCart: true } });
   const openCart = () => setParams({ view: 'cart' }, { state: { tpCart: true } });
   const closeCart = () => {
     if ((location.state as { tpCart?: boolean } | null)?.tpCart) navigate(-1);
@@ -332,6 +367,16 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
           onTour={() => setTour(true)}
           onSignIn={() => auth.signOut.mutate()}
           onSignOut={() => auth.signOut.mutate()}
+          onAccount={member ? openAccount : undefined}
+        />
+      )}
+
+      {accountOpen && member && (
+        <AccountPage
+          member={member}
+          onBack={closeCart}
+          onSignOut={() => auth.signOut.mutate()}
+          onSignInWithPassword={() => auth.signOut.mutate()}
         />
       )}
 
