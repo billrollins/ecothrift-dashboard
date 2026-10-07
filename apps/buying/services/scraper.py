@@ -14,7 +14,7 @@ When ``BUYING_SOCKS5_PROXY_ENABLED`` is True, ``*.bstock.com`` requests made via
 ``_request_json`` use that SOCKS5 proxy, except the authenticated manifest pull
 (``fetch_manifest_items``), which always goes direct with the owner's login. Dev opt-in
 ``BUYING_SOCKS5_DEV_AUDIT`` logs the redacted proxy URL per request and probes
-egress IP through the same proxy (see ``logs/bstock_api.log``).
+egress IP through the same proxy (see ``workspace/logs/bstock_api.log`` locally, ``heroku logs`` in production).
 
 Token resolution for authenticated calls (first match wins):
 
@@ -47,7 +47,7 @@ from django.conf import settings
 from urllib.parse import quote, urlparse
 
 logger = logging.getLogger(__name__)
-# Dedicated logger for one-line outbound request audit (console + logs/bstock_api.log via settings).
+# Dedicated logger for one-line outbound request audit (console, plus workspace/logs/bstock_api.log off Heroku; settings).
 bstock_logger = logging.getLogger('buying.scraper')
 
 _SOCKS5_EGRESS_LOCK = threading.Lock()

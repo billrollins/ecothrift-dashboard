@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.148.0] -->
-<!-- Last reviewed: 2026-10-07 (2.148.0) -->
+<!-- Line 1 release: ## [2.148.1] -->
+<!-- Last reviewed: 2026-10-07 (2.148.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.148.1] - 2026-10-07
+
+User-facing theme: **Housekeeping from the house standards: no stray AI keys on Heroku, and the B-Stock log in `workspace/`.** Outside initiatives (standards T23, T43).
+
+### Changed
+
+- **The B-Stock request log** (`buying.scraper`) goes to `workspace/logs/bstock_api.log` on a PC, not `logs/`. On Heroku it goes to the console only (`heroku logs`): no file, and no folder made at start-up, since a dyno's disk does not last. (T43)
+- **Production config:** the 12 old `AI_MODEL_<PURPOSE>` keys are removed from Heroku (Heroku v420, 2026-10-07; no code change). Settings → AI chooses every model; `AI_MODEL` stays as the fallback. (T23)
 
 ## [2.148.0] - 2026-10-07
 

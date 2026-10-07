@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-22 (authenticated manifest pulls go direct) -->
+<!-- Last updated: 2026-10-07 (bstock log: workspace/logs locally, console only on Heroku; T43) -->
 # VPN / SOCKS5 proxy — PIA configuration and diagnostics
 
 All outbound B-Stock HTTP (`*.bstock.com`) in `apps/buying/services/scraper.py` can be routed through a SOCKS5 proxy. The current provider is **Private Internet Access (PIA)**. This file documents the setup, known behavior, troubleshooting, and diagnostic tooling.
@@ -65,7 +65,7 @@ All settings are in the root `.env` (gitignored) — edit it directly. Defaults 
 | `BUYING_SOCKS5_PROXY_PASSWORD` | str | — | SOCKS5 password. |
 | `BUYING_SOCKS5_PROXY_IP` | str | — | Optional resolved IP of the proxy host. Overrides hostname in the proxy URL. Use when hostname resolution itself is unreliable. |
 | `BUYING_SOCKS5_LOCAL_DNS` | bool | `True` | **`True` (recommended for PIA):** `socks5://` — client resolves DNS, hands IP to proxy. **`False`:** `socks5h://` — proxy resolves DNS (fails on PIA with 0x04). |
-| `BUYING_SOCKS5_DEV_AUDIT` | bool | `False` | Log redacted proxy URL per request + periodic egress IP to `logs/bstock_api.log`. |
+| `BUYING_SOCKS5_DEV_AUDIT` | bool | `False` | Log redacted proxy URL per request + periodic egress IP to the console, and locally to `workspace/logs/bstock_api.log`. |
 | `BUYING_SOCKS5_EGRESS_PROBE_SECONDS` | float | `45` | Minimum seconds between egress IP probes (throttle). |
 
 ### Minimal working config
@@ -181,7 +181,7 @@ Optional: `BUYING_SOCKS5_PROXY_IP`, `BUYING_SOCKS5_DEV_AUDIT`, `BUYING_SOCKS5_EG
    heroku run python manage.py scheduled_sweep --dry-run -a ecothrift-dashboard
    ```
 
-3. **Logs** — with `BUYING_SOCKS5_DEV_AUDIT=True`, tail `logs/bstock_api.log` on the dyno is not persistent across one-off runs; use **`heroku logs --tail`** for web/worker output, or rely on probe + sweep success.
+3. **Logs** — on Heroku the audit lines go to the console only (no file; a dyno's disk does not last): use **`heroku logs --tail`** for web/worker output, or rely on probe + sweep success.
 
 ### Fallback
 
@@ -214,7 +214,7 @@ PIA SOCKS5 does not require the desktop VPN app. If timing out:
 
 ### Verifying proxy usage
 
-With `BUYING_SOCKS5_DEV_AUDIT=True`, check `logs/bstock_api.log`:
+With `BUYING_SOCKS5_DEV_AUDIT=True`, check `workspace/logs/bstock_api.log` (local; on Heroku, `heroku logs`):
 
 ```
 2026-04-15 18:07:20 | B-Stock SOCKS5 route | POST search.bstock.com/... | socks5://x1234567:***@proxy-nl...:1080

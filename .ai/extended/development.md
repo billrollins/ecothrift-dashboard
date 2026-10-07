@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-30 (scripts/ in the house layout: dev, env, db, deploy) -->
+<!-- Last updated: 2026-10-07 (AI_MODEL_<PURPOSE> keys gone from Heroku, T23; bstock log in workspace/logs, T43) -->
 # Development guide (AI / contributor reference)
 
 ## Repository layout
@@ -195,7 +195,7 @@ Defined in `.env` (local values) and `.envprod` (mirror of Heroku Config Vars, w
 | `XAI_API_BASE` | OpenAI-compatible base URL for Grok | `https://api.x.ai/v1` |
 | `AI_PROVIDER` | `auto` (route by model id: `grok*` → xAI, `gemini*` → Google, else Anthropic), or force `anthropic` / `xai` / `google`. A catalog row's provider in Settings > AI wins over the prefix rule when `auto` | `auto` |
 | `AI_MODEL` | Emergency fallback model id only. Per-feature model + effort are chosen in **Settings > AI** (superuser; `core.AiAction`). Used when a feature has no model there or the DB cannot be read | `claude-sonnet-4-6` |
-| ~~`AI_MODEL_<PURPOSE>`~~, ~~`AI_MODEL_FAST`~~ | **Removed.** Migration `core/0006_ai_models_from_env` copied their values into Settings > AI; code no longer reads them. Delete them from `.env` / `.envprod` and unset on Heroku after that migration has run | - |
+| ~~`AI_MODEL_<PURPOSE>`~~, ~~`AI_MODEL_FAST`~~ | **Removed.** Migration `core/0006_ai_models_from_env` copied their values into Settings > AI; code no longer reads them. Gone from `.env`, `.envprod` and Heroku (unset 2026-10-07, Heroku v420; T23) | - |
 | `AI_PRICING` | Defined in **`ecothrift/settings.py`** (per-model input/output/cache rates) — not env; costs logged to **`workspace/logs/ai_usage.jsonl`** | — |
 | `VITE_DEV_LOG` | Frontend dev console (`devLog`) for Add Item / suggest | `false` |
 | `BSTOCK_AUTH_TOKEN` | Last-resort JWT, after the handed-over `BStockToken` row and `workspace/.bstock_token` (from `python manage.py bstock_token` or DevTools) | — |
@@ -204,7 +204,7 @@ Defined in `.env` (local values) and `.envprod` (mirror of Heroku Config Vars, w
 | `BSTOCK_SEARCH_MAX_PAGES` | Safety cap on search pagination pages per marketplace | `5000` |
 | `BUYING_SOCKS5_PROXY_ENABLED` | Route all `*.bstock.com` HTTP through SOCKS5 | `False` |
 | `BUYING_SOCKS5_LOCAL_DNS` | `True` = `socks5://` (recommended for PIA); `False` = `socks5h://` | `True` |
-| `BUYING_SOCKS5_DEV_AUDIT` | Log redacted SOCKS URLs + egress IP probes to `logs/bstock_api.log` | `False` |
+| `BUYING_SOCKS5_DEV_AUDIT` | Log redacted SOCKS URLs + egress IP probes to the console, and locally to `workspace/logs/bstock_api.log` (no file on Heroku) | `False` |
 | `PUBLIC_SITE_HOSTS` | Comma-separated hosts that get the public storefront SPA (empty = middleware inactive) | `''` locally; prod `ecothrift.us,www.ecothrift.us` |
 | `PUBLIC_SITE_CANONICAL_HOST` | Apex host for www→apex 301 | `ecothrift.us` |
 | `ONLINE_SALES_ENABLED` | Kill switch for public catalog/holds (staff workspace stays) | `False` |

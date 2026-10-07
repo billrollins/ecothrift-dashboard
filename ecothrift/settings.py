@@ -440,9 +440,27 @@ BUYING_SOCKS5_EGRESS_PROBE_SECONDS = config(
     'BUYING_SOCKS5_EGRESS_PROBE_SECONDS', default=45.0, cast=float
 )
 
-# B-Stock outbound HTTP audit log (apps.buying.services.scraper → logger buying.scraper)
-_LOGS_DIR = BASE_DIR / 'logs'
-_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+# B-Stock outbound HTTP audit log (apps.buying.services.scraper → logger buying.scraper).
+# Always to the console (on Heroku that is `heroku logs`). Locally also to workspace/logs/bstock_api.log
+# (house rule: logs live in workspace/). No file on Heroku: a dyno's disk is wiped on every restart.
+_ON_HEROKU = bool(os.environ.get('DYNO'))
+_BSTOCK_HANDLERS = {
+    'bstock_console': {
+        'class': 'logging.StreamHandler',
+        'formatter': 'bstock_api',
+    },
+}
+if not _ON_HEROKU:
+    _LOGS_DIR = BASE_DIR / 'workspace' / 'logs'
+    _LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    _BSTOCK_HANDLERS['bstock_file'] = {
+        'class': 'logging.handlers.RotatingFileHandler',
+        'filename': str(_LOGS_DIR / 'bstock_api.log'),
+        'maxBytes': 10 * 1024 * 1024,
+        'backupCount': 5,
+        'formatter': 'bstock_api',
+        'encoding': 'utf-8',
+    }
 
 LOGGING = {
     'version': 1,
@@ -453,22 +471,10 @@ LOGGING = {
             'datefmt': '%Y-%m-%d %H:%M:%S',
         },
     },
-    'handlers': {
-        'bstock_console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'bstock_api',
-        },
-        'bstock_file': {
-            'class': 'logging.handlers.RotatingFileHandler',
-            'filename': str(_LOGS_DIR / 'bstock_api.log'),
-            'maxBytes': 10 * 1024 * 1024,
-            'backupCount': 5,
-            'formatter': 'bstock_api',
-        },
-    },
+    'handlers': _BSTOCK_HANDLERS,
     'loggers': {
         'buying.scraper': {
-            'handlers': ['bstock_console', 'bstock_file'],
+            'handlers': list(_BSTOCK_HANDLERS),
             'level': 'INFO',
             'propagate': False,
         },
