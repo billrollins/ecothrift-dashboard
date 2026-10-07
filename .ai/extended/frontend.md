@@ -163,6 +163,35 @@ Sidebar entries removed. Consignment bookmarks still work. Documents routes are 
 
 **HR (account menu):** Today (`/today`: punch, the day's routines with the runner in place, Hours & pay). Pay, the staff Routines list and My QA are gone (their URLs redirect to Today). Essentials → **Kiosk** (`/kiosk`). Desk Dashboard / Today share `FloorNav` (same names as the phone tab bar). Digit 9 and letter L are free. **Admin:** Users (Employees first and default for Admin, Customers second; Managers only see Customers), Departments (directory + hub), Shifts, Routines / Routine Control (superuser — Routines, Sections), Time & payroll (superuser), Settings (System / Printing / Store / Assumptions / Retail QA / Permissions / AI for superusers). Retail QA Command Center stays on Cashier (`/admin/retail-qa`, Manager+). **Studios:** Label Studio, Floorplans, Blog Studio. **Consignee portal** (`/consignee/*`) unchanged.
 
+## Settings page (owner, 2026-10-07)
+
+`/admin/settings`: tabs are areas, and expandable sections sit inside each tab. A search box at the top finds any setting on any tab.
+- **Tabs, in order:** Store · Thrift+ (Super User) · Buying · Inventory · Retail QA · Printing · AI (Super User) · People · System.
+- **Deep links:** `?tab=&section=&key=` open the section and highlight the setting. The old tabs `assumptions` and `permissions` open Buying and People.
+
+**Adding a setting:**
+1. Give it an entry in `pages/admin/settings/settingsRegistry.ts`: label, help, tab, and kind (the editor).
+2. Name it in exactly one section of `settingsLayout.ts`. `settingsRegistry.test.ts` fails when an entry has no home, or two homes.
+3. If a section edits it with its own editor (store hours, the surcharge, Retail QA tables), make it a `custom` piece in `SettingsPieces.tsx`.
+
+**Kinds (editors):**
+- switch, text, money, date, list (chips), html (live preview in a sandboxed frame);
+- readonly (shown, set elsewhere);
+- the numeric kinds (fraction, percent, weight, days, count, and so on);
+- `hidden` (edited on its own page);
+- `state` (background-job data kept in the settings table: never a setting row; shown readable under System → Background jobs).
+
+**Stages:**
+- A section can be tagged `pre-launch`, such as Thrift+ → Launch.
+- A `legacy` section hides behind "Show legacy". Remove it with one edit to the layout.
+
+**On every row:**
+- who changed it last, and when;
+- **Undo** (`GET /api/core/settings/history/?key=`, then it puts back `old_value`);
+- a lock icon on owner-only settings (`thrift_plus_*`, `pos.staff_purchases`; the server enforces it in `AppSettingViewSet._owner_only`).
+
+**Unsorted:** a key the registry does not know shows under System → Unsorted, as raw JSON. It should stay empty.
+
 ## State Management
 
 - **TanStack React Query** — server state (API data, caching, invalidation)

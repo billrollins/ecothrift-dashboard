@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.146.0] -->
-<!-- Last reviewed: 2026-10-07 (2.146.0) -->
+<!-- Line 1 release: ## [2.147.0] -->
+<!-- Last reviewed: 2026-10-07 (2.147.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,37 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.147.0] - 2026-10-07
+
+User-facing theme: **Settings is easy to find your way around: a search box finds any setting, tabs are areas, and sections expand. Every setting has a proper editor (no raw JSON), shows who changed it last, and can be undone. Users moved to People.** Owner's ask, 2026-10-07.
+
+### Changed
+
+- **Settings (`/admin/settings`):**
+  - **Search** finds any setting on any tab (name, description or section). It opens the tab and section and highlights the setting.
+  - **Tabs:** Store · Thrift+ (Super User) · Buying (was Assumptions) · Inventory · Retail QA · Printing · AI (Super User) · People · System.
+  - **Expandable sections** in each tab show how many settings each holds and how many changed this week, and are remembered on the computer. Thrift+ → Launch is tagged Pre-launch; a Legacy section hides behind "Show legacy".
+  - **Proper editors:** on/off switches, $, dates, chips for lists, HTML with a live preview, and read-only for what the print server sets.
+  - **Background-job data** (AI cleanup jobs, the AI price check, learned seller numbers, the shipping formula) shows as readable tables, never raw JSON.
+  - **The settings that had no home now have one:** the two product-standard switches, four Thrift+ rewards and returns settings, and the email signature. The careers file links to People → Jobs.
+  - **Each setting** shows who changed it last and when, **Undo** (puts back the value before the last change), and a lock on owner-only settings.
+  - **Deep links:** `?tab=&section=&key=`. The old tabs `assumptions` and `permissions` open Buying and People.
+- **Users moved from Admin to People** (staff start to finish: users, applicants, interviews, onboarding, jobs).
+- **Code:**
+  - `settings/settingsLayout.ts` (where each setting lives), `SettingsPieces.tsx`, `RetailQaTables.tsx`.
+  - Removed: `AssumptionsPanel`, `StorePanel`, `SystemPanel`.
+  - New endpoint `GET /api/core/settings/history/?key=`.
+
+### Fixed
+
+- Inventory names read "Mon, Oct 5 to Tue, Oct 6" (no en dash), so the no-dashes check passes for these files.
+
+### Tests
+
+- `settingsRegistry.test.ts`: every setting has exactly one home on its own tab; owner tabs; old links; job state kept out.
+- `SettingsPage.test.tsx`: the tabs, Pre-launch tag, chips and "changed by"; job state as tables and Unsorted; search jumps tabs.
+- `apps/core/tests/test_settings_history.py`: a change is on record and Undo puts it back; staff can't read the history.
 
 ## [2.146.0] - 2026-10-07
 

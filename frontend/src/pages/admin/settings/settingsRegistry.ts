@@ -6,13 +6,15 @@
  */
 
 export type SettingsTab =
-  | 'assumptions'
   | 'store'
-  | 'printing'
+  | 'thrift-plus'
+  | 'buying'
+  | 'inventory'
   | 'retail-qa'
-  | 'permissions'
-  | 'system'
-  | 'ai';
+  | 'printing'
+  | 'ai'
+  | 'people'
+  | 'system';
 
 export type SettingKind =
   | 'fraction'
@@ -41,7 +43,19 @@ export type SettingKind =
   // On or off (stored true / false).
   | 'switch'
   // Plain text.
-  | 'text';
+  | 'text'
+  // Dollars.
+  | 'money'
+  // A date (YYYY-MM-DD), or blank.
+  | 'date'
+  // A list of words or codes, edited as chips.
+  | 'list'
+  // HTML, edited as text with a live preview.
+  | 'html'
+  // Shown, not editable here (set elsewhere, e.g. the print server).
+  | 'readonly'
+  // Background-job state kept in the settings table: never a setting row (System → Background jobs).
+  | 'state';
 
 export interface SettingMeta {
   label: string;
@@ -55,179 +69,236 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
   thrift_plus_enabled: {
     label: 'Thrift+ is on',
     help: 'Off: customers see "Thrift+ coming soon" at /scan, the portal is closed, and registers charge the tag (only test registers try member prices). On: Thrift+ is live for everyone.',
-    tab: 'store',
+    tab: 'thrift-plus',
     kind: 'switch',
   },
   thrift_plus_preview_code: {
     label: 'Thrift+ staff preview code',
     help: 'While Thrift+ is off, a staff phone opens the scanner at /scan?preview=<this code>. Change it to shut old phones out.',
-    tab: 'store',
+    tab: 'thrift-plus',
     kind: 'text',
   },
   thrift_plus_test_registers: {
     label: 'Thrift+ test registers',
-    help: 'Register codes that try Thrift+ while it is off, as a list, e.g. ["R3"].',
-    tab: 'store',
-    kind: 'raw',
+    help: 'Register codes that try Thrift+ while it is off (e.g. R3).',
+    tab: 'thrift-plus',
+    kind: 'list',
   },
   thrift_plus_rewards_start: {
     label: 'Thrift+ rewards start',
-    help: 'No item counts as on the floor before this date (YYYY-MM-DD). Blank = each item counts from its own floor date. See Thrift+ → Calculator.',
-    tab: 'store',
-    kind: 'text',
+    help: 'No item counts as on the floor before this date. Blank = each item counts from its own floor date. Try it first in Thrift+ → Calculator.',
+    tab: 'thrift-plus',
+    kind: 'date',
   },
   thrift_plus_floor_share: {
     label: 'Thrift+ lowest a member pays',
     help: 'Share of the tag a member always pays (10% = never more than 90% off).',
-    tab: 'store',
+    tab: 'thrift-plus',
     kind: 'weight',
+  },
+  thrift_plus_cover_amount: {
+    label: 'Monthly cover',
+    help: 'The first this-many dollars of rewards each calendar month pay for the card (never cash).',
+    tab: 'thrift-plus',
+    kind: 'money',
+  },
+  thrift_plus_bank_bonus: {
+    label: 'Banking bonus',
+    help: 'Rewards banked past the cover are worth this much more (5% = 1.05x).',
+    tab: 'thrift-plus',
+    kind: 'weight',
+  },
+  thrift_plus_return_credit_share: {
+    label: 'Return credit',
+    help: 'Store credit for a return is this share of what was paid for the item, before tax.',
+    tab: 'thrift-plus',
+    kind: 'weight',
+  },
+  thrift_plus_nonreturnable_categories: {
+    label: 'Final-sale categories',
+    help: 'Product categories or subcategories that cannot be returned.',
+    tab: 'thrift-plus',
+    kind: 'list',
+  },
+  thrift_plus_nonreturnable_words: {
+    label: 'Final-sale words',
+    help: 'Words in a title, note or flag that make an item final sale.',
+    tab: 'thrift-plus',
+    kind: 'list',
+  },
+  category_from_profile: {
+    label: 'Count items under their product standard category',
+    help: 'Buying numbers (Need, recovery, category stats) use the product standard category when it is a real one.',
+    tab: 'buying',
+    kind: 'switch',
+  },
+  product_standard_at_intake: {
+    label: 'Write the product standard at intake',
+    help: 'Intake writes the product standard (title, tag name, brand, category, specs, vector) as items are processed.',
+    tab: 'inventory',
+    kind: 'switch',
+  },
+  'mailbox.email_signature': {
+    label: 'Email signature',
+    help: 'Added to replies sent from the mailbox. HTML; {{staff_name}} becomes the sender.',
+    tab: 'people',
+    kind: 'html',
+  },
+  // Edited by its own page or panel; never a row here.
+  'hiring.careers': { label: 'Careers page', help: 'Edited in People → Jobs.', tab: 'people', kind: 'hidden' },
+  ai_price_check: { label: 'Last AI price check', help: 'Settings → AI: Estimate API costs.', tab: 'system', kind: 'state' },
+  buying_seller_revenue_factors: {
+    label: 'Seller revenue factors',
+    help: "Finished trucks' actual ÷ predicted revenue, by seller (fit_seller_factors).",
+    tab: 'buying',
+    kind: 'state',
   },
   po_default_est_shrink: {
     label: 'Default PO est. shrink',
     help:
       'Inventory: fraction 0-1 for new purchase orders (cost allocation). Does not retrofit existing POs.',
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'fraction',
   },
   pricing_shrinkage_factor: {
     label: 'Buying revenue shrink',
     help:
       'Buying: fraction 0-1 applied to estimated auction revenue before profit. Distinct from PO shrink but same default target (0.15).',
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'fraction',
   },
   pricing_need_window_days: {
     label: 'Category need - sold lookback (days)',
     help: 'Buying: window for sold-items stats used in category need / SQL aggregates (e.g. 90).',
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'days',
   },
   buying_manifest_pull_window_hours: {
     label: 'Manifest pull - ending within (hours)',
     help: 'Buying: the daily B-Stock pull fetches manifests for auctions ending within this many hours (default 36; 1 to 168 is used).',
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'count',
   },
   buying_manifest_pull_max_per_run: {
     label: 'Manifest pull - most per run',
     help: 'Buying: the most manifests one Pull fetches (default 40; at least 1). Watchlisted, then highest priority, go first.',
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'count',
   },
   buying_manifest_pull_retry_hours: {
     label: 'Manifest pull - retry a failure after (hours)',
     help: 'Buying: wait this long before trying a failed manifest again (default 12; at least 1).',
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'count',
   },
   buying_manifest_pull_page_delay_ms: {
     label: 'Manifest pull - pause between pages (ms)',
     help: 'Buying: pause between B-Stock manifest requests and between auctions, to stay polite (default 500).',
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'count',
   },
   buying_shipping_per_pallet: {
     label: 'Shipping estimate ($ per pallet)',
     help: 'Buying: shipping estimate per pallet for a lot when B-Stock has no quote for it and we do not know how far its city is yet (default 100). Otherwise the shipping formula is used.',
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'count',
   },
   buying_shipping_typical_miles: {
     label: 'Shipping estimate: typical distance (mi)',
     help: 'Buying: when a lot has no B-Stock quote and its city is unknown, the shipping formula uses this distance instead of $ per pallet. 0 (default) = off. Recent listings: median 1,176 mi.',
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'count',
   },
   buying_target_cover_weeks: {
     label: 'Need: target weeks of stock',
     help: "Buying: weeks of stock (shelf + pipeline) to hold per category. 0 (default) = the store's own average, so Need compares each category with the store. Need is 50 on target.",
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'count',
   },
   buying_priority_profit_weight: {
     label: 'Priority: profit weight',
     help: "Buying: profit's share of auction Priority (0-1, default 0.5); the rest is Need. Auctions with no category mix use Need only.",
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'fraction',
   },
   buying_priority_speed_weight: {
     label: 'Priority: speed weight',
     help: "Buying: sell speed's share of auction Priority (0-1, default 0 = off). Speed is the category mix x the share of items that sell within 30 days of shelving.",
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'fraction',
   },
   buying_pipeline_max_age_days: {
     label: 'Need: open PO age limit (days)',
     help: 'Buying: open POs older than this are not counted as on order; they are usually done but never closed (default 120).',
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'days',
   },
   buying_profit_factor: {
     label: 'Price target: profit factor',
     help: "Buying: revenue / all-in cost the price target must make (default 2.0 = double the money). The max bid on every auction follows it; an auction's own profit target overrides it.",
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'ratio',
   },
   buying_labor_per_item: {
     label: 'Labor per item ($)',
     help: 'Buying: dollars of labor to process one unit (for example 0.75). Counts in the landed cost and the price target. 0 (default) = not counted.',
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'ratio',
   },
   buying_disposal_per_pallet: {
     label: 'Disposal per pallet ($)',
     help: 'Buying: dollars to throw away what does not sell, per pallet. Counts in the landed cost and the price target. 0 (default) = not counted.',
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'count',
   },
   buying_shrink_new: {
     label: 'Shrink: New listings',
     help: 'Buying: revenue shrink (0-1) for auctions B-Stock lists as New / Brand New. 0 = use Buying revenue shrink.',
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'fraction',
   },
   buying_shrink_like_new: {
     label: 'Shrink: Like new listings',
     help: 'Buying: revenue shrink (0-1) for auctions B-Stock lists as Like New. 0 = use Buying revenue shrink.',
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'fraction',
   },
   buying_shrink_used_good: {
     label: 'Shrink: Used good listings',
     help: 'Buying: revenue shrink (0-1) for auctions B-Stock lists as Used Good. 0 = use Buying revenue shrink.',
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'fraction',
   },
   buying_shrink_used_fair: {
     label: 'Shrink: Used fair listings',
     help: 'Buying: revenue shrink (0-1) for auctions B-Stock lists as Used Fair. 0 = use Buying revenue shrink.',
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'fraction',
   },
   buying_shrink_damaged: {
     label: 'Shrink: Damaged listings',
     help: 'Buying: revenue shrink (0-1) for auctions B-Stock lists as Salvage or Scratch & Dent. 0 = use Buying revenue shrink.',
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'fraction',
   },
   // Edited from the Inventory need panel's Goal buttons (JSON).
   buying_category_goals: {
     label: 'Need: category goals',
     help: 'Buying: more / less / stop per category.',
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'hidden',
   },
   // Set by: python manage.py fit_shipping_formula --save (JSON, not hand-edited).
   buying_shipping_formula: {
     label: 'Shipping formula',
     help: 'Buying: truckload and LTL shipping formula fitted on past orders.',
-    tab: 'assumptions',
+    tab: 'buying',
     kind: 'hidden',
   },
   delivery_service_minutes_per_stop: {
     label: 'Delivery unload time (minutes / stop)',
     help: 'Delivery Field: assumed on-site unload/service minutes per stop for ETA totals (5-120). Default 20.',
-    tab: 'assumptions',
+    tab: 'inventory',
     kind: 'minutes',
   },
   tax_rate: {
@@ -469,32 +540,32 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
   store_name: {
     label: 'Store name',
     help: 'Hardcoded on the print server. Not editable here.',
-    tab: 'system',
-    kind: 'hidden',
+    tab: 'store',
+    kind: 'readonly',
   },
   store_address: {
     label: 'Store address',
     help: 'Hardcoded on the print server. Not editable here.',
-    tab: 'system',
-    kind: 'hidden',
+    tab: 'store',
+    kind: 'readonly',
   },
   store_phone: {
     label: 'Store phone',
     help: 'Hardcoded on the print server. Not editable here.',
-    tab: 'system',
-    kind: 'hidden',
+    tab: 'store',
+    kind: 'readonly',
   },
   receipt_header: {
     label: 'Receipt header',
     help: 'Hardcoded on the print server. Not editable here.',
-    tab: 'system',
-    kind: 'hidden',
+    tab: 'store',
+    kind: 'readonly',
   },
   receipt_footer: {
     label: 'Receipt footer',
     help: 'Hardcoded on the print server. Not editable here.',
-    tab: 'system',
-    kind: 'hidden',
+    tab: 'store',
+    kind: 'readonly',
   },
 };
 
@@ -505,9 +576,13 @@ const FALLBACK: SettingMeta = {
   kind: 'raw',
 };
 
+const STATE_PREFIXES: Array<[string, string]> = [['ai_cleanup_job:', 'AI cleanup job, order']];
+
 export function metaForKey(key: string): SettingMeta {
   const listed = SETTINGS_REGISTRY[key];
   if (listed) return listed;
+  const state = STATE_PREFIXES.find(([prefix]) => key.startsWith(prefix));
+  if (state) return { label: `${state[1]} ${key.slice(state[0].length)}`, help: 'Background job state.', tab: 'system', kind: 'state' };
   return { ...FALLBACK, label: key };
 }
 
@@ -515,25 +590,37 @@ export function isHiddenKey(key: string): boolean {
   return SETTINGS_REGISTRY[key]?.kind === 'hidden';
 }
 
+/** Only the owner changes these (the server refuses anyone else): the Thrift+ settings and staff purchases. */
+export function isOwnerOnlyKey(key: string): boolean {
+  return key.startsWith('thrift_plus_') || key === 'pos.staff_purchases';
+}
+
+/** Known to the registry, or job state: anything else is Unsorted. */
+export function isKnownKey(key: string): boolean {
+  return Boolean(SETTINGS_REGISTRY[key]) || STATE_PREFIXES.some(([prefix]) => key.startsWith(prefix));
+}
+
+export function isStateKey(key: string): boolean {
+  return metaForKey(key).kind === 'state';
+}
+
 export function keysForTab(tab: SettingsTab, keys: string[]): string[] {
-  return keys.filter((key) => !isHiddenKey(key) && metaForKey(key).tab === tab);
+  return keys.filter((key) => !isHiddenKey(key) && !isStateKey(key) && metaForKey(key).tab === tab);
 }
 
 export const SETTINGS_TABS: SettingsTab[] = [
-  'system',
-  'printing',
-  'store',
-  'assumptions',
-  'retail-qa',
-  'permissions',
-  'ai',
+  'store', 'thrift-plus', 'buying', 'inventory', 'retail-qa', 'printing', 'ai', 'people', 'system',
 ];
 
-const OPEN_TABS: SettingsTab[] = ['assumptions', 'store', 'printing', 'retail-qa', 'system'];
+// Old links (before 2026-10-07) land on the tab that took their settings.
+const OLD_TABS: Record<string, SettingsTab> = { assumptions: 'buying', permissions: 'people' };
+const SUPERUSER_TABS: SettingsTab[] = ['thrift-plus', 'ai'];
 
 export function parseSettingsTab(raw: string | null, isAdmin: boolean, isSuperuser = false): SettingsTab {
-  if (raw === 'ai' && isSuperuser) return 'ai';
-  if (raw === 'permissions' && isAdmin) return 'permissions';
-  const open = OPEN_TABS.find((tab) => tab === raw);
-  return open ?? 'system';
+  void isAdmin;  // every tab opens to managers; Permissions inside People checks Admin itself
+  const asked = (raw && OLD_TABS[raw]) || raw;
+  const tab = SETTINGS_TABS.find((t) => t === asked);
+  if (!tab) return 'store';
+  if (SUPERUSER_TABS.includes(tab) && !isSuperuser) return 'store';
+  return tab;
 }

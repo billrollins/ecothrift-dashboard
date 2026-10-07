@@ -418,7 +418,7 @@ export default function App() {
         <Route path="/admin/web-orders" element={<Navigate to="/online-sales/holds" replace />} />
         <Route
           path="/admin/permissions"
-          element={<Navigate to="/admin/settings?tab=permissions" replace />}
+          element={<Navigate to="/admin/settings?tab=people&section=permissions" replace />}
         />
         <Route
           path="/admin/time-payroll"
@@ -614,7 +614,7 @@ export default function App() {
         />
         <Route
           path="/admin/assumptions"
-          element={<Navigate to="/admin/settings?tab=assumptions" replace />}
+          element={<Navigate to="/admin/settings?tab=buying" replace />}
         />
       </Route>
 

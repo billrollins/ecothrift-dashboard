@@ -54,6 +54,20 @@ export function updateSetting(key: string, data: Record<string, unknown>): Promi
   return api.patch<Setting>(`/core/settings/${encodeURIComponent(key)}/`, data);
 }
 
+/** A setting's changes, newest first (the Settings page's Undo puts back `old_value`). */
+export interface SettingChange {
+  key: string;
+  old_value: unknown;
+  new_value: unknown;
+  changed_by: string;
+  changed_at: string;
+}
+
+export async function getSettingHistory(key: string): Promise<SettingChange[]> {
+  const { data } = await api.get<SettingChange[]>('/core/settings/history/', { params: { key } });
+  return data;
+}
+
 export function createSetting(data: { key: string; value: unknown; description?: string }): Promise<{ data: Setting }> {
   return api.post<Setting>('/core/settings/', data);
 }

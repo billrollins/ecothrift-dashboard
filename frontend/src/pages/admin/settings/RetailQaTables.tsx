@@ -7,70 +7,7 @@ import { updateSetting } from '../../../api/core.api';
 import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
 import { useAuth } from '../../../hooks/useAuth';
 import { useQaHistory, useQaPreview } from '../../../hooks/useRetailQa';
-import { metaForKey } from './settingsRegistry';
-import { SettingRow } from './SettingRow';
 import { useAppSettings } from './useAppSettings';
-
-const GROUPS: Array<{ title: string; blurb: string; keys: string[] }> = [
-  {
-    title: 'Baseline',
-    blurb: 'How many walks make a normal aisle, and when a section is still warming up.',
-    keys: [
-      'retail_qa.baseline_window',
-      'retail_qa.baseline_shrink',
-      'retail_qa.warmup_section',
-      'retail_qa.warmup_store',
-    ],
-  },
-  {
-    title: 'Cross',
-    blurb: 'Tails, verify ladder, and which weekday the walk happens.',
-    keys: [
-      'retail_qa.cross_full_tail',
-      'retail_qa.cross_zero_tail',
-      'retail_qa.cross_check_weekday',
-    ],
-  },
-  {
-    title: 'Owner',
-    blurb: 'Leftover R, grace, and how many drawn checks land in a spot.',
-    keys: [
-      'retail_qa.owner_grace',
-      'retail_qa.owner_divisor_floor',
-      'retail_qa.spot_check_count',
-      'retail_qa.safety_cap',
-    ],
-  },
-  {
-    title: 'Checker flags',
-    blurb: 'When a checker is pulled out of the baseline.',
-    keys: [
-      'retail_qa.flag_window',
-      'retail_qa.flag_z',
-      'retail_qa.flag_min_expected',
-      'retail_qa.flag_followup_r',
-      'retail_qa.flag_min_seconds',
-      'retail_qa.flag_batch_minutes',
-      'retail_qa.flag_rubber_stamp_window',
-    ],
-  },
-  {
-    title: 'Scoring',
-    blurb: 'Spot, Do, and Cross shares. Missing parts renormalize to 100. Call-ins do not shrink expected.',
-    keys: [
-      'retail_qa.weight_spot',
-      'retail_qa.weight_do',
-      'retail_qa.weight_cross',
-      'retail_qa.walk_floor',
-      'retail_qa.section_due_after_punch_minutes',
-    ],
-  },
-  {
-    title: 'Register',
-    blurb: 'When an idle register asks for a work cycle. Dismissals are logged; they do not change the grade.',
-    keys: ['retail_qa.idle_prompt_minutes', 'retail_qa.idle_stretch_minutes'],
-  },
-];
 
 type LadderRow = { cutoff: number; score: number };
 type SeverityRow = { key: string; label: string; weight: number; r_add: number };
@@ -94,21 +31,19 @@ function asSeverity(value: unknown): SeverityRow[] {
 }
 
 function thirdsLine(thirds: { doing: number | null; cross: number | null; owner: number | null }, letter: string | null) {
-  return `Doing ${thirds.doing ?? '—'} · Cross ${thirds.cross ?? '—'} · Owner ${thirds.owner ?? '—'} → ${letter ?? '—'}`;
+  return `Doing ${thirds.doing ?? '-'} · Cross ${thirds.cross ?? '-'} · Owner ${thirds.owner ?? '-'} → ${letter ?? '-'}`;
 }
 
 /**
- * The numbers behind the three-thirds Retail QA letter.
- *
- * Ladders and severity groups are tables. Everything else is a SettingRow.
+ * Retail QA's tables (owner, 2026-10-07: one section of Settings → Retail QA): the ladders and severity groups, and
+ * a preview of this week with the numbers on the page. The single numbers are setting rows in their own sections.
  * Preview rescores this week in memory; Save writes the tables.
  */
-export function RetailQaPanel() {
+export function RetailQaTables() {
   const { user } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
   const { data: settings, isLoading } = useAppSettings();
-  const history = useQaHistory();
   const preview = useQaPreview();
   const isOwner = Boolean(user?.is_superuser);
 
@@ -194,38 +129,6 @@ export function RetailQaPanel() {
         </Card>
       ) : null}
 
-      {GROUPS.map((group) => (
-        <Card key={group.title} sx={{ mb: 2 }}>
-          <CardContent>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{group.title}</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{group.blurb}</Typography>
-            {group.keys.map((key) => {
-              const row = rows.get(key);
-              const meta = metaForKey(key);
-              if (!row) {
-                return (
-                  <Box key={key} sx={{ py: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-                    <Typography variant="subtitle1">{meta.label}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Not in the database yet. The built-in default is in use.
-                    </Typography>
-                  </Box>
-                );
-              }
-              return (
-                <SettingRow
-                  key={key}
-                  settingKey={key}
-                  value={row.value}
-                  description={row.description as string | undefined}
-                  meta={meta}
-                />
-              );
-            })}
-          </CardContent>
-        </Card>
-      ))}
-
       <Card sx={{ mb: 2 }}>
         <CardContent>
           <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Verify ladder</Typography>
@@ -246,29 +149,6 @@ export function RetailQaPanel() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent>
-          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Audit log</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            Who changed a Retail QA number, and from what to what.
-          </Typography>
-          {(history.data?.history ?? []).length ? history.data?.history.map((row) => (
-            <Typography key={`${row.key}-${row.changed_at}`} variant="body2" sx={{ py: 0.4 }}>
-              {row.changed_by || 'Someone'}
-              {' · '}
-              {row.changed_at ? format(parseISO(row.changed_at), 'MMM d h:mma') : ''}
-              {' · '}
-              {row.key.replace('retail_qa.', '')}
-              {': '}
-              {JSON.stringify(row.old_value)}
-              {' → '}
-              {JSON.stringify(row.new_value)}
-            </Typography>
-          )) : (
-            <Typography variant="body2" color="text.secondary">No Retail QA changes yet.</Typography>
-          )}
-        </CardContent>
-      </Card>
     </Box>
   );
 }
@@ -355,6 +235,38 @@ function SeverityEditor({
           />
         </Box>
       ))}
+    </Box>
+  );
+}
+
+/** Who changed a Retail QA number, and from what to what. */
+export function RetailQaLog() {
+  const history = useQaHistory();
+  return (
+    <Box>
+      <Card variant="outlined">
+        <CardContent>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Audit log</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Who changed a Retail QA number, and from what to what.
+          </Typography>
+          {(history.data?.history ?? []).length ? history.data?.history.map((row) => (
+            <Typography key={`${row.key}-${row.changed_at}`} variant="body2" sx={{ py: 0.4 }}>
+              {row.changed_by || 'Someone'}
+              {' · '}
+              {row.changed_at ? format(parseISO(row.changed_at), 'MMM d h:mma') : ''}
+              {' · '}
+              {row.key.replace('retail_qa.', '')}
+              {': '}
+              {JSON.stringify(row.old_value)}
+              {' → '}
+              {JSON.stringify(row.new_value)}
+            </Typography>
+          )) : (
+            <Typography variant="body2" color="text.secondary">No Retail QA changes yet.</Typography>
+          )}
+        </CardContent>
+      </Card>
     </Box>
   );
 }

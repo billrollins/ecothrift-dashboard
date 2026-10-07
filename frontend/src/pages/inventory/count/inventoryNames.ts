@@ -3,7 +3,7 @@
 export const dayLabel = (iso: string, withYear = false) =>
   new Date(`${iso}T12:00:00`).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', ...(withYear ? { year: 'numeric' } : {}) });
 
-/** "Inventory Mon, Oct 5, 2026", or "Inventory Mon, Oct 5 – Tue, Oct 6, 2026" when it ran over several days.
+/** "Inventory Mon, Oct 5, 2026", or "Inventory Mon, Oct 5 to Tue, Oct 6, 2026" when it ran over several days.
  * A name someone typed when starting it wins over the default "Inventory <day>". */
 export function inventoryName(d: { name: string; day: string | null; days_active?: string[] }): string {
   if (!d.day) return d.name;
@@ -12,5 +12,5 @@ export function inventoryName(d: { name: string; day: string | null; days_active
   const days = d.days_active?.length ? d.days_active : [d.day];
   const first = days[0];
   const last = days[days.length - 1];
-  return first === last ? `Inventory ${dayLabel(first, true)}` : `Inventory ${dayLabel(first)} – ${dayLabel(last, true)}`;
+  return first === last ? `Inventory ${dayLabel(first, true)}` : `Inventory ${dayLabel(first)} to ${dayLabel(last, true)}`;
 }

@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { Box, Button, Chip, MenuItem, Switch, TextField, Typography } from '@mui/material';
+import { Box, Button, Chip, InputAdornment, MenuItem, Switch, TextField, Tooltip, Typography } from '@mui/material';
+import Lock from '@mui/icons-material/LockOutlined';
 import Save from '@mui/icons-material/Save';
+import { format, parseISO } from 'date-fns';
 import { useSnackbar } from 'notistack';
 import { useQueryClient } from '@tanstack/react-query';
-import { createSetting, updateSetting } from '../../../api/core.api';
-import type { SettingKind, SettingMeta } from './settingsRegistry';
+import { createSetting, getSettingHistory, updateSetting } from '../../../api/core.api';
+import { isOwnerOnlyKey, type SettingKind, type SettingMeta } from './settingsRegistry';
 
 const WEEKDAY_CHIPS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const DEFAULT_SECTION_DAYS = [true, true, true, true, true, true, false];
@@ -29,6 +31,16 @@ function displayValue(kind: SettingKind, value: unknown): string {
   }
   if (kind === 'switch') {
     return isOn(value) ? 'On' : 'Off';
+  }
+  if (kind === 'money') {
+    const n = Number(value);
+    return Number.isFinite(n) ? n.toFixed(2) : '';
+  }
+  if (kind === 'list') {
+    return Array.isArray(value) ? value.join(', ') : String(value ?? '');
+  }
+  if (kind === 'date' || kind === 'text' || kind === 'readonly' || kind === 'html') {
+    return typeof value === 'string' ? value : JSON.stringify(value ?? '');
   }
   if (kind === 'weekdays') {
     const flags = Array.isArray(value) ? value : DEFAULT_SECTION_DAYS;
@@ -124,8 +136,18 @@ function parseEdit(kind: SettingKind, raw: string): { ok: true; value: unknown }
       return { ok: false, error: 'JSON is not valid.' };
     }
   }
-  if (kind === 'text') {
-    return { ok: true, value: raw.trim() };
+  if (kind === 'text' || kind === 'html') {
+    return { ok: true, value: kind === 'html' ? raw : raw.trim() };
+  }
+  if (kind === 'money') {
+    const n = parseFloat(raw);
+    if (Number.isNaN(n) || n < 0) return { ok: false, error: 'Enter dollars, 0 or more.' };
+    return { ok: true, value: n.toFixed(2) };
+  }
+  if (kind === 'date') {
+    const v = raw.trim();
+    if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) return { ok: false, error: 'Pick a date, or leave it blank.' };
+    return { ok: true, value: v };
   }
   if (kind === 'raw') {
     const trimmed = raw.trim();
@@ -141,21 +163,148 @@ function parseEdit(kind: SettingKind, raw: string): { ok: true; value: unknown }
   return { ok: true, value: raw };
 }
 
+/** Who changed it last, and Undo (puts back the value before the last change). */
+function ChangedLine({ settingKey, kind, changedBy, changedAt }: { settingKey: string; kind: SettingKind; changedBy?: string | null; changedAt?: string | null }) {
+  const { enqueueSnackbar } = useSnackbar();
+  const queryClient = useQueryClient();
+  const undo = async () => {
+    try {
+      const [last] = await getSettingHistory(settingKey);
+      if (!last) {
+        enqueueSnackbar('No earlier value on record.', { variant: 'info' });
+        return;
+      }
+      const before = displayValue(kind, last.old_value) || 'blank';
+      if (!window.confirm(`Put back ${before} (before ${last.changed_by || 'someone'}'s change)?`)) return;
+      await updateSetting(settingKey, { value: last.old_value });
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      enqueueSnackbar('Put back', { variant: 'success' });
+    } catch {
+      enqueueSnackbar('Could not undo', { variant: 'error' });
+    }
+  };
+  if (!changedAt) return null;
+  return (
+    <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
+      Changed{changedBy ? ` by ${changedBy}` : ''}, {format(parseISO(changedAt), 'MMM d, yyyy')} ·{' '}
+      <Box component="button" type="button" onClick={() => void undo()}
+        sx={{ border: 0, p: 0, background: 'none', color: 'primary.main', cursor: 'pointer', font: 'inherit' }}>
+        Undo
+      </Box>
+    </Typography>
+  );
+}
+
+function Title({ settingKey, label }: { settingKey: string; label: string }) {
+  return (
+    <Typography variant="subtitle1" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+      {isOwnerOnlyKey(settingKey) ? (
+        <Tooltip title="Only the owner changes this">
+          <Lock sx={{ fontSize: 16, color: 'text.secondary' }} />
+        </Tooltip>
+      ) : null}
+      {label}
+    </Typography>
+  );
+}
+
+const ROW_SX = (highlight?: boolean) => ({
+  display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 2, py: 2, px: 1, mx: -1,
+  borderBottom: '1px solid', borderColor: 'divider', borderRadius: 1,
+  bgcolor: highlight ? 'action.selected' : undefined, transition: 'background-color 1s',
+} as const);
+
+/** A list of words or codes as chips: add with Enter, remove with the x. Saves at once. */
+function ListEditor({ settingKey, value, meta }: { settingKey: string; value: unknown; meta: SettingMeta }) {
+  const { enqueueSnackbar } = useSnackbar();
+  const queryClient = useQueryClient();
+  const [draft, setDraft] = useState('');
+  const items = Array.isArray(value) ? value.map(String) : [];
+  const save = async (next: string[]) => {
+    try {
+      try {
+        await updateSetting(settingKey, { value: next });
+      } catch {
+        await createSetting({ key: settingKey, value: next, description: meta.help });
+      }
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+    } catch {
+      enqueueSnackbar('Failed to save setting', { variant: 'error' });
+    }
+  };
+  return (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
+      {items.map((item) => (
+        <Chip key={item} size="small" label={item} onDelete={() => void save(items.filter((x) => x !== item))} />
+      ))}
+      <TextField
+        size="small"
+        placeholder="Add, then Enter"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          const v = draft.trim();
+          if (e.key === 'Enter' && v && !items.includes(v)) {
+            void save([...items, v]);
+            setDraft('');
+          }
+        }}
+        sx={{ width: 160 }}
+      />
+    </Box>
+  );
+}
+
 export function SettingRow({
   settingKey,
   value,
   description,
   meta,
+  changedBy,
+  changedAt,
+  highlight,
 }: {
   settingKey: string;
   value: unknown;
   description?: string;
   meta: SettingMeta;
+  changedBy?: string | null;
+  changedAt?: string | null;
+  highlight?: boolean;
 }) {
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
+  const anchor = `setting-${settingKey}`;
+  const help = meta.help || description;
+
+  if (meta.kind === 'readonly') {
+    return (
+      <Box id={anchor} sx={ROW_SX(highlight)}>
+        <Box sx={{ flex: '1 1 200px' }}>
+          <Title settingKey={settingKey} label={meta.label} />
+          <Typography variant="body2" color="text.secondary">{help}</Typography>
+        </Box>
+        <Typography sx={{ flex: '1 1 240px', wordBreak: 'break-word' }}>{displayValue('text', value) || '-'}</Typography>
+      </Box>
+    );
+  }
+
+  if (meta.kind === 'list') {
+    return (
+      <Box id={anchor} sx={ROW_SX(highlight)}>
+        <Box sx={{ flex: '1 1 200px' }}>
+          <Title settingKey={settingKey} label={meta.label} />
+          <Typography variant="body2" color="text.secondary">{help}</Typography>
+          <ChangedLine settingKey={settingKey} kind={meta.kind} changedBy={changedBy} changedAt={changedAt} />
+        </Box>
+        <Box sx={{ flex: '1 1 240px' }}>
+          <ListEditor settingKey={settingKey} value={value} meta={meta} />
+        </Box>
+      </Box>
+    );
+  }
 
   const startEdit = () => {
     setEditValue(meta.kind === 'weekday' ? String(value ?? 1) : displayValue(meta.kind, value));
@@ -199,12 +348,13 @@ export function SettingRow({
       }
     };
     return (
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 2, py: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+      <Box id={anchor} sx={ROW_SX(highlight)}>
         <Box sx={{ flex: '1 1 200px' }}>
-          <Typography variant="subtitle1">{meta.label}</Typography>
+          <Title settingKey={settingKey} label={meta.label} />
           <Typography variant="body2" color="text.secondary">
-            {meta.help}
+            {help}
           </Typography>
+          <ChangedLine settingKey={settingKey} kind={meta.kind} changedBy={changedBy} changedAt={changedAt} />
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: '1 1 240px' }}>
           <Switch checked={on} onChange={() => void flip()} inputProps={{ 'aria-label': meta.label }} />
@@ -267,24 +417,15 @@ export function SettingRow({
   }
 
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        alignItems: 'flex-start',
-        gap: 2,
-        py: 2,
-        borderBottom: '1px solid',
-        borderColor: 'divider',
-      }}
-    >
+    <Box id={anchor} sx={ROW_SX(highlight)}>
       <Box sx={{ flex: '1 1 200px' }}>
-        <Typography variant="subtitle1">{meta.label}</Typography>
+        <Title settingKey={settingKey} label={meta.label} />
         <Typography variant="body2" color="text.secondary">
-          {description || meta.help}
+          {help}
         </Typography>
+        <ChangedLine settingKey={settingKey} kind={meta.kind} changedBy={changedBy} changedAt={changedAt} />
       </Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: '1 1 240px' }}>
+      <Box sx={{ display: 'flex', alignItems: meta.kind === 'html' ? 'flex-start' : 'center', gap: 1, flex: '1 1 240px', flexWrap: 'wrap' }}>
         {editing ? (
           <>
             {meta.kind === 'weekday' ? (
@@ -303,11 +444,15 @@ export function SettingRow({
             ) : (
               <TextField
                 size="small"
-                label={asPercent ? 'Percent' : 'Value'}
+                label={asPercent ? 'Percent' : meta.kind === 'money' ? 'Dollars' : meta.kind === 'date' ? 'Date' : 'Value'}
                 value={editValue}
                 onChange={(e) => setEditValue(e.target.value)}
                 sx={{ minWidth: 160, flex: 1 }}
-                type={meta.kind === 'raw' || meta.kind === 'text' || meta.kind === 'ladder' || meta.kind === 'severity_groups' ? 'text' : 'number'}
+                multiline={meta.kind === 'html'}
+                minRows={meta.kind === 'html' ? 3 : undefined}
+                InputLabelProps={meta.kind === 'date' ? { shrink: true } : undefined}
+                InputProps={meta.kind === 'money' ? { startAdornment: <InputAdornment position="start">$</InputAdornment> } : undefined}
+                type={meta.kind === 'date' ? 'date' : ['raw', 'text', 'html', 'ladder', 'severity_groups'].includes(meta.kind) ? 'text' : 'number'}
               />
             )}
             <Button size="small" variant="contained" startIcon={<Save />} onClick={() => void save()}>
@@ -319,9 +464,19 @@ export function SettingRow({
           </>
         ) : (
           <>
-            <Typography variant="body1" sx={{ wordBreak: 'break-all', minWidth: 80 }}>
-              {shown}
-            </Typography>
+            {meta.kind === 'html' ? (
+              <Box
+                component="iframe"
+                title={`${meta.label} preview`}
+                sandbox=""
+                srcDoc={displayValue('html', value)}
+                sx={{ flex: 1, minWidth: 200, height: 90, border: '1px solid', borderColor: 'divider', borderRadius: 1, bgcolor: '#fff' }}
+              />
+            ) : (
+              <Typography variant="body1" sx={{ wordBreak: 'break-all', minWidth: 80 }}>
+                {meta.kind === 'money' && shown ? `$${shown}` : shown || (meta.kind === 'date' ? 'Not set' : '')}
+              </Typography>
+            )}
             <Button size="small" onClick={startEdit}>
               Edit
             </Button>

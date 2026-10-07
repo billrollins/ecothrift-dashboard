@@ -80,13 +80,14 @@ export const SLOT_C_NAV_GROUPS: NavGroupDef[] = [
     id: 'people',
     label: 'People',
     roles: ['Manager', 'Admin'],
-    itemIds: ['applicants', 'interviews', 'onboarding', 'payrollDeductions', 'jobs', 'hiringEmails'],
+    // Staff start to finish (owner, 2026-10-07): Users moved here from Admin.
+    itemIds: ['users', 'applicants', 'interviews', 'onboarding', 'payrollDeductions', 'jobs', 'hiringEmails'],
   },
   {
     id: 'admin',
     label: 'Admin',
     roles: ['Manager', 'Admin'],
-    itemIds: ['users', 'departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'settings'],
+    itemIds: ['departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'settings'],
   },
 ];
 
@@ -181,7 +182,7 @@ export const SLOT_C_WORKSPACES: SlotCWorkspaceMeta[] = [
     id: 'people',
     label: 'People',
     shortLabel: 'People',
-    helper: 'Hiring: applicants, interviews, jobs and the careers page',
+    helper: 'Staff and hiring: users, applicants, interviews, onboarding, check-ins and jobs',
     icon: 'people',
     shortcutColor: '#7C3AED',
     shortcutDigit: 9,

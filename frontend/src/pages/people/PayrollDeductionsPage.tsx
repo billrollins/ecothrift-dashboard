@@ -28,7 +28,7 @@ export default function PayrollDeductionsPage() {
       {settings.data && !settings.data.payroll_deduction && (
         <Alert severity="info" sx={{ mb: 2 }}>
           Payroll deduction is off at the register. The owner turns it on in{' '}
-          <RouterLink to="/admin/settings?tab=store">Settings → Store → Staff purchases</RouterLink>.
+          <RouterLink to="/admin/settings?tab=store&section=staff-purchases">Settings → Store → Staff purchases</RouterLink>.
         </Alert>
       )}
       {!data ? (

@@ -169,9 +169,9 @@ describe('Studios and Admin placement', () => {
   const retailFloor = SLOT_C_NAV_GROUPS.find((g) => g.id === 'retailFloor');
   const onlineSales = SLOT_C_NAV_GROUPS.find((g) => g.id === 'onlineSales');
 
-  it('keeps Admin as Users, Departments, Shifts, Routines, Command Center, Time & payroll, Requests, and Settings', () => {
+  it('keeps Admin as Departments, Shifts, Routines, Command Center, Time & payroll, Requests, and Settings', () => {
     expect(admin?.itemIds).toEqual([
-      'users', 'departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'settings',
+      'departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'settings',
     ]);
     expect(NAV_ITEM_CATALOG.superRequests?.superuserOnly).toBe(true);
     expect(NAV_ITEM_CATALOG.adminRoutines?.superuserOnly).toBe(true);
@@ -186,7 +186,7 @@ describe('Studios and Admin placement', () => {
 
   it('puts hiring in its own People workspace, for managers', () => {
     const people = SLOT_C_NAV_GROUPS.find((g) => g.id === 'people');
-    expect(people?.itemIds).toEqual(['applicants', 'interviews', 'onboarding', 'payrollDeductions', 'jobs', 'hiringEmails']);
+    expect(people?.itemIds).toEqual(['users', 'applicants', 'interviews', 'onboarding', 'payrollDeductions', 'jobs', 'hiringEmails']);
     expect(people?.roles).toEqual(['Manager', 'Admin']);
     expect(NAV_ITEM_CATALOG.applicants?.path).toBe('/people/applicants');
   });
@@ -209,7 +209,7 @@ describe('Command Center placement', () => {
     expect(storeSales?.guestItemIds).toEqual(['retailQa']);
     expect(storeSales?.itemIds).not.toContain('retailQa');
     expect(admin?.itemIds).toEqual([
-      'users', 'departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'settings',
+      'departments', 'shifts', 'adminRoutines', 'retailQa', 'payrollHours', 'superRequests', 'settings',
     ]);
     expect(NAV_ITEM_CATALOG.retailQa?.label).toBe('Command Center');
     expect(NAV_ITEM_CATALOG.retailQa?.roles).toEqual(['Manager', 'Admin']);

@@ -76,6 +76,20 @@ class AppSettingViewSet(viewsets.ModelViewSet):
                 changed_by=self.request.user,
             )
 
+    @action(detail=False, methods=['get'])
+    def history(self, request):
+        """Settings page (2026-10-07): ``?key=`` one setting's changes, newest first (Undo puts back ``old_value``).
+        Without a key: the latest changes to any setting."""
+        qs = AppSettingHistory.objects.select_related('changed_by').order_by('-changed_at', '-pk')
+        key = request.query_params.get('key')
+        if key:
+            qs = qs.filter(key=key)
+        return Response([
+            {'key': h.key, 'old_value': h.old_value, 'new_value': h.new_value,
+             'changed_by': h.changed_by.full_name if h.changed_by_id else '', 'changed_at': h.changed_at}
+            for h in qs[:20 if key else 50]
+        ])
+
 
 class S3FileViewSet(viewsets.ModelViewSet):
     queryset = S3File.objects.all()
