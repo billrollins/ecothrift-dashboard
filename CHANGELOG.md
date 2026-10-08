@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.149.1] -->
-<!-- Last reviewed: 2026-10-08 (2.149.1) -->
+<!-- Line 1 release: ## [2.150.0] -->
+<!-- Last reviewed: 2026-10-08 (2.150.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,27 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.150.0] - 2026-10-08
+
+User-facing theme: **Thrift+ sign-up asks about texts the way the carriers require: two separate boxes, never pre-ticked, with the exact words shown, and every choice recorded.** Standards T59 (brought forward, T72) so Eco-Thrift's one Twilio registration can go in as soon as the business profile is approved. Thrift+ itself stays behind its switch.
+
+### Added
+
+- **Text choices at Thrift+ sign-up** (the register and Dash, for the main member and a second adult): "Thrift+ account texts" and "Store news texts", each with its consent words word for word as the Twilio campaign quotes them. The boxes only work once a 10-digit mobile number is typed; neither is needed to join or to buy. Only a ticked box is recorded (no consent, no text).
+- **Every choice is recorded** in the shared texting store (`apps/texting`, v2.149.0): the kind, in or out, when, how ("Thrift+ sign-up (staff: name)", "Staff: name (they asked)", "Thrift+ My account (the member)"), the staff member, the wording and its version (`thriftplus-sms-2026-10-07`, `news-sms-2026-10-07`). STOP ends both.
+- **Dash, Thrift+ → Members:** each person's two choices as chips; staff tap one to change it when the member asks.
+- **Scanner → My account** (opens with Thrift+): a Texts section. Turning a kind off works from any sign-in; turning one on needs the email-and-password sign-in.
+- **API:** `GET /api/thriftplus/accounts/text-wording/`, `POST /api/thriftplus/people/<id>/texts/`, `POST /api/thriftplus/public/me/texts/`; sign-up takes `texts_thriftplus` and `texts_news`; a membership's detail shows each person's `texts`.
+
+### Changed
+
+- `.gitignore` ignores `*.tsbuildinfo` everywhere; the stray `frontend-public/tsconfig.tsbuildinfo` from v2.148.2 is removed.
+
+### Tests
+
+- `apps/thriftplus/tests/test_text_consent.py` (8): the words match the campaign word for word; only ticked boxes are recorded with the words shown; no ticks, no rows; a tick without a mobile number stops the sign-up; staff changes and STOP; the portal (a card session can stop but not start; a password session can start).
+- `ThriftPlusPage.test.tsx`: the boxes start unticked, wait for a mobile number, and only the ticked one is sent. `AccountScreens.test.tsx`: the Texts section turns kinds off and on; a card session can only stop.
 
 ## [2.149.1] - 2026-10-08
 

@@ -284,10 +284,15 @@ def _me_payload(request) -> dict:
             'cards': [{'id': c.pk, 'last4': c.code[-4:], 'status': c.status} for c in p.cards.exclude(status='unissued')],
         })
     entries = account.ledger.order_by('-created_at', '-pk')[:20]
+    from apps.thriftplus.services import texts as text_consent
+
+    you = request.user.person
     return {
         **ledger.balances(account), 'people': people,
         'money': [{'kind': e.kind, 'amount': str(e.amount), 'reason': e.reason, 'created_at': e.created_at} for e in entries],
         'can_change': request.user.session.kind == MemberSession.KIND_PASSWORD,
+        # Your own text choices (T59): per phone number, so only yours.
+        'texts': {'choices': text_consent.choices(you), 'has_number': text_consent.can_text(you), **text_consent.wordings()},
     }
 
 
@@ -304,6 +309,28 @@ def _password_session(request) -> Response | None:
         return Response({'detail': 'Sign in with your email and password to change your membership.', 'code': 'NEEDS_PASSWORD'},
                         status=status.HTTP_403_FORBIDDEN)
     return None
+
+
+@api_view(['POST'])
+@authentication_classes(AUTH)
+@permission_classes([IsMember])
+def texts(request):
+    """Change one of your own text choices ({kind, opted_in}). Stopping works from any sign-in; starting a kind
+    needs the email-and-password sign-in, so only the number's owner opts it in."""
+    from apps.thriftplus.services import texts as text_consent
+    from apps.thriftplus.services.members import MemberError
+
+    opted_in = str(request.data.get('opted_in')).lower() in ('1', 'true', 'yes', 'on')
+    if opted_in:
+        refused = _password_session(request)
+        if refused:
+            return refused
+    try:
+        text_consent.set_choice(request.user.person, str(request.data.get('kind') or ''), opted_in,
+                                how='Thrift+ My account (the member)')
+    except MemberError as exc:
+        return _error(exc)
+    return Response(_me_payload(request))
 
 
 @api_view(['POST'])

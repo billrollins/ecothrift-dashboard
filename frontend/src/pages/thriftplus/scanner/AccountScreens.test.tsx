@@ -11,6 +11,7 @@ vi.mock('../../../api/thriftPlusScanner.api', () => ({
   getMe: vi.fn(),
   reportCardLost: vi.fn(),
   removePerson: vi.fn(),
+  setMyTexts: vi.fn(),
   setUpLogin: vi.fn(),
   getSession: vi.fn(),
   getCart: vi.fn(),
@@ -154,5 +155,35 @@ describe('AccountPage', () => {
     const prompt = screen.getByText(/Leave this account\? You will be signed out\./);
     await user.click(within(prompt.parentElement as HTMLElement).getByRole('button', { name: 'Leave' }));
     await waitFor(() => expect(mocked.removePerson).toHaveBeenCalledWith(2));
+  });
+
+  const texts = (thriftplus: boolean, news: boolean) => ({
+    has_number: true,
+    choices: { thriftplus, news },
+    not_required: 'Neither box is needed to join or to buy anything.',
+    kinds: [
+      { kind: 'thriftplus' as const, version: 'thriftplus-sms-2026-10-07', label: 'Thrift+ account texts', text: 'Text me my Thrift+ updates.' },
+      { kind: 'news' as const, version: 'news-sms-2026-10-07', label: 'Store news texts', text: 'Text me Eco-Thrift store news.' },
+    ],
+  });
+
+  it('shows your two text choices and turns one off or on (T59)', async () => {
+    mocked.getMe.mockResolvedValue(me({ texts: texts(true, false) }));
+    mocked.setMyTexts.mockResolvedValue(me({ texts: texts(false, false) }));
+    const user = userEvent.setup();
+    wrap(<AccountPage {...props} />);
+    expect(await screen.findByText('Thrift+ account texts')).toBeInTheDocument();
+    expect(screen.getByText('Text me Eco-Thrift store news.')).toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: 'Turn off' })[0]);
+    await waitFor(() => expect(mocked.setMyTexts).toHaveBeenCalledWith('thriftplus', false));
+    await user.click(screen.getByRole('button', { name: 'Turn on' }));
+    await waitFor(() => expect(mocked.setMyTexts).toHaveBeenCalledWith('news', true));
+  });
+
+  it('lets a card session stop texts but not start them', async () => {
+    mocked.getMe.mockResolvedValue(me({ can_change: false, texts: texts(true, false) }));
+    wrap(<AccountPage {...props} member={{ ...member, session_kind: 'card' }} />);
+    expect(await screen.findByRole('button', { name: 'Turn off' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Turn on' })).not.toBeInTheDocument();
   });
 });

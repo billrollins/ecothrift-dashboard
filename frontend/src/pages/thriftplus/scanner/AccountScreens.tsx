@@ -349,6 +349,46 @@ export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }:
                 )}
               </Card>
             ))}
+            {data.texts && (
+              <>
+                <SectionTitle>Texts</SectionTitle>
+                {!data.texts.has_number ? (
+                  <Box sx={{ fontSize: u(29), color: sc.ink2, lineHeight: 1.35 }}>
+                    Texts need a mobile number on your membership. Ask at the register.
+                  </Box>
+                ) : (
+                  <Card sx={{ p: u(10) }}>
+                    {data.texts.kinds.map((k, i) => {
+                      const on = data.texts?.choices[k.kind] ?? false;
+                      // Stopping always works; starting needs the email-and-password sign-in.
+                      const canTap = on || data.can_change;
+                      return (
+                        <Box key={k.kind} sx={{ px: u(26), py: u(20), borderTop: i ? `1px solid ${sc.line}` : 'none' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: u(16) }}>
+                            <Box sx={{ flex: 1, fontSize: u(31), fontWeight: 700, color: sc.ink }}>
+                              {k.label}
+                              <Box component="span" sx={{ color: on ? sc.green : sc.ink3, ml: u(12), fontSize: u(26), fontWeight: 400 }}>
+                                {on ? 'On' : 'Off'}
+                              </Box>
+                            </Box>
+                            {canTap && (
+                              <ButtonBase
+                                disabled={actions.texts.isPending}
+                                onClick={() => void run(() => actions.texts.mutateAsync({ kind: k.kind, optedIn: !on }))}
+                                sx={{ px: u(22), py: u(10), borderRadius: 99, border: `${u(2)} solid ${sc.cardEdge}`, fontSize: u(26), color: sc.ink2 }}
+                              >
+                                {on ? 'Turn off' : 'Turn on'}
+                              </ButtonBase>
+                            )}
+                          </Box>
+                          {!on && <Box sx={{ fontSize: u(24), color: sc.ink3, mt: u(8), lineHeight: 1.35 }}>{k.text}</Box>}
+                        </Box>
+                      );
+                    })}
+                  </Card>
+                )}
+              </>
+            )}
             {err && (
               <Box role="alert" sx={{ color: sc.badText, fontSize: u(29), mt: u(14), lineHeight: 1.35 }}>
                 {err}

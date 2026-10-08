@@ -358,6 +358,12 @@ The POS handles members:
 - **Decided:** "Member Price Always" for the discount. Banking buys a gift card refill with your savings, plus a 5% bonus. Nothing expires and there are no fees. Limited Warranty is 7 days: a qualifying defect gets about 90% back as a gift card. A card works only after a photo, the required info, an ID check and a signature. Receipts wait until nearer testing, with many variations.
 - **Voice:** what you get now and "it might be gone tomorrow"; never wait, less or pay.
 - **Details and open items:** [`thrift_plus_launch_kit.md`](./thrift_plus_launch_kit.md) § Owners' meeting decisions. The launch to-do (one page, six groups) is the artifact's `todos` collection.
+
+### 2026-10-08 — Text consent at sign-up (standards T59, brought forward)
+- **Why now:** one Twilio registration (Thrift+ account texts, store news, job applicants) goes in the day the EcoThrift LLC profile is approved; its opt-in description must be true on review day (master, 10-07).
+- **What:** two separate, unticked boxes at sign-up (register and Dash), words word for word from `C:\Coding\.ai\standards\texting.md` § Campaign; recorded in `apps/texting` (hiring's store, v2.149.0) with kind, in or out, how, staff, wording and version. Staff change a choice in Dash when asked; members in My account (stop from any sign-in, start only with the password sign-in). STOP ends both.
+- **Code:** `services/texts.py` (`WORDING`, `set_choice`, `record_signup`, `choices`), `PersonFields.tsx` (`TextBoxes`), `MembersTab.tsx` chips, `AccountScreens.tsx` Texts; tests `test_text_consent.py` (8).
+- **Rule:** the two texts change only together with master (the campaign quotes them); a new wording gets a new version.
 ---
 
 ## See also

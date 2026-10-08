@@ -41,6 +41,7 @@ from apps.thriftplus.serializers import (
     PersonSerializer,
 )
 from apps.thriftplus.services import calculator, card_pdf, cards, floor_plan, ledger, members, register, returns, rewards
+from apps.thriftplus.services import texts as text_consent
 from apps.thriftplus.services.members import MemberError
 
 
@@ -50,6 +51,11 @@ def _truthy(value) -> bool:
 
 def _error(exc: Exception) -> Response:
     return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+def _texts(d) -> dict:
+    """The sign-up's two text boxes (``texts_thriftplus``, ``texts_news``); unticked or missing means no."""
+    return {kind: _truthy(d.get(f'texts_{kind}')) for kind in text_consent.KINDS}
 
 
 class AccountViewSet(viewsets.ReadOnlyModelViewSet):
@@ -72,11 +78,16 @@ class AccountViewSet(viewsets.ReadOnlyModelViewSet):
             account = members.create_account(
                 first_name=d.get('first_name', ''), last_name=d.get('last_name', ''), phone=d.get('phone', ''),
                 id_checked=_truthy(d.get('id_checked')), verified_18=_truthy(d.get('verified_18')),
-                photo=request.FILES.get('photo'), card_code=d.get('card_code', ''), user=request.user,
+                photo=request.FILES.get('photo'), card_code=d.get('card_code', ''), texts=_texts(d), user=request.user,
             )
         except MemberError as exc:
             return _error(exc)
         return Response(AccountDetailSerializer(account).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'], url_path='text-wording')
+    def text_wording(self, request):
+        """The two text-consent boxes' words (T59), so every sign-up screen shows exactly what is recorded."""
+        return Response(text_consent.wordings())
 
     @action(detail=True, methods=['post'], url_path='second-adult')
     def second_adult(self, request, pk=None):
@@ -86,7 +97,7 @@ class AccountViewSet(viewsets.ReadOnlyModelViewSet):
                 self.get_object(), both_present=_truthy(d.get('both_present')), primary_approves=_truthy(d.get('primary_approves')),
                 first_name=d.get('first_name', ''), last_name=d.get('last_name', ''), phone=d.get('phone', ''),
                 id_checked=_truthy(d.get('id_checked')), verified_18=_truthy(d.get('verified_18')),
-                photo=request.FILES.get('photo'), card_code=d.get('card_code', ''), user=request.user,
+                photo=request.FILES.get('photo'), card_code=d.get('card_code', ''), texts=_texts(d), user=request.user,
             )
         except MemberError as exc:
             return _error(exc)
@@ -182,6 +193,18 @@ class PersonViewSet(viewsets.GenericViewSet):
         if not upload:
             return _error(MemberError('Attach a photo.'))
         return self._done(members.set_photo(self.get_object(), upload, user=request.user))
+
+    @action(detail=True, methods=['post'])
+    def texts(self, request, pk=None):
+        """Change one text choice when the member asks ({kind: 'thriftplus' | 'news', opted_in})."""
+        person = self.get_object()
+        name = (request.user.full_name or '').strip() or request.user.email
+        try:
+            text_consent.set_choice(person, str(request.data.get('kind') or ''), _truthy(request.data.get('opted_in')),
+                                    how=f'Staff: {name} (they asked)', user=request.user)
+        except MemberError as exc:
+            return _error(exc)
+        return self._done(person)
 
     @action(detail=True, methods=['post'], url_path='issue-card')
     def issue_card(self, request, pk=None):

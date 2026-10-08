@@ -10,6 +10,8 @@ import type {
   NewMember,
   RewardPreview,
   RewardRunSummary,
+  TextKind,
+  TextWording,
   ThriftPlusAccount,
 } from '../types/thriftplus.types';
 import api from './client';
@@ -77,6 +79,18 @@ export async function setPersonPhoto(personId: number, photo: File): Promise<Thr
   const form = new FormData();
   form.append('photo', photo);
   const { data } = await api.post<ThriftPlusAccount>(`/thriftplus/people/${personId}/photo/`, form, MULTIPART);
+  return data;
+}
+
+/** The two text-consent boxes' words (T59). */
+export async function fetchTextWording(): Promise<TextWording> {
+  const { data } = await api.get<TextWording>('/thriftplus/accounts/text-wording/');
+  return data;
+}
+
+/** Change one text choice when the member asks. */
+export async function setPersonTexts(personId: number, kind: TextKind, optedIn: boolean): Promise<ThriftPlusAccount> {
+  const { data } = await api.post<ThriftPlusAccount>(`/thriftplus/people/${personId}/texts/`, { kind, opted_in: optedIn });
   return data;
 }
 

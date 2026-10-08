@@ -36,9 +36,10 @@ import {
   removeSecondAdult,
   revokeMember,
   setPersonPhoto,
+  setPersonTexts,
   verifyPerson,
 } from '../../api/thriftplus.api';
-import type { NewMember, ThriftPlusAccount, ThriftPlusPerson } from '../../types/thriftplus.types';
+import type { NewMember, TextKind, ThriftPlusAccount, ThriftPlusPerson } from '../../types/thriftplus.types';
 import PersonFields from '../../components/thriftplus/PersonFields';
 import MemberMoney from './MemberMoney';
 import { getPayrollPeople } from '../../api/pos.api';
@@ -87,6 +88,8 @@ function fullName(p: ThriftPlusPerson): string {
   return `${p.first_name} ${p.last_name}`.trim();
 }
 
+const TEXT_KINDS: [TextKind, string][] = [['thriftplus', 'Thrift+ texts'], ['news', 'Store news']];
+
 function phone(p: string): string {
   return p.length === 10 ? `(${p.slice(0, 3)}) ${p.slice(3, 6)}-${p.slice(6)}` : p;
 }
@@ -117,6 +120,24 @@ function PersonCard({ person, account, onChanged }: { person: ThriftPlusPerson; 
             {!active ? <Chip size="small" label="Removed" /> : null}
           </Stack>
           <Typography variant="body2" color="text.secondary">{person.phone ? phone(person.phone) : 'No phone'}</Typography>
+          {person.texts && person.phone.length === 10 && active ? (
+            <Stack direction="row" spacing={1} sx={{ mt: 0.75 }} useFlexGap flexWrap="wrap" alignItems="center">
+              {TEXT_KINDS.map(([kind, label]) => {
+                const on = Boolean(person.texts?.[kind]);
+                return (
+                  <Chip
+                    key={kind}
+                    size="small"
+                    color={on ? 'success' : 'default'}
+                    variant={on ? 'filled' : 'outlined'}
+                    label={`${label}: ${on ? 'yes' : 'no'}`}
+                    onClick={() => run.mutate(() => setPersonTexts(person.id, kind, !on))}
+                  />
+                );
+              })}
+              <Typography variant="caption" color="text.secondary">Change only when the member asks.</Typography>
+            </Stack>
+          ) : null}
           <Stack spacing={0.5} sx={{ mt: 1 }}>
             {person.cards.map((c) => (
               <Stack key={c.id} direction="row" spacing={1} alignItems="center">

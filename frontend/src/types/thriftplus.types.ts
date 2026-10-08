@@ -25,6 +25,17 @@ export interface ThriftPlusPerson {
   removed_at: string | null;
   cards: ThriftPlusCard[];
   created_at: string;
+  /** Text choices (T59): only on a membership's detail. */
+  texts?: TextChoices;
+}
+
+export type TextKind = 'thriftplus' | 'news';
+export type TextChoices = Record<TextKind, boolean>;
+
+/** The two text-consent boxes' words, from the server, so the screen shows exactly what is recorded. */
+export interface TextWording {
+  kinds: { kind: TextKind; version: string; label: string; text: string }[];
+  not_required: string;
 }
 
 export interface ThriftPlusEvent {
@@ -69,6 +80,9 @@ export interface NewMember {
   verified_18?: boolean;
   card_code?: string;
   photo?: File | null;
+  /** Never pre-ticked. Only ticked boxes are recorded. */
+  texts_thriftplus?: boolean;
+  texts_news?: boolean;
 }
 
 // ── The reward engine (Phase 2) ──

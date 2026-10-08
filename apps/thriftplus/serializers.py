@@ -69,7 +69,21 @@ class AccountSerializer(serializers.ModelSerializer):
         return {'id': user.pk, 'name': (user.full_name or '').strip() or user.email, 'free': staff_free(obj)}
 
 
+class PersonDetailSerializer(PersonSerializer):
+    """One person on an open membership, with their text choices (two lookups each, so detail only)."""
+    texts = serializers.SerializerMethodField()
+
+    class Meta(PersonSerializer.Meta):
+        fields = PersonSerializer.Meta.fields + ['texts']
+
+    def get_texts(self, obj) -> dict:
+        from apps.thriftplus.services.texts import choices
+
+        return choices(obj)
+
+
 class AccountDetailSerializer(AccountSerializer):
+    people = PersonDetailSerializer(many=True, read_only=True)
     events = serializers.SerializerMethodField()
 
     class Meta(AccountSerializer.Meta):

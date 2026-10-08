@@ -1,25 +1,22 @@
-v2.149.1 — Hiring never keeps a Social Security, bank or routing number: typed ones are masked, and the careers file refuses questions asking for them
+v2.150.0 — Thrift+ sign-up asks about texts: two separate unticked boxes with the campaign's exact words, every choice recorded; staff and My account can change them (standards T59)
 
-<!-- Last reviewed: 2026-10-08 (2.149.1) -->
-# Changelog
+User-facing theme: **Thrift+ sign-up asks about texts the way the carriers require: two separate boxes, never pre-ticked, with the exact words shown, and every choice recorded.** Standards T59 (brought forward, T72) so Eco-Thrift's one Twilio registration can go in as soon as the business profile is approved. Thrift+ itself stays behind its switch.
 
-All notable changes to this project are documented here at the **version level**.
-Commit-level detail belongs in commit messages, not here.
+### Added
 
-Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-Versioning follows [Semantic Versioning](https://semver.org/).
-
----
-
-## [Unreleased]
-
-## [2.149.1] - 2026-10-08
-
-User-facing theme: **Dash never keeps a Social Security, bank or routing number, even when someone types one.** Initiative: `hiring_onboarding` (its acceptance audit).
+- **Text choices at Thrift+ sign-up** (the register and Dash, for the main member and a second adult): "Thrift+ account texts" and "Store news texts", each with its consent words word for word as the Twilio campaign quotes them. The boxes only work once a 10-digit mobile number is typed; neither is needed to join or to buy. Only a ticked box is recorded (no consent, no text).
+- **Every choice is recorded** in the shared texting store (`apps/texting`, v2.149.0): the kind, in or out, when, how ("Thrift+ sign-up (staff: name)", "Staff: name (they asked)", "Thrift+ My account (the member)"), the staff member, the wording and its version (`thriftplus-sms-2026-10-07`, `news-sms-2026-10-07`). STOP ends both.
+- **Dash, Thrift+ → Members:** each person's two choices as chips; staff tap one to change it when the member asks.
+- **Scanner → My account** (opens with Thrift+): a Texts section. Turning a kind off works from any sign-in; turning one on needs the email-and-password sign-in.
+- **API:** `GET /api/thriftplus/accounts/text-wording/`, `POST /api/thriftplus/people/<id>/texts/`, `POST /api/thriftplus/public/me/texts/`; sign-up takes `texts_thriftplus` and `texts_news`; a membership's detail shows each person's `texts`.
 
 ### Changed
 
-- **Numbers shaped like an SSN, a routing number or a bank account are masked** (shown as "[number removed]") wherever people type free text in hiring: application answers, notes, the Not now note, and the I-9 "documents seen" box, which now says "names only". A phone number, a ZIP+4, a date and a pay rate are left alone.
-- **The careers file refuses a question that asks for one** (Social Security, bank account, routing, a license or passport number). Before, it saved. Those numbers go on paper or in QuickBooks.
+- `.gitignore` ignores `*.tsbuildinfo` everywhere; the stray `frontend-public/tsconfig.tsbuildinfo` from v2.148.2 is removed.
+
+### Tests
+
+- `apps/thriftplus/tests/test_text_consent.py` (8): the words match the campaign word for word; only ticked boxes are recorded with the words shown; no ticks, no rows; a tick without a mobile number stops the sign-up; staff changes and STOP; the portal (a card session can stop but not start; a password session can start).
+- `ThriftPlusPage.test.tsx`: the boxes start unticked, wait for a mobile number, and only the ticked one is sent. `AccountScreens.test.tsx`: the Texts section turns kinds off and on; a card session can only stop.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

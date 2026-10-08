@@ -85,6 +85,14 @@ vi.mock('../../api/thriftplus.api', () => ({
   issueCard: async () => account,
   removeSecondAdult: async () => account,
   killCard: async () => undefined,
+  setPersonTexts: async () => account,
+  fetchTextWording: async () => ({
+    not_required: 'Neither box is needed to join or to buy anything.',
+    kinds: [
+      { kind: 'thriftplus', version: 'thriftplus-sms-2026-10-07', label: 'Thrift+ account texts', text: 'Text me my Thrift+ updates.' },
+      { kind: 'news', version: 'news-sms-2026-10-07', label: 'Store news texts', text: 'Text me Eco-Thrift store news.' },
+    ],
+  }),
 }));
 
 function renderPage(entry = '/thrift-plus') {
@@ -125,6 +133,27 @@ describe('Thrift+ member service', () => {
     await user.click(screen.getByRole('checkbox', { name: 'The ID shows 18 or older' }));
     await user.click(screen.getByRole('button', { name: 'Sign up' }));
     expect(created.bodies).toContainEqual(expect.objectContaining({ first_name: 'Bo', id_checked: true, verified_18: true }));
+  });
+
+  it('offers the two text boxes unticked, only for a mobile number, and sends only what was ticked (T59)', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'New member' }));
+    const account_ = await screen.findByRole('checkbox', { name: 'Thrift+ account texts' });
+    const news = screen.getByRole('checkbox', { name: 'Store news texts' });
+    expect(account_).not.toBeChecked();
+    expect(news).not.toBeChecked();
+    expect(account_).toBeDisabled();
+    expect(screen.getByText('Add a 10-digit mobile number to offer texts.')).toBeInTheDocument();
+    await user.type(screen.getByLabelText(/First name/), 'Cy');
+    await user.type(screen.getByLabelText('Phone'), '(402) 555-0199');
+    expect(account_).toBeEnabled();
+    expect(screen.getByText('Text me my Thrift+ updates.')).toBeInTheDocument();
+    await user.click(account_);
+    await user.click(screen.getByRole('button', { name: 'Sign up' }));
+    const body = created.bodies.find((b) => (b as { first_name?: string }).first_name === 'Cy') as Record<string, unknown>;
+    expect(body.texts_thriftplus).toBe(true);
+    expect(body.texts_news).toBeFalsy();
   });
 });
 

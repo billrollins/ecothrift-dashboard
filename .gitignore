@@ -177,3 +177,6 @@ workspace/notebooks/__pycache__/
 scripts/deploy/backups/
 # Transient credential-bearing helper files from any script
 scripts/**/temp_*
+
+# TypeScript incremental build state (any app)
+*.tsbuildinfo
