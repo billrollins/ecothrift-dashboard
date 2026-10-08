@@ -1,6 +1,7 @@
 """Applications: build the answer snapshot, apply, move stages, Not now, create the employee."""
 from __future__ import annotations
 
+import re
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -62,7 +63,19 @@ def _clean_answer(question: dict, raw):
         picked = [str(v).strip() for v in values if str(v).strip() in question.get('options', [])]
         return (picked or None), None
     limit = 4000 if qtype == 'long_text' else 300
-    return str(raw).strip()[:limit], None
+    return scrub(str(raw).strip())[:limit], None
+
+
+# Shaped like an SSN (123-45-6789), a routing number or SSN without dashes (9 digits), or a bank account (12-17
+# digits). A US phone (10 digits) and a ZIP+4 (12345-6789) are left alone.
+_SECRET_NUMBERS = re.compile(r'\b\d{3}[- ]\d{2}[- ]\d{4}\b|\b\d{9}\b|\b\d{12,17}\b')
+SCRUBBED = '[number removed]'
+
+
+def scrub(text: str) -> str:
+    """Typed text with any SSN, routing or bank-account-like number masked: Dash never stores those (they go on
+    paper or in QuickBooks)."""
+    return _SECRET_NUMBERS.sub(SCRUBBED, text or '')
 
 
 def build_answers(*, form_questions: list[dict], jobs: list[Job], raw: dict) -> tuple[list[dict], dict, int]:
@@ -278,7 +291,7 @@ def set_stage(application, stage: str, *, by, note: str = '') -> Application:
 
 
 def add_note(application, text: str, *, by) -> ApplicationEvent:
-    text = (text or '').strip()
+    text = scrub((text or '').strip())
     if not text:
         raise ValidationError({'text': 'Write a note first.'})
     application.save(update_fields=['updated_at'])
@@ -341,7 +354,7 @@ def mark_not_now(application, *, reason: str, note: str, send: bool, subject: st
     application.stage = Application.STAGE_NOT_NOW
     application.stage_changed_at = now
     application.not_now_reason = reason
-    application.not_now_note = (note or '').strip()[:4000]
+    application.not_now_note = scrub((note or '').strip())[:4000]
     application.not_now_stage = previous if previous != Application.STAGE_NOT_NOW else application.not_now_stage
     application.not_now_at = now
     application.not_now_email_subject = (subject or '').strip()[:200]

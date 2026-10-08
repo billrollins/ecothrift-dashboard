@@ -470,11 +470,19 @@ Held texts are never sent later; each event sends its own.
 - [x] Phase 3 as above (v2.143.0)
 - [x] Phase 4 and 4b as above (v2.146.0)
 - [x] Phase 5 as above (v2.148.0)
-- [ ] Phase 6 when detailed
-- [ ] No SSN, bank or routing numbers stored; I-9 files Admin-only and private
-- [ ] No applicant is moved or rejected by AI; no Not now email sends without a person pressing Send
-- [ ] Nothing ships with an inventory or Thrift+ release, in the freeze, or in the database-switch window
-- [ ] Out-of-scope items stay out
+- [ ] Phase 6 **live**: built and held in v2.149.0. It goes live with the gates (the send step to Twilio, the key, the approved campaign)
+- [x] No SSN, bank or routing numbers stored; I-9 files Admin-only and private. Audited 2026-10-08:
+  - the careers file refuses a question that asks for one;
+  - answers, notes, the Not now note and the I-9 "documents seen" mask any number shaped like one;
+  - the I-9 is Admin-only and streamed from private storage.
+  - Tests: `test_acceptance.py`, `test_the_i9_is_admin_only_and_section_2_needs_the_form`.
+- [x] No applicant is moved or rejected by AI; no Not now email sends without a person pressing Send. Audited 2026-10-08:
+  - AI returns drafts only;
+  - an expiring offer moves and emails no one;
+  - every applicant email from a button is reviewed first.
+  - Tests: `test_acceptance.py`.
+- [ ] Nothing ships with an inventory or Thrift+ release, in the freeze, or in the database-switch window. So far every hiring release has shipped on its own (v2.136.0 to v2.149.0). This stays open through the launch and the storage switch.
+- [x] Out-of-scope items stay out (checked 2026-10-08: no E-Verify, no SSN or bank storage, no QuickBooks API, no background checks, no job-board posting, no calendar sync, no AI scoring; texts held)
 
 ---
 

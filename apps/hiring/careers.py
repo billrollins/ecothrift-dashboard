@@ -59,6 +59,12 @@ _NEVER_ASK_WORDS = re.compile(
     r'disabilit|medical|citizen of|nationality|national origin|criminal|convicted|arrest|felony|race)\b',
     re.IGNORECASE,
 )
+# Numbers Dash never stores (initiative rule): a question asking for one is refused, not just warned about.
+_NEVER_STORE_WORDS = re.compile(
+    r'\b(social security|ssn|routing( number)?|bank account|account number|tax id|itin|'
+    r"driver'?s? licen[cs]e (number|no|#)|licen[cs]e number|passport number|alien number|a-number)\b",
+    re.IGNORECASE,
+)
 
 DEFAULT_PAGE = {
     'headline': 'Now hiring',
@@ -804,6 +810,10 @@ def _check_questions(raw, where: str, errors: list[str], warnings: list[str]) ->
             question['help'] = _text(item.get('help'), limit=300)
         if item.get('after_roles'):
             question['after_roles'] = True
+        if _NEVER_STORE_WORDS.search(f'{label} {question.get("help", "")}'):
+            errors.append(f'{where} "{label}" asks for a number Dash never stores (Social Security, bank, routing, '
+                          'or an ID number). Those go on paper or in QuickBooks.')
+            continue
         if _NEVER_ASK_WORDS.search(label):
             warnings.append(f'{where} "{label}" may ask something we never ask. Check the never-ask list.')
         out.append(question)

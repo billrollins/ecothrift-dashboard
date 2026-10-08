@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.149.0] -->
-<!-- Last reviewed: 2026-10-08 (2.149.0) -->
+<!-- Line 1 release: ## [2.149.1] -->
+<!-- Last reviewed: 2026-10-08 (2.149.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.149.1] - 2026-10-08
+
+User-facing theme: **Dash never keeps a Social Security, bank or routing number, even when someone types one.** Initiative: `hiring_onboarding` (its acceptance audit).
+
+### Changed
+
+- **Numbers shaped like an SSN, a routing number or a bank account are masked** (shown as "[number removed]") wherever people type free text in hiring: application answers, notes, the Not now note, and the I-9 "documents seen" box, which now says "names only". A phone number, a ZIP+4, a date and a pay rate are left alone.
+- **The careers file refuses a question that asks for one** (Social Security, bank account, routing, a license or passport number). Before, it saved. Those numbers go on paper or in QuickBooks.
 
 ## [2.149.0] - 2026-10-08
 

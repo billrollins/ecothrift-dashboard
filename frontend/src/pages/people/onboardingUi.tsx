@@ -380,6 +380,7 @@ export function I9Dialog({
         <TextField
           label="Documents you saw (which list, which document)"
           placeholder="e.g. List B driver's license + List C Social Security card"
+          helperText="Names only. Document numbers stay on the paper form; Dash removes any it is given."
           value={seen}
           onChange={(e) => setSeen(e.target.value)}
           fullWidth

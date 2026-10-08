@@ -23,6 +23,7 @@ The careers page, applications, and the People workspace. Design and phases: [`i
 ## Rules
 
 - **AI never decides.** It drafts the careers file (`HIRING_CAREERS` in Settings > AI) and nothing else. Every stage change is a person, logged.
+- **No SSN, bank, routing or ID numbers.** `services.scrub()` masks numbers shaped like them in typed text: answers, notes, the Not now note, and the I-9 "documents seen". The careers file refuses a question that asks for one (`careers._NEVER_STORE_WORDS`). Pinned by `tests/test_acceptance.py`.
 - **Not now emails send only on Send.** Don't send is recorded too.
 - **Never ask** (form and AI brief): age except 18+, race, religion, national origin, citizenship except "authorized to work", marital or family status, pregnancy, disability or health, arrests or criminal history. `careers.check_doc` warns on obvious misses.
 - **A file that leaves keys out keeps today's values**: a short AI answer can't wipe the rest. Jobs missing from a file are left alone; close a role in Jobs to hide it.

@@ -349,10 +349,13 @@ def i9_delete_file(item: I9File) -> None:
 def i9_section2(record: I9Record, *, documents_seen: str, by) -> I9Record:
     if not record.files.filter(kind=I9File.KIND_FORM).exists():
         raise ValidationError({'detail': 'Upload the completed Form I-9 first.'})
-    documents_seen = (documents_seen or '').strip()[:300]
+    from apps.hiring.services import scrub
+
+    # Document names only: the numbers stay on the paper form (Dash never stores SSN or ID numbers).
+    documents_seen = scrub((documents_seen or '').strip())[:300]
     if not documents_seen:
         raise ValidationError({'documents_seen': 'Which documents did you see? e.g. List B driver\'s license + List C '
-                                                 'Social Security card'})
+                                                 'Social Security card (names only, no numbers)'})
     record.documents_seen = documents_seen
     record.section2_done_at = timezone.now()
     record.section2_by = by
