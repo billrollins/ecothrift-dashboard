@@ -10,6 +10,7 @@ from __future__ import annotations
 import html
 import io
 from datetime import date, timedelta
+from decimal import Decimal, InvalidOperation
 from datetime import timezone as dt_timezone
 
 from django.core.files.base import ContentFile
@@ -53,10 +54,59 @@ def form_of(row: CheckIn) -> dict:
     if row.form:
         return row.form
     cfg = load_setting()['checkin']
-    return {k: cfg[k] for k in ('questions', 'areas', 'area_ratings', 'employee_statement')}
+    form = {k: cfg[k] for k in ('questions', 'areas', 'area_ratings', 'employee_statement')}
+    form['pay_review'] = row.day in (cfg.get('pay_review_days') or [])
+    return form
 
 
-def _clean_answers(form: dict, raw) -> dict:
+PAY_RAISE, PAY_SAME = 'raise', 'no_change'
+
+
+def current_pay(user) -> str:
+    """The hourly rate in Dash today ('' if none is set)."""
+    profile = getattr(user, 'employee', None)
+    rate = getattr(profile, 'pay_rate', None)
+    return f'{rate:.2f}' if rate else ''
+
+
+def _clean_pay(raw, current: str) -> dict:
+    raw = raw if isinstance(raw, dict) else {}
+    decision = str(raw.get('decision') or '')
+    if decision not in ('', PAY_RAISE, PAY_SAME):
+        raise ValidationError({'pay': 'Pick a raise or no change yet.'})
+    new_rate = ''
+    if str(raw.get('new_rate') or '').strip():
+        try:
+            new_rate = f'{Decimal(str(raw.get("new_rate")).strip().lstrip("$")):.2f}'
+        except InvalidOperation:
+            raise ValidationError({'pay': 'The new rate must be a number, like 16.50.'})
+    effective = str(raw.get('effective') or '')[:10]
+    if effective:
+        try:
+            date.fromisoformat(effective)
+        except ValueError:
+            raise ValidationError({'pay': 'The raise date must look like 2026-11-02.'})
+    return {'decision': decision, 'current': current, 'new_rate': new_rate if decision == PAY_RAISE else '',
+            'effective': effective if decision == PAY_RAISE else '', 'note': str(raw.get('note') or '').strip()[:1000]}
+
+
+def _pay_errors(pay: dict) -> str:
+    if not pay.get('decision'):
+        return 'Decide pay: a raise, or no change yet.'
+    if not pay.get('note'):
+        return ('Say what the raise is for.' if pay['decision'] == PAY_RAISE
+                else 'Say what would earn a raise, so they know what to work on.')
+    if pay['decision'] == PAY_RAISE:
+        if not pay.get('new_rate') or Decimal(pay['new_rate']) <= Decimal(pay.get('current') or '0'):
+            return 'The new rate must be more than today\'s rate.'
+        if Decimal(pay['new_rate']) > 100:
+            return 'The new rate looks wrong.'
+        if not pay.get('effective'):
+            return 'Pick the date the raise starts.'
+    return ''
+
+
+def _clean_answers(form: dict, raw, *, current: str = '') -> dict:
     raw = raw if isinstance(raw, dict) else {}
     questions = raw.get('questions') if isinstance(raw.get('questions'), dict) else {}
     areas = raw.get('areas') if isinstance(raw.get('areas'), dict) else {}
@@ -69,6 +119,8 @@ def _clean_answers(form: dict, raw) -> dict:
         if rating and rating not in form.get('area_ratings', []):
             raise ValidationError({'areas': f'"{rating}" is not one of the ratings for {area}.'})
         out['areas'][area] = {'rating': rating, 'note': str(given.get('note') or '').strip()[:1000]}
+    if form.get('pay_review'):
+        out['pay'] = _clean_pay(raw.get('pay'), current)
     return out
 
 
@@ -79,7 +131,7 @@ def save(row: CheckIn, *, answers=None, employee_comments=None, close_onboarding
     if not row.form:
         row.form = form_of(row)
     if answers is not None:
-        row.answers = _clean_answers(row.form, answers)
+        row.answers = _clean_answers(row.form, answers, current=current_pay(row.user))
     if employee_comments is not None:
         row.employee_comments = str(employee_comments).strip()[:4000]
     if close_onboarding is not None:
@@ -114,6 +166,10 @@ def sign(row: CheckIn, *, manager_name: str, manager_signature: str, employee_na
         a.get('rating') for a in (row.answers.get('areas') or {}).values())
     if not answered:
         errors['answers'] = 'Fill in the check-in before signing.'
+    if row.form.get('pay_review'):
+        problem = _pay_errors(row.answers.get('pay') or {})
+        if problem:
+            errors['pay'] = problem
     if errors:
         raise ValidationError(errors)
     try:
@@ -136,9 +192,25 @@ def sign(row: CheckIn, *, manager_name: str, manager_signature: str, employee_na
     upload.content_type = 'application/pdf'
     row.signed_pdf = save_upload(upload, user=by, key_prefix='hiring/checkins')
     row.save()
+    pay = row.answers.get('pay') or {}
+    if row.form.get('pay_review') and pay.get('decision') == PAY_RAISE:
+        _apply_raise(row, pay)
     if row.close_onboarding and row.onboarding_id and row.onboarding.status == Onboarding.STATUS_ACTIVE:
         _close_onboarding(row, by=by)
     return row
+
+
+def _apply_raise(row: CheckIn, pay: dict) -> None:
+    """Dash's hourly rate becomes the new one (QuickBooks, which runs payroll, is changed by hand)."""
+    profile = getattr(row.user, 'employee', None)
+    if profile is not None:
+        profile.pay_rate = Decimal(pay['new_rate'])
+        profile.save(update_fields=['pay_rate'])
+    if row.onboarding_id:
+        from apps.hiring.onboarding import _event
+
+        _event(row.onboarding, f'Raise at the {row.day}-day check-in: ${pay.get("current") or "?"} to '
+                               f'${pay["new_rate"]}/hr from {pay["effective"]}. Change it in QuickBooks.')
 
 
 def _close_onboarding(row: CheckIn, *, by) -> None:
@@ -184,6 +256,16 @@ def _html(row: CheckIn) -> str:
             note = f': {html.escape(given["note"])}' if given.get('note') else ''
             parts.append(f'<li><b>{html.escape(area)}</b>: {html.escape(given.get("rating") or "not rated")}{note}</li>')
         parts.append('</ul>')
+    pay = answers.get('pay') or {}
+    if form.get('pay_review') and pay.get('decision'):
+        parts.append('<h2>Pay review</h2>')
+        if pay['decision'] == PAY_RAISE:
+            start = date.fromisoformat(pay['effective'])
+            parts.append(f'<p><b>Raise:</b> from ${html.escape(pay.get("current") or "?")} to '
+                         f'${html.escape(pay["new_rate"])} an hour, starting {start:%B %d, %Y}.</p>')
+        else:
+            parts.append(f'<p><b>No change yet</b> (${html.escape(pay.get("current") or "?")} an hour).</p>')
+        parts.append(f'<p>{"<br>".join(html.escape(t) for t in pay.get("note", "").splitlines())}</p>')
     parts.append(f'<h2>The employee\'s comments</h2><p>{html.escape(row.employee_comments or "(none)")}</p>')
     if row.close_onboarding:
         parts.append('<p><b>This check-in closes onboarding.</b></p>')

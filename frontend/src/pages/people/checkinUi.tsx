@@ -56,6 +56,21 @@ export function CheckInReadout({
           })}
         </Box>
       )}
+      {form.pay_review && answers.pay?.decision && (
+        <Box sx={{ mb: 1.5 }}>
+          <Typography variant="caption" sx={{ color: ccTokens.ink2, fontWeight: 700 }}>
+            Pay review
+          </Typography>
+          <Typography sx={{ fontWeight: 600 }}>
+            {answers.pay.decision === 'raise'
+              ? `Raise: $${answers.pay.current || '?'} to $${answers.pay.new_rate} an hour, starting ${new Date(
+                  `${answers.pay.effective}T12:00`,
+                ).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })}`
+              : `No change yet ($${answers.pay.current || '?'} an hour)`}
+          </Typography>
+          <Typography sx={{ whiteSpace: 'pre-wrap' }}>{answers.pay.note}</Typography>
+        </Box>
+      )}
       <Typography variant="caption" sx={{ color: ccTokens.ink2, fontWeight: 700 }}>
         The employee&rsquo;s comments
       </Typography>

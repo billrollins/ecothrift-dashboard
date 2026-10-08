@@ -1,6 +1,6 @@
-v2.152.0 — Interviews are booked in two steps, a day on a calendar then a time, on the applicant page and in Dash; mobile first
+v2.153.0 — The 90-day check-in decides pay: a raise (rate and start date) or no change yet, with the reason; a raise updates Dash's rate
 
-<!-- Last reviewed: 2026-10-08 (2.152.0) -->
+<!-- Last reviewed: 2026-10-08 (2.153.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -13,13 +13,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [2.152.0] - 2026-10-08
+## [2.153.0] - 2026-10-08
 
-User-facing theme: **Applicants book an interview in two steps: a day on a calendar, then a time.** Initiative: `hiring_onboarding`.
+User-facing theme: **The 90-day check-in decides pay.** Initiative: `hiring_onboarding`.
 
-### Changed
+### Added
 
-- **The applicant's interview page** (`/careers/interview`) starts with a month calendar. Only days with open times can be tapped, and each shows how many times it has. Tapping a day shows its times in Morning, Afternoon and Evening groups. Arrows move to the next or last open day, and "All days" goes back to the calendar. On a phone one step shows at a time and the Book button stays in reach; on a computer the calendar and the times sit side by side. The same page is used to change a booked time.
-- **Dash's Book a time dialog works the same way** (book for an applicant, Reschedule): a calendar of open days, then that day's times. It fills the screen on a phone, one step at a time; on a computer the two sit side by side, with the chosen time shown next to Book it.
+- **A Pay review box on the 90-day check-in.** It shows today's rate in Dash. The manager picks **Give a raise** (new hourly rate and the date it starts) or **No change yet**, and writes what the raise is for or what would earn one. The check-in can't be signed until that is done. The decision is on the signed PDF and on the employee's My check-ins.
+- **A raise updates the rate in Dash when the check-in is signed**, and onboarding's history notes it. QuickBooks runs payroll, so the rate is changed there by hand; Dash says so.
+- **Which check-ins decide pay is in the careers file** (`checkin.pay_review_days`, default `[90]`).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

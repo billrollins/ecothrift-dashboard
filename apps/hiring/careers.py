@@ -373,6 +373,8 @@ DEFAULT_ONBOARDING = {
 CHECKIN_TYPES = ('text', 'long_text')
 DEFAULT_CHECKIN = {
     'days': [30, 60, 90],
+    # These check-ins also decide pay: a raise (new rate, from a date) or no change yet, with the reason.
+    'pay_review_days': [90],
     'questions': [
         {'key': 'going_well', 'label': 'What is going well?', 'type': 'long_text'},
         {'key': 'training', 'label': 'Where is more training needed?', 'type': 'long_text'},
@@ -1098,7 +1100,8 @@ def _check_checkin(raw, current: dict, errors: list[str]) -> dict:
     if raw is None:
         return out
     if not isinstance(raw, dict):
-        errors.append('checkin must be an object (days, questions, areas, area_ratings, employee_statement).')
+        errors.append('checkin must be an object (days, pay_review_days, questions, areas, area_ratings, '
+                      'employee_statement).')
         return out
     if 'days' in raw:
         try:
@@ -1108,6 +1111,14 @@ def _check_checkin(raw, current: dict, errors: list[str]) -> dict:
             out['days'] = days
         except (TypeError, ValueError):
             errors.append('checkin.days must be 1 to 6 whole numbers of days, from 7 to 365.')
+    if 'pay_review_days' in raw:
+        try:
+            out['pay_review_days'] = sorted({int(d) for d in raw.get('pay_review_days') or []})
+        except (TypeError, ValueError):
+            errors.append('checkin.pay_review_days must be whole numbers of days from checkin.days (e.g. [90]).')
+    stray = [d for d in out.get('pay_review_days', []) if d not in out['days']]
+    if stray:
+        errors.append(f'checkin.pay_review_days: {", ".join(map(str, stray))} is not one of checkin.days.')
     if 'questions' in raw:
         items, seen = [], set()
         for index, item in enumerate(raw.get('questions') or [], start=1):

@@ -1335,12 +1335,48 @@ class CheckInTests(OnboardingTests):
         from apps.hiring.models import CheckIn
         self.hire()
         last = CheckIn.objects.get(user=self.new_hire, day=90)
-        signed = self.fill_and_sign(last.pk, close_onboarding=True)
+        signed = self.fill_and_sign(last.pk, close_onboarding=True,
+                                    answers=self.pay({'decision': 'no_change', 'note': 'Price faster first.'}))
         self.assertEqual(signed.status_code, 200, signed.data)
         self.assertTrue(signed.data['close_onboarding'])
         data = self.detail()
         self.assertEqual(data['status'], 'done')
         self.assertTrue(all(t['status'] != 'open' for t in data['tasks']))
+
+    def pay(self, pay):
+        return {'questions': {'going_well': 'Great with customers.'}, 'areas': {}, 'pay': pay}
+
+    def test_the_90_day_check_in_decides_pay(self):
+        """The 90-day check-in can't be signed without a pay decision; a raise moves Dash's rate and is on the PDF."""
+        from decimal import Decimal
+
+        import pymupdf
+
+        from apps.accounts.models import EmployeeProfile
+        from apps.hiring.models import CheckIn
+        self.hire()
+        EmployeeProfile.objects.filter(user=self.new_hire).update(pay_rate=Decimal('15.00'))
+        thirty = self.staff.get(f'/api/hiring/checkins/{CheckIn.objects.get(user=self.new_hire, day=30).pk}/').data
+        self.assertFalse(thirty['form']['pay_review'])
+        last = CheckIn.objects.get(user=self.new_hire, day=90)
+        detail = self.staff.get(f'/api/hiring/checkins/{last.pk}/').data
+        self.assertEqual((detail['form']['pay_review'], detail['current_pay']), (True, '15.00'))
+        no_pay = self.fill_and_sign(last.pk)
+        self.assertEqual(no_pay.status_code, 400)
+        self.assertIn('Decide pay', str(no_pay.data['pay']))
+        too_low = self.fill_and_sign(last.pk, answers=self.pay({'decision': 'raise', 'new_rate': '15.00',
+                                                                 'effective': '2027-01-18', 'note': 'Great work.'}))
+        self.assertIn('more than', str(too_low.data['pay']))
+        signed = self.fill_and_sign(last.pk, answers=self.pay({'decision': 'raise', 'new_rate': '16.50',
+                                                                'effective': '2027-01-18', 'note': 'Great work.'}))
+        self.assertEqual(signed.status_code, 200, signed.data)
+        self.assertEqual(signed.data['answers']['pay']['current'], '15.00')
+        self.assertEqual(EmployeeProfile.objects.get(user=self.new_hire).pay_rate, Decimal('16.50'))
+        raw = b''.join(self.me.get(f'/api/hiring/checkins/{last.pk}/pdf/').streaming_content)
+        text = ' '.join(''.join(p.get_text() for p in pymupdf.open(stream=raw, filetype='pdf')).split())
+        self.assertIn('Raise: from $15.00 to $16.50 an hour, starting January 18, 2027.', text)
+        self.assertEqual(careers.check_doc({'checkin': {'pay_review_days': [45]}})['errors'],
+                         ['checkin.pay_review_days: 45 is not one of checkin.days.'])
 
     def test_due_list_skip_and_the_brief_line(self):
         from datetime import timedelta

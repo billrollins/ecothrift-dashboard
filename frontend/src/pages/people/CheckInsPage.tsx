@@ -36,6 +36,7 @@ import {
   skipCheckin,
   type CheckInAnswers,
   type CheckInDetail,
+  type CheckInPay,
   type CheckInRow,
 } from '../../api/hiring.api';
 import { PageHeader } from '../../components/common/PageHeader';
@@ -78,6 +79,57 @@ function Row({ row, selected, onOpen }: { row: CheckInRow; selected: boolean; on
 }
 
 const EMPTY: CheckInAnswers = { questions: {}, areas: {} };
+const EMPTY_PAY: CheckInPay = { decision: '', current: '', new_rate: '', effective: '', note: '' };
+
+/** The pay decision on a pay-review check-in (the 90-day one): a raise from a date, or no change yet. */
+function PayReview({ pay, current, onChange, error }: {
+  pay: CheckInPay;
+  current: string;
+  onChange: (next: CheckInPay) => void;
+  error?: string;
+}) {
+  const set = (part: Partial<CheckInPay>) => onChange({ ...pay, ...part });
+  return (
+    <Box sx={{ p: 2, borderRadius: ccTokens.r, border: `1px solid ${error ? '#e2b4ae' : '#c4dcbd'}`, bgcolor: ccTokens.goodTint }}>
+      <Typography sx={{ fontWeight: 700 }}>Pay review</Typography>
+      <Typography variant="body2" sx={{ color: ccTokens.ink2, mb: 1.25 }}>
+        Today: {current ? `$${current} an hour` : 'no rate in Dash'}. Decide it together before signing.
+      </Typography>
+      <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mb: 1.5 }}>
+        <Chip label="Give a raise" color={pay.decision === 'raise' ? 'primary' : 'default'}
+          variant={pay.decision === 'raise' ? 'filled' : 'outlined'} onClick={() => set({ decision: 'raise' })} />
+        <Chip label="No change yet" color={pay.decision === 'no_change' ? 'primary' : 'default'}
+          variant={pay.decision === 'no_change' ? 'filled' : 'outlined'} onClick={() => set({ decision: 'no_change' })} />
+      </Box>
+      {pay.decision === 'raise' && (
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 1.5 }}>
+          <TextField size="small" label="New rate ($ an hour)" value={pay.new_rate} inputMode="decimal"
+            onChange={(e) => set({ new_rate: e.target.value })} sx={{ bgcolor: '#fff' }} />
+          <TextField size="small" type="date" label="Starts" value={pay.effective} InputLabelProps={{ shrink: true }}
+            onChange={(e) => set({ effective: e.target.value })} sx={{ bgcolor: '#fff' }} />
+        </Stack>
+      )}
+      {pay.decision && (
+        <TextField
+          size="small"
+          label={pay.decision === 'raise' ? 'What the raise is for' : 'What would earn a raise'}
+          value={pay.note}
+          onChange={(e) => set({ note: e.target.value })}
+          multiline
+          minRows={2}
+          fullWidth
+          sx={{ bgcolor: '#fff' }}
+        />
+      )}
+      {pay.decision === 'raise' && (
+        <Typography variant="caption" sx={{ display: 'block', mt: 1, color: ccTokens.ink2 }}>
+          Signing updates the rate in Dash. Change it in QuickBooks too, which runs payroll.
+        </Typography>
+      )}
+      {error && <Alert severity="error" sx={{ mt: 1.5 }}>{error}</Alert>}
+    </Box>
+  );
+}
 
 function Panel({ id, onClose }: { id: number; onClose: () => void }) {
   const queryClient = useQueryClient();
@@ -100,7 +152,11 @@ function Panel({ id, onClose }: { id: number; onClose: () => void }) {
 
   useEffect(() => {
     if (!c) return;
-    setAnswers({ questions: { ...(c.answers.questions ?? {}) }, areas: { ...(c.answers.areas ?? {}) } });
+    setAnswers({
+      questions: { ...(c.answers.questions ?? {}) },
+      areas: { ...(c.answers.areas ?? {}) },
+      ...(c.form.pay_review ? { pay: { ...EMPTY_PAY, ...(c.answers.pay ?? {}) } } : {}),
+    });
     setComments(c.employee_comments);
     setClose(c.close_onboarding);
     setManagerName(c.manager?.name || user?.full_name || '');
@@ -145,9 +201,14 @@ function Panel({ id, onClose }: { id: number; onClose: () => void }) {
       });
       await commit(data);
       setSigning(false);
+      if (data.answers.pay?.decision === 'raise') {
+        enqueueSnackbar(`Raise to $${data.answers.pay.new_rate} saved in Dash. Change it in QuickBooks too.`, { variant: 'info' });
+      }
       enqueueSnackbar('Check-in signed. They can read it in Dash under My check-ins.', { variant: 'success' });
     } catch (err) {
-      setErrors(errorsFrom(err));
+      const found = errorsFrom(err);
+      setErrors(found);
+      if (found.pay) setSigning(false); // the pay box is on the form, under the dialog
     } finally {
       setBusy(false);
     }
@@ -251,6 +312,17 @@ function Panel({ id, onClose }: { id: number; onClose: () => void }) {
                 </Box>
               ))}
             </Box>
+          )}
+          {c.form.pay_review && (
+            <PayReview
+              pay={answers.pay ?? EMPTY_PAY}
+              current={c.current_pay}
+              error={errors.pay}
+              onChange={(pay) => {
+                setAnswers((a) => ({ ...a, pay }));
+                setErrors((e) => ({ ...e, pay: '' }));
+              }}
+            />
           )}
           <TextField
             label="The employee's comments (they say or write these)"

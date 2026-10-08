@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.152.0] -->
-<!-- Last reviewed: 2026-10-08 (2.152.0) -->
+<!-- Line 1 release: ## [2.153.0] -->
+<!-- Last reviewed: 2026-10-08 (2.153.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.153.0] - 2026-10-08
+
+User-facing theme: **The 90-day check-in decides pay.** Initiative: `hiring_onboarding`.
+
+### Added
+
+- **A Pay review box on the 90-day check-in.** It shows today's rate in Dash. The manager picks **Give a raise** (new hourly rate and the date it starts) or **No change yet**, and writes what the raise is for or what would earn one. The check-in can't be signed until that is done. The decision is on the signed PDF and on the employee's My check-ins.
+- **A raise updates the rate in Dash when the check-in is signed**, and onboarding's history notes it. QuickBooks runs payroll, so the rate is changed there by hand; Dash says so.
+- **Which check-ins decide pay is in the careers file** (`checkin.pay_review_days`, default `[90]`).
 
 ## [2.152.0] - 2026-10-08
 

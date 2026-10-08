@@ -126,6 +126,7 @@ The careers page, applications, and the People workspace. Design and phases: [`i
   - `save` works until signed. `close_onboarding` only counts on the last one.
   - `sign` needs both names, both PNG signatures, the statement ticked, and something answered. It locks the check-in and builds the PDF (`pymupdf.Story`, then a page with the signatures and the audit).
   - With `close_onboarding`, open onboarding tasks are skipped and the onboarding is done.
+  - **Pay review** on the days in `checkin.pay_review_days` (default `[90]`): `form.pay_review`, and `answers.pay` = `{decision: raise|no_change, current, new_rate, effective, note}` (`current` is `EmployeeProfile.pay_rate` at save). Signing needs a decision and a note; a raise needs a rate above today's and a start date. A signed raise sets `EmployeeProfile.pay_rate` and logs an onboarding event; QuickBooks is changed by hand.
   - `skip` needs a reason.
 - **API** (`checkin_views.py`):
   - managers: `/api/hiring/checkins/?when=due|upcoming|done|all`, `checkins/schedule/`, `checkins/<id>/` (GET and PATCH), `<id>/sign/`, `<id>/skip/` and `<id>/pdf/` (the PDF is also open to the employee it's about);

@@ -815,11 +815,23 @@ export interface CheckInForm {
   areas: string[];
   area_ratings: string[];
   employee_statement: string;
+  /** This check-in also decides pay (the 90-day one by default). */
+  pay_review?: boolean;
+}
+
+export interface CheckInPay {
+  decision: '' | 'raise' | 'no_change';
+  /** The rate in Dash when the check-in was saved. */
+  current: string;
+  new_rate: string;
+  effective: string;
+  note: string;
 }
 
 export interface CheckInAnswers {
   questions: Record<string, string>;
   areas: Record<string, { rating: string; note: string }>;
+  pay?: CheckInPay;
 }
 
 export interface CheckInRow {
@@ -847,6 +859,8 @@ export interface CheckInDetail extends CheckInRow {
   can_close_onboarding: boolean;
   manager_name: string;
   employee_name: string;
+  /** Today's rate in Dash, on a check-in still to be signed. */
+  current_pay: string;
 }
 
 export const getCheckins = (when: 'due' | 'upcoming' | 'done' | 'all' = 'due') =>
