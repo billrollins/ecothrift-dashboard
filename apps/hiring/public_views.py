@@ -255,8 +255,16 @@ _OFFER_GONE = 'This offer link is not valid. Reply to the email we sent you, or 
 
 def _offer_state(offer) -> dict:
     from apps.hiring.offers import date_text, money, time_text
+    from apps.hiring.texts import consent_summary
+    from apps.texting.service import digits
 
+    phone = digits(offer.application.phone)
+    # The optional text tick (T71): shown when there is a mobile number and their tick does not cover the first day.
+    texts = None
+    if phone and not consent_summary(phone)['first_day']:
+        texts = {'wording': careers.SMS_CONSENT_TEXT, 'phone_last4': phone[-4:]}
     return {
+        'texts': texts,
         'ok': True,
         'practice': offer.application.is_practice,
         'status': offer.status,
@@ -304,7 +312,7 @@ def offer_sign(request):
     signed = offers.sign(
         found, name=request.data.get('name') or '', signature=request.data.get('signature') or '',
         acks=request.data.get('acks') or [], consent=request.data.get('consent'), ip=_client_ip(request),
-        user_agent=request.META.get('HTTP_USER_AGENT', ''),
+        user_agent=request.META.get('HTTP_USER_AGENT', ''), texts_consent=request.data.get('texts_consent'),
     )
     return Response(_offer_state(signed))
 

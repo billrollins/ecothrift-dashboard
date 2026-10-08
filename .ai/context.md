@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-07 (hiring Phase 5, Applicants timeline, read-before-send shipped) -->
+<!-- Last updated: 2026-10-08 (hiring Phase 6 texts, held until live; apps/texting shipped) -->
 # ecothrift-dashboard — AI Context
 
 ## Project summary
@@ -30,7 +30,7 @@ Stack: Django 5.2 + DRF, React 18.3 + TypeScript + MUI 7, PostgreSQL (schema `ec
 - **Data quality and rails:** [`data_quality_rails`](initiatives/data_quality_rails.md).
 - **Waiting:** [`buying_intelligence_v2`](initiatives/buying_intelligence_v2.md) resumes after launch. Earlier buying work is in [`bstock_daily_buying`](initiatives/bstock_daily_buying.md).
 - **Inventory effort:** [`inventory_effort`](initiatives/inventory_effort.md). After the first full count: one inventory across days, PR Fix-it one-scan fixes, shrink worklist, inventory report, "If it all sells" orders view, data quality. The owner's operations priority.
-- **Hiring and onboarding:** [`hiring_onboarding`](initiatives/hiring_onboarding.md). Jobs on ecothrift.us, applications, interviews, offers, onboarding and 30/60/90 check-ins, all run from Dash. Shipped: Phase 1 (careers page, apply, People → Applicants; live since 10-06), Phase 2 (interviews), Phase 3 (offers signed with a finger) and practice runs. Phase 4 (onboarding: checklist, I-9, handbook) and staff purchases (payroll deduction, staff Thrift+; off at first) shipped in v2.146.0. Phase 5 (check-ins), the Applicants timeline (phone-first) and read-before-send for hiring emails are shipped. Next: Phase 6 texts, when its gates clear. Built in its own worktree beside the inventory work (its Concurrent plan).
+- **Hiring and onboarding:** [`hiring_onboarding`](initiatives/hiring_onboarding.md). Jobs on ecothrift.us, applications, interviews, offers, onboarding and 30/60/90 check-ins, all run from Dash. Shipped: Phase 1 (careers page, apply, People → Applicants; live since 10-06), Phase 2 (interviews), Phase 3 (offers signed with a finger) and practice runs. Phase 4 (onboarding: checklist, I-9, handbook) and staff purchases (payroll deduction, staff Thrift+; off at first) shipped in v2.146.0. Phase 5 (check-ins), the Applicants timeline (phone-first) and read-before-send for hiring emails are shipped. Phase 6 texts are built and **held** (`apps/texting`): nothing sends until master's `notify`, the Twilio key and the approved 10DLC campaign. Built in its own worktree beside the inventory work (its Concurrent plan).
 - **Intake updates:** [`intake_updates`](initiatives/intake_updates.md). The owner's intake list: Orders numbers, order modal, one Target vendor, AI formulas on upload, vendor metrics.
 - **Inventory count:** [`inventory_count`](initiatives/inventory_count.md). Shipped 2026-10-01; first real count Mon 10-05.
 - **Standing:** [`standards`](initiatives/standards.md), what this repo still owes the house standards, and when.

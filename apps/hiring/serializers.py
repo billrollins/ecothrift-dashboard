@@ -183,13 +183,22 @@ class ApplicationDetailSerializer(ApplicationListSerializer):
     offers = serializers.SerializerMethodField()
     booking_link = serializers.SerializerMethodField()
     onboarding = serializers.SerializerMethodField()
+    texting = serializers.SerializerMethodField()
 
     class Meta(ApplicationListSerializer.Meta):
         fields = ApplicationListSerializer.Meta.fields + [
             'answers', 'events', 'resume_file', 'sms_consent', 'sms_consent_at', 'not_now_note', 'not_now_stage',
             'not_now_reason_label', 'not_now_email_status', 'not_now_email_subject', 'not_now_email_body', 'not_now_at',
             'received_email_sent', 'employee', 'interviews', 'offers', 'booking_link', 'invited_at', 'onboarding',
+            'texting',
         ]
+
+    def get_texting(self, obj):
+        """May we text them (Phase 6): agreed, stopped, never, or no_number; and whether texting is live."""
+        from apps.hiring.texts import consent_summary
+        from apps.texting.service import waiting_on
+
+        return {**consent_summary(obj.phone), 'waiting_on': waiting_on()}
 
     def get_interviews(self, obj):
         rows = obj.interviews.select_related('job', 'interviewer', 'scored_by').order_by('-start')

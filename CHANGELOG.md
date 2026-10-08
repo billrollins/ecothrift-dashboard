@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.148.2] -->
-<!-- Last reviewed: 2026-10-07 (2.148.2) -->
+<!-- Line 1 release: ## [2.149.0] -->
+<!-- Last reviewed: 2026-10-08 (2.149.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,30 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.149.0] - 2026-10-08
+
+User-facing theme: **Texts to applicants are built, and held until texting is live: Dash shows every text it would send, word for word, and sends none.** Initiative: `hiring_onboarding` Phase 6 (the part its gates allow).
+
+### Added
+
+- **Applicant texts**, for applicants who ticked the text box on the application:
+  - interview booked, moved and cancelled;
+  - the day-before interview reminder;
+  - the day-before first-day reminder for new hires.
+  - Before anyone's first text: the opt-in confirmation, the 10DLC campaign's own wording.
+- **Nothing is sent yet.** Texting goes live only when all of these are in place: the send step to Twilio (Dash is the house sender; master dropped its planned `notify` package), the Eco-Thrift Twilio key, and the switch (turned on once the 10DLC campaign is approved). Until then every text is **held**: recorded on the applicant's history ("Text held: Interview booked", with **See the text**), not sent. Dev never texts.
+- **New text-tick wording** (master, T71), on the application form: "Text me about my application and, if I'm hired, my first day (interview times, reminders, first-day details)…". A tick on the old wording covers interview texts only, never a first-day text. A new hire on the old wording is offered the new tick (optional, never pre-ticked) on the offer page when they sign.
+- **Consent records** (house standard texting.md): every tick, STOP and "please don't text me" is recorded with who, which kind, when, how and the wording version. Every application that already ticked the box got its record. No consent, no text; STOP ends every kind. The kinds are job texts, Thrift+ account texts and store news, so the Thrift+ sign-up ticks (T59) use the same records.
+- **On the applicant page:** whether they may be texted, and **They asked: stop texts** to record it.
+- **On the review screen:** booking, moving and cancelling an interview show the text under the email, with the same chips, a character count and **Text them too** (or no text this time).
+- **People → Emails → Texts:** edit each text (it must start with "Eco-Thrift:" and say how to stop; two texts at most), the short address used as `{place}`, a phone-style preview, what texting still waits on, and every text held or sent.
+
+### Fixed
+
+- **The review screen opened behind the dialog it came from** on a computer: Book a time, Reschedule, Make offer, Start onboarding and Create employee. The time picker was left waiting with its buttons greyed out and the review out of reach. It now opens on top. (A phone was not affected.)
+
+Migrations: `hiring.0013` (the text event kind, `Onboarding.first_day_text_at`), `texting.0001`–`0002` (new app; consent records backfilled from applications).
 
 ## [2.148.2] - 2026-10-07
 

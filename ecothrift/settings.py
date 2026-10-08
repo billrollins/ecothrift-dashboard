@@ -122,6 +122,7 @@ INSTALLED_APPS = [
     'apps.qa',
     'apps.stocktake',
     'apps.hiring',
+    'apps.texting',
 ]
 
 MIDDLEWARE = [

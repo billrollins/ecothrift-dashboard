@@ -5,21 +5,25 @@ import {
   Chip,
   Dialog,
   Drawer,
+  FormControlLabel,
   IconButton,
   Link,
+  Switch,
   Typography,
   useMediaQuery,
   useTheme,
+  type Theme,
 } from '@mui/material';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import CloseIcon from '@mui/icons-material/Close';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import SmsOutlined from '@mui/icons-material/SmsOutlined';
 import { useSnackbar } from 'notistack';
 import { useState } from 'react';
-import type { EmailChoice, EmailDraft, EmailPreview } from '../../api/hiring.api';
+import type { EmailChoice, EmailDraft, EmailPreview, TextChoice, TextDraft } from '../../api/hiring.api';
 import { ccTokens } from '../../theme';
 import { EmailEditor } from './EmailEditor';
-import { fillTemplate, isEdited, typedOver } from './emailTemplate';
+import { fillTemplate, isEdited, textStats, typedOver } from './emailTemplate';
 import { errorText } from './peopleUi';
 
 /**
@@ -136,13 +140,74 @@ export function EmailCompose({
   );
 }
 
+/** The text that goes with the email (Phase 6): read it, edit it, or send no text this time. */
+function TextSection({
+  draft,
+  on,
+  onToggle,
+  onChange,
+}: {
+  draft: TextDraft;
+  on: boolean;
+  onToggle: (on: boolean) => void;
+  onChange: (words: string) => void;
+}) {
+  const [words, setWords] = useState(draft.template);
+  const stats = textStats(fillTemplate(words, draft.values));
+  const over = stats.length > draft.max;
+  return (
+    <Box sx={{ mt: 3, pt: 2, borderTop: `1px solid ${ccTokens.line}` }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+        <SmsOutlined sx={{ fontSize: 20, color: ccTokens.ink2 }} />
+        <Typography fontWeight={700}>Text message</Typography>
+        <Typography variant="body2" color="text.secondary">
+          to {draft.to || 'no mobile number'}
+        </Typography>
+        <Box sx={{ flex: 1 }} />
+        {draft.allowed && (
+          <FormControlLabel
+            control={<Switch checked={on} onChange={(e) => onToggle(e.target.checked)} />}
+            label={on ? 'Text them too' : 'No text this time'}
+            sx={{ mr: 0 }}
+          />
+        )}
+      </Box>
+      {draft.note && (
+        <Alert severity={draft.allowed ? 'info' : 'warning'} variant="outlined" sx={{ mt: 1, mb: 1.5, bgcolor: '#fff' }}>
+          {draft.note}
+        </Alert>
+      )}
+      {draft.allowed && on && (
+        <>
+          <EmailEditor
+            label="The text"
+            template={draft.template}
+            values={draft.values}
+            fields={draft.fields}
+            short
+            onChange={(next) => {
+              setWords(next);
+              onChange(next);
+            }}
+          />
+          <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: over ? ccTokens.badText : ccTokens.ink3 }}>
+            {stats.length} characters · {stats.parts === 1 ? 'one text' : `${stats.parts} texts`}
+            {over ? ` · keep it under ${draft.max}` : ''}
+            {!stats.plain ? ' · an emoji or curly quote makes each text shorter' : ''}
+          </Typography>
+        </>
+      )}
+    </Box>
+  );
+}
+
 export interface ReviewRun<T> {
   /** What the button does ("Book the interview"). */
   title: string;
   /** The action as a dry run: the email it would send (nothing saved or sent). */
   preview: () => Promise<{ data: EmailPreview }>;
-  /** The action for real, with the email choice. */
-  commit: (email?: EmailChoice) => Promise<T>;
+  /** The action for real, with the email choice (and the text choice, when a text goes with it). */
+  commit: (email?: EmailChoice, text?: TextChoice) => Promise<T>;
   /** "Book and send". Default "Send". */
   sendLabel?: string;
   /** "Book without emailing". Shown when the server allows it. */
@@ -152,11 +217,13 @@ export interface ReviewRun<T> {
 function ReviewPanel({
   run,
   draft,
+  text,
   onDone,
   onCancel,
 }: {
   run: ReviewRun<unknown>;
   draft: EmailDraft;
+  text: TextDraft | null;
   onDone: (result: unknown) => void;
   onCancel: () => void;
 }) {
@@ -164,6 +231,8 @@ function ReviewPanel({
   const phone = useMediaQuery(theme.breakpoints.down('md'));
   const { enqueueSnackbar } = useSnackbar();
   const [words, setWords] = useState({ subject: draft.subject, body: draft.body });
+  const [textWords, setTextWords] = useState(text?.template ?? '');
+  const [textOn, setTextOn] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const noAddress = draft.to.length === 0;
@@ -173,10 +242,18 @@ function ReviewPanel({
       setError('The email needs a subject and a message.');
       return;
     }
+    let textChoice: TextChoice | undefined;
+    if (text?.allowed) {
+      if (textOn && textStats(fillTemplate(textWords, text.values)).length > text.max) {
+        setError(`The text is over ${text.max} characters. Shorten it, or switch the text off.`);
+        return;
+      }
+      textChoice = textOn ? { body: textWords } : { skip: true };
+    }
     setBusy(true);
     setError('');
     try {
-      onDone(await run.commit(email));
+      onDone(await run.commit(email, textChoice));
     } catch (err) {
       setError(errorText(err, 'That did not work. Nothing was sent.'));
     } finally {
@@ -216,6 +293,7 @@ function ReviewPanel({
           </Alert>
         )}
         <EmailCompose draft={draft} onChange={setWords} />
+        {text && <TextSection draft={text} on={textOn} onToggle={setTextOn} onChange={setTextWords} />}
         {error && (
           <Alert severity="error" sx={{ mt: 1.5 }}>
             {error}
@@ -256,12 +334,21 @@ function ReviewPanel({
     </Box>
   );
 
+  // Above any dialog it was opened from (Pick a time, Make offer, Start onboarding): a side panel sits below
+  // dialogs by default, which would leave it behind their backdrop.
+  const above = { zIndex: (t: Theme) => t.zIndex.modal + 2 };
   return phone ? (
-    <Dialog open fullScreen onClose={busy ? undefined : onCancel}>
+    <Dialog open fullScreen onClose={busy ? undefined : onCancel} sx={above}>
       {body}
     </Dialog>
   ) : (
-    <Drawer anchor="right" open onClose={busy ? undefined : onCancel} PaperProps={{ sx: { width: 'min(720px, 100vw)' } }}>
+    <Drawer
+      anchor="right"
+      open
+      onClose={busy ? undefined : onCancel}
+      sx={above}
+      PaperProps={{ sx: { width: 'min(720px, 100vw)' } }}
+    >
       {body}
     </Drawer>
   );
@@ -273,15 +360,23 @@ function ReviewPanel({
  * Render ``dialog`` in the component.
  */
 export function useEmailReview() {
-  const [open, setOpen] = useState<{ run: ReviewRun<unknown>; draft: EmailDraft; resolve: (v: unknown) => void } | null>(
-    null,
-  );
+  const [open, setOpen] = useState<{
+    run: ReviewRun<unknown>;
+    draft: EmailDraft;
+    text: TextDraft | null;
+    resolve: (v: unknown) => void;
+  } | null>(null);
 
   async function review<T>(run: ReviewRun<T>): Promise<T | null> {
     const { data } = await run.preview(); // a refusal (time taken, no email…) goes to the caller
     if (!data.email) return run.commit(undefined);
     return new Promise<T | null>((resolve) =>
-      setOpen({ run: run as ReviewRun<unknown>, draft: data.email!, resolve: resolve as (v: unknown) => void }),
+      setOpen({
+        run: run as ReviewRun<unknown>,
+        draft: data.email!,
+        text: data.text ?? null,
+        resolve: resolve as (v: unknown) => void,
+      }),
     );
   }
 
@@ -289,6 +384,7 @@ export function useEmailReview() {
     <ReviewPanel
       run={open.run}
       draft={open.draft}
+      text={open.text}
       onDone={(result) => {
         open.resolve(result);
         setOpen(null);

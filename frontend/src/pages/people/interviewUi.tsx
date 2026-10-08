@@ -403,7 +403,7 @@ export function InterviewCard({
                     review({
                       title: `Cancel ${interview.applicant_name}'s interview`,
                       preview: () => previewCancelInterview(interview.id),
-                      commit: async (email) => (await cancelInterviewStaff(interview.id, email)).data,
+                      commit: async (email, text) => (await cancelInterviewStaff(interview.id, email, text)).data,
                       sendLabel: 'Cancel it and send',
                       skipLabel: 'Cancel it without emailing',
                     }),
@@ -432,7 +432,7 @@ export function InterviewCard({
           const moved = await review({
             title: `Move ${interview.applicant_name}'s interview`,
             preview: () => previewReschedule(interview.id, start),
-            commit: async (email) => (await rescheduleInterview(interview.id, start, email)).data,
+            commit: async (email, text) => (await rescheduleInterview(interview.id, start, email, text)).data,
             sendLabel: 'Move it and send',
             skipLabel: 'Move it without emailing',
           });

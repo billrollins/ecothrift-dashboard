@@ -66,6 +66,17 @@ export function typedOver(template: { subject: string; body: string }, subject: 
   return [...new Set(placeholdersIn(`${template.subject}\n${template.body}`))].filter((name) => !now.has(name));
 }
 
+// Characters a plain text message carries 160 at a time (GSM-7); anything else (emoji, curly quotes) drops it to 70.
+const GSM = /^[A-Za-z0-9 \n\r@£$¥èéùìòÇØøÅå_ÆæßÉ!"#¤%&'()*+,\-./:;<=>?¡ÄÖÑÜ§¿äöñüà^{}\\[~\]|€]*$/;
+
+/** A text's length and how many texts it costs (a long one is split into parts). */
+export function textStats(text: string): { length: number; parts: number; plain: boolean } {
+  const plain = GSM.test(text);
+  const [one, part] = plain ? [160, 153] : [70, 67];
+  const length = [...text].length;
+  return { length, parts: length <= one ? 1 : Math.ceil(length / part), plain };
+}
+
 /** The words as they go out (for Copy text): every linked value filled in. */
 export function fillTemplate(text: string, values: Record<string, string>): string {
   return (text || '').replace(PLACEHOLDER, (all, name: string) => (name in values ? values[name] : all));

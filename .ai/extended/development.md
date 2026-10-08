@@ -229,6 +229,7 @@ Defined in `.env` (local values) and `.envprod` (mirror of Heroku Config Vars, w
 | `MS_GRAPH_MAILBOX` | Mailbox Graph sends as / syncs from | `retail@ecothrift.us` |
 | `MS_GRAPH_FALLBACK_EMAIL_BACKEND` | Backend used when Graph is off or fails open | Django console |
 | `EMAIL_BACKEND` | Override Django email backend (defaults from `MS_GRAPH_ENABLED`) | auto |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_API_KEY`, `TWILIO_API_SECRET`, `TWILIO_FROM_NUMBER` | **Not set yet.** The Eco-Thrift Twilio **sub-account** only (house standard texting.md), typed by Bill into Heroku when texting goes live. Read by `apps/texting/service.py` (`waiting_on`); never in `.env` (dev never texts) | unset |
 | `DJANGO_SETTINGS_MODULE` | Settings module (**required on Heroku**) | `ecothrift.settings` locally; prod `ecothrift.settings_production` |
 
 **Full SOCKS5 setup (all `BUYING_SOCKS5_*` vars):** See **[`.ai/extended/vpn-socks5.md`](vpn-socks5.md)**.

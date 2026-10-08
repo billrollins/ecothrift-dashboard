@@ -299,7 +299,8 @@ def _signature_png(data_url: str) -> bytes:
 
 
 @transaction.atomic
-def sign(offer: Offer, *, name: str, signature: str, acks, consent, ip: str | None, user_agent: str) -> Offer:
+def sign(offer: Offer, *, name: str, signature: str, acks, consent, ip: str | None, user_agent: str,
+         texts_consent=False) -> Offer:
     offer = Offer.objects.select_for_update().get(pk=offer.pk)
     refresh(offer)
     if offer.status not in Offer.OPEN:
@@ -332,6 +333,10 @@ def sign(offer: Offer, *, name: str, signature: str, acks, consent, ip: str | No
     application = offer.application
     _event(application, f'Offer signed by {name}', data={'offer': offer.pk})
     _move_stage(application, Application.STAGE_HIRED, by=None)
+    if texts_consent in (True, 'true', '1', 1):  # the optional text tick on the offer page (T71 wording)
+        from apps.hiring import texts
+
+        texts.record_offer_tick(application)
     if application.email:
         _send(offer, 'offer_signed', application.email, attachment=pdf)
     staff = emails.alert_recipients(application)

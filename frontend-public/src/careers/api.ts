@@ -229,6 +229,8 @@ export interface OfferState {
   signer_name?: string
   signed_at?: string | null
   has_pdf?: boolean
+  /** The optional text tick (shown when they have a mobile number and have not agreed on the current wording). */
+  texts?: { wording: string; phone_last4: string } | null
 }
 
 async function offerCall(url: string, body?: unknown): Promise<OfferState> {
@@ -253,7 +255,10 @@ async function offerCall(url: string, body?: unknown): Promise<OfferState> {
 }
 
 export const getOffer = (token: string) => offerCall(`${BASE}/offer/?t=${encodeURIComponent(token)}`)
-export const signOffer = (token: string, body: { name: string; signature: string; acks: boolean[]; consent: boolean }) =>
+export const signOffer = (
+  token: string,
+  body: { name: string; signature: string; acks: boolean[]; consent: boolean; texts_consent?: boolean },
+) =>
   offerCall(`${BASE}/offer/sign/`, { t: token, ...body })
 export const declineOffer = (token: string, reason: string) => offerCall(`${BASE}/offer/decline/`, { t: token, reason })
 export const offerPdfUrl = (token: string) => `${BASE}/offer/pdf/?t=${encodeURIComponent(token)}`

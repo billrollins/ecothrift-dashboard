@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-07 (Phase 5 check-ins, Applicants timeline, read-before-send, store mailboxes) -->
+<!-- Last updated: 2026-10-07 (Phase 6 texts, held until live; Phase 5 check-ins, Applicants timeline, read-before-send) -->
 # Hiring
 
 The careers page, applications, and the People workspace. Design and phases: [`initiatives/hiring_onboarding.md`](../initiatives/hiring_onboarding.md).
@@ -12,12 +12,13 @@ The careers page, applications, and the People workspace. Design and phases: [`i
 | Apply, stages, Not now, Create employee | `apps/hiring/services.py` |
 | Mail | `apps/hiring/emails.py`. Plain text; sender from the careers file (`email.from`, default retail@). It goes through that Graph mailbox as "Eco-Thrift", with a fall back to the store mailbox with Reply-To. `from`, `reply_to` and `notify` must be in `careers.MAILBOXES` (retail@, bill_rollins@, warehouse@ecothrift.us; the dropdowns on People → Emails) |
 | Review before send | `apps/hiring/compose.py`. A staff endpoint wrapped in `compose.run`: `preview: true` runs the action in a savepoint with mail held back, rolls it all back, and returns the draft (template, values, field labels, to, from, attachments, source). The real call carries `email: {subject, body}` (linked values still `{placeholders}`, filled at send) or `{skip: true}`. Reviewed keys: `compose.REVIEWED` (+ Not now through `not-now-draft`). `emails.send_template` applies it and logs the exact words on the history (`edited`, `typed_over`). Frontend: `EmailReview.tsx` (`useEmailReview`, `EmailCompose`), `EmailEditor.tsx` (TipTap: `field` chip node, `typedOver` mark), `emailTemplate.ts` |
+| Texts (Phase 6) | `apps/hiring/texts.py` (which text when, values, history lines, `send_due_first_day`), `apps/texting/` (`TextConsent`, `TextMessage`, `service.send` / `waiting_on` / `record_consent` / `record_stop`). Words in the careers file `texts` (+ `OPT_IN_TEXT`, fixed). `apps/texting` is the house sender (no `notify` package; T60). **Held until live:** `WIRED` (the send step to Twilio) + `TWILIO_*` keys + AppSetting `texting.live` + not DEBUG. The first-day text needs a tick on a wording in `careers.FIRST_DAY_VERSIONS` (T71); the offer page offers that tick to a new hire on the old wording. Review: `compose.REVIEWED_TEXTS` (book, move, cancel) adds `text: {body} | {skip}`. API: `GET /api/hiring/texts/` (log + what it waits on), `POST applications/<id>/texts-stop/`. UI: `TextsPanel.tsx` (Emails → Texts), the text section in `EmailReview.tsx` |
 | Resumes | `apps/hiring/files.py`: PDF, DOC/DOCX, JPEG/PNG/WEBP/HEIC by first bytes, 10 MB, S3 `hiring/resumes/`, streamed to staff only |
 | Public API | `/api/hiring/public/careers/` (`?preview=<key>` while off), `/api/hiring/public/apply/` (multipart; honeypot `website`, `started_at`, 8/hour per IP) |
 | Staff API (Manager, Admin) | `/api/hiring/applications/` (+ `counts/`, `<id>/stage|note|rating|not-now|not-now-draft|resume|create-employee/`), `/api/hiring/jobs/`, `/api/hiring/careers/` (+ `check/`, `public/`, `ai-draft/`) |
 | Public pages | `frontend-public/src/pages/careers/`, `src/careers/` (API, CSS). Links show in the header and footer only while public |
 | Staff pages | `frontend/src/pages/people/` (Applicants, Jobs & careers page); nav workspace `people`, key 9. Applicants = `StageTimeline` (left; ordering and hints in `applicantTimeline.ts`) + `ApplicantView` (main; a Next step card per stage). A phone gets the timeline as the list, then a full page with Back and a fixed Call/Text/Email/Resume bar. The list API adds `next_interview` and `offer_status` (prefetched) |
-| Tests | `apps/hiring/tests/test_hiring.py`; `frontend/src/pages/people/careersFile.test.ts`, `applicantTimeline.test.ts`; `lean_test.py suite hiring` |
+| Tests | `apps/hiring/tests/test_hiring.py`, `test_texts.py`; `apps/texting/tests.py`; `frontend/src/pages/people/careersFile.test.ts`, `applicantTimeline.test.ts`, `emailTemplate.test.ts`; `lean_test.py suite hiring` |
 
 ## Rules
 

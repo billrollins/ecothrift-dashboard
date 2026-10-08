@@ -82,8 +82,13 @@ class Command(BaseCommand):
                 pass
             s3.delete()
 
+        from apps.texting.models import TextConsent, TextMessage
+
         users = list(User.objects.filter(email__iendswith='@' + DOMAIN))
         apps = list(Application.objects.filter(email__iendswith='@' + DOMAIN))
+        refs = [f'hiring.application:{a.pk}' for a in apps]
+        TextMessage.objects.filter(ref__in=refs).delete()
+        TextConsent.objects.filter(ref__in=refs).delete()
         files = []
         for row in CheckIn.objects.filter(user__in=users):
             files += [row.manager_signature, row.employee_signature, row.signed_pdf]
@@ -123,15 +128,20 @@ class Command(BaseCommand):
         today = timezone.localdate()
         questions = services.form_questions()
 
-        def applicant(first, last, job, *, stage='new', days_ago=0, raw=None, rating=None, source='web'):
+        def applicant(first, last, job, *, stage='new', days_ago=0, raw=None, rating=None, source='web', texts_ok=False):
             raw = services.practice_fill(form_questions=questions, jobs=[job], raw=raw or {})
             raw.setdefault('why_us', f'I like what Eco-Thrift does. ({first})')
             answers, _, red = services.build_answers(form_questions=questions, jobs=[job], raw=raw)
+            # 555-01xx numbers are set aside for fiction: never a real phone.
             app = services.create_application(
                 first_name=first, last_name=last, email=f'{first.lower()}.{last.lower()}@{DOMAIN}',
                 phone=f'402-555-01{len(first) + len(last):02d}', jobs=[job], answers=answers, red_flags=red,
-                source=source, note='Seed data (seed_hiring_demo)',
+                source=source, note='Seed data (seed_hiring_demo)', sms_consent=texts_ok,
             )
+            if texts_ok:  # ticked the text box: the consent record and the held confirmation text
+                from apps.hiring import texts
+
+                texts.record_opt_in(app)
             when = timezone.now() - timedelta(days=days_ago, hours=2)
             Application.objects.filter(pk=app.pk).update(created_at=when)
             if stage != 'new':
@@ -198,11 +208,15 @@ class Command(BaseCommand):
         # Applicants in every stage
         applicant('Avery', 'Newman', j(0), days_ago=0)
         applicant('Blake', 'Reviewer', j(1), stage='reviewed', days_ago=2, raw={'lifting': 'no'}, rating=3)
-        casey = applicant('Casey', 'Contacted', j(2), stage='contacted', days_ago=4)
+        casey = applicant('Casey', 'Contacted', j(2), stage='contacted', days_ago=4, texts_ok=True)
         interviews.ensure_link(casey)
-        drew = applicant('Drew', 'Booked', j(0), stage='interview_scheduled', days_ago=5)
-        interview(drew, j(0), _next_weekday(today + timedelta(days=1), 10))
-        emery = applicant('Emery', 'Interviewed', j(1), stage='interviewed', days_ago=8, rating=4)
+        drew = applicant('Drew', 'Booked', j(0), stage='interview_scheduled', days_ago=5, texts_ok=True)
+        interviews.ensure_link(drew)
+        booked = interview(drew, j(0), _next_weekday(today + timedelta(days=1), 10))
+        from apps.hiring import texts
+
+        texts.send(drew, 'interview_booked', values=texts.interview_values(booked))  # held until texting is live
+        emery = applicant('Emery', 'Interviewed', j(1), stage='interviewed', days_ago=8, rating=4, texts_ok=True)
         interview(emery, j(1), timezone.now() - timedelta(days=2), done=True)
         finley = applicant('Finley', 'Offered', j(0), stage='interviewed', days_ago=10, rating=5)
         interview(finley, j(0), timezone.now() - timedelta(days=4), done=True)

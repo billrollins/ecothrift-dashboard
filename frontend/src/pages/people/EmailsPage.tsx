@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   EMAIL_TEMPLATES,
+  TEXT_TEMPLATES,
   getCareers,
   getJobs,
   saveCareers,
@@ -27,9 +28,18 @@ import {
 import { PageHeader } from '../../components/common/PageHeader';
 import { ccTokens } from '../../theme';
 import { AiHelpBar } from './AiHelpBar';
+import { TextTemplatePanel } from './TextsPanel';
 import { errorText } from './peopleUi';
 
 type Block = { subject: string; body: string };
+
+// The emails, then the applicant texts (Phase 6) as their own group; a text's key is "text.<careers texts key>".
+const TEXT_TO = 'Applicant (only if they ticked the text box)';
+const ITEMS: { key: string; label: string; group: string; to: string; when: string }[] = [
+  ...EMAIL_TEMPLATES,
+  { key: 'text.opt_in', group: 'Texts', label: 'Texts confirmation (fixed)', to: TEXT_TO, when: 'The first text, before any other.' },
+  ...TEXT_TEMPLATES.map((t) => ({ key: `text.${t.key}`, group: 'Texts', label: t.label, to: TEXT_TO, when: t.when })),
+];
 
 const COMMON = ['first_name', 'last_name', 'roles', 'phone', 'email', 'review_day', 'reply_days'];
 const INTERVIEW = ['when', 'place', 'interviewer', 'link', 'link_days', 'length'];
@@ -258,7 +268,7 @@ export default function EmailsPage() {
   const email = careers.data?.doc.email;
   const [params] = useSearchParams();
   // ?key= (from a review screen's Edit the template) opens that email and its group.
-  const asked = EMAIL_TEMPLATES.find((t) => t.key === params.get('key'));
+  const asked = ITEMS.find((t) => t.key === params.get('key'));
   const [key, setKey] = useState(asked?.key ?? 'received');
   const [scope, setScope] = useState<string>(''); // '' = all roles, else a job slug
   const [draft, setDraft] = useState<Block>({ subject: '', body: '' });
@@ -271,7 +281,8 @@ export default function EmailsPage() {
   const universal = universalOf(email, key);
   const editing = !job || !!roleVersion;
   const source: Block = job ? roleVersion ?? universal : universal;
-  const meta = EMAIL_TEMPLATES.find((t) => t.key === key)!;
+  const meta = ITEMS.find((t) => t.key === key) ?? ITEMS[0];
+  const isText = key.startsWith('text.');
 
   useEffect(() => {
     setDraft({ subject: source.subject, body: source.body });
@@ -337,7 +348,7 @@ export default function EmailsPage() {
     }
   }
 
-  const groups = ['Applying', 'Interviews', 'Offers', 'Onboarding', 'Not now'];
+  const groups = ['Applying', 'Interviews', 'Offers', 'Onboarding', 'Not now', 'Texts'];
   const [open, setOpen] = useState<string[]>(asked ? [asked.group] : []); // every group starts closed
   const toggle = (group: string) => setOpen((o) => (o.includes(group) ? o.filter((g) => g !== group) : [...o, group]));
   const rolesWith = (k: string) => (jobs.data ?? []).filter((j) => j.emails?.[k]).map((j) => j.title);
@@ -357,7 +368,7 @@ export default function EmailsPage() {
       <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', md: '280px minmax(0, 1fr)' } }}>
         <Box>
           {groups.map((group) => {
-            const inGroup = EMAIL_TEMPLATES.filter((t) => t.group === group);
+            const inGroup = ITEMS.filter((t) => t.group === group);
             const isOpen = open.includes(group);
             const holdsCurrent = inGroup.some((t) => t.key === key);
             return (
@@ -419,6 +430,9 @@ export default function EmailsPage() {
           })}
         </Box>
 
+        {isText ? (
+          <TextTemplatePanel textKey={key.slice('text.'.length)} texts={careers.data?.doc.texts ?? {}} />
+        ) : (
         <Box sx={{ p: 2, borderRadius: ccTokens.r, border: `1px solid ${ccTokens.line}`, bgcolor: ccTokens.card }}>
           <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
             <Typography variant="h6" fontWeight={700}>
@@ -554,6 +568,7 @@ export default function EmailsPage() {
             </Typography>
           </Box>
         </Box>
+        )}
       </Box>
     </Box>
   );

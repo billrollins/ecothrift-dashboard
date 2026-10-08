@@ -18,6 +18,15 @@ class Command(BaseCommand):
                 self.stdout.write(f'Interview reminders sent: {reminded}')
         except Exception as exc:  # noqa: BLE001 - never let reminders break the mailbox sync
             self.stderr.write(f'Interview reminders failed: {exc}')
+        # ...and the day-before first-day reminder texts (held until texting is live).
+        try:
+            from apps.hiring.texts import send_due_first_day
+
+            first_days = send_due_first_day()
+            if first_days:
+                self.stdout.write(f'First-day reminder texts: {first_days}')
+        except Exception as exc:  # noqa: BLE001
+            self.stderr.write(f'First-day reminder texts failed: {exc}')
         if not graph_enabled():
             self.stdout.write(self.style.WARNING('MS_GRAPH_ENABLED=false; sync skipped.'))
             return

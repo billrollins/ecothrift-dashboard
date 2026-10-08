@@ -217,6 +217,10 @@ def _notify(interview: Interview, *, applicant_key: str, action: str, cancel: bo
     if interview.application.email or compose.capturing():
         sent = _send_template(applicant_key, interview.application.email, _values(interview),
                               application=interview.application, attachment=calendar)
+    # The text (Phase 6) for those who ticked the box; held until texting is live.
+    from apps.hiring import texts
+
+    texts.send(interview.application, applicant_key, values=texts.interview_values(interview))
     staff = _staff_recipients(interview)
     if staff:
         _send_template('interview_notice', staff, _values(interview, action=action), application=interview.application,
@@ -430,6 +434,8 @@ def send_due_reminders(*, now: datetime | None = None) -> int:
     due = (Interview.objects.select_related('application', 'interviewer')
            .filter(status=Interview.STATUS_SCHEDULED, reminder_sent_at__isnull=True,
                    start__gt=now + timedelta(hours=1), start__lte=now + timedelta(hours=24)))
+    from apps.hiring import texts
+
     sent = 0
     for interview in due:
         interview.reminder_sent_at = now
@@ -439,4 +445,5 @@ def send_due_reminders(*, now: datetime | None = None) -> int:
                 application=interview.application):
             sent += 1
             _event(interview.application, 'Interview reminder sent', data={'interview': interview.pk})
+        texts.send(interview.application, 'interview_reminder', values=texts.interview_values(interview))
     return sent

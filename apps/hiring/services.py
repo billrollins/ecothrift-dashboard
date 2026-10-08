@@ -233,7 +233,11 @@ def create_application(*, first_name: str, last_name: str, email: str, phone: st
 
 
 def send_first_touch(application) -> None:
-    """Auto-reply to the applicant and the alert to the owner. Best effort; logged on the timeline."""
+    """Auto-reply to the applicant and the alert to the owner. Best effort; logged on the timeline.
+    With the text tick: the consent record and the opt-in confirmation text (held until texting is live)."""
+    from apps.hiring import texts
+
+    texts.record_opt_in(application)
     if application.email:
         sent = emails.send_received(application)
         if sent:

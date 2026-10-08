@@ -32,13 +32,17 @@ NOT_NOW_KEYS = ('default', 'withdrew', 'position_closed', 'no_show')
 # Every email template by one flat key; a role can carry its own version of any of them (Job.emails).
 TEMPLATE_KEYS = EMAIL_KEYS + tuple(f'not_now.{key}' for key in NOT_NOW_KEYS)
 
-# Wording shown next to the phone field. Changing it means a new version (D17: record the wording).
-SMS_CONSENT_VERSION = 'hiring-sms-2026-10-06'
+# Wording shown next to the phone field (and on the offer page). Changing it means a new version (D17: record the
+# wording); the 10DLC campaign quotes it. v2 (master, T71) adds the first day; a v1 tick gets interview texts only.
+SMS_CONSENT_VERSION = 'hiring-sms-2026-10-07'
 SMS_CONSENT_TEXT = (
-    'Text me about my application (interview times and reminders). Message frequency varies. '
-    'Message and data rates may apply. Reply STOP to opt out, HELP for help. '
+    "Text me about my application and, if I'm hired, my first day (interview times, reminders, first-day details). "
+    'Message frequency varies. Message and data rates may apply. Reply STOP to opt out, HELP for help. '
     'Terms: ecothrift.us/terms · Privacy: ecothrift.us/privacy.'
 )
+SMS_CONSENT_V1 = 'hiring-sms-2026-10-06'  # "about my application (interview times and reminders)": no first-day texts
+# Wording versions whose tick covers a first-day text.
+FIRST_DAY_VERSIONS = (SMS_CONSENT_VERSION,)
 
 # What an AI must never put on the form (the brief carries this; the check warns on obvious misses).
 NEVER_ASK = [
@@ -469,6 +473,36 @@ DEFAULT_HANDBOOK = {
     ),
 }
 
+# Texts (Phase 6), for applicants who ticked the text box. Each starts with "Eco-Thrift:" and keeps a STOP line
+# (house standard texting.md); at most 320 characters (two texts). Until texting is live they are held, not sent.
+TEXT_KEYS = ('interview_booked', 'interview_changed', 'interview_cancelled', 'interview_reminder', 'first_day')
+TEXT_MAX = 320
+# The first text after the tick: the 10DLC campaign's sample, word for word, so it is not editable.
+OPT_IN_TEXT = (
+    "Eco-Thrift: You'll get texts about your job application. Msg frequency varies. Msg & data rates may apply. "
+    'Reply HELP for help, STOP to cancel.'
+)
+DEFAULT_TEXTS = {
+    'place': '8425 W Center Rd',
+    'interview_booked': (
+        'Eco-Thrift: Your interview for {role} is {when} at {place}. Need to change it? {link} Reply STOP to opt out.'
+    ),
+    'interview_changed': (
+        'Eco-Thrift: Your interview moved to {when} at {place}. Need to change it? {link} Reply STOP to opt out.'
+    ),
+    'interview_cancelled': (
+        'Eco-Thrift: Your interview on {when} is cancelled. Pick a new time: {link} Reply STOP to opt out.'
+    ),
+    'interview_reminder': (
+        'Eco-Thrift: Reminder: your interview is tomorrow, {when}, at {place}. Ask at the register. '
+        'Change it: {link} Reply STOP to opt out.'
+    ),
+    'first_day': (
+        'Eco-Thrift: See you tomorrow, {first_name}! Your first day starts at {start_time} at {place}. '
+        'Ask for {supervisor} at the register. Reply STOP to opt out.'
+    ),
+}
+
 WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
 DEFAULT_INTERVIEWS = {
@@ -496,6 +530,7 @@ DEFAULT_SETTING = {
     'onboarding': DEFAULT_ONBOARDING,
     'handbook': DEFAULT_HANDBOOK,
     'checkin': DEFAULT_CHECKIN,
+    'texts': DEFAULT_TEXTS,
 }
 
 JOB_FIELDS = (
@@ -518,7 +553,7 @@ def load_setting() -> dict:
     stored = row.value if row and isinstance(row.value, dict) else {}
     merged = copy.deepcopy(DEFAULT_SETTING)
     for key in ('public', 'page', 'form', 'email', 'interviews', 'defaults', 'offer', 'onboarding', 'handbook',
-                'checkin', 'preview_key'):
+                'checkin', 'texts', 'preview_key'):
         if key in stored:
             if isinstance(merged.get(key), dict) and isinstance(stored[key], dict):
                 merged[key] = {**merged[key], **stored[key]}
@@ -617,6 +652,7 @@ def export_doc() -> dict:
         'onboarding': setting['onboarding'],
         'handbook': setting['handbook'],
         'checkin': setting['checkin'],
+        'texts': setting['texts'],
         'jobs': [job_to_doc(job) for job in jobs],
     }
 
@@ -683,6 +719,10 @@ def indexes() -> dict:
                                               '{signer_name}', '{signer_title}', '{link}'],
             'offer_notice only': ['{applicant}', '{action}', '{reason}', '{dash_link}'],
             'first_day': ['{first_name}', '{role}', '{start_date}', '{start_time}', '{supervisor}', '{place}'],
+        },
+        'text_placeholders': {
+            'interview texts': ['{first_name}', '{role}', '{when}', '{place}', '{link}'],
+            'first_day text': ['{first_name}', '{role}', '{start_date}', '{start_time}', '{supervisor}', '{place}'],
         },
         'onboarding_owners': list(ONBOARDING_OWNERS),
         'onboarding_dues': list(ONBOARDING_DUES),
@@ -1124,6 +1164,35 @@ def _check_checkin(raw, current: dict, errors: list[str]) -> dict:
     return out
 
 
+def _check_texts(raw, current: dict, errors: list[str]) -> dict:
+    """The applicant texts: each starts with "Eco-Thrift:", keeps a STOP line, and fits in two texts."""
+    out = {**DEFAULT_TEXTS, **(current or {})}
+    if raw is None:
+        return out
+    if not isinstance(raw, dict):
+        errors.append('texts must be an object (place and one line per text).')
+        return out
+    if 'place' in raw:
+        place = _text(raw.get('place'), limit=80)
+        if not place:
+            errors.append('texts.place cannot be empty (a short address, like 8425 W Center Rd).')
+        else:
+            out['place'] = place
+    for key in TEXT_KEYS:
+        if key not in raw:
+            continue
+        text = ' '.join(_text(raw.get(key)).split())
+        if not text.startswith('Eco-Thrift:'):
+            errors.append(f'texts.{key} must start with "Eco-Thrift:" (texts say who sent them).')
+        elif not re.search(r'\bSTOP\b', text):
+            errors.append(f'texts.{key} must say how to stop, e.g. "Reply STOP to opt out."')
+        elif len(text) > TEXT_MAX:
+            errors.append(f'texts.{key} is {len(text)} characters; keep it under {TEXT_MAX} (two texts).')
+        else:
+            out[key] = text
+    return out
+
+
 def check_doc(raw) -> dict:
     """Validate and normalize a careers file. Returns {ok, errors, warnings, doc}."""
     errors: list[str] = []
@@ -1201,6 +1270,7 @@ def check_doc(raw) -> dict:
     onboarding = _check_onboarding(raw.get('onboarding'), current['onboarding'], errors)
     handbook = _check_handbook(raw.get('handbook'), current['handbook'], errors)
     checkin = _check_checkin(raw.get('checkin'), current['checkin'], errors)
+    texts = _check_texts(raw.get('texts'), current['texts'], errors)
     links = {
         'staff': {s['email'] for s in staff_index()},
         'departments': {
@@ -1249,6 +1319,7 @@ def check_doc(raw) -> dict:
         'onboarding': onboarding,
         'handbook': handbook,
         'checkin': checkin,
+        'texts': texts,
         'jobs': jobs,
         'has_jobs': jobs_raw is not None,
     }
@@ -1310,6 +1381,9 @@ def summarize_changes(current: dict, new: dict) -> list[str]:
     for key in DEFAULT_CHECKIN:
         if (current.get('checkin') or {}).get(key) != (new.get('checkin') or {}).get(key):
             out.append(f'Check-ins: {key.replace("_", " ")} changes (new check-ins only)')
+    for key in DEFAULT_TEXTS:
+        if (current.get('texts') or {}).get(key) != (new.get('texts') or {}).get(key):
+            out.append(f'Texts: {key.replace("_", " ")} changes')
     for key in DEFAULT_ROLE_PEOPLE:
         if (current.get('defaults') or {}).get(key) != (new.get('defaults') or {}).get(key):
             value = new['defaults'].get(key)
@@ -1356,6 +1430,7 @@ def apply_doc(doc: dict, *, user) -> None:
         'onboarding': doc.get('onboarding') or current['onboarding'],
         'handbook': doc.get('handbook') or current['handbook'],
         'checkin': doc.get('checkin') or current['checkin'],
+        'texts': doc.get('texts') or current['texts'],
         'preview_key': current.get('preview_key') or secrets.token_urlsafe(12),
     }, user=user)
     if not doc.get('has_jobs'):

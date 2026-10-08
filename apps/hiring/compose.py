@@ -24,6 +24,8 @@ from rest_framework.response import Response
 REVIEWED = (
     'interview_invite', 'interview_booked', 'interview_changed', 'interview_cancelled', 'offer_sent', 'first_day',
 )
+# Texts a staff button sends with its email (Phase 6); shown on the same review screen.
+REVIEWED_TEXTS = ('interview_booked', 'interview_changed', 'interview_cancelled')
 
 EMAIL_LABELS = {
     'interview_invite': 'Interview link',
@@ -58,6 +60,10 @@ class Review:
     subject: str | None = None
     body: str | None = None
     skip: bool = False
+    # The text that goes with it (Phase 6): captured in a preview, the edited words, or "no text".
+    text_capture: list | None = None
+    text_body: str | None = None
+    text_skip: bool = False
 
 
 _review: ContextVar[Review | None] = ContextVar('hiring_review', default=None)
@@ -94,6 +100,20 @@ def typed_over(template: dict, used: dict) -> list[str]:
     before = placeholders(template['subject'] + '\n' + template['body'])
     after = set(placeholders(used['subject'] + '\n' + used['body']))
     return sorted({name for name in before if name not in after})
+
+
+def parse_text(raw, review: Review) -> Review:
+    """The ``text`` part of a request: the edited words (linked values still {placeholders}), ``skip``, or nothing."""
+    if not isinstance(raw, dict):
+        return review
+    if _truthy(raw.get('skip')):
+        review.text_skip = True
+    elif isinstance(raw.get('body'), str):
+        body = ' '.join(raw['body'].split())
+        if not body:
+            raise ValidationError({'text': 'The text is empty. Choose "No text" instead.'})
+        review.text_body = body[:600]
+    return review
 
 
 def parse(raw, *, user=None) -> Review:
@@ -159,13 +179,15 @@ def draft(key: str, *, to, template: dict, values: dict, attachments=None, pract
 def run(request, action, *, skip_allowed: bool = True):
     """Run a staff action with review before send. ``action()`` returns the Response.
 
-    ``preview: true`` → ``{"email": <draft> | null}`` (null: this action emails nobody, e.g. no address on file);
-    nothing is saved and nothing is sent. Otherwise the action runs with the request's ``email`` choice.
+    ``preview: true`` → ``{"email": <draft> | null, "text": <text draft> | null}`` (null: this action emails or
+    texts nobody); nothing is saved and nothing is sent. Otherwise the action runs with the request's ``email`` and
+    ``text`` choices.
     """
     data = request.data if isinstance(request.data, dict) else {}
     if _truthy(data.get('preview')):
         drafts: list = []
-        token = _review.set(Review(user=request.user, capture=drafts))
+        texts: list = []
+        token = _review.set(Review(user=request.user, capture=drafts, text_capture=texts))
         try:
             with transaction.atomic():
                 action()
@@ -175,8 +197,8 @@ def run(request, action, *, skip_allowed: bool = True):
         found = drafts[0] if drafts else None
         if found is not None:
             found['skip_allowed'] = skip_allowed
-        return Response({'email': found})
-    review = parse(data.get('email'), user=request.user)
+        return Response({'email': found, 'text': texts[0] if texts else None})
+    review = parse_text(data.get('text'), parse(data.get('email'), user=request.user))
     if review.skip and not skip_allowed:
         raise ValidationError({'email': 'This one is only done by email.'})
     token = _review.set(review)

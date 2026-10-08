@@ -383,11 +383,36 @@ Acceptance:
 ### Phase 6 — Texts to applicants and new hires
 Interview confirmations and reminders, and the first-day reminder, by text for those who ticked the box.
 **Gated by:** all three of these:
-- master's `notify` package (`standards.md` T60);
-- the Eco-Thrift Twilio key;
-- the 10DLC campaign approved. Its wording already covers applicants (master, 2026-10-06).
+- ~~master's `notify` package (T60)~~. **Dropped by master on 2026-10-07: `apps/texting` is the house sender.** A coder writes `_deliver()` against Twilio's API (the account's messaging service) when the account is ready;
+- the Eco-Thrift Twilio key. Master is restructuring the Twilio account around EcoThrift LLC with Bill: Twilio rejected the main business profile on 10-07;
+- the 10DLC campaign approved. Its wording covers applicants (master, 2026-10-06); its timing is with Bill.
 
-The first text is master's opt-in confirmation sample. Detail when the gates clear.
+The first text is master's opt-in confirmation sample.
+
+**Built before the gates, 2026-10-07** (the owner: "start phase 6 texts"), as the house standard allows ("build pages, consent capture and consent records, and send nothing"):
+
+- [x] **`apps/texting`** (new, shared with Thrift+'s T59 later):
+  - `TextConsent`: every consent change; the newest wins, STOP (`kind=all`) ends every kind;
+  - `TextMessage`: every text sent or held;
+  - `service.send()`: consent check, "Eco-Thrift:" first, a STOP line, held until live; the opt-in confirmation first, once, when live.
+  - Live = `WIRED` (the send step to Twilio, code) + the four `TWILIO_*` keys + AppSetting `texting.live` + not DEBUG. `service.waiting_on()` lists what is missing.
+- [x] Consent backfilled from every application that ticked the box (`texting.0002`). New ticks are recorded in `send_first_touch`, with the held confirmation text.
+- [x] The texts in the careers file (`texts`, checked: "Eco-Thrift:" first, a STOP line, 320 characters at most), on People → Emails → Texts with a preview, a counter, and the held / sent log.
+- [x] Triggers: booked, moved, cancelled (`interviews._notify`), the reminder (`send_due_reminders`), and the first-day reminder (`texts.send_due_first_day`, on the 10-minute mail tick, once per onboarding).
+- [x] The review screen shows the text under the email (book, move, cancel): edit it with chips, or **No text this time**.
+- [x] Applicant page: may we text them; **They asked: stop texts** (recorded like a STOP). The history shows each text, held or sent, with its words.
+
+**To go live** (in this order):
+
+1. once master settles the Twilio account, a coder writes `texting.service._deliver` (Twilio's Messages API, the messaging service), sets `WIRED = True`, and adds the STOP / HELP webhook (`record_stop` on STOP);
+2. Bill types the four `TWILIO_*` keys (the Eco-Thrift account) into Heroku;
+3. the 10DLC campaign is approved; then the owner turns on `texting.live`.
+
+Held texts are never sent later; each event sends its own.
+
+- [x] **T71, the first-day tick (master, 2026-10-07).** New wording `hiring-sms-2026-10-07` on the application form: "Text me about my application and, if I'm hired, my first day (interview times, reminders, first-day details)…".
+  - A consent on the old wording (`hiring-sms-2026-10-06`) gets interview texts only. Its first-day text is recorded as not covered.
+  - A new hire whose tick does not cover the first day is offered the new tick (optional, unticked) on the **offer page** when signing. That is the last thing a new hire does before day one; Dash sign-in comes on day one, too late for a day-before reminder. It is recorded the same way ("Offer page").
 
 ---
 
@@ -719,6 +744,22 @@ Claude's calls:
 - **The interview link is made before the review**, so the link shown is the link sent. A new offer's link cannot exist before the offer, so the review says "made when you send".
 - **Within a stage, whoever has waited longest comes first.** Booked interviews are ordered by time; Hired and Not now newest first.
 - **`careers.fill` matches `{placeholders}` with a regex** (it was `format_map`), so a stray brace in edited words no longer stops every value being filled.
+
+**2026-10-07 — Phase 6, texts: built before the gates (shipped in v2.149.0 on 10-08, every text held).** The owner: "start phase 6 texts". None of the three gates is clear: no `notify` package from master (T60), no Twilio key, and the campaign waits until the Thrift+ tick (T59) is also live, after 10-20. Built what the standard allows: consent records, the texts, the triggers, the review, and a held log. Nothing sends (see Phase 6 above).
+
+Checks:
+
+- 110 hiring, texting and mailbox tests (14 new), the front-end tests and the type-check;
+- in a browser: held texts on an applicant's history, **They asked: stop texts**, a booking whose review shows the text, and People → Emails → Texts.
+
+Found and fixed: on a computer the review panel opened behind the dialog it came from (Book a time, Reschedule, Make offer, Start onboarding, Create employee), so those flows were stuck in v2.148.0. It now opens above them.
+
+Claude's calls:
+
+- **A shared `apps/texting`, not hiring-only tables**, because Thrift+ texts (T59) need the same consent store, and STOP ends every kind for a number.
+- **Held, not queued.** A held text is never sent later; when texting goes live, each new event sends its own text.
+- **The opt-in confirmation is fixed** (the campaign's sample, word for word) and goes before anyone's first text once live.
+- **Staff can record a stop, never a start.** The campaign says applicants opt in on the online form.
 
 ---
 

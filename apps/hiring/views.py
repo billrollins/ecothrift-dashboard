@@ -240,6 +240,15 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         )
         return Response(ApplicationDetailSerializer(self._fresh(application)).data)
 
+    @action(detail=True, methods=['post'], url_path='texts-stop')
+    def texts_stop(self, request, pk=None):
+        """They asked not to be texted: recorded like a STOP (house standard texting.md)."""
+        from apps.hiring import texts
+
+        application = self.get_object()
+        texts.stop(application, by=request.user)
+        return Response(ApplicationDetailSerializer(self._fresh(application)).data)
+
     @action(detail=True, methods=['get', 'post'], parser_classes=[MultiPartParser, FormParser])
     def resume(self, request, pk=None):
         application = self.get_object()
@@ -640,6 +649,18 @@ def careers_view(request):
         'indexes': careers.indexes(),
         'ai': ai_choices(),
     })
+
+
+@api_view(['GET'])
+@permission_classes([IsManagerOrAdmin])
+def texts_log(request):
+    """Phase 6: is texting live (and if not, what it waits on), and the applicant texts sent or held, newest first."""
+    from apps.hiring import texts
+    from apps.texting.models import TextMessage
+    from apps.texting.service import waiting_on
+
+    counts = dict(TextMessage.objects.filter(kind=texts.KIND).order_by().values_list('status').annotate(n=Count('id')))
+    return Response({'waiting_on': waiting_on(), 'counts': counts, 'texts': texts.recent()})
 
 
 @api_view(['GET'])

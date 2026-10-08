@@ -114,7 +114,7 @@ export interface AnswerEntry {
 
 export interface ApplicationEvent {
   id: number;
-  kind: 'created' | 'stage' | 'note' | 'rating' | 'email' | 'employee' | 'edit' | 'interview' | 'offer';
+  kind: 'created' | 'stage' | 'note' | 'rating' | 'email' | 'text' | 'employee' | 'edit' | 'interview' | 'offer';
   kind_label: string;
   from_stage: string;
   to_stage: string;
@@ -160,6 +160,8 @@ export interface ApplicationDetail extends ApplicationRow {
     overdue: number;
     first_day_email_sent_at: string | null;
   } | null;
+  /** May we text them (Phase 6), and is texting live. */
+  texting: TextingState;
 }
 
 export interface Option {
@@ -229,10 +231,59 @@ export interface EmailDraft {
 /** What to send: the edited template (linked values still {placeholders}), or nothing. */
 export type EmailChoice = { subject: string; body: string } | { skip: true };
 
+/** The text that goes with it (Phase 6): the template and its values, and whether it may go. */
+export interface TextDraft {
+  key: string;
+  label: string;
+  to: string;
+  template: string;
+  values: Record<string, string>;
+  fields: Record<string, string>;
+  /** They ticked the box (and did not ask to stop), and it is not a practice run. */
+  allowed: boolean;
+  /** Texting is live (else the text is held: recorded, not sent). */
+  live: boolean;
+  note: string;
+  max: number;
+}
+
+/** What to text: the edited words (linked values still {placeholders}), or no text this time. */
+export type TextChoice = { body: string } | { skip: true };
+
 export interface EmailPreview {
   /** null: this action emails nobody (no address on file). */
   email: EmailDraft | null;
+  /** null: no text goes with it. */
+  text?: TextDraft | null;
 }
+
+export interface TextingState {
+  state: 'agreed' | 'stopped' | 'never' | 'no_number';
+  at: string | null;
+  how: string;
+  /** Their tick's wording also covers the first-day text (the 2026-10-07 wording; an older tick: interviews only). */
+  first_day: boolean;
+  /** What texting still waits on (empty = live). */
+  waiting_on: string[];
+}
+
+export interface TextLogRow {
+  id: number;
+  at: string;
+  key: string;
+  label: string;
+  status: 'held' | 'sent' | 'failed' | 'no_consent' | 'opted_out' | 'no_number' | 'practice';
+  status_label: string;
+  body: string;
+  reason: string;
+  edited: boolean;
+  phone_last4: string;
+  applicant: { id: number | null; name: string } | null;
+}
+
+export const getTextsLog = () =>
+  api.get<{ waiting_on: string[]; counts: Record<string, number>; texts: TextLogRow[] }>('/hiring/texts/');
+export const stopTexts = (id: number) => api.post<ApplicationDetail>(`/hiring/applications/${id}/texts-stop/`, {});
 
 /** The action as a dry run: nothing saved, nothing sent; the email it would send comes back. */
 const previewPost = (url: string, body: object) => api.post<EmailPreview>(url, { ...body, preview: true });
@@ -300,6 +351,8 @@ export interface CareersDoc {
   offer?: OfferSettings;
   onboarding?: { items: Record<string, unknown>[] };
   handbook?: { title: string; text: string; acknowledgment: string };
+  /** Applicant texts (Phase 6): the short address used as {place}, and one line per text. */
+  texts?: Record<string, string>;
   jobs: Record<string, unknown>[];
 }
 
@@ -449,18 +502,18 @@ export const getOpenTimes = (exclude?: number) =>
   api.get<{ times: OpenTime[]; settings: InterviewSettings }>('/hiring/interviews/open-times/', {
     params: exclude ? { exclude } : {},
   });
-export const bookInterviewForApplicant = (application: number, start: string, email?: EmailChoice) =>
-  api.post<Interview>('/hiring/interviews/', { application, start, email });
+export const bookInterviewForApplicant = (application: number, start: string, email?: EmailChoice, text?: TextChoice) =>
+  api.post<Interview>('/hiring/interviews/', { application, start, email, text });
 export const previewBookInterview = (application: number, start: string) =>
   previewPost('/hiring/interviews/', { application, start });
-export const rescheduleInterview = (id: number, start: string, email?: EmailChoice) =>
-  api.post<Interview>(`/hiring/interviews/${id}/reschedule/`, { start, email });
+export const rescheduleInterview = (id: number, start: string, email?: EmailChoice, text?: TextChoice) =>
+  api.post<Interview>(`/hiring/interviews/${id}/reschedule/`, { start, email, text });
 export const previewReschedule = (id: number, start: string) =>
   previewPost(`/hiring/interviews/${id}/reschedule/`, { start });
 export const setInterviewInterviewer = (id: number, interviewer: number | null) =>
   api.post<Interview>(`/hiring/interviews/${id}/interviewer/`, { interviewer });
-export const cancelInterviewStaff = (id: number, email?: EmailChoice) =>
-  api.post<Interview>(`/hiring/interviews/${id}/cancel/`, { email });
+export const cancelInterviewStaff = (id: number, email?: EmailChoice, text?: TextChoice) =>
+  api.post<Interview>(`/hiring/interviews/${id}/cancel/`, { email, text });
 export const previewCancelInterview = (id: number) => previewPost(`/hiring/interviews/${id}/cancel/`, {});
 export const markNoShow = (id: number) => api.post<Interview>(`/hiring/interviews/${id}/no-show/`, {});
 export const saveScorecard = (id: number, scorecard: Scorecard & { done?: boolean }) =>
@@ -532,6 +585,15 @@ export const EMAIL_TEMPLATES: { key: string; label: string; group: string; to: s
   { key: 'not_now.withdrew', group: 'Not now', label: 'Withdrew', to: 'Applicant', when: 'Only when you press Send in Not now.' },
   { key: 'not_now.position_closed', group: 'Not now', label: 'Position filled', to: 'Applicant', when: 'Only when you press Send in Not now.' },
   { key: 'not_now.no_show', group: 'Not now', label: 'No-show', to: 'Applicant', when: 'Only when you press Send in Not now.' },
+];
+
+/** Applicant texts (Phase 6), for those who ticked the text box. Keys are the careers file's ``texts``. */
+export const TEXT_TEMPLATES: { key: string; label: string; when: string; placeholders: string[] }[] = [
+  { key: 'interview_booked', label: 'Interview booked', when: 'When they or you book a time.', placeholders: ['first_name', 'role', 'when', 'place', 'link'] },
+  { key: 'interview_changed', label: 'Interview moved', when: 'When the time changes.', placeholders: ['first_name', 'role', 'when', 'place', 'link'] },
+  { key: 'interview_cancelled', label: 'Interview cancelled', when: 'When it is cancelled.', placeholders: ['first_name', 'role', 'when', 'place', 'link'] },
+  { key: 'interview_reminder', label: 'Interview reminder', when: 'The day before.', placeholders: ['first_name', 'role', 'when', 'place', 'link'] },
+  { key: 'first_day', label: 'First-day reminder', when: 'The day before a new hire starts.', placeholders: ['first_name', 'role', 'start_date', 'start_time', 'supervisor', 'place'] },
 ];
 
 // ── Offers (Phase 3) ────────────────────────────────────────────────────────

@@ -34,6 +34,7 @@ import {
   previewInvite,
   setRating,
   setStage,
+  stopTexts,
   uploadResume,
   type AnswerEntry,
   type ApplicationDetail,
@@ -111,12 +112,22 @@ function AnswerRow({ entry }: { entry: AnswerEntry }) {
 }
 
 /** An email on the history: tap to read the exact words that went out. */
-function SentEmail({ subject, body, typedOver }: { subject: string; body: string; typedOver: string[] }) {
+function SentEmail({
+  subject,
+  body,
+  typedOver,
+  what = 'email',
+}: {
+  subject: string;
+  body: string;
+  typedOver: string[];
+  what?: 'email' | 'text';
+}) {
   const [open, setOpen] = useState(false);
   return (
     <Box>
       <ButtonBase onClick={() => setOpen((o) => !o)} sx={{ fontSize: 12, color: ccTokens.brand, fontWeight: 600, borderRadius: 1 }}>
-        {open ? 'Hide the email' : 'See the email'}
+        {open ? `Hide the ${what}` : `See the ${what}`}
       </ButtonBase>
       <Collapse in={open} unmountOnExit>
         <Box sx={{ mt: 0.5, p: 1.25, borderRadius: ccTokens.rSm, bgcolor: '#fafaf7', border: `1px solid ${ccTokens.line}` }}>
@@ -621,15 +632,16 @@ export function ApplicantView({
                   ? `${STAGE_LABEL[event.from_stage] ?? event.from_stage} → ${STAGE_LABEL[event.to_stage] ?? event.to_stage}`
                   : event.text || event.kind_label}
               </Typography>
-              {event.kind === 'email' && typeof event.data?.body === 'string' && event.data.body && (
+              {(event.kind === 'email' || event.kind === 'text') && typeof event.data?.body === 'string' && event.data.body && (
                 <SentEmail
                   subject={String(event.data.subject ?? '')}
                   body={String(event.data.body)}
                   typedOver={Array.isArray(event.data.typed_over) ? (event.data.typed_over as string[]) : []}
+                  what={event.kind === 'text' ? 'text' : 'email'}
                 />
               )}
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                {event.by_name || (event.kind === 'email' ? 'Dash' : 'Applicant')} ·{' '}
+                {event.by_name || (event.kind === 'email' || event.kind === 'text' ? 'Dash' : 'Applicant')} ·{' '}
                 {new Date(event.at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
               </Typography>
             </Box>
@@ -639,14 +651,46 @@ export function ApplicantView({
     </Section>
   );
 
+  // Texts (Phase 6): whether Dash may text them, and a way to record that they asked it to stop.
+  const texting = app.texting;
+  const textingText = {
+    agreed: `OK to text: ticked the box${texting?.at ? ` ${new Date(texting.at).toLocaleDateString()}` : ''}`,
+    stopped: `Asked not to be texted (${texting?.how || 'recorded'})`,
+    never: 'Did not tick the text box: no texts',
+    no_number: 'No mobile number: no texts',
+  }[texting?.state ?? 'never'];
   const details = (
-    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
-      {app.received_email_sent ? 'Auto-reply sent. ' : ''}
-      {app.sms_consent && app.sms_consent_at
-        ? `Agreed to texts ${new Date(app.sms_consent_at).toLocaleDateString()}. `
-        : 'Did not agree to texts. '}
-      {app.resume_file ? `Resume: ${app.resume_file.filename}.` : ''}
-    </Typography>
+    <Box sx={{ mt: 2 }}>
+      {texting && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <SmsOutlined sx={{ fontSize: 18, color: texting.state === 'agreed' ? ccTokens.goodText : ccTokens.ink3 }} />
+          <Typography variant="body2" sx={{ color: ccTokens.ink2 }}>
+            {textingText}
+            {texting.state === 'agreed' && !texting.first_day
+              ? ' (interview texts only: an older tick; a first-day text needs the new tick on the offer page)'
+              : ''}
+            {texting.state === 'agreed' && texting.waiting_on.length > 0 ? '. Texting is not live yet, so texts are held.' : ''}
+          </Typography>
+          {texting.state === 'agreed' && (
+            <Button
+              size="small"
+              color="inherit"
+              disabled={busy}
+              onClick={() => {
+                if (window.confirm('Record that they asked not to be texted? Dash will not text them again.'))
+                  void run(() => stopTexts(app.id), 'Could not record it.');
+              }}
+            >
+              They asked: stop texts
+            </Button>
+          )}
+        </Box>
+      )}
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+        {app.received_email_sent ? 'Auto-reply sent. ' : ''}
+        {app.resume_file ? `Resume: ${app.resume_file.filename}.` : ''}
+      </Typography>
+    </Box>
   );
 
   const contact = [
@@ -819,9 +863,9 @@ export function ApplicantView({
           const booked = await review({
             title: `Book the interview for ${app.first_name}`,
             preview: () => previewBookInterview(app.id, start),
-            commit: async (email) => {
+            commit: async (email, text) => {
               emailed = !(email && 'skip' in email);
-              return (await bookInterviewForApplicant(app.id, start, email)).data;
+              return (await bookInterviewForApplicant(app.id, start, email, text)).data;
             },
             sendLabel: 'Book and send',
             skipLabel: 'Book without emailing',

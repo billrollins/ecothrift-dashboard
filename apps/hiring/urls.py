@@ -23,6 +23,7 @@ urlpatterns = [
     path('careers/check/', views.careers_check, name='hiring-careers-check'),
     path('careers/bundle/', views.careers_bundle, name='hiring-careers-bundle'),
     path('careers/public/', views.careers_public, name='hiring-careers-public'),
+    path('texts/', views.texts_log, name='hiring-texts'),
     path('onboarding/', onb.onboarding_list, name='hiring-onboarding'),
     path('onboarding/people/', onb.onboarding_people, name='hiring-onboarding-people'),
     path('onboarding/<int:pk>/', onb.onboarding_detail, name='hiring-onboarding-detail'),

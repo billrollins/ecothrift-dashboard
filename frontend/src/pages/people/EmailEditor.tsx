@@ -24,6 +24,7 @@ export function EmailEditor({
   values,
   fields,
   singleLine = false,
+  short = false,
   resetKey = 0,
   onChange,
 }: {
@@ -32,6 +33,8 @@ export function EmailEditor({
   values: Record<string, string>;
   fields: Record<string, string>;
   singleLine?: boolean;
+  /** A few lines tall (a text message), not an email's twelve. */
+  short?: boolean;
   /** Change it to put the template back (Undo all). */
   resetKey?: number;
   onChange: (template: string) => void;
@@ -96,7 +99,10 @@ export function EmailEditor({
     content: templateToDoc(template, fields),
     onUpdate: ({ editor: e }) => onChangeRef.current(docToTemplate(e.getJSON())),
     editorProps: {
-      attributes: { 'aria-label': label, class: singleLine ? 'ef-doc ef-doc--line' : 'ef-doc' },
+      attributes: {
+        'aria-label': label,
+        class: singleLine ? 'ef-doc ef-doc--line' : short ? 'ef-doc ef-doc--short' : 'ef-doc',
+      },
       handleKeyDown: (_view, event) => singleLine && event.key === 'Enter',
       // Paste as plain words (a {placeholder} Dash knows becomes a chip).
       handlePaste: (view, event) => {

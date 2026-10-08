@@ -1,16 +1,40 @@
-v2.148.2 — Website contact email is retail@ecothrift.us (standards T70); Thrift+ meeting decisions in the docs
+v2.149.0 — Hiring texts built and held until texting is live (apps/texting: consent records and the one sender, shared with Thrift+); first-day tick wording (T71); review screen no longer opens behind dialogs
 
-User-facing theme: **The website's contact email is retail@ecothrift.us.** House rule from Bill via master (2026-10-07, standards T70): Eco-Thrift has three mailboxes (`bill_rollins@`, `retail@`, `warehouse@`), and every public or default address is `retail@`.
+<!-- Last reviewed: 2026-10-08 (2.149.0) -->
+# Changelog
 
-### Changed
+All notable changes to this project are documented here at the **version level**.
+Commit-level detail belongs in commit messages, not here.
 
-- **Public site (`ecothrift.us`):** the contact email is `retail@ecothrift.us` (was `sales.ecothrift@outlook.com`). It shows in the footer Contact link, on `/terms` and on `/privacy`. Twilio had rejected a profile partly because the email's domain did not match the website.
-- **`/terms` and `/privacy`** say "Last updated: October 7, 2026".
-- Checked, no change needed: Dash and online-sales email senders and reply-tos already use `retail@` (code defaults and production config); hiring sends from the store mailbox (v2.148.0).
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+Versioning follows [Semantic Versioning](https://semver.org/).
 
-### Docs
+---
 
-- Thrift+ owners' meeting decisions recorded (`thrift_plus_launch_kit.md`, `thrift_plus_rewards.md`, `calendar.md`): Member Price Always, gift card refill with a 5% bonus, nothing expires, a 7-day Limited Warranty refunded as a gift card, signup needs photo, info, ID check and signature. The launch kit page is now one to-do in six groups.
-- `standards.md`: T70 (email rule), T71 (applicant text tick covers the first day, hiring coder), T60 closed (replaced: Eco owns the texting sender).
+## [Unreleased]
+
+## [2.149.0] - 2026-10-08
+
+User-facing theme: **Texts to applicants are built, and held until texting is live: Dash shows every text it would send, word for word, and sends none.** Initiative: `hiring_onboarding` Phase 6 (the part its gates allow).
+
+### Added
+
+- **Applicant texts**, for applicants who ticked the text box on the application:
+  - interview booked, moved and cancelled;
+  - the day-before interview reminder;
+  - the day-before first-day reminder for new hires.
+  - Before anyone's first text: the opt-in confirmation, the 10DLC campaign's own wording.
+- **Nothing is sent yet.** Texting goes live only when all of these are in place: the send step to Twilio (Dash is the house sender; master dropped its planned `notify` package), the Eco-Thrift Twilio key, and the switch (turned on once the 10DLC campaign is approved). Until then every text is **held**: recorded on the applicant's history ("Text held: Interview booked", with **See the text**), not sent. Dev never texts.
+- **New text-tick wording** (master, T71), on the application form: "Text me about my application and, if I'm hired, my first day (interview times, reminders, first-day details)…". A tick on the old wording covers interview texts only, never a first-day text. A new hire on the old wording is offered the new tick (optional, never pre-ticked) on the offer page when they sign.
+- **Consent records** (house standard texting.md): every tick, STOP and "please don't text me" is recorded with who, which kind, when, how and the wording version. Every application that already ticked the box got its record. No consent, no text; STOP ends every kind. The kinds are job texts, Thrift+ account texts and store news, so the Thrift+ sign-up ticks (T59) use the same records.
+- **On the applicant page:** whether they may be texted, and **They asked: stop texts** to record it.
+- **On the review screen:** booking, moving and cancelling an interview show the text under the email, with the same chips, a character count and **Text them too** (or no text this time).
+- **People → Emails → Texts:** edit each text (it must start with "Eco-Thrift:" and say how to stop; two texts at most), the short address used as `{place}`, a phone-style preview, what texting still waits on, and every text held or sent.
+
+### Fixed
+
+- **The review screen opened behind the dialog it came from** on a computer: Book a time, Reschedule, Make offer, Start onboarding and Create employee. The time picker was left waiting with its buttons greyed out and the review out of reach. It now opens on top. (A phone was not affected.)
+
+Migrations: `hiring.0013` (the text event kind, `Onboarding.first_day_text_at`), `texting.0001`–`0002` (new app; consent records backfilled from applications).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

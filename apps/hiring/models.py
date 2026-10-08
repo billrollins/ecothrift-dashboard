@@ -374,6 +374,7 @@ class ApplicationEvent(models.Model):
     KIND_EDIT = 'edit'
     KIND_INTERVIEW = 'interview'
     KIND_OFFER = 'offer'
+    KIND_TEXT = 'text'
     KIND_CHOICES = [
         (KIND_OFFER, 'Offer'),
         (KIND_INTERVIEW, 'Interview'),
@@ -382,6 +383,7 @@ class ApplicationEvent(models.Model):
         (KIND_NOTE, 'Note'),
         (KIND_RATING, 'Rating'),
         (KIND_EMAIL, 'Email'),
+        (KIND_TEXT, 'Text'),
         (KIND_EMPLOYEE, 'Employee'),
         (KIND_EDIT, 'Edit'),
     ]
@@ -428,6 +430,8 @@ class Onboarding(models.Model):
     )
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_ACTIVE, db_index=True)
     first_day_email_sent_at = models.DateTimeField(null=True, blank=True)
+    # The day-before reminder text (Phase 6): set once it has been sent or held, so it goes only once.
+    first_day_text_at = models.DateTimeField(null=True, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
     )

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { docToTemplate, fillTemplate, isEdited, templateToDoc, typedOver } from './emailTemplate';
+import { docToTemplate, fillTemplate, isEdited, templateToDoc, textStats, typedOver } from './emailTemplate';
 
 const FIELDS = { first_name: 'First name', when: 'Interview time', link: 'Their private link' };
 const TEMPLATE = {
@@ -34,6 +34,15 @@ describe('review email template', () => {
 
   it('is not edited when only trailing spaces differ', () => {
     expect(isEdited(TEMPLATE, `${TEMPLATE.subject} `, TEMPLATE.body.replace('Eco-Thrift', 'Eco-Thrift  '))).toBe(false);
+  });
+
+  it('counts a text and the texts it takes', () => {
+    expect(textStats('Eco-Thrift: hi')).toEqual({ length: 14, parts: 1, plain: true });
+    expect(textStats('x'.repeat(161)).parts).toBe(2);
+    expect(textStats('x'.repeat(306)).parts).toBe(2);
+    expect(textStats('x'.repeat(307)).parts).toBe(3);
+    expect(textStats('See you soon 🙂').plain).toBe(false);
+    expect(textStats('y'.repeat(71) + '’').parts).toBe(2); // a curly quote: 70 a text
   });
 
   it('fills linked values for Copy text', () => {

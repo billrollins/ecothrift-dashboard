@@ -136,6 +136,8 @@ export default function OfferPage() {
   const [state, setState] = useState<OfferState | null>(null)
   const [acks, setAcks] = useState<boolean[]>([])
   const [consent, setConsent] = useState(false)
+  // The optional text tick (never pre-ticked): texts about their first day, on the current wording.
+  const [textsOk, setTextsOk] = useState(false)
   const [name, setName] = useState('')
   const [signature, setSignature] = useState('')
   const [declining, setDeclining] = useState(false)
@@ -169,7 +171,7 @@ export default function OfferPage() {
     }
     setBusy(true)
     setError('')
-    const next = await signOffer(token, { name: name.trim(), signature, acks, consent })
+    const next = await signOffer(token, { name: name.trim(), signature, acks, consent, texts_consent: textsOk })
     setBusy(false)
     if (!next.ok) {
       setError(next.detail || 'That did not go through. Please try again.')
@@ -334,6 +336,18 @@ export default function OfferPage() {
               />
               {errors.signature && <span className="cr-err">{errors.signature}</span>}
             </div>
+
+            {state.texts && (
+              <div style={{ marginTop: 4, marginBottom: 16 }}>
+                <span className="cr-label">Optional</span>
+                <label className="cr-ack">
+                  <input type="checkbox" checked={textsOk} onChange={(e) => setTextsOk(e.target.checked)} />
+                  <span>
+                    {state.texts.wording} <i>(to your number ending {state.texts.phone_last4})</i>
+                  </span>
+                </label>
+              </div>
+            )}
 
             {error && (
               <div className="formerror" style={{ marginBottom: 14 }}>
