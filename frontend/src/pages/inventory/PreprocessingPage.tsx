@@ -15,8 +15,6 @@ import {
   Typography,
 } from '@mui/material';
 import CheckCircleOutline from '@mui/icons-material/CheckCircleOutline';
-import AutoAwesome from '@mui/icons-material/AutoAwesome';
-import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import ArrowForward from '@mui/icons-material/ArrowForward';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -64,6 +62,7 @@ import {
 } from '../../components/inventory/preprocessing/formulaPreviewSnapshot';
 import { formatCurrency } from '../../utils/format';
 import { stableFormulasFingerprint } from '../../utils/stableFormulasFingerprint';
+import { IconAiAssist as AutoAwesome, IconDelete as DeleteOutline } from '../../icons/ecoIcons';
 
 /** Stable fallbacks - avoid `?? []` literals that allocate new refs each render (breaks useStandardManifest deps). */
 const EMPTY_HEADERS: string[] = [];

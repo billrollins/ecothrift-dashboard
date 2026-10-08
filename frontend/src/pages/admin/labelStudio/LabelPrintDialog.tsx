@@ -21,7 +21,6 @@ import {
 } from '@mui/material';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
-import PrintIcon from '@mui/icons-material/Print';
 
 import { fetchLabelMediaBytes, type CustomLabel } from '../../../api/labels.api';
 import { localPrintService, type PrinterInfo } from '../../../services/localPrintService';
@@ -42,6 +41,7 @@ import {
   validatePrintForm,
   valuesForCopy,
 } from './variableResolve';
+import { IconPrint as PrintIcon } from '../../../icons/ecoIcons';
 
 export type BackgroundOverride =
   | { mode: 'file'; file: File }

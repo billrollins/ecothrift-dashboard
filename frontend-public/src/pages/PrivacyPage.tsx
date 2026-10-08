@@ -59,7 +59,7 @@ export default function PrivacyPage() {
 
           <h2>Who else sees it</h2>
           <p>
-            Companies that run our hosting, payments and email delivery, only as needed to do that job for
+            Companies that run our hosting, payments and email sending, only as needed to do that job for
             us; and authorities when the law requires it.
           </p>
 

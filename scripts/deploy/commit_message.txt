@@ -1,20 +1,21 @@
-v2.156.0 — Retail QA: a superuser marks done or forgives a missed routine; no Nudge on missed routines or past days
+v2.157.0 — Eco-Thrift's own icon set: sidebar pages, workspaces, page headers and common buttons (T75)
 
-User-facing theme: **Retail QA (Command Center): a superuser clears a missed routine with Mark done or Forgive, and Nudge is gone from missed routines and past days.** Outside initiatives (Bill, 2026-10-08).
+User-facing theme: **Eco-Thrift's own icons: every sidebar page, workspace, page header and common button now uses one icon set drawn for Eco-Thrift (green line, a soft wash, one kraft-brown detail), instead of Material's.** Standards T75 (Bill via master, 2026-10-08).
 
 ### Added
 
-- **Mark done / Forgive (superusers only):** on a missed opening, midday or closing checklist or section check, from Needs your attention (the button says **Resolve**) or the red **Missed** chip on the Routines card. **Mark done**: it was done but not recorded; it counts as done on time. **Forgive**: it wasn't done, and it counts for and against no one (left out of that person's numbers). Either way the run turns Done, the row shows "Marked done by ..." or "Forgiven by ...", and the run keeps who, when and the reason it was missed (`generated.resolved`). A cleared section check counts that aisle as checked for the day's grade. Cross checks and spot walks can't be cleared this way (they are scored from their counts).
-- **API:** `POST /api/routines/qa/runs/<id>/resolve/` ({kind: 'done' | 'forgiven', note}), superuser only; refused for a run that is done, not due yet, or not a checklist or section check. Board rows carry `resolved` ({kind, label, by_name}).
+- **One icon set** (`frontend/src/icons/ecoIcons.tsx`): 63 page icons and 21 action icons on a 24 grid with a 1.75 line. The recipe is at the top of the file: three colour roles (line, a 15% wash, and one kraft detail, the brown of a kraft price tag), page icons get a wash and exactly one kraft detail, action icons are line only. One line per icon names it by meaning, where it is used and what it shows.
+- **Sidebar and workspaces:** every page has its own icon by meaning (Command Center a gauge, Receiving a carton arriving, Inventory a clothes hanger, Thrift+ a member card...), where many pages shared one before. The names come from the set, so a page naming a missing icon fails the type check.
+- **Page headers** show the page's icon beside the title, taken from the sidebar page the route belongs to (`PageHeader`; `icon` overrides it, `icon={false}` turns it off).
+- **Admin > Icons** (`/admin/icons`, owner only, under the line): the whole set at 20 and 40 px on the sidebar, selected, the dark band and one colour.
 
 ### Changed
 
-- **No Nudge on a missed routine:** Needs your attention shows a missed routine with Resolve (superusers) or no button (managers), never Nudge; the Routines card drops Nudge from missed rows. Nothing offers Nudge on a past day.
-- **No dashes in labels:** the stocktake report's percent bands read "20 to 29%" (was a dash), and an interview block names itself "start to end"; the house no-dash test is green again.
+- **Common buttons** (close, add, edit, delete, search, save, print, copy, back, download, upload, refresh, undo, open in new window, scan, AI suggest, archive, more, filter, confirm): Eco-Thrift's action icons across Dash, POS included (296 swaps in 166 files; no page code changed). The Thrift+ customer scanner keeps its own look.
+- **`/privacy`:** "email sending" for "email delivery" (the storefront copy check does not allow "delivery" on the public site).
 
 ### Tests
 
-- `apps/routines/test_resolve_missed.py` (4): superuser only (a manager gets 403), marked done counts on time and forgiven counts for no one, the rules, a missed routine's issue asks for Resolve with no nudge.
-- `RoutinesCard.test.tsx` (3 new): Mark done / Forgive for a superuser and no Nudge; no Nudge for anyone on a missed row; the "Forgiven by" line.
+- `src/icons/ecoIcons.test.tsx`: the recipe for every icon (one wrapper, 1.75 line, no stray fill or stroke; page icons have a wash and exactly one kraft detail; action icons line only), every sidebar page and workspace names an icon in the set, and the page header icon by route.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -13,8 +13,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import CloseIcon from '@mui/icons-material/Close';
 import DescriptionOutlined from '@mui/icons-material/DescriptionOutlined';
 import EmailOutlined from '@mui/icons-material/EmailOutlined';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -51,6 +49,7 @@ import { OfferCard, OfferDialog } from './offerUi';
 import { StartOnboardingDialog } from './onboardingUi';
 import { PracticeChip } from './PracticeDialog';
 import { answerText, errorText, phoneHref, shortDate, STAGE_LABEL, STAGES } from './peopleUi';
+import { IconBack as ArrowBackIcon, IconClose as CloseIcon } from '../../icons/ecoIcons';
 
 const card = { p: { xs: 2, md: 2.5 }, borderRadius: ccTokens.r, border: `1px solid ${ccTokens.line}`, bgcolor: ccTokens.card };
 

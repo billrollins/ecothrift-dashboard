@@ -1,5 +1,4 @@
 import CheckCircleOutline from '@mui/icons-material/CheckCircleOutline';
-import CloseRounded from '@mui/icons-material/CloseRounded';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
 import StarIcon from '@mui/icons-material/Star';
 import WarningAmberRounded from '@mui/icons-material/WarningAmberRounded';
@@ -42,6 +41,7 @@ import { useBuyingWatchlist } from '../../hooks/useBuyingWatchlist';
 import { useBuyingWishlist } from '../../hooks/useBuyingWishlist';
 import type { BuyingCategoryNeedRow, BuyingWatchlistAuctionItem, WishlistAuction, WishlistResponse } from '../../types/buying.types';
 import { formatCurrencyWhole } from '../../utils/format';
+import { IconClose as CloseRounded } from '../../icons/ecoIcons';
 
 const RANKS: Array<{ value: WishlistRank; label: string }> = [
   { value: 'focus', label: 'Focus' },

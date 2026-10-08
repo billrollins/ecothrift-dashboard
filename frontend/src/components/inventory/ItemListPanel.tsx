@@ -12,7 +12,6 @@ import {
   Typography,
 } from '@mui/material';
 import Clear from '@mui/icons-material/Clear';
-import Search from '@mui/icons-material/Search';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { StatusBadge } from '../common/StatusBadge';
 import { LoadingScreen } from '../feedback/LoadingScreen';
@@ -24,6 +23,7 @@ import {
   ITEM_CONDITIONS,
   ITEM_SOURCES,
 } from '../../constants/inventory.constants';
+import { IconSearch as Search } from '../../icons/ecoIcons';
 
 const ITEM_STATUSES: ItemStatus[] = [
   'intake',

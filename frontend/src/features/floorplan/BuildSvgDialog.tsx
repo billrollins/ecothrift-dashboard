@@ -14,7 +14,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useSnackbar } from 'notistack';
 import { generateKindSvg, type GenerateSvgResult } from '../../api/floorplanAi.api';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
@@ -25,6 +24,7 @@ import type { FloorPlanElementKind } from '../../types/floorplan.types';
 import AiModelEffortFields, { EMPTY_AI_CHOICE, type AiRunChoice } from './AiModelEffortFields';
 import { dataUriToFile, svgFileName } from './aiHelpers';
 import { formatInches, parseInches } from './geometry';
+import { IconAiAssist as AutoAwesomeIcon } from '../../icons/ecoIcons';
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 const NEW_TARGET = 'new';

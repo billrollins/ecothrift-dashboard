@@ -17,9 +17,8 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import Close from '@mui/icons-material/Close';
-import Download from '@mui/icons-material/Download';
 import { useState } from 'react';
+import { IconClose as Close, IconDownload as Download } from '../../icons/ecoIcons';
 
 export type CsvViewerRow = {
   row_number?: number;

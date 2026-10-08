@@ -1,4 +1,3 @@
-import Close from '@mui/icons-material/Close';
 import {
   Box,
   Button,
@@ -20,6 +19,7 @@ import type {
 import { parseMoney, parseQty } from './tarsMoney';
 import { moneyNumber } from './tarsPartsOrders';
 import { fmtUsd } from './tarsProfit';
+import { IconClose as Close } from '../../../icons/ecoIcons';
 
 export interface TarsPartsOrderDialogProps {
   open: boolean;

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import {
   Box,
   Button,
@@ -13,6 +12,7 @@ import {
 } from '@mui/material';
 import type { ManifestFieldBucketMetadata } from '../../api/inventory.api';
 import { ManifestFormulaInput } from './preprocessing/ManifestFormulaInput';
+import { IconDelete as DeleteOutline } from '../../icons/ecoIcons';
 
 const DRAFT_DEBOUNCE_MS = 200;
 

@@ -22,8 +22,6 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import Add from '@mui/icons-material/Add';
-import Search from '@mui/icons-material/Search';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import {
@@ -45,6 +43,7 @@ import type { Customer } from '../../../api/accounts.api';
 import { useCreateCustomer, useCustomers, useUpdateCustomer } from '../../../hooks/useEmployees';
 import { useIsMobileLayout } from '../../../hooks/useIsMobileLayout';
 import { formatPhone, maskPhoneInput, stripPhone } from '../../../utils/formatPhone';
+import { IconAdd as Add, IconSearch as Search } from '../../../icons/ecoIcons';
 
 type Props = {
   onSelect: (customerId: number) => void;

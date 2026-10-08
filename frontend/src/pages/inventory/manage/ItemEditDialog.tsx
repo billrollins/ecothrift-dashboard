@@ -17,7 +17,6 @@ import {
   Typography,
 } from '@mui/material';
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
-import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import type { Item, ItemCondition } from '../../../types/inventory.types';
 import { getProduct, updateItem } from '../../../api/inventory.api';
 import { ProductDisplayLine } from '../../../components/inventory/ProductDisplayLine';
@@ -28,6 +27,7 @@ import {
 } from '../processing/processingItemFormOptions';
 import { processingTokens } from '../processing/processingTokens';
 import { manageItemsSearchUrl } from '../../../utils/richInventorySearch';
+import { IconSave as SaveOutlinedIcon } from '../../../icons/ecoIcons';
 
 const LOCKED_ITEM_STATUSES = new Set(['sold', 'scrapped', 'lost']);
 

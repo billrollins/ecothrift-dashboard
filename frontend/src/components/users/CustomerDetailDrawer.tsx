@@ -19,7 +19,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import Close from '@mui/icons-material/Close';
 import LockReset from '@mui/icons-material/LockReset';
 import MailOutline from '@mui/icons-material/MailOutline';
 import ForumOutlined from '@mui/icons-material/ForumOutlined';
@@ -39,6 +38,7 @@ import {
 import { useIsMobileLayout } from '../../hooks/useIsMobileLayout';
 import { formatPhone, maskPhoneInput, stripPhone } from '../../utils/formatPhone';
 import { DrawerSection, Fact, PersonAvatar, formatDay, relativeDay } from './userChrome';
+import { IconClose as Close } from '../../icons/ecoIcons';
 
 type Props = {
   customerId: number | null;

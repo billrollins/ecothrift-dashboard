@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, ButtonBase, IconButton, LinearProgress, Stack, Typography } from '@mui/material';
-import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import BoltRounded from '@mui/icons-material/BoltRounded';
 import { useNavigate } from 'react-router-dom';
 import type { DeliveryDayDetail, DeliveryRun } from '../../../../types/pos.types';
@@ -24,6 +23,7 @@ import { FinishStep } from './steps/FinishStep';
 import { finalActionThenAdvance } from './finalActionAdvance';
 import { ecoField, ecoFieldStepAccent, type EcoFieldStepKey } from './ecoFieldTheme';
 import { deliveryListPath } from '../deliveryPaths';
+import { IconBack as ArrowBackRounded } from '../../../../icons/ecoIcons';
 
 type Props = {
   day: DeliveryDayDetail;

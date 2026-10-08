@@ -1,4 +1,3 @@
-import Edit from '@mui/icons-material/Edit';
 import { Box, Typography } from '@mui/material';
 import { format, parseISO } from 'date-fns';
 import type { TimeEntry } from '../../types/hr.types';
@@ -7,6 +6,7 @@ import { clockLabel } from '../../pages/routines/runDeadline';
 import { formatHours } from '../../pages/hr/timeClockFormat';
 import { StatusTag } from '../duty/StatusTag';
 import { dutyColors } from '../duty/tokens';
+import { IconEdit as Edit } from '../../icons/ecoIcons';
 
 export function ShiftRow({
   entry,

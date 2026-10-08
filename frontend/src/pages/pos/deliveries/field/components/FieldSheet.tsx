@@ -1,6 +1,6 @@
 import { Box, Drawer, IconButton, Stack, Typography } from '@mui/material';
-import CloseRounded from '@mui/icons-material/CloseRounded';
 import { ecoField } from '../ecoFieldTheme';
+import { IconClose as CloseRounded } from '../../../../../icons/ecoIcons';
 
 type Props = {
   open: boolean;

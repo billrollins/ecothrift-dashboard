@@ -18,7 +18,6 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import UploadFileIcon from '@mui/icons-material/UploadFile';
 import { useSnackbar } from 'notistack';
 import { isAxiosError } from 'axios';
 import type {
@@ -33,6 +32,7 @@ import {
   useUpdateFloorPlanElementKind,
 } from '../../hooks/useFloorplanElementKinds';
 import { formatInches, parseInches } from './geometry';
+import { IconUpload as UploadFileIcon } from '../../icons/ecoIcons';
 
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 

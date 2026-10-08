@@ -1,5 +1,4 @@
 import { Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, TextField, Typography } from '@mui/material';
-import AddRounded from '@mui/icons-material/AddRounded';
 import {
   DndContext,
   PointerSensor,
@@ -29,6 +28,7 @@ import {
 import { RoutineHeaderButton } from '../../routines/RoutinePaneHeader';
 import { AdminSectionRow } from './AdminSectionRow';
 import { coverageNote, sectionCoverage } from './sectionCoverage';
+import { IconAdd as AddRounded } from '../../../icons/ecoIcons';
 
 export const WEEKDAY_CHIPS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 export const DEFAULT_SECTION_DAYS = [true, true, true, true, true, true, false];

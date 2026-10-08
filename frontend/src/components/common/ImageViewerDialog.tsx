@@ -21,9 +21,6 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import Close from '@mui/icons-material/Close';
-import Download from '@mui/icons-material/Download';
-import UploadFile from '@mui/icons-material/UploadFile';
 import ZoomIn from '@mui/icons-material/ZoomIn';
 import ZoomOut from '@mui/icons-material/ZoomOut';
 import FitScreen from '@mui/icons-material/FitScreen';
@@ -41,6 +38,7 @@ import ReactCrop, {
 import 'react-image-crop/dist/ReactCrop.css';
 import { downloadBlob } from '../../utils/downloadBlob';
 import { getCroppedJpegFromDisplay, getRotatedJpeg } from '../../utils/imageEdit';
+import { IconClose as Close, IconDownload as Download, IconUpload as UploadFile } from '../../icons/ecoIcons';
 
 export interface ImageViewerDialogProps {
   open: boolean;

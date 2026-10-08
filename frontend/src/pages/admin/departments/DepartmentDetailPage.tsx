@@ -8,7 +8,6 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import MoreVert from '@mui/icons-material/MoreVert';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useMemo, useState, type ReactNode } from 'react';
@@ -35,6 +34,7 @@ import {
   DepartmentFormDialog,
 } from './DepartmentDialogs';
 import { deleteLockTooltip, errorDetail } from './departmentUi';
+import { IconMore as MoreVert } from '../../../icons/ecoIcons';
 
 export default function DepartmentDetailPage() {
   const { slug } = useParams();

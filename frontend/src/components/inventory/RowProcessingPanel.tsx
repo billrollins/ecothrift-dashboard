@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react';
 import { Alert, Box, Button, Typography } from '@mui/material';
-import FileDownloadOutlined from '@mui/icons-material/FileDownloadOutlined';
 import UploadFileOutlined from '@mui/icons-material/UploadFileOutlined';
 import type { CleanupCsvApplyRowPayload, CleanupCsvSoftWarning } from '../../api/inventory.api';
 import { useDownloadCleanupCsv } from '../../hooks/useInventory';
 import { parseCleanupCsv } from './preprocessing/cleanupCsv';
 import { preprocessingFonts } from './preprocessing/preprocessingTokens';
+import { IconDownload as FileDownloadOutlined } from '../../icons/ecoIcons';
 
 interface RowProcessingPanelProps {
   orderId: number;

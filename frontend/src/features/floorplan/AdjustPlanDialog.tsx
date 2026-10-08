@@ -12,7 +12,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useSnackbar } from 'notistack';
 import { adjustPlan, type AdjustPlanResult } from '../../api/floorplanAi.api';
 import { formatApiError } from '../../pages/admin/labelStudio/labelStudioUtils';
@@ -20,6 +19,7 @@ import type { PlanDocument } from '../../types/floorplan.types';
 import AiModelEffortFields, { EMPTY_AI_CHOICE, type AiRunChoice } from './AiModelEffortFields';
 import { adjustChangeCount } from './aiHelpers';
 import { aiAdjustDocument, replaceActiveLayers } from './editorState';
+import { IconAiAssist as AutoAwesomeIcon } from '../../icons/ecoIcons';
 
 interface Props {
   open: boolean;

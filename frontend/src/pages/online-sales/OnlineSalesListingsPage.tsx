@@ -16,8 +16,6 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import Add from '@mui/icons-material/Add';
-import Search from '@mui/icons-material/Search';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
@@ -45,6 +43,7 @@ import {
   WhenCell,
 } from './presentation';
 import { useOnlineSalesMobile } from './useOnlineSalesMobile';
+import { IconAdd as Add, IconSearch as Search } from '../../icons/ecoIcons';
 
 const LISTING_STATUSES = ['draft', 'ready', 'published', 'paused', 'sold', 'archived'];
 

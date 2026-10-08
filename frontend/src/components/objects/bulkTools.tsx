@@ -6,7 +6,6 @@
  * how a running job is doing.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import Close from '@mui/icons-material/Close';
 import {
   Alert, Box, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Drawer, IconButton,
   LinearProgress, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography,
@@ -20,6 +19,7 @@ import {
 } from '../../api/inventorySearch.api';
 import { printProcessingLabelsAndMarkPrinted } from '../../pages/inventory/processing/printProcessingLabel';
 import { formatCurrency } from '../../utils/format';
+import { IconClose as Close } from '../../icons/ecoIcons';
 
 // ── Selection ──────────────────────────────────────────────────────────────────
 

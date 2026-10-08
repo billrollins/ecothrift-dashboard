@@ -12,8 +12,6 @@ import {
   useTheme,
 } from '@mui/material';
 import ClearIcon from '@mui/icons-material/Clear';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
-import SearchIcon from '@mui/icons-material/Search';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -34,6 +32,7 @@ import { ApplicantView } from './ApplicantView';
 import { CLOSED_STAGES, groupByStage, rowHint, sortForStage, timeText, todaysInterviews } from './applicantTimeline';
 import { PracticeDialog } from './PracticeDialog';
 import { StageTimeline } from './StageTimeline';
+import { IconMore as MoreVertIcon, IconSearch as SearchIcon } from '../../icons/ecoIcons';
 
 type Flag = '' | 'red' | 'green';
 

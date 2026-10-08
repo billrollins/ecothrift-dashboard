@@ -1,6 +1,6 @@
 import type { ReactNode, Ref } from 'react';
-import QrCodeScanner from '@mui/icons-material/QrCodeScanner';
 import { Button, Paper, Stack, TextField, Typography } from '@mui/material';
+import { IconScan as QrCodeScanner } from '../../../icons/ecoIcons';
 
 /**
  * The one scan box of PR Fix-it: the same box, in the same place, on every tab. A scanner types into it and

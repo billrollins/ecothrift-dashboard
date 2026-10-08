@@ -1,4 +1,3 @@
-import Close from '@mui/icons-material/Close';
 import Send from '@mui/icons-material/Send';
 import {
   Box,
@@ -42,6 +41,7 @@ import {
   PROCESSING_TESTED_STATUSES,
   setProcessingQuickTestResult,
 } from './processingHandoff';
+import { IconClose as Close } from '../../../icons/ecoIcons';
 
 export interface ProcessingRestorationConfig extends RestorationGradeConfig {
   handoff?: ProcessingHandoff;

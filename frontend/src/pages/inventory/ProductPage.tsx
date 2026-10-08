@@ -3,7 +3,6 @@
  * every check-in. The quick look is the product modal (`components/objects/ObjectModal.tsx`).
  */
 import { useState } from 'react';
-import ArrowBack from '@mui/icons-material/ArrowBack';
 import {
   Box, Button, CircularProgress, Paper, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, Typography,
 } from '@mui/material';
@@ -14,6 +13,7 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { ObjectLink, ObjectModalProvider, useObjectModal } from '../../components/objects/ObjectModal';
 import { ProductItemsTable } from '../../components/objects/ProductItemsTable';
 import { ProductManagePanel } from './manage/ProductManageDrawer';
+import { IconBack as ArrowBack } from '../../icons/ecoIcons';
 
 type ProductTab = 'product' | 'items' | 'checkins';
 

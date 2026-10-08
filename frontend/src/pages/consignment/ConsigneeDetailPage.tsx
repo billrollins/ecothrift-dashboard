@@ -16,10 +16,6 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import ArrowBack from '@mui/icons-material/ArrowBack';
-import Add from '@mui/icons-material/Add';
-import Edit from '@mui/icons-material/Edit';
-import Delete from '@mui/icons-material/Delete';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { format } from 'date-fns';
@@ -36,6 +32,7 @@ import {
   useDeleteAgreement,
 } from '../../hooks/useConsignment';
 import { formatPhone, maskPhoneInput, stripPhone } from '../../utils/formatPhone';
+import { IconAdd as Add, IconBack as ArrowBack, IconDelete as Delete, IconEdit as Edit } from '../../icons/ecoIcons';
 
 const DEFAULT_TERMS =
   'Standard consignment terms: Store retains commission as specified. ' +

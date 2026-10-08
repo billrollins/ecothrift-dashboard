@@ -1,5 +1,4 @@
 import { Box, Chip, Stack, Typography } from '@mui/material';
-import CheckRounded from '@mui/icons-material/CheckRounded';
 import type { DeliveryRunStop } from '../../../../../types/pos.types';
 import { stopDisplayName, type DotTone } from '../fieldStepUtils';
 import {
@@ -8,6 +7,7 @@ import {
   ecoFieldStatusChipSx,
   ecoFieldSummaryCardCompleteSx,
 } from '../ecoFieldTheme';
+import { IconConfirm as CheckRounded } from '../../../../../icons/ecoIcons';
 
 type Props = {
   stop: DeliveryRunStop;

@@ -1,4 +1,3 @@
-import Close from '@mui/icons-material/Close';
 import Box from '@mui/material/Box';
 import Drawer from '@mui/material/Drawer';
 import IconButton from '@mui/material/IconButton';
@@ -8,6 +7,7 @@ import { studio } from '../../pages/restoration/tars/studio/tarsStudioTheme';
 import { useJobNotes } from '../../hooks/useItemNotes';
 import { ItemNoteComposer } from './ItemNoteComposer';
 import { ItemNotesTrail } from './ItemNotesTrail';
+import { IconClose as Close } from '../../icons/ecoIcons';
 
 export function ItemNotesDrawer({
   open,

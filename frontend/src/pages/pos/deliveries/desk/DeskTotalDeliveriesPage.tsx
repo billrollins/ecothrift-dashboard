@@ -13,8 +13,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import AddRounded from '@mui/icons-material/AddRounded';
-import CloseIcon from '@mui/icons-material/Close';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useQueryClient } from '@tanstack/react-query';
 import { AddDeliveryDialog } from '../../../../components/pos/delivery/AddDeliveryDialog';
@@ -32,6 +30,7 @@ import {
   deskTotalStateToParams,
   parseDeskTotalUrlState,
 } from './totalDeliveriesUrlState';
+import { IconAdd as AddRounded, IconClose as CloseIcon } from '../../../../icons/ecoIcons';
 
 export default function DeskTotalDeliveriesPage() {
   const [searchParams, setSearchParams] = useSearchParams();

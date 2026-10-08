@@ -1,10 +1,10 @@
 import { Alert, Box, Button, Chip, CircularProgress, Collapse, MenuItem, Stack, TextField, Typography } from '@mui/material';
-import AutoAwesome from '@mui/icons-material/AutoAwesome';
 import Tune from '@mui/icons-material/Tune';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { AI_ACTIONS, getCareers, runAi, type AiAction, type AiJob } from '../../api/hiring.api';
 import { ccTokens } from '../../theme';
+import { IconAiAssist as AutoAwesome } from '../../icons/ecoIcons';
 
 /**
  * AI help on one thing (a role, an email): pick what you want (Polish, Shorter…), optionally add a note,

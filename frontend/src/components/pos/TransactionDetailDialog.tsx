@@ -9,7 +9,6 @@ import {
   IconButton,
   Typography,
 } from '@mui/material';
-import Close from '@mui/icons-material/Close';
 import { format } from 'date-fns';
 import { useSnackbar } from 'notistack';
 import { localPrintService } from '../../services/localPrintService';
@@ -17,6 +16,7 @@ import type { Cart, CartLine } from '../../types/pos.types';
 import { CartCardBreakdown } from './CartCardBreakdown';
 import { CardTypeFixControls } from './CardTypeFixControls';
 import { buildReceiptData } from '../../utils/posReceipt';
+import { IconClose as Close } from '../../icons/ecoIcons';
 
 function formatCurrency(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;

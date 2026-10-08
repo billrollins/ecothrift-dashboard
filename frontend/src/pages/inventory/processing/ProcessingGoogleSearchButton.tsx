@@ -1,7 +1,7 @@
-import Search from '@mui/icons-material/Search';
 import { IconButton, Tooltip, type SxProps, type Theme } from '@mui/material';
 import { buildProcessingGoogleQuery, googleSearchUrl } from './processingGoogleQuery';
 import { processingTokens } from './processingTokens';
+import { IconSearch as Search } from '../../../icons/ecoIcons';
 
 export interface ProcessingGoogleSearchButtonProps {
   brand?: string;

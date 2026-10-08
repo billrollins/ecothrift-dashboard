@@ -12,8 +12,8 @@ import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import Close from '@mui/icons-material/Close';
 import NotificationsNone from '@mui/icons-material/NotificationsNone';
+import { IconClose as Close } from '../../../../icons/ecoIcons';
 
 export type StudioNoticeTone = 'warning' | 'error' | 'info';
 

@@ -1,5 +1,3 @@
-import Check from '@mui/icons-material/Check';
-import Close from '@mui/icons-material/Close';
 import { Box, Chip, Grow, Typography } from '@mui/material';
 import {
   forwardRef,
@@ -22,6 +20,7 @@ import {
   parseSearchTagsCsv,
 } from './processingGoogleQuery';
 import { processingTokens } from './processingTokens';
+import { IconClose as Close, IconConfirm as Check } from '../../../icons/ecoIcons';
 
 function FieldEditSegment({
   kind,

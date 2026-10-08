@@ -8,8 +8,6 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import LocalPrintshopOutlinedIcon from '@mui/icons-material/LocalPrintshopOutlined';
 import OpenInNewOutlinedIcon from '@mui/icons-material/OpenInNewOutlined';
 import SellOutlinedIcon from '@mui/icons-material/SellOutlined';
 import { getItem, updateItem } from '../../../api/inventory.api';
@@ -20,6 +18,7 @@ import type { WorkbenchSelection } from '../../../utils/richInventorySearch';
 import { printProcessingLabelsAndMarkPrinted } from '../processing/printProcessingLabel';
 import { processingTokens } from '../processing/processingTokens';
 import { useWorkbenchConfirmDialog } from './useWorkbenchConfirmDialog';
+import { IconEdit as EditOutlinedIcon, IconPrint as LocalPrintshopOutlinedIcon } from '../../../icons/ecoIcons';
 
 export interface ItemWorkspacePanelProps {
   itemId: number;

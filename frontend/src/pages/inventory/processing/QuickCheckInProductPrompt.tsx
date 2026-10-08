@@ -10,10 +10,10 @@ import {
   Typography,
 } from '@mui/material';
 import AddCircleOutline from '@mui/icons-material/AddCircleOutline';
-import Search from '@mui/icons-material/Search';
 import { useEffect, useState } from 'react';
 import { useProductSearch } from '../../../hooks/useProductSearch';
 import type { Product } from '../../../types/inventory.types';
+import { IconSearch as Search } from '../../../icons/ecoIcons';
 
 export interface QuickCheckInProductPromptProps {
   open: boolean;

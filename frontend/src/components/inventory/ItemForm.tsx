@@ -23,8 +23,6 @@ import {
   Typography,
 } from '@mui/material';
 import { alpha, type Theme } from '@mui/material/styles';
-import AutoAwesome from '@mui/icons-material/AutoAwesome';
-import OpenInNew from '@mui/icons-material/OpenInNew';
 import SwapHoriz from '@mui/icons-material/SwapHoriz';
 import { useSnackbar } from 'notistack';
 import { createConsignmentItem } from '../../api/consignment.api';
@@ -62,6 +60,7 @@ import type {
   PurchaseOrderListRow,
 } from '../../types/inventory.types';
 import type { ConsignmentAgreement } from '../../types/consignment.types';
+import { IconAiAssist as AutoAwesome, IconOpenExternal as OpenInNew } from '../../icons/ecoIcons';
 
 const LS_PRINT_ON_SAVE = 'addItem.printOnSave';
 const LS_KEEP_OPEN = 'addItem.keepOpen';

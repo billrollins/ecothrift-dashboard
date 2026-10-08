@@ -18,7 +18,6 @@ import {
   Typography,
   useTheme,
 } from '@mui/material';
-import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import { Link as RouterLink } from 'react-router-dom';
 import type { PurchaseOrderStatus } from '../../../types/inventory.types';
 import type { ProcessingWorkspaceRowDTO } from '../../../types/inventory.types';
@@ -50,6 +49,7 @@ import {
   readProcessingQueueTableClientWidth,
 } from './processingQueueLayout';
 import { processingHeaderGradient, processingTokens } from './processingTokens';
+import { IconDelete as DeleteOutline } from '../../../icons/ecoIcons';
 
 export type QueueSortField =
   | 'rowNum'

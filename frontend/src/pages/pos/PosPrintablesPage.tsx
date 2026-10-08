@@ -1,6 +1,6 @@
 import { Box, Button, Stack, Typography } from '@mui/material';
-import OpenInNew from '@mui/icons-material/OpenInNew';
 import { PageHeader } from '../../components/common/PageHeader';
+import { IconOpenExternal as OpenInNew } from '../../icons/ecoIcons';
 
 const PRINTABLES = [
   {

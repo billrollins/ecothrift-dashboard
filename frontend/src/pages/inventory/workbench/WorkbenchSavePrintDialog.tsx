@@ -7,8 +7,8 @@ import {
   DialogContentText,
   DialogTitle,
 } from '@mui/material';
-import LocalPrintshopOutlinedIcon from '@mui/icons-material/LocalPrintshopOutlined';
 import { processingTokens } from '../processing/processingTokens';
+import { IconPrint as LocalPrintshopOutlinedIcon } from '../../../icons/ecoIcons';
 
 export type SavePrintChoice = 'print' | 'no_print' | 'cancel';
 

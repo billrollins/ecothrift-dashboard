@@ -23,8 +23,6 @@ import {
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import Send from '@mui/icons-material/Send';
-import Save from '@mui/icons-material/Save';
-import Add from '@mui/icons-material/Add';
 import { useEffect, useMemo, useState } from 'react';
 import { TARS_GRADE_DOT_COLORS, TARS_GRADE_SCALES } from './tarsConstants';
 import {
@@ -40,6 +38,7 @@ import {
   useCreateRestorationGradeScale,
   useSuggestedGradeScale,
 } from '../../../hooks/useGradeScales';
+import { IconAdd as Add, IconSave as Save } from '../../../icons/ecoIcons';
 
 const CARD_HEADER_MIN_HEIGHT = 132;
 

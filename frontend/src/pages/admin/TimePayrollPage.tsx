@@ -23,10 +23,6 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import Check from '@mui/icons-material/Check';
-import Edit from '@mui/icons-material/Edit';
-import Delete from '@mui/icons-material/Delete';
-import Add from '@mui/icons-material/Add';
 import Block from '@mui/icons-material/Block';
 import { DataGrid, type GridColDef, type GridRowSelectionModel } from '@mui/x-data-grid';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -73,6 +69,7 @@ import {
   splitWeeklyHours,
   sumEmployeePayroll,
 } from './payrollHours';
+import { IconAdd as Add, IconConfirm as Check, IconDelete as Delete, IconEdit as Edit } from '../../icons/ecoIcons';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const PAGE_MAX_WIDTH = 1680;

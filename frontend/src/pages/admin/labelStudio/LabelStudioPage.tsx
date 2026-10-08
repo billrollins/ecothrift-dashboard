@@ -26,13 +26,8 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import ArchiveIcon from '@mui/icons-material/Archive';
 import RestoreIcon from '@mui/icons-material/Restore';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import EditIcon from '@mui/icons-material/Edit';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
-import PrintIcon from '@mui/icons-material/Print';
 import TextFieldsIcon from '@mui/icons-material/TextFields';
 import { useSnackbar } from 'notistack';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -53,6 +48,7 @@ import LabelEditorDialog from './LabelEditorDialog';
 import LabelPrintDialog from './LabelPrintDialog';
 import { starterDefinition } from './designerState';
 import { formatApiError } from './labelStudioUtils';
+import { IconAdd as AddIcon, IconArchive as ArchiveIcon, IconCopy as ContentCopyIcon, IconEdit as EditIcon, IconPrint as PrintIcon } from '../../../icons/ecoIcons';
 
 const LIST_KEY = ['custom-labels'];
 

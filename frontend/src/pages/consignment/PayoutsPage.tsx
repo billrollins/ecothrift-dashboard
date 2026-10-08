@@ -10,8 +10,6 @@ import {
   MenuItem,
   TextField,
 } from '@mui/material';
-import Add from '@mui/icons-material/Add';
-import Check from '@mui/icons-material/Check';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
@@ -25,6 +23,7 @@ import {
 } from '../../hooks/useConsignment';
 import type { ConsignmentPayout } from '../../types/consignment.types';
 import { format } from 'date-fns';
+import { IconAdd as Add, IconConfirm as Check } from '../../icons/ecoIcons';
 
 function formatCurrency(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;

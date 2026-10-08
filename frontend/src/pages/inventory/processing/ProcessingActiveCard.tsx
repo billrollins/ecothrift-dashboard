@@ -1,10 +1,4 @@
-import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import LinearScale from '@mui/icons-material/LinearScale';
-import Add from '@mui/icons-material/Add';
-import ArrowBack from '@mui/icons-material/ArrowBack';
-import Refresh from '@mui/icons-material/Refresh';
-import Check from '@mui/icons-material/Check';
-import Close from '@mui/icons-material/Close';
 import JoinFull from '@mui/icons-material/JoinFull';
 import {
   Alert,
@@ -114,6 +108,7 @@ import {
   PROCESSING_ROW_VALUE_FONT_WEIGHT,
   processingRowLabelSx,
 } from './processingRowFieldTokens';
+import { IconAdd as Add, IconBack as ArrowBack, IconClose as Close, IconConfirm as Check, IconDelete as DeleteOutline, IconRefresh as Refresh } from '../../../icons/ecoIcons';
 
 const manifestToolbarFieldSx = { flex: '1 1 102px', minWidth: 98, maxWidth: 260 };
 const manifestToolbarEditablePillSlotSx = {

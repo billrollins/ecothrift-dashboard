@@ -10,7 +10,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import Search from '@mui/icons-material/Search';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
 import { useReservations } from '../../../hooks/useWebStore';
@@ -29,6 +28,7 @@ import {
 } from '../presentation';
 import { useOnlineSalesMobile } from '../useOnlineSalesMobile';
 import HoldMobileList from './HoldMobileList';
+import { IconSearch as Search } from '../../../icons/ecoIcons';
 
 const RELEASED = ['cancelled', 'declined', 'expired'] as const;
 

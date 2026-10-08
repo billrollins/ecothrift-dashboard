@@ -11,7 +11,6 @@ import Accordion from '@mui/material/Accordion';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import SearchIcon from '@mui/icons-material/Search';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { Setting } from '../../api/core.api';
@@ -23,6 +22,7 @@ import { metaForKey, parseSettingsTab, type SettingsTab } from './settings/setti
 import { Piece } from './settings/SettingsPieces';
 import { SettingRow } from './settings/SettingRow';
 import { settingByKey, useAppSettings } from './settings/useAppSettings';
+import { IconSearch as SearchIcon } from '../../icons/ecoIcons';
 
 const OPEN_KEY = 'settings.open';
 const RECENT_DAYS = 7;

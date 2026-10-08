@@ -9,7 +9,6 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import Close from '@mui/icons-material/Close';
 import { useQuery } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { Link as RouterLink } from 'react-router-dom';
@@ -17,6 +16,7 @@ import { getQaDaySummary, type RetailDaySummary } from '../../api/routines.api';
 import { isoWeekKey, weekRangeLabel } from '../../pages/admin/routines/gradeWeek';
 import { ccTokens } from '../../theme';
 import { GradeScaleTable } from './GradeScaleTable';
+import { IconClose as Close } from '../../icons/ecoIcons';
 
 export type RetailSummaryMode = 'day' | 'week';
 

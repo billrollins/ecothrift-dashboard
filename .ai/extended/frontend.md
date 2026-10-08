@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-30 (Hidden UI moved here from context.md) -->
+<!-- Last updated: 2026-10-08 (Eco-Thrift's own icon set, T75) -->
 
 # Eco-Thrift Dashboard — Frontend Context
 
@@ -214,6 +214,7 @@ Canonical staff colours: [`.ai/extended/brand.md`](brand.md). `theme/index.ts` �
 - **Typography**: Inter, Roboto, Helvetica, Arial; h4/h5/h6 fontWeight 600
 - **Shape**: borderRadius 8
 - **Component overrides**: MuiButton (textTransform none, fontWeight 500), MuiCard (subtle shadow). **Buying grid snappiness (v2.13.1):** **`MuiIconButton`** and **`MuiCheckbox`** — **`defaultProps.disableRipple: true`**, **`styleOverrides.root.transition: 'none'`** — reduces perceived lag on checkbox / star / thumbs / archive interactions in **`AuctionListDesktop`**.
+- **Icons (T75):** Eco-Thrift's own set, one file: `frontend/src/icons/ecoIcons.tsx` (recipe at the top: 24 grid, 1.75 line, round caps; line = currentColor, a 15% wash, one kraft detail `var(--eco-icon-accent, #b8955f)`; page icons wash + exactly one kraft detail, action icons line only). `NOTES` (name, use, metaphor) and `ART` (drawing) per icon; `ECO_ICONS[name]` is an MUI `SvgIcon` component (`sx`, `fontSize`, `color` work). Sidebar `NavIconKey` = the set's names; `PageHeader` shows the route's sidebar icon. Buttons import `IconAdd`, `IconClose`... Look at them all: Admin > Icons (`/admin/icons`). New icons: add a NOTES line and an ART entry; `src/icons/ecoIcons.test.tsx` checks the recipe. Drawing kit (check, sheet, write): `workspace/icons/iconkit.py`.
 - **Routines / Documents** chrome: `frontend/src/components/duty/tokens.ts` (`dutyColors`) — brand green for actions and pass; sage desk; ink is `#1a1f1c`, not navy.
 
 ## Nothing may shift the page (house rule)

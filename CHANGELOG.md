@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.156.0] -->
-<!-- Last reviewed: 2026-10-08 (2.156.0) -->
+<!-- Line 1 release: ## [2.157.0] -->
+<!-- Last reviewed: 2026-10-08 (2.157.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,26 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.157.0] - 2026-10-08
+
+User-facing theme: **Eco-Thrift's own icons: every sidebar page, workspace, page header and common button now uses one icon set drawn for Eco-Thrift (green line, a soft wash, one kraft-brown detail), instead of Material's.** Standards T75 (Bill via master, 2026-10-08).
+
+### Added
+
+- **One icon set** (`frontend/src/icons/ecoIcons.tsx`): 63 page icons and 21 action icons on a 24 grid with a 1.75 line. The recipe is at the top of the file: three colour roles (line, a 15% wash, and one kraft detail, the brown of a kraft price tag), page icons get a wash and exactly one kraft detail, action icons are line only. One line per icon names it by meaning, where it is used and what it shows.
+- **Sidebar and workspaces:** every page has its own icon by meaning (Command Center a gauge, Receiving a carton arriving, Inventory a clothes hanger, Thrift+ a member card...), where many pages shared one before. The names come from the set, so a page naming a missing icon fails the type check.
+- **Page headers** show the page's icon beside the title, taken from the sidebar page the route belongs to (`PageHeader`; `icon` overrides it, `icon={false}` turns it off).
+- **Admin > Icons** (`/admin/icons`, owner only, under the line): the whole set at 20 and 40 px on the sidebar, selected, the dark band and one colour.
+
+### Changed
+
+- **Common buttons** (close, add, edit, delete, search, save, print, copy, back, download, upload, refresh, undo, open in new window, scan, AI suggest, archive, more, filter, confirm): Eco-Thrift's action icons across Dash, POS included (296 swaps in 166 files; no page code changed). The Thrift+ customer scanner keeps its own look.
+- **`/privacy`:** "email sending" for "email delivery" (the storefront copy check does not allow "delivery" on the public site).
+
+### Tests
+
+- `src/icons/ecoIcons.test.tsx`: the recipe for every icon (one wrapper, 1.75 line, no stray fill or stroke; page icons have a wash and exactly one kraft detail; action icons line only), every sidebar page and workspace names an icon in the set, and the page header icon by route.
 
 ## [2.156.0] - 2026-10-08
 

@@ -1,11 +1,10 @@
-import ArrowBack from '@mui/icons-material/ArrowBack';
-import QrCodeScanner from '@mui/icons-material/QrCodeScanner';
 import Build from '@mui/icons-material/Build';
 import SpaceDashboard from '@mui/icons-material/SpaceDashboard';
 import { Box, Button, Stack, TextField, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { DECK, PANEL, RADIUS, TYPE } from './benchScale';
 import { studio } from './tarsStudioTheme';
+import { IconBack as ArrowBack, IconScan as QrCodeScanner } from '../../../../icons/ecoIcons';
 
 /**
  * Two surfaces, not four. Home answers "what is there to do"; Bench is the one

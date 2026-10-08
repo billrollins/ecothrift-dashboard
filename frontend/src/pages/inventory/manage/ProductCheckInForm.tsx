@@ -6,7 +6,6 @@ import {
   CircularProgress,
   Stack,
 } from '@mui/material';
-import LocalPrintshop from '@mui/icons-material/LocalPrintshop';
 import type { ItemCondition, Product } from '../../../types/inventory.types';
 import type { ProductCheckInOrderOption } from '../../../api/inventory.api';
 import { ProductDisplayLine } from '../../../components/inventory/ProductDisplayLine';
@@ -24,6 +23,7 @@ import { processingTokens } from '../processing/processingTokens';
 import { workbenchDetailTokens } from '../workbench/WorkbenchDetailShell';
 import { CheckInDetailsEditor } from '../workbench/CheckInDetailsLayout';
 import { ItemSpecificationsEditor, normalizeItemSpecObject } from '../workbench/ItemSpecificationsEditor';
+import { IconPrint as LocalPrintshop } from '../../../icons/ecoIcons';
 
 const LS_PRINT_ON_CHECKIN = 'productCheckIn.printLabels';
 

@@ -8,7 +8,6 @@ import {
   type DragEvent,
 } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import {
   Box,
   Button,
@@ -101,6 +100,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { IconOpenExternal as OpenInNewIcon } from '../../icons/ecoIcons';
 const MANIFEST_PAGE_SIZE = 50;
 
 function categoryConfidenceChipProps(conf: string | null | undefined): {

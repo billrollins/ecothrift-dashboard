@@ -22,9 +22,6 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import Close from '@mui/icons-material/Close';
-import Download from '@mui/icons-material/Download';
-import Print from '@mui/icons-material/Print';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import {
   Bar,
@@ -55,6 +52,7 @@ import {
   type ShrinkList,
   type ShrinkRow,
 } from '../../../api/stocktake.api';
+import { IconClose as Close, IconDownload as Download, IconPrint as Print } from '../../../icons/ecoIcons';
 
 /** Two series everywhere on this page: counted (slot 1) and not found (slot 2). Pie slices use the fixed order. */
 const COUNTED = '#2a78d6';

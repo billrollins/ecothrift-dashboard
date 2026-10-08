@@ -28,10 +28,8 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import Close from '@mui/icons-material/Close';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
-import Search from '@mui/icons-material/Search';
 import { useSnackbar } from 'notistack';
 import { format, parseISO, isValid, subDays } from 'date-fns';
 import { getCart, getCarts, suggestDeliveryAddresses } from '../../../api/pos.api';
@@ -40,6 +38,7 @@ import { getItems } from '../../../api/inventory.api';
 import { useDeliveryMutations } from '../../../hooks/useDelivery';
 import { formatPhone, maskPhoneInput } from '../../../utils/formatPhone';
 import type { DeliveryAvailability } from '../../../types/pos.types';
+import { IconClose as Close, IconSearch as Search } from '../../../icons/ecoIcons';
 
 type ItemMode = 'sale' | 'inventory' | 'describe';
 

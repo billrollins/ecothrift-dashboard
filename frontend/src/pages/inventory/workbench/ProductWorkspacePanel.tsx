@@ -12,9 +12,7 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
-import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined';
 import type { Product } from '../../../types/inventory.types';
 import {
   getItemCheckIns,
@@ -26,6 +24,7 @@ import { ProductDisplayLine } from '../../../components/inventory/ProductDisplay
 import { formatCurrency } from '../../../utils/format';
 import type { WorkbenchSelection } from '../../../utils/richInventorySearch';
 import { processingTokens } from '../processing/processingTokens';
+import { IconCopy as ContentCopyOutlinedIcon, IconEdit as EditOutlinedIcon } from '../../../icons/ecoIcons';
 
 export interface ProductWorkspacePanelProps {
   productId: number;

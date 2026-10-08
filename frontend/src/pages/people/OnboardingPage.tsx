@@ -15,7 +15,6 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useEffect, useState } from 'react';
@@ -43,6 +42,7 @@ import { ccTokens } from '../../theme';
 import { useEmailReview } from './EmailReview';
 import { Checklist, CountDialog, HandbookText, I9Dialog, openHandbookPdf, StartOnboardingDialog } from './onboardingUi';
 import { dayText, errorText, shortDate } from './peopleUi';
+import { IconClose as CloseIcon } from '../../icons/ecoIcons';
 
 function Row({ row, selected, onOpen }: { row: OnboardingRow; selected: boolean; onOpen: () => void }) {
   return (

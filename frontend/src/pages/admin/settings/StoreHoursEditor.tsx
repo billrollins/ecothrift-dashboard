@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Box, Button, FormControlLabel, Switch, TextField, Typography } from '@mui/material';
-import Save from '@mui/icons-material/Save';
 import { useSnackbar } from 'notistack';
 import { useQueryClient } from '@tanstack/react-query';
 import { updateSetting } from '../../../api/core.api';
 import { formatHoursLabel, parseStoreHours, setDayOpen, WEEKDAYS, type StoreHours } from './storeHours';
+import { IconSave as Save } from '../../../icons/ecoIcons';
 
 export function StoreHoursEditor({ value }: { value: unknown }) {
   const { enqueueSnackbar } = useSnackbar();

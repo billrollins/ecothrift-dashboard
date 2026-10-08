@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, CircularProgress, Paper, Typography } from '@mui/material';
 import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
-import SearchIcon from '@mui/icons-material/Search';
-import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 import { pushSearchHistory, readSearchHistory } from '../../../utils/searchHistory';
 import { processingTokens } from './processingTokens';
+import { IconScan as QrCodeScannerIcon, IconSearch as SearchIcon } from '../../../icons/ecoIcons';
 
 export interface ProcessingScanBarProps {
   search: string;

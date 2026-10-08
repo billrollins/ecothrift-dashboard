@@ -20,11 +20,6 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import DeleteIcon from '@mui/icons-material/Delete';
-import EditIcon from '@mui/icons-material/Edit';
-import FileDownloadIcon from '@mui/icons-material/FileDownload';
-import FileUploadIcon from '@mui/icons-material/FileUpload';
 import MapIcon from '@mui/icons-material/Map';
 import { useQuery } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -41,6 +36,7 @@ import {
 import { exportPlanJson } from '../../features/floorplan/exportPlan';
 import { parsePlanFile, type ParsedPlanFile } from '../../features/floorplan/planFile';
 import type { FloorPlanListItem } from '../../types/floorplan.types';
+import { IconAdd as AddIcon, IconDelete as DeleteIcon, IconDownload as FileDownloadIcon, IconEdit as EditIcon, IconUpload as FileUploadIcon } from '../../icons/ecoIcons';
 
 export default function FloorplanListPage() {
   const navigate = useNavigate();

@@ -18,7 +18,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
@@ -60,6 +59,7 @@ import { playCountSound, unlockSound } from './countSound';
 import { clockOffset, clockTime, elapsedSeconds, formatElapsed, ratePerMinute } from './countTimer';
 import ProblemSheet, { type SheetAnswer } from './ProblemSheet';
 import SectionProgress, { STATE_WORDS, sectionCountLine } from './SectionProgress';
+import { IconMore as MoreVertIcon } from '../../../icons/ecoIcons';
 
 const storeKey = (runId: number) => `stocktake.run.${runId}`;
 

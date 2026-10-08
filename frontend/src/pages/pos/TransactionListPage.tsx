@@ -31,7 +31,6 @@ import {
 import Clear from '@mui/icons-material/Clear';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import HistoryIcon from '@mui/icons-material/History';
-import Search from '@mui/icons-material/Search';
 import { DataGrid, type GridColDef, type GridRowsProp } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
@@ -51,6 +50,7 @@ import {
   type HistoricalRevenueResponse,
   type HistoricalRevenueDataPoint,
 } from '../../api/pos.api';
+import { IconSearch as Search } from '../../icons/ecoIcons';
 function formatCurrency(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num ?? 0);

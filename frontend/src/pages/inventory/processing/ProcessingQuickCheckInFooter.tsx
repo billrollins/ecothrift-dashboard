@@ -1,7 +1,4 @@
-import Add from '@mui/icons-material/Add';
-import LocalPrintshop from '@mui/icons-material/LocalPrintshop';
 import OpenInFull from '@mui/icons-material/OpenInFull';
-import Remove from '@mui/icons-material/Remove';
 import { Box, Button, IconButton, MenuItem, TextField, Tooltip, Typography } from '@mui/material';
 import { useEffect, useState, type ReactNode, type WheelEvent } from 'react';
 import { preventWheelChangeNumber } from '../../../utils/formInputs';
@@ -15,6 +12,7 @@ import { ProcessingRowSection } from './ProcessingRowSection';
 import { processingRowSectionBodyFitSx, processingRowToolbarRowSx } from './processingRowToolbarLayout';
 import { processingTokens } from './processingTokens';
 import { MAX_CHECK_IN_QUANTITY } from './largeCheckIn';
+import { IconAdd as Add, IconPrint as LocalPrintshop, IconRemove as Remove } from '../../../icons/ecoIcons';
 
 const CONDITION_OPTIONS = ['New', 'Like New', 'Very Good', 'Used Good', 'Used Fair', 'Salvage'];
 

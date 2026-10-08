@@ -5,7 +5,6 @@
  * Comment rows reserve a 28px trash slot; the icon appears only when the
  * lock rule says this person can delete.
  */
-import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -36,6 +35,7 @@ import {
   type TarsHistoryRow,
 } from '../tars/tarsBenchHistory';
 import { studio } from '../tars/studio/tarsStudioTheme';
+import { IconDelete as DeleteOutline } from '../../../icons/ecoIcons';
 
 const WHEN_SLOT = 92;
 const WHO_SLOT = 70;

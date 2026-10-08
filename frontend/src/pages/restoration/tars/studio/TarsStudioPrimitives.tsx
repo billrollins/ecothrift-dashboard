@@ -1,7 +1,7 @@
-import Check from '@mui/icons-material/Check';
 import { Box, Button, Paper, Stack, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { studio } from './tarsStudioTheme';
+import { IconConfirm as Check } from '../../../../icons/ecoIcons';
 
 export function StudioSurface({
   children,

@@ -8,10 +8,10 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import Close from '@mui/icons-material/Close';
 import type { DepartmentDailyMetric, DepartmentDailyWeek } from '../../types/pos.types';
 import { dashboardPalette, failLetterColors, isFailLetter } from './dashboardCardStyles';
 import { shortDate } from './dashboardFormatters';
+import { IconClose as Close } from '../../icons/ecoIcons';
 
 const DAY_HEADS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 

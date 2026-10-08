@@ -175,7 +175,8 @@ describe('Studios and Admin placement', () => {
     ]);
     expect(NAV_ITEM_CATALOG.superRequests?.superuserOnly).toBe(true);
     expect(NAV_ITEM_CATALOG.adminRoutines?.superuserOnly).toBe(true);
-    expect(admin?.guestItemIds ?? []).toEqual([]);
+    expect(admin?.guestItemIds).toEqual(['icons']);  // owner-only tool, under the line
+    expect(NAV_ITEM_CATALOG.icons?.superuserOnly).toBe(true);
   });
 
   it('puts every studio under Studios', () => {

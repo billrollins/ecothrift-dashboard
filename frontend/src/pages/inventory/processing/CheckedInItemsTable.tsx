@@ -1,6 +1,4 @@
 import ArrowDropDown from '@mui/icons-material/ArrowDropDown';
-import DeleteOutline from '@mui/icons-material/DeleteOutline';
-import LocalPrintshop from '@mui/icons-material/LocalPrintshop';
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Box,
@@ -58,6 +56,7 @@ import {
   readProcessingQueueTableClientWidth,
 } from './processingQueueLayout';
 import { processingHeaderGradient, processingTokens } from './processingTokens';
+import { IconDelete as DeleteOutline, IconPrint as LocalPrintshop } from '../../../icons/ecoIcons';
 
 const CHECKED_IN_AUTOSIZE_COL_SX = {
   whiteSpace: 'nowrap',

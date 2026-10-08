@@ -1,9 +1,8 @@
 import { Box, Button, TextField, Typography } from '@mui/material';
-import AddRounded from '@mui/icons-material/AddRounded';
 import CameraAltOutlined from '@mui/icons-material/CameraAltOutlined';
-import RemoveRounded from '@mui/icons-material/RemoveRounded';
 import type { ReactNode } from 'react';
 import { dutyColors, thinScrollSx } from '../../../components/duty/tokens';
+import { IconAdd as AddRounded, IconRemove as RemoveRounded } from '../../../icons/ecoIcons';
 
 export const runnerFieldSx = {
   '& .MuiOutlinedInput-root': {

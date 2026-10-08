@@ -1,4 +1,3 @@
-import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
@@ -10,6 +9,7 @@ import { studio } from '../../pages/restoration/tars/studio/tarsStudioTheme';
 import { formatNoteWhen, ITEM_NOTE_SURFACE_LABELS } from './itemNoteLabels';
 import { NoteInlineEditor } from './NoteInlineEditor';
 import { useReviseItemNote, useVoidItemNote } from '../../hooks/useItemNotes';
+import { IconDelete as DeleteOutline } from '../../icons/ecoIcons';
 
 export const NOTES_TRAIL_HEIGHT = 176;
 /** Tighter reserved slot when the trail sits under a write field. */

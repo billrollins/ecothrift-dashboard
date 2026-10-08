@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Alert, Box, Button, FormControlLabel, Switch, TextField, Typography } from '@mui/material';
-import Save from '@mui/icons-material/Save';
 import { useSnackbar } from 'notistack';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getStaffPurchaseSettings, saveStaffPurchaseSettings } from '../../../api/pos.api';
 import { useAuth } from '../../../hooks/useAuth';
+import { IconSave as Save } from '../../../icons/ecoIcons';
 
 /**
  * Staff purchases (owner, 2026-10-07): payroll deduction at the register, capped at a percent of the person's last

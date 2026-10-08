@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Alert, Box, Button, Chip, Typography, LinearProgress } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import ArrowBack from '@mui/icons-material/ArrowBack';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { format } from 'date-fns';
 
@@ -37,6 +36,7 @@ import type {
 } from '../../types/inventory.types';
 import { FLOOR_ORDER_PICKER_PARAMS } from '../../utils/orderPickerDisplay';
 import { useSnackbar } from 'notistack';
+import { IconBack as ArrowBack } from '../../icons/ecoIcons';
 
 function palletSlotFilled(rec: ReceivingDetailDTO, palletNumber: number, side: string): boolean {
   return rec.attachments.some(

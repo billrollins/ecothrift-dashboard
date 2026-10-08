@@ -14,7 +14,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import UploadFileIcon from '@mui/icons-material/UploadFile';
 
 import {
   createCustomLabel,
@@ -24,6 +23,7 @@ import {
   type CustomLabelKind,
 } from '../../../api/labels.api';
 import { formatApiError } from './labelStudioUtils';
+import { IconUpload as UploadFileIcon } from '../../../icons/ecoIcons';
 
 interface Props {
   open: boolean;

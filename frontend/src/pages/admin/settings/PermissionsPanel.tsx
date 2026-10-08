@@ -1,7 +1,7 @@
 import { Box, Card, CardContent, Typography } from '@mui/material';
-import Check from '@mui/icons-material/Check';
 import { useQuery } from '@tanstack/react-query';
 import { getCapabilityCatalog, type CapabilityRow } from '../../../api/accounts.api';
+import { IconConfirm as Check } from '../../../icons/ecoIcons';
 
 const MATRIX_COLS = ['Employee', 'Manager', 'Admin', 'Super Admin'] as const;
 const PORTAL_ROLES = ['Consignee', 'Customer'] as const;

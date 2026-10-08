@@ -22,10 +22,8 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import CheckCircle from '@mui/icons-material/CheckCircle';
-import Close from '@mui/icons-material/Close';
 import EditLocationAlt from '@mui/icons-material/EditLocationAlt';
 import LocalPhone from '@mui/icons-material/LocalPhone';
-import QrCodeScanner from '@mui/icons-material/QrCodeScanner';
 import ReceiptLong from '@mui/icons-material/ReceiptLong';
 import { useSnackbar } from 'notistack';
 import { getCart } from '../../../api/pos.api';
@@ -36,6 +34,7 @@ import { TransactionDetailDialog } from '../TransactionDetailDialog';
 import type { DeliveryDayCardModel } from './dayBoardUtils';
 import { formatMoney } from './dayBoardUtils';
 import { telHref } from './driverWizardUtils';
+import { IconClose as Close, IconScan as QrCodeScanner } from '../../../icons/ecoIcons';
 
 type Props = {
   open: boolean;

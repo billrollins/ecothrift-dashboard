@@ -1,5 +1,4 @@
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from '@mui/material';
-import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import ChecklistRtlRounded from '@mui/icons-material/ChecklistRtlRounded';
 import { format } from 'date-fns';
 import { useSnackbar } from 'notistack';
@@ -18,6 +17,7 @@ import {
   type RoutineSettings,
 } from '../../routines/RoutineSettingsFields';
 import { friendlyStamp, ownerLabel } from './presentAdminRoutine';
+import { IconBack as ArrowBackRounded } from '../../../icons/ecoIcons';
 
 export function AdminRoutineInspector({
   routine,

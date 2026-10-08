@@ -17,8 +17,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import type { Item, ItemCondition, ItemSource, ItemStatus, Product } from '../../../types/inventory.types';
 import {
   createItem,
@@ -28,6 +26,7 @@ import {
   getProductUsage,
   updateItem,
 } from '../../../api/inventory.api';
+import { IconDelete as DeleteOutlineIcon, IconSave as SaveOutlinedIcon } from '../../../icons/ecoIcons';
 
 interface ItemManagePanelProps {
   open: boolean;

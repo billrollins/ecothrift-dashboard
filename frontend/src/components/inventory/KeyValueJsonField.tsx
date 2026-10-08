@@ -1,6 +1,3 @@
-import Add from '@mui/icons-material/Add';
-import DeleteOutline from '@mui/icons-material/DeleteOutline';
-import EditOutlined from '@mui/icons-material/EditOutlined';
 import {
   Box,
   Button,
@@ -24,6 +21,7 @@ import {
   validateIdentifierDraftRows,
   type IdentifierDraftRow,
 } from '../../pages/inventory/processing/processingIdentifiers';
+import { IconAdd as Add, IconDelete as DeleteOutline, IconEdit as EditOutlined } from '../../icons/ecoIcons';
 
 export const SPECIFICATION_PRESET_KEYS = [
   'color',

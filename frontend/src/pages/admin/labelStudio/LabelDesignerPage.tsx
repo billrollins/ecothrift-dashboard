@@ -18,15 +18,8 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import AddIcon from '@mui/icons-material/Add';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import DeleteIcon from '@mui/icons-material/Delete';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import PrintIcon from '@mui/icons-material/Print';
-import SaveIcon from '@mui/icons-material/Save';
-import UploadFileIcon from '@mui/icons-material/UploadFile';
 import { useSnackbar } from 'notistack';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -63,6 +56,7 @@ import {
   elementDisplayName,
   formatApiError,
 } from './labelStudioUtils';
+import { IconAdd as AddIcon, IconAiAssist as AutoAwesomeIcon, IconBack as ArrowBackIcon, IconDelete as DeleteIcon, IconPrint as PrintIcon, IconSave as SaveIcon, IconUpload as UploadFileIcon } from '../../../icons/ecoIcons';
 
 const FONTS = ['arial', 'consolas', 'georgia'] as const;
 const ALIGNS = ['left', 'center', 'right'] as const;

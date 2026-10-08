@@ -5,7 +5,6 @@ import {
   ToggleButton,
   Tooltip,
 } from '@mui/material';
-import ArchiveOutlinedIcon from '@mui/icons-material/ArchiveOutlined';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
 import StarIcon from '@mui/icons-material/Star';
@@ -13,6 +12,7 @@ import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import { useMemo, type MouseEvent } from 'react';
 import { multiSelectChipTooltip } from '../../utils/multiSelectChipTooltip';
+import { IconArchive as ArchiveOutlinedIcon } from '../../icons/ecoIcons';
 
 /** Row filter chips (no “All”; empty selection normalizes to Today-only on parent). */
 export type AuctionFilterChipId =

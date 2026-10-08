@@ -10,10 +10,6 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import LocalPrintshopOutlinedIcon from '@mui/icons-material/LocalPrintshopOutlined';
-import LocalPrintshop from '@mui/icons-material/LocalPrintshop';
-import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined';
-import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import {
   getItemCheckIn,
   getProduct,
@@ -53,6 +49,7 @@ import { WorkbenchCopyableChip } from './WorkbenchCopyableChip';
 import { useWorkbenchConfirmDialog } from './useWorkbenchConfirmDialog';
 import { useWorkbenchSavePrintDialog } from './WorkbenchSavePrintDialog';
 import { normalizeItemSpecObject } from './ItemSpecificationsEditor';
+import { IconCopy as ContentCopyOutlinedIcon, IconPrint as LocalPrintshop, IconPrint as LocalPrintshopOutlinedIcon, IconSave as SaveOutlinedIcon } from '../../../icons/ecoIcons';
 
 export interface ItemCheckInManagePanelProps {
   mode: 'create' | 'edit';

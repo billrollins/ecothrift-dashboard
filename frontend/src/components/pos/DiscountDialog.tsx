@@ -18,7 +18,6 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import OpenInNew from '@mui/icons-material/OpenInNew';
 import { useSnackbar } from 'notistack';
 import { useGoogleReviewUsernames } from '../../hooks/usePOS';
 import type { Cart, CartLine } from '../../types/pos.types';
@@ -38,6 +37,7 @@ import {
   type DiscountApplyTo,
   type DiscountInputMode,
 } from './discountUtils';
+import { IconOpenExternal as OpenInNew } from '../../icons/ecoIcons';
 
 export interface DiscountSubmitPayload {
   mode: DiscountInputMode;

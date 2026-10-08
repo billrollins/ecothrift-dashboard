@@ -18,10 +18,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import Add from '@mui/icons-material/Add';
 import CheckCircle from '@mui/icons-material/CheckCircle';
-import Edit from '@mui/icons-material/Edit';
-import Delete from '@mui/icons-material/Delete';
 import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingScreen } from '../../components/feedback/LoadingScreen';
@@ -44,6 +41,7 @@ import {
 } from '../../hooks/useCashManagement';
 import type { DenominationBreakdown, BankTransaction } from '../../types/pos.types';
 import { format } from 'date-fns';
+import { IconAdd as Add, IconDelete as Delete, IconEdit as Edit } from '../../icons/ecoIcons';
 
 function formatCurrency(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;

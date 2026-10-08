@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import type { Editor } from '@tiptap/react';
 import { NodeSelection } from '@tiptap/pm/state';
 import { Box, MenuItem, Popover, Select, TextField, Tooltip, Typography } from '@mui/material';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import {
   CALLOUT_TONES,
   FONT_SIZE_STEPS,
@@ -11,6 +10,7 @@ import {
   type FontSizeStep,
 } from './constants';
 import type { RichTextEditorVariant } from './types';
+import { IconDelete as DeleteOutlineIcon } from '../../../icons/ecoIcons';
 
 const IS_MAC =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform);

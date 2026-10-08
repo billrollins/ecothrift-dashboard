@@ -1,7 +1,3 @@
-import Add from '@mui/icons-material/Add';
-import Check from '@mui/icons-material/Check';
-import Close from '@mui/icons-material/Close';
-import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import {
   Box,
   Chip,
@@ -34,6 +30,7 @@ import {
   validateIdentifierDraftRows,
 } from './processingIdentifiers';
 import { processingTokens } from './processingTokens';
+import { IconAdd as Add, IconClose as Close, IconConfirm as Check, IconDelete as DeleteOutline } from '../../../icons/ecoIcons';
 
 function FieldEditSegment({
   kind,

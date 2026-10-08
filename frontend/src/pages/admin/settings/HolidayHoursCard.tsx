@@ -22,8 +22,6 @@ import {
   Typography,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import EditIcon from '@mui/icons-material/Edit';
 import { useSnackbar } from 'notistack';
 import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
 import {
@@ -34,6 +32,7 @@ import {
 } from '../../../hooks/useHoursOverrides';
 import type { StoreHoursOverride, StoreHoursOverrideWrite } from '../../../api/webstore.api';
 import { holidayHoursLine } from './storeHours';
+import { IconDelete as DeleteOutlineIcon, IconEdit as EditIcon } from '../../../icons/ecoIcons';
 
 function iso(date: Date | null): string {
   if (!date) return '';

@@ -1,7 +1,7 @@
-import QrCodeScanner from '@mui/icons-material/QrCodeScanner';
 import TextField from '@mui/material/TextField';
 import type { RefObject } from 'react';
 import { studio } from '../tars/studio/tarsStudioTheme';
+import { IconScan as QrCodeScanner } from '../../../icons/ecoIcons';
 
 /** SKU scan that finds an item on Overview. It never checks one in. */
 export function RestorationScanField({

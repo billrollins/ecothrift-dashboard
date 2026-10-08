@@ -1,10 +1,10 @@
-import CheckRounded from '@mui/icons-material/CheckRounded';
 import WarningAmberRounded from '@mui/icons-material/WarningAmberRounded';
 import { Box, Paper, Stack, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import type { AuctionDecision } from '../../../types/buying.types';
 import { formatCurrencyWhole } from '../../../utils/format';
 import { HAZARD_SHORT } from '../manifestHazards';
+import { IconConfirm as CheckRounded } from '../../../icons/ecoIcons';
 
 const NEED_COLOR: Record<string, string> = { High: 'primary.main', Med: 'warning.dark', Low: 'text.secondary' };
 

@@ -1,7 +1,4 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import CheckIcon from '@mui/icons-material/Check';
-import CloseIcon from '@mui/icons-material/Close';
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import {
   Box,
   Button,
@@ -30,6 +27,7 @@ import type { BuyingAuctionDetail } from '../../types/buying.types';
 import { feesNote, shippingCaption, shippingNote } from '../../utils/buyingCostNotes';
 import { formatCurrency, formatCurrencyWhole } from '../../utils/format';
 import { parseDec } from '../../utils/valuationParse';
+import { IconClose as CloseIcon, IconConfirm as CheckIcon, IconEdit as EditOutlinedIcon } from '../../icons/ecoIcons';
 
 const DEFAULT_PROFIT_TARGET_RATIO = 2;
 const DEFAULT_METRIC_COLOR = '#9A8866';

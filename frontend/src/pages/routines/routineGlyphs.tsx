@@ -1,7 +1,5 @@
 import BoltRounded from '@mui/icons-material/BoltRounded';
 import CalendarMonthRounded from '@mui/icons-material/CalendarMonthRounded';
-import CheckRounded from '@mui/icons-material/CheckRounded';
-import CloseRounded from '@mui/icons-material/CloseRounded';
 import DateRangeRounded from '@mui/icons-material/DateRangeRounded';
 import EventRepeatRounded from '@mui/icons-material/EventRepeatRounded';
 import PriorityHighRounded from '@mui/icons-material/PriorityHighRounded';
@@ -12,6 +10,7 @@ import WbSunnyRounded from '@mui/icons-material/WbSunnyRounded';
 import type { ReactElement } from 'react';
 import type { RoutineTrigger } from '../../api/routines.api';
 import type { RunGlyph } from './runStatus';
+import { IconClose as CloseRounded, IconConfirm as CheckRounded } from '../../icons/ecoIcons';
 
 /** Icon for a run row's tile. The tone comes from `presentRun`. */
 export function runGlyphIcon(glyph: RunGlyph): ReactElement {

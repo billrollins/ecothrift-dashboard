@@ -8,7 +8,6 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import AddBox from '@mui/icons-material/AddBox';
 import KeyboardArrowDown from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowRight from '@mui/icons-material/KeyboardArrowRight';
-import Search from '@mui/icons-material/Search';
 import {
   Box, Button, Checkbox, Chip, Collapse, FormControlLabel, IconButton, InputAdornment, LinearProgress, Link, Paper, Stack, Switch,
   Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, TableSortLabel, TextField, Tooltip,
@@ -31,6 +30,7 @@ import { ProductItemsTable } from '../../components/objects/ProductItemsTable';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency } from '../../utils/format';
 import { parseRichSearch, parseWorkbenchSelection } from '../../utils/richInventorySearch';
+import { IconSearch as Search } from '../../icons/ecoIcons';
 
 const DEBOUNCE_MS = 200;
 

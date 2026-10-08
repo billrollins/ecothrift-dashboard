@@ -22,15 +22,11 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import Close from '@mui/icons-material/Close';
-import ContentCopy from '@mui/icons-material/ContentCopy';
 import ExpandMore from '@mui/icons-material/ExpandMore';
-import LocalPrintshop from '@mui/icons-material/LocalPrintshop';
 import NavigateNext from '@mui/icons-material/NavigateNext';
-import SaveOutlined from '@mui/icons-material/SaveOutlined';
 import TaskAlt from '@mui/icons-material/TaskAlt';
-import Undo from '@mui/icons-material/Undo';
 import type { BatchGroup, Item } from '../../types/inventory.types';
+import { IconClose as Close, IconCopy as ContentCopy, IconPrint as LocalPrintshop, IconSave as SaveOutlined, IconUndo as Undo } from '../../icons/ecoIcons';
 
 export type DrawerMode = 'item' | 'batch' | null;
 

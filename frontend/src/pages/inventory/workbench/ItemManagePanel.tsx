@@ -9,8 +9,6 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
-import LocalPrintshopOutlinedIcon from '@mui/icons-material/LocalPrintshopOutlined';
 import {
   getItem,
   getItemCheckIn,
@@ -35,6 +33,7 @@ import { truncateText, WorkbenchStatCell } from './WorkbenchStatCell';
 import { WorkbenchCopyableChip } from './WorkbenchCopyableChip';
 import { useWorkbenchSavePrintDialog } from './WorkbenchSavePrintDialog';
 import { normalizeItemSpecObject } from './ItemSpecificationsEditor';
+import { IconPrint as LocalPrintshopOutlinedIcon, IconSave as SaveOutlinedIcon } from '../../../icons/ecoIcons';
 
 export interface ItemManagePanelProps {
   itemId: number;

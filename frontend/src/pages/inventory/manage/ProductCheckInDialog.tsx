@@ -17,7 +17,6 @@ import {
   Typography,
 } from '@mui/material';
 import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined';
-import LocalPrintshop from '@mui/icons-material/LocalPrintshop';
 import type { Product } from '../../../types/inventory.types';
 import type { ItemCondition } from '../../../types/inventory.types';
 import type { ProductCheckInOrderOption } from '../../../api/inventory.api';
@@ -37,6 +36,7 @@ import {
 } from '../processing/processingItemFormOptions';
 import { manageItemsSearchUrl } from '../../../utils/richInventorySearch';
 import { processingTokens } from '../processing/processingTokens';
+import { IconPrint as LocalPrintshop } from '../../../icons/ecoIcons';
 
 const LS_PRINT_ON_CHECKIN = 'productCheckIn.printLabels';
 const MAX_IDS_IN_URL = 150;

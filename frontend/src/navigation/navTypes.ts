@@ -1,40 +1,10 @@
 import type { ComponentType } from 'react';
 import type { SvgIconProps } from '@mui/material/SvgIcon';
+import type { EcoIconName } from '../icons/ecoIcons';
 import type { UserRole } from '../types/accounts.types';
 
-export type NavIconKey =
-  | 'dashboard'
-  | 'people'
-  | 'shoppingCart'
-  | 'article'
-  | 'localShipping'
-  | 'inventory'
-  | 'assignmentTurnedIn'
-  | 'assignmentReturned'
-  | 'balance'
-  | 'search'
-  | 'localOffer'
-  | 'store'
-  | 'storefront'
-  | 'receiptLong'
-  | 'pointOfSale'
-  | 'accountBalance'
-  | 'gavel'
-  | 'star'
-  | 'factCheck'
-  | 'tune'
-  | 'supervisorAccount'
-  | 'security'
-  | 'settings'
-  | 'build'
-  | 'schedule'
-  | 'print'
-  | 'palette'
-  | 'email'
-  | 'documents'
-  | 'checklist'
-  | 'payments'
-  | 'campaign';
+/** An icon from Eco-Thrift's own set; the names come from the set, so a missing one fails the type check. */
+export type NavIconKey = EcoIconName;
 
 export interface NavItemDef {
   id: string;

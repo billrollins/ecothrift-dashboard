@@ -12,14 +12,13 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import Add from '@mui/icons-material/Add';
-import Close from '@mui/icons-material/Close';
 import ItemFormWithActions from '../../components/inventory/ItemFormWithActions';
 import ItemListPanel from '../../components/inventory/ItemListPanel';
 import { useRecentlyAddedItems } from '../../hooks/useRecentlyAddedItems';
 import { useItem } from '../../hooks/useInventory';
 import type { Item } from '../../types/inventory.types';
 import { ITEMS_SPLIT_ROW_HEIGHT } from '../../constants/itemsPageLayout';
+import { IconAdd as Add, IconClose as Close } from '../../icons/ecoIcons';
 
 type PanelState = 'idle' | 'create' | 'edit';
 

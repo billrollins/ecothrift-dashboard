@@ -13,7 +13,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { useSnackbar } from 'notistack';
@@ -27,6 +26,7 @@ import {
   unmarkRestricted,
 } from '../../api/thriftplusRegister.api';
 import { formatCurrency } from '../../utils/format';
+import { IconDelete as DeleteOutline } from '../../icons/ecoIcons';
 
 /**
  * Thrift+ at the register, the staff side (thrift_plus_rewards Phase 3):

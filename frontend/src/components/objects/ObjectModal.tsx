@@ -10,9 +10,6 @@
  * Wrap a page in `<ObjectModalProvider>` to use it.
  */
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import ArrowBack from '@mui/icons-material/ArrowBack';
-import Close from '@mui/icons-material/Close';
-import OpenInNew from '@mui/icons-material/OpenInNew';
 import { Box, Button, CircularProgress, Dialog, DialogContent, IconButton, Link, Stack, Tooltip, Typography } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -21,6 +18,7 @@ import { ProductManagePanel } from '../../pages/inventory/manage/ProductManageDr
 import { ItemCheckInManagePanel } from '../../pages/inventory/workbench/ItemCheckInManagePanel';
 import { ItemManagePanel } from '../../pages/inventory/workbench/ItemManagePanel';
 import OrderDetailPage from '../../pages/inventory/OrderDetailPage';
+import { IconBack as ArrowBack, IconClose as Close, IconOpenExternal as OpenInNew } from '../../icons/ecoIcons';
 
 export type ObjectRef =
   | { type: 'product'; id: number }

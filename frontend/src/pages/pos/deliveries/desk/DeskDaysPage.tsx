@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
-import AddRounded from '@mui/icons-material/AddRounded';
 import {
   Box,
   Button,
@@ -31,6 +30,7 @@ import {
 } from './daysUrlState';
 import { DeskDayDialog } from './DeskDayDialog';
 import { deliveryDayPath } from '../deliveryPaths';
+import { IconAdd as AddRounded } from '../../../../icons/ecoIcons';
 
 function formatWindow(start: string | null, end: string | null) {
   if (!start || !end) return '-';

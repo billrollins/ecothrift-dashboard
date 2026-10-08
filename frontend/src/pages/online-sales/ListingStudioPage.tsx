@@ -18,10 +18,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import ArrowBack from '@mui/icons-material/ArrowBack';
 import CheckCircle from '@mui/icons-material/CheckCircle';
-import ContentCopy from '@mui/icons-material/ContentCopy';
-import MoreVert from '@mui/icons-material/MoreVert';
 import { useSnackbar } from 'notistack';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { ImageViewerDialog } from '../../components/common/ImageViewerDialog';
@@ -54,6 +51,7 @@ import {
   useWebListing,
   useWebstoreConfig,
 } from '../../hooks/useWebStore';
+import { IconBack as ArrowBack, IconCopy as ContentCopy, IconMore as MoreVert } from '../../icons/ecoIcons';
 
 const CONDITION_OPTIONS = [
   { value: 'new', label: 'New' },

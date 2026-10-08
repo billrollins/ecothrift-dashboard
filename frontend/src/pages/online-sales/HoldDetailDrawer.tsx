@@ -17,8 +17,6 @@ import {
   Toolbar,
   Typography,
 } from '@mui/material';
-import Close from '@mui/icons-material/Close';
-import OpenInNew from '@mui/icons-material/OpenInNew';
 import { useSnackbar } from 'notistack';
 import { useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
@@ -32,6 +30,7 @@ import type { ReservationActionName, ReservationEvent } from '../../api/webstore
 import { formatCurrency } from '../../utils/format';
 import { fmtWhen, HOLD_EVENT_LABELS, HoldStatusChip, messagesHrefForHold } from './presentation';
 import { useOnlineSalesMobile } from './useOnlineSalesMobile';
+import { IconClose as Close, IconOpenExternal as OpenInNew } from '../../icons/ecoIcons';
 
 const DRAWER_WIDTH = 480;
 

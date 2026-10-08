@@ -3,7 +3,6 @@
  * Inventory search and on the product page. A price is edited in place; a tag is reprinted from the row.
  */
 import { useRef, useState } from 'react';
-import Print from '@mui/icons-material/Print';
 import {
   Box, CircularProgress, IconButton, Link, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip,
   Typography,
@@ -18,6 +17,7 @@ import { formatCurrency } from '../../utils/format';
 import { StatusBadge } from '../common/StatusBadge';
 import { SelectBox, useOptionalSelection } from './bulkTools';
 import { ObjectLink } from './ObjectModal';
+import { IconPrint as Print } from '../../icons/ecoIcons';
 
 export interface ProductLabelInfo {
   title: string;

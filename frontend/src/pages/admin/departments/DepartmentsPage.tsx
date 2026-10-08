@@ -16,7 +16,6 @@ import {
   Typography,
 } from '@mui/material';
 import DragIndicatorRounded from '@mui/icons-material/DragIndicatorRounded';
-import MoreVert from '@mui/icons-material/MoreVert';
 import {
   DndContext,
   PointerSensor,
@@ -47,6 +46,7 @@ import {
   DepartmentFormDialog,
 } from './DepartmentDialogs';
 import { DEPARTMENT_SUBTITLE, deleteLockTooltip, errorDetail } from './departmentUi';
+import { IconMore as MoreVert } from '../../../icons/ecoIcons';
 
 export default function DepartmentsPage() {
   const navigate = useNavigate();

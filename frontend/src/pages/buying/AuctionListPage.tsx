@@ -14,7 +14,6 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import Refresh from '@mui/icons-material/Refresh';
 import type { GridPaginationModel } from '@mui/x-data-grid';
 import { isAxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
@@ -72,6 +71,7 @@ import {
   patchWatchBulk,
 } from '../../utils/buyingOptimisticCache';
 import { useBuyingArchiveGrace } from '../../utils/buyingArchiveGrace';
+import { IconRefresh as Refresh } from '../../icons/ecoIcons';
 
 /** Stable reference for useBuyingAuctionSummary - inline `{}` is a new object every render and churns the query key. */
 const BUYING_SUMMARY_PARAMS_EMPTY: BuyingAuctionSummaryParams = {};

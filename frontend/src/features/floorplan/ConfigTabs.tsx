@@ -11,9 +11,8 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import CloseIcon from '@mui/icons-material/Close';
 import type { PlanConfigMeta } from '../../types/floorplan.types';
+import { IconAdd as AddIcon, IconClose as CloseIcon } from '../../icons/ecoIcons';
 
 interface ConfigTabsProps {
   configs: PlanConfigMeta[];

@@ -15,8 +15,6 @@ import {
   type Theme,
 } from '@mui/material';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
-import CloseIcon from '@mui/icons-material/Close';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import SmsOutlined from '@mui/icons-material/SmsOutlined';
 import { useSnackbar } from 'notistack';
 import { useState } from 'react';
@@ -25,6 +23,7 @@ import { ccTokens } from '../../theme';
 import { EmailEditor } from './EmailEditor';
 import { fillTemplate, isEdited, textStats, typedOver } from './emailTemplate';
 import { errorText } from './peopleUi';
+import { IconClose as CloseIcon, IconOpenExternal as OpenInNewIcon } from '../../icons/ecoIcons';
 
 /**
  * The email itself, to read and edit: who it goes to, where the words come from, the subject and the message with

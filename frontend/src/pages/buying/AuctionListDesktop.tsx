@@ -1,4 +1,3 @@
-import ArchiveOutlinedIcon from '@mui/icons-material/ArchiveOutlined';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
@@ -54,6 +53,7 @@ import {
   BUYING_AUCTION_LIST_ROW_ICON_PX,
 } from '../../constants/buyingAuctionListUi';
 import type { BuyingAuctionListItem } from '../../types/buying.types';
+import { IconArchive as ArchiveOutlinedIcon } from '../../icons/ecoIcons';
 
 /** Star / archive: icon + sort (tight). */
 const BUYING_COL_STAR_ARCHIVE_WIDTH = 66;

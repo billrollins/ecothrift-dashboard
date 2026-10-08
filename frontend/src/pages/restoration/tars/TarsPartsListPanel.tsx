@@ -1,7 +1,4 @@
-import Add from '@mui/icons-material/Add';
-import Delete from '@mui/icons-material/Delete';
 import LinkIcon from '@mui/icons-material/Link';
-import OpenInNew from '@mui/icons-material/OpenInNew';
 import {
   Box,
   Button,
@@ -47,6 +44,7 @@ import { PANEL, RADIUS, SP, TYPE } from './studio/benchScale';
 import { studio } from './studio/tarsStudioTheme';
 import { PURCHASE_SECTION_LABELS, PURCHASE_SECTIONS } from './tarsPurchase';
 import { absoluteUrl } from './tarsUrl';
+import { IconAdd as Add, IconDelete as Delete, IconOpenExternal as OpenInNew } from '../../../icons/ecoIcons';
 
 const LINE_HEIGHT = 56;
 const ORDER_TILE_HEIGHT = 56;

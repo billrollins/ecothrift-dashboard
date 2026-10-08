@@ -1,9 +1,9 @@
 import { Box, Stack, Typography } from '@mui/material';
-import CheckRounded from '@mui/icons-material/CheckRounded';
 import type { DeliveryRun } from '../../../../../types/pos.types';
 import { formatElapsed } from '../fieldRunUtils';
 import { ecoField } from '../ecoFieldTheme';
 import { FieldStepSummaryShell } from './FieldStepSummaryShell';
+import { IconConfirm as CheckRounded } from '../../../../../icons/ecoIcons';
 
 type Props = {
   run: DeliveryRun;

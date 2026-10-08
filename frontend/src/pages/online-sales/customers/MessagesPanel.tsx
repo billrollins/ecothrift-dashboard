@@ -18,9 +18,7 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import ArrowBack from '@mui/icons-material/ArrowBack';
 import ChevronRight from '@mui/icons-material/ChevronRight';
-import Search from '@mui/icons-material/Search';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -51,6 +49,7 @@ import {
   WhenCell,
 } from '../presentation';
 import { useOnlineSalesMobile } from '../useOnlineSalesMobile';
+import { IconBack as ArrowBack, IconSearch as Search } from '../../../icons/ecoIcons';
 
 type Props = {
   onOpenHold?: (reservationId: number) => void;

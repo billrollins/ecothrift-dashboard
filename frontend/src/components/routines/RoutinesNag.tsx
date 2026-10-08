@@ -1,5 +1,4 @@
 import AssignmentLate from '@mui/icons-material/AssignmentLate';
-import CloseRounded from '@mui/icons-material/CloseRounded';
 import { Badge, Box, Button, Drawer, IconButton, Tooltip, Typography } from '@mui/material';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -17,6 +16,7 @@ import { MyWorkList, NAG_AMBER } from './MyWorkList';
 import { NagMessages, useNagMessages } from './NagMessages';
 import { nagSummary } from './nagSummary';
 import { glanceHref } from './today/useTodayModel';
+import { IconClose as CloseRounded } from '../../icons/ecoIcons';
 
 const NAG_COLOR: Record<Exclude<NagTone, 'none'>, string> = { amber: NAG_AMBER, red: dutyColors.red };
 

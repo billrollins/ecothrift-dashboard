@@ -17,7 +17,6 @@ import {
   Typography,
 } from '@mui/material';
 import BadgeOutlined from '@mui/icons-material/BadgeOutlined';
-import Print from '@mui/icons-material/Print';
 import JsBarcode from 'jsbarcode';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -25,6 +24,7 @@ import { issueBadge, reprintBadge, revokeBadge } from '../../api/kiosk.api';
 import { localPrintService } from '../../services/localPrintService';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { DrawerSection, Fact, formatDay } from './userChrome';
+import { IconPrint as Print } from '../../icons/ecoIcons';
 
 type BadgeStatus = 'none' | 'active' | 'revoked';
 

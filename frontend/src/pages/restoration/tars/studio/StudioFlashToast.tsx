@@ -1,7 +1,7 @@
-import Close from '@mui/icons-material/Close';
 import { Box, Fade, IconButton, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
 import { studio } from './tarsStudioTheme';
+import { IconClose as Close } from '../../../../icons/ecoIcons';
 
 export type StudioFlashTone = 'info' | 'success' | 'warning' | 'error';
 

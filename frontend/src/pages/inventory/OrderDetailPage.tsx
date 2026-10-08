@@ -11,10 +11,8 @@ import {
   useTheme,
 } from '@mui/material';
 import ChevronRight from '@mui/icons-material/ChevronRight';
-import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import DescriptionOutlined from '@mui/icons-material/DescriptionOutlined';
 import ExpandMore from '@mui/icons-material/ExpandMore';
-import UploadFile from '@mui/icons-material/UploadFile';
 import { format } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -29,6 +27,7 @@ import {
   useUploadManifest,
 } from '../../hooks/useInventory';
 import type { PurchaseOrderDetailSurface } from '../../types/inventory.types';
+import { IconDelete as DeleteOutline, IconUpload as UploadFile } from '../../icons/ecoIcons';
 
 function inventoryUploadDetail(err: unknown): string {
   const ax = err as { response?: { data?: { detail?: unknown } } };

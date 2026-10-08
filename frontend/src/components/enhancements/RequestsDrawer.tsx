@@ -10,7 +10,6 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import Close from '@mui/icons-material/Close';
 import { useSnackbar } from 'notistack';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -28,6 +27,7 @@ import { AreaBadge } from './AreaBadge';
 import { AreaSelect } from './AreaSelect';
 import { RequestsBoard } from './RequestsBoard';
 import { COMPOSER_FIELD_HEIGHT, REQUESTS_DRAWER_HEIGHT } from './requestsBoardLayout';
+import { IconClose as Close } from '../../icons/ecoIcons';
 
 const SECTION_LABEL = {
   fontSize: 10,

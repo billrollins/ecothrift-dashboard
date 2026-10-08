@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Box, Button, Chip, InputAdornment, MenuItem, Switch, TextField, Tooltip, Typography } from '@mui/material';
 import Lock from '@mui/icons-material/LockOutlined';
-import Save from '@mui/icons-material/Save';
 import { format, parseISO } from 'date-fns';
 import { useSnackbar } from 'notistack';
 import { useQueryClient } from '@tanstack/react-query';
 import { createSetting, getSettingHistory, updateSetting } from '../../../api/core.api';
 import { isOwnerOnlyKey, type SettingKind, type SettingMeta } from './settingsRegistry';
+import { IconSave as Save } from '../../../icons/ecoIcons';
 
 const WEEKDAY_CHIPS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const DEFAULT_SECTION_DAYS = [true, true, true, true, true, true, false];

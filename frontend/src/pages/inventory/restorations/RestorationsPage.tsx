@@ -1,4 +1,3 @@
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import {
   Badge,
   Box,
@@ -26,6 +25,7 @@ import type { RestorationJobDTO } from '../../../types/inventory.types';
 import { RestorationsFromDecisionPanel } from './RestorationsFromDecisionPanel';
 import { RestorationsFromList } from './RestorationsFromList';
 import { RestorationsToSetupPanel } from './RestorationsToSetupPanel';
+import { IconBack as ArrowBackIcon } from '../../../icons/ecoIcons';
 
 type Lane = 'from' | 'to';
 

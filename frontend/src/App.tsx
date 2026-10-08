@@ -46,6 +46,7 @@ import { PendingBstockLoginNotice } from './pages/routines/runners/PendingBstock
 import TodayPage from './pages/routines/TodayPage';
 import TimePayrollPage from './pages/admin/TimePayrollPage';
 import EnhancementRequestsPage from './pages/admin/EnhancementRequestsPage';
+import IconsPage from './pages/admin/IconsPage';
 import AdminRoutinesPage from './pages/admin/routines/AdminRoutinesPage';
 import RetailQaPage from './pages/admin/retailqa/RetailQaPage';
 import ShiftsPage from './pages/admin/ShiftsPage';
@@ -467,6 +468,14 @@ export default function App() {
           element={
             <SuperAdminRoute>
               <QAPage />
+            </SuperAdminRoute>
+          }
+        />
+        <Route
+          path="/admin/icons"
+          element={
+            <SuperAdminRoute>
+              <IconsPage />
             </SuperAdminRoute>
           }
         />

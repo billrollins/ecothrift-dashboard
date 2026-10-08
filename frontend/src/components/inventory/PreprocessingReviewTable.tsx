@@ -24,8 +24,6 @@ import {
   Typography,
 } from '@mui/material';
 import type { Theme } from '@mui/material/styles';
-import Add from '@mui/icons-material/Add';
-import Remove from '@mui/icons-material/Remove';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type {
   PreprocessingReviewRow,
@@ -43,6 +41,7 @@ import {
   exactTargetPrices,
   roundReviewPrice,
 } from '../../utils/preprocessingReviewTotals';
+import { IconAdd as Add, IconRemove as Remove } from '../../icons/ecoIcons';
 
 /** Fixed row height - virtualization contract (mimics ProcessingQueueTable). */
 const REVIEW_ROW_HEIGHT = 34;

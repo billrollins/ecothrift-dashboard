@@ -1,8 +1,7 @@
 import { Box, Drawer, IconButton, Typography } from '@mui/material';
-import ArrowBack from '@mui/icons-material/ArrowBack';
-import Close from '@mui/icons-material/Close';
 import type { ReactNode } from 'react';
 import { dashboardPalette } from '../dashboardCardStyles';
+import { IconBack as ArrowBack, IconClose as Close } from '../../../icons/ecoIcons';
 
 export function DashboardPhoneSheet({
   open,

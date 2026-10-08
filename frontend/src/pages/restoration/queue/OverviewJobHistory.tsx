@@ -4,7 +4,6 @@
  * A right drawer - off the flow, so the list never jumps. Slim enough that
  * the queue still reads. Composer lives here; there is no second notes drawer.
  */
-import Close from '@mui/icons-material/Close';
 import Box from '@mui/material/Box';
 import Drawer from '@mui/material/Drawer';
 import IconButton from '@mui/material/IconButton';
@@ -23,6 +22,7 @@ import {
 import { JobNotesSlot } from '../../../components/notes/JobNotesSlot';
 import { studio } from '../tars/studio/tarsStudioTheme';
 import { JobHistoryList } from './JobHistoryList';
+import { IconClose as Close } from '../../../icons/ecoIcons';
 
 export const HISTORY_DRAWER_WIDTH = 560;
 

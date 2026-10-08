@@ -1,8 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Button, Typography } from '@mui/material';
-import ArrowBack from '@mui/icons-material/ArrowBack';
 import { PageHeader } from '../../components/common/PageHeader';
 import ItemDrawer from '../../components/inventory/ItemDrawer';
+import { IconBack as ArrowBack } from '../../icons/ecoIcons';
 
 /**
  * Permalink route for a single item: opens the same ItemDrawer as the list page.

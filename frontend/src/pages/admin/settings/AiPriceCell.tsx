@@ -1,9 +1,9 @@
 import { Box, InputBase, Typography } from '@mui/material';
-import EditOutlined from '@mui/icons-material/EditOutlined';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useState } from 'react';
 import { saveAiModelPrices, type AiCatalogModel } from '../../../api/aiSettings.api';
+import { IconEdit as EditOutlined } from '../../../icons/ecoIcons';
 
 function shown(v: string | null): string {
   return v != null ? String(Number(v)) : '';

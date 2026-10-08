@@ -1,7 +1,6 @@
 import type { WheelEvent } from 'react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
-import { Add, Remove } from '@mui/icons-material';
 import {
   Box,
   Button,
@@ -40,6 +39,7 @@ import {
   RetailPricePctButton,
   useRetailPriceLock,
 } from './RetailPriceLockControls';
+import { IconAdd as Add, IconRemove as Remove } from '../../../icons/ecoIcons';
 
 function parseCheckInQuantity(raw: string): number {
   const n = Number.parseInt(raw, 10);

@@ -14,9 +14,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import DownloadIcon from '@mui/icons-material/Download';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { useEffect, useState } from 'react';
@@ -39,6 +36,7 @@ import { aiCopyText, downloadJson, previewUrl } from './careersFile';
 import { AiHelpBar } from './AiHelpBar';
 import { CareersFileDialog } from './CareersFileDialog';
 import { errorText } from './peopleUi';
+import { IconCopy as ContentCopyIcon, IconDownload as DownloadIcon, IconOpenExternal as OpenInNewIcon } from '../../icons/ecoIcons';
 
 const STATUS_COLOR: Record<Job['status'], 'success' | 'default' | 'warning'> = {
   open: 'success',

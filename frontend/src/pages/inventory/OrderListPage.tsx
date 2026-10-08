@@ -15,11 +15,8 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import Add from '@mui/icons-material/Add';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
-import FilterList from '@mui/icons-material/FilterList';
-import Search from '@mui/icons-material/Search';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import {
   DataGrid,
@@ -61,6 +58,7 @@ import {
   type OrderListUrlState,
   type StatusBucket,
 } from './orderList/urlState';
+import { IconAdd as Add, IconFilter as FilterList, IconSearch as Search } from '../../icons/ecoIcons';
 
 const QUICK_FILTER_IDLE_SX = {
   textTransform: 'none',

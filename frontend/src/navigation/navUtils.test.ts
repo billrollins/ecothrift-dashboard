@@ -12,7 +12,7 @@ describe('navigateForNavItem', () => {
       id: 'today',
       path: '/today',
       label: 'Today',
-      icon: 'factCheck',
+      icon: 'commandCenter',
     });
     expect(navigate).toHaveBeenCalledWith({ pathname: '/today', hash: '' }, undefined);
   });
@@ -23,7 +23,7 @@ describe('navigateForNavItem', () => {
       id: 'pay',
       path: '/pay',
       label: 'Pay',
-      icon: 'payments',
+      icon: 'thriftPlus',
     });
     expect(navigate).toHaveBeenCalledWith({ pathname: '/pay', hash: '' }, undefined);
   });

@@ -1,6 +1,4 @@
 import { Box, Button, IconButton, MenuItem, Stack, TextField, Tooltip } from '@mui/material';
-import ContentCopyOutlined from '@mui/icons-material/ContentCopyOutlined';
-import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import FileUploadOutlined from '@mui/icons-material/FileUploadOutlined';
 import KeyboardArrowDownRounded from '@mui/icons-material/KeyboardArrowDownRounded';
 import KeyboardArrowUpRounded from '@mui/icons-material/KeyboardArrowUpRounded';
@@ -25,6 +23,7 @@ import {
   settingsToPayload,
   type RoutineSettings,
 } from './RoutineSettingsFields';
+import { IconCopy as ContentCopyOutlined, IconDelete as DeleteOutline } from '../../icons/ecoIcons';
 
 export { TRIGGER_LABELS } from './RoutineSettingsFields';
 

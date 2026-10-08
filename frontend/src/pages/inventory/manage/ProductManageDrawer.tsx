@@ -21,9 +21,6 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import AutoAwesome from '@mui/icons-material/AutoAwesome';
-import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined';
-import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import SwapHoriz from '@mui/icons-material/SwapHoriz';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import { formatRichSearch, checkInRichSearch, inventoryWorkbenchItemsUrl, inventoryWorkbenchUrl } from '../../../utils/richInventorySearch';
@@ -66,6 +63,7 @@ import { processingTokens } from '../processing/processingTokens';
 import { ProcessingGoogleSearchButton } from '../processing/ProcessingGoogleSearchButton';
 import { parseSearchTagsCsv } from '../processing/processingGoogleQuery';
 import { WorkbenchCopyableChip } from '../workbench/WorkbenchCopyableChip';
+import { IconAiAssist as AutoAwesome, IconCopy as ContentCopyOutlinedIcon, IconSave as SaveOutlinedIcon } from '../../../icons/ecoIcons';
 
 interface ProductEditorState extends ProductEditorDraft {
   productId: number | null;

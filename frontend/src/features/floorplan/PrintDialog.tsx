@@ -14,11 +14,11 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import PrintIcon from '@mui/icons-material/Print';
 import type { PlanDocument, PlanElement } from '../../types/floorplan.types';
 import { DEFAULT_LABEL_SETTINGS } from '../../types/floorplan.types';
 import { paletteEntryFor, type PaletteIndex } from './palette';
 import { rotatedBounds } from './geometry';
+import { IconPrint as PrintIcon } from '../../icons/ecoIcons';
 
 export interface PrintOptions {
   blackWhite: boolean;

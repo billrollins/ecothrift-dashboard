@@ -17,7 +17,6 @@ import ChevronRight from '@mui/icons-material/ChevronRight';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import HistoryOutlined from '@mui/icons-material/HistoryOutlined';
-import CheckRounded from '@mui/icons-material/CheckRounded';
 import LocalShippingOutlined from '@mui/icons-material/LocalShippingOutlined';
 import MenuRounded from '@mui/icons-material/MenuRounded';
 import PlayArrowRounded from '@mui/icons-material/PlayArrowRounded';
@@ -30,6 +29,7 @@ import {
   ecoFieldBucketTone,
   ecoFieldStepAccent,
 } from './ecoFieldTheme';
+import { IconConfirm as CheckRounded } from '../../../../icons/ecoIcons';
 
 const PAGE_SIZE = 5;
 /** ~5 dense rows visible; extra loaded rows scroll inside the section. */

@@ -13,9 +13,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import Add from '@mui/icons-material/Add';
-import Refresh from '@mui/icons-material/Refresh';
-import Search from '@mui/icons-material/Search';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { DataGrid, type GridColDef, type GridRenderCellParams } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
@@ -28,6 +25,7 @@ import { parseRichSearch, vendorFiltersToApiParams } from '../../utils/richInven
 
 import type { Vendor, VendorType } from '../../types/inventory.types';
 import { days, landedColor, money, num, parsePeriod, pct, PeriodChoice, shortDate } from './vendors/vendorMetrics';
+import { IconAdd as Add, IconRefresh as Refresh, IconSearch as Search } from '../../icons/ecoIcons';
 
 const VENDOR_TYPES: VendorType[] = ['liquidation', 'retail', 'direct', 'other'];
 

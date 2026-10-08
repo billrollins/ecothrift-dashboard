@@ -1,6 +1,4 @@
 import { Box, MenuItem, Select, TextField, Tooltip, Typography } from '@mui/material';
-import ArchiveOutlined from '@mui/icons-material/ArchiveOutlined';
-import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import DragIndicatorRounded from '@mui/icons-material/DragIndicatorRounded';
 import UnarchiveOutlined from '@mui/icons-material/UnarchiveOutlined';
 import { useSortable } from '@dnd-kit/sortable';
@@ -9,6 +7,7 @@ import { useEffect, useState } from 'react';
 import type { RoutineAssignee, Section } from '../../../api/routines.api';
 import { TaskRowIcon } from '../../../components/duty/TaskRow';
 import { dutyColors } from '../../../components/duty/tokens';
+import { IconArchive as ArchiveOutlined, IconDelete as DeleteOutline } from '../../../icons/ecoIcons';
 
 const SELECT_SX = {
   height: 34,

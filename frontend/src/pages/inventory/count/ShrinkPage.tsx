@@ -16,9 +16,6 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import Download from '@mui/icons-material/Download';
-import Search from '@mui/icons-material/Search';
-import Undo from '@mui/icons-material/Undo';
 import {
   DataGrid,
   type GridColDef,
@@ -39,6 +36,7 @@ import {
   type ShrinkOutcome,
   type ShrinkRow,
 } from '../../../api/stocktake.api';
+import { IconDownload as Download, IconSearch as Search, IconUndo as Undo } from '../../../icons/ecoIcons';
 
 /** The marks, in the order the owner thinks of them; colour = how it reads in the totals. */
 const OUTCOMES: { key: ShrinkOutcome; label: string; short: string; color: 'info' | 'secondary' | 'success' | 'primary' | 'error' | 'warning' }[] = [

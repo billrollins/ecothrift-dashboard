@@ -1,5 +1,4 @@
 import { Box, InputBase, MenuItem, TextField } from '@mui/material';
-import SearchRounded from '@mui/icons-material/SearchRounded';
 import type { ReactNode } from 'react';
 import type { RoutineTrigger } from '../../../api/routines.api';
 import { dutyColors } from '../../../components/duty/tokens';
@@ -12,6 +11,7 @@ import {
   type AdminSort,
   type AdminStatusFilter,
 } from './adminRoutineFilters';
+import { IconSearch as SearchRounded } from '../../../icons/ecoIcons';
 
 const SORT_LABELS: Record<AdminSort, string> = {
   attention: 'Needs attention',

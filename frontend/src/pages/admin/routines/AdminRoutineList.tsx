@@ -1,7 +1,5 @@
 import { Box, Typography } from '@mui/material';
-import ArchiveOutlined from '@mui/icons-material/ArchiveOutlined';
 import ChecklistRtlRounded from '@mui/icons-material/ChecklistRtlRounded';
-import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import UnarchiveOutlined from '@mui/icons-material/UnarchiveOutlined';
 import { useMemo } from 'react';
 import type { AdminRoutine } from '../../../api/routines.api';
@@ -12,6 +10,7 @@ import { triggerGlyphIcon } from '../../routines/routineGlyphs';
 import { AdminRoutineFilterBar } from './AdminRoutineFilterBar';
 import { baseRows, flagCounts, visibleRows, type AdminRoutineFilters } from './adminRoutineFilters';
 import { presentAdminRoutine } from './presentAdminRoutine';
+import { IconArchive as ArchiveOutlined, IconDelete as DeleteOutline } from '../../../icons/ecoIcons';
 
 export function summaryNote(rows: AdminRoutine[], shown: number): string {
   const active = rows.filter((r) => r.is_active).length;

@@ -20,11 +20,6 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import SaveIcon from '@mui/icons-material/Save';
-import FileDownloadIcon from '@mui/icons-material/FileDownload';
-import PrintIcon from '@mui/icons-material/Print';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useSnackbar } from 'notistack';
 import { isAxiosError } from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
@@ -85,6 +80,7 @@ import AdjustPlanDialog from '../../features/floorplan/AdjustPlanDialog';
 import BuildSvgDialog from '../../features/floorplan/BuildSvgDialog';
 import { exportPlanJson, exportPlanPng } from '../../features/floorplan/exportPlan';
 import PrintDialog from '../../features/floorplan/PrintDialog';
+import { IconAiAssist as AutoAwesomeIcon, IconBack as ArrowBackIcon, IconDownload as FileDownloadIcon, IconPrint as PrintIcon, IconSave as SaveIcon } from '../../icons/ecoIcons';
 
 const EMPTY_DOC_STATE = initialEditorState({
   schema_version: 1,

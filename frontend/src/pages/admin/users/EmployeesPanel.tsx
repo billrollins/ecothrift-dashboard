@@ -26,8 +26,6 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import Add from '@mui/icons-material/Add';
-import Search from '@mui/icons-material/Search';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useQuery } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -57,6 +55,7 @@ import {
 } from '../../../hooks/useEmployees';
 import { useIsMobileLayout } from '../../../hooks/useIsMobileLayout';
 import { maskPhoneInput, stripPhone } from '../../../utils/formatPhone';
+import { IconAdd as Add, IconSearch as Search } from '../../../icons/ecoIcons';
 
 type Props = {
   onSelect: (userId: number) => void;

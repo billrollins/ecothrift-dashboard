@@ -15,8 +15,6 @@ import {
   ToggleButton,
   ToggleButtonGroup,
 } from '@mui/material';
-import Add from '@mui/icons-material/Add';
-import Search from '@mui/icons-material/Search';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
@@ -29,6 +27,7 @@ import {
 import { useUsers } from '../../hooks/useEmployees';
 import type { ConsigneeAccount } from '../../api/consignment.api';
 import { formatPhone, maskPhoneInput, stripPhone } from '../../utils/formatPhone';
+import { IconAdd as Add, IconSearch as Search } from '../../icons/ecoIcons';
 
 export default function AccountsPage() {
   const navigate = useNavigate();

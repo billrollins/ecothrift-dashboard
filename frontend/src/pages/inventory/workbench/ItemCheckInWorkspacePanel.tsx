@@ -34,9 +34,7 @@ import {
 
 } from '@mui/material';
 
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 
-import LocalPrintshopOutlinedIcon from '@mui/icons-material/LocalPrintshopOutlined';
 
 import OpenInNewOutlinedIcon from '@mui/icons-material/OpenInNewOutlined';
 
@@ -54,6 +52,7 @@ import { processingTokens } from '../processing/processingTokens';
 
 import { CheckInRemapDialog } from './CheckInRemapDialog';
 import { useWorkbenchConfirmDialog } from './useWorkbenchConfirmDialog';
+import { IconEdit as EditOutlinedIcon, IconPrint as LocalPrintshopOutlinedIcon } from '../../../icons/ecoIcons';
 
 
 

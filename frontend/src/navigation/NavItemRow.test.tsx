@@ -8,7 +8,7 @@ const item: ResolvedNavItem = {
   id: 'onlineSalesHolds',
   path: '/online-sales/holds',
   label: 'Holds',
-  icon: 'storefront',
+  icon: 'webStore',
   Icon: Storefront,
 };
 

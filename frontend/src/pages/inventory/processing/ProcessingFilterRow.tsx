@@ -1,5 +1,4 @@
 import { Box, Chip, Typography } from '@mui/material';
-import Close from '@mui/icons-material/Close';
 import {
   clickProcessingQueueFilter,
   isProcessingQueueFilterChipActive,
@@ -8,6 +7,7 @@ import {
   type ProcessingQueueFilterState,
 } from './processingWorkspaceFilters';
 import { processingTokens } from './processingTokens';
+import { IconClose as Close } from '../../../icons/ecoIcons';
 
 export interface ProcessingFilterRowProps {
   filters: ProcessingQueueFilterState;

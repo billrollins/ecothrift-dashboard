@@ -15,7 +15,6 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import Close from '@mui/icons-material/Close';
 import RotateLeft from '@mui/icons-material/RotateLeft';
 import RotateRight from '@mui/icons-material/RotateRight';
 import ReactCrop, { type Crop as CropState } from 'react-image-crop';
@@ -37,6 +36,7 @@ import {
   storedCropToPct,
   type PctRect,
 } from '../../../utils/imageEdit';
+import { IconClose as Close } from '../../../icons/ecoIcons';
 
 type SlotId = 'full' | 'main' | 'grid' | 'thumb';
 

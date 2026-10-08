@@ -2,9 +2,9 @@ import { Box, Button, Chip, IconButton, Stack, TextField, Typography } from '@mu
 import ArrowDownward from '@mui/icons-material/ArrowDownward';
 import ArrowUpward from '@mui/icons-material/ArrowUpward';
 import Crop from '@mui/icons-material/Crop';
-import Delete from '@mui/icons-material/Delete';
 import type { WebListingImage } from '../../../api/webstore.api';
 import { listingImageUrl } from '../../../api/webstore.api';
+import { IconDelete as Delete } from '../../../icons/ecoIcons';
 
 export function ListingPhotoGrid({
   images,

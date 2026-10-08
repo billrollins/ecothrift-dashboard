@@ -1,10 +1,10 @@
 import { useCallback, useEffect } from 'react';
 import { useItem } from '../../hooks/useInventory';
 import { Box, Drawer, IconButton, Toolbar, Typography } from '@mui/material';
-import Close from '@mui/icons-material/Close';
 import ItemFormWithActions from './ItemFormWithActions';
 import { ITEM_DRAWER_FORM_ID } from './ItemForm';
 import type { Item } from '../../types/inventory.types';
+import { IconClose as Close } from '../../icons/ecoIcons';
 
 const DRAWER_WIDTH = 760;
 

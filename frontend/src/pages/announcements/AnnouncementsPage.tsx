@@ -22,10 +22,6 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import EditIcon from '@mui/icons-material/Edit';
 import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
@@ -38,6 +34,7 @@ import {
   useToggleAnnouncement,
 } from '../../hooks/useAnnouncements';
 import type { Announcement, AnnouncementStatus } from '../../api/webstore.api';
+import { IconAdd as AddIcon, IconCopy as ContentCopyIcon, IconDelete as DeleteOutlineIcon, IconEdit as EditIcon } from '../../icons/ecoIcons';
 
 const FILTERS: { id: string; label: string }[] = [
   { id: '', label: 'All' },

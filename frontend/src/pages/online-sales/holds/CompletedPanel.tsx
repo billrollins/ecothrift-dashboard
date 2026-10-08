@@ -11,7 +11,6 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import Search from '@mui/icons-material/Search';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
 import { useSalesLog } from '../../../hooks/useWebStore';
@@ -29,6 +28,7 @@ import {
 } from '../presentation';
 import { useOnlineSalesMobile } from '../useOnlineSalesMobile';
 import HoldMobileList from './HoldMobileList';
+import { IconSearch as Search } from '../../../icons/ecoIcons';
 
 type RangeKey = 'today' | '7' | '30' | 'all';
 

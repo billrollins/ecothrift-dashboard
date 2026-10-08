@@ -1,8 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import { Alert, Box, Button, Chip, Stack, Typography } from '@mui/material';
-import AddRounded from '@mui/icons-material/AddRounded';
-import EditRounded from '@mui/icons-material/EditRounded';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import {
@@ -36,6 +34,7 @@ import { DeskDayDialog } from './DeskDayDialog';
 import { DeskDayLiveMonitor } from './DeskDayLiveMonitor';
 import { DeskPlanningRow } from './DeskPlanningRow';
 import { deliveryDayPath, deliveryListPath } from '../deliveryPaths';
+import { IconAdd as AddRounded, IconEdit as EditRounded } from '../../../../icons/ecoIcons';
 
 export default function DeskDayDetailPage() {
   const { dayId } = useParams();

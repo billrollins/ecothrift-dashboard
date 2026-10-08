@@ -12,7 +12,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import ArrowBack from '@mui/icons-material/ArrowBack';
 import { DataGrid } from '@mui/x-data-grid';
 import { useQuery } from '@tanstack/react-query';
 import { getOneVendorMetrics } from '../../api/inventory.api';
@@ -23,6 +22,7 @@ import { useVendor, useUpdateVendor, usePurchaseOrders, usePurchaseOrderPageMetr
 import { buildOrderListColumns, type OrderListRowView } from './orderList/orderListColumns';
 import { parsePeriod, PeriodChoice, VendorMetricCards } from './vendors/vendorMetrics';
 import type { VendorType } from '../../types/inventory.types';
+import { IconBack as ArrowBack } from '../../icons/ecoIcons';
 
 const VENDOR_TYPES: VendorType[] = ['liquidation', 'retail', 'direct', 'other'];
 

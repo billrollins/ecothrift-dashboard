@@ -1,5 +1,4 @@
 import { Box, Button, Typography, useMediaQuery, useTheme } from '@mui/material';
-import AddRounded from '@mui/icons-material/AddRounded';
 import TuneRounded from '@mui/icons-material/TuneRounded';
 import { useQuery } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -21,6 +20,7 @@ import { AdminRoutineList } from './AdminRoutineList';
 import { AdminSectionsPane } from './AdminSectionsPane';
 import { AdminViewToggle, parseAdminView, type AdminRoutineView } from './AdminViewToggle';
 import { DEFAULT_ADMIN_FILTERS, type AdminRoutineFilters } from './adminRoutineFilters';
+import { IconAdd as AddRounded } from '../../../icons/ecoIcons';
 
 /** Same width as the Routines page panes, so the two rooms feel like one building. */
 const LIST_WIDTH = 'clamp(520px, 48%, 720px)';

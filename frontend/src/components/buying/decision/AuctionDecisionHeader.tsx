@@ -1,6 +1,4 @@
 import ChevronLeft from '@mui/icons-material/ChevronLeft';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import RefreshRounded from '@mui/icons-material/RefreshRounded';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
 import StarIcon from '@mui/icons-material/Star';
 import {
@@ -25,6 +23,7 @@ import { patchBuyingAuctionBuyer } from '../../../api/buying.api';
 import type { AuctionDecision, BuyingAuctionDetail } from '../../../types/buying.types';
 import { formatCurrencyWhole } from '../../../utils/format';
 import { ScoreBadge } from './ScoreBadge';
+import { IconOpenExternal as OpenInNewIcon, IconRefresh as RefreshRounded } from '../../../icons/ecoIcons';
 
 function useCountdown(end: string | null | undefined): { text: string; seconds: number | null } {
   const [now, setNow] = useState(() => Date.now());

@@ -1,7 +1,3 @@
-import Close from '@mui/icons-material/Close';
-import LocalPrintshop from '@mui/icons-material/LocalPrintshop';
-import Remove from '@mui/icons-material/Remove';
-import Add from '@mui/icons-material/Add';
 import {
   Box,
   Button,
@@ -44,6 +40,7 @@ import { isLargeCheckIn, MAX_CHECK_IN_QUANTITY } from './largeCheckIn';
 import { processingTokens } from './processingTokens';
 import { ProcessingCheckInEditStats, ProductSummaryCard } from './ProcessingCheckInEditStats';
 import { useWorkbenchConfirmDialog } from '../workbench/useWorkbenchConfirmDialog';
+import { IconAdd as Add, IconClose as Close, IconPrint as LocalPrintshop, IconRemove as Remove } from '../../../icons/ecoIcons';
 
 const MAX_CHECK_IN_QTY = MAX_CHECK_IN_QUANTITY;
 

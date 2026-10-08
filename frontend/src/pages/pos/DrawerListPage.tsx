@@ -18,9 +18,7 @@ import {
   Select,
   Typography,
 } from '@mui/material';
-import Add from '@mui/icons-material/Add';
 import LockReset from '@mui/icons-material/LockReset';
-import Remove from '@mui/icons-material/Remove';
 import SwapHoriz from '@mui/icons-material/SwapHoriz';
 import MoveDown from '@mui/icons-material/MoveDown';
 import ExpandMore from '@mui/icons-material/ExpandMore';
@@ -47,6 +45,7 @@ import { useDeviceConfig } from '../../hooks/useDeviceConfig';
 import type { DenominationBreakdown } from '../../types/pos.types';
 import type { Drawer } from '../../types/pos.types';
 import { format } from 'date-fns';
+import { IconAdd as Add, IconRemove as Remove } from '../../icons/ecoIcons';
 
 function formatCurrency(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;

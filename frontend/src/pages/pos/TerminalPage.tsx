@@ -37,10 +37,7 @@ import AccessTime from '@mui/icons-material/AccessTime';
 import AccountBalance from '@mui/icons-material/AccountBalance';
 import Build from '@mui/icons-material/Build';
 import CancelOutlined from '@mui/icons-material/CancelOutlined';
-import Check from '@mui/icons-material/Check';
-import Delete from '@mui/icons-material/Delete';
 import DeleteForever from '@mui/icons-material/DeleteForever';
-import Edit from '@mui/icons-material/Edit';
 import LocalShipping from '@mui/icons-material/LocalShipping';
 import Percent from '@mui/icons-material/Percent';
 import WbSunny from '@mui/icons-material/WbSunny';
@@ -48,7 +45,6 @@ import PersonOff from '@mui/icons-material/PersonOff';
 import PersonOutline from '@mui/icons-material/PersonOutline';
 import PlayArrow from '@mui/icons-material/PlayArrow';
 import PointOfSale from '@mui/icons-material/PointOfSale';
-import Search from '@mui/icons-material/Search';
 import Sell from '@mui/icons-material/Sell';
 import Settings from '@mui/icons-material/Settings';
 import { useSnackbar } from 'notistack';
@@ -116,6 +112,7 @@ import {
   thriftErrorMessage,
 } from '../../api/thriftplusRegister.api';
 import { thriftCardCode } from '../../utils/thriftPlusCard';
+import { IconConfirm as Check, IconDelete as Delete, IconEdit as Edit, IconSearch as Search } from '../../icons/ecoIcons';
 
 // ── Terminal state machine ─────────────────────────────────────────────────
 

@@ -15,7 +15,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import Search from '@mui/icons-material/Search';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
@@ -26,6 +25,7 @@ import {
   useWebOrders,
 } from '../../hooks/useWebStore';
 import type { WebOrder } from '../../api/webstore.api';
+import { IconSearch as Search } from '../../icons/ecoIcons';
 
 const STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending' },

@@ -1,4 +1,3 @@
-import PrintIcon from '@mui/icons-material/Print';
 import {
   Box,
   Button,
@@ -28,6 +27,7 @@ import {
   RestorationReceiveDialog,
 } from '../../restoration/queue/RestorationReceiveDialog';
 import { runRestorationReceive } from '../../restoration/queue/restorationReceive';
+import { IconPrint as PrintIcon } from '../../../icons/ecoIcons';
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '-';

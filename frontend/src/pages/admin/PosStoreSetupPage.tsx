@@ -16,9 +16,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import Add from '@mui/icons-material/Add';
-import Delete from '@mui/icons-material/Delete';
-import Edit from '@mui/icons-material/Edit';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useSnackbar } from 'notistack';
 import { PageHeader } from '../../components/common/PageHeader';
@@ -41,6 +38,7 @@ import {
 } from '../../hooks/useStoreLocations';
 import type { DenominationBreakdown, Register } from '../../types/pos.types';
 import type { WorkLocation } from '../../api/core.api';
+import { IconAdd as Add, IconDelete as Delete, IconEdit as Edit } from '../../icons/ecoIcons';
 
 const DEFAULT_STARTING_BREAKDOWN: DenominationBreakdown = {
   hundreds: 0,

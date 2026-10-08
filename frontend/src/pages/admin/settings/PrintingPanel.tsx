@@ -15,9 +15,6 @@ import {
   Typography,
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material/Select';
-import Download from '@mui/icons-material/Download';
-import Print from '@mui/icons-material/Print';
-import Refresh from '@mui/icons-material/Refresh';
 import Speed from '@mui/icons-material/Speed';
 import { keyframes } from '@mui/material/styles';
 import { useSnackbar } from 'notistack';
@@ -31,6 +28,7 @@ import type {
   PrinterInfo,
   PrinterSettings,
 } from '../../../services/localPrintService';
+import { IconDownload as Download, IconPrint as Print, IconRefresh as Refresh } from '../../../icons/ecoIcons';
 
 interface PrintServerReleaseData {
   available: boolean;

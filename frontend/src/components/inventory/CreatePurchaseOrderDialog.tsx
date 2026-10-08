@@ -9,9 +9,7 @@ import {
   Popover,
   Typography,
 } from '@mui/material';
-import Close from '@mui/icons-material/Close';
 import ExpandMore from '@mui/icons-material/ExpandMore';
-import OpenInNew from '@mui/icons-material/OpenInNew';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { guessOrderVendor } from '../../api/inventory.api';
@@ -23,6 +21,7 @@ import {
   selectInputContentsOnFocus,
 } from '../../utils/formInputs';
 import { moneySumDisplay, parseMoneySum, sanitizeMoneySumPaste } from '../../utils/moneySum';
+import { IconClose as Close, IconOpenExternal as OpenInNew } from '../../icons/ecoIcons';
 
 /** Mock-aligned labels; values match backend `PurchaseOrderCondition`. */
 const CREATE_PO_CONDITIONS: { label: string; value: PurchaseOrderCondition }[] = [

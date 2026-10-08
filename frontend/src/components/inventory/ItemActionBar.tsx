@@ -1,12 +1,10 @@
 import { Button, CircularProgress, Stack } from '@mui/material';
 import CheckCircle from '@mui/icons-material/CheckCircle';
 import ClearAll from '@mui/icons-material/ClearAll';
-import Close from '@mui/icons-material/Close';
-import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import LabelOutlined from '@mui/icons-material/LabelOutlined';
 import LocalOffer from '@mui/icons-material/LocalOffer';
-import SaveOutlined from '@mui/icons-material/SaveOutlined';
 import type { Item } from '../../types/inventory.types';
+import { IconClose as Close, IconDelete as DeleteOutline, IconSave as SaveOutlined } from '../../icons/ecoIcons';
 
 export type ItemActionBarProps = {
   mode: 'create' | 'edit';

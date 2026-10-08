@@ -1,6 +1,5 @@
 import { Box, IconButton, TextField, Tooltip, Typography } from '@mui/material';
 import LockOutlined from '@mui/icons-material/LockOutlined';
-import MoreVert from '@mui/icons-material/MoreVert';
 import { useEffect, useState } from 'react';
 import type { RosterAssignment, RosterShift } from '../../../api/hr.api';
 import { dutyColors } from '../../../components/duty/tokens';
@@ -20,6 +19,7 @@ import {
   personDays,
   shiftDays,
 } from './shiftsLayout';
+import { IconMore as MoreVert } from '../../../icons/ecoIcons';
 
 const fieldSx = {
   '& .MuiInputBase-root': {

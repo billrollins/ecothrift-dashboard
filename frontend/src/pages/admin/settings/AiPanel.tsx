@@ -23,7 +23,6 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import EditIcon from '@mui/icons-material/Edit';
 import ChatOutlined from '@mui/icons-material/ChatOutlined';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -54,6 +53,7 @@ import { AiTestDialog } from './AiTestDialog';
 import { PriceCell } from './AiPriceCell';
 import { AiPriceCheck } from './AiPriceCheck';
 import { startAiPriceCheck } from '../../../api/aiSettings.api';
+import { IconEdit as EditIcon } from '../../../icons/ecoIcons';
 
 const MODALITY_LABEL: Record<AiModality, string> = { text: 'Text', image: 'Image' };
 

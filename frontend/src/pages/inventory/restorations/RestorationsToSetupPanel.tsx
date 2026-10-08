@@ -1,4 +1,3 @@
-import SaveIcon from '@mui/icons-material/Save';
 import {
   Alert,
   Box,
@@ -31,6 +30,7 @@ import {
 } from '../processing/processingHandoff';
 import { buildRestorationCardItemFromProcessing } from '../processing/ProcessingSendToRestorationDialog';
 import { processingTokens } from '../processing/processingTokens';
+import { IconSave as SaveIcon } from '../../../icons/ecoIcons';
 
 export interface RestorationsToSetupPanelProps {
   job: RestorationJobDTO;

@@ -19,7 +19,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useSnackbar } from 'notistack';
 
 import {
@@ -29,6 +28,7 @@ import {
 } from '../../../api/labels.api';
 import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
 import { formatApiError } from './labelStudioUtils';
+import { IconAiAssist as AutoAwesomeIcon } from '../../../icons/ecoIcons';
 
 type TabKey = 'structure' | 'background';
 

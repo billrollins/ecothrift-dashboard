@@ -23,18 +23,15 @@ import {
   Typography,
 } from '@mui/material';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
-import UndoIcon from '@mui/icons-material/Undo';
 import RedoIcon from '@mui/icons-material/Redo';
 import ZoomInIcon from '@mui/icons-material/ZoomIn';
 import ZoomOutIcon from '@mui/icons-material/ZoomOut';
 import GridOnIcon from '@mui/icons-material/GridOn';
 import GridOffIcon from '@mui/icons-material/GridOff';
-import DeleteIcon from '@mui/icons-material/Delete';
 import RotateRightIcon from '@mui/icons-material/RotateRight';
 import NearMeIcon from '@mui/icons-material/NearMe';
 import LabelIcon from '@mui/icons-material/Label';
 import LabelOffIcon from '@mui/icons-material/LabelOff';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import ControlPointDuplicateIcon from '@mui/icons-material/ControlPointDuplicate';
 import WorkspacesIcon from '@mui/icons-material/Workspaces';
 import WorkspacesOutlinedIcon from '@mui/icons-material/WorkspacesOutlined';
@@ -43,10 +40,6 @@ import CropSquareIcon from '@mui/icons-material/CropSquare';
 import GestureIcon from '@mui/icons-material/Gesture';
 import ContentCutIcon from '@mui/icons-material/ContentCut';
 import TextFieldsIcon from '@mui/icons-material/TextFields';
-import UploadFileIcon from '@mui/icons-material/UploadFile';
-import AddIcon from '@mui/icons-material/Add';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import EditIcon from '@mui/icons-material/Edit';
 import FlipIcon from '@mui/icons-material/Flip';
 import LinkIcon from '@mui/icons-material/Link';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
@@ -89,6 +82,7 @@ import {
 import { SNAP_OPTIONS } from './snapping';
 import { paletteCategories, type PaletteEntry, type PaletteIndex } from './palette';
 import type { DrawStroke } from './FloorplanCanvas';
+import { IconAdd as AddIcon, IconAiAssist as AutoAwesomeIcon, IconCopy as ContentCopyIcon, IconDelete as DeleteIcon, IconEdit as EditIcon, IconUndo as UndoIcon, IconUpload as UploadFileIcon } from '../../icons/ecoIcons';
 
 /** Plan dimension limits (inches): 2 ft - 1000 ft, well under the backend cap. */
 const MIN_PLAN_DIM = 24;

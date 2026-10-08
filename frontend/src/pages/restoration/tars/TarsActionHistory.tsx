@@ -14,7 +14,6 @@ import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import DeleteOutline from '@mui/icons-material/DeleteOutline';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { NoteInlineEditor } from '../../../components/notes/NoteInlineEditor';
 import { useJobNotes, useReviseItemNote } from '../../../hooks/useItemNotes';
@@ -42,6 +41,7 @@ import { HistoryFilterRows } from './tarsHistoryFilters';
 import { categoryMeta, historyTypeMeta } from './tarsActions';
 import { tarsPaneCardSx, tarsPaneScrollSx } from './tarsPaneScroll';
 import { CURRENT_ACTION_HEIGHT, CurrentAction } from './TarsWorkPanel';
+import { IconDelete as DeleteOutline } from '../../../icons/ecoIcons';
 
 const ROW_ACTION_SLOT = 28;
 const HISTORY_COLUMNS = '76px 64px 68px minmax(0, 1fr) 28px';

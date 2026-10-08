@@ -11,7 +11,6 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import Close from '@mui/icons-material/Close';
 import KeyboardArrowDown from '@mui/icons-material/KeyboardArrowDown';
 import { Link as RouterLink } from 'react-router-dom';
 import { OrderPickerOptionRow } from '../../../components/inventory/OrderPickerOptionRow';
@@ -20,6 +19,7 @@ import type { ProcessingWorkspaceOrderDTO, ProcessingWorkspaceRollupsDTO } from 
 import { formatCurrency } from '../../../utils/format';
 import { orderPickerProcessingBadgeColors } from '../../../utils/orderPickerDisplay';
 import { processingTokens } from './processingTokens';
+import { IconClose as Close } from '../../../icons/ecoIcons';
 
 export interface ProcessingWorkspaceOrderPickRow {
   id: number;
