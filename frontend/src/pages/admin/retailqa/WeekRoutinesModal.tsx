@@ -1,21 +1,32 @@
 import { addDays, format, parseISO } from 'date-fns';
 import { useMemo, useState } from 'react';
-import type { RoutineRun } from '../../../api/routines.api';
+import type { QaResolveKind, RoutineRun } from '../../../api/routines.api';
 import { useQaRoutines } from '../../../hooks/useRetailQa';
 import { weekMonday } from '../routines/gradeWeek';
 import { CHECKLISTS_LABEL, displayName, missReasonText, shortName } from './commandCenter';
 import { qaStatusWord } from './qaStatus';
+import { ItemsMenu } from './ItemsMenu';
 import { BoardDialog } from './SummaryDialogs';
+
+/** Who cleared a run, when the owner marked it done or forgave it. */
+function resolvedOf(run: RoutineRun | undefined): { kind: string; by_name?: string } | null {
+  const info = (run?.generated as { resolved?: { kind?: string; by_name?: string } } | undefined)?.resolved;
+  return info?.kind ? { kind: info.kind, by_name: info.by_name } : null;
+}
 
 export function WeekRoutinesModal({
   open,
   onClose,
   week,
+  onResolve,
 }: {
   open: boolean;
   onClose: () => void;
   week: string;
+  /** Superusers only: mark done or forgive a missed or past-due run. */
+  onResolve?: (runId: number, kind: QaResolveKind) => void;
 }) {
+  const [menu, setMenu] = useState<{ runId: number; anchor: HTMLElement } | null>(null);
   const [kind, setKind] = useState('');
   const [status, setStatus] = useState('');
   const [person, setPerson] = useState('');
@@ -94,20 +105,46 @@ export function WeekRoutinesModal({
                 const iso = format(day, 'yyyy-MM-dd');
                 const run = runs.find((row) => row.period_key === iso);
                 const word = run ? qaStatusWord(run.status) : '';
-                const dot = word === 'Done' ? 'ok' : word === 'Missed' ? 'miss' : word ? 'due' : '';
+                const cleared = resolvedOf(run);
+                const dot = cleared?.kind === 'forgiven' ? 'forgiven' : word === 'Done' ? 'ok' : word === 'Missed' ? 'miss' : word ? 'due' : '';
                 const who = run?.completed_by_name || run?.assigned_to_name || '';
                 const why = word === 'Missed' ? missReasonText(run) : '';
-                const tip = run
-                  ? `${word}${run.completed_at ? ` ${format(parseISO(run.completed_at), 'HH:mm')}` : ''}${who ? ` by ${shortName(who)}` : ''}${why ? ` · ${why}` : ''}`
-                  : '';
+                const tip = cleared
+                  ? `${cleared.kind === 'forgiven' ? 'Forgiven' : 'Marked done'}${cleared.by_name ? ` by ${shortName(cleared.by_name)}` : ''}`
+                  : run
+                    ? `${word}${run.completed_at ? ` ${format(parseISO(run.completed_at), 'HH:mm')}` : ''}${who ? ` by ${shortName(who)}` : ''}${why ? ` · ${why}` : ''}`
+                    : '';
+                // Owner, 2026-10-08: any missed or past-due routine can be marked done or forgiven.
+                const clearable = Boolean(
+                  onResolve && run && run.status !== 'done' && Date.parse(run.due_at) <= Date.now(),
+                );
                 return (
-                  <td key={iso} title={tip}>{dot ? <i className={`dot ${dot}`} /> : null}</td>
+                  <td key={iso} title={tip}>
+                    {clearable && run ? (
+                      <button
+                        type="button"
+                        className="dot-btn"
+                        aria-label={`Clear ${run.title} on ${format(day, 'EEE d')}`}
+                        onClick={(event) => setMenu({ runId: run.id, anchor: event.currentTarget })}
+                      >
+                        <i className={`dot ${dot}`} />
+                      </button>
+                    ) : dot ? <i className={`dot ${dot}`} /> : null}
+                  </td>
                 );
               })}
             </tr>
           ))}
         </tbody>
       </table>
+      <ItemsMenu
+        anchor={menu?.anchor ?? null}
+        onClose={() => setMenu(null)}
+        items={menu && onResolve ? [
+          { label: 'Mark done', onClick: () => onResolve(menu.runId, 'done') },
+          { label: 'Forgive', onClick: () => onResolve(menu.runId, 'forgiven') },
+        ] : []}
+      />
     </BoardDialog>
   );
 }

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.157.0] -->
-<!-- Last reviewed: 2026-10-08 (2.157.0) -->
+<!-- Line 1 release: ## [2.158.0] -->
+<!-- Last reviewed: 2026-10-08 (2.158.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.158.0] - 2026-10-08
+
+User-facing theme: **Retail QA: Mark done and Forgive on every routine (checklists, section checks, cross checks, spot walks), and both now score as done.** Bill, 2026-10-08.
+
+### Changed
+
+- **Every routine clears:** a superuser marks done or forgives any missed or past-due routine, from Needs your attention, the Routines card (a row the day never made a run for gets one) or the Week view (tap a missed dot). Overdue rows today can be cleared too.
+- **How they score:** **Mark done** (it was done, not recorded) and **Forgive** (not done, on purpose: the team was on something else) both score exactly as a clean, finished routine on time: they count as done for the person and the day, a cleared section check counts its aisle (a person's whole section check counts all their aisles), and a cleared cross check or spot walk scores 100. The record keeps which it was and who cleared it: "Forgiven by Bill" on the row, a ring dot in the Week view.
+- **A section row clears only its aisle**, never the owner's other aisles.
+- **API:** `POST /api/routines/qa/resolve/` ({date, key, section?, kind, note}) for a board row by what it is; the run endpoint takes any routine now.
+
+### Tests
+
+- `apps/routines/test_resolve_missed.py` (6): both kinds count as done for the person; a cleared cross check and spot walk score 100; a row with no run is cleared by what it is (section rows only their aisle); superuser only.
+- `RoutinesCard.test.tsx`: Mark done on a past-due row with no run.
 
 ## [2.157.0] - 2026-10-08
 

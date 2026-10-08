@@ -34,7 +34,7 @@ export function IssuesBar({
   onOpenShifts: () => void;
   onRemove: (personId: number) => void;
   /** Superusers only: forgive or mark done a missed routine. Left out for everyone else. */
-  onResolve?: (runId: number, kind: QaResolveKind) => void;
+  onResolve?: (row: BoardIssue, kind: QaResolveKind) => void;
   /** False on a past day: there is no one left to nudge. */
   canNudge?: boolean;
   closedLabel?: string | null;
@@ -122,20 +122,19 @@ function issueMenu(
     onDoSpot: () => void;
     onOpenShifts: () => void;
     onRemove: (personId: number) => void;
-    onResolve?: (runId: number, kind: QaResolveKind) => void;
+    onResolve?: (row: BoardIssue, kind: QaResolveKind) => void;
   },
   canNudge = true,
 ): { label: string; items: RowMenuItem[] } | null {
   if (row.action === 'resolve_missed') {
     // A missed routine can't be nudged; a superuser clears it instead (owner, 2026-10-08).
     const { onResolve } = handlers;
-    if (!row.run_id || !onResolve) return null;
-    const runId = row.run_id;
+    if (!onResolve) return null;
     return {
       label: 'Resolve',
       items: [
-        { label: 'Mark done', onClick: () => onResolve(runId, 'done') },
-        { label: 'Forgive', onClick: () => onResolve(runId, 'forgiven') },
+        { label: 'Mark done', onClick: () => onResolve(row, 'done') },
+        { label: 'Forgive', onClick: () => onResolve(row, 'forgiven') },
       ],
     };
   }

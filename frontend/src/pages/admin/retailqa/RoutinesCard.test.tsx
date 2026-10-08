@@ -50,7 +50,26 @@ describe('RoutinesCard', () => {
     fireEvent.click(screen.getByRole('button', { name: /Missed/ }));
     expect(screen.queryByText('Nudge')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('Forgive'));
-    expect(onResolve).toHaveBeenCalledWith(21, 'forgiven');
+    expect(onResolve).toHaveBeenCalledWith(expect.objectContaining({ run_id: 21 }), 'forgiven');
+  });
+
+  it('offers Mark done on any past-due row, even one with no run behind it', () => {
+    const onResolve = vi.fn();
+    render(
+      <RoutinesCard
+        date="2026-10-05"
+        jobs={[{ ...MISSED, run_id: null, owner: null }]}
+        people={[]}
+        onAssign={() => {}}
+        onNudge={() => {}}
+        onResolve={onResolve}
+        canNudge={false}
+        onWeekView={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Missed/ }));
+    fireEvent.click(screen.getByText('Mark done'));
+    expect(onResolve).toHaveBeenCalledWith(expect.objectContaining({ key: 'retail.open', run_id: null }), 'done');
   });
 
   it('offers no Nudge on a missed routine to anyone else either', () => {

@@ -1066,7 +1066,6 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
 MISS_REASON_LABELS = {code: label for code, label in RoutineRun.MISS_REASON_CHOICES}
 
 RESOLVE_KINDS = {'done': 'Marked done', 'forgiven': 'Forgiven'}
-RESOLVABLE_KEYS = (SYSTEM_OPEN, SYSTEM_DAY, SYSTEM_CLOSE, SYSTEM_TALLY)
 
 
 class ResolveError(ValueError):
@@ -1074,18 +1073,16 @@ class ResolveError(ValueError):
 
 
 def resolve_missed_run(run: RoutineRun, *, kind: str, by, note: str = '', now: datetime | None = None) -> RoutineRun:
-    """A superuser clears a missed (or past-due) routine (owner, 2026-10-08).
+    """A superuser clears any missed (or past-due) routine (owner, 2026-10-08).
 
-    'done': it was done but not recorded; it counts as done on time.
-    'forgiven': it wasn't done, but it doesn't count against the person (left out of their numbers).
-    Either way the run becomes Done, kept on time, and generated['resolved'] says who, when and why. Cross checks
-    and spot walks are scored from their counts, so they can't be cleared this way.
+    'done': it was done but not recorded. 'forgiven': it was not done (on purpose: the team was on something else).
+    Both score exactly as a clean, finished routine on time: checklists and section checks count as done, a cross
+    check or spot walk scores 100 (grading reads generated['resolved']). The run becomes Done, and
+    generated['resolved'] keeps who, when, which kind, the note and what it was before.
     """
     now = now or timezone.now()
     if kind not in RESOLVE_KINDS:
         raise ResolveError('Pick Mark done or Forgive.')
-    if run.routine.system_key not in RESOLVABLE_KEYS:
-        raise ResolveError('Only the open, day and close checklists and section checks can be cleared here.')
     if run.status == RoutineRun.STATUS_DONE:
         raise ResolveError('That routine is already done.')
     if run.due_at and run.due_at > now:
@@ -1102,7 +1099,54 @@ def resolve_missed_run(run: RoutineRun, *, kind: str, by, note: str = '', now: d
     if run.completed_by_id is None:
         run.completed_by = run.assigned_to or by
     run.save(update_fields=['generated', 'status', 'completed_at', 'completed_by'])
+    resolve_nudges_for_run(run, now=now)
     return run
+
+
+def resolve_board_job(day: date, *, key: str, section_id: int | None = None, kind: str, by, note: str = '',
+                      now: datetime | None = None) -> RoutineRun:
+    """Clear a board row by what it is, creating its run when the day never made one.
+
+    A section row clears only that aisle: its own section-scoped run (made here when missing), never the owner's
+    whole per-person run. A checklist row clears the day's run for that checklist (made here when missing).
+    """
+    if kind not in RESOLVE_KINDS:
+        raise ResolveError('Pick Mark done or Forgive.')
+    _local, cfg, tz = _local_now()
+    period = day.isoformat()
+    if key == SYSTEM_TALLY:
+        section = Section.objects.filter(pk=section_id).select_related('owner').first() if section_id else None
+        if section is None:
+            raise ResolveError('Pick a section.')
+        routine = Routine.objects.filter(system_key=SYSTEM_TALLY).first()
+        if routine is None:
+            raise ResolveError('Section check is not set up.')
+        run = RoutineRun.objects.filter(
+            routine=routine, period_key=period, section=section, section_scoped=True,
+        ).select_related('routine').first()
+        if run is None:
+            owner_run = RoutineRun.objects.filter(
+                routine=routine, period_key=period, assigned_to=section.owner_id, section_scoped=False,
+            ).first() if section.owner_id else None
+            run = RoutineRun.objects.create(
+                routine=routine, period_key=period, section=section, section_scoped=True,
+                subject=section.name, assigned_to=section.owner,
+                due_at=owner_run.due_at if owner_run else due_at_for(routine, day, tz=tz, cfg=cfg),
+                generated={'made_to_resolve': True},
+            )
+        return resolve_missed_run(run, kind=kind, by=by, note=note, now=now)
+    if key not in PERFORMED:
+        raise ResolveError('That routine is not on the board.')
+    run = RoutineRun.objects.filter(routine__system_key=key, period_key=period).select_related('routine').first()
+    if run is None:
+        routine = Routine.objects.filter(system_key=key).first()
+        if routine is None:
+            raise ResolveError('That checklist is not set up.')
+        run = RoutineRun.objects.create(
+            routine=routine, period_key=period, unassign_key='resolved',
+            due_at=due_at_for(routine, day, tz=tz, cfg=cfg), generated={'made_to_resolve': True},
+        )
+    return resolve_missed_run(run, kind=kind, by=by, note=note, now=now)
 
 
 def resolved_info(run) -> dict:
@@ -1606,6 +1650,8 @@ def build_issues(
                 'person_id': (job.get('owner') or {}).get('id'),
                 'person_name': (job.get('owner') or {}).get('name'),
                 'run_id': job['run_id'],
+                'section_id': job.get('section_id'),
+                'routine_key': job.get('key'),
                 'call_in_id': None,
                 'nudged_at': None,
                 'can_act': True,

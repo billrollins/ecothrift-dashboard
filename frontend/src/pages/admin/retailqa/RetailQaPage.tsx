@@ -2,7 +2,7 @@ import { addDays, format, parseISO } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
-import type { QaDayTile, QaResolveKind } from '../../../api/routines.api';
+import type { QaDayTile, QaJob, QaResolveKind } from '../../../api/routines.api';
 import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
 import { useAuth } from '../../../hooks/useAuth';
 import { useRoutineAssignees } from '../../../hooks/useRoutines';
@@ -203,9 +203,9 @@ export default function RetailQaPage() {
     }
   }
 
-  async function resolveRun(runId: number, kind: QaResolveKind) {
+  async function resolveRun(target: { runId?: number | null; key?: string | null; sectionId?: number | null }, kind: QaResolveKind) {
     try {
-      await resolve.mutateAsync({ runId, kind });
+      await resolve.mutateAsync({ ...target, date, kind });
       enqueueSnackbar(kind === 'done' ? 'Marked done' : 'Forgiven');
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
@@ -265,7 +265,21 @@ export default function RetailQaPage() {
     })
     .map((row) => ({ id: row.id, name: row.name }));
   // Superusers clear missed routines; nobody nudges on a past day (owner, 2026-10-08).
-  const onResolve = user?.is_superuser ? (runId: number, kind: QaResolveKind) => void resolveRun(runId, kind) : undefined;
+  const superuser = Boolean(user?.is_superuser);
+  // A section row clears only its aisle; other rows clear their run, or the day's routine when it has no run.
+  const resolveJob = superuser
+    ? (job: QaJob, kind: QaResolveKind) => void resolveRun(
+      { runId: job.group === 'section' ? null : job.run_id, key: job.key, sectionId: job.section_id }, kind,
+    )
+    : undefined;
+  const resolveIssue = superuser
+    ? (row: BoardIssue, kind: QaResolveKind) => void resolveRun(
+      { runId: row.section_id ? null : row.run_id, key: row.routine_key, sectionId: row.section_id }, kind,
+    )
+    : undefined;
+  const resolveWeekRun = superuser
+    ? (runId: number, kind: QaResolveKind) => void resolveRun({ runId }, kind)
+    : undefined;
   const canNudge = date >= today;
   const closedLabel = board && !(board.graded ?? board.open)
     ? (board.closed_label || 'Store closed')
@@ -337,7 +351,7 @@ export default function RetailQaPage() {
             onDoSpot={() => board?.spot?.run_id && runnerReturn(board.spot.run_id)}
             onOpenShifts={() => navigate('/admin/shifts')}
             onRemove={(id) => void removeFromToday(id)}
-            onResolve={onResolve}
+            onResolve={resolveIssue}
             canNudge={canNudge}
             closedLabel={closedLabel}
           />
@@ -347,7 +361,7 @@ export default function RetailQaPage() {
             people={assignees.data ?? []}
             onAssign={(job, userId) => void assignJob(job, userId)}
             onNudge={(id, el) => setNudgeTarget({ runId: id, anchor: el })}
-            onResolve={onResolve}
+            onResolve={resolveJob}
             canNudge={canNudge}
             onWeekView={() => setWeekOpen(true)}
             closedLabel={closedLabel}
@@ -410,7 +424,7 @@ export default function RetailQaPage() {
         onCopy={() => nudgeTarget && void copyNudge(nudgeTarget.runId)}
         onClose={() => setNudgeTarget(null)}
       />
-      <WeekRoutinesModal open={weekOpen} onClose={() => setWeekOpen(false)} week={week} />
+      <WeekRoutinesModal open={weekOpen} onClose={() => setWeekOpen(false)} week={week} onResolve={resolveWeekRun} />
     </div>
   );
 }

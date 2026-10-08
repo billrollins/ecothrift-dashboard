@@ -562,8 +562,12 @@ def _doing_for_day(day: date, runs: list[RoutineRun], *, project: bool = False) 
             for row in (responses or {}).get('sections') or []:
                 if row.get('section_id'):
                     tallied.add(int(row['section_id']))
-            if run.section_id and (run.generated or {}).get('resolved'):
-                tallied.add(run.section_id)  # cleared by the owner (marked done or forgiven)
+            if (run.generated or {}).get('resolved'):
+                # Cleared by the owner (marked done or forgiven): its aisle, or every aisle a per-person run covers.
+                if run.section_id:
+                    tallied.add(run.section_id)
+                elif run.assigned_to_id:
+                    tallied.update(_owned_section_ids().get(run.assigned_to_id, set()))
         if key == SYSTEM_CROSS_CHECK and run.section_id:
             tallied.add(run.section_id)
 
@@ -691,6 +695,23 @@ def _cross_for_day(day: date, runs: list[RoutineRun], cfg: dict, bases: dict, *,
                 'excluded_reason': '',
             })
             continue
+        if run.status == RoutineRun.STATUS_DONE and (run.generated or {}).get('resolved'):
+            # Cleared by the owner: scores as a clean cross check (owner, 2026-10-08).
+            audits.append({
+                'run_id': run.pk,
+                'section_id': run.section_id,
+                'section_name': run.section.name if run.section_id else run.subject,
+                'score': 100.0,
+                'status': 'done',
+                'resolved': run.generated['resolved'].get('kind'),
+                'found': 0,
+                'section_mean': 0,
+                'tail': None,
+                'seconds_taken': None,
+                'in_baseline': True,
+                'excluded_reason': '',
+            })
+            continue
         base = bases.get(run.section_id) if run.section_id else None
         audits.append(score_cross_check(run, cfg, base))
     audit_avg = mean(row['score'] for row in audits) if audits else None
@@ -713,7 +734,17 @@ def _owner_for_day(day: date, runs: list[RoutineRun], cfg: dict, bases: dict, *,
     spots = [run for run in runs if run.routine.system_key == SYSTEM_OWNER_SPOT]
     scored = []
     for run in spots:
-        if run.status == RoutineRun.STATUS_DONE:
+        if run.status == RoutineRun.STATUS_DONE and (run.generated or {}).get('resolved'):
+            # Cleared by the owner: scores as a clean walk (owner, 2026-10-08).
+            scored.append({
+                'run_id': run.pk,
+                'spot_score': 100.0,
+                'status': 'done',
+                'resolved': run.generated['resolved'].get('kind'),
+                'section_id': run.section_id,
+                'section_name': run.subject,
+            })
+        elif run.status == RoutineRun.STATUS_DONE:
             base = bases.get(run.section_id) if run.section_id else None
             row = score_spot(run, cfg, base)
             if row:
@@ -948,8 +979,6 @@ def _people_for_week(monday: date, days: list[dict], runs: list[RoutineRun]) -> 
         person = run.assigned_to or run.completed_by
         if person is None:
             continue
-        if ((run.generated or {}).get('resolved') or {}).get('kind') == 'forgiven':
-            continue  # forgiven by the owner: not counted for or against the person
         row = bucket(person.pk, person.full_name)
         row['assigned'] += 1
         status = _run_status(run)

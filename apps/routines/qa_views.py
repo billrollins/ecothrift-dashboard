@@ -48,6 +48,7 @@ from .command_center import (
     pooled_open_runs_for,
     remove_section_cover,
     ResolveError,
+    resolve_board_job,
     resolve_missed_run,
     serialize_nudge,
     today_payload,
@@ -578,6 +579,27 @@ class QaResolveRunView(APIView):
         try:
             resolve_missed_run(run, kind=str(request.data.get('kind') or ''), by=request.user,
                                note=str(request.data.get('note') or ''))
+        except ResolveError as exc:
+            return Response({'detail': str(exc)}, status=400)
+        return Response({'ok': True, 'run': run.pk, 'status': run.status})
+
+
+class QaResolveJobView(APIView):
+    """Superuser: forgive or mark done a board row by what it is ({date, key, section?, kind, note})."""
+
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+
+    def post(self, request):
+        try:
+            day = date.fromisoformat(str(request.data.get('date') or ''))
+        except ValueError:
+            return Response({'detail': 'Pick a day.'}, status=400)
+        section = request.data.get('section')
+        try:
+            run = resolve_board_job(
+                day, key=str(request.data.get('key') or ''), section_id=int(section) if section else None,
+                kind=str(request.data.get('kind') or ''), by=request.user, note=str(request.data.get('note') or ''),
+            )
         except ResolveError as exc:
             return Response({'detail': str(exc)}, status=400)
         return Response({'ok': True, 'run': run.pk, 'status': run.status})

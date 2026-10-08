@@ -313,6 +313,7 @@ export type BoardIssue = {
   person_id: number | null;
   run_id: number | null;
   section_id: number | null;
+  routine_key?: string | null;
   assign_kind: QaIssue['assign_kind'];
   exclude_user_id: number | null;
   blocked?: boolean;
@@ -398,6 +399,7 @@ export function groupIssues(issues: QaIssue[], staff: QaStaffRow[], jobs: QaJob[
       person_id: issue.person_id,
       run_id: issue.run_id,
       section_id: issue.section_id ?? null,
+      routine_key: issue.routine_key ?? null,
       assign_kind: issue.assign_kind ?? null,
       exclude_user_id: issue.exclude_user_id ?? null,
       blocked: issue.blocked ?? false,

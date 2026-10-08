@@ -21,8 +21,8 @@ export function RoutinesCard({
   people: RoutineAssignee[];
   onAssign: (job: QaJob, userId: number | '') => void;
   onNudge: (runId: number, el: HTMLElement) => void;
-  /** Superusers only: forgive or mark done a missed routine. */
-  onResolve?: (runId: number, kind: QaResolveKind) => void;
+  /** Superusers only: forgive or mark done a missed or past-due routine. */
+  onResolve?: (job: QaJob, kind: QaResolveKind) => void;
   /** False on a past day: there is no one left to nudge. */
   canNudge?: boolean;
   onWeekView: () => void;
@@ -79,7 +79,7 @@ function RoutineGroup({
   people: RoutineAssignee[];
   onAssign: (job: QaJob, userId: number | '') => void;
   onNudge: (runId: number, el: HTMLElement) => void;
-  onResolve?: (runId: number, kind: QaResolveKind) => void;
+  onResolve?: (job: QaJob, kind: QaResolveKind) => void;
   canNudge: boolean;
 }) {
   const allDone = jobs.length > 0 && jobs.every((job) => jobChip(job.status, job.owner, job.urgency) === 'done');
@@ -126,22 +126,27 @@ function RoutineGroup({
           const canAssign = Boolean(
             (unassigned || reassignKey === rowKey) && (job.section_id || job.run_id),
           );
-          // Owner, 2026-10-08: a missed routine is never nudged; a superuser marks it done or forgives it.
+          // Owner, 2026-10-08: a missed routine is never nudged. A superuser marks any missed or past-due
+          // routine done or forgives it (both score as done), with or without a run behind the row.
           const missed = job.status === 'Missed';
-          const items = chip !== 'done' && chip !== 'unas' && (job.run_id || job.section_id)
+          const pastDue = missed || chip === 'over' || chip === 'hard' || (!canNudge && chip === 'unas');
+          const resolveItems = onResolve && pastDue
             ? [
-                ...(missed && onResolve && job.run_id
-                  ? [
-                      { label: 'Mark done', onClick: () => onResolve(job.run_id as number, 'done') },
-                      { label: 'Forgive', onClick: () => onResolve(job.run_id as number, 'forgiven') },
-                    ]
-                  : []),
-                ...(!missed && canNudge && job.run_id
-                  ? [{ label: 'Nudge', onClick: () => onNudge(job.run_id as number, document.body) }]
-                  : []),
-                { label: 'Reassign', onClick: () => setReassignKey(rowKey) },
+                { label: 'Mark done', onClick: () => onResolve(job, 'done') },
+                { label: 'Forgive', onClick: () => onResolve(job, 'forgiven') },
               ]
             : [];
+          const items = [
+            ...resolveItems,
+            ...(chip !== 'done' && chip !== 'unas' && (job.run_id || job.section_id)
+              ? [
+                  ...(!missed && canNudge && job.run_id
+                    ? [{ label: 'Nudge', onClick: () => onNudge(job.run_id as number, document.body) }]
+                    : []),
+                  { label: 'Reassign', onClick: () => setReassignKey(rowKey) },
+                ]
+              : []),
+          ];
           return (
             <div className={`row${stripe}`} key={`${job.key}-${job.run_id ?? job.section_id ?? index}`}>
               <span className="name nowrap">{displayName(job.title, 'routine')}</span>

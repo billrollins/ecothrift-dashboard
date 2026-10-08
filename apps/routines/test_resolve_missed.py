@@ -1,4 +1,4 @@
-"""A superuser forgives or marks done a missed routine; no nudge on a missed run (owner, 2026-10-08)."""
+"""A superuser forgives or marks done any missed routine; both score as done; no nudge on a missed run (owner, 2026-10-08)."""
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
@@ -8,10 +8,12 @@ from rest_framework.test import APITestCase
 
 from apps.accounts.models import User
 
-from .command_center import ResolveError, miss_fields, resolve_missed_run
-from .grading import _people_for_week
-from .models import Routine, RoutineRun
-from .schedule import SYSTEM_CROSS_CHECK, SYSTEM_OPEN
+from apps.hr.models import Department
+
+from .command_center import ResolveError, miss_fields, resolve_board_job, resolve_missed_run
+from .grading import _cross_for_day, _owner_for_day, _people_for_week, retail_qa_settings
+from .models import Routine, RoutineRun, Section
+from .schedule import SYSTEM_CLOSE, SYSTEM_CROSS_CHECK, SYSTEM_OPEN, SYSTEM_OWNER_SPOT, SYSTEM_TALLY
 
 TZ = ZoneInfo('America/Chicago')
 DUE = datetime(2026, 10, 5, 9, 0, tzinfo=TZ)
@@ -55,7 +57,7 @@ class ResolveMissedTests(APITestCase):
         again = self.client.post(f'/api/routines/qa/runs/{self.run.pk}/resolve/', {'kind': 'forgiven'}, format='json')
         self.assertEqual(again.status_code, 400)
 
-    def test_marked_done_counts_for_the_person_and_forgiven_counts_for_no_one(self):
+    def test_marked_done_and_forgiven_both_count_as_done_for_the_person(self):
         resolve_missed_run(self.run, kind='done', by=self.owner, now=LATER)
         rows = {row['id']: row for row in _people_for_week(date(2026, 10, 5), [], [self.run])}
         self.assertEqual((rows[self.who.pk]['assigned'], rows[self.who.pk]['done'], rows[self.who.pk]['missed']), (1, 1, 0))
@@ -65,7 +67,8 @@ class ResolveMissedTests(APITestCase):
         )
         resolve_missed_run(other, kind='forgiven', by=self.owner, now=datetime(2026, 10, 7, 9, 0, tzinfo=TZ))
         rows = {row['id']: row for row in _people_for_week(date(2026, 10, 5), [], [self.run, other])}
-        self.assertEqual((rows[self.who.pk]['assigned'], rows[self.who.pk]['done'], rows[self.who.pk]['missed']), (1, 1, 0))
+        self.assertEqual((rows[self.who.pk]['assigned'], rows[self.who.pk]['done'], rows[self.who.pk]['missed']), (2, 2, 0))
+        self.assertEqual(rows[self.who.pk]['late'], 0)
 
     def test_the_rules(self):
         with self.assertRaises(ResolveError):
@@ -76,13 +79,49 @@ class ResolveMissedTests(APITestCase):
         )
         with self.assertRaises(ResolveError):
             resolve_missed_run(future, kind='done', by=self.owner, now=LATER)
+        with self.assertRaises(ResolveError):
+            resolve_board_job(date(2026, 10, 5), key='nothing', kind='done', by=self.owner, now=LATER)
+
+    def test_a_cleared_cross_check_and_spot_walk_score_as_clean(self):
         cross = RoutineRun.objects.create(
             routine=Routine.objects.get_or_create(system_key=SYSTEM_CROSS_CHECK, defaults={'title': 'Cross check'})[0],
-            period_key='2026-10-05',
-            due_at=DUE, assigned_to=self.owner, status=RoutineRun.STATUS_MISSED,
+            period_key='2026-10-05', subject='Housewares',
+            due_at=DUE, assigned_to=self.who, status=RoutineRun.STATUS_MISSED,
         )
-        with self.assertRaises(ResolveError):
-            resolve_missed_run(cross, kind='forgiven', by=self.owner, now=LATER)
+        spot = RoutineRun.objects.create(
+            routine=Routine.objects.get_or_create(system_key=SYSTEM_OWNER_SPOT, defaults={'title': 'Spot walk'})[0],
+            period_key='2026-10-05', subject='Toys', due_at=DUE, assigned_to=self.owner,
+        )
+        cfg = retail_qa_settings()
+        self.assertEqual(_cross_for_day(date(2026, 10, 5), [cross], cfg, {})['audits'][0]['score'], 0.0)
+        resolve_missed_run(cross, kind='forgiven', by=self.owner, now=LATER)
+        resolve_missed_run(spot, kind='done', by=self.owner, now=LATER)
+        audit = _cross_for_day(date(2026, 10, 5), [cross], cfg, {})['audits'][0]
+        self.assertEqual((audit['score'], audit['status'], audit['resolved']), (100.0, 'done', 'forgiven'))
+        owner = _owner_for_day(date(2026, 10, 5), [spot], cfg, {})
+        self.assertEqual((owner['score'], owner['spots'][0]['resolved']), (100.0, 'done'))
+
+    def test_a_board_row_with_no_run_is_cleared_by_what_it_is(self):
+        department = Department.objects.create(name='Resolve Desk')
+        aisle = Section.objects.create(department=department, name='Housewares', owner=self.who)
+        Routine.objects.get_or_create(system_key=SYSTEM_TALLY, defaults={'title': 'Section check'})
+        Routine.objects.get_or_create(system_key=SYSTEM_CLOSE, defaults={'title': 'Closing checklist'})
+        run = resolve_board_job(date(2026, 10, 5), key=SYSTEM_TALLY, section_id=aisle.pk, kind='forgiven',
+                                by=self.owner, now=LATER)
+        self.assertTrue(run.section_scoped)
+        self.assertEqual((run.section_id, run.assigned_to_id, run.status), (aisle.pk, self.who.pk, RoutineRun.STATUS_DONE))
+        close = resolve_board_job(date(2026, 10, 5), key=SYSTEM_CLOSE, kind='done', by=self.owner, now=LATER)
+        self.assertEqual((close.routine.system_key, close.status), (SYSTEM_CLOSE, RoutineRun.STATUS_DONE))
+        self.client.force_authenticate(self.owner)
+        res = self.client.post('/api/routines/qa/resolve/', {'date': '2026-10-05', 'key': SYSTEM_OPEN, 'kind': 'done'},
+                               format='json')
+        self.assertEqual(res.status_code, 200, res.data)  # the open checklist's run from setUp
+        self.run.refresh_from_db()
+        self.assertEqual(self.run.status, RoutineRun.STATUS_DONE)
+        self.client.force_authenticate(self.manager)
+        res = self.client.post('/api/routines/qa/resolve/', {'date': '2026-10-05', 'key': SYSTEM_CLOSE, 'kind': 'done'},
+                               format='json')
+        self.assertEqual(res.status_code, 403)
 
 
 class MissedIssueTests(TestCase):

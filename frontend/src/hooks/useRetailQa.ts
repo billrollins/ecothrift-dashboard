@@ -19,6 +19,7 @@ import {
   getQaTrends,
   getQaWeek,
   previewQaWeek,
+  resolveQaJob,
   resolveQaRun,
   reviewQaFlag,
   undoQaCallIn,
@@ -130,11 +131,27 @@ export function useQaNudge() {
   });
 }
 
+/** A run to clear, or a board row by what it is (date + key, and the section for a section row). */
+export type QaResolveTarget = {
+  kind: QaResolveKind;
+  note?: string;
+  runId?: number | null;
+  date?: string;
+  key?: string | null;
+  sectionId?: number | null;
+};
+
 export function useQaResolve() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ runId, kind, note }: { runId: number; kind: QaResolveKind; note?: string }) =>
-      resolveQaRun(runId, { kind, note }),
+    mutationFn: (target: QaResolveTarget) => (
+      target.runId && !target.sectionId
+        ? resolveQaRun(target.runId, { kind: target.kind, note: target.note })
+        : resolveQaJob({
+          date: target.date ?? '', key: target.key ?? '', section: target.sectionId ?? null,
+          kind: target.kind, note: target.note,
+        })
+    ),
     onSuccess: () => invalidateQa(queryClient),
   });
 }

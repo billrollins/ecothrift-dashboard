@@ -817,6 +817,8 @@ export interface QaIssue {
   person_name: string | null;
   run_id: number | null;
   section_id?: number | null;
+  /** resolve_missed rows: which routine the row is (a section row clears only its aisle). */
+  routine_key?: string | null;
   assign_kind?: 'owner' | 'cross_checker' | 'run' | 'cover' | null;
   blocked?: boolean;
   exclude_user_id?: number | null;
@@ -1172,6 +1174,11 @@ export function createQaOverride(data: {
 
 export function createQaNudge(data: { run: number; message?: string }) {
   return api.post<{ ok: boolean; nudge: QaNudgeRow }>('/routines/qa/nudge/', data);
+}
+
+/** Superuser: forgive or mark done a board row by what it is (makes its run when the day has none). */
+export function resolveQaJob(data: { date: string; key: string; section?: number | null; kind: QaResolveKind; note?: string }) {
+  return api.post<{ ok: boolean; run: number; status: string }>('/routines/qa/resolve/', data);
 }
 
 /** Superuser: forgive or mark done a missed routine. */

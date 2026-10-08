@@ -1,21 +1,17 @@
-v2.157.0 — Eco-Thrift's own icon set: sidebar pages, workspaces, page headers and common buttons (T75)
+v2.158.0 — Retail QA: Mark done and Forgive on every routine; both score as done
 
-User-facing theme: **Eco-Thrift's own icons: every sidebar page, workspace, page header and common button now uses one icon set drawn for Eco-Thrift (green line, a soft wash, one kraft-brown detail), instead of Material's.** Standards T75 (Bill via master, 2026-10-08).
-
-### Added
-
-- **One icon set** (`frontend/src/icons/ecoIcons.tsx`): 63 page icons and 21 action icons on a 24 grid with a 1.75 line. The recipe is at the top of the file: three colour roles (line, a 15% wash, and one kraft detail, the brown of a kraft price tag), page icons get a wash and exactly one kraft detail, action icons are line only. One line per icon names it by meaning, where it is used and what it shows.
-- **Sidebar and workspaces:** every page has its own icon by meaning (Command Center a gauge, Receiving a carton arriving, Inventory a clothes hanger, Thrift+ a member card...), where many pages shared one before. The names come from the set, so a page naming a missing icon fails the type check.
-- **Page headers** show the page's icon beside the title, taken from the sidebar page the route belongs to (`PageHeader`; `icon` overrides it, `icon={false}` turns it off).
-- **Admin > Icons** (`/admin/icons`, owner only, under the line): the whole set at 20 and 40 px on the sidebar, selected, the dark band and one colour.
+User-facing theme: **Retail QA: Mark done and Forgive on every routine (checklists, section checks, cross checks, spot walks), and both now score as done.** Bill, 2026-10-08.
 
 ### Changed
 
-- **Common buttons** (close, add, edit, delete, search, save, print, copy, back, download, upload, refresh, undo, open in new window, scan, AI suggest, archive, more, filter, confirm): Eco-Thrift's action icons across Dash, POS included (296 swaps in 166 files; no page code changed). The Thrift+ customer scanner keeps its own look.
-- **`/privacy`:** "email sending" for "email delivery" (the storefront copy check does not allow "delivery" on the public site).
+- **Every routine clears:** a superuser marks done or forgives any missed or past-due routine, from Needs your attention, the Routines card (a row the day never made a run for gets one) or the Week view (tap a missed dot). Overdue rows today can be cleared too.
+- **How they score:** **Mark done** (it was done, not recorded) and **Forgive** (not done, on purpose: the team was on something else) both score exactly as a clean, finished routine on time: they count as done for the person and the day, a cleared section check counts its aisle (a person's whole section check counts all their aisles), and a cleared cross check or spot walk scores 100. The record keeps which it was and who cleared it: "Forgiven by Bill" on the row, a ring dot in the Week view.
+- **A section row clears only its aisle**, never the owner's other aisles.
+- **API:** `POST /api/routines/qa/resolve/` ({date, key, section?, kind, note}) for a board row by what it is; the run endpoint takes any routine now.
 
 ### Tests
 
-- `src/icons/ecoIcons.test.tsx`: the recipe for every icon (one wrapper, 1.75 line, no stray fill or stroke; page icons have a wash and exactly one kraft detail; action icons line only), every sidebar page and workspace names an icon in the set, and the page header icon by route.
+- `apps/routines/test_resolve_missed.py` (6): both kinds count as done for the person; a cleared cross check and spot walk score 100; a row with no run is cleared by what it is (section rows only their aisle); superuser only.
+- `RoutinesCard.test.tsx`: Mark done on a past-due row with no run.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
