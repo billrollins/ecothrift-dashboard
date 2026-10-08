@@ -1,8 +1,8 @@
 """Interviews (Phase 2): open times, the private booking link, book / change / cancel, emails with .ics,
 staff actions (interviewer, reschedule, done, no-show, scorecard), and day-before reminders.
 
-One interview at a time across the store. Open times = the weekly hours in the careers file
-(``interviews``), plus extra openings, minus blocked times, minus booked interviews.
+One interview at a time across the store. Open times = the days and blocks a manager opened on People ->
+Interviews (each for all positions or some), minus blocked times, minus booked interviews. Nothing is open by default.
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from apps.hiring import emails
-from apps.hiring.careers import WEEKDAYS, load_setting, staff_users, template as email_template
+from apps.hiring.careers import load_setting, staff_users, template as email_template
 from apps.hiring.models import Application, ApplicationEvent, Interview, InterviewTime
 
 _LOCK_KEY = 738_204_117  # pg advisory lock: one booking decision at a time
@@ -65,46 +65,76 @@ def _overlaps(start: datetime, end: datetime, ranges) -> bool:
     return any(start < r_end and r_start < end for r_start, r_end in ranges)
 
 
-def open_times(*, now: datetime | None = None, exclude: Interview | None = None) -> list[tuple[datetime, datetime]]:
-    """Every bookable (start, end) from the minimum notice to ``days_ahead`` days out."""
+def open_times(*, now: datetime | None = None, exclude: Interview | None = None,
+               application: Application | None = None) -> list[tuple[datetime, datetime]]:
+    """Every bookable (start, end): only the stretches a manager opened on set days (People → Interviews), cut into
+    interview-length slots, from the minimum notice on. ``application``: only stretches open to one of its roles
+    (a stretch with no roles is open to all)."""
     cfg = config()
     now = now or timezone.now()
     length = timedelta(minutes=int(cfg['length_minutes']))
     earliest = now + timedelta(hours=int(cfg['min_notice_hours']))
-    first_day = timezone.localdate(now)
-    last_day = first_day + timedelta(days=int(cfg['days_ahead']))
-    tz = timezone.get_current_timezone()
-    range_start = timezone.make_aware(datetime.combine(first_day, time.min), tz)
-    range_end = timezone.make_aware(datetime.combine(last_day + timedelta(days=1), time.min), tz)
 
-    extras = InterviewTime.objects.filter(start__lt=range_end, end__gt=range_start)
-    blocks = [(t.start, t.end) for t in extras if t.kind == InterviewTime.KIND_BLOCK]
-    windows = [(t.start, t.end) for t in extras if t.kind == InterviewTime.KIND_OPEN]
-    booked_qs = Interview.objects.filter(status=Interview.STATUS_SCHEDULED, start__lt=range_end, end__gt=range_start)
+    extras = InterviewTime.objects.filter(end__gt=earliest).prefetch_related('jobs')
+    role_ids = set(application.jobs.values_list('pk', flat=True)) if application is not None else None
+    windows, blocks = [], []
+    for t in extras:
+        if t.kind == InterviewTime.KIND_BLOCK:
+            blocks.append((t.start, t.end))
+            continue
+        allowed = {j.pk for j in t.jobs.all()}
+        if allowed and role_ids is not None and not (allowed & role_ids):
+            continue
+        windows.append((t.start, t.end))
+    if not windows:
+        return []
+    booked_qs = Interview.objects.filter(status=Interview.STATUS_SCHEDULED, end__gt=earliest)
     # A practice run never takes a time away from a real applicant.
     booked_qs = booked_qs.exclude(application__is_practice=True)
     if exclude is not None and exclude.pk:
         booked_qs = booked_qs.exclude(pk=exclude.pk)
     booked = list(booked_qs.values_list('start', 'end'))
 
-    open_hour = time.fromisoformat(cfg['start'])
-    close_hour = time.fromisoformat(cfg['end'])
-    day = first_day
-    while day <= last_day:
-        if WEEKDAYS[day.weekday()] in cfg['weekdays']:
-            windows.append((timezone.make_aware(datetime.combine(day, open_hour), tz),
-                            timezone.make_aware(datetime.combine(day, close_hour), tz)))
-        day += timedelta(days=1)
-
     out: set[tuple[datetime, datetime]] = set()
     for window_start, window_end in windows:
         for start, end in _slots_in(window_start, window_end, length):
-            if start < earliest or start >= range_end:
+            if start < earliest:
                 continue
             if _overlaps(start, end, blocks) or _overlaps(start, end, booked):
                 continue
             out.add((start, end))
     return sorted(out)
+
+
+def set_days(*, dates: list, blocks: list[str], job_ids: list[int], by) -> int:
+    """Replace the openings on each of ``dates`` with ``blocks`` (slot start times, "HH:MM"); consecutive blocks
+    become one stretch. ``job_ids`` empty = all positions. No blocks = the day is closed. Booked interviews stay."""
+    from apps.hiring.models import Job
+
+    cfg = config()
+    length = timedelta(minutes=int(cfg['length_minutes']))
+    tz = timezone.get_current_timezone()
+    starts = sorted({time.fromisoformat(b) for b in blocks})
+    jobs = list(Job.objects.filter(pk__in=job_ids))
+    made = 0
+    with transaction.atomic():
+        for day in dates:
+            day_start = timezone.make_aware(datetime.combine(day, time.min), tz)
+            InterviewTime.objects.filter(kind=InterviewTime.KIND_OPEN, start__gte=day_start,
+                                         start__lt=day_start + timedelta(days=1)).delete()
+            runs: list[list[datetime]] = []
+            for slot in starts:
+                begin = timezone.make_aware(datetime.combine(day, slot), tz)
+                if runs and runs[-1][1] == begin:
+                    runs[-1][1] = begin + length
+                else:
+                    runs.append([begin, begin + length])
+            for begin, end in runs:
+                row = InterviewTime.objects.create(kind=InterviewTime.KIND_OPEN, start=begin, end=end, created_by=by)
+                if jobs:
+                    row.jobs.set(jobs)
+                made += 1
+    return made
 
 
 def _parse_start(value) -> datetime:
@@ -268,7 +298,7 @@ def book(application: Application, start_value, *, by=None, interviewer=None) ->
         cursor.execute('SELECT pg_advisory_xact_lock(%s)', [_LOCK_KEY])
     start = _parse_start(start_value)
     existing = current_interview(application)
-    times = dict(open_times(exclude=existing))
+    times = dict(open_times(exclude=existing, application=application))
     if start not in times:
         raise ValidationError({'start': 'That time was just taken or is no longer open. Pick another.'})
     who = 'staff' if by else 'applicant'

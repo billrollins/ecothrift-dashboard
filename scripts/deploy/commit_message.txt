@@ -1,22 +1,26 @@
-v2.150.0 — Thrift+ sign-up asks about texts: two separate unticked boxes with the campaign's exact words, every choice recorded; staff and My account can change them (standards T59)
+v2.151.0 — Interview times are opened day by day: pick days on a calendar, open blocks 8 AM to 8 PM, for all positions or some; weekly hours gone
 
-User-facing theme: **Thrift+ sign-up asks about texts the way the carriers require: two separate boxes, never pre-ticked, with the exact words shown, and every choice recorded.** Standards T59 (brought forward, T72) so Eco-Thrift's one Twilio registration can go in as soon as the business profile is approved. Thrift+ itself stays behind its switch.
+<!-- Last reviewed: 2026-10-08 (2.151.0) -->
+# Changelog
 
-### Added
+All notable changes to this project are documented here at the **version level**.
+Commit-level detail belongs in commit messages, not here.
 
-- **Text choices at Thrift+ sign-up** (the register and Dash, for the main member and a second adult): "Thrift+ account texts" and "Store news texts", each with its consent words word for word as the Twilio campaign quotes them. The boxes only work once a 10-digit mobile number is typed; neither is needed to join or to buy. Only a ticked box is recorded (no consent, no text).
-- **Every choice is recorded** in the shared texting store (`apps/texting`, v2.149.0): the kind, in or out, when, how ("Thrift+ sign-up (staff: name)", "Staff: name (they asked)", "Thrift+ My account (the member)"), the staff member, the wording and its version (`thriftplus-sms-2026-10-07`, `news-sms-2026-10-07`). STOP ends both.
-- **Dash, Thrift+ → Members:** each person's two choices as chips; staff tap one to change it when the member asks.
-- **Scanner → My account** (opens with Thrift+): a Texts section. Turning a kind off works from any sign-in; turning one on needs the email-and-password sign-in.
-- **API:** `GET /api/thriftplus/accounts/text-wording/`, `POST /api/thriftplus/people/<id>/texts/`, `POST /api/thriftplus/public/me/texts/`; sign-up takes `texts_thriftplus` and `texts_news`; a membership's detail shows each person's `texts`.
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+Versioning follows [Semantic Versioning](https://semver.org/).
+
+---
+
+## [Unreleased]
+
+## [2.151.0] - 2026-10-08
+
+User-facing theme: **Interview times are opened day by day, not as standing weekly hours.** Initiative: `hiring_onboarding`.
 
 ### Changed
 
-- `.gitignore` ignores `*.tsbuildinfo` everywhere; the stray `frontend-public/tsconfig.tsbuildinfo` from v2.148.2 is removed.
-
-### Tests
-
-- `apps/thriftplus/tests/test_text_consent.py` (8): the words match the campaign word for word; only ticked boxes are recorded with the words shown; no ticks, no rows; a tick without a mobile number stops the sign-up; staff changes and STOP; the portal (a card session can stop but not start; a password session can start).
-- `ThriftPlusPage.test.tsx`: the boxes start unticked, wait for a mobile number, and only the ticked one is sent. `AccountScreens.test.tsx`: the Texts section turns kinds off and on; a card session can only stop.
+- **People → Interviews has an Interview days card in two steps.** First tap the days on a calendar that share the same times. Then open the times on an 8 AM to 8 PM grid, one block per interview (tap, drag, or a quick fill like 9 to 5). Choose **All positions** or tick the roles the times are for, then save. Tapping a day that already has times loads them so you can change or close it. Days show how many times are open and booked.
+- **Applicants can book only the times you opened, for their role.** The weekly hours (any weekday, two weeks ahead) and the Extra openings card are gone. Nothing is open until a manager opens days. The settings card keeps interview length, notice, link days and place.
+- **Careers page:** the growth line says each area "needs a great leader", not that it has a lead, and no longer repeats that pay grows with skill. A new role's pay line starts as "From $15/hr" (the page says pay is based on skill once). Production already had these words; this matches the defaults.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -84,8 +84,8 @@ DEFAULT_PAGE = {
     ),
     'apply_note': 'It takes about 5 minutes. A resume is optional.',
     'growth': (
-        "There's room to grow. Each area (retail, processing and restoration) has a lead. Show us you're great "
-        'at the work and can bring others along, and you can step up to lead it. Pay grows with skill.'
+        "There's room to grow. Each area (retail, processing and restoration) needs a great leader. Show us you're great "
+        'at the work and can bring others along, and you can step up to lead it.'
     ),
     'photo_url': '',
 }
@@ -509,14 +509,9 @@ DEFAULT_TEXTS = {
     ),
 }
 
-WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-
+# Which days and times are open lives on People -> Interviews (InterviewTime rows), not here.
 DEFAULT_INTERVIEWS = {
-    'weekdays': ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-    'start': '09:00',
-    'end': '17:00',
     'length_minutes': 30,
-    'days_ahead': 14,
     'min_notice_hours': 12,
     'link_days': 14,
     'place': 'our Canfield store, 8425 West Center Road, Omaha',
@@ -736,7 +731,6 @@ def indexes() -> dict:
         'onboarding_auto': list(ONBOARDING_AUTO),
         'never_ask': NEVER_ASK,
         'mailboxes': list(MAILBOXES),
-        'weekdays': WEEKDAYS,
         'email_templates': list(TEMPLATE_KEYS),
     }
 
@@ -974,39 +968,15 @@ def _check_mailboxes(raw, label: str, errors: list[str], *, many: bool = False) 
     return ', '.join(picked if many else picked[:1])
 
 
-_HHMM = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
-
-
 def _check_interviews(raw, current: dict, errors: list[str]) -> dict:
-    """Weekly interview hours and booking rules. Keys left out keep today's values."""
-    out = {**DEFAULT_INTERVIEWS, **(current or {})}
+    """Interview length and booking rules. Keys left out keep today's values; the old weekly-hours keys are dropped."""
+    out = {key: (current or {}).get(key, value) for key, value in DEFAULT_INTERVIEWS.items()}
     if raw is None:
         return out
     if not isinstance(raw, dict):
         errors.append('interviews must be an object.')
         return out
-    if 'weekdays' in raw:
-        days = raw.get('weekdays') or []
-        if isinstance(days, str):
-            days = [d.strip() for d in days.split(',') if d.strip()]
-        names = []
-        for day in days if isinstance(days, list) else []:
-            name = _text(day).capitalize()
-            if name not in WEEKDAYS:
-                errors.append(f'interviews.weekdays: "{day}" is not a weekday name ({", ".join(WEEKDAYS)}).')
-            elif name not in names:
-                names.append(name)
-        out['weekdays'] = [d for d in WEEKDAYS if d in names]
-    for key in ('start', 'end'):
-        if key in raw:
-            value = _text(raw.get(key))
-            if not _HHMM.match(value):
-                errors.append(f'interviews.{key} must be a 24-hour time like 09:00.')
-            else:
-                out[key] = value
-    if out['start'] >= out['end']:
-        errors.append('interviews.end must be after interviews.start.')
-    for key, low, high in (('length_minutes', 10, 180), ('days_ahead', 1, 60), ('min_notice_hours', 0, 168),
+    for key, low, high in (('length_minutes', 10, 180), ('min_notice_hours', 0, 168),
                            ('link_days', 1, 60)):
         if key in raw:
             try:

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.150.0] -->
-<!-- Last reviewed: 2026-10-08 (2.150.0) -->
+<!-- Line 1 release: ## [2.151.0] -->
+<!-- Last reviewed: 2026-10-08 (2.151.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.151.0] - 2026-10-08
+
+User-facing theme: **Interview times are opened day by day, not as standing weekly hours.** Initiative: `hiring_onboarding`.
+
+### Changed
+
+- **People → Interviews has an Interview days card in two steps.** First tap the days on a calendar that share the same times. Then open the times on an 8 AM to 8 PM grid, one block per interview (tap, drag, or a quick fill like 9 to 5). Choose **All positions** or tick the roles the times are for, then save. Tapping a day that already has times loads them so you can change or close it. Days show how many times are open and booked.
+- **Applicants can book only the times you opened, for their role.** The weekly hours (any weekday, two weeks ahead) and the Extra openings card are gone. Nothing is open until a manager opens days. The settings card keeps interview length, notice, link days and place.
+- **Careers page:** the growth line says each area "needs a great leader", not that it has a lead, and no longer repeats that pay grows with skill. A new role's pay line starts as "From $15/hr" (the page says pay is based on skill once). Production already had these words; this matches the defaults.
 
 ## [2.150.0] - 2026-10-08
 

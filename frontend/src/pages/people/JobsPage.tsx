@@ -134,7 +134,7 @@ function toDraft(job: Job | null): Draft {
     employment_type: job?.employment_type ?? 'full_or_part',
     pay_min: job?.pay_min ?? '15.00',
     pay_max: job?.pay_max ?? '',
-    pay_text: job?.pay_text ?? 'From $15/hr, set by skill',
+    pay_text: job?.pay_text ?? 'From $15/hr',
     status: job?.status ?? 'draft',
     sort_order: String(job?.sort_order ?? 50),
     department: job?.department ? String(job.department) : '',

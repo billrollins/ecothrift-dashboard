@@ -856,6 +856,7 @@ export function ApplicantView({
       <PickTimeDialog
         open={booking}
         title={`Book an interview for ${app.full_name}`}
+        application={app.id}
         confirmLabel="Book it"
         onClose={() => setBooking(false)}
         onPick={async (start) => {

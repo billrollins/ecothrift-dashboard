@@ -472,22 +472,10 @@ export interface OpenTime {
 }
 
 export interface InterviewSettings {
-  weekdays: string[];
-  start: string;
-  end: string;
   length_minutes: number;
-  days_ahead: number;
   min_notice_hours: number;
   link_days: number;
   place: string;
-}
-
-export interface InterviewTimeBlock {
-  id: number;
-  kind: 'open' | 'block';
-  start: string;
-  end: string;
-  note: string;
 }
 
 export const inviteToInterview = (id: number, send: boolean, email?: EmailChoice) =>
@@ -498,10 +486,25 @@ export const inviteToInterview = (id: number, send: boolean, email?: EmailChoice
 export const previewInvite = (id: number) => previewPost(`/hiring/applications/${id}/invite/`, { send: true });
 export const getInterviews = (params: { when?: 'today' | 'upcoming' | 'past' | ''; application?: number }) =>
   api.get<Interview[]>('/hiring/interviews/', { params });
-export const getOpenTimes = (exclude?: number) =>
+/** Bookable times: only what a manager opened, and (with ``application``) only for that applicant's roles. */
+export const getOpenTimes = (exclude?: number, application?: number) =>
   api.get<{ times: OpenTime[]; settings: InterviewSettings }>('/hiring/interviews/open-times/', {
-    params: exclude ? { exclude } : {},
+    params: { ...(exclude ? { exclude } : {}), ...(application ? { application } : {}) },
   });
+
+/** One day's interview availability: open blocks (slot start "HH:MM"), the positions, and what is booked. */
+export interface InterviewDay {
+  blocks: string[];
+  jobs: number[];
+  booked: { time: string; name: string; application: number }[];
+}
+export const getInterviewDays = (from: string, to: string) =>
+  api.get<{ length_minutes: number; days: Record<string, InterviewDay> }>('/hiring/interview-days/', {
+    params: { from, to },
+  });
+/** Those days get exactly these blocks ([] closes them); ``jobs`` [] = all positions. */
+export const setInterviewDays = (data: { dates: string[]; blocks: string[]; jobs: number[] }) =>
+  api.post<{ length_minutes: number; days: Record<string, InterviewDay> }>('/hiring/interview-days/', data);
 export const bookInterviewForApplicant = (application: number, start: string, email?: EmailChoice, text?: TextChoice) =>
   api.post<Interview>('/hiring/interviews/', { application, start, email, text });
 export const previewBookInterview = (application: number, start: string) =>
@@ -518,10 +521,6 @@ export const previewCancelInterview = (id: number) => previewPost(`/hiring/inter
 export const markNoShow = (id: number) => api.post<Interview>(`/hiring/interviews/${id}/no-show/`, {});
 export const saveScorecard = (id: number, scorecard: Scorecard & { done?: boolean }) =>
   api.post<Interview>(`/hiring/interviews/${id}/scorecard/`, scorecard);
-export const getInterviewTimes = () => api.get<InterviewTimeBlock[]>('/hiring/interview-times/');
-export const addInterviewTime = (data: { kind: 'open' | 'block'; start: string; end: string; note: string }) =>
-  api.post<InterviewTimeBlock>('/hiring/interview-times/', data);
-export const deleteInterviewTime = (id: number) => api.delete(`/hiring/interview-times/${id}/`);
 
 // ── AI help (background runs; Heroku stops a request at 30 seconds) ─────────
 

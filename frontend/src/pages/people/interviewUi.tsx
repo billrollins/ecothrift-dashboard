@@ -61,7 +61,7 @@ export function TimePicker({
     if (days.length && !days.some((d) => d.date === day)) setDay(days[0].date);
   }, [days, day]);
   if (!days.length) {
-    return <Alert severity="warning">No open times in the window. Open extra time on People → Interviews.</Alert>;
+    return <Alert severity="warning">No open interview times. Open days on People → Interviews.</Alert>;
   }
   const current = days.find((d) => d.date === day);
   return (
@@ -96,6 +96,7 @@ export function PickTimeDialog({
   open,
   title,
   exclude,
+  application,
   confirmLabel,
   onClose,
   onPick,
@@ -103,6 +104,8 @@ export function PickTimeDialog({
   open: boolean;
   title: string;
   exclude?: number;
+  /** The applicant: only times open to one of their roles. */
+  application?: number;
   confirmLabel: string;
   onClose: () => void;
   onPick: (start: string) => Promise<void>;
@@ -111,8 +114,8 @@ export function PickTimeDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const times = useQuery({
-    queryKey: ['hiring', 'open-times', exclude ?? 0],
-    queryFn: async () => (await getOpenTimes(exclude)).data,
+    queryKey: ['hiring', 'open-times', exclude ?? 0, application ?? 0],
+    queryFn: async () => (await getOpenTimes(exclude, application)).data,
     enabled: open,
   });
   useEffect(() => {

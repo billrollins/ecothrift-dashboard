@@ -51,6 +51,20 @@ class Base(TestCase):
 
     def turn_on(self):
         careers.set_public(True, user=self.manager)
+        self.open_days()
+
+    def open_days(self, days: int = 14, job_ids=()):
+        """Interview times exist only where a manager opens them: open weekdays 9-5 for the next ``days`` days."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.hiring import interviews
+
+        today = timezone.localdate()
+        dates = [today + timedelta(days=n) for n in range(days + 1) if (today + timedelta(days=n)).weekday() < 5]
+        blocks = [f'{h:02d}:{m:02d}' for h in range(9, 17) for m in (0, 30)]
+        interviews.set_days(dates=dates, blocks=blocks, job_ids=list(job_ids), by=self.manager)
 
     def apply(self, *, answers=None, roles=('retail-associate',), resume=None, **extra):
         data = {
@@ -807,13 +821,14 @@ class InterviewTests(Base):
         self.assertIn('Reminder', mail.outbox[0].subject)
 
     def test_interview_settings_and_defaults_in_the_careers_file(self):
-        bad = careers.check_doc({'interviews': {'start': '9am', 'weekdays': ['Funday']}})
+        bad = careers.check_doc({'interviews': {'length_minutes': 5}})
         self.assertFalse(bad['ok'])
-        good = careers.check_doc({'interviews': {'start': '10:00', 'length_minutes': 45},
+        good = careers.check_doc({'interviews': {'start': '10:00', 'weekdays': ['Monday'], 'length_minutes': 45},
                                   'defaults': {'hiring_manager': 'boss@example.com',
                                                'interviewers': ['carrie@example.com']},
                                   'jobs': [{'title': 'Cashier Lead', 'status': 'draft'}]})
         self.assertTrue(good['ok'], good['errors'])
+        self.assertNotIn('weekdays', good['doc']['interviews'])  # open days live on People -> Interviews now
         new_job = next(j for j in good['doc']['jobs'] if j['slug'] == 'cashier-lead')
         self.assertEqual((new_job['hiring_manager'], new_job['interviewers']), ('boss@example.com', ['carrie@example.com']))
         careers.apply_doc(good['doc'], user=self.manager)
@@ -1038,6 +1053,7 @@ class PracticeTests(Base):
     def test_practice_interviews_never_block_a_real_time(self):
         from apps.hiring import interviews
         app = self.practice()
+        self.open_days()
         start = interviews.open_times()[0][0]
         interviews.book(app, start.isoformat(), by=self.manager)
         self.assertIn(start, [s for s, _ in interviews.open_times()])

@@ -159,7 +159,7 @@ This is research, not legal advice. The owner's attorney confirms before the han
    - Position filled or closed;
    - Other (note required).
 9. **No criminal-history question on the application** (the owner's draft: it contradicts the mission). It can come up in the interview.
-10. **Pay on the page:** "From $15/hr, set by skill". Google Jobs gets "from $15 an hour" in the structured data; $25 is never shown. The form still asks "What hourly pay are you looking for?". The owner can hide the line in the careers file.
+10. **Pay on the page:** "From $15/hr" (the page says "pay is based on skill" once, in its pay section; Bill, 2026-10-08). Google Jobs gets "from $15 an hour" in the structured data; $25 is never shown. The form still asks "What hourly pay are you looking for?". The owner can hide the line in the careers file.
 11. **Resume optional.** A PDF, Word file or photo (photos are shrunk in the browser), up to 10 MB.
 12. **Sensitive files are private.** Resumes, I-9 scans and signed papers go under an S3 `hiring/` prefix. They are served only through `stream_s3`, never by public link. I-9s are Admin-only and kept apart from the employee record.
 13. **Dash keeps the I-9, whatever QuickBooks does.** The paper I-9 is scanned into onboarding, with the 3-business-day due date. Copies of the documents are kept for everyone (one rule); the attorney can flip it.

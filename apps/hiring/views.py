@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 
 from django.db.models import Count, Prefetch, Q
 from django.http import Http404
@@ -475,7 +475,11 @@ class InterviewViewSet(viewsets.ReadOnlyModelViewSet):
 
         exclude = Interview.objects.filter(pk=request.query_params.get('exclude')).first() \
             if request.query_params.get('exclude') else None
-        return Response({'times': _time_rows(service.open_times(exclude=exclude)), 'settings': service.config()})
+        # The applicant being booked: only times open to one of their roles.
+        application = (exclude.application if exclude else
+                       Application.objects.filter(pk=request.query_params.get('application') or 0).first())
+        return Response({'times': _time_rows(service.open_times(exclude=exclude, application=application)),
+                         'settings': service.config()})
 
 
 def _time_rows(times) -> list[dict]:
@@ -543,6 +547,63 @@ class OfferViewSet(viewsets.ReadOnlyModelViewSet):
         return stream_s3(offer.signed_pdf, as_attachment=request.query_params.get('download') == '1')
 
 
+@api_view(['GET', 'POST'])
+@permission_classes([IsManagerOrAdmin])
+def interview_days(request):
+    """People → Interviews availability.
+
+    GET ``?from=YYYY-MM-DD&to=YYYY-MM-DD``: each day's open blocks (slot starts), their positions, and what is booked.
+    POST ``{dates: [...], blocks: ["09:00", ...], jobs: [ids]}``: those days get exactly those blocks ([] closes them).
+    """
+    from django.utils import timezone
+
+    from apps.hiring import interviews as service
+
+    tz = timezone.get_current_timezone()
+    if request.method == 'POST':
+        try:
+            dates = sorted({date.fromisoformat(str(d)) for d in request.data.get('dates') or []})
+        except ValueError:
+            return Response({'dates': 'Use dates like 2026-10-12.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not dates:
+            return Response({'dates': 'Pick at least one day.'}, status=status.HTTP_400_BAD_REQUEST)
+        if dates[0] < timezone.localdate():
+            return Response({'dates': 'Days in the past cannot change.'}, status=status.HTTP_400_BAD_REQUEST)
+        blocks = [str(b) for b in request.data.get('blocks') or []]
+        try:
+            service.set_days(dates=dates, blocks=blocks, job_ids=[int(j) for j in request.data.get('jobs') or []],
+                             by=request.user)
+        except ValueError:
+            return Response({'blocks': 'Use times like 09:30.'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        first = date.fromisoformat(request.query_params.get('from') or '') if request.method == 'GET' else None
+        last = date.fromisoformat(request.query_params.get('to') or '') if request.method == 'GET' else None
+    except ValueError:
+        first = last = None
+    first = first or timezone.localdate()
+    last = last or first + timedelta(days=62)
+    start = timezone.make_aware(datetime.combine(first, time.min), tz)
+    end = timezone.make_aware(datetime.combine(last + timedelta(days=1), time.min), tz)
+    length = timedelta(minutes=int(service.config()['length_minutes']))
+    days: dict[str, dict] = {}
+    for row in InterviewTime.objects.filter(kind=InterviewTime.KIND_OPEN, start__gte=start, start__lt=end) \
+            .prefetch_related('jobs').order_by('start'):
+        local = timezone.localtime(row.start)
+        day = days.setdefault(local.date().isoformat(), {'blocks': [], 'jobs': [], 'booked': []})
+        cursor = row.start
+        while cursor + length <= row.end:
+            day['blocks'].append(timezone.localtime(cursor).strftime('%H:%M'))
+            cursor += length
+        day['jobs'] = sorted({*day['jobs'], *(j.pk for j in row.jobs.all())})
+    for interview in Interview.objects.filter(status=Interview.STATUS_SCHEDULED, start__gte=start, start__lt=end) \
+            .select_related('application'):
+        local = timezone.localtime(interview.start)
+        day = days.setdefault(local.date().isoformat(), {'blocks': [], 'jobs': [], 'booked': []})
+        day['booked'].append({'time': local.strftime('%H:%M'), 'name': interview.application.full_name,
+                              'application': interview.application_id})
+    return Response({'length_minutes': int(length.total_seconds() // 60), 'days': days})
+
+
 class InterviewTimeViewSet(viewsets.ModelViewSet):
     """Extra openings and blocked times."""
 
@@ -574,7 +635,7 @@ Return the WHOLE file (every key, even the ones you did not change) as YAML or J
 The parts:
 - public: true shows ecothrift.us/careers; false hides it.
 - page: the careers page text (headline, roles_line, intro as a list of paragraphs, hours_line, pay, what_we_ask,
-  apply_note, growth (each area has a lead; strong people can step up), photo_url).
+  apply_note, growth (each area needs a great leader; strong people can step up. Never imply the lead spot is filled), photo_url).
 - form.questions: the questions every applicant answers. Name, phone, email, the roles, the resume and the
   text-message consent are fixed fields; do not add them as questions.
 - email: from, reply_to (one address each) and notify (who gets an alert per application; a comma list),

@@ -140,6 +140,34 @@ class TextTests(Base):
         texts.send_due_first_day(now=noon)
         self.assertEqual(TextMessage.objects.filter(key='first_day').latest('id').status, TextMessage.STATUS_HELD)
 
+    def test_only_opened_days_are_bookable_and_positions_narrow_them(self):
+        """Interview times exist only where a manager opened them; an opening can be for some positions only."""
+        from apps.hiring import interviews
+        from apps.hiring.models import InterviewTime
+
+        InterviewTime.objects.all().delete()
+        self.assertEqual(self.apply().status_code, 201)
+        app = Application.objects.get()
+        self.assertEqual(interviews.open_times(application=app), [])  # nothing opened, nothing to book
+        day = timezone.localdate() + timedelta(days=3)
+        processing = Job.objects.get(slug='processing-associate')
+        made = self.staff.post('/api/hiring/interview-days/', {
+            'dates': [day.isoformat()], 'blocks': ['10:00', '10:30', '14:00'], 'jobs': [processing.pk]},
+            format='json').data
+        self.assertEqual(made['days'][day.isoformat()]['blocks'], ['10:00', '10:30', '14:00'])
+        self.assertEqual(InterviewTime.objects.count(), 2)  # 10:00-11:00 and 14:00-14:30
+        self.assertEqual(interviews.open_times(application=app), [])  # Dana applied for retail only
+        self.staff.post('/api/hiring/interview-days/', {'dates': [day.isoformat()], 'blocks': ['10:00', '10:30'],
+                                                        'jobs': []}, format='json')
+        times = interviews.open_times(application=app)
+        self.assertEqual([timezone.localtime(s).strftime('%H:%M') for s, _ in times], ['10:00', '10:30'])
+        closed = self.staff.post('/api/hiring/interview-days/', {'dates': [day.isoformat()], 'blocks': []},
+                                 format='json').data
+        self.assertNotIn(day.isoformat(), closed['days'])
+        past = self.staff.post('/api/hiring/interview-days/', {
+            'dates': [(timezone.localdate() - timedelta(days=2)).isoformat()], 'blocks': ['10:00']}, format='json')
+        self.assertEqual(past.status_code, 400)
+
     def test_texts_log_and_careers_checks(self):
         self.apply_with_tick()
         data = self.staff.get('/api/hiring/texts/').data

@@ -206,7 +206,7 @@ def _interview_state(application) -> dict:
             'place': current.place or cfg['place'],
         },
         # Their own booking doesn't block other times, but isn't offered back as a choice either.
-        'times': _time_rows([(s, e) for s, e in service.open_times(exclude=current)
+        'times': _time_rows([(s, e) for s, e in service.open_times(exclude=current, application=application)
                              if current is None or s != current.start]),
     }
 

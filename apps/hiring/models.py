@@ -244,16 +244,18 @@ class Interview(models.Model):
 
 
 class InterviewTime(models.Model):
-    """An extra opening outside the weekly hours, or a blocked stretch inside them."""
+    """Interview availability: an open stretch on a set day (the only times applicants can book), or a blocked one.
+    ``jobs`` empty = open to every position; else only applicants for one of those roles see it."""
 
     KIND_OPEN = 'open'
     KIND_BLOCK = 'block'
-    KIND_CHOICES = [(KIND_OPEN, 'Extra opening'), (KIND_BLOCK, 'Blocked')]
+    KIND_CHOICES = [(KIND_OPEN, 'Open for interviews'), (KIND_BLOCK, 'Blocked')]
 
     kind = models.CharField(max_length=5, choices=KIND_CHOICES)
     start = models.DateTimeField(db_index=True)
     end = models.DateTimeField()
     note = models.CharField(max_length=200, blank=True, default='')
+    jobs = models.ManyToManyField(Job, blank=True, related_name='interview_times')
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
     )

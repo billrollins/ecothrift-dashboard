@@ -39,17 +39,18 @@ The careers page, applications, and the People workspace. Design and phases: [`i
 
 - **Models:**
   - `Interview`: application, job, start and end, interviewer, place, status (scheduled, done, no_show, cancelled), booked_by, scorecard JSON, reminder_sent_at, ics_sequence;
-  - `InterviewTime`: an extra opening or a block;
+  - `InterviewTime`: an opening (with `jobs`: none = all positions) or a block;
   - on `Application`: `booking_token`, `booking_token_expires`, `invited_at`.
 - **Service:** `apps/hiring/interviews.py`.
-  - Open times = the weekly hours in the careers file `interviews` (weekdays, start, end, length_minutes, days_ahead, min_notice_hours, link_days, place), plus openings, minus blocks, minus scheduled interviews.
+  - Open times = only the openings a manager made on People → Interviews (`set_days`: pick days, then the 8 AM to 8 PM blocks, then all positions or some), for the applicant's roles, minus blocks, minus scheduled interviews. Nothing is open by default; there are no weekly hours.
+  - The careers file `interviews` keeps length_minutes, min_notice_hours, link_days and place. Old weekdays, start, end and days_ahead keys are dropped on save.
   - One interview at a time, store-wide; a Postgres advisory lock guards booking.
 - **Public:** `GET/POST /api/hiring/public/interview/?t=` (state and open times; POST books or moves) and `POST …/interview/cancel/`. The page is `frontend-public/src/pages/careers/InterviewPage.tsx`.
 - **Staff:**
   - `POST applications/<id>/invite/ {send}`;
   - `/api/hiring/interviews/` (list `when=today|upcoming|past`, create = staff book, `reschedule`, `interviewer`, `cancel`, `no-show`, `scorecard {answers, overall, lead_potential, notes, done}`, `open-times`);
-  - `/api/hiring/interview-times/`;
-  - pages: `frontend/src/pages/people/InterviewsPage.tsx` and `interviewUi.tsx`.
+  - `GET/POST /api/hiring/interview-days/` (`?from&to` → per date: blocks, jobs, booked; POST `{dates, blocks, jobs}` replaces those days' openings, empty blocks closes them) and the older `/api/hiring/interview-times/`;
+  - pages: `frontend/src/pages/people/InterviewsPage.tsx`, `InterviewAvailability.tsx` and `interviewUi.tsx`.
 - **Emails** (careers file): `interview_invite`, `interview_booked`, `interview_changed`, `interview_cancelled`, `interview_reminder`, and `interview_notice` (to the interviewer and the hiring manager). The applicant's and the staff copies carry `interview.ics`.
 - **Reminders:** `send_due_reminders()` runs inside `sync_ms_mailbox` (every 10 minutes): one per interview, when it is between 1 and 24 hours away. A booking made less than 24 hours ahead gets no reminder.
 - **Defaults:** careers `defaults.hiring_manager` and `defaults.interviewers` (staff emails) seed new roles. A new interview's interviewer is the role's first interviewer, then the default interviewer, then the hiring manager.
