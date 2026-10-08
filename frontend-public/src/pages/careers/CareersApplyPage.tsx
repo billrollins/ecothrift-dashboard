@@ -215,7 +215,7 @@ export default function CareersApplyPage() {
         <h1>Thanks{doneName ? `, ${doneName}` : ''}. We got it.</h1>
         <p>
           A real person will read your application. We sent a copy of what happens next to your email. If it
-          looks like a fit, we&rsquo;ll call or text you to set up an interview at the store.
+          looks like a fit, we&rsquo;ll email you a link to pick an interview time at the store.
         </p>
         <div className="hbtns" style={{ marginTop: 22 }}>
           <Link className="btn btn--ghost" to="/careers">
@@ -354,10 +354,17 @@ export default function CareersApplyPage() {
               <TextField name="email" label="Email" type="email" autoComplete="email" value={contact.email}
                 error={errors.email} onChange={(v) => setField('email', v)} />
             </div>
-            <label className="cr-consent" style={{ marginTop: 6 }}>
-              <input type="checkbox" checked={smsConsent} onChange={(e) => setSmsConsent(e.target.checked)} />
-              <span>{careers.sms_consent_text}</span>
-            </label>
+            {careers.sms_consent_text ? (
+              <label className="cr-consent" style={{ marginTop: 6 }}>
+                <input type="checkbox" checked={smsConsent} onChange={(e) => setSmsConsent(e.target.checked)} />
+                <span>{careers.sms_consent_text}</span>
+              </label>
+            ) : (
+              <p className="cr-consent" style={{ marginTop: 6 }}>
+                We&rsquo;ll email you about your application: interview times, reminders, and your first day if
+                you&rsquo;re hired.
+              </p>
+            )}
             <div className="cr-hp" aria-hidden="true">
               <label>
                 Website

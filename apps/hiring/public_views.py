@@ -69,7 +69,7 @@ def careers_page(request):
         'practice': _practice(request),
         'page': setting['page'],
         'questions': setting['form']['questions'],
-        'sms_consent_text': careers.SMS_CONSENT_TEXT,
+        'sms_consent_text': '' if texting_parked() else careers.SMS_CONSENT_TEXT,
         'jobs': PublicJobSerializer(services.public_job_list(), many=True).data,
     })
 
@@ -160,7 +160,7 @@ def apply(request):
     if errors:
         return _bad(errors)
 
-    sms_consent = str(data.get('sms_consent') or '').lower() in ('1', 'true', 'yes', 'on')
+    sms_consent = not texting_parked() and str(data.get('sms_consent') or '').lower() in ('1', 'true', 'yes', 'on')
     with transaction.atomic():
         resume = save_resume(upload) if upload else None
         application = services.create_application(
@@ -253,6 +253,13 @@ def interview_cancel(request):
 _OFFER_GONE = 'This offer link is not valid. Reply to the email we sent you, or call the store.'
 
 
+def texting_parked() -> bool:
+    """D20: email first. No text tick on the application or the offer while texting is parked."""
+    from apps.texting import service as texting
+
+    return texting.PARKED
+
+
 def _offer_state(offer) -> dict:
     from apps.hiring.offers import date_text, money, time_text
     from apps.hiring.texts import consent_summary
@@ -261,7 +268,7 @@ def _offer_state(offer) -> dict:
     phone = digits(offer.application.phone)
     # The optional text tick (T71): shown when there is a mobile number and their tick does not cover the first day.
     texts = None
-    if phone and not consent_summary(phone)['first_day']:
+    if phone and not texting_parked() and not consent_summary(phone)['first_day']:
         texts = {'wording': careers.SMS_CONSENT_TEXT, 'phone_last4': phone[-4:]}
     return {
         'texts': texts,

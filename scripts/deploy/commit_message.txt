@@ -1,6 +1,6 @@
-v2.153.0 — The 90-day check-in decides pay: a raise (rate and start date) or no change yet, with the reason; a raise updates Dash's rate
+v2.154.0 — Email first: no text box on the job application or offer, texting parked (D20, T73); shared EmailConsent record for Thrift+
 
-<!-- Last reviewed: 2026-10-08 (2.153.0) -->
+<!-- Last reviewed: 2026-10-08 (2.154.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -13,14 +13,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [2.153.0] - 2026-10-08
+## [2.154.0] - 2026-10-08
 
-User-facing theme: **The 90-day check-in decides pay.** Initiative: `hiring_onboarding`.
+User-facing theme: **Email first: the job application has no text box, and Eco-Thrift texts no one** (Bill, decision D20; standards T73, which replaces T71). Initiative: `hiring_onboarding`.
+
+### Changed
+
+- **The application's text tick is gone.** In its place one line says we'll email them about their application: interview times, reminders, and their first day if they're hired. No box: mail about a job someone applied for needs no opt-in. The thank-you page says we'll email an interview link (it said call or text).
+- **The offer page no longer offers the first-day text tick.**
+- **Texting is parked** (`apps/texting` `PARKED`): kept in the repo, switched off, nothing deleted. Consents already recorded stay; nobody is texted.
 
 ### Added
 
-- **A Pay review box on the 90-day check-in.** It shows today's rate in Dash. The manager picks **Give a raise** (new hourly rate and the date it starts) or **No change yet**, and writes what the raise is for or what would earn one. The check-in can't be signed until that is done. The decision is on the signed PDF and on the employee's My check-ins.
-- **A raise updates the rate in Dash when the check-in is signed**, and onboarding's history notes it. QuickBooks runs payroll, so the rate is changed there by hand; Dash says so.
-- **Which check-ins decide pay is in the careers file** (`checkin.pay_review_days`, default `[90]`).
+- **A shared email-consent record** (`apps/texting` `EmailConsent`, migration `texting.0003`): who, which kind (job, Thrift+, store news, or all = unsubscribe), in or out, when, how, the wording and its version, newest wins. For the Thrift+ sign-up email boxes; hiring does not use it.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

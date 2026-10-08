@@ -12,6 +12,13 @@ from apps.texting.models import TextConsent, TextMessage
 class TextTests(Base):
     def setUp(self):
         super().setUp()
+        from unittest import mock
+
+        from apps.texting import service as texting
+
+        unpark = mock.patch.object(texting, 'PARKED', False)  # these describe texting as built, for when it returns
+        unpark.start()
+        self.addCleanup(unpark.stop)
         self.carrie = _user('carrie@example.com', 'Manager')
         Job.objects.filter(slug='retail-associate').update(hiring_manager=self.manager)
         Job.objects.get(slug='retail-associate').interviewers.set([self.carrie])
@@ -182,3 +189,35 @@ class TextTests(Base):
         self.assertTrue(good['ok'], good['errors'])
         self.assertEqual(careers.summarize_changes(careers.export_doc(), good['doc']),
                          ['Texts: place changes', 'Texts: interview booked changes'])
+
+
+class ParkedTests(TextTests):
+    """D20: email first. While texting is parked there is no text tick and a sent tick records nothing."""
+
+    def setUp(self):
+        super().setUp()
+        from unittest import mock
+
+        from apps.texting import service as texting
+
+        park = mock.patch.object(texting, 'PARKED', True)
+        park.start()
+        self.addCleanup(park.stop)
+
+    def test_no_tick_and_nothing_recorded(self):
+        self.assertEqual(self.public.get('/api/hiring/public/careers/').data['sms_consent_text'], '')
+        app = self.apply_with_tick()
+        self.assertFalse(app.sms_consent)
+        self.assertFalse(TextConsent.objects.exists())
+        self.assertFalse(TextMessage.objects.exclude(status=TextMessage.STATUS_NO_CONSENT).exists())
+
+    # the inherited texting tests describe texting when it is on; they run once, above
+    test_the_tick_records_consent_and_holds_the_confirmation = None
+    test_no_tick_no_texts = None
+    test_staff_booking_shows_the_text_and_holds_the_edited_words = None
+    test_no_text_this_time = None
+    test_they_asked_not_to_be_texted = None
+    test_reminder_and_first_day_texts_go_once = None
+    test_an_older_tick_gets_interview_texts_only_until_the_offer_page_tick = None
+    test_only_opened_days_are_bookable_and_positions_narrow_them = None
+    test_texts_log_and_careers_checks = None

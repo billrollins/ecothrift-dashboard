@@ -146,3 +146,8 @@ The careers page, applications, and the People workspace. Design and phases: [`i
 
 It only runs with DEBUG on, sends no email (`emails.send` is patched while it runs), and puts everything on `@seed.example.test`. Re-running clears the old set first; `--clear` removes it. Tested in `SeedDemoTests`.
 
+## Email first (D20, T73; v2.154.0)
+
+- Texting is parked: `apps.texting.service.PARKED = True`. While parked, `public_views.texting_parked()` hides the application and offer text ticks (`sms_consent_text` is blank, a sent `sms_consent` is ignored) and `waiting_on()` lists it, so nothing is texted. Code, templates and old consents stay.
+- Hiring mail needs no opt-in (it is about the job they applied for); the application says so in one line. `EmailConsent` (`apps/texting`) is the shared opt-in record for mail that needs a yes (Thrift+ account mail, store news): `record_email_consent`, `email_consent_state`, `may_email`, `normalize_email`.
+- Text tests patch `PARKED` to False; `ParkedTests` checks the parked behaviour.

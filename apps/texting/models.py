@@ -43,6 +43,39 @@ class TextConsent(models.Model):
         return f'{self.phone} {self.kind} {"in" if self.opted_in else "out"} {self.at:%Y-%m-%d}'
 
 
+class EmailConsent(models.Model):
+    """Every change to someone's consent to be emailed (T73: email first), newest wins; history kept.
+    Only for mail that needs a yes (Thrift+ account mail, store news). Mail about a job someone applied for does not."""
+
+    KIND_JOB = 'job'
+    KIND_THRIFTPLUS = 'thriftplus'
+    KIND_NEWS = 'news'
+    KIND_ALL = 'all'
+    KIND_CHOICES = [
+        (KIND_JOB, 'Job application emails'),
+        (KIND_THRIFTPLUS, 'Thrift+ account emails'),
+        (KIND_NEWS, 'Store news emails'),
+        (KIND_ALL, 'Every email (unsubscribe)'),
+    ]
+
+    email = models.CharField(max_length=254, db_index=True, help_text='Lower-case.')
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES)
+    opted_in = models.BooleanField()
+    at = models.DateTimeField(default=timezone.now, db_index=True)
+    how = models.CharField(max_length=160, help_text='"Thrift+ sign-up (staff: name)", "Unsubscribe link".')
+    wording_version = models.CharField(max_length=40, blank=True, default='')
+    wording = models.TextField(blank=True, default='')
+    ref = models.CharField(max_length=80, blank=True, default='', help_text='What it came from, e.g. thriftplus.person:12.')
+    by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+
+    class Meta:
+        ordering = ['-at', '-id']
+        indexes = [models.Index(fields=['email', 'kind', '-at'])]
+
+    def __str__(self) -> str:
+        return f'{self.email} {self.kind} {"in" if self.opted_in else "out"} {self.at:%Y-%m-%d}'
+
+
 class TextMessage(models.Model):
     STATUS_HELD = 'held'
     STATUS_SENT = 'sent'

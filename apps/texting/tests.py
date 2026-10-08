@@ -71,7 +71,7 @@ class ConsentAndSendTests(TestCase):
         service.record_consent(self.PHONE, kind='job', opted_in=True, how='Online job application')
         AppSetting.objects.create(key=service.LIVE_SETTING, value=True)
         keys = {name: 'x' for name in service.TWILIO_KEYS}
-        with mock.patch.object(service, 'WIRED', True), \
+        with mock.patch.object(service, 'WIRED', True), mock.patch.object(service, 'PARKED', False), \
                 mock.patch.object(service, 'config', side_effect=lambda name, default='': keys.get(name, default)), \
                 mock.patch.object(service, '_deliver', return_value=(True, 'SM123', '')) as deliver:
             self.assertEqual(service.waiting_on(), [])
@@ -86,3 +86,25 @@ class ConsentAndSendTests(TestCase):
     def test_dev_never_texts(self):
         with override_settings(DEBUG=True):
             self.assertIn('production (dev never texts)', service.waiting_on())
+
+
+class EmailConsentTests(TestCase):
+    """T73: the shared email consent store (Thrift+ sign-up boxes); texting is parked (D20)."""
+
+    def test_record_state_and_unsubscribe(self):
+        self.assertEqual(service.normalize_email('  Dana@Example.COM '), 'dana@example.com')
+        self.assertEqual(service.normalize_email('not an email'), '')
+        self.assertIsNone(service.record_email_consent('nope', kind='news', opted_in=True, how='test'))
+        self.assertFalse(service.may_email('dana@example.com', 'news'))  # no row, no mail
+        service.record_email_consent('Dana@Example.com', kind='news', opted_in=True, how='Thrift+ sign-up',
+                                     wording_version='news-email-2026-10-08', ref='thriftplus.person:1')
+        self.assertTrue(service.may_email('dana@example.com', 'news'))
+        self.assertFalse(service.may_email('dana@example.com', 'thriftplus'))
+        service.record_email_consent('dana@example.com', kind='all', opted_in=False, how='Unsubscribe link')
+        self.assertFalse(service.may_email('dana@example.com', 'news'))
+        self.assertEqual(service.email_consent_state('dana@example.com', 'news').kind, 'all')
+
+    def test_texting_is_parked(self):
+        self.assertTrue(service.PARKED)
+        self.assertIn('texting is parked (email first, D20)', service.waiting_on())
+        self.assertFalse(service.live())

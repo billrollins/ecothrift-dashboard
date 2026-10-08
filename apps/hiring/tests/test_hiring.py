@@ -207,7 +207,12 @@ class ApplyTests(Base):
 
     def test_apply_with_resume_sends_auto_reply_and_alert(self):
         pdf = SimpleUploadedFile('resume.pdf', b'%PDF-1.4 resume', content_type='application/pdf')
-        response = self.apply(resume=pdf, sms_consent='true')
+        from unittest import mock
+
+        from apps.texting import service as texting
+
+        with mock.patch.object(texting, 'PARKED', False):
+            response = self.apply(resume=pdf, sms_consent='true')
         self.assertEqual(response.status_code, 201, response.data)
         app = Application.objects.get()
         self.assertEqual(app.stage, 'new')

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.153.0] -->
-<!-- Last reviewed: 2026-10-08 (2.153.0) -->
+<!-- Line 1 release: ## [2.154.0] -->
+<!-- Last reviewed: 2026-10-08 (2.154.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.154.0] - 2026-10-08
+
+User-facing theme: **Email first: the job application has no text box, and Eco-Thrift texts no one** (Bill, decision D20; standards T73, which replaces T71). Initiative: `hiring_onboarding`.
+
+### Changed
+
+- **The application's text tick is gone.** In its place one line says we'll email them about their application: interview times, reminders, and their first day if they're hired. No box: mail about a job someone applied for needs no opt-in. The thank-you page says we'll email an interview link (it said call or text).
+- **The offer page no longer offers the first-day text tick.**
+- **Texting is parked** (`apps/texting` `PARKED`): kept in the repo, switched off, nothing deleted. Consents already recorded stay; nobody is texted.
+
+### Added
+
+- **A shared email-consent record** (`apps/texting` `EmailConsent`, migration `texting.0003`): who, which kind (job, Thrift+, store news, or all = unsubscribe), in or out, when, how, the wording and its version, newest wins. For the Thrift+ sign-up email boxes; hiring does not use it.
 
 ## [2.153.0] - 2026-10-08
 

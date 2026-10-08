@@ -22,7 +22,7 @@ from decouple import config
 from django.conf import settings
 from django.utils import timezone
 
-from apps.texting.models import TextConsent, TextMessage
+from apps.texting.models import EmailConsent, TextConsent, TextMessage
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,10 @@ MAX_LENGTH = 320  # two text segments
 
 # Set True only when _deliver() below really sends through Twilio (written when the account and key are ready).
 WIRED = False
+
+# D20 (Bill, 2026-10-08; standards T73): email first, texting parked. No text tick is offered anywhere and nothing is
+# texted; the records and this code stay. Set False only when Bill brings texting back.
+PARKED = True
 
 _STOP = re.compile(r'\bSTOP\b')
 
@@ -77,6 +81,43 @@ def record_consent(phone: str, *, kind: str, opted_in: bool, how: str, wording_v
     )
 
 
+# ── Email consent (shared: Thrift+ sign-up boxes; T73) ─────────────────────
+
+
+_EMAIL = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+
+
+def normalize_email(email: str | None) -> str:
+    """Lower-case and trimmed ('' when it is not an email address)."""
+    value = (email or '').strip().lower()
+    return value if len(value) <= 254 and _EMAIL.match(value) else ''
+
+
+def record_email_consent(email: str, *, kind: str, opted_in: bool, how: str, wording_version: str = '',
+                         wording: str = '', ref: str = '', by=None, at=None) -> EmailConsent | None:
+    address = normalize_email(email)
+    if not address:
+        return None
+    return EmailConsent.objects.create(
+        email=address, kind=kind, opted_in=opted_in, how=how[:160], wording_version=wording_version[:40],
+        wording=wording, ref=ref[:80], by=by, at=at or timezone.now(),
+    )
+
+
+def email_consent_state(email: str, kind: str) -> EmailConsent | None:
+    """The newest record that decides whether this kind may be emailed to this address ('all' = unsubscribe)."""
+    address = normalize_email(email)
+    if not address:
+        return None
+    return EmailConsent.objects.filter(email=address, kind__in=(kind, EmailConsent.KIND_ALL)).order_by(
+        '-at', '-id').first()
+
+
+def may_email(email: str, kind: str) -> bool:
+    state = email_consent_state(email, kind)
+    return bool(state and state.opted_in)
+
+
 def record_stop(phone: str, *, how: str = 'Replied STOP', by=None) -> TextConsent | None:
     """STOP ends every kind of text to this number until they opt back in."""
     return record_consent(phone, kind=TextConsent.KIND_ALL, opted_in=False, how=how, by=by)
@@ -108,6 +149,8 @@ def _switch_on() -> bool:
 def waiting_on() -> list[str]:
     """What still stands between Dash and a real text (empty = live)."""
     missing = []
+    if PARKED:
+        missing.append('texting is parked (email first, D20)')
     if not WIRED:
         missing.append('the send step to Twilio')
     if not all(str(config(name, default='') or '').strip() for name in TWILIO_KEYS):
