@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
-import type { QaJob, RoutineAssignee } from '../../../api/routines.api';
-import { CHECKLISTS_LABEL, barTone, displayName, jobChip, jobTimeLabel, missReasonText, missedLine, nudgeLabel, shortName } from './commandCenter';
+import type { QaJob, QaResolveKind, RoutineAssignee } from '../../../api/routines.api';
+import { CHECKLISTS_LABEL, barTone, displayName, jobChip, jobTimeLabel, missReasonText, missedLine, nudgeLabel, resolvedLine, shortName } from './commandCenter';
 import { ChipMenu } from './QaChip';
 import { QaIcon } from './QaIcons';
 
@@ -11,6 +11,8 @@ export function RoutinesCard({
   people,
   onAssign,
   onNudge,
+  onResolve,
+  canNudge = true,
   onWeekView,
   closedLabel,
 }: {
@@ -19,6 +21,10 @@ export function RoutinesCard({
   people: RoutineAssignee[];
   onAssign: (job: QaJob, userId: number | '') => void;
   onNudge: (runId: number, el: HTMLElement) => void;
+  /** Superusers only: forgive or mark done a missed routine. */
+  onResolve?: (runId: number, kind: QaResolveKind) => void;
+  /** False on a past day: there is no one left to nudge. */
+  canNudge?: boolean;
   onWeekView: () => void;
   closedLabel?: string | null;
 }) {
@@ -44,8 +50,14 @@ export function RoutinesCard({
         {!closedLabel && !needed ? <div className="empty-closed">No routines today</div> : null}
         {!closedLabel ? (
           <>
-            <RoutineGroup title="Section checks" jobs={sections} people={people} onAssign={onAssign} onNudge={onNudge} />
-            <RoutineGroup title={CHECKLISTS_LABEL} jobs={shifts} people={people} onAssign={onAssign} onNudge={onNudge} />
+            <RoutineGroup
+              title="Section checks" jobs={sections} people={people} onAssign={onAssign} onNudge={onNudge}
+              onResolve={onResolve} canNudge={canNudge}
+            />
+            <RoutineGroup
+              title={CHECKLISTS_LABEL} jobs={shifts} people={people} onAssign={onAssign} onNudge={onNudge}
+              onResolve={onResolve} canNudge={canNudge}
+            />
           </>
         ) : null}
       </div>
@@ -59,12 +71,16 @@ function RoutineGroup({
   people,
   onAssign,
   onNudge,
+  onResolve,
+  canNudge,
 }: {
   title: string;
   jobs: QaJob[];
   people: RoutineAssignee[];
   onAssign: (job: QaJob, userId: number | '') => void;
   onNudge: (runId: number, el: HTMLElement) => void;
+  onResolve?: (runId: number, kind: QaResolveKind) => void;
+  canNudge: boolean;
 }) {
   const allDone = jobs.length > 0 && jobs.every((job) => jobChip(job.status, job.owner, job.urgency) === 'done');
   const [open, setOpen] = useState(!allDone);
@@ -110,6 +126,22 @@ function RoutineGroup({
           const canAssign = Boolean(
             (unassigned || reassignKey === rowKey) && (job.section_id || job.run_id),
           );
+          // Owner, 2026-10-08: a missed routine is never nudged; a superuser marks it done or forgives it.
+          const missed = job.status === 'Missed';
+          const items = chip !== 'done' && chip !== 'unas' && (job.run_id || job.section_id)
+            ? [
+                ...(missed && onResolve && job.run_id
+                  ? [
+                      { label: 'Mark done', onClick: () => onResolve(job.run_id as number, 'done') },
+                      { label: 'Forgive', onClick: () => onResolve(job.run_id as number, 'forgiven') },
+                    ]
+                  : []),
+                ...(!missed && canNudge && job.run_id
+                  ? [{ label: 'Nudge', onClick: () => onNudge(job.run_id as number, document.body) }]
+                  : []),
+                { label: 'Reassign', onClick: () => setReassignKey(rowKey) },
+              ]
+            : [];
           return (
             <div className={`row${stripe}`} key={`${job.key}-${job.run_id ?? job.section_id ?? index}`}>
               <span className="name nowrap">{displayName(job.title, 'routine')}</span>
@@ -154,6 +186,7 @@ function RoutineGroup({
               <span className="time" title={missReasonText(job) || undefined}>
                 <span className="due nowrap">{jobTimeLabel(job)}</span>
                 {missedLine(job) ? <span className="miss-why nowrap">{missedLine(job)}</span> : null}
+                {resolvedLine(job) ? <span className="miss-why nowrap">{resolvedLine(job)}</span> : null}
                 {job.owner_late ? <span className="owner-late">Owner late</span> : null}
                 {nudgeLabel(job.nudged_at) ? <span className="nudged">{nudgeLabel(job.nudged_at)}</span> : null}
               </span>
@@ -161,16 +194,7 @@ function RoutineGroup({
                 <ChipMenu
                   kind={chip}
                   title={nudgeLabel(job.nudged_at) || undefined}
-                  items={
-                    chip !== 'done' && chip !== 'unas' && (job.run_id || job.section_id)
-                      ? [
-                          ...(job.run_id
-                            ? [{ label: 'Nudge', onClick: () => onNudge(job.run_id as number, document.body) }]
-                            : []),
-                          { label: 'Reassign', onClick: () => setReassignKey(rowKey) },
-                        ]
-                      : []
-                  }
+                  items={items}
                 />
               </span>
             </div>

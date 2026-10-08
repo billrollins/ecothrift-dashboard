@@ -24,8 +24,8 @@ from .counting import BadRequest, expected_ids, good_scans, person
 from .shrink import AGES, PRICE_BANDS, annotated, missing_ids
 
 PCT_BUCKETS = [  # (key, label, from %, to %)
-    ('u20', 'Under 20%', 0, 20), ('20', '20–29%', 20, 30), ('30', '30–39%', 30, 40), ('40', '40–49%', 40, 50),
-    ('50', '50–59%', 50, 60), ('60', '60% and up', 60, None),
+    ('u20', 'Under 20%', 0, 20), ('20', '20 to 29%', 20, 30), ('30', '30 to 39%', 30, 40), ('40', '40 to 49%', 40, 50),
+    ('50', '50 to 59%', 50, 60), ('60', '60% and up', 60, None),
 ]
 BREAKDOWNS = ('category', 'subcategory', 'vendor', 'order', 'age', 'pct', 'price_band', 'person')
 HIST_MAX = 120

@@ -2,7 +2,7 @@ import { addDays, format, parseISO } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
-import type { QaDayTile } from '../../../api/routines.api';
+import type { QaDayTile, QaResolveKind } from '../../../api/routines.api';
 import { LoadingScreen } from '../../../components/feedback/LoadingScreen';
 import { useAuth } from '../../../hooks/useAuth';
 import { useRoutineAssignees } from '../../../hooks/useRoutines';
@@ -14,6 +14,7 @@ import {
   useQaNudge,
   useQaOverride,
   useQaPeople,
+  useQaResolve,
   useQaSpots,
   useQaToday,
   useQaWeek,
@@ -54,6 +55,7 @@ export default function RetailQaPage() {
   const exclude = useQaExclude();
   const override = useQaOverride();
   const nudge = useQaNudge();
+  const resolve = useQaResolve();
   const [nudgeTarget, setNudgeTarget] = useState<{ runId: number; anchor: HTMLElement } | null>(null);
   const [nudgeStamp, setNudgeStamp] = useState<Record<number, string>>({});
   const data = weekQuery.data;
@@ -201,6 +203,16 @@ export default function RetailQaPage() {
     }
   }
 
+  async function resolveRun(runId: number, kind: QaResolveKind) {
+    try {
+      await resolve.mutateAsync({ runId, kind });
+      enqueueSnackbar(kind === 'done' ? 'Marked done' : 'Forgiven');
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      enqueueSnackbar(typeof detail === 'string' ? detail : 'Could not clear that routine', { variant: 'error' });
+    }
+  }
+
   async function assignJob(job: { group: string; run_id: number | null; section_id: number | null }, userId: number | '') {
     try {
       if (job.group === 'section' && job.section_id) {
@@ -252,6 +264,9 @@ export default function RetailQaPage() {
       return word === 'Expected' || word === 'Late' || word === 'In';
     })
     .map((row) => ({ id: row.id, name: row.name }));
+  // Superusers clear missed routines; nobody nudges on a past day (owner, 2026-10-08).
+  const onResolve = user?.is_superuser ? (runId: number, kind: QaResolveKind) => void resolveRun(runId, kind) : undefined;
+  const canNudge = date >= today;
   const closedLabel = board && !(board.graded ?? board.open)
     ? (board.closed_label || 'Store closed')
     : null;
@@ -322,6 +337,8 @@ export default function RetailQaPage() {
             onDoSpot={() => board?.spot?.run_id && runnerReturn(board.spot.run_id)}
             onOpenShifts={() => navigate('/admin/shifts')}
             onRemove={(id) => void removeFromToday(id)}
+            onResolve={onResolve}
+            canNudge={canNudge}
             closedLabel={closedLabel}
           />
           <RoutinesCard
@@ -330,6 +347,8 @@ export default function RetailQaPage() {
             people={assignees.data ?? []}
             onAssign={(job, userId) => void assignJob(job, userId)}
             onNudge={(id, el) => setNudgeTarget({ runId: id, anchor: el })}
+            onResolve={onResolve}
+            canNudge={canNudge}
             onWeekView={() => setWeekOpen(true)}
             closedLabel={closedLabel}
           />

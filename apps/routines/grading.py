@@ -562,6 +562,8 @@ def _doing_for_day(day: date, runs: list[RoutineRun], *, project: bool = False) 
             for row in (responses or {}).get('sections') or []:
                 if row.get('section_id'):
                     tallied.add(int(row['section_id']))
+            if run.section_id and (run.generated or {}).get('resolved'):
+                tallied.add(run.section_id)  # cleared by the owner (marked done or forgiven)
         if key == SYSTEM_CROSS_CHECK and run.section_id:
             tallied.add(run.section_id)
 
@@ -946,6 +948,8 @@ def _people_for_week(monday: date, days: list[dict], runs: list[RoutineRun]) -> 
         person = run.assigned_to or run.completed_by
         if person is None:
             continue
+        if ((run.generated or {}).get('resolved') or {}).get('kind') == 'forgiven':
+            continue  # forgiven by the owner: not counted for or against the person
         row = bucket(person.pk, person.full_name)
         row['assigned'] += 1
         status = _run_status(run)

@@ -1065,6 +1065,53 @@ def build_jobs(day: date, day_row: dict, *, now: datetime, tz, hours_cfg) -> lis
 
 MISS_REASON_LABELS = {code: label for code, label in RoutineRun.MISS_REASON_CHOICES}
 
+RESOLVE_KINDS = {'done': 'Marked done', 'forgiven': 'Forgiven'}
+RESOLVABLE_KEYS = (SYSTEM_OPEN, SYSTEM_DAY, SYSTEM_CLOSE, SYSTEM_TALLY)
+
+
+class ResolveError(ValueError):
+    """A run that can't be forgiven or marked done (shown as is)."""
+
+
+def resolve_missed_run(run: RoutineRun, *, kind: str, by, note: str = '', now: datetime | None = None) -> RoutineRun:
+    """A superuser clears a missed (or past-due) routine (owner, 2026-10-08).
+
+    'done': it was done but not recorded; it counts as done on time.
+    'forgiven': it wasn't done, but it doesn't count against the person (left out of their numbers).
+    Either way the run becomes Done, kept on time, and generated['resolved'] says who, when and why. Cross checks
+    and spot walks are scored from their counts, so they can't be cleared this way.
+    """
+    now = now or timezone.now()
+    if kind not in RESOLVE_KINDS:
+        raise ResolveError('Pick Mark done or Forgive.')
+    if run.routine.system_key not in RESOLVABLE_KEYS:
+        raise ResolveError('Only the open, day and close checklists and section checks can be cleared here.')
+    if run.status == RoutineRun.STATUS_DONE:
+        raise ResolveError('That routine is already done.')
+    if run.due_at and run.due_at > now:
+        raise ResolveError('That routine is not due yet.')
+    name = (getattr(by, 'full_name', '') or '').strip() or getattr(by, 'email', '') or 'Owner'
+    generated = dict(run.generated or {})
+    generated['resolved'] = {
+        'kind': kind, 'by': getattr(by, 'pk', None), 'by_name': name, 'at': now.isoformat(),
+        'note': (note or '').strip()[:300], 'was': run.status,
+    }
+    run.generated = generated
+    run.status = RoutineRun.STATUS_DONE
+    run.completed_at = run.due_at or now
+    if run.completed_by_id is None:
+        run.completed_by = run.assigned_to or by
+    run.save(update_fields=['generated', 'status', 'completed_at', 'completed_by'])
+    return run
+
+
+def resolved_info(run) -> dict:
+    """{'kind', 'label', 'by_name'} for a cleared run, or {} (also used by grading)."""
+    data = ((getattr(run, 'generated', None) or {}).get('resolved') or {}) if run is not None else {}
+    if not data.get('kind'):
+        return {}
+    return {'kind': data['kind'], 'label': RESOLVE_KINDS.get(data['kind'], ''), 'by_name': data.get('by_name') or ''}
+
 
 def miss_fields(run) -> dict:
     """Why a run was missed, answered at the kiosk. Empty strings when unanswered."""
@@ -1073,6 +1120,7 @@ def miss_fields(run) -> dict:
         'miss_reason': reason,
         'miss_reason_label': MISS_REASON_LABELS.get(reason, ''),
         'miss_reason_note': (getattr(run, 'miss_reason_note', '') or '') if run is not None else '',
+        'resolved': resolved_info(run) or None,
     }
 
 
@@ -1547,6 +1595,22 @@ def build_issues(
             sentence = f'{job["title"]} was due {due_hhmm} and is not started.' if due_hhmm else f'{job["title"]} is overdue.'
             severity = 'amber'
             issue_type = 'overdue_routine'
+        if job['status'] == STATUS_MISSED:
+            # Owner, 2026-10-08: nudging a missed routine does nothing; a superuser clears it instead.
+            issues.append({
+                'id': f'routine-{job["run_id"]}',
+                'type': issue_type,
+                'severity': severity,
+                'sentence': sentence,
+                'action': 'resolve_missed',
+                'person_id': (job.get('owner') or {}).get('id'),
+                'person_name': (job.get('owner') or {}).get('name'),
+                'run_id': job['run_id'],
+                'call_in_id': None,
+                'nudged_at': None,
+                'can_act': True,
+            })
+            continue
         nudge = nudges.get(job['run_id'])
         packed = serialize_nudge(nudge, now=now) if nudge else None
         resolved = bool(

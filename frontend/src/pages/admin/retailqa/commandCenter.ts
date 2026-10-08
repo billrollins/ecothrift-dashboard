@@ -230,6 +230,14 @@ export function missedLine(job: Pick<QaJob, 'status' | 'miss_reason' | 'miss_rea
   return label ? `Missed · ${label}` : '';
 }
 
+/** A missed run a superuser cleared: "Forgiven by Bill" / "Marked done by Bill". */
+export function resolvedLine(job: Pick<QaJob, 'resolved'>) {
+  const info = job.resolved;
+  if (!info?.kind) return '';
+  const label = info.label || (info.kind === 'forgiven' ? 'Forgiven' : 'Marked done');
+  return info.by_name ? `${label} by ${shortName(info.by_name)}` : label;
+}
+
 export function dueClock(label: string) {
   const match = /(\d{1,2}:\d{2})/.exec(label);
   return match ? match[1] : label.replace(/^Due\s+/i, '');

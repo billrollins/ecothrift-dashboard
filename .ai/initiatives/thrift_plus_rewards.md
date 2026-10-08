@@ -367,6 +367,9 @@ The POS handles members:
 
 ### 2026-10-08 — One rulebook
 - The owner asked for one place for every Thrift+ rule, with no more one-off questions. `extended/thrift-plus-decisions.md` is rebuilt as the **Thrift+ rulebook** (56 rules: decided, conflict, open, CPA or attorney) and its page https://claude.ai/artifact/GpgB6SUsKkiKkNBRJj31W4 (collection `rules`) is where the owners decide. Answers are folded into the file; code follows the file.
+
+### 2026-10-08 — Form 5 chosen (rulebook complete)
+- **Rewards first, as store credit:** rewards earn in full as reward credit (a loyalty credit, not bought), kept on the account for 30 days after the receipt; using them today gets 80%. Warranty refunds: 80% of what was spent, tax included, back in the form spent (refund credit never expires, cash fallback). The $10 cover comes out of full-value rewards first. No cap (the 30 days keep credit small). Spending: refund credit always first (a payment, up to the whole total; Bill 10-08), then reward credit, soonest use-by date first (a discount before tax); when refund credit covers the total no rewards are used and today's are saved in full. Every remaining question is answered in the rulebook; the six CPA or attorney items (J5 signature, B10 ending the program, B11 unclaimed property, B12 disclosures and the 30 days, T3 tax on reward credit, T6 the books) were read and accepted by Bill 10-08. Join from a phone (photo and details on the phone, photo ID and signature at the register) is ready before launch.
 ---
 
 ## See also

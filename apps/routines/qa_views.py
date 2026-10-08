@@ -47,6 +47,8 @@ from .command_center import (
     pending_nudges_for,
     pooled_open_runs_for,
     remove_section_cover,
+    ResolveError,
+    resolve_missed_run,
     serialize_nudge,
     today_payload,
     week_payload,
@@ -564,6 +566,21 @@ class QaNudgeView(APIView):
             message=message,
         )
         return Response({'ok': True, 'nudge': serialize_nudge(row)})
+
+
+class QaResolveRunView(APIView):
+    """Superuser: forgive or mark done a missed routine ({kind: 'done' | 'forgiven', note})."""
+
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+
+    def post(self, request, pk):
+        run = get_object_or_404(RoutineRun.objects.select_related('routine'), pk=pk)
+        try:
+            resolve_missed_run(run, kind=str(request.data.get('kind') or ''), by=request.user,
+                               note=str(request.data.get('note') or ''))
+        except ResolveError as exc:
+            return Response({'detail': str(exc)}, status=400)
+        return Response({'ok': True, 'run': run.pk, 'status': run.status})
 
 
 class QaPendingNudgesView(APIView):

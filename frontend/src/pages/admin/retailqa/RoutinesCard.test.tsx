@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
 import type { QaJob } from '../../../api/routines.api';
 import { RoutinesCard } from './RoutinesCard';
 
@@ -17,6 +17,8 @@ const JOB: QaJob = {
   can_close: false,
 };
 
+const MISSED: QaJob = { ...JOB, owner: { id: 4, name: 'Sam Lee' }, status: 'Missed', urgency: 'missed' };
+
 describe('RoutinesCard', () => {
   it('labels the Open Day Close group Checklists', () => {
     render(
@@ -30,5 +32,56 @@ describe('RoutinesCard', () => {
       />,
     );
     expect(screen.getByText('Checklists')).toBeInTheDocument();
+  });
+
+  it('gives a superuser Mark done and Forgive on a missed routine, and no Nudge', () => {
+    const onResolve = vi.fn();
+    render(
+      <RoutinesCard
+        date="2026-10-05"
+        jobs={[MISSED]}
+        people={[]}
+        onAssign={() => {}}
+        onNudge={() => {}}
+        onResolve={onResolve}
+        onWeekView={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Missed/ }));
+    expect(screen.queryByText('Nudge')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('Forgive'));
+    expect(onResolve).toHaveBeenCalledWith(21, 'forgiven');
+  });
+
+  it('offers no Nudge on a missed routine to anyone else either', () => {
+    render(
+      <RoutinesCard
+        date="2026-10-05"
+        jobs={[MISSED]}
+        people={[]}
+        onAssign={() => {}}
+        onNudge={() => {}}
+        onWeekView={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Missed/ }));
+    expect(screen.queryByText('Nudge')).not.toBeInTheDocument();
+    expect(screen.queryByText('Mark done')).not.toBeInTheDocument();
+    expect(screen.getByText('Reassign')).toBeInTheDocument();
+  });
+
+  it('shows who cleared a routine', () => {
+    render(
+      <RoutinesCard
+        date="2026-10-05"
+        jobs={[{ ...MISSED, status: 'Done', urgency: null, resolved: { kind: 'forgiven', label: 'Forgiven', by_name: 'Bill Rollins' } }]}
+        people={[]}
+        onAssign={() => {}}
+        onNudge={() => {}}
+        onWeekView={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByText(/All 1 done/));
+    expect(screen.getByText(/^Forgiven by /)).toBeInTheDocument();
   });
 });

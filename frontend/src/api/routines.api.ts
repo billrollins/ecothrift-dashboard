@@ -812,7 +812,7 @@ export interface QaIssue {
   type: QaIssueType;
   severity: 'red' | 'amber' | 'grey';
   sentence: string;
-  action: 'call_in' | 'reassign' | 'nudge' | 'open_cross' | 'do_spot' | 'open_shifts' | 'clear_call_in' | 're_nudge' | 'unblock';
+  action: 'call_in' | 'reassign' | 'nudge' | 'open_cross' | 'do_spot' | 'open_shifts' | 'clear_call_in' | 're_nudge' | 'unblock' | 'resolve_missed';
   person_id: number | null;
   person_name: string | null;
   run_id: number | null;
@@ -851,6 +851,16 @@ export interface QaJob {
   miss_reason?: string;
   miss_reason_label?: string;
   miss_reason_note?: string;
+  /** A missed run a superuser cleared: Marked done or Forgiven, and by whom. */
+  resolved?: QaResolved | null;
+}
+
+export type QaResolveKind = 'done' | 'forgiven';
+
+export interface QaResolved {
+  kind: QaResolveKind;
+  label: string;
+  by_name: string;
 }
 
 export interface QaStaffRow {
@@ -1162,6 +1172,11 @@ export function createQaOverride(data: {
 
 export function createQaNudge(data: { run: number; message?: string }) {
   return api.post<{ ok: boolean; nudge: QaNudgeRow }>('/routines/qa/nudge/', data);
+}
+
+/** Superuser: forgive or mark done a missed routine. */
+export function resolveQaRun(runId: number, data: { kind: QaResolveKind; note?: string }) {
+  return api.post<{ ok: boolean; run: number; status: string }>(`/routines/qa/runs/${runId}/resolve/`, data);
 }
 
 export function getPendingQaNudges() {

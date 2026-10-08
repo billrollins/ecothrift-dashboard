@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { QaIssue, QaJob, QaStaffRow } from '../../../api/routines.api';
+import type { QaIssue, QaJob, QaResolveKind, QaStaffRow } from '../../../api/routines.api';
 import { groupIssues, nudgeLabel, type BoardIssue } from './commandCenter';
 import { ItemsMenu, type RowMenuItem } from './ItemsMenu';
 import { QaIcon } from './QaIcons';
@@ -17,6 +17,8 @@ export function IssuesBar({
   onDoSpot,
   onOpenShifts,
   onRemove,
+  onResolve,
+  canNudge = true,
   closedLabel,
 }: {
   issues: QaIssue[];
@@ -31,6 +33,10 @@ export function IssuesBar({
   onDoSpot: () => void;
   onOpenShifts: () => void;
   onRemove: (personId: number) => void;
+  /** Superusers only: forgive or mark done a missed routine. Left out for everyone else. */
+  onResolve?: (runId: number, kind: QaResolveKind) => void;
+  /** False on a past day: there is no one left to nudge. */
+  canNudge?: boolean;
   closedLabel?: string | null;
 }) {
   const rows = groupIssues(issues, staff, jobs);
@@ -46,8 +52,8 @@ export function IssuesBar({
           {rows.map((row) => {
             const tone = row.severity === 'red' ? 'bad' : row.severity === 'amber' ? 'warn' : '';
             const menu = issueMenu(row, workers, {
-              onCallIn, onAssign, onUnblock, onNudge, onOpenCross, onDoSpot, onOpenShifts, onRemove,
-            });
+              onCallIn, onAssign, onUnblock, onNudge, onOpenCross, onDoSpot, onOpenShifts, onRemove, onResolve,
+            }, canNudge);
             return (
               <div className={`row${tone ? ` s-${tone}` : ''}`} key={row.id}>
                 <span className="ic"><QaIcon name={row.icon} /></span>
@@ -116,10 +122,25 @@ function issueMenu(
     onDoSpot: () => void;
     onOpenShifts: () => void;
     onRemove: (personId: number) => void;
+    onResolve?: (runId: number, kind: QaResolveKind) => void;
   },
+  canNudge = true,
 ): { label: string; items: RowMenuItem[] } | null {
+  if (row.action === 'resolve_missed') {
+    // A missed routine can't be nudged; a superuser clears it instead (owner, 2026-10-08).
+    const { onResolve } = handlers;
+    if (!row.run_id || !onResolve) return null;
+    const runId = row.run_id;
+    return {
+      label: 'Resolve',
+      items: [
+        { label: 'Mark done', onClick: () => onResolve(runId, 'done') },
+        { label: 'Forgive', onClick: () => onResolve(runId, 'forgiven') },
+      ],
+    };
+  }
   if ((row.action === 'nudge' || row.action === 're_nudge') && row.run_id) {
-    if (/^Resolved\b/i.test(nudgeLabel(row.nudged_at))) {
+    if (!canNudge || /^Resolved\b/i.test(nudgeLabel(row.nudged_at))) {
       return null;
     }
     return {
@@ -134,7 +155,7 @@ function issueMenu(
     const items: RowMenuItem[] = [
       { label: 'Called in', onClick: () => handlers.onCallIn(row.person_id as number) },
     ];
-    if (row.run_id) items.push({ label: 'Nudge', onClick: () => handlers.onNudge(row.run_id as number, document.body) });
+    if (row.run_id && canNudge) items.push({ label: 'Nudge', onClick: () => handlers.onNudge(row.run_id as number, document.body) });
     items.push({ label: 'Remove from today', onClick: () => handlers.onRemove(row.person_id as number) });
     return { label: 'Called in', items };
   }

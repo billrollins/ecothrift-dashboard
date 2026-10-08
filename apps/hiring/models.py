@@ -265,7 +265,7 @@ class InterviewTime(models.Model):
         ordering = ['start']
 
     def __str__(self):
-        return f'{self.kind} {self.start}–{self.end}'
+        return f'{self.kind} {self.start} to {self.end}'
 
 
 class Offer(models.Model):

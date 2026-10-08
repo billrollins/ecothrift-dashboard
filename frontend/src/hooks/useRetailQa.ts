@@ -19,9 +19,11 @@ import {
   getQaTrends,
   getQaWeek,
   previewQaWeek,
+  resolveQaRun,
   reviewQaFlag,
   undoQaCallIn,
 } from '../api/routines.api';
+import type { QaResolveKind } from '../api/routines.api';
 import {
   createRosterAssignment,
   createRosterShift,
@@ -124,6 +126,15 @@ export function useQaNudge() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createQaNudge,
+    onSuccess: () => invalidateQa(queryClient),
+  });
+}
+
+export function useQaResolve() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ runId, kind, note }: { runId: number; kind: QaResolveKind; note?: string }) =>
+      resolveQaRun(runId, { kind, note }),
     onSuccess: () => invalidateQa(queryClient),
   });
 }

@@ -1,4 +1,4 @@
-<!-- initiative: slug=hiring-onboarding status=active updated=2026-10-06 -->
+<!-- initiative: slug=hiring-onboarding status=active updated=2026-10-08 -->
 <!-- Last updated: 2026-10-07 (Phase 5, Applicants timeline and read-before-send shipped in v2.148.0) -->
 
 # Initiative: Hiring and onboarding
@@ -463,7 +463,15 @@ Held texts are never sent later; each event sends its own.
 
 ---
 
-## Acceptance
+## Open items (2026-10-08, when the hiring session closed)
+
+Everything is built and live through v2.154.0. None of these is code; whoever picks hiring up starts here.
+
+- **Email delivery has not been proven in production.** No real application yet (0 applications, 0 emails sent when checked 10-08). Run one practice run in production (People → Applicants → Practice run): apply, interview link, booking, offer, and check each email arrives from retail@ with Reply-To Bill. Bill has not answered the offer yet.
+- **The staff handbook waits on the attorney.** The draft is complete; Bill publishes it after the attorney's read (it refuses to publish while any "[confirm" mark is left).
+- **Texting is parked** (D20, standards T73; v2.154.0). `apps.texting.service.PARKED = True`: no text tick on the application or offer, nothing texted, code and old consents kept. Hiring mail needs no opt-in. Bringing texts back = set `PARKED` False, restore the ticks' wording with /terms, and the Twilio gates in `waiting_on()`. The Phase 6 acceptance box below stays open until then.
+- **Interview days must be opened by hand** (v2.151.0): there are no weekly hours. Bill opened Oct 12 to 16, 9 to 5; after those, applicants see "No open times" until more days are opened on People → Interviews.
+
 
 - [x] Phase 1 as above (v2.136.0)
 - [x] Phase 2 as above (v2.139.0)

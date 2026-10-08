@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.155.1] -->
-<!-- Last reviewed: 2026-10-08 (2.155.1) -->
+<!-- Line 1 release: ## [2.156.0] -->
+<!-- Last reviewed: 2026-10-08 (2.156.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,25 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.156.0] - 2026-10-08
+
+User-facing theme: **Retail QA (Command Center): a superuser clears a missed routine with Mark done or Forgive, and Nudge is gone from missed routines and past days.** Outside initiatives (Bill, 2026-10-08).
+
+### Added
+
+- **Mark done / Forgive (superusers only):** on a missed opening, midday or closing checklist or section check, from Needs your attention (the button says **Resolve**) or the red **Missed** chip on the Routines card. **Mark done**: it was done but not recorded; it counts as done on time. **Forgive**: it wasn't done, and it counts for and against no one (left out of that person's numbers). Either way the run turns Done, the row shows "Marked done by ..." or "Forgiven by ...", and the run keeps who, when and the reason it was missed (`generated.resolved`). A cleared section check counts that aisle as checked for the day's grade. Cross checks and spot walks can't be cleared this way (they are scored from their counts).
+- **API:** `POST /api/routines/qa/runs/<id>/resolve/` ({kind: 'done' | 'forgiven', note}), superuser only; refused for a run that is done, not due yet, or not a checklist or section check. Board rows carry `resolved` ({kind, label, by_name}).
+
+### Changed
+
+- **No Nudge on a missed routine:** Needs your attention shows a missed routine with Resolve (superusers) or no button (managers), never Nudge; the Routines card drops Nudge from missed rows. Nothing offers Nudge on a past day.
+- **No dashes in labels:** the stocktake report's percent bands read "20 to 29%" (was a dash), and an interview block names itself "start to end"; the house no-dash test is green again.
+
+### Tests
+
+- `apps/routines/test_resolve_missed.py` (4): superuser only (a manager gets 403), marked done counts on time and forgiven counts for no one, the rules, a missed routine's issue asks for Resolve with no nudge.
+- `RoutinesCard.test.tsx` (3 new): Mark done / Forgive for a superuser and no Nudge; no Nudge for anyone on a missed row; the "Forgiven by" line.
 
 ## [2.155.1] - 2026-10-08
 
