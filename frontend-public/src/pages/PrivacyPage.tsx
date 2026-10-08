@@ -40,8 +40,9 @@ export default function PrivacyPage() {
 
           <h2>Email</h2>
           <p>
-            We email you what something you did needs (a receipt, a hold, a warranty return, a job application),
-            and the updates or store news you asked for, each kind only if you ticked its box.{' '}
+            We email you what something you did needs (a receipt, a hold, a warranty return, a job application).
+            Thrift+ members who give an email also get their Thrift+ updates and store news; every store news email
+            has an unsubscribe link.{' '}
             <strong data-testid="privacy-no-sharing">{PRIVACY_NO_SHARING}</strong> Your address is shared only
             with the service providers that deliver our email.
           </p>
@@ -65,8 +66,8 @@ export default function PrivacyPage() {
           <h2>Your choices</h2>
           <p>
             You can ask us to show, correct or delete your information. You can stop store news with the
-            unsubscribe link in any of those emails, and Thrift+ members can change their email choices in their
-            Thrift+ account or at any register.
+            unsubscribe link in any of those emails, and Thrift+ members can turn store news off in their Thrift+
+            account or at any register.
           </p>
 
           <h2>Contact</h2>

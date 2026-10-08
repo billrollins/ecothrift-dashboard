@@ -11,7 +11,7 @@ vi.mock('../../../api/thriftPlusScanner.api', () => ({
   getMe: vi.fn(),
   reportCardLost: vi.fn(),
   removePerson: vi.fn(),
-  setMyEmails: vi.fn(),
+  setMyNews: vi.fn(),
   setUpLogin: vi.fn(),
   getSession: vi.fn(),
   getCart: vi.fn(),
@@ -157,33 +157,29 @@ describe('AccountPage', () => {
     await waitFor(() => expect(mocked.removePerson).toHaveBeenCalledWith(2));
   });
 
-  const emails = (thriftplus: boolean, news: boolean) => ({
+  const emails = (news: boolean) => ({
+    updates: true,
+    news,
     has_email: true,
-    choices: { thriftplus, news },
-    not_required: 'Neither box is needed to join or to buy anything.',
-    kinds: [
-      { kind: 'thriftplus' as const, version: 'thriftplus-email-2026-10-08', label: 'Thrift+ updates by email', text: 'Email me my Thrift+ updates.' },
-      { kind: 'news' as const, version: 'news-email-2026-10-08', label: 'Store news by email', text: 'Email me Eco-Thrift store news.' },
-    ],
+    note: "We'll email your receipts and Thrift+ updates. Store news emails have an unsubscribe link.",
   });
 
-  it('shows your two email choices and turns one off or on (T73)', async () => {
-    mocked.getMe.mockResolvedValue(me({ emails: emails(true, false) }));
-    mocked.setMyEmails.mockResolvedValue(me({ emails: emails(false, false) }));
+  it('shows the email line and turns store news off and on (T74)', async () => {
+    mocked.getMe.mockResolvedValueOnce(me({ emails: emails(true) })).mockResolvedValue(me({ emails: emails(false) }));
+    mocked.setMyNews.mockResolvedValue(me({ emails: emails(false) }));
     const user = userEvent.setup();
     wrap(<AccountPage {...props} />);
-    expect(await screen.findByText('Thrift+ updates by email')).toBeInTheDocument();
-    expect(screen.getByText('Email me Eco-Thrift store news.')).toBeInTheDocument();
-    await user.click(screen.getAllByRole('button', { name: 'Turn off' })[0]);
-    await waitFor(() => expect(mocked.setMyEmails).toHaveBeenCalledWith('thriftplus', false));
-    await user.click(screen.getByRole('button', { name: 'Turn on' }));
-    await waitFor(() => expect(mocked.setMyEmails).toHaveBeenCalledWith('news', true));
+    expect(await screen.findByText(/Store news emails have an unsubscribe link/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Turn off' }));
+    await waitFor(() => expect(mocked.setMyNews).toHaveBeenCalledWith(false));
+    await user.click(await screen.findByRole('button', { name: 'Turn on' }));
+    await waitFor(() => expect(mocked.setMyNews).toHaveBeenCalledWith(true));
   });
 
-  it('lets a card session stop emails but not start them', async () => {
-    mocked.getMe.mockResolvedValue(me({ can_change: false, emails: emails(true, false) }));
+  it('lets a card session turn store news off but not back on', async () => {
+    mocked.getMe.mockResolvedValue(me({ can_change: false, emails: emails(false) }));
     wrap(<AccountPage {...props} member={{ ...member, session_kind: 'card' }} />);
-    expect(await screen.findByRole('button', { name: 'Turn off' })).toBeInTheDocument();
+    expect(await screen.findByText('Store news')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Turn on' })).not.toBeInTheDocument();
   });
 });

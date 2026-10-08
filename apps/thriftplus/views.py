@@ -41,7 +41,7 @@ from apps.thriftplus.serializers import (
     PersonSerializer,
 )
 from apps.thriftplus.services import calculator, card_pdf, cards, floor_plan, ledger, members, register, returns, rewards
-from apps.thriftplus.services import emails as email_consent
+from apps.thriftplus.services import emails as member_email
 from apps.thriftplus.services.members import MemberError
 
 
@@ -52,10 +52,6 @@ def _truthy(value) -> bool:
 def _error(exc: Exception) -> Response:
     return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-
-def _emails(d) -> dict:
-    """The sign-up's two email boxes (``emails_thriftplus``, ``emails_news``); unticked or missing means no."""
-    return {kind: _truthy(d.get(f'emails_{kind}')) for kind in email_consent.KINDS}
 
 
 class AccountViewSet(viewsets.ReadOnlyModelViewSet):
@@ -78,17 +74,17 @@ class AccountViewSet(viewsets.ReadOnlyModelViewSet):
             account = members.create_account(
                 first_name=d.get('first_name', ''), last_name=d.get('last_name', ''), phone=d.get('phone', ''),
                 id_checked=_truthy(d.get('id_checked')), verified_18=_truthy(d.get('verified_18')),
-                photo=request.FILES.get('photo'), card_code=d.get('card_code', ''), email=d.get('email', ''), emails=_emails(d),
+                photo=request.FILES.get('photo'), card_code=d.get('card_code', ''), email=d.get('email', ''),
                 user=request.user,
             )
         except MemberError as exc:
             return _error(exc)
         return Response(AccountDetailSerializer(account).data, status=status.HTTP_201_CREATED)
 
-    @action(detail=False, methods=['get'], url_path='email-wording')
-    def email_wording(self, request):
-        """The two email boxes' words (T73), so every sign-up screen shows exactly what is recorded."""
-        return Response(email_consent.wordings())
+    @action(detail=False, methods=['get'], url_path='email-note')
+    def email_note(self, request):
+        """The one line under the sign-up's email field (T74: no boxes)."""
+        return Response({'note': member_email.NOTE})
 
     @action(detail=True, methods=['post'], url_path='second-adult')
     def second_adult(self, request, pk=None):
@@ -98,7 +94,7 @@ class AccountViewSet(viewsets.ReadOnlyModelViewSet):
                 self.get_object(), both_present=_truthy(d.get('both_present')), primary_approves=_truthy(d.get('primary_approves')),
                 first_name=d.get('first_name', ''), last_name=d.get('last_name', ''), phone=d.get('phone', ''),
                 id_checked=_truthy(d.get('id_checked')), verified_18=_truthy(d.get('verified_18')),
-                photo=request.FILES.get('photo'), card_code=d.get('card_code', ''), email=d.get('email', ''), emails=_emails(d),
+                photo=request.FILES.get('photo'), card_code=d.get('card_code', ''), email=d.get('email', ''),
                 user=request.user,
             )
         except MemberError as exc:
@@ -197,13 +193,13 @@ class PersonViewSet(viewsets.GenericViewSet):
         return self._done(members.set_photo(self.get_object(), upload, user=request.user))
 
     @action(detail=True, methods=['post'])
-    def emails(self, request, pk=None):
-        """Change one email choice when the member asks ({kind: 'thriftplus' | 'news', opted_in})."""
+    def news(self, request, pk=None):
+        """Turn store news emails off or back on when the member asks ({on})."""
         person = self.get_object()
         name = (request.user.full_name or '').strip() or request.user.email
         try:
-            email_consent.set_choice(person, str(request.data.get('kind') or ''), _truthy(request.data.get('opted_in')),
-                                     how=f'Staff: {name} (they asked)', user=request.user)
+            member_email.set_news(person, _truthy(request.data.get('on')), how=f'Staff: {name} (they asked)',
+                                  user=request.user)
         except MemberError as exc:
             return _error(exc)
         return self._done(person)
@@ -213,7 +209,7 @@ class PersonViewSet(viewsets.GenericViewSet):
         """Add or change a member's email address ({email}); blank removes it."""
         person = self.get_object()
         try:
-            email_consent.set_address(person, str(request.data.get('email') or ''), user=request.user)
+            member_email.set_address(person, str(request.data.get('email') or ''), user=request.user)
         except MemberError as exc:
             return _error(exc)
         return self._done(person)

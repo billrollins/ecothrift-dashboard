@@ -37,10 +37,10 @@ import {
   revokeMember,
   setPersonPhoto,
   setPersonEmail,
-  setPersonEmails,
+  setPersonNews,
   verifyPerson,
 } from '../../api/thriftplus.api';
-import type { ConsentKind, NewMember, ThriftPlusAccount, ThriftPlusPerson } from '../../types/thriftplus.types';
+import type { NewMember, ThriftPlusAccount, ThriftPlusPerson } from '../../types/thriftplus.types';
 import PersonFields from '../../components/thriftplus/PersonFields';
 import MemberMoney from './MemberMoney';
 import { getPayrollPeople } from '../../api/pos.api';
@@ -89,8 +89,6 @@ function fullName(p: ThriftPlusPerson): string {
   return `${p.first_name} ${p.last_name}`.trim();
 }
 
-const EMAIL_KINDS: [ConsentKind, string][] = [['thriftplus', 'Thrift+ updates'], ['news', 'Store news']];
-
 function phone(p: string): string {
   return p.length === 10 ? `(${p.slice(0, 3)}) ${p.slice(3, 6)}-${p.slice(6)}` : p;
 }
@@ -127,19 +125,15 @@ function PersonCard({ person, account, onChanged }: { person: ThriftPlusPerson; 
               {person.email ? (
                 <>
                   <Typography variant="body2" color="text.secondary">{person.email}</Typography>
-                  {person.emails ? EMAIL_KINDS.map(([kind, label]) => {
-                    const on = Boolean(person.emails?.[kind]);
-                    return (
-                      <Chip
-                        key={kind}
-                        size="small"
-                        color={on ? 'success' : 'default'}
-                        variant={on ? 'filled' : 'outlined'}
-                        label={`${label}: ${on ? 'yes' : 'no'}`}
-                        onClick={() => run.mutate(() => setPersonEmails(person.id, kind, !on))}
-                      />
-                    );
-                  }) : null}
+                  {person.emails ? (
+                    <Chip
+                      size="small"
+                      color={person.emails.news ? 'success' : 'default'}
+                      variant={person.emails.news ? 'filled' : 'outlined'}
+                      label={`Store news: ${person.emails.news ? 'on' : 'off'}`}
+                      onClick={() => run.mutate(() => setPersonNews(person.id, !person.emails?.news))}
+                    />
+                  ) : null}
                   <Typography variant="caption" color="text.secondary">Change only when the member asks.</Typography>
                 </>
               ) : (

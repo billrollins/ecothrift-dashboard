@@ -10,8 +10,6 @@ import type {
   NewMember,
   RewardPreview,
   RewardRunSummary,
-  ConsentKind,
-  ConsentWording,
   ThriftPlusAccount,
 } from '../types/thriftplus.types';
 import api from './client';
@@ -82,15 +80,15 @@ export async function setPersonPhoto(personId: number, photo: File): Promise<Thr
   return data;
 }
 
-/** The two email boxes' words (T73). */
-export async function fetchEmailWording(): Promise<ConsentWording> {
-  const { data } = await api.get<ConsentWording>('/thriftplus/accounts/email-wording/');
+/** The one line under the sign-up's email field (T74: no boxes). */
+export async function fetchEmailNote(): Promise<{ note: string }> {
+  const { data } = await api.get<{ note: string }>('/thriftplus/accounts/email-note/');
   return data;
 }
 
-/** Change one email choice when the member asks. */
-export async function setPersonEmails(personId: number, kind: ConsentKind, optedIn: boolean): Promise<ThriftPlusAccount> {
-  const { data } = await api.post<ThriftPlusAccount>(`/thriftplus/people/${personId}/emails/`, { kind, opted_in: optedIn });
+/** Turn a member's store news emails off or back on, when they ask. */
+export async function setPersonNews(personId: number, on: boolean): Promise<ThriftPlusAccount> {
+  const { data } = await api.post<ThriftPlusAccount>(`/thriftplus/people/${personId}/news/`, { on });
   return data;
 }
 

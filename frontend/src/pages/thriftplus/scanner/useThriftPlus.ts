@@ -13,7 +13,7 @@ import {
   removeFromCart,
   removePerson,
   reportCardLost,
-  setMyEmails,
+  setMyNews,
   requestPasswordReset,
   sendPriceFeel,
   setCartQty,
@@ -118,8 +118,8 @@ export function useAccountActions() {
   const refresh = () => void qc.invalidateQueries({ queryKey: thriftPlusKeys.me });
   return {
     cardLost: useMutation({ mutationFn: (cardId: number) => reportCardLost(cardId), onSuccess: refresh }),
-    emails: useMutation({
-      mutationFn: ({ kind, optedIn }: { kind: 'thriftplus' | 'news'; optedIn: boolean }) => setMyEmails(kind, optedIn),
+    news: useMutation({
+      mutationFn: (on: boolean) => setMyNews(on),
       onSuccess: refresh,
     }),
     removePerson: useMutation({

@@ -1,10 +1,8 @@
 import AddAPhotoOutlined from '@mui/icons-material/AddAPhotoOutlined';
-import { Box, Button, Checkbox, FormControlLabel, Stack, TextField, Typography } from '@mui/material';
+import { Button, Checkbox, FormControlLabel, Stack, TextField, Typography } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
-import { fetchEmailWording } from '../../api/thriftplus.api';
-import type { ConsentKind, NewMember } from '../../types/thriftplus.types';
-
-const FIELD: Record<ConsentKind, 'emails_thriftplus' | 'emails_news'> = { thriftplus: 'emails_thriftplus', news: 'emails_news' };
+import { fetchEmailNote } from '../../api/thriftplus.api';
+import type { NewMember } from '../../types/thriftplus.types';
 
 /** A plausible email address (the server makes the final check). */
 export function looksLikeEmail(email: string | undefined): boolean {
@@ -12,49 +10,12 @@ export function looksLikeEmail(email: string | undefined): boolean {
 }
 
 /**
- * The two email boxes (T73, email-first): separate, never pre-ticked, the exact words shown, and neither
- * needed to join. The words come from the server, which records the same version.
- */
-function EmailBoxes({ value, onChange }: { value: NewMember; onChange: (v: NewMember) => void }) {
-  const wording = useQuery({ queryKey: ['thriftplus', 'email-wording'], queryFn: fetchEmailWording, staleTime: Infinity });
-  const usable = looksLikeEmail(value.email);
-  if (!wording.data) return null;
-  return (
-    <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1.25 }}>
-      <Typography variant="subtitle2">Emails (ask; read the words or turn the screen to them)</Typography>
-      {wording.data.kinds.map((k) => (
-        <FormControlLabel
-          key={k.kind}
-          sx={{ alignItems: 'flex-start', mt: 0.75, mr: 0 }}
-          control={(
-            <Checkbox
-              sx={{ pt: 0.25 }}
-              checked={Boolean(value[FIELD[k.kind]]) && usable}
-              disabled={!usable}
-              onChange={(e) => onChange({ ...value, [FIELD[k.kind]]: e.target.checked })}
-              inputProps={{ 'aria-label': k.label }}
-            />
-          )}
-          label={(
-            <Box>
-              <Typography variant="body2" sx={{ fontWeight: 700 }}>{k.label}</Typography>
-              <Typography variant="caption" color="text.secondary">{k.text}</Typography>
-            </Box>
-          )}
-        />
-      ))}
-      <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
-        {usable ? wording.data.not_required : 'Add an email to offer these.'}
-      </Typography>
-    </Box>
-  );
-}
-
-/**
- * A Thrift+ person's signup fields (Dash member service and the register): name, phone, an optional email and
- * its two choices, the ID check and the 18+ flag it allows, a photo, and a blank card. The ID itself is never kept.
+ * A Thrift+ person's signup fields (Dash member service and the register): name, phone, an optional email (no
+ * boxes: receipts and updates go to it, and store news with an unsubscribe link; T74), the ID check and the 18+
+ * flag it allows, a photo, and a blank card. The ID itself is never kept.
  */
 export default function PersonFields({ value, onChange }: { value: NewMember; onChange: (v: NewMember) => void }) {
+  const note = useQuery({ queryKey: ['thriftplus', 'email-note'], queryFn: fetchEmailNote, staleTime: Infinity });
   return (
     <Stack spacing={1.25} sx={{ mt: 1 }}>
       <Stack direction="row" spacing={1}>
@@ -66,14 +27,10 @@ export default function PersonFields({ value, onChange }: { value: NewMember; on
         label="Email (optional)"
         type="email"
         value={value.email ?? ''}
-        helperText="For receipts, and the emails they choose below."
-        onChange={(e) => {
-          const email = e.target.value;
-          // A box ticked for an address that no longer looks right is not consent: clear it.
-          onChange({ ...value, email, ...(looksLikeEmail(email) ? {} : { emails_thriftplus: false, emails_news: false }) });
-        }}
+        helperText={note.data?.note ?? ''}
+        error={Boolean(value.email) && !looksLikeEmail(value.email)}
+        onChange={(e) => onChange({ ...value, email: e.target.value })}
       />
-      <EmailBoxes value={value} onChange={onChange} />
       <FormControlLabel
         control={<Checkbox checked={Boolean(value.id_checked)} onChange={(e) => onChange({ ...value, id_checked: e.target.checked, verified_18: e.target.checked ? value.verified_18 : false })} />}
         label="Checked a photo ID (the name matches)"

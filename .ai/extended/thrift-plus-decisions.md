@@ -9,9 +9,9 @@ Statuses: **Decided** · **How it works today** (a fact of the current build) ·
 
 *The biggest open question. It decides whether the signs can say "Free" and "Every Day".*
 
-- **F1. What a banked reward legally is** (OPEN). Four candidates, compared question by question on one grid: https://claude.ai/artifact/AnH8RuYAKANXGoqBq1crxf. 1 Discount only (no banking). 2 Gift card: the member pays for Thrift+ credit with the rewards (x1.05). 3 Store credit: the member pays the tag and the store issues credit (x1.05). 4 Cash back, Kohl's Cash style: a dated reward certificate (x1.05) for a later trip. The taxes, legal lines and wind-down exposure follow from this pick.
-  - Choices: "1. Discount only" / "2. Gift card" / "3. Store credit" / "4. Cash back"
-  - Source: Your message 10-08. Built: n/a.
+- **F1. What a banked reward legally is** (OPEN). Five candidates on one short grid: https://claude.ai/artifact/AnH8RuYAKANXGoqBq1crxf. 1 Discount only (no banking). 2 Gift card: the member pays for Thrift+ credit with the rewards (x1.05). 3 Store credit: the member pays the tag and the store issues credit (x1.05). 4 Cash back, Kohl's Cash style: a dated reward certificate (x1.05) for a later trip. The taxes, legal lines and wind-down exposure follow from this pick.
+  - Choices: "1. Discount only" / "2. Gift card" / "3. Store credit" / "4. Cash back" / "5. Rewards first (80% if used today)"
+  - Source: Your messages 10-08. Built: n/a.
 - **F2. What a warranty refund legally is** (OPEN). The 90% (tax included) goes back as credit on the same balance as banking, or as a cash or card refund. A refund was paid for, so it can never be a dated promotional certificate. Credit from a return may be reportable to the state after 3 years even on a gift card (the attorney confirms).
   - Choices: "Credit on the same balance (cash fallback)" / "Cash or card refund"
   - Source: Your message 10-08. Built: n/a.
@@ -192,9 +192,9 @@ Statuses: **Decided** · **How it works today** (a fact of the current build) ·
 
 *How we reach members and applicants.*
 
-- **X1. Email-first: no texts** (Decided). Eco-Thrift sends no text messages; texting is parked (Twilio stays parked). Receipts, warranty returns, Thrift+ updates, store news, and applicant and staff messages all go by email from retail@ecothrift.us. At sign-up a member may give an email (optional) and tick two separate boxes, never pre-ticked and not needed to join. Every choice is recorded with the words shown. Members change them in My account, at the register, or with the unsubscribe link in every store news email. Store news to the whole list goes through a newsletter service (you pick it when the list is big enough), not the store mailbox.
-  - Customer words: "Email me my Thrift+ updates (savings, gift card balance, receipts, returns). / Email me Eco-Thrift store news."
-  - Source: Bill via master 2026-10-08 (D20); replaces the text boxes of v2.150.0. Built: Partly (built 10-08, not shipped; the unsubscribe link comes with the first store news email).
+- **X1. Email-first: no texts, no boxes** (Decided). Eco-Thrift sends no text messages; texting is parked. Email goes from retail@ecothrift.us. At sign-up a member may give an email (optional); there are no boxes (Bill: no box where none is needed). Members with an email get account email (receipts, Thrift+ updates: no consent needed) and store news, which they can turn off with the unsubscribe link in every news email (honored promptly; the store's postal address in each), in My account, or at the register. Only turning off (or back on) is recorded. Store news to the whole list goes through a newsletter service, which you pick when the list is big enough.
+  - Customer words: "We'll email your receipts and Thrift+ updates. Store news emails have an unsubscribe link."
+  - Source: Bill via master 2026-10-08 (D20, T73, T74). Built: Built (T74 ships next).
 
 ## Build notes (how banking rings up)
 

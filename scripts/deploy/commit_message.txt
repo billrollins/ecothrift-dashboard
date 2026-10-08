@@ -1,29 +1,17 @@
-v2.155.0 — Email first: Thrift+ sign-up asks for email choices instead of texts, Terms and Privacy carry no text program (T73); Price check button on every page of ecothrift.us
+v2.155.1 — No email boxes at Thrift+ sign-up: one optional email and a plain line; store news can be turned off (T74)
 
-User-facing theme: **Email first: Thrift+ sign-up asks for an email (optional) and two unticked email choices instead of texts, and the Terms and Privacy pages carry no text program. A "Price check" button on every page of ecothrift.us opens the price scanner while Thrift+ is on.** Standards T73 (house decision D20, Bill 2026-10-08). Thrift+ itself stays behind its switch.
+User-facing theme: **No email boxes at Thrift+ sign-up (Bill: no box where none is needed): one optional email field with one plain line. Members with an email get their receipts and Thrift+ updates, and store news they can turn off.** Standards T74.
 
 ### Changed
 
-- **Thrift+ sign-up (register and Dash):** an optional email, and two separate, never pre-ticked boxes in master's words: "Email me my Thrift+ updates (savings, gift card balance, receipts, returns)." and "Email me Eco-Thrift store news." They work only once an email that looks right is typed; neither is needed to join; only ticked boxes are recorded, in the shared `EmailConsent` (v2.154.0) with the words, version, staff member and how. The text boxes from v2.150.0 are gone; the texts consents already recorded stay, unused.
-- **Dash, Thrift+ → Members:** each person's email and both choices (staff change them when asked), and "Add an email" for members who joined without one.
-- **Scanner → My account** (opens with Thrift+): an Emails section. Stopping works from any sign-in; starting needs the email-and-password sign-in.
-- **`/terms` and `/privacy`** (dated October 8, 2026): no text-messaging program; both say "Eco-Thrift does not currently send text messages." Terms list the emails we always send (receipts, holds, warranty returns, job applications) and the two we send only on request, and how to stop them.
-- **API:** sign-up takes `email`, `emails_thriftplus`, `emails_news`; `GET /api/thriftplus/accounts/email-wording/`, `POST /api/thriftplus/people/<id>/emails/` and `.../email/`, `POST /api/thriftplus/public/me/emails/`. The `texts` endpoints are removed.
-
-### Added
-
-- **"Price check" on ecothrift.us:** a quiet green button with a scan mark in the header of every page, opening the Thrift+ price scanner (`/scan`). On phones it takes the wide spot in the header row. It shows only while the Thrift+ switch is on (`thrift_plus_open` in `/api/webstore/config/`).
-- `Person.email` (migration `thriftplus.0011`).
-
-### Docs
-
-- The Thrift+ rulebook (`.ai/extended/thrift-plus-decisions.md`, rebuilt from the 10-01 list): every rule with its status, customer words, source and build state; the owners decide on its page. The final-forms grid compares four ways to treat banked rewards and refunds. Standards: T73 (email-first), T59, T71, T72 superseded.
+- **Thrift+ sign-up (register and Dash):** the two email boxes are gone. Under the optional email: "We'll email your receipts and Thrift+ updates. Store news emails have an unsubscribe link." Account email needs no consent; store news (marketing) needs only an unsubscribe link in every news email, honored promptly.
+- **Turning store news off:** in Dash (a "Store news: on/off" chip, staff change it when asked), in My account (off from any sign-in, back on with the password sign-in), or with the unsubscribe link once news emails go out. Only turning off, or back on, is recorded in the shared `EmailConsent`.
+- **`/terms` and `/privacy`:** the emails we send to members who give an email, and how to stop store news; no boxes described.
+- **API:** `GET /api/thriftplus/accounts/email-note/`; `POST /api/thriftplus/people/<id>/news/` ({on}); the portal's `me/emails/` takes {news}. The sign-up no longer takes `emails_*`.
 
 ### Tests
 
-- `apps/thriftplus/tests/test_email_consent.py` (7): master's words word for word; the email kept and only the ticked box recorded; email optional and no ticks, no rows; a bad email or a tick without one stops the sign-up; staff add an email and change choices; the portal (a card session can stop, a password session can start).
-- `apps/core/tests/test_public_legal_pages.py`: no text program on either page, "no texts" and how to stop emails on both.
-- `apps/webstore/tests/test_price_check_flag.py`: the site config follows the Thrift+ switch.
-- `ThriftPlusPage.test.tsx` and `AccountScreens.test.tsx` updated for email.
+- `apps/thriftplus/tests/test_email_consent.py` rewritten (7): the line under the field; an email gets updates and news with no row; no email, no email; staff add an email and turn news off; unsubscribe-all turns news off; the portal's off and back on.
+- Legal page tests, `ThriftPlusPage.test.tsx` and `AccountScreens.test.tsx` updated.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -354,37 +354,28 @@ export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }:
                 <SectionTitle>Emails</SectionTitle>
                 {!data.emails.has_email ? (
                   <Box sx={{ fontSize: u(29), color: sc.ink2, lineHeight: 1.35 }}>
-                    Add an email to your membership at the register to get Thrift+ updates or store news.
+                    Add an email to your membership at the register to get your receipts and Thrift+ updates by email.
                   </Box>
                 ) : (
                   <Card sx={{ p: u(10) }}>
-                    {data.emails.kinds.map((k, i) => {
-                      const on = data.emails?.choices[k.kind] ?? false;
-                      // Stopping always works; starting needs the email-and-password sign-in.
-                      const canTap = on || data.can_change;
-                      return (
-                        <Box key={k.kind} sx={{ px: u(26), py: u(20), borderTop: i ? `1px solid ${sc.line}` : 'none' }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: u(16) }}>
-                            <Box sx={{ flex: 1, fontSize: u(31), fontWeight: 700, color: sc.ink }}>
-                              {k.label}
-                              <Box component="span" sx={{ color: on ? sc.green : sc.ink3, ml: u(12), fontSize: u(26), fontWeight: 400 }}>
-                                {on ? 'On' : 'Off'}
-                              </Box>
-                            </Box>
-                            {canTap && (
-                              <ButtonBase
-                                disabled={actions.emails.isPending}
-                                onClick={() => void run(() => actions.emails.mutateAsync({ kind: k.kind, optedIn: !on }))}
-                                sx={{ px: u(22), py: u(10), borderRadius: 99, border: `${u(2)} solid ${sc.cardEdge}`, fontSize: u(26), color: sc.ink2 }}
-                              >
-                                {on ? 'Turn off' : 'Turn on'}
-                              </ButtonBase>
-                            )}
-                          </Box>
-                          {!on && <Box sx={{ fontSize: u(24), color: sc.ink3, mt: u(8), lineHeight: 1.35 }}>{k.text}</Box>}
+                    <Box sx={{ px: u(26), py: u(20), fontSize: u(28), color: sc.ink2, lineHeight: 1.35 }}>{data.emails.note}</Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: u(16), px: u(26), py: u(20), borderTop: `1px solid ${sc.line}` }}>
+                      <Box sx={{ flex: 1, fontSize: u(31), fontWeight: 700, color: sc.ink }}>
+                        Store news
+                        <Box component="span" sx={{ color: data.emails.news ? sc.green : sc.ink3, ml: u(12), fontSize: u(26), fontWeight: 400 }}>
+                          {data.emails.news ? 'On' : 'Off'}
                         </Box>
-                      );
-                    })}
+                      </Box>
+                      {(data.emails.news || data.can_change) && (
+                        <ButtonBase
+                          disabled={actions.news.isPending}
+                          onClick={() => void run(() => actions.news.mutateAsync(!data.emails?.news))}
+                          sx={{ px: u(22), py: u(10), borderRadius: 99, border: `${u(2)} solid ${sc.cardEdge}`, fontSize: u(26), color: sc.ink2 }}
+                        >
+                          {data.emails.news ? 'Turn off' : 'Turn on'}
+                        </ButtonBase>
+                      )}
+                    </Box>
                   </Card>
                 )}
               </>

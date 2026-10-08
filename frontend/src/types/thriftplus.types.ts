@@ -27,17 +27,8 @@ export interface ThriftPlusPerson {
   created_at: string;
   /** Where receipts and chosen updates go (email-first, T73). */
   email?: string;
-  /** Email choices: only on a membership's detail. */
-  emails?: ConsentChoices;
-}
-
-export type ConsentKind = 'thriftplus' | 'news';
-export type ConsentChoices = Record<ConsentKind, boolean>;
-
-/** The two email boxes' words, from the server, so the screen shows exactly what is recorded. */
-export interface ConsentWording {
-  kinds: { kind: ConsentKind; version: string; label: string; text: string }[];
-  not_required: string;
+  /** Email state (T74): account email follows the address; store news can be turned off. Detail only. */
+  emails?: { updates: boolean; news: boolean };
 }
 
 export interface ThriftPlusEvent {
@@ -83,9 +74,6 @@ export interface NewMember {
   card_code?: string;
   photo?: File | null;
   email?: string;
-  /** Never pre-ticked. Only ticked boxes are recorded. */
-  emails_thriftplus?: boolean;
-  emails_news?: boolean;
 }
 
 // ── The reward engine (Phase 2) ──

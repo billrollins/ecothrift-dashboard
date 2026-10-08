@@ -153,9 +153,8 @@ def _person(account: Account, role: str, *, first_name: str, last_name: str = ''
 @transaction.atomic
 def create_account(*, first_name: str, last_name: str = '', phone: str = '', email: str = '',
                    id_checked: bool = False, verified_18: bool = False, photo=None, card_code: str = '',
-                   emails: dict | None = None, user=None) -> Account:
-    """Sign up: the primary person, their email choices (only ticked boxes are recorded), and their first card
-    if one was scanned."""
+                   user=None) -> Account:
+    """Sign up: the primary person (with an optional email), and their first card if one was scanned."""
     phone_digits = normalize_phone(phone)
     if phone_digits and Person.objects.filter(phone=phone_digits, removed_at__isnull=True,
                                               account__status=Account.STATUS_ACTIVE).exists():
@@ -164,10 +163,6 @@ def create_account(*, first_name: str, last_name: str = '', phone: str = '', ema
     person = _person(account, Person.ROLE_PRIMARY, first_name=first_name, last_name=last_name, phone=phone, email=email,
                      id_checked=id_checked, verified_18=verified_18, photo=photo, user=user)
     log('signup', account=account, person=person, actor=user, id_checked=person.id_checked, verified_18=person.verified_18)
-    if emails:
-        from apps.thriftplus.services import emails as email_consent
-
-        email_consent.record_signup(person, emails, user=user)
     if card_code:
         issue_card(person, card_code, user=user)
     return account
@@ -189,8 +184,7 @@ def verify(person: Person, *, verified_18: bool, user=None) -> Person:
 @transaction.atomic
 def add_second_adult(account: Account, *, both_present: bool, primary_approves: bool, first_name: str,
                      last_name: str = '', phone: str = '', id_checked: bool = False, verified_18: bool = False,
-                     photo=None, card_code: str = '', email: str = '', emails: dict | None = None,
-                     user=None) -> Person:
+                     photo=None, card_code: str = '', email: str = '', user=None) -> Person:
     _require_active(account)
     if not (both_present and primary_approves):
         raise MemberError('Both adults must be here, and the primary must approve adding the second.')
@@ -199,10 +193,6 @@ def add_second_adult(account: Account, *, both_present: bool, primary_approves: 
     person = _person(account, Person.ROLE_SECONDARY, first_name=first_name, last_name=last_name, phone=phone,
                      email=email, id_checked=id_checked, verified_18=verified_18, photo=photo, user=user)
     log('second_added', account=account, person=person, actor=user)
-    if emails:
-        from apps.thriftplus.services import emails as email_consent
-
-        email_consent.record_signup(person, emails, user=user)
     if card_code:
         issue_card(person, card_code, user=user)
     return person

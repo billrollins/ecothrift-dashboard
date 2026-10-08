@@ -31,7 +31,7 @@ class PublicLegalPagesSourceTests(SimpleTestCase):
             for gone in ('Reply STOP', 'replying STOP', 'Message and data rates', 'Carriers are not liable'):
                 self.assertNotIn(gone, page, gone)
         self.assertIn('{PRIVACY_NO_SHARING}', privacy)
-        for needed in ('never ticked for you', 'never a condition of purchase', 'to="/privacy"'):
+        for needed in ('Giving an email is optional', 'never a condition of purchase', 'honor it', 'to="/privacy"'):
             self.assertIn(needed, terms, needed)
 
     def test_routes_exist_and_the_footer_links_to_both(self):

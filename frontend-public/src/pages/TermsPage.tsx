@@ -37,22 +37,15 @@ export default function TermsPage() {
               day if you&rsquo;re hired).
             </li>
             <li>
-              <strong>Only if you ask</strong> (a separate box for each, never ticked for you):
-              <ul style={{ marginTop: 8 }}>
-                <li>
-                  <strong>Thrift+ updates:</strong> your savings, gift card balance, receipts and returns.
-                </li>
-                <li>
-                  <strong>Store news:</strong> new arrivals and sales.
-                </li>
-              </ul>
+              <strong>Thrift+ members who give us an email:</strong> their Thrift+ updates (savings, gift card
+              balance, receipts and returns), and store news (new arrivals and sales).
             </li>
             <li>
-              <strong>Stopping:</strong> every store news email has an unsubscribe link. Thrift+ members can also
-              change their choices in their Thrift+ account or at any register.
+              <strong>Stopping store news:</strong> every store news email has an unsubscribe link, and we honor it
+              promptly. Thrift+ members can also turn store news off in their Thrift+ account or at any register.
             </li>
             <li>
-              <strong>Asking is never a condition of purchase</strong> or of joining Thrift+.
+              <strong>Giving an email is optional</strong>, and never a condition of purchase or of joining Thrift+.
             </li>
             <li>
               <strong>Privacy:</strong> see our <Link to="/privacy">Privacy Policy</Link> at {SITE_URL}/privacy.

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.155.0] -->
-<!-- Last reviewed: 2026-10-08 (2.155.0) -->
+<!-- Line 1 release: ## [2.155.1] -->
+<!-- Last reviewed: 2026-10-08 (2.155.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.155.1] - 2026-10-08
+
+User-facing theme: **No email boxes at Thrift+ sign-up (Bill: no box where none is needed): one optional email field with one plain line. Members with an email get their receipts and Thrift+ updates, and store news they can turn off.** Standards T74.
+
+### Changed
+
+- **Thrift+ sign-up (register and Dash):** the two email boxes are gone. Under the optional email: "We'll email your receipts and Thrift+ updates. Store news emails have an unsubscribe link." Account email needs no consent; store news (marketing) needs only an unsubscribe link in every news email, honored promptly.
+- **Turning store news off:** in Dash (a "Store news: on/off" chip, staff change it when asked), in My account (off from any sign-in, back on with the password sign-in), or with the unsubscribe link once news emails go out. Only turning off, or back on, is recorded in the shared `EmailConsent`.
+- **`/terms` and `/privacy`:** the emails we send to members who give an email, and how to stop store news; no boxes described.
+- **API:** `GET /api/thriftplus/accounts/email-note/`; `POST /api/thriftplus/people/<id>/news/` ({on}); the portal's `me/emails/` takes {news}. The sign-up no longer takes `emails_*`.
+
+### Tests
+
+- `apps/thriftplus/tests/test_email_consent.py` rewritten (7): the line under the field; an email gets updates and news with no row; no email, no email; staff add an email and turn news off; unsubscribe-all turns news off; the portal's off and back on.
+- Legal page tests, `ThriftPlusPage.test.tsx` and `AccountScreens.test.tsx` updated.
 
 ## [2.155.0] - 2026-10-08
 

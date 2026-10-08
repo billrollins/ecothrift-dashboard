@@ -284,15 +284,15 @@ def _me_payload(request) -> dict:
             'cards': [{'id': c.pk, 'last4': c.code[-4:], 'status': c.status} for c in p.cards.exclude(status='unissued')],
         })
     entries = account.ledger.order_by('-created_at', '-pk')[:20]
-    from apps.thriftplus.services import emails as email_consent
+    from apps.thriftplus.services import emails as member_email
 
     you = request.user.person
     return {
         **ledger.balances(account), 'people': people,
         'money': [{'kind': e.kind, 'amount': str(e.amount), 'reason': e.reason, 'created_at': e.created_at} for e in entries],
         'can_change': request.user.session.kind == MemberSession.KIND_PASSWORD,
-        # Your own email choices (T73): per email address, so only yours.
-        'emails': {'choices': email_consent.choices(you), 'has_email': bool(you.email), **email_consent.wordings()},
+        # Your own email (T74): account email follows the address; store news can be turned off.
+        'emails': {**member_email.choices(you), 'has_email': bool(you.email), 'note': member_email.NOTE},
     }
 
 
@@ -315,19 +315,18 @@ def _password_session(request) -> Response | None:
 @authentication_classes(AUTH)
 @permission_classes([IsMember])
 def emails(request):
-    """Change one of your own email choices ({kind, opted_in}). Stopping works from any sign-in; starting a kind
-    needs the email-and-password sign-in, so only the address's owner opts it in."""
-    from apps.thriftplus.services import emails as email_consent
+    """Turn your store news emails off or back on ({news}). Turning off works from any sign-in; turning back on
+    needs the email-and-password sign-in."""
+    from apps.thriftplus.services import emails as member_email
     from apps.thriftplus.services.members import MemberError
 
-    opted_in = str(request.data.get('opted_in')).lower() in ('1', 'true', 'yes', 'on')
+    opted_in = str(request.data.get('news')).lower() in ('1', 'true', 'yes', 'on')
     if opted_in:
         refused = _password_session(request)
         if refused:
             return refused
     try:
-        email_consent.set_choice(request.user.person, str(request.data.get('kind') or ''), opted_in,
-                                 how='Thrift+ My account (the member)')
+        member_email.set_news(request.user.person, opted_in, how='Thrift+ My account (the member)')
     except MemberError as exc:
         return _error(exc)
     return Response(_me_payload(request))

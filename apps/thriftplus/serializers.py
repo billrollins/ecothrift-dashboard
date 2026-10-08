@@ -70,7 +70,7 @@ class AccountSerializer(serializers.ModelSerializer):
 
 
 class PersonDetailSerializer(PersonSerializer):
-    """One person on an open membership, with their email choices (two lookups each, so detail only)."""
+    """One person on an open membership, with their email state (one lookup each, so detail only)."""
     emails = serializers.SerializerMethodField()
 
     class Meta(PersonSerializer.Meta):
