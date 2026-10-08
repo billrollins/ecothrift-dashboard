@@ -45,7 +45,7 @@ The careers page, applications, and the People workspace. Design and phases: [`i
   - Open times = only the openings a manager made on People → Interviews (`set_days`: pick days, then the 8 AM to 8 PM blocks, then all positions or some), for the applicant's roles, minus blocks, minus scheduled interviews. Nothing is open by default; there are no weekly hours.
   - The careers file `interviews` keeps length_minutes, min_notice_hours, link_days and place. Old weekdays, start, end and days_ahead keys are dropped on save.
   - One interview at a time, store-wide; a Postgres advisory lock guards booking.
-- **Public:** `GET/POST /api/hiring/public/interview/?t=` (state and open times; POST books or moves) and `POST …/interview/cancel/`. The page is `frontend-public/src/pages/careers/InterviewPage.tsx`.
+- **Public:** `GET/POST /api/hiring/public/interview/?t=` (state and open times; POST books or moves) and `POST …/interview/cancel/`. The page is `frontend-public/src/pages/careers/InterviewPage.tsx` with `InterviewPicker.tsx` (a day on a calendar, then a time; one step at a time on a phone).
 - **Staff:**
   - `POST applications/<id>/invite/ {send}`;
   - `/api/hiring/interviews/` (list `when=today|upcoming|past`, create = staff book, `reschedule`, `interviewer`, `cancel`, `no-show`, `scorecard {answers, overall, lead_potential, notes, done}`, `open-times`);

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.151.0] -->
-<!-- Last reviewed: 2026-10-08 (2.151.0) -->
+<!-- Line 1 release: ## [2.152.0] -->
+<!-- Last reviewed: 2026-10-08 (2.152.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.152.0] - 2026-10-08
+
+User-facing theme: **Applicants book an interview in two steps: a day on a calendar, then a time.** Initiative: `hiring_onboarding`.
+
+### Changed
+
+- **The applicant's interview page** (`/careers/interview`) starts with a month calendar. Only days with open times can be tapped, and each shows how many times it has. Tapping a day shows its times in Morning, Afternoon and Evening groups. Arrows move to the next or last open day, and "All days" goes back to the calendar. On a phone one step shows at a time and the Book button stays in reach; on a computer the calendar and the times sit side by side. The same page is used to change a booked time.
+- **Dash's Book a time dialog works the same way** (book for an applicant, Reschedule): a calendar of open days, then that day's times. It fills the screen on a phone, one step at a time; on a computer the two sit side by side, with the chosen time shown next to Book it.
 
 ## [2.151.0] - 2026-10-08
 

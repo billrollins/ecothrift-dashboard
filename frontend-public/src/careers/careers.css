@@ -124,3 +124,35 @@
 .cr-sigpad .cr-sighint { position: absolute; left: 18px; bottom: 16px; font-size: 12.5px; color: var(--muted); pointer-events: none; }
 .cr-sigpad .cr-sigclear { position: absolute; top: 8px; right: 8px; font-size: 13px; padding: 6px 12px; min-height: 0; }
 .cr-bad .cr-sigpad { border-color: #c0392b; }
+
+/* Interview booking: pick a day, then a time. One step at a time on a phone; side by side when wide. */
+.iv-pick { display: grid; gap: 18px; }
+.iv-panel { background: var(--surface); border: 1px solid var(--line2); border-radius: var(--radius); padding: 18px; }
+.iv-panel > h2 { font-family: var(--fdisp); font-weight: 600; font-size: 21px; margin: 0 0 10px; }
+.iv-pick[data-step="day"] .iv-times, .iv-pick[data-step="time"] .iv-cal { display: none; }
+.iv-head { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.iv-head strong { flex: 1; text-align: center; font-size: 16px; }
+.iv-arrow { width: 44px; height: 44px; border-radius: 999px; border: 1.5px solid var(--line2); background: var(--surface); color: var(--brand); display: grid; place-items: center; }
+.iv-arrow:disabled { color: var(--line2); border-color: var(--line); }
+.iv-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.iv-dow { text-align: center; font-size: 12px; font-weight: 700; color: var(--muted); padding-bottom: 2px; }
+.iv-day { aspect-ratio: 1; min-height: 42px; border-radius: 8px; border: 1.5px solid transparent; background: none; color: var(--line2); font-size: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; padding: 0; }
+.iv-day.open { color: var(--brand); font-weight: 700; background: var(--brand-tint); border-color: #cfe1d5; }
+.iv-day.open small { font-size: 10.5px; font-weight: 600; opacity: .8; }
+.iv-day.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.iv-note { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+.iv-back { background: none; border: 0; color: var(--brand); font-weight: 600; font-size: 14px; padding: 6px 0; margin-bottom: 6px; }
+.iv-part h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 14px 0 8px; }
+.iv-slots { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.iv-slot { min-height: 50px; border: 1.5px solid var(--line2); border-radius: 8px; background: var(--surface); font-weight: 600; font-size: 16px; color: var(--ink); }
+.iv-slot.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.iv-book { position: sticky; bottom: 0; background: var(--surface); padding: 14px 0 4px; margin-top: 8px; }
+.iv-book .cr-submit { margin-top: 0; width: 100%; }
+@media (min-width: 760px) {
+  .iv-pick { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; }
+  .iv-pick[data-step] .iv-cal, .iv-pick[data-step] .iv-times { display: block; }
+  .iv-back { display: none; }
+  .iv-slots { grid-template-columns: repeat(3, 1fr); }
+  .iv-book { position: static; }
+}
+.iv-pick { scroll-margin-top: var(--sticky-offset); }

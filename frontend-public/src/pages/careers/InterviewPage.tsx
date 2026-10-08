@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import '../../careers/careers.css'
 import {
@@ -10,6 +10,7 @@ import {
 } from '../../careers/api'
 import { useSeo } from '../../useSeo'
 import { PracticeBar } from './CareersPage'
+import { InterviewPicker } from './InterviewPicker'
 
 /** The applicant's private interview page: pick a time, then change or cancel it. Opened from our email. */
 export default function InterviewPage() {
@@ -17,11 +18,9 @@ export default function InterviewPage() {
   const [params] = useSearchParams()
   const token = params.get('t') || ''
   const [state, setState] = useState<InterviewState | null>(null)
-  const [picked, setPicked] = useState<InterviewTimeOption | null>(null)
   const [changing, setChanging] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [day, setDay] = useState('')
 
   useEffect(() => {
     if (!token) {
@@ -31,21 +30,7 @@ export default function InterviewPage() {
     getInterview(token).then(setState)
   }, [token])
 
-  const days = useMemo(() => {
-    const map = new Map<string, { date: string; day: string; times: InterviewTimeOption[] }>()
-    for (const t of state?.times ?? []) {
-      if (!map.has(t.date)) map.set(t.date, { date: t.date, day: t.day, times: [] })
-      map.get(t.date)!.times.push(t)
-    }
-    return [...map.values()]
-  }, [state])
-
-  useEffect(() => {
-    if (days.length && !days.some((d) => d.date === day)) setDay(days[0].date)
-  }, [days, day])
-
-  async function confirm() {
-    if (!picked) return
+  async function confirm(picked: InterviewTimeOption) {
     setBusy(true)
     setError('')
     const next = await bookInterview(token, picked.start)
@@ -54,11 +39,9 @@ export default function InterviewPage() {
       setError(next.detail || 'That time did not work. Pick another.')
       const fresh = await getInterview(token)
       if (fresh.ok) setState(fresh)
-      setPicked(null)
       return
     }
     setState(next)
-    setPicked(null)
     setChanging(false)
     window.scrollTo({ top: 0 })
   }
@@ -104,7 +87,6 @@ export default function InterviewPage() {
 
   const booked = state.interview
   const roles = (state.roles ?? []).join(' and ')
-  const current = days.find((d) => d.date === day)
 
   return (
     <>
@@ -144,65 +126,24 @@ export default function InterviewPage() {
           </section>
         )}
 
-        {(!booked || changing) && (
-          <section className="cr-card" style={{ marginTop: 22 }}>
-            {days.length === 0 ? (
-              <>
-                <h2>No open times right now</h2>
-                <p className="cr-sub">
-                  Every time in the next two weeks is taken. Reply to our email or call the store, and we&rsquo;ll find
-                  one.
-                </p>
-              </>
-            ) : (
-              <>
-                <h2>1. Pick a day</h2>
-                <div className="cr-chips" style={{ marginTop: 10 }}>
-                  {days.map((d) => (
-                    <button
-                      key={d.date}
-                      type="button"
-                      className={`cr-chip${d.date === day ? ' on' : ''}`}
-                      onClick={() => {
-                        setDay(d.date)
-                        setPicked(null)
-                      }}
-                    >
-                      {d.day.replace(/^(\w{3})\w*,/, '$1,')}
-                    </button>
-                  ))}
-                </div>
-                <h2 style={{ marginTop: 22 }}>2. Pick a time</h2>
-                <div className="cr-chips" style={{ marginTop: 10 }}>
-                  {(current?.times ?? []).map((t) => (
-                    <button
-                      key={t.start}
-                      type="button"
-                      className={`cr-chip${picked?.start === t.start ? ' on' : ''}`}
-                      onClick={() => setPicked(t)}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  className="btn btn--primary cr-submit"
-                  style={{ marginTop: 22 }}
-                  disabled={!picked || busy}
-                  onClick={confirm}
-                >
-                  {busy ? 'Booking…' : picked ? `Book ${picked.day.split(',')[0]} at ${picked.label}` : 'Pick a time'}
+        {(!booked || changing) &&
+          ((state.times ?? []).length === 0 ? (
+            <section className="cr-card" style={{ marginTop: 22 }}>
+              <h2>No open times right now</h2>
+              <p className="cr-sub">
+                Every open time is taken. Reply to our email or call the store, and we&rsquo;ll find one.
+              </p>
+            </section>
+          ) : (
+            <div style={{ marginTop: 22 }}>
+              <InterviewPicker times={state.times ?? []} busy={busy} onBook={confirm} />
+              {changing && (
+                <button type="button" className="btn btn--ghost" style={{ marginTop: 12 }} onClick={() => setChanging(false)}>
+                  Keep my current time
                 </button>
-                {changing && (
-                  <button type="button" className="btn btn--ghost" style={{ marginTop: 10 }} onClick={() => setChanging(false)}>
-                    Keep my current time
-                  </button>
-                )}
-              </>
-            )}
-          </section>
-        )}
+              )}
+            </div>
+          ))}
 
         <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 10 }}>
           Eco-Thrift, 8425 West Center Road, Omaha, NE 68124
