@@ -4,31 +4,62 @@
     {
       "name": "frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "dev"
+      ],
       "port": 5173
     },
     {
       "name": "backend",
       "runtimeExecutable": "venv/Scripts/python.exe",
-      "runtimeArgs": ["manage.py", "runserver", "127.0.0.1:8000"],
+      "runtimeArgs": [
+        "manage.py",
+        "runserver",
+        "127.0.0.1:8000"
+      ],
       "port": 8000
+    },
+    {
+      "name": "public",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "frontend-public",
+        "run",
+        "dev",
+        "--",
+        "--strictPort"
+      ],
+      "port": 5174
     },
     {
       "name": "hiring-api",
       "runtimeExecutable": "cmd",
-      "runtimeArgs": ["/c", "cd /d C:\\Coding\\_worktrees\\ecothrift-dashboard--hiring && C:\\Coding\\ecothrift-dashboard\\venv\\Scripts\\python.exe manage.py runserver 127.0.0.1:8010"],
+      "runtimeArgs": [
+        "/c",
+        "cd /d C:\\Coding\\_worktrees\\ecothrift-dashboard--hiring && C:\\Coding\\ecothrift-dashboard\\venv\\Scripts\\python.exe manage.py runserver 127.0.0.1:8010"
+      ],
       "port": 8010
     },
     {
       "name": "hiring-staff",
       "runtimeExecutable": "cmd",
-      "runtimeArgs": ["/c", "cd /d C:\\Coding\\_worktrees\\ecothrift-dashboard--hiring\\frontend && set ECOTHRIFT_API_PORT=8010&& set ECOTHRIFT_STAFF_PORT=5185&& npm run dev -- --strictPort"],
+      "runtimeArgs": [
+        "/c",
+        "cd /d C:\\Coding\\_worktrees\\ecothrift-dashboard--hiring\\frontend && set ECOTHRIFT_API_PORT=8010&& set ECOTHRIFT_STAFF_PORT=5185&& npm run dev -- --strictPort"
+      ],
       "port": 5185
     },
     {
       "name": "hiring-public",
       "runtimeExecutable": "cmd",
-      "runtimeArgs": ["/c", "cd /d C:\\Coding\\_worktrees\\ecothrift-dashboard--hiring\\frontend-public && set ECOTHRIFT_API_PORT=8010&& set ECOTHRIFT_PUBLIC_PORT=5184&& npm run dev -- --strictPort"],
+      "runtimeArgs": [
+        "/c",
+        "cd /d C:\\Coding\\_worktrees\\ecothrift-dashboard--hiring\\frontend-public && set ECOTHRIFT_API_PORT=8010&& set ECOTHRIFT_PUBLIC_PORT=5184&& npm run dev -- --strictPort"
+      ],
       "port": 5184
     }
   ]

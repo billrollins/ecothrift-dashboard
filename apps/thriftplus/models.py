@@ -56,6 +56,8 @@ class Person(models.Model):
     first_name = models.CharField(max_length=80)
     last_name = models.CharField(max_length=80, blank=True, default='')
     phone = models.CharField(max_length=20, blank=True, default='', db_index=True, help_text='Digits only (a lookup key).')
+    email = models.CharField(max_length=254, blank=True, default='', db_index=True,
+                             help_text='Lower-cased. Where receipts and the updates they asked for go (email-first, T73).')
     photo = models.FileField(upload_to='thriftplus/photos/', blank=True, default='')
     id_checked = models.BooleanField(default=False, help_text='A cashier matched the name to a photo ID.')
     verified_18 = models.BooleanField(default=False, help_text='The ID showed 18+. Only this flag is stored, never the ID.')

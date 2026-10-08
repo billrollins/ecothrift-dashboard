@@ -1,13 +1,13 @@
 import { Link } from 'react-router-dom'
 import { SITE_URL, STORE } from '../data/content'
-import { LEGAL_ENTITY, LEGAL_LAST_UPDATED, PRIVACY_NO_SHARING } from '../data/legal'
+import { LEGAL_ENTITY, LEGAL_LAST_UPDATED, NO_TEXTS, PRIVACY_NO_SHARING } from '../data/legal'
 import { useSeo } from '../useSeo'
 
-/** Public Privacy Policy. The bold sentence under "Text messages" is required wording: see data/legal.ts. */
+/** Public Privacy Policy (email-first, D20). See data/legal.ts. */
 export default function PrivacyPage() {
   useSeo({
     title: 'Privacy Policy',
-    description: 'What Eco-Thrift collects, what we do with it, and how to stop text messages.',
+    description: 'What Eco-Thrift collects, what we do with it, and how to stop our emails.',
     path: '/privacy',
   })
   return (
@@ -27,7 +27,7 @@ export default function PrivacyPage() {
 
           <h2>What we collect</h2>
           <p>
-            Your name and contact details (email, mobile number) when you give them to us; the account
+            Your name and contact details (email, phone number) when you give them to us; the account
             activity needed to run the service; and basic technical data (browser, pages viewed) that keeps
             the site working and secure.
           </p>
@@ -38,13 +38,16 @@ export default function PrivacyPage() {
             keep the site secure, and to meet legal requirements. We do not sell your information.
           </p>
 
-          <h2>Text messages</h2>
+          <h2>Email</h2>
           <p>
-            If you agree to receive texts, we use your mobile number only to send the kinds of messages you
-            agreed to. <strong data-testid="privacy-no-sharing">{PRIVACY_NO_SHARING}</strong> Your number is
-            shared only with the service providers that deliver the messages (our text-messaging provider
-            and the phone carriers).
+            We email you what something you did needs (a receipt, a hold, a warranty return, a job application),
+            and the updates or store news you asked for, each kind only if you ticked its box.{' '}
+            <strong data-testid="privacy-no-sharing">{PRIVACY_NO_SHARING}</strong> Your address is shared only
+            with the service providers that deliver our email.
           </p>
+
+          <h2>Text messages</h2>
+          <p data-testid="privacy-no-texts">{NO_TEXTS}</p>
 
           <h2>Job applications</h2>
           <p>
@@ -55,14 +58,15 @@ export default function PrivacyPage() {
 
           <h2>Who else sees it</h2>
           <p>
-            Companies that run our hosting, payments, email and text delivery, only as needed to do that job
-            for us; and authorities when the law requires it.
+            Companies that run our hosting, payments and email delivery, only as needed to do that job for
+            us; and authorities when the law requires it.
           </p>
 
           <h2>Your choices</h2>
           <p>
-            You can ask us to show, correct or delete your information, and you can stop texts at any time by
-            replying STOP.
+            You can ask us to show, correct or delete your information. You can stop store news with the
+            unsubscribe link in any of those emails, and Thrift+ members can change their email choices in their
+            Thrift+ account or at any register.
           </p>
 
           <h2>Contact</h2>

@@ -1,8 +1,8 @@
-"""The public Privacy Policy and Terms pages (house standard: texting, D17).
+"""The public Privacy Policy and Terms pages (email-first: house decision D20, 2026-10-08).
 
-The phone carriers read these pages before they approve Eco-Thrift's text sender, and they look for
-exact sentences. These tests read the public site's source, so a reworded sentence, a removed
-route or a dropped footer link fails here instead of at the carrier.
+Eco-Thrift sends no text messages, so neither page may carry a text-messaging program; both say so, and both say
+how to stop our emails. These tests read the public site's source, so a dropped sentence, a removed route or a
+dropped footer link fails here.
 """
 
 from pathlib import Path
@@ -18,22 +18,20 @@ def _read(rel: str) -> str:
 
 
 class PublicLegalPagesSourceTests(SimpleTestCase):
-    def test_required_wording_is_word_for_word(self):
+    def test_the_wording_says_no_texts_and_no_sharing(self):
         legal = _read('data/legal.ts')
-        self.assertIn(
-            "'We do not share mobile numbers or text-message consent with third parties or affiliates "
-            "for marketing or promotional purposes.'",
-            legal,
-        )
-        self.assertIn("'Message and data rates may apply.'", legal)
+        self.assertIn("'Eco-Thrift does not currently send text messages.'", legal)
+        self.assertIn("'We do not sell or share your email address or phone number with anyone for their marketing.'", legal)
 
-    def test_pages_show_the_required_sentences_and_the_program_facts(self):
+    def test_pages_carry_no_text_program_and_say_how_to_stop_emails(self):
         privacy, terms = _read('pages/PrivacyPage.tsx'), _read('pages/TermsPage.tsx')
+        for page in (privacy, terms):
+            self.assertIn('{NO_TEXTS}', page)
+            self.assertIn('unsubscribe link', page)
+            for gone in ('Reply STOP', 'replying STOP', 'Message and data rates', 'Carriers are not liable'):
+                self.assertNotIn(gone, page, gone)
         self.assertIn('{PRIVACY_NO_SHARING}', privacy)
-        self.assertIn('replying STOP', privacy)
-        self.assertIn('{TERMS_RATES}', terms)
-        for needed in ('STOP', 'HELP', 'START', 'Consent is not a condition of purchase', 'message frequency varies',
-                       'Carriers are not liable', 'to="/privacy"'):
+        for needed in ('never ticked for you', 'never a condition of purchase', 'to="/privacy"'):
             self.assertIn(needed, terms, needed)
 
     def test_routes_exist_and_the_footer_links_to_both(self):

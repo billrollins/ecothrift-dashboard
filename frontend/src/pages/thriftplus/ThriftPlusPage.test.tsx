@@ -85,12 +85,13 @@ vi.mock('../../api/thriftplus.api', () => ({
   issueCard: async () => account,
   removeSecondAdult: async () => account,
   killCard: async () => undefined,
-  setPersonTexts: async () => account,
-  fetchTextWording: async () => ({
+  setPersonEmails: async () => account,
+  setPersonEmail: async () => account,
+  fetchEmailWording: async () => ({
     not_required: 'Neither box is needed to join or to buy anything.',
     kinds: [
-      { kind: 'thriftplus', version: 'thriftplus-sms-2026-10-07', label: 'Thrift+ account texts', text: 'Text me my Thrift+ updates.' },
-      { kind: 'news', version: 'news-sms-2026-10-07', label: 'Store news texts', text: 'Text me Eco-Thrift store news.' },
+      { kind: 'thriftplus', version: 'thriftplus-email-2026-10-08', label: 'Thrift+ updates by email', text: 'Email me my Thrift+ updates.' },
+      { kind: 'news', version: 'news-email-2026-10-08', label: 'Store news by email', text: 'Email me Eco-Thrift store news.' },
     ],
   }),
 }));
@@ -135,25 +136,26 @@ describe('Thrift+ member service', () => {
     expect(created.bodies).toContainEqual(expect.objectContaining({ first_name: 'Bo', id_checked: true, verified_18: true }));
   });
 
-  it('offers the two text boxes unticked, only for a mobile number, and sends only what was ticked (T59)', async () => {
+  it('offers the two email boxes unticked, only with an email, and sends only what was ticked (T73)', async () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(screen.getByRole('button', { name: 'New member' }));
-    const account_ = await screen.findByRole('checkbox', { name: 'Thrift+ account texts' });
-    const news = screen.getByRole('checkbox', { name: 'Store news texts' });
-    expect(account_).not.toBeChecked();
+    const updates = await screen.findByRole('checkbox', { name: 'Thrift+ updates by email' });
+    const news = screen.getByRole('checkbox', { name: 'Store news by email' });
+    expect(updates).not.toBeChecked();
     expect(news).not.toBeChecked();
-    expect(account_).toBeDisabled();
-    expect(screen.getByText('Add a 10-digit mobile number to offer texts.')).toBeInTheDocument();
+    expect(updates).toBeDisabled();
+    expect(screen.getByText('Add an email to offer these.')).toBeInTheDocument();
     await user.type(screen.getByLabelText(/First name/), 'Cy');
-    await user.type(screen.getByLabelText('Phone'), '(402) 555-0199');
-    expect(account_).toBeEnabled();
-    expect(screen.getByText('Text me my Thrift+ updates.')).toBeInTheDocument();
-    await user.click(account_);
+    await user.type(screen.getByLabelText('Email (optional)'), 'cy@example.com');
+    expect(updates).toBeEnabled();
+    expect(screen.getByText('Email me my Thrift+ updates.')).toBeInTheDocument();
+    await user.click(updates);
     await user.click(screen.getByRole('button', { name: 'Sign up' }));
     const body = created.bodies.find((b) => (b as { first_name?: string }).first_name === 'Cy') as Record<string, unknown>;
-    expect(body.texts_thriftplus).toBe(true);
-    expect(body.texts_news).toBeFalsy();
+    expect(body.email).toBe('cy@example.com');
+    expect(body.emails_thriftplus).toBe(true);
+    expect(body.emails_news).toBeFalsy();
   });
 });
 

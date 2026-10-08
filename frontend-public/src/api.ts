@@ -112,6 +112,8 @@ export interface WebstoreConfig {
   accounts_enabled: boolean
   public_base_url?: string
   hours?: StoreHoursPublic
+  /** The Thrift+ price scanner (/scan) is open: show the "Price check" button. */
+  thrift_plus_open?: boolean
 }
 
 export function fetchWebstoreConfig(): Promise<WebstoreConfig> {

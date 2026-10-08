@@ -10,8 +10,8 @@ import type {
   NewMember,
   RewardPreview,
   RewardRunSummary,
-  TextKind,
-  TextWording,
+  ConsentKind,
+  ConsentWording,
   ThriftPlusAccount,
 } from '../types/thriftplus.types';
 import api from './client';
@@ -82,15 +82,21 @@ export async function setPersonPhoto(personId: number, photo: File): Promise<Thr
   return data;
 }
 
-/** The two text-consent boxes' words (T59). */
-export async function fetchTextWording(): Promise<TextWording> {
-  const { data } = await api.get<TextWording>('/thriftplus/accounts/text-wording/');
+/** The two email boxes' words (T73). */
+export async function fetchEmailWording(): Promise<ConsentWording> {
+  const { data } = await api.get<ConsentWording>('/thriftplus/accounts/email-wording/');
   return data;
 }
 
-/** Change one text choice when the member asks. */
-export async function setPersonTexts(personId: number, kind: TextKind, optedIn: boolean): Promise<ThriftPlusAccount> {
-  const { data } = await api.post<ThriftPlusAccount>(`/thriftplus/people/${personId}/texts/`, { kind, opted_in: optedIn });
+/** Change one email choice when the member asks. */
+export async function setPersonEmails(personId: number, kind: ConsentKind, optedIn: boolean): Promise<ThriftPlusAccount> {
+  const { data } = await api.post<ThriftPlusAccount>(`/thriftplus/people/${personId}/emails/`, { kind, opted_in: optedIn });
+  return data;
+}
+
+/** Add or change a member's email address (blank removes it). */
+export async function setPersonEmail(personId: number, email: string): Promise<ThriftPlusAccount> {
+  const { data } = await api.post<ThriftPlusAccount>(`/thriftplus/people/${personId}/email/`, { email });
   return data;
 }
 

@@ -1,30 +1,29 @@
-v2.154.0 — Email first: no text box on the job application or offer, texting parked (D20, T73); shared EmailConsent record for Thrift+
+v2.155.0 — Email first: Thrift+ sign-up asks for email choices instead of texts, Terms and Privacy carry no text program (T73); Price check button on every page of ecothrift.us
 
-<!-- Last reviewed: 2026-10-08 (2.154.0) -->
-# Changelog
-
-All notable changes to this project are documented here at the **version level**.
-Commit-level detail belongs in commit messages, not here.
-
-Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-Versioning follows [Semantic Versioning](https://semver.org/).
-
----
-
-## [Unreleased]
-
-## [2.154.0] - 2026-10-08
-
-User-facing theme: **Email first: the job application has no text box, and Eco-Thrift texts no one** (Bill, decision D20; standards T73, which replaces T71). Initiative: `hiring_onboarding`.
+User-facing theme: **Email first: Thrift+ sign-up asks for an email (optional) and two unticked email choices instead of texts, and the Terms and Privacy pages carry no text program. A "Price check" button on every page of ecothrift.us opens the price scanner while Thrift+ is on.** Standards T73 (house decision D20, Bill 2026-10-08). Thrift+ itself stays behind its switch.
 
 ### Changed
 
-- **The application's text tick is gone.** In its place one line says we'll email them about their application: interview times, reminders, and their first day if they're hired. No box: mail about a job someone applied for needs no opt-in. The thank-you page says we'll email an interview link (it said call or text).
-- **The offer page no longer offers the first-day text tick.**
-- **Texting is parked** (`apps/texting` `PARKED`): kept in the repo, switched off, nothing deleted. Consents already recorded stay; nobody is texted.
+- **Thrift+ sign-up (register and Dash):** an optional email, and two separate, never pre-ticked boxes in master's words: "Email me my Thrift+ updates (savings, gift card balance, receipts, returns)." and "Email me Eco-Thrift store news." They work only once an email that looks right is typed; neither is needed to join; only ticked boxes are recorded, in the shared `EmailConsent` (v2.154.0) with the words, version, staff member and how. The text boxes from v2.150.0 are gone; the texts consents already recorded stay, unused.
+- **Dash, Thrift+ → Members:** each person's email and both choices (staff change them when asked), and "Add an email" for members who joined without one.
+- **Scanner → My account** (opens with Thrift+): an Emails section. Stopping works from any sign-in; starting needs the email-and-password sign-in.
+- **`/terms` and `/privacy`** (dated October 8, 2026): no text-messaging program; both say "Eco-Thrift does not currently send text messages." Terms list the emails we always send (receipts, holds, warranty returns, job applications) and the two we send only on request, and how to stop them.
+- **API:** sign-up takes `email`, `emails_thriftplus`, `emails_news`; `GET /api/thriftplus/accounts/email-wording/`, `POST /api/thriftplus/people/<id>/emails/` and `.../email/`, `POST /api/thriftplus/public/me/emails/`. The `texts` endpoints are removed.
 
 ### Added
 
-- **A shared email-consent record** (`apps/texting` `EmailConsent`, migration `texting.0003`): who, which kind (job, Thrift+, store news, or all = unsubscribe), in or out, when, how, the wording and its version, newest wins. For the Thrift+ sign-up email boxes; hiring does not use it.
+- **"Price check" on ecothrift.us:** a quiet green button with a scan mark in the header of every page, opening the Thrift+ price scanner (`/scan`). On phones it takes the wide spot in the header row. It shows only while the Thrift+ switch is on (`thrift_plus_open` in `/api/webstore/config/`).
+- `Person.email` (migration `thriftplus.0011`).
+
+### Docs
+
+- The Thrift+ rulebook (`.ai/extended/thrift-plus-decisions.md`, rebuilt from the 10-01 list): every rule with its status, customer words, source and build state; the owners decide on its page. The final-forms grid compares four ways to treat banked rewards and refunds. Standards: T73 (email-first), T59, T71, T72 superseded.
+
+### Tests
+
+- `apps/thriftplus/tests/test_email_consent.py` (7): master's words word for word; the email kept and only the ticked box recorded; email optional and no ticks, no rows; a bad email or a tick without one stops the sign-up; staff add an email and change choices; the portal (a card session can stop, a password session can start).
+- `apps/core/tests/test_public_legal_pages.py`: no text program on either page, "no texts" and how to stop emails on both.
+- `apps/webstore/tests/test_price_check_flag.py`: the site config follows the Thrift+ switch.
+- `ThriftPlusPage.test.tsx` and `AccountScreens.test.tsx` updated for email.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -349,17 +349,17 @@ export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }:
                 )}
               </Card>
             ))}
-            {data.texts && (
+            {data.emails && (
               <>
-                <SectionTitle>Texts</SectionTitle>
-                {!data.texts.has_number ? (
+                <SectionTitle>Emails</SectionTitle>
+                {!data.emails.has_email ? (
                   <Box sx={{ fontSize: u(29), color: sc.ink2, lineHeight: 1.35 }}>
-                    Texts need a mobile number on your membership. Ask at the register.
+                    Add an email to your membership at the register to get Thrift+ updates or store news.
                   </Box>
                 ) : (
                   <Card sx={{ p: u(10) }}>
-                    {data.texts.kinds.map((k, i) => {
-                      const on = data.texts?.choices[k.kind] ?? false;
+                    {data.emails.kinds.map((k, i) => {
+                      const on = data.emails?.choices[k.kind] ?? false;
                       // Stopping always works; starting needs the email-and-password sign-in.
                       const canTap = on || data.can_change;
                       return (
@@ -373,8 +373,8 @@ export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }:
                             </Box>
                             {canTap && (
                               <ButtonBase
-                                disabled={actions.texts.isPending}
-                                onClick={() => void run(() => actions.texts.mutateAsync({ kind: k.kind, optedIn: !on }))}
+                                disabled={actions.emails.isPending}
+                                onClick={() => void run(() => actions.emails.mutateAsync({ kind: k.kind, optedIn: !on }))}
                                 sx={{ px: u(22), py: u(10), borderRadius: 99, border: `${u(2)} solid ${sc.cardEdge}`, fontSize: u(26), color: sc.ink2 }}
                               >
                                 {on ? 'Turn off' : 'Turn on'}

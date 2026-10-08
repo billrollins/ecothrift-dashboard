@@ -693,7 +693,15 @@ def public_config(request):
         'accounts_enabled': bool(getattr(dj_settings, 'ONLINE_SALES_ACCOUNTS_ENABLED', True)),
         'public_base_url': public_base,
         'hours': public_hours_payload(),
+        # The site's "Price check" button (owner, 2026-10-08) shows only while the Thrift+ scanner is open.
+        'thrift_plus_open': _thrift_plus_open(),
     })
+
+
+def _thrift_plus_open() -> bool:
+    from apps.thriftplus.services.members import is_enabled
+
+    return is_enabled()
 
 
 @api_view(['GET'])

@@ -320,10 +320,10 @@ export interface ThriftPlusMe {
   money: { kind: 'cover' | 'bank' | 'credit'; amount: string; reason: string; created_at: string }[];
   /** False for a card session: changes need the email and password. */
   can_change: boolean;
-  /** Your own text choices (T59) and the words of each box. */
-  texts?: {
+  /** Your own email choices (T73) and the words of each box. */
+  emails?: {
     choices: Record<'thriftplus' | 'news', boolean>;
-    has_number: boolean;
+    has_email: boolean;
     kinds: { kind: 'thriftplus' | 'news'; version: string; label: string; text: string }[];
     not_required: string;
   };
@@ -343,10 +343,10 @@ export async function reportCardLost(cardId: number): Promise<ThriftPlusMe> {
   }
 }
 
-/** Change one of your own text choices. Stopping works from any sign-in; starting needs the password sign-in. */
-export async function setMyTexts(kind: 'thriftplus' | 'news', optedIn: boolean): Promise<ThriftPlusMe> {
+/** Change one of your own email choices. Stopping works from any sign-in; starting needs the password sign-in. */
+export async function setMyEmails(kind: 'thriftplus' | 'news', optedIn: boolean): Promise<ThriftPlusMe> {
   try {
-    const { data } = await http.post<ThriftPlusMe>('/me/texts/', { kind, opted_in: optedIn });
+    const { data } = await http.post<ThriftPlusMe>('/me/emails/', { kind, opted_in: optedIn });
     return data;
   } catch (err) {
     throw problem(err, 'Could not change that. Ask at the register.');

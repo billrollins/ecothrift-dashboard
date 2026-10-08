@@ -3,7 +3,35 @@
 
 **Working page (2026-10-07):** https://claude.ai/artifact/WzPhon6EJvA2S7XLk8M3oZ is now one simple to-do in six groups: Decisions, Dash, Creatives, Printing and ordering, Training, Research. The owner ticks items, picks options on decisions and writes notes there. Everything lives in the page's database collection `todos` (fields `title`, `detail`, `cat`, `who`, `due`, `status` todo/doing/done, `note`, and on decisions `options` and `choice`). Read and write it with the `ArtifactData` tool; read the notes and choices at the start of each Thrift+ session. The old collections `tasks`, `questions` and `drafts` are kept but no longer shown. This file keeps the draft text as the source.
 
+**Rules live in one place (2026-10-08):** the Thrift+ rulebook, [`../extended/thrift-plus-decisions.md`](../extended/thrift-plus-decisions.md), decided on its page https://claude.ai/artifact/GpgB6SUsKkiKkNBRJj31W4. The dated decision notes below are history; where they differ, the rulebook wins. The launch kit page keeps tasks only.
+
 Phase 5 of [`thrift_plus_rewards`](./thrift_plus_rewards.md). Claude drafts; the owner approves. Print and train 10-09 to 10-15; launch Tue 10-20.
+
+## Owner's answers on the launch kit page (2026-10-08)
+
+- **Limited Warranty refund:** **90% of everything they paid, tax included**, as a gift card. 7 days.
+- **Warranty contact:** Eco-Thrift LLC, 8425 West Center Road, Omaha, NE 68124 · (402) 881-9861.
+- **Youngest member:** 18.
+- **Monthly $10:** keep the word "cover".
+- **Signature:** on the register's touch screen. **Photo:** the all-in-one registers' own webcams (no cameras to buy); the sign-up window needs a live camera view.
+- **Floor stock (his note, follow-ups open on the page):** the discount grows **0.75% a day**; stock already on the floor gets a jump start of half its real age, capped at 45 days (to confirm: he wrote `max(real_age/2, 45)`). Items **not scanned in the last inventory and not processed since are back stock or shrink: no Member Price** until seen on the floor. He wants a way to watch Member Prices and see each item's future prices. Open: one rate for all stock or only old stock; day 1 or after the 7-day wait; where back stock starts; keep the duplicate pacing.
+- **Member Price formula:** he sees no need to publish it ("discounts are black box"). Proposed: the terms say only that Member Price is set by Eco-Thrift, can change daily, and is shown in the scanner and at the register.
+- **AS IS stamps:** too much stock; no new tags. Proposed: signs and receipts decide (the receipt marks Limited Warranty lines from the item's data).
+
+## Owner's follow-up answers (2026-10-08, later)
+
+**Member Price rules v2** (build before launch, behind the Thrift+ switch; Dash item `dash-pricing-v2`):
+- **0.75% of the tag a day, after the 7-day wait, for all stock** (one rule; replaces tag ÷ 90 a day). The floor stays 10% of the tag.
+- **Launch jump start** for stock already on the floor: counted as **half its real age, at most 45 days** (`min(real_age / 2, 45)`).
+- **Back stock:** anything not scanned in the last inventory and not processed since is back stock or shrink: **no Member Price**. When it is scanned on the floor it **matches its look-alikes already there** (day 1 if none).
+- **Pacing stays, but smooth** (his note): no deadline jump. Each family aims for its starting count ÷ 90 a day, whatever the days left; nightly, compare the recent sales rate (last 14 days, recent days weigh more) with the aim; hold at or above it, grow up to 0.75% a day in proportion to how far behind. Learning from past sales at past prices comes later (data platform). Proposed rule awaiting his tap (`f-pace`).
+- **A family** = items priced together: the same product (back stock and floor) or alike enough that their discounts should match (blue ball $105, red ball $100: same discount from each starting price).
+- **The terms** say only: "Member Price is set by Eco-Thrift, can change from day to day, and is shown in the Thrift+ scanner and at the register."
+- He wants to **watch Member Prices and see each item's future prices** (`dash-forecast`).
+
+**After launch (proposed, `f-later`):** a daily family review (do members fit; should outside items join; should loose items group); a same-product-same-price check across orders (unless a quality markdown explains it); a **quality markdown scan tool** (scan, pick a factor like 0.9 or 0.75, print a new tag, note the reason; "repeat for next scans" for a run, e.g. old stock after customers cherry-picked).
+
+**Signs (his plan):** three, 13 × 19: Member vs Guest **prices**, Member vs Guest **returns**, and **What is Thrift+** (all the disclaimers). No AS IS stamps or separate AS IS signs; AS IS is said on the receipt and in the scanner. Claude's guard: the returns sign carries a bold "sold AS IS" line that covers guests too (the legal memo's biggest exposure).
 
 ## Owners' meeting decisions (2026-10-07)
 

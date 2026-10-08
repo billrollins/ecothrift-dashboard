@@ -1,29 +1,27 @@
 import AddAPhotoOutlined from '@mui/icons-material/AddAPhotoOutlined';
 import { Box, Button, Checkbox, FormControlLabel, Stack, TextField, Typography } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
-import { fetchTextWording } from '../../api/thriftplus.api';
-import type { NewMember, TextKind } from '../../types/thriftplus.types';
+import { fetchEmailWording } from '../../api/thriftplus.api';
+import type { ConsentKind, NewMember } from '../../types/thriftplus.types';
 
-const FIELD: Record<TextKind, 'texts_thriftplus' | 'texts_news'> = { thriftplus: 'texts_thriftplus', news: 'texts_news' };
+const FIELD: Record<ConsentKind, 'emails_thriftplus' | 'emails_news'> = { thriftplus: 'emails_thriftplus', news: 'emails_news' };
 
-/** A 10-digit US number, as the server checks it. */
-export function isTextableNumber(phone: string | undefined): boolean {
-  let digits = (phone ?? '').replace(/\D/g, '');
-  if (digits.length === 11 && digits.startsWith('1')) digits = digits.slice(1);
-  return digits.length === 10;
+/** A plausible email address (the server makes the final check). */
+export function looksLikeEmail(email: string | undefined): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test((email ?? '').trim());
 }
 
 /**
- * The two text-consent boxes (T59, house texting standard): separate, never pre-ticked, the exact words
- * shown, and neither needed to join. The words come from the server, which records the same version.
+ * The two email boxes (T73, email-first): separate, never pre-ticked, the exact words shown, and neither
+ * needed to join. The words come from the server, which records the same version.
  */
-function TextBoxes({ value, onChange }: { value: NewMember; onChange: (v: NewMember) => void }) {
-  const wording = useQuery({ queryKey: ['thriftplus', 'text-wording'], queryFn: fetchTextWording, staleTime: Infinity });
-  const textable = isTextableNumber(value.phone);
+function EmailBoxes({ value, onChange }: { value: NewMember; onChange: (v: NewMember) => void }) {
+  const wording = useQuery({ queryKey: ['thriftplus', 'email-wording'], queryFn: fetchEmailWording, staleTime: Infinity });
+  const usable = looksLikeEmail(value.email);
   if (!wording.data) return null;
   return (
     <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1.25 }}>
-      <Typography variant="subtitle2">Texts (ask; read the words or turn the screen to them)</Typography>
+      <Typography variant="subtitle2">Emails (ask; read the words or turn the screen to them)</Typography>
       {wording.data.kinds.map((k) => (
         <FormControlLabel
           key={k.kind}
@@ -31,8 +29,8 @@ function TextBoxes({ value, onChange }: { value: NewMember; onChange: (v: NewMem
           control={(
             <Checkbox
               sx={{ pt: 0.25 }}
-              checked={Boolean(value[FIELD[k.kind]]) && textable}
-              disabled={!textable}
+              checked={Boolean(value[FIELD[k.kind]]) && usable}
+              disabled={!usable}
               onChange={(e) => onChange({ ...value, [FIELD[k.kind]]: e.target.checked })}
               inputProps={{ 'aria-label': k.label }}
             />
@@ -46,15 +44,15 @@ function TextBoxes({ value, onChange }: { value: NewMember; onChange: (v: NewMem
         />
       ))}
       <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
-        {textable ? wording.data.not_required : 'Add a 10-digit mobile number to offer texts.'}
+        {usable ? wording.data.not_required : 'Add an email to offer these.'}
       </Typography>
     </Box>
   );
 }
 
 /**
- * A Thrift+ person's signup fields (Dash member service and the register): name, phone and its two
- * text choices, the ID check and the 18+ flag it allows, a photo, and a blank card. The ID itself is never kept.
+ * A Thrift+ person's signup fields (Dash member service and the register): name, phone, an optional email and
+ * its two choices, the ID check and the 18+ flag it allows, a photo, and a blank card. The ID itself is never kept.
  */
 export default function PersonFields({ value, onChange }: { value: NewMember; onChange: (v: NewMember) => void }) {
   return (
@@ -63,17 +61,19 @@ export default function PersonFields({ value, onChange }: { value: NewMember; on
         <TextField label="First name" required fullWidth value={value.first_name} onChange={(e) => onChange({ ...value, first_name: e.target.value })} />
         <TextField label="Last name" fullWidth value={value.last_name ?? ''} onChange={(e) => onChange({ ...value, last_name: e.target.value })} />
       </Stack>
+      <TextField label="Phone" value={value.phone ?? ''} onChange={(e) => onChange({ ...value, phone: e.target.value })} slotProps={{ htmlInput: { inputMode: 'tel' } }} />
       <TextField
-        label="Phone"
-        value={value.phone ?? ''}
-        inputMode="tel"
+        label="Email (optional)"
+        type="email"
+        value={value.email ?? ''}
+        helperText="For receipts, and the emails they choose below."
         onChange={(e) => {
-          const phone = e.target.value;
-          // A box ticked for a number that is no longer a mobile number is not consent: clear it.
-          onChange({ ...value, phone, ...(isTextableNumber(phone) ? {} : { texts_thriftplus: false, texts_news: false }) });
+          const email = e.target.value;
+          // A box ticked for an address that no longer looks right is not consent: clear it.
+          onChange({ ...value, email, ...(looksLikeEmail(email) ? {} : { emails_thriftplus: false, emails_news: false }) });
         }}
       />
-      <TextBoxes value={value} onChange={onChange} />
+      <EmailBoxes value={value} onChange={onChange} />
       <FormControlLabel
         control={<Checkbox checked={Boolean(value.id_checked)} onChange={(e) => onChange({ ...value, id_checked: e.target.checked, verified_18: e.target.checked ? value.verified_18 : false })} />}
         label="Checked a photo ID (the name matches)"
@@ -88,7 +88,7 @@ export default function PersonFields({ value, onChange }: { value: NewMember; on
       </Button>
       <TextField label="Scan a blank card" value={value.card_code ?? ''} onChange={(e) => onChange({ ...value, card_code: e.target.value })} helperText="Optional. Scan the card, or type its 12 digits." />
       <Typography variant="caption" color="text.secondary">
-        Never scan or keep the ID itself: only the name, phone, photo and the 18+ flag are stored.
+        Never scan or keep the ID itself: only the name, phone, email, photo and the 18+ flag are stored.
       </Typography>
     </Stack>
   );

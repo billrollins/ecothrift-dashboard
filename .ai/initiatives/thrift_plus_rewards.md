@@ -364,6 +364,9 @@ The POS handles members:
 - **What:** two separate, unticked boxes at sign-up (register and Dash), words word for word from `C:\Coding\.ai\standards\texting.md` § Campaign; recorded in `apps/texting` (hiring's store, v2.149.0) with kind, in or out, how, staff, wording and version. Staff change a choice in Dash when asked; members in My account (stop from any sign-in, start only with the password sign-in). STOP ends both.
 - **Code:** `services/texts.py` (`WORDING`, `set_choice`, `record_signup`, `choices`), `PersonFields.tsx` (`TextBoxes`), `MembersTab.tsx` chips, `AccountScreens.tsx` Texts; tests `test_text_consent.py` (8).
 - **Rule:** the two texts change only together with master (the campaign quotes them); a new wording gets a new version.
+
+### 2026-10-08 — One rulebook
+- The owner asked for one place for every Thrift+ rule, with no more one-off questions. `extended/thrift-plus-decisions.md` is rebuilt as the **Thrift+ rulebook** (56 rules: decided, conflict, open, CPA or attorney) and its page https://claude.ai/artifact/GpgB6SUsKkiKkNBRJj31W4 (collection `rules`) is where the owners decide. Answers are folded into the file; code follows the file.
 ---
 
 ## See also

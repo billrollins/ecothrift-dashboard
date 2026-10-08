@@ -1,13 +1,13 @@
 import { Link } from 'react-router-dom'
 import { SITE_URL, STORE } from '../data/content'
-import { LEGAL_ENTITY, LEGAL_LAST_UPDATED, TERMS_RATES } from '../data/legal'
+import { LEGAL_ENTITY, LEGAL_LAST_UPDATED, NO_TEXTS } from '../data/legal'
 import { useSeo } from '../useSeo'
 
-/** Public Terms. "Message and data rates may apply." is required wording: see data/legal.ts. */
+/** Public Terms: the website and the emails we send (email-first, D20). See data/legal.ts. */
 export default function TermsPage() {
   useSeo({
     title: 'Terms',
-    description: 'Eco-Thrift terms, including our text messaging program: what we send, how to stop, and how to get help.',
+    description: 'Eco-Thrift terms: the website and the emails we send, and how to stop them.',
     path: '/terms',
   })
   return (
@@ -21,59 +21,46 @@ export default function TermsPage() {
 
         <div className="abody" style={{ marginTop: 28 }}>
           <p>
-            These terms cover the Eco-Thrift website ({SITE_URL}) and the text messages we send. Both are run
-            by {LEGAL_ENTITY}.
+            These terms cover the Eco-Thrift website ({SITE_URL}) and the emails we send. Both are run by{' '}
+            {LEGAL_ENTITY}.
           </p>
 
-          <h2>Text messaging program</h2>
+          <h2>Emails</h2>
           <ul>
             <li>
-              <strong>Who sends:</strong> Eco-Thrift ({LEGAL_ENTITY}).
+              <strong>Who sends:</strong> Eco-Thrift ({LEGAL_ENTITY}), from{' '}
+              <a href={`mailto:${STORE.email}`}>{STORE.email}</a>.
             </li>
             <li>
-              <strong>Who it is for:</strong> Thrift+ members, customers and job applicants who agree to receive
-              texts.
+              <strong>Always:</strong> the emails something you did needs, such as a receipt, an online hold, a
+              Thrift+ warranty return, or a job application you sent us (interview times, reminders, and your first
+              day if you&rsquo;re hired).
             </li>
             <li>
-              <strong>What we send:</strong>
+              <strong>Only if you ask</strong> (a separate box for each, never ticked for you):
               <ul style={{ marginTop: 8 }}>
                 <li>
-                  <strong>Thrift+ account texts:</strong> your welcome message, rewards and credit balance,
-                  receipts, and return updates.
+                  <strong>Thrift+ updates:</strong> your savings, gift card balance, receipts and returns.
                 </li>
                 <li>
-                  <strong>Store news texts:</strong> new arrivals, truck days, and sales, up to about 4
-                  messages a month.
-                </li>
-                <li>
-                  <strong>Job application texts:</strong> for people who apply at {SITE_URL}/careers and tick
-                  the box: interview times and reminders, and a first-day reminder if you are hired.
+                  <strong>Store news:</strong> new arrivals and sales.
                 </li>
               </ul>
             </li>
             <li>
-              <strong>How often:</strong> message frequency varies.
+              <strong>Stopping:</strong> every store news email has an unsubscribe link. Thrift+ members can also
+              change their choices in their Thrift+ account or at any register.
             </li>
             <li>
-              <strong>Cost:</strong> <span data-testid="terms-rates">{TERMS_RATES}</span>
+              <strong>Asking is never a condition of purchase</strong> or of joining Thrift+.
             </li>
-            <li>
-              <strong>Stopping:</strong> reply <strong>STOP</strong> to any message to opt out; you&rsquo;ll get
-              one message confirming it. Reply <strong>START</strong> to opt back in.
-            </li>
-            <li>
-              <strong>Help:</strong> reply <strong>HELP</strong>, or contact us at{' '}
-              <a href={`tel:${STORE.retail.phoneHref}`}>{STORE.retail.phone}</a> or{' '}
-              <a href={`mailto:${STORE.email}`}>{STORE.email}</a>.
-            </li>
-            <li>
-              <strong>Consent is not a condition of purchase</strong> or of using the service.
-            </li>
-            <li>Carriers are not liable for delayed or undelivered messages.</li>
             <li>
               <strong>Privacy:</strong> see our <Link to="/privacy">Privacy Policy</Link> at {SITE_URL}/privacy.
             </li>
           </ul>
+
+          <h2>Text messages</h2>
+          <p data-testid="terms-no-texts">{NO_TEXTS}</p>
 
           <h2>Contact</h2>
           <p>

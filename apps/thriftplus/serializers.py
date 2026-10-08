@@ -24,7 +24,7 @@ class PersonSerializer(serializers.ModelSerializer):
     class Meta:
         model = Person
         fields = [
-            'id', 'role', 'first_name', 'last_name', 'phone', 'photo_url', 'id_checked', 'verified_18',
+            'id', 'role', 'first_name', 'last_name', 'phone', 'email', 'photo_url', 'id_checked', 'verified_18',
             'verified_at', 'removed_at', 'cards', 'created_at',
         ]
 
@@ -70,14 +70,14 @@ class AccountSerializer(serializers.ModelSerializer):
 
 
 class PersonDetailSerializer(PersonSerializer):
-    """One person on an open membership, with their text choices (two lookups each, so detail only)."""
-    texts = serializers.SerializerMethodField()
+    """One person on an open membership, with their email choices (two lookups each, so detail only)."""
+    emails = serializers.SerializerMethodField()
 
     class Meta(PersonSerializer.Meta):
-        fields = PersonSerializer.Meta.fields + ['texts']
+        fields = PersonSerializer.Meta.fields + ['emails']
 
-    def get_texts(self, obj) -> dict:
-        from apps.thriftplus.services.texts import choices
+    def get_emails(self, obj) -> dict:
+        from apps.thriftplus.services.emails import choices
 
         return choices(obj)
 

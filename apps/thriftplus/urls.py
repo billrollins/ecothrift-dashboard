@@ -62,7 +62,7 @@ public = [
     path('history/', public_views.history),
     path('me/', public_views.me),
     path('me/card-lost/', public_views.card_lost),
-    path('me/texts/', public_views.texts),
+    path('me/emails/', public_views.emails),
     path('me/remove-person/', public_views.remove_person),
 ]
 

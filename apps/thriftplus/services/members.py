@@ -125,13 +125,21 @@ def kill_card(card: Card, *, reason: str = 'lost', user=None) -> Card:
     return card
 
 
-def _person(account: Account, role: str, *, first_name: str, last_name: str = '', phone: str = '',
+def _person(account: Account, role: str, *, first_name: str, last_name: str = '', phone: str = '', email: str = '',
             id_checked: bool = False, verified_18: bool = False, photo=None, user=None) -> Person:
     if not (first_name or '').strip():
         raise MemberError('A first name is required.')
+    clean = ''
+    if (email or '').strip():
+        from apps.thriftplus.services.emails import clean_email
+
+        clean = clean_email(email)
+        if not clean:
+            raise MemberError("That email doesn't look right.")
     person = Person(
         account=account, role=role, first_name=first_name.strip()[:80], last_name=(last_name or '').strip()[:80],
-        phone=normalize_phone(phone), id_checked=bool(id_checked), verified_18=bool(id_checked and verified_18),
+        phone=normalize_phone(phone), email=clean, id_checked=bool(id_checked),
+        verified_18=bool(id_checked and verified_18),
     )
     if person.id_checked:
         person.verified_at = timezone.now()
@@ -143,23 +151,23 @@ def _person(account: Account, role: str, *, first_name: str, last_name: str = ''
 
 
 @transaction.atomic
-def create_account(*, first_name: str, last_name: str = '', phone: str = '', id_checked: bool = False,
-                   verified_18: bool = False, photo=None, card_code: str = '', texts: dict | None = None,
-                   user=None) -> Account:
-    """Sign up: the primary person, their text choices (only ticked boxes are recorded), and their first card
+def create_account(*, first_name: str, last_name: str = '', phone: str = '', email: str = '',
+                   id_checked: bool = False, verified_18: bool = False, photo=None, card_code: str = '',
+                   emails: dict | None = None, user=None) -> Account:
+    """Sign up: the primary person, their email choices (only ticked boxes are recorded), and their first card
     if one was scanned."""
     phone_digits = normalize_phone(phone)
     if phone_digits and Person.objects.filter(phone=phone_digits, removed_at__isnull=True,
                                               account__status=Account.STATUS_ACTIVE).exists():
         raise MemberError('That phone number is already on a membership. Look it up instead.')
     account = Account.objects.create(created_by=user)
-    person = _person(account, Person.ROLE_PRIMARY, first_name=first_name, last_name=last_name, phone=phone,
+    person = _person(account, Person.ROLE_PRIMARY, first_name=first_name, last_name=last_name, phone=phone, email=email,
                      id_checked=id_checked, verified_18=verified_18, photo=photo, user=user)
     log('signup', account=account, person=person, actor=user, id_checked=person.id_checked, verified_18=person.verified_18)
-    if texts:
-        from apps.thriftplus.services import texts as text_consent
+    if emails:
+        from apps.thriftplus.services import emails as email_consent
 
-        text_consent.record_signup(person, texts, user=user)
+        email_consent.record_signup(person, emails, user=user)
     if card_code:
         issue_card(person, card_code, user=user)
     return account
@@ -181,19 +189,20 @@ def verify(person: Person, *, verified_18: bool, user=None) -> Person:
 @transaction.atomic
 def add_second_adult(account: Account, *, both_present: bool, primary_approves: bool, first_name: str,
                      last_name: str = '', phone: str = '', id_checked: bool = False, verified_18: bool = False,
-                     photo=None, card_code: str = '', texts: dict | None = None, user=None) -> Person:
+                     photo=None, card_code: str = '', email: str = '', emails: dict | None = None,
+                     user=None) -> Person:
     _require_active(account)
     if not (both_present and primary_approves):
         raise MemberError('Both adults must be here, and the primary must approve adding the second.')
     if account.people.filter(role=Person.ROLE_SECONDARY, removed_at__isnull=True).exists():
         raise MemberError('This account already has a second adult (2 adults per card at most).')
     person = _person(account, Person.ROLE_SECONDARY, first_name=first_name, last_name=last_name, phone=phone,
-                     id_checked=id_checked, verified_18=verified_18, photo=photo, user=user)
+                     email=email, id_checked=id_checked, verified_18=verified_18, photo=photo, user=user)
     log('second_added', account=account, person=person, actor=user)
-    if texts:
-        from apps.thriftplus.services import texts as text_consent
+    if emails:
+        from apps.thriftplus.services import emails as email_consent
 
-        text_consent.record_signup(person, texts, user=user)
+        email_consent.record_signup(person, emails, user=user)
     if card_code:
         issue_card(person, card_code, user=user)
     return person
