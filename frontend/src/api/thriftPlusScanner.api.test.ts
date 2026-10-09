@@ -35,7 +35,7 @@ describe('the Thrift+ scanner client', () => {
     expect((await scanner.getSession()).status).toBe('guest');
     const cart = await scanner.addToCart(lamp);
     expect(cart.lines).toHaveLength(1);
-    expect(cart.totals).toMatchObject({ reward_total: '13.00', to_cover: '10.00', savings: '3.00' });
+    expect(cart.totals).toMatchObject({ reward_total: '13.00', to_cover: '10.00', savings: '2.40' }); // 80% of the $3 past the cover
     expect(http.post).toHaveBeenCalledWith('/added/', { sku: 'ITM1' });
     expect((await scanner.getHistory())[0].decision).toBe('added');
   });

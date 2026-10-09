@@ -6,8 +6,9 @@ cent for cent, so the phone's estimate and the register agree.
 - **reward total:** Σ reward × qty, from the reward engine (``rewards.member_price``).
 - **to cover:** the part of the reward total that fills what is left of this month's cover
   ($10; the ``thrift_plus_cover_amount`` setting). For a guest it is shown as a new member's would be.
-- **the rest:** it comes off the price (**instant**), or it is added to the member's banked rewards
-  (**bank**, the member's choice for the trip). Guests are shown the instant rebate.
+- **the rest (form 5, Bill 2026-10-09):** saved in full to the member's Rewards Balance (**bank**, "Full
+  rewards", the default), or 80% of it comes off today's price (**instant**, "Instant rewards"; rounded to the cent
+  in the member's favor). Guests are shown the instant rebate.
 - **member total:** the tag total less the instant savings, before tax.
 
 The cover and the bank are split across the lines in scan order: earlier lines fill the cover first.
@@ -17,13 +18,13 @@ A return then reverses exactly what that item put into the cover and the bank.
 if the engine sent more. The cover plus the bank (bonus included) for a line is never more than was
 paid for it, after its discounts.
 
-**Banking pays a bonus:** the part past the cover is banked × (1 + ``thrift_plus_bank_bonus``, 5%).
-The rules for every discount are in ``.ai/extended/discount-logic.md``.
+**No banking bonus any more** (form 5): saving keeps 100%, using today takes 80%. ``bank_bonus`` stays as a
+function that answers zero, so older callers keep working. The rules: ``.ai/extended/thrift-plus-decisions.md``.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from decimal import ROUND_DOWN, Decimal
+from decimal import ROUND_UP, Decimal
 
 ZERO = Decimal('0.00')
 CENT = Decimal('0.01')
@@ -33,6 +34,8 @@ BONUS_KEY = 'thrift_plus_bank_bonus'
 DEFAULT_BONUS = Decimal('0.05')
 CHOICE_BANK = 'bank'
 CHOICE_INSTANT = 'instant'
+# Using rewards today takes this share of them off the price (form 5); saving keeps them all.
+INSTANT_SHARE = Decimal('0.80')
 
 
 def cover_amount() -> Decimal:
@@ -47,15 +50,13 @@ def cover_amount() -> Decimal:
 
 
 def bank_bonus() -> Decimal:
-    """The banking bonus as a share (0.05 = 5%); a bad setting falls back to 5%, never above 10%."""
-    from apps.core.models import AppSetting
+    """No banking bonus under form 5 (saving keeps 100%, using today takes 80%). Kept so callers still work."""
+    return ZERO
 
-    raw = AppSetting.objects.filter(key=BONUS_KEY).values_list('value', flat=True).first()
-    try:
-        value = Decimal(str(raw)) if raw not in (None, '') else DEFAULT_BONUS
-    except Exception:  # a bad setting never stops a sale
-        return DEFAULT_BONUS
-    return value if Decimal('0') <= value <= Decimal('0.10') else DEFAULT_BONUS
+
+def instant_part(past: Decimal) -> Decimal:
+    """What using rewards today takes off: 80% of them, rounded up to the cent (the member's favor), never more."""
+    return min(past, (past * INSTANT_SHARE).quantize(CENT, rounding=ROUND_UP))
 
 
 @dataclass(frozen=True)
@@ -87,23 +88,30 @@ class TripTotals:
     to_bank: Decimal
     member_total: Decimal
     lines: list[LineSplit] = field(default_factory=list)
+    full_value: Decimal = ZERO  # what saving the rewards past the cover adds to the balance (100%)
+    instant_value: Decimal = ZERO  # what using them today takes off the price (80%)
 
     def as_dict(self) -> dict:
         return {
             'item_count': self.item_count, 'price_total': str(self.price_total), 'reward_total': str(self.reward_total),
             'to_cover': str(self.to_cover), 'savings': str(self.savings), 'to_bank': str(self.to_bank),
             'member_total': str(self.member_total),
+            'full_value': str(self.full_value), 'instant_value': str(self.instant_value),
+            # The scanner's older names: what saving adds, and how much more that is than using it today.
+            'bank_value': str(self.full_value), 'bank_extra': str(self.full_value - self.instant_value),
+            'bank_extra_pct': 20,
         }
 
 
 def totals(lines: list[TripLine], *, cover_left: Decimal, member: bool, choice: str | None,
            bonus: Decimal = ZERO) -> TripTotals:
     """The trip's split. ``cover_left`` is what is left of this month's cover (the full cover
-    for a guest). Banking only applies to a member who chose it, and ``bonus`` (a share, like
-    0.05) is added to what is banked."""
-    banking = member and choice == CHOICE_BANK
+    for a guest). A member saves in full unless they chose to use it today (saving is the default, form 5);
+    ``bonus`` is no longer used (always zero)."""
+    banking = member and choice != CHOICE_INSTANT
     left = max(ZERO, cover_left)
     splits, units, price_total = [], 0, ZERO
+    full_value = instant_value = ZERO
     for line in lines:
         units += line.qty
         price_total += line.price * line.qty
@@ -113,12 +121,13 @@ def totals(lines: list[TripLine], *, cover_left: Decimal, member: bool, choice: 
         left -= to_cover
         room = paid - to_cover  # what the line can still give back without passing what was paid
         past = min(reward - to_cover, room)
+        full_value += past
+        instant_value += instant_part(past)
         if banking:
-            extra = min((past * bonus).quantize(CENT, rounding=ROUND_DOWN), room - past)
-            split = LineSplit(key=line.key, reward=reward, to_cover=to_cover, savings=ZERO, to_bank=past + extra,
-                              bank_bonus=extra)
+            # Saved in full (form 5): no bonus, whatever ``bonus`` an older caller passes.
+            split = LineSplit(key=line.key, reward=reward, to_cover=to_cover, savings=ZERO, to_bank=past)
         else:
-            split = LineSplit(key=line.key, reward=reward, to_cover=to_cover, savings=past, to_bank=ZERO)
+            split = LineSplit(key=line.key, reward=reward, to_cover=to_cover, savings=instant_part(past), to_bank=ZERO)
         splits.append(split)
     reward_total = sum((s.reward for s in splits), ZERO)
     savings = sum((s.savings for s in splits), ZERO)
@@ -126,6 +135,7 @@ def totals(lines: list[TripLine], *, cover_left: Decimal, member: bool, choice: 
         item_count=units, price_total=price_total, reward_total=reward_total,
         to_cover=sum((s.to_cover for s in splits), ZERO), savings=savings,
         to_bank=sum((s.to_bank for s in splits), ZERO), member_total=price_total - savings, lines=splits,
+        full_value=full_value, instant_value=instant_value,
     )
 
 

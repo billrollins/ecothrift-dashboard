@@ -109,7 +109,7 @@ export default function ThriftPlusPanel({ cart, onCart }: Props) {
       </Typography>
       {block.app_choice ? (
         <Alert severity={block.app_choice === 'bank' ? 'warning' : 'info'} sx={{ mt: 1, py: 0 }}>
-          In the Thrift+ app they chose: {block.app_choice === 'bank' ? 'bank my rewards' : 'instant rebate'}. Ask to be sure.
+          In the Thrift+ app they chose: {block.app_choice === 'bank' ? 'Full rewards (saved)' : 'Instant rewards (80% off today)'}. Ask to be sure.
         </Alert>
       ) : null}
 
@@ -126,7 +126,7 @@ export default function ThriftPlusPanel({ cart, onCart }: Props) {
         {Number(t.to_cover) > 0 ? <Typography variant="body2">to cover {formatCurrency(t.to_cover)}</Typography> : null}
       </Stack>
       <Stack direction="row" spacing={2}>
-        <Typography variant="body2" color="text.secondary">Banked {formatCurrency(member.banked)}</Typography>
+        <Typography variant="body2" color="text.secondary">Rewards Balance {formatCurrency(member.banked)}</Typography>
         <Typography variant="body2" color="text.secondary">Credit {formatCurrency(member.credit)}</Typography>
       </Stack>
 
@@ -140,8 +140,8 @@ export default function ThriftPlusPanel({ cart, onCart }: Props) {
               if (v && v !== member.choice) void run(() => setThriftChoice(cart.id, v));
             }}
           >
-            <ToggleButton value="instant">Rebate now {Number(t.savings) > 0 ? formatCurrency(t.savings) : ''}</ToggleButton>
-            <ToggleButton value="bank">Bank {Number(t.to_bank) > 0 ? formatCurrency(t.to_bank) : ''}</ToggleButton>
+            <ToggleButton value="instant">Instant 80% {Number(t.savings) > 0 ? formatCurrency(t.savings) : ''}</ToggleButton>
+            <ToggleButton value="bank">Full rewards {Number(t.to_bank) > 0 ? formatCurrency(t.to_bank) : ''}</ToggleButton>
           </ToggleButtonGroup>
           {Number(member.credit) > 0 || Number(member.banked) > 0 ? (
             <Button

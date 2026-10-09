@@ -81,7 +81,7 @@ class PublicApiTests(TestCase):
         self.assertEqual(found['status'], 'found')
         card = found['item']
         self.assertEqual((card['price'], card['reward'], card['member_price']), ('90.00', '13.00', '77.00'))
-        self.assertEqual(card['reward_banked'], '13.65')
+        self.assertEqual((card['reward_banked'], card['reward_instant']), ('13.00', '10.40'))  # save all, or 80% today
         self.assertLessEqual(len(card['title']), 28)
         self.assertEqual((card['category'], card['available'], card['age_restricted']), ('lighting', True, False))
         self.assertEqual(self.api.get(BASE + 'tag/NOPE/').json(), {'status': 'not_found', 'sku': 'NOPE'})
@@ -89,9 +89,12 @@ class PublicApiTests(TestCase):
         self._card_sign_in()
         cart = self.api.post(BASE + 'cart/add/', {'sku': self.lamp.sku}, format='json').json()
         self.assertEqual(cart['totals']['to_cover'], '10.00')
-        self.assertEqual((cart['totals']['savings'], cart['totals']['member_total']), ('3.00', '87.00'))
+        # Saving is the default (form 5): nothing off today, $3 to the balance.
+        self.assertEqual((cart['totals']['savings'], cart['totals']['member_total'], cart['totals']['to_bank']),
+                         ('0.00', '90.00', '3.00'))
+        self.assertEqual((cart['totals']['full_value'], cart['totals']['instant_value']), ('3.00', '2.40'))
         banked = self.api.post(BASE + 'cart/choice/', {'choice': 'bank'}, format='json').json()
-        self.assertEqual((banked['reward_choice'], banked['totals']['to_bank']), ('bank', '3.15'))
+        self.assertEqual((banked['reward_choice'], banked['totals']['to_bank']), ('bank', '3.00'))
         self.assertEqual(ItemReward.objects.get(item=self.lamp).adds, 1)
         self.assertEqual(ItemReward.objects.get(item=self.lamp).scans, 1)
         history = self.api.get(BASE + 'history/').json()

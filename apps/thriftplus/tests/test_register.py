@@ -25,11 +25,17 @@ class TripMathTests(SimpleTestCase):
 
     lines = [TripLine('a', D('90.00'), D('13.00')), TripLine('b', D('20.00'), D('4.00'), qty=2)]
 
-    def test_the_cover_fills_first_in_scan_order_then_the_rest_comes_off(self):
+    def test_the_cover_fills_first_in_scan_order_then_80_percent_of_the_rest_comes_off(self):
         t = trip.totals(self.lines, cover_left=D('10.00'), member=True, choice='instant')
         self.assertEqual((t.reward_total, t.to_cover, t.savings, t.to_bank, t.member_total),
-                         (D('21.00'), D('10.00'), D('11.00'), D('0.00'), D('119.00')))
-        self.assertEqual([(s.to_cover, s.savings) for s in t.lines], [(D('10.00'), D('3.00')), (D('0.00'), D('8.00'))])
+                         (D('21.00'), D('10.00'), D('8.80'), D('0.00'), D('121.20')))
+        self.assertEqual([(s.to_cover, s.savings) for s in t.lines], [(D('10.00'), D('2.40')), (D('0.00'), D('6.40'))])
+        self.assertEqual((t.full_value, t.instant_value), (D('11.00'), D('8.80')))
+
+    def test_saving_is_the_default_and_keeps_it_all(self):
+        t = trip.totals(self.lines, cover_left=D('10.00'), member=True, choice=None)
+        self.assertEqual((t.savings, t.to_bank, t.member_total), (D('0.00'), D('11.00'), D('130.00')))
+        self.assertEqual(trip.instant_part(D('0.01')), D('0.01'))  # 80% rounds up to the cent, the member's favor
 
     def test_banking_keeps_the_price_and_banks_the_rest(self):
         t = trip.totals(self.lines, cover_left=D('4.00'), member=True, choice='bank')
@@ -37,7 +43,7 @@ class TripMathTests(SimpleTestCase):
 
     def test_a_guest_is_shown_the_instant_rebate_and_never_banks(self):
         t = trip.totals(self.lines, cover_left=D('10.00'), member=False, choice='bank')
-        self.assertEqual((t.to_bank, t.savings), (D('0.00'), D('11.00')))
+        self.assertEqual((t.to_bank, t.savings), (D('0.00'), D('8.80')))
         self.assertEqual(trip.guest_line(t, D('10.00')), 'No Thrift+ card today. You lost $11.00')
         small = trip.totals([TripLine('a', D('20.00'), D('4.00'))], cover_left=D('10.00'), member=False, choice=None)
         self.assertEqual(trip.guest_line(small, D('10.00')), 'This trip would have earned $4.00')
@@ -46,11 +52,12 @@ class TripMathTests(SimpleTestCase):
         t = trip.totals([TripLine('a', D('5.00'), D('9.00'))], cover_left=D('0'), member=True, choice='bank')
         self.assertEqual(t.to_bank, D('5.00'))  # banked never exceeds what was spent
 
-    def test_banking_adds_the_bonus_but_never_past_what_was_paid(self):
+    def test_saving_has_no_bonus_any_more_and_never_passes_what_was_paid(self):
         t = trip.totals(self.lines, cover_left=D('4.00'), member=True, choice='bank', bonus=D('0.05'))
-        self.assertEqual((t.to_cover, t.to_bank), (D('4.00'), D('17.85')))  # (9 + 8) x 1.05
+        self.assertEqual((t.to_cover, t.to_bank), (D('4.00'), D('17.00')))  # form 5: saved in full, no 5% bonus
         coats = trip.totals([TripLine('red', D('20.00'), D('5.00'))], cover_left=D('0'), member=True, choice='bank', bonus=D('0.05'))
-        self.assertEqual(coats.to_bank, D('5.25'))  # the owner's red coat: 1.05 x $5
+        self.assertEqual(coats.to_bank, D('5.00'))
+        self.assertEqual(trip.bank_bonus(), D('0.00'))
         capped = trip.totals([TripLine('a', D('10.00'), D('9.00'), discount=D('5.00'))], cover_left=D('0'), member=True,
                              choice='bank', bonus=D('0.05'))
         self.assertEqual(capped.to_bank, D('5.00'))  # $5 off leaves $5 paid: that is all it can bank
@@ -116,13 +123,13 @@ class RegisterTests(TestCase):
         self.assertEqual(cart['thrift_plus']['guest_line'], 'No Thrift+ card today. You lost $3.00')
         data = self._attach(cart['id']).json()
         line = data['lines'][0]
-        self.assertEqual((line['thrift_savings'], line['line_total']), ('3.00', '87.00'))  # $13: $10 to the cover, $3 off
-        self.assertEqual(data['total'], '93.09')
+        self.assertEqual((line['thrift_savings'], line['line_total']), ('2.40', '87.60'))  # $13: $10 to the cover, 80% of $3 off
+        self.assertEqual(data['total'], '93.73')
         self.assertEqual(data['thrift_plus']['member']['name'], 'Ana')
         self.assertEqual(data['thrift_plus']['totals']['to_cover'], '10.00')
-        self.assertIn({'label': 'Thrift+ rewards', 'amount': '3.00'}, data['savings']['lines'])
+        self.assertIn({'label': 'Thrift+ rewards', 'amount': '2.40'}, data['savings']['lines'])
         banked = self.api.post('/api/thriftplus/register/choice/', {'cart': cart['id'], 'choice': 'bank'}, format='json').json()
-        self.assertEqual((banked['lines'][0]['line_total'], banked['thrift_plus']['totals']['to_bank']), ('90.00', '3.15'))  # 1.05 x $3
+        self.assertEqual((banked['lines'][0]['line_total'], banked['thrift_plus']['totals']['to_bank']), ('90.00', '3.00'))  # saved in full (form 5)
 
     def test_completing_writes_the_ledger_and_voiding_gives_it_back(self):
         self._live()
@@ -131,12 +138,12 @@ class RegisterTests(TestCase):
         done = self._complete(cart['id'])
         self.assertEqual(done.status_code, 200, done.content)
         self.lamp.refresh_from_db()
-        self.assertEqual(self.lamp.sold_for, D('87.00'))
+        self.assertEqual(self.lamp.sold_for, D('87.60'))
         self.assertEqual(ledger.cover(self.account)['covered'], '10.00')
         state = ItemReward.objects.get(item=self.lamp)
         self.assertEqual((state.status, state.reward_at_close), (ItemReward.STATUS_CLOSED, D('13.00')))
         self.drawer.refresh_from_db()
-        self.assertEqual(self.drawer.cash_sales_total, D('93.09'))
+        self.assertEqual(self.drawer.cash_sales_total, D('93.73'))
         self.api.force_authenticate(self.manager)
         self.assertEqual(self.api.post(f"/api/pos/carts/{cart['id']}/void/").status_code, 200)
         self.assertEqual(ledger.cover(self.account)['covered'], '0.00')
@@ -150,10 +157,10 @@ class RegisterTests(TestCase):
         over = self.api.post('/api/thriftplus/register/balance/', {'cart': cart['id'], 'credit': '6.00'}, format='json')
         self.assertEqual(over.json()['code'], 'OVER_BALANCE')
         data = self.api.post('/api/thriftplus/register/balance/', {'cart': cart['id'], 'credit': '5.00'}, format='json').json()
-        self.assertEqual((data['thrift_credit'], data['thrift_plus']['amount_due']), ('5.00', '88.09'))
+        self.assertEqual((data['thrift_credit'], data['thrift_plus']['amount_due']), ('5.00', '88.73'))
         self.assertEqual(self._complete(cart['id']).status_code, 200)
         self.drawer.refresh_from_db()
-        self.assertEqual(self.drawer.cash_sales_total, D('88.09'))
+        self.assertEqual(self.drawer.cash_sales_total, D('88.73'))
         self.assertEqual(ledger.balance(self.account, LedgerEntry.KIND_CREDIT), D('0.00'))
 
     def test_18_plus_items_need_a_verified_card(self):
@@ -178,8 +185,8 @@ class RegisterTests(TestCase):
         line.save()
         Cart.objects.get(pk=cart['id']).recalculate()
         data = self._attach(cart['id']).json()
-        # 20% off both: $72 tag, $10.40 reward; $10 to the cover, $0.40 off
-        self.assertEqual((data['lines'][0]['line_total'], data['lines'][0]['thrift_savings']), ('71.60', '0.40'))
+        # 20% off both: $72 tag, $10.40 reward; $10 to the cover, 80% of $0.40 off
+        self.assertEqual((data['lines'][0]['line_total'], data['lines'][0]['thrift_savings']), ('71.68', '0.32'))
 
     def test_rering_pays_the_rebate_as_store_credit(self):
         self._live()
@@ -188,9 +195,9 @@ class RegisterTests(TestCase):
         r = self.api.post('/api/thriftplus/register/rering/', {'cart': cart['id'], 'code': self.codes[0]}, format='json')
         self.assertEqual(r.status_code, 200, r.content)
         self.assertTrue(CartMember.objects.get(cart_id=cart['id']).rering)
-        self.assertEqual(ledger.balance(self.account, LedgerEntry.KIND_CREDIT), D('3.00'))
+        self.assertEqual(ledger.balance(self.account, LedgerEntry.KIND_CREDIT), D('2.40'))
         self.assertEqual(ledger.cover(self.account)['covered'], '10.00')
-        self.assertEqual(r.json()['thrift_plus']['totals']['savings'], '3.00')
+        self.assertEqual(r.json()['thrift_plus']['totals']['savings'], '2.40')
         again = self.api.post('/api/thriftplus/register/rering/', {'cart': cart['id'], 'code': self.codes[0]}, format='json')
         self.assertEqual(again.json()['code'], 'ALREADY_MEMBER')
 
@@ -208,8 +215,8 @@ class RegisterTests(TestCase):
         done = self.api.post('/api/thriftplus/returns/', {'cart_line': line_id, 'code': self.codes[0], 'confirmed': True,
                                                           'note': 'Will not light'}, format='json')
         self.assertEqual(done.status_code, 201, done.content)
-        self.assertEqual(done.json()['credit'], '82.65')  # 95% of the $87 paid, before tax
-        self.assertEqual(ledger.balance(self.account, LedgerEntry.KIND_CREDIT), D('82.65'))
+        self.assertEqual(done.json()['credit'], '83.22')  # 95% of the $87.60 paid, before tax
+        self.assertEqual(ledger.balance(self.account, LedgerEntry.KIND_CREDIT), D('83.22'))
         self.assertEqual(ledger.cover(self.account)['covered'], '0.00')  # its $10 toward the cover comes back out
         again = self.api.post('/api/thriftplus/returns/', {'cart_line': line_id, 'code': self.codes[0], 'confirmed': True}, format='json')
         self.assertIn('already returned', again.json()['detail'])

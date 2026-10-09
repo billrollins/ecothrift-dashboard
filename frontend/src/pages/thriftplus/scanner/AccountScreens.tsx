@@ -252,7 +252,7 @@ export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }:
           <Box sx={{ fontSize: u(30), color: sc.ink2 }}>Hi, {member.first_name}</Box>
           <Box sx={{ display: 'flex', gap: u(30), mt: u(16) }}>
             <Box sx={{ flex: 1 }}>
-              <Box sx={{ fontSize: u(27), color: sc.ink2 }}>Banked rewards</Box>
+              <Box sx={{ fontSize: u(27), color: sc.ink2 }}>Rewards Balance</Box>
               <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(68), color: sc.priceGreen, lineHeight: 1.05 }}>{money(data?.banked ?? member.banked_rewards)}</Box>
             </Box>
             <Box sx={{ flex: 1 }}>

@@ -5,6 +5,7 @@ import CloseRounded from '@mui/icons-material/CloseRounded';
 import SearchOffRounded from '@mui/icons-material/SearchOffRounded';
 import SmsRounded from '@mui/icons-material/SmsRounded';
 import type { PriceFeel, PriceFeelReason, TagLookup, ThriftPlusItemCard } from '../../../api/thriftPlusMock';
+import { fromCents, instantPart, toCents } from '../../../api/thriftPlusMock';
 import { money, wouldPayChoices } from './scannerLogic';
 import { CategoryBadge, Sparkle, art, sc, u } from './scannerTheme';
 
@@ -424,30 +425,6 @@ function FoundBody({
                 <Sparkle size="calc(var(--f) * 0.16)" sx={{ left: 'calc(50% - var(--f) * 1.54)', top: 'calc(50% - var(--f) * 0.68)' }} />
                 <Sparkle size="calc(var(--f) * 0.25)" sx={{ left: 'calc(50% - var(--f) * 2.22)', top: 'calc(50% - var(--f) * 0.46)' }} />
                 <Sparkle size="calc(var(--f) * 0.3)" sx={{ left: 'calc(50% + var(--f) * 1.78)', top: 'calc(50% - var(--f) * 0.78)' }} />
-                <Box
-                  component="img"
-                  src={art.coin}
-                  alt=""
-                  sx={{
-                    position: 'absolute',
-                    width: 'calc(var(--f) * 0.5)',
-                    left: 'calc(50% - var(--f) * 2.22)',
-                    top: 'calc(50% + var(--f) * 0.3)',
-                    transform: 'rotate(-12deg)',
-                  }}
-                />
-                <Box
-                  component="img"
-                  src={art.coin}
-                  alt=""
-                  sx={{
-                    position: 'absolute',
-                    width: 'calc(var(--f) * 0.48)',
-                    left: 'calc(50% + var(--f) * 1.72)',
-                    top: 'calc(50% + var(--f) * 0.36)',
-                    transform: 'scaleX(-1) rotate(-8deg)',
-                  }}
-                />
                 <RewardText text={rewardText} />
               </Box>
             </Box>
@@ -455,9 +432,9 @@ function FoundBody({
               <Box data-testid="bank-line" sx={{ fontSize: u(28), color: sc.ink2, mb: u(22), flexShrink: 0, whiteSpace: 'nowrap' }}>
                 or{' '}
                 <Box component="span" sx={{ color: '#8a6200', fontWeight: 700 }}>
-                  +{money(item.reward_banked)}
+                  {money(item.reward_instant ?? fromCents(instantPart(toCents(item.reward))))}
                 </Box>{' '}
-                if you bank it
+                off today
               </Box>
             )}
             {isGuest && (

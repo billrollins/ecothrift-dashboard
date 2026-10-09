@@ -131,7 +131,8 @@ def item_card(item, *, factor: Decimal | None = None) -> dict:
         'sku': item.sku, 'title': short_title(name), 'category': category, 'category_label': CATEGORY_LABELS[category],
         'details': details, 'retail_price': _money(retail) if retail and retail > price else None,
         'price': _money(price), 'reward': _money(reward), 'member_price': _money(price - reward),
-        'reward_banked': _money((reward * (1 + trip.bank_bonus())).quantize(CENT, rounding=ROUND_DOWN)),  # if banked (1.05x)
+        'reward_banked': _money(reward),  # saved in full (form 5)
+        'reward_instant': _money(trip.instant_part(reward)),  # used today: 80%
         'age_restricted': restricted, 'returnable': not excluded(item), 'available': item.status == 'on_shelf',
     }
 

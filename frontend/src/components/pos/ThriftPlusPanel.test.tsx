@@ -84,7 +84,7 @@ describe('Thrift+ at the register', () => {
     expect(screen.getByText('Ana')).toBeInTheDocument();
     expect(screen.getByText('18+ verified')).toBeInTheDocument();
     expect(screen.getByText(/Cover this month: \$4\.00 of \$10\.00/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /Bank/ }));
+    await user.click(screen.getByRole('button', { name: /Full rewards/ }));
     expect(calls.choice).toEqual(['bank']);
   });
 

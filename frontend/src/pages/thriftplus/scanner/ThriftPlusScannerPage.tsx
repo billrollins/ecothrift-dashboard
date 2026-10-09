@@ -26,12 +26,14 @@ import {
   type ThriftPlusSession,
 } from '../../../api/thriftPlusScanner.api';
 import { AccountPage, ResetPasswordScreen } from './AccountScreens';
+import { BalancePage } from './BalancePage';
 import { CameraCard } from './CameraCard';
 import { CartPage } from './CartPage';
 import { InfoPopup, IntroTour, introSeen, markIntroSeen, type Origin, type Topic } from './Explainers';
 import { ItemCard, type ItemCardHandle, type SwipeDir } from './ItemCard';
 import { ScannerTiles, ScannerTop } from './ScannerTop';
 import { SignInScreen } from './SignInScreen';
+import { bankInto, rainPlan, shower } from './TicketRain';
 import { ScanGate, money, parseTagCode } from './scannerLogic';
 import { UNIT_CSS, art, sc, u, useScannerFonts } from './scannerTheme';
 import { loadDetector, useQrCamera } from './useQrCamera';
@@ -147,6 +149,7 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
   const navigate = useNavigate();
   const cartOpen = params.get('view') === 'cart';
   const accountOpen = params.get('view') === 'account' && !!member;
+  const balanceOpen = params.get('view') === 'balance' && !!member;
 
   const [top, setTop] = useState<Top | null>(null);
   const [flash, setFlash] = useState(false);
@@ -160,6 +163,30 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
   const cardRef = useRef<ItemCardHandle | null>(null);
   const toastTimer = useRef<number | null>(null);
   topRef.current = top;
+
+  // Bank it / Shower (owner, 2026-10-09): a swipe right fills the cover first, then the Rewards Balance.
+  const rainSeen = useRef<{ fill: number; bank: number } | null>(null);
+  useEffect(() => {
+    const c = cart.data;
+    if (!member || !c) {
+      rainSeen.current = null;
+      return;
+    }
+    const coverCents = toCents(member.cover.amount);
+    const fill = Math.min(coverCents, toCents(member.cover.covered) + toCents(c.totals.to_cover));
+    const bank = c.reward_choice === 'instant' ? 0 : toCents(c.totals.bank_value);
+    const plan = rainPlan(rainSeen.current, { fill, bank, cover: coverCents });
+    rainSeen.current = { fill, bank };
+    const root = rootRef.current;
+    if (plan.cover) bankInto(root, root?.querySelector('[data-rain="cover"]') ?? null);
+    if (plan.shower) window.setTimeout(() => shower(root), 700);
+    if (plan.balance) {
+      window.setTimeout(
+        () => bankInto(root, root?.querySelector('[data-rain="balance"]') ?? null),
+        plan.cover ? 650 : 0,
+      );
+    }
+  }, [cart.data, member]);
 
   const inCart = useCallback(
     (sku: string) => !!cart.data?.lines.some((l) => l.item.sku === sku),
@@ -175,7 +202,7 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
   const handleCodeRef = useRef<(raw: string, from: 'camera' | 'typed') => void>(() => undefined);
   const camera = useQrCamera({
     enabled: true,
-    paused: top != null || cartOpen || accountOpen || askBank || tour || explain != null,
+    paused: top != null || cartOpen || accountOpen || balanceOpen || askBank || tour || explain != null,
     onDecode: (raw) => handleCodeRef.current(raw, 'camera'),
   });
 
@@ -240,6 +267,8 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
 
   const openAccount = () => setParams({ view: 'account' }, { state: { tpCart: true } });
   const openCart = () => setParams({ view: 'cart' }, { state: { tpCart: true } });
+  // Tap Rewards Balance: every reward in the order it is used (owner, 2026-10-09).
+  const openBalance = () => setParams({ view: 'balance' }, { state: { tpCart: true } });
   const closeCart = () => {
     if ((location.state as { tpCart?: boolean } | null)?.tpCart) navigate(-1);
     else setParams({}, { replace: true });
@@ -278,7 +307,12 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
       <ScannerTop cart={cart.data} onOpenCart={openCart} />
       <Box sx={{ flex: 1, minHeight: 0, width: u(900), mx: 'auto', display: 'flex', flexDirection: 'column' }}>
         <Gap basis={38} min={14} />
-        <ScannerTiles member={member} cart={cart.data} onSignIn={() => auth.signOut.mutate()} onExplain={openExplain} />
+        <ScannerTiles
+          member={member}
+          cart={cart.data}
+          onSignIn={() => auth.signOut.mutate()}
+          onExplain={(topic, el) => (topic === 'bank' && member ? openBalance() : openExplain(topic, el))}
+        />
         <Gap basis={44} min={16} />
 
         {/* The stack (the extra 22 is the back card peeking out) */}
@@ -371,6 +405,8 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
         />
       )}
 
+      {balanceOpen && member && <BalancePage member={member} cart={cart.data} onBack={closeCart} />}
+
       {accountOpen && member && (
         <AccountPage
           member={member}
@@ -434,15 +470,15 @@ function BankPrompt({ cart, onChoose }: { cart: ThriftPlusCart; onChoose: (c: Re
           '@keyframes tpSheet': { from: { transform: 'translateY(40%)', opacity: 0 } },
         }}
       >
-        <Box component="img" src={art.coins} alt="" sx={{ width: u(140), height: u(140) }} />
+        <Box component="img" src={art.brick} alt="" sx={{ width: u(140), height: u(140) }} />
         <Box
           id="tp-bank-title"
           sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(54), lineHeight: 1.1, color: sc.titleGreen, mt: u(8) }}
         >
-          Would you like to bank your rewards?
+          Full rewards or instant?
         </Box>
         <Box sx={{ fontSize: u(30), color: sc.ink2, lineHeight: 1.4, mt: u(12) }}>
-          Banked rewards are worth {t.bank_extra_pct}% more. Use them on a later trip.
+          Full rewards are saved in full for a later trip (30 days). Instant rewards take 80% off today.
         </Box>
         <ButtonBase
           onClick={() => onChoose('bank')}
@@ -458,9 +494,9 @@ function BankPrompt({ cart, onChoose }: { cart: ThriftPlusCart; onChoose: (c: Re
             py: u(16),
           }}
         >
-          <Box sx={{ fontSize: u(34), fontWeight: 700 }}>Yes, bank my rewards</Box>
+          <Box sx={{ fontSize: u(34), fontWeight: 700 }}>Full rewards</Box>
           <Box sx={{ fontSize: u(26), opacity: 0.95, mt: u(2) }}>
-            {worth ? `${money(t.bank_value)} for later, ${t.bank_extra_pct}% more` : `Worth ${t.bank_extra_pct}% more`}
+            {worth ? `${money(t.full_value ?? t.bank_value)} to spend next time` : 'All of it, to spend next time'}
           </Box>
         </ButtonBase>
         <ButtonBase
@@ -476,9 +512,9 @@ function BankPrompt({ cart, onChoose }: { cart: ThriftPlusCart; onChoose: (c: Re
             py: u(16),
           }}
         >
-          <Box sx={{ fontSize: u(34), fontWeight: 700 }}>No, instant rebate please</Box>
+          <Box sx={{ fontSize: u(34), fontWeight: 700 }}>Instant rewards</Box>
           <Box sx={{ fontSize: u(26), color: sc.ink2, mt: u(2) }}>
-            {worth ? `${money(rebate)} off today's price` : "Off today's price"}
+            {worth ? `${money(t.instant_value ?? rebate)} off today (80%)` : "80% off today's price"}
           </Box>
         </ButtonBase>
         <Box sx={{ fontSize: u(25), color: sc.ink3, mt: u(20), lineHeight: 1.35 }}>

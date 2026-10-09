@@ -12,7 +12,7 @@ void reverses exactly that line.
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.db.models import Sum
@@ -22,6 +22,8 @@ from apps.thriftplus.models import Account, LedgerEntry
 from apps.thriftplus.services.trip import cover_amount
 
 ZERO = Decimal('0.00')
+# Form 5: saved rewards are good for 30 days after the receipt they were earned on.
+REWARD_DAYS = 30
 
 
 def month_of(day: date) -> str:
@@ -70,6 +72,40 @@ def balances(account: Account) -> dict:
         'credit': str(balance(account, LedgerEntry.KIND_CREDIT)),
         'cover': cover(account),
     }
+
+
+def reward_lots(account: Account, on: date | None = None) -> list[dict]:
+    """The Rewards Balance as lots, in the order they are used: soonest use-by date first (owner, 2026-10-09).
+
+    Each saved reward is good for ``REWARD_DAYS`` after the receipt. A return or void takes back its own lot; any
+    other use (spent at the register) takes from the soonest first. The register does not yet drop a lot when its
+    date passes; such a lot is marked ``past_due`` so the screen can say so.
+    """
+    on = on or timezone.localdate()
+    rows = list(account.ledger.filter(kind=LedgerEntry.KIND_BANK).order_by('created_at', 'pk'))
+    lots: dict[int, dict] = {}
+    for entry in rows:
+        if entry.amount > 0:
+            earned = timezone.localtime(entry.created_at).date()
+            lots[entry.pk] = {'id': entry.pk, 'amount': entry.amount, 'earned_on': earned,
+                              'use_by': earned + timedelta(days=REWARD_DAYS)}
+    spent = ZERO
+    for entry in rows:
+        if entry.amount < 0:
+            if entry.reverses_id in lots:
+                lots[entry.reverses_id]['amount'] += entry.amount
+            else:
+                spent -= entry.amount
+    ordered = sorted(lots.values(), key=lambda lot: (lot['use_by'], lot['id']))
+    for lot in ordered:
+        take = min(spent, max(ZERO, lot['amount']))
+        lot['amount'] -= take
+        spent -= take
+    return [
+        {'amount': str(lot['amount']), 'earned_on': lot['earned_on'].isoformat(), 'use_by': lot['use_by'].isoformat(),
+         'past_due': lot['use_by'] < on}
+        for lot in ordered if lot['amount'] > 0
+    ]
 
 
 def record(account: Account, kind: str, amount: Decimal, reason: str, *, cart=None, line=None, item=None,

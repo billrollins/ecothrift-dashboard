@@ -73,8 +73,8 @@ describe('Thrift+ price scanner', () => {
     const tour = await screen.findByRole('dialog', { name: 'How Thrift+ works' });
     expect(within(tour).getByText('Scan')).toBeInTheDocument();
     await user.click(within(tour).getByRole('button', { name: 'Next' }));
-    expect(within(tour).getByText('Bank')).toBeInTheDocument();
-    expect(within(tour).getByText(/worth 5% more/)).toBeInTheDocument();
+    expect(within(tour).getByText('Rewards')).toBeInTheDocument();
+    expect(within(tour).getByText(/use 80% of them today/)).toBeInTheDocument();
     await user.click(within(tour).getByRole('button', { name: 'Next' }));
     expect(within(tour).getByText('Cart')).toBeInTheDocument();
     await user.click(within(tour).getByRole('button', { name: 'Done' }));
@@ -82,7 +82,7 @@ describe('Thrift+ price scanner', () => {
 
     // Scanner: no camera in jsdom, so type a sample tag.
     const tagField = await screen.findByLabelText('Tag number');
-    expect(screen.getByText('Banked rewards')).toBeInTheDocument();
+    expect(screen.getByText('Rewards Balance')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pass' })).toBeDisabled();
     await user.type(tagField, 'TP0000001{Enter}');
 
@@ -90,35 +90,41 @@ describe('Thrift+ price scanner', () => {
     expect(await within(card).findByText('Cordless Drill Kit')).toBeInTheDocument();
     expect(within(card).getByText("You'd earn")).toBeInTheDocument();
     expect(within(card).getByTestId('reward')).toHaveTextContent('+$15.00');
-    expect(within(card).getByTestId('bank-line')).toHaveTextContent('or +$15.75 if you bank it');
+    expect(within(card).getByTestId('bank-line')).toHaveTextContent('or $12.00 off today'); // 80% of $15
     expect(within(card).getByText('$100.00')).toBeInTheDocument();
+    // Nothing beside the reward (owner, 2026-10-09: no coins, no tickets on the item card).
+    expect(card.querySelectorAll('img[src*="coin"], img[src*="ticket"]')).toHaveLength(0);
 
     await user.click(screen.getByRole('button', { name: 'Add to my list' }));
     await waitFor(() => expect(screen.queryByTestId('item-card')).not.toBeInTheDocument());
     await waitFor(() => expect(screen.getByTestId('cart-pill')).toHaveTextContent('1 item'));
     expect(screen.getByTestId('cart-pill')).toHaveTextContent('+$15.00');
 
-    // First add of the trip: bank (worth 5% more) or instant rebate.
-    const ask = await screen.findByRole('dialog', { name: 'Would you like to bank your rewards?' });
-    expect(within(ask).getByText('$11.97 for later, 5% more')).toBeInTheDocument();
-    expect(within(ask).getByText("$11.40 off today's price")).toBeInTheDocument();
-    await user.click(within(ask).getByRole('button', { name: /Yes, bank my rewards/ }));
+    // First add of the trip: Full rewards (saved in full) or Instant (80% off today).
+    const ask = await screen.findByRole('dialog', { name: 'Full rewards or instant?' });
+    expect(within(ask).getByText('$11.40 to spend next time')).toBeInTheDocument();
+    expect(within(ask).getByText('$9.12 off today (80%)')).toBeInTheDocument();
+    await user.click(within(ask).getByRole('button', { name: /^Full rewards/ }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    // Past the cover, the trip's rewards head to the Rewards Balance.
+    expect(await screen.findByTestId('trip-to-balance')).toHaveTextContent('+$11.40 this trip');
 
     // The cart: a big total, the choice (banking selected), quantity, and the scan in history.
     await user.click(screen.getByTestId('cart-pill'));
     const cart = await screen.findByTestId('cart-page');
     expect(within(cart).getByTestId('cart-total')).toHaveTextContent('$60.00');
-    expect(within(cart).getByRole('radio', { name: 'Bank them' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(cart).getByRole('radio', { name: 'Full rewards' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(cart).getByTestId('pay-today')).toHaveTextContent(/You pay today\$60\.00Rewards you can spend tomorrow\+\$11\.40/);
     const line = within(cart).getByTestId('cart-line');
     expect(line).toHaveTextContent('Cordless Drill Kit');
+    expect(within(line).getByTestId('line-prices')).toHaveTextContent(/MSRP \$\d+\.\d\dTag \$60\.00Rewards \+\$15\.00/);
     await user.click(within(line).getByRole('button', { name: 'One more' }));
     await waitFor(() => expect(within(line).getByTestId('qty')).toHaveTextContent('2'));
     expect(within(line).getByText('$120.00')).toBeInTheDocument();
 
-    // Switch to the instant rebate: the total drops by the rewards past the cover.
-    await user.click(within(cart).getByRole('radio', { name: 'Instant rebate' }));
-    await waitFor(() => expect(within(cart).getByTestId('cart-total')).toHaveTextContent('$93.60'));
+    // Switch to Instant: 80% of the rewards past the cover comes off ($120 - 80% of $26.40).
+    await user.click(within(cart).getByRole('radio', { name: 'Instant rewards' }));
+    await waitFor(() => expect(within(cart).getByTestId('cart-total')).toHaveTextContent('$98.88'));
 
     const row = await within(cart).findByTestId('history-row');
     expect(within(row).getByRole('button', { name: /is in your cart/ })).toBeDisabled();
@@ -130,15 +136,17 @@ describe('Thrift+ price scanner', () => {
     await signInAsMember(user);
     await skipTour(user);
 
-    await user.click(screen.getByRole('button', { name: /Banked rewards .* What is this\?/ }));
-    const bank = await screen.findByRole('dialog', { name: 'Banked rewards' });
-    expect(within(bank).getByText(/worth 5% more/)).toBeInTheDocument();
-    await user.click(within(bank).getByRole('button', { name: 'Got it' }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: /Rewards Balance .* What is this\?/ }));
+    // Rewards Balance opens the full list, in the order it is used.
+    const page = await screen.findByTestId('balance-page');
+    expect(within(page).getByText("In the order they're used")).toBeInTheDocument();
+    await user.click(within(page).getByRole('button', { name: 'Back to scanner' }));
+    await waitFor(() => expect(screen.queryByTestId('balance-page')).not.toBeInTheDocument());
 
     await user.click(screen.getByRole('button', { name: /This month's cover.* What is this\?/ }));
     const cover = await screen.findByRole('dialog', { name: "This month's cover" });
     expect(within(cover).getByText(/of rewards each month covers your card/)).toBeInTheDocument();
+    expect(within(cover).getByText(/you keep every Thrift\+ benefit/)).toBeInTheDocument();
     await user.click(within(cover).getByRole('button', { name: 'Close' }));
 
     // jsdom has no camera, so the camera card offers help.

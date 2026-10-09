@@ -328,6 +328,7 @@ export function SettingRow({
   };
 
   const asPercent = meta.kind === 'percent' || meta.kind === 'weight';
+  const linkFor = meta.linkFor ? meta.linkFor(displayValue('text', value)) : null;
   const shown = asPercent ? `${displayValue(meta.kind, value)}%` : displayValue(meta.kind, value);
 
   if (meta.kind === 'switch') {
@@ -480,6 +481,11 @@ export function SettingRow({
             <Button size="small" onClick={startEdit}>
               Edit
             </Button>
+            {linkFor ? (
+              <Typography variant="body2" sx={{ flexBasis: '100%', wordBreak: 'break-all' }}>
+                <a href={linkFor} target="_blank" rel="noreferrer">{linkFor}</a>
+              </Typography>
+            ) : null}
           </>
         )}
       </Box>

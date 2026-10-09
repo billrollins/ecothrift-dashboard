@@ -289,6 +289,8 @@ def _me_payload(request) -> dict:
     you = request.user.person
     return {
         **ledger.balances(account), 'people': people,
+        # The Rewards Balance in the order it is used (Return $ is 'credit'; it never expires).
+        'rewards': ledger.reward_lots(account),
         'money': [{'kind': e.kind, 'amount': str(e.amount), 'reason': e.reason, 'created_at': e.created_at} for e in entries],
         'can_change': request.user.session.kind == MemberSession.KIND_PASSWORD,
         # Your own email (T74): account email follows the address; store news can be turned off.

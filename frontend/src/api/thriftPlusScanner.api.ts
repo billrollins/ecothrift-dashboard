@@ -8,7 +8,7 @@
  * - **Guests:** the cart and history stay on the phone (localStorage). Only tag lookups and signals
  *   go to the server.
  * - **Totals:** the server computes a member's cart totals with the register's math (cover first,
- *   then instant or banking at 1.05x). A guest's are `computeCartTotals` from the mock.
+ *   then saved in full or 80% today, form 5). A guest's are `computeCartTotals` from the mock.
  */
 import axios from 'axios';
 import {
@@ -318,6 +318,8 @@ export interface ThriftPlusMe {
   cover: ThriftPlusMember['cover'];
   people: { id: number; first_name: string; role: 'primary' | 'secondary'; verified_18: boolean; is_you: boolean; cards: { id: number; last4: string; status: string }[] }[];
   money: { kind: 'cover' | 'bank' | 'credit'; amount: string; reason: string; created_at: string }[];
+  /** The Rewards Balance in the order it is used: soonest use-by first (Return $ is `credit`, used before these). */
+  rewards?: { amount: string; earned_on: string; use_by: string; past_due: boolean }[];
   /** False for a card session: changes need the email and password. */
   can_change: boolean;
   /** Your email (T74): receipts and updates follow the address; store news can be turned off. */

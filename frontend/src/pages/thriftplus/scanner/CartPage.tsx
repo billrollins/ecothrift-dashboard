@@ -113,17 +113,23 @@ export function CartPage({ cart, member, isGuest, onBack, onAdd, onChoose, onExp
                           {money(cents(l.item.price) * l.qty)}
                         </Box>
                       </Box>
+                      <Box data-testid="line-prices" sx={{ display: 'flex', gap: u(18), flexWrap: 'wrap', fontSize: u(26), color: sc.ink2, mt: u(6) }}>
+                        {l.item.retail_price && (
+                          <Box component="span">
+                            MSRP <Box component="span" sx={{ textDecoration: 'line-through' }}>{money(l.item.retail_price)}</Box>
+                          </Box>
+                        )}
+                        <Box component="span">Tag {money(l.item.price)}</Box>
+                        {cents(l.item.reward) > 0 && (
+                          <Box component="span" sx={{ color: sc.green, fontWeight: 700 }}>Rewards +{money(l.item.reward)}</Box>
+                        )}
+                      </Box>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: u(16), mt: u(14), flexWrap: 'wrap' }}>
                         <Stepper
                           qty={l.qty}
                           onMinus={() => actions.setQty.mutate({ sku: l.item.sku, qty: l.qty - 1 })}
                           onPlus={() => actions.setQty.mutate({ sku: l.item.sku, qty: l.qty + 1 })}
                         />
-                        {cents(l.item.reward) > 0 && (
-                          <Box sx={{ fontSize: u(28), fontWeight: 700, color: sc.green, whiteSpace: 'nowrap' }}>
-                            +{money(cents(l.item.reward) * l.qty)} reward
-                          </Box>
-                        )}
                         <Box sx={{ flex: 1 }} />
                         <ButtonBase
                           aria-label={`Remove ${l.item.title}`}
@@ -178,10 +184,14 @@ function Summary({
   onSignIn: () => void;
 }) {
   const t = cart.totals;
-  const banking = cart.reward_choice === 'bank';
+  // Form 5: saving in full is the default; Instant takes 80% off today.
+  const full = cart.reward_choice !== 'instant';
   const total = isGuest ? t.price_total : t.member_total;
   const hasRewards = cents(t.reward_total) > 0;
-  const rebate = cents(t.bank_value) - cents(t.bank_extra);
+  const fullValue = t.full_value ?? t.bank_value;
+  const instantValue = t.instant_value ?? money(cents(t.bank_value) - cents(t.bank_extra)).replace('$', '');
+  const credit = member ? cents(member.credit_balance) : 0;
+  const balance = member ? cents(member.banked_rewards) : 0;
 
   return (
     <Panel sx={{ mt: u(30), p: u(40) }}>
@@ -212,42 +222,59 @@ function Summary({
             </Box>
           </ButtonBase>
           {cents(t.to_cover) > 0 && (
-            <Box sx={{ fontSize: u(27), color: sc.ink2, mt: u(6), lineHeight: 1.35 }}>
-              The first {money(t.to_cover)} finishes this month's card cover.
+            <Box data-testid="cover-paydown" sx={{ fontSize: u(27), color: sc.ink2, mt: u(6), lineHeight: 1.35 }}>
+              Pays {money(t.to_cover)} toward this month's cover first.
             </Box>
           )}
 
-          {cents(t.bank_value) > 0 && (
+          {cents(fullValue) > 0 && (
             <>
               <Box role="radiogroup" aria-label="Your rewards this trip" sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: u(18), mt: u(28) }}>
                 <ChoiceCard
-                  selected={banking}
+                  selected={full}
                   onClick={() => onChoose('bank')}
-                  label="Bank them"
-                  amount={`+${money(t.bank_value)}`}
-                  note="for your next trip"
-                  tag={`${t.bank_extra_pct}% more`}
+                  label="Full rewards"
+                  amount={`+${money(fullValue)}`}
+                  note="to spend next time"
+                  tag="100% · 30 days"
                 />
                 <ChoiceCard
-                  selected={cart.reward_choice === 'instant'}
+                  selected={!full}
                   onClick={() => onChoose('instant')}
-                  label="Instant rebate"
-                  amount={`-${money(rebate)}`}
+                  label="Instant rewards"
+                  amount={`-${money(instantValue)}`}
                   note="off today's price"
+                  tag="80%"
                 />
               </Box>
+              <Box data-testid="pay-today" sx={{ display: 'grid', gridTemplateColumns: '1fr auto', rowGap: u(8), mt: u(24), fontSize: u(30) }}>
+                <Box sx={{ color: sc.ink }}>You pay today</Box>
+                <Box sx={{ fontWeight: 700, color: sc.ink, textAlign: 'right' }}>{money(t.member_total)}</Box>
+                <Box sx={{ color: sc.ink }}>Rewards you can spend tomorrow</Box>
+                <Box sx={{ fontWeight: 700, color: sc.green, textAlign: 'right' }}>+{money(full ? fullValue : '0')}</Box>
+              </Box>
               <Box sx={{ fontSize: u(26), color: sc.ink3, mt: u(16), lineHeight: 1.35 }}>
-                {banking ? 'Banking adds' : 'Banking would add'} {money(t.bank_extra)} more. The register gets your choice; tell the
-                cashier too.{' '}
+                The register gets your choice; tell the cashier too.{' '}
                 <ButtonBase
                   onClick={(e) => onExplain('bank', e.currentTarget)}
                   sx={{ fontSize: 'inherit', color: sc.priceGreen, fontWeight: 700, verticalAlign: 'baseline', borderRadius: u(8) }}
                 >
-                  What's banking?
+                  Which is better?
                 </ButtonBase>
               </Box>
             </>
           )}
+        </>
+      )}
+
+      {member && (credit > 0 || balance > 0) && (
+        <>
+          <Box sx={{ height: '1px', bgcolor: sc.line, my: u(30) }} />
+          <Box data-testid="balance-applies" sx={{ fontSize: u(28), color: sc.ink2, lineHeight: 1.4 }}>
+            <Box sx={{ fontWeight: 700, color: sc.ink, mb: u(6) }}>Your balance at the register</Box>
+            {credit > 0 && <Box>Return $ {money(member.credit_balance)}: used first</Box>}
+            {balance > 0 && <Box>Rewards Balance {money(member.banked_rewards)}: soonest use-by date first</Box>}
+          </Box>
         </>
       )}
 

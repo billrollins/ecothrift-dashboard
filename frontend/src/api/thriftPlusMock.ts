@@ -62,8 +62,10 @@ export interface ThriftPlusItemCard {
   reward: Money;
   /** price - reward, before the monthly cover. */
   member_price: Money;
-  /** The same reward if the member banks it: banked rewards earn BANK_EXTRA_PCT more. */
+  /** The reward saved in full (Full rewards), the same as `reward` since form 5. */
   reward_banked: Money;
+  /** The reward used today (Instant rewards): 80% of it, rounded up to the cent. */
+  reward_instant?: Money;
   /** 18+ item: sells only to ID-verified cards. */
   age_restricted: boolean;
   /** false = final sale even for members (as-is, clothing and soft goods, 18+). */
@@ -131,8 +133,10 @@ export interface ThriftPlusCartLine {
  */
 export type RewardChoice = 'bank' | 'instant';
 
-/** Banked rewards are worth this much more than an instant rebate (owner, 09-25). */
-export const BANK_EXTRA_PCT = 5;
+/** Form 5 (owner, 2026-10-08): saving no longer pays extra; kept at 0 for older callers. */
+export const BANK_EXTRA_PCT = 0;
+/** Using rewards today takes this percent of them off the price; saving keeps them all (form 5). */
+export const INSTANT_PCT = 80;
 
 /** Cart totals. An estimate: the register is the source of truth. */
 export interface ThriftPlusCartTotals {
@@ -152,8 +156,12 @@ export interface ThriftPlusCartTotals {
   bank_extra: Money;
   /** The banking extra in percent (5). */
   bank_extra_pct: number;
-  /** bank_value when the member chose to bank, else 0. */
+  /** bank_value when the member saves (Full rewards, the default), else 0. */
   to_bank: Money;
+  /** What saving the rewards past the cover adds to the Rewards Balance (100%). */
+  full_value?: Money;
+  /** What using them today takes off the price (80%). */
+  instant_value?: Money;
   /** price_total - savings: the member's estimate, before tax. */
   member_total: Money;
 }
@@ -285,7 +293,12 @@ export function shortTitle(title: string, max = 28): string {
 
 /** A reward in cents plus the banking extra, rounded down to the cent like the register. */
 export function withBankExtra(cents: number): number {
-  return Math.floor((cents * (100 + BANK_EXTRA_PCT)) / 100);
+  return cents; // form 5: saved in full, nothing extra
+}
+
+/** Using rewards today: 80% of them, rounded up to the cent (the member's favor), never more. */
+export function instantPart(cents: number): number {
+  return Math.min(cents, Math.ceil((cents * INSTANT_PCT) / 100));
 }
 
 function hashCode(s: string): number {
@@ -316,7 +329,8 @@ function cardFrom(
     category_label: CATEGORY_LABELS[base.category],
     reward: fromCents(rewardCents),
     member_price: fromCents(priceCents - rewardCents),
-    reward_banked: fromCents(withBankExtra(rewardCents)),
+    reward_banked: fromCents(rewardCents),
+    reward_instant: fromCents(instantPart(rewardCents)),
   };
 }
 
@@ -486,19 +500,22 @@ export function computeCartTotals(
   const coverLeft = member ? toCents(member.cover.remaining) : COVER_AMOUNT_CENTS;
   const toCover = Math.min(coverLeft, rewardCents);
   const past = rewardCents - toCover;
-  // Banking is for members who chose it; everyone else is shown the instant rebate.
-  const banking = !!member && choice === 'bank';
-  const savings = banking ? 0 : past;
+  // Form 5: a member saves in full unless they chose to use it today; a guest is shown the instant rebate.
+  const banking = !!member && choice !== 'instant';
+  const instant = instantPart(past);
+  const savings = banking ? 0 : instant;
   return {
     item_count: units,
     price_total: fromCents(priceCents),
     reward_total: fromCents(rewardCents),
     to_cover: fromCents(toCover),
     savings: fromCents(savings),
-    bank_value: fromCents(withBankExtra(past)),
-    bank_extra: fromCents(withBankExtra(past) - past),
-    bank_extra_pct: BANK_EXTRA_PCT,
-    to_bank: fromCents(banking ? withBankExtra(past) : 0),
+    bank_value: fromCents(past),
+    bank_extra: fromCents(past - instant),
+    bank_extra_pct: 100 - INSTANT_PCT,
+    to_bank: fromCents(banking ? past : 0),
+    full_value: fromCents(past),
+    instant_value: fromCents(instant),
     member_total: fromCents(priceCents - savings),
   };
 }

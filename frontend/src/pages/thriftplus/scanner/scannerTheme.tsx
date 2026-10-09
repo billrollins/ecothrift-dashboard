@@ -27,17 +27,22 @@ import type { SvgIconComponent } from '@mui/icons-material';
 import type { ThriftPlusCategory } from '../../../api/thriftPlusMock';
 import brushUrl from '../../../assets/thriftplus/brush.webp';
 import cartUrl from '../../../assets/thriftplus/cart.webp';
-import coinUrl from '../../../assets/thriftplus/coin.webp';
-import coinsUrl from '../../../assets/thriftplus/coins.webp';
+import coverUrl from '../../../assets/thriftplus/cover-rope.webp';
 import headerUrl from '../../../assets/thriftplus/header-field.webp';
 import logoUrl from '../../../assets/thriftplus/logo.webp';
 import orbUrl from '../../../assets/thriftplus/orb.webp';
+import brickUrl from '../../../assets/thriftplus/rewards-brick.webp';
+import ticketUrl from '../../../assets/thriftplus/reward-ticket.webp';
 
 export const art = {
   brush: brushUrl,
   cart: cartUrl,
-  coin: coinUrl,
-  coins: coinsUrl,
+  /** Rewards Balance: a banded brick of coupons (owner, 2026-10-09: paper, not coins). */
+  brick: brickUrl,
+  /** The monthly cover: a velvet rope (a cover charge). */
+  cover: coverUrl,
+  /** One reward coupon: the Bank it and Shower animations. */
+  ticket: ticketUrl,
   header: headerUrl,
   logo: logoUrl,
   orb: orbUrl,

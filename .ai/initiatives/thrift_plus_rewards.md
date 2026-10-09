@@ -370,6 +370,21 @@ The POS handles members:
 
 ### 2026-10-08 — Form 5 chosen (rulebook complete)
 - **Rewards first, as store credit:** rewards earn in full as reward credit (a loyalty credit, not bought), kept on the account for 30 days after the receipt; using them today gets 80%. Warranty refunds: 80% of what was spent, tax included, back in the form spent (refund credit never expires, cash fallback). The $10 cover comes out of full-value rewards first. No cap (the 30 days keep credit small). Spending: refund credit always first (a payment, up to the whole total; Bill 10-08), then reward credit, soonest use-by date first (a discount before tax); when refund credit covers the total no rewards are used and today's are saved in full. Every remaining question is answered in the rulebook; the six CPA or attorney items (J5 signature, B10 ending the program, B11 unclaimed property, B12 disclosures and the 30 days, T3 tax on reward credit, T6 the books) were read and accepted by Bill 10-08. Join from a phone (photo and details on the phone, photo ID and signature at the register) is ready before launch.
+
+### 2026-10-09: Scanner update, Phases 1 to 3 (Bill), v2.160.0
+- **Phase 1:** Rewards Balance (renamed from Banked rewards) with a coupon brick; the cover with a velvet rope; both static. No art on the item card. A swipe right fills the cover first (Bank it), a Shower when this trip pays it in full, then the balance ("+$X this trip"). Settings shows the preview link.
+- **Phase 2:**
+  - **Tap Rewards Balance:** a page in the order things are used: Return $ first (never expires), then saved rewards by soonest use-by date (30 days after the receipt; `ledger.reward_lots`, in `/me/`), then today's instant rewards if chosen.
+  - **Tap the cover:** what it is, when it resets, and "Don't worry: you keep every benefit even when it isn't paid".
+  - **The cart:** MSRP, tag and rewards per item; remove; scanned items to add back; what pays the cover; what your balance covers at the register.
+- **Phase 3 (form 5 math, register and scanner together):**
+  - **Choices:** Full rewards (saved in full, the scanner's default) or Instant rewards (80% off today, rounded up to the cent); no banking bonus.
+  - **The toggle:** shows "You pay today" and "Rewards you can spend tomorrow".
+  - **Register:** labels match. The register's own default choice and the cashier's credit and balance entry are unchanged.
+- **Still to build:**
+  - **At the register:** Return $ applied first automatically, and a reward dropping off its balance when its use-by date passes. The scanner marks a lot "past its date".
+  - **Warranty refunds:** still 95% (rulebook W3 says 80%).
+
 ---
 
 ## See also

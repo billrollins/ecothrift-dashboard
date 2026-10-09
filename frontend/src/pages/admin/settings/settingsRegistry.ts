@@ -62,6 +62,8 @@ export interface SettingMeta {
   help: string;
   tab: SettingsTab;
   kind: SettingKind;
+  /** A link made from the value, shown under it (e.g. the staff preview link with the code in it). */
+  linkFor?: (value: string) => string | null;
 }
 
 export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
@@ -77,6 +79,8 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     help: 'While Thrift+ is off, a staff phone opens the scanner at /scan?preview=<this code>. Change it to shut old phones out.',
     tab: 'thrift-plus',
     kind: 'text',
+    // Owner, 2026-10-09: the link itself, ready to tap or send to a staff phone.
+    linkFor: (code) => (code.trim() ? `https://ecothrift.us/scan?preview=${encodeURIComponent(code.trim())}` : null),
   },
   thrift_plus_test_registers: {
     label: 'Thrift+ test registers',

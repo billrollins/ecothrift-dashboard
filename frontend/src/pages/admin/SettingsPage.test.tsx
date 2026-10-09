@@ -55,6 +55,8 @@ describe('SettingsPage (owner, 2026-10-07)', () => {
     expect(screen.getByText('Pre-launch')).toBeInTheDocument();
     expect(screen.getByText('R3')).toBeInTheDocument();                         // a list as chips
     expect(screen.getByText(/Changed by Bill Rollins/)).toBeInTheDocument();
+    const preview = screen.getByRole('link', { name: 'https://ecothrift.us/scan?preview=abc12345' });
+    expect(preview).toHaveAttribute('href', 'https://ecothrift.us/scan?preview=abc12345'); // the staff link, ready to tap
   });
 
   it('shows job state as tables on System, never raw JSON, and unknown keys under Unsorted', async () => {

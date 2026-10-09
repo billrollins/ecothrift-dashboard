@@ -1,6 +1,6 @@
 import { Box, ButtonBase } from '@mui/material';
 import DescriptionRounded from '@mui/icons-material/DescriptionRounded';
-import { toCents, type ThriftPlusCart, type ThriftPlusMember } from '../../../api/thriftPlusMock';
+import { fromCents, toCents, type ThriftPlusCart, type ThriftPlusMember } from '../../../api/thriftPlusMock';
 import { money } from './scannerLogic';
 import { ThriftPlusLogo, art, sc, u } from './scannerTheme';
 
@@ -81,7 +81,7 @@ export function ScannerTiles({
   if (!member) {
     return (
       <Tile sx={{ mx: u(30), display: 'flex', alignItems: 'center', gap: u(24), px: u(34) }}>
-        <Box component="img" src={art.coins} alt="" sx={{ width: u(100), height: u(100) }} />
+        <Box component="img" src={art.brick} alt="" sx={{ width: u(100), height: u(100) }} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Box sx={{ fontSize: u(31), fontWeight: 700, color: sc.ink, lineHeight: 1.2 }}>Scanning as a guest</Box>
           <Box sx={{ fontSize: u(26), color: sc.ink2, lineHeight: 1.3, mt: u(4) }}>
@@ -112,17 +112,19 @@ export function ScannerTiles({
   const amount = toCents(cover.amount) || 1;
   const covered = toCents(cover.covered);
   const pending = Math.min(toCents(cart?.totals.to_cover ?? '0'), amount - covered);
+  // Past the cover, this trip's rewards head to the balance (unless they come off today's price).
+  const tripToBalance = cart && cart.reward_choice !== 'instant' ? toCents(cart.totals.bank_value) : 0;
 
   return (
     <Box sx={{ display: 'grid', gridTemplateColumns: `${u(403)} ${u(413)}`, gap: u(24), mx: u(30) }}>
       <Tile
-        label={`Banked rewards ${money(member.banked_rewards)}. What is this?`}
+        label={`Rewards Balance ${money(member.banked_rewards)}. What is this?`}
         onClick={(el) => onExplain('bank', el)}
         sx={{ display: 'flex', alignItems: 'center', pl: u(25), pr: u(16) }}
       >
-        <Box component="img" src={art.coins} alt="" sx={{ width: u(102), height: u(102), flexShrink: 0 }} />
+        <Box component="img" src={art.brick} alt="" sx={{ width: u(102), height: u(102), flexShrink: 0 }} />
         <Box sx={{ ml: u(20), whiteSpace: 'nowrap' }}>
-          <Box sx={{ fontSize: u(27), color: sc.ink2, lineHeight: 1.2 }}>Banked rewards</Box>
+          <Box sx={{ fontSize: u(27), color: sc.ink2, lineHeight: 1.2 }}>Rewards Balance</Box>
           <Box
             sx={{
               fontFamily: sc.condensed,
@@ -133,8 +135,13 @@ export function ScannerTiles({
               mt: u(6),
             }}
           >
-            {money(member.banked_rewards)}
+            <Box component="span" data-rain="balance">{money(member.banked_rewards)}</Box>
           </Box>
+          {tripToBalance > 0 && (
+            <Box data-testid="trip-to-balance" sx={{ fontSize: u(24), fontWeight: 700, color: sc.green, lineHeight: 1.2, mt: u(4) }}>
+              +{money(fromCents(tripToBalance))} this trip
+            </Box>
+          )}
         </Box>
       </Tile>
       <Tile
@@ -142,13 +149,14 @@ export function ScannerTiles({
         onClick={(el) => onExplain('cover', el)}
         sx={{ display: 'flex', alignItems: 'center', pl: u(22), pr: u(26) }}
       >
-        <Box component="img" src={art.cart} alt="" sx={{ width: u(72), height: u(72), flexShrink: 0 }} />
+        <Box component="img" src={art.cover} alt="" sx={{ width: u(84), height: u(84), flexShrink: 0 }} />
         <Box sx={{ ml: u(22), flex: 1, minWidth: 0, whiteSpace: 'nowrap' }}>
           <Box sx={{ fontSize: u(25), color: sc.ink2, lineHeight: 1.2 }}>
             {cover.is_covered ? 'Card covered' : "This month's cover"}
           </Box>
           <Box
             role="progressbar"
+            data-rain="cover"
             aria-label="This month's cover"
             aria-valuemin={0}
             aria-valuemax={amount / 100}

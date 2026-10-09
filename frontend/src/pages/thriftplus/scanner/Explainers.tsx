@@ -10,7 +10,7 @@ import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import NoPhotographyRounded from '@mui/icons-material/NoPhotographyRounded';
 import QrCode2Rounded from '@mui/icons-material/QrCode2Rounded';
-import { BANK_EXTRA_PCT, type ThriftPlusCart, type ThriftPlusMember } from '../../../api/thriftPlusMock';
+import { type ThriftPlusCart, type ThriftPlusMember } from '../../../api/thriftPlusMock';
 import { money, shortDate } from './scannerLogic';
 import { art, sc, u } from './scannerTheme';
 
@@ -207,12 +207,12 @@ function ScanArt() {
 function BankArt() {
   return (
     <Box sx={stage} aria-hidden>
-      <Box component="img" src={art.coins} alt="" sx={{ position: 'absolute', left: '50%', bottom: u(10), width: u(190), transform: 'translateX(-50%)' }} />
+      <Box component="img" src={art.brick} alt="" sx={{ position: 'absolute', left: '50%', bottom: u(10), width: u(190), transform: 'translateX(-50%)' }} />
       {[0, 1, 2].map((i) => (
         <Box
           key={i}
           component="img"
-          src={art.coin}
+          src={art.ticket}
           alt=""
           sx={{
             position: 'absolute',
@@ -252,7 +252,7 @@ function BankArt() {
           },
         }}
       >
-        +{BANK_EXTRA_PCT}%
+        30 days
       </Box>
     </Box>
   );
@@ -312,7 +312,7 @@ function CartArt() {
         <Box
           key={i}
           component="img"
-          src={art.coin}
+          src={art.ticket}
           alt=""
           sx={{
             position: 'absolute',
@@ -410,28 +410,32 @@ export function InfoPopup({
       {topic === 'bank' && (
         <>
           <Body>
-            Rewards you save for a later trip instead of taking them off today's price. Banked rewards are worth {BANK_EXTRA_PCT}% more.
-            Use them at the register any time.
+            Full rewards are saved in full for a later trip, good for 30 days after your receipt. Instant rewards take 80% of them off
+            today's price instead. Your Return $ (store credit from returns) is always used first.
           </Body>
-          {member && <Stat>Your bank: {money(member.banked_rewards)}</Stat>}
+          {member && <Stat>Your Rewards Balance: {money(member.banked_rewards)}</Stat>}
         </>
       )}
       {topic === 'cover' && cover && (
         <>
           <Body>
-            Thrift+ is free. The first {money(cover.amount, true)} of rewards each month covers your card. After that, every reward is
-            yours to take off your price or bank. It starts over on {shortDate(cover.resets_on)}.
+            Thrift+ is free. The first {money(cover.amount, true)} of rewards each month covers your card. After that, every reward goes
+            to your Rewards Balance, or 80% of it comes off today's price. It starts over on {shortDate(cover.resets_on)}.
           </Body>
           <Stat>
             {cover.is_covered ? 'Covered for this month' : `${money(cover.covered)} of ${money(cover.amount)} covered so far`}
           </Stat>
+          <Body>
+            Don't worry: even when the cover isn't paid, you keep every Thrift+ benefit: the Limited Warranty, holding items online,
+            and more perks to come.
+          </Body>
         </>
       )}
       {topic === 'cart' && (
         <>
           <Body>
-            What you'd earn on the items in your cart today. At checkout they finish this month's cover first, then come off your price
-            or go to your bank with {BANK_EXTRA_PCT}% more.
+            What you'd earn on the items in your cart today. At checkout they finish this month's cover first, then go to your Rewards
+            Balance in full (Full rewards), or 80% comes off today's price (Instant rewards).
           </Body>
           {cart && <Stat>This cart: +{money(cart.totals.reward_total)}</Stat>}
         </>
@@ -443,7 +447,7 @@ export function InfoPopup({
 
 const TITLES: Record<Exclude<Topic, 'camera'>, string> = {
   scan: 'Scan any tag',
-  bank: 'Banked rewards',
+  bank: 'Full or instant rewards',
   cover: "This month's cover",
   cart: 'Your cart rewards',
 };
@@ -458,8 +462,8 @@ export function IntroTour({ isGuest, onDone, onCameraHelp }: { isGuest: boolean;
       : {
           key: 'bank',
           art: <BankArt />,
-          title: 'Bank',
-          body: `Bank your rewards for a later trip and they're worth ${BANK_EXTRA_PCT}% more. Or take them off today's price.`,
+          title: 'Rewards',
+          body: 'Save your rewards in full for a later trip, or use 80% of them today. Tap Rewards Balance to see them all.',
         },
     { key: 'cart', art: <CartArt />, title: 'Cart', body: 'Swipe right to add. Tap the pill up top to see your cart and total.' },
   ];
