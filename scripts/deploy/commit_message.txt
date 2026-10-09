@@ -1,28 +1,10 @@
-v2.160.0 — Thrift+ scanner: Rewards Balance page, coupons not coins, Full or Instant (80%) rewards, preview link in Settings
+v2.160.1 — Thrift+ scanner: a cart with a kraft bag on a bigger item pill, in a taller header
 
-User-facing theme: **Thrift+ scanner update, Phases 1 to 3 (Bill, 2026-10-09). Paper, not coins: a coupon brick for the Rewards Balance, a velvet rope for the cover, and coupons that fall into the cover, then the balance, with a shower when the cover is paid. Tap Rewards Balance to see every reward in the order it is used, with use-by dates. Form 5 money: Full rewards (saved in full, the default) or Instant rewards (80% off today), on the scanner and the register. Settings shows the staff preview link ready to tap.** thrift_plus_rewards.
-
-### Added
-
-- **Rewards Balance page** (tap the tile): Return $ first (store credit from returns, used first, never expires), then saved rewards with the soonest use-by date first (each good for 30 days after its receipt), then today's instant rewards when chosen. The server sends the lots with the member's account (`/api/thriftplus/public/me/` → `rewards`, `ledger.reward_lots`).
-- **Bank it and Shower:** a swipe right fills the cover first (coupons fall onto the cover bar), showers coupons over the screen when this trip pays the cover in full, then drops coupons onto the Rewards Balance ("+$X this trip"). Each coupon stays hidden until its fall starts; phones set to reduce motion get no animation.
-- **Settings > Thrift+ staff preview code:** the full link with the code in it (`https://ecothrift.us/scan?preview=…`), ready to tap.
+User-facing theme: **Thrift+ scanner: a taller header with a bigger item-count pill, and a new cart picture (a green cart with a kraft shopping bag) on the pill, the empty cart and the help popup.** Bill, 2026-10-09; thrift_plus_rewards.
 
 ### Changed
 
-- **Form 5 money (scanner and register):** past the cover, rewards are saved in full to the Rewards Balance (**Full rewards**, the scanner's default) or **80%** comes off today's price (**Instant rewards**, rounded up to the cent). The 5% banking extra is gone. Cart totals now carry `full_value` and `instant_value` (and fill `bank_value`, which members' carts had been missing); item cards carry `reward_instant`.
-- **Cart:** the Full / Instant toggle with "You pay today" and "Rewards you can spend tomorrow"; each item shows MSRP, tag and rewards; "Pays $X toward this month's cover first"; "Your balance at the register" (Return $ used first, then the Rewards Balance by use-by date).
-- **Cover popup:** when it resets, and "Don't worry: even when the cover isn't paid, you keep every Thrift+ benefit: the Limited Warranty, holding items online, and more perks to come."
-- **Scanner tiles:** "Banked rewards" is **Rewards Balance** (coupon brick); the cover has a velvet rope instead of the cart, which stays on the item-count pill. Both pictures stay still. The item card has nothing beside its reward, and says "or $X off today" (80%). The gold coins are gone everywhere.
-- **Register Thrift+ panel:** "Full rewards" and "Instant 80%" instead of "Bank" and "Rebate now"; "Rewards Balance" instead of "Banked".
-
-### Not yet
-
-- The register does not yet apply Return $ first by itself, or drop a reward when its use-by date passes (the scanner marks it "past its date"). Warranty refunds are still 95% (the rulebook says 80%).
-
-### Tests
-
-- `apps/thriftplus/tests/test_register.py`: 80% today, saving in full, no bonus, saving the scanner's default, the register's numbers at 80%. `test_public_api.py`: the item card and cart under form 5. `test_reward_lots.py`: lots soonest first, spends take the soonest, a return takes its own, past-due marked. Thrift+ and POS: 319 green.
-- Front end: `TicketRain.test.ts` (what a swipe right plays), the scanner page (tiles, Full or instant prompt, cart toggle and "You pay today", MSRP/Tag/Rewards, the Rewards Balance page, the cover popup), the demo math, the register panel, Settings' preview link. 302 green; tsc clean.
+- **Scanner cart picture:** the "N items · +$X" pill shows a flat, matte green cart with a kraft shopping bag instead of the document icon; the empty cart screen and the cart help popup use it too, replacing the glossy 3D cart (`cart-bag.webp`).
+- **Scanner header:** taller (the field photo), with a bigger logo and a bigger pill so the cart reads clearly.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

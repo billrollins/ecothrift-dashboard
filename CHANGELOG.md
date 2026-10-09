@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.160.0] -->
-<!-- Last reviewed: 2026-10-09 (2.160.0) -->
+<!-- Line 1 release: ## [2.160.1] -->
+<!-- Last reviewed: 2026-10-09 (2.160.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.160.1] - 2026-10-09
+
+User-facing theme: **Thrift+ scanner: a taller header with a bigger item-count pill, and a new cart picture (a green cart with a kraft shopping bag) on the pill, the empty cart and the help popup.** Bill, 2026-10-09; thrift_plus_rewards.
+
+### Changed
+
+- **Scanner cart picture:** the "N items · +$X" pill shows a flat, matte green cart with a kraft shopping bag instead of the document icon; the empty cart screen and the cart help popup use it too, replacing the glossy 3D cart (`cart-bag.webp`).
+- **Scanner header:** taller (the field photo), with a bigger logo and a bigger pill so the cart reads clearly.
 
 ## [2.160.0] - 2026-10-09
 

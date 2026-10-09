@@ -1,5 +1,4 @@
 import { Box, ButtonBase } from '@mui/material';
-import DescriptionRounded from '@mui/icons-material/DescriptionRounded';
 import { fromCents, toCents, type ThriftPlusCart, type ThriftPlusMember } from '../../../api/thriftPlusMock';
 import { money } from './scannerLogic';
 import { ThriftPlusLogo, art, sc, u } from './scannerTheme';
@@ -11,7 +10,7 @@ export function FieldBanner({ children, tall = false }: { children: React.ReactN
       sx={{
         position: 'relative',
         flexShrink: 0,
-        height: tall ? u(420) : u(158),
+        height: tall ? u(420) : u(200), // taller, so the cart pill can be bigger (owner, 2026-10-09)
         pt: 'env(safe-area-inset-top, 0px)',
         boxSizing: 'content-box',
         backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.10)), url(${art.header})`,
@@ -31,8 +30,8 @@ export function ScannerTop({ cart, onOpenCart }: { cart: ThriftPlusCart | undefi
     <FieldBanner>
       {/* The design column: full width on most phones, centered when a short screen scales it down. */}
       <Box sx={{ position: 'relative', width: u(900), height: '100%', mx: 'auto' }}>
-        <Box sx={{ position: 'absolute', left: u(35), top: u(24) }}>
-          <ThriftPlusLogo width={u(262)} />
+        <Box sx={{ position: 'absolute', left: u(35), top: u(40) }}>
+          <ThriftPlusLogo width={u(290)} />
         </Box>
         <ButtonBase
           onClick={onOpenCart}
@@ -41,8 +40,8 @@ export function ScannerTop({ cart, onOpenCart }: { cart: ThriftPlusCart | undefi
           sx={{
             position: 'absolute',
             right: u(30),
-            top: u(40),
-            height: u(82),
+            top: u(42),
+            height: u(116),
             px: u(30),
             gap: u(16),
             borderRadius: 99,
@@ -52,12 +51,12 @@ export function ScannerTop({ cart, onOpenCart }: { cart: ThriftPlusCart | undefi
             whiteSpace: 'nowrap',
           }}
         >
-          <DescriptionRounded sx={{ fontSize: u(42), color: sc.greenDeep }} />
-          <Box component="span" sx={{ fontSize: u(33), fontWeight: 500, color: sc.ink }}>
+          <Box component="img" src={art.cart} alt="" sx={{ width: u(104), height: u(104), my: u(-10) }} />
+          <Box component="span" sx={{ fontSize: u(38), fontWeight: 500, color: sc.ink }}>
             {count} {count === 1 ? 'item' : 'items'}
           </Box>
-          <Box component="span" sx={{ width: '2px', height: u(46), bgcolor: '#dadbd6' }} />
-          <Box component="span" sx={{ fontSize: u(33), fontWeight: 700, color: sc.green }}>
+          <Box component="span" sx={{ width: '2px', height: u(58), bgcolor: '#dadbd6' }} />
+          <Box component="span" sx={{ fontSize: u(38), fontWeight: 700, color: sc.green }}>
             +{money(rewards)}
           </Box>
         </ButtonBase>

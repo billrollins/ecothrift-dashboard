@@ -26,7 +26,7 @@ import YardRounded from '@mui/icons-material/YardRounded';
 import type { SvgIconComponent } from '@mui/icons-material';
 import type { ThriftPlusCategory } from '../../../api/thriftPlusMock';
 import brushUrl from '../../../assets/thriftplus/brush.webp';
-import cartUrl from '../../../assets/thriftplus/cart.webp';
+import cartUrl from '../../../assets/thriftplus/cart-bag.webp';
 import coverUrl from '../../../assets/thriftplus/cover-rope.webp';
 import headerUrl from '../../../assets/thriftplus/header-field.webp';
 import logoUrl from '../../../assets/thriftplus/logo.webp';
