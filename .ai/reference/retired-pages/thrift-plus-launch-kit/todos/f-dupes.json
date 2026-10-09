@@ -1,0 +1,17 @@
+{
+  "cat": "decisions",
+  "choice": "",
+  "createdAt": "2026-10-08T15:00:00Z",
+  "detail": "Today: copies of one product, and look-alikes grouped as a family, share one pace. While they sell fast enough to clear by day 90, the discount holds; when they fall behind, it grows. The last one left grows on its own. Long term: the demand ideas you listed (collectible, high volume, and so on) are written up for later.",
+  "due": "2026-10-09",
+  "note": "YES;  they pace to sell by sell by date.  but should not be a JERKY adjustment.  like they dont need to hit that date NO MATTER WHAT.  if 50% msrp is selling through fast enough then dont make a sudden adjustment when the target date is 1 day away...  in otherwords think more like a survival function... like try to hit Original count / 90;  No matter how many days left or how many you still have.  and estimate with past sales  against past prices.  not EXACTLY sure the most stable equation for that but I could come up with a few that are fairly stable... \n\nALSO,  all \"Familys\"  should be something that have a daily review like:\n\nfor each family:  check items/product within and decide are these good members,  and then look at items outside and ask should any be added.  Then for all Non-members of any family,  is this right or should these all essentially be the same.\n\na family is items that should be priced together (same product; one is back stock one is on floor)  or similar enough that hte discounts should match.  so if blue ball sells at 105 and red ball at 100 then these should probably both have the same discount from their starting prices.\n\nAlso, when the exact product comes in from one order to the next and in one order it is 95 and the next it is 90  that is probably an issue.  SAME product should have same price.  that said.  There are cases where the difference in price is selection from customers because one has a better box, better condition, etc or maybe even a prefered color that isn't mentioned on the product details.\n\nSO  staff should be able to go through and scan items and mark as some type of \"defective or lesser or something\"  it would look like:  walk up scans item selects a thing that says mark down due to quality:  then .9 or .6 or w/e they think  Then it will print out the new tag and notate the item so any pricing consistencies understand the reason for the lower price.  could be done like this:  put out stock at $100.  50% sells,  then you go out and put out new sotkc and mark old stock at .75 quality assuming customers cherry picked the best. then once aproduct is selected and the qulify % selected they can say repeat for next scans or someting and they can scan X more items and it auto notates and prints new tags.",
+  "options": [
+    "Keep the pacing",
+    "Treat every item on its own"
+  ],
+  "order": 24,
+  "status": "done",
+  "title": "Follow-up: duplicates and look-alikes: keep today's pacing?",
+  "updatedAt": "2026-10-08T15:50:24.336Z",
+  "who": "Bill"
+}

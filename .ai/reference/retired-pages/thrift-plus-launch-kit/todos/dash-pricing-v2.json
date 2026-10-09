@@ -1,0 +1,11 @@
+{
+  "cat": "dash",
+  "createdAt": "2026-10-08T16:00:00Z",
+  "detail": "0.75% of the tag a day after the 7-day wait, for all stock. Launch jump start: stock on the floor counts as half its real age, at most 45 days. Not scanned in the last inventory and not processed since: back stock, no Member Price. Back stock reaching the floor matches its look-alikes (day 1 if none). Smooth pacing per family (see the pacing decision). Floor stays 10% of the tag.",
+  "due": "2026-10-13",
+  "note": "",
+  "order": 16,
+  "status": "todo",
+  "title": "Member Price rules v2 (behind the Thrift+ switch)",
+  "who": "Claude"
+}

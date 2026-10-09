@@ -1,0 +1,15 @@
+{
+  "built": "Partly",
+  "choice": "",
+  "code": "J3",
+  "note": "",
+  "options": [],
+  "order": 10,
+  "rule": "Staff look at a photo ID for the name, the age and the face. Nothing from the ID is scanned, copied or kept: only \"ID checked\", by whom, when, and the 18+ flag.",
+  "sec": "join",
+  "source": "10-01; meeting 10-07",
+  "status": "decided",
+  "title": "The ID check",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": "We check your ID for age and keep nothing from it."
+}

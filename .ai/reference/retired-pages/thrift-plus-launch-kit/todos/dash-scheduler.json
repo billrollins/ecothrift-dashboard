@@ -1,0 +1,11 @@
+{
+  "cat": "dash",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "Needs your Heroku sign-in on the website. Claude writes the exact steps.",
+  "due": "2026-10-12",
+  "note": "",
+  "order": 8,
+  "status": "todo",
+  "title": "Add the 3 Heroku Scheduler jobs",
+  "who": "Bill"
+}

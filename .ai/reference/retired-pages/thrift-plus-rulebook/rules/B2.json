@@ -1,0 +1,15 @@
+{
+  "built": "No",
+  "choice": "",
+  "code": "B2",
+  "note": "",
+  "options": [],
+  "order": 27,
+  "rule": "Saved rewards are shown as \"Rewards\", each amount with its use-by date. Only the money part of warranty refunds is \"Thrift+ credit\" (never expires). They are kept apart, and named apart, because the memo warns that \"credit\" reads like a payment for sales tax, while a reward is a discount; expiry, cash and state reporting differ too.",
+  "sec": "bank",
+  "source": "Legal memo accepted by the CPA and attorney 10-01; your OK 10-08 (Q16)",
+  "status": "decided",
+  "title": "Two balances: Rewards and Thrift+ credit",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": "Your Rewards: $35.00, use by Nov 19 · Thrift+ credit: $12.20"
+}

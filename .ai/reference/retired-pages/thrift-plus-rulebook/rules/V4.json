@@ -1,0 +1,15 @@
+{
+  "built": "No",
+  "choice": "",
+  "code": "V4",
+  "note": "",
+  "options": [],
+  "order": 61,
+  "rule": "Wherever rewards show, the today number and the 30 days sit next to it: scanner \"Rewards $35 · Save $35 for 30 days · Use today $28 off\"; register \"Use $28 today, or save $35?\"; receipt \"Rewards earned $35 · Cover $10 · Saved $25, use by Nov 19\" and both balances. Never \"$35\" alone.",
+  "sec": "words",
+  "source": "Claude, at your word 10-08",
+  "status": "decided",
+  "title": "Both numbers, every time",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": ""
+}

@@ -1,0 +1,15 @@
+{
+  "built": "No",
+  "choice": "",
+  "code": "P5",
+  "note": "",
+  "options": [],
+  "order": 21,
+  "rule": "Not scanned in the last inventory and not processed since: no rewards. Once scanned on the floor it matches its look-alikes (day 1 if none).",
+  "sec": "price",
+  "source": "10-08",
+  "status": "decided",
+  "title": "Back stock",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": ""
+}

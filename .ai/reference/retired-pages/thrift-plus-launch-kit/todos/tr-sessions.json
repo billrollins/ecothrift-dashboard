@@ -1,0 +1,11 @@
+{
+  "cat": "training",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "Two sessions so every shift is covered.",
+  "due": "2026-10-13",
+  "note": "",
+  "order": 3,
+  "status": "todo",
+  "title": "Staff training with the one-page guide",
+  "who": "Bill"
+}

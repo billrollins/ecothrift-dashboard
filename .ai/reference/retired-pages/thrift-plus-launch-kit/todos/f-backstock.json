@@ -1,0 +1,17 @@
+{
+  "cat": "decisions",
+  "choice": "Match its look-alikes already on the floor (day 1 if none)",
+  "createdAt": "2026-10-08T15:00:00Z",
+  "detail": "Your rule: anything not scanned in the last inventory and not processed since gets no Member Price (it's back stock or shrink). It starts once it is scanned on the floor (a count, or a quick 'to the floor' scan).",
+  "due": "2026-10-09",
+  "note": "",
+  "options": [
+    "Match its look-alikes already on the floor (day 1 if none)",
+    "Always start at day 1"
+  ],
+  "order": 23,
+  "status": "done",
+  "title": "Follow-up: back stock that later reaches the floor starts where?",
+  "updatedAt": "2026-10-08T15:38:24.030Z",
+  "who": "Bill"
+}

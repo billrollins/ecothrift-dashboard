@@ -1,0 +1,11 @@
+{
+  "cat": "decisions",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "The ID confirms the info and the photo. The signature covers the releases and says \"I have access to the full details\" (on the website).",
+  "due": "2026-10-07",
+  "note": "Owners' meeting 10-07",
+  "order": 6,
+  "status": "done",
+  "title": "A card works only after photo, info, ID check and signature",
+  "who": "Bill"
+}

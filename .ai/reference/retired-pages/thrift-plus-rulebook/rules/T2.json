@@ -1,0 +1,15 @@
+{
+  "built": "No",
+  "choice": "",
+  "code": "T2",
+  "note": "",
+  "options": [],
+  "order": 53,
+  "rule": "The item is taxed at the tag; creating reward credit is not a sale.",
+  "sec": "tax",
+  "source": "Follows F1",
+  "status": "decided",
+  "title": "Saving rewards",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": ""
+}

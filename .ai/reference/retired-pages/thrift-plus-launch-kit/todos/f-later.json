@@ -1,0 +1,17 @@
+{
+  "cat": "decisions",
+  "choice": "",
+  "createdAt": "2026-10-08T16:00:00Z",
+  "detail": "Before launch (needed to price right on 10-20): the new pricing rules, back stock held, the future-prices view. My pick for right after launch (10-21 on): the daily family review, the same-product-same-price check, and the quality markdown scan tool. Pick 'quality tool before launch' if you want to mark down cherry-picked stock before 10-20.",
+  "due": "2026-10-09",
+  "note": "everything before\n",
+  "options": [
+    "As you suggest (all three after launch)",
+    "Quality markdown tool before launch"
+  ],
+  "order": 28,
+  "status": "done",
+  "title": "Follow-up: what waits until after launch?",
+  "updatedAt": "2026-10-08T15:59:08.655Z",
+  "who": "Bill"
+}

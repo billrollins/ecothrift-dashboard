@@ -1,0 +1,11 @@
+{
+  "cat": "research",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "Any number on a sign must be true on launch day. Claude checks the share of items with a Member Price.",
+  "due": "2026-10-13",
+  "note": "",
+  "order": 4,
+  "status": "todo",
+  "title": "Check \"over 90% of items\" in the Calculator before it goes on a sign",
+  "who": "Claude"
+}

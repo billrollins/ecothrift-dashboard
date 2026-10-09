@@ -1,0 +1,15 @@
+{
+  "built": "Yes (v2.155.1)",
+  "choice": "",
+  "code": "J9",
+  "note": "",
+  "options": [],
+  "order": 16,
+  "rule": "Optional, no boxes (X1).",
+  "sec": "join",
+  "source": "10-08 (T74)",
+  "status": "decided",
+  "title": "Email at sign-up",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": "We'll email your receipts and Thrift+ updates. Store news emails have an unsubscribe link."
+}

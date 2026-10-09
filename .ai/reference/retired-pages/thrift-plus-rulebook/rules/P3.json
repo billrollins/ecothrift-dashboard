@@ -1,0 +1,15 @@
+{
+  "built": "No (engine uses tag ÷ 90 a day; due 10-13)",
+  "choice": "",
+  "code": "P3",
+  "note": "",
+  "options": [],
+  "order": 19,
+  "rule": "After a 7-day wait, rewards grow by 0.75% of the tag a day, up to 90% of the tag (a member never pays less than 10% of the tag when using today). Changes happen overnight; rewards never shrink except on a retag.",
+  "sec": "price",
+  "source": "10-08; 10-01",
+  "status": "decided",
+  "title": "How rewards grow",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": ""
+}

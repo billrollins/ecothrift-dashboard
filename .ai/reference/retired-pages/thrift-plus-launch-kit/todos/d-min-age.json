@@ -1,0 +1,18 @@
+{
+  "cat": "decisions",
+  "choice": "18",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "Signup now has an ID check and a signature, which is a contract. 18 is the simplest.",
+  "due": "2026-10-09",
+  "note": "",
+  "options": [
+    "18",
+    "16",
+    "Under 18 with a parent signing"
+  ],
+  "order": 13,
+  "status": "done",
+  "title": "Youngest age to sign up",
+  "updatedAt": "2026-10-08T15:24:27.465Z",
+  "who": "Bill"
+}

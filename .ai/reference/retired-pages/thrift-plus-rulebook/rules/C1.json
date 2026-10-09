@@ -1,0 +1,15 @@
+{
+  "built": "Yes (cover built; it already comes first)",
+  "choice": "",
+  "code": "C1",
+  "note": "",
+  "options": [],
+  "order": 4,
+  "rule": "The first $10 of rewards each calendar month covers the card. It comes out of the full-value rewards first, before the use-or-save choice. It resets on the 1st and never rolls over; a month with less than $10 of rewards simply covers less. Active staff are exempt while your staff switch is on.",
+  "sec": "cover",
+  "source": "Design 09-25; your messages 10-08",
+  "status": "decided",
+  "title": "How the cover works",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": "Free to get your card. Your first $10 of rewards each month covers it, so you never pay anything out of pocket."
+}

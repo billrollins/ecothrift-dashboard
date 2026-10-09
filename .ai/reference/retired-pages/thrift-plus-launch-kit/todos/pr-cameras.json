@@ -1,0 +1,12 @@
+{
+  "cat": "printing",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "Test it on the signup screen.",
+  "due": "2026-10-09",
+  "note": "not necc our AIO computers have a web cam and are on swivel",
+  "order": 1,
+  "status": "done",
+  "title": "Photo camera at each register: not needed (the all-in-ones have webcams)",
+  "updatedAt": "2026-10-08T15:00:00Z",
+  "who": "Bill"
+}

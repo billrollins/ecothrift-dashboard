@@ -1,14 +1,10 @@
-v2.158.1 — Staff sign in to the Thrift+ scanner with their Dash email; online-shop password change asks for the current password
+v2.158.2 — Thrift+ policy signed into the rulebook; old Thrift+ pages saved and retired
 
-User-facing theme: **Staff sign in to the Thrift+ scanner with their Dash email and password; the online-shop password change asks for the current password.** Bill, 2026-10-09. Initiative: thrift_plus_rewards (scanner), and outside initiatives (online-shop account).
+User-facing theme: **Thrift+ policy signed (Bill and Carrie): Instant and Full rewards, warranty returns at the register, families wait for the owner. The rulebook is now the only Thrift+ source.** Bill, 2026-10-09. Initiative: thrift_plus_rewards (documents only, no code).
 
-### Fixed
+### Changed
 
-- **Scanner: staff sign-in.** A staff member (Admin, Manager, Employee) signs in on the scanner's sign-in screen with their Dash email (or username) and password. It lands on their own staff membership, made the first time they sign in (rulebook J6). The same lockout as Dash applies (5 wrong tries, 15 minutes). A shop customer's password is not a staff sign-in.
-- **Online shop: Change password.** The form sent no current password, so the server answered "Current password is incorrect." every time for an account that already had a password. It now has a Current password field (leave it empty right after signing in with an email link).
+- **Rulebook** (`.ai/extended/thrift-plus-decisions.md`): Instant reward (80% of the Full reward) and Full reward (usable sale + 1 to sale + 30); an unfilled cover takes no benefit away; warranty qualifies on primary function only, 7 calendar days, owner-only exceptions when the store was closed; not covered: clothing, consumables, no primary function, parts, marked AS IS, $10 or less after the reward (a setting); 18+ items and crossbows no longer excluded as a group; refunds settled on the return day (80% back as Thrift+ credit, rewards used come back with a fresh 30 days, the member keeps 20% of the rewards the item earned); returns as a cart line from a Return button with a fast member, trip and item lookup, no swaps; launch stock at one third of its age (max 45 days); back stock age freezes and resets; families earn nothing until the owner confirms them; a new owner-only authorizations list.
+- **Retired pages:** the Thrift+ rulebook, launch kit, warranty review, legal memo and 09-17 card poster pages are saved in `.ai/reference/retired-pages/` before deletion. Only the final forms grid page stays.
 
-### Tests
-
-- `apps/thriftplus/tests/test_public_api.py` (2): a staff member signs in with their Dash email and gets one membership (made once); a shop customer's password is refused as a staff sign-in.
-
-Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,0 +1,11 @@
+{
+  "cat": "dash",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "Dash: Settings, Thrift+, Launch. Turn it on and clear the test registers.",
+  "due": "2026-10-20",
+  "note": "",
+  "order": 11,
+  "status": "todo",
+  "title": "Launch day: switch Thrift+ on",
+  "who": "Bill"
+}

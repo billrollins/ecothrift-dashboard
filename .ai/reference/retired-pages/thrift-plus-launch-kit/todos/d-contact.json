@@ -1,0 +1,12 @@
+{
+  "cat": "decisions",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "The warranty must name Eco-Thrift LLC with a street address and zip, or a phone number. Type them in the note.",
+  "due": "2026-10-09",
+  "note": "8425 west center road, (402) 881-9861",
+  "order": 16,
+  "status": "done",
+  "title": "Address and phone for the Limited Warranty",
+  "updatedAt": "2026-10-08T15:25:30.990Z",
+  "who": "Bill"
+}

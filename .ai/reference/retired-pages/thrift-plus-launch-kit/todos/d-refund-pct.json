@@ -1,0 +1,18 @@
+{
+  "cat": "decisions",
+  "choice": "90%",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "Meeting: about 90% of the total.",
+  "due": "2026-10-09",
+  "note": "",
+  "options": [
+    "90%",
+    "95%",
+    "100%"
+  ],
+  "order": 10,
+  "status": "done",
+  "title": "Limited Warranty refund: how much back as a gift card?",
+  "updatedAt": "2026-10-08T15:23:03.944Z",
+  "who": "Bill"
+}

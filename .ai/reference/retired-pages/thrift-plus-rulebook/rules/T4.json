@@ -1,0 +1,15 @@
+{
+  "built": "No",
+  "choice": "",
+  "code": "T4",
+  "note": "",
+  "options": [],
+  "order": 55,
+  "rule": "The refund includes 80% of the tax, which the store takes back on its return. Spending refund credit later is a payment: that sale is taxed in full.",
+  "sec": "tax",
+  "source": "Follows F2",
+  "status": "decided",
+  "title": "Refund credit",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": ""
+}

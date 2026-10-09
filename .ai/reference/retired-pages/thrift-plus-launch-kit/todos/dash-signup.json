@@ -1,0 +1,11 @@
+{
+  "cat": "dash",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "The card stays \"not ready\" until all four are done. Staff tick \"ID checked\" (nothing scanned or kept from the ID). The signature screen shows the short acknowledgment and a QR to the full details.",
+  "due": "2026-10-12",
+  "note": "",
+  "order": 4,
+  "status": "todo",
+  "title": "Signup: card works only after photo, info, ID check and signature",
+  "who": "Claude"
+}

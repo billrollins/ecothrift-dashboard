@@ -1,0 +1,15 @@
+{
+  "built": "No",
+  "choice": "",
+  "code": "B1",
+  "note": "",
+  "options": [],
+  "order": 26,
+  "rule": "Rewards are always earned in full. The register asks once per trip: use today's rewards now at 80%, or save them in full on the account. Saving is the default; one choice covers the whole trip (no splitting); it is logged. 80% is rounded to the cent in the member's favor. Not asked when Thrift+ credit covers the total (B3).",
+  "sec": "bank",
+  "source": "Your picks 10-08",
+  "status": "decided",
+  "title": "Use today or save",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": "Use today: $28 off. Or save $35 for 30 days."
+}

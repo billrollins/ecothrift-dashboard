@@ -1,0 +1,15 @@
+{
+  "built": "Partly",
+  "choice": "",
+  "code": "P6",
+  "note": "",
+  "options": [],
+  "order": 22,
+  "rule": "Families pace by the smooth rule (aim: starting count ÷ 90 a day; grow up to 0.75% a day in proportion to how far behind). You can set a family's own target or pause it; a daily review shows each family and why it moved.",
+  "sec": "price",
+  "source": "10-08",
+  "status": "decided",
+  "title": "Pacing families",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": ""
+}

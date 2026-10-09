@@ -1,0 +1,12 @@
+{
+  "cat": "printing",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "As-is, for-parts and untested items, starting with stock already in those areas.",
+  "due": "2026-10-14",
+  "note": "too much stock to do that so we need a diff plan that assumes stock will be as is (no new tags)\n",
+  "order": 8,
+  "status": "done",
+  "title": "AS IS tags: no stamps (the receipt and the scanner say it; the signs carry the disclaimers)",
+  "updatedAt": "2026-10-08T16:00:00Z",
+  "who": "Staff"
+}

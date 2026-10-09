@@ -1,0 +1,11 @@
+{
+  "cat": "dash",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "Dash: Settings, Thrift+, Launch.",
+  "due": "2026-10-09",
+  "note": "",
+  "order": 3,
+  "status": "todo",
+  "title": "Pick the test register and add its code",
+  "who": "Bill"
+}

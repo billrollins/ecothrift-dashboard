@@ -1,0 +1,15 @@
+{
+  "built": "No",
+  "choice": "",
+  "code": "P7",
+  "note": "",
+  "options": [],
+  "order": 23,
+  "rule": "Floor and back stock counts per product; a page to mark items moved to the floor; suggestions for moves either way.",
+  "sec": "price",
+  "source": "10-08",
+  "status": "decided",
+  "title": "Back stock and the floor",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": ""
+}

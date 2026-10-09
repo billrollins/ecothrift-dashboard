@@ -1,0 +1,12 @@
+{
+  "cat": "dash",
+  "createdAt": "2026-10-08T16:00:00Z",
+  "detail": "Flag the same product tagged at different prices across orders ($95 one order, $90 the next), unless a quality markdown explains it.",
+  "due": "2026-10-14",
+  "note": "",
+  "order": 31,
+  "status": "todo",
+  "title": "Before launch: same product, same price check",
+  "updatedAt": "2026-10-08T20:30:00Z",
+  "who": "Claude"
+}

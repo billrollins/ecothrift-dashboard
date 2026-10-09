@@ -1,0 +1,12 @@
+{
+  "cat": "dash",
+  "createdAt": "2026-10-08T16:00:00Z",
+  "detail": "Walk up, scan an item, pick 'mark down for quality' and a factor (0.9, 0.75, 0.6...). It prints a new tag and notes the reason on the item, so price checks know why. 'Repeat for next scans' marks a run of items the same way (for example old stock after customers cherry-picked the best).",
+  "due": "2026-10-15",
+  "note": "",
+  "order": 32,
+  "status": "todo",
+  "title": "Before launch: quality markdown scan tool",
+  "updatedAt": "2026-10-08T20:30:00Z",
+  "who": "Claude"
+}

@@ -1,0 +1,11 @@
+{
+  "cat": "training",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "Sign up a staff member (photo, info, ID, signature), ring a sale as a member and as a guest, bank savings, an 18+ item with an ID check, a warranty return. Check both receipts.",
+  "due": "2026-10-12",
+  "note": "",
+  "order": 1,
+  "status": "todo",
+  "title": "Dry run on the test register with test cards",
+  "who": "Bill and Claude"
+}

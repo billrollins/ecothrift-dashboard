@@ -1,0 +1,11 @@
+{
+  "cat": "dash",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "An ecothrift.us page with the terms, privacy, gift card terms and the Limited Warranty. Receipts, posters and the signup screen point to it.",
+  "due": "2026-10-12",
+  "note": "",
+  "order": 7,
+  "status": "todo",
+  "title": "Website page with the full details (one QR everywhere)",
+  "who": "Claude"
+}

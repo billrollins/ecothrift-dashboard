@@ -1,0 +1,15 @@
+{
+  "built": "No",
+  "choice": "",
+  "code": "P4",
+  "note": "",
+  "options": [],
+  "order": 20,
+  "rule": "Stock on the floor at launch counts as half its real age, at most 45 days.",
+  "sec": "price",
+  "source": "10-08",
+  "status": "decided",
+  "title": "Launch jump start",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": ""
+}

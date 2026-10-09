@@ -1,0 +1,15 @@
+{
+  "built": "Yes (v2.155.1)",
+  "choice": "",
+  "code": "X1",
+  "note": "",
+  "options": [],
+  "order": 65,
+  "rule": "No text messages. Members who give an email get receipts and Thrift+ updates, and store news they can turn off (the unsubscribe link in every news email, My account, or the register). Only turning off is recorded.",
+  "sec": "texts",
+  "source": "Bill via master 10-08 (T73, T74)",
+  "status": "decided",
+  "title": "Email-first, no texts, no boxes",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": ""
+}

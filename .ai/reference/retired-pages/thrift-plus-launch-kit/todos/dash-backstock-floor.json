@@ -1,0 +1,11 @@
+{
+  "cat": "dash",
+  "createdAt": "2026-10-08T20:30:00Z",
+  "detail": "Your answer 10-08 (Rulebook P11). Staff scan items moving from back stock to the floor (they start their Member Price then). Dash suggests which items should move either way, and shows floor vs back stock counts per product.",
+  "due": "2026-10-14",
+  "note": "",
+  "order": 18,
+  "status": "todo",
+  "title": "Back stock to floor: a page to mark moves, and move suggestions",
+  "who": "Claude"
+}

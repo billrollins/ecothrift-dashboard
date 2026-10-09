@@ -1,0 +1,17 @@
+{
+  "cat": "decisions",
+  "choice": "Yes, that line",
+  "createdAt": "2026-10-08T15:00:00Z",
+  "detail": "Answer to your question: members only need to know the price before they buy, not the formula. The scanner and the register show today's Member Price on every item, and that covers it. Suggested line: 'Member Price is set by Eco-Thrift, can change from day to day, and is shown in the Thrift+ scanner and at the register.'",
+  "due": "2026-10-09",
+  "note": "yes",
+  "options": [
+    "Yes, that line",
+    "Say nothing in the terms"
+  ],
+  "order": 25,
+  "status": "done",
+  "title": "Follow-up: the terms say Member Price in general words only?",
+  "updatedAt": "2026-10-08T15:50:56.840Z",
+  "who": "Bill"
+}

@@ -1,0 +1,17 @@
+{
+  "cat": "decisions",
+  "choice": "Yes: half its age, at most 45 days",
+  "createdAt": "2026-10-08T15:00:00Z",
+  "detail": "Your note said max(real_age/2, 45); that would make every item at least 45 days old. I think you meant the smaller of the two. Examples: a 30-day-old item starts as day 15; a 60-day-old item as day 30; a 200-day-old item as day 45.",
+  "due": "2026-10-09",
+  "note": "",
+  "options": [
+    "Yes: half its age, at most 45 days",
+    "No: at least 45 days (every item day 45 or more)"
+  ],
+  "order": 22,
+  "status": "done",
+  "title": "Follow-up: jump start = half its real age, but never more than 45 days?",
+  "updatedAt": "2026-10-08T15:38:06.231Z",
+  "who": "Bill"
+}

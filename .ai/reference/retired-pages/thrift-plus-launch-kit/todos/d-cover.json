@@ -1,0 +1,17 @@
+{
+  "cat": "decisions",
+  "choice": "Keep the word \"cover\"",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "Nothing is charged: the first $10 of savings each month just isn't given. It must not read like a fee.",
+  "due": "2026-10-09",
+  "note": "",
+  "options": [
+    "Savings start after your first $10 each month",
+    "Keep the word \"cover\""
+  ],
+  "order": 14,
+  "status": "done",
+  "title": "The monthly $10: how do we say it?",
+  "updatedAt": "2026-10-08T15:24:39.976Z",
+  "who": "Bill"
+}

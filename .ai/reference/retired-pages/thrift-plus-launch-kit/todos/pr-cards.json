@@ -1,0 +1,11 @@
+{
+  "cat": "printing",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "Dash: Thrift+, Card batches.",
+  "due": "2026-10-10",
+  "note": "",
+  "order": 4,
+  "status": "todo",
+  "title": "Print the card backs from Dash onto the blanks",
+  "who": "Bill"
+}

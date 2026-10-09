@@ -1,0 +1,15 @@
+{
+  "built": "No",
+  "choice": "",
+  "code": "T6",
+  "note": "",
+  "options": [],
+  "order": 57,
+  "rule": "Unused Rewards and Thrift+ credit are liabilities until spent or expired (ASC 606 breakage). Records per sale: tag, each discount by type (rewards used, cover), net taxable price, tax, each tender; per member, a ledger of rewards earned, used and expired; a monthly match of the register totals to each Form 10.",
+  "sec": "tax",
+  "source": "Legal memo accepted by the CPA and attorney 10-01; your OK 10-08 (Q14, Q19)",
+  "status": "decided",
+  "title": "The books",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": ""
+}

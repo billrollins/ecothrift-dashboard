@@ -1,0 +1,15 @@
+{
+  "built": "Yes",
+  "choice": "",
+  "code": "B7",
+  "note": "",
+  "options": [],
+  "order": 33,
+  "rule": "One account per membership, shared by both adults. A lost card is stopped and a new card links to the same account. Rewards and credit can't be transferred to anyone else.",
+  "sec": "bank",
+  "source": "Legal memo accepted by the CPA and attorney 10-01; your OK 10-08 (Q16: non-transferable)",
+  "status": "decided",
+  "title": "Lost cards, two adults, no transfers",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": ""
+}

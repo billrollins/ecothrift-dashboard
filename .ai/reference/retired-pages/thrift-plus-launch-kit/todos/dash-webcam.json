@@ -1,0 +1,11 @@
+{
+  "cat": "dash",
+  "createdAt": "2026-10-08T15:00:00Z",
+  "detail": "The all-in-one screens have webcams (your note). Today the photo button opens a file picker on a desktop. Change: a live camera view and a Take photo button in the sign-up window.",
+  "due": "2026-10-12",
+  "note": "",
+  "order": 13,
+  "status": "todo",
+  "title": "Signup photo from the register's own webcam",
+  "who": "Claude"
+}

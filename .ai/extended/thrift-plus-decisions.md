@@ -1,15 +1,17 @@
-<!-- Last updated: 2026-10-08 (form 5 chosen; every remaining question answered) -->
+<!-- Last updated: 2026-10-09 (policy signed with Carrie: Instant / Full, warranty settled on return day, owner-only authorizations, families wait for the owner) -->
 # Thrift+ rulebook
 
-**The one place for every Thrift+ rule.** Form 5 is chosen: rewards first, as store credit. Code follows this file. Owners decide on the rulebook page (https://claude.ai/artifact/GpgB6SUsKkiKkNBRJj31W4); answers are folded in here. Items marked "CPA / attorney" carry our answer and wait for their sign-off. Older notes (the 10-01 list, the legal memo, the warranty review, the launch kit) lose wherever they differ.
+**The one place for every Thrift+ rule.** Form 5 is chosen: rewards first, as store credit. Code follows this file. It is the single source of truth: the old rulebook page, launch kit page and warranty review page are retired (10-09); the only page kept is the final forms grid. Owner answers are folded in here. Items marked "CPA / attorney" carry our answer and wait for their sign-off. Older notes (the 10-01 list, the legal memo, the warranty review, the launch kit) lose wherever they differ.
+
+**Signed 10-09 (Bill and Carrie).** The policy below is signed. Its names: **Instant reward** (used at the register, 80% of the Full reward) and **Full reward** (kept on the account for 30 days). Where an older line below still says "use today" or "save", read Instant and Full.
 
 ## The program in one look
 
 *Form 5: rewards first, as store credit. Everything below follows from it.*
 
 - **F1. Form 5: rewards first** (Decided). Every reward is earned in full and kept on the account as Rewards, a loyalty reward the store gives (not bought), good for 30 days. At checkout the member can use today's rewards now at 80%, or save them in full. Saving is the default. Compared with the other forms on https://claude.ai/artifact/AnH8RuYAKANXGoqBq1crxf.
-  - Customer words: "Every find earns Rewards. Save them in full for 30 days, or use 80% today."
-  - Source: Your picks 10-08. Built: No (the build follows these rules).
+  - Customer words: "Every find earns Rewards. Take your Full reward within 30 days, or an Instant reward today: 80% of the Full reward."
+  - Source: Your picks 10-08; names signed 10-09 (Instant and Full; never "use now", "bank", or "20% less", always "80% of"). Built: No (the build follows these rules).
 - **F2. Warranty refunds go back as store credit** (Decided). 80% of what they spent, tax included (the same 80% as using rewards today), goes back as credit on the same Thrift+ balance, with a cash refund if the credit can't be used (for example the store closes or the membership ends). The money part comes back as refund credit, which never expires; see W3.
   - Source: Your picks 10-08. Built: No.
 - **F3. The whole trip, worked** (Decided). Tag $80, rewards $35, 7% tax, cover already filled, bought Oct 20. Save it: pay $85.60, get $35 credit, use by Nov 19. Use it today: $28 off (80%), pay $55.64. Next trip, a $50 item with that $35 credit: $15 taxed = $16.05. Early in a month with $10 of cover left: $10 covers the card, then save $25 or use $20 today.
@@ -28,6 +30,8 @@
   - Source: Your message 10-08; legal review. Built: n/a.
 - **C4. Cover and taxes** (Decided). Rewards that go to the cover don't lower the price: the item is taxed at the tag.
   - Source: Follows C1. Built: Yes.
+- **C5. An unfilled cover takes nothing away** (Decided). A member whose cover isn't filled that month still earns rewards, still has the Limited Warranty, and still gets every other Thrift+ benefit. Nothing is owed and nothing carries over.
+  - Source: Signed 10-09. Built: Yes (nothing checks the cover today).
 
 ## Joining
 
@@ -69,12 +73,12 @@
   - Source: Your message 10-08. Built: No (screens say "Member Price" today).
 - **P3. How rewards grow** (Decided). After a 7-day wait, rewards grow by 0.75% of the tag a day, up to 90% of the tag (a member never pays less than 10% of the tag when using today). Changes happen overnight; rewards never shrink except on a retag.
   - Source: 10-08; 10-01. Built: No (engine uses tag ÷ 90 a day; due 10-13).
-- **P4. Launch jump start** (Decided). Stock on the floor at launch counts as half its real age, at most 45 days.
-  - Source: 10-08. Built: No.
-- **P5. Back stock** (Decided). Not scanned in the last inventory and not processed since: no rewards. Once scanned on the floor it matches its look-alikes (day 1 if none).
-  - Source: 10-08. Built: No.
-- **P6. Pacing families** (Decided). Families pace by the smooth rule (aim: starting count ÷ 90 a day; grow up to 0.75% a day in proportion to how far behind). You can set a family's own target or pause it; a daily review shows each family and why it moved.
-  - Source: 10-08. Built: Partly.
+- **P4. Launch jump start** (Decided). Stock on the floor at launch starts at one third of its real age, at most 45 days, then ages one day per day. The 7-day wait (P3) still applies: an item 9 days old at launch starts at day 3 and earns nothing for 4 more days.
+  - Source: 10-08; signed 10-09 (one third, replaces half). Built: No.
+- **P5. Back stock** (Decided). Days on the floor don't grow while an item is in back stock. Moving an item to back stock resets its age to 0; the old age stays in its history, so the owner can resume it. Back stock not seen on the floor earns nothing.
+  - Source: 10-08; signed 10-09 (the reset replaces "matches its look-alikes"). Built: No.
+- **P6. Families of look-alikes** (Decided). A family's items earn no rewards until the owner confirms the family, shown as a large alert on the owner's page. The owner sets how many the family should sell per 90 days. Rewards then rise slowly toward that pace and never come down. Every confirmed family sits on a watch list: sales in the past period next to the floor count, back stock count and prices. The owner can change the pace, pause the family, or break it apart. When a family is broken apart, each item keeps the price it has that day and then moves on its own. Processing and AI watch the reward dynamics and the families; the owner decides.
+  - Source: 10-08; signed 10-09 (replaces the automatic smooth rule). Built: Partly. Still open: how items move after a break-apart, and whether the rise is "memoryless". The owner calls these semi-firm and will settle them.
 - **P7. Back stock and the floor** (Decided). Floor and back stock counts per product; a page to mark items moved to the floor; suggestions for moves either way.
   - Source: 10-08. Built: No.
 - **P8. What we say about the formula** (Decided). Never published. The terms say only:
@@ -100,7 +104,7 @@
   - Source: Worked 10-08. Built: n/a.
 - **B4. No cap** (Decided). No limit on saved rewards: the 30-day expiry already keeps reward credit small.
   - Source: Follows your 30 days, 10-08. Built: n/a.
-- **B5. Expiry, fees and cash** (Decided). Rewards expire 30 days after the receipt they were earned on. Thrift+ credit (refunds) never expires: it is money the member paid. No fees. Rewards have no cash value; Thrift+ credit is not redeemable for cash, except the warranty's cash fallback and where the law requires.
+- **B5. Expiry, fees and cash** (Decided). A Full reward can be used from the day after the sale through day 30 after it (sale + 1 to sale + 30), then it expires. Only the Instant reward is used on the trip that earned it. Thrift+ credit (refunds) never expires: it is money the member paid. No fees. Rewards have no cash value; Thrift+ credit is not redeemable for cash, except the warranty's cash fallback and where the law requires.
   - Customer words: "Saved $35.00 in Rewards. Use by Nov 19. Rewards have no cash value."
   - Source: Your picks 10-08 (replaces "never expires"). Built: No.
 - **B13. Seeing it, and a reminder** (Decided). My account lists each saved amount with its use-by date, soonest first, and the refund credit apart. Members with an email get one reminder 5 days before rewards expire (after launch).
@@ -125,20 +129,32 @@
 
 *What members can bring back, and what they get.*
 
-- **W1. What it covers** (Decided). "Thrift+ Limited Warranty", for members: an item whose main function doesn't work (a lamp lights, a blender blends). Untested items are covered.
+- **W1. What it covers** (Decided). "Thrift+ Limited Warranty", for members. The one qualifying reason: the item's **primary function** doesn't work (a lamp lights, a blender blends). Not qualifying: a non-primary function, missing accessories, condition (used or new), cosmetic damage, a change of mind. Untested items are covered.
   - Customer words: "We can't test most items. This warranty covers them anyway."
-  - Source: 10-01; 10-07. Built: Partly.
-- **W2. How long** (Decided). 7 days, counted after the day of sale; a closed day 7 moves to the next open day.
-  - Source: 10-07; 10-01. Built: No (built for 3).
+  - Source: 10-01; 10-07; signed 10-09. Built: Partly.
+- **W2. How long** (Decided). 7 calendar days after the day of sale. Nothing extends it automatically. The one exception: when the store was closed, a manager may ask the owner, and only the owner may authorize a later claim (O1). It is never extended for a customer's own reasons.
+  - Source: 10-07; signed 10-09 (replaces "a closed day 7 moves"). Built: No (built for 3).
 - **W3. What they get back** (Decided). 80% of everything they spent on the item, tax included, in the form they spent it: 80% of the money (and Thrift+ credit) as Thrift+ credit, which never expires, with a cash fallback; 80% of any Rewards used, as Rewards with a fresh 30 days.
   - Customer words: "80% of what you spent, tax included, back on your account."
   - Source: Your picks 10-08 (80% for parity). Built: No (built as 95%).
-- **W4. Rewards the returned item earned** (Decided). They are taken back: first from what the item put into this month's cover, then from unspent reward credit. If that credit was already spent, the refund is reduced by it; if it already expired, nothing is taken.
-  - Source: Built rule; 10-08. Built: Partly (the reversal is built).
-- **W5. Worked** (Decided). Lamp, $80 tag, $35 rewards. Saved and paid $85.60: refund credit $68.48, and the $35 reward credit it earned is taken back. Used today and paid $55.64: refund credit $44.51.
-  - Source: Worked 10-08. Built: n/a.
-- **W6. Not covered** (Decided). Items marked NO THRIFT+ WARRANTY (sold as-is or for parts), clothing and soft goods, 18+ items, crossbows, and items under $5. Never covered: scratches, wear, missing small parts, a change of mind.
-  - Source: 10-01; 10-08 (under $5). Built: Partly.
+- **W4. Rewards the returned item earned** (Decided). The member keeps 20% of them, as if they had bought the item at 20% of its price. 80% is taken back: first from what the item put into this month's cover, then from unspent Rewards, soonest use-by first. If those Rewards were already spent, the refund is reduced by the shortfall; if they already expired, nothing is taken.
+  - Source: Built rule; 10-08; signed 10-09 (keep 20%). Built: Partly (the reversal is built, at 100%).
+- **W5. Worked** (Decided). Lamp, $80 tag, $35 rewards, 7% tax. Took the Full reward and paid $85.60: refund credit $68.48, $28 of Rewards taken back, $7 kept. Took the Instant reward and paid $55.64: refund credit $44.51, nothing to take back.
+  - Source: Worked 10-08; redone 10-09. Built: n/a.
+- **W6. Not covered** (Decided). Only items marked as covered qualify. Never covered: clothing and soft goods, consumables, items without a primary function, parts, items specifically marked AS IS (NO THRIFT+ WARRANTY), and cheap items: $10 or less after the reward (price minus reward). The $10 is a setting. 18+ items and crossbows are **not** excluded as a group: a gun safe or a crossbow whose primary function fails can be covered; processing decides item by item (W10).
+  - Source: 10-01; signed 10-09 ($10 after the reward replaces "under $5"; 18+ and crossbows taken off the list). Built: Partly.
+- **W10. Who decides what is covered** (Decided). Processing (with AI) marks each item covered or not when it is priced; the mark goes on the receipt line (A3).
+  - Source: Signed 10-09. Built: No.
+- **W11. Settled on the return day** (Decided). A return never reopens past trips. On the return day the store refunds 80% of what was paid (W3), takes back 80% of the rewards the item earned (W4), and records it all as a new transaction that day. No earlier receipt, monthly cover or tax report changes.
+  - Source: Claude, at your word 10-09 (instead of replaying every later event). Built: No.
+- **W12. Where a return happens** (Decided). At the register: a return is a line added to the cart. Not a separate page or app. **No swaps:** a return is never an exchange for another item; the refund goes to Thrift+ credit (W3).
+  - Source: Signed 10-09. Built: No.
+- **W13. The return lookup** (Decided). Fast, from a **Return** button, never by scanning the item to see if it was sold. Normal path: click, scan, click, click.
+  1. **Return** on the register. It uses the Thrift+ member already on the cart; otherwise scan their card, or find them another quick way (for example the last 4 of their phone).
+  2. Their past trips show as a list, newest first: trip number, date, number of items. Each trip opens like a drawer to show its items. When the date is known, it is one click to the trip and one to the item.
+  3. One search box over the list: the trip number (scannable from the receipt), an item number, or words from the item's description (as in inventory). Every trip with a match opens, showing the matching items.
+  4. Click the item. The return line shows whether it qualifies (W1, W2, W6) and why not when it doesn't.
+  - Source: Signed 10-09. Built: No.
 - **W7. Making a claim** (Decided). Bring the item with the card or phone number; staff check the main function; a manager reviews any no.
   - Source: 10-01. Built: Partly.
 - **W8. Where the full text lives** (Decided). Printed at every register and at ecothrift.us/thriftplus/warranty, version-dated, old versions kept. Eco-Thrift LLC, 8425 West Center Road, Omaha, NE 68124, (402) 881-9861.
@@ -157,8 +173,8 @@
   - Source: Claude, at your word 10-08. Built: No.
 - **A3. Receipts and the app** (Decided). Member receipts mark each line Limited Warranty or AS IS; guest receipts say all AS IS; the scanner says it too.
   - Source: 10-08. Built: No.
-- **A4. Store signs** (Decided). The three signs (Prices at racks, Returns with a bold SOLD AS IS box at registers, Meet Thrift+ at the entrance), plus three small area signs in clothing, 18+ and crossbows: "NO THRIFT+ WARRANTY. Sold as is to everyone. Final sale."
-  - Source: Claude, at your word 10-08 (legal review). Built: n/a.
+- **A4. Store signs** (Decided). The three signs (Prices at racks, Returns with a bold SOLD AS IS box at registers, Meet Thrift+ at the entrance), plus a small area sign in clothing: "NO THRIFT+ WARRANTY. Sold as is to everyone. Final sale." (No area signs in 18+ or crossbows: those items can be covered, W6.)
+  - Source: Claude, at your word 10-08 (legal review); 10-09 (18+ and crossbow signs dropped). Built: n/a.
 
 ## Sales tax and the books
 
@@ -183,8 +199,8 @@
 
 - **V1. Voice** (Decided). What you get now; "it might be gone tomorrow". Never wait / less / pay as the pitch.
   - Source: 10-07. Built: n/a.
-- **V2. Words we never use** (Decided). discount (as the pitch), fee, dues, unlock, cash back, points, clawback, instant rebate, gift card, store credit, Thrift+ Cash, "the longer it waits".
-  - Source: 10-01; 10-07; 10-08. Built: n/a.
+- **V2. Words we never use** (Decided). discount (as the pitch), fee, dues, unlock, cash back, points, clawback, instant rebate, gift card, store credit, Thrift+ Cash, "the longer it waits", "use now", "bank" or "banked", "20% less" (say "80% of").
+  - Source: 10-01; 10-07; 10-08; 10-09. Built: n/a.
 - **V3. Tagline** (Decided). Every find earns Rewards.
   - Customer words: "Every find earns Rewards."
   - Source: Claude, at your word 10-08. Built: n/a.
@@ -203,6 +219,16 @@
 
 - **X1. Email-first, no texts, no boxes** (Decided). No text messages. Members who give an email get receipts and Thrift+ updates, and store news they can turn off (the unsubscribe link in every news email, My account, or the register). Only turning off is recorded.
   - Source: Bill via master 10-08 (T73, T74). Built: Yes (v2.155.1).
+
+## Owner-only authorizations
+
+*Things only the owner may approve. Kept in one list so any of them can be handed to someone later.*
+
+- **O1. The list** (Decided). Only Bill, for now:
+  - a Limited Warranty claim after 7 days, only when the store was closed (W2);
+  - confirming a family, and changing its pace, pausing it or breaking it apart (P6);
+  - resuming an item's old age after back stock (P5).
+  - Source: Signed 10-09. Built: No (Dash should log each approval: who asked, who approved, when, why).
 
 ## Staff memberships (code)
 

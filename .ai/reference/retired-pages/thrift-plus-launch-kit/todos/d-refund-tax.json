@@ -1,0 +1,17 @@
+{
+  "cat": "decisions",
+  "choice": "Yes: that % of everything they paid",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "Either way the store gets the refunded tax back on its tax return. The first is the easiest to explain.",
+  "due": "2026-10-09",
+  "note": "",
+  "options": [
+    "Yes: that % of everything they paid",
+    "No: that % of the price, plus the tax on it"
+  ],
+  "order": 11,
+  "status": "done",
+  "title": "Does that % include the sales tax?",
+  "updatedAt": "2026-10-08T15:23:23.338Z",
+  "who": "Bill"
+}

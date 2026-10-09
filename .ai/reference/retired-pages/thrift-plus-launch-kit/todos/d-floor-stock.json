@@ -1,0 +1,12 @@
+{
+  "cat": "decisions",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "Your call alone, after trying it in Dash: Thrift+, Calculator.",
+  "due": "2026-10-13",
+  "note": "general discount will start at .75% a day.  and the jump start is:\n\nmax (45 days old);  and calculate at 50% real age.  so  max(real_age/2, 45)\n\nbut I will need some type of way to watch this and even see future prices for each item.  the outstanding issues:\n\nhow does the current thrift+ pricing fit with this new design (this is just for current and new stock will have the other formula)  or are we deciding the new formula...\n\nalso, what is our current and long term plan for items with a lot of duplicates and similar items on the shelf (or items with back stock).  ALSO  we have items in back stock (anything NOT scanned in last inventory (or processed sence)  should assumed to be eithger Shrink OR backstock)  SO anything not scanned and not priocessed since should NOT discount.  \n\nwe need to figure out the plan for not discounting stock that is in the back and moved to the floor.  does is match recent similar items discounts or does it start at day 0...\n",
+  "order": 17,
+  "status": "done",
+  "title": "Member Price for stock already on the floor",
+  "updatedAt": "2026-10-08T15:30:11.770Z",
+  "who": "Bill"
+}

@@ -1,0 +1,15 @@
+{
+  "built": "No",
+  "choice": "",
+  "code": "B13",
+  "note": "",
+  "options": [],
+  "order": 31,
+  "rule": "My account lists each saved amount with its use-by date, soonest first, and the refund credit apart. Members with an email get one reminder 5 days before rewards expire (after launch).",
+  "sec": "bank",
+  "source": "Your picks 10-08; reminder by Claude",
+  "status": "decided",
+  "title": "Seeing it, and a reminder",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": ""
+}

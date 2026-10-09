@@ -1,0 +1,18 @@
+{
+  "cat": "decisions",
+  "choice": "",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "The legal memo says members should be able to predict their price. Your rule: the schedule is never published. Middle way: general words in the terms, no numbers.",
+  "due": "2026-10-09",
+  "note": "I am not sure the need.  discounts are black box.... so what should member be able to predict?",
+  "options": [
+    "General words in the terms, no numbers",
+    "Publish the full schedule",
+    "Say nothing"
+  ],
+  "order": 15,
+  "status": "done",
+  "title": "Do we tell members how Member Price is figured?",
+  "updatedAt": "2026-10-08T15:30:48.281Z",
+  "who": "Bill"
+}

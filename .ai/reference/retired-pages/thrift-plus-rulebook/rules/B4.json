@@ -1,0 +1,15 @@
+{
+  "built": "n/a",
+  "choice": "",
+  "code": "B4",
+  "note": "",
+  "options": [],
+  "order": 29,
+  "rule": "No limit on saved rewards: the 30-day expiry already keeps reward credit small.",
+  "sec": "bank",
+  "source": "Follows your 30 days, 10-08",
+  "status": "decided",
+  "title": "No cap",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": ""
+}

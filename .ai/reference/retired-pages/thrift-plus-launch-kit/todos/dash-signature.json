@@ -1,0 +1,11 @@
+{
+  "cat": "dash",
+  "createdAt": "2026-10-08T15:00:00Z",
+  "detail": "Your pick: sign on screen. A signature box under the short acknowledgment ('I have access to the full details', with the QR). The card is not ready until it is signed.",
+  "due": "2026-10-12",
+  "note": "",
+  "order": 14,
+  "status": "todo",
+  "title": "Signature on the touch screen at signup",
+  "who": "Claude"
+}

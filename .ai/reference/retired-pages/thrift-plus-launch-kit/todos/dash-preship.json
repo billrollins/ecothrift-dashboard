@@ -1,0 +1,11 @@
+{
+  "cat": "dash",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "Everything ships behind the Thrift+ switch. The register must never break.",
+  "due": "2026-10-14",
+  "note": "",
+  "order": 10,
+  "status": "todo",
+  "title": "Final full test run (register included) and the launch releases",
+  "who": "Claude"
+}

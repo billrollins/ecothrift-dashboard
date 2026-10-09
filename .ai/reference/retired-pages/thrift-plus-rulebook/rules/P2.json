@@ -1,0 +1,15 @@
+{
+  "built": "No (screens say \"Member Price\" today)",
+  "choice": "",
+  "code": "P2",
+  "note": "",
+  "options": [],
+  "order": 18,
+  "rule": "\"Rewards\" everywhere members look. \"Member price\" only as a plain description (the tag minus rewards used today).",
+  "sec": "price",
+  "source": "Your message 10-08",
+  "status": "decided",
+  "title": "The word members see",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": ""
+}

@@ -1,0 +1,11 @@
+{
+  "cat": "dash",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "The Thrift+ receipt block. Built after the receipt pick (Creatives).",
+  "due": "2026-10-12",
+  "note": "",
+  "order": 9,
+  "status": "todo",
+  "title": "Print server 1.9.0: build it",
+  "who": "Claude"
+}

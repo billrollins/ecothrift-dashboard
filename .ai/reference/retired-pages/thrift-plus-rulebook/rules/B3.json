@@ -1,0 +1,15 @@
+{
+  "built": "No",
+  "choice": "",
+  "code": "B3",
+  "note": "",
+  "options": [],
+  "order": 28,
+  "rule": "Thrift+ credit (refund money) is always used first, automatically, up to the whole total, as a payment after tax. Rewards apply only to what is left: first any saved Rewards the member chooses to use (soonest use-by date first), then today's rewards at 80%. Because rewards come off before tax, the register works out the rewards so that the Thrift+ credit is spent in full first. If the Thrift+ credit covers the whole total, no rewards are used that trip: today's rewards are saved in full and saved Rewards stay saved. Rewards can't pay for consignment items; Thrift+ credit can. Items bought with credit or Rewards still earn rewards.",
+  "sec": "bank",
+  "source": "Your rule 10-08",
+  "status": "decided",
+  "title": "Spending: Thrift+ credit always first",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": "Thrift+ credit is always used first."
+}

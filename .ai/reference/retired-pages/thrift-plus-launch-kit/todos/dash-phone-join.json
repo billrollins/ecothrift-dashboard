@@ -1,0 +1,11 @@
+{
+  "cat": "dash",
+  "createdAt": "2026-10-09T00:30:00Z",
+  "detail": "Your answer 10-08 (Rulebook J8), ready for 10-20. On their phone a shopper fills in name, phone and email and takes their photo; at the register they show a driver's license or photo ID and sign the screen; staff check the ID against the photo and scan a card.",
+  "due": "2026-10-14",
+  "note": "",
+  "order": 20,
+  "status": "todo",
+  "title": "Join from a phone: start on the phone, finish at the register",
+  "who": "Claude"
+}

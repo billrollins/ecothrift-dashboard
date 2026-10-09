@@ -1,0 +1,15 @@
+{
+  "built": "No",
+  "choice": "",
+  "code": "T5",
+  "note": "",
+  "options": [],
+  "order": 56,
+  "rule": "Go: the register taxes by these rules, as part of the form 5 build.",
+  "sec": "tax",
+  "source": "Claude, at your word 10-08",
+  "status": "decided",
+  "title": "The register change",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": ""
+}

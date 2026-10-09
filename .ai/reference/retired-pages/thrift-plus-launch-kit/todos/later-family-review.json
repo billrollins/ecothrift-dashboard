@@ -1,0 +1,12 @@
+{
+  "cat": "dash",
+  "createdAt": "2026-10-08T16:00:00Z",
+  "detail": "Your answer 10-08. A daily review of each family: members, sales, and why its discount held or grew. Per family: set a sell target (e.g. sell 300 of 900 in 90 days) or pause discounting. Clear floor vs back stock counts. Also: should outside items join, should loose items group (Rulebook P6).",
+  "due": "2026-10-14",
+  "note": "",
+  "order": 30,
+  "status": "todo",
+  "title": "Before launch: family review and controls",
+  "updatedAt": "2026-10-08T20:30:00Z",
+  "who": "Claude"
+}

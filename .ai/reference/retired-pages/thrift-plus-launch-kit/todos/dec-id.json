@@ -1,0 +1,11 @@
+{
+  "cat": "decisions",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "Staff check ID every time.",
+  "due": "2026-10-07",
+  "note": "Owners' meeting 10-07",
+  "order": 7,
+  "status": "done",
+  "title": "Thrift+ is never a shortcut for the ID check on 18+ items",
+  "who": "Bill"
+}

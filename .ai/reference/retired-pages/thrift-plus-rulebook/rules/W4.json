@@ -1,0 +1,15 @@
+{
+  "built": "Partly (the reversal is built)",
+  "choice": "",
+  "code": "W4",
+  "note": "",
+  "options": [],
+  "order": 42,
+  "rule": "They are taken back: first from what the item put into this month's cover, then from unspent reward credit. If that credit was already spent, the refund is reduced by it; if it already expired, nothing is taken.",
+  "sec": "warranty",
+  "source": "Built rule; 10-08",
+  "status": "decided",
+  "title": "Rewards the returned item earned",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": ""
+}

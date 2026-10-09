@@ -1,0 +1,15 @@
+{
+  "built": "Yes",
+  "choice": "",
+  "code": "J7",
+  "note": "",
+  "options": [],
+  "order": 14,
+  "rule": "Membership never replaces the ID check: ID every time.",
+  "sec": "join",
+  "source": "Meeting 10-07",
+  "status": "decided",
+  "title": "18+ items",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": "18+ items: ID checked every time."
+}

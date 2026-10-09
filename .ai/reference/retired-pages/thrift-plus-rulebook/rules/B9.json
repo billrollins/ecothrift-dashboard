@@ -1,0 +1,15 @@
+{
+  "built": "Partly (Overview shows owed)",
+  "choice": "",
+  "code": "B9",
+  "note": "",
+  "options": [],
+  "order": 35,
+  "rule": "Reward credit lasts 30 days, so what is owed stays small; cash equal to unspent refund credit sits in a separate account; the terms can end rewards going forward (B10); Dash shows both totals owed every day.",
+  "sec": "bank",
+  "source": "Your question 10-08",
+  "status": "decided",
+  "title": "Wind-down safeguards",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": ""
+}

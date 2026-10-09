@@ -1,0 +1,17 @@
+{
+  "cat": "decisions",
+  "choice": "After the 7-day wait (as now)",
+  "createdAt": "2026-10-08T15:00:00Z",
+  "detail": "Example, an item counted as day 45 at launch: after the wait = 28.5% off; from day 1 = 33.75% off.",
+  "due": "2026-10-09",
+  "note": "",
+  "options": [
+    "After the 7-day wait (as now)",
+    "From day 1"
+  ],
+  "order": 21,
+  "status": "done",
+  "title": "Follow-up: does the 0.75% start on day 1, or after the 7-day wait (as now)?",
+  "updatedAt": "2026-10-08T15:37:51.712Z",
+  "who": "Bill"
+}

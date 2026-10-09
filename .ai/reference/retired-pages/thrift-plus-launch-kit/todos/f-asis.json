@@ -1,0 +1,17 @@
+{
+  "cat": "decisions",
+  "choice": "",
+  "createdAt": "2026-10-08T15:00:00Z",
+  "detail": "No stamps. Everything is sold AS IS, said at the entrance and every register. The receipt marks which lines a member's Limited Warranty covers; Dash decides from the item (for parts, untested and other no-warranty words already in Settings). Staff mark nothing.",
+  "due": "2026-10-09",
+  "note": "Yes we will say on reciept and the scanner app.  the signes i plan on puttin up are two,  all of them Member VS Guest:\nprices and Returns.  a third will be a general description of Thrift+ So all disclaimers will be on there.",
+  "options": [
+    "Yes, signs and receipts only",
+    "Something else (write it in the note)"
+  ],
+  "order": 26,
+  "status": "done",
+  "title": "Follow-up: AS IS with no new tags: signs and receipts decide",
+  "updatedAt": "2026-10-08T15:53:00.132Z",
+  "who": "Bill"
+}

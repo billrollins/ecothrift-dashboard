@@ -1,0 +1,11 @@
+{
+  "cat": "printing",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "Claude builds it; someone runs the installer at each register.",
+  "due": "2026-10-12",
+  "note": "",
+  "order": 5,
+  "status": "todo",
+  "title": "Install print server 1.9.0 on every register computer",
+  "who": "Staff"
+}

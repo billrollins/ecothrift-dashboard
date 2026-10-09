@@ -1,0 +1,11 @@
+{
+  "cat": "dash",
+  "createdAt": "2026-10-08T19:00:00Z",
+  "detail": "Built 10-08: a quiet green pill with a scan mark in the site header, opening the Thrift+ price scanner (/scan). On phones it takes the wide spot in the header row. It appears only while Thrift+ is switched on. Ships with the next release.",
+  "due": "2026-10-12",
+  "note": "",
+  "order": 17,
+  "status": "doing",
+  "title": "'Price check' button on every page of ecothrift.us",
+  "who": "Claude"
+}

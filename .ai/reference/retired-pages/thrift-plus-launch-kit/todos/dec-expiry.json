@@ -1,0 +1,11 @@
+{
+  "cat": "decisions",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "Gift card balances, banked savings and warranty refunds. Keeps us out of legal grey areas.",
+  "due": "2026-10-07",
+  "note": "Owners' meeting 10-07",
+  "order": 2,
+  "status": "done",
+  "title": "Nothing expires and there are no fees",
+  "who": "Bill"
+}

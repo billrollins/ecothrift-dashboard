@@ -1,0 +1,17 @@
+{
+  "cat": "decisions",
+  "choice": "",
+  "createdAt": "2026-10-08T19:00:00Z",
+  "detail": "All Thrift+ rules are decided in one place now: https://claude.ai/artifact/GpgB6SUsKkiKkNBRJj31W4",
+  "due": "2026-10-09",
+  "note": "",
+  "options": [
+    "Keep the cover (signs say it plainly)",
+    "Drop the cover (signs say Free to join)"
+  ],
+  "order": 29,
+  "status": "done",
+  "title": "Moved to the Thrift+ Rulebook: the $10 cover (C2, C3)",
+  "updatedAt": "2026-10-08T20:30:00Z",
+  "who": "Bill"
+}

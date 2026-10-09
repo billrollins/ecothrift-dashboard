@@ -1,0 +1,15 @@
+{
+  "built": "No (the card design and receipts change)",
+  "choice": "",
+  "code": "B12",
+  "note": "NA since it expires in 30 days like kohls cash",
+  "options": [],
+  "order": 38,
+  "rule": "For rewards that expire, the memo's condition: the word \"Reward\" and the expiry rule printed on the card itself, and each date on receipts and in the app. Card line: \"Thrift+ Rewards: use within 30 days of earning. No cash value.\" No gift cards are sold.",
+  "sec": "bank",
+  "source": "Legal memo accepted by the CPA and attorney 10-01; your OK 10-08 (Q13)",
+  "status": "decided",
+  "title": "Disclosures that make the 30 days work",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": "Thrift+ Rewards: use within 30 days of earning. No cash value."
+}

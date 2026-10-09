@@ -1,0 +1,11 @@
+{
+  "cat": "dash",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "",
+  "due": "2026-10-07",
+  "note": "Shipped 10-07 in v2.145.0, behind the Thrift+ switch (off).",
+  "order": 20,
+  "status": "done",
+  "title": "Customer scanner (/scan) on real prices, with My account",
+  "who": "Claude"
+}

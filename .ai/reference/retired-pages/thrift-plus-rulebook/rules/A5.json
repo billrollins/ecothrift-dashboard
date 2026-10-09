@@ -1,0 +1,19 @@
+{
+  "built": "No",
+  "choice": "",
+  "code": "A5",
+  "createdAt": "2026-10-08T20:00:00Z",
+  "note": "",
+  "options": [
+    "Sticker on those items only",
+    "Dash flag and receipt only"
+  ],
+  "order": 43,
+  "rule": "For items deliberately sold as-is or for parts: a small NO THRIFT+ WARRANTY sticker (10-01), or only the Dash flag and the receipt (10-08: no stamps)?",
+  "sec": "retired",
+  "source": "10-01 #7; 10-08",
+  "status": "decided",
+  "title": "Merged into A2",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": ""
+}

@@ -1,0 +1,15 @@
+{
+  "built": "Yes",
+  "choice": "",
+  "code": "C4",
+  "note": "",
+  "options": [],
+  "order": 7,
+  "rule": "Rewards that go to the cover don't lower the price: the item is taxed at the tag.",
+  "sec": "cover",
+  "source": "Follows C1",
+  "status": "decided",
+  "title": "Cover and taxes",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": ""
+}

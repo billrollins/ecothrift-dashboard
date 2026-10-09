@@ -1,0 +1,11 @@
+{
+  "cat": "decisions",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "Warranty refunds also go on the gift card.",
+  "due": "2026-10-07",
+  "note": "Owners' meeting 10-07",
+  "order": 5,
+  "status": "done",
+  "title": "Banking: your savings buy a gift card refill, plus a 5% bonus",
+  "who": "Bill"
+}

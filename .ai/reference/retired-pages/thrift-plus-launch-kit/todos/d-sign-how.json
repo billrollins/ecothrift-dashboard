@@ -1,0 +1,18 @@
+{
+  "cat": "decisions",
+  "choice": "",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "The signature covers the releases and says they can read the full details. Claude builds whichever you pick.",
+  "due": "2026-10-09",
+  "note": "desktop is touch screen so probably just on screen",
+  "options": [
+    "Signature pad at each register",
+    "A tablet or customer screen",
+    "Paper form, staff tick \"signed\" in Dash"
+  ],
+  "order": 12,
+  "status": "done",
+  "title": "How do members sign at signup?",
+  "updatedAt": "2026-10-08T15:24:24.637Z",
+  "who": "Bill"
+}

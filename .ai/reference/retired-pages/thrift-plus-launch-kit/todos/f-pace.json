@@ -1,0 +1,17 @@
+{
+  "cat": "decisions",
+  "choice": "",
+  "createdAt": "2026-10-08T16:00:00Z",
+  "detail": "Each family aims to sell its starting count ÷ 90 a day (10 units: about 1 every 9 days), whatever the days left. Each night Dash compares the last 14 days' sales (recent days count more) with that aim. At or above the aim: the discount holds. Below it: the discount grows, by up to 0.75% a day, in proportion to how far behind (no sales: 0.75%; half the aim: 0.375%). No deadline jump: day 85 works like day 20. Learning from past sales at past prices comes later, from the data platform.",
+  "due": "2026-10-09",
+  "note": "yes, but the daily review and summary for Owner to be able to see clearly the familys and their sales and the decisions of how fast/slow they go needs to be there.  ALSO, owner should be able to set the x days to sell the items.  say there are 900 on shelf.  owner shuld be able to say sell 300 in 90 days.  or something.  Then owner should be able to pause discounting.  should also be very clear on the # in overstock/back stock vs on the floor.  \n\nin this same group we need a page to mark items as on floor from backstock.  AND be able to suggest to retail othems that need to migrate from either floor to back stock or vice versa.  \n",
+  "options": [
+    "Yes, build that",
+    "I'll send my own equation (note)"
+  ],
+  "order": 27,
+  "status": "done",
+  "title": "Follow-up: the smooth pacing rule (your survival idea)",
+  "updatedAt": "2026-10-08T15:58:42.180Z",
+  "who": "Bill"
+}

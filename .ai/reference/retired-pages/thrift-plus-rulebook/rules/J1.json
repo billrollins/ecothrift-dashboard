@@ -1,0 +1,15 @@
+{
+  "built": "Partly (the age rule is not enforced yet)",
+  "choice": "",
+  "code": "J1",
+  "note": "",
+  "options": [],
+  "order": 8,
+  "rule": "18 or older. Up to 2 adults per membership; both must be there to add the second, and the primary approves. Both share one Thrift+ credit balance.",
+  "sec": "join",
+  "source": "10-08; design 09-25",
+  "status": "decided",
+  "title": "Who can join",
+  "updatedAt": "2026-10-08T23:59:00Z",
+  "words": ""
+}

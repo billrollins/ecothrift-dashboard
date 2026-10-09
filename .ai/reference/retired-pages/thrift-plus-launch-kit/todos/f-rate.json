@@ -1,0 +1,17 @@
+{
+  "cat": "decisions",
+  "choice": "All stock, old and new (one rule)",
+  "createdAt": "2026-10-08T15:00:00Z",
+  "detail": "Today the engine grows the discount by the tag ÷ 90 a day (about 1.1% a day) from day 8. One rule for everything is simpler to watch and to explain to staff.",
+  "due": "2026-10-09",
+  "note": "",
+  "options": [
+    "All stock, old and new (one rule)",
+    "Only stock already on the floor"
+  ],
+  "order": 20,
+  "status": "done",
+  "title": "Follow-up: is 0.75% a day the rule for ALL stock, or only stock already on the floor?",
+  "updatedAt": "2026-10-08T15:37:35.677Z",
+  "who": "Bill"
+}

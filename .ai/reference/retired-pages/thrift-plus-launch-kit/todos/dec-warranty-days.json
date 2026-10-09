@@ -1,0 +1,11 @@
+{
+  "cat": "decisions",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "Was 3. Qualifying items with a qualifying defect (the main function does not work).",
+  "due": "2026-10-07",
+  "note": "Owners' meeting 10-07",
+  "order": 3,
+  "status": "done",
+  "title": "Limited Warranty: 7 days",
+  "who": "Bill"
+}

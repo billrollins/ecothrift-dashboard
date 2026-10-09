@@ -1,0 +1,11 @@
+{
+  "cat": "dash",
+  "createdAt": "2026-10-07T20:00:00Z",
+  "detail": "",
+  "due": "2026-10-07",
+  "note": "Shipped 10-07 in v2.145.0. The switch is off.",
+  "order": 22,
+  "status": "done",
+  "title": "Thrift+ behind one switch in Settings, with a staff preview code",
+  "who": "Claude"
+}

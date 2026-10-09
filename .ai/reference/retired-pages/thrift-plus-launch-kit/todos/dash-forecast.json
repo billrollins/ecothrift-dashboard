@@ -1,0 +1,11 @@
+{
+  "cat": "dash",
+  "createdAt": "2026-10-08T15:00:00Z",
+  "detail": "Your ask. Each item shows its Member Price today and on the coming days (a small table or chart). A watch list shows what changed overnight and what is held for back stock.",
+  "due": "2026-10-13",
+  "note": "",
+  "order": 15,
+  "status": "todo",
+  "title": "Watch Member Prices, and see each item's future prices",
+  "who": "Claude"
+}

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.158.1] -->
-<!-- Last reviewed: 2026-10-09 (2.158.1) -->
+<!-- Line 1 release: ## [2.158.2] -->
+<!-- Last reviewed: 2026-10-09 (2.158.2) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.158.2] - 2026-10-09
+
+User-facing theme: **Thrift+ policy signed (Bill and Carrie): Instant and Full rewards, warranty returns at the register, families wait for the owner. The rulebook is now the only Thrift+ source.** Bill, 2026-10-09. Initiative: thrift_plus_rewards (documents only, no code).
+
+### Changed
+
+- **Rulebook** (`.ai/extended/thrift-plus-decisions.md`): Instant reward (80% of the Full reward) and Full reward (usable sale + 1 to sale + 30); an unfilled cover takes no benefit away; warranty qualifies on primary function only, 7 calendar days, owner-only exceptions when the store was closed; not covered: clothing, consumables, no primary function, parts, marked AS IS, $10 or less after the reward (a setting); 18+ items and crossbows no longer excluded as a group; refunds settled on the return day (80% back as Thrift+ credit, rewards used come back with a fresh 30 days, the member keeps 20% of the rewards the item earned); returns as a cart line from a Return button with a fast member, trip and item lookup, no swaps; launch stock at one third of its age (max 45 days); back stock age freezes and resets; families earn nothing until the owner confirms them; a new owner-only authorizations list.
+- **Retired pages:** the Thrift+ rulebook, launch kit, warranty review, legal memo and 09-17 card poster pages are saved in `.ai/reference/retired-pages/` before deletion. Only the final forms grid page stays.
 
 ## [2.158.1] - 2026-10-09
 
