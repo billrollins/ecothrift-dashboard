@@ -147,11 +147,47 @@ class IsPasswordMember(BasePermission):
 
 # ── Ways in ────────────────────────────────────────────────────────────────────
 
+def _staff_person(key: str, password: str) -> Person | None:
+    """A staff member signs in to the scanner with their Dash email (or username) and password. They land on
+    their own staff membership, made on the first sign-in (J6: staff memberships are their own accounts)."""
+    from django.contrib.auth import authenticate, get_user_model
+
+    from apps.accounts.services import lockout
+    from apps.accounts.services.usernames import is_staff_user
+
+    User = get_user_model()
+    if lockout.is_locked(key, None):
+        raise AuthError('LOCKED', 'Too many tries. Wait 15 minutes, then try again.')
+    email = key
+    if '@' not in key:
+        email = User.objects.filter(username=key).values_list('email', flat=True).first() or key
+    user = authenticate(username=email, password=password or '')
+    if user is None or not user.is_active or not is_staff_user(user):
+        lockout.record_failure(key, None)
+        return None
+    lockout.clear(key)
+    account = Account.objects.filter(staff_user=user).first()
+    if account is None:
+        with transaction.atomic():
+            account = Account.objects.create(staff_user=user, created_by=user, notes='Made when this staff member signed in to the scanner.')
+            Person.objects.create(
+                account=account, role=Person.ROLE_PRIMARY,
+                first_name=(user.first_name or email.split('@')[0])[:80], last_name=(user.last_name or '')[:80],
+                email=(user.email or '').strip().lower(),
+            )
+    return account.people.filter(role=Person.ROLE_PRIMARY, removed_at__isnull=True).first() or account.people.filter(removed_at__isnull=True).first()
+
+
 def sign_in_password(login: str, password: str) -> Person:
     key = (login or '').strip().lower()
     row = MemberLogin.objects.select_related('person__account').filter(email=key).first() or \
         MemberLogin.objects.select_related('person__account').filter(username=key).first()
-    ok = row is not None and check_password(password or '', row.password)
+    if row is None:
+        person = _staff_person(key, password)
+        if person is not None and _usable(person):
+            return person
+        raise AuthError('BAD_LOGIN', "That email or password isn't right.")
+    ok = check_password(password or '', row.password)
     if not ok or not _usable(row.person):
         raise AuthError('BAD_LOGIN', "That email or password isn't right.")
     return row.person

@@ -106,7 +106,7 @@ function PasswordForm({ run, busy, onForgot }: { run: (fn: () => Promise<unknown
       }}
     >
       <Title>Sign in</Title>
-      <Sub>Use the email on your Thrift+ account, or your username.</Sub>
+      <Sub>Use the email on your Thrift+ account, or your username. Staff: your Dash email and password.</Sub>
       <Field>
         <InputBase
           autoFocus

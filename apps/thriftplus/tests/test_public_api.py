@@ -14,7 +14,7 @@ from rest_framework.test import APIClient
 from apps.accounts.models import User
 from apps.core.models import AppSetting
 from apps.inventory.models import Item, Product
-from apps.thriftplus.models import AppCart, ItemReward, MemberLogin, MemberSession, ScanSignal
+from apps.thriftplus.models import Account, AppCart, ItemReward, MemberLogin, MemberSession, ScanSignal
 from apps.thriftplus.services import cards, member_auth, members, scanner
 
 D = Decimal
@@ -105,6 +105,28 @@ class PublicApiTests(TestCase):
         state = ItemReward.objects.get(item=self.lamp)
         self.assertEqual((state.passes, state.feedback), (1, {'too_high': 1}))
         self.assertEqual(ScanSignal.objects.filter(kind='feel').get().detail['would_pay'], '70.00')
+
+    def test_a_staff_member_signs_in_to_the_scanner_with_their_dash_email_and_gets_their_own_membership(self):
+        staff = User.objects.create_user(email='sam@ecothrift.us', password='correct-horse-9', first_name='Sam', last_name='Staff')
+        staff.groups.add(Group.objects.get_or_create(name='Employee')[0])
+        bad = self.api.post(BASE + 'session/password/', {'login': 'sam@ecothrift.us', 'password': 'nope'}, format='json')
+        self.assertEqual(bad.status_code, 401)
+        ok = self.api.post(BASE + 'session/password/', {'login': 'Sam@EcoThrift.us', 'password': 'correct-horse-9'}, format='json')
+        self.assertEqual(ok.status_code, 200, ok.content)
+        self.assertEqual(ok.json()['status'], 'member')
+        self.assertEqual(ok.json()['member']['first_name'], 'Sam')
+        account = Account.objects.get(staff_user=staff)
+        self.assertEqual(account.people.count(), 1)
+        again = self.api.post(BASE + 'session/password/', {'login': 'sam@ecothrift.us', 'password': 'correct-horse-9'}, format='json')
+        self.assertEqual(again.status_code, 200)
+        self.assertEqual(Account.objects.filter(staff_user=staff).count(), 1)   # the membership is made once
+
+    def test_a_customer_account_is_not_a_staff_sign_in_to_the_scanner(self):
+        shopper = User.objects.create_user(email='shopper@example.com', password='correct-horse-9', first_name='Shop', last_name='Per')
+        shopper.groups.add(Group.objects.get_or_create(name='Customer')[0])
+        res = self.api.post(BASE + 'session/password/', {'login': 'shopper@example.com', 'password': 'correct-horse-9'}, format='json')
+        self.assertEqual(res.status_code, 401)
+        self.assertFalse(Account.objects.filter(staff_user=shopper).exists())
 
     def test_a_card_session_sets_up_a_login_once_and_the_reset_link_signs_out_every_phone(self):
         self._card_sign_in()

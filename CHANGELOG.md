@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.158.0] -->
-<!-- Last reviewed: 2026-10-08 (2.158.0) -->
+<!-- Line 1 release: ## [2.158.1] -->
+<!-- Last reviewed: 2026-10-09 (2.158.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.158.1] - 2026-10-09
+
+User-facing theme: **Staff sign in to the Thrift+ scanner with their Dash email and password; the online-shop password change asks for the current password.** Bill, 2026-10-09. Initiative: thrift_plus_rewards (scanner), and outside initiatives (online-shop account).
+
+### Fixed
+
+- **Scanner: staff sign-in.** A staff member (Admin, Manager, Employee) signs in on the scanner's sign-in screen with their Dash email (or username) and password. It lands on their own staff membership, made the first time they sign in (rulebook J6). The same lockout as Dash applies (5 wrong tries, 15 minutes). A shop customer's password is not a staff sign-in.
+- **Online shop: Change password.** The form sent no current password, so the server answered "Current password is incorrect." every time for an account that already had a password. It now has a Current password field (leave it empty right after signing in with an email link).
+
+### Tests
+
+- `apps/thriftplus/tests/test_public_api.py` (2): a staff member signs in with their Dash email and gets one membership (made once); a shop customer's password is refused as a staff sign-in.
 
 ## [2.158.0] - 2026-10-08
 

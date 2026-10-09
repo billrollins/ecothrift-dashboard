@@ -25,6 +25,7 @@ export default function AccountOverviewPage() {
   const [params] = useSearchParams()
 
   const [password, setPasswordValue] = useState('')
+  const [oldPassword, setOldPassword] = useState('')
   const [passwordBusy, setPasswordBusy] = useState(false)
   const [passwordMsg, setPasswordMsg] = useState<string | null>(null)
   const [passwordError, setPasswordError] = useState<string | null>(null)
@@ -49,9 +50,10 @@ export default function AccountOverviewPage() {
     setPasswordError(null)
     setPasswordMsg(null)
     try {
-      await setPassword({ password })
+      await setPassword(oldPassword ? { password, old_password: oldPassword } : { password })
       setPasswordMsg('Password saved.')
       setPasswordValue('')
+      setOldPassword('')
       setShowPasswordCard(false)
       clearPasswordPrompt()
     } catch (err) {
@@ -190,12 +192,26 @@ export default function AccountOverviewPage() {
                 : 'Optional. Keep using email links, or save a password for next time.'}
             </p>
             <form className="checkout-form" onSubmit={onSavePassword}>
+              {hasPassword && (
+                <label className="field">
+                  <span>Current password</span>
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    value={oldPassword}
+                    onChange={(e) => setOldPassword(e.target.value)}
+                    disabled={passwordBusy}
+                  />
+                  <small className="acct__hint">Leave this empty if you just signed in with an email link.</small>
+                </label>
+              )}
               <label className="field">
                 <span>{hasPassword ? 'New password' : 'Password'}</span>
                 <input
                   type="password"
                   required
                   minLength={6}
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPasswordValue(e.target.value)}
                   disabled={passwordBusy}
