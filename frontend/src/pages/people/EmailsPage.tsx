@@ -528,6 +528,10 @@ export default function EmailsPage() {
             fullWidth
             disabled={!editing}
           />
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+            How it looks: a short first line shows in bold at the top, and a line like
+            "Pick your interview time: {'{link}'}" shows as one button with those words (keep them short).
+          </Typography>
           {editing && (
             <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 1 }}>
               <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5, alignSelf: 'center' }}>

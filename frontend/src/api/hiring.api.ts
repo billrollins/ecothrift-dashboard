@@ -484,6 +484,10 @@ export const inviteToInterview = (id: number, send: boolean, email?: EmailChoice
     email,
   });
 export const previewInvite = (id: number) => previewPost(`/hiring/applications/${id}/invite/`, { send: true });
+/** The optional "Don't miss out" email: they have the link but have not booked (Bill, 2026-10-09). */
+export const remindToBook = (id: number, email?: EmailChoice) =>
+  api.post<{ link: string; sent: boolean; application: ApplicationDetail }>(`/hiring/applications/${id}/remind-to-book/`, { email });
+export const previewRemindToBook = (id: number) => previewPost(`/hiring/applications/${id}/remind-to-book/`, {});
 export const getInterviews = (params: { when?: 'today' | 'upcoming' | 'past' | ''; application?: number }) =>
   api.get<Interview[]>('/hiring/interviews/', { params });
 /** Bookable times: only what a manager opened, and (with ``application``) only for that applicant's roles. */
@@ -570,6 +574,7 @@ export const EMAIL_TEMPLATES: { key: string; label: string; group: string; to: s
   { key: 'received', group: 'Applying', label: 'Auto-reply', to: 'Applicant', when: 'Right after they apply.' },
   { key: 'alert', group: 'Applying', label: 'New application alert', to: 'You (notify) and the hiring manager', when: 'Right after someone applies.' },
   { key: 'interview_invite', group: 'Interviews', label: 'Interview link', to: 'Applicant', when: 'When you press Email interview link.' },
+  { key: 'interview_nudge', group: 'Interviews', label: "Don't miss out (reminder to book)", to: 'Applicant', when: 'Only when you press Remind them to book (they have the link but have not booked).' },
   { key: 'interview_booked', group: 'Interviews', label: 'Interview booked', to: 'Applicant (with calendar file)', when: 'When they or you book a time.' },
   { key: 'interview_changed', group: 'Interviews', label: 'Interview moved', to: 'Applicant (with calendar file)', when: 'When the time changes.' },
   { key: 'interview_cancelled', group: 'Interviews', label: 'Interview cancelled', to: 'Applicant', when: 'When it is cancelled.' },

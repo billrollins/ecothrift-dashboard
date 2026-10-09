@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-07 (Phase 6 texts, held until live; Phase 5 check-ins, Applicants timeline, read-before-send) -->
+<!-- Last updated: 2026-10-09 (HTML look for every hiring email; the optional "Don't miss out" reminder to book) -->
 # Hiring
 
 The careers page, applications, and the People workspace. Design and phases: [`initiatives/hiring_onboarding.md`](../initiatives/hiring_onboarding.md).
@@ -51,7 +51,7 @@ The careers page, applications, and the People workspace. Design and phases: [`i
   - `/api/hiring/interviews/` (list `when=today|upcoming|past`, create = staff book, `reschedule`, `interviewer`, `cancel`, `no-show`, `scorecard {answers, overall, lead_potential, notes, done}`, `open-times`);
   - `GET/POST /api/hiring/interview-days/` (`?from&to` → per date: blocks, jobs, booked; POST `{dates, blocks, jobs}` replaces those days' openings, empty blocks closes them) and the older `/api/hiring/interview-times/`;
   - pages: `frontend/src/pages/people/InterviewsPage.tsx`, `InterviewAvailability.tsx` and `interviewUi.tsx`.
-- **Emails** (careers file): `interview_invite`, `interview_booked`, `interview_changed`, `interview_cancelled`, `interview_reminder`, and `interview_notice` (to the interviewer and the hiring manager). The applicant's and the staff copies carry `interview.ics`.
+- **Emails** (careers file): `interview_invite`, `interview_nudge` (optional "Don't miss out": staff press **Remind them to book** when the applicant has the link but no interview; `POST applications/<id>/remind-to-book/`, reviewed before it goes), `interview_booked`, `interview_changed`, `interview_cancelled`, `interview_reminder`, and `interview_notice` (to the interviewer and the hiring manager). The applicant's and the staff copies carry `interview.ics`. **Every hiring email also goes as HTML** (`emails.html_body`, Bill 2026-10-09): plain and professional (no cards or colour bands): a short first line (no closing comma or period) shows in bold at the top, the first paragraph that is just "Short words: <link>" is one small green button (words up to 32 characters, never wrapping; later or longer ones are plain links), and any other address is a link; the plain text keeps the same words. Migration `0015` moved the saved interview-link email to the new look (only if untouched).
 - **Reminders:** `send_due_reminders()` runs inside `sync_ms_mailbox` (every 10 minutes): one per interview, when it is between 1 and 24 hours away. A booking made less than 24 hours ahead gets no reminder.
 - **Defaults:** careers `defaults.hiring_manager` and `defaults.interviewers` (staff emails) seed new roles. A new interview's interviewer is the role's first interviewer, then the default interviewer, then the hiring manager.
 

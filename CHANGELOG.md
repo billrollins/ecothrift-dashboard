@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.158.2] -->
-<!-- Last reviewed: 2026-10-09 (2.158.2) -->
+<!-- Line 1 release: ## [2.159.0] -->
+<!-- Last reviewed: 2026-10-09 (2.159.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,24 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.159.0] - 2026-10-09
+
+User-facing theme: **Hiring emails that are clear and professional: a short bold top line and one "Pick your interview time" button instead of a long web address, and a new optional "Don't miss out" email for applicants who haven't booked.** Bill, 2026-10-09; outside initiatives (hiring).
+
+### Added
+
+- **"Don't miss out" reminder (optional):** on an applicant who has the interview link but no interview, **Remind them to book** (the first button) emails "Don't miss out: book your interview" with the same private link and one "Pick your interview time" button. It is read before it goes, like the link email, and logged on their timeline. Edit its words in People > Emails ("Don't miss out (reminder to book)").
+
+### Changed
+
+- **Every hiring email now has a plain, professional HTML version** (white page, no cards or colour bands): a short first line shows in bold at the top, and the first "Short words: {link}" line shows as one small green button with those words, on one line (a later one, or longer words, is a plain link); every other address is a link. Email apps that show only text get the same words.
+- **The interview link email:** "We'd like to meet you" in bold at the top, then one "Pick your interview time" button. Your saved copy moves to the new look on deploy (migration `0015`, only because it was still the original words).
+- **People > Emails:** a line under each email says how to make the bold top line and the button.
+
+### Tests
+
+- `apps/hiring/tests/test_hiring.py` (+3): the link email's bold top line and its one short button; the reminder only between the link and a booking, reviewed and logged; the saved email moves only when untouched. Hiring suite 107 green.
 
 ## [2.158.2] - 2026-10-09
 

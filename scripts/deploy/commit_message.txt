@@ -1,10 +1,19 @@
-v2.158.2 — Thrift+ policy signed into the rulebook; old Thrift+ pages saved and retired
+v2.159.0 — Hiring emails: one short "Pick your interview time" button, and an optional "Don't miss out" reminder to book
 
-User-facing theme: **Thrift+ policy signed (Bill and Carrie): Instant and Full rewards, warranty returns at the register, families wait for the owner. The rulebook is now the only Thrift+ source.** Bill, 2026-10-09. Initiative: thrift_plus_rewards (documents only, no code).
+User-facing theme: **Hiring emails that are clear and professional: a short bold top line and one "Pick your interview time" button instead of a long web address, and a new optional "Don't miss out" email for applicants who haven't booked.** Bill, 2026-10-09; outside initiatives (hiring).
+
+### Added
+
+- **"Don't miss out" reminder (optional):** on an applicant who has the interview link but no interview, **Remind them to book** (the first button) emails "Don't miss out: book your interview" with the same private link and one "Pick your interview time" button. It is read before it goes, like the link email, and logged on their timeline. Edit its words in People > Emails ("Don't miss out (reminder to book)").
 
 ### Changed
 
-- **Rulebook** (`.ai/extended/thrift-plus-decisions.md`): Instant reward (80% of the Full reward) and Full reward (usable sale + 1 to sale + 30); an unfilled cover takes no benefit away; warranty qualifies on primary function only, 7 calendar days, owner-only exceptions when the store was closed; not covered: clothing, consumables, no primary function, parts, marked AS IS, $10 or less after the reward (a setting); 18+ items and crossbows no longer excluded as a group; refunds settled on the return day (80% back as Thrift+ credit, rewards used come back with a fresh 30 days, the member keeps 20% of the rewards the item earned); returns as a cart line from a Return button with a fast member, trip and item lookup, no swaps; launch stock at one third of its age (max 45 days); back stock age freezes and resets; families earn nothing until the owner confirms them; a new owner-only authorizations list.
-- **Retired pages:** the Thrift+ rulebook, launch kit, warranty review, legal memo and 09-17 card poster pages are saved in `.ai/reference/retired-pages/` before deletion. Only the final forms grid page stays.
+- **Every hiring email now has a plain, professional HTML version** (white page, no cards or colour bands): a short first line shows in bold at the top, and the first "Short words: {link}" line shows as one small green button with those words, on one line (a later one, or longer words, is a plain link); every other address is a link. Email apps that show only text get the same words.
+- **The interview link email:** "We'd like to meet you" in bold at the top, then one "Pick your interview time" button. Your saved copy moves to the new look on deploy (migration `0015`, only because it was still the original words).
+- **People > Emails:** a line under each email says how to make the bold top line and the button.
+
+### Tests
+
+- `apps/hiring/tests/test_hiring.py` (+3): the link email's bold top line and its one short button; the reminder only between the link and a booking, reviewed and logged; the saved email moves only when untouched. Hiring suite 107 green.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

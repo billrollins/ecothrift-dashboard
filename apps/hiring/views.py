@@ -282,6 +282,21 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         return compose.run(request, act, skip_allowed=False)
 
+    @action(detail=True, methods=['post'], url_path='remind-to-book')
+    def remind_to_book(self, request, pk=None):
+        """The optional "Don't miss out" email to an applicant who has the link but has not booked."""
+        from apps.hiring import interviews as interview_service
+
+        application = self.get_object()
+        if application.email and application.invited_at:
+            interview_service.ensure_link(application)  # the link they read in the review is the link that goes
+
+        def act():
+            result = interview_service.remind_to_book(application, by=request.user)
+            return Response({**result, 'application': ApplicationDetailSerializer(self._fresh(application)).data})
+
+        return compose.run(request, act, skip_allowed=False)
+
     @action(detail=True, methods=['post'], url_path='offer-preview')
     def offer_preview(self, request, pk=None):
         """The letter as it would be sent with these terms (nothing saved)."""

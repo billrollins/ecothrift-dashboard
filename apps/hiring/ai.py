@@ -71,6 +71,7 @@ EMAIL_HELP = {
     'received': 'the auto-reply to an applicant right after they apply',
     'alert': 'the alert to the owner and the hiring manager about a new application',
     'interview_invite': 'the email with the private link to pick an interview time',
+    'interview_nudge': 'the optional "don\'t miss out" reminder to an applicant who has the link but has not booked',
     'interview_booked': "the applicant's confirmation after booking an interview",
     'interview_changed': "the applicant's notice that their interview moved",
     'interview_cancelled': "the applicant's notice that their interview is cancelled",

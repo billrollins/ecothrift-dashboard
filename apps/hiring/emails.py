@@ -6,11 +6,13 @@ fails it falls back to the store mailbox with Reply-To set, so an applicant alwa
 """
 from __future__ import annotations
 
+import html
 import logging
+import re
 from email.utils import formataddr, parseaddr
 
 from django.conf import settings
-from django.core.mail import EmailMessage
+from django.core.mail import EmailMultiAlternatives
 
 from apps.hiring import compose
 from apps.hiring.careers import fill, load_setting, template as email_template
@@ -20,6 +22,53 @@ logger = logging.getLogger(__name__)
 
 def _addresses(raw: str) -> list[str]:
     return [a.strip() for a in (raw or '').replace(';', ',').split(',') if a.strip()]
+
+
+# A plain, professional email (Bill, 2026-10-09): white page, normal text, no cards or colour bands. A short first
+# line is the bold top line; the one action is one small button with short words, never wrapping.
+BRAND = '#18452d'
+BUTTON_MAX = 32  # longer words than this stay a plain link, so a button is always one short line
+_URL = re.compile(r'(https?://[^\s<]+)')
+_ACTION = re.compile(r'^(?P<label>[^\n:]{2,80}):\s*(?P<url>https?://\S+)$')
+_BUTTON_STYLE = (f'display:inline-block;background:{BRAND};color:#ffffff;font-weight:bold;font-size:16px;'
+                 'text-decoration:none;padding:12px 24px;border-radius:6px;white-space:nowrap')
+_LINK_STYLE = f'color:{BRAND};font-weight:bold;text-decoration:underline'
+
+
+def _is_top_line(paragraph: str) -> bool:
+    """The first paragraph, when it is one short line that is not a greeting or a sentence ("Hi Dana," / "...")."""
+    return '\n' not in paragraph and len(paragraph) <= 60 and not paragraph.endswith((',', '.', ':'))
+
+
+def html_body(body: str) -> str:
+    """The HTML version of a plain-text hiring email.
+
+    A short first line (no closing comma or period) is the bold top line. The first paragraph that is just
+    "Short words: <link>" is one button with those words (a later one, or longer words, is a plain link with its
+    words). Every other web address is a link. Everything else is plain paragraphs.
+    """
+    blocks = []
+    button_used = False
+    paragraphs = [p.strip() for p in re.split(r'\n\s*\n', (body or '').strip()) if p.strip()]
+    for index, paragraph in enumerate(paragraphs):
+        action = _ACTION.match(paragraph)
+        if index == 0 and _is_top_line(paragraph):
+            blocks.append(f'<p style="margin:0 0 18px;font-size:20px;font-weight:bold">{html.escape(paragraph)}</p>')
+        elif action:
+            url = html.escape(action.group('url'), quote=True)
+            label = html.escape(action.group('label').strip())
+            if not button_used and len(action.group('label').strip()) <= BUTTON_MAX:
+                button_used = True
+                blocks.append(f'<p style="margin:22px 0 24px"><a href="{url}" style="{_BUTTON_STYLE}">{label}</a></p>')
+            else:
+                blocks.append(f'<p style="margin:0 0 16px"><a href="{url}" style="{_LINK_STYLE}">{label}</a></p>')
+        else:
+            text = html.escape(paragraph)
+            text = _URL.sub(lambda m: f'<a href="{m.group(1)}" style="color:{BRAND}">{m.group(1)}</a>', text)
+            blocks.append(f'<p style="margin:0 0 16px">{text.replace(chr(10), "<br>")}</p>')
+    return ('<!doctype html><html><body style="margin:0;padding:16px;background:#ffffff">'
+            '<div style="max-width:600px;font:15px/1.5 Arial,Helvetica,sans-serif;color:#1a1f1c">'
+            + ''.join(blocks) + '</div></body></html>')
 
 
 def _send_via_own_mailbox(*, sender: str, to: list[str], subject: str, body: str, reply_to: list[str],
@@ -34,7 +83,7 @@ def _send_via_own_mailbox(*, sender: str, to: list[str], subject: str, body: str
         return False
     try:
         GraphMailClient(mailbox=address).send_mail(
-            subject=subject, body=body, to=to, reply_to=reply_to or None,
+            subject=subject, body=html_body(body), html=True, to=to, reply_to=reply_to or None,
             from_email=formataddr((name or 'Eco-Thrift', address)),
             attachments=attachments or None,
         )
@@ -50,7 +99,8 @@ PRACTICE_NOTE = 'PRACTICE RUN: a test of the hiring emails, not a real applicati
 
 def send(*, to: str | list[str], subject: str, body: str,
          attachments: list[tuple[str, bytes | str, str]] | None = None, practice: bool = False) -> bool:
-    """Plain-text mail from the careers sender. Never raises; returns True when it went out.
+    """Mail from the careers sender: the plain text plus its HTML version (``html_body``). Never raises; returns
+    True when it went out.
 
     ``attachments``: (filename, content, mimetype), e.g. an interview's ``.ics`` calendar file.
     ``practice``: the email is about a practice applicant; the subject and the first line say so.
@@ -70,9 +120,10 @@ def send(*, to: str | list[str], subject: str, body: str,
                                         attachments=attachments):
         return True
     try:
-        message = EmailMessage(
+        message = EmailMultiAlternatives(
             subject=subject, body=body, from_email=settings.DEFAULT_FROM_EMAIL, to=recipients, reply_to=reply_to,
         )
+        message.attach_alternative(html_body(body), 'text/html')
         for name, content, mimetype in attachments or ():
             message.attach(name, content, mimetype)
         return bool(message.send(fail_silently=True))

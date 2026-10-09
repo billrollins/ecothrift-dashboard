@@ -634,6 +634,56 @@ class InterviewTests(Base):
         self.assertEqual(len(mail.outbox), 1)
         self.assertTrue(copy['application']['booking_link'].endswith(token))
 
+    def test_the_link_email_has_a_bold_top_line_and_one_short_button(self):
+        token = self.link_token()
+        sent = mail.outbox[0]
+        self.assertIn('Pick your interview time: http', sent.body)  # plain text keeps the words
+        html_part, mimetype = sent.alternatives[0]
+        self.assertEqual(mimetype, 'text/html')
+        self.assertIn('>We&#x27;d like to meet you</p>', html_part)
+        self.assertRegex(html_part, rf'<a href="[^"]*interview\?t={token}" style="display:inline-block[^"]*">Pick your interview time</a>')
+        self.assertEqual(html_part.count('display:inline-block'), 1)  # one button
+
+    def test_remind_to_book_is_optional_and_only_before_a_booking(self):
+        url = f'/api/hiring/applications/{self.app.pk}/remind-to-book/'
+        self.assertEqual(self.staff.post(url, {}, format='json').status_code, 400)  # no link yet
+        token = self.link_token()
+        mail.outbox.clear()
+        draft = self.staff.post(url, {'preview': True}, format='json').data['email']
+        self.assertEqual(draft['key'], 'interview_nudge')
+        self.assertEqual(len(mail.outbox), 0)
+        response = self.staff.post(url, {}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        sent = mail.outbox[0]
+        self.assertIn("Don't miss out", sent.subject)
+        self.assertTrue(sent.body.startswith("Don't miss out: book your interview"))
+        self.assertIn(f'/careers/interview?t={token}', sent.body)
+        self.assertIn('>Pick your interview time</a>', sent.alternatives[0][0])
+        self.assertEqual(self.app.events.get(kind='email', data__email='interview_nudge').text,
+                         "Emailed: Don't miss out (reminder to book)")
+        start = self.public.get(f'/api/hiring/public/interview/?t={token}').data['times'][0]['start']
+        self.public.post(f'/api/hiring/public/interview/?t={token}', {'start': start}, format='json')
+        self.assertEqual(self.staff.post(url, {}, format='json').status_code, 400)  # booked: nothing to remind
+
+    def test_the_saved_link_email_moves_to_the_new_look_only_when_untouched(self):
+        import importlib
+
+        from django.apps import apps as django_apps
+
+        from apps.core.models import AppSetting
+        migration = importlib.import_module('apps.hiring.migrations.0015_interview_invite_v2')
+        row, _ = AppSetting.objects.get_or_create(key='hiring.careers', defaults={'value': {}})
+        row.value = {**(row.value or {}), 'email': {'interview_invite': dict(migration.OLD)}}
+        row.save()
+        migration.forward(django_apps, None)
+        row.refresh_from_db()
+        self.assertEqual(row.value['email']['interview_invite'], migration.NEW)
+        row.value['email']['interview_invite'] = {'subject': 'Mine', 'body': 'My words {link}'}
+        row.save()
+        migration.forward(django_apps, None)
+        row.refresh_from_db()
+        self.assertEqual(row.value['email']['interview_invite']['subject'], 'Mine')
+
     def test_review_preview_sends_nothing_and_saves_nothing(self):
         url = f'/api/hiring/applications/{self.app.pk}/invite/'
         draft = self.staff.post(url, {'send': True, 'preview': True}, format='json').data['email']

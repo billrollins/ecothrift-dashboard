@@ -24,7 +24,7 @@ QUESTION_TYPES = ('yes_no', 'text', 'long_text', 'number', 'choice', 'multi', 'd
 JOB_STATUSES = ('draft', 'open', 'paused', 'closed')
 JOB_TYPES = ('full_time', 'part_time', 'full_or_part')
 EMAIL_KEYS = (
-    'received', 'alert', 'interview_invite', 'interview_booked', 'interview_changed', 'interview_cancelled',
+    'received', 'alert', 'interview_invite', 'interview_nudge', 'interview_booked', 'interview_changed', 'interview_cancelled',
     'interview_reminder', 'interview_notice', 'offer_letter', 'offer_sent', 'offer_signed', 'offer_notice',
     'first_day',
 )
@@ -188,13 +188,29 @@ DEFAULT_EMAIL = {
     },
     # Interviews (Phase 2). Extra placeholders: {when} {place} {interviewer} {link} {link_days} {length};
     # the staff notice also has {applicant} {action} {dash_link}.
+    # A short first line shows in bold at the top; "Short words: {link}" on its own line shows as one button with
+    # those words (emails.html_body). Plain-text readers see the same words.
     'interview_invite': {
         'subject': 'Pick your interview time at Eco-Thrift',
         'body': (
-            "Hi {first_name},\n\nThanks for applying for {roles}. We'd like to meet you. Pick a time that works "
-            'for you here:\n\n{link}\n\nInterviews are at our Canfield store, 8425 West Center Road, and take about '
-            '{length} minutes. This link is just for you and works for {link_days} days; use it later to change or '
-            'cancel.\n\n' + _SIGN_OFF
+            "We'd like to meet you\n\n"
+            'Hi {first_name},\n\nThanks for applying for {roles}. The next step is a short interview at our '
+            'Canfield store.\n\n'
+            'Pick your interview time: {link}\n\n'
+            'Interviews are at 8425 West Center Road and take about {length} minutes. This link is just for you and '
+            'works for {link_days} days. Use it later to change or cancel.\n\n' + _SIGN_OFF
+        ),
+    },
+    # Optional (Bill, 2026-10-09): sent only when staff press "Remind them to book".
+    'interview_nudge': {
+        'subject': "Don't miss out: your Eco-Thrift interview isn't booked yet",
+        'body': (
+            "Don't miss out: book your interview\n\n"
+            "Hi {first_name},\n\nYou applied for {roles}, and we'd like to meet you, but you haven't picked an "
+            'interview time yet. It takes one minute, and times fill up.\n\n'
+            'Pick your interview time: {link}\n\n'
+            'Interviews are at our Canfield store, 8425 West Center Road, and take about {length} minutes. This link '
+            'is just for you and works for {link_days} days.\n\n' + _SIGN_OFF
         ),
     },
     'interview_booked': {

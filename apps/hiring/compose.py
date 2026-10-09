@@ -22,13 +22,14 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 REVIEWED = (
-    'interview_invite', 'interview_booked', 'interview_changed', 'interview_cancelled', 'offer_sent', 'first_day',
+    'interview_invite', 'interview_nudge', 'interview_booked', 'interview_changed', 'interview_cancelled', 'offer_sent', 'first_day',
 )
 # Texts a staff button sends with its email (Phase 6); shown on the same review screen.
 REVIEWED_TEXTS = ('interview_booked', 'interview_changed', 'interview_cancelled')
 
 EMAIL_LABELS = {
     'interview_invite': 'Interview link',
+    'interview_nudge': "Don't miss out (reminder to book)",
     'interview_booked': 'Interview booked',
     'interview_changed': 'Interview moved',
     'interview_cancelled': 'Interview cancelled',

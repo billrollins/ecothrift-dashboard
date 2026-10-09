@@ -381,6 +381,22 @@ def invite(application: Application, *, by, send: bool) -> dict:
     return {'link': link, 'sent': sent}
 
 
+def remind_to_book(application: Application, *, by) -> dict:
+    """The optional "Don't miss out" email (Bill, 2026-10-09): for an applicant who has the link but no interview."""
+    if not application.email:
+        raise ValidationError({'detail': 'This applicant has no email. Use Copy link and text it instead.'})
+    if not application.invited_at:
+        raise ValidationError({'detail': 'Send the interview link first.'})
+    if application.interviews.filter(status=Interview.STATUS_SCHEDULED).exists():
+        raise ValidationError({'detail': 'They already booked an interview.'})
+    link = ensure_link(application)
+    values = emails.values_for(application, extra={
+        'link': link, 'link_days': config()['link_days'], 'length': config()['length_minutes'],
+    })
+    sent = _send_template('interview_nudge', application.email, values, application=application)
+    return {'link': link, 'sent': sent}
+
+
 def set_interviewer(interview: Interview, user, *, by) -> Interview:
     if interview.interviewer_id == (user.pk if user else None):
         return interview

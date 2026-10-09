@@ -28,8 +28,10 @@ import {
   getApplication,
   getResumeBlob,
   inviteToInterview,
+  remindToBook,
   previewBookInterview,
   previewInvite,
+  previewRemindToBook,
   setRating,
   setStage,
   stopTexts,
@@ -244,6 +246,27 @@ export function ApplicantView({
     }
   }
 
+  async function remindLink() {
+    if (!app) return;
+    setBusy(true);
+    try {
+      const data = await review({
+        title: "Remind them to book (Don't miss out)",
+        preview: () => previewRemindToBook(app.id),
+        commit: async (email) => (await remindToBook(app.id, email)).data,
+      });
+      if (!data) return; // Cancel: nothing sent
+      await refreshWith(data.application);
+      enqueueSnackbar(data.sent ? `Reminder emailed to ${app.email}.` : 'The email did not send. Use Copy link and text it.', {
+        variant: data.sent ? 'success' : 'warning',
+      });
+    } catch (err) {
+      enqueueSnackbar(errorText(err, 'Could not send the reminder.'), { variant: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function copyLink() {
     if (!app) return;
     setBusy(true);
@@ -306,12 +329,19 @@ export function ApplicantView({
   const otherInterviews = app.interviews.filter((i) => i !== featuredInterview);
   const otherOffers = app.offers.filter((o) => o !== featuredOffer);
   const closed = app.stage === 'hired' || app.stage === 'not_now';
+  // They have the link but no interview: the optional "Don't miss out" email leads (Bill, 2026-10-09).
+  const canRemind = Boolean(app.invited_at && app.email && !scheduled);
   const linkButtons = (primary: 'email' | 'copy', book = true) => (
     <>
-      <Button variant={primary === 'email' ? 'contained' : 'outlined'} disabled={busy || !app.email} onClick={emailLink}>
+      {canRemind && (
+        <Button variant="contained" color="warning" disabled={busy} onClick={remindLink}>
+          Remind them to book
+        </Button>
+      )}
+      <Button variant={primary === 'email' && !canRemind ? 'contained' : 'outlined'} disabled={busy || !app.email} onClick={emailLink}>
         {app.invited_at ? 'Email the link again' : 'Email interview link'}
       </Button>
-      <Button variant={primary === 'copy' ? 'contained' : 'outlined'} disabled={busy} onClick={copyLink}>
+      <Button variant={primary === 'copy' && !canRemind ? 'contained' : 'outlined'} disabled={busy} onClick={copyLink}>
         Copy link to text
       </Button>
       {book && !scheduled && (
