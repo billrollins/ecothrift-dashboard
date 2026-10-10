@@ -191,7 +191,7 @@ export default function CalculatorTab() {
           </Section>
 
           <Section title="Basic discount">
-            <Num label="Wait before the first reward" suffix="days" value={c.wait_days} onChange={(v) => set('wait_days', v ?? 0)} />
+            <Num label="Wait before the first ThriftBucks" suffix="days" value={c.wait_days} onChange={(v) => set('wait_days', v ?? 0)} />
             <Num label="Off each day" suffix="% of tag" step={0.05} value={c.pct_per_day} onChange={(v) => set('pct_per_day', v ?? 0)} helper="1.11 = the tag ÷ 90 (today)" />
             <TextField select size="small" label="How often it steps" value={c.step_days} onChange={(e) => set('step_days', Number(e.target.value))}>
               <MenuItem value={1}>Every night</MenuItem>
@@ -229,7 +229,7 @@ export default function CalculatorTab() {
 
           <Section title="Shotgun start" hint="Stock already on the floor at launch, so nothing starts at 90% off.">
             <Num label="Oldest it can count on launch day" suffix="days" blankable value={c.max_age} onChange={(v) => set('max_age', v)}
-              helper={c.max_age && data?.params.start_equivalent ? `Same as the rewards start ${format(parseISO(data.params.start_equivalent), 'MMM d')}` : 'Blank = its real age'} />
+              helper={c.max_age && data?.params.start_equivalent ? `Same as the ThriftBucks start ${format(parseISO(data.params.start_equivalent), 'MMM d')}` : 'Blank = its real age'} />
             <Box>
               <Typography sx={{ fontSize: 13 }}>Count old stock at {Math.round(c.age_factor * 100)}% of its real age</Typography>
               <Slider size="small" min={0} max={1} step={0.05} value={c.age_factor} onChange={(_e, v) => set('age_factor', v as number)} />
@@ -262,7 +262,7 @@ export default function CalculatorTab() {
                   <Typography sx={{ fontSize: 20, fontWeight: 800 }}>{formatCurrencyWhole(t.retail_total)}</Typography>
                 </Paper>
                 <Paper variant="outlined" sx={{ p: 1.5, flex: '1 1 140px' }}>
-                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Rewards</Typography>
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>ThriftBucks</Typography>
                   <Typography sx={{ fontSize: 20, fontWeight: 800 }}>{formatCurrencyWhole(t.reward_total)}</Typography>
                   <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
                     {pct(t.pct_off)} off on average · {formatNumber(t.with_reward)} items
@@ -271,7 +271,7 @@ export default function CalculatorTab() {
               </Stack>
               <Stack direction="row" flexWrap="wrap" useFlexGap gap={1.5}>
                 <Side title="Guests" sub="Pay the tag" side={t.guest} color={GUEST} />
-                <Side title="Members" sub="Pay the tag minus the reward" side={t.member} color={MEMBER} />
+                <Side title="Members" sub="Pay the tag minus the ThriftBucks" side={t.member} color={MEMBER} />
               </Stack>
               {data.rate_changes.slower || data.rate_changes.faster ? (
                 <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>

@@ -25,23 +25,24 @@ import WeekendRounded from '@mui/icons-material/WeekendRounded';
 import YardRounded from '@mui/icons-material/YardRounded';
 import type { SvgIconComponent } from '@mui/icons-material';
 import type { ThriftPlusCategory } from '../../../api/thriftPlusMock';
+import { WORDMARK_PLUS, WORDMARK_THRIFT, WORDMARK_VIEWBOX } from './wordmarkPath';
 import brushUrl from '../../../assets/thriftplus/brush.webp';
 import cartUrl from '../../../assets/thriftplus/cart-bag.webp';
 import coverUrl from '../../../assets/thriftplus/cover-rope.webp';
 import headerUrl from '../../../assets/thriftplus/header-field.webp';
 import logoUrl from '../../../assets/thriftplus/logo.webp';
 import orbUrl from '../../../assets/thriftplus/orb.webp';
-import brickUrl from '../../../assets/thriftplus/rewards-brick.webp';
-import ticketUrl from '../../../assets/thriftplus/reward-ticket.webp';
+import brickUrl from '../../../assets/thriftplus/thriftbucks-brick.webp';
+import ticketUrl from '../../../assets/thriftplus/thriftbucks-ticket.webp';
 
 export const art = {
   brush: brushUrl,
   cart: cartUrl,
-  /** Rewards Balance: a banded brick of coupons (owner, 2026-10-09: paper, not coins). */
+  /** ThriftBucks Balance: a banded brick of [TB]1.00 coupons (owner, 2026-10-09: paper, not coins; 10-10: ThriftBucks). */
   brick: brickUrl,
   /** The monthly cover: a velvet rope (a cover charge). */
   cover: coverUrl,
-  /** One reward coupon: the Bank it and Shower animations. */
+  /** One ThriftBuck coupon: the Bank it and Shower animations. */
   ticket: ticketUrl,
   header: headerUrl,
   logo: logoUrl,
@@ -98,15 +99,19 @@ export function useScannerFonts(): void {
   }, []);
 }
 
+/** Thrift+ in the ThriftBucks font (owner 2026-10-10): "Thrift" white, "+" green, as outlines (wordmarkPath.ts). */
 export function ThriftPlusLogo({ width }: { width: string }) {
   return (
     <Box
-      component="img"
-      src={art.logo}
-      alt="Thrift+"
-      draggable={false}
+      component="svg"
+      viewBox={WORDMARK_VIEWBOX}
+      role="img"
+      aria-label="Thrift+"
       sx={{ width, height: 'auto', display: 'block', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.35))', userSelect: 'none' }}
-    />
+    >
+      <path d={WORDMARK_THRIFT} fill="#ffffff" />
+      <path d={WORDMARK_PLUS} fill="#5fd34a" />
+    </Box>
   );
 }
 

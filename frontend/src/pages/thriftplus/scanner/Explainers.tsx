@@ -11,7 +11,8 @@ import CloseRounded from '@mui/icons-material/CloseRounded';
 import NoPhotographyRounded from '@mui/icons-material/NoPhotographyRounded';
 import QrCode2Rounded from '@mui/icons-material/QrCode2Rounded';
 import { type ThriftPlusCart, type ThriftPlusMember } from '../../../api/thriftPlusMock';
-import { money, shortDate } from './scannerLogic';
+import { CoverFigures, TbAmount } from '../../../components/thriftplus/ThriftBucks';
+import { shortDate } from './scannerLogic';
 import { art, sc, u } from './scannerTheme';
 
 export type Topic = 'scan' | 'bank' | 'cover' | 'cart' | 'camera';
@@ -403,27 +404,28 @@ export function InfoPopup({
       <Title>{TITLES[topic]}</Title>
       {topic === 'scan' && (
         <Body>
-          Point your camera at the QR code on any price tag. You'll see our price and what you'd earn right away. Swipe right to add
+          Point your camera at the QR code on any price tag. You'll see our price and what you'd collect right away. Swipe right to add
           it to your cart, left to pass.
         </Body>
       )}
       {topic === 'bank' && (
         <>
           <Body>
-            Full rewards are saved in full for a later trip, good for 30 days after your receipt. Instant rewards take 80% of them off
-            today's price instead. Your Return $ (store credit from returns) is always used first.
+            ThriftBucks are the Default: all of them go to your ThriftBucks, to use from the next day through day 30. Want them
+            off today's price instead? Ask the cashier for InstantBucks: 80% of the ThriftBucks, today. Your Return $ (from returns) is
+            always used first.
           </Body>
-          {member && <Stat>Your Rewards Balance: {money(member.banked_rewards)}</Stat>}
+          {member && <Stat>Your ThriftBucks: <TbAmount value={member.banked_rewards} bare /></Stat>}
         </>
       )}
       {topic === 'cover' && cover && (
         <>
           <Body>
-            Thrift+ is free. The first {money(cover.amount, true)} of rewards each month covers your card. After that, every reward goes
-            to your Rewards Balance, or 80% of it comes off today's price. It starts over on {shortDate(cover.resets_on)}.
+            Thrift+ is free. The first <TbAmount value={cover.amount} /> you collect each month cover your card. After that,
+            ThriftBucks go to your ThriftBucks Balance, or InstantBucks (80%) come off today's price. It starts over on {shortDate(cover.resets_on)}.
           </Body>
           <Stat>
-            {cover.is_covered ? 'Covered for this month' : `${money(cover.covered)} of ${money(cover.amount)} covered so far`}
+            {cover.is_covered ? 'Covered for this month' : <><CoverFigures covered={cover.covered} amount={cover.amount} /> covered so far</>}
           </Stat>
           <Body>
             Don't worry: even when the cover isn't paid, you keep every Thrift+ benefit: the Limited Warranty, holding items online,
@@ -434,10 +436,10 @@ export function InfoPopup({
       {topic === 'cart' && (
         <>
           <Body>
-            What you'd earn on the items in your cart today. At checkout they finish this month's cover first, then go to your Rewards
-            Balance in full (Full rewards), or 80% comes off today's price (Instant rewards).
+            What you'd collect on the items in your cart today. At checkout they cover your card for the month first, then go to your
+            ThriftBucks Balance in full (ThriftBucks), or 80% comes off today's price (InstantBucks).
           </Body>
-          {cart && <Stat>This cart: +{money(cart.totals.reward_total)}</Stat>}
+          {cart && <Stat>This cart: <TbAmount value={cart.totals.reward_total} sign="+" /></Stat>}
         </>
       )}
       <Primary label="Got it" onClick={onClose} />
@@ -447,23 +449,23 @@ export function InfoPopup({
 
 const TITLES: Record<Exclude<Topic, 'camera'>, string> = {
   scan: 'Scan any tag',
-  bank: 'Full or instant rewards',
+  bank: 'ThriftBucks or InstantBucks',
   cover: "This month's cover",
-  cart: 'Your cart rewards',
+  cart: 'Your cart ThriftBucks',
 };
 
 /* ---------------------------------------------------------- walkthrough */
 
 export function IntroTour({ isGuest, onDone, onCameraHelp }: { isGuest: boolean; onDone: () => void; onCameraHelp: () => void }) {
   const steps = [
-    { key: 'scan', art: <ScanArt />, title: 'Scan', body: "Point at any price tag. See our price and what you'd earn." },
+    { key: 'scan', art: <ScanArt />, title: 'Scan', body: "Point at any price tag. See our price and what you'd collect." },
     isGuest
       ? { key: 'bank', art: <BankArt />, title: 'Get a card', body: 'Members pay less the longer an item has been here. Cards are free at the register.' }
       : {
           key: 'bank',
           art: <BankArt />,
-          title: 'Rewards',
-          body: 'Save your rewards in full for a later trip, or use 80% of them today. Tap Rewards Balance to see them all.',
+          title: 'ThriftBucks',
+          body: 'Save your ThriftBucks in full for a later trip, or use 80% of them today. Tap ThriftBucks to see them all.',
         },
     { key: 'cart', art: <CartArt />, title: 'Cart', body: 'Swipe right to add. Tap the pill up top to see your cart and total.' },
   ];

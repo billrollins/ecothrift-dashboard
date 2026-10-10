@@ -19,6 +19,7 @@ import { format, parseISO } from 'date-fns';
 import { useState } from 'react';
 import { fetchItemReward, fetchRewardPreview } from '../../api/thriftplus.api';
 import type { ItemRewardDetail, RewardRow, RewardStatus } from '../../types/thriftplus.types';
+import { TbAmount } from '../../components/thriftplus/ThriftBucks';
 import { formatCurrency } from '../../utils/format';
 
 const STATUS_LABEL: Record<RewardStatus, string> = {
@@ -49,7 +50,7 @@ const REASON_LABEL: Record<string, string> = {
 
 const reasonLabel = (r: string) => REASON_LABEL[r] ?? r.replace(/_/g, ' ');
 
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function Stat({ label, value, hint }: { label: string; value: import('react').ReactNode; hint?: string }) {
   return (
     <Paper variant="outlined" sx={{ p: 1.5, minWidth: 150, flex: 1 }}>
       <Typography variant="caption" color="text.secondary">{label}</Typography>
@@ -70,7 +71,7 @@ function RowsTable({ rows, empty }: { rows: RewardRow[]; empty: string }) {
             <TableCell>Item</TableCell>
             <TableCell align="right">Day</TableCell>
             <TableCell align="right">Tag</TableCell>
-            <TableCell align="right">Reward</TableCell>
+            <TableCell align="right">ThriftBucks</TableCell>
             <TableCell align="right">Member pays</TableCell>
             <TableCell>Why</TableCell>
           </TableRow>
@@ -82,7 +83,7 @@ function RowsTable({ rows, empty }: { rows: RewardRow[]; empty: string }) {
               <TableCell sx={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</TableCell>
               <TableCell align="right">{r.day}</TableCell>
               <TableCell align="right">{formatCurrency(r.price)}</TableCell>
-              <TableCell align="right">{formatCurrency(r.reward)}</TableCell>
+              <TableCell align="right"><TbAmount value={r.reward} bare /></TableCell>
               <TableCell align="right">{formatCurrency(r.member_price)}</TableCell>
               <TableCell>{reasonLabel(r.reason)}</TableCell>
             </TableRow>
@@ -123,13 +124,13 @@ function ItemLookup() {
               {d.state.exit_on ? ` · exit list since ${format(parseISO(d.state.exit_on), 'MMM d')}` : ''}
             </Typography>
           ) : (
-            <Typography variant="body2" color="text.secondary">No reward state yet: the nightly run has not seen it.</Typography>
+            <Typography variant="body2" color="text.secondary">No ThriftBucks state yet: the nightly run has not seen it.</Typography>
           )}
           {d.events.length ? (
             <Stack spacing={0.25} sx={{ mt: 1 }}>
               {d.events.map((e, i) => (
                 <Typography key={`${e.on}-${i}`} variant="caption">
-                  {format(parseISO(e.on), 'MMM d')} · day {e.day} · {reasonLabel(e.reason)} · {formatCurrency(e.reward)}
+                  {format(parseISO(e.on), 'MMM d')} · day {e.day} · {reasonLabel(e.reason)} · <TbAmount value={e.reward} />
                 </Typography>
               ))}
             </Stack>
@@ -148,7 +149,7 @@ export default function RewardsTab() {
   const preview = useQuery({ queryKey: ['thriftplus', 'rewards', 'preview'], queryFn: () => fetchRewardPreview() });
   const p = preview.data;
   if (preview.isLoading) return <LinearProgress />;
-  if (preview.isError || !p) return <Alert severity="error">Could not compute the rewards.</Alert>;
+  if (preview.isError || !p) return <Alert severity="error">Could not compute the ThriftBucks.</Alert>;
   const share = Math.round(Number(p.rules.floor_share) * 100);
   const run = p.last_run;
   return (
@@ -177,9 +178,9 @@ export default function RewardsTab() {
 
       <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap', rowGap: 1.5 }}>
         <Stat label="Items on the floor" value={p.totals.units.toLocaleString()} />
-        <Stat label="With a reward" value={p.totals.with_reward.toLocaleString()} />
-        <Stat label="Rewards total" value={formatCurrency(p.totals.reward_total)} hint={`of ${formatCurrency(p.totals.tag_total)} in tags`} />
-        <Stat label="Average off (rewarded)" value={p.totals.pct_off_rewarded ? `${p.totals.pct_off_rewarded}%` : '-'} />
+        <Stat label="With ThriftBucks" value={p.totals.with_reward.toLocaleString()} />
+        <Stat label="ThriftBucks total" value={<TbAmount value={p.totals.reward_total} bare />} hint={`of ${formatCurrency(p.totals.tag_total)} in tags`} />
+        <Stat label="Average off (with ThriftBucks)" value={p.totals.pct_off_rewarded ? `${p.totals.pct_off_rewarded}%` : '-'} />
         <Stat label="Exit list (day 90+)" value={p.exit_list.count.toLocaleString()} hint={`${formatCurrency(p.exit_list.tag_total)} in tags`} />
         <Stat label="Families paced" value={`${p.families.on_pace} of ${p.families.paced} on pace`} hint={`${p.families.linked} across products`} />
       </Stack>
@@ -197,8 +198,8 @@ export default function RewardsTab() {
             <TableRow>
               <TableCell>Tag</TableCell>
               <TableCell align="right">Items</TableCell>
-              <TableCell align="right">With a reward</TableCell>
-              <TableCell align="right">Rewards</TableCell>
+              <TableCell align="right">With ThriftBucks</TableCell>
+              <TableCell align="right">ThriftBucks</TableCell>
               <TableCell align="right">Average off</TableCell>
             </TableRow>
           </TableHead>
@@ -208,7 +209,7 @@ export default function RewardsTab() {
                 <TableCell>{b.band}</TableCell>
                 <TableCell align="right">{b.units.toLocaleString()}</TableCell>
                 <TableCell align="right">{b.with_reward.toLocaleString()}</TableCell>
-                <TableCell align="right">{formatCurrency(b.reward_total)}</TableCell>
+                <TableCell align="right"><TbAmount value={b.reward_total} bare /></TableCell>
                 <TableCell align="right">{b.pct_off_rewarded ? `${b.pct_off_rewarded}%` : '-'}</TableCell>
               </TableRow>
             ))}
@@ -219,8 +220,8 @@ export default function RewardsTab() {
       <ItemLookup />
 
       <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 1 }}>Biggest rewards</Typography>
-        <RowsTable rows={p.top} empty="No item has a reward yet." />
+        <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 1 }}>Most ThriftBucks</Typography>
+        <RowsTable rows={p.top} empty="No item has ThriftBucks yet." />
       </Paper>
 
       <Paper variant="outlined" sx={{ p: 2 }}>

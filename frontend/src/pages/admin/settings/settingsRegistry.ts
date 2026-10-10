@@ -82,6 +82,12 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     // Owner, 2026-10-09: the link itself, ready to tap or send to a staff phone.
     linkFor: (code) => (code.trim() ? `https://ecothrift.us/scan?preview=${encodeURIComponent(code.trim())}` : null),
   },
+  thrift_plus_price_first: {
+    label: 'Thrift+ scanner: price first',
+    help: 'On: the price is the big number on the scanner (item card and cart total) and ThriftBucks sit smaller below it. Off: ThriftBucks are the big number. Staff can flip it on their own phone from the test bar.',
+    tab: 'thrift-plus',
+    kind: 'switch',
+  },
   thrift_plus_test_registers: {
     label: 'Thrift+ test registers',
     help: 'Register codes that try Thrift+ while it is off (e.g. R3).',
@@ -89,7 +95,7 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     kind: 'list',
   },
   thrift_plus_rewards_start: {
-    label: 'Thrift+ rewards start',
+    label: 'Thrift+ ThriftBucks start',
     help: 'No item counts as on the floor before this date. Blank = each item counts from its own floor date. Try it first in Thrift+ → Calculator.',
     tab: 'thrift-plus',
     kind: 'date',
@@ -102,13 +108,13 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
   },
   thrift_plus_cover_amount: {
     label: 'Monthly cover',
-    help: 'The first this-many dollars of rewards each calendar month pay for the card (never cash).',
+    help: 'The first this-many ThriftBucks each calendar month cover the card (never paid in dollars).',
     tab: 'thrift-plus',
     kind: 'money',
   },
   thrift_plus_bank_bonus: {
     label: 'Banking bonus',
-    help: 'Rewards banked past the cover are worth this much more (5% = 1.05x).',
+    help: 'Not used since form 5 (ThriftBucks keep 100%). Kept for old sales.',
     tab: 'thrift-plus',
     kind: 'weight',
   },

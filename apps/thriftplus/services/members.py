@@ -22,12 +22,14 @@ from django.utils import timezone
 
 from apps.core.models import AppSetting
 from apps.thriftplus.models import Account, Card, Event, Person
-from apps.thriftplus.services.cards import parse
+from apps.thriftplus.services.cards import new_code, parse
 
 ENABLED_KEY = 'thrift_plus_enabled'
 # Staff try the scanner before launch: /scan?preview=<code> keeps the code on the phone and sends it as a header.
 PREVIEW_KEY = 'thrift_plus_preview_code'
 PREVIEW_HEADER = 'HTTP_X_THRIFTPLUS_PREVIEW'
+# The scanner's look (owner 2026-10-10): on, the price is the big number and ThriftBucks sit smaller below it.
+PRICE_FIRST_KEY = 'thrift_plus_price_first'
 
 
 class MemberError(ValueError):
@@ -39,17 +41,36 @@ def is_enabled() -> bool:
     return value is True or str(value).lower() in ('true', '1', 'yes', 'on')
 
 
-def open_to(request) -> bool:
-    """The scanner and portal answer this request: Thrift+ is on, or the phone carries the staff preview code."""
+def price_first() -> bool:
+    """The scanner shows the price as the big number (the default), or ThriftBucks."""
+    value = AppSetting.objects.filter(key=PRICE_FIRST_KEY).values_list('value', flat=True).first()
+    return value is None or value is True or str(value).lower() in ('true', '1', 'yes', 'on')
+
+
+def _has_preview_code(request) -> bool:
     import hmac
 
-    if is_enabled():
-        return True
     sent = (request.META.get(PREVIEW_HEADER) or '').strip()
     if not sent:
         return False
     code = str(AppSetting.objects.filter(key=PREVIEW_KEY).values_list('value', flat=True).first() or '').strip()
     return bool(code) and hmac.compare_digest(sent, code)
+
+
+def is_tester(account) -> bool:
+    """A staff member's own membership, or a practice member: they may use Thrift+ before it is live (2026-10-10)."""
+    return bool(account is not None and (account.staff_user_id or account.is_practice))
+
+
+def open_to(request) -> bool:
+    """The scanner and portal answer this request: Thrift+ is on, the phone carries the staff preview code, or the
+    phone is signed in as a staff or practice member (staff test mode, owner 2026-10-10)."""
+    from apps.thriftplus.services import member_auth
+
+    if is_enabled() or _has_preview_code(request):
+        return True
+    session = member_auth.session_for(request.COOKIES.get(member_auth.COOKIE))
+    return session is not None and is_tester(session.person.account)
 
 
 def normalize_phone(raw: str | None) -> str:
@@ -166,6 +187,35 @@ def create_account(*, first_name: str, last_name: str = '', phone: str = '', ema
     if card_code:
         issue_card(person, card_code, user=user)
     return account
+
+
+# Practice members' phones use the 555 area code, which no real phone has.
+PRACTICE_AREA = '555'
+
+
+@transaction.atomic
+def make_practice_member(*, first_name: str = '', last_name: str = '', card_code: str = '', photo=None,
+                         user=None) -> Account:
+    """A practice member for training and testing (owner, 2026-10-10): a 555 phone (never a real one, so a trainee can
+    still sign up for real later), no email, an 18+ check, and a card (a blank one scanned, or a made-up number to type
+    in). Left out of every report and count; it works only on the training register and in the scanner's test mode."""
+    n = Account.objects.filter(is_practice=True).count() + 1
+    while Person.objects.filter(phone=f'{PRACTICE_AREA}{n:07d}').exists():
+        n += 1
+    if not card_code:
+        card_code = Card.objects.create(code=new_code()).code  # no batch: never printed
+    account = create_account(first_name=(first_name or '').strip() or 'Practice',
+                             last_name=(last_name or '').strip() or f'Member {n}', phone=f'{PRACTICE_AREA}{n:07d}',
+                             id_checked=True, verified_18=True, photo=photo, card_code=card_code, user=user)
+    account.is_practice = True
+    account.save(update_fields=['is_practice', 'updated_at'])
+    log('practice_member', account=account, actor=user)
+    return account
+
+
+def is_testing(account) -> bool:
+    """This member's taps are practice, not shopping: a practice member, or staff testing while Thrift+ is off."""
+    return bool(account is not None and (account.is_practice or (account.staff_user_id and not is_enabled())))
 
 
 @transaction.atomic

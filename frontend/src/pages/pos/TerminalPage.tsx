@@ -82,6 +82,8 @@ import {
 } from '../../hooks/usePOS';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { CardTenderDialog } from '../../components/pos/CardTenderDialog';
+import { TbAmount, tbNumber } from '../../components/thriftplus/ThriftBucks';
+import { TrainingBanner, TrainingPaymentDialog } from '../../components/pos/TrainingRegister';
 import { WorkCyclePill } from '../../components/routines/WorkCyclePill';
 import { WorkCyclePromptDialog } from './WorkCyclePromptDialog';
 import { writeLastActivity } from './idlePrompt';
@@ -252,6 +254,8 @@ export default function TerminalPage() {
   });
   const payrollOn = Boolean(staffPurchases.data?.payroll_deduction);
   const [cardTenderOpen, setCardTenderOpen] = useState(false);
+  // Training register: the sale waits here for the "THIS IS JUST A TEST" screen (2026-10-10).
+  const [trainingPayload, setTrainingPayload] = useState<Record<string, unknown> | null>(null);
   const [cardPreview, setCardPreview] = useState<CardPreview | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   // Thrift+ re-ring: the last completed sale on this terminal, and whether the next card scan re-rings it.
@@ -1145,11 +1149,15 @@ export default function TerminalPage() {
       completedCart: Cart,
       method: PaymentMethod,
     ) => {
-      enqueueSnackbar('Sale completed', { variant: 'success' });
+      const practice = completedCart.status === 'training';
+      enqueueSnackbar(practice ? 'Practice sale done. Nothing was sold.' : 'Sale completed', {
+        variant: 'success',
+      });
       markRegisterActivity();
 
       try {
-        const shouldOpenDrawer = method === 'cash' || method === 'split';
+        // A practice sale never opens the cash drawer: no money changes hands.
+        const shouldOpenDrawer = !practice && (method === 'cash' || method === 'split');
         const printed = await localPrintService.printReceipt(
           buildReceiptData(completedCart),
           shouldOpenDrawer,
@@ -1167,7 +1175,7 @@ export default function TerminalPage() {
         id: completedCart.id,
         total: completedCart.total,
         at: Date.now(),
-        live: Boolean(completedCart.thrift_plus?.live),
+        live: Boolean(completedCart.thrift_plus?.live) && !practice,
       });
       setReringArmed(false);
       setCart(null);
@@ -1181,7 +1189,7 @@ export default function TerminalPage() {
     [enqueueSnackbar, markRegisterActivity],
   );
 
-  const postComplete = useCallback(
+  const sendComplete = useCallback(
     async (payload: Record<string, unknown>) => {
       if (!cart) return;
       try {
@@ -1199,6 +1207,18 @@ export default function TerminalPage() {
       }
     },
     [cart, completeCartMutation, enqueueSnackbar, finishCompletedSale],
+  );
+
+  // On the training register every payment stops at the "THIS IS JUST A TEST" screen first.
+  const postComplete = useCallback(
+    async (payload: Record<string, unknown>) => {
+      if (todayDrawerRef.current?.register_is_training) {
+        setTrainingPayload(payload);
+        return;
+      }
+      await sendComplete(payload);
+    },
+    [sendComplete],
   );
 
   const handleComplete = useCallback(async () => {
@@ -1739,7 +1759,7 @@ export default function TerminalPage() {
                                 line.line_kind === 'delivery' && line.meta
                                   ? `${line.quantity} × ${formatCurrency(line.unit_price)} · ${String(line.meta.phone ?? '')} · ${String(line.meta.address ?? '')}${line.meta.is_apt ? ` Apt ${String(line.meta.unit ?? '')}` : ''}`
                                   : Number(line.thrift_savings) > 0
-                                    ? `${line.quantity} × ${formatCurrency(line.unit_price)} → ${formatCurrency(line.line_total)} (Thrift+ −${formatCurrency(line.thrift_savings ?? 0)})`
+                                    ? `${line.quantity} × ${formatCurrency(line.unit_price)} → ${formatCurrency(line.line_total)} (InstantBucks −${tbNumber(line.thrift_savings ?? 0)})`
                                     : Number(line.sale_percent) > 0
                                       ? `${line.quantity} × ${formatCurrency(line.unit_price)} → ${formatCurrency(line.line_total)}`
                                       : `${line.quantity} × ${formatCurrency(line.unit_price)}`
@@ -1787,8 +1807,8 @@ export default function TerminalPage() {
                     )}
                     {thriftSavings(cart) > 0 && (
                       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography color="success.main">Thrift+ rewards</Typography>
-                        <Typography color="success.main">−{formatCurrency(thriftSavings(cart))}</Typography>
+                        <Typography color="success.main">InstantBucks</Typography>
+                        <Typography color="success.main"><TbAmount value={thriftSavings(cart)} sign="-" bare /></Typography>
                       </Box>
                     )}
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -2184,9 +2204,10 @@ export default function TerminalPage() {
 
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      {todayDrawer?.register_is_training && <TrainingBanner />}
       <PageHeader
         dense
-        title="POS Terminal"
+        title={todayDrawer?.register_is_training ? 'Training Terminal' : 'POS Terminal'}
         subtitle={deviceLabel}
         action={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -2781,6 +2802,7 @@ export default function TerminalPage() {
         cart={cart}
         lastSale={lastSale?.live && Date.now() - lastSale.at < RERING_WINDOW_MS ? lastSale : null}
         onCart={(next) => commitCart(next, { scroll: false })}
+        training={Boolean(todayDrawer?.register_is_training)}
       />
 
       <CardTenderDialog
@@ -2803,6 +2825,16 @@ export default function TerminalPage() {
               paymentMethod === 'split' ? moneyCents(Math.max(0, total - cash)) : total;
           }
           void postComplete({ ...payload, card_type, card_charged_total });
+        }}
+      />
+
+      <TrainingPaymentDialog
+        open={trainingPayload !== null}
+        onBack={() => setTrainingPayload(null)}
+        onFinish={() => {
+          const payload = trainingPayload;
+          setTrainingPayload(null);
+          if (payload) void sendComplete(payload);
         }}
       />
 

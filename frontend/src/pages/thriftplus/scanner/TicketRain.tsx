@@ -1,6 +1,6 @@
 /**
  * Falling reward tickets (owner, 2026-10-09). Two moments, both on a swipe right:
- *  - **Bank it:** a few tickets fall onto the number that grows (the cover bar, then the Rewards Balance).
+ *  - **Bank it:** a few tickets fall onto the number that grows (the cover bar, then the ThriftBucks Balance).
  *  - **Shower:** tickets rain over the whole screen when this trip pays the month's cover in full.
  * Each ticket starts hidden above the screen and shows only when its fall begins, so nothing sits in a corner
  * while it waits. Phones set to reduce motion get no animation; the numbers still change.

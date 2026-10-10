@@ -58,7 +58,7 @@ export interface ThriftPlusItemCard {
   retail_price: Money | null;
   /** Our tag price. Guests always pay this. */
   price: Money;
-  /** Today's member reward on this item ("You'd earn +$X"). "0.00" when there is none. */
+  /** Today's member reward on this item ("You'd collect +$X"). "0.00" when there is none. */
   reward: Money;
   /** price - reward, before the monthly cover. */
   member_price: Money;
@@ -85,7 +85,7 @@ export interface ThriftPlusCover {
   month: string;
   /** The cover for the month, "10.00". */
   amount: Money;
-  /** Rewards applied to the cover so far this month. */
+  /** ThriftBucks applied to the cover so far this month. */
   covered: Money;
   /** amount - covered, never below 0. */
   remaining: Money;
@@ -104,7 +104,7 @@ export interface ThriftPlusMember {
   /** ID checked at signup; required for 18+ items and returns. */
   verified_18: boolean;
   cover: ThriftPlusCover;
-  /** Rewards the member chose to bank for a later trip. */
+  /** ThriftBucks the member chose to keep for a later trip. */
   banked_rewards: Money;
   /** Store credit balance. */
   credit_balance: Money;
@@ -112,6 +112,8 @@ export interface ThriftPlusMember {
   session_kind?: 'password' | 'card';
   /** False until they set up an email and password. (Real API only.) */
   has_login?: boolean;
+  /** Thrift+ is still off: a staff or practice member is testing it. (Real API only.) */
+  test_mode?: boolean;
 }
 
 export type ThriftPlusSession =
@@ -158,7 +160,7 @@ export interface ThriftPlusCartTotals {
   bank_extra_pct: number;
   /** bank_value when the member saves (Full rewards, the default), else 0. */
   to_bank: Money;
-  /** What saving the rewards past the cover adds to the Rewards Balance (100%). */
+  /** What saving the rewards past the cover adds to the ThriftBucks Balance (100%). */
   full_value?: Money;
   /** What using them today takes off the price (80%). */
   instant_value?: Money;
@@ -625,7 +627,7 @@ export async function signInWithCard(cardCode: string, phoneLast4: string): Prom
   return readSession();
 }
 
-/** Scan without an account: guests see what members would earn. */
+/** Scan without an account: guests see what members would collect. */
 export async function continueAsGuest(): Promise<ThriftPlusSession> {
   writeJson(LS.session, { status: 'guest' } satisfies StoredSession);
   return readSession();

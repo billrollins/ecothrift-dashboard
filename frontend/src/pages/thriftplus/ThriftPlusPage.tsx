@@ -22,11 +22,13 @@ export default function ThriftPlusPage() {
   const tab: TabKey = asked && TABS.includes(asked) ? asked : 'members';
   return (
     <Box>
-      <Typography variant="h5" component="h1" sx={{ fontWeight: 800 }}>Thrift+</Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+        <Typography variant="h5" component="h1" sx={{ fontWeight: 800, flex: 1 }}>Thrift+</Typography>
+      </Box>
       <Tabs value={tab} onChange={(_, v: TabKey) => setParams(v === 'members' ? {} : { tab: v })} sx={{ mb: 2 }}>
         <Tab value="members" label="Members" sx={{ textTransform: 'none' }} />
         <Tab value="cards" label="Card batches" sx={{ textTransform: 'none' }} />
-        <Tab value="rewards" label="Rewards" sx={{ textTransform: 'none' }} />
+        <Tab value="rewards" label="ThriftBucks" sx={{ textTransform: 'none' }} />
         <Tab value="calculator" label="Calculator" sx={{ textTransform: 'none' }} />
         <Tab value="floor" label="Floor stock" sx={{ textTransform: 'none' }} />
         <Tab value="register" label="Register" sx={{ textTransform: 'none' }} />

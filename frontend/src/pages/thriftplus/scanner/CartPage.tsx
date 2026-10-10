@@ -14,7 +14,9 @@ import {
   type ThriftPlusItemCard,
   type ThriftPlusMember,
 } from '../../../api/thriftPlusMock';
+import { TbAmount, tbText } from '../../../components/thriftplus/ThriftBucks';
 import { money } from './scannerLogic';
+import { useScannerLook } from './scannerLook';
 import { CategoryBadge, art, sc, u } from './scannerTheme';
 import { useCartActions, useThriftPlusHistory } from './useThriftPlus';
 
@@ -25,7 +27,6 @@ interface Props {
   onBack: () => void;
   /** Adds go through the scanner so the first one can ask bank-or-rebate. */
   onAdd: (item: ThriftPlusItemCard) => void;
-  onChoose: (choice: RewardChoice) => void;
   onExplain: (topic: 'bank' | 'cart', from: HTMLElement) => void;
   onTour: () => void;
   onSignIn: () => void;
@@ -36,8 +37,8 @@ interface Props {
 
 const cents = (m: string) => toCents(m);
 
-/** The cart: what you'll pay, what your rewards do, the items, then everything you scanned. */
-export function CartPage({ cart, member, isGuest, onBack, onAdd, onChoose, onExplain, onTour, onSignIn, onSignOut, onAccount }: Props) {
+/** My list (owner 2026-10-10: simple): the ThriftBucks on it, the items, then everything you scanned. No $ totals. */
+export function CartPage({ cart, member, isGuest, onBack, onAdd, onExplain, onTour, onSignIn, onSignOut, onAccount }: Props) {
   const actions = useCartActions();
   const history = useThriftPlusHistory();
   const lines = cart?.lines ?? [];
@@ -77,7 +78,7 @@ export function CartPage({ cart, member, isGuest, onBack, onAdd, onChoose, onExp
             <path d="M15.5 4 L7.5 12 L15.5 20" fill="none" stroke={sc.ink2} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
           </Box>
         </ButtonBase>
-        <Box sx={{ flex: 1, fontFamily: sc.condensed, fontWeight: 700, fontSize: u(50), color: sc.titleGreen }}>Your cart</Box>
+        <Box sx={{ flex: 1, fontFamily: sc.condensed, fontWeight: 700, fontSize: u(50), color: sc.titleGreen }}>My list</Box>
         {lines.length > 0 && (
           <ButtonBase onClick={() => actions.clear.mutate()} sx={{ px: u(24), py: u(12), borderRadius: 99, color: sc.ink2, fontSize: u(29) }}>
             Clear
@@ -89,13 +90,13 @@ export function CartPage({ cart, member, isGuest, onBack, onAdd, onChoose, onExp
         {lines.length === 0 ? (
           <Panel sx={{ mt: u(30), textAlign: 'center', py: u(60) }}>
             <Box component="img" src={art.cart} alt="" sx={{ width: u(120), height: u(120), opacity: 0.9 }} />
-            <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(44), color: sc.titleGreen, mt: u(16) }}>Your cart is empty</Box>
+            <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(44), color: sc.titleGreen, mt: u(16) }}>Your list is empty</Box>
             <Box sx={{ fontSize: u(30), color: sc.ink2, mt: u(8) }}>Scan a tag and swipe right to add it.</Box>
           </Panel>
         ) : (
           cart && (
             <>
-              <Summary cart={cart} member={member} isGuest={isGuest} onChoose={onChoose} onExplain={onExplain} onSignIn={onSignIn} />
+              <Summary cart={cart} isGuest={isGuest} onExplain={onExplain} onSignIn={onSignIn} />
 
               <SectionTitle>
                 {cart.totals.item_count} {cart.totals.item_count === 1 ? 'item' : 'items'}
@@ -121,7 +122,7 @@ export function CartPage({ cart, member, isGuest, onBack, onAdd, onChoose, onExp
                         )}
                         <Box component="span">Tag {money(l.item.price)}</Box>
                         {cents(l.item.reward) > 0 && (
-                          <Box component="span" sx={{ color: sc.green, fontWeight: 700 }}>Rewards +{money(l.item.reward)}</Box>
+                          <Box component="span" sx={{ color: sc.green, fontWeight: 700 }}>ThriftBucks <TbAmount value={l.item.reward} sign="+" bare /></Box>
                         )}
                       </Box>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: u(16), mt: u(14), flexWrap: 'wrap' }}>
@@ -168,186 +169,50 @@ export function CartPage({ cart, member, isGuest, onBack, onAdd, onChoose, onExp
 }
 
 /** The top card: the estimate in big type, and what this trip's rewards do. */
+/**
+ * The top of My list (owner 2026-10-10: as simple as possible). The ThriftBucks the list collects, and one line: the
+ * register uses ThriftBucks and Return $ itself and has the final price. No totals, tax, cover math or InstantBucks.
+ */
 function Summary({
   cart,
-  member,
   isGuest,
-  onChoose,
   onExplain,
   onSignIn,
 }: {
   cart: ThriftPlusCart;
-  member: ThriftPlusMember | null;
   isGuest: boolean;
-  onChoose: (c: RewardChoice) => void;
   onExplain: (topic: 'bank' | 'cart', from: HTMLElement) => void;
   onSignIn: () => void;
 }) {
   const t = cart.totals;
-  // Form 5: saving in full is the default; Instant takes 80% off today.
-  const full = cart.reward_choice !== 'instant';
-  const total = isGuest ? t.price_total : t.member_total;
-  const hasRewards = cents(t.reward_total) > 0;
-  const fullValue = t.full_value ?? t.bank_value;
-  const instantValue = t.instant_value ?? money(cents(t.bank_value) - cents(t.bank_extra)).replace('$', '');
-  const credit = member ? cents(member.credit_balance) : 0;
-  const balance = member ? cents(member.banked_rewards) : 0;
-
+  const hasTb = cents(t.reward_total) > 0;
   return (
     <Panel sx={{ mt: u(30), p: u(40) }}>
-      <Box sx={{ fontSize: u(30), color: sc.ink2 }}>{isGuest ? 'Guest total' : 'Estimated total'}</Box>
-      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: u(20), flexWrap: 'wrap' }}>
-        <Box data-testid="cart-total" sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(96), lineHeight: 1.05, color: sc.priceGreen }}>
-          {money(total)}
-        </Box>
-        {!isGuest && cents(t.savings) > 0 && (
-          <Box sx={{ fontSize: u(30), color: sc.ink3, textDecoration: 'line-through' }}>{money(t.price_total)}</Box>
-        )}
+      {hasTb && (
+        <ButtonBase
+          onClick={(e) => onExplain('cart', e.currentTarget)}
+          aria-label={`${isGuest ? 'Members collect' : 'ThriftBucks on this list,'} ${tbText(t.reward_total)}. What is this?`}
+          sx={{ width: '100%', display: 'block', textAlign: 'left', borderRadius: u(12) }}
+        >
+          <Box sx={{ fontSize: u(30), color: sc.ink2, display: 'flex', alignItems: 'center', gap: u(10) }}>
+            {isGuest ? 'Members collect on this list' : 'ThriftBucks on this list'} <InfoDot />
+          </Box>
+          <Box data-testid="list-tb" sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(96), lineHeight: 1.05, color: sc.green }}>
+            <TbAmount value={t.reward_total} sign="+" />
+          </Box>
+        </ButtonBase>
+      )}
+      <Box data-testid="list-note" sx={{ fontSize: u(27), color: sc.ink3, mt: u(10), lineHeight: 1.4 }}>
+        {isGuest
+          ? 'Guests pay the tag price. Cards are free at the register.'
+          : 'The register uses your ThriftBucks and Return $ automatically and has the final price.'}
       </Box>
-      <Box sx={{ fontSize: u(27), color: sc.ink3, mt: u(4) }}>Before tax. The register has the final price.</Box>
-
-      {hasRewards && member && (
-        <>
-          <Box sx={{ height: '1px', bgcolor: sc.line, my: u(30) }} />
-          <ButtonBase
-            onClick={(e) => onExplain('cart', e.currentTarget)}
-            aria-label={`Rewards on this cart, ${money(t.reward_total)}. What is this?`}
-            sx={{ width: '100%', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: u(20), borderRadius: u(12) }}
-          >
-            <Box sx={{ fontSize: u(32), color: sc.ink, display: 'flex', alignItems: 'center', gap: u(10) }}>
-              Rewards on this cart <InfoDot />
-            </Box>
-            <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(46), color: sc.green, whiteSpace: 'nowrap' }}>
-              +{money(t.reward_total)}
-            </Box>
-          </ButtonBase>
-          {cents(t.to_cover) > 0 && (
-            <Box data-testid="cover-paydown" sx={{ fontSize: u(27), color: sc.ink2, mt: u(6), lineHeight: 1.35 }}>
-              Pays {money(t.to_cover)} toward this month's cover first.
-            </Box>
-          )}
-
-          {cents(fullValue) > 0 && (
-            <>
-              <Box role="radiogroup" aria-label="Your rewards this trip" sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: u(18), mt: u(28) }}>
-                <ChoiceCard
-                  selected={full}
-                  onClick={() => onChoose('bank')}
-                  label="Full rewards"
-                  amount={`+${money(fullValue)}`}
-                  note="to spend next time"
-                  tag="100% · 30 days"
-                />
-                <ChoiceCard
-                  selected={!full}
-                  onClick={() => onChoose('instant')}
-                  label="Instant rewards"
-                  amount={`-${money(instantValue)}`}
-                  note="off today's price"
-                  tag="80%"
-                />
-              </Box>
-              <Box data-testid="pay-today" sx={{ display: 'grid', gridTemplateColumns: '1fr auto', rowGap: u(8), mt: u(24), fontSize: u(30) }}>
-                <Box sx={{ color: sc.ink }}>You pay today</Box>
-                <Box sx={{ fontWeight: 700, color: sc.ink, textAlign: 'right' }}>{money(t.member_total)}</Box>
-                <Box sx={{ color: sc.ink }}>Rewards you can spend tomorrow</Box>
-                <Box sx={{ fontWeight: 700, color: sc.green, textAlign: 'right' }}>+{money(full ? fullValue : '0')}</Box>
-              </Box>
-              <Box sx={{ fontSize: u(26), color: sc.ink3, mt: u(16), lineHeight: 1.35 }}>
-                The register gets your choice; tell the cashier too.{' '}
-                <ButtonBase
-                  onClick={(e) => onExplain('bank', e.currentTarget)}
-                  sx={{ fontSize: 'inherit', color: sc.priceGreen, fontWeight: 700, verticalAlign: 'baseline', borderRadius: u(8) }}
-                >
-                  Which is better?
-                </ButtonBase>
-              </Box>
-            </>
-          )}
-        </>
-      )}
-
-      {member && (credit > 0 || balance > 0) && (
-        <>
-          <Box sx={{ height: '1px', bgcolor: sc.line, my: u(30) }} />
-          <Box data-testid="balance-applies" sx={{ fontSize: u(28), color: sc.ink2, lineHeight: 1.4 }}>
-            <Box sx={{ fontWeight: 700, color: sc.ink, mb: u(6) }}>Your balance at the register</Box>
-            {credit > 0 && <Box>Return $ {money(member.credit_balance)}: used first</Box>}
-            {balance > 0 && <Box>Rewards Balance {money(member.banked_rewards)}: soonest use-by date first</Box>}
-          </Box>
-        </>
-      )}
-
-      {isGuest && hasRewards && (
-        <Box sx={{ mt: u(30), p: u(30), borderRadius: u(28), bgcolor: sc.greenTint }}>
-          <Box sx={{ fontSize: u(32), fontWeight: 700, color: sc.priceGreen }}>With a Thrift+ card: {money(t.member_total)}</Box>
-          <Box sx={{ fontSize: u(28), color: sc.ink2, mt: u(6), lineHeight: 1.35 }}>
-            Members earn {money(t.reward_total)} on this cart. Cards are free at the register.
-          </Box>
-          <ButtonBase onClick={onSignIn} sx={{ mt: u(16), fontWeight: 700, color: sc.priceGreen, fontSize: u(30), borderRadius: u(12) }}>
-            I have a card. Sign in
-          </ButtonBase>
-        </Box>
+      {isGuest && hasTb && (
+        <ButtonBase onClick={onSignIn} sx={{ mt: u(16), fontWeight: 700, color: sc.priceGreen, fontSize: u(30), borderRadius: u(12) }}>
+          I have a card. Sign in
+        </ButtonBase>
       )}
     </Panel>
-  );
-}
-
-function ChoiceCard({
-  selected,
-  onClick,
-  label,
-  amount,
-  note,
-  tag,
-}: {
-  selected: boolean;
-  onClick: () => void;
-  label: string;
-  amount: string;
-  note: string;
-  tag?: string;
-}) {
-  return (
-    <ButtonBase
-      role="radio"
-      aria-checked={selected}
-      aria-label={label}
-      onClick={onClick}
-      sx={{
-        position: 'relative',
-        display: 'block',
-        textAlign: 'left',
-        p: u(24),
-        pt: u(28),
-        borderRadius: u(28),
-        border: `${u(4)} solid ${selected ? sc.green : sc.line}`,
-        bgcolor: selected ? '#f3faef' : '#fff',
-        transition: 'border-color 120ms, background-color 120ms',
-      }}
-    >
-      {selected && <CheckCircleRounded sx={{ position: 'absolute', top: u(16), right: u(16), fontSize: u(44), color: sc.green }} />}
-      <Box sx={{ fontSize: u(29), fontWeight: 700, color: sc.ink, pr: u(40) }}>{label}</Box>
-      <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(50), color: sc.priceGreen, lineHeight: 1.15, mt: u(6) }}>{amount}</Box>
-      <Box sx={{ fontSize: u(25), color: sc.ink2, lineHeight: 1.3 }}>{note}</Box>
-      {tag && (
-        <Box
-          sx={{
-            display: 'inline-block',
-            mt: u(12),
-            px: u(16),
-            py: u(4),
-            borderRadius: 99,
-            bgcolor: '#fff4cf',
-            color: '#8a6200',
-            fontSize: u(24),
-            fontWeight: 700,
-          }}
-        >
-          {tag}
-        </Box>
-      )}
-    </ButtonBase>
   );
 }
 
@@ -452,7 +317,7 @@ function HistoryList({
                     {money(e.item.price)}
                     {cents(e.item.reward) > 0 && (
                       <Box component="span" sx={{ color: sc.green, fontWeight: 700 }}>
-                        {'  '}+{money(e.item.reward)}
+                        {'  '}<TbAmount value={e.item.reward} sign="+" />
                       </Box>
                     )}
                     {!e.item.available && (

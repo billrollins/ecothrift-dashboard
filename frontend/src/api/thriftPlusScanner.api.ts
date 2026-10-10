@@ -117,6 +117,20 @@ async function isMember(): Promise<boolean> {
 
 // ── Session ─────────────────────────────────────────────────────────────────
 
+/** The scanner's settings (owner 2026-10-10): the price as the big number (the default). */
+export interface ScannerSettings {
+  priceFirst: boolean;
+}
+
+export async function fetchScannerSettings(): Promise<ScannerSettings> {
+  try {
+    const { data } = await http.get<{ price_first?: boolean }>('/session/');
+    return { priceFirst: data.price_first !== false };
+  } catch {
+    return { priceFirst: true };
+  }
+}
+
 export async function getSession(): Promise<ThriftPlusSession> {
   try {
     const { data } = await http.get<ThriftPlusSession>('/session/');
@@ -225,6 +239,19 @@ function touchGuestHistory(item: ThriftPlusItemCard, decision?: 'added' | 'passe
 }
 
 // ── Tags, cart, signals ─────────────────────────────────────────────────────
+
+/** A tag to pick in the scanner's test mode (staff only, owner 2026-10-10). */
+export interface TestTag {
+  sku: string;
+  title: string;
+  price: string;
+  reward: string;
+}
+
+export async function fetchTestTags(): Promise<TestTag[]> {
+  const { data } = await http.get<{ tags: TestTag[] }>('/test-tags/');
+  return data.tags;
+}
 
 export async function lookupTag(sku: string): Promise<TagLookup> {
   const code = sku.trim().toUpperCase();

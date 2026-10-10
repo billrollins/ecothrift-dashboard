@@ -15,7 +15,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         model = Register
         fields = [
             'id', 'location', 'location_name', 'name', 'code',
-            'starting_cash', 'starting_breakdown', 'is_active',
+            'starting_cash', 'starting_breakdown', 'is_active', 'is_training',
         ]
         read_only_fields = ['id']
 
@@ -54,6 +54,7 @@ class CashDropSerializer(serializers.ModelSerializer):
 class DrawerSerializer(serializers.ModelSerializer):
     register_name = serializers.CharField(source='register.name', read_only=True)
     register_code = serializers.CharField(source='register.code', read_only=True)
+    register_is_training = serializers.BooleanField(source='register.is_training', read_only=True)
     current_cashier_name = serializers.CharField(
         source='current_cashier.full_name', read_only=True, default=None,
     )
@@ -67,7 +68,7 @@ class DrawerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Drawer
         fields = [
-            'id', 'register', 'register_name', 'register_code', 'date', 'status',
+            'id', 'register', 'register_name', 'register_code', 'register_is_training', 'date', 'status',
             'current_cashier', 'current_cashier_name',
             'opened_by', 'opened_by_name', 'opened_at',
             'opening_count', 'opening_total',

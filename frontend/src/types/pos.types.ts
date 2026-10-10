@@ -57,6 +57,8 @@ export interface Register {
   starting_cash: string;
   starting_breakdown: DenominationBreakdown;
   is_active: boolean;
+  /** Training register: practice sales only, nothing real written (2026-10-10). */
+  is_training?: boolean;
 }
 
 export interface DrawerHandoff {
@@ -90,6 +92,8 @@ export interface Drawer {
   register: number;
   register_name: string;
   register_code: string;
+  /** The drawer's register is the training register (2026-10-10). */
+  register_is_training?: boolean;
   date: string;
   status: 'open' | 'closed';
   current_cashier: number | null;
@@ -211,7 +215,8 @@ export interface Cart {
   cashier: number | null;
   cashier_name: string | null;
   customer: number | null;
-  status: 'open' | 'completed' | 'voided';
+  /** 'training': a practice sale on the training register (nothing real written). */
+  status: 'open' | 'completed' | 'voided' | 'training';
   subtotal: string;
   tax_rate: string;
   tax_amount: string;

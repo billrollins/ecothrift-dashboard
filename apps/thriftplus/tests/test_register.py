@@ -44,9 +44,9 @@ class TripMathTests(SimpleTestCase):
     def test_a_guest_is_shown_the_instant_rebate_and_never_banks(self):
         t = trip.totals(self.lines, cover_left=D('10.00'), member=False, choice='bank')
         self.assertEqual((t.to_bank, t.savings), (D('0.00'), D('8.80')))
-        self.assertEqual(trip.guest_line(t, D('10.00')), 'No Thrift+ card today. You lost $11.00')
+        self.assertEqual(trip.guest_line(t, D('10.00')), 'No Thrift+ card today. You lost 11.00 ThriftBucks')
         small = trip.totals([TripLine('a', D('20.00'), D('4.00'))], cover_left=D('10.00'), member=False, choice=None)
-        self.assertEqual(trip.guest_line(small, D('10.00')), 'This trip would have earned $4.00')
+        self.assertEqual(trip.guest_line(small, D('10.00')), 'This trip would have collected 4.00 ThriftBucks')
 
     def test_a_reward_never_passes_the_price(self):
         t = trip.totals([TripLine('a', D('5.00'), D('9.00'))], cover_left=D('0'), member=True, choice='bank')
@@ -120,14 +120,14 @@ class RegisterTests(TestCase):
     def test_a_member_pays_the_member_price_after_the_cover(self):
         self._live()
         cart = self._cart()
-        self.assertEqual(cart['thrift_plus']['guest_line'], 'No Thrift+ card today. You lost $3.00')
+        self.assertEqual(cart['thrift_plus']['guest_line'], 'No Thrift+ card today. You lost 3.00 ThriftBucks')
         data = self._attach(cart['id']).json()
         line = data['lines'][0]
         self.assertEqual((line['thrift_savings'], line['line_total']), ('2.40', '87.60'))  # $13: $10 to the cover, 80% of $3 off
         self.assertEqual(data['total'], '93.73')
         self.assertEqual(data['thrift_plus']['member']['name'], 'Ana')
         self.assertEqual(data['thrift_plus']['totals']['to_cover'], '10.00')
-        self.assertIn({'label': 'Thrift+ rewards', 'amount': '2.40'}, data['savings']['lines'])
+        self.assertIn({'label': 'InstantBucks', 'amount': '2.40'}, data['savings']['lines'])
         banked = self.api.post('/api/thriftplus/register/choice/', {'cart': cart['id'], 'choice': 'bank'}, format='json').json()
         self.assertEqual((banked['lines'][0]['line_total'], banked['thrift_plus']['totals']['to_bank']), ('90.00', '3.00'))  # saved in full (form 5)
 

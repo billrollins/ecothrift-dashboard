@@ -49,6 +49,12 @@ export async function createMember(body: NewMember): Promise<ThriftPlusAccount> 
   return data;
 }
 
+/** A practice member for training (2026-10-10): a 555 phone and a made-up card number. */
+export async function makePracticeMember(firstName = ''): Promise<ThriftPlusAccount> {
+  const { data } = await api.post<ThriftPlusAccount>('/thriftplus/accounts/practice/', { first_name: firstName });
+  return data;
+}
+
 export async function addSecondAdult(
   accountId: number,
   body: NewMember & { both_present: boolean; primary_approves: boolean },

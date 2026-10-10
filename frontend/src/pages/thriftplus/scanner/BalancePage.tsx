@@ -1,10 +1,11 @@
 /**
- * Rewards Balance (owner, 2026-10-09): tap the tile to see everything, in the order it is used at the register:
+ * ThriftBucks Balance (owner, 2026-10-09; ThriftBucks 10-10): tap the tile to see everything, in the order it is used at the register:
  * Return $ first (store credit from returns, never expires), then saved rewards with the soonest use-by date first,
  * then today's instant rewards when the member chose them.
  */
 import { Box, ButtonBase } from '@mui/material';
 import { toCents, type ThriftPlusCart, type ThriftPlusMember } from '../../../api/thriftPlusMock';
+import { TbAmount } from '../../../components/thriftplus/ThriftBucks';
 import { money } from './scannerLogic';
 import { art, sc, u } from './scannerTheme';
 import { useMe } from './useThriftPlus';
@@ -14,7 +15,7 @@ function shortDay(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function Row({ step, title, note, amount, muted }: { step: number; title: string; note: string; amount: string; muted?: boolean }) {
+function Row({ step, title, note, amount, muted }: { step: number; title: string; note: string; amount: import('react').ReactNode; muted?: boolean }) {
   return (
     <Box data-testid="balance-row" sx={{ display: 'flex', alignItems: 'center', gap: u(20), py: u(22), borderTop: `1px solid ${sc.line}` }}>
       <Box sx={{ width: u(54), height: u(54), borderRadius: 99, bgcolor: sc.greenTint, color: sc.priceGreen, fontWeight: 700,
@@ -56,7 +57,7 @@ export function BalancePage({ member, cart, onBack }: { member: ThriftPlusMember
             <path d="M15.5 4 L7.5 12 L15.5 20" fill="none" stroke={sc.ink2} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
           </Box>
         </ButtonBase>
-        <Box sx={{ flex: 1, fontFamily: sc.condensed, fontWeight: 700, fontSize: u(50), color: sc.titleGreen }}>Rewards Balance</Box>
+        <Box sx={{ flex: 1, fontFamily: sc.condensed, fontWeight: 700, fontSize: u(50), color: sc.titleGreen }}>Your ThriftBucks</Box>
       </Box>
 
       <Box sx={{ flex: 1, overflowY: 'auto', px: u(30), pb: `calc(env(safe-area-inset-bottom, 0px) + ${u(50)})` }}>
@@ -64,9 +65,9 @@ export function BalancePage({ member, cart, onBack }: { member: ThriftPlusMember
           alignItems: 'center', gap: u(26) }}>
           <Box component="img" src={art.brick} alt="" sx={{ width: u(130), height: u(130), flexShrink: 0 }} />
           <Box>
-            <Box sx={{ fontSize: u(30), color: sc.ink2 }}>Rewards Balance</Box>
+            <Box sx={{ fontSize: u(30), color: sc.ink2 }}>Your ThriftBucks</Box>
             <Box data-testid="balance-total" sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(92), lineHeight: 1.05, color: sc.priceGreen }}>
-              {money(member.banked_rewards)}
+              <TbAmount value={member.banked_rewards} bare />
             </Box>
             {toCents(credit) > 0 && <Box sx={{ fontSize: u(28), color: sc.ink2 }}>plus {money(credit)} Return $</Box>}
           </Box>
@@ -81,24 +82,24 @@ export function BalancePage({ member, cart, onBack }: { member: ThriftPlusMember
             <Row
               key={`${lot.earned_on}-${lot.use_by}-${lot.amount}`}
               step={++step}
-              title="Rewards"
-              note={lot.past_due ? `Use by ${shortDay(lot.use_by)} (past its date)` : `Earned ${shortDay(lot.earned_on)}. Use by ${shortDay(lot.use_by)}`}
-              amount={money(lot.amount)}
+              title="ThriftBucks"
+              note={lot.past_due ? `Use by ${shortDay(lot.use_by)} (past its date)` : `Collected ${shortDay(lot.earned_on)}. Use by ${shortDay(lot.use_by)}`}
+              amount={<TbAmount value={lot.amount} bare />}
               muted={lot.past_due}
             />
           ))}
           {toCents(instant) > 0 && (
-            <Row step={++step} title="Today's instant rewards" note="You chose Instant: 80% comes off today's price." amount={money(instant)} />
+            <Row step={++step} title="Today's InstantBucks" note="You chose InstantBucks: 80% of the ThriftBucks comes off today's price." amount={<TbAmount value={instant} bare />} />
           )}
           {step === 0 && (
             <Box sx={{ fontSize: u(28), color: sc.ink2, lineHeight: 1.4, py: u(16) }}>
-              {me.isLoading ? 'Loading your rewards…' : 'No rewards saved yet. Past this month\'s cover, the rewards on what you buy land here, good for 30 days.'}
+              {me.isLoading ? 'Loading your ThriftBucks…' : 'No ThriftBucks saved yet. Past this month\'s cover, the ThriftBucks on what you buy land here, good for 30 days.'}
             </Box>
           )}
         </Box>
 
         <Box sx={{ fontSize: u(25), color: sc.ink3, mt: u(24), lineHeight: 1.4, textAlign: 'center' }}>
-          Rewards have no cash value. Each is good for 30 days after the receipt it was earned on.
+          ThriftBucks have no cash value. Each is good for 30 days after the receipt it was collected on.
         </Box>
       </Box>
     </Box>

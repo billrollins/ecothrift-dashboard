@@ -1,20 +1,20 @@
-<!-- Last updated: 2026-10-09 (policy signed with Carrie: Instant / Full, warranty settled on return day, owner-only authorizations, families wait for the owner) -->
+<!-- Last updated: 2026-10-10 (V8: ThriftBucks is the name, no switch (owner, code session); words brought in line with the posters and the terms; member perks; owner calls of 10-09 and 10-10) -->
 # Thrift+ rulebook
 
 **The one place for every Thrift+ rule.** Form 5 is chosen: rewards first, as store credit. Code follows this file. It is the single source of truth: the old rulebook page, launch kit page and warranty review page are retired (10-09); the only page kept is the final forms grid. Owner answers are folded in here. Items marked "CPA / attorney" carry our answer and wait for their sign-off. Older notes (the 10-01 list, the legal memo, the warranty review, the launch kit) lose wherever they differ.
 
-**Signed 10-09 (Bill and Carrie).** The policy below is signed. Its names: **Instant reward** (used at the register, 80% of the Full reward) and **Full reward** (kept on the account for 30 days). Where an older line below still says "use today" or "save", read Instant and Full.
+**Signed 10-09 (Bill and Carrie).** The policy below is signed. Its names: **Full reward** (the Default, saved automatically, usable from the next day for 30 days) and **Instant reward** (80% of the Full reward, off today's price, when the member tells the cashier). The customer-facing words are in `.ai/reference/thrift-plus-terms/` (the terms page) and `.ai/reference/thrift-plus-posters/` (the posters).
 
 ## The program in one look
 
 *Form 5: rewards first, as store credit. Everything below follows from it.*
 
-- **F1. Form 5: rewards first** (Decided). Every reward is earned in full and kept on the account as Rewards, a loyalty reward the store gives (not bought), good for 30 days. At checkout the member can use today's rewards now at 80%, or save them in full. Saving is the default. Compared with the other forms on https://claude.ai/artifact/AnH8RuYAKANXGoqBq1crxf.
-  - Customer words: "Every find earns Rewards. Take your Full reward within 30 days, or an Instant reward today: 80% of the Full reward."
+- **F1. Form 5: rewards first** (Decided). Every reward is collected in full and kept on the account as Rewards, a loyalty reward the store gives (not bought). The Full reward is the Default: saved automatically and usable from the next day for 30 days. A member who tells the cashier takes the Instant reward instead: 80% of the Full reward, off today's price (B1). Compared with the other forms on https://claude.ai/artifact/AnH8RuYAKANXGoqBq1crxf.
+  - Customer words: "Full rewards: use the next day, for 30 days. Instant rewards: use today, at 80% of Full." (Meet poster)
   - Source: Your picks 10-08; names signed 10-09 (Instant and Full; never "use now", "bank", or "20% less", always "80% of"). Built: No (the build follows these rules).
 - **F2. Warranty refunds go back as store credit** (Decided). 80% of what they spent, tax included (the same 80% as using rewards today), goes back as credit on the same Thrift+ balance, with a cash refund if the credit can't be used (for example the store closes or the membership ends). The money part comes back as refund credit, which never expires; see W3.
   - Source: Your picks 10-08. Built: No.
-- **F3. The whole trip, worked** (Decided). Tag $80, rewards $35, 7% tax, cover already filled, bought Oct 20. Save it: pay $85.60, get $35 credit, use by Nov 19. Use it today: $28 off (80%), pay $55.64. Next trip, a $50 item with that $35 credit: $15 taxed = $16.05. Early in a month with $10 of cover left: $10 covers the card, then save $25 or use $20 today.
+- **F3. The whole trip, worked** (Decided). Tag $80, rewards $35, 7% tax, cover already filled, bought Oct 20. Full reward (Default): pay $85.60, $35 of Rewards usable Oct 21 to Nov 19. Instant reward: $28 off (80%), pay $55.64. Next trip, a $50 item with that $35 of Rewards: $15 taxed = $16.05. Early in a month with $10 of cover left: $10 covers the card, then a Full reward of $25 or an Instant reward of $20.
   - Source: Worked 10-08. Built: n/a.
 
 ## The monthly $10 cover
@@ -22,7 +22,8 @@
 *Always on. It comes out of rewards first.*
 
 - **C1. How the cover works** (Decided). The first $10 of rewards each calendar month covers the card. It comes out of the full-value rewards first, before the use-or-save choice. It resets on the 1st and never rolls over; a month with less than $10 of rewards simply covers less. Active staff are exempt while your staff switch is on.
-  - Customer words: "Free to get your card. Your first $10 of rewards each month covers it, so you never pay anything out of pocket."
+  - Customer words: "Free to get your card. The first $10 of Rewards you collect each month covers your card. The rest is yours."
+  - Words: always "cover" (the noun) and "covers" (the verb), never "pays for" (owner 10-09). Poster line: "The first $10 of Rewards you collect each month covers your card."
   - Source: Design 09-25; your messages 10-08. Built: Yes (cover built; it already comes first).
 - **C2. Always a cover** (Decided). Every form keeps the $10 monthly cover.
   - Source: Your message 10-08. Built: Yes.
@@ -42,13 +43,13 @@
 - **J2. What a card needs before it works** (Decided). A photo, name and phone, an ID check, and a signature. Until all four are done the card is "not ready": it earns and uses nothing.
   - Source: Meeting 10-07. Built: No (due 10-12).
 - **J3. The ID check** (Decided). Staff look at a photo ID for the name, the age and the face. Nothing from the ID is scanned, copied or kept: only "ID checked", by whom, when, and the 18+ flag.
-  - Customer words: "We check your ID for age and keep nothing from it."
+  - Customer words: "18+. ID is used only for verification." (poster, owner 10-09; still nothing from the ID is kept)
   - Source: 10-01; meeting 10-07. Built: Partly.
 - **J4. The photo** (Decided). Taken with the register's webcam. Used only so staff can confirm it is you: never marketing, never shared, never face recognition. Deleted 24 months after the last purchase, or within 30 days of a request.
   - Customer words: "Your photo protects your card balance."
   - Source: 10-01; 10-08. Built: Partly (webcam view due 10-12).
 - **J5. The signature** (Decided). Signed on the register's touch screen: a deliberate act that covers the photo release and the written terms, which make no cash value, expiry, final sale and the ID rules binding.
-  - Customer words: "I agree to the Thrift+ terms and photo release. I can read them at ecothrift.us/thriftplus."
+  - Customer words: "I agree to the Thrift+ terms and photo release. I can read them at ecothrift.us/terms."
   - Source: Legal memo accepted by the CPA and attorney 10-01; your OK 10-08 (Q5, Q7). Built: No (due 10-12).
 - **J6. Staff memberships** (Decided). Free for active staff (no cover) while your staff switch is on.
   - Source: 10-07. Built: Yes.
@@ -67,12 +68,13 @@
 *What members earn, and how it moves.*
 
 - **P1. Guests and members** (Decided). Guests pay the tag. Members earn rewards on almost everything. Not earning: consignment items, an item's first 7 days on the floor, and back stock not yet seen on the floor.
-  - Customer words: "Rewards on almost everything."
+  - Customer words: "Rewards on most items." (posters 10-10; the terms say "most items" and list the exceptions)
   - Source: Design; 10-08. Built: Yes.
 - **P2. The word members see** (Decided). "Rewards" everywhere members look. "Member price" only as a plain description (the tag minus rewards used today).
   - Source: Your message 10-08. Built: No (screens say "Member Price" today).
-- **P3. How rewards grow** (Decided). After a 7-day wait, rewards grow by 0.75% of the tag a day, up to 90% of the tag (a member never pays less than 10% of the tag when using today). Changes happen overnight; rewards never shrink except on a retag.
-  - Source: 10-08; 10-01. Built: No (engine uses tag ÷ 90 a day; due 10-13).
+- **P3. How rewards grow** (Decided). After a 7-day wait, rewards grow by 0.75% of the tag a day, up to 95% of the tag. There is no extra for saving: the Full reward is the normal one, and the Instant reward is 80% of it. So the most off today is 76% of the tag. Changes happen overnight; rewards never shrink except on a retag. Customer words: Rewards grow as an item sits. The daily rate is never printed (P8). The cap may be printed ("up to 95% of the tag", owner 10-09), and as a worked example ("up to $19" on a $20 tag).
+  - Customer words: "Rewards grow as an item sits."
+  - Source: 10-08; 10-01; owner 10-09 (95% replaces 90%, because saving no longer earns 5% more). Built: No (engine uses tag ÷ 90 a day; due 10-13).
 - **P4. Launch jump start** (Decided). Stock on the floor at launch starts at one third of its real age, at most 45 days, then ages one day per day. The 7-day wait (P3) still applies: an item 9 days old at launch starts at day 3 and earns nothing for 4 more days.
   - Source: 10-08; signed 10-09 (one third, replaces half). Built: No.
 - **P5. Back stock** (Decided). Days on the floor don't grow while an item is in back stock. Moving an item to back stock resets its age to 0; the old age stays in its history, so the owner can resume it. Back stock not seen on the floor earns nothing.
@@ -91,9 +93,9 @@
 
 *Saving rewards, refunds, and spending them.*
 
-- **B1. Use today or save** (Decided). Rewards are always earned in full. The register asks once per trip: use today's rewards now at 80%, or save them in full on the account. Saving is the default; one choice covers the whole trip (no splitting); it is logged. 80% is rounded to the cent in the member's favor. Not asked when Thrift+ credit covers the total (B3).
-  - Customer words: "Use today: $28 off. Or save $35 for 30 days."
-  - Source: Your picks 10-08. Built: No.
+- **B1. Full or Instant** (Decided). Rewards are always earned in full. The Full reward is the default: it goes on the account automatically. A member who wants the Instant reward (80% of the Full reward, off today's price) tells the cashier. One choice covers the whole trip (no splitting); it is logged. 80% is rounded to the cent in the member's favor. Not offered when Thrift+ credit covers the total (B3).
+  - Customer words: "Your Full reward is saved automatically. Want it today? Tell the cashier: 80% of it comes off today's price."
+  - Source: Your picks 10-08; owner 10-09 ("if you would like to use your rewards early, tell the cashier": replaces "the register asks once per trip"). Built: No.
 - **B2. Two balances: Rewards and Thrift+ credit** (Decided). Saved rewards are shown as "Rewards", each amount with its use-by date. Only the money part of warranty refunds is "Thrift+ credit" (never expires). They are kept apart, and named apart, because the memo warns that "credit" reads like a payment for sales tax, while a reward is a discount; expiry, cash and state reporting differ too.
   - Customer words: "Your Rewards: $35.00, use by Nov 19 · Thrift+ credit: $12.20"
   - Source: Legal memo accepted by the CPA and attorney 10-01; your OK 10-08 (Q16). Built: No.
@@ -105,7 +107,7 @@
 - **B4. No cap** (Decided). No limit on saved rewards: the 30-day expiry already keeps reward credit small.
   - Source: Follows your 30 days, 10-08. Built: n/a.
 - **B5. Expiry, fees and cash** (Decided). A Full reward can be used from the day after the sale through day 30 after it (sale + 1 to sale + 30), then it expires. Only the Instant reward is used on the trip that earned it. Thrift+ credit (refunds) never expires: it is money the member paid. No fees. Rewards have no cash value; Thrift+ credit is not redeemable for cash, except the warranty's cash fallback and where the law requires.
-  - Customer words: "Saved $35.00 in Rewards. Use by Nov 19. Rewards have no cash value."
+  - Customer words: "Full reward $35.00. Use by Nov 19. Rewards have no cash value."
   - Source: Your picks 10-08 (replaces "never expires"). Built: No.
 - **B13. Seeing it, and a reminder** (Decided). My account lists each saved amount with its use-by date, soonest first, and the refund credit apart. Members with an email get one reminder 5 days before rewards expire (after launch).
   - Source: Your picks 10-08; reminder by Claude. Built: No.
@@ -121,15 +123,15 @@
   - Source: Legal memo accepted by the CPA and attorney 10-01; your OK 10-08 (Q7: going forward, honor what is earned). Built: No.
 - **B11. Unclaimed property** (Decided). Free rewards are not in Nebraska's unclaimed property act, so Rewards are not reported. Thrift+ credit from refunds unused for 3 years is reported to the State Treasurer as a credit memo. Optional: one call to the Treasurer's Unclaimed Property Division to confirm.
   - Source: Legal memo accepted by the CPA and attorney 10-01; your OK 10-08 (Q13). Built: No.
-- **B12. Disclosures that make the 30 days work** (Decided). For rewards that expire, the memo's condition: the word "Reward" and the expiry rule printed on the card itself, and each date on receipts and in the app. Card line: "Thrift+ Rewards: use within 30 days of earning. No cash value." No gift cards are sold.
-  - Customer words: "Thrift+ Rewards: use within 30 days of earning. No cash value."
+- **B12. Disclosures that make the 30 days work** (Decided). For rewards that expire, the memo's condition: the word "Reward" and the expiry rule printed on the card itself, and each date on receipts and in the app. Card line: "Thrift+ Rewards: use within 30 days of collecting. No cash value. Terms: ecothrift.us/terms". No gift cards are sold.
+  - Customer words: "Thrift+ Rewards: use within 30 days of collecting. No cash value."
   - Source: Legal memo accepted by the CPA and attorney 10-01; your OK 10-08 (Q13). Built: No (the card design and receipts change).
 
 ## Limited Warranty and returns
 
 *What members can bring back, and what they get.*
 
-- **W1. What it covers** (Decided). "Thrift+ Limited Warranty", for members. The one qualifying reason: the item's **primary function** doesn't work (a lamp lights, a blender blends). Not qualifying: a non-primary function, missing accessories, condition (used or new), cosmetic damage, a change of mind. Untested items are covered.
+- **W1. What it covers** (Decided). "Thrift+ Limited Warranty", for members. The one qualifying reason: the item's **primary function** doesn't work (a blender blends, a mower mows; not a lamp, since a dead bulb is a part, owner 10-09). Not qualifying: a non-primary function, missing accessories, condition (used or new), cosmetic damage, a change of mind. Untested items are covered.
   - Customer words: "We can't test most items. This warranty covers them anyway."
   - Source: 10-01; 10-07; signed 10-09. Built: Partly.
 - **W2. How long** (Decided). 7 calendar days after the day of sale. Nothing extends it automatically. The one exception: when the store was closed, a manager may ask the owner, and only the owner may authorize a later claim (O1). It is never extended for a customer's own reasons.
@@ -142,7 +144,7 @@
 - **W5. Worked** (Decided). Lamp, $80 tag, $35 rewards, 7% tax. Took the Full reward and paid $85.60: refund credit $68.48, $28 of Rewards taken back, $7 kept. Took the Instant reward and paid $55.64: refund credit $44.51, nothing to take back.
   - Source: Worked 10-08; redone 10-09. Built: n/a.
 - **W6. Not covered** (Decided). Only items marked as covered qualify. Never covered: clothing and soft goods, consumables, items without a primary function, parts, items specifically marked AS IS (NO THRIFT+ WARRANTY), and cheap items: $10 or less after the reward (price minus reward). The $10 is a setting. 18+ items and crossbows are **not** excluded as a group: a gun safe or a crossbow whose primary function fails can be covered; processing decides item by item (W10).
-  - Source: 10-01; signed 10-09 ($10 after the reward replaces "under $5"; 18+ and crossbows taken off the list). Built: Partly.
+  - Source: 10-01; signed 10-09 ($10 after the reward replaces "under $5"; 18+ and crossbows taken off the list); owner 10-09: the cutoff stays after Rewards, knowing that a long-sitting item can drop under it. Built: Partly.
 - **W10. Who decides what is covered** (Decided). Processing (with AI) marks each item covered or not when it is priced; the mark goes on the receipt line (A3).
   - Source: Signed 10-09. Built: No.
 - **W11. Settled on the return day** (Decided). A return never reopens past trips. On the return day the store refunds 80% of what was paid (W3), takes back 80% of the rewards the item earned (W4), and records it all as a new transaction that day. No earlier receipt, monthly cover or tax report changes.
@@ -157,7 +159,7 @@
   - Source: Signed 10-09. Built: No.
 - **W7. Making a claim** (Decided). Bring the item with the card or phone number; staff check the main function; a manager reviews any no.
   - Source: 10-01. Built: Partly.
-- **W8. Where the full text lives** (Decided). Printed at every register and at ecothrift.us/thriftplus/warranty, version-dated, old versions kept. Eco-Thrift LLC, 8425 West Center Road, Omaha, NE 68124, (402) 881-9861.
+- **W8. Where the full text lives** (Decided). Printed at every register and at ecothrift.us/terms (section 8, anchor #s8; the older /thriftplus and /thriftplus/warranty redirect there), version-dated, old versions kept. The text: `.ai/reference/thrift-plus-terms/limited-warranty-register.md`. Eco-Thrift LLC, 8425 West Center Road, Omaha, NE 68124, (402) 881-9861.
   - Source: 10-01; 10-08. Built: No (page due 10-12).
 - **W9. Guests** (Decided). Everything is sold AS IS. All sales final.
   - Customer words: "All sales final. Sold AS IS."
@@ -199,19 +201,48 @@
 
 - **V1. Voice** (Decided). What you get now; "it might be gone tomorrow". Never wait / less / pay as the pitch.
   - Source: 10-07. Built: n/a.
-- **V2. Words we never use** (Decided). discount (as the pitch), fee, dues, unlock, cash back, points, clawback, instant rebate, gift card, store credit, Thrift+ Cash, "the longer it waits", "use now", "bank" or "banked", "20% less" (say "80% of").
-  - Source: 10-01; 10-07; 10-08; 10-09. Built: n/a.
-- **V3. Tagline** (Decided). Every find earns Rewards.
-  - Customer words: "Every find earns Rewards."
-  - Source: Claude, at your word 10-08. Built: n/a.
-- **V4. Both numbers, every time** (Decided). Wherever rewards show, the today number and the 30 days sit next to it: scanner "Rewards $35 · Save $35 for 30 days · Use today $28 off"; register "Use $28 today, or save $35?"; receipt "Rewards earned $35 · Cover $10 · Saved $25, use by Nov 19" and both balances. Never "$35" alone.
+- **V2. Words we never use** (Decided). discount (as the pitch), fee, dues, unlock, cash back, points, clawback, instant rebate, gift card, store credit, Thrift+ Cash, "the longer it waits", "use now", "bank" or "banked", "20% less" (say "80% of"), "earn" (say "collect"), "pays for" the card (say "covers"), "Automatic" for the Full reward (say "Default"), "Member price".
+  - Source: 10-01; 10-07; 10-08; 10-09; 10-10. Built: n/a.
+- **V3. Tagline** (Decided). "Rewards, Limited Warranty and more!" (the Meet poster's line, owner 10-10). The old "Every find earns Rewards" is retired: not every find collects Rewards (P1), and the word is "collect".
+  - Customer words: "Rewards, Limited Warranty and more!"
+  - Source: Claude, at your word 10-08; owner 10-10. Built: n/a.
+- **V4. Both numbers, every time** (Decided). Wherever rewards show, both numbers sit together: scanner "Rewards $35 · Full reward $35, from tomorrow for 30 days · or $28 off today"; register "Full reward $35 (Default) · Instant reward $28 if the member asks"; receipt "Rewards collected $35 · Cover $10 · Full reward $25, use by Nov 19" and both balances. Never "$35" alone.
   - Source: Claude, at your word 10-08. Built: No.
-- **V5. Spanish** (Decided). One Spanish line per sign; a native speaker checks it.
-  - Source: Claude, at your word 10-08. Built: n/a.
+- **V5. Spanish** (Decided). Signs and posters carry **one short Spanish line** that sells the benefit and sends readers to the full Spanish at ecothrift.us/terms (the page's Español toggle). Each line is the last footer line, ending with an arrow to the terms QR:
+  - Meet: "En español: ¡beneficios gratis con su tarjeta Thrift+! Escanee aquí o visite ecothrift.us/terms →"
+  - Rewards: "En español: Thrift+ le da Recompensas en sus compras. Escanee aquí o visite ecothrift.us/terms →" (not "le devuelve dinero": money back reads as cash back, V2 and B5)
+  - Warranty: "En español: Thrift+ le da una garantía limitada. Escanee aquí o visite ecothrift.us/terms →"
+  - A native speaker checks the lines and the terms page's Spanish.
+  - Source: Claude, at your word 10-08; owner 10-10 (very short: the benefit, then scan or go to /terms). Built: n/a (posters done 10-10).
 - **V6. Receipts** (Decided). Designed nearer testing with variations: AS IS and Limited Warranty lines apart, the NO REFUNDS block, and the credit balance at the bottom.
   - Source: Meeting 10-07. Built: No.
 - **V7. Fine print last** (Decided). Tax and legal lines are written from these rules and go to the CPA and attorney together.
   - Source: 10-08. Built: n/a.
+- **V8. ThriftBucks and InstantBucks** (Decided 10-10). **ThriftBucks is the name; "Rewards" is no longer used** (owner 10-10: "ThriftBuck is the word we are not using Rewards anymore"); no test switch. **Two words, never a symbol** (owner 10-10): **ThriftBucks** = the full value, kept for a later visit (the old "Full reward", the Default); **InstantBucks** = 80% of it, off today's price (the old "Instant reward"). Amounts are numbers next to a label that names the unit ("Your ThriftBucks 17.05", "+15.00 ThriftBucks"), never "$" and never the TB mark. **The cover is its own thing** (owner 10-10): filled by the first ThriftBucks each month, shown plain ("This month's cover 6.50 of 10.00", no unit). Prices, tax, totals and Return $ stay in dollars. **The scanner:** the header pill shows "$349.93 | +209.93 ThriftBucks" and "or $184.78 using InstantBucks"; the balance tile says "Your ThriftBucks"; the item card is a centered price tag (Retail struck, OUR PRICE, the big price) with the ThriftBucks under it in words (owner choosing between a badge, a stack and a coupon); no Instant and no net cost on the item card. **Thrift+ is written in the ThriftBucks font** on the scanner (outlines from `workspace/wordmark_gen.py`; Black Anemone must be bought before the public sees it). Before launch: CPA / attorney (a name that sounds like money; "no cash value"), the font bought, and a native-speaker check of the Spanish.
+  - The renames (screens, receipts, emails, posters, website; data and API names stay "reward"):
+    - "Rewards" (the balance, the thing collected) → **ThriftBucks**; one is a **ThriftBuck**. One word, capital T and B.
+    - "Rewards Balance" → **ThriftBucks Balance**. "Rewards collected" → **ThriftBucks collected**.
+    - "Full reward" → **ThriftBucks** (the Default, kept in full); "Instant reward" → **InstantBucks** (80% of the ThriftBucks, off today's price). (Owner 10-10; replaces "Full/Instant ThriftBucks".)
+    - **Never a symbol and never "$"** on screens and receipts (owner 10-10): a number next to a label that names the unit. The cover is shown without a unit. Prices, tax, totals and refund credit (W3) stay in dollars. Plain text: "35.00 ThriftBucks". (The certificate art keeps its mark: it is a picture, not an amount.)
+    - Tagline (V3) → **"ThriftBucks, Limited Warranty and more!"**
+    - Spanish keeps the name: "En español: Thrift+ le da ThriftBucks en sus compras. Escanee aquí o visite ecothrift.us/terms →"
+    - Coupon art is the **ThriftBuck certificate** (final 10-10), laid out like a banknote: a **1** in each corner, the **symbol** in a cut oval, **"One ThriftBuck"** under it, the **Eco-Thrift** wordmark on top, the slogan **"another chance for everything & everyone"** at the bottom, the Eco-Thrift seal (left), Thrift+ over "OMAHA, NEBRASKA" and a terms QR (right), and the captions **"No cash value"** / **"ecothrift.us/terms"**. Never a portrait, signature, serial number, government seal or the words "legal tender", "note" or "dollar" (it must never look like U.S. money). Files: `.ai/reference/thriftbucks-mark/art/`.
+  - Test words for the receipt and terms: "ThriftBucks have no cash value." (attorney to confirm)
+  - V2 still holds: never "points", "cash back", "store credit", "bank" etc.; "ThriftBucks" is the only money-like word, and never "Thrift Bucks", "TBucks" or "Bucks" alone.
+  - Source: Owner 10-10 (focus-group feedback; "all Rewards changed with ThriftBucks"; then "ThriftBuck is the word we are not using Rewards anymore", so no switch). Built: Yes, 10-10 (scanner, register, Dash, receipts; the receipt mark needs a print-server release).
+
+## Member perks ("and more")
+
+*What a membership brings beyond Rewards and the Limited Warranty. The posters say only "and more". The perks are listed on the terms page (ecothrift.us/terms), in its FAQ, and in the scanner's Thrift+ explainer, which pops up the basics and links to the full terms (owner 10-10). A perk is never promised before it is built.*
+
+- **M1. Holding items online** (Decided). Members can hold items from ecothrift.us for pickup (the shop's holds). Members keep this even when the month's cover isn't paid (C5).
+  - Source: Owner 10-10. Built: Yes (holds exist for shop accounts; tie to the membership with the one sign-up page).
+- **M2. First pick on consignment** (Planned). When consignment opens, members get priority order. The ranking is open: total Rewards, tenure, or a mix.
+  - Source: Owner 10-10. Built: No (consignment not open).
+- **M3. Member-only sales** (Planned). Members who sign up for event notifications get notice of member-only sales and events. This is an email choice the member turns on (X1: email only, no texts; store news can always be turned off).
+  - Source: Owner 10-10. Built: No.
+- **M4. More in the scanner** (Planned). Members may see more about an item in the scanner than guests do.
+  - Source: Owner 10-10. Built: No.
 
 ## Email (no texts)
 
@@ -239,3 +270,5 @@ The rule is J6. A membership is marked as a staff member's own in Dash (Thrift+ 
 - The final forms grid: https://claude.ai/artifact/AnH8RuYAKANXGoqBq1crxf
 - [`thrift-plus-legal-memo.md`](thrift-plus-legal-memo.md), [`thrift-plus-limited-warranty.md`](thrift-plus-limited-warranty.md): research (older numbers there are superseded here).
 - [`../initiatives/thrift_plus_launch_kit.md`](../initiatives/thrift_plus_launch_kit.md): drafts and the launch to-do.
+- [`../reference/thrift-plus-terms/`](../reference/thrift-plus-terms/README.md): the terms page words (English, Spanish), the register Limited Warranty.
+- [`../reference/thrift-plus-posters/`](../reference/thrift-plus-posters/README.md): the wall posters (06-log has every poster decision).

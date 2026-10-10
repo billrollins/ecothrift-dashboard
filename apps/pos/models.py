@@ -12,6 +12,11 @@ class Register(models.Model):
     starting_cash = models.DecimalField(max_digits=10, decimal_places=2, default=200)
     starting_breakdown = models.JSONField(default=dict)
     is_active = models.BooleanField(default=True)
+    # Owner, 2026-10-10: looks and acts exactly as on launch day (Thrift+ on), but a sale changes nothing real.
+    is_training = models.BooleanField(
+        default=False,
+        help_text='Training register: sales are practice only (no money, no items sold, left out of every report).',
+    )
 
     class Meta:
         ordering = ['code']
@@ -185,6 +190,7 @@ class Cart(models.Model):
         ('open', 'Open'),
         ('completed', 'Completed'),
         ('voided', 'Voided'),
+        ('training', 'Training (not a sale)'),  # a training register's "sale": nothing real changed
     ]
     PAYMENT_METHODS = [
         ('cash', 'Cash'),
@@ -345,6 +351,15 @@ class Receipt(models.Model):
 
     def __str__(self):
         return self.receipt_number
+
+    @staticmethod
+    def generate_training_number():
+        """A training receipt: TRAIN-20260212-001 (never a real receipt number)."""
+        from django.utils import timezone as tz
+        prefix = f'TRAIN-{tz.now().strftime("%Y%m%d")}-'
+        last = Receipt.objects.filter(receipt_number__startswith=prefix).order_by('-receipt_number').first()
+        n = int(last.receipt_number.rsplit('-', 1)[1]) + 1 if last else 1
+        return f'{prefix}{n:03d}'
 
     @staticmethod
     def generate_receipt_number():

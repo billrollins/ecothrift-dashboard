@@ -36,16 +36,18 @@ export function buildReceiptData(cart: Cart): Record<string, unknown> {
     : cart.created_at
       ? new Date(cart.created_at)
       : new Date();
+  // A training register's practice sale says so on the paper (2026-10-10).
+  const training = cart.status === 'training';
   return {
     receipt_number: cart.receipt?.receipt_number ?? '',
     date: format(completedAt, 'yyyy-MM-dd'),
     time: format(completedAt, 'h:mm a'),
-    cashier: cart.cashier_name ?? '',
+    cashier: training ? `TRAINING - ${cart.cashier_name ?? ''}` : cart.cashier_name ?? '',
     items: receiptItemsFromCart(cart),
     subtotal: parseFloat(String(cart.subtotal)),
     tax: parseFloat(String(cart.tax_amount)),
     total: parseFloat(String(cart.total)),
-    payment_method: cart.payment_method,
+    payment_method: training ? `TRAINING - NOT A SALE (${cart.payment_method})` : cart.payment_method,
     amount_tendered:
       cart.cash_tendered != null ? parseFloat(String(cart.cash_tendered)) : undefined,
     change: cart.change_given != null ? parseFloat(String(cart.change_given)) : undefined,

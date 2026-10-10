@@ -44,6 +44,8 @@ export interface ThriftPlusEvent {
 export interface ThriftPlusAccount {
   id: number;
   status: 'active' | 'revoked';
+  /** A practice member for training: training register and scanner test mode only, left out of every report. */
+  is_practice?: boolean;
   notes: string;
   revoked_at: string | null;
   revoked_reason: string;
@@ -74,6 +76,8 @@ export interface NewMember {
   card_code?: string;
   photo?: File | null;
   email?: string;
+  /** The training register: make a practice member (2026-10-10). */
+  practice?: boolean;
 }
 
 // ── The reward engine (Phase 2) ──

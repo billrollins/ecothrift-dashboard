@@ -8,6 +8,7 @@ import { Box, ButtonBase, CircularProgress, InputBase } from '@mui/material';
 import type { ThriftPlusMember } from '../../../api/thriftPlusScanner.api';
 import { FieldBanner } from './ScannerTop';
 import { Field, Primary, Secondary, Sub, Title } from './SignInScreen';
+import { CoverFigures, TbAmount } from '../../../components/thriftplus/ThriftBucks';
 import { money } from './scannerLogic';
 import { ThriftPlusLogo, sc, u } from './scannerTheme';
 import { useAccountActions, useMe, useConfirmReset } from './useThriftPlus';
@@ -252,16 +253,16 @@ export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }:
           <Box sx={{ fontSize: u(30), color: sc.ink2 }}>Hi, {member.first_name}</Box>
           <Box sx={{ display: 'flex', gap: u(30), mt: u(16) }}>
             <Box sx={{ flex: 1 }}>
-              <Box sx={{ fontSize: u(27), color: sc.ink2 }}>Rewards Balance</Box>
-              <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(68), color: sc.priceGreen, lineHeight: 1.05 }}>{money(data?.banked ?? member.banked_rewards)}</Box>
+              <Box sx={{ fontSize: u(27), color: sc.ink2 }}>Your ThriftBucks</Box>
+              <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(68), color: sc.priceGreen, lineHeight: 1.05 }}><TbAmount value={data?.banked ?? member.banked_rewards} bare /></Box>
             </Box>
             <Box sx={{ flex: 1 }}>
-              <Box sx={{ fontSize: u(27), color: sc.ink2 }}>Store credit</Box>
+              <Box sx={{ fontSize: u(27), color: sc.ink2 }}>Return $</Box>
               <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(68), color: sc.ink, lineHeight: 1.05 }}>{money(data?.credit ?? member.credit_balance)}</Box>
             </Box>
           </Box>
           <Box sx={{ fontSize: u(28), color: sc.ink2, mt: u(18) }}>
-            This month's cover: {money(member.cover.covered)} of {money(member.cover.amount)}
+            This month's cover: <CoverFigures covered={member.cover.covered} amount={member.cover.amount} />
           </Box>
         </Card>
 
@@ -388,18 +389,18 @@ export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }:
 
             <SectionTitle>Recent activity</SectionTitle>
             {data.money.length === 0 ? (
-              <Box sx={{ fontSize: u(30), color: sc.ink2 }}>Nothing yet. Rewards show up here after your first purchase.</Box>
+              <Box sx={{ fontSize: u(30), color: sc.ink2 }}>Nothing yet. ThriftBucks show up here after your first purchase.</Box>
             ) : (
               <Card sx={{ p: u(10) }}>
                 {data.money.slice(0, 12).map((m, i) => (
                   <Box key={`${m.created_at}-${i}`} sx={{ display: 'flex', alignItems: 'center', gap: u(16), px: u(26), py: u(20), borderTop: i ? `1px solid ${sc.line}` : 'none' }}>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Box sx={{ fontSize: u(29), color: sc.ink }}>{m.reason || (m.kind === 'bank' ? 'Banked rewards' : m.kind === 'credit' ? 'Store credit' : 'Cover')}</Box>
+                      <Box sx={{ fontSize: u(29), color: sc.ink }}>{m.reason || (m.kind === 'bank' ? 'ThriftBucks' : m.kind === 'credit' ? 'Return $' : 'Cover')}</Box>
                       <Box sx={{ fontSize: u(25), color: sc.ink3 }}>{new Date(m.created_at).toLocaleDateString()}</Box>
                     </Box>
                     <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(38), color: Number(m.amount) < 0 ? sc.ink2 : sc.priceGreen, whiteSpace: 'nowrap' }}>
                       {Number(m.amount) < 0 ? '-' : '+'}
-                      {money(String(Math.abs(Number(m.amount)).toFixed(2)))}
+                      {m.kind === 'bank' ? <TbAmount value={m.amount} bare /> : money(String(Math.abs(Number(m.amount)).toFixed(2)))}
                     </Box>
                   </Box>
                 ))}

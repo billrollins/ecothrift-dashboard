@@ -115,7 +115,7 @@ describe('Thrift+ member service', () => {
     expect(screen.getByText('18+ verified')).toBeInTheDocument();
     expect(screen.getAllByText('7123 4567 8903').length).toBeGreaterThan(0);
     expect(screen.getByText(/card issued · Ana Diaz/)).toBeInTheDocument();
-    expect(await screen.findByText(/Banked \$3\.00/)).toBeInTheDocument();
+    expect((await screen.findByText(/ThriftBucks Balance/)).textContent).toMatch(/ThriftBucks Balance 3\.00/);
   });
 
   it('signs up a member; the 18+ box needs an ID check first', async () => {
@@ -151,7 +151,7 @@ describe('Thrift+ rewards (the dry run)', () => {
     renderPage('/thrift-plus?tab=rewards');
     expect(await screen.findByText('What members would pay Thursday, Oct 22')).toBeInTheDocument();
     expect(screen.getByText('Dark: the switch is off')).toBeInTheDocument();
-    expect(screen.getByText('$1,234.50')).toBeInTheDocument();
+    expect(screen.getByText('1,234.50')).toBeInTheDocument();
     expect(screen.getByText('12 of 30 on pace')).toBeInTheDocument();
     expect(screen.getByText('Old mug')).toBeInTheDocument();
     await user.type(screen.getByLabelText('SKU'), 'ITM0000011');
@@ -165,7 +165,7 @@ describe('Thrift+ overview', () => {
     renderPage('/thrift-plus?tab=overview');
     expect(await screen.findByText('Active memberships')).toBeInTheDocument();
     expect(screen.getByText('42')).toBeInTheDocument();
-    expect(screen.getByText('$380.00')).toBeInTheDocument();
+    expect(screen.getByText('380.00')).toBeInTheDocument(); // the cover, in ThriftBucks
     expect(screen.getByText('25%')).toBeInTheDocument();
   });
 });

@@ -140,9 +140,14 @@ def totals(lines: list[TripLine], *, cover_left: Decimal, member: bool, choice: 
 
 
 def guest_line(t: TripTotals, cover: Decimal) -> str:
-    """The guest receipt's line (owner's copy): over the cover, what they lost; under, what they'd earn."""
+    """The guest receipt's line (owner's copy): over the cover, what they lost; under, what they'd collect."""
     if t.reward_total <= 0:
         return ''
     if t.reward_total > cover:
-        return f'No Thrift+ card today. You lost ${t.reward_total - cover:.2f}'
-    return f'This trip would have earned ${t.reward_total:.2f}'
+        return f'No Thrift+ card today. You lost {_tb_text(t.reward_total - cover)}'
+    return f'This trip would have collected {_tb_text(t.reward_total)}'
+
+
+def _tb_text(amount: Decimal) -> str:
+    """ThriftBucks in plain text (owner 2026-10-10): \"11.00 ThriftBucks\", never \"$\"."""
+    return f'{amount:.2f} ThriftBuck' if amount == 1 else f'{amount:.2f} ThriftBucks'

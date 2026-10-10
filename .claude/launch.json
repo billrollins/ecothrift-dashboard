@@ -36,6 +36,14 @@
       "port": 5174
     },
     {
+      "name": "fontlab",
+      "runtimeExecutable": "venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "workspace/posters2/fontlab/serve.py"
+      ],
+      "port": 5191
+    },
+    {
       "name": "hiring-api",
       "runtimeExecutable": "cmd",
       "runtimeArgs": [

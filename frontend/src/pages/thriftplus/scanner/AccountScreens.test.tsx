@@ -101,7 +101,7 @@ describe('AccountPage', () => {
     wrap(<AccountPage {...props} />);
     expect(await screen.findByText('Sam')).toBeInTheDocument();
     expect(screen.getByText('Card ending 9033')).toBeInTheDocument();
-    expect(screen.getAllByText('$12.50').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('12.50').length).toBeGreaterThan(0); // ThriftBucks: the TB mark, never "$"
 
     const lost = screen.getAllByRole('button', { name: 'Lost it?' });
     await user.click(lost[1]);

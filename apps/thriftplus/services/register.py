@@ -74,9 +74,16 @@ def register_code(cart) -> str:
     return (Drawer.objects.filter(pk=cart.drawer_id).values_list('register__code', flat=True).first() or '').upper()
 
 
+def is_training(cart) -> bool:
+    """The sale is on a training register (owner, 2026-10-10): Thrift+ as on launch day, nothing real written."""
+    from apps.pos.models import Drawer
+
+    return bool(Drawer.objects.filter(pk=cart.drawer_id).values_list('register__is_training', flat=True).first())
+
+
 def is_live(cart) -> bool:
-    """Thrift+ is live for this sale: the switch is on, or its register is a test register."""
-    return members.is_enabled() or register_code(cart) in live_register_codes()
+    """Thrift+ is live for this sale: the switch is on, its register is a test register, or a training register."""
+    return members.is_enabled() or register_code(cart) in live_register_codes() or is_training(cart)
 
 
 def sync_if_live(cart) -> None:
@@ -247,6 +254,8 @@ def attach(cart, code: str, *, user=None) -> CartMember:
     if not is_live(cart):
         raise RegisterError('NOT_LIVE', 'Thrift+ is not on at this register yet.')
     card = _card(code)
+    if card.person.account.is_practice and not is_training(cart):
+        raise RegisterError('PRACTICE_CARD', 'This is a practice card. Use it on the training register.')
     with transaction.atomic():
         member, _ = CartMember.objects.update_or_create(
             cart=cart, defaults={'account': card.person.account, 'person': card.person, 'card': card, 'attached_by': user},
@@ -276,7 +285,7 @@ def detach(cart, *, user=None) -> None:
 
 def set_choice(cart, choice: str) -> CartMember:
     if choice not in (CartMember.CHOICE_BANK, CartMember.CHOICE_INSTANT):
-        raise RegisterError('BAD_CHOICE', 'Choose bank or instant.')
+        raise RegisterError('BAD_CHOICE', 'Choose ThriftBucks or InstantBucks.')
     member = _open_member(cart)
     member.reward_choice = choice
     member.save(update_fields=['reward_choice'])
@@ -300,7 +309,7 @@ def use_balance(cart, *, credit: Decimal, bank: Decimal) -> CartMember:
     if credit > ledger.balance(member.account, LedgerEntry.KIND_CREDIT):
         raise RegisterError('OVER_BALANCE', 'That is more store credit than the member has.')
     if bank > ledger.balance(member.account, LedgerEntry.KIND_BANK):
-        raise RegisterError('OVER_BALANCE', 'That is more banked rewards than the member has.')
+        raise RegisterError('OVER_BALANCE', "That is more than the member's ThriftBucks Balance.")
     if credit + bank > cart.total:
         raise RegisterError('OVER_TOTAL', 'That is more than the sale total.')
     member.credit_used, member.bank_used = credit, bank
@@ -335,7 +344,7 @@ def before_complete(cart) -> None:
     credit = min(member.credit_used, cart.total)
     bank = min(member.bank_used, cart.total - credit)
     if credit > ledger.balance(member.account, LedgerEntry.KIND_CREDIT) or bank > ledger.balance(member.account, LedgerEntry.KIND_BANK):
-        raise RegisterError('OVER_BALANCE', 'The member no longer has that much credit or banked rewards. Apply it again.')
+        raise RegisterError('OVER_BALANCE', 'The member no longer has that much Return $ or ThriftBucks. Apply it again.')
     if (credit, bank) != (member.credit_used, member.bank_used):
         use_balance(cart, credit=credit, bank=bank)
 
@@ -394,6 +403,8 @@ def rering(cart, code: str, *, user=None) -> CartMember:
     if member_of(cart) is not None:
         raise RegisterError('ALREADY_MEMBER', 'This sale already has a Thrift+ card.')
     card = _card(code)
+    if card.person.account.is_practice:
+        raise RegisterError('PRACTICE_CARD', 'This is a practice card. Use it on the training register.')
     with transaction.atomic():
         member = CartMember.objects.create(
             cart=cart, account=card.person.account, person=card.person, card=card, attached_by=user,

@@ -1,5 +1,6 @@
 import { Box, ButtonBase } from '@mui/material';
-import { fromCents, toCents, type ThriftPlusCart, type ThriftPlusMember } from '../../../api/thriftPlusMock';
+import { toCents, type ThriftPlusCart, type ThriftPlusMember } from '../../../api/thriftPlusMock';
+import { CoverFigures, TbAmount, tbNumber, tbText, tbWord } from '../../../components/thriftplus/ThriftBucks';
 import { money } from './scannerLogic';
 import { ThriftPlusLogo, art, sc, u } from './scannerTheme';
 
@@ -23,9 +24,16 @@ export function FieldBanner({ children, tall = false }: { children: React.ReactN
   );
 }
 
-export function ScannerTop({ cart, onOpenCart }: { cart: ThriftPlusCart | undefined; onOpenCart: () => void }) {
+export function ScannerTop({ cart, isGuest, onOpenCart }: {
+  cart: ThriftPlusCart | undefined;
+  isGuest: boolean;
+  onOpenCart: () => void;
+}) {
   const count = cart?.totals.item_count ?? 0;
-  const rewards = cart?.totals.reward_total ?? '0.00';
+  // Owner 2026-10-10: the pill is the count on the cart and "+45.20" over "ThriftBucks"; no $ estimate.
+  const t = cart?.totals;
+  const collected = t?.reward_total ?? '0.00';
+  const hasTb = toCents(collected) > 0;
   return (
     <FieldBanner>
       {/* The design column: full width on most phones, centered when a short screen scales it down. */}
@@ -36,7 +44,7 @@ export function ScannerTop({ cart, onOpenCart }: { cart: ThriftPlusCart | undefi
         <ButtonBase
           onClick={onOpenCart}
           data-testid="cart-pill"
-          aria-label={`Your cart: ${count} ${count === 1 ? 'item' : 'items'}, ${money(rewards)} in rewards`}
+          aria-label={`My list: ${count} ${count === 1 ? 'item' : 'items'}${hasTb ? `, +${tbText(collected)}` : ''}`}
           sx={{
             position: 'absolute',
             right: u(30),
@@ -51,13 +59,23 @@ export function ScannerTop({ cart, onOpenCart }: { cart: ThriftPlusCart | undefi
             whiteSpace: 'nowrap',
           }}
         >
-          <Box component="img" src={art.cart} alt="" sx={{ width: u(104), height: u(104), my: u(-10) }} />
-          <Box component="span" sx={{ fontSize: u(38), fontWeight: 500, color: sc.ink }}>
-            {count} {count === 1 ? 'item' : 'items'}
+          <Box sx={{ position: 'relative', flexShrink: 0 }}>
+            <Box component="img" src={art.cart} alt="" sx={{ width: u(100), height: u(100), my: u(-10), display: 'block' }} />
+            <Box
+              component="span"
+              data-testid="cart-count"
+              sx={{
+                position: 'absolute', top: u(-14), right: u(-8), minWidth: u(42), height: u(42), px: u(8), borderRadius: 99,
+                bgcolor: sc.green, color: '#fff', fontSize: u(26), fontWeight: 800, display: 'grid', placeItems: 'center',
+              }}
+            >
+              {count}
+            </Box>
           </Box>
-          <Box component="span" sx={{ width: '2px', height: u(58), bgcolor: '#dadbd6' }} />
-          <Box component="span" sx={{ fontSize: u(38), fontWeight: 700, color: sc.green }}>
-            +{money(rewards)}
+          {/* Owner 2026-10-10: the count on the cart, and "+15.75" over "ThriftBucks"; nothing else. */}
+          <Box data-testid="pill-tb" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.05, color: sc.green }}>
+            <Box component="span" sx={{ fontFamily: sc.condensed, fontSize: u(46), fontWeight: 700 }}>+{tbNumber(collected)}</Box>
+            <Box component="span" sx={{ fontSize: u(24), fontWeight: 600 }}>{tbWord(collected)}</Box>
           </Box>
         </ButtonBase>
       </Box>
@@ -111,19 +129,17 @@ export function ScannerTiles({
   const amount = toCents(cover.amount) || 1;
   const covered = toCents(cover.covered);
   const pending = Math.min(toCents(cart?.totals.to_cover ?? '0'), amount - covered);
-  // Past the cover, this trip's rewards head to the balance (unless they come off today's price).
-  const tripToBalance = cart && cart.reward_choice !== 'instant' ? toCents(cart.totals.bank_value) : 0;
 
   return (
     <Box sx={{ display: 'grid', gridTemplateColumns: `${u(403)} ${u(413)}`, gap: u(24), mx: u(30) }}>
       <Tile
-        label={`Rewards Balance ${money(member.banked_rewards)}. What is this?`}
+        label={`Your ThriftBucks ${tbText(member.banked_rewards)}. What is this?`}
         onClick={(el) => onExplain('bank', el)}
         sx={{ display: 'flex', alignItems: 'center', pl: u(25), pr: u(16) }}
       >
         <Box component="img" src={art.brick} alt="" sx={{ width: u(102), height: u(102), flexShrink: 0 }} />
         <Box sx={{ ml: u(20), whiteSpace: 'nowrap' }}>
-          <Box sx={{ fontSize: u(27), color: sc.ink2, lineHeight: 1.2 }}>Rewards Balance</Box>
+          <Box sx={{ fontSize: u(27), color: sc.ink2, lineHeight: 1.2 }}>Your ThriftBucks</Box>
           <Box
             sx={{
               fontFamily: sc.condensed,
@@ -134,17 +150,12 @@ export function ScannerTiles({
               mt: u(6),
             }}
           >
-            <Box component="span" data-rain="balance">{money(member.banked_rewards)}</Box>
+            <Box component="span" data-rain="balance"><TbAmount value={member.banked_rewards} bare /></Box>
           </Box>
-          {tripToBalance > 0 && (
-            <Box data-testid="trip-to-balance" sx={{ fontSize: u(24), fontWeight: 700, color: sc.green, lineHeight: 1.2, mt: u(4) }}>
-              +{money(fromCents(tripToBalance))} this trip
-            </Box>
-          )}
         </Box>
       </Tile>
       <Tile
-        label={`This month's cover, ${money(cover.covered)} of ${money(cover.amount)}. What is this?`}
+        label={`This month's cover, ${tbNumber(cover.covered)} of ${tbNumber(cover.amount)}. What is this?`}
         onClick={(el) => onExplain('cover', el)}
         sx={{ display: 'flex', alignItems: 'center', pl: u(22), pr: u(26) }}
       >
@@ -184,7 +195,7 @@ export function ScannerTiles({
             />
           </Box>
           <Box sx={{ fontSize: u(27), color: sc.ink2, lineHeight: 1.2 }}>
-            {money(cover.covered)} of {money(cover.amount)}
+            <CoverFigures covered={cover.covered} amount={cover.amount} />
           </Box>
         </Box>
       </Tile>

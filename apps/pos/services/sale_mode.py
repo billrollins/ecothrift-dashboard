@@ -190,7 +190,7 @@ def sale_display_label(line) -> str:
     return f'Sale {pct_text}%'
 
 
-THRIFT_PLUS_SAVINGS_LABEL = 'Thrift+ rewards'
+THRIFT_PLUS_SAVINGS_LABEL = 'InstantBucks'
 
 
 def cart_savings(cart) -> dict:

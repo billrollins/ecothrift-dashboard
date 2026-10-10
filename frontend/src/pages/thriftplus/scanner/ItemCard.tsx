@@ -5,8 +5,9 @@ import CloseRounded from '@mui/icons-material/CloseRounded';
 import SearchOffRounded from '@mui/icons-material/SearchOffRounded';
 import SmsRounded from '@mui/icons-material/SmsRounded';
 import type { PriceFeel, PriceFeelReason, TagLookup, ThriftPlusItemCard } from '../../../api/thriftPlusMock';
-import { fromCents, instantPart, toCents } from '../../../api/thriftPlusMock';
+import { TbAmount, tbNumber, tbText } from '../../../components/thriftplus/ThriftBucks';
 import { money, wouldPayChoices } from './scannerLogic';
+import { useScannerLook, type CardStyle } from './scannerLook';
 import { CategoryBadge, Sparkle, art, sc, u } from './scannerTheme';
 
 export type SwipeDir = 'left' | 'right';
@@ -291,9 +292,12 @@ function FoundBody({
   onFeel: () => void;
 }) {
   const hasReward = Number.parseFloat(item.reward) > 0;
-  const rewardText = `+${money(item.reward)}`;
-  // Fit the reward to the card: at most 134 design px, and never wider than 520.
-  const fitWidth = Math.min(134, 520 / rewardEm(rewardText));
+  // Owner 2026-10-10: price first (the default) makes the price the big number and ThriftBucks smaller below it.
+  const { priceFirst, card } = useScannerLook();
+  // ThriftBucks (owner 2026-10-10): the number alone, never "$" (the label names the unit).
+  const rewardText = `+${tbNumber(item.reward)}`;
+  // Fit the reward to the card: at most 134 design px (64 when the price comes first), and never wider than 520.
+  const fitWidth = Math.min(priceFirst ? 64 : 134, 520 / rewardEm(rewardText));
   const flags: Array<{ text: string; color: string }> = [];
   if (!item.available) flags.push({ text: 'Sold', color: sc.badText });
   if (inCart && item.available) flags.push({ text: 'In your cart', color: sc.greenDeep });
@@ -302,10 +306,24 @@ function FoundBody({
 
   return (
     <>
-      {/* Badge, title, category */}
+      {/* Badge, title, category: tap it for the details (owner 2026-10-10: no "Details" link). */}
       <Box
+        role="button"
+        tabIndex={0}
+        aria-label={`${item.title}: details`}
+        data-testid="item-box"
+        onClick={onDetails}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onDetails();
+          }
+        }}
         sx={{
           position: 'relative',
+          cursor: 'pointer',
+          borderRadius: u(24),
+          '&:focus-visible': { outline: `${u(4)} solid ${sc.green}`, outlineOffset: u(-4) },
           flex: `0 1 ${u(209)}`,
           minHeight: u(168),
           display: 'flex',
@@ -342,117 +360,79 @@ function FoundBody({
             ))}
           </Box>
         </Box>
-        <ButtonBase
-          onClick={onDetails}
-          sx={{ position: 'absolute', top: u(22), right: u(26), px: u(10), py: u(6), fontSize: u(25), color: sc.ink2, borderRadius: u(12) }}
-        >
-          Details
-        </ButtonBase>
       </Box>
 
       <Rule />
 
-      {/* Retail and our price */}
-      <Box
-        sx={{
-          flex: `0 1 ${u(184)}`,
-          minHeight: u(138),
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          gap: u(6),
-          pl: u(40),
-          pr: u(43),
-        }}
-      >
-        {item.retail_price && (
-          <PriceRow label="Retail">
-            <Box sx={{ fontSize: u(35), color: sc.ink3, textDecoration: 'line-through', textDecorationThickness: u(3) }}>
-              {money(item.retail_price)}
-            </Box>
-          </PriceRow>
-        )}
-        <PriceRow label="Our price">
-          <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(58), lineHeight: 1.05, color: sc.priceGreen }}>
-            {money(item.price)}
-          </Box>
-        </PriceRow>
-      </Box>
-
-      <Rule />
-
-      {/* You'd earn */}
-      <Box
-        sx={{
-          position: 'relative',
-          flex: `1 1 ${u(300)}`,
-          minHeight: u(150),
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          containerType: 'size',
-        }}
-      >
-        {hasReward ? (
-          <>
-            <Box sx={{ fontSize: u(33), color: sc.ink2, mt: u(26), lineHeight: 1.2, flexShrink: 0 }}>
-              {isGuest ? 'Members earn' : "You'd earn"}
-            </Box>
-            <Box sx={{ flex: 1, width: '100%', display: 'grid', placeItems: 'center' }}>
-              <Box
-                sx={{
-                  // The reward's font size: fit the card's width, and the height left under the label.
-                  '--f': `min(${u(fitWidth)}, calc((100cqh - ${u(isGuest ? 70 : 110)}) * 0.74))`,
-                  position: 'relative',
-                  lineHeight: 1,
-                }}
-              >
-                <Box
-                  component="img"
-                  src={art.brush}
-                  alt=""
-                  sx={{
-                    position: 'absolute',
-                    left: '50%',
-                    top: '50%',
-                    width: 'calc(var(--f) * 4.25)',
-                    maxWidth: 'none',
-                    transform: 'translate(-48%, -44%) rotate(-2deg)',
-                    pointerEvents: 'none',
-                  }}
-                />
-                <Sparkle size="calc(var(--f) * 0.34)" sx={{ left: 'calc(50% - var(--f) * 2.02)', top: 'calc(50% - var(--f) * 0.88)' }} />
-                <Sparkle size="calc(var(--f) * 0.16)" sx={{ left: 'calc(50% - var(--f) * 1.54)', top: 'calc(50% - var(--f) * 0.68)' }} />
-                <Sparkle size="calc(var(--f) * 0.25)" sx={{ left: 'calc(50% - var(--f) * 2.22)', top: 'calc(50% - var(--f) * 0.46)' }} />
-                <Sparkle size="calc(var(--f) * 0.3)" sx={{ left: 'calc(50% + var(--f) * 1.78)', top: 'calc(50% - var(--f) * 0.78)' }} />
-                <RewardText text={rewardText} />
-              </Box>
-            </Box>
-            {!isGuest && (
-              <Box data-testid="bank-line" sx={{ fontSize: u(28), color: sc.ink2, mb: u(22), flexShrink: 0, whiteSpace: 'nowrap' }}>
-                or{' '}
-                <Box component="span" sx={{ color: '#8a6200', fontWeight: 700 }}>
-                  {money(item.reward_instant ?? fromCents(instantPart(toCents(item.reward))))}
-                </Box>{' '}
-                off today
-              </Box>
+      {priceFirst ? (
+        <PriceCard variant={card} item={item} isGuest={isGuest} hasReward={hasReward} />
+      ) : (
+        <>
+          {/* ThriftBucks first (the price-first switch off): the earlier card, the ThriftBucks big on a soft wash. */}
+          <Box sx={{ flex: `0 1 ${u(184)}`, minHeight: u(138), display: 'flex', flexDirection: 'column', justifyContent: 'center',
+            gap: u(6), pl: u(40), pr: u(43) }}>
+            {item.retail_price && (
+              <PriceRow label="Retail">
+                <Box sx={{ fontSize: u(35), color: sc.ink3, textDecoration: 'line-through', textDecorationThickness: u(3) }}>
+                  {money(item.retail_price)}
+                </Box>
+              </PriceRow>
             )}
-            {isGuest && (
-              <Box sx={{ fontSize: u(26), color: sc.ink2, mb: u(18), textAlign: 'center', px: u(30), flexShrink: 0 }}>
-                Guests pay the tag price. Cards are free at the register.
+            <PriceRow label="Our price">
+              <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(58), lineHeight: 1.05, color: sc.priceGreen }}>
+                {money(item.price)}
               </Box>
-            )}
-          </>
-        ) : (
-          <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', textAlign: 'center', px: u(40) }}>
-            <Box>
-              <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(46), color: sc.ink2 }}>No reward on this item yet</Box>
-              <Box sx={{ fontSize: u(28), color: sc.ink3, mt: u(8) }}>Check back on your next visit.</Box>
-            </Box>
+            </PriceRow>
           </Box>
-        )}
-      </Box>
 
+          <Rule />
+
+          <Box sx={{ position: 'relative', flex: `1 1 ${u(300)}`, minHeight: u(150), display: 'flex', flexDirection: 'column',
+            alignItems: 'center', containerType: 'size' }}>
+            {hasReward ? (
+              <>
+                <Box sx={{ fontSize: u(33), color: sc.ink2, mt: u(26), lineHeight: 1.2, flexShrink: 0 }}>
+                  {isGuest ? 'Members get' : 'ThriftBucks'}
+                </Box>
+                <Box sx={{ flex: 1, width: '100%', display: 'grid', placeItems: 'center' }}>
+                  <Box
+                    sx={{
+                      // The amount's font size: fit the card's width, and the height left under the label.
+                      '--f': `min(${u(fitWidth)}, calc((100cqh - ${u(isGuest ? 70 : 60)}) * 0.74))`,
+                      position: 'relative',
+                      lineHeight: 1,
+                    }}
+                  >
+                    <Box
+                      component="img"
+                      src={art.brush}
+                      alt=""
+                      sx={{
+                        position: 'absolute', left: '50%', top: '50%', width: 'calc(var(--f) * 4.25)', maxWidth: 'none',
+                        transform: 'translate(-48%, -44%) rotate(-2deg)', pointerEvents: 'none',
+                        // Owner 2026-10-10: a soft wash, so the ThriftBucks pop instead of competing with it.
+                        opacity: 0.3, filter: 'saturate(0.55)',
+                      }}
+                    />
+                    <Sparkle size="calc(var(--f) * 0.34)" sx={{ left: 'calc(50% - var(--f) * 2.02)', top: 'calc(50% - var(--f) * 0.88)' }} />
+                    <Sparkle size="calc(var(--f) * 0.16)" sx={{ left: 'calc(50% - var(--f) * 1.54)', top: 'calc(50% - var(--f) * 0.68)' }} />
+                    <Sparkle size="calc(var(--f) * 0.25)" sx={{ left: 'calc(50% - var(--f) * 2.22)', top: 'calc(50% - var(--f) * 0.46)' }} />
+                    <Sparkle size="calc(var(--f) * 0.3)" sx={{ left: 'calc(50% + var(--f) * 1.78)', top: 'calc(50% - var(--f) * 0.78)' }} />
+                    <RewardText amount={item.reward} label={`+${tbText(item.reward)}`} />
+                  </Box>
+                </Box>
+                {isGuest && (
+                  <Box sx={{ fontSize: u(26), color: sc.ink2, mb: u(18), textAlign: 'center', px: u(30), flexShrink: 0 }}>
+                    Guests pay the tag price. Cards are free at the register.
+                  </Box>
+                )}
+              </>
+            ) : (
+              <NoThriftBucks />
+            )}
+          </Box>
+        </>
+      )}
       <Rule />
 
       <ButtonBase
@@ -475,12 +455,12 @@ function FoundBody({
   );
 }
 
-/** "+$15.00": a heavy rounded face with a fresh green gradient and a soft shadow. No outlines. */
-function RewardText({ text }: { text: string }) {
+/** "+15.00": a heavy rounded face with a fresh green gradient and a soft shadow. */
+function RewardText({ amount, label }: { amount: string; label: string }) {
   return (
     <Box
       data-testid="reward"
-      aria-label={text}
+      aria-label={label}
       sx={{
         position: 'relative',
         fontFamily: sc.money,
@@ -496,7 +476,91 @@ function RewardText({ text }: { text: string }) {
         filter: 'drop-shadow(0 calc(var(--f) * 0.045) calc(var(--f) * 0.06) rgba(34, 105, 30, 0.3))',
       }}
     >
-      {text}
+      <TbAmount value={amount} sign="+" bare />
+    </Box>
+  );
+}
+
+/**
+ * The item card's price part, price first (owner 2026-10-10: the centered price tag; Retail, Our price big, the
+ * ThriftBucks; no net cost, no footnote, no Instant, and no symbol: the word "ThriftBucks"). Three variations:
+ * badge: a soft green pill under the price, "+7.87 ThriftBucks back".
+ * stack: two matching stacks, OUR PRICE / $8.75 and YOU GET BACK / 7.87 ThriftBucks, the second smaller and green.
+ * coupon: the ThriftBucks on a cream coupon with a dashed border, like the ThriftBuck certificate.
+ */
+function PriceCard({ variant, item, isGuest, hasReward }: {
+  variant: CardStyle;
+  item: ThriftPlusItemCard;
+  isGuest: boolean;
+  hasReward: boolean;
+}) {
+  const amount = tbNumber(item.reward);
+  const word = Number.parseFloat(item.reward) === 1 ? 'ThriftBuck' : 'ThriftBucks';
+  const caps = { fontSize: u(24), color: sc.ink2, letterSpacing: '0.14em', textTransform: 'uppercase' } as const;
+  return (
+    <Box sx={{ flex: `1 1 ${u(520)}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      textAlign: 'center', px: u(40), py: u(18), gap: u(4) }}>
+      {item.retail_price && (
+        <Box sx={{ fontSize: u(28), color: sc.ink3 }}>
+          Retail{' '}
+          <Box component="span" sx={{ fontSize: u(32), textDecoration: 'line-through', textDecorationThickness: u(3) }}>
+            {money(item.retail_price)}
+          </Box>
+        </Box>
+      )}
+      <Box sx={{ ...caps, mt: u(6) }}>Our price</Box>
+      <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(168), lineHeight: 0.95, color: sc.priceGreen }}>
+        {money(item.price)}
+      </Box>
+      {!hasReward ? (
+        <Box sx={{ mt: u(18), fontSize: u(30), color: sc.ink3 }}>No ThriftBucks on this item yet</Box>
+      ) : variant === 'stack' ? (
+        <>
+          <Box sx={{ width: u(90), height: u(3), bgcolor: sc.line, my: u(16) }} />
+          <Box sx={caps}>{isGuest ? 'Members get back' : 'You get back'}</Box>
+          <Box data-testid="reward" aria-label={`+${tbText(item.reward)}`}
+            sx={{ display: 'flex', alignItems: 'baseline', gap: u(12), color: sc.green, whiteSpace: 'nowrap' }}>
+            <Box component="span" sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(78), lineHeight: 1 }}>{amount}</Box>
+            <Box component="span" sx={{ fontSize: u(34), fontWeight: 700 }}>{word}</Box>
+          </Box>
+        </>
+      ) : variant === 'coupon' ? (
+        <Box data-testid="reward" aria-label={`+${tbText(item.reward)}`}
+          sx={{ mt: u(20), px: u(34), py: u(12), borderRadius: u(14), bgcolor: '#fbf5e3', border: `${u(3)} dashed #c8b57f`,
+            color: sc.priceGreen, display: 'inline-flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1.1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: u(10), whiteSpace: 'nowrap' }}>
+            <Box component="span" sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(56) }}>+{amount}</Box>
+            <Box component="span" sx={{ fontSize: u(30), fontWeight: 700 }}>{word}</Box>
+          </Box>
+          <Box sx={{ fontSize: u(22), color: '#8a7442', letterSpacing: '0.08em', textTransform: 'uppercase', mt: u(2) }}>
+            {isGuest ? 'For members' : 'Back for your next visit'}
+          </Box>
+        </Box>
+      ) : (
+        <Box data-testid="reward" aria-label={`+${tbText(item.reward)}`}
+          sx={{ mt: u(18), display: 'inline-flex', alignItems: 'baseline', gap: u(12), bgcolor: sc.greenTint, borderRadius: 99,
+            px: u(30), py: u(10), whiteSpace: 'nowrap' }}>
+          <Box component="span" sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(50), lineHeight: 1.05, color: sc.green }}>+{amount}</Box>
+          <Box component="span" sx={{ fontSize: u(28), color: sc.greenDeep, fontWeight: 600 }}>
+            {isGuest ? `${word} for members` : `${word} back`}
+          </Box>
+        </Box>
+      )}
+      {isGuest && (
+        <Box sx={{ fontSize: u(25), color: sc.ink3, mt: u(10) }}>Guests pay the tag price. Cards are free at the register.</Box>
+      )}
+    </Box>
+  );
+}
+
+/** No ThriftBucks on this item yet. */
+function NoThriftBucks() {
+  return (
+    <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', textAlign: 'center', px: u(40) }}>
+      <Box>
+        <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(46), color: sc.ink2 }}>No ThriftBucks on this item yet</Box>
+        <Box sx={{ fontSize: u(28), color: sc.ink3, mt: u(8) }}>Check back on your next visit.</Box>
+      </Box>
     </Box>
   );
 }

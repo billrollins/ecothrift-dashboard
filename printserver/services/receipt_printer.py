@@ -28,6 +28,7 @@ DOUBLE_WIDTH = ESC + b"!\x20"
 DOUBLE_HW = ESC + b"!\x30"
 NORMAL = ESC + b"!\x00"
 UNDERLINE_ON = ESC + b"-\x01"
+
 UNDERLINE_OFF = ESC + b"-\x00"
 REVERSE_ON = GS + b"B\x01"  # white on black
 REVERSE_OFF = GS + b"B\x00"
@@ -161,17 +162,23 @@ def _card_payment_rows(data: dict[str, Any]) -> list[tuple[str, str | None, bool
     return rows
 
 
+def _tb(amount: float) -> str:
+    """ThriftBucks and InstantBucks (owner 2026-10-10): the number alone, never "$" and never a symbol; the label
+    beside it names the unit."""
+    return f"{amount:.2f}"
+
+
 def _thrift_plus_rows(data: dict[str, Any]) -> list[tuple[str, str | None, bool]]:
-    """Thrift+ lines after payment (dashboard Phase 3): (label, amount or None, bold).
+    """Thrift+ lines after payment (dashboard Phase 3; ThriftBucks 2026-10-10): (label, amount or None, bold).
 
     Member receipts show:
-    - each rewarded line's tag and member price;
-    - the rewards, and the part toward this month's cover;
-    - the rebate or the banked amount;
-    - credit spent, the cover so far, and the balances.
+    - each line's tag and what the member paid;
+    - the ThriftBucks collected, and the part that covers the card this month;
+    - InstantBucks off today, or ThriftBucks for later;
+    - Return $ and ThriftBucks spent, the cover so far, and both balances.
 
-    A guest receipt shows what a card would have earned. Old dashboards send no ``thrift_plus``, so
-    this is empty.
+    ThriftBucks amounts are numbers alone (the label names the unit); dollars stay "$". A guest receipt shows what a card would have
+    collected. Old dashboards send no ``thrift_plus``, so this is empty.
     """
     tp = data.get("thrift_plus")
     if not isinstance(tp, dict):
@@ -185,6 +192,9 @@ def _thrift_plus_rows(data: dict[str, Any]) -> list[tuple[str, str | None, bool]
     def money(key: str) -> float:
         return _as_money(tp.get(key)) or 0.0
 
+    def tb(amount: float) -> str:
+        return _tb(amount)
+
     rows: list[tuple[str, str | None, bool]] = [
         (f"THRIFT+ MEMBER {member} (card ...{tp.get('card_last4', '')})", None, True),
     ]
@@ -193,22 +203,24 @@ def _thrift_plus_rows(data: dict[str, Any]) -> list[tuple[str, str | None, bool]
         tag = _as_money(ln.get("tag_price")) or 0.0
         paid = _as_money(ln.get("member_price")) or 0.0
         rows.append((f" {name} tag ${tag:.2f}", f"${paid:.2f}", False))
-    rows.append(("Rewards this trip", f"${money('reward_total'):.2f}", True))
+    rows.append(("ThriftBucks collected", tb(money("reward_total")), True))
     if money("to_cover") > 0:
-        rows.append(("  Toward this month's cover", f"${money('to_cover'):.2f}", False))
+        rows.append(("  To the cover", tb(money("to_cover")), False))
     if money("savings") > 0:
-        rows.append(("  Off your price today", f"${money('savings'):.2f}", False))
+        rows.append(("  InstantBucks, off today", tb(money("savings")), False))
     if money("to_bank") > 0:
-        rows.append(("  Banked for later", f"${money('to_bank'):.2f}", False))
+        rows.append(("  ThriftBucks, from tomorrow", tb(money("to_bank")), False))
     if money("credit_used") > 0:
-        rows.append(("Thrift+ store credit used", f"${money('credit_used'):.2f}", False))
+        rows.append(("Return $ used", f"${money('credit_used'):.2f}", False))
     if money("bank_used") > 0:
-        rows.append(("Thrift+ banked rewards used", f"${money('bank_used'):.2f}", False))
-    rows.append((f"Cover {tp.get('cover_month', '')}: ${money('cover_covered'):.2f} of ${money('cover_amount'):.2f}", None, False))
-    rows.append(("Banked balance", f"${money('banked'):.2f}", False))
-    rows.append(("Store credit balance", f"${money('credit'):.2f}", False))
+        rows.append(("ThriftBucks used", tb(money("bank_used")), False))
+    # The cover is its own thing (owner 2026-10-10): plain figures, no unit.
+    rows.append((f"Cover {tp.get('cover_month', '')}: {money('cover_covered'):.2f} of {money('cover_amount'):.2f}", None, False))
+    rows.append(("ThriftBucks Balance", tb(money("banked")), False))
+    rows.append(("Return $ balance", f"${money('credit'):.2f}", False))
     if tp.get("rering"):
-        rows.append(("Re-rung as a member: your rebate is store credit.", None, False))
+        rows.append(("Re-rung as a member: your InstantBucks went to Return $.", None, False))
+    rows.append(("ThriftBucks have no cash value.", None, False))
     rows.append(("Members: items that don't work can come back within 3 days for store credit.", None, False))
     return rows
 

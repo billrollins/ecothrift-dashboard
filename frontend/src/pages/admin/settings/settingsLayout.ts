@@ -77,8 +77,8 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
       },
       {
         id: 'rewards',
-        title: 'Rewards',
-        keys: ['thrift_plus_rewards_start', 'thrift_plus_floor_share', 'thrift_plus_cover_amount', 'thrift_plus_bank_bonus'],
+        title: 'ThriftBucks',
+        keys: ['thrift_plus_price_first', 'thrift_plus_rewards_start', 'thrift_plus_floor_share', 'thrift_plus_cover_amount', 'thrift_plus_bank_bonus'],
         custom: ['calculator-link'],
       },
       {

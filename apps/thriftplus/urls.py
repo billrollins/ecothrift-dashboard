@@ -51,6 +51,7 @@ public = [
     path('session/reset/confirm/', public_views.password_reset_confirm),
     path('login/', public_views.set_up_login),
     path('tag/<str:sku>/', public_views.tag),
+    path('test-tags/', public_views.test_tags),
     path('pass/', public_views.pass_item),
     path('added/', public_views.guest_added),
     path('feel/', public_views.price_feel),
@@ -66,8 +67,10 @@ public = [
     path('me/remove-person/', public_views.remove_person),
 ]
 
-# Every public route is behind the Thrift+ switch (owner, 2026-10-07).
-public = [path(str(p.pattern), _gated(p.callback), name=p.name) for p in public]
+# Every public route is behind the Thrift+ switch (owner, 2026-10-07), except signing in: while it is off, only staff
+# and practice members get through, checked in the view (staff test mode, 2026-10-10).
+SIGN_IN = {'session/password/', 'session/card/'}
+public = [path(str(p.pattern), p.callback if str(p.pattern) in SIGN_IN else _gated(p.callback), name=p.name) for p in public]
 
 urlpatterns = [
     path('public/', include(public)),  # the scanner app and portal: member sessions only (public_views.py)

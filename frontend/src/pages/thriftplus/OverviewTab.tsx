@@ -2,9 +2,10 @@ import { Alert, LinearProgress, Paper, Stack, Typography } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { fetchThriftOverview } from '../../api/thriftplus.api';
+import { TbAmount } from '../../components/thriftplus/ThriftBucks';
 import { formatCurrency } from '../../utils/format';
 
-function Tile({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function Tile({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
   return (
     <Paper variant="outlined" sx={{ p: 1.5, minWidth: 150, flex: 1 }}>
       <Typography variant="caption" color="text.secondary">{label}</Typography>
@@ -44,15 +45,15 @@ export default function OverviewTab() {
         <Tile label="Member sales" value={o.sales.member_sales.toLocaleString()} hint={formatCurrency(o.sales.member_revenue)} />
         <Tile label="Guest sales" value={o.sales.guest_sales.toLocaleString()} hint={formatCurrency(o.sales.guest_revenue)} />
       </Row>
-      <Row title={`Rewards, last ${o.days} days`}>
-        <Tile label="Off the price (instant)" value={formatCurrency(o.rewards.instant)} />
-        <Tile label="Went to the cover" value={formatCurrency(o.rewards.to_cover)} hint="The card paying for itself" />
-        <Tile label="Banked" value={formatCurrency(o.rewards.banked)} />
-        <Tile label="Credit from returns" value={formatCurrency(o.rewards.credit_from_returns)} />
+      <Row title={`ThriftBucks, last ${o.days} days`}>
+        <Tile label="InstantBucks (off the price)" value={<TbAmount value={o.rewards.instant} bare />} />
+        <Tile label="Went to the cover" value={<TbAmount value={o.rewards.to_cover} bare />} hint="ThriftBucks that covered the card" />
+        <Tile label="ThriftBucks (kept)" value={<TbAmount value={o.rewards.banked} bare />} />
+        <Tile label="Return $ from returns" value={formatCurrency(o.rewards.credit_from_returns)} />
       </Row>
       <Row title="Owed to members now">
-        <Tile label="Banked rewards" value={formatCurrency(o.owed.banked)} />
-        <Tile label="Store credit" value={formatCurrency(o.owed.credit)} />
+        <Tile label="ThriftBucks Balances" value={<TbAmount value={o.owed.banked} bare />} />
+        <Tile label="Return $" value={formatCurrency(o.owed.credit)} />
         <Tile label="Returns waiting for staff" value={o.returns.waiting.toLocaleString()} hint={`${o.returns.count} returns in ${o.days} days`} />
       </Row>
       <Row title="Scanner app">

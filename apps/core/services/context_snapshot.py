@@ -183,9 +183,9 @@ def _thrift_plus(day: date) -> dict:
     start, end = _day_bounds(day)
     return {
         'switch_on': is_enabled(),
-        'members': Account.objects.filter(status=Account.STATUS_ACTIVE).count(),
-        'signups_yesterday': Account.objects.filter(created_at__gte=start, created_at__lt=end).count(),
-        'blank_cards_left': Card.objects.filter(status=Card.STATUS_UNISSUED).count(),
+        'members': Account.objects.filter(status=Account.STATUS_ACTIVE, is_practice=False).count(),
+        'signups_yesterday': Account.objects.filter(created_at__gte=start, created_at__lt=end, is_practice=False).count(),
+        'blank_cards_left': Card.objects.filter(status=Card.STATUS_UNISSUED, batch__isnull=False).count(),
     }
 
 

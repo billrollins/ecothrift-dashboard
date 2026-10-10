@@ -83,8 +83,8 @@ describe('Thrift+ at the register', () => {
     );
     expect(screen.getByText('Ana')).toBeInTheDocument();
     expect(screen.getByText('18+ verified')).toBeInTheDocument();
-    expect(screen.getByText(/Cover this month: \$4\.00 of \$10\.00/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /Full rewards/ }));
+    expect(screen.getByText(/Cover this month:/)).toHaveTextContent('Cover this month: 4.00 of 10.00'); // ThriftBucks, never "$"
+    await user.click(screen.getByRole('button', { name: /^ThriftBucks \(Default\)/ }));
     expect(calls.choice).toEqual(['bank']);
   });
 

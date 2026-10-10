@@ -1,8 +1,11 @@
-import { useState, type RefObject } from 'react';
+import { useState, type ChangeEvent, type RefObject } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Box, ButtonBase, CircularProgress, InputBase } from '@mui/material';
 import KeyboardRounded from '@mui/icons-material/KeyboardRounded';
 import NoPhotographyRounded from '@mui/icons-material/NoPhotographyRounded';
 import PhotoCameraRounded from '@mui/icons-material/PhotoCameraRounded';
+import { fetchTestTags } from '../../../api/thriftPlusScanner.api';
+import { tbNumber } from '../../../components/thriftplus/ThriftBucks';
 import { cardFaceSx } from './ItemCard';
 import type { CameraStatus } from './useQrCamera';
 import { sc, u } from './scannerTheme';
@@ -20,17 +23,22 @@ interface Props {
   onCode: (code: string) => void;
   /** "Camera not working?" help (the popup grows from the link). */
   onHelp: (from: HTMLElement) => void;
+  /** Testing without a camera (/scan?type=1, owner 2026-10-10): only the tag box, no camera. */
+  typeOnly?: boolean;
 }
 
 /**
  * The bottom card of the stack: the live camera. It never unmounts, so when an
  * item card is swiped away the scanner is already running underneath.
  */
-export function CameraCard({ videoRef, status, error, underneath, flash, onWake, onCode, onHelp }: Props) {
+export function CameraCard({ videoRef, status, error, underneath, flash, onWake, onCode, onHelp, typeOnly = false }: Props) {
   const [typing, setTyping] = useState(false);
   const [typed, setTyped] = useState('');
-  const noCamera = status === 'unsupported' || status === 'blocked';
-  const panelOpen = typing || noCamera;
+  const noCamera = !typeOnly && (status === 'unsupported' || status === 'blocked');
+  // Test mode: pick a tag from a short list (owner 2026-10-10). If the list can't load, type one instead.
+  const testTags = useQuery({ queryKey: ['thriftPlus', 'testTags'], queryFn: fetchTestTags, enabled: typeOnly, staleTime: 300_000 });
+  const pickList = typeOnly && (testTags.data?.length ?? 0) > 0;
+  const panelOpen = typing || noCamera || typeOnly;
 
   const submitTyped = () => {
     const code = typed.trim();
@@ -121,7 +129,13 @@ export function CameraCard({ videoRef, status, error, underneath, flash, onWake,
           pointerEvents: 'none',
         }}
       >
-        {status === 'starting' && (
+        {typeOnly && (
+          <>
+            <KeyboardRounded sx={{ fontSize: u(96), opacity: 0.8 }} />
+            <Box sx={{ mt: u(12), fontSize: u(32), opacity: 0.85, mb: u(160) }}>Test mode: pick a tag</Box>
+          </>
+        )}
+        {!typeOnly && status === 'starting' && (
           <>
             <CircularProgress size={32} sx={{ color: '#fff' }} />
             <Box sx={{ mt: u(24), fontSize: u(32), opacity: 0.85 }}>Starting camera</Box>
@@ -152,7 +166,26 @@ export function CameraCard({ videoRef, status, error, underneath, flash, onWake,
 
       {/* Type a tag number (sample tags live here too while this is a mock). */}
       <Box sx={{ position: 'absolute', left: u(24), right: u(24), bottom: u(24) }}>
-        {panelOpen ? (
+        {pickList ? (
+          <Box sx={{ bgcolor: 'rgba(16,21,17,0.86)', borderRadius: u(32), p: u(16), backdropFilter: 'blur(8px)' }}>
+            <Box
+              component="select"
+              aria-label="Pick a test item"
+              value=""
+              onChange={(e: ChangeEvent<HTMLSelectElement>) => {
+                if (e.target.value) onCode(e.target.value);
+              }}
+              sx={{ width: '100%', fontSize: 16, p: u(20), borderRadius: 99, border: 0, bgcolor: '#fff', color: sc.ink }}
+            >
+              <option value="">Pick a test item…</option>
+              {testTags.data!.map((t) => (
+                <option key={t.sku} value={t.sku}>
+                  {`${t.title} · $${t.price} · ${Number(t.reward) > 0 ? `TB ${tbNumber(t.reward)}` : 'no ThriftBucks yet'}`}
+                </option>
+              ))}
+            </Box>
+          </Box>
+        ) : panelOpen ? (
           <Box sx={{ bgcolor: 'rgba(16,21,17,0.86)', borderRadius: u(32), p: u(16), backdropFilter: 'blur(8px)' }}>
             <Box
               component="form"
@@ -163,7 +196,7 @@ export function CameraCard({ videoRef, status, error, underneath, flash, onWake,
               sx={{ display: 'flex', gap: u(12), bgcolor: '#fff', borderRadius: 99, p: u(8), pl: u(30) }}
             >
               <InputBase
-                autoFocus={typing}
+                autoFocus={typing || typeOnly}
                 value={typed}
                 onChange={(e) => setTyped(e.target.value)}
                 placeholder="Tag number"
@@ -177,7 +210,7 @@ export function CameraCard({ videoRef, status, error, underneath, flash, onWake,
                 Look up
               </ButtonBase>
             </Box>
-            {typing && !noCamera && (
+            {typing && !noCamera && !typeOnly && (
               <ButtonBase onClick={() => setTyping(false)} sx={{ mt: u(10), width: '100%', py: u(10), color: '#fff', fontSize: u(26), opacity: 0.85, borderRadius: u(16) }}>
                 Back to the camera
               </ButtonBase>

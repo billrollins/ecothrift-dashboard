@@ -53,6 +53,8 @@ export function useSignIn() {
   const qc = useQueryClient();
   const setSession = (s: ThriftPlusSession) => {
     qc.setQueryData(thriftPlusKeys.session, s);
+    // Staff test mode: signing in (or out) can open or close the scanner while Thrift+ is off.
+    void qc.invalidateQueries({ queryKey: ['thriftPlus', 'open'] });
     // Cover and totals depend on who is signed in.
     void qc.invalidateQueries({ queryKey: thriftPlusKeys.cart });
   };

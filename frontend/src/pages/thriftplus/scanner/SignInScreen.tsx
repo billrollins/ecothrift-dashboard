@@ -35,7 +35,7 @@ export function SignInScreen() {
         <Box sx={{ position: 'absolute', left: u(56), bottom: u(96) }}>
           <ThriftPlusLogo width={u(420)} />
           <Box sx={{ color: '#fff', fontSize: u(36), fontWeight: 500, textShadow: '0 1px 6px rgba(0,0,0,0.5)', mt: u(10) }}>
-            Scan any tag. See what you'd earn.
+            Scan any tag. See what you'd collect.
           </Box>
         </Box>
       </FieldBanner>

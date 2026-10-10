@@ -33,11 +33,13 @@ def overview(days: int = DAYS) -> dict:
     from apps.pos.models import Cart, CartLine
 
     since = timezone.now() - timedelta(days=days)
-    carts = Cart.objects.filter(status='completed', completed_at__gte=since)
+    carts = Cart.objects.filter(status='completed', completed_at__gte=since).exclude(thrift_member__account__is_practice=True)
     member_carts = carts.filter(thrift_member__isnull=False)
-    ledger = LedgerEntry.objects.filter(created_at__gte=since)
+    real = Account.objects.filter(is_practice=False)  # practice members are left out of every count (2026-10-10)
+    owed_rows = LedgerEntry.objects.filter(account__is_practice=False)
+    ledger = owed_rows.filter(created_at__gte=since)
     signups = (
-        Account.objects.filter(created_at__gte=since).annotate(day=TruncDate('created_at')).values('day')
+        real.filter(created_at__gte=since).annotate(day=TruncDate('created_at')).values('day')
         .annotate(n=Count('pk')).order_by('day')
     )
     signals = ItemReward.objects.aggregate(scans=Sum('scans'), adds=Sum('adds'), passes=Sum('passes'))
@@ -45,12 +47,13 @@ def overview(days: int = DAYS) -> dict:
     return {
         'days': days,
         'members': {
-            'active': Account.objects.filter(status=Account.STATUS_ACTIVE).count(),
-            'revoked': Account.objects.filter(status=Account.STATUS_REVOKED).count(),
-            'people': Person.objects.filter(removed_at__isnull=True, account__status=Account.STATUS_ACTIVE).count(),
-            'verified_18': Person.objects.filter(removed_at__isnull=True, verified_18=True).count(),
-            'cards_active': Card.objects.filter(status=Card.STATUS_ACTIVE).count(),
-            'cards_blank': Card.objects.filter(status=Card.STATUS_UNISSUED).count(),
+            'active': real.filter(status=Account.STATUS_ACTIVE).count(),
+            'revoked': real.filter(status=Account.STATUS_REVOKED).count(),
+            'people': Person.objects.filter(removed_at__isnull=True, account__status=Account.STATUS_ACTIVE,
+                                            account__is_practice=False).count(),
+            'verified_18': Person.objects.filter(removed_at__isnull=True, verified_18=True, account__is_practice=False).count(),
+            'cards_active': Card.objects.filter(status=Card.STATUS_ACTIVE).exclude(person__account__is_practice=True).count(),
+            'cards_blank': Card.objects.filter(status=Card.STATUS_UNISSUED, batch__isnull=False).count(),
             'signups': [{'day': r['day'].isoformat(), 'n': r['n']} for r in signups],
         },
         'sales': {
@@ -66,8 +69,8 @@ def overview(days: int = DAYS) -> dict:
             'credit_from_returns': _money(ledger.filter(kind=LedgerEntry.KIND_CREDIT, reason='return').aggregate(s=Sum('amount'))['s']),
         },
         'owed': {
-            'banked': _money(LedgerEntry.objects.filter(kind=LedgerEntry.KIND_BANK).aggregate(s=Sum('amount'))['s']),
-            'credit': _money(LedgerEntry.objects.filter(kind=LedgerEntry.KIND_CREDIT).aggregate(s=Sum('amount'))['s']),
+            'banked': _money(owed_rows.filter(kind=LedgerEntry.KIND_BANK).aggregate(s=Sum('amount'))['s']),
+            'credit': _money(owed_rows.filter(kind=LedgerEntry.KIND_CREDIT).aggregate(s=Sum('amount'))['s']),
         },
         'returns': {
             'count': ReturnRecord.objects.filter(created_at__gte=since).count(),

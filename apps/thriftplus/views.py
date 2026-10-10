@@ -70,6 +70,15 @@ class AccountViewSet(viewsets.ReadOnlyModelViewSet):
 
     def create(self, request, *args, **kwargs):
         d = request.data
+        if _truthy(d.get('practice')):  # a sign-up on the training register (2026-10-10)
+            try:
+                account = members.make_practice_member(
+                    first_name=d.get('first_name', ''), last_name=d.get('last_name', ''), card_code=d.get('card_code', ''),
+                    photo=request.FILES.get('photo'), user=request.user,
+                )
+            except MemberError as exc:
+                return _error(exc)
+            return Response(AccountDetailSerializer(account).data, status=status.HTTP_201_CREATED)
         try:
             account = members.create_account(
                 first_name=d.get('first_name', ''), last_name=d.get('last_name', ''), phone=d.get('phone', ''),
@@ -77,6 +86,16 @@ class AccountViewSet(viewsets.ReadOnlyModelViewSet):
                 photo=request.FILES.get('photo'), card_code=d.get('card_code', ''), email=d.get('email', ''),
                 user=request.user,
             )
+        except MemberError as exc:
+            return _error(exc)
+        return Response(AccountDetailSerializer(account).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'])
+    def practice(self, request):
+        """Make a practice member for training (owner, 2026-10-10). Optional: first_name, card_code (a blank card)."""
+        try:
+            account = members.make_practice_member(first_name=request.data.get('first_name', ''),
+                                                   card_code=request.data.get('card_code', ''), user=request.user)
         except MemberError as exc:
             return _error(exc)
         return Response(AccountDetailSerializer(account).data, status=status.HTTP_201_CREATED)
@@ -122,7 +141,7 @@ class AccountViewSet(viewsets.ReadOnlyModelViewSet):
         account = self.get_object()
         kind = request.data.get('kind')
         if kind not in (LedgerEntry.KIND_CREDIT, LedgerEntry.KIND_BANK):
-            return Response({'detail': 'Adjust credit or bank.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': 'Adjust Return $ or the ThriftBucks Balance.'}, status=status.HTTP_400_BAD_REQUEST)
         note = str(request.data.get('note') or '').strip()
         if not note:
             return Response({'detail': 'Say why.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -498,8 +517,11 @@ class RegisterViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def status(self, request):
         """Whether Thrift+ is live at a register (``?register=<code>``), before any sale exists."""
+        from apps.pos.models import Register
+
         code = str(request.query_params.get('register') or '').strip().upper()
-        return Response({'live': members.is_enabled() or code in register.live_register_codes()})
+        training = bool(code) and Register.objects.filter(code__iexact=code, is_training=True).exists()
+        return Response({'live': members.is_enabled() or code in register.live_register_codes() or training})
 
     @action(detail=False, methods=['post'])
     def attach(self, request):

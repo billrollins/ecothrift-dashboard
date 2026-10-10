@@ -22,16 +22,17 @@ import { format, parseISO } from 'date-fns';
 import { useSnackbar } from 'notistack';
 import { useState } from 'react';
 import { adjustMemberMoney, fetchMemberMoney } from '../../api/thriftplus.api';
+import { CoverFigures, TbAmount } from '../../components/thriftplus/ThriftBucks';
 import { formatCurrency } from '../../utils/format';
 
-const KIND: Record<string, string> = { cover: 'Cover', bank: 'Banked', credit: 'Store credit' };
+const KIND: Record<string, string> = { cover: 'Cover', bank: 'ThriftBucks', credit: 'Return $' };
 const REASON: Record<string, string> = {
   sale: 'Sale', void: 'Voided sale', return: 'Return', rering: 'Re-ring', spend: 'Spent', adjust: 'Adjusted',
 };
 
 /**
  * A membership's money in the member service (thrift_plus_rewards Phase 4): the cover this month,
- * banked rewards and store credit, every ledger row behind them, and a manager's adjustment.
+ * ThriftBucks and Return $ (store credit), every ledger row behind them, and a manager's adjustment.
  */
 export default function MemberMoney({ accountId }: { accountId: number }) {
   const queryClient = useQueryClient();
@@ -53,14 +54,14 @@ export default function MemberMoney({ accountId }: { accountId: number }) {
   return (
     <Paper variant="outlined" sx={{ p: 1.5 }}>
       <Stack direction="row" spacing={1} alignItems="center">
-        <Typography variant="subtitle2" sx={{ fontWeight: 800, flex: 1 }}>Rewards and credit</Typography>
+        <Typography variant="subtitle2" sx={{ fontWeight: 800, flex: 1 }}>ThriftBucks and Return $</Typography>
         <Button size="small" onClick={() => setAdjust({ kind: 'credit', amount: '', note: '' })}>Adjust</Button>
       </Stack>
       <Typography variant="body2">
-        Cover {m.cover.month}: {formatCurrency(m.cover.covered)} of {formatCurrency(m.cover.amount)} (resets {format(parseISO(m.cover.resets_on), 'MMM d')})
+        Cover {m.cover.month}: <CoverFigures covered={m.cover.covered} amount={m.cover.amount} /> (resets {format(parseISO(m.cover.resets_on), 'MMM d')})
       </Typography>
       <LinearProgress variant="determinate" value={pct} sx={{ height: 6, borderRadius: 3, my: 0.5 }} />
-      <Typography variant="body2">Banked {formatCurrency(m.banked)} · Store credit {formatCurrency(m.credit)}</Typography>
+      <Typography variant="body2">ThriftBucks Balance <TbAmount value={m.banked} bare /> · Return $ {formatCurrency(m.credit)}</Typography>
       {m.entries.length ? (
         <Table size="small" sx={{ mt: 1 }}>
           <TableHead>
@@ -76,24 +77,24 @@ export default function MemberMoney({ accountId }: { accountId: number }) {
               <TableRow key={e.id}>
                 <TableCell>{format(parseISO(e.created_at), 'MMM d')}</TableCell>
                 <TableCell>{KIND[e.kind] ?? e.kind} · {REASON[e.reason] ?? e.reason}</TableCell>
-                <TableCell align="right">{formatCurrency(e.amount)}</TableCell>
+                <TableCell align="right">{e.kind === 'bank' || e.kind === 'cover' ? <TbAmount bare value={e.amount} sign={Number(e.amount) < 0 ? '-' : undefined} /> : formatCurrency(e.amount)}</TableCell>
                 <TableCell>{[e.sku, e.cart ? `sale ${e.cart}` : '', e.note, e.actor ? `by ${e.actor}` : ''].filter(Boolean).join(' · ')}</TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       ) : (
-        <Typography variant="caption" color="text.secondary">No rewards or credit yet.</Typography>
+        <Typography variant="caption" color="text.secondary">No ThriftBucks or Return $ yet.</Typography>
       )}
 
       <Dialog open={adjust !== null} onClose={() => setAdjust(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Adjust rewards or credit</DialogTitle>
+        <DialogTitle>Adjust ThriftBucks or Return $</DialogTitle>
         <DialogContent>
           {adjust ? (
             <Stack spacing={1.5} sx={{ mt: 1 }}>
               <TextField select size="small" label="Which" value={adjust.kind} onChange={(e) => setAdjust({ ...adjust, kind: e.target.value as 'credit' | 'bank' })}>
-                <MenuItem value="credit">Store credit</MenuItem>
-                <MenuItem value="bank">Banked rewards</MenuItem>
+                <MenuItem value="credit">Return $ (store credit)</MenuItem>
+                <MenuItem value="bank">ThriftBucks Balance</MenuItem>
               </TextField>
               <TextField size="small" label="Amount (use - to take away)" value={adjust.amount} onChange={(e) => setAdjust({ ...adjust, amount: e.target.value })} />
               <TextField size="small" label="Why" value={adjust.note} onChange={(e) => setAdjust({ ...adjust, note: e.target.value })} />

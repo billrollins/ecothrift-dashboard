@@ -16,6 +16,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Box, ButtonBase, CircularProgress } from '@mui/material';
 import { fromCents, toCents } from '../../../api/thriftPlusMock';
 import {
+  fetchScannerSettings,
   isOpen,
   lookupTag,
   setPreviewCode,
@@ -28,16 +29,28 @@ import {
 import { AccountPage, ResetPasswordScreen } from './AccountScreens';
 import { BalancePage } from './BalancePage';
 import { CameraCard } from './CameraCard';
+import { CARD_STYLES, ScannerLookContext, lookOverride, saveCard, saveLookOverride, savedCard, useScannerLook, type CardStyle } from './scannerLook';
 import { CartPage } from './CartPage';
 import { InfoPopup, IntroTour, introSeen, markIntroSeen, type Origin, type Topic } from './Explainers';
 import { ItemCard, type ItemCardHandle, type SwipeDir } from './ItemCard';
 import { ScannerTiles, ScannerTop } from './ScannerTop';
 import { SignInScreen } from './SignInScreen';
 import { bankInto, rainPlan, shower } from './TicketRain';
-import { ScanGate, money, parseTagCode } from './scannerLogic';
+import { TbAmount } from '../../../components/thriftplus/ThriftBucks';
+import { ScanGate, parseTagCode } from './scannerLogic';
 import { UNIT_CSS, art, sc, u, useScannerFonts } from './scannerTheme';
 import { loadDetector, useQrCamera } from './useQrCamera';
 import { thriftPlusKeys, useCartActions, useSignIn, useThriftPlusCart, useThriftPlusSession } from './useThriftPlus';
+
+const TYPE_ONLY_KEY = 'tp-type-only';
+
+function typeOnlyMode(): boolean {
+  try {
+    return sessionStorage.getItem(TYPE_ONLY_KEY) === '1' || new URLSearchParams(window.location.search).get('type') === '1';
+  } catch {
+    return new URLSearchParams(window.location.search).get('type') === '1';
+  }
+}
 
 export default function ThriftPlusScannerPage() {
   useScannerFonts();
@@ -53,6 +66,38 @@ export default function ThriftPlusScannerPage() {
     setPageParams(next, { replace: true });
   }, [preview]); // eslint-disable-line react-hooks/exhaustive-deps
   const open = useQuery({ queryKey: ['thriftPlus', 'open'], queryFn: isOpen, staleTime: 60_000 });
+  const [staffSignIn, setStaffSignIn] = useState(false);
+  // Price first or ThriftBucks first (owner 2026-10-10): the setting, unless staff flipped it on this phone.
+  const lookSetting = useQuery({ queryKey: ['thriftPlus', 'look'], queryFn: fetchScannerSettings, staleTime: 300_000 });
+  const [lookFlip, setLookFlip] = useState<boolean | null>(lookOverride);
+  const priceFirst = lookFlip ?? lookSetting.data?.priceFirst ?? true;
+  const [cardChoice, setCard] = useState<CardStyle>(savedCard);
+  // A choice from an older build (or none) falls back to the first card.
+  const card: CardStyle = CARD_STYLES.some((x) => x.style === cardChoice) ? cardChoice : CARD_STYLES[0].style;
+  const look = {
+    priceFirst,
+    flip: () => {
+      saveLookOverride(!priceFirst);
+      setLookFlip(!priceFirst);
+    },
+    card,
+    nextCard: () => {
+      const i = CARD_STYLES.findIndex((x) => x.style === card);
+      const next = CARD_STYLES[(i + 1) % CARD_STYLES.length].style;
+      saveCard(next);
+      setCard(next);
+    },
+  };
+  // Testing without a camera (owner, 2026-10-10): /scan?type=1 skips the camera for this browser tab; ?type=0 turns it back on.
+  const typeParam = pageParams.get('type');
+  if (typeParam !== null) {
+    try {
+      if (typeParam === '0') sessionStorage.removeItem(TYPE_ONLY_KEY);
+      else sessionStorage.setItem(TYPE_ONLY_KEY, '1');
+    } catch {
+      /* private mode: the flag lasts for this page only */
+    }
+  }
   const session = useThriftPlusSession();
 
   useEffect(() => {
@@ -66,6 +111,7 @@ export default function ThriftPlusScannerPage() {
   }, []);
 
   return (
+    <ScannerLookContext.Provider value={look}>
     <Box
       sx={{
         position: 'fixed',
@@ -92,7 +138,13 @@ export default function ThriftPlusScannerPage() {
         }}
       >
         {open.data === false ? (
-          <ComingSoon />
+          staffSignIn ? (
+            <Box sx={{ flex: 1, overflowY: 'auto' }}>
+              <SignInScreen />
+            </Box>
+          ) : (
+            <ComingSoon onStaff={() => setStaffSignIn(true)} />
+          )
         ) : resetToken ? (
           <Box sx={{ flex: 1, overflowY: 'auto' }}>
             <ResetPasswordScreen token={resetToken} onDone={() => setPageParams({}, { replace: true })} />
@@ -110,18 +162,53 @@ export default function ThriftPlusScannerPage() {
         )}
       </Box>
     </Box>
+    </ScannerLookContext.Provider>
   );
 }
 
-/** Thrift+ is off: what a customer sees at /scan until launch. */
-function ComingSoon() {
+/** Thrift+ is off: what a customer sees at /scan until launch. Staff can sign in to test it (2026-10-10). */
+function ComingSoon({ onStaff }: { onStaff: () => void }) {
   return (
     <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', p: 4, textAlign: 'center' }}>
       <Box>
         <Box sx={{ fontSize: 34, fontWeight: 900, color: sc.green, mb: 1 }}>Thrift+</Box>
         <Box sx={{ fontSize: 20, fontWeight: 800, mb: 1 }}>Coming soon</Box>
         <Box sx={{ fontSize: 16, color: sc.ink, opacity: 0.75 }}>Ask at the register.</Box>
+        <ButtonBase onClick={onStaff} sx={{ mt: 4, fontSize: 14, color: sc.ink2, textDecoration: 'underline', borderRadius: 1 }}>
+          Staff sign in
+        </ButtonBase>
       </Box>
+    </Box>
+  );
+}
+
+/** Staff test mode: Thrift+ is still off for customers (2026-10-10), and the look to flip. */
+function TestModeBar() {
+  const look = useScannerLook();
+  return (
+    <Box
+      role="status"
+      data-testid="test-mode-bar"
+      sx={{
+        flexShrink: 0, textAlign: 'center', fontSize: 13, fontWeight: 700, color: '#4A3200', bgcolor: '#F0C766',
+        py: '4px', pt: 'calc(env(safe-area-inset-top, 0px) + 4px)',
+      }}
+    >
+      Test mode: Thrift+ isn't open to customers yet
+      <ButtonBase
+        onClick={look.flip}
+        data-testid="look-flip"
+        sx={{ ml: 1, px: 1, borderRadius: 1, fontSize: 12, fontWeight: 800, textDecoration: 'underline', color: 'inherit' }}
+      >
+        {look.priceFirst ? 'Show ThriftBucks big' : 'Show price big'}
+      </ButtonBase>
+      <ButtonBase
+        onClick={look.nextCard}
+        data-testid="card-style"
+        sx={{ ml: 1, px: 1, borderRadius: 1, fontSize: 12, fontWeight: 800, textDecoration: 'underline', color: 'inherit' }}
+      >
+        {`Card: ${CARD_STYLES.find((x) => x.style === look.card)?.label} (change)`}
+      </ButtonBase>
     </Box>
   );
 }
@@ -154,7 +241,6 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
   const [top, setTop] = useState<Top | null>(null);
   const [flash, setFlash] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [askBank, setAskBank] = useState(false);
   const [explain, setExplain] = useState<{ topic: Topic; origin: Origin | null } | null>(null);
   const [tour, setTour] = useState(() => !introSeen());
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -164,7 +250,7 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
   const toastTimer = useRef<number | null>(null);
   topRef.current = top;
 
-  // Bank it / Shower (owner, 2026-10-09): a swipe right fills the cover first, then the Rewards Balance.
+  // Bank it / Shower (owner, 2026-10-09): a swipe right fills the cover first, then the ThriftBucks Balance.
   const rainSeen = useRef<{ fill: number; bank: number } | null>(null);
   useEffect(() => {
     const c = cart.data;
@@ -200,9 +286,10 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
   }, []);
 
   const handleCodeRef = useRef<(raw: string, from: 'camera' | 'typed') => void>(() => undefined);
+  const typeOnly = typeOnlyMode();
   const camera = useQrCamera({
-    enabled: true,
-    paused: top != null || cartOpen || accountOpen || balanceOpen || askBank || tour || explain != null,
+    enabled: !typeOnly,
+    paused: top != null || cartOpen || accountOpen || balanceOpen || tour || explain != null,
     onDecode: (raw) => handleCodeRef.current(raw, 'camera'),
   });
 
@@ -227,13 +314,9 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
     });
   };
 
-  /** Every add (swipe, button, history) goes through here, so the first one can ask bank-or-rebate. */
+  /** Every add (swipe, button, history) goes through here. No InstantBucks question in the app (owner 2026-10-10). */
   const addItem = (item: ThriftPlusItemCard) => {
-    actions.add.mutate(item, {
-      onSuccess: (next: ThriftPlusCart) => {
-        if (member && next.reward_choice == null) setAskBank(true);
-      },
-    });
+    actions.add.mutate(item);
   };
 
   const onCardDone = (dir: SwipeDir) => {
@@ -255,7 +338,7 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
 
   // Arrow keys on a laptop: right adds, left passes.
   useEffect(() => {
-    if (!top || cartOpen || accountOpen || askBank) return;
+    if (!top || cartOpen || accountOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
       if (e.key === 'ArrowRight') cardRef.current?.fling('right');
@@ -263,21 +346,15 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [top, cartOpen, accountOpen, askBank]);
+  }, [top, cartOpen, accountOpen]);
 
   const openAccount = () => setParams({ view: 'account' }, { state: { tpCart: true } });
   const openCart = () => setParams({ view: 'cart' }, { state: { tpCart: true } });
-  // Tap Rewards Balance: every reward in the order it is used (owner, 2026-10-09).
+  // Tap ThriftBucks: every ThriftBuck in the order it is used (owner, 2026-10-09).
   const openBalance = () => setParams({ view: 'balance' }, { state: { tpCart: true } });
   const closeCart = () => {
     if ((location.state as { tpCart?: boolean } | null)?.tpCart) navigate(-1);
     else setParams({}, { replace: true });
-  };
-
-  const choose = (choice: RewardChoice) => {
-    actions.choose.mutate(choice);
-    setAskBank(false);
-    camera.poke();
   };
 
   /** Open an explainer that grows out of the tapped element. */
@@ -296,7 +373,6 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
   };
 
   const found = top?.lookup?.status === 'found' ? top.lookup.item : null;
-  const canAdd = !!found && found.available;
 
   return (
     <Box
@@ -304,7 +380,8 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
       onPointerDown={() => camera.poke()}
       sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}
     >
-      <ScannerTop cart={cart.data} onOpenCart={openCart} />
+      {member?.test_mode && <TestModeBar />}
+      <ScannerTop cart={cart.data} isGuest={isGuest} onOpenCart={openCart} />
       <Box sx={{ flex: 1, minHeight: 0, width: u(900), mx: 'auto', display: 'flex', flexDirection: 'column' }}>
         <Gap basis={38} min={14} />
         <ScannerTiles
@@ -327,6 +404,7 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
               onWake={camera.wake}
               onCode={(code) => handleCodeRef.current(code, 'typed')}
               onHelp={(el) => openExplain('camera', el)}
+              typeOnly={typeOnly}
             />
             {top && (
               <ItemCard
@@ -339,12 +417,6 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
                 onDone={onCardDone}
                 onFeel={(feel) => actions.feel.mutate({ sku: top.sku, feel })}
               />
-            )}
-            {top && (
-              <>
-                <SideHint side="left" label="Pass" onClick={() => cardRef.current?.fling('left')} />
-                <SideHint side="right" label="Add" disabled={!canAdd} onClick={() => cardRef.current?.fling('right')} />
-              </>
             )}
             {toast && (
               <Box
@@ -371,22 +443,8 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
           </Box>
         </Box>
 
-        <Gap basis={20} min={10} />
-
-        {/* Pass / Add to my list */}
-        <Box sx={{ display: 'flex', justifyContent: 'center', gap: u(40), flexShrink: 0 }}>
-          <RoundAction label="Pass" disabled={!top} onClick={() => cardRef.current?.fling('left')} kind="pass" />
-          <RoundAction label="Add to my list" disabled={!canAdd} onClick={() => cardRef.current?.fling('right')} kind="add" />
-        </Box>
-
-        <Gap basis={40} min={10} />
-        <Box
-          aria-hidden={!top}
-          sx={{ textAlign: 'center', fontSize: u(29), color: sc.ink2, flexShrink: 0, lineHeight: 1.2, visibility: top ? 'visible' : 'hidden' }}
-        >
-          Swipe right to add, left to pass.
-        </Box>
-        <Box sx={{ flexShrink: 0, height: `calc(${u(30)} + env(safe-area-inset-bottom, 0px))` }} />
+        {/* Owner 2026-10-10: no Pass / Add buttons, no arrows, no swipe hint. Swiping still works; it isn't advertised. */}
+        <Box sx={{ flexShrink: 0, height: `calc(${u(40)} + env(safe-area-inset-bottom, 0px))` }} />
       </Box>
 
       {cartOpen && (
@@ -396,7 +454,6 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
           isGuest={isGuest}
           onBack={closeCart}
           onAdd={addItem}
-          onChoose={(c) => actions.choose.mutate(c)}
           onExplain={openExplain}
           onTour={() => setTour(true)}
           onSignIn={() => auth.signOut.mutate()}
@@ -416,7 +473,6 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
         />
       )}
 
-      {askBank && cart.data && <BankPrompt cart={cart.data} onChoose={choose} />}
 
       {tour && (
         <IntroTour
@@ -443,87 +499,6 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
   );
 }
 
-/** First add of a trip: bank the rewards (worth more) or take them off today's price. The register gets the answer. */
-function BankPrompt({ cart, onChoose }: { cart: ThriftPlusCart; onChoose: (c: RewardChoice) => void }) {
-  const t = cart.totals;
-  const worth = Number.parseFloat(t.bank_value) > 0;
-  const rebate = fromCents(toCents(t.bank_value) - toCents(t.bank_extra));
-  return (
-    <Box
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="tp-bank-title"
-      sx={{ position: 'absolute', inset: 0, zIndex: 30, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
-    >
-      <Box sx={{ position: 'absolute', inset: 0, bgcolor: 'rgba(20,26,20,0.42)', animation: 'tpDim 160ms ease both', '@keyframes tpDim': { from: { opacity: 0 } } }} />
-      <Box
-        sx={{
-          position: 'relative',
-          bgcolor: sc.card,
-          borderRadius: `${u(44)} ${u(44)} 0 0`,
-          px: u(50),
-          pt: u(36),
-          pb: `calc(${u(40)} + env(safe-area-inset-bottom, 0px))`,
-          textAlign: 'center',
-          boxShadow: '0 -8px 30px rgba(0,0,0,0.18)',
-          animation: 'tpSheet 220ms ease-out both',
-          '@keyframes tpSheet': { from: { transform: 'translateY(40%)', opacity: 0 } },
-        }}
-      >
-        <Box component="img" src={art.brick} alt="" sx={{ width: u(140), height: u(140) }} />
-        <Box
-          id="tp-bank-title"
-          sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(54), lineHeight: 1.1, color: sc.titleGreen, mt: u(8) }}
-        >
-          Full rewards or instant?
-        </Box>
-        <Box sx={{ fontSize: u(30), color: sc.ink2, lineHeight: 1.4, mt: u(12) }}>
-          Full rewards are saved in full for a later trip (30 days). Instant rewards take 80% off today.
-        </Box>
-        <ButtonBase
-          onClick={() => onChoose('bank')}
-          sx={{
-            mt: u(30),
-            width: '100%',
-            minHeight: u(120),
-            flexDirection: 'column',
-            borderRadius: u(60),
-            background: `linear-gradient(180deg, #62c64a, ${sc.green})`,
-            boxShadow: '0 4px 12px rgba(63,159,53,0.35), inset 0 2px 0 rgba(255,255,255,0.35)',
-            color: '#fff',
-            py: u(16),
-          }}
-        >
-          <Box sx={{ fontSize: u(34), fontWeight: 700 }}>Full rewards</Box>
-          <Box sx={{ fontSize: u(26), opacity: 0.95, mt: u(2) }}>
-            {worth ? `${money(t.full_value ?? t.bank_value)} to spend next time` : 'All of it, to spend next time'}
-          </Box>
-        </ButtonBase>
-        <ButtonBase
-          onClick={() => onChoose('instant')}
-          sx={{
-            mt: u(16),
-            width: '100%',
-            minHeight: u(120),
-            flexDirection: 'column',
-            borderRadius: u(60),
-            border: `${u(3)} solid ${sc.cardEdge}`,
-            color: sc.priceGreen,
-            py: u(16),
-          }}
-        >
-          <Box sx={{ fontSize: u(34), fontWeight: 700 }}>Instant rewards</Box>
-          <Box sx={{ fontSize: u(26), color: sc.ink2, mt: u(2) }}>
-            {worth ? `${money(t.instant_value ?? rebate)} off today (80%)` : "80% off today's price"}
-          </Box>
-        </ButtonBase>
-        <Box sx={{ fontSize: u(25), color: sc.ink3, mt: u(20), lineHeight: 1.35 }}>
-          We'll let the register know. Remind your cashier at checkout, too.
-        </Box>
-      </Box>
-    </Box>
-  );
-}
 
 function Chevron({ dir, color }: { dir: 'left' | 'right'; color: string }) {
   return (
@@ -540,106 +515,3 @@ function Chevron({ dir, color }: { dir: 'left' | 'right'; color: string }) {
   );
 }
 
-function SideHint({
-  side,
-  label,
-  disabled = false,
-  onClick,
-}: {
-  side: 'left' | 'right';
-  label: string;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  const color = side === 'left' ? '#6d706a' : sc.green;
-  return (
-    <ButtonBase
-      onClick={onClick}
-      disabled={disabled}
-      aria-hidden
-      tabIndex={-1}
-      sx={{
-        position: 'absolute',
-        top: '50%',
-        ...(side === 'left' ? { left: u(-110) } : { left: `calc(100% + ${u(25)})` }),
-        width: u(100),
-        transform: 'translateY(-50%)',
-        flexDirection: 'column',
-        color,
-        opacity: disabled ? 0.3 : 1,
-        fontSize: u(29),
-        fontWeight: 500,
-        borderRadius: u(16),
-        py: u(12),
-      }}
-    >
-      <Chevron dir={side} color={color} />
-      <Box sx={{ mt: u(8) }}>{label}</Box>
-    </ButtonBase>
-  );
-}
-
-function RoundAction({
-  label,
-  kind,
-  disabled,
-  onClick,
-}: {
-  label: string;
-  kind: 'pass' | 'add';
-  disabled: boolean;
-  onClick: () => void;
-}) {
-  const add = kind === 'add';
-  return (
-    <Box
-      sx={{
-        width: u(230),
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        opacity: disabled ? 0.45 : 1,
-        transition: 'opacity 150ms',
-      }}
-    >
-      <ButtonBase
-        onClick={onClick}
-        disabled={disabled}
-        aria-label={label}
-        sx={{
-          width: u(148),
-          height: u(148),
-          borderRadius: '50%',
-          ...(add
-            ? { backgroundImage: `url(${art.orb})`, backgroundSize: '112%', backgroundPosition: 'center 40%' }
-            : { bgcolor: '#fff', boxShadow: '0 8px 20px rgba(31,38,29,0.16), 0 1px 3px rgba(31,38,29,0.08)' }),
-          '&:active': { transform: 'scale(0.94)' },
-          transition: 'transform 90ms',
-        }}
-      >
-        <Box component="svg" viewBox="0 0 24 24" aria-hidden sx={{ width: u(add ? 78 : 74), height: u(add ? 78 : 74) }}>
-          <path
-            d={add ? 'M12 4.5 V19.5 M4.5 12 H19.5' : 'M6 6 L18 18 M18 6 L6 18'}
-            fill="none"
-            stroke={add ? '#fff' : '#6d706a'}
-            strokeWidth={add ? 3.6 : 3.2}
-            strokeLinecap="round"
-            style={add ? { filter: 'drop-shadow(0 1px 1px rgba(20,70,20,0.45))' } : undefined}
-          />
-        </Box>
-      </ButtonBase>
-      <Box
-        sx={{
-          mt: u(24),
-          fontSize: u(32),
-          fontWeight: add ? 600 : 500,
-          color: add ? '#2e8f2a' : sc.ink2,
-          whiteSpace: 'nowrap',
-          lineHeight: 1.2,
-        }}
-      >
-        {label}
-      </Box>
-    </Box>
-  );
-}

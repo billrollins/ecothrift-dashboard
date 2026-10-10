@@ -1506,6 +1506,9 @@ class CartViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
+        # A training register (owner, 2026-10-10): the same checks, then nothing real is written.
+        training = bool(getattr(getattr(cart.drawer, 'register', None), 'is_training', False))
+
         # Thrift+: a member, spent credit or a live register. Dark registers skip all of it.
         thrift = thrift_register.touches(cart)
         if thrift:
@@ -1547,6 +1550,23 @@ class CartViewSet(viewsets.ModelViewSet):
             )
         except CardSurchargeError as exc:
             return Response({'detail': str(exc)}, status=400)
+
+        if training:
+            with transaction.atomic():
+                cart.payment_method = payment_method
+                cart.cash_tendered = _as_decimal(request.data.get('cash_tendered'))
+                cart.change_given = _as_decimal(request.data.get('change_given'))
+                cart.card_amount = _as_decimal(request.data.get('card_amount'))
+                cart.card_type = surcharge_fields['card_type']
+                cart.card_surcharge_rate = surcharge_fields['card_surcharge_rate']
+                cart.card_surcharge_amount = surcharge_fields['card_surcharge_amount']
+                cart.card_charged_total = surcharge_fields['card_charged_total']
+                cart.status = 'training'  # not 'completed': every report counts completed sales only
+                cart.completed_at = timezone.now()
+                cart.save()
+                # No drawer cash, no item sold, no hold or consignment closed, no Thrift+ money: practice only.
+                Receipt.objects.create(cart=cart, receipt_number=Receipt.generate_training_number())
+            return Response(CartSerializer(cart).data)
 
         with transaction.atomic():
             cart.payment_method = payment_method

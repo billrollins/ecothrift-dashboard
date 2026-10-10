@@ -29,6 +29,7 @@ import { useEffect, useState } from 'react';
 import {
   addSecondAdult,
   createMember,
+  makePracticeMember,
   fetchMember,
   findMembers,
   issueCard,
@@ -77,6 +78,21 @@ function StaffLink({ account, onChanged }: { account: ThriftPlusAccount; onChang
     </TextField>
   ) : (
     <Box><Button size="small" onClick={() => setPicking(true)}>This is a staff member&rsquo;s own membership</Button></Box>
+  );
+}
+
+/** A practice member: how to use it, and that it is never real (2026-10-10). */
+function PracticeNote({ account }: { account: ThriftPlusAccount }) {
+  const person = account.people.find((p) => p.role === 'primary') ?? account.people[0];
+  const card = person?.cards.find((c) => c.status === 'active');
+  return (
+    <Alert severity="warning">
+      <strong>Practice member.</strong> Use it on the training register and in the scanner&rsquo;s test mode. It never
+      works on a real register and is left out of every report.
+      {card && person?.phone ? (
+        <> Scanner sign-in: card <strong>{card.display}</strong> and phone ending <strong>{person.phone.slice(-4)}</strong>.</>
+      ) : null}
+    </Alert>
   );
 }
 
@@ -218,6 +234,7 @@ function AccountDetail({ id }: { id: number }) {
         <Typography variant="h6" sx={{ fontWeight: 800, flex: 1 }}>Membership #{account.id}</Typography>
         {account.status === 'revoked' ? <Chip color="error" label={`Revoked: ${account.revoked_reason}`} /> : null}
       </Stack>
+      {account.is_practice ? <PracticeNote account={account} /> : null}
       {account.people.map((p) => <PersonCard key={p.id} person={p} account={account} onChanged={onChanged} />)}
       <StaffLink account={account} onChanged={onChanged} />
       <MemberMoney accountId={account.id} />
@@ -285,6 +302,15 @@ export default function MembersTab() {
     return () => window.clearTimeout(t);
   }, [q]);
   const results = useQuery({ queryKey: ['thriftplus', 'find', debounced], queryFn: () => findMembers(debounced), enabled: debounced.length >= 2 });
+  const practice = useMutation({
+    mutationFn: () => makePracticeMember(),
+    onSuccess: (a) => {
+      setSelected(a.id);
+      queryClient.setQueryData(['thriftplus', 'account', a.id], a);
+      enqueueSnackbar('Practice member made.', { variant: 'success' });
+    },
+    onError: (err) => enqueueSnackbar(detail(err), { variant: 'error' }),
+  });
   const create = useMutation({
     mutationFn: () => createMember(signup!),
     onSuccess: (a) => {
@@ -301,6 +327,9 @@ export default function MembersTab() {
       <Stack spacing={1}>
         <TextField autoFocus label="Scan a card, or type a phone or name" value={q} onChange={(e) => setQ(e.target.value)} />
         <Button variant="contained" onClick={() => setSignup({ first_name: '', id_checked: false, verified_18: false })}>New member</Button>
+        <Button variant="outlined" color="warning" disabled={practice.isPending} onClick={() => practice.mutate()}>
+          Make a practice member
+        </Button>
         {results.data?.length === 0 ? <Alert severity="info">No member found.</Alert> : null}
         {results.data?.length ? (
           <Paper variant="outlined">
@@ -311,7 +340,7 @@ export default function MembersTab() {
                   <ListItemButton key={a.id} selected={selected === a.id} onClick={() => setSelected(a.id)}>
                     <ListItemText
                       primary={primary ? fullName(primary) : `Membership #${a.id}`}
-                      secondary={`${primary?.phone ? phone(primary.phone) : 'No phone'}${a.status === 'revoked' ? ' · revoked' : ''}`}
+                      secondary={`${primary?.phone ? phone(primary.phone) : 'No phone'}${a.status === 'revoked' ? ' · revoked' : ''}${a.is_practice ? ' · practice' : ''}`}
                     />
                   </ListItemButton>
                 );

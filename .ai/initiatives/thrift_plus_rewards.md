@@ -385,6 +385,23 @@ The POS handles members:
   - **At the register:** Return $ applied first automatically, and a reward dropping off its balance when its use-by date passes. The scanner marks a lot "past its date".
   - **Warranty refunds:** still 95% (rulebook W3 says 80%).
 
+### 2026-10-10: Signed policy build list (Bill and Carrie signed 10-09)
+- **The split (Bill, 10-10):** this session does all the system and code work. The poster session does the documents (rulebook, terms and FAQ wording, the full warranty text).
+- **The list:** [`reference/reports/2026-10-10-thrift-plus-signed-policy-build-list.md`](../reference/reports/2026-10-10-thrift-plus-signed-policy-build-list.md). The source is the rulebook.
+- **The parts:**
+  - A, reward engine: 95% cap, launch age 1/3 (max 45), back stock, families confirmed by the owner.
+  - B, Full is the automatic default, Instant only when the member asks; usable from the next day for 30 days.
+  - C, warranty: 80%, the member keeps 20%, settled on the return day, a Return button in the register cart, no swaps, $10 or less not covered, owner exceptions logged.
+  - D, the words.
+  - E, `/terms` and `/join`.
+  - F, the scanner explainer.
+  - G, receipts.
+  - H, perks M1 to M4.
+  - O1, an owner authorizations log.
+- **The posters' QR codes need `/join` and `/terms` live** before they go up.
+- **Status:** received 10-10. Bill added one login (staff, Thrift+, customers), testing (staff test mode, a training register, practice members), one finish-at-register screen, and a member screen with stats. The whole plan, ordered Mon to Thu: [`reference/reports/2026-10-10-thrift-plus-launch-build-plan.md`](../reference/reports/2026-10-10-thrift-plus-launch-build-plan.md). Waiting on Bill's go.
+- **`/terms` wording:** ready in `.ai/reference/thrift-plus-terms/` (draft for Bill, then the CPA and attorney). Redirects: `/thriftplus` goes to `/terms` (top of the page); only `/thriftplus/warranty` goes to `/terms#s8`.
+
 ---
 
 ## See also

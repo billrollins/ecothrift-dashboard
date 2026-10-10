@@ -62,7 +62,7 @@ function BreakdownTable({ title, rows }: { title: string; rows: FloorPlanRow[] }
               <TableCell />
               <TableCell align="right">Items</TableCell>
               <TableCell align="right">Current prices</TableCell>
-              <TableCell align="right">Rewards</TableCell>
+              <TableCell align="right">ThriftBucks</TableCell>
               <TableCell align="right">New prices</TableCell>
               <TableCell align="right">Off</TableCell>
             </TableRow>
@@ -147,7 +147,7 @@ export default function FloorStockTab() {
     <Stack spacing={2}>
       <Alert severity="info">
         What would members pay for the stock already on the floor? Move the sliders. Nothing here changes a price or a
-        setting. Members' rewards can only be held lower than this (when a family of items is selling fast), never
+        setting. Members' ThriftBucks can only be held lower than this (when a family of items is selling fast), never
         higher.
       </Alert>
 
@@ -269,7 +269,7 @@ export default function FloorStockTab() {
             />
             <Stat label="Current prices (the tags)" value={formatCurrencyWhole(t.tag_total)} hint="What guests pay" />
             <Stat label="New prices (members)" value={formatCurrencyWhole(t.member_total)} hint={`${t.pct_off}% off the tags`} />
-            <Stat label="Rewards handed out" value={formatCurrencyWhole(t.reward_total)} hint={`${formatNumber(t.with_reward)} items have one`} />
+            <Stat label="ThriftBucks handed out" value={formatCurrencyWhole(t.reward_total)} hint={`${formatNumber(t.with_reward)} items have one`} />
             <Stat label="At the floor" value={formatNumber(t.at_floor)} hint={`${formatNumber(t.exit_list)} at day ${d?.scenario.horizon} or more`} />
           </Stack>
 

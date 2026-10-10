@@ -1,6 +1,8 @@
 <!-- Last updated: 2026-10-07 (owners' meeting decisions; working page is now a simple to-do) -->
 # Thrift+ launch kit (drafts for the owner)
 
+**Retired pages (2026-10-09):** the launch kit and rulebook pages below were deleted at the owner's word; their last copies are in [`../reference/retired-pages/`](../reference/retired-pages/README.md). Every rule now lives only in [`../extended/thrift-plus-decisions.md`](../extended/thrift-plus-decisions.md).
+
 **Working page (2026-10-07):** https://claude.ai/artifact/WzPhon6EJvA2S7XLk8M3oZ is now one simple to-do in six groups: Decisions, Dash, Creatives, Printing and ordering, Training, Research. The owner ticks items, picks options on decisions and writes notes there. Everything lives in the page's database collection `todos` (fields `title`, `detail`, `cat`, `who`, `due`, `status` todo/doing/done, `note`, and on decisions `options` and `choice`). Read and write it with the `ArtifactData` tool; read the notes and choices at the start of each Thrift+ session. The old collections `tasks`, `questions` and `drafts` are kept but no longer shown. This file keeps the draft text as the source.
 
 **Rules live in one place (2026-10-08):** the Thrift+ rulebook, [`../extended/thrift-plus-decisions.md`](../extended/thrift-plus-decisions.md), decided on its page https://claude.ai/artifact/GpgB6SUsKkiKkNBRJj31W4. The dated decision notes below are history; where they differ, the rulebook wins. The launch kit page keeps tasks only.

@@ -44,7 +44,7 @@ class PublicApiTests(TestCase):
         return self.api.post(BASE + 'session/card/', {'card_code': f'TP{self.code}', 'phone_last4': last4}, format='json')
 
     def test_a_card_and_phone_digits_sign_in_and_wrong_tries_lock_the_card(self):
-        self.assertEqual(self.api.get(BASE + 'session/').json(), {'status': 'signed_out'})
+        self.assertEqual(self.api.get(BASE + 'session/').json()['status'], 'signed_out')
         ok = self._card_sign_in()
         self.assertEqual(ok.status_code, 200, ok.content)
         self.assertIn(member_auth.COOKIE, ok.cookies)
@@ -210,10 +210,46 @@ class SwitchTests(TestCase):
 
     def test_off_the_scanner_and_portal_say_opens_soon(self):
         api = APIClient()
-        for method, url in (('get', '/api/thriftplus/public/session/'), ('get', '/api/thriftplus/public/tag/ITMTPSW1/'),
-                            ('post', '/api/thriftplus/public/session/password/'), ('get', '/api/thriftplus/public/me/')):
-            res = getattr(api, method)(url, {}, format='json') if method == 'post' else api.get(url)
+        for url in ('/api/thriftplus/public/session/', '/api/thriftplus/public/tag/ITMTPSW1/', '/api/thriftplus/public/me/'):
+            res = api.get(url)
             self.assertEqual((res.status_code, res.json()['code']), (403, 'THRIFT_PLUS_OFF'), url)
+
+    def test_off_a_customer_card_cannot_sign_in(self):
+        code = cards.generate_batch(1).cards.values_list('code', flat=True).first()
+        members.create_account(first_name='Ana', phone='4025550101', card_code=code)
+        res = APIClient().post('/api/thriftplus/public/session/card/', {'card_code': f'TP{code}', 'phone_last4': '0101'},
+                               format='json')
+        self.assertEqual((res.status_code, res.json()['code']), (403, 'THRIFT_PLUS_OFF'))
+        self.assertFalse(MemberSession.objects.exists())
+
+    def test_off_staff_sign_in_and_use_it_as_if_live_in_test_mode(self):
+        staff = User.objects.create_user(email='sam@ecothrift.us', password='correct-horse-9', first_name='Sam', last_name='Staff')
+        staff.groups.add(Group.objects.get_or_create(name='Employee')[0])
+        api = APIClient()
+        ok = api.post('/api/thriftplus/public/session/password/', {'login': 'sam@ecothrift.us', 'password': 'correct-horse-9'},
+                      format='json')
+        self.assertEqual(ok.status_code, 200, ok.content)
+        self.assertTrue(ok.json()['member']['test_mode'])
+        self.assertEqual(api.get('/api/thriftplus/public/tag/ITMTPSW1/').status_code, 200)  # the scanner works for them
+        self.assertEqual(APIClient().get('/api/thriftplus/public/tag/ITMTPSW1/').status_code, 403)  # still closed to others
+
+    def test_off_a_practice_member_signs_in_with_their_card(self):
+        code = cards.generate_batch(1).cards.values_list('code', flat=True).first()
+        account = members.create_account(first_name='Pat', phone='4025550199', card_code=code)
+        Account.objects.filter(pk=account.pk).update(is_practice=True)
+        api = APIClient()
+        res = api.post('/api/thriftplus/public/session/card/', {'card_code': f'TP{code}', 'phone_last4': '0199'}, format='json')
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertTrue(res.json()['member']['test_mode'])
+        self.assertEqual(api.get('/api/thriftplus/public/me/').status_code, 200)
+
+    def test_on_nobody_is_in_test_mode(self):
+        AppSetting.objects.filter(key=members.ENABLED_KEY).update(value=True)
+        staff = User.objects.create_user(email='sue@ecothrift.us', password='correct-horse-9', first_name='Sue', last_name='Staff')
+        staff.groups.add(Group.objects.get_or_create(name='Employee')[0])
+        ok = APIClient().post('/api/thriftplus/public/session/password/',
+                              {'login': 'sue@ecothrift.us', 'password': 'correct-horse-9'}, format='json')
+        self.assertFalse(ok.json()['member']['test_mode'])
 
     def test_a_staff_phone_with_the_preview_code_gets_in(self):
         api = APIClient()

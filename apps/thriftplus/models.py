@@ -27,6 +27,8 @@ class Account(models.Model):
     STATUS_CHOICES = [(STATUS_ACTIVE, 'Active'), (STATUS_REVOKED, 'Revoked')]
 
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_ACTIVE, db_index=True)
+    # Owner, 2026-10-10: a practice member for training and testing; left out of every report and count.
+    is_practice = models.BooleanField(default=False, db_index=True)
     notes = models.TextField(blank=True, default='')
     revoked_at = models.DateTimeField(null=True, blank=True)
     revoked_reason = models.CharField(max_length=200, blank=True, default='')

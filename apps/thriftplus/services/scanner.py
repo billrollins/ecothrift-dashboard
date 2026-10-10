@@ -144,6 +144,31 @@ def find_item(sku: str):
     return Item.objects.select_related('product__profile').filter(sku__iexact=code).first() if code else None
 
 
+# Staff testing without a camera (owner 2026-10-10): tags on the floor, from big ThriftBucks down to none.
+TEST_TAG_BANDS = [(Decimal('40'), None), (Decimal('20'), Decimal('40')), (Decimal('8'), Decimal('20')),
+                  (Decimal('0.01'), Decimal('8'))]
+
+
+def test_tags(per_band: int = 2) -> list[dict]:
+    """A few real tags to pick in the scanner's test mode: two per ThriftBucks band, and one with none yet."""
+    from apps.inventory.models import Item
+
+    base = (ItemReward.objects.filter(item__status='on_shelf', item__price__gt=0)
+            .exclude(status__in=[ItemReward.STATUS_CLOSED, ItemReward.STATUS_EXCLUDED])
+            .exclude(item__source='consignment'))
+    ids: list[int] = []
+    for low, high in TEST_TAG_BANDS:
+        band = base.filter(reward__gte=low)
+        if high is not None:
+            band = band.filter(reward__lt=high)
+        ids += list(band.order_by('item__sku').values_list('item_id', flat=True)[:per_band])
+    ids += list(base.filter(reward=0).order_by('item__sku').values_list('item_id', flat=True)[:1])
+    factor = _sale_factor()
+    cards = [item_card(i, factor=factor) for i in Item.objects.select_related('product__profile').filter(pk__in=ids)]
+    cards.sort(key=lambda c: -Decimal(c['reward']))
+    return [{'sku': c['sku'], 'title': c['title'], 'price': c['price'], 'reward': c['reward']} for c in cards]
+
+
 # ── Signals ────────────────────────────────────────────────────────────────────
 
 _COUNTERS = {'scan': 'scans', 'add': 'adds', 'pass': 'passes'}
@@ -153,6 +178,10 @@ def signal(kind: str, item=None, account=None, **detail) -> None:
     ScanSignal.objects.create(kind=kind, item=item, account=account, detail=detail)
     if item is None:
         return
+    from apps.thriftplus.services.members import is_testing
+
+    if is_testing(account):
+        return  # practice taps keep the member's history but never move the item's numbers (2026-10-10)
     field = _COUNTERS.get(kind)
     if field:
         ItemReward.objects.filter(item_id=item.pk).update(**{field: F(field) + 1})
@@ -217,7 +246,7 @@ def clear(account) -> dict:
 
 def set_choice(account, choice: str) -> dict:
     if choice not in (trip.CHOICE_BANK, trip.CHOICE_INSTANT):
-        raise ValueError('Choose bank or instant.')
+        raise ValueError('Choose ThriftBucks or InstantBucks.')
     cart = cart_for(account)
     cart.reward_choice, cart.choice_at = choice, timezone.now()
     cart.save(update_fields=['reward_choice', 'choice_at', 'updated_at'])

@@ -26,6 +26,7 @@ import {
   thriftErrorMessage,
   uploadThriftSalePhoto,
 } from '../../api/thriftplusRegister.api';
+import { CoverFigures, TbAmount, tbText } from '../thriftplus/ThriftBucks';
 import type { Cart } from '../../types/pos.types';
 import { formatCurrency } from '../../utils/format';
 
@@ -37,7 +38,7 @@ interface Props {
 /**
  * Thrift+ on the register (thrift_plus_rewards Phase 3). The member on the sale, with their photo
  * so the cashier can check it; the cover; bank or instant; spending credit or banked rewards. For a
- * guest, what a card would have earned them. Shown only while Thrift+ is live at this register.
+ * guest, what a card would have collected for them. Shown only while Thrift+ is live at this register.
  */
 export default function ThriftPlusPanel({ cart, onCart }: Props) {
   const { enqueueSnackbar } = useSnackbar();
@@ -109,25 +110,25 @@ export default function ThriftPlusPanel({ cart, onCart }: Props) {
       </Typography>
       {block.app_choice ? (
         <Alert severity={block.app_choice === 'bank' ? 'warning' : 'info'} sx={{ mt: 1, py: 0 }}>
-          In the Thrift+ app they chose: {block.app_choice === 'bank' ? 'Full rewards (saved)' : 'Instant rewards (80% off today)'}. Ask to be sure.
+          In the Thrift+ app they chose: {block.app_choice === 'bank' ? 'ThriftBucks (Default)' : 'InstantBucks (80% of the ThriftBucks, off today)'}. Ask to be sure.
         </Alert>
       ) : null}
 
       <Box sx={{ mt: 1 }}>
         <Typography variant="body2">
-          Cover this month: {formatCurrency(cover.covered)} of {formatCurrency(cover.amount)}
+          Cover this month: <CoverFigures covered={cover.covered} amount={cover.amount} />
           {cover.is_covered ? ' (covered)' : ''}
         </Typography>
         <LinearProgress variant="determinate" value={coverPct} sx={{ height: 6, borderRadius: 3, mt: 0.5 }} />
       </Box>
 
       <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
-        <Typography variant="body2">This sale: rewards {formatCurrency(t.reward_total)}</Typography>
-        {Number(t.to_cover) > 0 ? <Typography variant="body2">to cover {formatCurrency(t.to_cover)}</Typography> : null}
+        <Typography variant="body2">This sale: ThriftBucks <TbAmount value={t.reward_total} bare /></Typography>
+        {Number(t.to_cover) > 0 ? <Typography variant="body2">to the cover <TbAmount value={t.to_cover} bare /></Typography> : null}
       </Stack>
       <Stack direction="row" spacing={2}>
-        <Typography variant="body2" color="text.secondary">Rewards Balance {formatCurrency(member.banked)}</Typography>
-        <Typography variant="body2" color="text.secondary">Credit {formatCurrency(member.credit)}</Typography>
+        <Typography variant="body2" color="text.secondary">ThriftBucks Balance <TbAmount value={member.banked} bare /></Typography>
+        <Typography variant="body2" color="text.secondary">Return $ {formatCurrency(member.credit)}</Typography>
       </Stack>
 
       {open ? (
@@ -140,8 +141,8 @@ export default function ThriftPlusPanel({ cart, onCart }: Props) {
               if (v && v !== member.choice) void run(() => setThriftChoice(cart.id, v));
             }}
           >
-            <ToggleButton value="instant">Instant 80% {Number(t.savings) > 0 ? formatCurrency(t.savings) : ''}</ToggleButton>
-            <ToggleButton value="bank">Full rewards {Number(t.to_bank) > 0 ? formatCurrency(t.to_bank) : ''}</ToggleButton>
+            <ToggleButton value="instant">InstantBucks {Number(t.savings) > 0 ? <TbAmount value={t.savings} bare sx={{ ml: 0.5 }} /> : ''}</ToggleButton>
+            <ToggleButton value="bank">ThriftBucks (Default) {Number(t.to_bank) > 0 ? <TbAmount value={t.to_bank} bare sx={{ ml: 0.5 }} /> : ''}</ToggleButton>
           </ToggleButtonGroup>
           {Number(member.credit) > 0 || Number(member.banked) > 0 ? (
             <Button
@@ -154,7 +155,7 @@ export default function ThriftPlusPanel({ cart, onCart }: Props) {
                 setSpendOpen(true);
               }}
             >
-              Use credit
+              Use balance
             </Button>
           ) : null}
         </Stack>
@@ -202,18 +203,18 @@ export default function ThriftPlusPanel({ cart, onCart }: Props) {
       ) : null}
 
       <Dialog open={spendOpen} onClose={() => setSpendOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Use Thrift+ credit</DialogTitle>
+        <DialogTitle>Use Return $ or ThriftBucks</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField
-              label={`Store credit (has ${formatCurrency(member.credit)})`}
+              label={`Return $ (has ${formatCurrency(member.credit)})`}
               value={credit}
               onChange={(e) => setCredit(e.target.value)}
               size="small"
               slotProps={{ htmlInput: { inputMode: 'decimal' } }}
             />
             <TextField
-              label={`Banked rewards (has ${formatCurrency(member.banked)})`}
+              label={`ThriftBucks (has ${tbText(member.banked)})`}
               value={bank}
               onChange={(e) => setBank(e.target.value)}
               size="small"

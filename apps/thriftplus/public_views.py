@@ -18,7 +18,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import SimpleRateThrottle
 
 from apps.thriftplus.models import MemberLogin, MemberSession
-from apps.thriftplus.services import ledger, member_auth, scanner
+from apps.thriftplus.services import ledger, member_auth, members, scanner
 from apps.thriftplus.services.member_auth import AuthError, IsMember, MemberSessionAuthentication
 
 AUTH = [MemberSessionAuthentication]
@@ -49,18 +49,21 @@ def _error(exc: Exception, code: int = status.HTTP_400_BAD_REQUEST) -> Response:
 def _session_payload(request) -> dict:
     user = request.user
     if not isinstance(user, member_auth.Member):
-        return {'status': 'signed_out'}
+        return {'status': 'signed_out', 'price_first': members.price_first()}
     person = user.person
     login = MemberLogin.objects.filter(person=person).first()
     card = person.cards.filter(status='active').order_by('-issued_at').first()
     balances = ledger.balances(user.account)
     return {
         'status': 'member',
+        'price_first': members.price_first(),
         'member': {
             'first_name': person.first_name, 'email': login.email if login else '', 'username': login.username if login else None,
             'card_last4': card.code[-4:] if card else None, 'verified_18': person.verified_18,
             'cover': balances['cover'], 'banked_rewards': balances['banked'], 'credit_balance': balances['credit'],
             'session_kind': user.session.kind, 'has_login': login is not None,
+            # Thrift+ is still off: this is a staff or practice member testing it (the scanner shows a test bar).
+            'test_mode': not members.is_enabled(),
         },
     }
 
@@ -89,7 +92,16 @@ def sign_in_password(request):
         person = member_auth.sign_in_password(request.data.get('login', ''), request.data.get('password', ''))
     except AuthError as exc:
         return _error(exc, status.HTTP_401_UNAUTHORIZED)
-    return _signed_in(request, person, MemberSession.KIND_PASSWORD)
+    refused = _closed_to(request, person)
+    return refused or _signed_in(request, person, MemberSession.KIND_PASSWORD)
+
+
+def _closed_to(request, person) -> Response | None:
+    """While Thrift+ is off, only staff and practice members may sign in (staff test mode, 2026-10-10)."""
+    if members.open_to(request) or members.is_tester(person.account):
+        return None
+    return Response({'detail': 'Thrift+ opens soon. Ask at the register.', 'code': 'THRIFT_PLUS_OFF'},
+                    status=status.HTTP_403_FORBIDDEN)
 
 
 @api_view(['POST'])
@@ -101,7 +113,8 @@ def sign_in_card(request):
         person = member_auth.sign_in_card(request.data.get('card_code', ''), request.data.get('phone_last4', ''))
     except AuthError as exc:
         return _error(exc, status.HTTP_401_UNAUTHORIZED)
-    return _signed_in(request, person, MemberSession.KIND_CARD)
+    refused = _closed_to(request, person)
+    return refused or _signed_in(request, person, MemberSession.KIND_CARD)
 
 
 @api_view(['POST'])
@@ -164,6 +177,18 @@ def tag(request, sku: str):
         return Response({'status': 'not_found', 'sku': sku})
     scanner.signal('scan', item, _member_account(request))
     return Response({'status': 'found', 'item': scanner.item_card(item)})
+
+
+@api_view(['GET'])
+@authentication_classes(AUTH)
+@permission_classes([AllowAny])
+def test_tags(request):
+    """Staff testing without a camera (owner 2026-10-10): a few tags to pick. Staff, practice members and phones
+    with the preview code only."""
+    account = _member_account(request)
+    if not (members.is_tester(account) or members._has_preview_code(request)):
+        return Response({'detail': 'Staff only.', 'code': 'NOT_STAFF'}, status=status.HTTP_403_FORBIDDEN)
+    return Response({'tags': scanner.test_tags()})
 
 
 @api_view(['POST'])

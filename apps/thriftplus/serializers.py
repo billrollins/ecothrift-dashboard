@@ -57,7 +57,7 @@ class AccountSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Account
-        fields = ['id', 'status', 'notes', 'revoked_at', 'revoked_reason', 'created_at', 'people', 'staff']
+        fields = ['id', 'status', 'is_practice', 'notes', 'revoked_at', 'revoked_reason', 'created_at', 'people', 'staff']
 
     def get_staff(self, obj):
         """The staff member this membership belongs to (no cover while the owner's switch is on), or None."""
