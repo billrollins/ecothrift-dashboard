@@ -38,6 +38,18 @@ function when(iso: string | null | undefined): string {
   return d.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
+/** A phone or tablet (owner 2026-10-12: there the text opens ready to send). */
+export function onPhone(ua = navigator.userAgent, touch = navigator.maxTouchPoints ?? 0): boolean {
+  return /Android|iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && touch > 1);
+}
+
+/** A text to this number with the message filled in. iPhones read "&body=", Android "?body=". */
+export function smsHref(phone: string, body: string, ua = navigator.userAgent, touch = navigator.maxTouchPoints ?? 0): string {
+  const number = phone.replace(/[^\d+]/g, '');
+  const apple = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && touch > 1);
+  return `sms:${number}${apple ? '&' : '?'}body=${encodeURIComponent(body)}`;
+}
+
 async function copy(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);
@@ -188,6 +200,7 @@ export function TextDialog({
   const [error, setError] = useState('');
   const [copied, setCopied] = useState<'phone' | 'body' | null>(null);
   const [saving, setSaving] = useState(false);
+  const phone = onPhone();
 
   useEffect(() => {
     if (!which) return;
@@ -230,10 +243,29 @@ export function TextDialog({
         {!draft && !error && <CircularProgress size={24} />}
         {draft && (
           <>
+            {/* Owner 2026-10-12: on a phone, one tap opens Messages with the number and the words in it. */}
+            {phone && (
+              <Button
+                component="a"
+                href={smsHref(draft.phone, draft.body)}
+                variant="contained"
+                fullWidth
+                startIcon={<SmsOutlined />}
+                data-testid="open-sms"
+                sx={{ mt: 0.5, mb: 1, py: 1.25, fontSize: 16 }}
+              >
+                Open text message
+              </Button>
+            )}
+            {phone && (
+              <Typography variant="body2" sx={{ color: ccTokens.ink2 }}>
+                Or copy each part:
+              </Typography>
+            )}
             {box('phone', 'Phone', draft.phone)}
             {box('body', 'Message', draft.body)}
             <Typography variant="body2" sx={{ mt: 1.5, color: ccTokens.ink2 }}>
-              Send it from your phone, then press Text sent.
+              {phone ? 'Send it, then press Text sent.' : 'Send it from your phone, then press Text sent.'}
             </Typography>
           </>
         )}

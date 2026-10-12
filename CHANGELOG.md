@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.161.1] -->
-<!-- Last reviewed: 2026-10-12 (2.161.1) -->
+<!-- Line 1 release: ## [2.161.2] -->
+<!-- Last reviewed: 2026-10-12 (2.161.2) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.161.2] - 2026-10-12
+
+User-facing theme: **Hiring: on a phone, Send Initial Text and Send Reminder Text open a text message with the number and the words already in it (Bill, 2026-10-12).** Outside initiatives.
+
+### Changed
+
+- **Text an applicant from a phone:** the text window has **Open text message**, which opens Messages with the applicant's number and the message filled in; send it, then press **Text sent** as before. Tapping the phone or the message still copies each one. On a computer nothing changes.
 
 ## [2.161.1] - 2026-10-12
 

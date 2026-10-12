@@ -1,12 +1,9 @@
-v2.161.1 — Hiring: the Don't miss out email 24 hours after applying (in-flight ones by hand), four named Send buttons, simpler marks matching the list and the page
+v2.161.2 — Hiring: on a phone, the applicant texts open in Messages with the number and the words filled in
 
-User-facing theme: **Hiring: the "Don't miss out" email goes by itself 24 hours after someone applies (never later; applicants already in progress get theirs by hand), four named Send buttons, and simpler marks that match between the list and the candidate's page (Bill, 2026-10-12).** Outside initiatives.
+User-facing theme: **Hiring: on a phone, Send Initial Text and Send Reminder Text open a text message with the number and the words already in it (Bill, 2026-10-12).** Outside initiatives.
 
 ### Changed
 
-- **Reminder email timing:** automatic 24 hours after they **apply** (once the initial email has gone and they haven't booked), within a day after that and never later. Applicants who applied before v2.161.0 went live get it by hand only ("Send Reminder Email"). v2.161.0's first run had sent it to 4 applicants already in progress.
-- **Reach them buttons:** **Send Initial Email**, **Send Reminder Email**, **Send Initial Text**, **Send Reminder Text** (each stays until that step is sent); "Copy interview link" is gone.
-- **List marks:** no interview mark and no days since applying (the timeline shows both). Contacted rows show **Contacted N×**. From Interview scheduled on, only the resume mark.
-- **Candidate page:** the same marks under the name, so the list and the page match.
+- **Text an applicant from a phone:** the text window has **Open text message**, which opens Messages with the applicant's number and the message filled in; send it, then press **Text sent** as before. Tapping the phone or the message still copies each one. On a computer nothing changes.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
