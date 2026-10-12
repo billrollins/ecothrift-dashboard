@@ -61,6 +61,7 @@ public = [
     path('cart/clear/', public_views.cart_clear),
     path('cart/choice/', public_views.cart_choice),
     path('history/', public_views.history),
+    path('history/clear/', public_views.history_clear),
     path('me/', public_views.me),
     path('me/card-lost/', public_views.card_lost),
     path('me/emails/', public_views.emails),

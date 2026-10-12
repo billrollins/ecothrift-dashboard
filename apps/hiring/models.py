@@ -173,6 +173,11 @@ class Application(models.Model):
     booking_token = models.CharField(max_length=64, blank=True, default='', db_index=True)
     booking_token_expires = models.DateTimeField(null=True, blank=True)
     invited_at = models.DateTimeField(null=True, blank=True)
+    # Reaching them (owner 2026-10-12): an Initial and a Reminder, by email and by text (texts sent by hand).
+    invite_emailed_at = models.DateTimeField(null=True, blank=True)
+    reminder_emailed_at = models.DateTimeField(null=True, blank=True)
+    invite_texted_at = models.DateTimeField(null=True, blank=True)
+    reminder_texted_at = models.DateTimeField(null=True, blank=True)
 
     # A practice run (staff trying the flow). Blank answers got placeholders; its emails say [Practice];
     # its interviews never block a real applicant's time; it can't become an employee.
@@ -340,7 +345,9 @@ class HiringAiJob(models.Model):
     KIND_CAREERS = 'careers'
     KIND_JOB = 'job'
     KIND_EMAIL = 'email'
-    KIND_CHOICES = [(KIND_CAREERS, 'Whole careers file'), (KIND_JOB, 'One role'), (KIND_EMAIL, 'One email')]
+    KIND_QUESTIONS = 'questions'
+    KIND_CHOICES = [(KIND_CAREERS, 'Whole careers file'), (KIND_JOB, 'One role'), (KIND_EMAIL, 'One email'),
+                    (KIND_QUESTIONS, "One role's interview questions")]
 
     STATUS_RUNNING = 'running'
     STATUS_DONE = 'done'

@@ -158,6 +158,17 @@ export const ItemCard = forwardRef<ItemCardHandle, Props>(function ItemCard(
     >
       <SwipeStamp side="right" show={pull > 0 && canAdd} strength={pull} label="ADD" color={sc.green} />
       <SwipeStamp side="left" show={pull < 0} strength={-pull} label="PASS" color={sc.ink3} />
+      {/* Owner 2026-10-10: no Pass / Add buttons; a small close puts the card away so you can scan the next tag. */}
+      <ButtonBase
+        aria-label="Close"
+        data-testid="card-close"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={() => fling('left')}
+        sx={{ position: 'absolute', top: u(14), right: u(14), zIndex: 3, width: u(64), height: u(64), borderRadius: 99,
+          color: sc.ink3, fontSize: u(44), lineHeight: 1 }}
+      >
+        ×
+      </ButtonBase>
 
       {!lookup ? (
         <LoadingBody sku={sku} />
@@ -589,7 +600,7 @@ function MissBody({ lookup }: { lookup: Exclude<TagLookup, { status: 'found' }> 
           {lookup.status === 'not_found' ? 'Ask a team member, or try scanning it again.' : lookup.message}
         </Box>
         <Box sx={{ mt: u(16), fontFamily: sc.mono, fontSize: u(26), color: sc.ink3 }}>{lookup.sku}</Box>
-        <Box sx={{ mt: u(30), fontSize: u(27), color: sc.ink3 }}>Tap Pass or swipe left to scan again.</Box>
+        <Box sx={{ mt: u(30), fontSize: u(27), color: sc.ink3 }}>Close it to scan again.</Box>
       </Box>
     </Box>
   );

@@ -1,10 +1,30 @@
-v2.160.1 — Thrift+ scanner: a cart with a kraft bag on a bigger item pill, in a taller header
+v2.161.0 — Hiring: reach applicants by email and text (Initial and Reminder), candidate marks in the list, copy-on-click contact, an autosaving scorecard, interview questions on each role with AI review; plus the Thrift+ work since v2.160.1 (still off for customers)
 
-User-facing theme: **Thrift+ scanner: a taller header with a bigger item-count pill, and a new cart picture (a green cart with a kraft shopping bag) on the pill, the empty cart and the help popup.** Bill, 2026-10-09; thrift_plus_rewards.
+User-facing theme: **Hiring: reach applicants by email and by text (an Initial and a Reminder each), see each candidate at a glance in the list, copy a phone or email with one click, a scorecard that saves as you type, and interview questions edited as a list on each role with AI review (Bill, 2026-10-12). Also the Thrift+ work since v2.160.1 (training register, staff test mode, practice members, ThriftBucks and InstantBucks, a simpler scanner); Thrift+ stays off for customers.** Hiring outside initiatives; thrift_plus_rewards.
+
+### Added
+
+- **Hiring: Reach them** (an applicant's next step, while they haven't booked): four rows with what's sent, due or coming.
+  - **Email · interview link:** due as soon as they apply; Send opens the review as before.
+  - **Email · reminder** ("Don't miss out"): goes **by itself** a day after the interview-link email if they still haven't booked (the 10-minute mail job). "Send now" sends it early.
+  - **Text · interview link** and **Text · reminder** (due a day after the first text): texting isn't wired, so **Text** shows the phone and the message, each copied with a tap; send it from your phone, then **Text sent** records it with its words. Anyone with a phone, except a number that asked to stop.
+  - Nothing is due once they book an interview or move past Contacted. Past interview-link and reminder emails are filled in from the history.
+- **Hiring list at a glance** (a second line under each name, same width): role and days since applying, then marks for interview, resume, email (first and reminder), text (first and reminder), must-haves, **worked here before** (an employee record with this phone or email) and **interviewed before** (an earlier application with an interview done). Hover for the words.
+- **Interview questions on each role** (Jobs and careers page, Edit): a list to add, edit, reorder and delete; a question keeps its key when its words change, so earlier scorecards stay linked. **AI help** reviews the whole list (Review the list, Fewer and sharper, Polish, In my voice, or a note) and returns each question marked Keep, Reworded, New or Drop with why; tick the ones to use. Nothing saves until Save.
+- **Thrift+ training register** (Device setup: "Training register"): looks and acts like launch day with a striped "TRAINING REGISTER: NOT A REAL SALE" banner and a full-screen "THIS IS JUST A TEST" before every payment. A practice sale writes nothing real (no item sold, no drawer cash, no ThriftBucks, left out of reports); the receipt says TRAINING.
+- **Thrift+ staff test mode:** with Thrift+ off, staff (Dash email) and practice members sign in to the scanner from "Staff sign in" and use it as if live, under a yellow test bar. **Practice members** (Dash Thrift+ Members, or a sign-up on the training register): a 555 phone and a made-up card, refused on real registers, left out of every count.
+- **Scanner test tools:** `/scan?type=1` skips the camera and offers a list of test tags; "Clear my scans" on My list (old scans hidden, the rows kept).
 
 ### Changed
 
-- **Scanner cart picture:** the "N items · +$X" pill shows a flat, matte green cart with a kraft shopping bag instead of the document icon; the empty cart screen and the cart help popup use it too, replacing the glossy 3D cart (`cart-bag.webp`).
-- **Scanner header:** taller (the field photo), with a bigger logo and a bigger pill so the cart reads clearly.
+- **Hiring applicant page:** the phone and the email copy on a click ("Copied"); the Call, Text and Email buttons are gone (the phone's bottom bar too). "Copy interview link" and "Book a time" stay.
+- **Interview scorecard:** saves as you type ("Saving…", "Saved"); the buttons are **Close** and **Mark done** (it used to close without saving). Typing writes no history line; Close and Mark done write one.
+- **Thrift+ words:** **ThriftBucks** (the full value, kept for a later visit) and **InstantBucks** (80%, off today's price); never a symbol, never "Rewards". The monthly cover is shown plain ("6.50 of 10.00"). Scanner, register, Dash, receipts, server messages.
+- **Thrift+ scanner, simpler:** the item card is a centered price tag (Retail, OUR PRICE, the price) with the ThriftBucks under it; no Pass or Add buttons (a small close; swiping still works); "Details" is a tap on the item; the header pill is the item count and "+45.20 ThriftBucks"; My list shows each item's ThriftBucks and the list's total, with no dollar estimate and no InstantBucks choice (the member tells the cashier). Thrift+ is written in the ThriftBucks font. Settings has "Thrift+ scanner: price first".
+
+### Not yet
+
+- The register still takes ThriftBucks off after tax; the rulebook (F3) takes them off before tax. Next in the register work.
+- The printed receipt's words need a print-server release.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

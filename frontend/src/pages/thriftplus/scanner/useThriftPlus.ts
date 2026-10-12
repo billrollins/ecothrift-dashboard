@@ -16,6 +16,7 @@ import {
   setMyNews,
   requestPasswordReset,
   sendPriceFeel,
+  clearHistory,
   setCartQty,
   setRewardChoice,
   setUpLogin,
@@ -25,6 +26,7 @@ import {
   type PriceFeel,
   type RewardChoice,
   type ThriftPlusCart,
+  type ThriftPlusHistoryEntry,
   type ThriftPlusItemCard,
   type ThriftPlusSession,
 } from '../../../api/thriftPlusScanner.api';
@@ -94,6 +96,10 @@ export function useCartActions() {
     }),
     feel: useMutation({
       mutationFn: ({ sku, feel }: { sku: string; feel: PriceFeel }) => sendPriceFeel(sku, feel),
+    }),
+    clearScans: useMutation({
+      mutationFn: () => clearHistory(),
+      onSuccess: (rows: ThriftPlusHistoryEntry[]) => qc.setQueryData(thriftPlusKeys.history, rows),
     }),
   };
 }

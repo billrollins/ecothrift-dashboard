@@ -254,12 +254,21 @@ def set_choice(account, choice: str) -> dict:
     return cart_payload(account)
 
 
+def clear_history(account) -> list[dict]:
+    """'Clear my scans' (owner 2026-10-10): the member's list starts over. The scan rows stay; they are data."""
+    cart = cart_for(account)
+    cart.history_cleared_at = timezone.now()
+    cart.save(update_fields=['history_cleared_at', 'updated_at'])
+    return []
+
+
 def history(account, limit: int = 300) -> list[dict]:
     """``ThriftPlusHistoryEntry[]``: newest first, one row per tag, with what they did."""
-    rows = (
-        ScanSignal.objects.filter(account=account, kind__in=['scan', 'add', 'pass'], item__isnull=False)
-        .select_related('item__product__profile').order_by('-created_at')[:2000]
-    )
+    rows = ScanSignal.objects.filter(account=account, kind__in=['scan', 'add', 'pass'], item__isnull=False)
+    cleared = AppCart.objects.filter(account=account).values_list('history_cleared_at', flat=True).first()
+    if cleared:
+        rows = rows.filter(created_at__gt=cleared)  # "Clear my scans": hidden, not deleted
+    rows = rows.select_related('item__product__profile').order_by('-created_at')[:2000]
     seen: dict[int, dict] = {}
     factor = _sale_factor()
     for r in rows:

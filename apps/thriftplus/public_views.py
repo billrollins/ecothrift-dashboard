@@ -297,6 +297,13 @@ def history(request):
     return Response(scanner.history(request.user.account))
 
 
+@api_view(['POST'])
+@authentication_classes(AUTH)
+@permission_classes([IsMember])
+def history_clear(request):
+    return Response(scanner.clear_history(request.user.account))
+
+
 # ── The portal: self-service for people, cards and money ───────────────────────
 
 def _me_payload(request) -> dict:

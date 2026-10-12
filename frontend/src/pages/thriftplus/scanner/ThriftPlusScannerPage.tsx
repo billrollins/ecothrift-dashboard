@@ -443,8 +443,9 @@ function ScannerScreen({ session }: { session: Exclude<ThriftPlusSession, { stat
           </Box>
         </Box>
 
-        {/* Owner 2026-10-10: no Pass / Add buttons, no arrows, no swipe hint. Swiping still works; it isn't advertised. */}
-        <Box sx={{ flexShrink: 0, height: `calc(${u(40)} + env(safe-area-inset-bottom, 0px))` }} />
+        {/* Owner 2026-10-10: no Pass / Add buttons, no arrows, no swipe hint. Swiping still works; it isn't advertised.
+            The space they took goes below the card, so the card stays up under the tiles. */}
+        <Box aria-hidden sx={{ flex: `100 1 ${u(40)}`, minHeight: `calc(${u(40)} + env(safe-area-inset-bottom, 0px))` }} />
       </Box>
 
       {cartOpen && (

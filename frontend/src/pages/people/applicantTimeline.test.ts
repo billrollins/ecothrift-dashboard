@@ -9,7 +9,12 @@ function row(id: number, stage: Stage, extra: Partial<ApplicationRow> = {}): App
     id, first_name: `P${id}`, last_name: 'X', full_name: `P${id} X`, email: '', phone: '', jobs: [], stage,
     stage_label: stage, stage_changed_at: null, rating: null, red_flags: 0, flags: [], source: 'web', source_label: 'Careers page',
     has_resume: false, lead_interest: '', employee_user: null, not_now_reason: '', is_practice: false,
-    created_at: new Date(2026, 9, 1, 12).toISOString(), next_interview: null, offer_status: '', ...extra,
+    created_at: new Date(2026, 9, 1, 12).toISOString(), next_interview: null, offer_status: '',
+    outreach: {
+      active: false, email_initial: { at: null, due: false }, email_reminder: { at: null, due: false },
+      text_initial: { at: null, due: false }, text_reminder: { at: null, due: false },
+    },
+    returning: { worked_here: false, interviewed_before: false }, ...extra,
   };
 }
 

@@ -6,6 +6,7 @@ import type { ApplicationRow, Stage } from '../../api/hiring.api';
 import { ccTokens } from '../../theme';
 import { ACTIVE_STAGES, CLOSED_STAGES, rowHint, timeText, type HintTone } from './applicantTimeline';
 import { STAGE_LABEL } from './peopleUi';
+import { CandidateMarks } from './outreachUi';
 
 const TONE: Record<HintTone, string> = {
   plain: ccTokens.ink3,
@@ -38,10 +39,12 @@ function NameRow({
       sx={{
         width: '100%',
         display: 'flex',
-        alignItems: 'center',
-        gap: 1,
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        gap: 0.25,
         px: 1,
-        minHeight: touch ? 44 : 30,
+        py: 0.5,
+        minHeight: touch ? 52 : 40,
         borderRadius: ccTokens.rSm,
         textAlign: 'left',
         bgcolor: selected ? ccTokens.goodTint : 'transparent',
@@ -50,10 +53,11 @@ function NameRow({
         '&.Mui-focusVisible': { outline: `2px solid ${ccTokens.brand}`, outlineOffset: -2 },
       }}
     >
-      <Box
-        title={row.red_flags ? 'Has a red must-have' : undefined}
-        sx={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, bgcolor: row.red_flags ? ccTokens.bad : 'transparent' }}
-      />
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', minWidth: 0 }}>
+        <Box
+          title={row.red_flags ? 'Has a red must-have' : undefined}
+          sx={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, bgcolor: row.red_flags ? ccTokens.bad : 'transparent' }}
+        />
       <Typography noWrap sx={{ flex: 1, minWidth: 0, fontSize: touch ? 15 : 14, fontWeight: selected ? 700 : 500 }}>
         {row.full_name}
         {row.is_practice && (
@@ -65,6 +69,11 @@ function NameRow({
       <Typography noWrap sx={{ fontSize: 12, color: TONE[hint.tone], fontWeight: hint.tone === 'plain' ? 400 : 700, flexShrink: 0 }}>
         {hint.text}
       </Typography>
+      </Box>
+      {/* Owner 2026-10-12: at a glance, on a second line so the list stays the same width. */}
+      <Box sx={{ pl: '15px', width: '100%', minWidth: 0 }}>
+        <CandidateMarks row={row} />
+      </Box>
     </ButtonBase>
   );
 }

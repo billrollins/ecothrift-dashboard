@@ -1,0 +1,197 @@
+"""Reaching applicants (owner 2026-10-12): an Initial and a Reminder, by email and by text.
+
+- **Email Initial** (the interview link): due as soon as they apply; staff send it (reviewed, as before).
+- **Email Reminder** ("Don't miss out"): sent automatically one day after the Initial if they haven't booked.
+- **Text Initial / Reminder**: staff send these from their own phone (texting isn't wired): the page shows the
+  message and the number to copy, then "Text sent" records it. The Reminder is due a day after the Initial.
+- Nothing is due once they book an interview, or once the application has moved past Contacted.
+
+Texts go to anyone with a phone except a number that asked to stop.
+"""
+from __future__ import annotations
+
+from datetime import datetime, timedelta
+
+from django.db import transaction
+from django.db.models import Q
+from django.utils import timezone
+from rest_framework.exceptions import ValidationError
+
+from apps.hiring.models import Application, ApplicationEvent, Interview
+
+REMINDER_AFTER = timedelta(days=1)
+ACTIVE_STAGES = (Application.STAGE_NEW, Application.STAGE_REVIEWED, Application.STAGE_CONTACTED)
+
+# Sent by hand from a phone, so no STOP line is needed. {first_name}, {role}, {link}.
+HAND_TEXTS = {
+    'initial': (
+        "Hi {first_name}, it's Eco-Thrift. Thanks for applying for {role}! "
+        'Pick a time for your interview here: {link}'
+    ),
+    'reminder': (
+        "Hi {first_name}, Eco-Thrift again. Don't miss out: pick a time for your {role} interview here: {link}"
+    ),
+}
+TEXT_LABELS = {'initial': 'Interview link text', 'reminder': 'Reminder text'}
+TEXT_FIELDS = {'initial': 'invite_texted_at', 'reminder': 'reminder_texted_at'}
+
+
+def _booked(application, booked: bool | None = None) -> bool:
+    if booked is not None:
+        return booked
+    return application.interviews.filter(status__in=(Interview.STATUS_SCHEDULED, Interview.STATUS_DONE)).exists()
+
+
+def _stopped(application, stopped: bool | None = None) -> bool:
+    if stopped is not None:
+        return stopped
+    from apps.hiring.texts import consent_summary
+
+    return consent_summary(application.phone)['state'] == 'stopped'
+
+
+def steps(application, *, now: datetime | None = None, booked: bool | None = None, stopped: bool | None = None) -> dict:
+    """Where each of the four stands: ``at`` (sent), ``due`` (now), ``due_at`` / ``auto_at`` (later)."""
+    now = now or timezone.now()
+    active = application.stage in ACTIVE_STAGES and not _booked(application, booked)
+    has_email = bool(application.email)
+    can_text = bool(application.phone_digits or application.phone) and not _stopped(application, stopped)
+    email_at, email_rem = application.invite_emailed_at, application.reminder_emailed_at
+    text_at, text_rem = application.invite_texted_at, application.reminder_texted_at
+    text_due_at = text_at + REMINDER_AFTER if text_at and not text_rem else None
+    return {
+        'active': active,
+        'email_initial': {'at': email_at, 'due': active and has_email and not email_at},
+        'email_reminder': {
+            'at': email_rem, 'due': False,
+            'auto_at': email_at + REMINDER_AFTER if active and has_email and email_at and not email_rem else None,
+        },
+        'text_initial': {'at': text_at, 'due': active and can_text and not text_at, 'stopped': not can_text and bool(application.phone)},
+        'text_reminder': {
+            'at': text_rem, 'due_at': text_due_at if active and can_text else None,
+            'due': bool(active and can_text and text_due_at and now >= text_due_at),
+        },
+    }
+
+
+def _role(application) -> str:
+    job = application.jobs.order_by('sort_order').first()
+    return job.title if job else 'a job'
+
+
+def text_draft(application, which: str) -> dict:
+    """The message and the number to copy. Makes the private interview link if there isn't one yet."""
+    from apps.hiring.interviews import ensure_link
+
+    if which not in HAND_TEXTS:
+        raise ValidationError({'detail': 'Pick the first text or the reminder.'})
+    if not application.phone:
+        raise ValidationError({'detail': 'This applicant has no phone number.'})
+    if _stopped(application):
+        raise ValidationError({'detail': 'They asked not to be texted.'})
+    link = ensure_link(application)
+    body = HAND_TEXTS[which].format(first_name=application.first_name or 'there', role=_role(application), link=link)
+    return {'which': which, 'phone': application.phone, 'body': body}
+
+
+@transaction.atomic
+def text_sent(application, which: str, *, by, body: str = '') -> Application:
+    """"Text sent": record it on the history (with its words) and stop showing it as due."""
+    from apps.hiring.interviews import _move_stage
+
+    if which not in HAND_TEXTS:
+        raise ValidationError({'detail': 'Pick the first text or the reminder.'})
+    body = (body or text_draft(application, which)['body']).strip()
+    now = timezone.now()
+    field = TEXT_FIELDS[which]
+    setattr(application, field, now)
+    fields = [field, 'updated_at']
+    if not application.invited_at:
+        application.invited_at = now
+        fields.append('invited_at')
+    application.save(update_fields=fields)
+    ApplicationEvent.objects.create(
+        application=application, kind=ApplicationEvent.KIND_TEXT, by=by,
+        text=f'{TEXT_LABELS[which]} sent by hand to {application.phone}',
+        data={'text': f'hand_{which}', 'status': 'sent_by_hand', 'body': body},
+    )
+    if application.stage in (Application.STAGE_NEW, Application.STAGE_REVIEWED):
+        _move_stage(application, Application.STAGE_CONTACTED, by=by, text='')
+    return application
+
+
+def send_due_email_reminders(*, now: datetime | None = None) -> int:
+    """The automatic "Don't miss out" email: a day after the Initial, if they still haven't booked."""
+    from apps.hiring.interviews import remind_to_book
+
+    now = now or timezone.now()
+    due = (
+        Application.objects.filter(stage__in=ACTIVE_STAGES, invite_emailed_at__lte=now - REMINDER_AFTER,
+                                   reminder_emailed_at__isnull=True)
+        .exclude(email='')
+        .exclude(interviews__status__in=(Interview.STATUS_SCHEDULED, Interview.STATUS_DONE))
+        .distinct()
+    )
+    sent = 0
+    for application in due:
+        try:
+            if remind_to_book(application, by=None)['sent']:
+                sent += 1
+        except ValidationError:
+            continue
+    return sent
+
+
+def returning(applications) -> dict[int, dict]:
+    """For each application: worked here before (an employee record with this phone or email) and interviewed
+    before (an earlier application with this phone or email had an interview done). Two queries for the lot."""
+    from apps.accounts.models import EmployeeProfile
+
+    apps_ = list(applications)
+    digits = {a.phone_digits for a in apps_ if a.phone_digits}
+    emails = {a.email.lower() for a in apps_ if a.email}
+    out = {a.pk: {'worked_here': False, 'interviewed_before': False} for a in apps_}
+    if not digits and not emails:
+        return out
+
+    # Everyone who has an employee record (a small list): compare email and the last 10 digits of the phone.
+    def last10(raw: str) -> str:
+        return ''.join(ch for ch in (raw or '') if ch.isdigit())[-10:]
+
+    staff_rows = [(p.user.email.lower(), last10(p.user.phone), p.user_id)
+                  for p in EmployeeProfile.objects.select_related('user')]
+
+    earlier = (
+        Application.objects.filter(Q(phone_digits__in=digits) | Q(email__in=emails))
+        .filter(interviews__status=Interview.STATUS_DONE).distinct().values('pk', 'phone_digits', 'email', 'created_at')
+    )
+    earlier = list(earlier)
+    for a in apps_:
+        a_digits = last10(a.phone_digits)
+        a_email = (a.email or '').lower()
+        out[a.pk]['worked_here'] = any(
+            uid != a.employee_user_id and ((a_email and email == a_email) or (a_digits and d == a_digits))
+            for email, d, uid in staff_rows
+        )
+        out[a.pk]['interviewed_before'] = any(
+            row['pk'] != a.pk and row['created_at'] < a.created_at
+            and ((a.phone_digits and row['phone_digits'] == a.phone_digits) or (a_email and (row['email'] or '').lower() == a_email))
+            for row in earlier
+        )
+    return out
+
+
+def stopped_phones(applications) -> set[str]:
+    """Numbers (digits) whose newest job-or-all consent says stop, for the lot."""
+    from apps.texting.models import TextConsent
+    from apps.texting import service as texting
+
+    numbers = {texting.digits(a.phone) for a in applications if a.phone}
+    numbers.discard('')
+    if not numbers:
+        return set()
+    newest: dict[str, bool] = {}
+    rows = TextConsent.objects.filter(phone__in=numbers, kind__in=(TextConsent.KIND_JOB, TextConsent.KIND_ALL)).order_by('-at', '-id')
+    for row in rows.values('phone', 'opted_in'):
+        newest.setdefault(row['phone'], row['opted_in'])
+    return {phone for phone, opted_in in newest.items() if not opted_in}

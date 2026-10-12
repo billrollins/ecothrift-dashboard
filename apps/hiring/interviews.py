@@ -374,6 +374,9 @@ def invite(application: Application, *, by, send: bool) -> dict:
         })
         # The email itself goes on the history, with its words.
         sent = _send_template('interview_invite', application.email, values, application=application)
+        if sent:
+            application.invite_emailed_at = timezone.now()
+            application.save(update_fields=['invite_emailed_at', 'updated_at'])
     else:
         _event(application, 'Interview link copied (to text or send)', by=by, data={'sent': False})
     if application.stage in (Application.STAGE_NEW, Application.STAGE_REVIEWED):
@@ -382,7 +385,8 @@ def invite(application: Application, *, by, send: bool) -> dict:
 
 
 def remind_to_book(application: Application, *, by) -> dict:
-    """The optional "Don't miss out" email (Bill, 2026-10-09): for an applicant who has the link but no interview."""
+    """The "Don't miss out" email (Bill, 2026-10-09): for an applicant who has the link but no interview. Since
+    2026-10-12 it also goes automatically a day after the interview-link email (outreach.send_due_email_reminders)."""
     if not application.email:
         raise ValidationError({'detail': 'This applicant has no email. Use Copy link and text it instead.'})
     if not application.invited_at:
@@ -394,6 +398,9 @@ def remind_to_book(application: Application, *, by) -> dict:
         'link': link, 'link_days': config()['link_days'], 'length': config()['length_minutes'],
     })
     sent = _send_template('interview_nudge', application.email, values, application=application)
+    if sent:
+        application.reminder_emailed_at = timezone.now()
+        application.save(update_fields=['reminder_emailed_at', 'updated_at'])
     return {'link': link, 'sent': sent}
 
 
@@ -442,7 +449,8 @@ def _clean_scorecard(raw: dict, interview: Interview) -> dict:
 
 
 @transaction.atomic
-def save_scorecard(interview: Interview, raw: dict, *, by, done: bool = False) -> Interview:
+def save_scorecard(interview: Interview, raw: dict, *, by, done: bool = False, autosave: bool = False) -> Interview:
+    """Save the scorecard. ``autosave`` (as they type, 2026-10-12) writes no history line; Close and Mark done do."""
     interview.scorecard = _clean_scorecard(raw, interview)
     interview.scored_by = by
     interview.scored_at = timezone.now()
@@ -453,8 +461,9 @@ def save_scorecard(interview: Interview, raw: dict, *, by, done: bool = False) -
     interview.save(update_fields=fields)
     application = interview.application
     overall = interview.scorecard.get('overall')
-    _event(application, 'Interview done' + (f': {overall}' if overall else '') if done else 'Scorecard saved',
-           by=by, data={'interview': interview.pk, 'overall': overall})
+    if done or not autosave:
+        _event(application, 'Interview done' + (f': {overall}' if overall else '') if done else 'Scorecard saved',
+               by=by, data={'interview': interview.pk, 'overall': overall})
     if done and application.stage in (Application.STAGE_INTERVIEW_SCHEDULED, Application.STAGE_CONTACTED,
                                       Application.STAGE_REVIEWED, Application.STAGE_NEW):
         _move_stage(application, Application.STAGE_INTERVIEWED, by=by, text='')

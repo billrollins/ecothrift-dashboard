@@ -404,8 +404,7 @@ export function InfoPopup({
       <Title>{TITLES[topic]}</Title>
       {topic === 'scan' && (
         <Body>
-          Point your camera at the QR code on any price tag. You'll see our price and what you'd collect right away. Swipe right to add
-          it to your cart, left to pass.
+          Point your camera at the QR code on any price tag. You'll see our price and the ThriftBucks it collects right away.
         </Body>
       )}
       {topic === 'bank' && (
@@ -467,7 +466,7 @@ export function IntroTour({ isGuest, onDone, onCameraHelp }: { isGuest: boolean;
           title: 'ThriftBucks',
           body: 'Save your ThriftBucks in full for a later trip, or use 80% of them today. Tap ThriftBucks to see them all.',
         },
-    { key: 'cart', art: <CartArt />, title: 'Cart', body: 'Swipe right to add. Tap the pill up top to see your cart and total.' },
+    { key: 'cart', art: <CartArt />, title: 'My list', body: 'Tap the cart up top to see your list and its ThriftBucks.' },
   ];
   const [i, setI] = useState(0);
   const step = steps[i];

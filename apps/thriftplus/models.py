@@ -437,6 +437,8 @@ class AppCart(models.Model):
     account = models.OneToOneField(Account, on_delete=models.CASCADE, related_name='app_cart')
     reward_choice = models.CharField(max_length=10, blank=True, default='', help_text="'bank', 'instant', or '' until asked.")
     choice_at = models.DateTimeField(null=True, blank=True)
+    # Owner 2026-10-10: "Clear my scans" hides the scans before this from the member's list; the scan rows are kept.
+    history_cleared_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
 

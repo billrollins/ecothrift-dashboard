@@ -297,6 +297,22 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         return compose.run(request, act, skip_allowed=False)
 
+    @action(detail=True, methods=['post'], url_path='text-draft')
+    def text_draft(self, request, pk=None):
+        """The first text or the reminder, to copy and send from a phone (texting isn't wired): words and number."""
+        from apps.hiring import outreach
+
+        return Response(outreach.text_draft(self.get_object(), str(request.data.get('which') or '')))
+
+    @action(detail=True, methods=['post'], url_path='text-sent')
+    def text_sent(self, request, pk=None):
+        """"Text sent": record the hand-sent text (with its words) so it stops showing as due."""
+        from apps.hiring import outreach
+
+        application = outreach.text_sent(self.get_object(), str(request.data.get('which') or ''), by=request.user,
+                                         body=str(request.data.get('body') or ''))
+        return Response(ApplicationDetailSerializer(self._fresh(application)).data)
+
     @action(detail=True, methods=['post'], url_path='offer-preview')
     def offer_preview(self, request, pk=None):
         """The letter as it would be sent with these terms (nothing saved)."""
@@ -481,7 +497,8 @@ class InterviewViewSet(viewsets.ReadOnlyModelViewSet):
 
         interview = self.get_object()
         done = request.data.get('done') in (True, 'true', '1', 1)
-        service.save_scorecard(interview, request.data, by=request.user, done=done)
+        autosave = request.data.get('autosave') in (True, 'true', '1', 1)
+        service.save_scorecard(interview, request.data, by=request.user, done=done, autosave=autosave)
         return self._out(interview)
 
     @action(detail=False, methods=['get'], url_path='open-times')
@@ -793,6 +810,10 @@ def ai_start(request):
             return Response({'detail': 'Unknown email.'}, status=status.HTTP_400_BAD_REQUEST)
         params = {**base, 'key': key, 'subject': data.get('subject') or '', 'body': data.get('body') or '',
                   'role_title': data.get('role_title') or ''}
+    elif kind == HiringAiJob.KIND_QUESTIONS:
+        questions = data.get('questions') if isinstance(data.get('questions'), list) else []
+        role = data.get('role') if isinstance(data.get('role'), dict) else {}
+        params = {**base, 'questions': questions[:30], 'role': role}
     elif kind == HiringAiJob.KIND_CAREERS:
         ask = (data.get('request') or '').strip()
         if not ask:

@@ -14,9 +14,7 @@ import {
   Typography,
 } from '@mui/material';
 import DescriptionOutlined from '@mui/icons-material/DescriptionOutlined';
-import EmailOutlined from '@mui/icons-material/EmailOutlined';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import PhoneOutlined from '@mui/icons-material/PhoneOutlined';
 import SmsOutlined from '@mui/icons-material/SmsOutlined';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -47,10 +45,11 @@ import { CreateEmployeeDialog, NotNowDialog } from './ApplicantDialogs';
 import { useEmailReview } from './EmailReview';
 import { FlagDots } from './FlagDots';
 import { InterviewCard, PickTimeDialog } from './interviewUi';
+import { CopyValue, OutreachCard } from './outreachUi';
 import { OfferCard, OfferDialog } from './offerUi';
 import { StartOnboardingDialog } from './onboardingUi';
 import { PracticeChip } from './PracticeDialog';
-import { answerText, errorText, phoneHref, shortDate, STAGE_LABEL, STAGES } from './peopleUi';
+import { answerText, errorText, shortDate, STAGE_LABEL, STAGES } from './peopleUi';
 import { IconBack as ArrowBackIcon, IconClose as CloseIcon } from '../../icons/ecoIcons';
 
 const card = { p: { xs: 2, md: 2.5 }, borderRadius: ccTokens.r, border: `1px solid ${ccTokens.line}`, bgcolor: ccTokens.card };
@@ -317,7 +316,6 @@ export function ApplicantView({
     );
   }
 
-  const tel = phoneHref(app.phone);
   const scheduled = app.interviews.find((i) => i.status === 'scheduled');
   const newestOffer = app.offers[0];
   const openOffer = app.offers.find((o) => o.status === 'sent' || o.status === 'viewed');
@@ -329,20 +327,16 @@ export function ApplicantView({
   const otherInterviews = app.interviews.filter((i) => i !== featuredInterview);
   const otherOffers = app.offers.filter((o) => o !== featuredOffer);
   const closed = app.stage === 'hired' || app.stage === 'not_now';
-  // They have the link but no interview: the optional "Don't miss out" email leads (Bill, 2026-10-09).
-  const canRemind = Boolean(app.invited_at && app.email && !scheduled);
-  const linkButtons = (primary: 'email' | 'copy', book = true) => (
+  // Owner 2026-10-12: the interview email and the texts are in "Reach them"; the reminder email goes by itself.
+  const linkButtons = (_primary: 'email' | 'copy', book = true) => (
     <>
-      {canRemind && (
-        <Button variant="contained" color="warning" disabled={busy} onClick={remindLink}>
-          Remind them to book
+      {app.outreach?.email_initial.at && app.email && (
+        <Button variant="outlined" disabled={busy} onClick={emailLink}>
+          Email the link again
         </Button>
       )}
-      <Button variant={primary === 'email' && !canRemind ? 'contained' : 'outlined'} disabled={busy || !app.email} onClick={emailLink}>
-        {app.invited_at ? 'Email the link again' : 'Email interview link'}
-      </Button>
-      <Button variant={primary === 'copy' && !canRemind ? 'contained' : 'outlined'} disabled={busy} onClick={copyLink}>
-        Copy link to text
+      <Button variant="outlined" disabled={busy} onClick={copyLink}>
+        Copy interview link
       </Button>
       {book && !scheduled && (
         <Button disabled={busy} onClick={() => setBooking(true)}>
@@ -481,6 +475,7 @@ export function ApplicantView({
         {!narrow && stageSelect}
       </Box>
       {stepText && <Typography sx={{ mt: 0.5, fontSize: 15 }}>{stepText}</Typography>}
+      <OutreachCard app={app} busy={busy} onSendEmail={emailLink} onSendReminder={remindLink} onChanged={(fresh) => void refreshWith(fresh)} />
 
       {featuredInterview && (
         <Box sx={{ mt: 1.25 }}>
@@ -722,14 +717,19 @@ export function ApplicantView({
     </Box>
   );
 
+  // Owner 2026-10-12: no Call / Text / Email buttons; the phone and the email copy on a click.
+  const contactLine = app.phone || app.email ? (
+    <>
+      <CopyValue value={app.phone} label="phone" />
+      {app.phone && app.email ? ' · ' : ''}
+      <CopyValue value={app.email} label="email" />
+    </>
+  ) : 'No phone or email';
   const contact = [
-    tel && { key: 'call', label: 'Call', icon: <PhoneOutlined />, href: `tel:${tel}` },
-    tel && { key: 'text', label: 'Text', icon: <SmsOutlined />, href: `sms:${tel}` },
-    app.email && { key: 'email', label: 'Email', icon: <EmailOutlined />, href: `mailto:${app.email}` },
     app.resume_file
       ? { key: 'resume', label: 'Resume', icon: <DescriptionOutlined />, onClick: openResume }
       : { key: 'resume', label: 'Add resume', icon: <DescriptionOutlined />, onClick: () => fileInput.current?.click() },
-  ].filter(Boolean) as { key: string; label: string; icon: React.ReactNode; href?: string; onClick?: () => void }[];
+  ] as { key: string; label: string; icon: React.ReactNode; onClick: () => void }[];
 
   const chips = (
     <>
@@ -742,7 +742,7 @@ export function ApplicantView({
   const subline = `${app.jobs.map((j) => j.title).join(' · ')} · applied ${shortDate(app.created_at)} · ${app.source_label}`;
 
   return (
-    <Box sx={{ pb: narrow ? 12 : 4 }}>
+    <Box sx={{ pb: 4 }}>
       <input
         ref={fileInput}
         type="file"
@@ -780,9 +780,16 @@ export function ApplicantView({
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
               {subline}
             </Typography>
-            <Typography variant="body2" sx={{ mt: 0.5, color: ccTokens.ink2, wordBreak: 'break-word' }}>
-              {[app.phone, app.email].filter(Boolean).join(' · ') || 'No phone or email'}
+            <Typography variant="body2" component="div" sx={{ mt: 0.5, ml: -0.75, color: ccTokens.ink2, wordBreak: 'break-word' }}>
+              {contactLine}
             </Typography>
+            <Box sx={{ mt: 1 }}>
+              {contact.map((c) => (
+                <Button key={c.key} size="small" variant="outlined" startIcon={c.icon} onClick={c.onClick}>
+                  {c.label}
+                </Button>
+              ))}
+            </Box>
           </Box>
           {nextStep}
           {mustHaves}
@@ -791,28 +798,6 @@ export function ApplicantView({
           {offers}
           {notes}
           {details}
-          <Box
-            sx={{
-              position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 1100, display: 'grid',
-              gridTemplateColumns: `repeat(${contact.length}, 1fr)`, bgcolor: '#fff', borderTop: `1px solid ${ccTokens.line}`,
-              pb: 'env(safe-area-inset-bottom)', boxShadow: '0 -4px 16px rgba(34,39,31,.06)',
-            }}
-          >
-            {contact.map((c) => {
-              const sx = { flexDirection: 'column', gap: 0.25, py: 1, minHeight: 60, color: ccTokens.brandDeep, fontSize: 12, fontWeight: 600 } as const;
-              return c.href ? (
-                <ButtonBase key={c.key} component="a" href={c.href} sx={sx}>
-                  {c.icon}
-                  {c.label}
-                </ButtonBase>
-              ) : (
-                <ButtonBase key={c.key} onClick={c.onClick} sx={sx}>
-                  {c.icon}
-                  {c.label}
-                </ButtonBase>
-              );
-            })}
-          </Box>
         </>
       ) : (
         <>
@@ -825,8 +810,8 @@ export function ApplicantView({
               <Typography color="text.secondary" sx={{ mt: 0.5 }}>
                 {subline}
               </Typography>
-              <Typography variant="body2" sx={{ mt: 0.5, color: ccTokens.ink2 }}>
-                {[app.phone, app.email].filter(Boolean).join(' · ') || 'No phone or email'}
+              <Typography variant="body2" component="div" sx={{ mt: 0.5, ml: -0.75, color: ccTokens.ink2 }}>
+                {contactLine}
               </Typography>
               <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: 'wrap', rowGap: 1 }}>
                 {contact.map((c) => (
@@ -835,7 +820,7 @@ export function ApplicantView({
                     size="small"
                     variant="outlined"
                     startIcon={c.icon}
-                    {...(c.href ? { href: c.href } : { onClick: c.onClick })}
+                    onClick={c.onClick}
                   >
                     {c.label}
                   </Button>

@@ -99,7 +99,35 @@ export interface ApplicationRow {
   next_interview: string | null;
   /** The newest offer's status ('sent', 'viewed', 'signed', 'declined', …) or ''. */
   offer_status: string;
+  /** The Initial and the Reminder, by email and by text (owner 2026-10-12). */
+  outreach: Outreach;
+  /** Worked here before / interviewed before (an earlier application with this phone or email). */
+  returning: { worked_here: boolean; interviewed_before: boolean };
 }
+
+export interface OutreachStep {
+  /** When it went out, or null. */
+  at: string | null;
+  /** Due now. */
+  due: boolean;
+  /** The text reminder: when it comes due. */
+  due_at?: string | null;
+  /** The email reminder: when it goes by itself. */
+  auto_at?: string | null;
+  /** The first text: they asked not to be texted. */
+  stopped?: boolean;
+}
+
+export interface Outreach {
+  /** Still reaching out (New, Reviewed or Contacted, and no interview booked). */
+  active: boolean;
+  email_initial: OutreachStep;
+  email_reminder: OutreachStep;
+  text_initial: OutreachStep;
+  text_reminder: OutreachStep;
+}
+
+export type TextWhich = 'initial' | 'reminder';
 
 export interface AnswerEntry {
   key: string;
@@ -478,6 +506,14 @@ export interface InterviewSettings {
   place: string;
 }
 
+/** The first text or the reminder, to copy and send from a phone (owner 2026-10-12): the words and the number. */
+export const getTextDraft = (id: number, which: TextWhich) =>
+  api.post<{ which: TextWhich; phone: string; body: string }>(`/hiring/applications/${id}/text-draft/`, { which });
+
+/** "Text sent": records the hand-sent text with its words. */
+export const markTextSent = (id: number, which: TextWhich, body: string) =>
+  api.post<ApplicationDetail>(`/hiring/applications/${id}/text-sent/`, { which, body });
+
 export const inviteToInterview = (id: number, send: boolean, email?: EmailChoice) =>
   api.post<{ link: string; sent: boolean; application: ApplicationDetail }>(`/hiring/applications/${id}/invite/`, {
     send,
@@ -523,12 +559,13 @@ export const cancelInterviewStaff = (id: number, email?: EmailChoice, text?: Tex
   api.post<Interview>(`/hiring/interviews/${id}/cancel/`, { email, text });
 export const previewCancelInterview = (id: number) => previewPost(`/hiring/interviews/${id}/cancel/`, {});
 export const markNoShow = (id: number) => api.post<Interview>(`/hiring/interviews/${id}/no-show/`, {});
-export const saveScorecard = (id: number, scorecard: Scorecard & { done?: boolean }) =>
+/** ``autosave``: saved as they type, no history line (2026-10-12); Close and Mark done write one. */
+export const saveScorecard = (id: number, scorecard: Scorecard & { done?: boolean; autosave?: boolean }) =>
   api.post<Interview>(`/hiring/interviews/${id}/scorecard/`, scorecard);
 
 // ── AI help (background runs; Heroku stops a request at 30 seconds) ─────────
 
-export type AiAction = 'polish' | 'shorter' | 'fuller' | 'warmer' | 'voice' | 'custom';
+export type AiAction = 'polish' | 'shorter' | 'fuller' | 'warmer' | 'voice' | 'review' | 'custom';
 
 export const AI_ACTIONS: { key: AiAction; label: string }[] = [
   { key: 'polish', label: 'Polish' },
@@ -540,7 +577,7 @@ export const AI_ACTIONS: { key: AiAction; label: string }[] = [
 
 export interface AiJob<R = Record<string, unknown>> {
   id: string;
-  kind: 'job' | 'email' | 'careers';
+  kind: 'job' | 'email' | 'careers' | 'questions';
   status: 'running' | 'done' | 'failed';
   result: R;
   error: string;

@@ -18,6 +18,15 @@ class Command(BaseCommand):
                 self.stdout.write(f'Interview reminders sent: {reminded}')
         except Exception as exc:  # noqa: BLE001 - never let reminders break the mailbox sync
             self.stderr.write(f'Interview reminders failed: {exc}')
+        # ...the automatic "Don't miss out" email, a day after the interview link if they haven't booked (2026-10-12)...
+        try:
+            from apps.hiring.outreach import send_due_email_reminders
+
+            nudged = send_due_email_reminders()
+            if nudged:
+                self.stdout.write(f'Book-your-interview reminders sent: {nudged}')
+        except Exception as exc:  # noqa: BLE001
+            self.stderr.write(f'Book-your-interview reminders failed: {exc}')
         # ...and the day-before first-day reminder texts (held until texting is live).
         try:
             from apps.hiring.texts import send_due_first_day

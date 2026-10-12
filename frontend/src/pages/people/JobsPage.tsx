@@ -34,6 +34,7 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { ccTokens } from '../../theme';
 import { aiCopyText, downloadJson, previewUrl } from './careersFile';
 import { AiHelpBar } from './AiHelpBar';
+import { InterviewQuestionsEditor } from './InterviewQuestions';
 import { CareersFileDialog } from './CareersFileDialog';
 import { errorText } from './peopleUi';
 import { IconCopy as ContentCopyIcon, IconDownload as DownloadIcon, IconOpenExternal as OpenInNewIcon } from '../../icons/ecoIcons';
@@ -97,7 +98,8 @@ type Draft = Record<ListKey, string> & {
   tagline: string;
   summary: string;
   questions: string;
-  interview_questions: string;
+  /** Their own list editor (2026-10-12). */
+  interview_questions: Question[];
   works_with: string;
   schedule: string;
   hours: string;
@@ -125,7 +127,7 @@ function toDraft(job: Job | null): Draft {
     nice_to_have: (job?.nice_to_have ?? []).join('\n'),
     physical: (job?.physical ?? []).join('\n'),
     questions: (job?.questions ?? []).map((q) => q.label).join('\n'),
-    interview_questions: (job?.interview_questions ?? []).map((q) => q.label).join('\n'),
+    interview_questions: job?.interview_questions ?? [],
     works_with: job?.works_with ?? 'Bill, the owner, and a small team',
     schedule: job?.schedule ?? '',
     hours: job?.hours ?? 'Up to 40 hours a week',
@@ -195,7 +197,6 @@ function JobDialog({
         nice_to_have: toLines(draft.nice_to_have),
         physical: toLines(draft.physical),
         questions: toLines(draft.questions),
-        interview_questions: toLines(draft.interview_questions),
       },
     };
   }
@@ -226,7 +227,9 @@ function JobDialog({
       nice_to_have: toLines(draft.nice_to_have),
       physical: toLines(draft.physical),
       questions: toQuestions(draft.questions, job?.questions ?? [], 'long_text', true),
-      interview_questions: toQuestions(draft.interview_questions, job?.interview_questions ?? [], 'text', false),
+      interview_questions: draft.interview_questions
+        .map((q) => ({ ...q, label: q.label.trim() }))
+        .filter((q) => q.label),
       works_with: draft.works_with.trim(),
       schedule: draft.schedule.trim(),
       hours: draft.hours.trim(),
@@ -322,15 +325,10 @@ function JobDialog({
             fullWidth
             sx={changedSx('questions')}
           />
-          <TextField
-            label="Interview questions (one per line)"
-            helperText="The scorecard asks these, each with 1–5 stars and a note."
+          <InterviewQuestionsEditor
             value={draft.interview_questions}
-            onChange={set('interview_questions')}
-            multiline
-            minRows={3}
-            fullWidth
-            sx={changedSx('interview_questions')}
+            onChange={(questions) => setDraft((d) => ({ ...d, interview_questions: questions }))}
+            role={() => ({ title: draft.title, summary: draft.summary, duties: toLines(draft.duties), looking_for: toLines(draft.looking_for) })}
           />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField

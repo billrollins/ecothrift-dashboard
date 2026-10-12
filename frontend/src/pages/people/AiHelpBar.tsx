@@ -15,6 +15,7 @@ export function AiHelpBar<R>({
   payload,
   onResult,
   disabled,
+  actions = AI_ACTIONS,
 }: {
   /** "this role", "this email": used in the button text. */
   what: string;
@@ -22,10 +23,12 @@ export function AiHelpBar<R>({
   payload: () => Record<string, unknown>;
   onResult: (job: AiJob<R>) => void;
   disabled?: boolean;
+  /** The chips to offer (the first is picked to start); default polish, shorter, fuller, warmer, my voice. */
+  actions?: { key: AiAction; label: string }[];
 }) {
   const careers = useQuery({ queryKey: ['hiring', 'careers'], queryFn: async () => (await getCareers()).data });
   const ai = careers.data?.ai;
-  const [action, setAction] = useState<AiAction>('polish');
+  const [action, setAction] = useState<AiAction>(actions[0]?.key ?? 'polish');
   const [instruction, setInstruction] = useState('');
   const [model, setModel] = useState('');
   const [effort, setEffort] = useState('');
@@ -75,7 +78,7 @@ export function AiHelpBar<R>({
         <Typography variant="body2" fontWeight={700} sx={{ mr: 0.5 }}>
           AI help
         </Typography>
-        {[...AI_ACTIONS, { key: 'custom' as AiAction, label: 'Just my note' }].map((a) => (
+        {[...actions, { key: 'custom' as AiAction, label: 'Just my note' }].map((a) => (
           <Chip
             key={a.key}
             size="small"

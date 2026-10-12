@@ -180,7 +180,7 @@ export function CameraCard({ videoRef, status, error, underneath, flash, onWake,
               <option value="">Pick a test item…</option>
               {testTags.data!.map((t) => (
                 <option key={t.sku} value={t.sku}>
-                  {`${t.title} · $${t.price} · ${Number(t.reward) > 0 ? `TB ${tbNumber(t.reward)}` : 'no ThriftBucks yet'}`}
+                  {`${t.title} · $${t.price} · ${Number(t.reward) > 0 ? `${tbNumber(t.reward)} ThriftBucks` : 'no ThriftBucks yet'}`}
                 </option>
               ))}
             </Box>

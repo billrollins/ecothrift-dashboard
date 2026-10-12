@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-09 (HTML look for every hiring email; the optional "Don't miss out" reminder to book) -->
+<!-- Last updated: 2026-10-12 (reaching applicants: Initial and Reminder by email and hand-sent text; list marks; scorecard autosave; interview questions on roles with AI review) -->
 # Hiring
 
 The careers page, applications, and the People workspace. Design and phases: [`initiatives/hiring_onboarding.md`](../initiatives/hiring_onboarding.md).
@@ -55,10 +55,22 @@ The careers page, applications, and the People workspace. Design and phases: [`i
 - **Reminders:** `send_due_reminders()` runs inside `sync_ms_mailbox` (every 10 minutes): one per interview, when it is between 1 and 24 hours away. A booking made less than 24 hours ahead gets no reminder.
 - **Defaults:** careers `defaults.hiring_manager` and `defaults.interviewers` (staff emails) seed new roles. A new interview's interviewer is the role's first interviewer, then the default interviewer, then the hiring manager.
 
+## Reaching applicants (Bill, 2026-10-12)
+
+- **Four steps** (`apps/hiring/outreach.py`), shown as "Reach them" in an applicant's next step and as marks in the list:
+  - **Email Initial** (the interview link): due as soon as they apply; staff send it (`invite`, reviewed). Sets `Application.invite_emailed_at`.
+  - **Email Reminder** (`interview_nudge`, "Don't miss out"): **automatic**, a day after the Initial if they still haven't booked (`send_due_email_reminders`, in `sync_ms_mailbox` and `send_interview_reminders`); "Send now" sends it early. Sets `reminder_emailed_at`.
+  - **Text Initial / Reminder**: texting isn't wired, so staff send them from a phone. `POST applications/<id>/text-draft/ {which: initial|reminder}` returns the phone and the words (`HAND_TEXTS`, with the private link); `POST …/text-sent/ {which, body}` records it (a `text` event, status `sent_by_hand`) and sets `invite_texted_at` / `reminder_texted_at`. The Reminder is due a day after the Initial. Anyone with a phone except a number that asked to stop.
+  - Nothing is due once an interview is booked or done, or the stage is past Contacted. Migration `0016` filled the email times from the history.
+- **List marks** (`frontend/src/pages/people/outreachUi.tsx` `CandidateMarks`, under each name in `StageTimeline.tsx`): role and days since applying; interview, resume, email first/reminder, text first/reminder, must-haves, **worked here before** (an `EmployeeProfile` with this email or phone) and **interviewed before** (an earlier application with this phone or email and an interview done). The list serializer works these out once per page (`outreach.returning`, `outreach.stopped_phones`).
+- **Applicant page:** the phone and the email copy on a click (`CopyValue`); no Call / Text / Email buttons.
+- **Scorecard:** saves as you type (`scorecard {…, autosave: true}` writes no history line); **Close** and **Mark done** save last and write one.
+
 ## AI help and emails
 
 - **AI runs in the background** (Heroku stops a request at 30 seconds).
-  - `POST /api/hiring/ai/` `{kind: job|email|careers, action: polish|shorter|fuller|warmer|voice|custom, instruction, model, effort, ...}` returns `{id}`. Then `GET /api/hiring/ai/<id>/` until the status is `done` or `failed`.
+  - `POST /api/hiring/ai/` `{kind: job|email|careers|questions, action: polish|shorter|fuller|warmer|voice|review|custom, instruction, model, effort, ...}` returns `{id}`. Then `GET /api/hiring/ai/<id>/` until the status is `done` or `failed`.
+  - **Interview questions** (`kind: questions`, 2026-10-12): a role's questions are a list on the role editor (`InterviewQuestions.tsx`: add, edit, reorder, delete; a question keeps its key when its words change). The AI reviews the whole list with a forced tool call (`propose_interview_questions`, `llm_chat_tool_input`) and each question comes back keep / edit / new, plus the dropped ones with why; staff tick what to use. The role AI (`kind: job`) no longer touches interview questions.
   - Rows are `HiringAiJob`. A run older than 6 minutes still `running` is marked failed.
   - Code: `apps/hiring/ai.py`; tests patch `ai._spawn` to run inline.
   - Nothing saves: the result fills the editor (`frontend/src/pages/people/AiHelpBar.tsx`).

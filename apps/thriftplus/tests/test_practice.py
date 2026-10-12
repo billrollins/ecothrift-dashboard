@@ -135,3 +135,15 @@ class TestToolsTests(TestCase):
         self.assertEqual([(x['amount'], x['use_by']) for x in lots],
                          [('4.25', (today + timedelta(days=1)).isoformat()), ('12.80', (today + timedelta(days=14)).isoformat())])
         self.assertEqual(ledger.cover(practice)['covered'], '6.50')
+
+    def test_clear_my_scans_hides_the_old_ones_and_keeps_the_rows(self):
+        from apps.thriftplus.models import ScanSignal
+
+        account = members.make_practice_member()
+        scanner.signal('scan', self.lamp, account)
+        self.assertEqual(len(scanner.history(account)), 1)
+        self.assertEqual(scanner.clear_history(account), [])
+        self.assertEqual(scanner.history(account), [])
+        self.assertEqual(ScanSignal.objects.filter(account=account).count(), 1)  # kept: it is data
+        scanner.signal('scan', self.lamp, account)
+        self.assertEqual(len(scanner.history(account)), 1)  # new scans show again

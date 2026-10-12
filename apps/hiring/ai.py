@@ -35,10 +35,14 @@ ACTIONS = {
     'voice': ("Rewrite it in the owner's voice: short sentences, warm, direct, plain words, "
               "\"we're a small team with a big dream\". No corporate words."),
     'custom': 'Make the change described below.',
+    # Interview questions (2026-10-12): the whole list, as a set.
+    'review': ('Review the whole list: keep the strong questions, reword weak or vague ones, merge or drop repeats, '
+               'and add what is missing to judge someone for this role.'),
 }
 
 JOB_TEXT_FIELDS = ('tagline', 'summary')
-JOB_LIST_FIELDS = ('duties', 'success', 'looking_for', 'nice_to_have', 'physical', 'questions', 'interview_questions')
+# Interview questions have their own list editor and AI (work_questions, 2026-10-12).
+JOB_LIST_FIELDS = ('duties', 'success', 'looking_for', 'nice_to_have', 'physical', 'questions')
 
 PLACEHOLDER = re.compile(r'\{([a-z_]+)\}')
 ALL_PLACEHOLDERS = {
@@ -278,7 +282,110 @@ def work_careers(params: dict) -> tuple[dict, str]:
     return {**result, 'raw': doc, 'changes': changes}, model
 
 
+# ── One role's interview questions (2026-10-12) ─────────────────────────────
+
+QUESTIONS_TOOL = 'propose_interview_questions'
+QUESTIONS_SCHEMA = {
+    'name': QUESTIONS_TOOL,
+    'description': "The role's whole interview question list after your changes, in the order to ask them.",
+    'input_schema': {
+        'type': 'object',
+        'properties': {
+            'questions': {
+                'type': 'array',
+                'items': {
+                    'type': 'object',
+                    'properties': {
+                        'key': {'type': 'string', 'description': "The existing question's key when you keep or reword it; "
+                                                                 'empty for a new question.'},
+                        'label': {'type': 'string', 'description': 'The question as the interviewer reads it aloud.'},
+                        'why': {'type': 'string', 'description': 'One short line: why you changed or added it (empty if kept).'},
+                    },
+                    'required': ['key', 'label'],
+                },
+            },
+            'removed': {
+                'type': 'array',
+                'items': {
+                    'type': 'object',
+                    'properties': {'key': {'type': 'string'}, 'why': {'type': 'string'}},
+                    'required': ['key'],
+                },
+            },
+            'summary': {'type': 'string', 'description': 'One or two sentences on what you changed.'},
+        },
+        'required': ['questions', 'removed', 'summary'],
+    },
+}
+
+QUESTIONS_SYSTEM = """You help the owner of Eco-Thrift (a thrift and liquidation store in Omaha) keep a short, strong list \
+of interview questions for one role. The interviewer reads each question aloud and rates the answer 1 to 5.
+
+Rules:
+- Return the whole list after your changes with the tool, in the order to ask them. 5 to 8 questions.
+- Keep a question's key when you keep it or reword it. A new question gets an empty key. Put every question you
+  drop under "removed" with a short why.
+- One clear sentence each, plain words, open questions (not yes or no), about real work in this role.
+- Never ask about age, family, children, pregnancy, religion, health, disability, national origin, citizenship,
+  arrest record, or anything else the law protects.
+- Do only what the request asks. When asked to review, change only what needs it."""
+
+
+def _ask_tool(system: str, user: str, params: dict, *, schema: dict, max_tokens: int) -> tuple[dict, str]:
+    from apps.core.services.llm_router import llm_chat_tool_input
+
+    return llm_chat_tool_input(
+        purpose=PURPOSE, system=system, user=user, tool_name=schema['name'], tools=[schema], max_tokens=max_tokens,
+        timeout=240, model_override=(params.get('model') or None), effort=(params.get('effort') or None),
+        log_source='hiring.ai', log_detail='interview_questions',
+    )
+
+
+def work_questions(params: dict) -> tuple[dict, str]:
+    """The AI's whole list, checked: each item marked keep / edit / new against the current list, and the dropped
+    ones listed. The person accepts all of it or item by item; nothing saves here."""
+    current = [
+        {'key': str(q.get('key') or ''), 'label': str(q.get('label') or '').strip()}
+        for q in (params.get('questions') or []) if isinstance(q, dict) and str(q.get('label') or '').strip()
+    ]
+    by_key = {q['key']: q for q in current if q['key']}
+    role = params.get('role') or {}
+    user = (
+        f"Role: {role.get('title') or 'a role'}\n"
+        f"About the role: {role.get('summary') or ''}\n"
+        f"Duties: {'; '.join(_lines(role.get('duties')))}\n"
+        f"Looking for: {'; '.join(_lines(role.get('looking_for')))}\n\n"
+        f'Current interview questions (key: question):\n'
+        + ('\n'.join(f"{q['key']}: {q['label']}" for q in current) or '(none yet)')
+        + f'\n\nWhat to do: {_what_to_do(params)}'
+    )
+    raw, model = _ask_tool(QUESTIONS_SYSTEM, user, params, schema=QUESTIONS_SCHEMA, max_tokens=2500)
+    out, seen = [], set()
+    for item in raw.get('questions') or []:
+        if not isinstance(item, dict):
+            continue
+        label = str(item.get('label') or '').strip()[:300]
+        if not label:
+            continue
+        key = str(item.get('key') or '').strip()
+        if key not in by_key or key in seen:
+            key = ''
+        if key:
+            seen.add(key)
+        change = 'new' if not key else ('keep' if by_key[key]['label'] == label else 'edit')
+        out.append({'key': key, 'label': label, 'change': change, 'was': by_key[key]['label'] if key else '',
+                    'why': str(item.get('why') or '').strip()[:200]})
+    why_removed = {str(r.get('key') or ''): str(r.get('why') or '').strip()[:200]
+                   for r in raw.get('removed') or [] if isinstance(r, dict)}
+    removed = [{'key': q['key'], 'label': q['label'], 'why': why_removed.get(q['key'], '')}
+               for q in current if q['key'] and q['key'] not in seen]
+    if not out:
+        raise ValueError('The AI returned no questions. Try again.')
+    return {'questions': out, 'removed': removed, 'summary': str(raw.get('summary') or '').strip()[:500]}, model
+
+
 WORK = {
+    HiringAiJob.KIND_QUESTIONS: work_questions,
     HiringAiJob.KIND_JOB: work_job,
     HiringAiJob.KIND_EMAIL: work_email,
     HiringAiJob.KIND_CAREERS: work_careers,

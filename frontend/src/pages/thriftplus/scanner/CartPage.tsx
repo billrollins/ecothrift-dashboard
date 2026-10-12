@@ -91,7 +91,7 @@ export function CartPage({ cart, member, isGuest, onBack, onAdd, onExplain, onTo
           <Panel sx={{ mt: u(30), textAlign: 'center', py: u(60) }}>
             <Box component="img" src={art.cart} alt="" sx={{ width: u(120), height: u(120), opacity: 0.9 }} />
             <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(44), color: sc.titleGreen, mt: u(16) }}>Your list is empty</Box>
-            <Box sx={{ fontSize: u(30), color: sc.ink2, mt: u(8) }}>Scan a tag and swipe right to add it.</Box>
+            <Box sx={{ fontSize: u(30), color: sc.ink2, mt: u(8) }}>Scan a tag to see its price and ThriftBucks.</Box>
           </Panel>
         ) : (
           cart && (
@@ -148,7 +148,7 @@ export function CartPage({ cart, member, isGuest, onBack, onAdd, onExplain, onTo
           )
         )}
 
-        <HistoryList entries={history.data ?? []} inCart={inCart} onAdd={onAdd} />
+        <HistoryList entries={history.data ?? []} inCart={inCart} onAdd={onAdd} onClear={() => actions.clearScans.mutate()} clearing={actions.clearScans.isPending} />
 
         <Box sx={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: u(20), mt: u(40) }}>
           <ButtonBase onClick={onTour} sx={{ px: u(30), py: u(16), borderRadius: 99, color: sc.priceGreen, fontSize: u(28), fontWeight: 700 }}>
@@ -220,10 +220,15 @@ function HistoryList({
   entries,
   inCart,
   onAdd,
+  onClear,
+  clearing,
 }: {
   entries: ThriftPlusHistoryEntry[];
   inCart: Set<string>;
   onAdd: (item: ThriftPlusItemCard) => void;
+  /** "Clear my scans" (owner 2026-10-10). */
+  onClear: () => void;
+  clearing: boolean;
 }) {
   const [q, setQ] = useState('');
   const shown = useMemo(() => {
@@ -248,7 +253,17 @@ function HistoryList({
 
   return (
     <Box>
-      <SectionTitle>Scanned</SectionTitle>
+      <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+        <SectionTitle>Scanned</SectionTitle>
+        <ButtonBase
+          onClick={onClear}
+          disabled={clearing}
+          data-testid="clear-scans"
+          sx={{ px: u(20), py: u(10), borderRadius: 99, color: sc.ink2, fontSize: u(28), textDecoration: 'underline' }}
+        >
+          Clear my scans
+        </ButtonBase>
+      </Box>
       {entries.length > 6 && (
         <Box
           sx={{

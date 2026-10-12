@@ -23,7 +23,7 @@ import {
   useTheme,
 } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   cancelInterviewStaff,
   getCareers,
@@ -333,8 +333,14 @@ export function ScorecardDialog({
   const [card, setCard] = useState<Required<Scorecard>>({ answers: [], overall: '', lead_potential: '', notes: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // Owner 2026-10-12: it saves as you type (it used to close without saving). Close and Mark done save last.
+  const [state, setState] = useState<'saved' | 'saving' | 'unsaved' | ''>('');
+  const dirty = useRef(false);
+  const touched = useRef(false);
+  const timer = useRef<number | null>(null);
 
   useEffect(() => {
+    // Only when it opens: a save in the background must not reset what they are typing.
     if (!open) return;
     const saved = interview.scorecard || {};
     const byKey = new Map((saved.answers ?? []).map((a) => [a.key, a]));
@@ -351,16 +357,55 @@ export function ScorecardDialog({
       notes: saved.notes ?? '',
     });
     setError('');
-  }, [open, interview]);
+    setState('');
+    dirty.current = false;
+    touched.current = false;
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const change = (next: (c: Required<Scorecard>) => Required<Scorecard>) => {
+    dirty.current = true;
+    touched.current = true;
+    setState('unsaved');
+    setCard(next);
+  };
   const setAnswer = (i: number, patch: Partial<ScorecardAnswer>) =>
-    setCard((c) => ({ ...c, answers: c.answers.map((a, j) => (j === i ? { ...a, ...patch } : a)) }));
+    change((c) => ({ ...c, answers: c.answers.map((a, j) => (j === i ? { ...a, ...patch } : a)) }));
 
-  async function save(done: boolean) {
+  async function autosave(current: Required<Scorecard>) {
+    if (!dirty.current) return;
+    dirty.current = false;
+    setState('saving');
+    try {
+      const { data } = await saveScorecard(interview.id, { ...current, autosave: true });
+      setState((s) => (s === 'saving' ? 'saved' : s));
+    } catch (err) {
+      dirty.current = true;
+      setState('unsaved');
+      setError(errorText(err, 'Could not save the scorecard.'));
+    }
+  }
+
+  useEffect(() => {
+    if (!open || !dirty.current) return;
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => void autosave(card), 800);
+    return () => {
+      if (timer.current) window.clearTimeout(timer.current);
+    };
+  }, [card, open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Close or Mark done: save what's there (one history line), then hand the fresh interview back. */
+  async function finish(done: boolean) {
+    if (timer.current) window.clearTimeout(timer.current);
+    if (!done && !touched.current) {
+      onClose();
+      return;
+    }
     setBusy(true);
     setError('');
     try {
       const { data } = await saveScorecard(interview.id, { ...card, done });
+      dirty.current = false;
       onSaved(data);
     } catch (err) {
       setError(errorText(err, 'Could not save the scorecard.'));
@@ -370,7 +415,7 @@ export function ScorecardDialog({
   }
 
   return (
-    <Dialog open={open} onClose={busy ? undefined : onClose} maxWidth="sm" fullWidth fullScreen={window.innerWidth < 600}>
+    <Dialog open={open} onClose={busy ? undefined : () => void finish(false)} maxWidth="sm" fullWidth fullScreen={window.innerWidth < 600}>
       <DialogTitle>
         Interview: {interview.applicant_name}
         <Typography variant="body2" color="text.secondary">
@@ -404,7 +449,7 @@ export function ScorecardDialog({
             <ToggleButtonGroup
               exclusive
               value={card.overall}
-              onChange={(_, v) => v !== null && setCard((c) => ({ ...c, overall: v }))}
+              onChange={(_, v) => v !== null && change((c) => ({ ...c, overall: v }))}
               sx={{ mt: 0.75 }}
             >
               <ToggleButton value="hire">Hire</ToggleButton>
@@ -417,7 +462,7 @@ export function ScorecardDialog({
             <ToggleButtonGroup
               exclusive
               value={card.lead_potential}
-              onChange={(_, v) => v !== null && setCard((c) => ({ ...c, lead_potential: v }))}
+              onChange={(_, v) => v !== null && change((c) => ({ ...c, lead_potential: v }))}
               sx={{ mt: 0.75 }}
             >
               <ToggleButton value="yes">Yes</ToggleButton>
@@ -428,7 +473,7 @@ export function ScorecardDialog({
           <TextField
             label="Notes"
             value={card.notes}
-            onChange={(e) => setCard((c) => ({ ...c, notes: e.target.value }))}
+            onChange={(e) => change((c) => ({ ...c, notes: e.target.value }))}
             multiline
             minRows={3}
             fullWidth
@@ -440,15 +485,15 @@ export function ScorecardDialog({
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} disabled={busy}>
+        <Typography variant="caption" data-testid="scorecard-state" sx={{ mr: 'auto', pl: 1, color: ccTokens.ink2 }}>
+          {state === 'saving' ? 'Saving…' : state === 'saved' ? 'Saved' : state === 'unsaved' ? 'Not saved yet' : ''}
+        </Typography>
+        <Button onClick={() => void finish(false)} disabled={busy}>
           Close
         </Button>
-        <Button onClick={() => save(false)} disabled={busy}>
-          Save
-        </Button>
         {interview.status === 'scheduled' && (
-          <Button variant="contained" onClick={() => save(true)} disabled={busy}>
-            Save & mark done
+          <Button variant="contained" onClick={() => void finish(true)} disabled={busy}>
+            Mark done
           </Button>
         )}
       </DialogActions>

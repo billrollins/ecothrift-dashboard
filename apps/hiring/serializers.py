@@ -121,6 +121,8 @@ class ApplicationListSerializer(serializers.ModelSerializer):
     lead_interest = serializers.SerializerMethodField()
     next_interview = serializers.SerializerMethodField()
     offer_status = serializers.SerializerMethodField()
+    outreach = serializers.SerializerMethodField()
+    returning = serializers.SerializerMethodField()
 
     class Meta:
         model = Application
@@ -128,8 +130,36 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             'id', 'first_name', 'last_name', 'full_name', 'email', 'phone', 'jobs', 'stage', 'stage_label',
             'stage_changed_at', 'rating', 'red_flags', 'flags', 'source', 'source_label', 'has_resume',
             'lead_interest', 'employee_user', 'not_now_reason', 'is_practice', 'created_at', 'next_interview',
-            'offer_status',
+            'offer_status', 'outreach', 'returning',
         ]
+
+    def _batch(self, obj) -> dict:
+        """Worked-here / interviewed-before and stopped numbers, worked out once for the whole list."""
+        from apps.hiring import outreach
+
+        cache = self.context.setdefault('_hiring_batch', {})
+        if obj.pk not in cache.get('returning', {}):
+            parent = getattr(self, 'parent', None)
+            lot = list(parent.instance) if parent is not None and parent.instance is not None else [obj]
+            if obj not in lot:
+                lot = [obj]
+            cache['returning'] = {**cache.get('returning', {}), **outreach.returning(lot)}
+            cache['stopped'] = cache.get('stopped', set()) | outreach.stopped_phones(lot)
+        return cache
+
+    def get_outreach(self, obj):
+        """The Initial and the Reminder, by email and by text (owner 2026-10-12): sent, due, or due later."""
+        from apps.hiring import outreach
+        from apps.texting import service as texting
+
+        rows = getattr(obj, 'scheduled_interviews', None)
+        booked = None if rows is None else bool(rows) or obj.stage not in outreach.ACTIVE_STAGES
+        stopped = texting.digits(obj.phone) in self._batch(obj)['stopped'] if obj.phone else False
+        return outreach.steps(obj, booked=booked, stopped=stopped)
+
+    def get_returning(self, obj):
+        """Worked here before / interviewed before (an earlier application with this phone or email)."""
+        return self._batch(obj)['returning'].get(obj.pk, {'worked_here': False, 'interviewed_before': False})
 
     def get_flags(self, obj):
         return flags_of(obj)

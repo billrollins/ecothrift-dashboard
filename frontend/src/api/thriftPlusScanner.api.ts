@@ -333,6 +333,16 @@ export async function getHistory(): Promise<ThriftPlusHistoryEntry[]> {
   return data;
 }
 
+/** "Clear my scans" (owner 2026-10-10): members' old scans are hidden (kept on the server); a guest's are emptied. */
+export async function clearHistory(): Promise<ThriftPlusHistoryEntry[]> {
+  if (!(await isMember())) {
+    writeJson(LS.history, []);
+    return [];
+  }
+  const { data } = await http.post<ThriftPlusHistoryEntry[]>('/history/clear/');
+  return data;
+}
+
 export async function sendPriceFeel(sku: string, feel: PriceFeel): Promise<void> {
   await http.post('/feel/', { sku, reason: feel.reason, would_pay: feel.would_pay }).catch(() => undefined);
 }

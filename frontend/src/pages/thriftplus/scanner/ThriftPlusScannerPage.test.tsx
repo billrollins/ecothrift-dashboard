@@ -78,14 +78,14 @@ describe('Thrift+ price scanner', () => {
     expect(within(tour).getByText('ThriftBucks')).toBeInTheDocument();
     expect(within(tour).getByText(/use 80% of them today/)).toBeInTheDocument();
     await user.click(within(tour).getByRole('button', { name: 'Next' }));
-    expect(within(tour).getByText('Cart')).toBeInTheDocument();
+    expect(within(tour).getByText('My list')).toBeInTheDocument();
     await user.click(within(tour).getByRole('button', { name: 'Done' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 
     // Scanner: no camera in jsdom, so type a sample tag.
     const tagField = await screen.findByLabelText('Tag number');
     expect(screen.getByText('Your ThriftBucks')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Pass' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Pass' })).not.toBeInTheDocument(); // no Pass / Add buttons (owner 2026-10-10)
     await user.type(tagField, 'TP0000001{Enter}');
 
     const card = await screen.findByTestId('item-card');
@@ -100,7 +100,8 @@ describe('Thrift+ price scanner', () => {
     // Nothing beside the reward (owner, 2026-10-09: no coins, no tickets on the item card).
     expect(card.querySelectorAll('img[src*="coin"], img[src*="ticket"]')).toHaveLength(0);
 
-    await user.click(screen.getByRole('button', { name: 'Add to my list' }));
+    (document.activeElement as HTMLElement | null)?.blur(); // the arrow keys work off the tag box
+    await user.keyboard('{ArrowRight}'); // swiping (or the arrow keys) still adds; it just isn't advertised
     await waitFor(() => expect(screen.queryByTestId('item-card')).not.toBeInTheDocument());
     await waitFor(() => expect(screen.getByTestId('cart-count')).toHaveTextContent('1'));
     // The pill (owner 2026-10-10): the count on the cart, "+15.00" over "ThriftBucks"; no $ estimate.
@@ -178,7 +179,7 @@ describe('Thrift+ price scanner', () => {
     expect(within(card).getByText('Cordless Drill Kit')).toBeInTheDocument();
 
     // Pass sends the card away and the scanner is back on top.
-    await user.click(screen.getByRole('button', { name: 'Pass' }));
+    await user.keyboard('{ArrowLeft}');
     await waitFor(() => expect(screen.queryByTestId('item-card')).not.toBeInTheDocument());
     expect(thriftPlusMockControls.signals().at(-1)).toMatchObject({ kind: 'pass', sku: 'TP0000001' });
   });
