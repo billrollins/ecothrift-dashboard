@@ -35,13 +35,27 @@ function row(extra: Partial<ApplicationRow> = {}): ApplicationRow {
 }
 
 describe('candidate marks (owner 2026-10-12)', () => {
-  it('shows the role and age, and marks for interview, resume, email, text, must-haves and worked here', () => {
+  it('new: the role and marks for resume, email, text, must-haves and worked here (no days, no interview)', () => {
     render(<CandidateMarks row={row()} />);
     const marks = screen.getByTestId('candidate-marks');
-    expect(marks).toHaveTextContent('Retail Associate · 2d');
+    expect(marks).toHaveTextContent('Retail Associate');
+    expect(marks).not.toHaveTextContent('2d');
+    expect(within(marks).getByLabelText('Resume uploaded')).toBeInTheDocument();
     expect(marks).toHaveTextContent('✓');
     expect(within(marks).getByLabelText('Worked here before')).toBeInTheDocument();
     expect(within(marks).queryByLabelText('Interviewed before')).not.toBeInTheDocument();
+  });
+
+  it('contacted: how many times; interview scheduled and later: the resume only', () => {
+    const contacted = row({ stage: 'contacted', outreach: outreach({ email_initial: step('2026-10-10T15:00:00Z', false), text_initial: step('2026-10-10T16:00:00Z', false) }) });
+    const { unmount } = render(<CandidateMarks row={contacted} />);
+    expect(screen.getByTestId('contact-count')).toHaveTextContent('Contacted 2×');
+    unmount();
+    render(<CandidateMarks row={row({ stage: 'interview_scheduled' })} />);
+    const marks = screen.getByTestId('candidate-marks');
+    expect(within(marks).getByLabelText('Resume uploaded')).toBeInTheDocument();
+    expect(within(marks).queryByLabelText('Worked here before')).not.toBeInTheDocument();
+    expect(marks).not.toHaveTextContent('✓');
   });
 });
 
@@ -53,7 +67,9 @@ describe('reach them (owner 2026-10-12)', () => {
     render(<OutreachCard app={app} busy={false} onSendEmail={vi.fn()} onSendReminder={vi.fn()} onChanged={onChanged} />);
     expect(screen.getByTestId('outreach-email_initial')).toBeInTheDocument();
     expect(screen.getAllByText('Due now')).toHaveLength(2);
-    await user.click(screen.getByRole('button', { name: 'Text' }));
+    expect(screen.getByRole('button', { name: 'Send Initial Email' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send Reminder Text' })).not.toBeInTheDocument(); // after the first text
+    await user.click(screen.getByRole('button', { name: 'Send Initial Text' }));
     expect(await screen.findByTestId('copy-phone')).toHaveTextContent('(402) 555-0101');
     expect(screen.getByTestId('copy-body')).toHaveTextContent("Hi Ana, it's Eco-Thrift.");
     await user.click(screen.getByRole('button', { name: 'Text sent' }));

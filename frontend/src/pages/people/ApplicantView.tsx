@@ -45,7 +45,7 @@ import { CreateEmployeeDialog, NotNowDialog } from './ApplicantDialogs';
 import { useEmailReview } from './EmailReview';
 import { FlagDots } from './FlagDots';
 import { InterviewCard, PickTimeDialog } from './interviewUi';
-import { CopyValue, OutreachCard } from './outreachUi';
+import { CandidateMarks, CopyValue, OutreachCard } from './outreachUi';
 import { OfferCard, OfferDialog } from './offerUi';
 import { StartOnboardingDialog } from './onboardingUi';
 import { PracticeChip } from './PracticeDialog';
@@ -266,25 +266,6 @@ export function ApplicantView({
     }
   }
 
-  async function copyLink() {
-    if (!app) return;
-    setBusy(true);
-    try {
-      let link = app.booking_link;
-      if (!link) {
-        const { data } = await inviteToInterview(app.id, false);
-        link = data.link;
-        await refreshWith(data.application);
-      }
-      await navigator.clipboard.writeText(link);
-      enqueueSnackbar('Interview link copied. Paste it in a text.', { variant: 'success' });
-    } catch (err) {
-      enqueueSnackbar(errorText(err, 'Could not copy the link.'), { variant: 'error' });
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function openResume() {
     if (!app) return;
     const popup = window.open('', '_blank');
@@ -335,9 +316,7 @@ export function ApplicantView({
           Email the link again
         </Button>
       )}
-      <Button variant="outlined" disabled={busy} onClick={copyLink}>
-        Copy interview link
-      </Button>
+
       {book && !scheduled && (
         <Button disabled={busy} onClick={() => setBooking(true)}>
           Book a time for them
@@ -740,6 +719,12 @@ export function ApplicantView({
     </>
   );
   const subline = `${app.jobs.map((j) => j.title).join(' · ')} · applied ${shortDate(app.created_at)} · ${app.source_label}`;
+  // The same marks as the list (owner 2026-10-12: continuity between the timeline and this page).
+  const marks = (
+    <Box sx={{ mt: 0.75, maxWidth: 420 }}>
+      <CandidateMarks row={app} showRole={false} />
+    </Box>
+  );
 
   return (
     <Box sx={{ pb: 4 }}>
@@ -780,6 +765,7 @@ export function ApplicantView({
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
               {subline}
             </Typography>
+            {marks}
             <Typography variant="body2" component="div" sx={{ mt: 0.5, ml: -0.75, color: ccTokens.ink2, wordBreak: 'break-word' }}>
               {contactLine}
             </Typography>
@@ -810,6 +796,7 @@ export function ApplicantView({
               <Typography color="text.secondary" sx={{ mt: 0.5 }}>
                 {subline}
               </Typography>
+              {marks}
               <Typography variant="body2" component="div" sx={{ mt: 0.5, ml: -0.75, color: ccTokens.ink2 }}>
                 {contactLine}
               </Typography>

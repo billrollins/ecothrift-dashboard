@@ -1,7 +1,9 @@
 """Reaching applicants (owner 2026-10-12): an Initial and a Reminder, by email and by text.
 
 - **Email Initial** (the interview link): due as soon as they apply; staff send it (reviewed, as before).
-- **Email Reminder** ("Don't miss out"): sent automatically one day after the Initial if they haven't booked.
+- **Email Reminder** ("Don't miss out"): sent automatically 24 hours after they **apply** (never later: the window
+  closes a day after that), once the Initial has gone and if they haven't booked. Applicants who applied before this
+  went live (``AUTO_REMINDER_FROM``) get theirs by hand only ("Send now").
 - **Text Initial / Reminder**: staff send these from their own phone (texting isn't wired): the page shows the
   message and the number to copy, then "Text sent" records it. The Reminder is due a day after the Initial.
 - Nothing is due once they book an interview, or once the application has moved past Contacted.
@@ -11,6 +13,7 @@ Texts go to anyone with a phone except a number that asked to stop.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 
 from django.db import transaction
 from django.db.models import Q
@@ -20,6 +23,11 @@ from rest_framework.exceptions import ValidationError
 from apps.hiring.models import Application, ApplicationEvent, Interview
 
 REMINDER_AFTER = timedelta(days=1)
+# The automatic reminder goes from 24 hours after applying until 48 hours: if it can't go in that window (the Initial
+# wasn't sent yet), it is never sent late by itself (owner 2026-10-12).
+AUTO_REMINDER_WINDOW = (timedelta(hours=24), timedelta(hours=48))
+# Applications from before the automatic reminder went live (v2.161.0, 2026-10-12 13:07 CT) get it by hand only.
+AUTO_REMINDER_FROM = datetime(2026, 10, 12, 18, 7, 46, tzinfo=dt_timezone.utc)
 ACTIVE_STAGES = (Application.STAGE_NEW, Application.STAGE_REVIEWED, Application.STAGE_CONTACTED)
 
 # Sent by hand from a phone, so no STOP line is needed. {first_name}, {role}, {link}.
@@ -64,7 +72,7 @@ def steps(application, *, now: datetime | None = None, booked: bool | None = Non
         'email_initial': {'at': email_at, 'due': active and has_email and not email_at},
         'email_reminder': {
             'at': email_rem, 'due': False,
-            'auto_at': email_at + REMINDER_AFTER if active and has_email and email_at and not email_rem else None,
+            'auto_at': _auto_at(application, now) if active and has_email and email_at and not email_rem else None,
         },
         'text_initial': {'at': text_at, 'due': active and can_text and not text_at, 'stopped': not can_text and bool(application.phone)},
         'text_reminder': {
@@ -72,6 +80,15 @@ def steps(application, *, now: datetime | None = None, booked: bool | None = Non
             'due': bool(active and can_text and text_due_at and now >= text_due_at),
         },
     }
+
+
+def _auto_at(application, now: datetime) -> datetime | None:
+    """When the automatic reminder goes (24 hours after applying), or None: in progress before it went live, or
+    the window has closed."""
+    if application.created_at < AUTO_REMINDER_FROM:
+        return None
+    start, end = (application.created_at + w for w in AUTO_REMINDER_WINDOW)
+    return None if now > end else start
 
 
 def _role(application) -> str:
@@ -121,13 +138,16 @@ def text_sent(application, which: str, *, by, body: str = '') -> Application:
 
 
 def send_due_email_reminders(*, now: datetime | None = None) -> int:
-    """The automatic "Don't miss out" email: a day after the Initial, if they still haven't booked."""
+    """The automatic "Don't miss out" email: 24 hours after they applied (the Initial sent, no interview booked),
+    never later than 48 hours, and only for applications from after it went live."""
     from apps.hiring.interviews import remind_to_book
 
     now = now or timezone.now()
     due = (
-        Application.objects.filter(stage__in=ACTIVE_STAGES, invite_emailed_at__lte=now - REMINDER_AFTER,
-                                   reminder_emailed_at__isnull=True)
+        Application.objects.filter(stage__in=ACTIVE_STAGES, invite_emailed_at__isnull=False,
+                                   reminder_emailed_at__isnull=True,
+                                   created_at__gte=max(AUTO_REMINDER_FROM, now - AUTO_REMINDER_WINDOW[1]),
+                                   created_at__lte=now - AUTO_REMINDER_WINDOW[0])
         .exclude(email='')
         .exclude(interviews__status__in=(Interview.STATUS_SCHEDULED, Interview.STATUS_DONE))
         .distinct()

@@ -9,7 +9,9 @@ from apps.hiring.models import Application, Job
 from apps.hiring.tests.test_hiring import Base, _user
 
 
-class OutreachTests(Base):
+class _Applied(Base):
+    """One applicant, Thrift+ hiring on, mail cleared."""
+
     def setUp(self):
         super().setUp()
         from apps.hiring.models import Interview
@@ -28,6 +30,8 @@ class OutreachTests(Base):
         rows = rows['results'] if isinstance(rows, dict) else rows
         return next(r for r in rows if r['id'] == self.app.pk)
 
+
+class OutreachTests(_Applied):
     def test_a_new_applicant_has_the_email_and_the_text_due(self):
         steps = self.row()['outreach']
         self.assertTrue(steps['email_initial']['due'])
@@ -151,3 +155,24 @@ class QuestionsAiTests(Base):
         self.assertEqual(result['result']['removed'], [{'key': 'lift', 'label': 'Can you lift 50 pounds?', 'why': 'Yes or no'}])
         self.assertEqual(llm.call_args.kwargs['tool_name'], 'propose_interview_questions')
         self.assertIn('hard_customer: Tell me about a hard customer.', llm.call_args.kwargs['user'])
+
+
+class ReminderRuleTests(_Applied):
+    """Owner 2026-10-12: "Don't miss out" goes 24 hours after they apply, never later; in-flight ones by hand."""
+
+    def test_it_goes_24_hours_after_applying_and_never_late(self):
+        self.staff.post(f'/api/hiring/applications/{self.app.pk}/invite/', {'send': True}, format='json')
+        self.app.refresh_from_db()
+        self.assertEqual(self.row()['outreach']['email_reminder']['auto_at'], self.app.created_at + timedelta(hours=24))
+        mail.outbox.clear()
+        self.assertEqual(outreach.send_due_email_reminders(now=self.app.created_at + timedelta(hours=49)), 0)  # too late
+        self.assertEqual(outreach.send_due_email_reminders(now=self.app.created_at + timedelta(hours=23)), 0)  # too soon
+        self.assertEqual(outreach.send_due_email_reminders(now=self.app.created_at + timedelta(hours=25)), 1)
+
+    def test_applications_from_before_it_went_live_get_theirs_by_hand(self):
+        Application.objects.filter(pk=self.app.pk).update(created_at=outreach.AUTO_REMINDER_FROM - timedelta(hours=2))
+        self.staff.post(f'/api/hiring/applications/{self.app.pk}/invite/', {'send': True}, format='json')
+        self.app.refresh_from_db()
+        self.assertIsNone(self.row()['outreach']['email_reminder']['auto_at'])
+        mail.outbox.clear()
+        self.assertEqual(outreach.send_due_email_reminders(now=outreach.AUTO_REMINDER_FROM + timedelta(hours=23)), 0)

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.161.0] -->
-<!-- Last reviewed: 2026-10-12 (2.161.0) -->
+<!-- Line 1 release: ## [2.161.1] -->
+<!-- Last reviewed: 2026-10-12 (2.161.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.161.1] - 2026-10-12
+
+User-facing theme: **Hiring: the "Don't miss out" email goes by itself 24 hours after someone applies (never later; applicants already in progress get theirs by hand), four named Send buttons, and simpler marks that match between the list and the candidate's page (Bill, 2026-10-12).** Outside initiatives.
+
+### Changed
+
+- **Reminder email timing:** automatic 24 hours after they **apply** (once the initial email has gone and they haven't booked), within a day after that and never later. Applicants who applied before v2.161.0 went live get it by hand only ("Send Reminder Email"). v2.161.0's first run had sent it to 4 applicants already in progress.
+- **Reach them buttons:** **Send Initial Email**, **Send Reminder Email**, **Send Initial Text**, **Send Reminder Text** (each stays until that step is sent); "Copy interview link" is gone.
+- **List marks:** no interview mark and no days since applying (the timeline shows both). Contacted rows show **Contacted N×**. From Interview scheduled on, only the resume mark.
+- **Candidate page:** the same marks under the name, so the list and the page match.
 
 ## [2.161.0] - 2026-10-12
 

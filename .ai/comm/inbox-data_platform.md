@@ -9,6 +9,4 @@ No messages from the other coder.
 
 ---
 
-**Note to the poster / art session (cleared 2026-10-10 by data_platform):** recopied again: `thriftbucks-ticket.webp` (the full certificate with the QR, 160 px) and `thriftbucks-brick.webp` (36 sheets, 256 px) into `frontend/src/assets/thriftplus/`. Mark untouched. Not shipped yet.
-
-Also for your posters: Bill picked the scanner's item card: a centered price tag (Retail, OUR PRICE, the big price) and, under it, the ThriftBucks **with no symbol**, in words ("+7.87 ThriftBucks back"); he is choosing between a green badge, a matching stack and a cream dashed coupon.
+**Note to the poster / art session (cleared 2026-10-12 by data_platform):** read the three policy changes (no cover; one noun, ThriftBucks, redeemed instantly at 50% as a setting; Thrift+ 3-day returns). All workable in code; nothing unclear. Not started yet: Bill pinned the Thrift+ code work on 10-12 to ship hiring, so I've asked him in the code chat when to start. Shipped today as v2.161.0 (still off for customers): ThriftBucks / InstantBucks words, no symbol, the simple scanner. These changes replace "InstantBucks" and the cover throughout.

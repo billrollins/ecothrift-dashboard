@@ -1,6 +1,5 @@
 import CheckIcon from '@mui/icons-material/Check';
 import DescriptionOutlined from '@mui/icons-material/DescriptionOutlined';
-import EventOutlined from '@mui/icons-material/EventOutlined';
 import HistoryOutlined from '@mui/icons-material/HistoryOutlined';
 import MailOutline from '@mui/icons-material/MailOutline';
 import SmsOutlined from '@mui/icons-material/SmsOutlined';
@@ -114,42 +113,41 @@ export function OutreachCard({
   const [texting, setTexting] = useState<TextWhich | null>(null);
   const o = app.outreach;
   if (!o?.active) return null;
+  // Owner 2026-10-12: one button per step, named for what it does; it stays until that step is sent.
+  const canText = Boolean(app.phone) && !o.text_initial.stopped;
+  const send = (label: string, due: boolean, onClick: () => void, disabled = false) => (
+    <Button size="small" variant={due ? 'contained' : 'outlined'} disabled={busy || disabled} onClick={onClick} sx={{ whiteSpace: 'nowrap' }}>
+      {label}
+    </Button>
+  );
   const rows: StepRow[] = [
     {
-      key: 'email_initial', icon: <MailOutline sx={{ fontSize: 18 }} />, label: 'Email · interview link', step: o.email_initial,
+      key: 'email_initial', icon: <MailOutline sx={{ fontSize: 18 }} />, label: 'Initial email (interview link)', step: o.email_initial,
       status: o.email_initial.at ? `Sent ${when(o.email_initial.at)}` : app.email ? 'Due now' : 'No email',
-      action: o.email_initial.due && (
-        <Button size="small" variant="contained" disabled={busy} onClick={onSendEmail}>Send</Button>
-      ),
+      action: !o.email_initial.at && app.email && send('Send Initial Email', o.email_initial.due, onSendEmail),
     },
     {
-      key: 'email_reminder', icon: <MailOutline sx={{ fontSize: 18 }} />, label: 'Email · reminder', step: o.email_reminder,
+      key: 'email_reminder', icon: <MailOutline sx={{ fontSize: 18 }} />, label: "Reminder email (Don't miss out)", step: o.email_reminder,
       status: o.email_reminder.at
         ? `Sent ${when(o.email_reminder.at)}`
         : o.email_reminder.auto_at
           ? `Goes by itself ${when(o.email_reminder.auto_at)}`
-          : app.email ? 'A day after the link email' : 'No email',
-      action: o.email_initial.at && !o.email_reminder.at && (
-        <Button size="small" disabled={busy} onClick={onSendReminder}>Send now</Button>
-      ),
+          : o.email_initial.at ? 'Send it by hand' : app.email ? 'After the initial email' : 'No email',
+      action: !o.email_reminder.at && o.email_initial.at && app.email && send('Send Reminder Email', false, onSendReminder),
     },
     {
-      key: 'text_initial', icon: <SmsOutlined sx={{ fontSize: 18 }} />, label: 'Text · interview link', step: o.text_initial,
+      key: 'text_initial', icon: <SmsOutlined sx={{ fontSize: 18 }} />, label: 'Initial text (interview link)', step: o.text_initial,
       status: o.text_initial.at
         ? `Sent ${when(o.text_initial.at)}`
         : o.text_initial.stopped ? 'Asked not to be texted' : app.phone ? 'Due now' : 'No phone',
-      action: o.text_initial.due && (
-        <Button size="small" variant="contained" disabled={busy} onClick={() => setTexting('initial')}>Text</Button>
-      ),
+      action: !o.text_initial.at && canText && send('Send Initial Text', o.text_initial.due, () => setTexting('initial')),
     },
     {
-      key: 'text_reminder', icon: <SmsOutlined sx={{ fontSize: 18 }} />, label: 'Text · reminder', step: o.text_reminder,
+      key: 'text_reminder', icon: <SmsOutlined sx={{ fontSize: 18 }} />, label: 'Reminder text', step: o.text_reminder,
       status: o.text_reminder.at
         ? `Sent ${when(o.text_reminder.at)}`
-        : o.text_reminder.due ? 'Due now' : o.text_reminder.due_at ? `Due ${when(o.text_reminder.due_at)}` : 'A day after the first text',
-      action: o.text_reminder.due && (
-        <Button size="small" variant="contained" disabled={busy} onClick={() => setTexting('reminder')}>Text</Button>
-      ),
+        : o.text_reminder.due ? 'Due now' : o.text_reminder.due_at ? `Due ${when(o.text_reminder.due_at)}` : 'After the initial text',
+      action: !o.text_reminder.at && o.text_initial.at && canText && send('Send Reminder Text', o.text_reminder.due, () => setTexting('reminder')),
     },
   ];
   return (
@@ -226,7 +224,7 @@ export function TextDialog({
 
   return (
     <Dialog open={which !== null} onClose={onClose} fullWidth maxWidth="xs">
-      <DialogTitle>{which === 'reminder' ? 'Reminder text' : 'Interview link text'} to {app.first_name}</DialogTitle>
+      <DialogTitle>{which === 'reminder' ? 'Reminder text' : 'Initial text'} to {app.first_name}</DialogTitle>
       <DialogContent>
         {error && <Typography color="error">{error}</Typography>}
         {!draft && !error && <CircularProgress size={24} />}
@@ -307,41 +305,45 @@ function Glyph({ title, on, tone, children }: { title: string; on: boolean; tone
 }
 
 /**
- * Under each name in the list (owner 2026-10-12: at a glance, no extra width): the role and how long ago they
- * applied, then small marks: interview, resume, email (first and reminder), text (first and reminder), must-haves,
- * worked here before, interviewed before. Hover for the words.
+ * Under each name in the list (owner 2026-10-12: at a glance, no extra width). Where they sit in the timeline already
+ * says the stage and the interview time, so the line only adds what that doesn't:
+ * - New and Reviewed: the role, then marks for resume, email (first and reminder), text (first and reminder),
+ *   must-haves, worked here before and interviewed before;
+ * - Contacted: the same, with how many times they were contacted in place of the role's tail;
+ * - Interview scheduled and later: the role and the resume mark only.
+ * Hover any mark for the words. ``showRole`` off on the candidate's own page (its header names the role).
  */
-export function CandidateMarks({ row }: { row: ApplicationRow }) {
+export function CandidateMarks({ row, showRole = true }: { row: ApplicationRow; showRole?: boolean }) {
   const o = row.outreach;
   const role = row.jobs[0]?.title ?? '';
-  const days = Math.max(0, Math.floor((Date.now() - new Date(row.created_at).getTime()) / 86_400_000));
-  const age = days === 0 ? 'today' : `${days}d`;
+  const early = row.stage === 'new' || row.stage === 'reviewed' || row.stage === 'contacted';
   const flagsMet = row.flags.length > 0 && row.flags.every((f) => f.ok !== false);
-  const interview = row.next_interview
-    ? new Date(row.next_interview).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })
-    : '';
-  const anyDue = o && (o.email_initial.due || o.text_initial.due || o.text_reminder.due);
+  const contacts = o ? [o.email_initial, o.email_reminder, o.text_initial, o.text_reminder].filter((x) => x.at).length : 0;
   return (
     <Box
       data-testid="candidate-marks"
       sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0, fontSize: 11, color: ccTokens.ink2, lineHeight: 1.2 }}
     >
-      <Tooltip title={`Applied ${when(row.created_at)}${row.jobs.length > 1 ? ` · ${row.jobs.map((j) => j.title).join(', ')}` : ''}`} placement="top" disableInteractive>
-        <Box component="span" sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 1 }}>
-          {role}
-          {row.jobs.length > 1 ? ` +${row.jobs.length - 1}` : ''} · {age}
+      {showRole && (
+        <Tooltip title={`Applied ${when(row.created_at)}${row.jobs.length > 1 ? ` · ${row.jobs.map((j) => j.title).join(', ')}` : ''}`} placement="top" disableInteractive>
+          <Box component="span" sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 1 }}>
+            {role}
+            {row.jobs.length > 1 ? ` +${row.jobs.length - 1}` : ''}
+          </Box>
+        </Tooltip>
+      )}
+      {row.stage === 'contacted' && (
+        <Box component="span" data-testid="contact-count" sx={{ fontWeight: 700, color: ccTokens.ink, flexShrink: 0 }}>
+          Contacted {contacts}×
         </Box>
-      </Tooltip>
-      <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, flexShrink: 0, ml: 'auto' }}>
-        <Glyph title={interview ? `Interview ${interview}` : 'No interview booked'} on={Boolean(interview)} tone={ccTokens.good}>
-          <EventOutlined />
-        </Glyph>
+      )}
+      <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, flexShrink: 0, ml: showRole ? 'auto' : 0 }}>
         <Glyph title={row.has_resume ? 'Resume uploaded' : 'No resume'} on={row.has_resume} tone={ccTokens.ink2}>
           <DescriptionOutlined />
         </Glyph>
-        {o && (
+        {early && o && (
           <>
-            <Glyph title={stepText('Email', o.email_initial, o.email_reminder)} on tone={anyDue && o.email_initial.due ? ccTokens.warn : ccTokens.ink2}>
+            <Glyph title={stepText('Email', o.email_initial, o.email_reminder)} on tone={o.email_initial.due ? ccTokens.warn : ccTokens.ink2}>
               <MailOutline />
               <Pair a={markOf(o.email_initial)} b={markOf(o.email_reminder)} />
             </Glyph>
@@ -351,19 +353,19 @@ export function CandidateMarks({ row }: { row: ApplicationRow }) {
             </Glyph>
           </>
         )}
-        {row.flags.length > 0 && (
+        {early && row.flags.length > 0 && (
           <Tooltip title={flagsMet ? 'Meets every must-have' : `Misses ${row.red_flags} must-have${row.red_flags === 1 ? '' : 's'}`} placement="top" disableInteractive>
             <Box component="span" sx={{ fontSize: 11, fontWeight: 800, color: flagsMet ? ccTokens.good : ccTokens.bad }}>
               {flagsMet ? '✓' : `✗${row.red_flags}`}
             </Box>
           </Tooltip>
         )}
-        {row.returning?.worked_here && (
+        {early && row.returning?.worked_here && (
           <Glyph title="Worked here before" on tone={ccTokens.kraftDeep}>
             <WorkHistoryOutlined />
           </Glyph>
         )}
-        {row.returning?.interviewed_before && (
+        {early && row.returning?.interviewed_before && (
           <Glyph title="Interviewed before" on tone={ccTokens.kraftDeep}>
             <HistoryOutlined />
           </Glyph>
