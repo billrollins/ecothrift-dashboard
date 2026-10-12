@@ -68,7 +68,8 @@ class OutreachTests(_Applied):
         draft = self.staff.post(f'/api/hiring/applications/{self.app.pk}/text-draft/', {'which': 'initial'}, format='json')
         self.assertEqual(draft.status_code, 200, draft.data)
         self.assertEqual(draft.data['phone'], self.app.phone)
-        self.assertIn('/careers/interview?t=', draft.data['body'])
+        self.assertIn('/i/', draft.data['body'])
+        self.assertLessEqual(len(draft.data['body']), outreach.SMS_LIMIT)
         sent = self.staff.post(f'/api/hiring/applications/{self.app.pk}/text-sent/',
                                {'which': 'initial', 'body': draft.data['body']}, format='json')
         self.assertEqual(sent.status_code, 200, sent.data)
@@ -176,3 +177,53 @@ class ReminderRuleTests(_Applied):
         self.assertIsNone(self.row()['outreach']['email_reminder']['auto_at'])
         mail.outbox.clear()
         self.assertEqual(outreach.send_due_email_reminders(now=outreach.AUTO_REMINDER_FROM + timedelta(hours=23)), 0)
+
+
+class ShortLinkTests(_Applied):
+    """Owner 2026-10-12: an applicant couldn't open the link in a long text. One message, a short link."""
+
+    def setUp(self):
+        super().setUp()
+        from django.core.cache import cache
+
+        cache.clear()
+
+    def draft(self, which='initial'):
+        return self.staff.post(f'/api/hiring/applications/{self.app.pk}/text-draft/', {'which': which}, format='json').data
+
+    def test_the_short_link_leads_to_the_booking_page(self):
+        body = self.draft()['body']
+        self.app.refresh_from_db()
+        code = self.app.booking_code
+        self.assertEqual(len(code), 7)
+        self.assertIn(f'/i/{code} (or reply with a good time)', body)
+        self.assertTrue(body.startswith(f"Hi {self.app.first_name}, it's Eco-Thrift! Book your Retail Associate interview:"))
+        response = self.client.get(f'/i/{code}')
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response['Location'].endswith(f'/careers/interview?t={self.app.booking_token}'))
+        self.assertEqual(self.draft('reminder')['body'].count(code), 1)  # the same code every time
+        self.app.refresh_from_db()
+        self.assertEqual(self.app.booking_code, code)
+
+    def test_both_texts_fit_one_message_even_with_long_names(self):
+        link = 'https://ecothrift.us/i/abcdefg'
+        for which in ('initial', 'reminder'):
+            normal = outreach.hand_text(which, first_name='Angie', role='Retail Associate', link=link)
+            self.assertLessEqual(len(normal), outreach.SMS_LIMIT)
+            self.assertIn('Retail Associate', normal)
+            long = outreach.hand_text(which, first_name='Maximiliana-Josefina', role='Donation Processing and Pricing Lead Associate', link=link)
+            self.assertLessEqual(len(long), outreach.SMS_LIMIT)
+            self.assertNotIn('Donation', long)  # the role drops out instead of going over
+            self.assertEqual(outreach.hand_text(which, first_name='Angie', role='', link=link).count('interview'), 1)
+
+    def test_a_wrong_or_closed_code_lands_on_the_expired_note_and_guessing_stops(self):
+        self.draft()
+        self.app.refresh_from_db()
+        Application.objects.filter(pk=self.app.pk).update(stage=Application.STAGE_NOT_NOW)
+        closed = self.client.get(f'/i/{self.app.booking_code}')
+        self.assertTrue(closed['Location'].endswith('/careers/interview?t=expired'))
+        from apps.hiring.public_views import SHORT_MISSES_PER_HOUR
+
+        for _ in range(SHORT_MISSES_PER_HOUR):
+            self.client.get('/i/zzzzzzz')
+        self.assertEqual(self.client.get('/i/zzzzzzz').status_code, 429)

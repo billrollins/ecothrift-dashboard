@@ -172,6 +172,9 @@ class Application(models.Model):
     # Kept plain (not hashed) so staff can copy it again; it only books this applicant's interview.
     booking_token = models.CharField(max_length=64, blank=True, default='', db_index=True)
     booking_token_expires = models.DateTimeField(null=True, blank=True)
+    # The short link in texts (ecothrift.us/i/<code>, owner 2026-10-12): 7 characters, so the text fits in one
+    # message. It leads to the booking link above and works only while that does.
+    booking_code = models.CharField(max_length=12, blank=True, default='', db_index=True)
     invited_at = models.DateTimeField(null=True, blank=True)
     # Reaching them (owner 2026-10-12): an Initial and a Reminder, by email and by text (texts sent by hand).
     invite_emailed_at = models.DateTimeField(null=True, blank=True)

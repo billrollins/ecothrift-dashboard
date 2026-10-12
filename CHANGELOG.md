@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.161.2] -->
-<!-- Last reviewed: 2026-10-12 (2.161.2) -->
+<!-- Line 1 release: ## [2.162.0] -->
+<!-- Last reviewed: 2026-10-12 (2.162.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.162.0] - 2026-10-12
+
+User-facing theme: **Hiring: interview texts fit in one message, with a short link (ecothrift.us/i/...) and "or reply with a good time" (Bill, 2026-10-12: an applicant couldn't open the link).** Outside initiatives.
+
+### Changed
+
+- **Interview texts (Initial and Reminder):** short enough to arrive as one message (a longer text comes in pieces, and some phones show the pieces apart, cutting the link in half). They now read "Hi Angie, it's Eco-Thrift! Book your Retail Associate interview: https://ecothrift.us/i/abc2345 (or reply with a good time)". The role drops out if a long name or title would go over. The reply line gives a way in when a phone blocks links from unknown numbers.
+
+### Added
+
+- **Short interview links:** ecothrift.us/i/ and a 7-character code (no look-alike characters) that opens the applicant's booking page. Each applicant keeps one code. It works only while their booking link does (not after hiring or Not now, or once it expires); a wrong or old code shows the page's "link has expired" note, and a visitor who tries 30 wrong codes in an hour is turned away. Emails keep the full link.
 
 ## [2.161.2] - 2026-10-12
 

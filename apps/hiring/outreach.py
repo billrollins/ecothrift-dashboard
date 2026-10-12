@@ -31,14 +31,21 @@ AUTO_REMINDER_FROM = datetime(2026, 10, 12, 18, 7, 46, tzinfo=dt_timezone.utc)
 ACTIVE_STAGES = (Application.STAGE_NEW, Application.STAGE_REVIEWED, Application.STAGE_CONTACTED)
 
 # Sent by hand from a phone, so no STOP line is needed. {first_name}, {role}, {link}.
+# One text holds 160 characters; a longer one arrives in pieces, and some phones show the pieces apart, which breaks
+# the link (owner 2026-10-12: an applicant couldn't open it). So the short link, and words that fit: the role drops
+# out when a long name or title would go over. "Reply with a good time" is the way in when a phone blocks the link
+# (a reply also turns links on in a text from an unknown number).
+SMS_LIMIT = 160
 HAND_TEXTS = {
-    'initial': (
-        "Hi {first_name}, it's Eco-Thrift. Thanks for applying for {role}! "
-        'Pick a time for your interview here: {link}'
-    ),
+    'initial': "Hi {first_name}, it's Eco-Thrift! Book your {role} interview: {link} (or reply with a good time)",
     'reminder': (
-        "Hi {first_name}, Eco-Thrift again. Don't miss out: pick a time for your {role} interview here: {link}"
+        "Hi {first_name}, Eco-Thrift again. Don't miss out, book your {role} interview: {link} "
+        '(or reply with a good time)'
     ),
+}
+SHORT_TEXTS = {
+    'initial': "Hi {first_name}, it's Eco-Thrift! Book your interview: {link} (or reply with a good time)",
+    'reminder': "Hi {first_name}, Eco-Thrift again. Don't miss out, book your interview: {link} (or reply with a good time)",
 }
 TEXT_LABELS = {'initial': 'Interview link text', 'reminder': 'Reminder text'}
 TEXT_FIELDS = {'initial': 'invite_texted_at', 'reminder': 'reminder_texted_at'}
@@ -93,12 +100,21 @@ def _auto_at(application, now: datetime) -> datetime | None:
 
 def _role(application) -> str:
     job = application.jobs.order_by('sort_order').first()
-    return job.title if job else 'a job'
+    return job.title if job else ''
+
+
+def hand_text(which: str, *, first_name: str, role: str, link: str) -> str:
+    """The text's words, kept to one message (SMS_LIMIT)."""
+    if role:
+        body = HAND_TEXTS[which].format(first_name=first_name, role=role, link=link)
+        if len(body) <= SMS_LIMIT:
+            return body
+    return SHORT_TEXTS[which].format(first_name=first_name, link=link)
 
 
 def text_draft(application, which: str) -> dict:
-    """The message and the number to copy. Makes the private interview link if there isn't one yet."""
-    from apps.hiring.interviews import ensure_link
+    """The message and the number to copy. Makes the private interview link (and its short link) if there isn't one."""
+    from apps.hiring.interviews import ensure_short_link
 
     if which not in HAND_TEXTS:
         raise ValidationError({'detail': 'Pick the first text or the reminder.'})
@@ -106,8 +122,9 @@ def text_draft(application, which: str) -> dict:
         raise ValidationError({'detail': 'This applicant has no phone number.'})
     if _stopped(application):
         raise ValidationError({'detail': 'They asked not to be texted.'})
-    link = ensure_link(application)
-    body = HAND_TEXTS[which].format(first_name=application.first_name or 'there', role=_role(application), link=link)
+    link = ensure_short_link(application)
+    first = (application.first_name or '').strip() or 'there'
+    body = hand_text(which, first_name=first, role=_role(application), link=link)
     return {'which': which, 'phone': application.phone, 'body': body}
 
 

@@ -25,6 +25,9 @@ _PASSTHROUGH_PREFIXES = ('/api/', '/static/', '/assets/', '/media/', '/db-admin/
 # Exact paths served by Django views on the public host (SEO endpoints).
 _PASSTHROUGH_PATHS = ('/robots.txt', '/sitemap.xml')
 
+# The interview short link in texts (ecothrift.us/i/<code>): a Django redirect, on any public host.
+_SHORT_LINK_PREFIX = '/i/'
+
 # Dashboard SPA routes that customers open on the public host: the Thrift+ scanner
 # (www.ecothrift.us/scan). They pass through to the dashboard app, which serves them publicly.
 _DASHBOARD_SPA_PATHS = ('/scan',)
@@ -129,7 +132,7 @@ class PublicSiteMiddleware:
         path = request.path
 
         # Keep the shared API, assets, admin, and SEO endpoints working on the public host.
-        if path.startswith(_PASSTHROUGH_PREFIXES) or path in _PASSTHROUGH_PATHS:
+        if path.startswith((*_PASSTHROUGH_PREFIXES, _SHORT_LINK_PREFIX)) or path in _PASSTHROUGH_PATHS:
             return None
         if any(path == p or path.startswith(p + '/') for p in _DASHBOARD_SPA_PATHS):
             return None

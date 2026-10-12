@@ -173,6 +173,39 @@ def apply(request):
     return Response({'ok': True, 'first_name': application.first_name}, status=status.HTTP_201_CREATED)
 
 
+# ── The short link in texts (/i/<code>, owner 2026-10-12) ───────────────────
+
+# Wrong codes a visitor may try in an hour before they're turned away (guessing a 7-character code).
+SHORT_MISSES_PER_HOUR = 30
+
+
+def _client_ip(request) -> str:
+    # Heroku's router adds the visitor's address last; anything before it came from the visitor.
+    forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
+    return (forwarded.split(',')[-1].strip() if forwarded else request.META.get('REMOTE_ADDR', '')) or 'unknown'
+
+
+def short_link(request, code: str):
+    """ecothrift.us/i/<code>: on to the applicant's booking page. A wrong or expired code lands on the page's
+    "link has expired" note."""
+    from django.core.cache import cache
+    from django.http import HttpResponse, HttpResponseRedirect
+
+    from apps.hiring import interviews as service
+
+    key = f'hiring:short-miss:{_client_ip(request)}'
+    if (cache.get(key) or 0) >= SHORT_MISSES_PER_HOUR:
+        return HttpResponse('Too many tries. Please call the store.', status=429, content_type='text/plain')
+    application = service.application_for_code(code)
+    if application is None:
+        try:
+            cache.incr(key)
+        except ValueError:
+            cache.set(key, 1, 3600)
+        return HttpResponseRedirect(service.public_link('expired'))
+    return HttpResponseRedirect(service.public_link(application.booking_token))
+
+
 # ── The interview link (/careers/interview?t=…) ─────────────────────────────
 
 

@@ -46,9 +46,21 @@ def first_name(user) -> str:
     return (user.first_name or '').strip() or (user.full_name or '').strip() or user.email
 
 
+def _public_base() -> str:
+    return (getattr(settings, 'ONLINE_SALES_PUBLIC_BASE_URL', None) or 'https://ecothrift.us').rstrip('/')
+
+
 def public_link(token: str) -> str:
-    base = (getattr(settings, 'ONLINE_SALES_PUBLIC_BASE_URL', None) or 'https://ecothrift.us').rstrip('/')
-    return f'{base}/careers/interview?t={token}'
+    return f'{_public_base()}/careers/interview?t={token}'
+
+
+# The short link's code (owner 2026-10-12): letters and digits without the look-alikes (0 O o, 1 l I).
+SHORT_ALPHABET = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+SHORT_LENGTH = 7
+
+
+def short_link(code: str) -> str:
+    return f'{_public_base()}/i/{code}'
 
 
 # ── Open times ──────────────────────────────────────────────────────────────
@@ -162,6 +174,28 @@ def ensure_link(application: Application) -> str:
     application.booking_token_expires = now + timedelta(days=int(config()['link_days']))
     application.save(update_fields=['booking_token', 'booking_token_expires', 'updated_at'])
     return public_link(application.booking_token)
+
+
+def ensure_short_link(application: Application) -> str:
+    """The booking link for a text: ecothrift.us/i/<code>, short so the text fits in one message (owner
+    2026-10-12: a long text arrives in pieces on some phones, and the link breaks). Refreshes the booking link too."""
+    ensure_link(application)
+    if not application.booking_code:
+        code = ''
+        while not code or Application.objects.filter(booking_code=code).exists():
+            code = ''.join(secrets.choice(SHORT_ALPHABET) for _ in range(SHORT_LENGTH))
+        application.booking_code = code
+        application.save(update_fields=['booking_code', 'updated_at'])
+    return short_link(application.booking_code)
+
+
+def application_for_code(code: str) -> Application | None:
+    """The applicant a short link belongs to, while their booking link still works."""
+    code = (code or '').strip()
+    if len(code) != SHORT_LENGTH:
+        return None
+    application = Application.objects.filter(booking_code=code).first()
+    return application_for_token(application.booking_token) if application else None
 
 
 def application_for_token(token: str) -> Application | None:

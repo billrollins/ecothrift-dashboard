@@ -24,3 +24,8 @@ class ScannerPassthroughTests(SimpleTestCase):
 
     def test_other_paths_still_get_the_public_site(self):
         self.assertEqual(self._get('www.ecothrift.us', '/scanner').status_code, 301)  # to the apex, like any page
+
+    def test_the_interview_short_link_reaches_django_on_both_public_hosts(self):
+        for host in ('www.ecothrift.us', 'ecothrift.us'):
+            response = self._get(host, '/i/k3X9pQr')
+            self.assertEqual((response.status_code, response.content), (200, b'dashboard'), host)

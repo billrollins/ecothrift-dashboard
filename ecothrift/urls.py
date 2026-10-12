@@ -7,12 +7,15 @@ from django.views.generic import TemplateView, RedirectView
 from django.conf import settings
 
 from apps.core.views import robots_txt, sitemap_xml
+from apps.hiring.public_views import short_link as hiring_short_link
 
 # Django contrib.admin must not use /admin/ — React SPA routes live at /admin/* (settings, users, etc.).
 urlpatterns = [
     path('db-admin/', admin.site.urls),
     # Public storefront SEO (PublicSiteMiddleware lets these through on the apex).
     path('robots.txt', robots_txt, name='robots-txt'),
+    # The interview short link in texts (ecothrift.us/i/<code>, owner 2026-10-12).
+    re_path(r'^i/(?P<code>[A-Za-z0-9]{1,12})/?$', hiring_short_link, name='hiring-short-link'),
     path('sitemap.xml', sitemap_xml, name='sitemap-xml'),
     re_path(
         r'^admin/?$',

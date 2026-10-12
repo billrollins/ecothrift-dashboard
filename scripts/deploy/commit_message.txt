@@ -1,9 +1,13 @@
-v2.161.2 — Hiring: on a phone, the applicant texts open in Messages with the number and the words filled in
+v2.162.0 — Hiring: interview texts fit in one message, with a short link (ecothrift.us/i/...) and "or reply with a good time"
 
-User-facing theme: **Hiring: on a phone, Send Initial Text and Send Reminder Text open a text message with the number and the words already in it (Bill, 2026-10-12).** Outside initiatives.
+User-facing theme: **Hiring: interview texts fit in one message, with a short link (ecothrift.us/i/...) and "or reply with a good time" (Bill, 2026-10-12: an applicant couldn't open the link).** Outside initiatives.
 
 ### Changed
 
-- **Text an applicant from a phone:** the text window has **Open text message**, which opens Messages with the applicant's number and the message filled in; send it, then press **Text sent** as before. Tapping the phone or the message still copies each one. On a computer nothing changes.
+- **Interview texts (Initial and Reminder):** short enough to arrive as one message (a longer text comes in pieces, and some phones show the pieces apart, cutting the link in half). They now read "Hi Angie, it's Eco-Thrift! Book your Retail Associate interview: https://ecothrift.us/i/abc2345 (or reply with a good time)". The role drops out if a long name or title would go over. The reply line gives a way in when a phone blocks links from unknown numbers.
+
+### Added
+
+- **Short interview links:** ecothrift.us/i/ and a 7-character code (no look-alike characters) that opens the applicant's booking page. Each applicant keeps one code. It works only while their booking link does (not after hiring or Not now, or once it expires); a wrong or old code shows the page's "link has expired" note, and a visitor who tries 30 wrong codes in an hour is turned away. Emails keep the full link.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
