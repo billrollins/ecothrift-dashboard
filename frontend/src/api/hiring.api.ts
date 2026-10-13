@@ -488,6 +488,8 @@ export interface Interview {
   scored_by_name: string;
   scored_at: string | null;
   interview_questions: Question[];
+  /** The roles they applied for: the interviewer picks which scorecard to use (owner 2026-10-13). */
+  scorecards?: { job: number; title: string; questions: number }[];
   reminder_sent_at: string | null;
 }
 
@@ -562,6 +564,10 @@ export const markNoShow = (id: number) => api.post<Interview>(`/hiring/interview
 /** ``autosave``: saved as they type, no history line (2026-10-12); Close and Mark done write one. */
 export const saveScorecard = (id: number, scorecard: Scorecard & { done?: boolean; autosave?: boolean }) =>
   api.post<Interview>(`/hiring/interviews/${id}/scorecard/`, scorecard);
+
+/** Score on another role they applied for; answers to shared questions are kept. */
+export const setScorecardRole = (id: number, job: number) =>
+  api.post<Interview>(`/hiring/interviews/${id}/scorecard-role/`, { job });
 
 // ── AI help (background runs; Heroku stops a request at 30 seconds) ─────────
 

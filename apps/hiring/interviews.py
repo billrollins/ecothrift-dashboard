@@ -17,7 +17,7 @@ from rest_framework.exceptions import ValidationError
 
 from apps.hiring import emails
 from apps.hiring.careers import load_setting, staff_users, template as email_template
-from apps.hiring.models import Application, ApplicationEvent, Interview, InterviewTime
+from apps.hiring.models import Application, ApplicationEvent, Interview, InterviewTime, Job
 
 _LOCK_KEY = 738_204_117  # pg advisory lock: one booking decision at a time
 
@@ -449,6 +449,27 @@ def set_interviewer(interview: Interview, user, *, by) -> Interview:
     if staff and interview.status == Interview.STATUS_SCHEDULED:
         _send_template('interview_notice', staff, _values(interview, action='assigned'),
                        application=interview.application, attachment=ics(interview))
+    return interview
+
+
+@transaction.atomic
+def set_scorecard_job(interview: Interview, job: Job, *, by) -> Interview:
+    """The role whose scorecard the interviewer uses (owner 2026-10-13): one of the roles they applied for (booking
+    starts with the first). Answers to questions the roles share are kept; the overall, lead potential and notes stay."""
+    if not interview.application.jobs.filter(pk=job.pk).exists():
+        raise ValidationError({'job': 'Pick one of the roles they applied for.'})
+    if interview.job_id == job.pk:
+        return interview
+    was = interview.job.title if interview.job else ''
+    keys = {q.get('key') for q in (job.interview_questions or [])}
+    card = dict(interview.scorecard or {})
+    if card.get('answers'):
+        card['answers'] = [a for a in card['answers'] if a.get('key') in keys]
+    interview.job = job
+    interview.scorecard = card
+    interview.save(update_fields=['job', 'scorecard', 'updated_at'])
+    _event(interview.application, f'Scorecard: {job.title}' + (f' (was {was})' if was else ''), by=by,
+           data={'interview': interview.pk, 'job': job.pk})
     return interview
 
 

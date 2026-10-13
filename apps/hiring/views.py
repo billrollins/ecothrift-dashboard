@@ -491,6 +491,18 @@ class InterviewViewSet(viewsets.ReadOnlyModelViewSet):
         service.mark_no_show(self.get_object(), by=request.user)
         return self._out(self.get_object())
 
+    @action(detail=True, methods=['post'], url_path='scorecard-role')
+    def scorecard_role(self, request, pk=None):
+        """POST {job}: score this interview on another role they applied for (owner 2026-10-13)."""
+        from apps.hiring import interviews as service
+
+        interview = self.get_object()
+        job = Job.objects.filter(pk=request.data.get('job')).first()
+        if job is None:
+            return Response({'job': 'Pick one of the roles they applied for.'}, status=status.HTTP_400_BAD_REQUEST)
+        service.set_scorecard_job(interview, job, by=request.user)
+        return self._out(interview)
+
     @action(detail=True, methods=['post'])
     def scorecard(self, request, pk=None):
         from apps.hiring import interviews as service

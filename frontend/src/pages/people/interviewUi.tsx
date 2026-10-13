@@ -33,6 +33,7 @@ import {
   previewReschedule,
   rescheduleInterview,
   saveScorecard,
+  setScorecardRole,
   setInterviewInterviewer,
   type Interview,
   type OpenTime,
@@ -321,15 +322,20 @@ export function PickTimeDialog({
 
 export function ScorecardDialog({
   open,
-  interview,
+  interview: given,
   onClose,
   onSaved,
+  onRoleChanged,
 }: {
   open: boolean;
   interview: Interview;
   onClose: () => void;
   onSaved: (updated: Interview) => void;
+  /** The interviewer picked another role's scorecard (owner 2026-10-13). */
+  onRoleChanged?: (updated: Interview) => void;
 }) {
+  // The interview as this dialog knows it: a role switch hands back new questions without closing.
+  const [interview, setInterview] = useState<Interview>(given);
   const [card, setCard] = useState<Required<Scorecard>>({ answers: [], overall: '', lead_potential: '', notes: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -339,12 +345,11 @@ export function ScorecardDialog({
   const touched = useRef(false);
   const timer = useRef<number | null>(null);
 
-  useEffect(() => {
-    // Only when it opens: a save in the background must not reset what they are typing.
-    if (!open) return;
-    const saved = interview.scorecard || {};
+  /** Fill the card from an interview: its role's questions, with any answers already saved. */
+  const seed = (iv: Interview) => {
+    const saved = iv.scorecard || {};
     const byKey = new Map((saved.answers ?? []).map((a) => [a.key, a]));
-    const answers = interview.interview_questions.map((q) => ({
+    const answers = iv.interview_questions.map((q) => ({
       key: q.key,
       label: q.label,
       rating: byKey.get(q.key)?.rating ?? null,
@@ -356,11 +361,42 @@ export function ScorecardDialog({
       lead_potential: saved.lead_potential ?? '',
       notes: saved.notes ?? '',
     });
+  };
+
+  useEffect(() => {
+    // Only when it opens: a save in the background must not reset what they are typing.
+    if (!open) return;
+    setInterview(given);
+    seed(given);
     setError('');
     setState('');
     dirty.current = false;
     touched.current = false;
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Another role's scorecard: save what's typed, switch, then show the new role's questions. */
+  async function pickRole(job: number) {
+    if (job === interview.job) return;
+    if (timer.current) window.clearTimeout(timer.current);
+    setBusy(true);
+    setError('');
+    try {
+      if (dirty.current) {
+        await saveScorecard(interview.id, { ...card, autosave: true });
+        dirty.current = false;
+      }
+      const { data } = await setScorecardRole(interview.id, job);
+      setInterview(data);
+      seed(data);
+      setState('saved');
+      onRoleChanged?.(data);
+    } catch (err) {
+      setError(errorText(err, 'Could not switch the scorecard.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+  const roles = interview.scorecards ?? [];
 
   const change = (next: (c: Required<Scorecard>) => Required<Scorecard>) => {
     dirty.current = true;
@@ -424,6 +460,24 @@ export function ScorecardDialog({
       </DialogTitle>
       <DialogContent>
         <Stack spacing={2.25} sx={{ pt: 1 }}>
+          {roles.length > 1 && (
+            <TextField
+              select
+              size="small"
+              label="Scorecard for"
+              value={interview.job ?? ''}
+              onChange={(e) => void pickRole(Number(e.target.value))}
+              disabled={busy}
+              helperText="They applied for more than one role: score the one that fits best."
+              inputProps={{ 'data-testid': 'scorecard-role' }}
+            >
+              {roles.map((r) => (
+                <MenuItem key={r.job} value={r.job}>
+                  {r.title} ({r.questions} {r.questions === 1 ? 'question' : 'questions'})
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
           {card.answers.length === 0 && (
             <Alert severity="info">This role has no interview questions yet. Add them in Jobs & careers page.</Alert>
           )}
@@ -657,6 +711,7 @@ export function InterviewCard({
           setScoring(false);
           onChanged();
         }}
+        onRoleChanged={() => onChanged()}
       />
     </Box>
   );

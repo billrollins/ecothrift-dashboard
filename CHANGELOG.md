@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.163.0] -->
-<!-- Last reviewed: 2026-10-12 (2.163.0) -->
+<!-- Line 1 release: ## [2.163.1] -->
+<!-- Last reviewed: 2026-10-12 (2.163.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.163.1] - 2026-10-12
+
+User-facing theme: **Hiring: when someone applied for more than one role, the interviewer picks which role's scorecard to use (Bill, 2026-10-13).** Outside initiatives.
+
+### Added
+
+- **Scorecard for (role):** the scorecard of an applicant with several roles opens with a menu of their roles (each with its number of questions); booking still starts on the first role. Switching shows that role's questions and keeps the answers to questions both share, the overall, lead potential and notes; anything typed is saved first, and the history notes the switch. Only roles they applied for can be picked.
 
 ## [2.163.0] - 2026-10-12
 

@@ -295,6 +295,7 @@ class InterviewSerializer(serializers.ModelSerializer):
     roles = serializers.SerializerMethodField()
     job_title = serializers.CharField(source='job.title', read_only=True, default='')
     interview_questions = serializers.SerializerMethodField()
+    scorecards = serializers.SerializerMethodField()
     interviewer_person = serializers.SerializerMethodField()
     scored_by_name = serializers.SerializerMethodField()
     when = serializers.SerializerMethodField()
@@ -306,12 +307,17 @@ class InterviewSerializer(serializers.ModelSerializer):
             'id', 'application', 'applicant_name', 'applicant_phone', 'applicant_email', 'practice', 'roles', 'job',
             'job_title',
             'start', 'end', 'when', 'interviewer', 'interviewer_person', 'place', 'status', 'status_label',
-            'booked_by', 'scorecard', 'scored_by_name', 'scored_at', 'interview_questions', 'reminder_sent_at',
+            'booked_by', 'scorecard', 'scored_by_name', 'scored_at', 'interview_questions', 'scorecards', 'reminder_sent_at',
         ]
         read_only_fields = fields
 
     def get_roles(self, obj):
         return [j.title for j in obj.application.jobs.all()]
+
+    def get_scorecards(self, obj):
+        """The roles they applied for, each a scorecard the interviewer can pick (owner 2026-10-13)."""
+        return [{'job': j.pk, 'title': j.title, 'questions': len(j.interview_questions or [])}
+                for j in obj.application.jobs.order_by('sort_order')]
 
     def get_interview_questions(self, obj):
         return list(obj.job.interview_questions or []) if obj.job_id else []
