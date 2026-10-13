@@ -279,3 +279,88 @@ class ResetRequestTests(TestCase):
         self.assertIn('switch is ON', req.preview['changes'][0])
         self.assertEqual(done.status, ApprovalRequest.STATUS_FAILED)
         self.assertEqual(ItemReward.objects.count(), 1)
+
+
+LAUNCH = date(2026, 10, 20)
+OWNER_SETTING = {'pct_per_day': '0.75', 'wait_days': 7, 'launch': LAUNCH.isoformat(), 'age_factor': '0.30', 'max_age': 45,
+                 'floor_share': '0.05'}
+
+
+class SavedSettingTests(TestCase):
+    """Owner 2026-10-13: 0.75% of the tag a day; stock already on the floor at 30% of its age, at most 45 days."""
+
+    def setUp(self):
+        self.boss = User.objects.create_superuser(email='boss@example.com', first_name='B', last_name='O', password='x-pass-123')
+
+    def test_unsaved_the_engine_runs_as_before(self):
+        r = rewards.rules()
+        self.assertFalse(r.saved)
+        self.assertEqual(r.grown(D('90.00'), 9), D('9.00'))  # the tag ÷ 90 a day
+
+    def test_the_saved_setting_drives_the_rate_and_the_launch_start(self):
+        rewards.save_engine(OWNER_SETTING, user=self.boss)
+        r = rewards.rules()
+        self.assertTrue(r.saved)
+        self.assertEqual((r.pct, r.wait_days, r.launch, r.age_factor, r.max_age, r.floor_share),
+                         (D('0.75'), 7, LAUNCH, D('0.30'), 45, D('0.05')))
+        self.assertEqual(r.first_day(LAUNCH - timedelta(days=99)), LAUNCH - timedelta(days=29))   # 100 days old: 30
+        self.assertEqual(r.first_day(LAUNCH - timedelta(days=199)), LAUNCH - timedelta(days=44))  # 60, capped at 45
+        self.assertEqual(r.first_day(LAUNCH - timedelta(days=2)), LAUNCH)                           # 3 days: 1
+        self.assertEqual(r.first_day(LAUNCH + timedelta(days=3)), LAUNCH + timedelta(days=3))       # after launch: its own
+        old = Unit(item_id=1, product_id=7, price=D('100.00'), source='purchased', floor_date=LAUNCH - timedelta(days=199))
+        o = rewards.step(old, None, LAUNCH, None, r, 'p7')
+        self.assertEqual((o.day, o.grow_days, o.reward), (45, 38, D('28.50')))  # 38 days × 0.75% of $100
+        later = rewards.step(old, _prior(o, LAUNCH), LAUNCH + timedelta(days=4), None, r, 'p7')
+        self.assertEqual(later.reward, D('31.50'))
+
+    def test_before_launch_the_runs_compute_launch_day(self):
+        rewards.save_engine(OWNER_SETTING, user=self.boss)
+        with patch('django.utils.timezone.localdate', return_value=date(2026, 10, 13)):
+            self.assertEqual(rewards.default_day(rewards.rules()), LAUNCH)
+        with patch('django.utils.timezone.localdate', return_value=date(2026, 10, 25)):
+            self.assertEqual(rewards.default_day(rewards.rules()), date(2026, 10, 25))
+
+    def test_bad_values_are_refused(self):
+        with self.assertRaises(ValueError):
+            rewards.save_engine({**OWNER_SETTING, 'pct_per_day': '50'}, user=self.boss)
+        with self.assertRaises(ValueError):
+            rewards.save_engine({**OWNER_SETTING, 'launch': 'soon'}, user=self.boss)
+
+
+class SaveFromCalculatorTests(APITestCase):
+    def setUp(self):
+        self.boss = User.objects.create_superuser(email='boss@example.com', first_name='B', last_name='O', password='x-pass-123')
+        lamp = Product.objects.create(title='Brass floor lamp')
+        self.item = _floor_item(lamp, 'ITMRWSAV1', days_on_floor=200, price='100.00', on=LAUNCH)
+
+    def test_the_owner_saves_and_launch_day_is_rebuilt(self):
+        self.client.force_authenticate(self.boss)
+        with patch('apps.core.services.approval_requests.start_thread') as started, self.captureOnCommitCallbacks(execute=True):
+            r = self.client.post('/api/thriftplus/rewards/engine/', OWNER_SETTING, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data['saved']['pct_per_day'], '0.75')
+        req = ApprovalRequest.objects.get(pk=r.data['rebuild']['id'])
+        self.assertEqual((req.kind, req.status), ('thriftplus.rebuild_rewards', ApprovalRequest.STATUS_APPROVED))
+        started.assert_called_once_with(req.pk)
+        done = ar.run(req.pk)
+        self.assertEqual(done.status, ApprovalRequest.STATUS_APPLIED, done.log)
+        state = ItemReward.objects.get(item=self.item)
+        self.assertEqual((state.computed_on, state.day, state.reward), (LAUNCH, 45, D('28.50')))
+        got = self.client.get('/api/thriftplus/rewards/engine/').data
+        self.assertEqual((got['saved']['max_age'], got['live']['launch']), (45, LAUNCH.isoformat()))
+
+    def test_only_the_owner_saves(self):
+        manager = User.objects.create_user('mgr@example.com', 'M', 'G', password='x-pass-123')
+        manager.groups.add(Group.objects.get_or_create(name='Manager')[0])
+        self.client.force_authenticate(manager)
+        r = self.client.post('/api/thriftplus/rewards/engine/', OWNER_SETTING, format='json')
+        self.assertEqual(r.status_code, 403)
+        self.assertIsNone(rewards.saved_engine())
+
+    def test_with_the_switch_on_it_saves_without_a_rebuild(self):
+        AppSetting.objects.update_or_create(key='thrift_plus_enabled', defaults={'value': True})
+        self.client.force_authenticate(self.boss)
+        r = self.client.post('/api/thriftplus/rewards/engine/', OWNER_SETTING, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertIsNone(r.data['rebuild'])
+        self.assertFalse(ApprovalRequest.objects.exists())

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.162.0] -->
-<!-- Last reviewed: 2026-10-12 (2.162.0) -->
+<!-- Line 1 release: ## [2.163.0] -->
+<!-- Last reviewed: 2026-10-12 (2.163.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,24 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.163.0] - 2026-10-12
+
+User-facing theme: **Thrift+ (still off for customers): staff test the new scanner on the real camera and real tags (This trip on top, every action on the bottom buttons, 3-day returns or AS IS on every tag), and the reward engine runs on the Calculator's saved setting, as of launch day (Bill, 2026-10-13).** thrift_plus_rewards.
+
+### Added
+
+- **Calculator: Save this setting** (the owner only). The engine runs on it: the % of the tag a day after the wait, and the launch start for stock already on the floor (it counts at a share of its real age, at most so many days). It opens on the owner's starting setting: **0.75% a day after 7 days; old stock at 30% of its age, at most 45 days; never below 5% of the tag**. While Thrift+ is off, saving also rebuilds every floor item's ThriftBucks for **launch day** (a request in Superuser → Requests, approved by the save; a few minutes), and every run before launch computes launch day, so staff see launch-day ThriftBucks.
+- **The trip scanner** (`/scan`, for staff while Thrift+ is off; the demo the owner picked):
+  - **This trip** bar under the header: the cart and its count, the ThriftBucks back, the items' badges; a tap flips between the camera and the trip's lines.
+  - A scanned tag fills the screen as a big price tag: **3-day returns** or **AS IS · no returns** (tap: what it means), the retail price (tap: where retail prices come from), our price, the ThriftBucks back, and **Price feel off? Tell us.** Every report ends with thanks and a little information.
+  - Every action is on the bottom buttons: **See this trip**, **Pass** / **Add to trip** (swiping the tag right or left does the same), **Scan more**.
+  - Trip lines: ×1 opens − and +, slide left to remove (Undo), Clear my trip (Undo), AS IS marked.
+  - The header: tap for what Thrift+ is (with a link to the full terms); the Your ThriftBucks pill shows Thrift+ credit and every ThriftBuck in the order the register uses them, with My account and Sign out.
+
+### Changed
+
+- The old scanner screens (item card stack, My list page, ThriftBucks tiles, the card styles and look switches, the first-run tour) are gone.
 
 ## [2.162.0] - 2026-10-12
 

@@ -2,10 +2,16 @@
 The Thrift+ reward engine (thrift_plus_rewards Phase 2): what a member takes off the tag price,
 per floor item. A guest always pays the tag.
 
-The rules (owner's design, 2026-09-25):
+The rules (owner's design, 2026-09-25; the rate and the launch start since 2026-10-13):
+- **The saved setting** (``thrift_plus_engine``, saved from the Calculator tab, owner 2026-10-13): the % of the tag
+  a day, the wait, and the launch start for stock already on the floor. Unsaved, the engine runs as it did before:
+  the tag ÷ 90 a day after 7 days, and the ``thrift_plus_rewards_start`` setting.
 - **Day 1** is the day the item reached the floor (``listed_at``, else ``checked_in_at``, else
-  ``created_at``), but never before the ``thrift_plus_rewards_start`` setting.
-- **Days 1 to 7:** no reward. **From day 8** it grows by the starting price ÷ 90 a day.
+  ``created_at``). **Launch start:** stock on the floor before launch counts as if it had been there only a share of
+  its real age (30%), at most so many days (45), on launch day; from launch it ages a day a day. Without a saved
+  launch, day 1 is never before the ``thrift_plus_rewards_start`` setting.
+- **Days 1 to 7** (the wait): no reward. **Then** it grows by the % a day of the starting price (0.75%).
+- **Before launch** the nightly run computes launch day (``default_day``), so staff see launch-day ThriftBucks.
 - **The floor:** a member never pays less than the floor share of the tag (the
   ``thrift_plus_floor_share`` setting, 10%: owner, 2026-09-25). Cost plays no part: the allocated
   cost is too rough an estimate. The reward stops there (``capped``). A reward is never more than
@@ -62,6 +68,7 @@ CHUNK = 2000
 
 FLOOR_SHARE_KEY = 'thrift_plus_floor_share'
 START_KEY = 'thrift_plus_rewards_start'
+ENGINE_KEY = 'thrift_plus_engine'
 DEFAULT_FLOOR_SHARE = Decimal('0.10')
 
 PRICE_BANDS = [(ZERO, Decimal('10'), 'Under $10'), (Decimal('10'), Decimal('30'), '$10 to $30'),
@@ -74,19 +81,102 @@ PRICE_BANDS = [(ZERO, Decimal('10'), 'Under $10'), (Decimal('10'), Decimal('30')
 class Rules:
     floor_share: Decimal = DEFAULT_FLOOR_SHARE
     start: date | None = None
+    pct_per_day: Decimal | None = None  # % of the tag a day after the wait; None = the tag ÷ 90 (before a save)
+    wait_days: int = WAIT_DAYS
+    launch: date | None = None  # the launch start (with age_factor and max_age); None = the old start setting
+    age_factor: Decimal = Decimal(1)
+    max_age: int | None = None
+    saved: bool = False
+
+    def first_day(self, floor_date: date) -> date:
+        """Day 1 for an item: its floor date, or for stock on the floor before launch, launch day less a share of
+        its real age (at most ``max_age`` days), as in the calculator's launch start."""
+        if self.launch is not None:
+            if floor_date >= self.launch:
+                return floor_date
+            age = (self.launch - floor_date).days + 1
+            if age > 1 and self.age_factor != 1:
+                age = max(1, int((Decimal(age) * self.age_factor).to_integral_value()))
+            if self.max_age:
+                age = min(age, self.max_age)
+            return self.launch - timedelta(days=age - 1)
+        return max(floor_date, self.start) if self.start else floor_date
+
+    @property
+    def pct(self) -> Decimal:
+        """% of the tag a day (for display)."""
+        return self.pct_per_day if self.pct_per_day is not None else Decimal(100) / HORIZON
+
+    def grown(self, price: Decimal, grow_days: int) -> Decimal:
+        """The reward after ``grow_days`` growth days, exact before rounding down to the cent."""
+        if self.pct_per_day is None:
+            return (price * grow_days / HORIZON).quantize(CENT, rounding=ROUND_DOWN)
+        return (price * grow_days * self.pct_per_day / 100).quantize(CENT, rounding=ROUND_DOWN)
 
     def as_dict(self) -> dict:
         return {
             'floor_share': str(self.floor_share), 'start': self.start.isoformat() if self.start else None,
-            'wait_days': WAIT_DAYS, 'horizon': HORIZON, 'pace_window': PACE_WINDOW,
+            'pct_per_day': str(self.pct.quantize(Decimal('0.001'))), 'wait_days': self.wait_days,
+            'launch': self.launch.isoformat() if self.launch else None, 'age_factor': str(self.age_factor),
+            'max_age': self.max_age, 'saved': self.saved, 'horizon': HORIZON, 'pace_window': PACE_WINDOW,
         }
 
 
-def rules() -> Rules:
-    """The two owner settings, read fresh; a bad value falls back to the default and is logged."""
+def default_day(rules_: 'Rules', *, tomorrow: bool = False) -> date:
+    """The day a run computes: today (or tomorrow for the dry run), but launch day while launch is ahead, so staff
+    testing before launch see what members will see on launch day."""
+    day = timezone.localdate() + timedelta(days=1 if tomorrow else 0)
+    return max(day, rules_.launch) if rules_.launch else day
+
+
+def saved_engine() -> dict | None:
     from apps.core.models import AppSetting
 
-    values = dict(AppSetting.objects.filter(key__in=[FLOOR_SHARE_KEY, START_KEY]).values_list('key', 'value'))
+    value = AppSetting.objects.filter(key=ENGINE_KEY).values_list('value', flat=True).first()
+    return value if isinstance(value, dict) else None
+
+
+def save_engine(values: dict, *, user) -> dict:
+    """Save the calculator's setting for the engine (owner 2026-10-13), and the floor share with it."""
+    from apps.core.models import AppSetting, AppSettingHistory
+
+    def num(key, lo, hi, cast=Decimal):
+        try:
+            value = cast(str(values.get(key)))
+        except (InvalidOperation, ValueError, TypeError) as exc:
+            raise ValueError(f'{key} must be a number') from exc
+        if not lo <= value <= hi:
+            raise ValueError(f'{key} must be {lo} to {hi}')
+        return value
+
+    try:
+        launch = date.fromisoformat(str(values.get('launch')))
+    except ValueError as exc:
+        raise ValueError('launch must be a date (YYYY-MM-DD)') from exc
+    max_age = values.get('max_age')
+    setting = {
+        'pct_per_day': str(num('pct_per_day', Decimal('0.01'), Decimal('20'))),
+        'wait_days': int(num('wait_days', 0, 60, int)),
+        'launch': launch.isoformat(),
+        'age_factor': str(num('age_factor', Decimal('0'), Decimal('1'))),
+        'max_age': None if max_age in (None, '') else int(num('max_age', 1, 3650, int)),
+        'saved_at': timezone.now().isoformat(),
+        'saved_by': getattr(user, 'email', '') or '',
+    }
+    floor_share = str(num('floor_share', Decimal('0'), Decimal('0.95')))
+    for key, new in ((ENGINE_KEY, setting), (FLOOR_SHARE_KEY, floor_share)):
+        row = AppSetting.objects.filter(key=key).first()
+        old = row.value if row else None
+        AppSetting.objects.update_or_create(key=key, defaults={'value': new, 'updated_by': user})
+        AppSettingHistory.objects.create(key=key, old_value=old, new_value=new, changed_by=user)
+    return setting
+
+
+def rules() -> Rules:
+    """The owner settings, read fresh; a bad value falls back to the default and is logged."""
+    from apps.core.models import AppSetting
+
+    values = dict(AppSetting.objects.filter(key__in=[FLOOR_SHARE_KEY, START_KEY, ENGINE_KEY]).values_list('key', 'value'))
     share = DEFAULT_FLOOR_SHARE
     try:
         raw = values.get(FLOOR_SHARE_KEY)
@@ -104,6 +194,17 @@ def rules() -> Rules:
             start = date.fromisoformat(raw_start)
         except ValueError:
             logger.warning('%s is not a date: %r', START_KEY, raw_start)
+    engine = values.get(ENGINE_KEY)
+    if isinstance(engine, dict):
+        try:
+            return Rules(
+                floor_share=share, start=start, pct_per_day=Decimal(str(engine['pct_per_day'])),
+                wait_days=int(engine['wait_days']), launch=date.fromisoformat(engine['launch']),
+                age_factor=Decimal(str(engine['age_factor'])),
+                max_age=int(engine['max_age']) if engine.get('max_age') else None, saved=True,
+            )
+        except (KeyError, InvalidOperation, ValueError, TypeError):
+            logger.warning('%s is not a usable engine setting: %r', ENGINE_KEY, engine)
     return Rules(floor_share=share, start=start)
 
 
@@ -211,13 +312,13 @@ def floor_for(price: Decimal, share: Decimal) -> Decimal:
     return max(ZERO, (price * share).quantize(CENT, rounding=ROUND_UP))
 
 
-def first_day(floor_date: date, start: date | None) -> date:
-    return max(floor_date, start) if start else floor_date
+def first_day(floor_date: date, rules_: Rules) -> date:
+    return rules_.first_day(floor_date)
 
 
-def day_number(floor_date: date, on: date, start: date | None = None) -> int:
-    """Day 1 is the first day on the floor (or the program start, if later)."""
-    return (on - first_day(floor_date, start)).days + 1
+def day_number(floor_date: date, on: date, rules_: Rules) -> int:
+    """Day 1 is the first day on the floor (the launch start for older stock)."""
+    return (on - first_day(floor_date, rules_)).days + 1
 
 
 def _lags(prior: Prior | None, pace: Pace) -> bool:
@@ -230,13 +331,13 @@ def _lags(prior: Prior | None, pace: Pace) -> bool:
 def step(unit: Unit, prior: Prior | None, on: date, pace: Pace | None, rules_: Rules, family_key: str) -> Outcome:
     """One item, one night. Deterministic: the same inputs always give the same reward."""
     floor_date = prior.floor_date if prior else unit.floor_date
-    n = day_number(floor_date, on, rules_.start)
+    n = day_number(floor_date, on, rules_)
     price = unit.price
     prev_reward = prior.reward if prior else ZERO
     grow_days = prior.grow_days if prior else 0
     exit_on = prior.exit_on if prior else None
     if exit_on is None and n >= HORIZON:
-        exit_on = first_day(floor_date, rules_.start) + timedelta(days=HORIZON - 1)
+        exit_on = first_day(floor_date, rules_) + timedelta(days=HORIZON - 1)
     detail: dict = {'day': n}
 
     if unit.source == 'consignment':
@@ -244,7 +345,7 @@ def step(unit: Unit, prior: Prior | None, on: date, pace: Pace | None, rules_: R
     else:
         floor_price = floor_for(price, rules_.floor_share)
         cap = max(ZERO, price - floor_price)
-        new_days = max(0, n - max(prior.day if prior else 0, WAIT_DAYS))
+        new_days = max(0, n - max(prior.day if prior else 0, rules_.wait_days))
         held = lag = False
         if new_days and pace is not None and pace.on_pace:
             lag = _lags(prior, pace)
@@ -252,11 +353,11 @@ def step(unit: Unit, prior: Prior | None, on: date, pace: Pace | None, rules_: R
                 held = True
                 new_days -= 1  # tonight holds; missed nights before it still count as growth
         grow_days += new_days
-        grown = (price * grow_days / HORIZON).quantize(CENT, rounding=ROUND_DOWN)
+        grown = rules_.grown(price, grow_days)
         reward = min(cap, max(prev_reward, grown))
         if cap <= 0:
             status, reason = ItemReward.STATUS_NO_ROOM, 'no_room'
-        elif n <= WAIT_DAYS:
+        elif n <= rules_.wait_days:
             status, reason = ItemReward.STATUS_WAITING, 'days_1_to_7'
         elif reward >= cap:
             status, reason = ItemReward.STATUS_CAPPED, 'reached_floor'
@@ -345,7 +446,7 @@ def paces(units: list[Unit], keys: dict[int, str], priors: dict[int, Prior], on:
     oldest_day = {}
     for key, us in groups.items():
         oldest_day[key] = max(
-            day_number(priors[u.item_id].floor_date if u.item_id in priors else u.floor_date, on, rules_.start) for u in us
+            day_number(priors[u.item_id].floor_date if u.item_id in priors else u.floor_date, on, rules_) for u in us
         )
     sold = list(
         Item.objects.filter(status='sold', sold_at__gte=_day_start(on - timedelta(days=PACE_WINDOW)), sold_at__lt=_day_start(on))
@@ -382,9 +483,10 @@ class Plan:
 
 
 def plan(on: date | None = None, rules_: Rules | None = None) -> Plan:
-    """Every floor item's reward for ``on`` (default tomorrow), computed without writing."""
-    on = on or timezone.localdate() + timedelta(days=1)
+    """Every floor item's reward for ``on`` (default tomorrow, or launch day before launch), computed without
+    writing."""
     rules_ = rules_ or rules()
+    on = on or default_day(rules_, tomorrow=True)
     units = load_units()
     states = {s.item_id: s for s in ItemReward.objects.filter(item__status='on_shelf').iterator(chunk_size=5000)}
     priors = {pk: Prior.of(s) for pk, s in states.items()}
@@ -419,7 +521,7 @@ STATE_FIELDS = [
 def recompute(on: date | None = None) -> RewardRun:
     """Tonight's step for every floor item, written in chunks. Safe to re-run: items already
     computed for ``on`` are skipped, so a re-run changes nothing."""
-    on = on or timezone.localdate()
+    on = on or default_day(rules())
     run = RewardRun.objects.create(day=on)
     try:
         p = plan(on)

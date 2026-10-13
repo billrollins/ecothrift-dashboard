@@ -180,6 +180,7 @@ Decisions:
 
 Acceptance:
 - [x] Day-8 start, growth of the tag ÷ 90 a day, a floor at 10% of the tag (never past the tag), never decreases, overnight only (a re-run changes nothing), and day-90 exit list.
+- [x] **10-13 (owner): the saved setting.** The engine runs on the Calculator tab's **Save this setting** (`thrift_plus_engine`): the % of the tag a day after the wait (0.75% after 7 days), and the launch start (stock on the floor before launch counts at 30% of its real age, at most 45 days). Before launch every run computes **launch day** (`rewards.default_day`), and the save rebuilds every floor item for launch day as an approved request (`thriftplus.rebuild_rewards`), so staff see launch-day ThriftBucks in the scanner. Unsaved, the engine runs the old rule. Local dry run: 29,067 of 31,863 floor items with ThriftBucks on launch day, 17.1% off on average, 28.5% at most.
 - [x] Bulk (one product) and families (vector plus one model call) pace by sell-through. The last unit, and a unit whose scans-to-adds lags, climb alone.
 - [x] Every change of status or reason is logged with the pace numbers. The nightly run is recorded.
 - [x] Dry-run report: Thrift+ → Rewards (tomorrow's totals, bands, the biggest rewards, the exit list, one item's log).

@@ -261,6 +261,28 @@ export interface CalculatorRow {
   pct_off: number | null;
 }
 
+/** The engine's saved setting (owner 2026-10-13: saved from the Calculator tab). */
+export interface EngineSetting {
+  pct_per_day: string;
+  wait_days: number;
+  launch: string;
+  age_factor: string;
+  max_age: number | null;
+  saved_at?: string;
+  saved_by?: string;
+}
+
+export interface EngineState {
+  saved: EngineSetting | null;
+  live: { floor_share: string; pct_per_day: string; wait_days: number; launch: string | null; age_factor: string; max_age: number | null; saved: boolean };
+  switch_on?: boolean;
+}
+
+export interface EngineSaved {
+  saved: EngineSetting;
+  rebuild: { id: number } | null;
+}
+
 export interface CalculatorResult {
   params: CalculatorChoices & { start_equivalent: string | null; on: string };
   source: { population: string; count?: { id: number; name: string; day: string | null; counted: number } | null };

@@ -6,7 +6,6 @@ import NoPhotographyRounded from '@mui/icons-material/NoPhotographyRounded';
 import PhotoCameraRounded from '@mui/icons-material/PhotoCameraRounded';
 import { fetchTestTags } from '../../../api/thriftPlusScanner.api';
 import { tbNumber } from '../../../components/thriftplus/ThriftBucks';
-import { cardFaceSx } from './ItemCard';
 import type { CameraStatus } from './useQrCamera';
 import { sc, u } from './scannerTheme';
 
@@ -26,6 +25,17 @@ interface Props {
   /** Testing without a camera (/scan?type=1, owner 2026-10-10): only the tag box, no camera. */
   typeOnly?: boolean;
 }
+
+/** The camera's card face: the design's white card, green edge. */
+const cardFaceSx = {
+  position: 'absolute',
+  inset: 0,
+  borderRadius: u(36),
+  bgcolor: sc.card,
+  border: `${u(3)} solid ${sc.cardEdge}`,
+  boxShadow: sc.cardShadow,
+  overflow: 'hidden',
+} as const;
 
 /**
  * The bottom card of the stack: the live camera. It never unmounts, so when an

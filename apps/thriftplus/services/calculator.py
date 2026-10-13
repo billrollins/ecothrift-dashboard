@@ -299,6 +299,15 @@ def _finish(b: dict) -> dict:
     }
 
 
+def _live_engine() -> dict:
+    from apps.thriftplus.services.rewards import rules
+
+    r = rules()
+    return {'wait_days': r.wait_days, 'pct_per_day': float(round(r.pct, 3)), 'step_days': 1, 'curve': 'linear',
+            'launch': r.launch.isoformat() if r.launch else None, 'age_factor': float(r.age_factor), 'max_age': r.max_age,
+            'floor_share': float(r.floor_share), 'saved': r.saved}
+
+
 def simulate(p: Params) -> dict:
     rows_all, info = load_rows(p.population)
     rows = [r for r in rows_all if r.source != 'consignment' and r.floor_date is not None]
@@ -345,7 +354,7 @@ def simulate(p: Params) -> dict:
         'by_category': [_finish(c) for c in sorted(cats.values(), key=lambda c: -c['tag'])[:12]],
         'timeline': timeline,
         'rate_changes': {'slower': slowed, 'faster': sped, 'items': len(rows)},
-        'live_engine': {'wait_days': 7, 'pct_per_day': round(100 / 90, 3), 'step_days': 1, 'curve': 'linear'},
+        'live_engine': _live_engine(),
     }
     if p.demand:
         speeds = demand_speeds()

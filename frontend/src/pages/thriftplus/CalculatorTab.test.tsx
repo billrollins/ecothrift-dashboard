@@ -1,6 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
+import { saveEngine } from '../../api/thriftplus.api';
 import type { CalculatorResult, CalculatorRow } from '../../types/thriftplus.types';
 import CalculatorTab from './CalculatorTab';
 
@@ -29,20 +32,45 @@ const RESULT: CalculatorResult = {
   current_settings: { start: null, floor_share: '0.10', switch_on: false },
 };
 
-vi.mock('../../api/thriftplus.api', () => ({ fetchCalculator: vi.fn(async () => RESULT) }));
+vi.mock('../../api/thriftplus.api', () => ({
+  fetchCalculator: vi.fn(async () => RESULT),
+  fetchEngine: vi.fn(async () => ({ saved: null, live: { floor_share: '0.10', pct_per_day: '1.111', wait_days: 7, launch: null, age_factor: '1', max_age: null, saved: false }, switch_on: false })),
+  saveEngine: vi.fn(async () => ({ saved: { pct_per_day: '0.75', wait_days: 7, launch: '2026-10-20', age_factor: '0.3', max_age: 45 }, rebuild: { id: 9 } })),
+}));
+vi.mock('../../api/approvalRequests.api', () => ({ fetchApprovalRequests: vi.fn(async () => [{ id: 9, status: 'running', log: '', error: '' }]) }));
+vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: { is_superuser: true } }) }));
+
+function renderTab() {
+  render(
+    <MemoryRouter>
+      <QueryClientProvider client={new QueryClient()}>
+        <CalculatorTab />
+      </QueryClientProvider>
+    </MemoryRouter>,
+  );
+}
 
 describe('CalculatorTab', () => {
   it('shows guests and members side by side for the last inventory', async () => {
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <CalculatorTab />
-      </QueryClientProvider>,
-    );
+    renderTab();
     await waitFor(() => expect(screen.getByText('Guests')).toBeInTheDocument());
     expect(screen.getByText('Members')).toBeInTheDocument();
     expect(screen.getByText(/19,933 items the inventory of Mon 2026-10-05 counted/)).toBeInTheDocument();
     expect(screen.getAllByText('27.6%').length).toBeGreaterThan(0);
     expect(screen.getByText('By age on launch day (real age)')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: "Reset to today's engine" })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to the starting setting' })).toBeInTheDocument();
+  });
+
+  it("opens on the owner's starting setting and saves it (owner 2026-10-13)", async () => {
+    const user = userEvent.setup();
+    renderTab();
+    await waitFor(() => expect(screen.getByText(/Nothing saved yet/)).toBeInTheDocument());
+    expect(screen.getByLabelText('Off each day')).toHaveValue(0.75);
+    expect(screen.getByLabelText('Oldest it can count on launch day')).toHaveValue(45);
+    await user.click(screen.getByTestId('engine-save'));
+    expect(await screen.findByText(/30% of its real age, at most 45 days/)).toBeInTheDocument();
+    await user.click(screen.getByTestId('engine-save-confirm'));
+    await waitFor(() => expect(saveEngine).toHaveBeenCalledWith({ pct_per_day: 0.75, wait_days: 7, launch: '2026-10-20', age_factor: 0.3, max_age: 45, floor_share: 0.05 }));
+    expect(await screen.findByText(/Rebuilding every floor item's ThriftBucks for launch day/)).toBeInTheDocument();
   });
 });

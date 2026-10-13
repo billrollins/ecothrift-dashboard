@@ -5,6 +5,9 @@ Thrift+ work that goes through Superuser → Requests (staged in production, app
   starts all floor items fresh (for example after setting ``thrift_plus_rewards_start`` to the
   launch day). Only while the Thrift+ switch is off: once members see prices, a reward never goes
   down. It can't be undone; the nightly run rebuilds the states from the rules.
+- ``thriftplus.rebuild_rewards`` (owner 2026-10-13): the same clear, then every floor item computed for the given
+  day (launch day) with the saved setting. Staged and approved by the Calculator tab's Save. Resumes safely: the
+  clear is done once, and the compute skips items already computed for that day.
 """
 from __future__ import annotations
 
@@ -52,3 +55,49 @@ def _reset_apply(request: ApprovalRequest, progress: Progress) -> dict:
 
 
 register(Kind(kind='thriftplus.reset_rewards', label='Reset Thrift+ rewards', preview=_reset_preview, apply=_reset_apply))
+
+
+def _rebuild_preview(params: dict) -> dict:
+    from apps.inventory.models import Item
+
+    r = rewards.rules()
+    day = params.get('day') or (r.launch.isoformat() if r.launch else '')
+    start = (f'stock already on the floor counts at {r.age_factor * 100:.0f}% of its real age'
+             + (f', at most {r.max_age} days' if r.max_age else '')) if r.launch else 'each item from its own floor date'
+    changes = [
+        f'Deletes {ItemReward.objects.count():,} reward states and {RewardEvent.objects.count():,} logged changes.',
+        f'Computes every floor item for {day}: {r.pct:.2f}% of the tag a day after a {r.wait_days}-day wait; {start}; '
+        f'never below {r.floor_share * 100:.0f}% of the tag.',
+    ]
+    if is_enabled():
+        changes.insert(0, 'The Thrift+ switch is ON: this request will refuse to run.')
+    return {'counts': {'Floor items': Item.objects.filter(status='on_shelf').count(),
+                       'Reward states now': ItemReward.objects.count()}, 'changes': changes, 'sample': []}
+
+
+def _rebuild_apply(request: ApprovalRequest, progress: Progress) -> dict:
+    from datetime import date
+
+    if is_enabled():
+        raise RequestError('The Thrift+ switch is on; rewards members have seen never go down.')
+    day = date.fromisoformat(request.params['day'])
+    if not progress.state.get('cleared'):
+        done = 0
+        while True:
+            ids = list(ItemReward.objects.order_by('pk').values_list('pk', flat=True)[:CHUNK])
+            if not ids:
+                break
+            RewardEvent.objects.filter(item_reward_id__in=ids).delete()
+            ItemReward.objects.filter(pk__in=ids).delete()
+            done += len(ids)
+            progress.update(log=f'Cleared {done:,} reward states.')
+        progress.update(cleared=True, log='Cleared. Computing every floor item.')
+    run = rewards.recompute(day)
+    if run.error:
+        raise RequestError(f'The compute failed: {run.error[:300]}')
+    progress.update(log=f"Computed {run.counts.get('computed', 0):,} items for {day.isoformat()}.")
+    return {'day': day.isoformat(), 'run': run.pk, **{k: run.counts.get(k) for k in ('computed', 'with_reward', 'reward_total')}}
+
+
+register(Kind(kind='thriftplus.rebuild_rewards', label='Rebuild Thrift+ ThriftBucks', preview=_rebuild_preview,
+              apply=_rebuild_apply))

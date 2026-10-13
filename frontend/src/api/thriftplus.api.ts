@@ -3,6 +3,8 @@ import type {
   CalculatorChoices,
   CalculatorResult,
   CardBatch,
+  EngineSaved,
+  EngineState,
   FloorCompare,
   FloorPlan,
   FloorPlanChoices,
@@ -225,6 +227,18 @@ export async function fetchFloorCompare(choices: FloorPlanChoices): Promise<Floo
 }
 
 /** The rewards calculator: the last inventory's stock under these rules (what-if only, nothing changes). */
+/** The engine's saved setting and what it runs on (owner 2026-10-13). */
+export async function fetchEngine(): Promise<EngineState> {
+  const { data } = await api.get<EngineState>('/thriftplus/rewards/engine/');
+  return data;
+}
+
+/** Save the calculator's setting for the engine (the owner). Before launch it also rebuilds launch day. */
+export async function saveEngine(body: { pct_per_day: number; wait_days: number; launch: string; age_factor: number; max_age: number | null; floor_share: number }): Promise<EngineSaved> {
+  const { data } = await api.post<EngineSaved>('/thriftplus/rewards/engine/', body);
+  return data;
+}
+
 export async function fetchCalculator(choices: CalculatorChoices): Promise<CalculatorResult> {
   const params: Record<string, string | number> = {};
   for (const [k, v] of Object.entries(choices)) {

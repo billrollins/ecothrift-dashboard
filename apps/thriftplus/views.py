@@ -377,6 +377,32 @@ class RewardsViewSet(viewsets.ViewSet):
     def runs(self, request):
         return Response([_run_payload(r) for r in RewardRun.objects.all()[:30]])
 
+    @action(detail=False, methods=['get', 'post'], url_path='engine')
+    def engine(self, request):
+        """GET: the saved engine setting (or none) and what the engine runs on. POST (superuser): save the
+        calculator's setting (owner 2026-10-13); with the Thrift+ switch off, every floor item's ThriftBucks are rebuilt
+        for launch day as an approved request (Superuser → Requests), so staff see launch-day ThriftBucks."""
+        if request.method == 'POST':
+            if not request.user.is_superuser:
+                return Response({'detail': 'Only the owner can change the engine.'}, status=status.HTTP_403_FORBIDDEN)
+            try:
+                saved = rewards.save_engine(request.data, user=request.user)
+            except ValueError as exc:
+                return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            rebuild = None
+            if not members.is_enabled():
+                from apps.core.services import approval_requests
+
+                staged = approval_requests.stage(
+                    'thriftplus.rebuild_rewards', title=f"Rebuild ThriftBucks for launch day ({saved['launch']})",
+                    summary='Saved from the Calculator tab.', params={'day': saved['launch']},
+                    requested_by=getattr(request.user, 'email', '') or '',
+                )
+                approval_requests.approve(staged, request.user, note='Saved from the Calculator tab.')
+                rebuild = {'id': staged.pk}
+            return Response({'saved': saved, 'rebuild': rebuild, 'live': rewards.rules().as_dict()})
+        return Response({'saved': rewards.saved_engine(), 'live': rewards.rules().as_dict(), 'switch_on': members.is_enabled()})
+
     @action(detail=False, methods=['get'])
     def calculator(self, request):
         """The rewards calculator (owner, 2026-10-07): the last inventory's stock under the rules in the query.

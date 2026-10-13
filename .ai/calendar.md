@@ -32,7 +32,7 @@ Claude's clock. **Every session:** compare today's date with this table, say pla
 | 10-10 | Sat | (Owner: physical, e.g. printing) | | |
 | 10-11 | Sun | Buffer. **Heroku database plan switch, 3–7 AM CT** (Heroku runs it; all three apps blink for under a minute; master mail 10-06). No deploys or data loads in that window. Master's AI router hand-down arrives after it. | none 3–7 AM | |
 | 10-12 | Mon | In-store dry run with the switch on for staff and test cards. **Ship** the fixes. **Added 10-07:** signup gate (photo, info, ID check, signature), gift card balance, Limited Warranty 7 days as a gift card, the website details page, receipt variations, print server 1.9.0 | next free version | |
-| 10-13 | Tue | Fixes. Staff training (owner). **Owner: set rewards for stock already on the floor** (a one-time, mostly manual call; tools: the start setting, the reset request, a manual tool if wanted) | | |
+| 10-13 | Tue | Fixes. Staff training (owner). **Owner: set rewards for stock already on the floor** (a one-time, mostly manual call; tools: the start setting, the reset request, a manual tool if wanted) | v2.163.0 | **On track.** The owner's call: 0.75% a day; old stock at 30% of its age, at most 45 days. Built as the Calculator's **Save this setting** (rebuilds launch day while dark) and the new staff scanner (demo A on the real camera). Owner to click Save. Families planned next (`initiatives/thrift_plus_families.md`). |
 | 10-14 | Wed | Fixes. Final full pre-ship run. Launch checklist | v2.110.x | |
 | 10-15 | Thu | **Last project day.** Everything done; the switch is ready | | |
 | 10-16 → 10-19 | | Room for issues. Print cards and posters | | |

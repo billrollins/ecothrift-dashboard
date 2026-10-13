@@ -1,13 +1,19 @@
 /**
  * Rewards calculator (owner, 2026-10-07): the stock from the last inventory under any set of reward rules.
- * Guests pay the tag; members pay the tag minus the reward. What-if only: no price, setting or reward changes.
- * The defaults are today's engine: wait 7 days, then the tag ÷ 90 a day, every night, in a straight line, never
- * below 10% of the tag.
+ * Guests pay the tag; members pay the tag minus the reward. Trying numbers changes nothing.
+ * Save this setting (owner 2026-10-13, the owner only): the engine runs on it (the % a day, the wait, the launch start
+ * and the floor). Before launch, saving also rebuilds every floor item's ThriftBucks for launch day (a request in
+ * Superuser → Requests, approved by the save), so staff see launch-day ThriftBucks in the scanner. It opens on the
+ * saved setting; with nothing saved, on the owner's starting setting (0.75% a day; 30% of real age, at most 45 days).
  */
 import {
   Alert,
   Box,
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   FormControlLabel,
   LinearProgress,
   MenuItem,
@@ -25,13 +31,16 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { fetchCalculator } from '../../api/thriftplus.api';
+import { fetchApprovalRequests } from '../../api/approvalRequests.api';
+import { fetchCalculator, fetchEngine, saveEngine } from '../../api/thriftplus.api';
+import { useAuth } from '../../hooks/useAuth';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
-import type { CalculatorChoices, CalculatorRow } from '../../types/thriftplus.types';
+import type { CalculatorChoices, CalculatorRow, EngineState } from '../../types/thriftplus.types';
 import { formatCurrency, formatCurrencyWhole, formatNumber } from '../../utils/format';
 
 const DEFAULTS: CalculatorChoices = {
@@ -53,6 +62,30 @@ const DEFAULTS: CalculatorChoices = {
   age_factor: 1,
   max_start_pct: null,
 };
+
+/** The owner's starting setting (2026-10-13), before anything is saved; the floor is the rulebook's (up to 95% off). */
+const OWNER_START: CalculatorChoices = { ...DEFAULTS, pct_per_day: 0.75, age_factor: 0.3, max_age: 45, floor_share: 0.05 };
+
+/** The calculator's choices from the engine's saved setting (or the owner's start). */
+function fromEngine(e: EngineState | undefined): CalculatorChoices {
+  const s = e?.saved;
+  if (!s) return OWNER_START;
+  return {
+    ...DEFAULTS, launch: s.launch, wait_days: s.wait_days, pct_per_day: Number(s.pct_per_day), age_factor: Number(s.age_factor),
+    max_age: s.max_age, floor_share: Number(e?.live.floor_share ?? DEFAULTS.floor_share),
+  };
+}
+
+/** What the live engine can't do: the save waits until these are back to plain. */
+function unsupported(c: CalculatorChoices): string[] {
+  const out: string[] = [];
+  if (c.step_days !== 1) out.push('stepping less than nightly');
+  if (c.curve !== 'linear') out.push('a curve');
+  if (c.same_slowdown || c.similar_slowdown) out.push('the "More than one" slowdowns');
+  if (c.demand) out.push('demand');
+  if (c.max_start_pct != null) out.push('a cap on launch day % off');
+  return out;
+}
 
 const GUEST = '#9e9d97';
 const MEMBER = '#2a78d6';
@@ -157,7 +190,36 @@ function Breakdown({ title, rows }: { title: string; rows: CalculatorRow[] }) {
 }
 
 export default function CalculatorTab() {
-  const [c, setC] = useState<CalculatorChoices>(DEFAULTS);
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const engine = useQuery({ queryKey: ['thriftplus', 'engine'], queryFn: fetchEngine });
+  const [c, setC] = useState<CalculatorChoices>(OWNER_START);
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (engine.data && !seeded.current) {
+      seeded.current = true;
+      setC(fromEngine(engine.data));
+    }
+  }, [engine.data]);
+  const [confirm, setConfirm] = useState(false);
+  const [rebuildId, setRebuildId] = useState<number | null>(null);
+  const save = useMutation({
+    mutationFn: () => saveEngine({ pct_per_day: c.pct_per_day, wait_days: c.wait_days, launch: c.launch, age_factor: c.age_factor,
+      max_age: c.max_age, floor_share: c.floor_share }),
+    onSuccess: (res) => {
+      setConfirm(false);
+      setRebuildId(res.rebuild?.id ?? null);
+      void qc.invalidateQueries({ queryKey: ['thriftplus'] });
+    },
+  });
+  const rebuild = useQuery({
+    queryKey: ['thriftplus', 'engine-rebuild', rebuildId],
+    queryFn: async () => (await fetchApprovalRequests()).find((r) => r.id === rebuildId) ?? null,
+    enabled: rebuildId != null,
+    refetchInterval: (q) => (q.state.data && ['applied', 'failed'].includes(q.state.data.status) ? false : 3000),
+  });
+  const blocked = unsupported(c);
+  const saved = engine.data?.saved;
   const set = <K extends keyof CalculatorChoices>(k: K, v: CalculatorChoices[K]) => setC((prev) => ({ ...prev, [k]: v }));
   const asked = useDebouncedValue(c, 400);
   const { data, isFetching, error } = useQuery({
@@ -172,10 +234,31 @@ export default function CalculatorTab() {
 
   return (
     <Box>
-      <Alert severity="info" sx={{ mb: 2 }}>
-        What-if only: nothing changes. The defaults are today&apos;s engine: wait 7 days, then 1.11% of the tag a day (the tag ÷ 90),
-        every night, in a straight line, never below 10% of the tag. Guests pay the tag; members pay the tag minus the reward.
+      <Alert severity={saved ? 'success' : 'info'} sx={{ mb: 2 }}>
+        {saved ? (
+          <>
+            The engine runs on the saved setting: wait {saved.wait_days} days, then {Number(saved.pct_per_day)}% of the tag a day; stock on the floor
+            before {format(parseISO(saved.launch), 'MMM d')} counts at {Math.round(Number(saved.age_factor) * 100)}% of its real age
+            {saved.max_age ? `, at most ${saved.max_age} days` : ''}; never below {Math.round(Number(engine.data?.live.floor_share ?? 0) * 100)}% of the tag.
+            {saved.saved_at ? ` Saved ${format(parseISO(saved.saved_at), 'MMM d, h:mm a')}.` : ''} Trying numbers here changes nothing until you save.
+          </>
+        ) : (
+          <>
+            Nothing saved yet: the engine still runs the old rule (wait 7 days, then the tag ÷ 90 a day). This opens on your starting setting
+            (0.75% a day; old stock at 30% of its age, at most 45 days). Trying numbers changes nothing until you save.
+          </>
+        )}
       </Alert>
+      {rebuildId != null ? (
+        <Alert severity={rebuild.data?.status === 'failed' ? 'error' : rebuild.data?.status === 'applied' ? 'success' : 'info'} sx={{ mb: 2 }}>
+          {rebuild.data?.status === 'applied'
+            ? `Saved. Every floor item's ThriftBucks are rebuilt for launch day; staff see them in the scanner now.`
+            : rebuild.data?.status === 'failed'
+              ? `Saved, but the rebuild failed: ${rebuild.data.error || 'see Requests'}.`
+              : `Saved. Rebuilding every floor item's ThriftBucks for launch day (a few minutes)… ${rebuild.data?.log?.split('\n').pop() ?? ''}`}{' '}
+          <RouterLink to="/admin/requests">Requests</RouterLink>
+        </Alert>
+      ) : null}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '320px minmax(0, 1fr)' }, gap: 2, alignItems: 'start' }}>
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Section title="Which stock">
@@ -192,7 +275,7 @@ export default function CalculatorTab() {
 
           <Section title="Basic discount">
             <Num label="Wait before the first ThriftBucks" suffix="days" value={c.wait_days} onChange={(v) => set('wait_days', v ?? 0)} />
-            <Num label="Off each day" suffix="% of tag" step={0.05} value={c.pct_per_day} onChange={(v) => set('pct_per_day', v ?? 0)} helper="1.11 = the tag ÷ 90 (today)" />
+            <Num label="Off each day" suffix="% of tag" step={0.05} value={c.pct_per_day} onChange={(v) => set('pct_per_day', v ?? 0)} helper="1.11 = the tag ÷ 90" />
             <TextField select size="small" label="How often it steps" value={c.step_days} onChange={(e) => set('step_days', Number(e.target.value))}>
               <MenuItem value={1}>Every night</MenuItem>
               <MenuItem value={3}>Every 3 days</MenuItem>
@@ -237,8 +320,50 @@ export default function CalculatorTab() {
             <Num label="Most off on launch day" suffix="%" blankable value={c.max_start_pct} onChange={(v) => set('max_start_pct', v)} helper="Blank = no cap. From launch it grows at the normal rate." />
           </Section>
 
-          <Button fullWidth variant="outlined" onClick={() => setC(DEFAULTS)} sx={plain}>Reset to today&apos;s engine</Button>
+          {user?.is_superuser ? (
+            <Box sx={{ mb: 1 }}>
+              <Button fullWidth variant="contained" disabled={blocked.length > 0 || save.isPending} onClick={() => setConfirm(true)} sx={plain}
+                data-testid="engine-save">
+                Save this setting
+              </Button>
+              {blocked.length ? (
+                <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5 }}>
+                  The live engine doesn&apos;t do {blocked.join(', ')}. Set {blocked.length > 1 ? 'them' : 'it'} back to save.
+                </Typography>
+              ) : null}
+            </Box>
+          ) : null}
+          <Button fullWidth variant="outlined" onClick={() => setC(fromEngine(engine.data))} sx={plain}>
+            {saved ? 'Back to the saved setting' : 'Back to the starting setting'}
+          </Button>
         </Paper>
+
+        <Dialog open={confirm} onClose={() => setConfirm(false)} maxWidth="xs" fullWidth>
+          <DialogTitle>Save this setting?</DialogTitle>
+          <DialogContent>
+            <Typography sx={{ mb: 1 }}>The engine will run on:</Typography>
+            <Box component="ul" sx={{ m: 0, pl: 2.5, '& li': { mb: 0.5 } }}>
+              <li>wait {c.wait_days} days, then {c.pct_per_day}% of the tag a day, every night;</li>
+              <li>
+                stock on the floor before launch ({format(parseISO(c.launch), 'MMM d')}) counts at {Math.round(c.age_factor * 100)}% of its real age
+                {c.max_age ? `, at most ${c.max_age} days` : ''};
+              </li>
+              <li>never below {Math.round(c.floor_share * 100)}% of the tag.</li>
+            </Box>
+            <Typography sx={{ mt: 1.5, fontSize: 14, color: 'text.secondary' }}>
+              {engine.data?.switch_on
+                ? 'Thrift+ is on: it applies from tonight. ThriftBucks members have seen never go down.'
+                : 'Thrift+ is off, so every floor item\'s ThriftBucks are rebuilt now for launch day (a few minutes). Staff see them in the scanner.'}
+            </Typography>
+            {save.isError ? <Alert severity="error" sx={{ mt: 1.5 }}>Could not save.</Alert> : null}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setConfirm(false)} sx={plain}>Cancel</Button>
+            <Button variant="contained" onClick={() => save.mutate()} disabled={save.isPending} sx={plain} data-testid="engine-save-confirm">
+              Save
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         <Box sx={{ minWidth: 0 }}>
           {isFetching ? <LinearProgress sx={{ mb: 1 }} /> : <Box sx={{ height: 4, mb: 1 }} />}

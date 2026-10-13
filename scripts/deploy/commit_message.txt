@@ -1,13 +1,19 @@
-v2.162.0 — Hiring: interview texts fit in one message, with a short link (ecothrift.us/i/...) and "or reply with a good time"
+v2.163.0 — Thrift+ (off for customers): the new trip scanner for staff on real tags, and the engine on the Calculator's saved setting as of launch day
 
-User-facing theme: **Hiring: interview texts fit in one message, with a short link (ecothrift.us/i/...) and "or reply with a good time" (Bill, 2026-10-12: an applicant couldn't open the link).** Outside initiatives.
-
-### Changed
-
-- **Interview texts (Initial and Reminder):** short enough to arrive as one message (a longer text comes in pieces, and some phones show the pieces apart, cutting the link in half). They now read "Hi Angie, it's Eco-Thrift! Book your Retail Associate interview: https://ecothrift.us/i/abc2345 (or reply with a good time)". The role drops out if a long name or title would go over. The reply line gives a way in when a phone blocks links from unknown numbers.
+User-facing theme: **Thrift+ (still off for customers): staff test the new scanner on the real camera and real tags (This trip on top, every action on the bottom buttons, 3-day returns or AS IS on every tag), and the reward engine runs on the Calculator's saved setting, as of launch day (Bill, 2026-10-13).** thrift_plus_rewards.
 
 ### Added
 
-- **Short interview links:** ecothrift.us/i/ and a 7-character code (no look-alike characters) that opens the applicant's booking page. Each applicant keeps one code. It works only while their booking link does (not after hiring or Not now, or once it expires); a wrong or old code shows the page's "link has expired" note, and a visitor who tries 30 wrong codes in an hour is turned away. Emails keep the full link.
+- **Calculator: Save this setting** (the owner only). The engine runs on it: the % of the tag a day after the wait, and the launch start for stock already on the floor (it counts at a share of its real age, at most so many days). It opens on the owner's starting setting: **0.75% a day after 7 days; old stock at 30% of its age, at most 45 days; never below 5% of the tag**. While Thrift+ is off, saving also rebuilds every floor item's ThriftBucks for **launch day** (a request in Superuser → Requests, approved by the save; a few minutes), and every run before launch computes launch day, so staff see launch-day ThriftBucks.
+- **The trip scanner** (`/scan`, for staff while Thrift+ is off; the demo the owner picked):
+  - **This trip** bar under the header: the cart and its count, the ThriftBucks back, the items' badges; a tap flips between the camera and the trip's lines.
+  - A scanned tag fills the screen as a big price tag: **3-day returns** or **AS IS · no returns** (tap: what it means), the retail price (tap: where retail prices come from), our price, the ThriftBucks back, and **Price feel off? Tell us.** Every report ends with thanks and a little information.
+  - Every action is on the bottom buttons: **See this trip**, **Pass** / **Add to trip** (swiping the tag right or left does the same), **Scan more**.
+  - Trip lines: ×1 opens − and +, slide left to remove (Undo), Clear my trip (Undo), AS IS marked.
+  - The header: tap for what Thrift+ is (with a link to the full terms); the Your ThriftBucks pill shows Thrift+ credit and every ThriftBuck in the order the register uses them, with My account and Sign out.
+
+### Changed
+
+- The old scanner screens (item card stack, My list page, ThriftBucks tiles, the card styles and look switches, the first-run tour) are gone.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
