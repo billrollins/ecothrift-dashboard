@@ -1,0 +1,58 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { describe, expect, it, vi } from 'vitest';
+import type { SalesTaxReport } from '../../api/reports.api';
+import SalesTaxTab, { periods, salesTaxCsv } from './SalesTaxTab';
+
+const REPORT: SalesTaxReport = {
+  start: '2026-09-01', end: '2026-09-30', sales: 1345,
+  gross_sales: '51883.55', exempt_sales: '0.00', taxable_sales: '51883.55',
+  parts: { merchandise: '52100.00', discounts: '-316.45', delivery_fees: '80.00', assembly: '20.00' },
+  tax_collected: '3631.98', tax_at_rate: '3631.85', rounding: '0.13',
+  rates: [{ rate: '0.0700', count: 1345, taxable: '51883.55', tax_collected: '3631.98', tax_at_rate: '3631.85', state_rate: '0.055',
+    state_tax: '2853.60', local_rate: '0.015', local_tax: '778.25' }],
+  days: [{ day: '2026-09-02', count: 60, taxable: '2400.00', tax: '168.00' }],
+  payments: [{ method: 'card', count: 900, total: '40000.00' }, { method: 'cash', count: 445, total: '15515.53' }],
+  card_surcharge: '337.13', thrift_credit: '0.00', collected_total: '55515.53',
+  voided: { count: 2, taxable: '40.00', tax: '2.80' },
+};
+
+vi.mock('../../api/reports.api', () => ({ fetchSalesTax: vi.fn(async () => REPORT) }));
+
+describe('Sales tax report (owner 2026-10-13)', () => {
+  it('opens on the last full month, with the numbers for the return', async () => {
+    render(
+      <MemoryRouter>
+        <QueryClientProvider client={new QueryClient()}>
+          <SalesTaxTab />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    const box = await screen.findByTestId('for-the-return');
+    expect(within(box).getByText('Net taxable sales')).toBeInTheDocument();
+    expect(within(box).getAllByText('$51,883.55').length).toBeGreaterThan(0);
+    expect(within(box).getByText('State tax (5.5%)')).toBeInTheDocument();
+    expect(within(box).getByText('$2,853.60')).toBeInTheDocument();
+    expect(within(box).getByText('Local tax (1.5%)')).toBeInTheDocument();
+    expect(within(box).getByText('Total tax at 7%')).toBeInTheDocument();
+    expect(screen.getByText(/2 sales from this period were voided/)).toBeInTheDocument();
+    expect(screen.getByText('$337.13')).toBeInTheDocument();
+  });
+
+  it('lists the periods newest first, the running one last', () => {
+    const months = periods('month', new Date(2026, 9, 13));
+    expect(months[0]).toMatchObject({ key: '2026-09', start: '2026-09-01', end: '2026-09-30' });
+    expect(months.at(-1)).toMatchObject({ key: '2026-10', end: '2026-10-13' });
+    expect(periods('quarter', new Date(2026, 9, 13))[0]).toMatchObject({ start: '2026-07-01', end: '2026-09-30' });
+    expect(periods('year', new Date(2026, 9, 13))[0]).toMatchObject({ start: '2025-01-01', end: '2025-12-31' });
+  });
+
+  it('downloads the same numbers as a CSV', () => {
+    const csv = salesTaxCsv(REPORT);
+    expect(csv).toContain('Net taxable sales,51883.55');
+    expect(csv).toContain('State tax (5.5%),2853.60');
+    expect(csv).toContain('2026-09-02,60,2400.00,168.00');
+    expect(csv).toContain('"2 sales, 40.00 taxable, 2.80 tax"');
+  });
+});

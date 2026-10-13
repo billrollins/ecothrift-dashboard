@@ -117,6 +117,7 @@ export const NOTES = {
   payroll: { kind: 'page', use: 'Time and payroll', metaphor: 'CLOCK with a coin overlapping its lower right; the coin is kraft.' },
   brief: { kind: 'page', use: 'Brief (daily AI supervisor brief)', metaphor: 'PAGE with text lines and a four-point sparkle; the sparkle is kraft.' },
   thriftPlus: { kind: 'page', use: 'Thrift+', metaphor: 'A membership card with a stripe and a plus sign; the plus is kraft.' },
+  reports: { kind: 'page', use: 'Reports (owner: sales tax and the monthly reports)', metaphor: 'PAGE with three bars of a bar chart; the tallest bar is kraft.' },
   requests: { kind: 'page', use: 'Requests (owner approvals)', metaphor: 'A rubber stamp above its stamped line; the stamped line is kraft.' },
   enhancement: { kind: 'page', use: 'Enhancements', metaphor: 'A light bulb with three short rays; the rays are kraft.' },
   commandCenter: { kind: 'page', use: 'Command Center (Retail QA)', metaphor: 'A half-circle gauge with tick marks and a needle; the needle is kraft.' },
@@ -586,6 +587,15 @@ const ART: Record<keyof typeof NOTES, ReactNode> = {
       <rect x="2.5" y="5" width="19" height="14" rx="2"/>
       <path d="M2.5 8.5H21.5"/>
       <Accent><path d="M14 13.5H19M16.5 11V16"/></Accent>
+    </>
+  ),
+  reports: (
+    <>
+      <Wash><path d="M14 2.5H6.5A1.5 1.5 0 0 0 5 4v16a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 20V7.5L14 2.5z"/></Wash>
+      <path d="M14 2.5H6.5A1.5 1.5 0 0 0 5 4v16a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 20V7.5L14 2.5z"/>
+      <path d="M14 2.5V6a1.5 1.5 0 0 0 1.5 1.5H19"/>
+      <path d="M8.5 18v-3M15.5 18v-5"/>
+      <Accent><path d="M12 18v-7"/></Accent>
     </>
   ),
   requests: (

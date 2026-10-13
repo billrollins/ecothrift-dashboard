@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.163.1] -->
-<!-- Last reviewed: 2026-10-12 (2.163.1) -->
+<!-- Line 1 release: ## [2.164.0] -->
+<!-- Last reviewed: 2026-10-13 (2.164.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.164.0] - 2026-10-13
+
+User-facing theme: **Reports (the owner only): a Sales tax tab with the numbers for the Nebraska return, for a month, a quarter or a year (Bill, 2026-10-13: "I file").** Outside initiatives.
+
+### Added
+
+- **Reports** (Dash sidebar, under Brief; the owner only): the owner's standard reports for a period, one tab each, starting with **Sales tax**.
+- **Sales tax:** pick a month (it opens on last month), a quarter or a year. **For the return:** gross sales, exempt sales (none at the register), net taxable sales, state tax (5.5%), local tax (the rest of the 7%) and the total at the rate, each with a copy button; then the tax collected on receipts and the cents of rounding between them. Below: what makes up taxable sales (merchandise after sale prices, discounts, delivery fees, assembly), what isn't a sale (CardX card surcharges), voided sales from the period (left out, flagged in case one was voided after filing), payments, and each day. **Download CSV** gives the same.
+- From completed register sales only (online holds are paid at the register; training-register sales left out), by store day in Central time. History imported from the old systems is in the same records, so past months work too.
 
 ## [2.163.1] - 2026-10-12
 

@@ -197,7 +197,8 @@ describe('Studios and Admin placement', () => {
     expect(retailFloor?.guestItemIds).toEqual(['prFixit']);   // under a line
     expect(retailFloor?.label).toBe('Inventory');
     expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'studios')?.itemIds).toContain('floorplans');
-    expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'essentials')?.itemIds).toEqual(['dashboard', 'brief']);
+    expect(SLOT_C_NAV_GROUPS.find((g) => g.id === 'essentials')?.itemIds).toEqual(['dashboard', 'brief', 'reports']);
+    expect(NAV_ITEM_CATALOG.reports?.superuserOnly).toBe(true);
     expect(onlineSales?.itemIds).toContain('onlineSalesCustomers');
   });
 });

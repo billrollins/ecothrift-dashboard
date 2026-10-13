@@ -101,6 +101,7 @@ import ReportCardsPage from './pages/buying/ReportCardsPage';
 import RequestsPage from './pages/admin/RequestsPage';
 import QAPage from './pages/admin/QAPage';
 import ThriftPlusPage from './pages/thriftplus/ThriftPlusPage';
+import ReportsPage from './pages/reports/ReportsPage';
 import BriefPage from './pages/brief/BriefPage';
 import PartsCommandCenterPage from './pages/restoration/parts/PartsCommandCenterPage';
 import RestorationQueuePage from './pages/restoration/queue/RestorationQueuePage';
@@ -460,6 +461,14 @@ export default function App() {
           element={
             <SuperAdminRoute>
               <RequestsPage />
+            </SuperAdminRoute>
+          }
+        />
+        <Route
+          path="/reports"
+          element={
+            <SuperAdminRoute>
+              <ReportsPage />
             </SuperAdminRoute>
           }
         />

@@ -331,6 +331,14 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'brief',
     superuserOnly: true,
   },
+  reports: {
+    id: 'reports',
+    path: '/reports',
+    label: 'Reports',
+    // The owner's standard reports for a period: sales tax first (2026-10-13).
+    icon: 'reports',
+    superuserOnly: true,
+  },
   thriftPlus: {
     id: 'thriftPlus',
     path: '/thrift-plus',

@@ -1,6 +1,6 @@
 from django.urls import path, include
 
-from . import staff_views
+from . import report_views, staff_views
 from rest_framework.routers import DefaultRouter
 from .views import (
     RegisterViewSet, DrawerViewSet, SupplementalViewSet,
@@ -45,6 +45,8 @@ router.register(r'deliveries', DeliveryViewSet, basename='delivery')
 
 urlpatterns = [
     path('', include(router.urls)),
+    # The owner's Reports page (2026-10-13): the sales tax report.
+    path('reports/sales-tax/', report_views.sales_tax_report, name='sales-tax-report'),
     path('staff-purchases/settings/', staff_views.staff_purchase_settings, name='staff-purchase-settings'),
     path('staff-purchases/people/', staff_views.payroll_people, name='staff-purchase-people'),
     path('staff-purchases/eligibility/', staff_views.payroll_eligibility, name='staff-purchase-eligibility'),
