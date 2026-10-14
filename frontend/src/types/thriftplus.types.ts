@@ -301,3 +301,48 @@ export interface CalculatorResult {
   };
   current_settings: { start: string | null; floor_share: string; switch_on: boolean };
 }
+
+/** A pricing family on the Families tab (thrift_plus_families Phase 1, owner 2026-10-13). */
+export type FamilyStatus = 'possible' | 'approved' | 'not_family' | 'exit';
+
+export interface FamilyRow {
+  id: number;
+  name: string;
+  kind: 'identical' | 'similar';
+  status: FamilyStatus;
+  category: string;
+  products: number;
+  units: number;
+  band: '2-3' | '4-9' | '10-49' | '50+';
+  huge: boolean;
+  tag_total: string;
+  price_avg: string;
+  price_min: string;
+  price_max: string;
+  retail_avg: string | null;
+  cost_avg: string | null;
+  age_oldest: number;
+  age_newest: number | null;
+  sold_90: number;
+  sold_180: number;
+  est_per_90: string;
+  days_to_clear: number | null;
+  pct_now: string;
+  suggested_target: number;
+  target_per_90: number | null;
+  pct: string | null;
+  decided_by: string;
+  decided_at: string | null;
+  note: string;
+  flags: { key: 'huge' | 'volume' | 'cost' | 'junk' | 'fast'; text: string }[];
+}
+
+export interface FamiliesQueue {
+  counts: Record<FamilyStatus, number>;
+  units: Record<FamilyStatus, number>;
+  total: number;
+  decided: number;
+  matching: number;
+  bulk_ok: number;
+  rows: FamilyRow[];
+}

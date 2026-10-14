@@ -151,14 +151,12 @@ class RecomputeTests(TestCase):
         self.assertEqual(again.counts['computed'], 0)  # overnight only: a re-run changes nothing
         self.assertEqual(RewardEvent.objects.count(), 5)
 
-    def test_bulk_units_pace_by_sell_through(self):
-        for i in range(8):  # 8 mugs sold in the last 14 days: 0.57 a day against 4 / 71 needed
-            Item.objects.create(product=self.mugs, sku=f'ITMRWS{i:03d}', price=D('9.00'), status='sold',
-                                sold_at=timezone.make_aware(datetime.combine(DAY - timedelta(days=i + 1), time(15))))
+    def test_identical_units_are_a_possible_family_that_holds(self):
+        # Owner 2026-10-13 (thrift_plus_families): units of one product are a possible family, held until decided,
+        # in place of the old sell-through pacing for bulk.
         rewards.recompute(DAY)
         mug = ItemReward.objects.get(item=self.mug_items[0])
-        self.assertEqual((mug.status, mug.reason), (ItemReward.STATUS_PAUSED, 'family_on_pace'))
-        self.assertEqual(mug.grow_days, 12)  # the catch-up counts; only tonight holds
+        self.assertEqual((mug.status, mug.reason, mug.grow_days), (ItemReward.STATUS_PAUSED, 'family_possible', 13))
         self.assertEqual(ItemReward.objects.get(item=self.lamp_item).reason, 'one_unit')
 
     def test_a_family_link_paces_different_products_together(self):

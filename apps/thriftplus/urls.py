@@ -7,6 +7,7 @@ from apps.thriftplus.views import (
     AccountViewSet,
     CardBatchViewSet,
     CardViewSet,
+    FamiliesViewSet,
     PersonViewSet,
     RegisterViewSet,
     RestrictedProductViewSet,
@@ -20,6 +21,7 @@ router.register(r'people', PersonViewSet, basename='thriftplus-person')
 router.register(r'cards', CardViewSet, basename='thriftplus-card')
 router.register(r'card-batches', CardBatchViewSet, basename='thriftplus-card-batch')
 router.register(r'rewards', RewardsViewSet, basename='thriftplus-rewards')
+router.register(r'families', FamiliesViewSet, basename='thriftplus-families')
 router.register(r'register', RegisterViewSet, basename='thriftplus-register')
 router.register(r'restricted', RestrictedProductViewSet, basename='thriftplus-restricted')
 router.register(r'returns', ReturnsViewSet, basename='thriftplus-returns')

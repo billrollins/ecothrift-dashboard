@@ -21,7 +21,7 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from apps.accounts.permissions import IsEmployee, IsManagerOrAdmin, IsStaff
+from apps.accounts.permissions import IsEmployee, IsManagerOrAdmin, IsStaff, IsSuperAdmin
 from apps.thriftplus.models import (
     Account,
     Card,
@@ -311,6 +311,70 @@ class CardBatchViewSet(viewsets.ReadOnlyModelViewSet):
         batch.save(update_fields=['printed_at'])
         members.log('batch_printed', actor=request.user, batch=batch.pk, size=batch.size)
         return Response(CardBatchSerializer(batch).data)
+
+
+class FamiliesViewSet(viewsets.ViewSet):
+    """
+    Thrift+ → Families (thrift_plus_families Phase 1, owner 2026-10-13): the pricing families on the floor and the
+    owner's decisions. Managers can look; the owner decides.
+    - GET ``families/?status=possible&band=10-49&flag=huge&q=…&offset=0`` the queue, in order of money at stake;
+    - POST ``families/<id>/decide/ {action: approve|not_family|exit|reopen, target?}``;
+    - POST ``families/bulk/ {ids}`` approve at the suggestion (never a lot of 50+);
+    - POST ``families/rest/`` every family still possible becomes "not a family";
+    - POST ``families/find/`` look for new ones now (it also runs every night).
+    """
+
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+
+    def list(self, request):
+        from apps.thriftplus.models import RewardFamily
+        from apps.thriftplus.services import family_queue
+
+        q = request.query_params
+        status_ = q.get('status') or RewardFamily.STATUS_POSSIBLE
+        if status_ not in dict(RewardFamily.STATUS_CHOICES):
+            return Response({'detail': 'Unknown status.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            offset = max(0, int(q.get('offset') or 0))
+        except ValueError:
+            offset = 0
+        return Response(family_queue.queue(status=status_, band=q.get('band') or '', flag=q.get('flag') or '',
+                                           q=(q.get('q') or '').strip(), offset=offset))
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsSuperAdmin])
+    def decide(self, request, pk=None):
+        from apps.thriftplus.models import RewardFamily
+        from apps.thriftplus.services import family_queue
+
+        family = get_object_or_404(RewardFamily, pk=pk)
+        target = request.data.get('target')
+        try:
+            target = int(target) if target not in (None, '') else None
+            family = family_queue.decide(family, str(request.data.get('action') or ''), by=request.user, target=target,
+                                         note=str(request.data.get('note') or ''))
+        except (ValueError, family_queue.FamilyError) as exc:
+            return Response({'detail': str(exc) or 'The target is a whole number.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'id': family.pk, 'status': family.status, 'target_per_90': family.target_per_90,
+                         'pct': str(family.pct) if family.pct is not None else None})
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, IsSuperAdmin])
+    def bulk(self, request):
+        from apps.thriftplus.services import family_queue
+
+        ids = [int(i) for i in (request.data.get('ids') or []) if str(i).isdigit()]
+        return Response(family_queue.bulk_approve(ids, by=request.user))
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, IsSuperAdmin])
+    def rest(self, request):
+        from apps.thriftplus.services import family_queue
+
+        return Response({'marked': family_queue.rest_not_family(by=request.user)})
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, IsSuperAdmin])
+    def find(self, request):
+        from apps.thriftplus.services import families
+
+        return Response(families.flag_identical())
 
 
 class RewardsViewSet(viewsets.ViewSet):

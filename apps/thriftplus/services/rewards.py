@@ -12,6 +12,13 @@ The rules (owner's design, 2026-09-25; the rate and the launch start since 2026-
   launch, day 1 is never before the ``thrift_plus_rewards_start`` setting.
 - **Days 1 to 7** (the wait): no reward. **Then** it grows by the % a day of the starting price (0.75%).
 - **Before launch** the nightly run computes launch day (``default_day``), so staff see launch-day ThriftBucks.
+- **Pricing families** (thrift_plus_families, owner 2026-10-13): a product with 2+ floor units is a possible family
+  (``families.flag_identical``, run first each night). A **possible** family (or one sent to **exit**) holds: a unit
+  keeps the ThriftBucks of its first night and grows no more. An **approved** family prices its units together: one
+  share of each tag (``RewardFamily.pct``), rising ``family_rise_pct`` (0.25%) a night while the family sells slower
+  than its target, holding at or above it; a unit never goes down. The family's sales are estimated conservatively, as
+  if one more sold now: (sold in the window + 1) ÷ the window's days, over the family's age (7 to 90 days). **Not a
+  family**: each unit grows on its own again, from the ThriftBucks it has.
 - **The floor:** a member never pays less than the floor share of the tag (the
   ``thrift_plus_floor_share`` setting, 10%: owner, 2026-09-25). Cost plays no part: the allocated
   cost is too rough an estimate. The reward stops there (``capped``). A reward is never more than
@@ -53,7 +60,7 @@ from typing import Iterable
 from django.db import transaction
 from django.utils import timezone
 
-from apps.thriftplus.models import FamilyLink, ItemReward, RewardEvent, RewardRun
+from apps.thriftplus.models import FamilyLink, ItemReward, RewardEvent, RewardFamily, RewardRun
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +94,7 @@ class Rules:
     age_factor: Decimal = Decimal(1)
     max_age: int | None = None
     saved: bool = False
+    family_rise_pct: Decimal = Decimal('0.25')  # an approved family behind its target: % of the tag a night
 
     def first_day(self, floor_date: date) -> date:
         """Day 1 for an item: its floor date, or for stock on the floor before launch, launch day less a share of
@@ -202,6 +210,7 @@ def rules() -> Rules:
                 wait_days=int(engine['wait_days']), launch=date.fromisoformat(engine['launch']),
                 age_factor=Decimal(str(engine['age_factor'])),
                 max_age=int(engine['max_age']) if engine.get('max_age') else None, saved=True,
+                family_rise_pct=Decimal(str(engine.get('family_rise_pct') or '0.25')),
             )
         except (KeyError, InvalidOperation, ValueError, TypeError):
             logger.warning('%s is not a usable engine setting: %r', ENGINE_KEY, engine)
@@ -283,6 +292,30 @@ class Pace:
         }
 
 
+@dataclass(frozen=True)
+class FamilyState:
+    """A pricing family as tonight's step sees it (thrift_plus_families)."""
+
+    id: int
+    status: str
+    pct: Decimal = ZERO  # approved: tonight's share of each tag
+    behind: bool = False  # approved: selling slower than the target
+    target_per_90: int | None = None
+    est_per_90: Decimal | None = None
+    moved: bool = False  # approved: pct rose tonight
+
+    def as_dict(self) -> dict:
+        return {'id': self.id, 'status': self.status, 'pct': str(self.pct), 'behind': self.behind,
+                'target_per_90': self.target_per_90,
+                'est_per_90': str(self.est_per_90.quantize(Decimal('0.1'))) if self.est_per_90 is not None else None}
+
+
+def conservative_per_90(sold: int, days: int) -> Decimal:
+    """Sales per 90 days, as if one more sold now (owner 2026-10-13): one lucky sale isn't a fast seller, and no
+    sales yet still gives a small, honest number."""
+    return Decimal(sold + 1) / Decimal(max(1, days)) * 90
+
+
 @dataclass
 class Outcome:
     item_id: int
@@ -328,7 +361,8 @@ def _lags(prior: Prior | None, pace: Pace) -> bool:
     return Decimal(prior.adds) / prior.scans < SCAN_LAG * Decimal(pace.adds) / pace.scans
 
 
-def step(unit: Unit, prior: Prior | None, on: date, pace: Pace | None, rules_: Rules, family_key: str) -> Outcome:
+def step(unit: Unit, prior: Prior | None, on: date, pace: Pace | None, rules_: Rules, family_key: str,
+         family: FamilyState | None = None) -> Outcome:
     """One item, one night. Deterministic: the same inputs always give the same reward."""
     floor_date = prior.floor_date if prior else unit.floor_date
     n = day_number(floor_date, on, rules_)
@@ -342,6 +376,35 @@ def step(unit: Unit, prior: Prior | None, on: date, pace: Pace | None, rules_: R
 
     if unit.source == 'consignment':
         floor_price, reward, status, reason = price, ZERO, ItemReward.STATUS_EXCLUDED, 'consignment'
+    elif family is not None and family.status == RewardFamily.STATUS_APPROVED:
+        # An approved family: one share of each tag for all its units; a unit never goes down.
+        floor_price = floor_for(price, rules_.floor_share)
+        cap = max(ZERO, price - floor_price)
+        reward = min(cap, max(prev_reward, (price * family.pct).quantize(CENT, rounding=ROUND_DOWN)))
+        if cap <= 0:
+            status, reason = ItemReward.STATUS_NO_ROOM, 'no_room'
+        elif reward >= cap:
+            status, reason = ItemReward.STATUS_CAPPED, 'reached_floor'
+        elif family.behind:
+            status, reason = ItemReward.STATUS_CLIMBING, 'family_behind'
+        else:
+            status, reason = ItemReward.STATUS_PAUSED, 'family_on_target'
+        detail['family'] = family.as_dict()
+    elif family is not None and family.status in (RewardFamily.STATUS_POSSIBLE, RewardFamily.STATUS_EXIT):
+        # A possible family (or one going to exit) holds: the first night counts its start, then no more growth.
+        floor_price = floor_for(price, rules_.floor_share)
+        cap = max(ZERO, price - floor_price)
+        if prior is None:
+            grow_days += max(0, n - rules_.wait_days)
+        reward = min(cap, max(prev_reward, rules_.grown(price, grow_days)))
+        if cap <= 0:
+            status, reason = ItemReward.STATUS_NO_ROOM, 'no_room'
+        elif reward >= cap:
+            status, reason = ItemReward.STATUS_CAPPED, 'reached_floor'
+        else:
+            status = ItemReward.STATUS_PAUSED
+            reason = 'family_possible' if family.status == RewardFamily.STATUS_POSSIBLE else 'family_exit'
+        detail['family'] = family.as_dict()
     else:
         floor_price = floor_for(price, rules_.floor_share)
         cap = max(ZERO, price - floor_price)
@@ -473,6 +536,56 @@ def paces(units: list[Unit], keys: dict[int, str], priors: dict[int, Prior], on:
 
 # ── Plan (dry run) and recompute (write) ───────────────────────────────────────
 
+def family_states(units: list[Unit], keys: dict[int, str], priors: dict[int, Prior], on: date, rules_: Rules) -> dict[str, FamilyState]:
+    """Each pricing family's state for ``on``: held, or (approved) tonight's share of the tag and whether it sells
+    slower than its target. Computes only; ``recompute`` stores an approved family's new share."""
+    from apps.inventory.models import Item
+
+    fids = {int(k[1:]) for k in keys.values() if k.startswith('f')}
+    if not fids:
+        return {}
+    families = {f.pk: f for f in RewardFamily.objects.filter(pk__in=fids)}
+    out: dict[str, FamilyState] = {}
+    approved = {fid for fid, f in families.items() if f.status == RewardFamily.STATUS_APPROVED}
+    by_family: dict[int, list[Unit]] = defaultdict(list)
+    for u in units:
+        k = keys[u.product_id]
+        if k.startswith('f') and u.source != 'consignment':
+            by_family[int(k[1:])].append(u)
+    sold_by_family: dict[int, list[date]] = defaultdict(list)
+    if approved:
+        products = {pid for pid, k in keys.items() if k.startswith('f') and int(k[1:]) in approved}
+        family_of = {pid: int(keys[pid][1:]) for pid in products}
+        for pid, sold_at in (Item.objects.filter(status='sold', product_id__in=list(products),
+                                                 sold_at__gte=_day_start(on - timedelta(days=HORIZON)), sold_at__lt=_day_start(on))
+                             .values_list('product_id', 'sold_at')):
+            sold_by_family[family_of[pid]].append(timezone.localdate(sold_at))
+    cap_share = max(ZERO, 1 - rules_.floor_share)
+    rise = rules_.family_rise_pct / 100
+    for fid, fam in families.items():
+        key = f'f{fid}'
+        if fid not in approved:
+            out[key] = FamilyState(id=fid, status=fam.status)
+            continue
+        us = by_family.get(fid, [])
+        oldest = max((day_number(priors[u.item_id].floor_date if u.item_id in priors else u.floor_date, on, rules_) for u in us),
+                     default=1)
+        window = max(7, min(HORIZON, oldest - 1))
+        since = on - timedelta(days=window)
+        sold = sum(1 for d in sold_by_family.get(fid, ()) if d >= since)
+        est = conservative_per_90(sold, window)
+        target = fam.target_per_90 or max(1, len(us))
+        behind = est < target
+        pct = fam.pct or ZERO
+        moved = False
+        if fam.pct_on is None or fam.pct_on < on:
+            if behind and pct < cap_share:
+                pct = min(cap_share, pct + rise)
+                moved = True
+        out[key] = FamilyState(id=fid, status=fam.status, pct=pct, behind=behind, target_per_90=target, est_per_90=est, moved=moved)
+    return out
+
+
 @dataclass
 class Plan:
     day: date
@@ -480,6 +593,7 @@ class Plan:
     outcomes: list[Outcome]
     paces: dict[str, Pace]
     to_close: list[dict] = field(default_factory=list)
+    families: dict[str, FamilyState] = field(default_factory=dict)
 
 
 def plan(on: date | None = None, rules_: Rules | None = None) -> Plan:
@@ -492,6 +606,7 @@ def plan(on: date | None = None, rules_: Rules | None = None) -> Plan:
     priors = {pk: Prior.of(s) for pk, s in states.items()}
     keys = family_keys(u.product_id for u in units)
     family_pace = paces(units, keys, priors, on, rules_)
+    fstates = family_states(units, keys, priors, on, rules_)
     outcomes = []
     for u in units:
         prior = priors.get(u.item_id)
@@ -504,12 +619,15 @@ def plan(on: date | None = None, rules_: Rules | None = None) -> Plan:
             ))
             continue
         key = keys[u.product_id]
-        outcomes.append(step(u, prior, on, family_pace.get(key), rules_, key))
+        fam = fstates.get(key)
+        # Not a family: each unit on its own, no pacing (owner 2026-10-13).
+        pace = None if fam is not None and fam.status == RewardFamily.STATUS_NOT_FAMILY else family_pace.get(key)
+        outcomes.append(step(u, prior, on, pace, rules_, key, fam))
     to_close = list(
         ItemReward.objects.exclude(status=ItemReward.STATUS_CLOSED).exclude(item__status='on_shelf')
         .values('item_id', 'reward', 'status', 'day', 'item__status', 'item__sold_at')
     )
-    return Plan(day=on, rules=rules_, outcomes=outcomes, paces=family_pace, to_close=to_close)
+    return Plan(day=on, rules=rules_, outcomes=outcomes, paces=family_pace, to_close=to_close, families=fstates)
 
 
 STATE_FIELDS = [
@@ -524,19 +642,37 @@ def recompute(on: date | None = None) -> RewardRun:
     on = on or default_day(rules())
     run = RewardRun.objects.create(day=on)
     try:
+        from apps.thriftplus.services import families
+
+        try:
+            flagged = families.flag_identical()
+        except Exception:  # never stops the nightly run
+            logger.exception('flagging possible families failed')
+            flagged = {}
         p = plan(on)
         now = timezone.now()
         fresh = [o for o in p.outcomes if o.fresh]
         for i in range(0, len(fresh), CHUNK):
             _write(fresh[i:i + CHUNK], run, on, now)
         closed = _close(p.to_close, run, on, now)
-        run.counts = {**summary_counts(p), 'computed': len(fresh), 'closed': closed}
+        _store_family_pcts(p, on)
+        run.counts = {**summary_counts(p), 'computed': len(fresh), 'closed': closed,
+                      'families_flagged': flagged.get('new', 0)}
     except Exception as exc:
         logger.exception('reward recompute for %s failed', on)
         run.error = str(exc)[:4000]
     run.finished_at = timezone.now()
     run.save(update_fields=['counts', 'error', 'finished_at'])
     return run
+
+
+def _store_family_pcts(p: Plan, on: date) -> None:
+    """An approved family's share for the night, stored once (a re-run never moves it twice)."""
+    from django.db.models import Q
+
+    for fs in p.families.values():
+        if fs.status == RewardFamily.STATUS_APPROVED:
+            RewardFamily.objects.filter(Q(pct_on__isnull=True) | Q(pct_on__lt=on), pk=fs.id).update(pct=fs.pct, pct_on=on)
 
 
 def _write(chunk: list[Outcome], run: RewardRun, on: date, now: datetime) -> None:

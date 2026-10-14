@@ -145,9 +145,37 @@ class RewardFamily(models.Model):
     Products a shopper treats as the same kind of thing at a similar price (the same blender in
     two colours, two sizes of one towel set). Their floor units pace together. A product with no
     family stands alone, and units of one product are always paced together (bulk).
+
+    Pricing families (thrift_plus_families, owner 2026-10-13): a product with 2+ floor units is a **possible** family
+    (``identical``; the AI's groups across products are ``similar``). A possible family's ThriftBucks hold until the
+    owner decides it: **approved** with a sell target (its units share one ThriftBucks % of the tag, rising slowly
+    while it sells slower than the target), **not a family** (each unit on its own), or **exit**.
     """
 
+    STATUS_POSSIBLE = 'possible'
+    STATUS_APPROVED = 'approved'
+    STATUS_NOT_FAMILY = 'not_family'
+    STATUS_EXIT = 'exit'
+    STATUS_CHOICES = [
+        (STATUS_POSSIBLE, 'Possible family: held until decided'),
+        (STATUS_APPROVED, 'Family'),
+        (STATUS_NOT_FAMILY, 'Not a family'),
+        (STATUS_EXIT, 'Exit'),
+    ]
+    KIND_IDENTICAL = 'identical'
+    KIND_SIMILAR = 'similar'
+    KIND_CHOICES = [(KIND_IDENTICAL, 'Same product'), (KIND_SIMILAR, 'Similar products')]
+
     name = models.CharField(max_length=120, blank=True, default='')
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=STATUS_POSSIBLE, db_index=True)
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES, default=KIND_SIMILAR)
+    target_per_90 = models.PositiveIntegerField(null=True, blank=True, help_text='Approved: units to sell per 90 days.')
+    pct = models.DecimalField(max_digits=6, decimal_places=4, null=True, blank=True,
+                              help_text="Approved: the family's ThriftBucks as a share of each tag.")
+    pct_on = models.DateField(null=True, blank=True, help_text='The night pct last moved (a re-run never moves it twice).')
+    decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    decided_at = models.DateTimeField(null=True, blank=True)
+    note = models.CharField(max_length=200, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -166,10 +194,12 @@ class FamilyLink(models.Model):
     SOURCE_ASKED = 'asked'
     SOURCE_NEIGHBOUR = 'neighbour'
     SOURCE_ALONE = 'alone'
+    SOURCE_IDENTICAL = 'identical'
     SOURCE_CHOICES = [
         (SOURCE_ASKED, 'Asked the model'),
         (SOURCE_NEIGHBOUR, "Named in a neighbour's answer"),
         (SOURCE_ALONE, 'No close neighbours on the floor'),
+        (SOURCE_IDENTICAL, 'Two or more units of the product on the floor'),
     ]
 
     product = models.OneToOneField('inventory.Product', on_delete=models.CASCADE, primary_key=True, related_name='reward_family_link')

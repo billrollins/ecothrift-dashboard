@@ -5,6 +5,8 @@ import type {
   CardBatch,
   EngineSaved,
   EngineState,
+  FamiliesQueue,
+  FamilyStatus,
   FloorCompare,
   FloorPlan,
   FloorPlanChoices,
@@ -246,5 +248,32 @@ export async function fetchCalculator(choices: CalculatorChoices): Promise<Calcu
     params[k] = typeof v === 'boolean' ? (v ? 1 : 0) : v;
   }
   const { data } = await api.get<CalculatorResult>('/thriftplus/rewards/calculator/', { params });
+  return data;
+}
+
+// ── Pricing families (thrift_plus_families Phase 1, owner 2026-10-13) ──────────
+
+export async function fetchFamilies(params: { status: FamilyStatus; band?: string; flag?: string; q?: string; offset?: number }): Promise<FamiliesQueue> {
+  const { data } = await api.get<FamiliesQueue>('/thriftplus/families/', { params });
+  return data;
+}
+
+export async function decideFamily(id: number, action: 'approve' | 'not_family' | 'exit' | 'reopen', target?: number) {
+  const { data } = await api.post<{ id: number; status: FamilyStatus }>(`/thriftplus/families/${id}/decide/`, { action, target });
+  return data;
+}
+
+export async function bulkApproveFamilies(ids: number[]) {
+  const { data } = await api.post<{ approved: number; skipped: number }>('/thriftplus/families/bulk/', { ids });
+  return data;
+}
+
+export async function markRestNotFamily() {
+  const { data } = await api.post<{ marked: number }>('/thriftplus/families/rest/', {});
+  return data;
+}
+
+export async function findFamilies() {
+  const { data } = await api.post<{ products: number; new: number }>('/thriftplus/families/find/', {});
   return data;
 }

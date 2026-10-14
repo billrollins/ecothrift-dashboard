@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.164.1] -->
-<!-- Last reviewed: 2026-10-14 (2.164.1) -->
+<!-- Line 1 release: ## [2.165.0] -->
+<!-- Last reviewed: 2026-10-12 (2.165.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.165.0] - 2026-10-12
+
+User-facing theme: **Thrift+ (still off for customers): pricing families. Identical items on the floor hold their ThriftBucks until the owner decides each family on the new Families tab: approve with a sell target (the units then share one ThriftBucks % that rises slowly while behind the target), not a family, or exit (Bill, 2026-10-13).** thrift_plus_families Phase 1.
+
+### Added
+
+- **Possible families:** every product with 2+ floor units (generic ones included) is a possible family, found first in every nightly ThriftBucks run (and "Find new families"). Its units keep the ThriftBucks of their first night (the launch start) and grow no more until decided, so launch-day ThriftBucks are the same either way.
+- **Approved family:** its units share one ThriftBucks % of the tag (starting at the middle of their current values), rising 0.25% of the tag a night while the family sells slower than its target and holding at or above it; never down. Sales are estimated conservatively, as if one more sold now ((sold + 1) ÷ days). **Not a family:** each unit grows on its own again. **Exit:** it holds.
+- **Thrift+ → Families** (Dash; managers look, the owner decides): the queue in order of money at stake with progress ("0 of 2,464 decided"), filters (size, flag, search), and cards with units, tags, retail, cost, age, sales (90 and 180 days), the estimate, ThriftBucks now and flags (huge lot, won't sell in 90 days, bought to sell near the tag, junk volume, fast seller). Approve with a target (suggested: clear the floor in 90 days), Not a family, Exit, Reopen; keyboard A / N / X; approve what's shown at its suggestion in bulk (never a lot of 50+); "Mark the rest not a family".
+
+### Changed
+
+- Identical units no longer pace by sell-through as "bulk": the families replace it.
 
 ## [2.164.1] - 2026-10-14
 

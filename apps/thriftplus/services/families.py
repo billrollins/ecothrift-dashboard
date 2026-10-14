@@ -174,3 +174,35 @@ def assign(limit: int = 200) -> dict:
             continue
         counts['joined' if link.family_id else link.source] += 1
     return dict(counts)
+
+
+# ── Pricing families: the same product, 2+ units on the floor (thrift_plus_families Phase 1) ──────
+
+def flag_identical() -> dict:
+    """Every product with 2+ floor units (not consignment) and no family yet becomes a **possible** family (owner
+    2026-10-13); its ThriftBucks hold until the owner decides it. Safe to run every night: a product already in a family
+    is left alone, and a product the AI checked and found alone gets its own family once it has 2+ units."""
+    from apps.inventory.models import Item, Product
+
+    pids = list(Item.objects.filter(status='on_shelf').exclude(source='consignment')
+                .values('product_id').annotate(n=Count('id')).filter(n__gte=2).values_list('product_id', flat=True))
+    links = dict(FamilyLink.objects.filter(product_id__in=pids).values_list('product_id', 'family_id'))
+    new = [pid for pid in pids if links.get(pid) is None]
+    titles = dict(Product.objects.filter(pk__in=new).values_list('pk', 'title'))
+    for i in range(0, len(new), 500):
+        chunk = new[i:i + 500]
+        with transaction.atomic():
+            fams = RewardFamily.objects.bulk_create([
+                RewardFamily(name=(titles.get(pid) or '')[:120], kind=RewardFamily.KIND_IDENTICAL,
+                             status=RewardFamily.STATUS_POSSIBLE)
+                for pid in chunk
+            ])
+            alone = set(FamilyLink.objects.filter(product_id__in=chunk, family__isnull=True).values_list('product_id', flat=True))
+            for pid, fam in zip(chunk, fams):
+                if pid in alone:
+                    FamilyLink.objects.filter(product_id=pid).update(family=fam, source=FamilyLink.SOURCE_IDENTICAL)
+            FamilyLink.objects.bulk_create([
+                FamilyLink(product_id=pid, family=fam, source=FamilyLink.SOURCE_IDENTICAL)
+                for pid, fam in zip(chunk, fams) if pid not in alone
+            ])
+    return {'products': len(pids), 'new': len(new)}

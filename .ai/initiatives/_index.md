@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-08 (hiring_onboarding Phase 6 shipped held, v2.149.0) -->
+<!-- Last updated: 2026-10-13 (thrift_plus_families opened: planning) -->
 # Initiatives — ecothrift-dashboard
 
 Bounded work (hours to days), one `.md` per initiative. Not a session log. Rules: [`protocols/initiative-create.md`](../protocols/initiative-create.md), [`protocols/initiative-review.md`](../protocols/initiative-review.md) (§ Filing rules). **Human gate:** do not archive without explicit approval.
@@ -16,6 +16,7 @@ Bounded work (hours to days), one `.md` per initiative. Not a session log. Rules
 | Initiative | Phase | Note |
 |------------|-------|------|
 | [thrift_plus_rewards](./thrift_plus_rewards.md) | **Phase 1** | **Compass until launch.** Free membership whose rewards replace markdowns. Launch Tue 10-20; last project day Thu 10-15. Ships dark behind a switch: members and cards 09-28, reward engine 10-01, register 10-05, signup/scanner/portal/Dash 10-08, launch readiness 10-12/14. |
+| [thrift_plus_families](./thrift_plus_families.md) | **Phase 1 ready** | Opened 2026-10-13. Identical and similar floor items price as families: ThriftBucks lock together and rise slowly to the owner's sell target (x per 90 days); every family approved; a possible family holds until decided. The Families page: a fast, good decision queue. 82% of floor units are in identical groups (2,464 products). Owner answered 10-13: same product or similar (within a subcategory), all decided by launch, slow rise 0.25%/day, conservative (sold + 1) estimates, huge lots one by one. Phase 1b (similar items) waits on his OK for the AI run. |
 | [inventory_count](./inventory_count.md) | **Shipped (v2)** | Phone-first shelf count for the owner's weekly inventory: sections, runs, one count a day, one-tap problems, carts, Count sessions, PR Fix-it. In production since 2026-10-01. First real count Mon 10-05, then tune. |
 | [data_platform](./data_platform.md) | **Phase 1** | Owner's priority besides Thrift+. Operational / Context / Analytical layers. Requests center (production approvals) 09-28, AI supervisor brief 10-01, QA framework 10-29, Analytical layer 11-12, model factory 11-26. |
 | [sell_time_model](./sell_time_model.md) | **Planned** | Owner's first warehouse project: predict the chance an item sells each day from price and context, then use it in the pricing model. Starts after the standardize run and backfill. |
