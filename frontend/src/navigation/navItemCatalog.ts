@@ -323,21 +323,14 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     icon: 'payroll',
     superuserOnly: true,
   },
-  brief: {
-    id: 'brief',
-    path: '/brief',
-    label: 'Brief',
-    // The AI supervisor's morning brief for the owner (data_platform Phase 2).
-    icon: 'brief',
-    superuserOnly: true,
-  },
   reports: {
     id: 'reports',
     path: '/reports',
     label: 'Reports',
-    // The owner's standard reports for a period: sales tax first (2026-10-13).
+    // The owner's page (2026-10-14): the morning brief first, then sales tax and the monthly reports.
     icon: 'reports',
     superuserOnly: true,
+    pathAliases: ['/brief'],
   },
   thriftPlus: {
     id: 'thriftPlus',

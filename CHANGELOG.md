@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.164.0] -->
-<!-- Last reviewed: 2026-10-13 (2.164.0) -->
+<!-- Line 1 release: ## [2.164.1] -->
+<!-- Last reviewed: 2026-10-14 (2.164.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.164.1] - 2026-10-14
+
+User-facing theme: **Reports: the morning brief and sales tax on one page, Brief first (Bill, 2026-10-14).** Outside initiatives.
+
+### Changed
+
+- **Reports** (the owner only) now opens on the **Brief** tab (the AI supervisor's morning brief), with **Sales tax** beside it. The sidebar has one **Reports** link under Dashboard; the Brief link is gone and /brief opens Reports.
 
 ## [2.164.0] - 2026-10-13
 

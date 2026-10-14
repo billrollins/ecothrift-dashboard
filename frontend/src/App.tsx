@@ -102,7 +102,6 @@ import RequestsPage from './pages/admin/RequestsPage';
 import QAPage from './pages/admin/QAPage';
 import ThriftPlusPage from './pages/thriftplus/ThriftPlusPage';
 import ReportsPage from './pages/reports/ReportsPage';
-import BriefPage from './pages/brief/BriefPage';
 import PartsCommandCenterPage from './pages/restoration/parts/PartsCommandCenterPage';
 import RestorationQueuePage from './pages/restoration/queue/RestorationQueuePage';
 import RestorationBenchPage from './pages/restoration/RestorationBenchPage';
@@ -444,7 +443,7 @@ export default function App() {
           path="/brief"
           element={
             <SuperAdminRoute>
-              <BriefPage />
+              <Navigate to="/reports" replace />
             </SuperAdminRoute>
           }
         />

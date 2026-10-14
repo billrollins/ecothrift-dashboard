@@ -69,10 +69,10 @@ function Numbers({ snapshot }: { snapshot: Record<string, unknown> }) {
 }
 
 /**
- * Dash → Brief: the AI supervisor's morning brief for the owner, written from yesterday's
- * Context snapshot (data_platform Phase 2). Superuser only.
+ * The AI supervisor's morning brief for the owner, written from yesterday's Context snapshot (data_platform Phase 2).
+ * Superuser only. Since 2026-10-14 it is the first tab of Reports (``embedded``: its title is a section heading).
  */
-export default function BriefPage() {
+export default function BriefPage({ embedded = false }: { embedded?: boolean }) {
   const queryClient = useQueryClient();
   const [day, setDay] = useState<string | undefined>(undefined);
   const query = useQuery({
@@ -92,7 +92,7 @@ export default function BriefPage() {
     <Box sx={{ maxWidth: 900 }}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }} sx={{ mb: 2 }}>
         <Box sx={{ flex: 1 }}>
-          <Typography variant="h5" component="h1" sx={{ fontWeight: 800 }}>Morning brief</Typography>
+          <Typography variant={embedded ? 'h6' : 'h5'} component={embedded ? 'h2' : 'h1'} sx={{ fontWeight: 800 }}>Morning brief</Typography>
           <Typography variant="body2" color="text.secondary">
             {data ? `About ${format(parseISO(data.day), 'EEEE, MMM d')}` : ' '}
             {brief?.model_used ? ` · written by ${brief.model_used}` : ''}
