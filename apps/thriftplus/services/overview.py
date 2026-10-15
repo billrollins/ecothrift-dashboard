@@ -1,6 +1,7 @@
 """
 Thrift+ in Dash, the owner's numbers (thrift_plus_rewards Phase 4):
-- members and cards;
+- members and cards; online joins still to finish at a register (owner 2026-10-15, J8) are counted apart, never as
+  members;
 - signups by day;
 - member sales against guest sales;
 - ThriftBucks (the 10-12 policy): redeemed instantly (dollars off), collected and kept, used, and expired (Thrift+
@@ -41,7 +42,7 @@ def overview(days: int = DAYS) -> dict:
     owed_rows = LedgerEntry.objects.filter(account__is_practice=False)
     ledger = owed_rows.filter(created_at__gte=since)
     signups = (
-        real.filter(created_at__gte=since).annotate(day=TruncDate('created_at')).values('day')
+        real.exclude(status=Account.STATUS_PENDING).filter(created_at__gte=since).annotate(day=TruncDate('created_at')).values('day')
         .annotate(n=Count('pk')).order_by('day')
     )
     signals = ItemReward.objects.aggregate(scans=Sum('scans'), adds=Sum('adds'), passes=Sum('passes'))
@@ -55,10 +56,15 @@ def overview(days: int = DAYS) -> dict:
         'members': {
             'active': real.filter(status=Account.STATUS_ACTIVE).count(),
             'revoked': real.filter(status=Account.STATUS_REVOKED).count(),
+            # Joined online, not finished at a register yet (J8): not members until then.
+            'pending': real.filter(status=Account.STATUS_PENDING).count(),
+            'pending_new': real.filter(status=Account.STATUS_PENDING, created_at__gte=since).count(),
             'people': Person.objects.filter(removed_at__isnull=True, account__status=Account.STATUS_ACTIVE,
                                             account__is_practice=False).count(),
-            'verified_18': Person.objects.filter(removed_at__isnull=True, verified_18=True, account__is_practice=False).count(),
-            'cards_active': Card.objects.filter(status=Card.STATUS_ACTIVE).exclude(person__account__is_practice=True).count(),
+            'verified_18': Person.objects.filter(removed_at__isnull=True, verified_18=True, account__is_practice=False)
+            .exclude(account__status=Account.STATUS_PENDING).count(),
+            'cards_active': Card.objects.filter(status=Card.STATUS_ACTIVE).exclude(person__account__is_practice=True)
+            .exclude(person__account__status=Account.STATUS_PENDING).count(),
             'cards_blank': Card.objects.filter(status=Card.STATUS_UNISSUED, batch__isnull=False).count(),
             'signups': [{'day': r['day'].isoformat(), 'n': r['n']} for r in signups],
         },

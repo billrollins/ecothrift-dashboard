@@ -114,6 +114,7 @@ import {
   snackbarVariantForPosAddItemError,
 } from '../../utils/posAddItemError';
 import { buildReceiptData } from '../../utils/posReceipt';
+import ThriftPlusFinishJoinDialog from '../../components/pos/ThriftPlusFinishJoinDialog';
 import ThriftPlusPanel from '../../components/pos/ThriftPlusPanel';
 import ThriftPlusPhoneFind from '../../components/pos/ThriftPlusPhoneFind';
 import ThriftPlusReturnDialog from '../../components/pos/ThriftPlusReturnDialog';
@@ -122,9 +123,11 @@ import { useQuery } from '@tanstack/react-query';
 import {
   attachThriftCard,
   getThriftRegisterStatus,
+  pendingFromError,
   reringThriftCard,
   reringThriftMember,
   thriftErrorMessage,
+  type ThriftPendingPerson,
 } from '../../api/thriftplusRegister.api';
 import { thriftCardCode } from '../../utils/thriftPlusCard';
 import { IconConfirm as Check, IconDelete as Delete, IconEdit as Edit, IconSearch as Search } from '../../icons/ecoIcons';
@@ -265,6 +268,8 @@ export default function TerminalPage() {
   const [reringArmed, setReringArmed] = useState(false);
   const [thriftReturnOpen, setThriftReturnOpen] = useState(false);
   const [thriftSignupOpen, setThriftSignupOpen] = useState(false);
+  // Joined online and not finished (owner 2026-10-15, J8): their QR scanned, or picked under "Joined online?".
+  const [thriftFinishJoin, setThriftFinishJoin] = useState<ThriftPendingPerson | null>(null);
   const [openDrawerDialog, setOpenDrawerDialog] = useState(false);
   const [openingCount, setOpeningCount] = useState<DenominationBreakdown>(EMPTY_BREAKDOWN);
   const [editingLineId, setEditingLineId] = useState<number | null>(null);
@@ -547,7 +552,10 @@ export default function TerminalPage() {
             enqueueSnackbar(`Thrift+ member: ${updated.thrift_plus?.member?.name ?? ''}`, { variant: 'info' });
           }
         } catch (err: unknown) {
-          enqueueSnackbar(thriftErrorMessage(err), { variant: 'error' });
+          // Joined online and not finished (J8): open Finish joining for them instead of an error.
+          const pending = pendingFromError(err);
+          if (pending) setThriftFinishJoin(pending);
+          else enqueueSnackbar(thriftErrorMessage(err), { variant: 'error' });
         }
         setSkuInput('');
         skuInputRef.current?.focus();
@@ -1865,7 +1873,13 @@ export default function TerminalPage() {
               size={{ xs: 12, md: 5 }}
               sx={{ minHeight: 0, display: 'flex', flexDirection: 'column', height: { md: '100%' } }}
             >
-              {cart?.thrift_plus ? <ThriftPlusPanel cart={cart} onCart={(next) => commitCart(next, { scroll: false })} /> : null}
+              {cart?.thrift_plus ? (
+                <ThriftPlusPanel
+                  cart={cart}
+                  onCart={(next) => commitCart(next, { scroll: false })}
+                  onFinishJoin={setThriftFinishJoin}
+                />
+              ) : null}
               {!cart?.thrift_plus?.member && lastSale?.live && Date.now() - lastSale.at < RERING_WINDOW_MS ? (
                 <Paper variant="outlined" sx={{ p: 1.5, mb: 2, flexShrink: 0 }}>
                   <Typography variant="body2">
@@ -2839,6 +2853,23 @@ export default function TerminalPage() {
         cart={cart}
         lastSale={lastSale?.live && Date.now() - lastSale.at < RERING_WINDOW_MS ? lastSale : null}
         onCart={(next) => commitCart(next, { scroll: false })}
+        training={Boolean(todayDrawer?.register_is_training)}
+        onFinishJoin={setThriftFinishJoin}
+      />
+      <ThriftPlusFinishJoinDialog
+        open={thriftFinishJoin !== null}
+        person={thriftFinishJoin}
+        onClose={() => {
+          setThriftFinishJoin(null);
+          skuInputRef.current?.focus();
+        }}
+        cart={cart}
+        lastSale={lastSale?.live && Date.now() - lastSale.at < RERING_WINDOW_MS ? lastSale : null}
+        onCart={(next) => commitCart(next, { scroll: false })}
+        onRerung={() => {
+          setReringArmed(false);
+          setLastSale(null);
+        }}
         training={Boolean(todayDrawer?.register_is_training)}
       />
 

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { SITE_URL, STORE } from '../data/content'
-import { LEGAL_ENTITY, LEGAL_LAST_UPDATED, NO_TEXTS, PRIVACY_NO_SHARING } from '../data/legal'
+import { LEGAL_ENTITY, LEGAL_LAST_UPDATED, NO_TEXTS, PRIVACY_NO_SHARING, THRIFT_PLUS_SIGN_IN_LINKS } from '../data/legal'
 import { useSeo } from '../useSeo'
 
 /** Public Privacy Policy (email-first, D20). See data/legal.ts. */
@@ -40,9 +40,9 @@ export default function PrivacyPage() {
 
           <h2>Email</h2>
           <p>
-            We email you what something you did needs (a receipt, a hold, a warranty return, a job application).
+            We email you what something you did needs (a receipt, a hold, a return, a job application).
             Thrift+ members who give an email also get their Thrift+ updates and store news; every store news email
-            has an unsubscribe link.{' '}
+            has an unsubscribe link. {THRIFT_PLUS_SIGN_IN_LINKS}{' '}
             <strong data-testid="privacy-no-sharing">{PRIVACY_NO_SHARING}</strong> Your address is shared only
             with the service providers that deliver our email.
           </p>

@@ -29,7 +29,7 @@ import { money, wouldPayChoices } from './scannerLogic';
 import { ThriftPlusLogo, art, sc, u } from './scannerTheme';
 import { canInstall, installPrompt, isStandalone } from './installApp';
 import { BigButton, Sheet } from './tripUi';
-import { useMe } from './useThriftPlus';
+import { MY_CARD_KEY, thriftPlusKeys, useMe } from './useThriftPlus';
 
 const TERMS_URL = 'https://ecothrift.us/terms';
 
@@ -114,7 +114,8 @@ export function ThriftPlusSheet({ onClose }: { onClose: () => void }) {
     { icon: <SavingsRounded />, title: 'Kept for next time, the Default.', text: 'Your ThriftBucks stay on your account. Use them from the next day, for 30 days, at full value.' },
     { icon: <BoltRounded />, title: 'Or redeem them instantly.', text: "At 50% of their value, off today's price. Just tell the cashier." },
     { icon: <AssignmentReturnRounded />, title: '3-day returns.', text: 'Bring a qualifying item back within 3 days, for any reason: 80% of what you paid comes back as Thrift+ credit.' },
-    { icon: <SellRounded />, title: 'Guests pay the tag.', text: 'Everything a guest buys is sold AS IS. All sales final.' },
+    // "Non-member", never "guest", in customer words (owner 2026-10-15, APP D10).
+    { icon: <SellRounded />, title: 'Non-members pay the tag.', text: 'Everything a non-member buys is sold AS IS. All sales final.' },
   ];
   return (
     <Sheet
@@ -155,12 +156,11 @@ export function ThriftPlusSheet({ onClose }: { onClose: () => void }) {
 
 const day = (iso: string) => format(parseISO(iso), 'MMM d');
 
-const CARD_KEY = 'tp-my-card';
 const CARD_TERMS = 'ThriftBucks are Thrift+ rewards: use within 30 days of collecting. No cash value.';
 
 function cachedCard(): MyCard | undefined {
   try {
-    const raw = localStorage.getItem(CARD_KEY);
+    const raw = localStorage.getItem(MY_CARD_KEY);
     return raw ? (JSON.parse(raw) as MyCard) : undefined;
   } catch {
     return undefined;
@@ -198,11 +198,11 @@ export function WalletSheet({ member, tripTotal, onClose, onAccount, onSignOut }
   onAccount: () => void;
   onSignOut: () => void;
 }) {
-  const card = useQuery({ queryKey: ['thriftPlus', 'myCard'], queryFn: getMyCard, initialData: cachedCard, staleTime: 60_000 });
+  const card = useQuery({ queryKey: thriftPlusKeys.myCard, queryFn: getMyCard, initialData: cachedCard, staleTime: 60_000 });
   useEffect(() => {
     if (!card.data) return;
     try {
-      localStorage.setItem(CARD_KEY, JSON.stringify(card.data));
+      localStorage.setItem(MY_CARD_KEY, JSON.stringify(card.data));
     } catch {
       /* private mode: it just won't be there offline */
     }

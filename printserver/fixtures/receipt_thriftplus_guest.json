@@ -27,6 +27,7 @@
   "change": 5.43,
   "thrift_plus": {
     "guest_all_as_is": true,
-    "guest_line": "This trip would have collected 12.60 ThriftBucks."
+    "guest_line": "This trip would have collected 12.60 ThriftBucks.",
+    "non_member_line": "Non-member: All sales final. Sold AS IS."
   }
 }

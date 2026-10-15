@@ -57,7 +57,11 @@ def set_address(person: Person, raw: str, *, user=None) -> Person:
     email = clean_email(raw)
     if (raw or '').strip() and not email:
         raise MemberError("That email doesn't look right.")
+    fields = ['email', 'updated_at']
+    if email != person.email and person.email_verified_at is not None:
+        person.email_verified_at = None  # a new address is confirmed by its own link or code (owner 2026-10-15)
+        fields.append('email_verified_at')
     person.email = email
-    person.save(update_fields=['email', 'updated_at'])
+    person.save(update_fields=fields)
     log('email_set', account=person.account, person=person, actor=user, has_email=bool(email))
     return person

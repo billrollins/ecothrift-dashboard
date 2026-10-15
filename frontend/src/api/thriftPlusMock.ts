@@ -89,18 +89,47 @@ export interface ThriftPlusMember {
   banked_rewards: Money;
   /** Thrift+ credit (dollars, from 3-day returns). */
   credit_balance: Money;
-  /** How this session signed in. A card session cannot change the account. (Real API only.) */
-  session_kind?: 'password' | 'card';
+  /** How this session signed in: an emailed link or code (owner 2026-10-15, J11), a password, or an old card session. */
+  session_kind?: 'password' | 'card' | 'email';
   /** False until they set up an email and password. (Real API only.) */
   has_login?: boolean;
   /** Thrift+ is still off: a staff or practice member is testing it. (Real API only.) */
   test_mode?: boolean;
+  /**
+   * False while the membership is pending: joined online, not finished at a register yet (J2, J8; owner 2026-10-15,
+   * APP D9). It collects and uses nothing until then. Missing means ready (older servers).
+   */
+  ready?: boolean;
+  /** The email was confirmed by its link or code (J11). */
+  email_verified?: boolean;
 }
 
 export type ThriftPlusSession =
   | { status: 'signed_out' }
   | { status: 'guest' }
   | { status: 'member'; member: ThriftPlusMember };
+
+/** Which email a link or code came from (owner 2026-10-15, APP D9): `join` confirms the email; `sign_in` signs in. */
+export type SignInPurpose = 'join' | 'sign_in';
+
+/** A link or code sign-in: the session, and which email it came from. */
+export type EmailSignIn = ThriftPlusSession & { purpose: SignInPurpose };
+
+/**
+ * An error with the server's words as its message, the server's `code` (CODE_BAD, TOO_SOON, ...) and, for a 429,
+ * the seconds to wait (`retry_after`).
+ */
+export class ThriftPlusError extends Error {
+  code?: string;
+  retryAfter?: number;
+
+  constructor(message: string, code?: string, retryAfter?: number) {
+    super(message);
+    this.name = 'ThriftPlusError';
+    this.code = code;
+    this.retryAfter = retryAfter;
+  }
+}
 
 export interface ThriftPlusCartLine {
   item: ThriftPlusItemCard;
@@ -354,15 +383,33 @@ interface StoredSession {
   status: 'guest' | 'member';
   email?: string;
   username?: string | null;
+  /** Email sign-in (owner 2026-10-15, APP D9): who joined, and whether they're finished at a register. */
+  first_name?: string;
+  ready?: boolean;
+  kind?: 'password' | 'email';
 }
 
 export type MockSignal =
   | { kind: 'scan' | 'add' | 'pass'; sku: string; at: string }
   | { kind: 'feel'; sku: string; at: string; feel: PriceFeel };
 
+/** An email the mock "sent": its link token and 6-digit code (one use, 15 minutes, 5 wrong codes kill it). */
+export interface MockEmail {
+  to: string;
+  purpose: SignInPurpose;
+  token: string;
+  code: string;
+  sentAt: number;
+  used: boolean;
+  wrong: number;
+}
+
 const state = {
   latencyMs: 120,
   signals: [] as MockSignal[],
+  emails: [] as MockEmail[],
+  /** Joined online (pending until a register finishes them), by lower-cased email. */
+  joins: new Map<string, { first_name: string; verified: boolean }>(),
 };
 
 function wait(ms = state.latencyMs): Promise<void> {
@@ -377,16 +424,20 @@ function readSession(): ThriftPlusSession {
   const s = readJson<StoredSession | null>(LS.session, null);
   if (!s) return { status: 'signed_out' };
   if (s.status === 'guest') return { status: 'guest' };
+  const ready = s.ready ?? true;
   return {
     status: 'member',
     member: {
-      first_name: 'Dana',
+      first_name: s.first_name || 'Dana',
       email: s.email || 'member@example.com',
       username: s.username ?? null,
-      card_last4: '4821',
-      verified_18: true,
-      banked_rewards: '27.50',
+      card_last4: ready ? '4821' : null,
+      verified_18: ready,
+      banked_rewards: ready ? '27.50' : '0.00',
       credit_balance: '0.00',
+      ready,
+      email_verified: true,
+      ...(s.kind ? { session_kind: s.kind } : {}),
     },
   };
 }
@@ -500,6 +551,92 @@ export async function signInWithCard(cardCode: string, phoneLast4: string): Prom
   return readSession();
 }
 
+// Email sign-in and joining (owner 2026-10-15, APP D9; rulebook J8, J11). No passwords and no texts: every email
+// carries a link and a 6-digit code, each works once for 15 minutes. The answers never say whether an email is a
+// member's. Mock: nothing is sent (`thriftPlusMockControls.outbox()` shows what would be), and any email that hasn't
+// joined here counts as an active member's.
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const EMAIL_MINUTES = 15;
+
+function sendEmail(to: string, purpose: SignInPurpose): void {
+  const n = state.emails.length + 1;
+  state.emails.push({
+    to,
+    purpose,
+    token: `mock-link-${n}`,
+    code: String(100000 + ((n * 271_829) % 900_000)),
+    sentAt: Date.now(),
+    used: false,
+    wrong: 0,
+  });
+}
+
+/** Join with a name and email: a pending membership and a join email (an email already a member's gets a sign-in email). */
+export async function joinThriftPlus(name: string, email: string): Promise<{ status: 'sent' }> {
+  await wait();
+  const who = name.replace(/\s+/g, ' ').trim();
+  const to = email.trim().toLowerCase();
+  if (!who) throw new ThriftPlusError('Enter your first and last name.', 'NAME_NEEDED');
+  if (!EMAIL_RE.test(to)) throw new ThriftPlusError('Check your email address.', 'EMAIL_BAD');
+  const joined = state.joins.get(to);
+  if (!joined) state.joins.set(to, { first_name: who.split(' ')[0], verified: false });
+  sendEmail(to, !joined || !joined.verified ? 'join' : 'sign_in');
+  return { status: 'sent' };
+}
+
+/** "Email me a link": always the same answer. */
+export async function requestSignInEmail(email: string): Promise<{ status: 'sent' }> {
+  await wait();
+  const to = email.trim().toLowerCase();
+  if (!EMAIL_RE.test(to)) throw new ThriftPlusError('Check your email address.', 'EMAIL_BAD');
+  const joined = state.joins.get(to);
+  sendEmail(to, joined && !joined.verified ? 'join' : 'sign_in');
+  return { status: 'sent' };
+}
+
+function signedInBy(sent: MockEmail): EmailSignIn {
+  sent.used = true;
+  const joined = state.joins.get(sent.to);
+  if (joined) joined.verified = true;
+  writeJson(LS.session, {
+    status: 'member',
+    email: sent.to,
+    username: null,
+    first_name: joined?.first_name,
+    ready: !joined, // joined online: not ready until a register finishes it (J2)
+    kind: 'email',
+  } satisfies StoredSession);
+  return { ...readSession(), purpose: sent.purpose };
+}
+
+/** Past its 15 minutes, or killed by 5 wrong codes. */
+const expired = (sent: MockEmail) => sent.wrong >= 5 || Date.now() - sent.sentAt > EMAIL_MINUTES * 60_000;
+
+/** The link in the email: `/scan?signin=<token>`. */
+export async function signInWithLink(token: string): Promise<EmailSignIn> {
+  await wait();
+  const sent = state.emails.find((e) => e.token === token);
+  if (!sent) throw new ThriftPlusError("That link didn't work. Send a new one.", 'LINK_BAD');
+  if (sent.used) throw new ThriftPlusError('That link has already been used. Send a new one.', 'LINK_USED');
+  if (expired(sent)) throw new ThriftPlusError('That link has expired. Send a new one.', 'LINK_EXPIRED');
+  return signedInBy(sent);
+}
+
+/** The 6-digit code from the email, typed in the app: the newest one sent to that email. */
+export async function signInWithCode(email: string, code: string): Promise<EmailSignIn> {
+  await wait();
+  const to = email.trim().toLowerCase();
+  const sent = [...state.emails].reverse().find((e) => e.to === to && !e.used);
+  if (!sent) throw new ThriftPlusError("That code didn't work. Check it and try again.", 'CODE_BAD');
+  if (expired(sent)) throw new ThriftPlusError('That code has expired. Send a new one.', 'CODE_EXPIRED');
+  if (code.trim() !== sent.code) {
+    sent.wrong += 1;
+    throw new ThriftPlusError("That code didn't work. Check it and try again.", 'CODE_BAD');
+  }
+  return signedInBy(sent);
+}
+
 /** Scan without an account: guests see what members would collect. */
 export async function continueAsGuest(): Promise<ThriftPlusSession> {
   writeJson(LS.session, { status: 'guest' } satisfies StoredSession);
@@ -599,9 +736,15 @@ export const thriftPlusMockControls = {
   setLatency(ms: number): void {
     state.latencyMs = ms;
   },
+  /** The sign-in and join emails the mock "sent", oldest first (owner 2026-10-15, APP D9). */
+  outbox(): MockEmail[] {
+    return state.emails.map((e) => ({ ...e }));
+  },
   /** Forget everything on this phone. */
   reset(): void {
     state.signals = [];
+    state.emails = [];
+    state.joins.clear();
     for (const key of Object.values(LS)) writeJson(key, null);
   },
 };

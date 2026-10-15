@@ -26,6 +26,8 @@ class PersonSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'role', 'first_name', 'last_name', 'phone', 'email', 'photo_url', 'id_checked', 'verified_18',
             'verified_at', 'removed_at', 'cards', 'created_at',
+            # Owner 2026-10-15 (J8, J11): the email confirmed by its link or code; the phone read back at a register.
+            'email_verified_at', 'phone_verified_at',
         ]
 
     def get_photo_url(self, obj) -> str | None:

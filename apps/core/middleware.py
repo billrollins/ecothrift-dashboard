@@ -32,7 +32,7 @@ _SHORT_LINK_PREFIX = '/i/'
 # (www.ecothrift.us/scan). They pass through to the dashboard app, which serves them publicly.
 # ecothrift.us/qr (owner 2026-10-14): straight to the Member QR in the scanner (a redirect in ecothrift/urls.py);
 # /card is the old address, kept quietly.
-_DASHBOARD_SPA_PATHS = ('/scan', '/qr', '/card')
+_DASHBOARD_SPA_PATHS = ('/scan', '/qr', '/card', '/join')  # /join: owner 2026-10-15 (J8)
 
 # Public landing template (Django-rendered; replaced by the public SPA in a later phase).
 _HOLDING_TEMPLATE = 'public/holding.html'

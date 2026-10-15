@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-15 (v2.166.0 ships the register, the training register and no card; brand plan yes: one brush logo, no font to buy) -->
+<!-- Last updated: 2026-10-15 (/terms built with the Español toggle; the native-speaker check covers the page labels. Earlier: v2.166.0; brand plan yes) -->
 # Thrift+ launch hub
 
 ## Approve these
@@ -10,7 +10,7 @@
 - [ ] At a return, staff glance for "broken, damaged or heavily used after the sale" (W7)
 - [ ] Families: how items move after a break-apart, and whether the slow rise is "memoryless" (P6)
 - [ ] Final OK on the terms words (`terms-en.md`) and the poster words (`copy_r3.json`)
-- [ ] A native speaker checks the Spanish footer line and `terms-es.md` (V5)
+- [ ] A native speaker checks the Spanish footer line, `terms-es.md`, and the /terms page's own Spanish labels (Inicio, Términos, Idioma, "Términos de la tienda (en inglés)", the QR alt text, the page description) (V5)
 - [ ] Click **Save** on Thrift+ → Calculator (0.75% a day; old stock at 30% of its age, at most 45 days). This gives launch-day ThriftBucks and unblocks poster 2's screenshot (P3, P4)
 - [ ] Send a photo of the stock card front (for poster 1)
 - [ ] OK the AI run for similar items, then work the Families queue by launch (P6, O1)
@@ -114,14 +114,14 @@
 | Piece | State | Left |
 |---|---|---|
 | Rulebook | Updated 10-12 | Signature and CPA / attorney (above); fixes 3, 4, 9 |
-| Terms page /terms | Words drafted (EN, ES, register sheet) | Your OK, the attorney, the Spanish check; **not built**; address clash (1); version date |
+| Terms page /terms | Built 10-15 (English / Español, Spanish by phone language; ships with the sign-in release) | Your OK, the attorney, the Spanish check; the version date set to the go-live day |
 | /join (phone start) | Not built | Build it before the posters print (J8) |
 | Poster 1 Meet | Built, QA OK (10-12) | Card-front photo, your OK, print v4 |
 | Poster 2 ThriftBucks | Built with the phone, QA OK | Save the Calculator, retake the screenshot from v2.163.0, recheck the crop, print v4 |
 | Poster 3 Returns | Built, QA OK | Your OK, print v4 |
 | Print files | v3 = feedback prints (superseded); v4 not made | Use the register sheet in `print/`, not the older copy in `print/v3/` |
-| Scanner app | Trip scanner live for staff (v2.163.0), 10-12 words | The brush logo in the header (owner 10-15); the email-link sign-in and /join (T76) |
-| Register (POS) | Built on the old rules: cover, InstantBucks at 80%, returns 95%; training register built | The 10-12 rules: no cover, 50% instant, 30-day expiry, Return button with 80% / 20%, return limit, owner approvals log; finish-at-register screen with the signature (J2, J5) |
+| Scanner app | Final app built (v2.167.0): Member QR, email sign-in and join, brush logo, Non-member; APP signed off 10-15 | Ship; the email delivery test (mail-tester, the owner's inboxes) after DKIM |
+| Register (POS) | The 10-12 / 10-14 rules, training register, no card (v2.166.0, live); Finish joining for online joins (v2.167.0) | The signature (J5); the return limit (W14); the owner approvals log; print server 1.9.0 installed on every register |
 | Receipts / print server | 1.9.0 unreleased; still prints cover and InstantBucks | Use-by dates, "3-day return" / "AS IS" lines (A3, B12, V4); release and install on every register |
 | Cards | The card-back PDF says "Free to join. Never a bill." | **Add the B12 card line** (the 30-day expiry depends on it); print the backs |
 | Dash | Overview, Members, Calculator built | Remove the InstantBucks / cover words; each member's return count (W14); approvals log (O1) |

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
 import HomePage from './pages/HomePage'
 import { useOnlineSalesConfig } from './onlineSalesConfig'
@@ -37,6 +37,15 @@ function RouteFallback() {
       </div>
     </div>
   )
+}
+
+/**
+ * The older Thrift+ addresses (rulebook J5, W8) land on the terms: /thriftplus (and anything under it, such as
+ * /thriftplus/terms) → /terms, and /thriftplus/warranty → the 3-day returns section, /terms#s8. Keeps ?lang=.
+ */
+function ThriftPlusRedirect({ hash }: { hash?: string }) {
+  const location = useLocation()
+  return <Navigate to={{ pathname: '/terms', search: location.search, hash: hash ?? location.hash }} replace />
 }
 
 function ShopRoute({ children }: { children: React.ReactNode }) {
@@ -235,6 +244,8 @@ export default function App() {
             </Suspense>
           }
         />
+        <Route path="thriftplus/warranty" element={<ThriftPlusRedirect hash="#s8" />} />
+        <Route path="thriftplus/*" element={<ThriftPlusRedirect />} />
         <Route
           path="*"
           element={

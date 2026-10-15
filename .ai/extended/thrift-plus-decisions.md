@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-15 (owner, second plan: no texts; join online with name + email, the email link signs in, the phone verified in person: J8, J11, J12. Earlier: 10-14 no Thrift+ card, J10; the register build v2.166.0) -->
+<!-- Last updated: 2026-10-15 (built in v2.167.0: J8, J11, J12, V9. Earlier today: Non-member V9; second sign-in plan; 10-14 no Thrift+ card, J10) -->
 # Thrift+ rulebook
 
 **The one place for every Thrift+ rule.** Form 5 is chosen: rewards first, as store credit. Code follows this file. It is the single source of truth: the old rulebook page, launch kit page and warranty review page are retired (10-09); the only page kept is the final forms grid. Owner answers are folded in here. Items marked "CPA / attorney" carry our answer and wait for their sign-off. Older notes (the 10-01 list, the legal memo, the warranty review, the launch kit) lose wherever they differ.
@@ -56,7 +56,7 @@
   - Source: Meeting 10-07. Built: Yes.
 - **J8. Joining from a phone** (Decided; changed 10-15). Online a shopper gives **only their name and email**. One email arrives, "Tap to confirm your email and start your Thrift+ membership." (APP D9; "finish joining" is the register step); tapping it, or typing its 6-digit code in the app, verifies the email and signs them in (J11). At any register the cashier finds the pending join (the QR on their phone, or their name or email), **asks the phone number and reads it back**, checks the photo ID (seen, never kept, J3), takes the photo and has them sign (J5). The phone is then **verified in person**, with the staff member and the date. Phone numbers are unique; a clash is settled with the ID at the counter. Until the register step the membership is "not ready" (J2). Online asks as little as possible so it never feels invasive.
   - Customer words: "Start your Thrift+ membership on your phone, then finish at any register in a minute."
-  - Source: Your answer 10-08; owner 10-15 in the master chat (name and email online; the phone in person). Built: No (to build, standards T76).
+  - Source: Your answer 10-08; owner 10-15 in the master chat (name and email online; the phone in person). Built: v2.167.0 (ecothrift.us/join, the email link and code, Finish joining at the register; the signature (J5) is not built).
 - **J9. Email at sign-up** (Decided). Optional, no boxes (X1).
   - Customer words: "We'll email your receipts and Thrift+ updates. Store news emails have an unsubscribe link."
   - Source: 10-08 (T74). Built: Yes (v2.155.1).
@@ -65,18 +65,18 @@
   - Source: Owner 10-14 ("we are doing away with the card altogether ... no mention of CARD anywhere"), via the Thrift+ Design session. Built: v2.166.0 (app, register, Dash, receipts); card batches retired in Dash.
 - **J11. Signing in to the app** (Decided 10-15, second plan that day). **No password and no texts.** The join email's link is the first sign-in. On a new phone, or after signing out: "Email me a link". Every email carries the link **and a 6-digit code** to type in the app, since a phone may open the link in another browser (APP D9); each works once, for 15 minutes. A phone stays signed in for a year, renewed on use; signing out ends it. The screen never says whether an email is a member's ("If that email belongs to a member, we've sent a link"); link requests are limited per email and per address, and logged. Optional later: "Use Face ID / fingerprint next time" (a passkey). Staff sign in as before.
   - Customer words: "If that email belongs to a member, we've sent a link."
-  - Source: Owner 10-15 in the master chat (master inbox 2026-10-15, second message; standards T76). Replaces the same day's texted-code plan (Twilio Verify), and the 10-14 proposals. Built: No (on the owner's order).
+  - Source: Owner 10-15 in the master chat (master inbox 2026-10-15, second message; standards T76). Replaces the same day's texted-code plan (Twilio Verify), and the 10-14 proposals. Built: v2.167.0 (no passkeys yet).
   - **No texts:** /privacy keeps "Eco-Thrift does not currently send text messages." The terms are updated (Design 10-15): §10.4 is now "Signing in" (the email link, once, up to 30 minutes; a year signed in), and §1.3 points to **ecothrift.us/join** (name and email; a route to build).
   - **Goes live with the build, not before:** the /privacy Email-section line (Design's words): "We also email you a sign-in link for the Thrift+ app when you ask for one; each link works once and only for a short time."
   - **Before launch:** (1) send the real join email to a mail-tester.com address and aim for 9/10 or better (SPF, DKIM, DMARC, content, links); (2) send it to the owner's own Gmail, Outlook, Yahoo and iCloud addresses (named in chat only, never in files) and he says where each landed. Master 10-15: ecothrift.us has SPF but **no Microsoft 365 DKIM and no DMARC**, so Gmail and Yahoo may spam-file retail@ mail until the owner adds the two DKIM records and turns DKIM on in Microsoft (on his list). Test before and after his fix.
 - **J12. Joining with no email** (Decided 10-15). A shopper with no email joins **at the register** with their phone, ID and photo, and collects and uses everything there. The app comes once they add an email: staff can add it at the register, and the link is sent.
-  - Source: Owner 10-15 in the master chat. Built: Partly (register sign-up works today; adding an email later sends no link yet).
+  - Source: Owner 10-15 in the master chat. Built: v2.167.0 (register sign-up; Dash "Send sign-in link" when an email is added later).
 
 ## ThriftBucks and prices
 
 *What members collect, and how it moves.*
 
-- **P1. Guests and members** (Decided). Guests pay the tag. Members collect ThriftBucks on almost everything. Not collecting: consignment items, an item's first 7 days on the floor, and back stock not yet seen on the floor.
+- **P1. Non-members and members** (Decided; word changed 10-15). Non-members pay the tag. Members collect ThriftBucks on almost everything. Not collecting: consignment items, an item's first 7 days on the floor, and back stock not yet seen on the floor.
   - Customer words: "ThriftBucks on most items." (the terms say "most items" and list the exceptions)
   - Source: Design; 10-08. Built: Yes.
 - **P2. The word members see** (Decided; changed 10-10). "ThriftBucks" everywhere members look (V8). "Member price" only as a plain description (the tag minus ThriftBucks used today).
@@ -120,7 +120,7 @@
     - ThriftBucks collected on a sale or a re-ring are usable from the next day. ThriftBucks given back on a return, a manager's adjustment or a voided spend are usable at once (they were already usable).
     - On a return, the ThriftBucks given back are added first, then the take-back (W5) comes off, soonest use-by first, today's included, so the two net against each other.
     - Reports → Sales tax shows a return's full refund (price and tax parts) before any shortfall.
-    - A Thrift+ failure never blocks a sale: it is logged, the sale completes at guest prices or without the ledger rows, and the POS never sees a server error.
+    - A Thrift+ failure never blocks a sale: it is logged, the sale completes at non-member prices or without the ledger rows, and the POS never sees a server error.
 - **B14. Credit first, worked** (Decided). $80 item, 7% tax. With $100 of Thrift+ credit: the credit pays $85.60, no ThriftBucks are used, and today's 35 ThriftBucks are kept. With $50 of Thrift+ credit and 35 kept ThriftBucks: 33.27 ThriftBucks bring the total to $50.00, which the credit pays in full; 1.73 ThriftBucks stay kept, and nothing is paid in cash.
   - Source: Worked 10-08. Built: n/a.
 - **B4. No cap** (Decided). No limit on saved rewards: the 30-day expiry already keeps reward credit small.
@@ -186,7 +186,8 @@
   - **Owner 10-14: yes, a quick glance.** No testing and no questions; staff refuse only an item clearly broken, damaged or heavily used since the sale.
 - **W8. Where the full text lives** (Decided). Printed at every register and at ecothrift.us/terms (section 8, anchor #s8; the older /thriftplus and /thriftplus/warranty redirect there), version-dated, old versions kept. The text: `.ai/reference/thrift-plus-terms/returns-register.md` (10-12; replaces limited-warranty-register.md). Eco-Thrift LLC, 8425 West Center Road, Omaha, NE 68124, (402) 881-9861.
   - Source: 10-01; 10-08. Built: No (page due 10-14).
-- **W9. Guests** (Decided). Everything is sold AS IS. All sales final.
+- **W9. Non-members** (Decided; word changed 10-15). Everything is sold AS IS. All sales final.
+  - Customer words: "Non-member: All sales final. Sold AS IS." (receipts)
   - Customer words: "All sales final. Sold AS IS."
   - Source: Design. Built: Yes.
 
@@ -198,7 +199,7 @@
   - Source: 10-08; owner 10-12 (AS IS on the tag). Built: No.
 - **A2. Items sold as-is on purpose** (Decided; changed 10-12). The AS IS on the tag (A1) replaces the NO THRIFT+ WARRANTY sticker, plus the Dash flag and the receipt line.
   - Source: Claude, at your word 10-08; owner 10-12. Built: No.
-- **A3. Receipts and the app** (Decided; changed 10-12). Member receipts mark each line "3-day return" or "AS IS"; guest receipts say all AS IS; the scanner says it too.
+- **A3. Receipts and the app** (Decided; changed 10-12). Member receipts mark each line "3-day return" or "AS IS"; non-member receipts say all AS IS; the scanner says it too.
   - Source: 10-08; 10-12. Built: No.
 - **A4. Store signs** (Decided; changed 10-12). The three signs (Prices at racks, Returns with a bold SOLD AS IS box and the 3-day returns rule at registers, Meet Thrift+ at the entrance), plus a small area sign in clothing if clothing stays off the list (W6): "Not returnable. Sold as is to everyone. Final sale."
   - Source: Claude, at your word 10-08 (legal review); 10-09; 10-12 (returns, not warranty). Built: n/a.
@@ -226,6 +227,8 @@
 
 - **V1. Voice** (Decided). What you get now; "it might be gone tomorrow". Never wait / less / pay as the pitch.
   - Source: 10-07. Built: n/a.
+- **V9. "Non-member", never "guest"** (Decided 10-15). Everywhere a customer reads (posters, terms, the app, receipts, emails, the register): "Member" and "Non-member". Code names may keep "guest".
+  - Source: Owner 10-15 ("I think non-member is better"), via the Thrift+ Design session (design language v2.8). Built: v2.167.0 (app, receipts, print server 1.9.0, register and server words).
 - **V2. Words we never use** (Decided; 10-12 added). discount (as the pitch), fee, dues, unlock, cash back, points, clawback, instant rebate, gift card, store credit, Thrift+ Cash, "the longer it waits", "use now", "bank" or "banked", "earn" (say "collect"), "Member price"; since 10-12 also "InstantBucks", "Full reward", "Instant reward", "cover", "warranty" and "primary function" (Thrift+ returns are a return privilege, W1). The one exception: the legal lines that say returns are "not a warranty" and that items are sold AS IS "with no warranties" (terms §8.6 and §9, the register sheet, the returns poster's footer).
   - Source: 10-01; 10-07; 10-08; 10-09; 10-10; 10-12. Built: n/a.
 - **V3. Tagline** (Decided; changed 10-12). "ThriftBucks, 3-day returns and more!" (Claude, after the 10-12 changes; owner to confirm). Earlier: "Rewards, Limited Warranty and more!" (10-10), "ThriftBucks, Limited Warranty and more!" (V8).
@@ -265,7 +268,7 @@
   - Source: Owner 10-10. Built: No (consignment not open).
 - **M3. Member-only sales** (Planned). Members who sign up for event notifications get notice of member-only sales and events. This is an email choice the member turns on (X1: email only, no texts; store news can always be turned off).
   - Source: Owner 10-10. Built: No.
-- **M4. More in the scanner** (Planned). Members may see more about an item in the scanner than guests do.
+- **M4. More in the scanner** (Planned). Members may see more about an item in the scanner than non-members do.
   - Source: Owner 10-10. Built: No.
 
 ## Email (no texts)

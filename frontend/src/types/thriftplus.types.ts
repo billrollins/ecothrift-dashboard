@@ -29,6 +29,10 @@ export interface ThriftPlusPerson {
   email?: string;
   /** Email state (T74): account email follows the address; store news can be turned off. Detail only. */
   emails?: { updates: boolean; news: boolean };
+  /** Owner 2026-10-15 (J8, J11): the email confirmed by its emailed link or code. */
+  email_verified_at?: string | null;
+  /** The phone read back at a register (in person). */
+  phone_verified_at?: string | null;
 }
 
 export interface ThriftPlusEvent {
@@ -43,7 +47,8 @@ export interface ThriftPlusEvent {
 
 export interface ThriftPlusAccount {
   id: number;
-  status: 'active' | 'revoked';
+  /** 'pending': joined online with a name and email, to finish at a register (owner 2026-10-15, J8). */
+  status: 'active' | 'revoked' | 'pending';
   /** A practice member for training: training register and scanner test mode only, left out of every report. */
   is_practice?: boolean;
   notes: string;

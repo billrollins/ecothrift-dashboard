@@ -211,7 +211,7 @@ def problems(line, account, today: date | None = None, *, late_ok: bool = False,
         out.append('That sale was not completed.')
     member = CartMember.objects.filter(cart_id=cart.pk).first()
     if member is None or member.account_id != account.pk:
-        out.append('It was not bought on this Thrift+ membership. Guest sales are final.')
+        out.append('It was not bought on this Thrift+ membership. Non-member sales are final.')
     if ReturnRecord.objects.filter(cart_line_id=line.pk).exists():
         out.append('It was already returned.')
     if cart.completed_at and not late_ok:

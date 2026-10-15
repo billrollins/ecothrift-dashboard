@@ -10,6 +10,26 @@ import ThriftPlusPage from './ThriftPlusPage';
 
 const created = vi.hoisted(() => ({ bodies: [] as unknown[] }));
 const stopped = vi.hoisted(() => ({ calls: [] as [number, string][] }));
+const links = vi.hoisted(() => ({ calls: [] as [number, string | undefined][], finds: [] as [string, string | undefined][] }));
+
+/** Joined online with a name and email (owner 2026-10-15, J8): no phone, no ID check, no photo yet. */
+const pendingAccount: ThriftPlusAccount = {
+  id: 6,
+  status: 'pending',
+  notes: 'Joined online (name and email).',
+  revoked_at: null,
+  revoked_reason: '',
+  created_at: '2026-10-15T15:00:00Z',
+  people: [
+    {
+      id: 7, role: 'primary', first_name: 'Cara', last_name: 'Joyner', phone: '', photo_url: null, email: 'cara@example.com',
+      id_checked: false, verified_18: false, verified_at: null, removed_at: null, created_at: '2026-10-15T15:00:00Z',
+      email_verified_at: '2026-10-15T15:01:00Z', phone_verified_at: null, emails: { updates: true, news: true },
+      cards: [{ id: 11, code: '512345678904', display: '5123 4567 8904', status: 'active', issued_at: '2026-10-15T15:00:00Z', dead_at: null, dead_reason: '' }],
+    },
+  ],
+  events: [],
+};
 
 const account: ThriftPlusAccount = {
   id: 3,
@@ -68,7 +88,7 @@ vi.mock('../../api/thriftplus.api', () => ({
   adjustMemberMoney: async () => ({}),
   fetchThriftOverview: async () => ({
     days: 30,
-    members: { active: 42, revoked: 1, people: 50, verified_18: 40, signups: [{ day: '2026-10-20', n: 30 }] },
+    members: { active: 42, revoked: 1, people: 50, verified_18: 40, signups: [{ day: '2026-10-20', n: 30 }], pending: 6, pending_new: 5 },
     sales: { member_sales: 120, member_revenue: '3400.00', guest_sales: 300, guest_revenue: '9100.00' },
     rewards: { instant: '210.00', banked: '380.00', used: '41.25', expired: '9.50', credit_from_returns: '12.00' },
     owed: { banked: '55.00', credit: '12.00' },
@@ -76,8 +96,16 @@ vi.mock('../../api/thriftplus.api', () => ({
     scanner: { scans: 200, adds: 50, passes: 150, add_rate: 0.25, items_scanned: 180, price_feedback: 7 },
   }),
   fetchItemReward: async () => itemDetail,
-  findMembers: async () => [account],
-  fetchMember: async () => account,
+  findMembers: async (q: string, status?: string) => {
+    links.finds.push([q, status]);
+    return status === 'pending' ? [pendingAccount] : [account];
+  },
+  fetchMember: async (id: number) => (id === pendingAccount.id ? pendingAccount : account),
+  sendMemberEmailLink: async (personId: number, email?: string) => {
+    links.calls.push([personId, email]);
+    const cara = personId === pendingAccount.people[0].id;
+    return { ...(cara ? pendingAccount : account), sent: cara ? 'sign_in' : 'join', sent_to: cara ? 'c***@example.com' : 'a***@example.com' };
+  },
   createMember: async (body: unknown) => {
     created.bodies.push(body);
     return { ...account, id: 4 };
@@ -128,7 +156,7 @@ describe('Thrift+ member service', () => {
   it('finds a member and shows their member code (last 4), 18+ check and history', async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.type(screen.getByLabelText('Scan a member QR, or type a phone or name'), 'ana');
+    await user.type(screen.getByLabelText('Scan a member QR, or type a phone, email or name'), 'ana');
     await user.click(await screen.findByText('Ana Diaz'));
     expect(await screen.findByText('Membership #3')).toBeInTheDocument();
     expect(screen.getByText('18+ verified')).toBeInTheDocument();
@@ -148,7 +176,7 @@ describe('Thrift+ member service', () => {
   it('replaces a member code: the old one stops at once', async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.type(screen.getByLabelText('Scan a member QR, or type a phone or name'), 'ana');
+    await user.type(screen.getByLabelText('Scan a member QR, or type a phone, email or name'), 'ana');
     await user.click(await screen.findByText('Ana Diaz'));
     await user.click(await screen.findByRole('button', { name: 'Replace member code' }));
     expect(stopped.calls).toContainEqual([9, 'replaced by staff']);
@@ -181,6 +209,38 @@ describe('Thrift+ member service', () => {
     expect(body.email).toBe('cy@example.com');
     expect(Object.keys(body).some((k) => k.startsWith('emails_'))).toBe(false);
   });
+
+  it('adds an email for a register member and sends the join link (J12)', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText('Scan a member QR, or type a phone, email or name'), 'ana');
+    await user.click(await screen.findByText('Ana Diaz'));
+    const send = await screen.findByRole('button', { name: 'Save and send link' });
+    expect(send).toBeDisabled();
+    await user.type(screen.getByPlaceholderText('Add an email'), 'ana@example.com');
+    await user.click(send);
+    expect(links.calls).toContainEqual([5, 'ana@example.com']);
+    expect(await screen.findByText('Join email sent to a***@example.com.')).toBeInTheDocument();
+  });
+
+  it('lists the online joins to finish at a register, and sends one a sign-in link from next to the email', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Joined online, not finished' }));
+    expect(links.finds).toContainEqual(['', 'pending']); // listed with nothing typed
+    expect(await screen.findByText(/cara@example\.com · joined online, finish at a register/)).toBeInTheDocument();
+    await user.click(screen.getByText('Cara Joyner'));
+    expect(await screen.findByTestId('thrift-pending-note')).toHaveTextContent(
+      'Joined online, finish at a register. Not a member yet: it collects and uses nothing until a register asks the phone number',
+    );
+    expect(screen.getAllByText('Joined online, finish at a register').length).toBeGreaterThan(0); // the person's chip
+    expect(screen.getByText('No phone yet: the register asks it and reads it back')).toBeInTheDocument();
+    expect(screen.getByText('Email confirmed')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'ID checked: 18+' })).not.toBeInTheDocument(); // the register does it
+    await user.click(screen.getByRole('button', { name: 'Send sign-in link' }));
+    expect(links.calls).toContainEqual([7, undefined]);
+    expect(await screen.findByText('Sign-in link sent to c***@example.com.')).toBeInTheDocument();
+  });
 });
 
 describe('Thrift+ rewards (the dry run)', () => {
@@ -203,6 +263,10 @@ describe('Thrift+ overview', () => {
     renderPage('/thrift-plus?tab=overview');
     expect(await screen.findByText('Active memberships')).toBeInTheDocument();
     expect(screen.getByText('42')).toBeInTheDocument();
+    // Online joins not finished at a register are counted apart, never as members (owner 2026-10-15, J8).
+    expect(screen.getByText('Joined online, to finish at a register')).toBeInTheDocument();
+    expect(screen.getByText('6')).toBeInTheDocument();
+    expect(screen.getByText('Not members yet · 5 in 30 days')).toBeInTheDocument();
     expect(screen.getByText('Redeemed instantly')).toBeInTheDocument();
     expect(screen.getByText('$210.00')).toBeInTheDocument(); // redeemed instantly is dollars off
     expect(screen.getByText('380.00')).toBeInTheDocument(); // ThriftBucks kept: a number, never "$"

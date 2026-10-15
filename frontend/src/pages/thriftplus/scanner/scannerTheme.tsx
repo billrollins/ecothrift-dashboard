@@ -96,7 +96,10 @@ export function useScannerFonts(): void {
   }, []);
 }
 
-/** Thrift+ in the ThriftBucks font (owner 2026-10-10): "Thrift" white, "+" green, as outlines (wordmarkPath.ts). */
+/**
+ * The brush Thrift+, the one logo everywhere (owner 2026-10-15, APP D10): "Thrift" white, "+" green, as outlines
+ * (wordmarkPath.ts, traced; both paths fill-rule evenodd).
+ */
 export function ThriftPlusLogo({ width }: { width: string }) {
   return (
     <Box
@@ -106,8 +109,8 @@ export function ThriftPlusLogo({ width }: { width: string }) {
       aria-label="Thrift+"
       sx={{ width, height: 'auto', display: 'block', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.35))', userSelect: 'none' }}
     >
-      <path d={WORDMARK_THRIFT} fill="#ffffff" />
-      <path d={WORDMARK_PLUS} fill="#5fd34a" />
+      <path d={WORDMARK_THRIFT} fill="#ffffff" fillRule="evenodd" />
+      <path d={WORDMARK_PLUS} fill="#5fd34a" fillRule="evenodd" />
     </Box>
   );
 }

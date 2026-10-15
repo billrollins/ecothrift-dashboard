@@ -18,7 +18,7 @@ class ScannerPassthroughTests(SimpleTestCase):
 
     def test_scan_reaches_the_dashboard_on_both_public_hosts(self):
         for host in ('www.ecothrift.us', 'ecothrift.us'):
-            for path in ('/scan', '/scan/', '/scan/list', '/qr', '/qr/', '/card'):  # /qr: the Member QR (owner 2026-10-14)
+            for path in ('/scan', '/scan/', '/scan/list', '/qr', '/qr/', '/card', '/join', '/join/'):  # /qr: the Member QR (owner 2026-10-14); /join (10-15)
                 response = self._get(host, path)
                 self.assertEqual((response.status_code, response.content), (200, b'dashboard'), f'{host}{path}')
 

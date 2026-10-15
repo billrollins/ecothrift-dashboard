@@ -24,6 +24,7 @@ FILES = [
     'apps/thriftplus/services/overview.py',
     'apps/thriftplus/services/trip.py',
     'apps/thriftplus/services/ledger.py',
+    'apps/thriftplus/services/signin_emails.py',  # the join and sign-in emails (owner 2026-10-15)
 ]
 # In views.py, the register's and returns' answers (Dash's card batches are the Dash agent's, 2026-10-14).
 VIEW_CLASSES = ('RegisterViewSet', 'ReturnsViewSet', 'AccountViewSet', 'PersonViewSet')

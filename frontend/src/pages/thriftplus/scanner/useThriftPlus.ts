@@ -1,5 +1,5 @@
 /** React Query wrappers around the Thrift+ scanner API (`/api/thriftplus/public`). */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import {
   addToCart,
   clearCart,
@@ -9,9 +9,11 @@ import {
   getHistory,
   getMe,
   getSession,
+  joinThriftPlus,
   passItem,
   removeFromCart,
   removePerson,
+  requestSignInEmail,
   setMyNews,
   requestPasswordReset,
   sendPriceFeel,
@@ -19,7 +21,10 @@ import {
   setCartQty,
   setUpLogin,
   signIn,
+  signInWithCode,
+  signInWithLink,
   signOut,
+  type EmailSignIn,
   type PriceFeel,
   type ThriftPlusCart,
   type ThriftPlusHistoryEntry,
@@ -33,10 +38,35 @@ export const thriftPlusKeys = {
   cart: ['thriftPlus', 'cart'] as const,
   history: ['thriftPlus', 'history'] as const,
   me: ['thriftPlus', 'me'] as const,
+  myCard: ['thriftPlus', 'myCard'] as const,
 };
 
-export function useThriftPlusSession() {
-  return useQuery({ queryKey: thriftPlusKeys.session, queryFn: getSession, staleTime: Infinity });
+/** The Member QR kept on the phone, so it shows with no signal (tripSheets.tsx). */
+export const MY_CARD_KEY = 'tp-my-card';
+
+/**
+ * A new session (signed in, out, or scanning without signing in): the last person's Member QR and account aren't this
+ * one's, so forget them, on the phone too (owner 2026-10-15, APP D9: a join lands straight on the Member QR).
+ */
+function forgetLastPerson(qc: QueryClient): void {
+  qc.removeQueries({ queryKey: thriftPlusKeys.myCard });
+  qc.removeQueries({ queryKey: thriftPlusKeys.me });
+  try {
+    localStorage.removeItem(MY_CARD_KEY);
+  } catch {
+    /* private mode: nothing was kept */
+  }
+}
+
+/** A link or code sign-in's session, without its `purpose`. */
+function sessionOf(r: EmailSignIn): ThriftPlusSession {
+  const { purpose: _purpose, ...session } = r;
+  return session as ThriftPlusSession;
+}
+
+/** `enabled` is false while an emailed link signs in (`?signin=`), so an older answer can't undo it. */
+export function useThriftPlusSession(enabled = true) {
+  return useQuery({ queryKey: thriftPlusKeys.session, queryFn: getSession, staleTime: Infinity, enabled });
 }
 
 export function useThriftPlusCart() {
@@ -50,6 +80,7 @@ export function useThriftPlusHistory(enabled = true) {
 export function useSignIn() {
   const qc = useQueryClient();
   const setSession = (s: ThriftPlusSession) => {
+    forgetLastPerson(qc);
     qc.setQueryData(thriftPlusKeys.session, s);
     // Staff test mode: signing in (or out) can open or close the scanner while Thrift+ is off.
     void qc.invalidateQueries({ queryKey: ['thriftPlus', 'open'] });
@@ -64,6 +95,16 @@ export function useSignIn() {
     reset: useMutation({ mutationFn: (email: string) => requestPasswordReset(email) }),
     guest: useMutation({ mutationFn: () => continueAsGuest(), onSuccess: setSession }),
     signOut: useMutation({ mutationFn: () => signOut(), onSuccess: setSession }),
+    // Email sign-in and joining (owner 2026-10-15, APP D9): send the email, then its code or its link signs in.
+    email: useMutation({ mutationFn: (email: string) => requestSignInEmail(email) }),
+    join: useMutation({ mutationFn: ({ name, email }: { name: string; email: string }) => joinThriftPlus(name, email) }),
+    code: useMutation({
+      mutationFn: ({ email, code }: { email: string; code: string }) => signInWithCode(email, code),
+      onSuccess: (r: EmailSignIn) => setSession(sessionOf(r)),
+    }),
+    link: useMutation({ mutationFn: (token: string) => signInWithLink(token), onSuccess: (r: EmailSignIn) => setSession(sessionOf(r)) }),
+    /** Signed in elsewhere on this phone (the email's link in another tab): pick up that session. */
+    adopt: setSession,
   };
 }
 
@@ -101,6 +142,7 @@ export function useConfirmReset() {
   return useMutation({
     mutationFn: ({ token, password }: { token: string; password: string }) => confirmPasswordReset(token, password),
     onSuccess: (s: ThriftPlusSession) => {
+      forgetLastPerson(qc);
       qc.setQueryData(thriftPlusKeys.session, s);
       void qc.invalidateQueries({ queryKey: thriftPlusKeys.cart });
     },

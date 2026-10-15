@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildReceiptData, receiptLineFromCartLine, saleSuffix } from './posReceipt';
+import { buildReceiptData, NON_MEMBER_RECEIPT_LINE, receiptLineFromCartLine, saleSuffix } from './posReceipt';
 import type { Cart, CartLine, ThriftPlusCartBlock } from '../types/pos.types';
 
 function line(partial: Partial<CartLine>): CartLine {
@@ -184,7 +184,7 @@ describe('Thrift+ on the receipt (the 10-12 policy)', () => {
     ]);
   });
 
-  it('marks every guest line AS IS and says what membership would have collected', () => {
+  it('marks every non-member line AS IS, sends the Non-member line, and says what membership would have collected', () => {
     const guestLine = 'This trip would have collected 35.00 ThriftBucks.';
     const data = buildReceiptData(cart({
       lines: [lamp, pinkTag, delivery],
@@ -198,7 +198,11 @@ describe('Thrift+ on the receipt (the 10-12 policy)', () => {
     expect(data.thrift_plus).toEqual({
       member: null, collected: 35, use_by: null, instant_off: 0, instant_bucks: 0, bucks_used: 0, credit_used: 0,
       balances: null, guest_all_as_is: true, guest_line: guestLine,
+      // Owner 2026-10-15: "Non-member" replaces "guest" wherever a customer reads.
+      non_member_line: 'Non-member: All sales final. Sold AS IS.',
     });
+    expect(NON_MEMBER_RECEIPT_LINE).toBe('Non-member: All sales final. Sold AS IS.');
+    expect(JSON.stringify(data)).not.toMatch(/Guest/);
     expect('training' in data).toBe(false);
   });
 

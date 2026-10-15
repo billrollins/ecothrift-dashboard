@@ -13,6 +13,10 @@ exactly as before. Anything that goes wrong in here is logged and never raised i
 scan box (``TP`` + their member code), or by finding them by phone and picking the person (owner 2026-10-14: there is
 no Thrift+ card).
 
+**Joined online** (owner 2026-10-15, J8): a pending membership collects and uses nothing (J2). Its QR (attach, re-ring,
+the returns lookup) answers ``MEMBER_PENDING`` with the person, and the terminal opens Finish joining: the cashier asks
+the phone number and reads it back, checks the ID and takes the photo (``finish_join``); the membership is then active.
+
 **Paying, in order (B3, B14, T1-T4):**
 1. **Thrift+ credit** (refund money) first, automatically, up to the whole total: a payment after tax
    (``Cart.thrift_credit``, set by the post-total hook ``after_totals_if_live``).
@@ -46,7 +50,7 @@ from decimal import ROUND_DOWN, ROUND_HALF_UP, ROUND_UP, Decimal
 from django.db import transaction
 from django.utils import timezone
 
-from apps.thriftplus.models import CartMember, Card, ItemReward, LedgerEntry, Person, RestrictedProduct
+from apps.thriftplus.models import Account, CartMember, Card, ItemReward, LedgerEntry, Person, RestrictedProduct
 from apps.thriftplus.services import ledger, members, trip
 from apps.thriftplus.services.members import MemberError
 from apps.thriftplus.services.rewards import floor_for, rules
@@ -59,13 +63,19 @@ TEST_REGISTERS_KEY = 'thrift_plus_test_registers'
 RERING_WINDOW = timedelta(minutes=30)
 BUCKS_TAG = 'bucks'
 BUCKS_LABEL = 'ThriftBucks used'
-ERROR_TEXT = 'Thrift+ could not work out this sale. It is priced as a guest sale; call a manager.'
+ERROR_TEXT = 'Thrift+ could not work out this sale. It is priced as a non-member sale; call a manager.'
+PENDING_TEXT = 'Joined online. Finish joining first: ask the phone number, check the ID, take the photo.'
+PHONE_TAKEN_TEXT = 'That phone number is on another membership. Check the ID and ask a manager.'
 
 
 class RegisterError(Exception):
-    def __init__(self, code: str, message: str):
+    def __init__(self, code: str, message: str, **extra):
         super().__init__(message)
         self.code = code
+        self.extra = extra  # more for the terminal (MEMBER_PENDING: the person to finish)
+
+    def payload(self) -> dict:
+        return {**self.extra, 'detail': str(self), 'code': self.code}
 
 
 # ── Live or dark ───────────────────────────────────────────────────────────────
@@ -570,9 +580,17 @@ def _card(code: str) -> Card:
         raise RegisterError('CARD_UNKNOWN', str(exc)) from exc
     if card.status != Card.STATUS_ACTIVE or card.person is None:
         raise RegisterError('CARD_NOT_ACTIVE', 'This membership is not active. Sign them up, or find them by phone.')
-    if card.person.removed_at is not None or card.person.account.status != 'active':
-        raise RegisterError('CARD_NOT_ACTIVE', 'This membership is not active.')
+    _check_ready(card.person)
     return card
+
+
+def _check_ready(person: Person) -> None:
+    """A person who can go on a sale: on the membership, and the membership active. Joined online and not finished:
+    ``MEMBER_PENDING`` with the person, so the terminal opens Finish joining (J2: it collects and uses nothing)."""
+    if person.removed_at is None and person.account.status == Account.STATUS_PENDING:
+        raise RegisterError('MEMBER_PENDING', PENDING_TEXT, **pending_person(person))
+    if person.removed_at is not None or person.account.status != Account.STATUS_ACTIVE:
+        raise RegisterError('CARD_NOT_ACTIVE', 'This membership is not active.')
 
 
 def _person(person_id) -> Person:
@@ -581,8 +599,7 @@ def _person(person_id) -> Person:
         person = Person.objects.select_related('account').get(pk=int(person_id))
     except (Person.DoesNotExist, TypeError, ValueError):
         raise RegisterError('MEMBER_UNKNOWN', 'That member is not in the system. Find them by phone again.') from None
-    if person.removed_at is not None or person.account.status != 'active':
-        raise RegisterError('CARD_NOT_ACTIVE', 'This membership is not active.')
+    _check_ready(person)
     return person
 
 
@@ -824,6 +841,79 @@ def after_void(cart, *, user=None) -> None:
     """A voided sale gives back what it wrote to the ledger."""
     if LedgerEntry.objects.filter(cart=cart).exists():
         ledger.reverse_cart(cart, 'void', user)
+
+
+# ── Joined online: finish joining at the register (owner 2026-10-15, J8) ────────
+
+def pending_person(person: Person) -> dict:
+    """One pending join, for the cashier to pick and finish."""
+    card = (Card.objects.filter(person=person, status=Card.STATUS_ACTIVE).order_by('-issued_at', '-pk')
+            .values_list('code', flat=True).first())
+    return {
+        'person_id': person.pk, 'account_id': person.account_id, 'first_name': person.first_name,
+        'last_name': person.last_name, 'email': person.email, 'joined_at': person.account.created_at,
+        'code_last4': card[-4:] if card else None,
+    }
+
+
+def pending(query: str = '', *, limit: int = 10) -> list[dict]:
+    """Pending joins by name, email or member code (their QR), newest first; with nothing typed, the newest."""
+    from django.db.models import Q
+
+    from apps.thriftplus.services.cards import parse
+
+    q = (query or '').strip()
+    people = Person.objects.select_related('account').filter(account__status=Account.STATUS_PENDING, removed_at__isnull=True)
+    code = parse(q) if q else ''
+    if code:
+        people = people.filter(cards__code=code)
+    elif q:
+        for word in q.split():
+            people = people.filter(Q(first_name__icontains=word) | Q(last_name__icontains=word) | Q(email__icontains=word))
+    return [pending_person(p) for p in people.distinct().order_by('-account__created_at', '-pk')[:limit]]
+
+
+def finish_join(person_id, *, phone: str, id_checked: bool = False, verified_18: bool = False, photo=None,
+                user=None) -> Person:
+    """Finish joining at the register (J8): the phone the cashier read back (10 digits, unique among active and pending
+    people), then the ID check, 18+ and the photo as at a register sign-up. The phone is verified in person (who and
+    when); the membership becomes active."""
+    try:
+        pk = int(person_id)
+    except (TypeError, ValueError):
+        raise RegisterError('MEMBER_UNKNOWN', 'That member is not in the system. Find them again.') from None
+    digits = members.normalize_phone(phone)
+    if len(digits) != 10:
+        raise RegisterError('PHONE_BAD', 'Type the 10-digit phone number.')
+    with transaction.atomic():
+        person = Person.objects.select_for_update().select_related('account').filter(pk=pk).first()
+        if person is None:
+            raise RegisterError('MEMBER_UNKNOWN', 'That member is not in the system. Find them again.')
+        if person.removed_at is not None or person.account.status == Account.STATUS_REVOKED:
+            raise RegisterError('CARD_NOT_ACTIVE', 'This membership is not active.')
+        if person.account.status != Account.STATUS_PENDING:
+            raise RegisterError('NOT_PENDING', 'They already finished joining. Scan their QR or find them by phone.')
+        taken = Person.objects.filter(
+            phone=digits, removed_at__isnull=True, account__status__in=(Account.STATUS_ACTIVE, Account.STATUS_PENDING),
+        ).exclude(pk=person.pk).exists()
+        if taken:
+            raise RegisterError('PHONE_TAKEN', PHONE_TAKEN_TEXT)
+        now = timezone.now()
+        person.phone = digits
+        person.phone_verified_at, person.phone_verified_by = now, user
+        if id_checked:
+            person.id_checked, person.verified_18 = True, bool(verified_18)
+            person.verified_at, person.verified_by = now, user
+        if photo:
+            person.photo = photo
+        person.save()
+        account = person.account
+        account.status = Account.STATUS_ACTIVE
+        account.save(update_fields=['status', 'updated_at'])
+        members.log('finished_joining', account=account, person=person, actor=user, id_checked=person.id_checked,
+                    verified_18=person.verified_18, photo=bool(photo))
+        members.member_code(person, user=user)
+    return person
 
 
 # ── Re-ring ────────────────────────────────────────────────────────────────────

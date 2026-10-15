@@ -9,6 +9,34 @@ export function looksLikeEmail(email: string | undefined): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test((email ?? '').trim());
 }
 
+type IdValue = Pick<NewMember, 'id_checked' | 'verified_18'>;
+
+/** The ID check and the 18+ flag it allows (J3: nothing from the ID is kept). Also used by Finish joining (J8). */
+export function IdCheckFields<T extends IdValue>({ value, onChange }: { value: T; onChange: (v: T) => void }) {
+  return (
+    <>
+      <FormControlLabel
+        control={<Checkbox checked={Boolean(value.id_checked)} onChange={(e) => onChange({ ...value, id_checked: e.target.checked, verified_18: e.target.checked ? value.verified_18 : false })} />}
+        label="Checked a photo ID (the name matches)"
+      />
+      <FormControlLabel
+        control={<Checkbox checked={Boolean(value.verified_18)} disabled={!value.id_checked} onChange={(e) => onChange({ ...value, verified_18: e.target.checked })} />}
+        label="The ID shows 18 or older"
+      />
+    </>
+  );
+}
+
+/** The member's photo from the register's camera (J4). Also used by Finish joining (J8). */
+export function PhotoField({ photo, onChange }: { photo: File | null | undefined; onChange: (photo: File | null) => void }) {
+  return (
+    <Button component="label" variant="outlined" startIcon={<AddAPhotoOutlined />}>
+      {photo ? `Photo: ${photo.name}` : 'Take or add a photo'}
+      <input hidden type="file" accept="image/*" capture="user" onChange={(e) => onChange(e.target.files?.[0] ?? null)} />
+    </Button>
+  );
+}
+
 /**
  * A Thrift+ person's signup fields (Dash member service and the register): name, phone, an optional email (no
  * boxes: receipts and updates go to it, and store news with an unsubscribe link; T74), the ID check and the 18+
@@ -34,18 +62,8 @@ export default function PersonFields({ value, onChange, blankCard = true }: { va
         error={Boolean(value.email) && !looksLikeEmail(value.email)}
         onChange={(e) => onChange({ ...value, email: e.target.value })}
       />
-      <FormControlLabel
-        control={<Checkbox checked={Boolean(value.id_checked)} onChange={(e) => onChange({ ...value, id_checked: e.target.checked, verified_18: e.target.checked ? value.verified_18 : false })} />}
-        label="Checked a photo ID (the name matches)"
-      />
-      <FormControlLabel
-        control={<Checkbox checked={Boolean(value.verified_18)} disabled={!value.id_checked} onChange={(e) => onChange({ ...value, verified_18: e.target.checked })} />}
-        label="The ID shows 18 or older"
-      />
-      <Button component="label" variant="outlined" startIcon={<AddAPhotoOutlined />}>
-        {value.photo ? `Photo: ${value.photo.name}` : 'Take or add a photo'}
-        <input hidden type="file" accept="image/*" capture="user" onChange={(e) => onChange({ ...value, photo: e.target.files?.[0] ?? null })} />
-      </Button>
+      <IdCheckFields value={value} onChange={onChange} />
+      <PhotoField photo={value.photo} onChange={(photo) => onChange({ ...value, photo })} />
       {blankCard ? (
         <TextField label="Scan a blank card" value={value.card_code ?? ''} onChange={(e) => onChange({ ...value, card_code: e.target.value })} helperText="Optional. Scan the card, or type its 12 digits." />
       ) : null}

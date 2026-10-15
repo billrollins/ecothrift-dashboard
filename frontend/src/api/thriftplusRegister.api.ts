@@ -73,6 +73,86 @@ export async function reringThriftMember(cartId: number, personId: number): Prom
   return data;
 }
 
+/**
+ * Joined online and not finished yet (owner 2026-10-15, J8): a pending membership. It collects and uses nothing until
+ * the register finishes joining (the phone read back, the ID, the photo).
+ */
+export interface ThriftPendingPerson {
+  person_id: number;
+  account_id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  /** When they joined online (ISO). */
+  joined_at: string;
+  /** The last 4 of their member code (the QR in their app), or null. */
+  code_last4: string | null;
+}
+
+/** Pending joins by name, email or member code, newest first (at most 10). A POST, so names stay out of request logs. */
+export async function findPendingJoins(q: string): Promise<ThriftPendingPerson[]> {
+  const { data } = await api.post<{ people: ThriftPendingPerson[] }>('/thriftplus/register/pending/', { q });
+  return data.people;
+}
+
+export interface ThriftFinishJoin {
+  person: number;
+  /** Ten digits, read back to them. */
+  phone: string;
+  id_checked: boolean;
+  verified_18: boolean;
+  photo?: File | null;
+  /** An open sale: the member goes on it after. */
+  cart?: number | null;
+}
+
+export interface ThriftFinishResult {
+  person_id: number;
+  account_id: number;
+  first_name: string;
+  last_name: string;
+  status: string;
+  /** The sale with the member on it (when a cart was sent and the attach worked). */
+  cart: Cart | null;
+  /** They joined, but could not go on the sale. */
+  attach_error?: { code: string; detail: string };
+}
+
+/** Finish joining at the register (J8). 409 PHONE_TAKEN when another membership has that phone. */
+export async function finishThriftJoin(body: ThriftFinishJoin): Promise<ThriftFinishResult> {
+  const form = new FormData();
+  form.append('person', String(body.person));
+  form.append('phone', body.phone);
+  form.append('id_checked', String(body.id_checked));
+  form.append('verified_18', String(body.id_checked && body.verified_18));
+  if (body.photo) form.append('photo', body.photo);
+  if (body.cart) form.append('cart', String(body.cart));
+  const { data } = await api.post<ThriftFinishResult>('/thriftplus/register/finish/', form, {
+    transformRequest: [
+      (b, headers) => {
+        if (b instanceof FormData) delete headers['Content-Type'];
+        return b;
+      },
+    ],
+  });
+  return data;
+}
+
+/** A pending member's QR (attach, re-ring, returns): the person to finish joining, or null for any other error. */
+export function pendingFromError(err: unknown): ThriftPendingPerson | null {
+  const data = (err as { response?: { data?: Partial<ThriftPendingPerson> & { code?: unknown } } })?.response?.data;
+  if (!data || data.code !== 'MEMBER_PENDING' || typeof data.person_id !== 'number') return null;
+  return {
+    person_id: data.person_id,
+    account_id: Number(data.account_id),
+    first_name: data.first_name ?? '',
+    last_name: data.last_name ?? '',
+    email: data.email ?? '',
+    joined_at: data.joined_at ?? '',
+    code_last4: data.code_last4 ?? null,
+  };
+}
+
 /** The server's message for a refused Thrift+ step (member code unknown, not live, 18+, instant not offered). */
 export function thriftErrorMessage(err: unknown, fallback = 'Thrift+ could not do that.'): string {
   const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;

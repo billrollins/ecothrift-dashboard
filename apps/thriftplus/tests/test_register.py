@@ -564,7 +564,7 @@ class ReturnTests(RegisterBase):
         guest = self._cart()
         self._complete(guest['id'])
         line = CartLine.objects.select_related('cart', 'item__product').get(cart_id=guest['id'])
-        self.assertIn('It was not bought on this Thrift+ membership. Guest sales are final.', returns.problems(line, self.account))
+        self.assertIn('It was not bought on this Thrift+ membership. Non-member sales are final.', returns.problems(line, self.account))
         bow = Item.objects.create(sku='ITMTPBOW', product=Product.objects.create(title='Compound crossbow'), price=D('150.00'))
         self.assertTrue(returns.qualifies(bow))  # crossbows are not left out as a group any more (W6)
         RestrictedProduct.objects.create(product=bow.product)

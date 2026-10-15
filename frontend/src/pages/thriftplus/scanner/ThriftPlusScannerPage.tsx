@@ -4,20 +4,22 @@
  * Sign in, then the trip scanner (TripScanner.tsx, owner 2026-10-13): This trip on top, the camera or the scanned tag
  * or the trip's lines in the middle, every action on the bottom buttons. While Thrift+ is off, customers see Coming
  * soon and staff sign in to test it (a yellow test bar). /scan?type=1 tests without a camera (test tags to pick).
+ * Email sign-in (owner 2026-10-15, APP D9): the email's link opens /scan?signin=<token>; a join lands on the Member QR,
+ * a sign-in on the scanner. ecothrift.us/join opens /scan?view=join: Join, or the Member QR when already signed in.
  * Data: ../../../api/thriftPlusScanner.api.ts (the real API).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Box, ButtonBase, CircularProgress } from '@mui/material';
-import { isOpen, setPreviewCode } from '../../../api/thriftPlusScanner.api';
+import { isOpen, setPreviewCode, type SignInPurpose } from '../../../api/thriftPlusScanner.api';
 import { ResetPasswordScreen } from './AccountScreens';
 import { SignInScreen } from './SignInScreen';
 import { TripScanner } from './TripScanner';
 import { UNIT_CSS, sc, useScannerFonts } from './scannerTheme';
 import { installScannerHead } from './installApp';
 import { loadDetector } from './useQrCamera';
-import { useThriftPlusSession } from './useThriftPlus';
+import { useSignIn, useThriftPlusSession } from './useThriftPlus';
 
 const TYPE_ONLY_KEY = 'tp-type-only';
 
@@ -46,7 +48,38 @@ export default function ThriftPlusScannerPage() {
       /* private mode: the flag lasts for this page only */
     }
   }
-  const session = useThriftPlusSession();
+  // The email's link (owner 2026-10-15, APP D9): /scan?signin=<token> signs this browser in, once. The token comes off
+  // the address either way; a join opens the Member QR (view=qr), a sign-in the scanner. A used or expired link shows
+  // its words on the sign-in screen (unless this phone is signed in already).
+  const signinToken = pageParams.get('signin');
+  const joinAsked = pageParams.get('view') === 'join';
+  const auth = useSignIn();
+  const [linkError, setLinkError] = useState('');
+  const linkTried = useRef<string | null>(null);
+  useEffect(() => {
+    if (!signinToken || linkTried.current === signinToken) return;
+    linkTried.current = signinToken;
+    void (async () => {
+      let purpose: SignInPurpose | null = null;
+      try {
+        purpose = (await auth.link.mutateAsync(signinToken)).purpose;
+        setLinkError('');
+      } catch (e) {
+        setLinkError(e instanceof Error && e.message ? e.message : "That link didn't work. Send a new one.");
+      }
+      setPageParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('signin');
+        if (purpose === 'join') next.set('view', 'qr');
+        return next;
+      }, { replace: true });
+    })();
+  }, [signinToken]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Held while the link signs in, so an answer from before it can't sign the phone back out.
+  const session = useThriftPlusSession(!signinToken);
+  // ecothrift.us/join: the Join screen when signed out or scanning without signing in; signed in, TripScanner opens
+  // the Member QR instead.
+  const joinShown = joinAsked && session.data?.status === 'guest';
 
   useEffect(() => {
     const prev = document.title;
@@ -90,7 +123,7 @@ export default function ThriftPlusScannerPage() {
         {open.data === false ? (
           staffSignIn ? (
             <Box sx={{ flex: 1, overflowY: 'auto' }}>
-              <SignInScreen />
+              <SignInScreen start="staff" />
             </Box>
           ) : (
             <ComingSoon onStaff={() => setStaffSignIn(true)} />
@@ -99,13 +132,13 @@ export default function ThriftPlusScannerPage() {
           <Box sx={{ flex: 1, overflowY: 'auto' }}>
             <ResetPasswordScreen token={resetToken} onDone={() => setPageParams({}, { replace: true })} />
           </Box>
-        ) : !session.data ? (
+        ) : signinToken || !session.data ? (
           <Box sx={{ flex: 1, display: 'grid', placeItems: 'center' }}>
             <CircularProgress sx={{ color: sc.green }} />
           </Box>
-        ) : session.data.status === 'signed_out' ? (
+        ) : session.data.status === 'signed_out' || joinShown ? (
           <Box sx={{ flex: 1, overflowY: 'auto' }}>
-            <SignInScreen />
+            <SignInScreen start={joinAsked ? 'join' : 'email'} notice={linkError} />
           </Box>
         ) : (
           <TripScanner session={session.data} />

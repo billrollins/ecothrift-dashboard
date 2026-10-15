@@ -5,7 +5,11 @@ The public Thrift+ API for the scanner app and portal (thrift_plus_rewards Phase
 - **Auth:** every view here uses only ``MemberSessionAuthentication`` (the ``tp_session`` cookie),
   never the staff JWT. A member session can't reach a staff endpoint, and a staff token means
   nothing here.
-- **Guests** use the tag lookup and the signals only. Their cart stays on the phone.
+- **Guests** (non-members, in customer words since 10-15) use the tag lookup and the signals only. Their cart stays on
+  the phone.
+- **Joining and signing in** (owner 2026-10-15, J8 and J11): ``join/`` with a name and email, ``session/email/``
+  ("Email me a link"), then ``session/link/`` or ``session/code/``. The send answers never say whether an email is a
+  member's.
 - **Shapes** match ``frontend/src/api/thriftPlusMock.ts``.
 """
 from __future__ import annotations
@@ -17,7 +21,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.throttling import SimpleRateThrottle
 
-from apps.thriftplus.models import MemberLogin, MemberSession
+from apps.thriftplus.models import Account, MemberLogin, MemberSession
 from apps.thriftplus.services import ledger, member_auth, members, scanner
 from apps.thriftplus.services.member_auth import AuthError, IsMember, MemberSessionAuthentication
 
@@ -58,7 +62,10 @@ def _session_payload(request) -> dict:
         'status': 'member',
         'price_first': members.price_first(),
         'member': {
-            'first_name': person.first_name, 'email': login.email if login else '', 'username': login.username if login else None,
+            'first_name': person.first_name, 'email': login.email if login else person.email,
+            'username': login.username if login else None,
+            # Owner 2026-10-15 (J2, J8): joined online and not finished at a register yet: "not ready", collects nothing.
+            'ready': user.account.status == Account.STATUS_ACTIVE, 'email_verified': person.email_verified_at is not None,
             'card_last4': card.code[-4:] if card else None, 'verified_18': person.verified_18,
             'banked_rewards': balances['banked'], 'bucks_available': balances['available'],
             'bucks_use_by': balances['bucks_use_by'], 'credit_balance': balances['credit'],
@@ -73,6 +80,24 @@ def _signed_in(request, person, kind: str) -> Response:
     token, session = member_auth.start_session(person, kind, user_agent=request.META.get('HTTP_USER_AGENT', ''))
     request.user = member_auth.Member(session=session)
     return member_auth.set_cookie(Response(_session_payload(request)), token, session)
+
+
+def _client_ip(request) -> str:
+    # Heroku's router adds the visitor's address last; anything before it came from the visitor.
+    forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
+    return (forwarded.split(',')[-1].strip() if forwarded else request.META.get('REMOTE_ADDR', '')) or ''
+
+
+def _public_base() -> str:
+    """Where emailed links point: the public site, as for the password reset."""
+    return getattr(settings, 'ONLINE_SALES_PUBLIC_BASE_URL', '') or 'https://ecothrift.us'
+
+
+def _limited(exc: member_auth.LimitError) -> Response:
+    body = {'detail': str(exc), 'code': exc.code}
+    if exc.retry_after:
+        body['retry_after'] = exc.retry_after
+    return Response(body, status=status.HTTP_429_TOO_MANY_REQUESTS)
 
 
 # ── Session ────────────────────────────────────────────────────────────────────
@@ -121,6 +146,84 @@ def sign_in_card(request):
         return _error(exc, status.HTTP_401_UNAUTHORIZED)
     refused = _closed_to(request, person)
     return refused or _signed_in(request, person, MemberSession.KIND_CARD)
+
+
+# ── Joining and signing in by email (owner 2026-10-15, J8 and J11) ─────────────
+
+SENT = {'status': 'sent'}
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def join(request):
+    """Join online: ``{name, email}``. Always ``{status: 'sent'}`` for a valid request (a new email gets a pending
+    membership and the join email; a member's email gets a sign-in email). 400 NAME_NEEDED or EMAIL_BAD; 429 over the
+    limits."""
+    try:
+        member_auth.join(str(request.data.get('name') or ''), str(request.data.get('email') or ''),
+                         base_url=_public_base(), ip=_client_ip(request))
+    except member_auth.LimitError as exc:
+        return _limited(exc)
+    except AuthError as exc:
+        return _error(exc)
+    return Response(SENT)
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def session_email(request):
+    """"Email me a link": ``{email}``. Always ``{status: 'sent'}`` (never says whether the email is a member's)."""
+    try:
+        member_auth.request_link(str(request.data.get('email') or ''), base_url=_public_base(), ip=_client_ip(request))
+    except member_auth.LimitError as exc:
+        return _limited(exc)
+    except AuthError as exc:
+        return _error(exc)
+    return Response(SENT)
+
+
+def _email_signed_in(request, row, how: str) -> Response:
+    refused = _closed_to(request, row.person)  # before the link or code is used up
+    if refused:
+        return refused
+    try:
+        person = member_auth.redeem(row, how=how)
+    except AuthError as exc:
+        return _error(exc)
+    response = _signed_in(request, person, MemberSession.KIND_EMAIL)
+    response.data['purpose'] = row.purpose
+    return response
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def session_link(request):
+    """The emailed link (``/scan?signin=<token>``): ``{token}``. Signs in (a year) and confirms the email, with
+    ``purpose`` 'join' or 'sign_in'. 400 LINK_USED, LINK_EXPIRED or LINK_BAD."""
+    try:
+        row = member_auth.check_link(str(request.data.get('token') or ''))
+    except AuthError as exc:
+        return _error(exc)
+    return _email_signed_in(request, row, 'link')
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def session_code(request):
+    """The emailed 6-digit code: ``{email, code}``, the same as the link. 400 CODE_BAD or CODE_EXPIRED; 429 over the
+    tries from one address."""
+    try:
+        row = member_auth.check_code(str(request.data.get('email') or ''), str(request.data.get('code') or ''),
+                                     ip=_client_ip(request))
+    except member_auth.LimitError as exc:
+        return _limited(exc)
+    except AuthError as exc:
+        return _error(exc)
+    return _email_signed_in(request, row, 'code')
 
 
 @api_view(['POST'])
@@ -320,7 +423,7 @@ def _me_payload(request) -> dict:
         # The member's ThriftBucks in the order they are used (Thrift+ credit is 'credit'; it never expires).
         'rewards': ledger.reward_lots(account),
         'money': [{'kind': e.kind, 'amount': str(e.amount), 'reason': e.reason, 'created_at': e.created_at} for e in entries],
-        'can_change': request.user.session.kind == MemberSession.KIND_PASSWORD,
+        'can_change': request.user.session.kind in member_auth.CHANGE_KINDS,
         # Your own email (T74): account email follows the address; store news can be turned off.
         'emails': {**member_email.choices(you), 'has_email': bool(you.email), 'note': member_email.NOTE},
     }
@@ -359,14 +462,16 @@ def my_card(request):
     return Response({
         'code': card.code, 'display': cards.display(card.code), 'qr': cards.qr_payload(card.code),
         'first_name': person.first_name,
-        # J2 (photo, name and phone, ID check, signature) isn't tracked yet: every member made at a register is ready.
-        'ready': True,
+        # J2 (owner 2026-10-15): joined online and not finished at a register yet is "not ready"; the app says
+        # "Finish joining at any register. Show them this code."
+        'ready': request.user.account.status == Account.STATUS_ACTIVE,
     })
 
 
 def _password_session(request) -> Response | None:
-    if request.user.session.kind != MemberSession.KIND_PASSWORD:
-        return Response({'detail': 'Sign in with your email and password to change your membership.', 'code': 'NEEDS_PASSWORD'},
+    """Changes need a password or an emailed link (owner 2026-10-15: members have no password), not the old card."""
+    if request.user.session.kind not in member_auth.CHANGE_KINDS:
+        return Response({'detail': 'Sign in with an emailed link to change your membership.', 'code': 'NEEDS_PASSWORD'},
                         status=status.HTTP_403_FORBIDDEN)
     return None
 

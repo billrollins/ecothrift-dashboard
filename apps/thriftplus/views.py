@@ -49,21 +49,34 @@ def _truthy(value) -> bool:
     return str(value).lower() in ('1', 'true', 'yes', 'on')
 
 
+def _public_base() -> str:
+    """Where emailed links point (the public site), built like the password reset's."""
+    from django.conf import settings
+
+    return getattr(settings, 'ONLINE_SALES_PUBLIC_BASE_URL', '') or 'https://ecothrift.us'
+
+
 def _error(exc: Exception) -> Response:
     return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 
 class AccountViewSet(viewsets.ReadOnlyModelViewSet):
-    """Find (``?q=`` card, phone or name), sign up, add a second adult, revoke."""
+    """Find (``?q=`` member code, phone, email or name; ``?status=pending`` the online joins still to finish at a
+    register), sign up, add a second adult, revoke."""
 
     permission_classes = [IsAuthenticated, IsStaff]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
     pagination_class = None
 
     def get_queryset(self):
-        qs = members.find(self.request.query_params.get('q', '')) if self.action == 'list' else Account.objects.all()
-        return qs.prefetch_related('people__cards')[:100] if self.action == 'list' else qs.prefetch_related('people__cards')
+        if self.action != 'list':
+            return Account.objects.all().prefetch_related('people__cards')
+        qs = members.find(self.request.query_params.get('q', ''))
+        wanted = self.request.query_params.get('status')
+        if wanted in dict(Account.STATUS_CHOICES):
+            qs = qs.filter(status=wanted)
+        return qs.prefetch_related('people__cards')[:100]
 
     def get_serializer_class(self):
         return AccountDetailSerializer if self.action == 'retrieve' else AccountSerializer
@@ -235,6 +248,27 @@ class PersonViewSet(viewsets.GenericViewSet):
         except MemberError as exc:
             return _error(exc)
         return self._done(person)
+
+    @action(detail=True, methods=['post'], url_path='email-link')
+    def email_link(self, request, pk=None):
+        """Send the Thrift+ app link (owner 2026-10-15, J12): ``{email?}`` sets the email first, then a join email (or
+        a sign-in email when the address is already confirmed). Also at ``members/<person_id>/email-link/``."""
+        from apps.thriftplus.services import member_auth
+
+        person = self.get_object()
+        try:
+            purpose = member_auth.send_link_for(person, base_url=_public_base(), email=str(request.data.get('email') or ''),
+                                                user=request.user)
+        except member_auth.LimitError as exc:
+            body = {'detail': str(exc), 'code': exc.code}
+            if exc.retry_after:
+                body['retry_after'] = exc.retry_after
+            return Response(body, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        except MemberError as exc:
+            return _error(exc)
+        person.refresh_from_db()
+        return Response({**AccountDetailSerializer(person.account).data, 'sent': purpose,
+                         'sent_to': member_auth.mask(person.email)})
 
     @action(detail=True, methods=['post'], url_path='issue-card')
     def issue_card(self, request, pk=None):
@@ -586,9 +620,13 @@ class RegisterViewSet(viewsets.ViewSet):
     - ``choice`` ``{choice: 'bank'|'instant'}``: kept (the Default) or redeemed instantly; 400 when instant isn't
       offered. Logged;
     - ``bucks`` ``{use: bool}``: use the member's kept ThriftBucks automatically on this trip, or not today;
-    - ``rering`` ``{code}`` or ``{person}``: the member on a sale finished in the last 30 minutes.
+    - ``rering`` ``{code}`` or ``{person}``: the member on a sale finished in the last 30 minutes;
+    - ``pending`` ``{q}``: joined online and not finished yet (owner 2026-10-15, J8), by name, email or member code;
+    - ``finish`` ``{person, phone, id_checked, verified_18, photo, cart?}``: finish joining (the phone read back, the
+      ID, the photo); with ``cart``, the member goes on that sale after.
 
-    Thrift+ credit is used first, automatically (no action). Every action refuses while Thrift+ is dark there.
+    A pending member's QR (attach, re-ring) answers 400 ``MEMBER_PENDING`` with the person to finish. Thrift+ credit is
+    used first, automatically (no action). Every sale action refuses while Thrift+ is dark there.
     """
 
     permission_classes = [IsAuthenticated, IsEmployee]
@@ -609,7 +647,7 @@ class RegisterViewSet(viewsets.ViewSet):
         try:
             fn(cart)
         except register.RegisterError as exc:
-            return Response({'detail': str(exc), 'code': exc.code}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(exc.payload(), status=status.HTTP_400_BAD_REQUEST)
         return self._done(cart)
 
     @action(detail=False, methods=['get'])
@@ -656,6 +694,41 @@ class RegisterViewSet(viewsets.ViewSet):
     def rering(self, request):
         return self._run(request, lambda cart: register.rering(cart, str(request.data.get('code') or ''),
                                                                person=request.data.get('person'), user=request.user))
+
+    @action(detail=False, methods=['post'])
+    def pending(self, request):
+        """Joined online, not finished (J8): ``{q}`` a name, email or member code; newest first, at most 10. A POST,
+        so names and emails stay out of the request logs."""
+        return Response({'people': register.pending(str(request.data.get('q') or ''))})
+
+    @action(detail=False, methods=['post'], parser_classes=[JSONParser, MultiPartParser, FormParser])
+    def finish(self, request):
+        """Finish joining at the register (J8): the phone the cashier read back, the ID check, 18+ and the photo, as at
+        a sign-up. 409 ``PHONE_TAKEN`` when another active or pending person has that phone. With ``cart`` (an open
+        sale), the member goes on it after; a refusal there comes back as ``attach_error`` (they are still joined)."""
+        from apps.pos.models import Cart
+        from apps.pos.serializers import CartSerializer
+
+        d = request.data
+        cart = Cart.objects.filter(pk=d.get('cart')).first() if str(d.get('cart') or '').isdigit() else None
+        try:
+            if cart is not None and register.is_training(cart):
+                raise register.RegisterError('TRAINING', 'This is the training register. Finish joining on a real register.')
+            person = register.finish_join(d.get('person'), phone=str(d.get('phone') or ''), id_checked=_truthy(d.get('id_checked')),
+                                          verified_18=_truthy(d.get('verified_18')), photo=request.FILES.get('photo'),
+                                          user=request.user)
+        except register.RegisterError as exc:
+            code = status.HTTP_409_CONFLICT if exc.code == 'PHONE_TAKEN' else status.HTTP_400_BAD_REQUEST
+            return Response(exc.payload(), status=code)
+        body = {'person_id': person.pk, 'account_id': person.account_id, 'first_name': person.first_name,
+                'last_name': person.last_name, 'status': person.account.status, 'cart': None}
+        if cart is not None:
+            try:
+                register.attach(cart, person=person.pk, user=request.user)
+                body['cart'] = CartSerializer(Cart.objects.get(pk=cart.pk)).data
+            except register.RegisterError as exc:
+                body['attach_error'] = exc.payload()
+        return Response(body)
 
 
 def _found_person(person: Person) -> dict:
@@ -745,7 +818,7 @@ class ReturnsViewSet(viewsets.ViewSet):
             return Response(returns.purchases(str(q.get('code') or ''), person=q.get('person'),
                                               training=self._training(q.get('register'))))
         except register.RegisterError as exc:
-            return Response({'detail': str(exc), 'code': exc.code}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(exc.payload(), status=status.HTTP_400_BAD_REQUEST)
 
     def create(self, request):
         from apps.pos.models import CartLine
@@ -764,7 +837,7 @@ class ReturnsViewSet(viewsets.ViewSet):
             result = returns.do_return(line, str(request.data.get('code') or ''), person=request.data.get('person'),
                                        note=note, user=request.user, training=training, late_ok=late_ok)
         except register.RegisterError as exc:
-            return Response({'detail': str(exc), 'code': exc.code}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(exc.payload(), status=status.HTTP_400_BAD_REQUEST)
         return Response(result, status=status.HTTP_200_OK if training else status.HTTP_201_CREATED)
 
     @action(detail=False, methods=['post'])

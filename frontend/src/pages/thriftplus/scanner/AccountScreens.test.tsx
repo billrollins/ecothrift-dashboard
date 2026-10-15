@@ -137,6 +137,14 @@ describe('AccountPage', () => {
     await waitFor(() => expect(mocked.setUpLogin).toHaveBeenCalledWith('dana@example.com', 'one-good-pass', undefined));
   });
 
+  it('never asks an email sign-in for a password (owner 2026-10-15, J11, APP D9)', async () => {
+    mocked.getMe.mockResolvedValue(me({ can_change: false }));
+    wrap(<AccountPage {...props} member={{ ...member, session_kind: 'email', has_login: false, ready: false, email_verified: true }} />);
+    expect(await screen.findByText('Sam')).toBeInTheDocument();
+    expect(screen.queryByText('Set up your sign-in')).toBeNull();
+    expect(screen.queryByText(/password/i)).toBeNull();
+  });
+
   it('leaves the account when the second adult chooses to leave', async () => {
     mocked.getMe.mockResolvedValue(
       me({

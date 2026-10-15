@@ -1,8 +1,14 @@
-import { Alert, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Typography } from '@mui/material';
+import { Alert, Box, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Typography } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import { useState } from 'react';
 import { createMember } from '../../api/thriftplus.api';
-import { attachThriftMember, reringThriftMember, thriftErrorMessage } from '../../api/thriftplusRegister.api';
+import {
+  attachThriftMember,
+  reringThriftMember,
+  thriftErrorMessage,
+  type ThriftPendingPerson,
+} from '../../api/thriftplusRegister.api';
+import ThriftPlusPendingFind from './ThriftPlusPendingFind';
 import type { Cart } from '../../types/pos.types';
 import type { NewMember } from '../../types/thriftplus.types';
 import { formatCurrency } from '../../utils/format';
@@ -19,6 +25,8 @@ interface Props {
   onCart: (cart: Cart) => void;
   /** The training register: the sign-up makes a practice member. */
   training?: boolean;
+  /** They joined online already (J8): finish joining instead of a new sign-up. */
+  onFinishJoin?: (person: ThriftPendingPerson) => void;
 }
 
 const EMPTY: NewMember = { first_name: '', last_name: '', phone: '', id_checked: false, verified_18: false, photo: null };
@@ -38,20 +46,23 @@ function hasPhone(phone: string | undefined): boolean {
  * they paid before signing up. No ID means an unverified member: they collect ThriftBucks, but have no 3-day returns
  * and no 18+ items.
  *
- * Started on their phone already (J8)? Don't sign them up again: find them by phone or scan their app QR.
+ * Joined online already (owner 2026-10-15, J8)? Don't sign them up again: find them by name or email (or scan their
+ * app QR) and finish joining. The phone typed here is verified in person (the server records who and when, J12).
  */
-export default function ThriftPlusSignupDialog({ open, onClose, cart, lastSale, onCart, training = false }: Props) {
+export default function ThriftPlusSignupDialog({ open, onClose, cart, lastSale, onCart, training = false, onFinishJoin }: Props) {
   const { enqueueSnackbar } = useSnackbar();
   const [value, setValue] = useState<NewMember>(EMPTY);
   const [rering, setRering] = useState(true);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<{ name: string; where: string } | null>(null);
+  const [joinedOnline, setJoinedOnline] = useState(false);
   const openSale = cart && cart.status === 'open' ? cart : null;
   const ready = Boolean(value.first_name.trim()) && (training || hasPhone(value.phone));
 
   function close() {
     setValue(EMPTY);
     setDone(null);
+    setJoinedOnline(false);
     onClose();
   }
 
@@ -100,11 +111,28 @@ export default function ThriftPlusSignupDialog({ open, onClose, cart, lastSale, 
                 Training register: this makes a practice member. It gets a made-up 555 phone and no emails.
               </Alert>
             ) : (
-              <Alert severity="info" sx={{ mt: 1 }}>
-                Started on their phone already? Don&apos;t sign them up again: close this, then scan their Thrift+ app QR or
-                find them by phone.
+              <Alert
+                severity="info"
+                sx={{ mt: 1 }}
+                action={onFinishJoin && !joinedOnline ? (
+                  <Button color="inherit" size="small" onClick={() => setJoinedOnline(true)}>Find them</Button>
+                ) : undefined}
+              >
+                Joined online already? Don&apos;t sign them up again: find them by name or email, or scan their Thrift+ app
+                QR, and finish joining.
               </Alert>
             )}
+            {joinedOnline && onFinishJoin && !training ? (
+              <Box sx={{ mt: 1 }}>
+                <ThriftPlusPendingFind
+                  autoFocus
+                  onPick={(person) => {
+                    close();
+                    onFinishJoin(person);
+                  }}
+                />
+              </Box>
+            ) : null}
             {!value.id_checked ? (
               <Alert severity="info" sx={{ mt: 1 }}>
                 Without an ID check they still collect ThriftBucks, but have no returns and no 18+ items.

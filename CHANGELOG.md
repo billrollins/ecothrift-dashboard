@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.166.0] -->
-<!-- Last reviewed: 2026-10-14 (2.166.0) -->
+<!-- Line 1 release: ## [2.167.0] -->
+<!-- Last reviewed: 2026-10-15 (2.167.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,24 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.167.0] - 2026-10-15
+
+User-facing theme: **Thrift+ (still off for customers): join and sign in by email with no password and no texts, finish joining at the register, the Thrift+ terms page in English and Spanish, the brush logo, and "Non-member" (Bill, 2026-10-15).** thrift_plus Phase 4 (app) and 5 (register); standards T76.
+
+### Added
+
+- **Join Thrift+ online (J8):** ecothrift.us/join (or "Join Thrift+" in the app) asks only a name and an email. One email, "Confirm your email for Thrift+", carries a link and a 6-digit code; either one confirms the email and signs the phone in (for a year, renewed on use). The new member shows the Member QR with "Finish joining at any register. Show them this code."
+- **Sign in by email (J11):** "Email me a link": a link and a 6-digit code that work once, for 15 minutes. Customers have no password; the answer never says whether an email belongs to a member ("If that email belongs to a member, we've sent a link"); resend after 0:30; requests limited per email and per address, and logged. Staff sign in with their Dash email and password ("Staff sign in").
+- **Finish joining at the register:** scan the member's QR (or "Joined online?" to find them by name or email); the cashier asks the phone number and reads it back, checks the ID and takes the photo; the phone is verified in person (who and when). One phone number per membership.
+- **Dash:** "Send sign-in link" by a member's email (J12: add an email later, and the link goes out); a "Joined online, not finished" filter; Overview counts pending joins on their own.
+- **ecothrift.us/terms:** the Thrift+ terms (all you need to know, the chart, FAQ, full terms §1 to §12, 3-day returns at #s8) with an **English | Español** toggle: Spanish on its own on a Spanish-language phone, remembered; /thriftplus and /thriftplus/warranty lead there. The store terms stay as its last section.
+
+### Changed
+
+- **The brush Thrift+ logo** in the app's header and the home-screen icons (owner 10-15: one logo).
+- **"Non-member"** for "Guest" wherever a customer reads: "Non-members pay the tag.", "Scan without signing in", receipts "Non-member: All sales final. Sold AS IS." (print server 1.9.0 too).
+- **/privacy:** sign-in links by email (the Email section); "a return" for the old "a warranty return".
 
 ## [2.166.0] - 2026-10-14
 

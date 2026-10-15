@@ -25,7 +25,8 @@ function Row({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /**
- * Thrift+ in Dash (thrift_plus_rewards Phase 4; the 10-12 policy): members, member vs guest sales, ThriftBucks
+ * Thrift+ in Dash (thrift_plus_rewards Phase 4; the 10-12 policy): members (online joins still to finish at a
+ * register counted apart, owner 2026-10-15), member vs guest sales, ThriftBucks
  * (redeemed instantly in dollars, kept, used, expired as Thrift+ income), Thrift+ credit, what the store owes
  * members, returns, and the scanner's scans-to-adds. Last 30 days.
  */
@@ -40,6 +41,13 @@ export default function OverviewTab() {
       <Row title="Members">
         <Tile label="Active memberships" value={o.members.active.toLocaleString()} hint={`${o.members.people} people, ${o.members.verified_18} verified 18+`} />
         <Tile label={`Sign-ups, last ${o.days} days`} value={signups.toLocaleString()} />
+        {o.members.pending != null ? (
+          <Tile
+            label="Joined online, to finish at a register"
+            value={o.members.pending.toLocaleString()}
+            hint={`Not members yet${o.members.pending_new != null ? ` · ${o.members.pending_new} in ${o.days} days` : ''}`}
+          />
+        ) : null}
       </Row>
       <Row title={`Sales, last ${o.days} days`}>
         <Tile label="Member sales" value={o.sales.member_sales.toLocaleString()} hint={formatCurrency(o.sales.member_revenue)} />

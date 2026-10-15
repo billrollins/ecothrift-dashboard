@@ -1,21 +1,40 @@
 import { useState } from 'react';
-import { Box, ButtonBase, CircularProgress, InputBase } from '@mui/material';
+import { useSearchParams } from 'react-router-dom';
+import { Box, ButtonBase, InputBase } from '@mui/material';
 import VisibilityOffRounded from '@mui/icons-material/VisibilityOffRounded';
 import VisibilityRounded from '@mui/icons-material/VisibilityRounded';
+import type { SignInPurpose } from '../../../api/thriftPlusScanner.api';
+import { CheckEmail, type SentEmail } from './CheckEmailScreen';
+import { JoinForm } from './JoinScreen';
 import { FieldBanner } from './ScannerTop';
 import { ThriftPlusLogo, sc, u } from './scannerTheme';
+import { EmailField, ErrorLine, Field, Primary, Secondary, SmallLink, Sub, Title } from './signInParts';
 import { useSignIn } from './useThriftPlus';
 
-type Mode = 'password' | 'forgot';
+type Mode = 'email' | 'staff' | 'forgot' | 'join' | 'check';
+
+/** Where the screen opens: email sign-in, the staff password form (Coming soon's "Staff sign in"), or Join (ecothrift.us/join). */
+export type SignInStart = 'email' | 'staff' | 'join';
 
 /**
- * Customer sign-in: email or username and password (email always works), and "Forgot password?" by email. There is no
- * Thrift+ card (owner 2026-10-14, APP D6), so no card sign-in.
+ * Customer sign-in (owner 2026-10-15, APP D9; rulebook J8, J11): no passwords for members and no texts. "Email me a
+ * link", then "Check your email" (the link, or the email's 6-digit code typed here). "Join Thrift+" takes a name and an
+ * email the same way. "Staff sign in" opens the email-and-password form (staff, and anyone who still has a password).
+ * There is no Thrift+ card (owner 2026-10-14, APP D6). `notice` shows a failed link's words (`?signin=`).
  */
-export function SignInScreen() {
+export function SignInScreen({ start = 'email', notice = '' }: { start?: SignInStart; notice?: string }) {
   const auth = useSignIn();
-  const [mode, setMode] = useState<Mode>('password');
-  const [err, setErr] = useState('');
+  const [params, setParams] = useSearchParams();
+  const [mode, setMode] = useState<Mode>(start);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [sent, setSent] = useState<SentEmail | null>(null);
+  const [err, setErr] = useState(notice);
+
+  const go = (next: Mode) => {
+    setErr('');
+    setMode(next);
+  };
 
   const run = async (fn: () => Promise<unknown>) => {
     setErr('');
@@ -23,6 +42,51 @@ export function SignInScreen() {
       await fn();
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Try again.');
+    }
+  };
+
+  /** "Email me a link" from the sign-in or the join screen. */
+  const send = async (kind: SentEmail['kind']) => {
+    setErr('');
+    const to = email.trim();
+    try {
+      if (kind === 'join') await auth.join.mutateAsync({ name, email: to });
+      else await auth.email.mutateAsync(to);
+      setSent({ kind, email: to, name, wait: 30 });
+      setMode('check');
+    } catch (e) {
+      const p = e as { code?: string; retryAfter?: number };
+      // One went to that address moments ago: wait for it (the same answer for any address).
+      if (p.code === 'TOO_SOON') {
+        setSent({ kind, email: to, name, wait: p.retryAfter ?? 30 });
+        setMode('check');
+      } else {
+        setErr(e instanceof Error && e.message ? e.message : 'Could not send the email. Try again.');
+      }
+    }
+  };
+
+  /**
+   * Signed in by the code: after a join, straight to the Member QR (it says "Finish joining at any register");
+   * after a sign-in, the scanner (or the Member QR when they came from ecothrift.us/qr, which `view=qr` already asks).
+   */
+  const signedIn = (purpose: SignInPurpose) => {
+    if (purpose !== 'join' && sent?.kind !== 'join') return;
+    setParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('view', 'qr');
+      return next;
+    }, { replace: true });
+  };
+
+  const scanWithoutSigningIn = () => {
+    auth.guest.mutate();
+    if (params.get('view') === 'join') {
+      setParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('view');
+        return next;
+      }, { replace: true });
     }
   };
 
@@ -39,24 +103,45 @@ export function SignInScreen() {
 
       <Box sx={{ px: u(36), mt: u(-60), position: 'relative', zIndex: 1 }}>
         <Box sx={{ bgcolor: sc.card, borderRadius: u(36), boxShadow: sc.tileShadow, border: '1px solid #ecede8', p: u(48) }}>
-          {mode === 'password' && <PasswordForm run={run} busy={auth.password.isPending} onForgot={() => { setErr(''); setMode('forgot'); }} />}
-          {mode === 'forgot' && <ForgotForm run={run} onBack={() => { setErr(''); setMode('password'); }} />}
-
-          {err && (
-            <Box role="alert" sx={{ color: sc.badText, fontSize: u(30), mt: u(24), lineHeight: 1.35 }}>
-              {err}
-            </Box>
+          {mode === 'email' && (
+            <EmailForm email={email} onEmail={setEmail} busy={auth.email.isPending} onSend={() => void send('sign_in')} onStaff={() => go('staff')} />
+          )}
+          {mode === 'staff' && (
+            <PasswordForm run={run} busy={auth.password.isPending} onForgot={() => go('forgot')} onBack={() => go('email')} />
+          )}
+          {mode === 'forgot' && <ForgotForm run={run} onBack={() => go('staff')} />}
+          {mode === 'join' && (
+            <JoinForm
+              name={name}
+              email={email}
+              onName={setName}
+              onEmail={setEmail}
+              busy={auth.join.isPending}
+              onSend={() => void send('join')}
+              onSignIn={() => go('email')}
+            />
+          )}
+          {mode === 'check' && sent && (
+            <CheckEmail key={`${sent.kind}:${sent.email}`} sent={sent} onChange={() => go(sent.kind === 'join' ? 'join' : 'email')} onSignedIn={signedIn} />
           )}
 
+          {err && <ErrorLine>{err}</ErrorLine>}
         </Box>
 
         <Box sx={{ textAlign: 'center', mt: u(44), mb: u(60) }}>
-          <Box sx={{ fontSize: u(30), color: sc.ink2 }}>Not a member yet? Join free at the register.</Box>
+          {/* In place of "Not a member yet? Join free at the register." (owner 2026-10-15, APP D9). */}
+          {mode !== 'join' && mode !== 'check' && (
+            <>
+              <Secondary outlined label="Join Thrift+" onClick={() => go('join')} />
+              <Box sx={{ mt: u(14), fontSize: u(28), color: sc.ink2 }}>Free to join. Nothing owed.</Box>
+            </>
+          )}
+          {/* "Non-member", never "guest", where a customer reads (APP D10). */}
           <ButtonBase
-            onClick={() => auth.guest.mutate()}
-            sx={{ mt: u(14), px: u(36), py: u(18), borderRadius: 99, fontSize: u(33), fontWeight: 700, color: sc.priceGreen }}
+            onClick={scanWithoutSigningIn}
+            sx={{ mt: u(22), px: u(36), py: u(18), borderRadius: 99, fontSize: u(33), fontWeight: 700, color: sc.priceGreen }}
           >
-            Scan as a guest
+            Scan without signing in
           </ButtonBase>
         </Box>
       </Box>
@@ -64,7 +149,41 @@ export function SignInScreen() {
   );
 }
 
-function PasswordForm({ run, busy, onForgot }: { run: (fn: () => Promise<unknown>) => void; busy: boolean; onForgot: () => void }) {
+/** Email sign-in (owner 2026-10-15, APP D9): the link and code by email; "Staff sign in" for the password form. */
+function EmailForm({ email, onEmail, busy, onSend, onStaff }: {
+  email: string;
+  onEmail: (v: string) => void;
+  busy: boolean;
+  onSend: () => void;
+  onStaff: () => void;
+}) {
+  return (
+    <Box
+      component="form"
+      data-testid="email-sign-in"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSend();
+      }}
+    >
+      <Title>Sign in</Title>
+      <Sub>Enter your email and we'll send you a link. No password needed.</Sub>
+      <EmailField value={email} onChange={onEmail} />
+      <Primary busy={busy} label="Email me a link" />
+      {/* Customers have no password (J11): the password form is for staff. */}
+      <Box sx={{ textAlign: 'center', mt: u(22) }}>
+        <SmallLink label="Staff sign in" onClick={onStaff} />
+      </Box>
+    </Box>
+  );
+}
+
+function PasswordForm({ run, busy, onForgot, onBack }: {
+  run: (fn: () => Promise<unknown>) => void;
+  busy: boolean;
+  onForgot: () => void;
+  onBack: () => void;
+}) {
   const auth = useSignIn();
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
@@ -77,8 +196,8 @@ function PasswordForm({ run, busy, onForgot }: { run: (fn: () => Promise<unknown
         run(() => auth.password.mutateAsync({ login, password }));
       }}
     >
-      <Title>Sign in</Title>
-      <Sub>Use the email on your Thrift+ account, or your username. Staff: your Dash email and password.</Sub>
+      <Title>Staff sign in</Title>
+      <Sub>Your Dash email and password.</Sub>
       <Field>
         <InputBase
           autoFocus
@@ -113,6 +232,8 @@ function PasswordForm({ run, busy, onForgot }: { run: (fn: () => Promise<unknown
         </ButtonBase>
       </Box>
       <Primary busy={busy} label="Sign in" />
+      {/* Back to "Email me a link" (owner 2026-10-15, APP D9). */}
+      <Secondary label="Back" onClick={onBack} />
     </Box>
   );
 }
@@ -154,67 +275,5 @@ function ForgotForm({ run, onBack }: { run: (fn: () => Promise<unknown>) => void
       <Primary busy={auth.reset.isPending} label="Email me a link" />
       <Secondary label="Back to sign in" onClick={onBack} />
     </Box>
-  );
-}
-
-export function Title({ children }: { children: React.ReactNode }) {
-  return (
-    <Box component="h1" sx={{ m: 0, fontFamily: sc.condensed, fontWeight: 700, fontSize: u(58), color: sc.titleGreen, lineHeight: 1.1 }}>
-      {children}
-    </Box>
-  );
-}
-
-export function Sub({ children }: { children: React.ReactNode }) {
-  return <Box sx={{ fontSize: u(31), color: sc.ink2, mt: u(10), mb: u(30), lineHeight: 1.4 }}>{children}</Box>;
-}
-
-export function Field({ children, sx }: { children: React.ReactNode; sx?: object }) {
-  return (
-    <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        px: u(30),
-        minHeight: u(100),
-        borderRadius: u(24),
-        border: `${u(3)} solid ${sc.cardEdge}`,
-        bgcolor: '#fbfcf9',
-        '&:focus-within': { borderColor: sc.green },
-        ...sx,
-      }}
-    >
-      {children}
-    </Box>
-  );
-}
-
-export function Primary({ busy, label }: { busy: boolean; label: string }) {
-  return (
-    <ButtonBase
-      type="submit"
-      disabled={busy}
-      sx={{
-        mt: u(30),
-        width: '100%',
-        minHeight: u(104),
-        borderRadius: 99,
-        background: `linear-gradient(180deg, #62c64a, ${sc.green})`,
-        boxShadow: '0 4px 12px rgba(63,159,53,0.35), inset 0 2px 0 rgba(255,255,255,0.35)',
-        color: '#fff',
-        fontSize: u(36),
-        fontWeight: 700,
-      }}
-    >
-      {busy ? <CircularProgress size={22} sx={{ color: '#fff' }} /> : label}
-    </ButtonBase>
-  );
-}
-
-export function Secondary({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <ButtonBase type="button" onClick={onClick} sx={{ mt: u(18), width: '100%', py: u(18), borderRadius: u(16), fontSize: u(30), color: sc.ink2 }}>
-      {label}
-    </ButtonBase>
   );
 }

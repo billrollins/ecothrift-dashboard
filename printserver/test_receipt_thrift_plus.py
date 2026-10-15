@@ -120,11 +120,31 @@ class GuestReceiptTests(unittest.TestCase):
     def test_guest_gets_one_as_is_line_and_the_old_policy(self):
         data = _fixture("receipt_thriftplus_guest")
         for text in _both(data):
-            self.assertIn("All items sold AS IS.", text)
+            # Owner 2026-10-15: "Non-member" replaces "guest" wherever a customer reads.
+            self.assertIn("Non-member: All sales final. Sold AS IS.\n", text)
+            self.assertNotIn("All items sold AS IS.", text)
+            self.assertNotIn("guest", text.lower())
             self.assertNotIn("3-day return", text)
             self.assertNotIn("    AS IS", text)  # no per-line marks for guests
             self.assertIn("All sales are final. No refunds or exchanges.", text)
             self.assertNotIn("ThriftBucks used", text)
+
+
+    def test_the_non_member_line_is_the_dashboards_when_sent_and_the_same_words_without_it(self):
+        data = _fixture("receipt_thriftplus_guest")
+        self.assertEqual(data["thrift_plus"]["non_member_line"], rp.THRIFT_PLUS_GUEST_AS_IS)
+        del data["thrift_plus"]["non_member_line"]
+        for text in _both(data):
+            self.assertIn("Non-member: All sales final. Sold AS IS.\n", text)
+        data["thrift_plus"]["non_member_line"] = "Non-member: All sales final."
+        for text in _both(data):
+            self.assertIn("Non-member: All sales final.\n", text)
+            self.assertNotIn("Sold AS IS.\n", text.split("All sales are final")[0])
+        self.assertGreater(rp.render_receipt_to_image(_fixture("receipt_thriftplus_guest")).height, 800)
+
+    def test_a_member_receipt_has_no_non_member_line(self):
+        for text in _both(_fixture("receipt_thriftplus_member")):
+            self.assertNotIn("Non-member", text)
 
 
 class TrainingTests(unittest.TestCase):

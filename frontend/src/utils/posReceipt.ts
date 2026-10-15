@@ -128,12 +128,19 @@ function receiptFirstName(member: NonNullable<ThriftPlusCartBlock['member']>): s
 }
 
 /**
+ * The non-member receipt's one line under the items (owner 2026-10-15: "Non-member" replaces "guest" wherever a
+ * customer reads). Sent as `thrift_plus.non_member_line`; print server 1.9.0 prints the same words without it.
+ */
+export const NON_MEMBER_RECEIPT_LINE = 'Non-member: All sales final. Sold AS IS.';
+
+/**
  * Thrift+ on the receipt (the 10-12 policy; the print server's 1.9.0 block). ThriftBucks are numbers (the
  * printer adds the word, never "$"); instant_off and credit are dollars; dates are ISO.
  * - Member: "THRIFT+ MEMBER Pat" (the first name only), "ThriftBucks collected 35.00, use by Nov 19" (or redeemed
  *   instantly: $17.50 off), "ThriftBucks used 33.27" above Subtotal, Thrift+ credit used, both balances, and the B12
  *   rewards line (printed by the print server on every member receipt).
- * - Guest: every line AS IS, and what membership would have collected.
+ * - Non-member (the code's "guest"): every line AS IS, one line under the items, NON_MEMBER_RECEIPT_LINE, and what
+ *   membership would have collected.
  * There is no Thrift+ card (owner 2026-10-14): nothing here names one. An older print server ignores the key.
  */
 export function thriftPlusReceipt(cart: Cart): Record<string, unknown> | undefined {
@@ -152,6 +159,7 @@ export function thriftPlusReceipt(cart: Cart): Record<string, unknown> | undefin
       balances: null,
       guest_all_as_is: true,
       guest_line: block.guest_line || '',
+      non_member_line: NON_MEMBER_RECEIPT_LINE,
     };
   }
   return {

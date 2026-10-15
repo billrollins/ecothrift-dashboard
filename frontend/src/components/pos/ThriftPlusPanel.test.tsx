@@ -313,7 +313,7 @@ describe('Thrift+ sign up at the register (owner 2026-10-14: no card)', () => {
     const onCart = vi.fn();
     wrap(<ThriftPlusSignupDialog open onClose={() => undefined} cart={openCart} lastSale={null} onCart={onCart} />);
     expect(screen.queryByLabelText(/blank/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/Started on their phone already\?/)).toHaveTextContent('scan their Thrift+ app QR or find them by phone');
+    expect(screen.getByText(/Joined online already\?/)).toHaveTextContent('find them by name or email, or scan their Thrift+ app QR, and finish joining');
     expectNoCardWords();
     await user.type(screen.getByLabelText(/First name/), 'Cy');
     expect(screen.getByRole('button', { name: 'Add their phone number' })).toBeDisabled();

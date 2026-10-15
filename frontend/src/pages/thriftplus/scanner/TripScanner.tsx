@@ -77,7 +77,8 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
   const location = useLocation();
   const navigate = useNavigate();
   const accountOpen = params.get('view') === 'account' && !!member;
-  const cardAsked = params.get('view') === 'qr' || params.get('view') === 'card';
+  // ecothrift.us/qr (and the old /card); ecothrift.us/join on a phone that's signed in (owner 2026-10-15, APP D9).
+  const cardAsked = params.get('view') === 'qr' || params.get('view') === 'card' || params.get('view') === 'join';
 
   const [mode, setMode] = useState<Mode>('scan');
   const [top, setTop] = useState<Top | null>(null);
@@ -85,6 +86,11 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
   const [toast, setToast] = useState<string | null>(null);
   // ecothrift.us/qr lands on /scan?view=qr: open the Member QR right away (owner 2026-10-14, APP D5 and D6).
   const [sheet, setSheet] = useState<null | 'about' | 'wallet' | 'camera'>(() => (cardAsked && member ? 'wallet' : null));
+  // Also when it's asked after the scanner opened: a join's code or link signs in, then the address says view=qr.
+  const hasMember = !!member;
+  useEffect(() => {
+    if (cardAsked && hasMember) setSheet('wallet');
+  }, [cardAsked, hasMember]);
   const [info, setInfo] = useState<Info | null>(null);
   const [feel, setFeel] = useState<Feel | null>(null);
   const undo = useUndo(24);
@@ -510,7 +516,8 @@ function FoundTag({ item, isGuest, verified18, qty, onFeel, onRetail, onReturns 
             <BigBucks value={tb} size={u(tbNumber(reward).length >= 6 ? 86 : 104)} sparkle={false} />
             <Box sx={{ fontSize: u(30), fontWeight: 800, color: sc.greenDeep, lineHeight: 1.1, textAlign: 'left' }}>
               {isGuest ? 'ThriftBucks for members' : 'ThriftBucks back'}
-              <Box sx={{ fontSize: u(22), fontWeight: 400, color: sc.ink2 }}>{isGuest ? 'Free to join at the register' : 'saved for your next visit'}</Box>
+              {/* Joining starts in the app now (owner 2026-10-15, APP D9). */}
+              <Box sx={{ fontSize: u(22), fontWeight: 400, color: sc.ink2 }}>{isGuest ? 'Free to join' : 'saved for your next visit'}</Box>
             </Box>
           </>
         ) : (

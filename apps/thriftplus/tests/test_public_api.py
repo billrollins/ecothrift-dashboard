@@ -317,3 +317,7 @@ class MyCardTests(PublicApiTests):
         for address in ('/qr', '/card'):  # /card: the first address, kept quietly (owner 2026-10-14: no card)
             got = self.client.get(address)
             self.assertEqual((got.status_code, got['Location']), (302, '/scan?view=qr'), address)
+        # ecothrift.us/join (owner 2026-10-15, J8): the scanner opened on Join Thrift+.
+        for address in ('/join', '/join/'):
+            got = self.client.get(address)
+            self.assertEqual((got.status_code, got['Location']), (302, '/scan?view=join'), address)

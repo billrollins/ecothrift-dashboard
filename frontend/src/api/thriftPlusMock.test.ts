@@ -8,14 +8,18 @@ import {
   getHistory,
   getSession,
   itemFromPublic,
+  joinThriftPlus,
   lookupTag,
   mockRewardCents,
   passItem,
   requestPasswordReset,
+  requestSignInEmail,
   setCartQty,
   shortTitle,
   signIn,
   signInWithCard,
+  signInWithCode,
+  signInWithLink,
   signOut,
   thriftPlusMockControls,
   toCents,
@@ -58,6 +62,43 @@ describe('sign-in (mock)', () => {
 
   it('lets a guest scan', async () => {
     expect((await continueAsGuest()).status).toBe('guest');
+  });
+});
+
+describe('email sign-in and joining (mock, owner 2026-10-15, APP D9)', () => {
+  it('joins pending: the code signs in once, not ready until a register, and a confirmed email gets a sign-in email', async () => {
+    await expect(joinThriftPlus(' ', 'robin@example.com')).rejects.toMatchObject({ code: 'NAME_NEEDED' });
+    await expect(joinThriftPlus('Robin Lee', 'nope')).rejects.toMatchObject({ code: 'EMAIL_BAD' });
+    expect(await joinThriftPlus('Robin Lee', ' Robin@Example.com ')).toEqual({ status: 'sent' });
+    const [sent] = thriftPlusMockControls.outbox();
+    expect(sent).toMatchObject({ to: 'robin@example.com', purpose: 'join' });
+    expect(sent.code).toMatch(/^\d{6}$/);
+
+    const s = await signInWithCode('robin@example.com', sent.code);
+    expect(s.purpose).toBe('join');
+    expect(s.status === 'member' && s.member).toMatchObject({ first_name: 'Robin', ready: false, email_verified: true, session_kind: 'email' });
+    expect((await getSession()).status).toBe('member');
+    await expect(signInWithLink(sent.token)).rejects.toMatchObject({ code: 'LINK_USED' });
+
+    await joinThriftPlus('Robin Lee', 'robin@example.com');
+    expect(thriftPlusMockControls.outbox().at(-1)?.purpose).toBe('sign_in');
+  });
+
+  it('answers the same for any email, kills a code after 5 wrong tries, and a link works once', async () => {
+    expect(await requestSignInEmail('dana@example.com')).toEqual({ status: 'sent' });
+    const first = thriftPlusMockControls.outbox()[0];
+    const wrong = first.code === '000000' ? '111111' : '000000';
+    for (let i = 0; i < 5; i += 1) await expect(signInWithCode('dana@example.com', wrong)).rejects.toMatchObject({ code: 'CODE_BAD' });
+    await expect(signInWithCode('dana@example.com', first.code)).rejects.toMatchObject({ code: 'CODE_EXPIRED' });
+    await expect(signInWithLink(first.token)).rejects.toMatchObject({ code: 'LINK_EXPIRED' });
+    await expect(signInWithLink('nope')).rejects.toMatchObject({ code: 'LINK_BAD' });
+
+    await requestSignInEmail('dana@example.com');
+    const second = thriftPlusMockControls.outbox()[1];
+    const s = await signInWithLink(second.token);
+    expect(s).toMatchObject({ status: 'member', purpose: 'sign_in', member: { ready: true } });
+    await expect(signInWithLink(second.token)).rejects.toMatchObject({ code: 'LINK_USED' });
+    await expect(signInWithCode('nobody@example.com', '123456')).rejects.toMatchObject({ code: 'CODE_BAD' });
   });
 });
 

@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { Box, ButtonBase, CircularProgress, InputBase } from '@mui/material';
 import type { ThriftPlusMember } from '../../../api/thriftPlusScanner.api';
 import { FieldBanner } from './ScannerTop';
-import { Field, Primary, Secondary, Sub, Title } from './SignInScreen';
+import { Field, Primary, Secondary, Sub, Title } from './signInParts';
 import { TbAmount } from '../../../components/thriftplus/ThriftBucks';
 import { money } from './scannerLogic';
 import { ThriftPlusLogo, sc, u } from './scannerTheme';
@@ -203,6 +203,9 @@ export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }:
   const [confirm, setConfirm] = useState<{ kind: 'person'; id: number } | null>(null);
   const [err, setErr] = useState('');
   const data = me.data;
+  // Members sign in by email, with no password (owner 2026-10-15, J11, APP D9): an email session is never asked to set
+  // one up or to sign in with one.
+  const byEmail = member.session_kind === 'email';
   // ThriftBucks and Thrift+ credit only (rows of retired kinds from before 10-12 are left out).
   const activity = (data?.money ?? []).filter((m) => m.kind === 'bank' || m.kind === 'credit');
 
@@ -276,13 +279,13 @@ export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }:
           </Box>
         )}
 
-        {member.has_login === false && (
+        {member.has_login === false && !byEmail && (
           <Box sx={{ mt: u(30) }}>
             <SetUpLoginForm />
           </Box>
         )}
 
-        {data && !data.can_change && member.has_login !== false && (
+        {data && !data.can_change && member.has_login !== false && !byEmail && (
           <Card sx={{ mt: u(30) }}>
             <Box sx={{ fontSize: u(29), color: sc.ink2, lineHeight: 1.4 }}>
               To change who is on the account, sign in with your email and password.

@@ -46,6 +46,11 @@ def _gated(view):
 
 public = [
     path('session/', public_views.session),
+    # Owner 2026-10-15 (J8, J11): join online with a name and email; the emailed link or 6-digit code signs in.
+    path('join/', public_views.join),
+    path('session/email/', public_views.session_email),
+    path('session/link/', public_views.session_link),
+    path('session/code/', public_views.session_code),
     path('session/password/', public_views.sign_in_password),
     path('session/card/', public_views.sign_in_card),
     path('session/sign-out/', public_views.sign_out),
@@ -71,11 +76,14 @@ public = [
 ]
 
 # Every public route is behind the Thrift+ switch (owner, 2026-10-07), except signing in: while it is off, only staff
-# and practice members get through, checked in the view (staff test mode, 2026-10-10).
-SIGN_IN = {'session/password/', 'session/card/'}
+# and practice members get through, checked in the view (staff test mode, 2026-10-10). An emailed link or code is
+# checked there too, before it is used (a link may open in a browser without the preview code).
+SIGN_IN = {'session/password/', 'session/card/', 'session/link/', 'session/code/'}
 public = [path(str(p.pattern), p.callback if str(p.pattern) in SIGN_IN else _gated(p.callback), name=p.name) for p in public]
 
 urlpatterns = [
     path('public/', include(public)),  # the scanner app and portal: member sessions only (public_views.py)
+    # Staff send a member the Thrift+ app link (owner 2026-10-15, J12); the same as people/<id>/email-link/.
+    path('members/<int:pk>/email-link/', PersonViewSet.as_view({'post': 'email_link'}), name='thriftplus-member-email-link'),
     path('', include(router.urls)),
 ]

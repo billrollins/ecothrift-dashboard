@@ -37,8 +37,9 @@ function memberForm(body: NewMember & { both_present?: boolean; primary_approves
   return form;
 }
 
-export async function findMembers(q: string): Promise<ThriftPlusAccount[]> {
-  const { data } = await api.get<ThriftPlusAccount[]>('/thriftplus/accounts/', { params: { q } });
+/** Members by member code, phone, email or name. ``status: 'pending'``: the online joins to finish at a register. */
+export async function findMembers(q: string, status?: ThriftPlusAccount['status']): Promise<ThriftPlusAccount[]> {
+  const { data } = await api.get<ThriftPlusAccount[]>('/thriftplus/accounts/', { params: status ? { q, status } : { q } });
   return data;
 }
 
@@ -104,6 +105,20 @@ export async function setPersonNews(personId: number, on: boolean): Promise<Thri
 /** Add or change a member's email address (blank removes it). */
 export async function setPersonEmail(personId: number, email: string): Promise<ThriftPlusAccount> {
   const { data } = await api.post<ThriftPlusAccount>(`/thriftplus/people/${personId}/email/`, { email });
+  return data;
+}
+
+/**
+ * Send the Thrift+ app link (owner 2026-10-15, J12): sets the email first when one is given, then a join email (or a
+ * sign-in email once the address is confirmed). Answers the membership, with what was sent and to whom (masked).
+ */
+export async function sendMemberEmailLink(
+  personId: number,
+  email?: string,
+): Promise<ThriftPlusAccount & { sent: 'join' | 'sign_in'; sent_to: string }> {
+  const { data } = await api.post<ThriftPlusAccount & { sent: 'join' | 'sign_in'; sent_to: string }>(
+    `/thriftplus/members/${personId}/email-link/`, email ? { email } : {},
+  );
   return data;
 }
 
@@ -180,7 +195,13 @@ export async function adjustMemberMoney(accountId: number, body: { kind: 'credit
 
 export interface ThriftPlusOverview {
   days: number;
-  members: { active: number; revoked: number; people: number; verified_18: number; signups: { day: string; n: number }[] };
+  members: {
+    active: number; revoked: number; people: number; verified_18: number; signups: { day: string; n: number }[];
+    /** Joined online, not finished at a register (J8): counted apart, never as members. */
+    pending?: number;
+    /** Of those, joined in the last ``days``. */
+    pending_new?: number;
+  };
   sales: { member_sales: number; member_revenue: string; guest_sales: number; guest_revenue: string };
   rewards: {
     /** Dollars off today's price from instant redemptions. */

@@ -14,7 +14,10 @@
 import axios from 'axios';
 import {
   computeCartTotals,
+  ThriftPlusError,
+  type EmailSignIn,
   type PriceFeel,
+  type SignInPurpose,
   type TagLookup,
   type ThriftPlusCart,
   type ThriftPlusCartLine,
@@ -24,9 +27,11 @@ import {
   type ThriftPlusSession,
 } from './thriftPlusMock';
 
-export { computeCartTotals };
+export { computeCartTotals, ThriftPlusError };
 export type {
+  EmailSignIn,
   PriceFeel,
+  SignInPurpose,
   TagLookup,
   ThriftPlusCart,
   ThriftPlusCartLine,
@@ -96,14 +101,21 @@ function writeJson(key: string, value: unknown): void {
   }
 }
 
-/** The server's message, or a plain fallback. */
-function problem(err: unknown, fallback: string): Error {
+/**
+ * The server's message, or a plain fallback. It carries the server's `code`, and for a 429 the seconds to wait
+ * (`retry_after`, or the Retry-After header) as `retryAfter`.
+ */
+function problem(err: unknown, fallback: string): ThriftPlusError {
   if (axios.isAxiosError(err)) {
-    const detail = (err.response?.data as { detail?: unknown } | undefined)?.detail;
-    if (typeof detail === 'string' && detail) return new Error(detail);
-    if (!err.response) return new Error('Could not reach the store. Check your signal and try again.');
+    const body = (err.response?.data ?? {}) as { detail?: unknown; code?: unknown; retry_after?: unknown };
+    const code = typeof body.code === 'string' ? body.code : undefined;
+    const wait = Number(body.retry_after ?? err.response?.headers?.['retry-after']);
+    const retryAfter = Number.isFinite(wait) && wait > 0 ? Math.ceil(wait) : undefined;
+    if (typeof body.detail === 'string' && body.detail) return new ThriftPlusError(body.detail, code, retryAfter);
+    if (!err.response) return new ThriftPlusError('Could not reach the store. Check your signal and try again.');
+    return new ThriftPlusError(fallback, code, retryAfter);
   }
-  return new Error(fallback);
+  return new ThriftPlusError(fallback);
 }
 
 let member: ThriftPlusMember | null = null;
@@ -183,6 +195,56 @@ export async function setUpLogin(email: string, password: string, username?: str
     return data;
   } catch (err) {
     throw problem(err, 'Could not set up your login.');
+  }
+}
+
+// ── Email sign-in and joining (owner 2026-10-15, APP D9; rulebook J8, J11) ────
+// No passwords for members and no texts: every email carries a link (`/scan?signin=<token>`) and a 6-digit code, each
+// works once for 15 minutes. "Sent" is the same answer whether or not the email is a member's.
+
+/** Join with a name and email. A new email gets a pending membership and a join email. */
+export async function joinThriftPlus(name: string, email: string): Promise<{ status: 'sent' }> {
+  try {
+    const { data } = await http.post<{ status: 'sent' }>('/join/', { name: name.trim(), email: email.trim() });
+    return data;
+  } catch (err) {
+    throw problem(err, 'Could not send the email. Try again.');
+  }
+}
+
+/** "Email me a link": a member (active or pending) gets a sign-in email. */
+export async function requestSignInEmail(email: string): Promise<{ status: 'sent' }> {
+  try {
+    const { data } = await http.post<{ status: 'sent' }>('/session/email/', { email: email.trim() });
+    return data;
+  } catch (err) {
+    throw problem(err, 'Could not send the email. Try again.');
+  }
+}
+
+function emailSignedIn(data: EmailSignIn): EmailSignIn {
+  if (data.status === 'member') member = data.member;
+  writeJson(LS.guest, null);
+  return data;
+}
+
+/** The email's link opened `/scan?signin=<token>`: sign in (and confirm the email). `purpose` says which email it was. */
+export async function signInWithLink(token: string): Promise<EmailSignIn> {
+  try {
+    const { data } = await http.post<EmailSignIn>('/session/link/', { token });
+    return emailSignedIn(data);
+  } catch (err) {
+    throw problem(err, "That link didn't work. Send a new one.");
+  }
+}
+
+/** The 6-digit code from the email, typed on the screen that asked for it. */
+export async function signInWithCode(email: string, code: string): Promise<EmailSignIn> {
+  try {
+    const { data } = await http.post<EmailSignIn>('/session/code/', { email: email.trim(), code: code.trim() });
+    return emailSignedIn(data);
+  } catch (err) {
+    throw problem(err, "That code didn't work. Check it and try again.");
   }
 }
 

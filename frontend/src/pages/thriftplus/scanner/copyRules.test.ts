@@ -23,6 +23,9 @@ const POLICY_1012 = [
 /** No card (owner 2026-10-14, APP D6): there is no Thrift+ card, so "card" is nowhere a customer reads. */
 const NO_CARD = [/\bcards?\b(?![.\w(])/i];  // not `card.isError` and the like
 
+/** "Non-member", never "guest", where a customer reads (owner 2026-10-15, APP D10). Code names (`isGuest`, 'guest') stay. */
+const NO_GUEST = [/\bguests?\b/i];
+
 /**
  * What a customer reads: string literals with a space in them, and JSX text (code names have no spaces). Comments go
  * first, since an apostrophe in one would read as the start of a string.
@@ -76,15 +79,20 @@ describe('Thrift+ scanner copy', () => {
   });
 });
 
+/** Where the rule shows up in what a customer reads (the scanner's files and its API's messages). */
+function customerHits(rule: RegExp): string[] {
+  const files = [...sourceFiles(__dirname), join(SRC, 'api/thriftPlusScanner.api.ts')];
+  const hits: string[] = [];
+  for (const file of files) {
+    const m = customerText(readFileSync(file, 'utf8')).match(rule);
+    if (m) hits.push(`${file.split(/[\\/]/).pop()}: ${m[0]}`);
+  }
+  return hits;
+}
+
 describe('No Thrift+ card in the app (owner 2026-10-14, APP D6)', () => {
   it('never says card where a customer reads', () => {
-    const files = [...sourceFiles(__dirname), join(SRC, 'api/thriftPlusScanner.api.ts')];
-    const hits: string[] = [];
-    for (const file of files) {
-      const m = customerText(readFileSync(file, 'utf8')).match(NO_CARD[0]);
-      if (m) hits.push(`${file.split(/[\\/]/).pop()}: ${m[0]}`);
-    }
-    expect(hits).toEqual([]);
+    expect(customerHits(NO_CARD[0])).toEqual([]);
   });
 
   it('catches card in copy and leaves code names alone', () => {
@@ -92,6 +100,18 @@ describe('No Thrift+ card in the app (owner 2026-10-14, APP D6)', () => {
     expect(customerText(`setErr('That card is stopped.')`)).toMatch(NO_CARD[0]);
     expect(customerText(`import { CameraCard } from './CameraCard'; testId="my-card"; get('/me/card/')`)).not.toMatch(NO_CARD[0]);
     expect(customerText(`// the tag's card face\n<Box>{card.isError ? 'Try again later.' : null}</Box>`)).not.toMatch(NO_CARD[0]);
+  });
+});
+
+describe('Non-member, never guest (owner 2026-10-15, APP D10)', () => {
+  it('never says guest where a customer reads', () => {
+    expect(customerHits(NO_GUEST[0])).toEqual([]);
+  });
+
+  it('catches guest in copy and leaves code names alone', () => {
+    expect(customerText(`<ButtonBase>Scan as a guest</ButtonBase>`)).toMatch(NO_GUEST[0]);
+    expect(customerText(`{ title: 'Guests pay the tag.' }`)).toMatch(NO_GUEST[0]);
+    expect(customerText(`const isGuest = s.status === 'guest'; readJson('thriftPlus.real.guest', false); auth.guest.mutate()`)).not.toMatch(NO_GUEST[0]);
   });
 });
 

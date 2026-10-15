@@ -24,7 +24,10 @@ from django.db import models
 class Account(models.Model):
     STATUS_ACTIVE = 'active'
     STATUS_REVOKED = 'revoked'
-    STATUS_CHOICES = [(STATUS_ACTIVE, 'Active'), (STATUS_REVOKED, 'Revoked')]
+    # Owner 2026-10-15 (J8): joined online with name and email; "not ready" (J2) until a register checks the phone, the
+    # ID and the photo. It collects and uses nothing until then.
+    STATUS_PENDING = 'pending'
+    STATUS_CHOICES = [(STATUS_ACTIVE, 'Active'), (STATUS_REVOKED, 'Revoked'), (STATUS_PENDING, 'Joined online, finish at a register')]
 
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_ACTIVE, db_index=True)
     # Owner, 2026-10-10: a practice member for training and testing; left out of every report and count.
@@ -65,6 +68,11 @@ class Person(models.Model):
     verified_18 = models.BooleanField(default=False, help_text='The ID showed 18+. Only this flag is stored, never the ID.')
     verified_at = models.DateTimeField(null=True, blank=True)
     verified_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    # Owner 2026-10-15 (J8, J11): the email is verified by its link or code; the phone is verified in person at a register
+    # (the cashier reads it back), with who and when.
+    email_verified_at = models.DateTimeField(null=True, blank=True)
+    phone_verified_at = models.DateTimeField(null=True, blank=True)
+    phone_verified_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     removed_at = models.DateTimeField(null=True, blank=True, help_text='Taken off the account (second adults only).')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -457,8 +465,10 @@ class MemberSession(models.Model):
     httpOnly cookie scoped to the public Thrift+ API."""
 
     KIND_PASSWORD = 'password'
-    KIND_CARD = 'card'
-    KIND_CHOICES = [(KIND_PASSWORD, 'Email or username and password'), (KIND_CARD, 'Card and phone digits')]
+    KIND_CARD = 'card'  # gone 10-14 (no card); old sessions only
+    KIND_EMAIL = 'email'  # owner 2026-10-15 (J11): an emailed link or code
+    KIND_CHOICES = [(KIND_PASSWORD, 'Email or username and password'), (KIND_CARD, 'Card and phone digits'),
+                    (KIND_EMAIL, 'Emailed link or code')]
 
     token_hash = models.CharField(max_length=64, unique=True)
     person = models.ForeignKey(Person, on_delete=models.CASCADE, related_name='sessions')
@@ -481,6 +491,33 @@ class MemberResetToken(models.Model):
     expires_at = models.DateTimeField()
     used_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class MemberEmailToken(models.Model):
+    """An emailed sign-in (owner 2026-10-15, J11): a link and a 6-digit code, either one signs in, once, for 15 minutes.
+    Only keyed hashes are kept. ``purpose`` join = the first one, which also verifies the email."""
+
+    PURPOSE_JOIN = 'join'
+    PURPOSE_SIGN_IN = 'sign_in'
+    PURPOSE_CHOICES = [(PURPOSE_JOIN, 'Confirm the email and join'), (PURPOSE_SIGN_IN, 'Sign in')]
+
+    person = models.ForeignKey(Person, on_delete=models.CASCADE, related_name='email_tokens')
+    purpose = models.CharField(max_length=10, choices=PURPOSE_CHOICES)
+    email = models.CharField(max_length=254, help_text='Lower-cased: the address it was sent to.')
+    token_hash = models.CharField(max_length=64, unique=True)
+    code_hash = models.CharField(max_length=64)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    wrong_codes = models.PositiveSmallIntegerField(default=0)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['email', 'created_at'])]
+
+    def __str__(self):
+        return f'{self.purpose} token {self.pk} for person {self.person_id}'
 
 
 class AppCart(models.Model):

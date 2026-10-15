@@ -18,6 +18,8 @@ urlpatterns = [
     # here. /card was the first address: it stays as a quiet redirect, never printed (no card).
     re_path(r'^qr/?$', RedirectView.as_view(url='/scan?view=qr', permanent=False), name='thriftplus-qr'),
     re_path(r'^card/?$', RedirectView.as_view(url='/scan?view=qr', permanent=False), name='thriftplus-card'),
+    # ecothrift.us/join (owner 2026-10-15, J8; poster 1's join QR and terms 1.3): the scanner opened on Join Thrift+.
+    re_path(r'^join/?$', RedirectView.as_view(url='/scan?view=join', permanent=False), name='thriftplus-join'),
     # The interview short link in texts (ecothrift.us/i/<code>, owner 2026-10-12).
     re_path(r'^i/(?P<code>[A-Za-z0-9]{1,12})/?$', hiring_short_link, name='hiring-short-link'),
     path('sitemap.xml', sitemap_xml, name='sitemap-xml'),

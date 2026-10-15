@@ -7,6 +7,8 @@ Thrift+ membership rules (owner design, 2026-09-25). Every change writes an ``Ev
   - the member's code is made for them (owner 2026-10-14: there is no Thrift+ card). They show it as the member QR
     in the Thrift+ app, or give their phone number (``people_by_phone``).
   - No ID means an unverified person: they collect ThriftBucks, but get no returns and no 18+ items.
+- **Joined online** (owner 2026-10-15, J8): a *pending* membership with a name, an email and a member code; it
+  collects and uses nothing until a register finishes joining (the phone read back, the ID, the photo; J2).
 - **Up to 2 adults per account.** Adding the second needs both present and the primary's OK.
   The primary can remove the second; the second can remove only themselves.
 - **Codes** (the ``Card`` model): a person may have more than one (a code from a printed blank, and one made in the
@@ -84,7 +86,7 @@ def log(action: str, *, account=None, person=None, card=None, actor=None, **deta
 
 
 def find(query: str) -> QuerySet[Account]:
-    """Accounts by member code, phone or name."""
+    """Accounts by member code, phone, email or name."""
     q = (query or '').strip()
     accounts = Account.objects.all()
     if not q:
@@ -92,6 +94,8 @@ def find(query: str) -> QuerySet[Account]:
     code = parse(q)
     if code:
         return accounts.filter(people__cards__code=code).distinct()
+    if '@' in q:  # owner 2026-10-15: a pending join has an email and no phone yet
+        return accounts.filter(people__email__icontains=q.lower()).distinct()
     phone = normalize_phone(q)
     if len(phone) >= 7 and phone.isdigit():
         return accounts.filter(people__phone__endswith=phone[-7:]).distinct()
@@ -148,6 +152,8 @@ def card_by_code(raw: str) -> Card:
 
 
 def _require_active(account: Account) -> None:
+    if account.status == Account.STATUS_PENDING:
+        raise MemberError('Joined online: finish joining at a register first.')
     if account.status != Account.STATUS_ACTIVE:
         raise MemberError('This account is revoked.')
 
@@ -183,7 +189,8 @@ def kill_card(card: Card, *, reason: str = 'lost', user=None) -> Card:
 
 
 def _person(account: Account, role: str, *, first_name: str, last_name: str = '', phone: str = '', email: str = '',
-            id_checked: bool = False, verified_18: bool = False, photo=None, user=None) -> Person:
+            id_checked: bool = False, verified_18: bool = False, photo=None, user=None,
+            phone_verified: bool = True) -> Person:
     if not (first_name or '').strip():
         raise MemberError('A first name is required.')
     clean = ''
@@ -201,6 +208,10 @@ def _person(account: Account, role: str, *, first_name: str, last_name: str = ''
     if person.id_checked:
         person.verified_at = timezone.now()
         person.verified_by = user
+    if person.phone and phone_verified and user is not None:
+        # Owner 2026-10-15 (J8, J12): staff took the number in person, so it is verified, with who and when.
+        person.phone_verified_at = timezone.now()
+        person.phone_verified_by = user
     if photo:
         person.photo = photo
     person.save()
@@ -210,7 +221,7 @@ def _person(account: Account, role: str, *, first_name: str, last_name: str = ''
 @transaction.atomic
 def create_account(*, first_name: str, last_name: str = '', phone: str = '', email: str = '',
                    id_checked: bool = False, verified_18: bool = False, photo=None, card_code: str = '',
-                   user=None) -> Account:
+                   user=None, phone_verified: bool = True) -> Account:
     """Sign up: the primary person (with an optional email), and their member code: a printed blank's code if one was
     given, otherwise one made for them (owner 2026-10-14: there is no Thrift+ card)."""
     phone_digits = normalize_phone(phone)
@@ -219,7 +230,7 @@ def create_account(*, first_name: str, last_name: str = '', phone: str = '', ema
         raise MemberError('That phone number is already on a membership. Find them by phone instead.')
     account = Account.objects.create(created_by=user)
     person = _person(account, Person.ROLE_PRIMARY, first_name=first_name, last_name=last_name, phone=phone, email=email,
-                     id_checked=id_checked, verified_18=verified_18, photo=photo, user=user)
+                     id_checked=id_checked, verified_18=verified_18, photo=photo, user=user, phone_verified=phone_verified)
     log('signup', account=account, person=person, actor=user, id_checked=person.id_checked, verified_18=person.verified_18)
     if card_code:
         issue_card(person, card_code, user=user)
@@ -244,7 +255,8 @@ def make_practice_member(*, first_name: str = '', last_name: str = '', card_code
         n += 1
     account = create_account(first_name=(first_name or '').strip() or 'Practice',
                              last_name=(last_name or '').strip() or f'Member {n}', phone=f'{PRACTICE_AREA}{n:07d}',
-                             id_checked=True, verified_18=True, photo=photo, card_code=card_code, user=user)
+                             id_checked=True, verified_18=True, photo=photo, card_code=card_code, user=user,
+                             phone_verified=False)
     account.is_practice = True
     account.save(update_fields=['is_practice', 'updated_at'])
     log('practice_member', account=account, actor=user)

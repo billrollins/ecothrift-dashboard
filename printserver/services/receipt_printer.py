@@ -70,7 +70,9 @@ THRIFT_PLUS_TERMS_LINE = (
 THRIFT_PLUS_RETURNS_LINE = (
     "Thrift+ 3-day returns: lines marked 3-day return, any reason, 80% back as Thrift+ credit."
 )
-THRIFT_PLUS_GUEST_AS_IS = "All items sold AS IS."
+# Owner 2026-10-15 (design language v2.8): "Non-member" replaces "guest" wherever a customer reads. The dashboard may
+# send the words as ``thrift_plus.non_member_line``; these are the same words, for a payload without them.
+THRIFT_PLUS_GUEST_AS_IS = "Non-member: All sales final. Sold AS IS."
 MARK_3_DAY_RETURN = "3-day return"
 MARK_AS_IS = "AS IS"
 
@@ -236,9 +238,18 @@ def _is_member_receipt(data: dict[str, Any]) -> bool:
 
 
 def _is_guest_as_is(data: dict[str, Any]) -> bool:
-    """A guest receipt while Thrift+ is on: every item is sold AS IS (W9, A3)."""
+    """A non-member's receipt while Thrift+ is on: every item is sold AS IS (W9, A3)."""
     tp = _tp(data)
     return tp is not None and not _is_member_receipt(data) and _truthy(tp.get("guest_all_as_is"))
+
+
+def _guest_as_is_lines(data: dict[str, Any]) -> list[str]:
+    """The one non-member line under the items ("Non-member: All sales final. Sold AS IS."): the dashboard's
+    ``non_member_line`` when sent, else the same words from here; wrapped to the tape."""
+    tp = _tp(data) or {}
+    sent = tp.get("non_member_line")
+    text = sent.strip() if isinstance(sent, str) and sent.strip() else THRIFT_PLUS_GUEST_AS_IS
+    return _wrap_chars(text[:200])
 
 
 def _tp_amount(tp: dict[str, Any] | None, key: str) -> float:
@@ -549,7 +560,7 @@ def format_receipt(data: dict[str, Any]) -> bytes:
         if mark:
             buf += FONT_SMALL + _line(f"    {mark}") + NORMAL
     if _is_guest_as_is(data):
-        buf += BOLD_ON + _line(THRIFT_PLUS_GUEST_AS_IS) + BOLD_OFF
+        buf += BOLD_ON + b"".join(_line(ln) for ln in _guest_as_is_lines(data)) + BOLD_OFF
 
     buf += _separator()
 
@@ -757,7 +768,7 @@ def format_receipt_text(data: dict[str, Any]) -> str:
         if mark:
             lines.append(f"    {mark}")
     if _is_guest_as_is(data):
-        lines.append(THRIFT_PLUS_GUEST_AS_IS)
+        lines.extend(_guest_as_is_lines(data))
 
     lines.append("-" * W)
 
@@ -1216,8 +1227,9 @@ def render_receipt_to_image(
             draw.text((x0 + 14 * S, y), mark, font=f_small, fill=t["muted"])
             y += _text_h(f_small) + 6 * S
     if _is_guest_as_is(data):
-        draw.text((x0, y), THRIFT_PLUS_GUEST_AS_IS, font=f_label_b, fill=t["text"])
-        y += _text_h(f_label_b) + 6 * S
+        for ln in _guest_as_is_lines(data):
+            draw.text((x0, y), ln, font=f_label_b, fill=t["text"])
+            y += _text_h(f_label_b) + 6 * S
 
     draw.line([x0, y, x1, y], fill=t["rule"], width=lw1)
     y += 14 * S

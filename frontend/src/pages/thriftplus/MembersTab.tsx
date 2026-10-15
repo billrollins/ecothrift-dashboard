@@ -35,6 +35,7 @@ import {
   killCard,
   removeSecondAdult,
   revokeMember,
+  sendMemberEmailLink,
   setPersonPhoto,
   setPersonEmail,
   setPersonNews,
@@ -121,6 +122,25 @@ function phone(p: string): string {
   return p.length === 10 ? `(${p.slice(0, 3)}) ${p.slice(3, 6)}-${p.slice(6)}` : p;
 }
 
+/** Joined online with a name and email; the phone, ID and photo come at a register (owner 2026-10-15, J8). */
+const PENDING_LABEL = 'Joined online, finish at a register';
+
+/**
+ * Send the Thrift+ app link (J12): a join email until the address is confirmed, then a sign-in link. With `email`, the
+ * address is saved first.
+ */
+function useSendLink(person: ThriftPlusPerson, onChanged: (a: ThriftPlusAccount) => void) {
+  const { enqueueSnackbar } = useSnackbar();
+  return useMutation({
+    mutationFn: (email?: string) => sendMemberEmailLink(person.id, email),
+    onSuccess: (a) => {
+      onChanged(a);
+      enqueueSnackbar(`${a.sent === 'join' ? 'Join email' : 'Sign-in link'} sent to ${a.sent_to}.`, { variant: 'success' });
+    },
+    onError: (err) => enqueueSnackbar(detail(err), { variant: 'error' }),
+  });
+}
+
 /**
  * Name, phone, ID check and 18+ (only with an ID check), a photo, and the member code (last 4 only). The code lives in
  * the member's Thrift+ app (the member QR); replacing it stops the old one at once and the app shows a new one.
@@ -133,8 +153,10 @@ function PersonCard({ person, account, onChanged }: { person: ThriftPlusPerson; 
     onSuccess: (a) => { if (a) onChanged(a); },
     onError: (err) => enqueueSnackbar(detail(err), { variant: 'error' }),
   });
+  const sendLink = useSendLink(person, onChanged);
   const active = !person.removed_at;
   const revoked = account.status === 'revoked';
+  const pending = account.status === 'pending';
   const hasCode = person.cards.some((c) => c.status === 'active');
   const replace = (cardId: number) => run.mutate(async () => {
     await killCard(cardId, 'replaced by staff');
@@ -151,16 +173,25 @@ function PersonCard({ person, account, onChanged }: { person: ThriftPlusPerson; 
           <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
             <Typography sx={{ fontWeight: 800 }}>{fullName(person)}</Typography>
             <Chip size="small" label={person.role === 'primary' ? 'Primary' : 'Second adult'} />
+            {pending ? <Chip size="small" color="info" label={PENDING_LABEL} /> : null}
             {person.verified_18 ? <Chip size="small" color="success" label="18+ verified" /> : null}
-            {!person.id_checked ? <Chip size="small" color="warning" label="Unverified: no returns, no 18+" /> : null}
+            {!person.id_checked && !pending ? <Chip size="small" color="warning" label="Unverified: no returns, no 18+" /> : null}
             {!active ? <Chip size="small" label="Removed" /> : null}
           </Stack>
-          <Typography variant="body2" color="text.secondary">{person.phone ? phone(person.phone) : 'No phone'}</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {person.phone ? phone(person.phone) : pending ? 'No phone yet: the register asks it and reads it back' : 'No phone'}
+          </Typography>
           {active ? (
             <Stack direction="row" spacing={1} sx={{ mt: 0.75 }} useFlexGap flexWrap="wrap" alignItems="center">
               {person.email ? (
                 <>
                   <Typography variant="body2" color="text.secondary">{person.email}</Typography>
+                  {person.email_verified_at ? <Chip size="small" variant="outlined" color="success" label="Email confirmed" /> : null}
+                  {!revoked ? (
+                    <Button size="small" variant="outlined" disabled={sendLink.isPending} onClick={() => sendLink.mutate(undefined)}>
+                      Send sign-in link
+                    </Button>
+                  ) : null}
                   {person.emails ? (
                     <Chip
                       size="small"
@@ -178,6 +209,11 @@ function PersonCard({ person, account, onChanged }: { person: ThriftPlusPerson; 
                   <Button size="small" variant="outlined" disabled={!email.trim()} onClick={() => run.mutate(async () => { const a = await setPersonEmail(person.id, email); setEmail(''); return a; })}>
                     Save email
                   </Button>
+                  {!revoked ? (
+                    <Button size="small" variant="outlined" disabled={!email.trim() || sendLink.isPending} onClick={() => sendLink.mutate(email.trim(), { onSuccess: () => setEmail('') })}>
+                      Save and send link
+                    </Button>
+                  ) : null}
                 </>
               )}
             </Stack>
@@ -209,7 +245,7 @@ function PersonCard({ person, account, onChanged }: { person: ThriftPlusPerson; 
           </Stack>
           {active && !revoked ? (
             <Stack direction="row" spacing={1} sx={{ mt: 1 }} useFlexGap flexWrap="wrap" alignItems="center">
-              {!person.id_checked ? (
+              {!person.id_checked && !pending ? (
                 <>
                   <Button size="small" onClick={() => run.mutate(() => verifyPerson(person.id, true))}>ID checked: 18+</Button>
                   <Button size="small" onClick={() => run.mutate(() => verifyPerson(person.id, false))}>ID checked: under 18</Button>
@@ -262,6 +298,12 @@ function AccountDetail({ id }: { id: number }) {
         <Typography variant="h6" sx={{ fontWeight: 800, flex: 1 }}>Membership #{account.id}</Typography>
         {account.status === 'revoked' ? <Chip color="error" label={`Revoked: ${account.revoked_reason}`} /> : null}
       </Stack>
+      {account.status === 'pending' ? (
+        <Alert severity="info" data-testid="thrift-pending-note">
+          <strong>{PENDING_LABEL}.</strong> Not a member yet: it collects and uses nothing until a register asks the phone
+          number and reads it back, checks the ID and takes the photo.
+        </Alert>
+      ) : null}
       {account.is_practice ? <PracticeNote account={account} /> : null}
       {account.people.map((p) => <PersonCard key={p.id} person={p} account={account} onChanged={onChanged} />)}
       <StaffLink account={account} onChanged={onChanged} />
@@ -329,7 +371,13 @@ export default function MembersTab() {
     const t = window.setTimeout(() => setDebounced(q.trim()), 250);
     return () => window.clearTimeout(t);
   }, [q]);
-  const results = useQuery({ queryKey: ['thriftplus', 'find', debounced], queryFn: () => findMembers(debounced), enabled: debounced.length >= 2 });
+  // Owner 2026-10-15 (J8): the online joins still to finish at a register, listed with nothing typed.
+  const [pendingOnly, setPendingOnly] = useState(false);
+  const results = useQuery({
+    queryKey: ['thriftplus', 'find', debounced, pendingOnly],
+    queryFn: () => findMembers(debounced, pendingOnly ? 'pending' : undefined),
+    enabled: pendingOnly || debounced.length >= 2,
+  });
   const practice = useMutation({
     mutationFn: () => makePracticeMember(),
     onSuccess: (a) => {
@@ -353,12 +401,24 @@ export default function MembersTab() {
   return (
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '340px minmax(0, 1fr)' }, gap: 2, alignItems: 'start' }}>
       <Stack spacing={1}>
-        <TextField autoFocus label="Scan a member QR, or type a phone or name" value={q} onChange={(e) => setQ(e.target.value)} />
+        <TextField autoFocus label="Scan a member QR, or type a phone, email or name" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Box>
+          <Chip
+            clickable
+            color={pendingOnly ? 'info' : 'default'}
+            variant={pendingOnly ? 'filled' : 'outlined'}
+            label="Joined online, not finished"
+            onClick={() => setPendingOnly((v) => !v)}
+            aria-pressed={pendingOnly}
+          />
+        </Box>
         <Button variant="contained" onClick={() => setSignup({ first_name: '', id_checked: false, verified_18: false })}>New member</Button>
         <Button variant="outlined" color="warning" disabled={practice.isPending} onClick={() => practice.mutate()}>
           Make a practice member
         </Button>
-        {results.data?.length === 0 ? <Alert severity="info">No member found.</Alert> : null}
+        {results.data?.length === 0 ? (
+          <Alert severity="info">{pendingOnly ? 'No one is waiting to finish joining.' : 'No member found.'}</Alert>
+        ) : null}
         {results.data?.length ? (
           <Paper variant="outlined">
             <List dense disablePadding>
@@ -368,7 +428,9 @@ export default function MembersTab() {
                   <ListItemButton key={a.id} selected={selected === a.id} onClick={() => setSelected(a.id)}>
                     <ListItemText
                       primary={primary ? fullName(primary) : `Membership #${a.id}`}
-                      secondary={`${primary?.phone ? phone(primary.phone) : 'No phone'}${a.status === 'revoked' ? ' · revoked' : ''}${a.is_practice ? ' · practice' : ''}`}
+                      secondary={a.status === 'pending'
+                        ? `${primary?.email ?? ''} · ${PENDING_LABEL.toLowerCase()}`
+                        : `${primary?.phone ? phone(primary.phone) : 'No phone'}${a.status === 'revoked' ? ' · revoked' : ''}${a.is_practice ? ' · practice' : ''}`}
                     />
                   </ListItemButton>
                 );

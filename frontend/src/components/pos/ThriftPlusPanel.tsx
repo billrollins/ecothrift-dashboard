@@ -15,35 +15,43 @@ import { useState } from 'react';
 import {
   attachThriftMember,
   detachThriftCard,
+  pendingFromError,
   refreshCart,
   setThriftChoice,
   thriftErrorMessage,
   uploadThriftSalePhoto,
   useThriftBucks as setThriftBucksUse,
+  type ThriftPendingPerson,
 } from '../../api/thriftplusRegister.api';
 import { TbAmount, tbNumber, tbText } from '../thriftplus/ThriftBucks';
 import type { Cart } from '../../types/pos.types';
 import { formatCurrency } from '../../utils/format';
 import { instantOffer, useByText } from '../../utils/thriftPlusRegister';
+import ThriftPlusPendingFind from './ThriftPlusPendingFind';
 import ThriftPlusPhoneFind from './ThriftPlusPhoneFind';
 
 interface Props {
   cart: Cart;
   onCart: (cart: Cart) => void;
+  /** Someone who joined online and isn't finished yet (J8): open Finish joining for them. */
+  onFinishJoin?: (person: ThriftPendingPerson) => void;
 }
 
 /**
  * Thrift+ on the register (the 10-12 policy, owner answers 10-14). No member yet: scan the member QR in their
  * Thrift+ app, or find them by phone and pick the person by their photo (owner 2026-10-14: there is no Thrift+ card).
+ * Joined online and not finished (owner 2026-10-15, J8): "Joined online?" finds them by name or email (their QR
+ * scanned does the same), and Finish joining asks the phone, the ID and the photo.
  * The member on the sale, with their photo so the cashier can check it; the choice (V4): keep this trip's ThriftBucks
  * (the Default) or redeem them instantly, offered only on what is left after Thrift+ credit and kept ThriftBucks;
  * Thrift+ credit used first; kept ThriftBucks applied by the register on its own, with a one-tap "Don't use
- * ThriftBucks today"; both balances. For a guest, what membership would have collected. Shown only while Thrift+ is
- * live at this register.
+ * ThriftBucks today"; both balances. For a non-member, what membership would have collected. Shown only while
+ * Thrift+ is live at this register.
  */
-export default function ThriftPlusPanel({ cart, onCart }: Props) {
+export default function ThriftPlusPanel({ cart, onCart, onFinishJoin }: Props) {
   const { enqueueSnackbar } = useSnackbar();
   const [busy, setBusy] = useState(false);
+  const [joinedOnline, setJoinedOnline] = useState(false);
   const block = cart.thrift_plus;
   if (!block) return null;
   const member = block.member;
@@ -54,7 +62,9 @@ export default function ThriftPlusPanel({ cart, onCart }: Props) {
       onCart(await step());
       return true;
     } catch (err) {
-      enqueueSnackbar(thriftErrorMessage(err), { variant: 'error' });
+      const pending = pendingFromError(err);
+      if (pending && onFinishJoin) onFinishJoin(pending);
+      else enqueueSnackbar(thriftErrorMessage(err), { variant: 'error' });
       return false;
     } finally {
       setBusy(false);
@@ -78,6 +88,26 @@ export default function ThriftPlusPanel({ cart, onCart }: Props) {
               onPick={(person) => run(() => attachThriftMember(cart.id, person.person_id))}
             />
           </Box>
+        ) : null}
+        {cart.status === 'open' && onFinishJoin ? (
+          joinedOnline ? (
+            <Box sx={{ mt: 1 }}>
+              <Typography variant="caption" color="text.secondary" component="div" sx={{ mb: 0.5 }}>
+                Joined online? Find them by name or email, or scan the QR in their Thrift+ app.
+              </Typography>
+              <ThriftPlusPendingFind
+                autoFocus
+                disabled={busy}
+                onPick={(person) => {
+                  setJoinedOnline(false);
+                  onFinishJoin(person);
+                }}
+              />
+              <Button size="small" sx={{ mt: 0.5 }} onClick={() => setJoinedOnline(false)}>Cancel</Button>
+            </Box>
+          ) : (
+            <Button size="small" sx={{ mt: 0.5 }} onClick={() => setJoinedOnline(true)}>Joined online?</Button>
+          )
         ) : null}
       </Paper>
     );
