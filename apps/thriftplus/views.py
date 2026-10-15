@@ -210,8 +210,10 @@ class StaffMembershipsViewSet(viewsets.ViewSet):
     Staff memberships (owner 2026-10-15; ``services/staff_members.py``). Every active staff member has their own
     Thrift+ membership; the owner fills in the missing ones and merges a staff member's older customer membership in:
     - GET ``staff-memberships/`` (manager+): one row per active staff member, their membership (or none), and up to 3
-      customer memberships that may be theirs;
-    - POST ``staff-memberships/create-missing/`` (superuser): a membership for every staff member without one;
+      customer memberships that may be theirs; their website customer account (owner 2026-10-15) and customer logins
+      that may be theirs (merged with ``/api/accounts/login-merge/``);
+    - POST ``staff-memberships/create-missing/`` (superuser): a membership and a website customer account for every
+      staff member missing one;
     - GET ``staff-memberships/merge-preview/?staff_user=&source_account=`` (superuser): what a merge would move, or why
       it is refused (nothing changes);
     - POST ``staff-memberships/merge/ {staff_user, source_account}`` (superuser): merge the customer membership into
@@ -227,10 +229,16 @@ class StaffMembershipsViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='create-missing', permission_classes=[IsAuthenticated, IsSuperAdmin])
     def create_missing(self, request):
+        """Both halves for every staff member missing one: the website customer account (owner 2026-10-15) and the
+        Thrift+ membership."""
+        from apps.accounts.services.staff_customer import create_missing_customers
         from apps.thriftplus.services import staff_members
 
+        # Memberships first: adding the Customer group fires the Thrift+ signal, which would make them uncounted.
         result = staff_members.create_missing(actor=request.user)
-        return Response({**result, **staff_members.staff_list(), 'can_merge': True})
+        customers = create_missing_customers()
+        listing = staff_members.staff_list()
+        return Response({**listing, **result, **customers, 'can_merge': True})
 
     @staticmethod
     def _pair(data):

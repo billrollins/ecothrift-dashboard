@@ -11,9 +11,10 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from apps.accounts.models import CustomerProfile, MagicLinkToken, User
+from apps.accounts.services.staff_customer import STAFF_LOGIN_MESSAGE, STAFF_LOGIN_ROLES, is_staff_login
 
 MAGIC_LINK_TTL = timedelta(minutes=30)
-_STAFF_ROLES = frozenset({'Admin', 'Manager', 'Employee', 'Consignee'})
+_STAFF_ROLES = STAFF_LOGIN_ROLES  # kept for older imports; use is_staff_login (it also counts superusers)
 # After magic-link consume, set-password may skip old_password for this long.
 _PASSWORD_UNLOCK_TTL_SECONDS = 60 * 60
 
@@ -201,10 +202,11 @@ def consume_magic_link(*, token: str, request_ip: str | None = None) -> ConsumeR
         raise ValidationError({'detail': 'Invalid or expired sign-in link.'})
 
     existing = User.objects.filter(email__iexact=locked.email).first()
-    if existing is not None and existing.role in _STAFF_ROLES:
+    if is_staff_login(existing):
+        # A website session is a Dash token: a staff login signs in with its Dash password, never an emailed link.
         locked.used_at = timezone.now()
         locked.save(update_fields=['used_at'])
-        raise ValidationError({'detail': 'Use the staff sign-in for this account.'})
+        raise ValidationError({'detail': STAFF_LOGIN_MESSAGE})
 
     locked.used_at = timezone.now()
     locked.save(update_fields=['used_at'])
@@ -314,8 +316,8 @@ def register_customer(
         raise ValidationError({'detail': 'First name is required.'})
 
     existing = User.objects.filter(email__iexact=email).first()
-    if existing is not None and existing.role in _STAFF_ROLES:
-        raise ValidationError({'detail': 'Use the staff sign-in for this account.'})
+    if is_staff_login(existing):
+        raise ValidationError({'detail': STAFF_LOGIN_MESSAGE, 'code': 'STAFF_LOGIN'})
     if existing is not None and existing.has_usable_password():
         raise ValidationError({'detail': 'An account with this email already exists. Sign in instead.'})
 

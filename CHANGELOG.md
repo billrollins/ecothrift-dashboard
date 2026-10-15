@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.168.0] -->
-<!-- Last reviewed: 2026-10-15 (2.168.0) -->
+<!-- Line 1 release: ## [2.169.0] -->
+<!-- Last reviewed: 2026-10-15 (2.169.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.169.0] - 2026-10-15
+
+User-facing theme: **Staff logins are ecothrift.us customer accounts too, and the owner can merge a customer login (another email) into a staff login (Bill, 2026-10-15).** Outside initiatives (people), with thrift_plus.
+
+### Added
+
+- **Staff are website customers too (owner 10-15):** every active staff login is also an ecothrift.us customer account (made with the staff login, or when someone becomes staff). On the website's sign-in a staff email goes to the password step: staff sign in with their Dash password, never an emailed link; "Forgot password" there sends the Dash reset link.
+- **Dash → Thrift+ → Staff:** each row shows the website account and the Thrift+ membership; **Create missing (N)** makes both. **Merge a customer login…** (the owner) moves a customer login made with another email (e.g. an outlook address) into the staff login: its website account, holds, messages and a Thrift+ membership with that email. The staff login wins; the customer login is switched off and its address freed.
+
+### Changed
+
+- A staff login's email, name, phone and on/off can't be changed, switched off or sent a customer link from Dash → Customers (People only). The website never changes a staff password (Dash does).
+- The "What is Thrift+?" page's posters are the final print versions (the bold key phrases, "damaged after the sale", the register steps as bullets).
 
 ## [2.168.0] - 2026-10-15
 

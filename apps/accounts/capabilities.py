@@ -84,6 +84,7 @@ CATALOG: tuple[Capability, ...] = (
     Capability('hr.payroll:read', 'People', 'Open Time & payroll, roster, and pay totals', SUPER_ONLY, 'TimeEntryViewSet.payroll / roster'),
     Capability('hr.mod_requests:triage', 'People', 'Approve or reject time-change requests', SUPER_ONLY, 'TimeEntryModificationRequestViewSet'),
     Capability('blog:write', 'Studios', 'Write and publish in Blog Studio', SUPER_ONLY, 'blog _STAFF_PERMS IsSuperAdmin'),
+    Capability('people.logins:merge', 'People', 'Merge a customer login into a staff login; make missing staff website accounts', SUPER_ONLY, 'LoginMergeViewSet; thriftplus staff-memberships create-missing'),
     Capability('restoration.parts:approve', 'Restoration', 'Approve, deny, buy, or set ETA on parts', SUPER_ONLY, 'parts approve/deny/purchase/eta'),
     Capability('enhancements:triage', 'Restoration', 'Set priority, status, and target date', SUPER_ONLY, 'EnhancementRequestViewSet.triage'),
     Capability('floorplan.kinds:write', 'Studios', 'Create and edit floorplan element kinds', SUPER_ONLY, 'FloorPlanElementKindViewSet writes'),

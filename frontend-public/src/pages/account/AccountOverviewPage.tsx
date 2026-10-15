@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   clearPasswordPrompt,
+  isStaffLogin,
   peekPasswordPrompt,
   useAuth,
 } from '../../auth'
@@ -36,11 +37,14 @@ export default function AccountOverviewPage() {
   const [archiveBusy, setArchiveBusy] = useState<string | null>(null)
   const [archiveError, setArchiveError] = useState<string | null>(null)
 
+  const staffLogin = isStaffLogin(user)
+
   useEffect(() => {
+    if (staffLogin) return
     if (!hasPassword || params.get('set_password') === '1' || peekPasswordPrompt()) {
       setShowPasswordCard(true)
     }
-  }, [params, hasPassword])
+  }, [params, hasPassword, staffLogin])
 
   if (!user) return null
 
@@ -238,7 +242,15 @@ export default function AccountOverviewPage() {
           </section>
         )}
 
-        {!showPasswordCard && hasPassword && (
+        {staffLogin && (
+          <section className="acctcard">
+            <p className="acct__hint" style={{ margin: 0 }}>
+              This is your staff login: your password is your Dash password. Change it in Dash.
+            </p>
+          </section>
+        )}
+
+        {!staffLogin && !showPasswordCard && hasPassword && (
           <section className="acctcard">
             <button
               type="button"

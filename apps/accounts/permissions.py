@@ -57,13 +57,19 @@ class IsStaff(IsEmployee):
 
 
 class IsCustomer(BasePermission):
-    """Allow access only to Customer role users (online sales accounts)."""
+    """A website customer account: signed in, switched on, and a CustomerProfile or the Customer group.
+
+    Not ``role == 'Customer'``: since 2026-10-15 (owner) every staff user is a website customer too, and their role
+    stays their staff role (Customer is the lowest). This only opens the storefront's own pages (My holds, My
+    messages); every staff gate checks the staff role, so a customer never gains staff access.
+    """
     def has_permission(self, request, view):
-        return (
-            request.user
-            and request.user.is_authenticated
-            and request.user.role == 'Customer'
-        )
+        from apps.accounts.services.staff_customer import is_customer
+
+        user = request.user
+        if not user or not user.is_authenticated or not user.is_active:
+            return False
+        return is_customer(user)
 
 
 class IsSuperAdmin(BasePermission):

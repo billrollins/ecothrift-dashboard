@@ -167,7 +167,11 @@ class MagicLinkTests(TestCase):
             {'email': 'mgr@example.com'},
             format='json',
         )
-        tok = MagicLinkToken.objects.filter(email='mgr@example.com').order_by('-id').first().token
+        # Staff sign in with their Dash password (2026-10-15): no link is even issued.
+        self.assertFalse(MagicLinkToken.objects.filter(email='mgr@example.com').exists())
+        from apps.accounts.services.magic_link import issue_magic_link
+
+        tok = issue_magic_link(email='mgr@example.com').token
         r = self.client.post('/api/auth/magic-link/consume/', {'token': tok}, format='json')
         self.assertEqual(r.status_code, 400)
 

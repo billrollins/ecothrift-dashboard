@@ -21,7 +21,7 @@ from .serializers import (
     PasswordChangeSerializer,
 )
 from .capabilities import capabilities_for_user, catalog_as_dicts
-from .permissions import IsAdmin, IsManagerOrAdmin
+from .permissions import IsAdmin, IsManagerOrAdmin, IsSuperAdmin
 
 from .models import AccountEvent, CustomerProfile
 
@@ -621,8 +621,19 @@ class CustomerSerializer(serializers.Serializer):
         return profile
 
     def update(self, instance, validated_data):
+        from apps.accounts.services.staff_customer import is_staff_login
+
         user_data = validated_data.pop('user', {})
         user = instance.user
+        if is_staff_login(user):
+            # Staff are website customers too (owner 2026-10-15), but a staff login's email, name, phone and on/off
+            # are changed in People (Admin only), never from a customer record a manager can edit.
+            changed = [a for a in ('email', 'first_name', 'last_name', 'phone', 'is_active')
+                       if a in user_data and user_data[a] != getattr(user, a)]
+            if changed:
+                raise ValidationError({'detail': 'This is a staff login. Change its email, name, phone or on/off in '
+                                                 'People, not here.'})
+            user_data = {}
         for attr in ('email', 'first_name', 'last_name', 'phone', 'is_active'):
             if attr in user_data:
                 setattr(user, attr, user_data[attr])
@@ -676,9 +687,23 @@ class CustomerViewSet(viewsets.ModelViewSet):
             last_hold_at=Subquery(holds.order_by('-created_at').values('created_at')[:1]),
         )
 
+    @staticmethod
+    def _staff_login_refusal(profile, detail: str):
+        """A staff login (a website customer too since 2026-10-15) is never switched off, reset or sent an emailed
+        sign-in from a customer record: Dash's People page handles staff. None when ``profile`` is a customer's."""
+        from apps.accounts.services.staff_customer import is_staff_login
+
+        if is_staff_login(profile.user):
+            return Response({'detail': f'This is a staff login. {detail}', 'code': 'STAFF_LOGIN'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        return None
+
     def destroy(self, request, *args, **kwargs):
         """Soft-deactivate instead of hard-deleting account history."""
         profile = self.get_object()
+        refusal = self._staff_login_refusal(profile, 'Switch it off in People, not here.')
+        if refusal is not None:
+            return refusal
         user = profile.user
         if not user.is_active:
             return Response(CustomerSerializer(profile).data)
@@ -689,6 +714,9 @@ class CustomerViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='reactivate')
     def reactivate(self, request, pk=None):
         profile = self.get_object()
+        refusal = self._staff_login_refusal(profile, 'Switch it on in People, not here.')
+        if refusal is not None:
+            return refusal
         user = profile.user
         if not user.is_active:
             user.is_active = True
@@ -703,6 +731,10 @@ class CustomerViewSet(viewsets.ModelViewSet):
         from apps.webstore.emails import send_sign_in_link
 
         profile = self.get_object()
+        refusal = self._staff_login_refusal(
+            profile, 'Staff sign in with their Dash password (People can send a Set password link).')
+        if refusal is not None:
+            return refusal
         email = (profile.user.email or '').strip()
         if not email:
             return Response(
@@ -748,6 +780,9 @@ class CustomerViewSet(viewsets.ModelViewSet):
         from apps.webstore.emails import send_password_reset_link
 
         profile = self.get_object()
+        refusal = self._staff_login_refusal(profile, 'Reset its password in People, not here.')
+        if refusal is not None:
+            return refusal
         email = (profile.user.email or '').strip()
         if not email:
             return Response(
@@ -817,9 +852,14 @@ def magic_link_request_view(request):
     if not bool(getattr(dj_settings, 'ONLINE_SALES_ACCOUNTS_ENABLED', True)):
         return _accounts_disabled_response()
 
+    from apps.accounts.services.staff_customer import is_staff_login
+
     email = ((request.data or {}).get('email') or '').strip()
     # Always return the same shape (no email enumeration).
     generic = {'detail': 'If that email can receive mail, a sign-in link is on its way.'}
+    if email and is_staff_login(User.objects.filter(email__iexact=email).first()):
+        # A staff login signs in with its Dash password: an emailed link would be refused, so none is sent.
+        return Response(generic)
     try:
         token_row = issue_magic_link(
             email=email,
@@ -897,10 +937,16 @@ def magic_link_consume_view(request):
 @permission_classes([AllowAny])
 @throttle_classes([AuthMagicLinkIpThrottle, AuthMagicLinkEmailThrottle])
 def customer_lookup_view(request):
-    """Reveal whether an email has a customer account / password (staff emails look empty)."""
+    """Reveal whether an email has a customer account / password.
+
+    An active staff login answers ``has_account`` and ``has_password`` (owner 2026-10-15: staff are website customers
+    too), so the sign-in page asks for the Dash password; ``password_only`` tells it not to offer an emailed link,
+    which is refused for staff. A switched-off staff login still looks empty.
+    """
     from django.conf import settings as dj_settings
 
-    from apps.accounts.services.magic_link import _STAFF_ROLES, _normalize_email
+    from apps.accounts.services.magic_link import _normalize_email
+    from apps.accounts.services.staff_customer import is_staff_login
 
     if not bool(getattr(dj_settings, 'ONLINE_SALES_ACCOUNTS_ENABLED', True)):
         return _accounts_disabled_response()
@@ -913,9 +959,10 @@ def customer_lookup_view(request):
     user = User.objects.filter(email__iexact=email).first()
     if user is None:
         return Response(empty)
-    if user.role in _STAFF_ROLES:
-        # Do not leak staff account existence.
-        return Response(empty)
+    if is_staff_login(user):
+        if not user.is_active:
+            return Response(empty)
+        return Response({'has_account': True, 'has_password': True, 'password_only': True})
     return Response({
         'has_account': True,
         'has_password': user.has_usable_password(),
@@ -972,9 +1019,14 @@ def customer_set_password_view(request):
     When the account has no usable password yet, old_password is not required.
     """
     from apps.accounts.permissions import IsCustomer
+    from apps.accounts.services.staff_customer import is_staff_login
 
     if not IsCustomer().has_permission(request, None):
         return Response({'detail': 'Customer accounts only.'}, status=status.HTTP_403_FORBIDDEN)
+    if is_staff_login(request.user):
+        # A staff password follows the staff rules and is changed in Dash, never here (6 characters would do here).
+        return Response({'detail': 'This is a staff login. Change your password in Dash.', 'code': 'STAFF_LOGIN'},
+                        status=status.HTTP_403_FORBIDDEN)
 
     data = request.data or {}
     new_password = data.get('password') or data.get('new_password') or ''
@@ -1022,7 +1074,8 @@ def customer_reset_password_view(request):
     from django.conf import settings as dj_settings
 
     from apps.accounts.models import MagicLinkToken
-    from apps.accounts.services.magic_link import _STAFF_ROLES, _normalize_email, issue_magic_link
+    from apps.accounts.services.magic_link import _normalize_email, issue_magic_link
+    from apps.accounts.services.staff_customer import is_staff_login
     from apps.webstore.emails import send_password_reset_link
 
     if not bool(getattr(dj_settings, 'ONLINE_SALES_ACCOUNTS_ENABLED', True)):
@@ -1034,7 +1087,15 @@ def customer_reset_password_view(request):
         return Response(generic)
 
     user = User.objects.filter(email__iexact=email).first()
-    if user is None or user.role in _STAFF_ROLES:
+    if user is None:
+        return Response(generic)
+    if is_staff_login(user):
+        # Never the customer reset (it would clear a Dash password). An active staff member gets the Dash reset link,
+        # the same one Dash's "Forgot password" sends; the answer is the same either way.
+        from apps.accounts.services.staff_password import is_staff_account
+
+        if user.is_active and is_staff_account(user):
+            _send_staff_reset(user, request=request, requested_by_admin=False)
         return Response(generic)
 
     try:
@@ -1070,6 +1131,17 @@ def customer_resend_verification_view(request):
         return Response({'detail': 'Customer accounts only.'}, status=status.HTTP_403_FORBIDDEN)
     if not bool(getattr(dj_settings, 'ONLINE_SALES_ACCOUNTS_ENABLED', True)):
         return _accounts_disabled_response()
+    from apps.accounts.services.staff_customer import ensure_staff_customer, is_staff_login
+
+    if is_staff_login(request.user):
+        # An emailed link is refused for a staff login, so none is sent. An active staff member's Dash email is
+        # trusted: the ensure stamps it confirmed.
+        ensure_staff_customer(request.user)
+        verified = customer_email_verified(request.user)
+        return Response({
+            'detail': 'Email is already verified.' if verified else 'This is a staff login: no confirmation link.',
+            'email_verified': verified,
+        })
     if customer_email_verified(request.user):
         return Response({'detail': 'Email is already verified.', 'email_verified': True})
 
@@ -1087,3 +1159,67 @@ def customer_resend_verification_view(request):
         pass
 
     return Response({'detail': 'Confirmation link sent.', 'email_verified': False})
+
+
+# ── Merge a customer login into a staff login (owner 2026-10-15) ──────────────
+
+class LoginMergeViewSet(viewsets.ViewSet):
+    """
+    Merge a customer login into a staff login (``services/login_merge.py``). The owner (superuser) only; Dash → Thrift+
+    → Staff, "Merge a customer login…":
+    - GET ``login-merge/candidates/?staff_user=&q=``: customer logins that may be theirs (the same email name, phone or
+      first and last name) and, with ``q``, a search by email, name or phone;
+    - GET ``login-merge/preview/?staff_user=&source_user=``: what would move, or why it is refused (nothing changes);
+    - POST ``login-merge/merge/ {staff_user, source_user}``: merge; the staff login survives.
+    """
+
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+
+    @staticmethod
+    def _user(raw):
+        raw = str(raw or '').strip()
+        return User.objects.filter(pk=raw).first() if raw.isdigit() else None
+
+    def _staff(self, raw):
+        from .services.staff_customer import is_active_staff
+
+        user = self._user(raw)
+        return user if is_active_staff(user) else None
+
+    @action(detail=False, methods=['get'])
+    def candidates(self, request):
+        from .services import login_merge
+
+        staff = self._staff(request.query_params.get('staff_user'))
+        if staff is None:
+            return Response({'detail': 'Pick an active staff login.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            'suggestions': login_merge.suggestions(staff),
+            'results': login_merge.search(staff, request.query_params.get('q') or ''),
+        })
+
+    @action(detail=False, methods=['get'])
+    def preview(self, request):
+        from .services import login_merge
+
+        staff = self._staff(request.query_params.get('staff_user'))
+        if staff is None:
+            return Response({'detail': 'Pick an active staff login.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            return Response(login_merge.preview(self._user(request.query_params.get('source_user')), staff))
+        except login_merge.MergeError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'])
+    def merge(self, request):
+        from .services import login_merge
+
+        staff = self._staff(request.data.get('staff_user'))
+        if staff is None:
+            return Response({'detail': 'Pick an active staff login.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            result = login_merge.merge_customer_login(self._user(request.data.get('source_user')), staff,
+                                                      actor=request.user)
+        except login_merge.MergeError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)

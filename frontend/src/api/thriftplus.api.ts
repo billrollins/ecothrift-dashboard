@@ -16,6 +16,7 @@ import type {
   ThriftPlusAccount,
 } from '../types/thriftplus.types';
 import api from './client';
+import type { LoginCandidate } from './accounts.api';
 
 /** Let the browser set the multipart boundary (the client defaults to JSON). */
 const MULTIPART: AxiosRequestConfig = {
@@ -97,15 +98,31 @@ export interface StaffMemberRow {
   role: string;
   membership: (StaffMoney & { id: number; status: ThriftPlusAccount['status']; name: string; email: string }) | null;
   suggestions: StaffSuggestion[];
+  /** Their website customer account (owner 2026-10-15: every staff login is a website customer too), or none yet. */
+  website?: { customer_number: string } | null;
+  /** Customer logins (another email) that may be theirs: "Merge a customer login…". */
+  login_suggestions?: LoginCandidate[];
 }
 
 export interface StaffMemberships {
   staff: StaffMemberRow[];
   /** Staff members with no membership yet. */
   missing: number;
+  /** Staff members with no website customer account yet. */
+  website_missing?: number;
+  /** Staff members missing either one: "Create missing (N)" makes both. */
+  missing_any?: number;
   /** The owner (superuser): create the missing ones and merge. */
   can_merge: boolean;
 }
+
+/** What "Create missing" made: Thrift+ memberships (made or linked by email) and website customer accounts. */
+export type StaffCreateMissingResult = StaffMemberships & {
+  made: number;
+  linked: number;
+  customers_made?: number;
+  customers_fixed?: number;
+};
 
 /** What a merge would do; nothing changes. */
 export interface StaffMergePreview extends StaffMoney {
@@ -142,9 +159,10 @@ export async function fetchStaffMemberships(): Promise<StaffMemberships> {
   return data;
 }
 
-/** The owner: a membership for every staff member without one (linked by email, or made). */
-export async function createMissingStaffMemberships(): Promise<StaffMemberships & { made: number; linked: number }> {
-  const { data } = await api.post<StaffMemberships & { made: number; linked: number }>('/thriftplus/staff-memberships/create-missing/', {});
+/** The owner: for every staff member missing one, a website customer account and a Thrift+ membership (linked by
+ * email, or made). */
+export async function createMissingStaffMemberships(): Promise<StaffCreateMissingResult> {
+  const { data } = await api.post<StaffCreateMissingResult>('/thriftplus/staff-memberships/create-missing/', {});
   return data;
 }
 

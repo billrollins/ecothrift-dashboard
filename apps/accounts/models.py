@@ -315,11 +315,14 @@ class AccountEvent(models.Model):
     KIND_PASSWORD_SET = 'password_set'
     KIND_PASSWORD_CHANGED = 'password_changed'
     KIND_LOCKED = 'locked_out'
+    KIND_MERGED_IN = 'login_merged_in'      # on the staff login (services/login_merge.py)
+    KIND_MERGED_INTO = 'merged_into_staff'  # on the customer login that merged in
     KIND_CHOICES = [
         (KIND_CREATED, 'Created'), (KIND_ROLE, 'Role changed'), (KIND_OFF, 'Switched off'), (KIND_ON, 'Switched on'),
         (KIND_USERNAME, 'Username changed'), (KIND_LINK, 'Set-password link issued'),
         (KIND_PASSWORD_SET, 'Password set from a link'), (KIND_PASSWORD_CHANGED, 'Password changed'),
         (KIND_LOCKED, 'Locked out (too many wrong tries)'),
+        (KIND_MERGED_IN, 'A customer login merged in'), (KIND_MERGED_INTO, 'Merged into a staff login'),
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='account_events')

@@ -140,7 +140,8 @@ class CustomerPasswordTests(TestCase):
             {'email': 'staff@example.com'},
             format='json',
         )
-        self.assertFalse(lookup.json()['has_account'])
+        # Staff are website customers too (2026-10-15): the sign-in page asks for the Dash password, never a link.
+        self.assertEqual(lookup.json(), {'has_account': True, 'has_password': True, 'password_only': True})
 
     def test_me_exposes_has_password_and_email_verified(self):
         user = User.objects.create_user(

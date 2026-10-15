@@ -25,6 +25,8 @@ export default function SignInPage() {
   const [password, setPassword] = useState('')
   const [firstName, setFirstName] = useState('')
   const [regPassword, setRegPassword] = useState('')
+  // A staff login (owner 2026-10-15): staff are website customers too and sign in with their Dash password.
+  const [passwordOnly, setPasswordOnly] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const tokenFromUrl = params.get('token')
@@ -111,6 +113,7 @@ export default function SignInPage() {
     setError(null)
     try {
       const lookup = await lookupEmail(email.trim())
+      setPasswordOnly(lookup.password_only)
       if (!lookup.has_account) {
         setStep('register')
         return
@@ -220,7 +223,11 @@ export default function SignInPage() {
 
       {step === 'password' && (
         <>
-          <p className="lead">Welcome back - enter your password for {email}.</p>
+          <p className="lead">
+            {passwordOnly
+              ? `Welcome back - ${email} is a staff login. Sign in with your Dash password.`
+              : `Welcome back - enter your password for ${email}.`}
+          </p>
           <form className="checkout-form" onSubmit={onPasswordSignIn} style={{ maxWidth: 420 }}>
             <label className="field">
               <span>Password</span>
@@ -238,9 +245,11 @@ export default function SignInPage() {
               {busy ? 'Signing in…' : 'Sign in'}
             </button>
             <div className="hbtns" style={{ marginTop: 12 }}>
-              <button type="button" className="btn btn--ghost" disabled={busy} onClick={onEmailLinkInstead}>
-                Email me a link instead
-              </button>
+              {passwordOnly ? null : (
+                <button type="button" className="btn btn--ghost" disabled={busy} onClick={onEmailLinkInstead}>
+                  Email me a link instead
+                </button>
+              )}
               <button type="button" className="btn btn--ghost" disabled={busy} onClick={onForgot}>
                 Forgot password
               </button>
@@ -252,6 +261,7 @@ export default function SignInPage() {
               onClick={() => {
                 setStep('email')
                 setPassword('')
+                setPasswordOnly(false)
                 setError(null)
               }}
             >
@@ -269,7 +279,11 @@ export default function SignInPage() {
 
       {step === 'reset_sent' && (
         <>
-          <p className="lead">If that email can receive mail, a reset link is on its way.</p>
+          <p className="lead">
+            {passwordOnly
+              ? 'A link to set a new Dash password is on its way. Then sign in here with it.'
+              : 'If that email can receive mail, a reset link is on its way.'}
+          </p>
         </>
       )}
 

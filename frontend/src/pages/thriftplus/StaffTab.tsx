@@ -21,11 +21,19 @@ import { isAxiosError } from 'axios';
 import { useSnackbar } from 'notistack';
 import { useEffect, useState } from 'react';
 import {
+  fetchLoginCandidates,
+  fetchLoginMergePreview,
+  mergeCustomerLogin,
+  type LoginCandidate,
+  type LoginMergeResult,
+} from '../../api/accounts.api';
+import {
   createMissingStaffMemberships,
   fetchStaffMemberships,
   fetchStaffMergePreview,
   findMembers,
   mergeIntoStaff,
+  type StaffCreateMissingResult,
   type StaffMemberRow,
   type StaffMergeResult,
   type StaffMoney,
@@ -163,8 +171,137 @@ function MergeDialog({ row, onClose, onMerged }: { row: StaffMemberRow; onClose:
   );
 }
 
-function StaffRow({ row, canMerge, onMerge }: { row: StaffMemberRow; canMerge: boolean; onMerge: () => void }) {
+/** What a login merge did, in one line. */
+function loginMergedText(r: LoginMergeResult, row: StaffMemberRow): string {
+  const moved = counts(r.moved);
+  let text = `Merged ${r.source_email_was} into ${row.name}'s login${moved ? `: ${moved}` : ''}.`;
+  if (r.customer_number) text += ` Website account ${r.customer_number}.`;
+  if (r.thriftplus?.merged) text += ` Thrift+ membership #${r.thriftplus.source_account} merged in too.`;
+  else if (r.thriftplus?.note) text += ` ${r.thriftplus.note}`;
+  if (r.left.length) text += ` Left on the old login: ${r.left.join(', ')}.`;
+  return text;
+}
+
+function LoginPick({ who, picked, onPick }: { who: LoginCandidate; picked: boolean; onPick: () => void }) {
+  const bits = [who.name, who.customer_number, who.phone, who.why.length ? who.why.join(', ') : ''].filter(Boolean);
+  return (
+    <ListItemButton selected={picked} onClick={onPick}>
+      <ListItemText primary={who.email} secondary={bits.join(' · ')} />
+    </ListItemButton>
+  );
+}
+
+/**
+ * Merge a customer login into this staff login (owner 2026-10-15: "the outlook should merge into the staff account
+ * (the staff login should overwrite the customer one.)"): pick a suggestion or find one, see what moves, then merge.
+ * The staff login survives with its email, password and name; the customer login is switched off.
+ */
+function LoginMergeDialog({ row, onClose, onMerged }: {
+  row: StaffMemberRow; onClose: () => void; onMerged: (r: LoginMergeResult) => void;
+}) {
+  const { enqueueSnackbar } = useSnackbar();
+  const [picked, setPicked] = useState<number | null>(null);
+  const [q, setQ] = useState('');
+  const [debounced, setDebounced] = useState('');
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebounced(q.trim()), 250);
+    return () => window.clearTimeout(t);
+  }, [q]);
+  const candidates = useQuery({
+    queryKey: ['accounts', 'login-merge', 'candidates', row.user_id, debounced],
+    queryFn: () => fetchLoginCandidates(row.user_id, debounced.length >= 2 ? debounced : ''),
+  });
+  const suggestions = candidates.data?.suggestions ?? row.login_suggestions ?? [];
+  const results = (candidates.data?.results ?? []).filter((r) => !suggestions.some((s) => s.user_id === r.user_id));
+  const preview = useQuery({
+    queryKey: ['accounts', 'login-merge', 'preview', row.user_id, picked],
+    queryFn: () => fetchLoginMergePreview(row.user_id, picked!),
+    enabled: picked != null,
+    retry: false,
+  });
+  const merge = useMutation({
+    mutationFn: () => mergeCustomerLogin(row.user_id, picked!),
+    onSuccess: (r) => onMerged(r),
+    onError: (err) => enqueueSnackbar(detail(err), { variant: 'error' }),
+  });
+  const p = preview.data;
+  const tp = p?.thriftplus;
+  return (
+    <Dialog open onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle>Merge a customer login into {row.name}&rsquo;s</DialogTitle>
+      <DialogContent>
+        <Stack spacing={1.5}>
+          <Typography variant="body2" color="text.secondary">
+            For a staff member who made a website login with another email before. Their staff login stays, with its
+            email, Dash password and name; the customer login&rsquo;s website account, holds and messages move into it.
+          </Typography>
+          {suggestions.length ? (
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>May be theirs</Typography>
+              <List dense disablePadding>
+                {suggestions.map((s) => (
+                  <LoginPick key={s.user_id} who={s} picked={picked === s.user_id} onPick={() => setPicked(s.user_id)} />
+                ))}
+              </List>
+            </Box>
+          ) : null}
+          <TextField size="small" label="Find a customer login: email, name or phone" value={q} onChange={(e) => setQ(e.target.value)} />
+          {results.length ? (
+            <List dense disablePadding>
+              {results.map((s) => (
+                <LoginPick key={s.user_id} who={s} picked={picked === s.user_id} onPick={() => setPicked(s.user_id)} />
+              ))}
+            </List>
+          ) : debounced.length >= 2 && candidates.isSuccess && !candidates.data.results.length ? (
+            <Typography variant="body2" color="text.secondary">No customer login found.</Typography>
+          ) : null}
+          {picked != null && preview.isLoading ? <LinearProgress /> : null}
+          {preview.isError ? <Alert severity="error">{detail(preview.error)}</Alert> : null}
+          {p ? (
+            <Alert severity="warning" data-testid="login-merge-preview">
+              <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                {p.source.email} merges into {p.staff.email}:
+              </Typography>
+              <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+                {p.profile.action === 'move' ? (
+                  <li>Their website account {p.profile.customer_number} becomes {row.name}&rsquo;s</li>
+                ) : p.profile.action === 'combine' ? (
+                  <li>One website account stays: {p.profile.customer_number} (the earlier number)</li>
+                ) : (
+                  <li>{row.name}&rsquo;s website account stays as it is</li>
+                )}
+                {counts(p.moves) ? <li>Moves: {counts(p.moves)}</li> : <li>Nothing else points at it</li>}
+                {tp?.account && !tp.refused ? (
+                  <li>
+                    Thrift+ membership #{tp.account}{tp.name ? ` (${tp.name})` : ''} merges into {row.name}&rsquo;s too
+                    {tp.bucks != null && tp.credit != null ? `: ${money({ bucks: tp.bucks, credit: tp.credit })}` : ''}
+                  </li>
+                ) : null}
+                {tp?.note ? <li>{tp.note}</li> : null}
+              </Box>
+              <Typography variant="body2">
+                The staff login wins: {p.staff.email} stays the email, and the Dash password stays. {p.source.email} is
+                switched off (it becomes {p.source_after}), so that address is free again.
+              </Typography>
+            </Alert>
+          ) : null}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button variant="contained" color="warning" disabled={!p || merge.isPending} onClick={() => merge.mutate()}>
+          {p ? `Merge ${p.source.email} into ${row.name}'s login` : 'Merge'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function StaffRow({ row, canMerge, onMerge, onMergeLogin }: {
+  row: StaffMemberRow; canMerge: boolean; onMerge: () => void; onMergeLogin: () => void;
+}) {
   const m = row.membership;
+  const logins = row.login_suggestions ?? [];
   return (
     <Paper variant="outlined" sx={{ p: 1.5 }} data-testid="staff-row">
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }}>
@@ -172,6 +309,11 @@ function StaffRow({ row, canMerge, onMerge }: { row: StaffMemberRow; canMerge: b
           <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
             <Typography sx={{ fontWeight: 800 }}>{row.name}</Typography>
             {row.role ? <Chip size="small" label={row.role} /> : null}
+            {row.website ? (
+              <Chip size="small" color="success" variant="outlined" label={`Website account ${row.website.customer_number}`} />
+            ) : (
+              <Chip size="small" color="warning" label="No website account yet" />
+            )}
             {m ? (
               <Chip size="small" color={m.status === 'revoked' ? 'error' : 'success'} variant="outlined"
                 label={`Membership #${m.id}${m.status === 'revoked' ? ' · revoked' : ''}`} />
@@ -182,6 +324,11 @@ function StaffRow({ row, canMerge, onMerge }: { row: StaffMemberRow; canMerge: b
           <Typography variant="body2" color="text.secondary">
             {row.email}{m ? ` · ${money(m)}` : ''}
           </Typography>
+          {logins.length ? (
+            <Typography variant="caption" color="text.secondary" display="block">
+              Customer login that may be theirs: {logins.map((l) => `${l.email} (${l.why.join(', ')})`).join('; ')}
+            </Typography>
+          ) : null}
           {row.suggestions.length ? (
             <Typography variant="caption" color="text.secondary" display="block">
               May also be theirs: {row.suggestions.map((s) => `${s.name} #${s.account_id} (${s.why.join(', ')})`).join('; ')}
@@ -189,51 +336,67 @@ function StaffRow({ row, canMerge, onMerge }: { row: StaffMemberRow; canMerge: b
           ) : null}
         </Box>
         {canMerge ? (
-          <Button size="small" variant="outlined" onClick={onMerge}>Merge a customer membership&hellip;</Button>
+          <Stack direction={{ xs: 'row', sm: 'column' }} spacing={0.75} useFlexGap flexWrap="wrap">
+            <Button size="small" variant="outlined" onClick={onMergeLogin}>Merge a customer login&hellip;</Button>
+            <Button size="small" variant="outlined" onClick={onMerge}>Merge a customer membership&hellip;</Button>
+          </Stack>
         ) : null}
       </Stack>
     </Paper>
   );
 }
 
+/** What "Create missing" made, in one line. */
+function createdText(data: StaffCreateMissingResult): string {
+  const parts: string[] = [];
+  if (data.customers_made != null) parts.push(plural(data.customers_made, 'website account', 'website accounts'));
+  parts.push(plural(data.made, 'staff membership', 'staff memberships'));
+  return `Made ${parts.join(' and ')}; linked ${data.linked} by the same email.`;
+}
+
 /**
- * Thrift+ → Staff (owner 2026-10-15; rulebook J6): every active staff member has their own Thrift+ membership, free
- * like every one, and their Dash email signs them in to the Thrift+ app. A new staff login gets one at once; the owner
- * fills in the staff from before with "Create missing staff memberships", and merges a customer membership a staff
- * member made before (another email) into their own. Managers can look; the owner changes.
+ * Thrift+ → Staff (owner 2026-10-15; rulebook J6): every active staff member is also a website customer (they sign in
+ * on ecothrift.us with their Dash password) and has their own Thrift+ membership, free like every one; their Dash email
+ * signs them in to the Thrift+ app. A new staff login gets both at once; the owner fills in the staff from before with
+ * "Create missing", merges a customer login a staff member made before (another email) into their staff login, and
+ * merges a customer membership into their own. Managers can look; the owner changes.
  */
 export default function StaffTab() {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   const list = useQuery({ queryKey: STAFF_KEY, queryFn: fetchStaffMemberships });
   const [merging, setMerging] = useState<StaffMemberRow | null>(null);
+  const [mergingLogin, setMergingLogin] = useState<StaffMemberRow | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const create = useMutation({
     mutationFn: createMissingStaffMemberships,
     onSuccess: (data) => {
       queryClient.setQueryData(STAFF_KEY, data);
-      setDone(`Made ${plural(data.made, 'staff membership', 'staff memberships')}; linked ${data.linked} by the same email.`);
+      setDone(createdText(data));
     },
     onError: (err) => enqueueSnackbar(detail(err), { variant: 'error' }),
   });
   if (list.isLoading) return <LinearProgress />;
-  if (list.isError || !list.data) return <Alert severity="error">Could not load the staff memberships.</Alert>;
+  if (list.isError || !list.data) return <Alert severity="error">Could not load the staff list.</Alert>;
   const data = list.data;
+  const missing = data.missing_any ?? data.missing;
   return (
     <Stack spacing={1.5}>
       <Typography variant="body2" color="text.secondary">
-        Every staff member has their own Thrift+ membership. Their Dash email signs them in to the Thrift+ app.
+        Every staff member is also a website customer: they sign in on ecothrift.us with their Dash password. Each has
+        their own Thrift+ membership too; their Dash email signs them in to the Thrift+ app.
       </Typography>
       {done ? <Alert severity="success" onClose={() => setDone(null)} data-testid="staff-done">{done}</Alert> : null}
-      {data.can_merge && data.missing > 0 ? (
+      {data.can_merge && missing > 0 ? (
         <Box>
           <Button variant="contained" disabled={create.isPending} onClick={() => create.mutate()}>
-            Create missing staff memberships ({data.missing})
+            Create missing ({missing})
           </Button>
         </Box>
       ) : null}
       {data.staff.map((row) => (
-        <StaffRow key={row.user_id} row={row} canMerge={data.can_merge} onMerge={() => setMerging(row)} />
+        <StaffRow key={row.user_id} row={row} canMerge={data.can_merge} onMerge={() => setMerging(row)}
+          onMergeLogin={() => setMergingLogin(row)} />
       ))}
       {merging ? (
         <MergeDialog
@@ -244,6 +407,22 @@ export default function StaffTab() {
             setMerging(null);
             setDone(mergedText(r));
             void queryClient.invalidateQueries({ queryKey: STAFF_KEY });
+            void queryClient.invalidateQueries({ queryKey: ['thriftplus', 'find'] });
+            void queryClient.invalidateQueries({ queryKey: ['thriftplus', 'account'] });
+          }}
+        />
+      ) : null}
+      {mergingLogin ? (
+        <LoginMergeDialog
+          key={mergingLogin.user_id}
+          row={mergingLogin}
+          onClose={() => setMergingLogin(null)}
+          onMerged={(r) => {
+            const row = mergingLogin;
+            setMergingLogin(null);
+            setDone(loginMergedText(r, row));
+            void queryClient.invalidateQueries({ queryKey: STAFF_KEY });
+            void queryClient.invalidateQueries({ queryKey: ['accounts', 'login-merge'] });
             void queryClient.invalidateQueries({ queryKey: ['thriftplus', 'find'] });
             void queryClient.invalidateQueries({ queryKey: ['thriftplus', 'account'] });
           }}

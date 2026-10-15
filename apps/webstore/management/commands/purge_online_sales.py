@@ -76,8 +76,11 @@ class Command(BaseCommand):
         if options['customers']:
             from apps.accounts.models import User
 
+            # Staff are in the Customer group too (owner 2026-10-15): never a staff, consignee or superuser login.
             customer_users = list(
-                User.objects.filter(groups__name='Customer', is_staff=False)
+                User.objects.filter(groups__name='Customer', is_staff=False, is_superuser=False)
+                .exclude(groups__name__iregex=r'^(admin|manager|employee|consignee)$')
+                .distinct()
                 .values_list('id', 'email')
             )
             counts['customer_users'] = len(customer_users)

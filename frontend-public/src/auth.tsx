@@ -14,8 +14,17 @@ export type PublicUser = {
   first_name: string
   last_name: string
   role: string | null
+  is_staff?: boolean
+  is_superuser?: boolean
   has_password?: boolean
   email_verified?: boolean
+}
+
+/** A staff login (owner 2026-10-15: staff are website customers too). Its password is the Dash password: it is
+ * changed in Dash, never here, and it never signs in by an emailed link. */
+export function isStaffLogin(user: PublicUser | null): boolean {
+  if (!user) return false
+  return Boolean(user.is_staff || user.is_superuser || (user.role && user.role !== 'Customer'))
 }
 
 export type ConsumeResult = {
@@ -29,6 +38,8 @@ export type ConsumeResult = {
 type LookupResult = {
   has_account: boolean
   has_password: boolean
+  /** A staff login (owner 2026-10-15): it signs in with the Dash password, never an emailed link. */
+  password_only: boolean
 }
 
 type AuthContextValue = {
@@ -282,6 +293,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return {
       has_account: Boolean(data.has_account),
       has_password: Boolean(data.has_password),
+      password_only: Boolean(data.password_only),
     }
   }, [])
 

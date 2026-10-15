@@ -221,3 +221,91 @@ export function forgotPassword(email: string): Promise<{ data: { detail: string 
 export function resetPassword(token: string, newPassword: string): Promise<{ data: { detail: string } }> {
   return api.post('/auth/reset-password/', { token, new_password: newPassword });
 }
+
+// ── Merge a customer login into a staff login (owner 2026-10-15; superuser) ────────────────────
+
+/** A customer login (not staff) that may be the staff member's, or a search hit. */
+export interface LoginCandidate {
+  user_id: number;
+  name: string;
+  email: string;
+  phone: string;
+  customer_number: string;
+  /** Why it was suggested: "same email name", "same phone", "same name" (empty for a search hit). */
+  why: string[];
+  joined: string | null;
+  last_login: string | null;
+}
+
+export interface LoginCandidates {
+  suggestions: LoginCandidate[];
+  results: LoginCandidate[];
+}
+
+/** What a login merge would do; nothing changes. */
+export interface LoginMergePreview {
+  source: LoginCandidate;
+  staff: { user_id: number; name: string; email: string };
+  /** Rows that move to the staff login, by what they are ("conversations", "holds", ...). */
+  moves: Record<string, number>;
+  /** The website customer account: moves to the staff login, combines with theirs (the earlier number stays), or none. */
+  profile: { action: 'move' | 'combine' | 'none' | 'make'; customer_number: string; drops?: string };
+  /** A Thrift+ membership with the customer email: it merges into the staff member's own, or a note why not. */
+  thriftplus: {
+    account: number | null;
+    note: string;
+    name?: string;
+    bucks?: string;
+    credit?: string;
+    moves?: Record<string, number>;
+    staff_account?: number | null;
+    refused?: boolean;
+  } | null;
+  /** The customer login's email afterwards (switched off; the address is free again). */
+  source_after: string;
+}
+
+export interface LoginMergeResult {
+  source_user: number;
+  staff_user: number;
+  source_email_was: string;
+  source_email_now: string;
+  moved: Record<string, number>;
+  /** Rows that could not move (a clash with one the staff login has already). */
+  left: string[];
+  profile: 'moved' | 'combined' | 'none';
+  customer_number: string | null;
+  sign_in_links_spent: number;
+  tokens_blacklisted: number;
+  thriftplus: {
+    merged: boolean;
+    source_account: number | null;
+    staff_account?: number;
+    moved?: Record<string, number>;
+    now?: { bucks: string; credit: string };
+    note?: string;
+  } | null;
+}
+
+/** Customer logins that may be this staff member's, and (with ``q``) a search by email, name or phone. */
+export async function fetchLoginCandidates(staffUser: number, q = ''): Promise<LoginCandidates> {
+  const { data } = await api.get<LoginCandidates>('/accounts/login-merge/candidates/', {
+    params: { staff_user: staffUser, ...(q ? { q } : {}) },
+  });
+  return data;
+}
+
+export async function fetchLoginMergePreview(staffUser: number, sourceUser: number): Promise<LoginMergePreview> {
+  const { data } = await api.get<LoginMergePreview>('/accounts/login-merge/preview/', {
+    params: { staff_user: staffUser, source_user: sourceUser },
+  });
+  return data;
+}
+
+/** The owner: merge the customer login into the staff login (the staff login survives). */
+export async function mergeCustomerLogin(staffUser: number, sourceUser: number): Promise<LoginMergeResult> {
+  const { data } = await api.post<LoginMergeResult>('/accounts/login-merge/merge/', {
+    staff_user: staffUser, source_user: sourceUser,
+  });
+  return data;
+}
