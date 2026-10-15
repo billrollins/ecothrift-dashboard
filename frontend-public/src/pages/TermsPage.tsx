@@ -1,14 +1,14 @@
 import QRCode from 'qrcode'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
+import LangToggle from '../components/LangToggle'
+import ScanIcon from '../components/ScanIcon'
 import { SITE_URL, STORE } from '../data/content'
 import { LEGAL_ENTITY, LEGAL_LAST_UPDATED, NO_TEXTS } from '../data/legal'
-import {
-  THRIFT_PLUS_TERMS,
-  type TermsButton,
-  type TermsClause,
-  type TermsLang,
-} from '../data/thriftPlusTerms'
+import { THRIFT_PLUS_ABOUT_LINE } from '../data/thriftPlusAbout'
+import { THRIFT_PLUS_TERMS, type TermsButton, type TermsClause } from '../data/thriftPlusTerms'
+import { useThriftPlusLang, withLangFromAddress } from '../lib/thriftPlusLang'
+import { useThriftPlusOpen } from '../thriftPlusOpen'
 import { useSeo } from '../useSeo'
 import './TermsPage.css'
 
@@ -16,52 +16,8 @@ import './TermsPage.css'
  * ecothrift.us/terms: the Thrift+ terms (every poster's footer QR), English | Español, then the store terms
  * (the website and the emails we send). Words: data/thriftPlusTerms*.ts, copied from
  * .ai/reference/thrift-plus-terms/terms-en.md and terms-es.md. Anchors #s1 to #s12 (returns: #s8); #store-terms.
+ * The language order and the toggle are shared with /thriftplus (lib/thriftPlusLang.ts).
  */
-
-const LANG_KEY = 'ecothrift.terms.lang'
-
-/** `?lang=es|en` first, then `#es` / `#en` (the posters' "Escanee aquí para español"). */
-function langFromAddress(search: string, hash: string): TermsLang | null {
-  const q = (new URLSearchParams(search).get('lang') || '').trim().toLowerCase()
-  if (q.startsWith('es')) return 'es'
-  if (q.startsWith('en')) return 'en'
-  const h = hash.toLowerCase()
-  if (h === '#es') return 'es'
-  if (h === '#en') return 'en'
-  return null
-}
-
-function rememberedLang(): TermsLang | null {
-  try {
-    const saved = window.localStorage.getItem(LANG_KEY)
-    return saved === 'en' || saved === 'es' ? saved : null
-  } catch {
-    return null
-  }
-}
-
-function rememberLang(lang: TermsLang) {
-  try {
-    window.localStorage.setItem(LANG_KEY, lang)
-  } catch {
-    // Private mode or blocked storage: the choice lasts for this visit only.
-  }
-}
-
-/** The phone's own language: Spanish when its first language starts with "es". */
-function phoneLang(): TermsLang | null {
-  try {
-    const first = (navigator.languages && navigator.languages[0]) || navigator.language || ''
-    return first.toLowerCase().startsWith('es') ? 'es' : null
-  } catch {
-    return null
-  }
-}
-
-/** The order (owner 10-15): the address, then the phone's remembered toggle, then the phone's language, then English. */
-function pickLang(search: string, hash: string): TermsLang {
-  return langFromAddress(search, hash) ?? rememberedLang() ?? phoneLang() ?? 'en'
-}
 
 /** The section a hash points at (#s1 … #s12, #store-terms); '' for none or a language hash. */
 function sectionFromHash(hash: string): string {
@@ -126,14 +82,6 @@ function QrCode({ value, label }: { value: string; label: string }) {
   return <div className="tp-qr" role="img" aria-label={label} dangerouslySetInnerHTML={{ __html: svg }} />
 }
 
-function ScanIcon() {
-  return (
-    <svg className="btn--scan__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M7 12h10" />
-    </svg>
-  )
-}
-
 function BigButton({ button, icon }: { button: TermsButton; icon?: ReactNode }) {
   return (
     <div className="tp-go">
@@ -182,19 +130,6 @@ function Clause({ clause }: { clause: TermsClause }) {
           ))}
         </ul>
       )}
-    </div>
-  )
-}
-
-function LangToggle({ lang, label, onChoose }: { lang: TermsLang; label: string; onChoose: (lang: TermsLang) => void }) {
-  return (
-    <div className="tp-lang" role="group" aria-label={label}>
-      <button type="button" lang="en" aria-pressed={lang === 'en'} onClick={() => onChoose('en')}>
-        English
-      </button>
-      <button type="button" lang="es" aria-pressed={lang === 'es'} onClick={() => onChoose('es')}>
-        Español
-      </button>
     </div>
   )
 }
@@ -270,27 +205,15 @@ function StoreTerms({ title, highlighted }: { title: string; highlighted: boolea
 /** Public Terms: Thrift+ first (English | Español), then the store terms. */
 export default function TermsPage() {
   const location = useLocation()
-  const navigate = useNavigate()
-  const [lang, setLang] = useState<TermsLang>(() => pickLang(location.search, location.hash))
+  // ?lang=, the remembered toggle, a Spanish phone, English; <html lang> follows (shared with /thriftplus).
+  const [lang, choose] = useThriftPlusLang()
   const t = THRIFT_PLUS_TERMS[lang]
   const target = sectionFromHash(location.hash)
   const pageRef = useRef<HTMLDivElement>(null)
+  // "New to Thrift+? See what it is →" only while Thrift+ is open (website spec, 10-15).
+  const { open: thriftPlusOpen } = useThriftPlusOpen()
 
   useSeo({ title: t.ui.seoTitle, description: t.ui.seoDescription, path: '/terms' })
-
-  // A link inside the site to /terms?lang=… switches too.
-  useEffect(() => {
-    const fromAddress = langFromAddress(location.search, location.hash)
-    if (fromAddress) setLang(fromAddress)
-  }, [location.search, location.hash])
-
-  // <html lang> follows the toggle (screen readers, translation prompts); restored on leaving the page.
-  useEffect(() => {
-    const root = document.documentElement
-    const before = root.getAttribute('lang') || 'en'
-    root.setAttribute('lang', lang)
-    return () => root.setAttribute('lang', before)
-  }, [lang])
 
   // The header is sticky and taller on phones: section anchors stop just below it.
   useLayoutEffect(() => {
@@ -330,22 +253,6 @@ export default function TermsPage() {
     }
   }, [target])
 
-  const choose = (next: TermsLang) => {
-    setLang(next)
-    rememberLang(next)
-    // Keep the address in step when it names a language, so a reload shows the same.
-    const params = new URLSearchParams(location.search)
-    const hashLang = /^#(es|en)$/i.test(location.hash)
-    if (params.has('lang') || hashLang) {
-      if (params.has('lang')) params.set('lang', next)
-      const search = params.toString()
-      navigate(
-        { pathname: location.pathname, search: search ? `?${search}` : '', hash: hashLang ? `#${next}` : location.hash },
-        { replace: true },
-      )
-    }
-  }
-
   return (
     <div className="tp" ref={pageRef} lang={lang}>
       <div className="wrap tp__wrap">
@@ -355,6 +262,12 @@ export default function TermsPage() {
           </div>
           <LangToggle lang={lang} label={t.ui.languageGroup} onChoose={choose} />
         </div>
+
+        {thriftPlusOpen && (
+          <p className="tp-about">
+            <Link to={withLangFromAddress('/thriftplus', location.search)}>{THRIFT_PLUS_ABOUT_LINE[lang]}</Link>
+          </p>
+        )}
 
         <header className="tp-hero">
           <h1 className="tp-hero__title">{t.hero.title}</h1>

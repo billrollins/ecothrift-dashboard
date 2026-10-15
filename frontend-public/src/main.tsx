@@ -6,6 +6,7 @@ import { AuthProvider } from './auth'
 import { CartProvider } from './cart'
 import { AnnouncementsProvider } from './announcements'
 import { OnlineSalesConfigProvider } from './onlineSalesConfig'
+import { ThriftPlusOpenProvider } from './thriftPlusOpen'
 import './styles.css'
 
 // Optional, privacy-friendly analytics - off unless VITE_PLAUSIBLE_DOMAIN is set
@@ -23,13 +24,15 @@ createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
       <OnlineSalesConfigProvider>
-        <AnnouncementsProvider>
-          <AuthProvider>
-            <CartProvider>
-              <App />
-            </CartProvider>
-          </AuthProvider>
-        </AnnouncementsProvider>
+        <ThriftPlusOpenProvider>
+          <AnnouncementsProvider>
+            <AuthProvider>
+              <CartProvider>
+                <App />
+              </CartProvider>
+            </AuthProvider>
+          </AnnouncementsProvider>
+        </ThriftPlusOpenProvider>
       </OnlineSalesConfigProvider>
     </BrowserRouter>
   </React.StrictMode>,

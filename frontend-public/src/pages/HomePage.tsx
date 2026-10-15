@@ -5,6 +5,7 @@ import StoreMap from '../components/StoreMap'
 import { useCart } from '../cart'
 import AnnouncementCard from '../components/AnnouncementCard'
 import StoreHoursBlock from '../components/StoreHoursBlock'
+import { ThriftPlusHomeBand } from '../components/ThriftPlusPromo'
 import { useAnnouncements } from '../announcements'
 import { retailMapsDirectionsUrl, STORE, storeJsonLd } from '../data/content'
 import { usePublicHours } from '../lib/storeHours'
@@ -132,6 +133,10 @@ export default function HomePage() {
 
   return (
     <div className="home">
+      {/* The Thrift+ app first, right under the header, on every screen (owner 10-15: "front and center"); only while
+          Thrift+ is open. The hero follows unchanged. */}
+      <ThriftPlusHomeBand />
+
       <section className="intro">
         <div className={`wrap intro__row${showFeaturedPane ? ' intro__row--split' : ''}`}>
           <div className="intro__copy">

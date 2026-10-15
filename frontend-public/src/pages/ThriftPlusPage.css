@@ -1,0 +1,74 @@
+/* ecothrift.us/thriftplus: "What is Thrift+?", the three posters. Mobile first (most readers are on a phone in the
+   store): at 375 px each poster is full width with its heading and text under it, no sideways scroll; from 641 px
+   the text sits beside the poster. Looks like /terms (TermsPage.css), its neighbour. */
+
+.tpa { padding-bottom: 56px; overflow-wrap: break-word; }
+
+.tpa__wrap { max-width: 860px; }
+
+.tpa__top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+.tpa .tpa__crumb { padding: 18px 0 14px; min-width: 0; }
+
+/* Hero: the same green box as /terms. */
+.tpa-hero { background: var(--brand); color: #fff; border-radius: 14px; padding: 26px 22px 24px; background-image: radial-gradient(120% 140% at 100% 0%, rgba(255, 255, 255, .12), rgba(255, 255, 255, 0) 60%); }
+
+.tpa-hero__title { font-family: var(--fdisp); font-weight: 700; font-size: 40px; line-height: 1.05; letter-spacing: -.01em; margin: 0; }
+
+.tpa-hero__intro { font-size: 18px; line-height: 1.45; font-weight: 600; margin: 10px 0 0; color: #e3eee7; }
+
+/* Join · Open the app · Full terms: stacked on phones. */
+.tpa-hero__btns { display: grid; gap: 10px; margin-top: 20px; }
+
+.tpa-hero__btns .btn { font-size: 16px; min-height: 50px; }
+
+.tpa-btn--line { background: transparent; border-color: rgba(255, 255, 255, .6); color: #fff; }
+
+.tpa-btn--line:hover { background: #fff; border-color: #fff; color: var(--brand); }
+
+/* The posters */
+.tpa-sec { margin-top: 36px; display: grid; gap: 16px; scroll-margin-top: 120px; }
+
+.tpa-poster { display: block; width: 100%; max-width: 440px; justify-self: center; border-radius: 10px; overflow: hidden; border: 1px solid var(--line2); background: var(--surface); box-shadow: 0 6px 22px rgba(15, 44, 29, .1); transition: box-shadow .16s, transform .16s; }
+
+.tpa-poster:hover { box-shadow: 0 10px 28px rgba(15, 44, 29, .16); }
+
+.tpa-poster img { display: block; width: 100%; height: auto; }
+
+.tpa-sec__title { font-family: var(--fdisp); font-weight: 600; font-size: 26px; line-height: 1.15; color: var(--ink); margin: 0 0 8px; }
+
+.tpa-sec__text p { margin: 0; font-size: 16.5px; line-height: 1.6; color: #2c3530; }
+
+/* The full rules are in the Thrift+ terms. */
+.tpa-closing { margin: 44px 0 0; padding-top: 20px; border-top: 1px solid var(--line2); font-size: 16.5px; line-height: 1.6; color: #2c3530; }
+
+.tpa .tpa-closing a { color: var(--brand); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tpa-poster { transition: none; }
+}
+
+@media (min-width: 641px) {
+  .tpa .tpa__crumb { padding: 26px 0 18px; }
+
+  .tpa-hero { padding: 36px 36px 34px; }
+
+  .tpa-hero__title { font-size: 56px; }
+
+  .tpa-hero__intro { font-size: 21px; }
+
+  .tpa-hero__btns { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+
+  /* Poster left, its heading and text beside it. */
+  .tpa-sec { margin-top: 44px; grid-template-columns: 260px minmax(0, 1fr); gap: 28px; align-items: center; }
+
+  .tpa-poster { max-width: none; }
+
+  .tpa-sec__title { font-size: 30px; }
+
+  .tpa-sec__text p { font-size: 17px; }
+}
+
+@media (min-width: 900px) {
+  .tpa-sec { grid-template-columns: 320px minmax(0, 1fr); gap: 40px; }
+}

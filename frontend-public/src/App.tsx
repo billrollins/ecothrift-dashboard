@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
 import HomePage from './pages/HomePage'
 import { useOnlineSalesConfig } from './onlineSalesConfig'
+import { useThriftPlusOpen } from './thriftPlusOpen'
 
 // Code-split the less-frequent routes so the landing page ships a small bundle.
 const BlogPage = lazy(() => import('./pages/BlogPage'))
@@ -12,6 +13,7 @@ const VisitPage = lazy(() => import('./pages/VisitPage'))
 // const SellPage = lazy(() => import('./pages/SellPage'))
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage'))
 const TermsPage = lazy(() => import('./pages/TermsPage'))
+const ThriftPlusPage = lazy(() => import('./pages/ThriftPlusPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 const CareersPage = lazy(() => import('./pages/careers/CareersPage'))
 const CareerRolePage = lazy(() => import('./pages/careers/CareerRolePage'))
@@ -41,12 +43,28 @@ function RouteFallback() {
 }
 
 /**
- * The older Thrift+ addresses (rulebook J5, W8) land on the terms: /thriftplus (and anything under it, such as
- * /thriftplus/terms) → /terms, and /thriftplus/warranty → the 3-day returns section, /terms#s8. Keeps ?lang=.
+ * The older Thrift+ addresses (rulebook J5, W8) land on the terms: /thriftplus/terms (and anything else under
+ * /thriftplus/) → /terms, and /thriftplus/warranty → the 3-day returns section, /terms#s8. Keeps ?lang=.
  */
 function ThriftPlusRedirect({ hash }: { hash?: string }) {
   const location = useLocation()
   return <Navigate to={{ pathname: '/terms', search: location.search, hash: hash ?? location.hash }} replace />
+}
+
+/**
+ * /thriftplus is the "What is Thrift+?" page (owner 10-15) while Thrift+ is open (for customers, or this phone's
+ * owner preview: thriftPlusOpen.tsx). While it is closed it goes to /terms as before, keeping ?lang=, so nothing
+ * points shoppers at a closed app.
+ */
+function ThriftPlusRoute() {
+  const { open, loading } = useThriftPlusOpen()
+  if (loading) return <RouteFallback />
+  if (!open) return <ThriftPlusRedirect />
+  return (
+    <Suspense fallback={<RouteFallback />}>
+      <ThriftPlusPage />
+    </Suspense>
+  )
 }
 
 function ShopRoute({ children }: { children: React.ReactNode }) {
@@ -239,7 +257,9 @@ export default function App() {
             </Suspense>
           }
         />
+        <Route path="thriftplus" element={<ThriftPlusRoute />} />
         <Route path="thriftplus/warranty" element={<ThriftPlusRedirect hash="#s8" />} />
+        <Route path="thriftplus/terms" element={<ThriftPlusRedirect />} />
         <Route path="thriftplus/*" element={<ThriftPlusRedirect />} />
         <Route
           path="*"

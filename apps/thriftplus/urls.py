@@ -13,6 +13,7 @@ from apps.thriftplus.views import (
     RestrictedProductViewSet,
     ReturnsViewSet,
     RewardsViewSet,
+    StaffMembershipsViewSet,
 )
 
 router = DefaultRouter()
@@ -25,6 +26,8 @@ router.register(r'families', FamiliesViewSet, basename='thriftplus-families')
 router.register(r'register', RegisterViewSet, basename='thriftplus-register')
 router.register(r'restricted', RestrictedProductViewSet, basename='thriftplus-restricted')
 router.register(r'returns', ReturnsViewSet, basename='thriftplus-returns')
+# Owner 2026-10-15: every staff member's own membership, made, linked or merged from Dash.
+router.register(r'staff-memberships', StaffMembershipsViewSet, basename='thriftplus-staff-memberships')
 
 def _gated(view):
     """Thrift+ is off: the scanner and portal say "opens soon", except to a phone with the staff preview code."""

@@ -1,0 +1,8 @@
+/* English | Español, top right of the Thrift+ pages (/terms, /thriftplus). */
+.tp-lang { display: inline-flex; flex: none; padding: 3px; border: 1.5px solid var(--line2); border-radius: 999px; background: var(--surface); }
+
+.tp-lang button { min-height: 38px; padding: 6px 14px; border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--muted); }
+
+.tp-lang button[aria-pressed='true'] { background: var(--brand); color: #fff; }
+
+.tp-lang button:not([aria-pressed='true']):hover { color: var(--brand); }

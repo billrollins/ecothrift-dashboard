@@ -9,3 +9,5 @@ class ThriftPlusConfig(AppConfig):
     def ready(self):
         # Superuser → Requests kinds (apps/core/services/approval_requests.py).
         from apps.thriftplus import approval_kinds  # noqa: F401
+        # Owner 2026-10-15: every active staff member gets their own membership (signals.py).
+        from apps.thriftplus import signals  # noqa: F401

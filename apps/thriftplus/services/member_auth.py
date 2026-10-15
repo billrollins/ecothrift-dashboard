@@ -10,7 +10,8 @@ Django users, and their session can't reach anything staff-side (the auth map of
     texts). Join online with a name and email (a *pending* membership, "not ready" until a register finishes it,
     J2), or "Email me a link". Each email's link and code work once, for 15 minutes; 5 wrong codes kill it. The
     answer never says whether an email is a member's. Sends and code tries are limited per email and per address,
-    and every send, use and failure is logged with the email masked;
+    and every send, use and failure is logged with the email masked. A staff member's Dash email signs in to their
+    own staff membership (made then if they have none; owner 2026-10-15), never a pending join;
   - email or username with a password: staff (their Dash login) and the few older member logins;
   - or the Thrift+ card plus the last 4 digits of the member's phone (gone 10-14; old sessions only). A card
     session can look, scan and keep a cart, and can set up a login only when none exists. Five wrong tries lock
@@ -189,11 +190,13 @@ class IsPasswordMember(BasePermission):
 
 def _staff_person(key: str, password: str) -> Person | None:
     """A staff member signs in to the scanner with their Dash email (or username) and password. They land on
-    their own staff membership, made on the first sign-in (J6: staff memberships are their own accounts)."""
+    their own staff membership (J6: staff memberships are their own accounts), made now if they have none yet
+    (owner 2026-10-15: ``staff_members.ensure_staff_membership``, which also makes it when the staff login is made)."""
     from django.contrib.auth import authenticate, get_user_model
 
     from apps.accounts.services import lockout
     from apps.accounts.services.usernames import is_staff_user
+    from apps.thriftplus.services import staff_members
 
     User = get_user_model()
     if lockout.is_locked(key, None):
@@ -206,16 +209,8 @@ def _staff_person(key: str, password: str) -> Person | None:
         lockout.record_failure(key, None)
         return None
     lockout.clear(key)
-    account = Account.objects.filter(staff_user=user).first()
-    if account is None:
-        with transaction.atomic():
-            account = Account.objects.create(staff_user=user, created_by=user, notes='Made when this staff member signed in to the scanner.')
-            Person.objects.create(
-                account=account, role=Person.ROLE_PRIMARY,
-                first_name=(user.first_name or email.split('@')[0])[:80], last_name=(user.last_name or '')[:80],
-                email=(user.email or '').strip().lower(),
-            )
-    return account.people.filter(role=Person.ROLE_PRIMARY, removed_at__isnull=True).first() or account.people.filter(removed_at__isnull=True).first()
+    account = staff_members.ensure_staff_membership(user)
+    return staff_members.primary_person(account) if account is not None else None
 
 
 def sign_in_password(login: str, password: str) -> Person:
@@ -423,14 +418,16 @@ def _limit_code_try(ip: str | None) -> None:
 
 
 def member_by_email(email: str) -> Person | None:
-    """The member this email belongs to, active or pending (an active membership first, then the primary, then the
-    newest), or the person on an older member login with that email."""
+    """The member this email belongs to, active or pending (a staff member's own first: the staff login overwrites,
+    owner 2026-10-15; then an active membership, then the primary, then the newest), or the person on an older member
+    login with that email."""
     if not email:
         return None
     person = (
         Person.objects.select_related('account')
         .filter(email=email, removed_at__isnull=True, account__status__in=(Account.STATUS_ACTIVE, Account.STATUS_PENDING))
-        .annotate(rank=Case(When(account__status=Account.STATUS_ACTIVE, then=Value(0)), default=Value(1),
+        .annotate(rank=Case(When(account__status=Account.STATUS_ACTIVE, account__staff_user__isnull=False, then=Value(0)),
+                            When(account__status=Account.STATUS_ACTIVE, then=Value(1)), default=Value(2),
                             output_field=IntegerField()))
         .order_by('rank', 'role', '-pk').first()
     )
@@ -439,6 +436,21 @@ def member_by_email(email: str) -> Person | None:
         if login is not None and _can_sign_in(login.person) and not login.person.email:
             person = login.person
     return person
+
+
+def _staff_member_for(address: str) -> tuple[bool, Person | None]:
+    """(is a staff email, the person to sign in). An active staff member's Dash email (owner 2026-10-15) signs in to
+    their own membership, made or kept in step now, and never makes a pending customer join."""
+    from apps.thriftplus.services import staff_members
+
+    user = staff_members.staff_user_for_email(address)
+    if user is None:
+        return False, None
+    account = staff_members.ensure_staff_membership(user)
+    person = staff_members.primary_person(account) if account is not None else None
+    if person is None or not _can_sign_in(person) or person.email != address:
+        return True, None
+    return True, person
 
 
 def _sign_in_purpose(person: Person) -> str:
@@ -476,7 +488,8 @@ def join(name: str, email: str, *, base_url: str, ip: str | None = None) -> None
     """Join online with a name and email (J8). A new email: a pending membership (the primary person, no phone) with
     their member code, and the join email. An email already a member's: a sign-in email instead (a pending one not yet
     confirmed: the join email again). A revoked membership's email: nothing is sent (logged). The caller answers the
-    same either way."""
+    same either way. An active staff member's Dash email (owner 2026-10-15): their own membership's sign-in email, never
+    a pending join."""
     from apps.thriftplus.services import members
 
     first, last = _split_name(name)
@@ -485,9 +498,13 @@ def join(name: str, email: str, *, base_url: str, ip: str | None = None) -> None
         raise AuthError('EMAIL_BAD', EMAIL_BAD_TEXT)
     ip = _ip(ip)
     _limit_send(address, ip)
-    person = member_by_email(address)
+    staff, person = _staff_member_for(address)
+    person = person or member_by_email(address)
     if person is not None:
         _issue(person, _sign_in_purpose(person), address, base_url=base_url, ip=ip)
+        return
+    if staff:
+        logger.info('thrift+ join asked with a staff email %s: no membership to sign in, nothing made', mask(address))
         return
     revoked = Person.objects.select_related('account').filter(email=address, account__status=Account.STATUS_REVOKED).first()
     if revoked is not None:
@@ -504,13 +521,14 @@ def join(name: str, email: str, *, base_url: str, ip: str | None = None) -> None
 
 def request_link(email: str, *, base_url: str, ip: str | None = None) -> None:
     """"Email me a link" (J11): a member (active or pending) gets a sign-in email. The caller answers the same
-    whether or not the email is a member's."""
+    whether or not the email is a member's. An active staff member's Dash email gets their own membership's sign-in
+    email, the membership made first when they have none (owner 2026-10-15)."""
     address = _clean_email(email)
     if not address:
         raise AuthError('EMAIL_BAD', EMAIL_BAD_TEXT)
     ip = _ip(ip)
     _limit_send(address, ip)
-    person = member_by_email(address)
+    person = _staff_member_for(address)[1] or member_by_email(address)
     if person is None:
         logger.info('thrift+ sign-in email asked for %s: no member, nothing sent', mask(address))
         return

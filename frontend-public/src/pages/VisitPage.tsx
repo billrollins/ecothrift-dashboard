@@ -3,6 +3,7 @@ import AnnouncementCard from '../components/AnnouncementCard'
 import StoreHoursBlock from '../components/StoreHoursBlock'
 import { useAnnouncements } from '../announcements'
 import StoreMap from '../components/StoreMap'
+import { ThriftPlusVisitBlock } from '../components/ThriftPlusPromo'
 import { retailMapsDirectionsUrl, STORE, storeJsonLd } from '../data/content'
 import { usePublicHours } from '../lib/storeHours'
 import { useJsonLd, useSeo } from '../useSeo'
@@ -75,6 +76,8 @@ export default function VisitPage() {
               </div>
             </div>
           </div>
+          {/* "Bring your phone", after the address and hours (owner 10-15); only while Thrift+ is open. */}
+          <ThriftPlusVisitBlock />
         </div>
       </div>
     </>

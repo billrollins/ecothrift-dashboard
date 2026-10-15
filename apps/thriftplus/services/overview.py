@@ -23,6 +23,7 @@ from django.utils import timezone
 
 from apps.thriftplus.models import Account, Card, ItemReward, LedgerEntry, Person, ReturnRecord
 from apps.thriftplus.services.ledger import owed_bucks
+from apps.thriftplus.services.staff_members import MERGED_REASON
 
 ZERO = Decimal('0.00')
 DAYS = 30
@@ -55,7 +56,8 @@ def overview(days: int = DAYS) -> dict:
         'days': days,
         'members': {
             'active': real.filter(status=Account.STATUS_ACTIVE).count(),
-            'revoked': real.filter(status=Account.STATUS_REVOKED).count(),
+            # A customer membership merged into a staff member's own (owner 2026-10-15) ends revoked: not counted.
+            'revoked': real.filter(status=Account.STATUS_REVOKED).exclude(revoked_reason__startswith=MERGED_REASON).count(),
             # Joined online, not finished at a register yet (J8): not members until then.
             'pending': real.filter(status=Account.STATUS_PENDING).count(),
             'pending_new': real.filter(status=Account.STATUS_PENDING, created_at__gte=since).count(),

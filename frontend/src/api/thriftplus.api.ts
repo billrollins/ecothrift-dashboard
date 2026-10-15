@@ -73,6 +73,96 @@ export async function setMemberStaff(accountId: number, userId: number | null): 
   return data;
 }
 
+// ── Staff memberships (owner 2026-10-15) ───────────────────────────────────────
+
+/** ThriftBucks (a number, never "$") and Thrift+ credit (dollars) on a membership. */
+export interface StaffMoney {
+  bucks: string;
+  credit: string;
+}
+
+/** A customer membership that may be the staff member's: why it matched, and what is on it. The email is masked. */
+export interface StaffSuggestion extends StaffMoney {
+  account_id: number;
+  status: ThriftPlusAccount['status'];
+  name: string;
+  email: string;
+  why: string[];
+}
+
+export interface StaffMemberRow {
+  user_id: number;
+  name: string;
+  email: string;
+  role: string;
+  membership: (StaffMoney & { id: number; status: ThriftPlusAccount['status']; name: string; email: string }) | null;
+  suggestions: StaffSuggestion[];
+}
+
+export interface StaffMemberships {
+  staff: StaffMemberRow[];
+  /** Staff members with no membership yet. */
+  missing: number;
+  /** The owner (superuser): create the missing ones and merge. */
+  can_merge: boolean;
+}
+
+/** What a merge would do; nothing changes. */
+export interface StaffMergePreview extends StaffMoney {
+  staff_account: number | null;
+  source_account: number;
+  source_name: string;
+  /** Active member codes that move (their app QR keeps working at the register). */
+  codes: number;
+  second_adult: string | null;
+  moves: Record<string, number>;
+  /** What the staff person takes from the customer person (only what they have none of). */
+  takes: string[];
+  /** The customer person has an older member login (it is removed). */
+  login: boolean;
+}
+
+export interface StaffMergeResult {
+  staff_account: number;
+  source_account: number;
+  moved: Record<string, number>;
+  took: string[];
+  second_adult: string | null;
+  login_removed: boolean;
+  signed_out: number;
+  email_links_removed: number;
+  source_had: StaffMoney;
+  /** The staff membership after the merge. */
+  now: StaffMoney;
+}
+
+/** Every active staff member, their own membership (or none), and customer memberships that may be theirs. */
+export async function fetchStaffMemberships(): Promise<StaffMemberships> {
+  const { data } = await api.get<StaffMemberships>('/thriftplus/staff-memberships/');
+  return data;
+}
+
+/** The owner: a membership for every staff member without one (linked by email, or made). */
+export async function createMissingStaffMemberships(): Promise<StaffMemberships & { made: number; linked: number }> {
+  const { data } = await api.post<StaffMemberships & { made: number; linked: number }>('/thriftplus/staff-memberships/create-missing/', {});
+  return data;
+}
+
+export async function fetchStaffMergePreview(staffUser: number, sourceAccount: number): Promise<StaffMergePreview> {
+  const { data } = await api.get<StaffMergePreview>('/thriftplus/staff-memberships/merge-preview/', {
+    params: { staff_user: staffUser, source_account: sourceAccount },
+  });
+  return data;
+}
+
+/** The owner: merge a customer membership into the staff member's own (the staff membership survives). */
+export async function mergeIntoStaff(staffUser: number, sourceAccount: number): Promise<StaffMergeResult> {
+  const { data } = await api.post<StaffMergeResult>('/thriftplus/staff-memberships/merge/', {
+    staff_user: staffUser, source_account: sourceAccount,
+  });
+  return data;
+}
+
 export async function revokeMember(accountId: number, reason: string): Promise<ThriftPlusAccount> {
   const { data } = await api.post<ThriftPlusAccount>(`/thriftplus/accounts/${accountId}/revoke/`, { reason });
   return data;

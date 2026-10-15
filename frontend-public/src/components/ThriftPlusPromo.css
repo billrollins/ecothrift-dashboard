@@ -1,0 +1,77 @@
+/* The Thrift+ app on the home page (the band under the hero) and the Visit page ("Bring your phone").
+   Mobile first: everything fits 375 px with no sideways scroll. */
+
+/* Home band. Phones: the phone left of the pill and heading, above the text; buttons share the row below. */
+.tpband { background: var(--brand-tint); border-bottom: 1px solid var(--line2); flex-shrink: 0; }
+
+.tpband .tpband__row {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  grid-template-areas:
+    'phone head'
+    'text text'
+    'btns btns';
+  column-gap: 16px;
+  row-gap: 16px;
+  align-items: center;
+  padding: 26px 20px 28px;
+}
+
+.tpband__phone { grid-area: phone; width: 100%; height: auto; filter: drop-shadow(0 8px 14px rgba(15, 44, 29, .2)); }
+
+.tpband__head { grid-area: head; min-width: 0; }
+
+.tpband__pill { display: inline-block; background: var(--brand); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .14em; line-height: 1; padding: 6px 10px; border-radius: 999px; white-space: nowrap; }
+
+.tpband__title { font-family: var(--fdisp); font-weight: 600; font-size: 25px; line-height: 1.12; letter-spacing: -.005em; color: var(--ink); margin: 10px 0 0; }
+
+.tpband__text { grid-area: text; margin: 0; font-size: 16px; line-height: 1.6; color: #2c3530; max-width: 56ch; }
+
+.tpband__btns { grid-area: btns; display: flex; flex-wrap: wrap; gap: 10px; }
+
+.tpband__btns .btn { flex: 1 1 140px; padding: 13px 14px; font-size: 15px; }
+
+.tpband .btn--ghost { background: var(--surface); }
+
+/* Visit: "Bring your phone". */
+.tpvisit { margin-top: 20px; padding: 22px 20px 24px; background: var(--brand-tint); border: 1px solid var(--line2); border-radius: var(--radius); }
+
+.tpvisit__title { font-family: var(--fdisp); font-weight: 600; font-size: 26px; line-height: 1.15; color: var(--ink); margin: 0; }
+
+.tpvisit__text { margin: 8px 0 0; font-size: 16px; line-height: 1.6; color: #2c3530; max-width: 62ch; }
+
+.tpvisit__btns { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+
+.tpvisit__btns .btn { flex: 1 1 140px; font-size: 15px; }
+
+.tpvisit .btn--ghost { background: var(--surface); }
+
+@media (min-width: 641px) {
+  /* Text left, centred against the phone on the right. */
+  .tpband .tpband__row {
+    grid-template-columns: minmax(0, 600px) 190px;
+    grid-template-rows: 1fr auto auto auto 1fr;
+    grid-template-areas:
+      '. phone'
+      'head phone'
+      'text phone'
+      'btns phone'
+      '. phone';
+    column-gap: clamp(40px, 8vw, 120px);
+    row-gap: 14px;
+    justify-content: start;
+    padding: 34px 32px;
+  }
+
+  .tpband__title { font-size: 34px; margin-top: 12px; }
+
+  .tpband__text { font-size: 17px; }
+
+  .tpband__btns .btn { flex: 0 0 auto; padding: 13px 22px; }
+
+  .tpvisit { padding: 28px 32px 30px; }
+
+  .tpvisit__title { font-size: 30px; }
+
+  .tpvisit__btns .btn { flex: 0 0 auto; min-width: 160px; }
+}

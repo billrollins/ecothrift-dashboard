@@ -5,10 +5,13 @@ import { useAuth } from '../auth'
 import { useCareers } from '../careers/api'
 import { useCart } from '../cart'
 import { retailMapsDirectionsUrl, STORE } from '../data/content'
+import { THRIFT_PLUS_NAV_LABEL } from '../data/thriftPlusAbout'
 import { useStoreHoursLabel } from '../lib/storeHours'
 import { useOnlineSalesConfig } from '../onlineSalesConfig'
+import { useThriftPlusOpen } from '../thriftPlusOpen'
 import AnnouncementBanner from './AnnouncementBanner'
 import CartDrawer from './CartDrawer'
+import ScanIcon from './ScanIcon'
 
 const navClass = ({ isActive }: { isActive: boolean }) => (isActive ? 'on' : undefined)
 
@@ -19,9 +22,7 @@ const navClass = ({ isActive }: { isActive: boolean }) => (isActive ? 'on' : und
 function PriceCheckLink() {
   return (
     <a className="btn btn--scan" href="/scan" title="Point your phone at any price tag to see its ThriftBucks">
-      <svg className="btn--scan__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M7 12h10" />
-      </svg>
+      <ScanIcon />
       <span>Price check</span>
     </a>
   )
@@ -29,6 +30,8 @@ function PriceCheckLink() {
 
 export default function Layout() {
   const { config, loading } = useOnlineSalesConfig()
+  // Thrift+ open (for customers, or this phone's owner preview): the Thrift+ link and Price check show.
+  const { open: thriftPlusOpen } = useThriftPlusOpen()
   const hoursLabel = useStoreHoursLabel()
   const { count, setOpen } = useCart()
   const { user, isLoading: authLoading } = useAuth()
@@ -73,6 +76,11 @@ export default function Layout() {
             <NavLink to="/visit" className={navClass}>
               Visit
             </NavLink>
+            {thriftPlusOpen && (
+              <NavLink to="/thriftplus" className={navClass}>
+                {THRIFT_PLUS_NAV_LABEL}
+              </NavLink>
+            )}
             {hiringOn && (
               <NavLink to="/careers" className={navClass}>
                 Careers
@@ -80,7 +88,7 @@ export default function Layout() {
             )}
           </nav>
           <div className="tools">
-            {config.thrift_plus_open && <PriceCheckLink />}
+            {thriftPlusOpen && <PriceCheckLink />}
             {loading ? null : shopOn ? (
               <>
                 {accountsOn && (

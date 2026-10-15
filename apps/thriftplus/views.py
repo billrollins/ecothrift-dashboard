@@ -187,7 +187,9 @@ class AccountViewSet(viewsets.ReadOnlyModelViewSet):
                 return Response({'detail': 'Pick an active staff member.'}, status=status.HTTP_400_BAD_REQUEST)
             other = Account.objects.filter(staff_user=user).exclude(pk=account.pk).first()
             if other:
-                return Response({'detail': f'{user.full_name} already has Thrift+ membership {other.pk}.'},
+                # Owner 2026-10-15: every staff member has their own now; a customer membership of theirs merges in.
+                return Response({'detail': f'{user.full_name} already has Thrift+ membership {other.pk}. To bring this '
+                                           'one into it, use Merge on the Staff tab.'},
                                 status=status.HTTP_400_BAD_REQUEST)
         account.staff_user = user
         account.save(update_fields=['staff_user', 'updated_at'])
@@ -201,6 +203,76 @@ class AccountViewSet(viewsets.ReadOnlyModelViewSet):
         except MemberError as exc:
             return _error(exc)
         return Response(AccountDetailSerializer(account).data)
+
+
+class StaffMembershipsViewSet(viewsets.ViewSet):
+    """
+    Staff memberships (owner 2026-10-15; ``services/staff_members.py``). Every active staff member has their own
+    Thrift+ membership; the owner fills in the missing ones and merges a staff member's older customer membership in:
+    - GET ``staff-memberships/`` (manager+): one row per active staff member, their membership (or none), and up to 3
+      customer memberships that may be theirs;
+    - POST ``staff-memberships/create-missing/`` (superuser): a membership for every staff member without one;
+    - GET ``staff-memberships/merge-preview/?staff_user=&source_account=`` (superuser): what a merge would move, or why
+      it is refused (nothing changes);
+    - POST ``staff-memberships/merge/ {staff_user, source_account}`` (superuser): merge the customer membership into
+      the staff member's own, which survives.
+    """
+
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+
+    def list(self, request):
+        from apps.thriftplus.services import staff_members
+
+        return Response({**staff_members.staff_list(), 'can_merge': bool(request.user.is_superuser)})
+
+    @action(detail=False, methods=['post'], url_path='create-missing', permission_classes=[IsAuthenticated, IsSuperAdmin])
+    def create_missing(self, request):
+        from apps.thriftplus.services import staff_members
+
+        result = staff_members.create_missing(actor=request.user)
+        return Response({**result, **staff_members.staff_list(), 'can_merge': True})
+
+    @staticmethod
+    def _pair(data):
+        """(staff user, source membership), or an error Response."""
+        from django.contrib.auth import get_user_model
+
+        from apps.thriftplus.services import staff_members
+
+        User = get_user_model()
+        raw_user, raw_source = str(data.get('staff_user') or ''), str(data.get('source_account') or '')
+        user = User.objects.filter(pk=raw_user).first() if raw_user.isdigit() else None
+        if not staff_members.is_active_staff(user):
+            return None, None, Response({'detail': 'Pick an active staff member.'}, status=status.HTTP_400_BAD_REQUEST)
+        source = Account.objects.filter(pk=raw_source).first() if raw_source.isdigit() else None
+        if source is None:
+            return None, None, Response({'detail': 'Pick the membership to merge in.'}, status=status.HTTP_400_BAD_REQUEST)
+        return user, source, None
+
+    @action(detail=False, methods=['get'], url_path='merge-preview', permission_classes=[IsAuthenticated, IsSuperAdmin])
+    def merge_preview(self, request):
+        from apps.thriftplus.services import staff_members
+
+        user, source, error = self._pair(request.query_params)
+        if error:
+            return error
+        try:
+            return Response(staff_members.preview(user, source))
+        except MemberError as exc:
+            return _error(exc)
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, IsSuperAdmin])
+    def merge(self, request):
+        from apps.thriftplus.services import staff_members
+
+        user, source, error = self._pair(request.data)
+        if error:
+            return error
+        try:
+            result = staff_members.merge(user, source, actor=request.user)
+        except MemberError as exc:
+            return _error(exc)
+        return Response(result)
 
 
 class PersonViewSet(viewsets.GenericViewSet):

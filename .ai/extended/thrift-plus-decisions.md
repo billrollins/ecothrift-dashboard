@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-15 (owner: no consignment in messaging; P10, P1, B3. Earlier today: note A, V8; v2.167.0 built J8, J11, J12, V9) -->
+<!-- Last updated: 2026-10-15 (owner: P11 an item we can't find; DKIM and DMARC done; P10 consignment; note A, V8) -->
 # Thrift+ rulebook
 
 **The one place for every Thrift+ rule.** Form 5 is chosen: rewards first, as store credit. Code follows this file. It is the single source of truth: the old rulebook page, launch kit page and warranty review page are retired (10-09); the only page kept is the final forms grid. Owner answers are folded in here. Items marked "CPA / attorney" carry our answer and wait for their sign-off. Older notes (the 10-01 list, the legal memo, the warranty review, the launch kit) lose wherever they differ.
@@ -68,7 +68,7 @@
   - Source: Owner 10-15 in the master chat (master inbox 2026-10-15, second message; standards T76). Replaces the same day's texted-code plan (Twilio Verify), and the 10-14 proposals. Built: v2.167.0 (no passkeys yet).
   - **No texts:** /privacy keeps "Eco-Thrift does not currently send text messages." The terms are updated (Design 10-15): §10.4 is now "Signing in" (the email link, once, up to 30 minutes; a year signed in), and §1.3 points to **ecothrift.us/join** (name and email; a route to build).
   - **Goes live with the build, not before:** the /privacy Email-section line (Design's words): "We also email you a sign-in link for the Thrift+ app when you ask for one; each link works once and only for a short time."
-  - **Before launch:** (1) send the real join email to a mail-tester.com address and aim for 9/10 or better (SPF, DKIM, DMARC, content, links); (2) send it to the owner's own Gmail, Outlook, Yahoo and iCloud addresses (named in chat only, never in files) and he says where each landed. Master 10-15: ecothrift.us has SPF but **no Microsoft 365 DKIM and no DMARC**, so Gmail and Yahoo may spam-file retail@ mail until the owner adds the two DKIM records and turns DKIM on in Microsoft (on his list). Test before and after his fix.
+  - **Before launch:** (1) send the real join email to a mail-tester.com address and aim for 9/10 or better (SPF, DKIM, DMARC, content, links); (2) send it to the owner's own Gmail, Outlook, Yahoo and iCloud addresses (named in chat only, never in files) and he says where each landed. **Done 10-15 (owner and Claude, in the browser):** Microsoft 365 DKIM is on for ecothrift.us (CNAMEs `selector1._domainkey` / `selector2._domainkey` in Squarespace DNS; Defender says "Signing DKIM signatures for this domain"), and DMARC is published as reporting only (`_dmarc` TXT `v=DMARC1; p=none; rua=mailto:retail@ecothrift.us`). Still to do: the mail-tester score and the owner's four inboxes (each send needs his OK).
 - **J12. Joining with no email** (Decided 10-15). A shopper with no email joins **at the register** with their phone, ID and photo, and collects and uses everything there. The app comes once they add an email: staff can add it at the register, and the link is sent.
   - Source: Owner 10-15 in the master chat. Built: v2.167.0 (register sign-up; Dash "Send sign-in link" when an email is added later).
 
@@ -264,6 +264,8 @@
 
 - **M1. Holding items online** (Decided). Members can hold items from ecothrift.us for pickup (the shop's holds).
   - Source: Owner 10-10. Built: Yes (holds exist for shop accounts; tie to the membership with the one sign-up page).
+- **P11. An item we can't find** (Decided 10-15). When a tag doesn't find its item (in the app or at the register), the item **sells as marked, with no ThriftBucks, AS IS** (no 3-day returns). The app says: "We can't find that item. It's priced as marked, with no ThriftBucks. Sold AS IS, so no 3-day returns." (APP D14b)
+  - Source: Owner 10-15, via the scanner design session. Built: No (building 10-15: the app's card, and the register checked to match).
 - **P10. Consignment** (Decided 10-15). **ThriftBucks will work on consignment items** once Eco-Thrift does consignment. Until then consignment is in **no** customer words: posters, terms, the app, receipts, emails (owner 10-15: "1. it is wrong. 2. it isn't relevant until we do consignment"). The code still leaves consignment items out of ThriftBucks (rewards, register); change that when consignment starts.
   - Source: Owner 10-15, via the Thrift+ Design session. Built: the words, v2.167.2 (/terms); the code change waits for consignment.
   - **The Sell page is hidden** until consignment starts (owner 10-15: "hide the sell page until consignment starts"): /sell goes to the home page, no links point to it, and `frontend-public/src/pages/SellPage.tsx` stays in the code. It comes back with fresh words when consignment starts. Built: v2.167.2.

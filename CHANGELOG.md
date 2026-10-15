@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.167.2] -->
-<!-- Last reviewed: 2026-10-15 (2.167.2) -->
+<!-- Line 1 release: ## [2.168.0] -->
+<!-- Last reviewed: 2026-10-15 (2.168.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.168.0] - 2026-10-15
+
+User-facing theme: **The public site shows Thrift+ (once it opens for customers): an app band first on the home page, "Bring your phone" on Visit, and a "What is Thrift+?" page from the three posters; and every staff login gets its own Thrift+ membership, with a merge for staff who were customers first (Bill, 2026-10-15).** thrift_plus Phase 6 (launch).
+
+### Added
+
+- **ecothrift.us/thriftplus, "What is Thrift+?":** the three posters with a short text each, Join / Open the app / Full terms, English | Español (Spanish on its own on a Spanish phone, like /terms), and a "Thrift+" link in the site menu. /thriftplus/warranty still opens /terms#s8.
+- **Home:** an app band under the hero ("Scan any tag. See its ThriftBucks.") with "Open the app" and "What is Thrift+?". **Visit:** a "Bring your phone" block with "Open the app" and "Join". **/terms:** "New to Thrift+? See what it is →".
+- All of it shows only while Thrift+ is open for customers (or to staff and the owner's preview); until then /thriftplus opens /terms.
+- **Staff Thrift+ memberships (owner 10-15):** every staff login gets a Thrift+ membership on its own (new staff, or someone added to the employee, manager or admin group), and its email follows the Dash email. A staff email in the app's "Email me a link" (or Join) signs that person in; it never makes a customer join. **Dash → Thrift+ → Staff:** each staff member's membership, "Create missing staff memberships" (owner only), and "Merge a customer membership…" with suggestions, a preview of what moves (ThriftBucks, credit, member codes, second adult, history) and a confirm (owner only).
 
 ## [2.167.2] - 2026-10-15
 
