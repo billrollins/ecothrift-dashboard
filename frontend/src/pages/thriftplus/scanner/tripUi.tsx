@@ -4,6 +4,7 @@
  * quantity control. The look is the scanner's own (scannerTheme.tsx).
  */
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { localPoint } from './portraitLock';
 import { Box, ButtonBase } from '@mui/material';
 import AddRounded from '@mui/icons-material/AddRounded';
 import AssignmentReturnRounded from '@mui/icons-material/AssignmentReturnRounded';
@@ -262,14 +263,14 @@ export function SwipeRow({ children, onRemove, label, onTap }: { children: React
       </Box>
       <Box
         onPointerDown={(e) => {
-          drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, on: false };
+          drag.current = { id: e.pointerId, x: localPoint(e).x, y: localPoint(e).y, on: false };
         }}
         onPointerMove={(e) => {
           const d = drag.current;
           if (!d || d.id !== e.pointerId) return;
-          const mx = e.clientX - d.x;
+          const mx = localPoint(e).x - d.x;
           if (!d.on) {
-            if (Math.abs(mx) < 10 || Math.abs(mx) < Math.abs(e.clientY - d.y)) return;
+            if (Math.abs(mx) < 10 || Math.abs(mx) < Math.abs(localPoint(e).y - d.y)) return;
             d.on = true;
             setDragging(true);
             e.currentTarget.setPointerCapture(e.pointerId);
@@ -319,14 +320,14 @@ export function useSwipe(onAdd: (() => void) | null, onPass: () => void) {
   };
   const handlers = {
     onPointerDown: (e: ReactPointerEvent<HTMLDivElement>) => {
-      if (!leaving) drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, on: false };
+      if (!leaving) drag.current = { id: e.pointerId, x: localPoint(e).x, y: localPoint(e).y, on: false };
     },
     onPointerMove: (e: ReactPointerEvent<HTMLDivElement>) => {
       const d = drag.current;
       if (!d || d.id !== e.pointerId) return;
-      const mx = e.clientX - d.x;
+      const mx = localPoint(e).x - d.x;
       if (!d.on) {
-        if (Math.abs(mx) < 10 || Math.abs(mx) < Math.abs(e.clientY - d.y)) return;
+        if (Math.abs(mx) < 10 || Math.abs(mx) < Math.abs(localPoint(e).y - d.y)) return;
         d.on = true;
         setDragging(true);
         e.currentTarget.setPointerCapture(e.pointerId);

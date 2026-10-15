@@ -48,6 +48,8 @@ export const u = (n: number) => `calc(${n} * var(--u))`;
 
 /** Width-driven scale, capped so the fixed parts still fit a short browser window. */
 export const UNIT_CSS = 'min(calc(min(100vw, 480px) / 900), calc(100dvh / 1350))';
+/** The same unit while the page is turned back upright on a sideways phone (portraitLock.ts): the sides swap. */
+export const UNIT_CSS_TURNED = 'min(calc(min(100dvh, 480px) / 900), calc(100vw / 1350))';
 
 export const sc = {
   page: '#f2f2ee',

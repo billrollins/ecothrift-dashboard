@@ -1,13 +1,11 @@
-v2.170.0 — Thrift+ app (off for customers): camera zoom, and a clear answer for every code (not our tag, can't find it, a link)
+v2.170.1 — The Thrift+ app stays upright when a phone is tilted, and ecothrift.us/account pages load directly
 
-User-facing theme: **Thrift+ app (still off for customers): zoom on the camera, and every code the camera reads gets a clear answer (Bill, 2026-10-15, after using it on the floor).** thrift_plus Phase 4 (app), APP D13 to D15.
+User-facing theme: **The Thrift+ app stays upright when a phone is tilted, and ecothrift.us/account pages load directly (Bill, 2026-10-15).** thrift_plus Phase 4 (app); outside initiatives (website).
 
-### Added
+### Fixed
 
-- **Zoom:** chips over the camera (1×, 2×, 3×, and .5× where the phone has it) and pinch to zoom, using the phone's own zoom; on phones without it, the telephoto camera or a digital zoom. The level is remembered.
-- **Every code gets an answer card** with [Scan again] (that code is then ignored for 3 s):
-  - a product barcode or other code: "That's not our price tag", with a picture of our green tag;
-  - our tag code that isn't found: "We can't find that item. It's priced as marked, with no ThriftBucks. Sold AS IS, so no 3-day returns." (rulebook P11);
-  - an ecothrift.us link: "That QR code is a link", with [Open link].
+- **The scanner stays in portrait:** turning a phone sideways no longer re-lays the app out. The page turns itself back so it stays fixed to the phone, like a portrait-locked app (camera preview and swipes included); the home-screen app asks the phone to lock portrait too. Tablets and computers are unchanged.
+- **ecothrift.us/account pages** (sign-in, history, messages) load directly and on refresh; before, an old Shopify redirect sent every /account address to the home page. Shopify's old /account/login and /register now open the sign-in, and /account/orders and /addresses the account page.
+- **What is Thrift+? and the home band** show the final posters (poster 1 now scans the Threshold lamp's label) and the new phone picture.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

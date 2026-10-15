@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.170.0] -->
-<!-- Last reviewed: 2026-10-15 (2.170.0) -->
+<!-- Line 1 release: ## [2.170.1] -->
+<!-- Last reviewed: 2026-10-15 (2.170.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.170.1] - 2026-10-15
+
+User-facing theme: **The Thrift+ app stays upright when a phone is tilted, and ecothrift.us/account pages load directly (Bill, 2026-10-15).** thrift_plus Phase 4 (app); outside initiatives (website).
+
+### Fixed
+
+- **The scanner stays in portrait:** turning a phone sideways no longer re-lays the app out. The page turns itself back so it stays fixed to the phone, like a portrait-locked app (camera preview and swipes included); the home-screen app asks the phone to lock portrait too. Tablets and computers are unchanged.
+- **ecothrift.us/account pages** (sign-in, history, messages) load directly and on refresh; before, an old Shopify redirect sent every /account address to the home page. Shopify's old /account/login and /register now open the sign-in, and /account/orders and /addresses the account page.
+- **What is Thrift+? and the home band** show the final posters (poster 1 now scans the Threshold lamp's label) and the new phone picture.
 
 ## [2.170.0] - 2026-10-15
 

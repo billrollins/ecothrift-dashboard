@@ -86,7 +86,14 @@ def rewrite_legacy_path(path: str) -> str | None:
     if path == '/cart':
         return '/shop'
     if path == '/account' or path.startswith('/account/'):
-        return '/'
+        # The site's own account pages (/account, /account/sign-in, /history, /messages) load as they are (owner
+        # 2026-10-15); only Shopify's old account addresses move.
+        sub = path[len('/account'):].strip('/').split('/')[0].lower()
+        if sub in ('login', 'register'):
+            return '/account/sign-in'
+        if sub in ('addresses', 'orders', 'activate', 'reset', 'logout'):
+            return '/account'
+        return None
     if path == '/pages':
         return '/'
     if path.startswith('/pages/'):

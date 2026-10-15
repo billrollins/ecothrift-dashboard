@@ -16,14 +16,16 @@ import { isOpen, setPreviewCode, type SignInPurpose } from '../../../api/thriftP
 import { ResetPasswordScreen } from './AccountScreens';
 import { SignInScreen } from './SignInScreen';
 import { TripScanner } from './TripScanner';
-import { UNIT_CSS, sc, useScannerFonts } from './scannerTheme';
+import { UNIT_CSS, UNIT_CSS_TURNED, sc, useScannerFonts } from './scannerTheme';
 import { installScannerHead } from './installApp';
+import { usePortraitTurn } from './portraitLock';
 import { loadDetector } from './useQrCamera';
 import { useSignIn, useThriftPlusSession } from './useThriftPlus';
 
 const TYPE_ONLY_KEY = 'tp-type-only';
 
 export default function ThriftPlusScannerPage() {
+  const turn = usePortraitTurn();
   useScannerFonts();
   const [pageParams, setPageParams] = useSearchParams();
   const resetToken = pageParams.get('reset');
@@ -102,15 +104,18 @@ export default function ThriftPlusScannerPage() {
         bgcolor: '#e6e7e1',
         display: 'flex',
         justifyContent: 'center',
-        '--u': UNIT_CSS,
+        overflow: 'hidden',
+        '--u': turn ? UNIT_CSS_TURNED : UNIT_CSS,
       }}
     >
       <Box
+        data-turn={turn}
         sx={{
-          position: 'relative',
-          width: '100%',
-          maxWidth: 480,
-          height: '100dvh',
+          // A sideways phone: the page turns back so it stays upright on the phone (owner 2026-10-15).
+          ...(turn
+            ? { position: 'absolute', top: '50%', left: '50%', width: 'min(100dvh, 480px)', height: '100vw',
+                transform: `translate(-50%, -50%) rotate(${turn}deg)` }
+            : { position: 'relative', width: '100%', maxWidth: 480, height: '100dvh' }),
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',

@@ -29,3 +29,21 @@ class ScannerPassthroughTests(SimpleTestCase):
         for host in ('www.ecothrift.us', 'ecothrift.us'):
             response = self._get(host, '/i/k3X9pQr')
             self.assertEqual((response.status_code, response.content), (200, b'dashboard'), host)
+
+
+class AccountPagesTests(SimpleTestCase):
+    """Owner 2026-10-15: the site's own account pages load directly; only Shopify's old account addresses move."""
+
+    def test_the_sites_account_pages_are_not_rewritten(self):
+        from apps.core.middleware import rewrite_legacy_path
+
+        for path in ('/account', '/account/', '/account/sign-in', '/account/history', '/account/messages'):
+            self.assertIsNone(rewrite_legacy_path(path), path)
+
+    def test_shopify_account_addresses_move(self):
+        from apps.core.middleware import rewrite_legacy_path
+
+        self.assertEqual(rewrite_legacy_path('/account/login'), '/account/sign-in')
+        self.assertEqual(rewrite_legacy_path('/account/register'), '/account/sign-in')
+        self.assertEqual(rewrite_legacy_path('/account/orders/abc123'), '/account')
+        self.assertEqual(rewrite_legacy_path('/account/addresses'), '/account')
