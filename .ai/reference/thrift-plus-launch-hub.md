@@ -40,7 +40,7 @@
 - A lost card is stopped and replaced on the same account; nothing can be transferred (B7)
 
 **ThriftBucks**
-- On most items, but not consignment, an item's first 7 days, or back stock never seen on the floor (P1)
+- On most items, but not an item's first 7 days on the floor, or back stock never seen on the floor (P1); consignment is in no customer words until consignment starts (P10)
 - After a 7-day wait they grow 0.75% of the tag a day, up to 95% of the tag; the rate is never printed, the cap may be (P3, P8)
 - At launch, floor stock counts at 30% of its real age, at most 45 days (P4)
 - In back stock an item's age is frozen and reset to 0 (P5)

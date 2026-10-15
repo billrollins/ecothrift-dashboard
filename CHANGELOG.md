@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.167.1] -->
-<!-- Last reviewed: 2026-10-15 (2.167.1) -->
+<!-- Line 1 release: ## [2.167.2] -->
+<!-- Last reviewed: 2026-10-15 (2.167.2) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.167.2] - 2026-10-15
+
+User-facing theme: **Thrift+ app (still off for customers): the new ThriftBuck note (layout A, owner 10-15) in the falling-ThriftBucks animation; the stack art is gone.** thrift_plus Phase 4 (app), APP D3.
+
+### Changed
+
+- The falling ThriftBuck shows the owner's note A (the terms QR, the Eco-Thrift seal, Thrift+; no symbol, no oval). The stack-of-notes picture is removed from the app.
+- **The Sell page is hidden** until consignment starts (owner 10-15): /sell goes to the home page; the header and footer links are gone; it is out of the sitemap.
+- **/terms:** no consignment wording while Eco-Thrift doesn't do consignment (owner 10-15): the FAQ now says ThriftBucks work "on anything you buy at Eco-Thrift"; §3.1 and §5.2 match (English and Spanish).
 
 ## [2.167.1] - 2026-10-15
 

@@ -94,7 +94,7 @@ def rewrite_legacy_path(path: str) -> str | None:
         if slug in ('visit', 'visit-us', 'location', 'hours', 'contact', 'contact-us'):
             return '/visit'
         if slug in ('sell', 'sell-with-us', 'consign', 'consignment'):
-            return '/sell'
+            return '/'  # the Sell page is hidden until consignment starts (owner 2026-10-15)
         if slug in ('blog', 'news', 'blogs'):
             return '/blog'
         return '/'

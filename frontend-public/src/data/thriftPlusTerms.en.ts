@@ -132,7 +132,7 @@ export const THRIFT_PLUS_TERMS_EN: ThriftPlusTermsContent = {
     },
     {
       q: 'Can I use ThriftBucks on anything?',
-      a: "On almost everything. ThriftBucks can't be used on consignment items. Thrift+ credit can.",
+      a: 'Yes, on anything you buy at Eco-Thrift.',
     },
     {
       q: 'Can I return something?',
@@ -216,7 +216,7 @@ export const THRIFT_PLUS_TERMS_EN: ThriftPlusTermsContent = {
       clauses: [
         {
           n: '3.1',
-          text: "Members collect ThriftBucks on most items. Consignment items don't carry ThriftBucks. Neither does an item in its first 7 days on the sales floor, or back stock that has not yet been on the floor.",
+          text: "Members collect ThriftBucks on most items. An item in its first 7 days on the sales floor doesn't carry them yet, and neither does back stock that has not yet been on the floor.",
         },
         {
           n: '3.2',
@@ -251,7 +251,7 @@ export const THRIFT_PLUS_TERMS_EN: ThriftPlusTermsContent = {
         },
         {
           n: '5.2',
-          text: "ThriftBucks can't be used on consignment items; Thrift+ credit can. Items bought with ThriftBucks or Thrift+ credit still collect ThriftBucks.",
+          text: 'Items bought with ThriftBucks or Thrift+ credit still collect ThriftBucks.',
         },
         {
           n: '5.3',

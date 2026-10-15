@@ -70,9 +70,6 @@ export default function Layout() {
             <NavLink to="/blog" className={navClass}>
               Blog
             </NavLink>
-            <NavLink to="/sell" className={navClass}>
-              Sell
-            </NavLink>
             <NavLink to="/visit" className={navClass}>
               Visit
             </NavLink>
@@ -126,7 +123,6 @@ export default function Layout() {
             <h4>Store</h4>
             {shopOn && <Link to="/shop">Shop</Link>}
             <Link to="/visit">Visit us</Link>
-            <Link to="/sell">Sell with us</Link>
             <Link to="/blog">Blog</Link>
           </div>
           <div>

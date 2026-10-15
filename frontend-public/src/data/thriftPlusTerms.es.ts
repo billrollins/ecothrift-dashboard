@@ -163,7 +163,7 @@ export const THRIFT_PLUS_TERMS_ES: ThriftPlusTermsContent = {
     },
     {
       q: '¿Puedo usar los ThriftBucks en cualquier cosa?',
-      a: 'En casi todo. Los ThriftBucks no se pueden usar en artículos en consignación. El crédito Thrift+ sí.',
+      a: 'Sí, en todo lo que compre en Eco-Thrift.',
     },
     {
       q: '¿Puedo devolver algo?',
@@ -250,7 +250,7 @@ export const THRIFT_PLUS_TERMS_ES: ThriftPlusTermsContent = {
       clauses: [
         {
           n: '3.1',
-          text: 'Los miembros reúnen ThriftBucks en la mayoría de los artículos. No tienen ThriftBucks los artículos en consignación, los artículos en sus primeros 7 días en el piso de venta, ni la mercancía de bodega que todavía no ha estado en el piso.',
+          text: 'Los miembros reúnen ThriftBucks en la mayoría de los artículos. Un artículo en sus primeros 7 días en el piso de venta todavía no los tiene, ni tampoco la mercancía de bodega que todavía no ha estado en el piso.',
         },
         {
           n: '3.2',
@@ -285,7 +285,7 @@ export const THRIFT_PLUS_TERMS_ES: ThriftPlusTermsContent = {
         },
         {
           n: '5.2',
-          text: 'Los ThriftBucks no se pueden usar en artículos en consignación; el crédito Thrift+ sí. Los artículos comprados con ThriftBucks o con crédito Thrift+ también reúnen ThriftBucks.',
+          text: 'Los artículos comprados con ThriftBucks o con crédito Thrift+ también reúnen ThriftBucks.',
         },
         {
           n: '5.3',

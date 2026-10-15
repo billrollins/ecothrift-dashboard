@@ -35,25 +35,23 @@ The source is the font-lab save **Black Anemone 11** (the same numbers as the fi
 
 ## The ThriftBuck certificate
 
-Owner 10-10, final: an engraved certificate laid out like a banknote. It is **designed once** (`workspace/scanner_art/tb_cert_v3.py`, variant `final`); everything else is made from it by `workspace/scanner_art/tb_pack.py`.
+**Owner 10-15, layout A:** no currency symbol and no oval. His words: "we are going away from the currency symbol"; "the QR on the left, Seal in middle, and Thrift+ etc on the right". It is built by `workspace/scanner_art/tb_note_v4.py` (variant `A`, out of three he saw) and packaged under the kit's names in `workspace/scanner_art/tb/pack-v4/`. The 10-10 layout (the TB in a cut oval) is history: `tb_cert_v3.py`, `tb_pack.py`.
 
 - **Corners:** a **1** in each medallion.
-- **Middle:** the TB alone in a tall oval cut flat at the bottom (like the dollar's portrait frame). The symbol is sized and placed for equal margins (top = bottom 130 px, the T bar 42 px clear of the curve). **"One ThriftBuck"** sits under the oval, between the leaves.
+- **Middle:** the **Eco-Thrift seal**, large: a toothed ring reading "ECO-THRIFT • OMAHA, NEBRASKA" round the leaf icon engraved in hairlines. **"One ThriftBuck"** sits under it, between the leaves.
 - **Top plate**, set into the border: the **Eco-Thrift** wordmark.
 - **Bottom plate:** the slogan *another chance for everything & everyone*. Both plates use the logo's own lettering, cut from `eco-full-forest.png`.
-- **Left:** the **Eco-Thrift seal**: a toothed ring reading "ECO-THRIFT • OMAHA, NEBRASKA", with the leaf icon engraved in hairlines.
-- **Right:** **Thrift+** ("Thrift" in the money green, "+" bright green), exactly as wide as **OMAHA, NEBRASKA** under it, then a **QR** to `https://ecothrift.us/terms` (scans when framed, down to a 52 px code).
-- **Captions**, where a dollar's signatures sit: **"No cash value"** and **"ecothrift.us/terms"**.
+- **Left:** the **terms QR** to `https://ecothrift.us/terms`, with the caption **"ecothrift.us/terms"** under it.
+- **Right:** **Thrift+** ("Thrift" in the engraving green, "+" bright green) as wide as **OMAHA, NEBRASKA** under it, with the caption **"No cash value"**.
 - **What the AI drew:** only the paper, the border and the empty medallions (xAI; prompt `workspace/scanner_art/prompts/T3_cert_corners.txt`, background `T3_cert_corners_2`). Every word, number, logo and the QR is exact vector or the real logo file.
 - **Never on it:** a portrait, a signature, a serial number, a government seal, or the words "legal tender", "note" or "dollar".
 
 | File | Use |
 |---|---|
-| `art/thriftbucks-ticket.webp` (160 px) | The scanner's single certificate (Bank it / Shower): the full certificate, QR and all. |
-| `art/thriftbucks-brick.webp` (256 px) | The ThriftBucks Balance stack, 36 sheets tall, made from the same certificate: a centred band with the TB printed on it in cream, like the amount on a bank strap. |
+| `art/thriftbucks-ticket.webp` (160 px) | The scanner's single certificate (the falling-note animation): the full certificate, QR and all. |
 | `art/thriftbuck-certificate.png` (1911 x 1243) | The **full certificate**, transparent: website, print, any large view. |
 | `art/thriftbuck-certificate-1200.webp` | The full certificate for the web. |
-| `art/thriftbucks-brick-master.png` | Large master of the stack. |
+| `art/retired/` | The stack of certificates (brick), retired 10-15: the owner hates the stack of money. |
 
 **Owner 10-10: the QR is always on the certificate. Never make a version without it.**
 

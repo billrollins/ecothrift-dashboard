@@ -31,14 +31,11 @@ import cartUrl from '../../../assets/thriftplus/cart-bag.webp';
 import headerUrl from '../../../assets/thriftplus/header-field.webp';
 import logoUrl from '../../../assets/thriftplus/logo.webp';
 import orbUrl from '../../../assets/thriftplus/orb.webp';
-import brickUrl from '../../../assets/thriftplus/thriftbucks-brick.webp';
 import ticketUrl from '../../../assets/thriftplus/thriftbucks-ticket.webp';
 
 export const art = {
   brush: brushUrl,
   cart: cartUrl,
-  /** ThriftBucks Balance: a banded brick of [TB]1.00 coupons (owner, 2026-10-09: paper, not coins; 10-10: ThriftBucks). */
-  brick: brickUrl,
   /** One ThriftBuck coupon: the falling-ticket and Shower animations. */
   ticket: ticketUrl,
   header: headerUrl,

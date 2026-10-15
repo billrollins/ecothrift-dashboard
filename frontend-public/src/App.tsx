@@ -8,7 +8,8 @@ import { useOnlineSalesConfig } from './onlineSalesConfig'
 const BlogPage = lazy(() => import('./pages/BlogPage'))
 const BlogPostPage = lazy(() => import('./pages/BlogPostPage'))
 const VisitPage = lazy(() => import('./pages/VisitPage'))
-const SellPage = lazy(() => import('./pages/SellPage'))
+// The Sell page is hidden until consignment starts (owner 2026-10-15, rulebook P10); it comes back with fresh words.
+// const SellPage = lazy(() => import('./pages/SellPage'))
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage'))
 const TermsPage = lazy(() => import('./pages/TermsPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
@@ -220,14 +221,8 @@ export default function App() {
             </Suspense>
           }
         />
-        <Route
-          path="sell"
-          element={
-            <Suspense fallback={<RouteFallback />}>
-              <SellPage />
-            </Suspense>
-          }
-        />
+        {/* Hidden until consignment starts (owner 2026-10-15): /sell goes home. */}
+        <Route path="sell" element={<Navigate to="/" replace />} />
         <Route
           path="privacy"
           element={

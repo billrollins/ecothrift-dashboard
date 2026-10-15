@@ -1,10 +1,11 @@
-v2.167.1 — Thrift+ app (off for customers): the balance and Member QR pill, and tap an item in This trip to see its tag again
+v2.167.2 — Thrift+ (off for customers): the new ThriftBuck note A in the app; no consignment wording, and the Sell page hidden until consignment starts
 
-User-facing theme: **Thrift+ app (still off for customers): the top-right pill is two buttons, the member's ThriftBucks balance and their Member QR; and a tap on an item in This trip shows its tag again (Bill, 2026-10-15).** thrift_plus Phase 4 (app), APP D11 and D12.
+User-facing theme: **Thrift+ app (still off for customers): the new ThriftBuck note (layout A, owner 10-15) in the falling-ThriftBucks animation; the stack art is gone.** thrift_plus Phase 4 (app), APP D3.
 
 ### Changed
 
-- **Top right, every screen (members):** the balance (tap: Your ThriftBucks, Thrift+ credit and every ThriftBuck in the order the register uses them, the rewards line, My account, Sign out, "Show my member QR") and a big QR button (tap: the Member QR and "Add your member QR to your home screen", nothing else). Non-members keep "Sign in".
-- **This trip:** tap an item to see its tag again ("N in your trip"), with **Remove** (Undo as usual) and **Back to trip**; a left swipe, Escape or the left arrow go back. A second look is not counted as a scan.
+- The falling ThriftBuck shows the owner's note A (the terms QR, the Eco-Thrift seal, Thrift+; no symbol, no oval). The stack-of-notes picture is removed from the app.
+- **The Sell page is hidden** until consignment starts (owner 10-15): /sell goes to the home page; the header and footer links are gone; it is out of the sitemap.
+- **/terms:** no consignment wording while Eco-Thrift doesn't do consignment (owner 10-15): the FAQ now says ThriftBucks work "on anything you buy at Eco-Thrift"; §3.1 and §5.2 match (English and Spanish).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

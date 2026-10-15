@@ -284,7 +284,7 @@ def dev_log_line(request):
 
 # Static marketing routes for the public site. Blog post URLs are pulled from the
 # database (BlogPost.objects.live()) in sitemap_xml below.
-_SITEMAP_MARKETING_PATHS = ('/', '/shop', '/visit', '/sell', '/blog', '/privacy', '/terms')
+_SITEMAP_MARKETING_PATHS = ('/', '/shop', '/visit', '/blog', '/privacy', '/terms')  # /sell hidden until consignment (owner 10-15)
 
 
 def _public_base_url() -> str:
