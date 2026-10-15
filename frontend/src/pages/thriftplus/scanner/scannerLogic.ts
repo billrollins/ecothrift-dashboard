@@ -2,24 +2,64 @@
 import { fromCents, toCents, type Money } from '../../../api/thriftPlusMock';
 
 /**
+ * What a code the camera read (or someone typed) is, so every one gets an answer (owner 2026-10-15, APP D14, D15).
+ * - `tag`: a code to look up. `ours` when its shape is our tag's: ITM and 4+ digits, one of our links with ?sku=, or a
+ *   Code 128 tag code. Not found, ours says "We can't find that item" (D14b); otherwise "That's not our price tag".
+ *   A bare short code (an older tag, a typed number) is looked up too.
+ * - `link`: a link on ecothrift.us with no ?sku=, like the terms QR on a poster (D15). `shown` is its host and path.
+ * - `other`: a product barcode (EAN-13, EAN-8, UPC-A, UPC-E), other text, or a link to another site (D14a).
+ */
+export type ScannedCode =
+  | { kind: 'tag'; sku: string; ours: boolean }
+  | { kind: 'link'; href: string; shown: string }
+  | { kind: 'other' };
+
+/** The decoder's product barcode formats: read only to answer "not our tag". */
+const PRODUCT_FORMATS = new Set(['ean_13', 'ean_8', 'upc_a', 'upc_e']);
+/** Typed digits the length of a product barcode: EAN-8, UPC-A, EAN-13. */
+const PRODUCT_LENGTHS = new Set([8, 12, 13]);
+const OUR_HOST = /(^|\.)ecothrift\.us$/i;
+
+/** An http(s) address, with or without "https://" for our own ("ecothrift.us/terms"); null for anything else. */
+function webLink(text: string): URL | null {
+  const href = /^[a-z][a-z0-9+.-]*:/i.test(text) ? text : /^(www\.)?ecothrift\.us([/?#]|$)/i.test(text) ? `https://${text}` : null;
+  if (!href) return null;
+  try {
+    const url = new URL(href);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+export function classifyCode(raw: string | null | undefined, format?: string): ScannedCode {
+  const text = (raw || '').trim();
+  if (!text || (format && PRODUCT_FORMATS.has(format))) return { kind: 'other' };
+  const itm = text.match(/ITM\d{4,}/i);
+  if (itm) return { kind: 'tag', sku: itm[0].toUpperCase(), ours: true };
+  const url = webLink(text);
+  if (url) {
+    const ours = OUR_HOST.test(url.hostname);
+    const sku = url.searchParams.get('sku')?.trim();
+    if (sku) return { kind: 'tag', sku: sku.toUpperCase(), ours };
+    if (!ours) return { kind: 'other' };
+    const path = url.pathname.replace(/\/+$/, '');
+    return { kind: 'link', href: url.href, shown: `${url.host}${path}` };
+  }
+  if (/^\d+$/.test(text) && PRODUCT_LENGTHS.has(text.length)) return { kind: 'other' };
+  if (/^[A-Za-z0-9-]{3,20}$/.test(text)) return { kind: 'tag', sku: text.toUpperCase(), ours: format === 'code_128' };
+  return { kind: 'other' };
+}
+
+/**
  * Price tags carry the SKU as plain text ("ITM0048211") in a QR code or a
  * barcode. Also accept a URL with ?sku= and a bare short code, so older or
- * reprinted tags still look up. Returns null for codes that are clearly not
- * a price tag (a web link, a long sentence).
+ * reprinted tags still look up. Returns null for codes that are not a price
+ * tag (a web link, a product barcode, a long sentence).
  */
 export function parseTagCode(raw: string | null | undefined): string | null {
-  const text = (raw || '').trim();
-  if (!text) return null;
-  const itm = text.match(/ITM\d{4,}/i);
-  if (itm) return itm[0].toUpperCase();
-  try {
-    const sku = new URL(text).searchParams.get('sku');
-    if (sku?.trim()) return sku.trim().toUpperCase();
-    return null;
-  } catch {
-    // Not a URL.
-  }
-  return /^[A-Za-z0-9-]{3,20}$/.test(text) ? text.toUpperCase() : null;
+  const code = classifyCode(raw);
+  return code.kind === 'tag' ? code.sku : null;
 }
 
 export interface WouldPayChoice {
@@ -85,23 +125,37 @@ export function shortDate(isoDay: string): string {
  */
 export class ScanGate {
   private last = '';
-  private at = 0;
+  private until = 0;
+  /** False during an `ignore`: repeats don't stretch it. */
+  private slides = true;
 
   constructor(private readonly windowMs = 2000) {}
 
   accept(code: string, now = Date.now()): boolean {
-    if (code === this.last && now - this.at < this.windowMs) {
-      this.at = now;
+    if (code === this.last && now < this.until) {
+      if (this.slides) this.until = now + this.windowMs;
       return false;
     }
     this.last = code;
-    this.at = now;
+    this.until = now + this.windowMs;
+    this.slides = true;
     return true;
   }
 
   /** Start the window over, e.g. when the item card closes. */
   hold(code: string, now = Date.now()): void {
     this.last = code;
-    this.at = now;
+    this.until = now + this.windowMs;
+    this.slides = true;
+  }
+
+  /**
+   * Refuse this code for exactly `ms`, however often it is seen meanwhile: [Scan again] on an answer card
+   * (owner 2026-10-15, APP D14: "That same code is then ignored for 3 seconds").
+   */
+  ignore(code: string, ms: number, now = Date.now()): void {
+    this.last = code;
+    this.until = now + ms;
+    this.slides = false;
   }
 }

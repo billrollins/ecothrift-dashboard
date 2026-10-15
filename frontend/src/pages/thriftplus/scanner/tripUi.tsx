@@ -108,17 +108,21 @@ export function ReturnsBadge({ ok, small = false, onClick }: { ok: boolean; smal
   );
 }
 
-/** A big round button for the thumb: quiet (white) or primary (green). */
-export function BigButton({ children, onClick, primary = false, testId, flex = 1, disabled = false }: {
+/** A big round button for the thumb: quiet (white) or primary (green). With `href`, a link that opens in a new tab. */
+export function BigButton({ children, onClick, href, primary = false, testId, flex = 1, disabled = false }: {
   children: React.ReactNode;
-  onClick: () => void;
+  onClick?: () => void;
+  href?: string;
   primary?: boolean;
   testId?: string;
   flex?: number;
   disabled?: boolean;
 }) {
+  // ButtonBase draws an <a> when it has an href.
+  const link = href ? { href, target: '_blank', rel: 'noopener noreferrer' } : {};
   return (
     <ButtonBase
+      {...link}
       onClick={onClick}
       disabled={disabled}
       data-testid={testId}

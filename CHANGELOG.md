@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.169.0] -->
-<!-- Last reviewed: 2026-10-15 (2.169.0) -->
+<!-- Line 1 release: ## [2.170.0] -->
+<!-- Last reviewed: 2026-10-15 (2.170.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.170.0] - 2026-10-15
+
+User-facing theme: **Thrift+ app (still off for customers): zoom on the camera, and every code the camera reads gets a clear answer (Bill, 2026-10-15, after using it on the floor).** thrift_plus Phase 4 (app), APP D13 to D15.
+
+### Added
+
+- **Zoom:** chips over the camera (1×, 2×, 3×, and .5× where the phone has it) and pinch to zoom, using the phone's own zoom; on phones without it, the telephoto camera or a digital zoom. The level is remembered.
+- **Every code gets an answer card** with [Scan again] (that code is then ignored for 3 s):
+  - a product barcode or other code: "That's not our price tag", with a picture of our green tag;
+  - our tag code that isn't found: "We can't find that item. It's priced as marked, with no ThriftBucks. Sold AS IS, so no 3-day returns." (rulebook P11);
+  - an ecothrift.us link: "That QR code is a link", with [Open link].
 
 ## [2.169.0] - 2026-10-15
 

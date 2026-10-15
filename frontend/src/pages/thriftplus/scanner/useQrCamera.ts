@@ -1,4 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  DIGITAL_RANGE,
+  TELE_AT,
+  clampZoom,
+  pickTele,
+  saveTele,
+  saveZoom,
+  savedTele,
+  savedZoom,
+  wantsTele,
+  zoomLevels,
+  type ZoomRange,
+} from './cameraZoom';
 
 /**
  * off: not started. starting: asking for the camera. live: decoding.
@@ -7,14 +20,21 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  */
 export type CameraStatus = 'off' | 'starting' | 'live' | 'resting' | 'blocked' | 'unsupported';
 
-/** Price tags are QR; Code 128 covers older barcode tags. Fewer formats decode faster. */
-const FORMATS = ['qr_code', 'code_128'];
+/**
+ * Price tags are QR; Code 128 covers older barcode tags. EAN-13, EAN-8, UPC-A and UPC-E are read only so a product
+ * barcode gets an answer ("That's not our price tag", owner 2026-10-15, APP D14a).
+ */
+const FORMATS = ['qr_code', 'code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e'];
+/** When one frame holds several codes, a tag's beats a product barcode beside it. */
+const TAG_FORMATS = new Set(['qr_code', 'code_128']);
 /** The decoder only looks at the middle of the frame, scaled to this width. */
 const CROP_FRACTION = 0.7;
 const CROP_MAX_PX = 720;
+const SIZE = { width: { ideal: 1280 }, height: { ideal: 720 } };
 
 interface Detected {
   rawValue: string;
+  format?: string;
 }
 interface Detector {
   detect(source: HTMLVideoElement | ImageData): Promise<Detected[]>;
@@ -85,17 +105,55 @@ function cameraErrorText(err: unknown): string {
   return "The camera didn't start.";
 }
 
+/** The code to answer from one frame: a tag's code first (QR, Code 128), else the first one read. */
+function pickCode(codes: Detected[]): Detected | undefined {
+  const read = codes.filter((c) => c.rawValue);
+  return read.find((c) => !c.format || TAG_FORMATS.has(c.format)) ?? read[0];
+}
+
 type VideoWithFrameCallback = HTMLVideoElement & {
   requestVideoFrameCallback?: (cb: () => void) => number;
   cancelVideoFrameCallback?: (id: number) => void;
 };
 
 /**
+ * The zoom control's state (owner 2026-10-15, APP D13).
+ * - native: the camera's own zoom, read from `getCapabilities().zoom` and set with `applyConstraints` (Android Chrome
+ *   and any browser that offers it).
+ * - digital: a phone with no zoom setting. 1× and 2× magnify the picture and decode a scaled-up centre crop; 3× opens
+ *   the telephoto camera when the phone has one, else it is digital too.
+ */
+export interface CameraZoom {
+  kind: 'native' | 'digital';
+  levels: number[];
+  value: number;
+  range: ZoomRange;
+  /** How much the picture is magnified on screen (always 1 with native zoom). */
+  digital: number;
+  /** Go to a level. `live`: a pinch on its way (not remembered, no camera switch until it ends). */
+  set: (z: number, opts?: { live?: boolean }) => void;
+}
+
+interface ZoomInfo {
+  kind: 'native' | 'digital';
+  range: ZoomRange;
+  levels: number[];
+}
+
+type Lens = 'main' | 'tele';
+
+/** Start on the telephoto when 3× was the last level and this phone's telephoto is known. */
+function firstLens(): Lens {
+  const z = savedZoom();
+  return z != null && wantsTele(z) && savedTele() ? 'tele' : 'main';
+}
+
+/**
  * Always-on rear camera that reads tag codes. The stream stays up while
  * `paused` (an item card is on top) so the next scan is instant; only
  * decoding stops. After `idleMs` with no scan or touch the camera rests to
  * save battery; `wake()` restarts it. Decodes on every new video frame, one
- * frame at a time.
+ * frame at a time. `onDecode` gets the text and, from the camera's decoder, its format.
  */
 export function useQrCamera({
   enabled,
@@ -105,7 +163,7 @@ export function useQrCamera({
 }: {
   enabled: boolean;
   paused: boolean;
-  onDecode: (raw: string) => void;
+  onDecode: (raw: string, format?: string) => void;
   idleMs?: number;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -117,11 +175,23 @@ export function useQrCamera({
   const [visible, setVisible] = useState(() =>
     typeof document === 'undefined' ? true : document.visibilityState !== 'hidden',
   );
+  const [zoomInfo, setZoomInfo] = useState<ZoomInfo | null>(null);
+  const [zoomValue, setZoomValue] = useState(1);
+  const [digital, setDigital] = useState(1);
+  const [lens, setLens] = useState<Lens>(firstLens);
+  const [switching, setSwitching] = useState(false);
   const pausedRef = useRef(paused);
   const onDecodeRef = useRef(onDecode);
   const idleTimer = useRef<number | null>(null);
+  const trackRef = useRef<MediaStreamTrack | null>(null);
+  const digitalRef = useRef(1);
+  const zoomInfoRef = useRef<ZoomInfo | null>(null);
+  const lensRef = useRef<Lens>(lens);
+  const applying = useRef<{ busy: boolean; next: number | null }>({ busy: false, next: null });
   pausedRef.current = paused;
   onDecodeRef.current = onDecode;
+  zoomInfoRef.current = zoomInfo;
+  lensRef.current = lens;
 
   // Release the camera when the phone locks or switches apps.
   useEffect(() => {
@@ -149,11 +219,71 @@ export function useQrCamera({
     };
   }, [poke]);
 
+  /** The camera's own zoom, one change at a time: a pinch sends many, only the latest waiting one is applied. */
+  const applyNative = useCallback((z: number) => {
+    const q = applying.current;
+    q.next = z;
+    if (q.busy) return;
+    q.busy = true;
+    void (async () => {
+      while (q.next != null) {
+        const value = q.next;
+        q.next = null;
+        try {
+          await trackRef.current?.applyConstraints({ advanced: [{ zoom: value } as MediaTrackConstraintSet] });
+        } catch {
+          // The camera keeps the zoom it had.
+        }
+      }
+      q.busy = false;
+    })();
+  }, []);
+
+  const setDigitalZoom = (d: number) => {
+    digitalRef.current = d;
+    setDigital(d);
+  };
+
+  const setZoom = useCallback(
+    (z: number, { live = false }: { live?: boolean } = {}) => {
+      const info = zoomInfoRef.current;
+      if (!info) return;
+      const value = clampZoom(z, info.range);
+      setZoomValue(value);
+      if (info.kind === 'native') {
+        applyNative(value);
+        if (!live) saveZoom(value);
+        return;
+      }
+      const onTele = lensRef.current === 'tele';
+      if (live) {
+        // The picture follows a pinch on the main camera; on the telephoto it waits for the fingers to lift.
+        if (!onTele) setDigitalZoom(value);
+        return;
+      }
+      const tele = wantsTele(value) && !!savedTele();
+      saveZoom(tele ? TELE_AT : value);
+      if (tele && !onTele) {
+        setZoomValue(TELE_AT);
+        setSwitching(true);
+        setLens('tele');
+      } else if (!tele && onTele) {
+        setDigitalZoom(value);
+        setSwitching(true);
+        setLens('main');
+      } else {
+        setDigitalZoom(tele ? 1 : value);
+      }
+    },
+    [applyNative],
+  );
+
   const active = enabled && visible && !resting;
 
   useEffect(() => {
     if (!active) {
       setStatus(resting && enabled ? 'resting' : 'off');
+      setSwitching(false);
       return;
     }
     if (!cameraSupported()) {
@@ -167,6 +297,7 @@ export function useQrCamera({
     let usedVfc = false;
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const teleId = lens === 'tele' ? savedTele() : null;
 
     const stop = () => {
       const v = videoRef.current as VideoWithFrameCallback | null;
@@ -177,7 +308,39 @@ export function useQrCamera({
       frameHandle = null;
       stream?.getTracks().forEach((t) => t.stop());
       stream = null;
+      trackRef.current = null;
       if (videoRef.current) videoRef.current.srcObject = null;
+    };
+
+    /** The zoom this camera offers, and the remembered level put back (APP D13). */
+    const setUpZoom = (track: MediaStreamTrack | undefined) => {
+      const caps = (track?.getCapabilities?.() ?? {}) as { zoom?: { min?: number; max?: number } };
+      const saved = savedZoom();
+      const min = caps.zoom?.min;
+      const max = caps.zoom?.max;
+      if (!teleId && typeof min === 'number' && typeof max === 'number' && max > min) {
+        const range = { min, max };
+        const now = (track?.getSettings?.() as { zoom?: number } | undefined)?.zoom ?? 1;
+        const z = clampZoom(saved ?? now, range);
+        setDigitalZoom(1);
+        setZoomInfo({ kind: 'native', range, levels: zoomLevels(range) });
+        setZoomValue(z);
+        if (Math.abs(z - now) > 0.01) applyNative(z);
+        return;
+      }
+      // No zoom setting: digital, and the telephoto for 3× when the phone has one.
+      const z = teleId ? TELE_AT : clampZoom(saved ?? 1, DIGITAL_RANGE);
+      setDigitalZoom(teleId ? 1 : z);
+      setZoomInfo({ kind: 'digital', range: DIGITAL_RANGE, levels: zoomLevels(DIGITAL_RANGE) });
+      setZoomValue(z);
+      if (!teleId) {
+        // Camera names are readable once the camera is allowed.
+        void navigator.mediaDevices.enumerateDevices?.()
+          .then((devices) => {
+            if (!cancelled) saveTele(pickTele(devices));
+          })
+          .catch(() => undefined);
+      }
     };
 
     const start = async () => {
@@ -185,51 +348,60 @@ export function useQrCamera({
       setError('');
       try {
         // Ask for the camera and warm the decoder at the same time.
-        const [media, loaded] = await Promise.all([
-          navigator.mediaDevices.getUserMedia({
-            audio: false,
-            video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-          }),
-          loadDetector(),
-        ]);
+        const loading = loadDetector();
+        const video = teleId ? { deviceId: { exact: teleId }, ...SIZE } : { facingMode: { ideal: 'environment' }, ...SIZE };
+        let media: MediaStream;
+        try {
+          media = await navigator.mediaDevices.getUserMedia({ audio: false, video });
+        } catch (err) {
+          if (!teleId || cancelled) throw err;
+          // The telephoto is gone (a new phone, a browser update): forget it and open the main camera at 3× digital.
+          saveTele(null);
+          setLens('main');
+          return;
+        }
         stream = media;
+        const loaded = await loading;
         if (cancelled) {
           stop();
           return;
         }
         const track = media.getVideoTracks()[0];
+        trackRef.current = track ?? null;
         try {
           await track?.applyConstraints({ advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] });
         } catch {
           // Not every camera takes focus hints.
         }
-        const video = videoRef.current as VideoWithFrameCallback | null;
-        if (!video) throw new Error('Video element not ready');
-        video.srcObject = media;
-        video.muted = true;
-        video.setAttribute('playsinline', 'true');
-        await video.play();
+        const el = videoRef.current as VideoWithFrameCallback | null;
+        if (!el) throw new Error('Video element not ready');
+        el.srcObject = media;
+        el.muted = true;
+        el.setAttribute('playsinline', 'true');
+        await el.play();
         if (cancelled) return;
+        setUpZoom(track);
         setDecoder(loaded.kind);
         setStatus('live');
+        setSwitching(false);
 
         let busy = false;
         const schedule = () => {
           if (cancelled) return;
-          if (video.requestVideoFrameCallback) {
+          if (el.requestVideoFrameCallback) {
             usedVfc = true;
-            frameHandle = video.requestVideoFrameCallback(onFrame);
+            frameHandle = el.requestVideoFrameCallback(onFrame);
           } else {
             frameHandle = requestAnimationFrame(onFrame);
           }
         };
         const onFrame = () => {
           if (cancelled) return;
-          if (!busy && !pausedRef.current && video.readyState >= 2 && video.videoWidth > 0) {
+          if (!busy && !pausedRef.current && el.readyState >= 2 && el.videoWidth > 0) {
             busy = true;
-            void decodeOnce(video, loaded.detector, loaded.kind)
-              .then((raw) => {
-                if (raw && !cancelled && !pausedRef.current) onDecodeRef.current(raw);
+            void decodeOnce(el, loaded.detector, loaded.kind)
+              .then((code) => {
+                if (code && !cancelled && !pausedRef.current) onDecodeRef.current(code.rawValue, code.format);
               })
               .catch(() => {
                 // A bad frame; keep going.
@@ -242,22 +414,20 @@ export function useQrCamera({
         };
 
         const decodeOnce = async (v: HTMLVideoElement, d: Detector, kind: DecoderKind) => {
-          if (kind === 'native' || !ctx) {
-            return (await d.detect(v)).find((c) => c.rawValue)?.rawValue;
-          }
-          // WebAssembly: decode only the middle of the frame, scaled down. Much faster, and
-          // it is where the viewfinder is.
-          const side = Math.floor(Math.min(v.videoWidth, v.videoHeight) * CROP_FRACTION);
+          const zoom = digitalRef.current;
+          if (!ctx || (kind === 'native' && zoom <= 1.01)) return pickCode(await d.detect(v));
+          // Decode only the middle of the frame: faster, and it is where the viewfinder is. Zoomed digitally, the
+          // middle shrinks with the picture and is scaled up, so a small or far code still reads.
+          const side = Math.max(16, Math.floor((Math.min(v.videoWidth, v.videoHeight) * CROP_FRACTION) / zoom));
           const sx = Math.floor((v.videoWidth - side) / 2);
           const sy = Math.floor((v.videoHeight - side) / 2);
-          const out = Math.min(side, CROP_MAX_PX);
+          const out = Math.min(CROP_MAX_PX, Math.round(side * zoom));
           if (canvas.width !== out) {
             canvas.width = out;
             canvas.height = out;
           }
           ctx.drawImage(v, sx, sy, side, side, 0, 0, out, out);
-          const image = ctx.getImageData(0, 0, out, out);
-          return (await d.detect(image)).find((c) => c.rawValue)?.rawValue;
+          return pickCode(await d.detect(ctx.getImageData(0, 0, out, out)));
         };
 
         schedule();
@@ -265,6 +435,7 @@ export function useQrCamera({
         if (cancelled) return;
         stop();
         setStatus('blocked');
+        setSwitching(false);
         setError(cameraErrorText(err));
       }
     };
@@ -274,7 +445,13 @@ export function useQrCamera({
       cancelled = true;
       stop();
     };
-  }, [active, attempt, enabled, resting]);
+    // `applyNative` is stable; the lens is read once per start.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, attempt, enabled, resting, lens]);
 
-  return { videoRef, status, error, decoder, wake, poke };
+  const zoom: CameraZoom | null = zoomInfo
+    ? { kind: zoomInfo.kind, levels: zoomInfo.levels, range: zoomInfo.range, value: zoomValue, digital, set: setZoom }
+    : null;
+
+  return { videoRef, status, error, decoder, wake, poke, zoom, switching };
 }

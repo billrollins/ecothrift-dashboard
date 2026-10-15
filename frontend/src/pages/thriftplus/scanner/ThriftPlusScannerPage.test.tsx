@@ -18,6 +18,8 @@ vi.mock('../../../api/thriftPlusScanner.api', async () => {
     setUpLogin: vi.fn(),
     isOpen: vi.fn(async () => true),
     fetchTestTags: vi.fn(async () => []),
+    // The mock's own look-up; a test stages an answer the mock has no item for (a tag not found).
+    lookupTag: vi.fn((sku: string) => mock.lookupTag(sku)),
     // The Member QR's code; a member who joined online isn't ready until a register finishes them (J2, APP D9).
     getMyCard: vi.fn(async () => {
       const s = await mock.getSession();
@@ -307,11 +309,107 @@ describe('Thrift+ trip scanner (owner 2026-10-13)', () => {
     renderPage();
     await user.click(await screen.findByRole('button', { name: 'Scan without signing in' }));
     await scan(user, 'nope!');
-    expect(await screen.findByText("That code isn't a price tag")).toBeInTheDocument();
+    // A card in the middle now, never a toast (APP D14a).
+    expect(await screen.findByTestId('answer-not-ours')).toHaveTextContent("That's not our price tag");
+    expect(screen.queryByText("That code isn't a price tag")).toBeNull();
+    await user.click(screen.getByTestId('scan-again'));
     await user.click(await screen.findByRole('button', { name: 'Camera not working?' }));
     const help = await screen.findByRole('dialog', { name: 'Camera not working?' });
     await user.click(within(help).getByRole('tab', { name: 'Android' }));
     expect(within(help).getByText(/Tap Permissions, then turn Camera on/)).toBeInTheDocument();
+  });
+});
+
+describe('Every code gets an answer (owner 2026-10-15, APP D14 and D15)', () => {
+  const onlyScanAgain = () => {
+    const actions = screen.getByTestId('actions');
+    expect(within(actions).getAllByRole('button')).toHaveLength(1);
+    expect(within(actions).getByTestId('scan-again')).toHaveTextContent('Scan again');
+    expect(within(actions).queryByTestId('pass')).toBeNull();
+    expect(within(actions).queryByTestId('add')).toBeNull();
+  };
+
+  it('a product barcode: our green tag, "That\'s not our price tag", and Scan again', async () => {
+    const api = await import('../../../api/thriftPlusScanner.api');
+    const user = userEvent.setup();
+    renderPage();
+    await signInAsMember(user);
+    vi.mocked(api.lookupTag).mockClear();
+    await scan(user, '0123456789012');
+    const card = await screen.findByTestId('scan-card');
+    const answer = within(card).getByTestId('answer-not-ours');
+    expect(within(answer).getByRole('heading', { name: "That's not our price tag" })).toBeInTheDocument();
+    expect(answer).toHaveTextContent('Look for our green tag and scan the QR code on it.');
+    expect(within(answer).getByRole('img', { name: 'Our green price tag, with its QR code' })).toHaveAttribute('src', expect.stringContaining('our-green-tag'));
+    expect(api.lookupTag).not.toHaveBeenCalled(); // a product barcode is never looked up
+    onlyScanAgain();
+    await user.click(screen.getByTestId('scan-again'));
+    await waitFor(() => expect(screen.queryByTestId('scan-card')).toBeNull());
+    expect(screen.getByTestId('see-trip')).toBeInTheDocument();
+  });
+
+  it('our code, not found: "We can\'t find that item", sold as marked, no ThriftBucks, AS IS', async () => {
+    const api = await import('../../../api/thriftPlusScanner.api');
+    vi.mocked(api.lookupTag).mockResolvedValueOnce({ status: 'not_found', sku: 'ITM0051377' });
+    const user = userEvent.setup();
+    renderPage();
+    await signInAsMember(user);
+    await scan(user, 'ITM0051377');
+    const answer = await screen.findByTestId('answer-not-found');
+    expect(api.lookupTag).toHaveBeenLastCalledWith('ITM0051377');
+    expect(within(answer).getByRole('heading', { name: "We can't find that item" })).toBeInTheDocument();
+    // "AS IS" and "3-day" never break across lines.
+    expect(within(answer).getByText("It's priced as marked, with no ThriftBucks. Sold AS IS, so no 3‑day returns.", { normalizer: (s) => s }))
+      .toBeInTheDocument();
+    expect(within(answer).getByTestId('badge-as-is')).toHaveTextContent('AS IS · no returns');
+    expect(within(answer).getByTestId('no-thriftbucks')).toHaveTextContent('No ThriftBucks on this item');
+    expect(within(answer).getByTestId('answer-code')).toHaveTextContent('ITM0051377');
+    onlyScanAgain();
+    // The AS IS badge works as built.
+    await user.click(within(answer).getByTestId('badge-as-is'));
+    expect(await screen.findByTestId('info-sheet')).toHaveTextContent("This item can't be returned.");
+    await user.click(within(screen.getByTestId('info-sheet')).getByRole('button', { name: 'Close' }));
+    await user.keyboard('{Escape}'); // Escape is Scan again
+    await waitFor(() => expect(screen.queryByTestId('scan-card')).toBeNull());
+  });
+
+  it('a short code we have no item for is not our tag; one we have is its tag', async () => {
+    const api = await import('../../../api/thriftPlusScanner.api');
+    vi.mocked(api.lookupTag).mockResolvedValueOnce({ status: 'not_found', sku: 'ABC123' });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Scan without signing in' }));
+    await scan(user, 'abc123');
+    expect(await screen.findByTestId('answer-not-ours')).toBeInTheDocument();
+    await user.click(screen.getByTestId('scan-again'));
+    await scan(user, 'TP0000001');
+    expect(await screen.findByText('Cordless Drill Kit')).toBeInTheDocument();
+    expect(screen.getByTestId('pass')).toBeInTheDocument();
+  });
+
+  it('one of our links: "That QR code is a link", Open link in a new tab, and Scan again', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Scan without signing in' }));
+    await scan(user, 'https://ecothrift.us/terms');
+    const answer = await screen.findByTestId('answer-link');
+    expect(within(answer).getByRole('heading', { name: 'That QR code is a link' })).toBeInTheDocument();
+    expect(answer).toHaveTextContent('It opens ecothrift.us/terms.To see a price, scan the QR code on our green tag.');
+    expect(within(answer).getByText('ecothrift.us/terms').tagName).toBe('B');
+    const actions = screen.getByTestId('actions');
+    const open = within(actions).getByTestId('open-link');
+    expect(open).toHaveTextContent('Open link');
+    expect(open).toHaveAttribute('href', 'https://ecothrift.us/terms');
+    expect(open).toHaveAttribute('target', '_blank');
+    expect(open).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(within(actions).getByTestId('scan-again')).toHaveTextContent('Scan again');
+    await user.click(within(actions).getByTestId('scan-again'));
+    await waitFor(() => expect(screen.queryByTestId('answer-link')).toBeNull());
+
+    // A link to any other site is not our tag, with no button to open it.
+    await scan(user, 'https://example.com/menu');
+    expect(await screen.findByTestId('answer-not-ours')).toBeInTheDocument();
+    expect(screen.queryByTestId('open-link')).toBeNull();
   });
 });
 

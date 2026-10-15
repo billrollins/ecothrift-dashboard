@@ -331,6 +331,30 @@ class RegisterTests(RegisterBase):
         self.assertEqual(r.json()['total'], '139.10')  # priced as a guest
         self.assertIn('error', r.json()['thrift_plus'])
 
+    def test_p11_a_tag_we_cant_find_sells_as_marked_with_no_thriftbucks_as_is(self):
+        """P11 (owner 2026-10-15, APP D14b): the scan isn't found, so the cashier rings the tag's price as a manual line.
+        It collects no ThriftBucks, has no 3-day return mark of its own (the receipt prints AS IS), and can't come back."""
+        cart = self._cart()  # the lamp: a 3-day return item on the same sale
+        missing = self.api.post(f"/api/pos/carts/{cart['id']}/add-item/", {'sku': 'ITM0051377'}, format='json')
+        self.assertEqual(missing.status_code, 404, missing.content)
+        r = self.api.post(f"/api/pos/carts/{cart['id']}/add-manual-line/",
+                          {'description': 'Tag not found ITM0051377', 'unit_price': '20.00'}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        data = self._attach(cart['id']).json()
+        tp = data['thrift_plus']
+        manual = next(l for l in data['lines'] if l['line_kind'] == 'manual')
+        lamp = next(l for l in data['lines'] if l['line_kind'] == 'item')
+        self.assertEqual((data['total'], tp['collected']), ('107.00', '35.00'))  # $100 taxed; only the lamp collects
+        self.assertEqual(tp['lines'][str(lamp['id'])]['mark'], '3-day return')
+        self.assertNotIn(str(manual['id']), tp['lines'])  # nothing collected, no mark: posReceipt prints it AS IS
+        done = self._complete(cart['id'])
+        self.assertEqual(done.status_code, 200, done.content)
+        line = CartLine.objects.get(pk=manual['id'])
+        snap = line.meta['thrift_plus']
+        self.assertEqual((snap['collected'], snap['kept'], snap['mark']), ('0.00', '0.00', 'AS IS'))
+        self.assertFalse(LedgerEntry.objects.filter(cart_line_id=line.pk, kind=LedgerEntry.KIND_BANK, amount__gt=0).exists())
+        self.assertIn('Only items can come back.', returns.problems(line, self.account))
+
 
 class PhoneFindTests(RegisterBase):
     """Owner 2026-10-14: there is no Thrift+ card. A member shows the QR in the Thrift+ app (``TP`` + their code, the

@@ -8,6 +8,9 @@
  *   line left to remove it, with Undo; "Clear my trip").
  * - **Every action is on the bottom buttons:** the camera open: See this trip; a tag scanned: Pass or Add to trip
  *   (swiping the tag right or left does the same, never mentioned); the trip open: Scan more.
+ * - **Every code gets an answer** (owner 2026-10-15, APP D13 to D15): a product barcode or other text says "That's
+ *   not our price tag", our code with no item "We can't find that item", one of our links "That QR code is a link";
+ *   each with Scan again. The camera zooms with the phone's own levels (CameraCard, useQrCamera).
  * - **The header:** tap it for what Thrift+ is; the Your ThriftBucks pill shows Thrift+ credit and every ThriftBuck
  *   in the order the register uses them, with My account and Sign out.
  * The ThriftBucks are the engine's, from the calculator's saved setting (before launch: launch day).
@@ -23,6 +26,7 @@ import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import ExpandLessRounded from '@mui/icons-material/ExpandLessRounded';
 import ExpandMoreRounded from '@mui/icons-material/ExpandMoreRounded';
+import OpenInNewRounded from '@mui/icons-material/OpenInNewRounded';
 import QrCodeScannerRounded from '@mui/icons-material/QrCodeScannerRounded';
 import SearchOffRounded from '@mui/icons-material/SearchOffRounded';
 import ShoppingCartOutlined from '@mui/icons-material/ShoppingCartOutlined';
@@ -41,8 +45,9 @@ import { tbNumber } from '../../../components/thriftplus/ThriftBucks';
 import { AccountPage } from './AccountScreens';
 import { CameraCard } from './CameraCard';
 import { InfoPopup } from './Explainers';
+import { CantFindItem, NotOurTag, OurLink } from './ScanAnswers';
 import { bankInto } from './TicketRain';
-import { ScanGate, money, parseTagCode } from './scannerLogic';
+import { ScanGate, classifyCode, money, type ScannedCode } from './scannerLogic';
 import { CategoryBadge, art, sc, u } from './scannerTheme';
 import { BalanceSheet, FeelSheet, InfoSheet, RETAIL_INFO, RETURNS_INFO, ThriftPlusSheet, TripHeader, WalletSheet, type Feel, type Info } from './tripSheets';
 import { BigBucks, BigButton, QtyStepper, ReturnsBadge, SwipeRow, useCountUp, useSwipe, useUndo } from './tripUi';
@@ -56,7 +61,26 @@ interface Top {
   key: number;
   sku: string;
   lookup: TagLookup | null;
+  /** What the camera read or someone typed (APP D14, D15); none for a trip line seen again (D12). */
+  code?: ScannedCode;
+  /** The gate's name for this code, ignored for 3 s after [Scan again]. */
+  gateKey?: string;
 }
+
+/** The answer card a code gets instead of a tag (owner 2026-10-15, APP D14a, D14b, D15), or null for a tag. */
+type Answer = 'not-ours' | 'not-found' | 'link';
+
+function answerFor(top: Top | null): Answer | null {
+  const code = top?.code;
+  if (!code) return null;
+  if (code.kind === 'other') return 'not-ours';
+  if (code.kind === 'link') return 'link';
+  if (top.lookup?.status === 'not_found') return code.ours ? 'not-found' : 'not-ours';
+  return null;
+}
+
+/** [Scan again] ignores that same code this long, so it doesn't pop straight back up (APP D14). */
+const SCAN_AGAIN_IGNORE_MS = 3000;
 
 const TYPE_ONLY_KEY = 'tp-type-only';
 
@@ -86,7 +110,6 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
   const [mode, setMode] = useState<Mode>('scan');
   const [top, setTop] = useState<Top | null>(null);
   const [flash, setFlash] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
   // ecothrift.us/qr lands on /scan?view=qr: open the Member QR right away (owner 2026-10-14, APP D5 and D6).
   const [sheet, setSheet] = useState<null | 'about' | 'wallet' | 'balance' | 'camera'>(() => (cardAsked && member ? 'wallet' : null));
   // Also when it's asked after the scanner opened: a join's code or link signs in, then the address says view=qr.
@@ -100,7 +123,6 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const topRef = useRef<Top | null>(null);
   const gate = useRef(new ScanGate(2000));
-  const toastTimer = useRef<number | null>(null);
   topRef.current = top;
 
   const lines = [...(cart.data?.lines ?? [])].sort((a, b) => b.added_at.localeCompare(a.added_at));
@@ -123,37 +145,31 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
     loadDetector().catch(() => undefined);
   }, []);
 
-  const showToast = useCallback((msg: string) => {
-    setToast(msg);
-    if (toastTimer.current != null) window.clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToast(null), 1800);
-  }, []);
-
-  const handleCodeRef = useRef<(raw: string, from: 'camera' | 'typed') => void>(() => undefined);
+  const handleCodeRef = useRef<(raw: string, from: 'camera' | 'typed', format?: string) => void>(() => undefined);
   const typeOnly = typeOnlyMode();
   const camera = useQrCamera({
     enabled: !typeOnly,
     paused: mode !== 'scan' || sheet != null || info != null || feel != null || accountOpen,
-    onDecode: (raw) => handleCodeRef.current(raw, 'camera'),
+    onDecode: (raw, format) => handleCodeRef.current(raw, 'camera', format),
   });
 
-  handleCodeRef.current = (raw, from) => {
+  // Every code read gets an answer (owner 2026-10-15, APP D14, D15): a buzz and a flash, then a tag, or a card that
+  // says what the code is. Only tag codes are looked up.
+  handleCodeRef.current = (raw, from, format) => {
     camera.poke();
     if (topRef.current) return;
-    const sku = parseTagCode(raw);
-    if (!sku) {
-      if (from === 'camera' && !gate.current.accept(`raw:${raw}`)) return;
-      showToast("That code isn't a price tag");
-      return;
-    }
-    if (from === 'camera' && !gate.current.accept(sku)) return;
+    const code = classifyCode(raw, format);
+    const text = raw.trim();
+    const gateKey = code.kind === 'tag' ? code.sku : `raw:${text}`;
+    if (from === 'camera' && !gate.current.accept(gateKey)) return;
     navigator.vibrate?.(15);
     setFlash(true);
     window.setTimeout(() => setFlash(false), 260);
     const key = Date.now();
-    setTop({ key, sku, lookup: null });
+    setTop({ key, sku: code.kind === 'tag' ? code.sku : text, lookup: null, code, gateKey });
     setMode('card');
-    void lookupTag(sku).then((lookup) => {
+    if (code.kind !== 'tag') return;
+    void lookupTag(code.sku).then((lookup) => {
       setTop((t) => (t && t.key === key ? { ...t, lookup } : t));
       void qc.invalidateQueries({ queryKey: thriftPlusKeys.history });
     });
@@ -162,9 +178,18 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
   const found = top?.lookup?.status === 'found' ? top.lookup.item : null;
   const canAdd = !!found && found.available;
   const inTrip = found ? qtyOf(found.sku) : 0;
+  const answer = mode === 'card' ? answerFor(top) : null;
 
   const closeCard = () => {
-    if (topRef.current) gate.current.hold(topRef.current.sku);
+    if (topRef.current) gate.current.hold(topRef.current.gateKey ?? topRef.current.sku);
+    setTop(null);
+    setMode('scan');
+    camera.poke();
+  };
+  /** [Scan again] on an answer card: back to the camera, and that same code is ignored for 3 s (APP D14). */
+  const scanAgain = () => {
+    const t = topRef.current;
+    if (t) gate.current.ignore(t.gateKey ?? t.sku, SCAN_AGAIN_IGNORE_MS);
     setTop(null);
     setMode('scan');
     camera.poke();
@@ -233,6 +258,10 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
         if (e.key === 'ArrowLeft' || e.key === 'Escape') backToTrip();
         return;
       }
+      if (answer) {
+        if (e.key === 'ArrowLeft' || e.key === 'Escape') scanAgain();
+        return;
+      }
       if (e.key === 'ArrowRight') add();
       if (e.key === 'ArrowLeft' || e.key === 'Escape') pass();
     };
@@ -281,6 +310,8 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
                 videoRef={camera.videoRef}
                 status={camera.status}
                 error={camera.error}
+                zoom={camera.zoom}
+                switching={camera.switching}
                 underneath={false}
                 flash={flash}
                 onWake={camera.wake}
@@ -292,21 +323,16 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
                 <ScanCard
                   key={top.key}
                   top={top}
+                  answer={answer}
                   isGuest={isGuest}
                   verified18={member?.verified_18 ?? false}
                   qty={inTrip}
                   onAdd={canAdd ? add : null}
-                  onPass={pass}
+                  onPass={answer ? scanAgain : pass}
                   onFeel={() => setFeel({ step: 'reasons' })}
                   onRetail={() => setInfo(RETAIL_INFO)}
                   onReturns={(ok) => setInfo(RETURNS_INFO[ok ? 'yes' : 'no'])}
                 />
-              )}
-              {toast && (
-                <Box role="status" sx={{ position: 'absolute', top: u(24), left: '50%', transform: 'translateX(-50%)', zIndex: 6, px: u(32), py: u(16),
-                  borderRadius: 99, bgcolor: 'rgba(16,21,17,0.88)', color: '#fff', fontSize: u(30), fontWeight: 500, whiteSpace: 'nowrap' }}>
-                  {toast}
-                </Box>
               )}
             </>
           )}
@@ -327,7 +353,21 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
             </BigButton>
             </>
           )}
-          {mode === 'card' && (
+          {mode === 'card' && answer && (
+            <>
+              {top?.code?.kind === 'link' && (
+                <BigButton href={top.code.href} testId="open-link">
+                  <OpenInNewRounded sx={{ fontSize: u(42) }} />
+                  Open link
+                </BigButton>
+              )}
+              <BigButton primary flex={answer === 'link' ? 1.35 : 1} onClick={scanAgain} testId="scan-again">
+                <QrCodeScannerRounded sx={{ fontSize: u(46) }} />
+                Scan again
+              </BigButton>
+            </>
+          )}
+          {mode === 'card' && !answer && (
             <>
               <BigButton onClick={pass} testId="pass">
                 <CloseRounded sx={{ fontSize: u(44) }} />
@@ -477,9 +517,13 @@ function RetailPrice({ value, onClick }: { value: string; onClick: () => void })
   );
 }
 
-/** The scanned tag, filling the middle: a big centered price tag. Swipes right to add, left to pass. */
-function ScanCard({ top, isGuest, verified18, qty, onAdd, onPass, onFeel, onRetail, onReturns }: {
+/**
+ * The scanned tag, filling the middle: a big centered price tag. Swipes right to add, left to pass. A code that isn't
+ * a tag we have shows its answer here instead (APP D14, D15); a left swipe is then [Scan again].
+ */
+function ScanCard({ top, answer = null, isGuest, verified18, qty, onAdd, onPass, onFeel, onRetail, onReturns }: {
   top: Top;
+  answer?: Answer | null;
   isGuest: boolean;
   verified18: boolean;
   qty: number;
@@ -503,21 +547,26 @@ function ScanCard({ top, isGuest, verified18, qty, onAdd, onPass, onFeel, onReta
         animation: 'tpCardIn 220ms ease-out', '@keyframes tpCardIn': { from: { transform: 'scale(0.96)', opacity: 0 }, to: { transform: 'none', opacity: 1 } },
       }}
     >
-      {!lookup ? (
+      {answer === 'not-ours' ? (
+        <NotOurTag />
+      ) : answer === 'link' && top.code?.kind === 'link' ? (
+        <OurLink shown={top.code.shown} />
+      ) : answer === 'not-found' || lookup?.status === 'not_found' ? (
+        <CantFindItem code={top.sku} onAsIs={() => onReturns(false)} />
+      ) : !lookup ? (
         <>
           <CircularProgress size={36} sx={{ color: sc.green }} />
           <Box sx={{ mt: u(24), fontSize: u(32), color: sc.ink2 }}>Looking up</Box>
           <Box sx={{ fontFamily: sc.mono, fontSize: u(28), color: sc.ink3 }}>{top.sku}</Box>
         </>
       ) : lookup.status !== 'found' ? (
+        // No connection stays as built (APP D14).
         <>
           <SearchOffRounded sx={{ fontSize: u(110), color: sc.ink3 }} />
           <Box sx={{ mt: u(16), fontFamily: sc.condensed, fontSize: u(50), fontWeight: 700, color: sc.titleGreen, lineHeight: 1.1 }}>
-            {lookup.status === 'not_found' ? "We couldn't find that tag" : 'No connection'}
+            No connection
           </Box>
-          <Box sx={{ mt: u(12), fontSize: u(30), color: sc.ink2, lineHeight: 1.35 }}>
-            {lookup.status === 'not_found' ? 'Ask a team member, or try scanning it again.' : lookup.message}
-          </Box>
+          <Box sx={{ mt: u(12), fontSize: u(30), color: sc.ink2, lineHeight: 1.35 }}>{lookup.message}</Box>
           <Box sx={{ mt: u(16), fontFamily: sc.mono, fontSize: u(26), color: sc.ink3 }}>{lookup.sku}</Box>
         </>
       ) : (
