@@ -7,6 +7,7 @@ import PhotoCameraRounded from '@mui/icons-material/PhotoCameraRounded';
 import { fetchTestTags } from '../../../api/thriftPlusScanner.api';
 import { tbNumber } from '../../../components/thriftplus/ThriftBucks';
 import { activeLevel, chipText, onLevel, pinchZoom, zoomText } from './cameraZoom';
+import { LockUprightButton, type UprightLock } from './Sideways';
 import type { CameraStatus, CameraZoom } from './useQrCamera';
 import { sc, u } from './scannerTheme';
 
@@ -29,6 +30,10 @@ interface Props {
   onHelp: (from: HTMLElement) => void;
   /** Testing without a camera (/scan?type=1, owner 2026-10-10): only the tag box, no camera. */
   typeOnly?: boolean;
+  /** "Lock upright" (APP D16 v2), where the browser can lock the screen; null on iPhones. */
+  lock?: UprightLock | null;
+  /** A sideways phone: the camera fills the whole screen, edge to edge (APP D16 v2). */
+  fullBleed?: boolean;
 }
 
 /** The camera's card face: the design's white card, green edge. */
@@ -46,7 +51,8 @@ const cardFaceSx = {
  * The bottom card of the stack: the live camera. It never unmounts, so when an
  * item card is swiped away the scanner is already running underneath.
  */
-export function CameraCard({ videoRef, status, error, zoom = null, switching = false, underneath, flash, onWake, onCode, onHelp, typeOnly = false }: Props) {
+export function CameraCard({ videoRef, status, error, zoom = null, switching = false, underneath, flash, onWake, onCode, onHelp, typeOnly = false,
+  lock = null, fullBleed = false }: Props) {
   const [typing, setTyping] = useState(false);
   const [typed, setTyped] = useState('');
   const noCamera = !typeOnly && (status === 'unsupported' || status === 'blocked');
@@ -74,6 +80,7 @@ export function CameraCard({ videoRef, status, error, zoom = null, switching = f
       aria-hidden={underneath}
       sx={{
         ...cardFaceSx,
+        ...(fullBleed ? { borderRadius: 0, border: 'none' } : {}),
         zIndex: 1,
         bgcolor: sc.night,
         transform: underneath ? `translate(${u(24)}, ${u(22)})` : 'none',
@@ -114,8 +121,9 @@ export function CameraCard({ videoRef, status, error, zoom = null, switching = f
           sx={{
             position: 'absolute',
             left: '50%',
-            top: '46%',
-            width: '62%',
+            // Sideways (full bleed), the square is sized by the screen's height so its corners stay on screen.
+            top: fullBleed ? '50%' : '46%',
+            width: fullBleed ? 'min(62%, 66vh)' : '62%',
             aspectRatio: '1 / 1',
             transform: 'translate(-50%, -50%)',
             borderRadius: u(28),
@@ -194,6 +202,13 @@ export function CameraCard({ videoRef, status, error, zoom = null, switching = f
 
       {showZoom && zoom && <ZoomPill zoom={zoom} />}
 
+      {/* "Lock upright" (owner 2026-10-15, APP D16 v2): top left, out of the viewfinder's way. Sideways has its own. */}
+      {lock && !fullBleed && !underneath && !typeOnly && (
+        <Box sx={{ position: 'absolute', top: u(24), left: u(24), zIndex: 2 }}>
+          <LockUprightButton lock={lock} />
+        </Box>
+      )}
+
       {/* Type a tag number (sample tags live here too while this is a mock). */}
       <Box sx={{ position: 'absolute', left: u(24), right: u(24), bottom: u(24) }}>
         {pickList ? (
@@ -246,7 +261,7 @@ export function CameraCard({ videoRef, status, error, zoom = null, switching = f
               </ButtonBase>
             )}
           </Box>
-        ) : (
+        ) : fullBleed ? null : (
           <Box sx={{ display: 'flex', justifyContent: 'center' }}>
             <ButtonBase
               onClick={() => setTyping(true)}

@@ -46,12 +46,14 @@ import { AccountPage } from './AccountScreens';
 import { CameraCard } from './CameraCard';
 import { InfoPopup } from './Explainers';
 import { CantFindItem, NotOurTag, OurLink } from './ScanAnswers';
+import { SidewaysGotIt, SidewaysScanPill, TurnUprightScreen } from './Sideways';
 import { bankInto } from './TicketRain';
 import { ScanGate, classifyCode, money, type ScannedCode } from './scannerLogic';
 import { CategoryBadge, art, sc, u } from './scannerTheme';
-import { BalanceSheet, FeelSheet, InfoSheet, RETAIL_INFO, RETURNS_INFO, ThriftPlusSheet, TripHeader, WalletSheet, type Feel, type Info } from './tripSheets';
+import { BalanceSheet, FeelSheet, InfoSheet, RETAIL_INFO, RETURNS_INFO, SidewaysQr, ThriftPlusSheet, TripHeader, WalletSheet, type Feel, type Info } from './tripSheets';
 import { BigBucks, BigButton, QtyStepper, ReturnsBadge, SwipeRow, useCountUp, useSwipe, useUndo } from './tripUi';
 import { loadDetector, useQrCamera } from './useQrCamera';
+import { useSideways, useUprightLock } from './screenLock';
 import { thriftPlusKeys, useCartActions, useSignIn, useThriftPlusCart } from './useThriftPlus';
 
 // 'item': a trip line's tag seen again from This trip (owner 2026-10-15, APP D12).
@@ -119,6 +121,10 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
   }, [cardAsked, hasMember]);
   const [info, setInfo] = useState<Info | null>(null);
   const [feel, setFeel] = useState<Feel | null>(null);
+  // A phone held sideways (owner 2026-10-15, APP D16 v2): the camera keeps scanning full screen, everything else asks
+  // to turn the phone upright. "Lock upright" locks the screen where the browser can (Android).
+  const sideways = useSideways();
+  const lock = useUprightLock();
   const undo = useUndo(24);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const topRef = useRef<Top | null>(null);
@@ -278,6 +284,12 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
     else setParams({}, { replace: true });
   };
 
+  const overlayOpen = !!sheet || !!info || !!feel || accountOpen;
+  const cameraSideways = sideways && mode === 'scan' && !overlayOpen;
+  // A code read while sideways (the tag is ready underneath), and the Member QR shown alone to a cashier.
+  const readSideways = mode === 'card' && !overlayOpen;
+  const qrSideways = sheet === 'wallet' && !!member && !info && !feel && !accountOpen;
+
   return (
     <Box ref={rootRef} onPointerDown={() => camera.poke()} sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}>
       {member?.test_mode && <TestModeBar />}
@@ -286,7 +298,7 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
         display: 'flex', flexDirection: 'column', gap: u(18) }}>
         <SummaryBar count={count} total={shown} lines={lines} open={mode === 'trip' || mode === 'item'} onToggle={toggleTrip} isGuest={isGuest} />
 
-        <Box data-testid="stage" sx={{ position: 'relative', flex: 1, minHeight: 0 }}>
+        <Box data-testid="stage" sx={cameraSideways ? { position: 'fixed', inset: 0, zIndex: 70 } : { position: 'relative', flex: 1, minHeight: 0 }}>
           {mode === 'trip' ? (
             <TripView lines={lines} onQty={setQty} onRemove={removeLine} onClear={clearTrip} onOpen={openLine} />
           ) : mode === 'item' ? (
@@ -318,6 +330,8 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
                 onCode={(code) => handleCodeRef.current(code, 'typed')}
                 onHelp={() => setSheet('camera')}
                 typeOnly={typeOnly}
+                lock={lock}
+                fullBleed={cameraSideways}
               />
               {top && (
                 <ScanCard
@@ -434,6 +448,12 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
       )}
       {accountOpen && member && (
         <AccountPage member={member} onBack={closeAccount} onSignOut={() => auth.signOut.mutate()} onSignInWithPassword={() => auth.signOut.mutate()} />
+      )}
+      {sideways && (
+        cameraSideways ? <SidewaysScanPill lock={lock} />
+          : readSideways ? <SidewaysGotIt />
+            : qrSideways ? <SidewaysQr />
+              : <TurnUprightScreen lock={lock} />
       )}
     </Box>
   );

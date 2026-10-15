@@ -51,10 +51,12 @@ function sourceFiles(dir: string, skip: string[] = []): string[] {
 
 /**
  * Whole files, comments included, less what is not copy: CSS's own "cover" (objectFit, backgroundSize), and the
- * data names 'bank' and `.banked` (V8: data and API names stay; people read "Kept" and "Your ThriftBucks").
+ * data names 'bank' and `.banked` (V8: data and API names stay; people read "Kept" and "Your ThriftBucks"), and the
+ * browser's own `screen.orientation.unlock()` (APP D16 v2's "Lock upright").
  */
 function asCopy(text: string): string {
   return text
+    .replace(/\.unlock\(\)/g, '')
     .replace(/\b(objectFit|backgroundSize|object-fit|background-size)\s*:\s*['"]?cover['"]?/g, '')
     .replace(/(['"])bank\1/g, '')
     .replace(/\.banked\b/g, '');

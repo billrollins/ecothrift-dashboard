@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.170.1] -->
-<!-- Last reviewed: 2026-10-15 (2.170.1) -->
+<!-- Line 1 release: ## [2.170.2] -->
+<!-- Last reviewed: 2026-10-15 (2.170.2) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.170.2] - 2026-10-15
+
+User-facing theme: **A "Lock upright" button for the Thrift+ scanner, and clean screens for a sideways phone (Bill, 2026-10-15).** thrift_plus Phase 4 (app).
+
+### Fixed
+
+- **The turned page is gone:** a sideways phone no longer shows the scanner turned back inside a sideways browser (v2.170.1, "ugly").
+- **Lock upright:** on phones whose browser allows it (Android), a "Lock upright" button on the camera puts the scanner in full screen and locks the screen in portrait, like the phone's own rotation lock. Tap it again, or leave full screen, to let it turn. iPhone browsers can't lock, so they don't show it.
+- **Sideways without the lock (iPhones):** the camera keeps scanning full screen with "Turn your phone upright for the full app"; a code read sideways says "Got it! Turn your phone upright to see it."; the Member QR shows alone, large, for the cashier; anything else asks to turn the phone upright, and nothing open is lost. The home-screen app still locks portrait (APP D16 v2).
 
 ## [2.170.1] - 2026-10-15
 

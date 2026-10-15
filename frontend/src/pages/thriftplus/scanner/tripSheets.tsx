@@ -184,8 +184,8 @@ function cachedCard(): MyCard | undefined {
   }
 }
 
-/** The QR, crisp: an SVG with a 4-module quiet zone, error correction M (APP D1). */
-function CardQr({ text }: { text: string }) {
+/** The QR, crisp: an SVG with a 4-module quiet zone, error correction M (APP D1). `size` overrides the sheet's size. */
+function CardQr({ text, size }: { text: string; size?: string }) {
   const [svg, setSvg] = useState('');
   useEffect(() => {
     let live = true;
@@ -198,8 +198,34 @@ function CardQr({ text }: { text: string }) {
   }, [text]);
   return (
     <Box data-testid="my-card-qr" role="img" aria-label="Your member QR"
-      sx={{ width: u(560), height: u(560), maxWidth: '100%', mx: 'auto', '& svg': { width: '100%', height: '100%', display: 'block', shapeRendering: 'crispEdges' } }}
+      sx={{ width: size ?? u(560), height: size ?? u(560), maxWidth: '100%', mx: 'auto', '& svg': { width: '100%', height: '100%', display: 'block', shapeRendering: 'crispEdges' } }}
       dangerouslySetInnerHTML={{ __html: svg }} />
+  );
+}
+
+/**
+ * The Member QR on a phone held sideways (APP D16 v2: a member turning the phone to show the cashier): the QR alone, as
+ * large as fits, with the code under it. Plain pixels: the design unit is sized for an upright phone.
+ */
+export function SidewaysQr() {
+  const card = useQuery({ queryKey: thriftPlusKeys.myCard, queryFn: getMyCard, initialData: cachedCard, staleTime: 60_000 });
+  const c = card.data;
+  return (
+    <Box data-testid="sideways-qr"
+      sx={{ position: 'fixed', inset: 0, zIndex: 80, bgcolor: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', gap: '6px', fontFamily: sc.font }}>
+      {c ? (
+        <>
+          <CardQr text={c.qr} size="min(74vh, 74vw)" />
+          <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: 18, letterSpacing: '0.12em', color: sc.ink }}>{c.display}</Box>
+          <Box sx={{ fontSize: 14, color: sc.ink2 }}>
+            {c.ready ? 'Show this at the register.' : 'Finish joining at any register. Show them this code.'}
+          </Box>
+        </>
+      ) : (
+        <CircularProgress sx={{ color: sc.green }} />
+      )}
+    </Box>
   );
 }
 

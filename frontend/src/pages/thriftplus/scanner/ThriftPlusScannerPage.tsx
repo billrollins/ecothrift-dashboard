@@ -16,16 +16,20 @@ import { isOpen, setPreviewCode, type SignInPurpose } from '../../../api/thriftP
 import { ResetPasswordScreen } from './AccountScreens';
 import { SignInScreen } from './SignInScreen';
 import { TripScanner } from './TripScanner';
-import { UNIT_CSS, UNIT_CSS_TURNED, sc, useScannerFonts } from './scannerTheme';
+import { UNIT_CSS, sc, useScannerFonts } from './scannerTheme';
 import { installScannerHead } from './installApp';
-import { usePortraitTurn } from './portraitLock';
+import { TurnUprightScreen } from './Sideways';
+import { useSideways, useStandaloneLock, useUprightLock } from './screenLock';
 import { loadDetector } from './useQrCamera';
 import { useSignIn, useThriftPlusSession } from './useThriftPlus';
 
 const TYPE_ONLY_KEY = 'tp-type-only';
 
 export default function ThriftPlusScannerPage() {
-  const turn = usePortraitTurn();
+  // A phone held sideways gets its own screens; "Lock upright" where the browser can (owner 2026-10-15, APP D16 v2).
+  const sideways = useSideways();
+  const lock = useUprightLock();
+  useStandaloneLock();
   useScannerFonts();
   const [pageParams, setPageParams] = useSearchParams();
   const resetToken = pageParams.get('reset');
@@ -96,6 +100,8 @@ export default function ThriftPlusScannerPage() {
     };
   }, []);
 
+  const tripShown = open.data !== false && !resetToken && !signinToken && !!session.data && session.data.status !== 'signed_out' && !joinShown;
+
   return (
     <Box
       sx={{
@@ -105,17 +111,15 @@ export default function ThriftPlusScannerPage() {
         display: 'flex',
         justifyContent: 'center',
         overflow: 'hidden',
-        '--u': turn ? UNIT_CSS_TURNED : UNIT_CSS,
+        '--u': UNIT_CSS,
       }}
     >
       <Box
-        data-turn={turn}
         sx={{
-          // A sideways phone: the page turns back so it stays upright on the phone (owner 2026-10-15).
-          ...(turn
-            ? { position: 'absolute', top: '50%', left: '50%', width: 'min(100dvh, 480px)', height: '100vw',
-                transform: `translate(-50%, -50%) rotate(${turn}deg)` }
-            : { position: 'relative', width: '100%', maxWidth: 480, height: '100dvh' }),
+          position: 'relative',
+          width: '100%',
+          maxWidth: 480,
+          height: '100dvh',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
@@ -149,6 +153,8 @@ export default function ThriftPlusScannerPage() {
           <TripScanner session={session.data} />
         )}
       </Box>
+      {/* The trip scanner has its own sideways screens (the camera keeps scanning); every other screen asks to turn upright. */}
+      {sideways && !tripShown && <TurnUprightScreen lock={lock} />}
     </Box>
   );
 }
