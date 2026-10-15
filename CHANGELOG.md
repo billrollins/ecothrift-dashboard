@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.167.0] -->
-<!-- Last reviewed: 2026-10-15 (2.167.0) -->
+<!-- Line 1 release: ## [2.167.1] -->
+<!-- Last reviewed: 2026-10-15 (2.167.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.167.1] - 2026-10-15
+
+User-facing theme: **Thrift+ app (still off for customers): the top-right pill is two buttons, the member's ThriftBucks balance and their Member QR; and a tap on an item in This trip shows its tag again (Bill, 2026-10-15).** thrift_plus Phase 4 (app), APP D11 and D12.
+
+### Changed
+
+- **Top right, every screen (members):** the balance (tap: Your ThriftBucks, Thrift+ credit and every ThriftBuck in the order the register uses them, the rewards line, My account, Sign out, "Show my member QR") and a big QR button (tap: the Member QR and "Add your member QR to your home screen", nothing else). Non-members keep "Sign in".
+- **This trip:** tap an item to see its tag again ("N in your trip"), with **Remove** (Undo as usual) and **Back to trip**; a left swipe, Escape or the left arrow go back. A second look is not counted as a scan.
 
 ## [2.167.0] - 2026-10-15
 

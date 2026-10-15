@@ -225,7 +225,7 @@ export function QtyStepper({ qty, onChange, size = 58 }: { qty: number; onChange
 }
 
 /** A line that slides left to show "Remove", and goes when let go far enough (owner 2026-10-12). */
-export function SwipeRow({ children, onRemove, label }: { children: React.ReactNode; onRemove: () => void; label: string }) {
+export function SwipeRow({ children, onRemove, label, onTap }: { children: React.ReactNode; onRemove: () => void; label: string; onTap?: () => void }) {
   const [dx, setDx] = useState(0);
   const [dragging, setDragging] = useState(false);
   const drag = useRef<{ id: number; x: number; y: number; on: boolean } | null>(null);
@@ -237,7 +237,12 @@ export function SwipeRow({ children, onRemove, label }: { children: React.ReactN
   const up = (e: ReactPointerEvent<HTMLDivElement>) => {
     const d = drag.current;
     drag.current = null;
-    if (!d?.on) return;
+    if (!d) return;
+    if (!d.on) {
+      // A tap, not a slide: open the line (APP D12).
+      if (e.type === 'pointerup') onTap?.();
+      return;
+    }
     setDragging(false);
     const w = e.currentTarget.offsetWidth || 300;
     if (dxRef.current < -w * 0.32) {
@@ -269,7 +274,9 @@ export function SwipeRow({ children, onRemove, label }: { children: React.ReactN
         }}
         onPointerUp={up}
         onPointerCancel={up}
+        role={onTap ? 'button' : undefined}
         sx={{ position: 'relative', bgcolor: sc.card, border: '1px solid #ecede8', borderRadius: u(26), touchAction: 'pan-y', userSelect: 'none',
+          cursor: onTap ? 'pointer' : undefined, '&:active': onTap ? { bgcolor: '#e7f3e0' } : undefined,
           transform: `translateX(${dx}px)`, transition: dragging ? 'none' : 'transform 170ms ease-out' }}
       >
         {children}

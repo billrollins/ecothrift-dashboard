@@ -81,6 +81,49 @@ beforeEach(() => {
 });
 
 describe('Thrift+ trip scanner (owner 2026-10-13)', () => {
+  it('opens a trip line\'s tag again from This trip, with Remove and Back to trip (owner 2026-10-15, APP D12)', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await signInAsMember(user);
+    await scan(user, 'TP0000001');
+    await screen.findByTestId('scan-card');
+    await user.click(screen.getByTestId('add'));
+    await waitFor(() => expect(screen.getByTestId('trip-count')).toHaveTextContent('1'));
+    await user.click(screen.getByTestId('trip-summary'));
+    const trip = await screen.findByTestId('trip-view');
+    expect(trip).toHaveTextContent('Tap an item to see its tag · tap ×1 to change how many · slide left to remove');
+
+    // A tap on the line (not the ×1 chip): the tag screen, "1 in your trip", and the trip's own buttons.
+    await user.click(within(trip).getByText('Cordless Drill Kit'));
+    const card = await screen.findByTestId('scan-card');
+    expect(within(card).getByText('Cordless Drill Kit')).toBeInTheDocument();
+    expect(card).toHaveTextContent(/1 in your trip/);
+    const actions = screen.getByTestId('actions');
+    expect(within(actions).getByTestId('remove-line')).toHaveTextContent('Remove');
+    expect(within(actions).getByTestId('back-to-trip')).toHaveTextContent('Back to trip');
+    expect(within(actions).queryByTestId('add')).toBeNull();
+
+    // Back to trip, then Escape does the same.
+    await user.click(within(actions).getByTestId('back-to-trip'));
+    expect(await screen.findByTestId('trip-view')).toBeInTheDocument();
+    await user.click(within(screen.getByTestId('trip-view')).getByText('Cordless Drill Kit'));
+    await screen.findByTestId('scan-card');
+    await user.keyboard('{Escape}');
+    expect(await screen.findByTestId('trip-view')).toBeInTheDocument();
+
+    // The ×1 chip still opens − +, not the tag.
+    await user.click(within(screen.getByTestId('trip-view')).getByTestId('qty-chip'));
+    expect(screen.queryByTestId('scan-card')).toBeNull();
+
+    // Remove takes the whole line out, with Undo, and goes back to the trip.
+    await user.click(within(screen.getByTestId('trip-view')).getByText('Cordless Drill Kit'));
+    await screen.findByTestId('scan-card');
+    await user.click(screen.getByTestId('remove-line'));
+    await waitFor(() => expect(screen.getByTestId('trip-count')).toHaveTextContent('0'));
+    expect(await screen.findByTestId('trip-view')).toBeInTheDocument();
+    expect(screen.getByTestId('undo-toast')).toHaveTextContent('Removed Cordless Drill Kit');
+  });
+
   it('says coming soon while Thrift+ is off (owner, 2026-10-07)', async () => {
     const api = await import('../../../api/thriftPlusScanner.api');
     vi.mocked(api.isOpen).mockResolvedValueOnce(false);
@@ -188,25 +231,38 @@ describe('Thrift+ trip scanner (owner 2026-10-13)', () => {
     expect(about).toHaveTextContent('Non-members pay the tag. Everything a non-member buys is sold AS IS. All sales final.');
     await user.click(within(about).getByRole('button', { name: 'Close' }));
 
-    // The Member QR button, top right on every screen (owner 2026-10-14, APP D7); the balance is in the sheet, not the header.
-    const pill = screen.getByTestId('wallet-pill');
-    expect(pill).toHaveAccessibleName('Member QR: show it at the register');
-    expect(pill).toHaveTextContent('Member QR');
+    // Top right on every screen, two buttons in one pill (owner 2026-10-15, APP D11): the balance and the QR.
+    const balance = screen.getByTestId('wallet-pill');
+    expect(balance).toHaveAccessibleName(/^Your ThriftBucks: .+\. See your balance$/);
+    expect(balance).toHaveTextContent('ThriftBucks');
+    const qr = screen.getByTestId('qr-pill');
+    expect(qr).toHaveAccessibleName('Member QR: show it at the register');
     expect(screen.queryByTestId('my-card-button')).not.toBeInTheDocument();
-    await user.click(pill);
+    await user.click(qr);
     const wallet = await screen.findByTestId('wallet-sheet');
     // My card (owner 2026-10-14): the QR to show at the register, its code to type, and the card's B12 line.
     expect(await within(wallet).findByTestId('my-card-code')).toHaveTextContent('4021 5583 1907');
     await waitFor(() => expect(within(wallet).getByTestId('my-card-qr').querySelector('svg')).not.toBeNull());
     expect(within(wallet).getByTestId('my-card')).toHaveTextContent('Show this at the register.');
     expect(within(wallet).getByTestId('my-card')).toHaveTextContent('ThriftBucks are Thrift+ rewards: use within 30 days of collecting. No cash value.'); 
-    const rows = await within(wallet).findAllByTestId('wallet-row');
+    // The QR sheet holds the QR and nothing else (D11).
+    expect(within(wallet).queryByTestId('wallet-row')).toBeNull();
+    expect(within(wallet).queryByTestId('sign-out')).toBeNull();
+    await user.click(within(wallet).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByTestId('wallet-sheet')).not.toBeInTheDocument());
+
+    // The balance: credit and ThriftBucks in the order used, the B12 line, sign out, and back to the QR.
+    await user.click(screen.getByTestId('wallet-pill'));
+    const sheet = await screen.findByTestId('balance-sheet');
+    const rows = await within(sheet).findAllByTestId('wallet-row');
     expect(rows[0]).toHaveTextContent('Thrift+ credit');
     expect(rows[0]).toHaveTextContent('$8.56');
     expect(rows[1]).toHaveTextContent('use by Nov 1');
-    expect(within(wallet).getByTestId('sign-out')).toBeInTheDocument();
-    await user.click(within(wallet).getByRole('button', { name: 'Close' }));
-    await waitFor(() => expect(screen.queryByTestId('wallet-sheet')).not.toBeInTheDocument());
+    expect(sheet).toHaveTextContent('ThriftBucks are Thrift+ rewards: use within 30 days of collecting. No cash value.');
+    expect(within(sheet).getByTestId('sign-out')).toBeInTheDocument();
+    await user.click(within(sheet).getByTestId('show-qr'));
+    expect(await screen.findByTestId('wallet-sheet')).toBeInTheDocument();
+    expect(screen.queryByTestId('balance-sheet')).toBeNull();
   });
 
   it('ecothrift.us/qr signs in, then opens the Member QR; on iPhone Safari it shows how to add it to the home screen', async () => {

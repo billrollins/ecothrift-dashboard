@@ -303,10 +303,12 @@ export async function fetchTestTags(): Promise<TestTag[]> {
   return data.tags;
 }
 
-export async function lookupTag(sku: string): Promise<TagLookup> {
+/** One tag. `again`: a second look from This trip (APP D12), which the server doesn't count as a scan. */
+export async function lookupTag(sku: string, { again = false }: { again?: boolean } = {}): Promise<TagLookup> {
   const code = sku.trim().toUpperCase();
   try {
-    const { data } = await http.get<TagLookup>(`/tag/${encodeURIComponent(code)}/`);
+    const url = `/tag/${encodeURIComponent(code)}/`;
+    const { data } = again ? await http.get<TagLookup>(url, { params: { again: 1 } }) : await http.get<TagLookup>(url);
     if (data.status === 'found' && !member) touchGuestHistory(data.item);
     return data;
   } catch {

@@ -17,6 +17,8 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Box, ButtonBase, CircularProgress } from '@mui/material';
 import AddRounded from '@mui/icons-material/AddRounded';
+import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
+import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import ExpandLessRounded from '@mui/icons-material/ExpandLessRounded';
@@ -42,12 +44,13 @@ import { InfoPopup } from './Explainers';
 import { bankInto } from './TicketRain';
 import { ScanGate, money, parseTagCode } from './scannerLogic';
 import { CategoryBadge, art, sc, u } from './scannerTheme';
-import { FeelSheet, InfoSheet, RETAIL_INFO, RETURNS_INFO, ThriftPlusSheet, TripHeader, WalletSheet, type Feel, type Info } from './tripSheets';
+import { BalanceSheet, FeelSheet, InfoSheet, RETAIL_INFO, RETURNS_INFO, ThriftPlusSheet, TripHeader, WalletSheet, type Feel, type Info } from './tripSheets';
 import { BigBucks, BigButton, QtyStepper, ReturnsBadge, SwipeRow, useCountUp, useSwipe, useUndo } from './tripUi';
 import { loadDetector, useQrCamera } from './useQrCamera';
 import { thriftPlusKeys, useCartActions, useSignIn, useThriftPlusCart } from './useThriftPlus';
 
-type Mode = 'scan' | 'card' | 'trip';
+// 'item': a trip line's tag seen again from This trip (owner 2026-10-15, APP D12).
+type Mode = 'scan' | 'card' | 'trip' | 'item';
 
 interface Top {
   key: number;
@@ -85,7 +88,7 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
   const [flash, setFlash] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   // ecothrift.us/qr lands on /scan?view=qr: open the Member QR right away (owner 2026-10-14, APP D5 and D6).
-  const [sheet, setSheet] = useState<null | 'about' | 'wallet' | 'camera'>(() => (cardAsked && member ? 'wallet' : null));
+  const [sheet, setSheet] = useState<null | 'about' | 'wallet' | 'balance' | 'camera'>(() => (cardAsked && member ? 'wallet' : null));
   // Also when it's asked after the scanner opened: a join's code or link signs in, then the address says view=qr.
   const hasMember = !!member;
   useEffect(() => {
@@ -178,9 +181,22 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
   };
   // This trip flips between the camera and the trip's lines (owner 2026-10-13); a tag on screen is put away.
   const toggleTrip = () => {
-    if (topRef.current) gate.current.hold(topRef.current.sku);
+    if (topRef.current && mode === 'card') gate.current.hold(topRef.current.sku);
     setTop(null);
-    setMode((m) => (m === 'trip' ? 'scan' : 'trip'));
+    setMode((m) => (m === 'trip' || m === 'item' ? 'scan' : 'trip'));
+  };
+  // A trip line's tag again (APP D12): the line's item at once, refreshed in the background (not counted as a scan).
+  const openLine = (line: ThriftPlusCartLine) => {
+    const key = Date.now();
+    setTop({ key, sku: line.item.sku, lookup: { status: 'found', item: line.item } });
+    setMode('item');
+    void lookupTag(line.item.sku, { again: true }).then((lookup) => {
+      if (lookup.status === 'found') setTop((t) => (t && t.key === key ? { ...t, lookup } : t));
+    });
+  };
+  const backToTrip = () => {
+    setTop(null);
+    setMode('trip');
   };
 
   /** Put lines back (Undo), one at a time so each answer builds on the last. */
@@ -208,11 +224,15 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
     undo.show('Cleared your trip', () => void restore(before));
   };
 
-  // A laptop: right arrow adds, left arrow or Escape passes.
+  // A laptop: right arrow adds, left arrow or Escape passes; on a trip line's tag, they go back to the trip.
   useEffect(() => {
-    if (mode !== 'card' || sheet || info || feel || accountOpen) return;
+    if ((mode !== 'card' && mode !== 'item') || sheet || info || feel || accountOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
+      if (mode === 'item') {
+        if (e.key === 'ArrowLeft' || e.key === 'Escape') backToTrip();
+        return;
+      }
       if (e.key === 'ArrowRight') add();
       if (e.key === 'ArrowLeft' || e.key === 'Escape') pass();
     };
@@ -232,14 +252,29 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
   return (
     <Box ref={rootRef} onPointerDown={() => camera.poke()} sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}>
       {member?.test_mode && <TestModeBar />}
-      <TripHeader member={member} onAbout={() => setSheet('about')} onWallet={() => setSheet('wallet')} onSignIn={() => auth.signOut.mutate()} />
+      <TripHeader member={member} onAbout={() => setSheet('about')} onWallet={() => setSheet('wallet')} onBalance={() => setSheet('balance')} onSignIn={() => auth.signOut.mutate()} />
       <Box sx={{ flex: 1, minHeight: 0, width: u(900), mx: 'auto', px: u(20), pt: u(18), pb: `calc(${u(20)} + env(safe-area-inset-bottom, 0px))`,
         display: 'flex', flexDirection: 'column', gap: u(18) }}>
-        <SummaryBar count={count} total={shown} lines={lines} open={mode === 'trip'} onToggle={toggleTrip} isGuest={isGuest} />
+        <SummaryBar count={count} total={shown} lines={lines} open={mode === 'trip' || mode === 'item'} onToggle={toggleTrip} isGuest={isGuest} />
 
         <Box data-testid="stage" sx={{ position: 'relative', flex: 1, minHeight: 0 }}>
           {mode === 'trip' ? (
-            <TripView lines={lines} onQty={setQty} onRemove={removeLine} onClear={clearTrip} />
+            <TripView lines={lines} onQty={setQty} onRemove={removeLine} onClear={clearTrip} onOpen={openLine} />
+          ) : mode === 'item' ? (
+            top && (
+              <ScanCard
+                key={top.key}
+                top={top}
+                isGuest={isGuest}
+                verified18={member?.verified_18 ?? false}
+                qty={inTrip}
+                onAdd={null}
+                onPass={backToTrip}
+                onFeel={() => setFeel({ step: 'reasons' })}
+                onRetail={() => setInfo(RETAIL_INFO)}
+                onReturns={(ok) => setInfo(RETURNS_INFO[ok ? 'yes' : 'no'])}
+              />
+            )
           ) : (
             <>
               <CameraCard
@@ -304,6 +339,23 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
               </BigButton>
             </>
           )}
+          {mode === 'item' && (
+            <>
+              <BigButton testId="remove-line"
+                onClick={() => {
+                  const line = lines.find((l) => l.item.sku === top?.sku);
+                  if (line) removeLine(line);
+                  backToTrip();
+                }}>
+                <DeleteOutlineRounded sx={{ fontSize: u(44), color: '#b01f14' }} />
+                Remove
+              </BigButton>
+              <BigButton primary flex={1.35} onClick={backToTrip} testId="back-to-trip">
+                <ArrowBackRounded sx={{ fontSize: u(46) }} />
+                Back to trip
+              </BigButton>
+            </>
+          )}
           {mode === 'trip' && (
             <>
             <BigButton primary onClick={() => setMode('scan')} testId="scan-more">
@@ -317,12 +369,15 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
 
       {sheet === 'about' && <ThriftPlusSheet onClose={() => setSheet(null)} />}
       {sheet === 'wallet' && member && (
-        <WalletSheet member={member} tripTotal={total} onAccount={openAccount}
+        <WalletSheet member={member}
           onClose={() => {
             setSheet(null);
             if (cardAsked) setParams({}, { replace: true });
-          }}
-          onSignOut={() => auth.signOut.mutate()} />
+          }} />
+      )}
+      {sheet === 'balance' && member && (
+        <BalanceSheet member={member} tripTotal={total} onAccount={openAccount} onClose={() => setSheet(null)}
+          onSignOut={() => auth.signOut.mutate()} onShowQr={() => setSheet('wallet')} />
       )}
       {sheet === 'camera' && (
         <InfoPopup topic="camera" origin={null} member={member} cart={cart.data} onClose={() => setSheet(null)} onRetryCamera={camera.wake} />
@@ -540,12 +595,13 @@ function FoundTag({ item, isGuest, verified18, qty, onFeel, onRetail, onReturns 
   );
 }
 
-/** The trip's lines: "×1" opens − +, slide a line left to remove it; Clear my trip at the end. */
-function TripView({ lines, onQty, onRemove, onClear }: {
+/** The trip's lines: tap one for its tag (APP D12), "×1" opens − +, slide a line left to remove it; Clear my trip at the end. */
+function TripView({ lines, onQty, onRemove, onClear, onOpen }: {
   lines: ThriftPlusCartLine[];
   onQty: (line: ThriftPlusCartLine, qty: number) => void;
   onRemove: (line: ThriftPlusCartLine) => void;
   onClear: () => void;
+  onOpen: (line: ThriftPlusCartLine) => void;
 }) {
   return (
     <Box data-testid="trip-view" sx={{ position: 'absolute', inset: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: u(14), pb: u(110),
@@ -557,11 +613,11 @@ function TripView({ lines, onQty, onRemove, onClear }: {
         </Box>
       )}
       {lines.map((l) => (
-        <TripLine key={l.item.sku} line={l} onQty={(q) => onQty(l, q)} onRemove={() => onRemove(l)} />
+        <TripLine key={l.item.sku} line={l} onQty={(q) => onQty(l, q)} onRemove={() => onRemove(l)} onOpen={() => onOpen(l)} />
       ))}
       {lines.length > 0 && (
         <>
-          <Box sx={{ textAlign: 'center', fontSize: u(24), color: sc.ink3, mt: u(6) }}>Tap ×1 to change how many · slide a line left to remove it</Box>
+          <Box sx={{ textAlign: 'center', fontSize: u(24), color: sc.ink3, mt: u(6) }}>Tap an item to see its tag · tap ×1 to change how many · slide left to remove</Box>
           <ButtonBase onClick={onClear} data-testid="clear-trip"
             sx={{ alignSelf: 'center', mt: u(10), color: sc.ink2, fontSize: u(26), textDecoration: 'underline', p: u(10), borderRadius: u(12), fontFamily: sc.font }}>
             Clear my trip
@@ -572,12 +628,18 @@ function TripView({ lines, onQty, onRemove, onClear }: {
   );
 }
 
-function TripLine({ line, onQty, onRemove }: { line: ThriftPlusCartLine; onQty: (qty: number) => void; onRemove: () => void }) {
+function TripLine({ line, onQty, onRemove, onOpen }: {
+  line: ThriftPlusCartLine;
+  onQty: (qty: number) => void;
+  onRemove: () => void;
+  onOpen: () => void;
+}) {
   const { item, qty } = line;
   const [open, setOpen] = useState(false);
   const reward = (Number.parseFloat(item.reward) || 0) * qty;
   return (
-    <SwipeRow onRemove={onRemove} label={item.title}>
+    // A tap anywhere but the ×N chip and − + opens the tag (their taps are their own).
+    <SwipeRow onRemove={onRemove} label={item.title} onTap={onOpen}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: u(18), pl: u(20), pr: u(16), minHeight: u(120) }}>
         <CategoryBadge category={item.category} size={u(72)} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -595,7 +657,9 @@ function TripLine({ line, onQty, onRemove }: { line: ThriftPlusCartLine; onQty: 
           {reward > 0 ? `+${tbNumber(reward)}` : '0.00'}
         </Box>
         {open ? (
-          <QtyStepper qty={qty} onChange={(q) => { onQty(q); if (q <= 0) setOpen(false); }} />
+          <Box onPointerDown={(e) => e.stopPropagation()} sx={{ flexShrink: 0 }}>
+            <QtyStepper qty={qty} onChange={(q) => { onQty(q); if (q <= 0) setOpen(false); }} />
+          </Box>
         ) : (
           <ButtonBase onPointerDown={(e) => e.stopPropagation()} onClick={() => setOpen(true)} aria-label={`Quantity ${qty}, change`} data-testid="qty-chip"
             sx={{ flexShrink: 0, minWidth: u(84), height: u(64), px: u(14), borderRadius: 99, border: `${u(3)} solid ${sc.line}`, fontSize: u(28),

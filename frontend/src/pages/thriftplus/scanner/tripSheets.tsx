@@ -71,15 +71,18 @@ const FEEL_DONE: Record<PriceFeelReason, { title: string; text: string; info?: I
 };
 
 /**
- * The field header: tap it for what Thrift+ is. The pill, top right on every screen (owner 2026-10-14, APP D7): members
- * open their Member QR (and their ThriftBucks under it); guests sign in.
+ * The field header: tap it for what Thrift+ is. The pill, top right on every screen: members get two buttons in one pill
+ * (owner 2026-10-15, APP D11), their balance (the balance sheet) and the QR (the Member QR sheet); non-members sign in.
  */
-export function TripHeader({ member, onAbout, onWallet, onSignIn }: {
+export function TripHeader({ member, onAbout, onWallet, onBalance, onSignIn }: {
   member: ThriftPlusMember | null;
   onAbout: () => void;
   onWallet: () => void;
+  onBalance: () => void;
   onSignIn: () => void;
 }) {
+  const shell = { position: 'absolute', right: u(30), top: u(42), height: u(116), borderRadius: 99, bgcolor: '#fff',
+    boxShadow: '0 4px 14px rgba(0,0,0,0.16)', fontFamily: sc.font, whiteSpace: 'nowrap' } as const;
   return (
     <FieldBanner>
       <Box sx={{ position: 'relative', width: u(900), height: '100%', mx: 'auto' }}>
@@ -89,18 +92,32 @@ export function TripHeader({ member, onAbout, onWallet, onSignIn }: {
             <ThriftPlusLogo width={u(290)} />
           </Box>
         </ButtonBase>
-        <ButtonBase
-          onClick={member ? onWallet : onSignIn}
-          aria-label={member ? 'Member QR: show it at the register' : 'Sign in'}
-          data-testid="wallet-pill"
-          sx={{ position: 'absolute', right: u(30), top: u(42), height: u(116), pl: u(16), pr: u(34), gap: u(16), borderRadius: 99, bgcolor: '#fff',
-            boxShadow: '0 4px 14px rgba(0,0,0,0.16)', fontFamily: sc.font, whiteSpace: 'nowrap' }}
-        >
-          <Box sx={{ width: u(84), height: u(84), borderRadius: '50%', bgcolor: '#3f9f35', color: '#fff', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
-            {member ? <QrCode2Rounded sx={{ fontSize: u(54) }} /> : <PersonRounded sx={{ fontSize: u(54) }} />}
+        {member ? (
+          <Box sx={{ ...shell, display: 'flex', alignItems: 'stretch', overflow: 'hidden' }}>
+            <ButtonBase onClick={onBalance} data-testid="wallet-pill"
+              aria-label={`Your ThriftBucks: ${tbNumber(member.banked_rewards)}. See your balance`}
+              sx={{ pl: u(30), pr: u(18), display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center' }}>
+              <Box component="span" sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(46), lineHeight: 1.05, color: '#1f6b27' }}>
+                {tbNumber(member.banked_rewards)}
+              </Box>
+              <Box component="span" sx={{ fontWeight: 600, fontSize: u(24), color: '#5d605a' }}>ThriftBucks</Box>
+            </ButtonBase>
+            {/* The QR's hit area is the pill's whole right end, about 54 x 50 px (APP D11). */}
+            <ButtonBase onClick={onWallet} data-testid="qr-pill" aria-label="Member QR: show it at the register"
+              sx={{ width: u(124), display: 'grid', placeItems: 'center', justifyItems: 'end', pr: u(6) }}>
+              <Box sx={{ width: u(104), height: u(104), borderRadius: '50%', bgcolor: '#3f9f35', color: '#fff', display: 'grid', placeItems: 'center' }}>
+                <QrCode2Rounded sx={{ fontSize: u(60) }} />
+              </Box>
+            </ButtonBase>
           </Box>
-          <Box sx={{ fontSize: u(38), fontWeight: 800, color: '#1f6b27' }}>{member ? 'Member QR' : 'Sign in'}</Box>
-        </ButtonBase>
+        ) : (
+          <ButtonBase onClick={onSignIn} aria-label="Sign in" data-testid="wallet-pill" sx={{ ...shell, pl: u(16), pr: u(34), gap: u(16) }}>
+            <Box sx={{ width: u(84), height: u(84), borderRadius: '50%', bgcolor: '#3f9f35', color: '#fff', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+              <PersonRounded sx={{ fontSize: u(54) }} />
+            </Box>
+            <Box sx={{ fontSize: u(38), fontWeight: 800, color: '#1f6b27' }}>Sign in</Box>
+          </ButtonBase>
+        )}
       </Box>
     </FieldBanner>
   );
@@ -187,17 +204,10 @@ function CardQr({ text }: { text: string }) {
 }
 
 /**
- * Member QR (owner 2026-10-14, APP D1 and D6): the member's QR to show at the register (there is no card), kept on the
- * phone so it shows with no signal, with the screen kept awake while it's open; then the ThriftBucks and credit in the
- * order the register uses them.
+ * Member QR (owner 2026-10-14, APP D1, D6 and D11): the member's QR to show at the register (there is no card), kept on
+ * the phone so it shows with no signal, with the screen kept awake while it's open, and the home-screen link. Nothing else.
  */
-export function WalletSheet({ member, tripTotal, onClose, onAccount, onSignOut }: {
-  member: ThriftPlusMember;
-  tripTotal: number;
-  onClose: () => void;
-  onAccount: () => void;
-  onSignOut: () => void;
-}) {
+export function WalletSheet({ member, onClose }: { member: ThriftPlusMember; onClose: () => void }) {
   const card = useQuery({ queryKey: thriftPlusKeys.myCard, queryFn: getMyCard, initialData: cachedCard, staleTime: 60_000 });
   useEffect(() => {
     if (!card.data) return;
@@ -219,19 +229,6 @@ export function WalletSheet({ member, tripTotal, onClose, onAccount, onSignOut }
     };
   }, []);
   const c = card.data;
-  const me = useMe();
-  const lots = me.data?.rewards ?? [];
-  const credit = me.data?.credit ?? member.credit_balance;
-  const rows = [
-    ...(toCents(credit) > 0
-      ? [{ what: 'Thrift+ credit', amount: money(credit), note: 'From a return. Always used first. Never expires.', credit: true }]
-      : []),
-    ...lots.map((l) => ({
-      what: 'ThriftBucks', amount: tbNumber(l.amount), credit: false,
-      note: l.past_due ? `Use by ${day(l.use_by)} (past its date)` : `Collected ${day(l.earned_on)} · use by ${day(l.use_by)}`,
-    })),
-  ];
-  const link = { fontSize: u(28), color: sc.ink2, textDecoration: 'underline', px: u(16), py: u(10), borderRadius: u(12), fontFamily: sc.font } as const;
   return (
     <Sheet onClose={onClose} testId="wallet-sheet">
       <Box component="h2" sx={{ m: 0, pr: u(90), fontFamily: sc.condensed, fontWeight: 700, fontSize: u(52), color: sc.titleGreen }}>Member QR</Box>
@@ -266,8 +263,38 @@ export function WalletSheet({ member, tripTotal, onClose, onAccount, onSignOut }
       </Box>
 
       <AddToHome />
+    </Sheet>
+  );
+}
 
-      <Box sx={{ mt: u(34), fontSize: u(26), color: sc.ink2, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Your ThriftBucks</Box>
+/**
+ * The balance (owner 2026-10-15, APP D11): the left half of the header pill. Thrift+ credit and every ThriftBuck in the
+ * order the register uses them (B3), the B12 line, My account, Sign out, and a way back to the Member QR.
+ */
+export function BalanceSheet({ member, tripTotal, onClose, onAccount, onSignOut, onShowQr }: {
+  member: ThriftPlusMember;
+  tripTotal: number;
+  onClose: () => void;
+  onAccount: () => void;
+  onSignOut: () => void;
+  onShowQr: () => void;
+}) {
+  const me = useMe();
+  const lots = me.data?.rewards ?? [];
+  const credit = me.data?.credit ?? member.credit_balance;
+  const rows = [
+    ...(toCents(credit) > 0
+      ? [{ what: 'Thrift+ credit', amount: money(credit), note: 'From a return. Always used first. Never expires.', credit: true }]
+      : []),
+    ...lots.map((l) => ({
+      what: 'ThriftBucks', amount: tbNumber(l.amount), credit: false,
+      note: l.past_due ? `Use by ${day(l.use_by)} (past its date)` : `Collected ${day(l.earned_on)} · use by ${day(l.use_by)}`,
+    })),
+  ];
+  const link = { fontSize: u(28), color: sc.ink2, textDecoration: 'underline', px: u(16), py: u(10), borderRadius: u(12), fontFamily: sc.font } as const;
+  return (
+    <Sheet onClose={onClose} testId="balance-sheet">
+      <Box sx={{ fontSize: u(26), color: sc.ink2, letterSpacing: '0.14em', textTransform: 'uppercase', pr: u(90) }}>Your ThriftBucks</Box>
       <Box sx={{ display: 'flex', alignItems: 'baseline', gap: u(14), mt: u(6) }}>
         <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(110), lineHeight: 1, color: sc.priceGreen }}>{tbNumber(member.banked_rewards)}</Box>
         <Box sx={{ fontSize: u(30), color: sc.ink2 }}>ready to use</Box>
@@ -309,10 +336,17 @@ export function WalletSheet({ member, tripTotal, onClose, onAccount, onSignOut }
         </Box>
       )}
 
+      <Box sx={{ mt: u(26), fontSize: u(24), lineHeight: 1.4, color: sc.ink3 }}>{CARD_TERMS}</Box>
+
       <Box sx={{ mt: u(28), display: 'flex', justifyContent: 'center', gap: u(20) }}>
         <ButtonBase onClick={onAccount} data-testid="my-account" sx={link}>My account</ButtonBase>
         <ButtonBase onClick={onSignOut} data-testid="sign-out" sx={link}>Sign out</ButtonBase>
       </Box>
+      <ButtonBase onClick={onShowQr} data-testid="show-qr"
+        sx={{ mt: u(18), width: '100%', py: u(18), gap: u(12), borderRadius: u(16), fontSize: u(30), color: sc.ink2, fontFamily: sc.font }}>
+        <QrCode2Rounded sx={{ fontSize: u(40), color: '#3f9f35' }} />
+        Show my member QR
+      </ButtonBase>
     </Sheet>
   );
 }

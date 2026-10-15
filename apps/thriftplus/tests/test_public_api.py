@@ -77,6 +77,14 @@ class PublicApiTests(TestCase):
         members.revoke(self.account, reason='tag switching')
         self.assertEqual(self.api.get(BASE + 'cart/').status_code, 403)
 
+    def test_a_second_look_from_this_trip_is_not_a_scan(self):
+        """Owner 2026-10-15 (APP D12): tapping a trip line shows its tag again; the scan counts stay true."""
+        self.api.get(BASE + f'tag/{self.lamp.sku}/')
+        self.assertEqual(ScanSignal.objects.filter(kind='scan').count(), 1)
+        again = self.api.get(BASE + f'tag/{self.lamp.sku}/', {'again': 1}).json()
+        self.assertEqual(again['status'], 'found')
+        self.assertEqual(ScanSignal.objects.filter(kind='scan').count(), 1)
+
     def test_a_tag_shows_the_member_reward_and_the_cart_uses_the_register_math(self):
         found = self.api.get(BASE + f'tag/{self.lamp.sku.lower()}/').json()
         self.assertEqual(found['status'], 'found')

@@ -284,7 +284,9 @@ def tag(request, sku: str):
     item = scanner.find_item(sku)
     if item is None:
         return Response({'status': 'not_found', 'sku': sku})
-    scanner.signal('scan', item, _member_account(request))
+    # A second look from This trip (owner 2026-10-15, APP D12) is not a scan: the scan counts stay true.
+    if request.GET.get('again') != '1':
+        scanner.signal('scan', item, _member_account(request))
     return Response({'status': 'found', 'item': scanner.item_card(item)})
 
 
