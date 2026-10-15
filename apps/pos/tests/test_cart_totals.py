@@ -194,3 +194,24 @@ class CartTotalsAPITests(TestCase):
         tax = (line_sum * cart_pf.tax_rate).quantize(Decimal('0.01'))
         self.assertEqual(cart_pf.tax_amount, tax)
         self.assertEqual(cart_pf.total, line_sum + tax)
+
+    def test_a_dark_register_is_untouched_by_thrift_plus(self):
+        """Thrift+ is off here (the switch off, not a test or training register): recalculate never runs the Thrift+
+        sync or post-total hook, writes no Thrift+ line and leaves the credit at zero (owner: POS must never break)."""
+        from unittest import mock
+
+        from apps.thriftplus.services import register
+
+        cart = self._create_open_cart()
+        with mock.patch.object(register, 'after_totals_if_live') as hook, mock.patch.object(register, 'sync') as sync:
+            r = self.client.post(f"/api/pos/carts/{cart['id']}/add-item/", {'sku': 'POS-T-SKU-A'}, format='json')
+            Cart.objects.get(pk=cart['id']).recalculate()
+        self.assertEqual(r.status_code, 200, r.content)
+        hook.assert_not_called()
+        sync.assert_not_called()
+        data = r.json()
+        assert_cart_totals_match_lines(self, data)
+        self.assertEqual((data['subtotal'], data['total'], data['thrift_credit'], data['thrift_plus']),
+                         ('7.50', '8.02', '0.00', None))
+        self.assertEqual([l['thrift_savings'] for l in data['lines']], ['0.00'])
+        self.assertFalse(CartLine.objects.filter(cart_id=cart['id'], line_kind='discount').exists())

@@ -1,21 +1,32 @@
 {
-  "store_name": "Eco-Thrift",
+  "receipt_number": "R-20261020-015",
+  "date": "2026-10-20",
+  "time": "2:31 PM",
+  "cashier": "Dana",
   "items": [
     {
-      "name": "Coat",
+      "name": "Floor lamp, brass",
       "quantity": 1,
-      "unit_price": 32.0,
-      "line_total": 32.0
+      "unit_price": 48.0,
+      "line_total": 48.0,
+      "mark": "AS IS"
+    },
+    {
+      "name": "Paperback novel",
+      "quantity": 2,
+      "unit_price": 1.5,
+      "line_total": 3.0,
+      "mark": "AS IS"
     }
   ],
-  "subtotal": 32.0,
-  "tax": 2.24,
-  "total": 34.24,
+  "subtotal": 51.0,
+  "tax": 3.57,
+  "total": 54.57,
   "payment_method": "Cash",
-  "amount_tendered": 40.0,
-  "change": 5.76,
-  "footer": "Var 06 \u2014 cash tendered > total",
+  "amount_tendered": 60.0,
+  "change": 5.43,
   "thrift_plus": {
-    "guest_line": "You would have earned $7.50 with a Thrift+ card."
+    "guest_all_as_is": true,
+    "guest_line": "This trip would have collected 12.60 ThriftBucks."
   }
 }

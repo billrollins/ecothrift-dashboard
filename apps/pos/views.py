@@ -86,6 +86,26 @@ def _sale_cash(cart) -> Decimal:
     return cash
 
 
+def _is_training_cart(cart) -> bool:
+    """The sale is on a training register (owner, 2026-10-10): practice only, nothing real is written."""
+    drawer = getattr(cart, 'drawer', None)
+    return bool(getattr(getattr(drawer, 'register', None), 'is_training', False))
+
+
+# A training register's rows stay out of lists unless they are asked for (2026-10-14): the cash and
+# transaction lists show real money only. Asking for one register, drawer or ?include_training=1 shows them.
+_TRUE_PARAM = ('1', 'true', 'yes', 'on')
+
+
+def _include_training_rows(params, *keys: str) -> bool:
+    if str(params.get('include_training', '')).strip().lower() in _TRUE_PARAM:
+        return True
+    return any(params.get(key) not in (None, '') for key in keys)
+
+
+TRAINING_REFUSED = 'TRAINING_REGISTER'
+
+
 def _cancel_delivery_jobs_for_cart(cart):
     DeliveryJob.objects.filter(
         cart=cart,
@@ -170,9 +190,14 @@ class DrawerViewSet(viewsets.ModelViewSet):
     ordering = ['-date', '-opened_at']
 
     def get_queryset(self):
-        return Drawer.objects.select_related(
+        qs = Drawer.objects.select_related(
             'register', 'current_cashier', 'opened_by', 'closed_by',
         ).prefetch_related('handoffs', 'drops').all()
+        # The training register's drawer is practice money: left out of drawer lists (and so out of the
+        # manager terminal's open-drawer pick) unless its register is asked for. Detail routes still find it.
+        if self.action == 'list' and not _include_training_rows(self.request.query_params, 'register'):
+            qs = qs.exclude(register__is_training=True)
+        return qs
 
     def create(self, request, *args, **kwargs):
         """Open a new drawer."""
@@ -388,6 +413,14 @@ class DrawerViewSet(viewsets.ModelViewSet):
     def drop(self, request, pk=None):
         """Create a cash drop from a drawer."""
         drawer = self.get_object()
+        if drawer.register.is_training:
+            return Response(
+                {
+                    'detail': 'This is the training register: practice only. Cash drops are not recorded.',
+                    'code': TRAINING_REFUSED,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         amount = request.data.get('amount', {})
         total = Decimal(str(request.data.get('total', 0)))
 
@@ -561,9 +594,14 @@ class CartViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        return Cart.objects.select_related(
+        qs = Cart.objects.select_related(
             'drawer', 'cashier', 'receipt', 'card_type_fixed_by',
         ).prefetch_related('lines').all()
+        # Practice sales on the training register stay out of the Transactions list (they showed as
+        # "Completed" under All). The terminal still finds its own open cart by asking for its drawer.
+        if self.action == 'list' and not _include_training_rows(self.request.query_params, 'drawer'):
+            qs = qs.exclude(drawer__register__is_training=True)
+        return qs
 
     def perform_create(self, serializer):
         from apps.core.models import AppSetting
@@ -608,7 +646,10 @@ class CartViewSet(viewsets.ModelViewSet):
         # A sold tag in hand means two items shared one tag: the one here is real. Its old sale moves to a new item
         # number and this one rings up as usual (owner, 2026-10-06: the register always adds). Only consignment
         # and online-listed items still stop, for a person to sort out.
-        if item.status == 'sold':
+        # The training register (2026-10-14) never moves a real sale: a sold tag rings up for practice as it is
+        # (the item stays sold, its old sale stays put; completing a practice sale changes no item).
+        training = _is_training_cart(cart)
+        if item.status == 'sold' and not training:
             from apps.inventory.services.duplicate_tag import move_sale_to_new_item, why_not
 
             if why_not(item) is None:
@@ -622,7 +663,7 @@ class CartViewSet(viewsets.ModelViewSet):
                     cart=cart,
                     created_by=request.user,
                 )
-        if item.status == 'sold':
+        if item.status == 'sold' and not training:
             ItemScanHistory.objects.create(
                 item=item,
                 ip_address=request.META.get('REMOTE_ADDR'),
@@ -642,7 +683,7 @@ class CartViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
-        # Thrift+ (live registers only): an 18+ item needs a verified 18+ card on the sale.
+        # Thrift+ (live registers only): an 18+ item needs a member verified 18+ on the sale.
         from apps.thriftplus.services.register import RegisterError, check_item
         try:
             check_item(cart, item)
@@ -696,7 +737,8 @@ class CartViewSet(viewsets.ModelViewSet):
                         status=403,
                     )
                 from apps.webstore.services.reservations import release_reservation
-                for hold in active_holds:
+                # The training register practises the override but never cancels a real online hold.
+                for hold in ([] if training else active_holds):
                     release_reservation(hold, 'cancelled')
                     hold.staff_note = (
                         f"{hold.staff_note}\nPOS override: {override_reason}"
@@ -776,6 +818,16 @@ class CartViewSet(viewsets.ModelViewSet):
         if cart.status != 'open':
             return Response(
                 {'detail': 'Cart is not open.', 'code': 'CART_NOT_OPEN'},
+                status=400,
+            )
+        if _is_training_cart(cart):
+            # A copy is a real new item. The training register rings a sold tag as it is instead (add-item).
+            return Response(
+                {
+                    'detail': 'This is the training register: practice only. No copy is made; scan the tag '
+                              'again and it rings up for practice.',
+                    'code': TRAINING_REFUSED,
+                },
                 status=400,
             )
 
@@ -1133,6 +1185,16 @@ class CartViewSet(viewsets.ModelViewSet):
         if cart.status != 'open':
             return Response(
                 {'detail': 'Cart is not open.', 'code': 'CART_NOT_OPEN'},
+                status=400,
+            )
+        if _is_training_cart(cart):
+            # A delivery is a real job on the delivery board; practice sales never book one (2026-10-14).
+            return Response(
+                {
+                    'detail': 'This is the training register: practice only. Deliveries cannot be booked here, '
+                              'so nothing goes on the real delivery board.',
+                    'code': TRAINING_REFUSED,
+                },
                 status=400,
             )
 
@@ -1507,7 +1569,7 @@ class CartViewSet(viewsets.ModelViewSet):
             )
 
         # A training register (owner, 2026-10-10): the same checks, then nothing real is written.
-        training = bool(getattr(getattr(cart.drawer, 'register', None), 'is_training', False))
+        training = _is_training_cart(cart)
 
         # Thrift+: a member, spent credit or a live register. Dark registers skip all of it.
         thrift = thrift_register.touches(cart)
@@ -1565,6 +1627,8 @@ class CartViewSet(viewsets.ModelViewSet):
                 cart.completed_at = timezone.now()
                 cart.save()
                 # No drawer cash, no item sold, no hold or consignment closed, no Thrift+ money: practice only.
+                # No delivery either: add-delivery refuses on this register; any job left from before is cancelled.
+                _cancel_delivery_jobs_for_cart(cart)
                 Receipt.objects.create(cart=cart, receipt_number=Receipt.generate_training_number())
             return Response(CartSerializer(cart).data)
 
@@ -2966,9 +3030,9 @@ def dashboard_alerts(request):
             'count': pending_sick,
         })
 
-    # Open drawers
+    # Open drawers (real registers only: the training register's practice drawer is not real cash)
     today = timezone.now().date()
-    open_drawers = Drawer.objects.filter(status='open', date=today).count()
+    open_drawers = Drawer.objects.filter(status='open', date=today).exclude(register__is_training=True).count()
     if open_drawers:
         alerts.append({
             'type': 'drawers',

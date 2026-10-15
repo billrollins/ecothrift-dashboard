@@ -1,45 +1,50 @@
 {
-  "store_name": "Eco-Thrift",
+  "receipt_number": "R-20261020-014",
+  "date": "2026-10-20",
+  "time": "2:14 PM",
+  "cashier": "Dana",
   "items": [
     {
-      "name": "Coat",
+      "name": "Floor lamp, brass",
       "quantity": 1,
-      "unit_price": 32.0,
-      "line_total": 32.0
+      "unit_price": 48.0,
+      "line_total": 48.0,
+      "mark": "3-day return"
+    },
+    {
+      "name": "Cast iron skillet",
+      "quantity": 1,
+      "unit_price": 24.0,
+      "line_total": 24.0,
+      "mark": "3-day return"
+    },
+    {
+      "name": "Box fan",
+      "quantity": 1,
+      "unit_price": 8.0,
+      "line_total": 8.0,
+      "mark": "AS IS"
     }
   ],
-  "subtotal": 32.0,
-  "tax": 2.24,
-  "total": 34.24,
+  "subtotal": 45.0,
+  "tax": 3.15,
+  "total": 48.15,
   "payment_method": "Cash",
-  "amount_tendered": 40.0,
-  "change": 5.76,
-  "footer": "Var 06 \u2014 cash tendered > total",
+  "amount_tendered": 10.0,
+  "change": 1.85,
   "thrift_plus": {
-    "member": "Pat R.",
-    "card_last4": "4821",
-    "lines": [
-      {
-        "name": "Cast iron skillet",
-        "tag_price": "24.00",
-        "member_price": "19.20"
-      },
-      {
-        "name": "Wool throw blanket",
-        "tag_price": "18.00",
-        "member_price": "15.30"
-      }
-    ],
-    "reward_total": "7.50",
-    "to_cover": "2.00",
-    "savings": "0.00",
-    "to_bank": "5.78",
-    "credit_used": "0.00",
-    "bank_used": "0.00",
-    "cover_month": "Sep",
-    "cover_covered": "2.00",
-    "cover_amount": "5.00",
-    "banked": "12.40",
-    "credit": "3.25"
+    "member": "Pat",
+    "collected": "20.00",
+    "use_by": "2026-11-19",
+    "instant_off": "0.00",
+    "instant_bucks": "0.00",
+    "bucks_used": "35.00",
+    "credit_used": "40.00",
+    "balances": {
+      "bucks": "20.00",
+      "bucks_use_by": "2026-11-19",
+      "credit": "0.00"
+    },
+    "guest_all_as_is": false
   }
 }

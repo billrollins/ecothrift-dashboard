@@ -54,7 +54,7 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
     sections: [
       { id: 'hours', title: 'Hours', help: 'Open days and times, and holidays. Online Sales holds use the same clock.', custom: ['store-hours', 'holiday-hours'] },
       { id: 'register', title: 'Register and payments', keys: ['tax_rate'], custom: ['card-surcharge'] },
-      { id: 'staff-purchases', title: 'Staff purchases', help: 'Payroll deduction at the register, and Thrift+ free for staff.', custom: ['staff-purchases'] },
+      { id: 'staff-purchases', title: 'Staff purchases', help: 'Payroll deduction at the register.', custom: ['staff-purchases'] },
       {
         id: 'business',
         title: 'Business info',
@@ -78,13 +78,16 @@ export const SETTINGS_LAYOUT: SettingsTabDef[] = [
       {
         id: 'rewards',
         title: 'ThriftBucks',
-        keys: ['thrift_plus_price_first', 'thrift_plus_rewards_start', 'thrift_plus_floor_share', 'thrift_plus_cover_amount', 'thrift_plus_bank_bonus'],
+        keys: ['thrift_plus_price_first', 'thrift_plus_rewards_start', 'thrift_plus_floor_share', 'thrift_plus_instant_share'],
         custom: ['calculator-link'],
       },
       {
         id: 'returns',
-        title: 'Returns',
-        keys: ['thrift_plus_return_credit_share', 'thrift_plus_nonreturnable_categories', 'thrift_plus_nonreturnable_words'],
+        title: '3-day returns',
+        keys: [
+          'thrift_plus_return_credit_share', 'thrift_plus_return_min_price', 'thrift_plus_nonreturnable_categories',
+          'thrift_plus_nonreturnable_words',
+        ],
       },
     ],
   },

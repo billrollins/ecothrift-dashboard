@@ -106,33 +106,33 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
     tab: 'thrift-plus',
     kind: 'weight',
   },
-  thrift_plus_cover_amount: {
-    label: 'Monthly cover',
-    help: 'The first this-many ThriftBucks each calendar month cover the card (never paid in dollars).',
-    tab: 'thrift-plus',
-    kind: 'money',
-  },
-  thrift_plus_bank_bonus: {
-    label: 'Banking bonus',
-    help: 'Not used since form 5 (ThriftBucks keep 100%). Kept for old sales.',
+  thrift_plus_instant_share: {
+    label: 'Instant redemption share',
+    help: "A member who redeems a trip's ThriftBucks instantly gets this share of them off today's price (50% = 35.00 ThriftBucks take $17.50 off), rounded up to the cent. Kept ThriftBucks keep their full value.",
     tab: 'thrift-plus',
     kind: 'weight',
   },
   thrift_plus_return_credit_share: {
-    label: 'Return credit',
-    help: 'Store credit for a return is this share of what was paid for the item, before tax.',
+    label: '3-day returns: share back',
+    help: 'A 3-day return gives this share of what was paid, tax included, as Thrift+ credit; the same share of any ThriftBucks used on the item comes back as ThriftBucks, and the same share of the ThriftBucks it collected is taken back.',
     tab: 'thrift-plus',
     kind: 'weight',
   },
+  thrift_plus_return_min_price: {
+    label: '3-day returns: lowest qualifying price',
+    help: 'An item at or under this price after ThriftBucks does not qualify for 3-day returns.',
+    tab: 'thrift-plus',
+    kind: 'money',
+  },
   thrift_plus_nonreturnable_categories: {
-    label: 'Final-sale categories',
-    help: 'Product categories or subcategories that cannot be returned.',
+    label: '3-day returns: categories that never qualify',
+    help: 'Product categories or subcategories that are sold AS IS (no 3-day returns), e.g. clothing and soft goods.',
     tab: 'thrift-plus',
     kind: 'list',
   },
   thrift_plus_nonreturnable_words: {
-    label: 'Final-sale words',
-    help: 'Words in a title, note or flag that make an item final sale.',
+    label: '3-day returns: AS IS words',
+    help: 'Words in a title, note or flag that make an item AS IS (no 3-day returns).',
     tab: 'thrift-plus',
     kind: 'list',
   },
@@ -326,7 +326,7 @@ export const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
   // Edited by its own card on Store (owner only); hidden from the raw lists.
   'pos.staff_purchases': {
     label: 'Staff purchases',
-    help: 'Payroll deduction at the register for staff, and Thrift+ free for staff. Both start off.',
+    help: 'Payroll deduction at the register for staff. Starts off.',
     tab: 'store',
     kind: 'hidden',
   },

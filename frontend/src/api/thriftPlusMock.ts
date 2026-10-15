@@ -9,9 +9,10 @@
  *
  * Live today: tag lookup pulls the real item from inventory
  * (GET /api/inventory/items/lookup/<sku>/, public). Mock today: the customer
- * account (sign-in, cover, banked rewards), the reward (a random 0% to 80% of
- * the price, fixed per tag), the bank-or-rebate choice (the real API alerts
- * the register), and the cart and history (kept on this phone).
+ * account (sign-in, kept ThriftBucks, Thrift+ credit), the ThriftBucks (a random
+ * 0% to 80% of the price, fixed per tag), and the cart and history (kept on this
+ * phone). The scanner shows only ThriftBucks: redeeming them instantly is done
+ * at the register (B1, V8), so there is no choice here.
  *
  * `thriftPlusMockControls` at the bottom is mock-only. The real API drops it.
  */
@@ -60,15 +61,11 @@ export interface ThriftPlusItemCard {
   price: Money;
   /** Today's member reward on this item ("You'd collect +$X"). "0.00" when there is none. */
   reward: Money;
-  /** price - reward, before the monthly cover. */
+  /** price - reward. */
   member_price: Money;
-  /** The reward saved in full (Full rewards), the same as `reward` since form 5. */
-  reward_banked: Money;
-  /** The reward used today (Instant rewards): 80% of it, rounded up to the cent. */
-  reward_instant?: Money;
   /** 18+ item: sells only to ID-verified cards. */
   age_restricted: boolean;
-  /** false = final sale even for members (as-is, clothing and soft goods, 18+). */
+  /** false = AS IS: no Thrift+ 3-day returns (W6's guide, e.g. clothing and soft goods, AS IS words). */
   returnable: boolean;
   /** false = sold or off the floor. It cannot go in the cart. */
   available: boolean;
@@ -79,21 +76,6 @@ export type TagLookup =
   | { status: 'not_found'; sku: string }
   | { status: 'error'; sku: string; message: string };
 
-/** The monthly cover: the first $10 of rewards each month covers the card. */
-export interface ThriftPlusCover {
-  /** Calendar month, "2026-09". */
-  month: string;
-  /** The cover for the month, "10.00". */
-  amount: Money;
-  /** ThriftBucks applied to the cover so far this month. */
-  covered: Money;
-  /** amount - covered, never below 0. */
-  remaining: Money;
-  is_covered: boolean;
-  /** The day it resets, "2026-10-01". */
-  resets_on: string;
-}
-
 export interface ThriftPlusMember {
   first_name: string;
   email: string;
@@ -103,10 +85,9 @@ export interface ThriftPlusMember {
   card_last4: string | null;
   /** ID checked at signup; required for 18+ items and returns. */
   verified_18: boolean;
-  cover: ThriftPlusCover;
-  /** ThriftBucks the member chose to keep for a later trip. */
+  /** Kept ThriftBucks (a number, never "$"). */
   banked_rewards: Money;
-  /** Store credit balance. */
+  /** Thrift+ credit (dollars, from 3-day returns). */
   credit_balance: Money;
   /** How this session signed in. A card session cannot change the account. (Real API only.) */
   session_kind?: 'password' | 'card';
@@ -128,50 +109,18 @@ export interface ThriftPlusCartLine {
   added_at: string;
 }
 
-/**
- * What happens to this trip's rewards: banked for later, or taken off today's
- * price. Asked on the first add; the register gets an alert with the answer,
- * and the cashier asks too. Banking pays BANK_EXTRA_PCT more.
- */
-export type RewardChoice = 'bank' | 'instant';
-
-/** Form 5 (owner, 2026-10-08): saving no longer pays extra; kept at 0 for older callers. */
-export const BANK_EXTRA_PCT = 0;
-/** Using rewards today takes this percent of them off the price; saving keeps them all (form 5). */
-export const INSTANT_PCT = 80;
-
-/** Cart totals. An estimate: the register is the source of truth. */
+/** Trip totals. An estimate: the register is the source of truth (it prices tax, credit and kept ThriftBucks). */
 export interface ThriftPlusCartTotals {
   /** Units (sum of qty). */
   item_count: number;
-  /** Sum of tag prices x qty: what a guest pays. */
+  /** Sum of tag prices x qty. */
   price_total: Money;
-  /** Sum of member rewards x qty. */
+  /** The ThriftBucks this trip collects (sum of each tag's ThriftBucks x qty), kept in full by default. */
   reward_total: Money;
-  /** The part of reward_total that fills this month's cover (for a guest: as a new member would). */
-  to_cover: Money;
-  /** Instant rebate: reward_total - to_cover, taken off at the register. 0 when banking. */
-  savings: Money;
-  /** What banking this cart would add to banked rewards: (reward_total - to_cover) plus bank_extra_pct. */
-  bank_value: Money;
-  /** The extra part of bank_value, i.e. what banking adds over an instant rebate. */
-  bank_extra: Money;
-  /** The banking extra in percent (5). */
-  bank_extra_pct: number;
-  /** bank_value when the member saves (Full rewards, the default), else 0. */
-  to_bank: Money;
-  /** What saving the rewards past the cover adds to the ThriftBucks Balance (100%). */
-  full_value?: Money;
-  /** What using them today takes off the price (80%). */
-  instant_value?: Money;
-  /** price_total - savings: the member's estimate, before tax. */
-  member_total: Money;
 }
 
 export interface ThriftPlusCart {
   lines: ThriftPlusCartLine[];
-  /** null until the member answers (first add). Guests are never asked. */
-  reward_choice: RewardChoice | null;
   totals: ThriftPlusCartTotals;
 }
 
@@ -293,16 +242,6 @@ export function shortTitle(title: string, max = 28): string {
   return (out || clean.slice(0, max)).replace(/[\s,;:/(&-]+$/, '');
 }
 
-/** A reward in cents plus the banking extra, rounded down to the cent like the register. */
-export function withBankExtra(cents: number): number {
-  return cents; // form 5: saved in full, nothing extra
-}
-
-/** Using rewards today: 80% of them, rounded up to the cent (the member's favor), never more. */
-export function instantPart(cents: number): number {
-  return Math.min(cents, Math.ceil((cents * INSTANT_PCT) / 100));
-}
-
 function hashCode(s: string): number {
   let h = 2166136261;
   for (let i = 0; i < s.length; i += 1) {
@@ -322,7 +261,7 @@ export function mockRewardCents(sku: string, priceCents: number): number {
 }
 
 function cardFrom(
-  base: Omit<ThriftPlusItemCard, 'member_price' | 'reward_banked' | 'reward' | 'category_label'> & { reward?: Money },
+  base: Omit<ThriftPlusItemCard, 'member_price' | 'reward' | 'category_label'> & { reward?: Money },
 ): ThriftPlusItemCard {
   const priceCents = toCents(base.price);
   const rewardCents = base.reward != null ? toCents(base.reward) : mockRewardCents(base.sku, priceCents);
@@ -331,8 +270,6 @@ function cardFrom(
     category_label: CATEGORY_LABELS[base.category],
     reward: fromCents(rewardCents),
     member_price: fromCents(priceCents - rewardCents),
-    reward_banked: fromCents(rewardCents),
-    reward_instant: fromCents(instantPart(rewardCents)),
   };
 }
 
@@ -363,7 +300,7 @@ export function itemFromPublic(dto: PublicItemDTO): ThriftPlusItemCard {
 // Sample tags (work without a database, e.g. on a laptop)
 // ---------------------------------------------------------------------------
 
-type Sample = Omit<ThriftPlusItemCard, 'member_price' | 'reward_banked' | 'category_label' | 'age_restricted' | 'returnable' | 'available'> &
+type Sample = Omit<ThriftPlusItemCard, 'member_price' | 'category_label' | 'age_restricted' | 'returnable' | 'available'> &
   Partial<Pick<ThriftPlusItemCard, 'age_restricted' | 'returnable' | 'available'>>;
 
 const SAMPLES: Sample[] = [
@@ -388,14 +325,11 @@ const SAMPLE_CARDS = new Map(
 // Mock state (this phone's localStorage; the real API keeps it per account)
 // ---------------------------------------------------------------------------
 
-const COVER_AMOUNT_CENTS = 1000;
 const HISTORY_MAX = 300;
 const LS = {
   session: 'thriftPlus.session',
   cart: 'thriftPlus.cart',
   history: 'thriftPlus.history',
-  choice: 'thriftPlus.rewardChoice',
-  covered: 'thriftPlus.mockCovered',
 };
 
 function readJson<T>(key: string, fallback: T): T {
@@ -424,8 +358,7 @@ interface StoredSession {
 
 export type MockSignal =
   | { kind: 'scan' | 'add' | 'pass'; sku: string; at: string }
-  | { kind: 'feel'; sku: string; at: string; feel: PriceFeel }
-  | { kind: 'choice'; sku: ''; at: string; choice: RewardChoice };
+  | { kind: 'feel'; sku: string; at: string; feel: PriceFeel };
 
 const state = {
   latencyMs: 120,
@@ -440,25 +373,6 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-function pad2(n: number): string {
-  return String(n).padStart(2, '0');
-}
-
-function coverFor(coveredCents: number, today = new Date()): ThriftPlusCover {
-  const y = today.getFullYear();
-  const m = today.getMonth();
-  const next = new Date(y, m + 1, 1);
-  const covered = Math.max(0, Math.min(coveredCents, COVER_AMOUNT_CENTS));
-  return {
-    month: `${y}-${pad2(m + 1)}`,
-    amount: fromCents(COVER_AMOUNT_CENTS),
-    covered: fromCents(covered),
-    remaining: fromCents(COVER_AMOUNT_CENTS - covered),
-    is_covered: covered >= COVER_AMOUNT_CENTS,
-    resets_on: `${next.getFullYear()}-${pad2(next.getMonth() + 1)}-01`,
-  };
-}
-
 function readSession(): ThriftPlusSession {
   const s = readJson<StoredSession | null>(LS.session, null);
   if (!s) return { status: 'signed_out' };
@@ -471,26 +385,17 @@ function readSession(): ThriftPlusSession {
       username: s.username ?? null,
       card_last4: '4821',
       verified_18: true,
-      cover: coverFor(readJson<number>(LS.covered, 640)),
       banked_rewards: '27.50',
       credit_balance: '0.00',
     },
   };
 }
 
-function memberOf(session: ThriftPlusSession): ThriftPlusMember | null {
-  return session.status === 'member' ? session.member : null;
-}
-
 /**
- * Cart totals, the way the register will estimate them: rewards first fill
- * what is left of this month's cover, and only the rest comes off the price.
+ * Trip totals: the units, the tag prices and the ThriftBucks the trip collects. Nothing comes off in the
+ * scanner: the register works out Thrift+ credit, kept ThriftBucks and any instant redemption (B1, B3).
  */
-export function computeCartTotals(
-  lines: Array<{ item: ThriftPlusItemCard; qty: number }>,
-  member: ThriftPlusMember | null,
-  choice: RewardChoice | null = null,
-): ThriftPlusCartTotals {
+export function computeCartTotals(lines: Array<{ item: ThriftPlusItemCard; qty: number }>): ThriftPlusCartTotals {
   let units = 0;
   let priceCents = 0;
   let rewardCents = 0;
@@ -499,62 +404,30 @@ export function computeCartTotals(
     priceCents += toCents(item.price) * qty;
     rewardCents += toCents(item.reward) * qty;
   }
-  const coverLeft = member ? toCents(member.cover.remaining) : COVER_AMOUNT_CENTS;
-  const toCover = Math.min(coverLeft, rewardCents);
-  const past = rewardCents - toCover;
-  // Form 5: a member saves in full unless they chose to use it today; a guest is shown the instant rebate.
-  const banking = !!member && choice !== 'instant';
-  const instant = instantPart(past);
-  const savings = banking ? 0 : instant;
   return {
     item_count: units,
     price_total: fromCents(priceCents),
     reward_total: fromCents(rewardCents),
-    to_cover: fromCents(toCover),
-    savings: fromCents(savings),
-    bank_value: fromCents(past),
-    bank_extra: fromCents(past - instant),
-    bank_extra_pct: 100 - INSTANT_PCT,
-    to_bank: fromCents(banking ? past : 0),
-    full_value: fromCents(past),
-    instant_value: fromCents(instant),
-    member_total: fromCents(priceCents - savings),
   };
-}
-
-/** Items saved on the phone by an older version lack newer fields; fill them in. */
-function upgradeItem(item: ThriftPlusItemCard): ThriftPlusItemCard {
-  return item.reward_banked ? item : { ...item, reward_banked: fromCents(withBankExtra(toCents(item.reward))) };
 }
 
 function readCartLines(): ThriftPlusCartLine[] {
   const raw = readJson<unknown>(LS.cart, []);
   if (!Array.isArray(raw)) return [];
-  return raw
-    .filter(
-      (l): l is ThriftPlusCartLine =>
-        !!l && typeof l === 'object' && !!(l as ThriftPlusCartLine).item?.sku && Number((l as ThriftPlusCartLine).qty) > 0,
-    )
-    .map((l) => ({ ...l, item: upgradeItem(l.item) }));
-}
-
-function readChoice(): RewardChoice | null {
-  const c = readJson<unknown>(LS.choice, null);
-  return c === 'bank' || c === 'instant' ? c : null;
+  return raw.filter(
+    (l): l is ThriftPlusCartLine =>
+      !!l && typeof l === 'object' && !!(l as ThriftPlusCartLine).item?.sku && Number((l as ThriftPlusCartLine).qty) > 0,
+  );
 }
 
 function cartOf(lines: ThriftPlusCartLine[]): ThriftPlusCart {
-  const member = memberOf(readSession());
-  const choice = member ? readChoice() : null;
-  return { lines, reward_choice: choice, totals: computeCartTotals(lines, member, choice) };
+  return { lines, totals: computeCartTotals(lines) };
 }
 
 function readHistory(): ThriftPlusHistoryEntry[] {
   const raw = readJson<unknown>(LS.history, []);
   if (!Array.isArray(raw)) return [];
-  return raw
-    .filter((e): e is ThriftPlusHistoryEntry => !!e && typeof e === 'object' && !!(e as ThriftPlusHistoryEntry).item?.sku)
-    .map((e) => ({ ...e, item: upgradeItem(e.item) }));
+  return raw.filter((e): e is ThriftPlusHistoryEntry => !!e && typeof e === 'object' && !!(e as ThriftPlusHistoryEntry).item?.sku);
 }
 
 /** Newest first, one row per tag. */
@@ -635,7 +508,6 @@ export async function continueAsGuest(): Promise<ThriftPlusSession> {
 
 export async function signOut(): Promise<ThriftPlusSession> {
   writeJson(LS.session, null);
-  writeJson(LS.choice, null);
   return readSession();
 }
 
@@ -693,16 +565,7 @@ export async function removeFromCart(sku: string): Promise<ThriftPlusCart> {
 
 export async function clearCart(): Promise<ThriftPlusCart> {
   writeJson(LS.cart, []);
-  // A new trip asks bank-or-rebate again.
-  writeJson(LS.choice, null);
   return cartOf([]);
-}
-
-/** The bank-or-rebate answer for this trip. The real API alerts the register. */
-export async function setRewardChoice(choice: RewardChoice): Promise<ThriftPlusCart> {
-  writeJson(LS.choice, choice);
-  record({ kind: 'choice', sku: '', at: nowIso(), choice });
-  return cartOf(readCartLines());
 }
 
 /** Swipe left. Logs a pass. */
@@ -732,10 +595,6 @@ export const thriftPlusMockControls = {
   },
   signals(): MockSignal[] {
     return [...state.signals];
-  },
-  /** Month-to-date cover for the mock member, in cents. */
-  setCoveredCents(cents: number): void {
-    writeJson(LS.covered, cents);
   },
   setLatency(ms: number): void {
     state.latencyMs = ms;

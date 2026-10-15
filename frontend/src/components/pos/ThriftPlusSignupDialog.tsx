@@ -1,66 +1,79 @@
-import { Alert, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel } from '@mui/material';
+import { Alert, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Typography } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import { useState } from 'react';
 import { createMember } from '../../api/thriftplus.api';
-import { attachThriftCard, reringThriftCard, thriftErrorMessage } from '../../api/thriftplusRegister.api';
+import { attachThriftMember, reringThriftMember, thriftErrorMessage } from '../../api/thriftplusRegister.api';
 import type { Cart } from '../../types/pos.types';
 import type { NewMember } from '../../types/thriftplus.types';
 import { formatCurrency } from '../../utils/format';
-import { thriftCardCode } from '../../utils/thriftPlusCard';
+import { reringMessage } from '../../utils/thriftPlusRegister';
 import PersonFields from '../thriftplus/PersonFields';
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  /** The open sale to put the new card on, if there is one. */
+  /** The open sale to put the new member on, if there is one. */
   cart: Cart | null;
   /** A sale finished in the last 30 minutes that the new member can re-ring. */
   lastSale: { id: number; total: string } | null;
   onCart: (cart: Cart) => void;
-  /** The training register: the sign-up makes a practice member, and the card may be left blank. */
+  /** The training register: the sign-up makes a practice member. */
   training?: boolean;
 }
 
-const EMPTY: NewMember = { first_name: '', last_name: '', phone: '', id_checked: false, verified_18: false, card_code: '', photo: null };
+const EMPTY: NewMember = { first_name: '', last_name: '', phone: '', id_checked: false, verified_18: false, photo: null };
+
+/** Where a member opens the Thrift+ app to show their member QR (owner 2026-10-14). */
+export const THRIFT_APP_ADDRESS = 'ecothrift.us/scan';
+
+/** At least a 10-digit phone: with no Thrift+ card, the phone is how the register finds a member. */
+function hasPhone(phone: string | undefined): boolean {
+  return (phone ?? '').replace(/\D/g, '').length >= 10;
+}
 
 /**
- * Thrift+ signup at the register (thrift_plus_rewards Phase 4). Check the ID (it sets 18+), take
- * the photo, scan a blank card. The card then goes on the current sale, or re-rings the last one
- * if they paid before signing up. No ID means an unverified card: rewards, but no returns and no 18+.
+ * Thrift+ signup at the register (thrift_plus_rewards Phase 4; owner 2026-10-14: there is no Thrift+ card). Check
+ * the ID (it sets 18+), take the photo, and the phone. The server makes the member's code; they show it as the QR in
+ * the Thrift+ app, or give their phone. The new member then goes on the current sale, or re-rings the last one if
+ * they paid before signing up. No ID means an unverified member: they collect ThriftBucks, but have no 3-day returns
+ * and no 18+ items.
+ *
+ * Started on their phone already (J8)? Don't sign them up again: find them by phone or scan their app QR.
  */
 export default function ThriftPlusSignupDialog({ open, onClose, cart, lastSale, onCart, training = false }: Props) {
   const { enqueueSnackbar } = useSnackbar();
   const [value, setValue] = useState<NewMember>(EMPTY);
   const [rering, setRering] = useState(true);
   const [busy, setBusy] = useState(false);
-  const code = thriftCardCode(value.card_code ?? '', true);
+  const [done, setDone] = useState<{ name: string; where: string } | null>(null);
   const openSale = cart && cart.status === 'open' ? cart : null;
+  const ready = Boolean(value.first_name.trim()) && (training || hasPhone(value.phone));
 
   function close() {
     setValue(EMPTY);
+    setDone(null);
     onClose();
   }
 
   async function signUp() {
-    if (!code && !training) return;
+    if (!ready) return;
     setBusy(true);
     try {
-      const made = await createMember({ ...value, card_code: code ?? '', practice: training || undefined });
-      // A practice sign-up without a card gets a made-up card number.
-      const cardCode = code || made.people[0]?.cards.find((c) => c.status === 'active')?.code || '';
-      if (openSale && cardCode) {
-        onCart(await attachThriftCard(openSale.id, cardCode));
-        enqueueSnackbar(`Welcome, ${value.first_name}. The card is on this sale.`, { variant: 'success' });
-      } else if (lastSale && rering && code) {
-        const done = await reringThriftCard(lastSale.id, code);
-        enqueueSnackbar(
-          `Welcome, ${value.first_name}. Re-rung: ${formatCurrency(done.thrift_plus?.totals.savings ?? 0)} store credit.`,
-          { variant: 'success' },
-        );
-      } else {
-        enqueueSnackbar(`Welcome, ${value.first_name}.`, { variant: 'success' });
+      // No card_code: the server makes the member's code (owner 2026-10-14).
+      const made = await createMember({ ...value, card_code: undefined, practice: training || undefined });
+      const personId = made.people[0]?.id;
+      let where = '';
+      try {
+        if (openSale && personId) {
+          onCart(await attachThriftMember(openSale.id, personId));
+          where = 'They are on this sale.';
+        } else if (lastSale && rering && personId && !training) {
+          where = reringMessage(value.first_name, await reringThriftMember(lastSale.id, personId));
+        }
+      } catch (err) {
+        where = `Signed up, but not on the sale: ${thriftErrorMessage(err)} Find them by phone.`;
       }
-      close();
+      setDone({ name: value.first_name.trim(), where });
     } catch (err) {
       enqueueSnackbar(thriftErrorMessage(err, 'Could not sign them up.'), { variant: 'error' });
     } finally {
@@ -72,30 +85,52 @@ export default function ThriftPlusSignupDialog({ open, onClose, cart, lastSale, 
     <Dialog open={open} onClose={close} maxWidth="xs" fullWidth>
       <DialogTitle>{training ? 'Thrift+ sign up (practice)' : 'Thrift+ sign up'}</DialogTitle>
       <DialogContent>
-        {training ? (
-          <Alert severity="warning" sx={{ mt: 1 }}>
-            Training register: this makes a practice member. It gets a made-up 555 phone and no emails. Scan a card, or
-            leave the card blank to get a made-up card number.
+        {done ? (
+          <Alert severity="success" sx={{ mt: 1 }} data-testid="thrift-signup-done">
+            <Typography fontWeight={800}>{`Welcome, ${done.name}.`}</Typography>
+            {done.where ? <Typography variant="body2">{done.where}</Typography> : null}
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              {`Next time: they open the Thrift+ app at ${THRIFT_APP_ADDRESS} and show their member QR, or give their phone number.`}
+            </Typography>
           </Alert>
-        ) : null}
-        {!value.id_checked ? (
-          <Alert severity="info" sx={{ mt: 1 }}>
-            Without an ID check the card still collects ThriftBucks, but has no returns and no 18+ items.
-          </Alert>
-        ) : null}
-        <PersonFields value={value} onChange={setValue} />
-        {!openSale && lastSale ? (
-          <FormControlLabel
-            control={<Checkbox checked={rering} onChange={(e) => setRering(e.target.checked)} />}
-            label={`Re-ring the last sale (${formatCurrency(lastSale.total)}) for them`}
-          />
-        ) : null}
+        ) : (
+          <>
+            {training ? (
+              <Alert severity="warning" sx={{ mt: 1 }}>
+                Training register: this makes a practice member. It gets a made-up 555 phone and no emails.
+              </Alert>
+            ) : (
+              <Alert severity="info" sx={{ mt: 1 }}>
+                Started on their phone already? Don&apos;t sign them up again: close this, then scan their Thrift+ app QR or
+                find them by phone.
+              </Alert>
+            )}
+            {!value.id_checked ? (
+              <Alert severity="info" sx={{ mt: 1 }}>
+                Without an ID check they still collect ThriftBucks, but have no returns and no 18+ items.
+              </Alert>
+            ) : null}
+            <PersonFields value={value} onChange={setValue} blankCard={false} />
+            {!openSale && lastSale && !training ? (
+              <FormControlLabel
+                control={<Checkbox checked={rering} onChange={(e) => setRering(e.target.checked)} />}
+                label={`Re-ring the last sale (${formatCurrency(lastSale.total)}) for them`}
+              />
+            ) : null}
+          </>
+        )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={close}>Cancel</Button>
-        <Button variant="contained" disabled={busy || !value.first_name.trim() || (!code && !training)} onClick={() => void signUp()}>
-          {code || training ? 'Sign up' : 'Scan a blank card'}
-        </Button>
+        {done ? (
+          <Button variant="contained" onClick={close}>Done</Button>
+        ) : (
+          <>
+            <Button onClick={close}>Cancel</Button>
+            <Button variant="contained" disabled={busy || !ready} onClick={() => void signUp()}>
+              {ready || !value.first_name.trim() ? 'Sign up' : 'Add their phone number'}
+            </Button>
+          </>
+        )}
       </DialogActions>
     </Dialog>
   );

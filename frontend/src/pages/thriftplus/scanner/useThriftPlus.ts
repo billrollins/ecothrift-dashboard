@@ -12,19 +12,15 @@ import {
   passItem,
   removeFromCart,
   removePerson,
-  reportCardLost,
   setMyNews,
   requestPasswordReset,
   sendPriceFeel,
   clearHistory,
   setCartQty,
-  setRewardChoice,
   setUpLogin,
   signIn,
-  signInWithCard,
   signOut,
   type PriceFeel,
-  type RewardChoice,
   type ThriftPlusCart,
   type ThriftPlusHistoryEntry,
   type ThriftPlusItemCard,
@@ -57,16 +53,12 @@ export function useSignIn() {
     qc.setQueryData(thriftPlusKeys.session, s);
     // Staff test mode: signing in (or out) can open or close the scanner while Thrift+ is off.
     void qc.invalidateQueries({ queryKey: ['thriftPlus', 'open'] });
-    // Cover and totals depend on who is signed in.
+    // The trip and its totals depend on who is signed in.
     void qc.invalidateQueries({ queryKey: thriftPlusKeys.cart });
   };
   return {
     password: useMutation({
       mutationFn: ({ login, password }: { login: string; password: string }) => signIn(login, password),
-      onSuccess: setSession,
-    }),
-    card: useMutation({
-      mutationFn: ({ code, last4 }: { code: string; last4: string }) => signInWithCard(code, last4),
       onSuccess: setSession,
     }),
     reset: useMutation({ mutationFn: (email: string) => requestPasswordReset(email) }),
@@ -89,7 +81,6 @@ export function useCartActions() {
     }),
     remove: useMutation({ mutationFn: (sku: string) => removeFromCart(sku), onSuccess: setCart }),
     clear: useMutation({ mutationFn: () => clearCart(), onSuccess: setCart }),
-    choose: useMutation({ mutationFn: (choice: RewardChoice) => setRewardChoice(choice), onSuccess: setCart }),
     pass: useMutation({
       mutationFn: (sku: string) => passItem(sku),
       onSuccess: () => void qc.invalidateQueries({ queryKey: thriftPlusKeys.history }),
@@ -125,7 +116,6 @@ export function useAccountActions() {
   const qc = useQueryClient();
   const refresh = () => void qc.invalidateQueries({ queryKey: thriftPlusKeys.me });
   return {
-    cardLost: useMutation({ mutationFn: (cardId: number) => reportCardLost(cardId), onSuccess: refresh }),
     news: useMutation({
       mutationFn: (on: boolean) => setMyNews(on),
       onSuccess: refresh,

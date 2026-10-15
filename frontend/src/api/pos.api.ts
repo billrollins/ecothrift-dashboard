@@ -796,13 +796,12 @@ export function getHistoricalRevenue(params?: {
   return api.get<HistoricalRevenueResponse>('/pos/historical-revenue/', { params });
 }
 
-// ── Staff purchases (owner, 2026-10-07): payroll deduction, and Thrift+ free for staff ─────────
+// ── Staff purchases (owner, 2026-10-07): payroll deduction ─────────
 
 export interface StaffPurchaseSettings {
   payroll_deduction: boolean;
   /** Everything bought by payroll deduction in one pay period stays at or under this % of the last paycheck. */
   payroll_max_percent: number;
-  thrift_plus_free: boolean;
 }
 
 export interface PayrollEligibility {

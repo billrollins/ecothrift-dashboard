@@ -7,14 +7,14 @@
  *   token: a staff login and a member session never mix.
  * - **Guests:** the cart and history stay on the phone (localStorage). Only tag lookups and signals
  *   go to the server.
- * - **Totals:** the server computes a member's cart totals with the register's math (cover first,
- *   then saved in full or 80% today, form 5). A guest's are `computeCartTotals` from the mock.
+ * - **Totals:** the trip's units, tag prices and the ThriftBucks it collects (the server's for a member,
+ *   `computeCartTotals` from the mock for a guest). The scanner shows only ThriftBucks: Thrift+ credit, kept
+ *   ThriftBucks and any instant redemption are worked out at the register (B1, B3, V8).
  */
 import axios from 'axios';
 import {
   computeCartTotals,
   type PriceFeel,
-  type RewardChoice,
   type TagLookup,
   type ThriftPlusCart,
   type ThriftPlusCartLine,
@@ -27,7 +27,6 @@ import {
 export { computeCartTotals };
 export type {
   PriceFeel,
-  RewardChoice,
   TagLookup,
   ThriftPlusCart,
   ThriftPlusCartLine,
@@ -176,18 +175,7 @@ export async function confirmPasswordReset(token: string, password: string): Pro
   }
 }
 
-export async function signInWithCard(cardCode: string, phoneLast4: string): Promise<ThriftPlusSession> {
-  try {
-    const { data } = await http.post<ThriftPlusSession>('/session/card/', { card_code: cardCode.trim(), phone_last4: phoneLast4.trim() });
-    if (data.status === 'member') member = data.member;
-    writeJson(LS.guest, null);
-    return data;
-  } catch (err) {
-    throw problem(err, "That card and phone number don't match.");
-  }
-}
-
-/** A member signed in with their card sets up an email and password (only if they have none). */
+/** A member signed in without a password (an old card session) sets up an email and password (only if they have none). */
 export async function setUpLogin(email: string, password: string, username?: string): Promise<ThriftPlusSession> {
   try {
     const { data } = await http.post<ThriftPlusSession>('/login/', { email: email.trim(), password, username: username?.trim() || undefined });
@@ -224,7 +212,7 @@ function guestLines(): ThriftPlusCartLine[] {
 }
 
 function guestCart(lines: ThriftPlusCartLine[] = guestLines()): ThriftPlusCart {
-  return { lines, reward_choice: null, totals: computeCartTotals(lines, null, null) };
+  return { lines, totals: computeCartTotals(lines) };
 }
 
 function guestHistory(): ThriftPlusHistoryEntry[] {
@@ -312,13 +300,6 @@ export async function clearCart(): Promise<ThriftPlusCart> {
   return data;
 }
 
-/** Members only: the trip's bank-or-rebate answer. The register sees it when the card is scanned. */
-export async function setRewardChoice(choice: RewardChoice): Promise<ThriftPlusCart> {
-  if (!(await isMember())) return guestCart();
-  const { data } = await http.post<ThriftPlusCart>('/cart/choice/', { choice });
-  return data;
-}
-
 export async function passItem(sku: string): Promise<void> {
   if (!member) {
     const prior = guestHistory().find((e) => e.item.sku === sku);
@@ -350,31 +331,41 @@ export async function sendPriceFeel(sku: string, feel: PriceFeel): Promise<void>
 // ── The portal ──────────────────────────────────────────────────────────────
 
 export interface ThriftPlusMe {
+  /** Kept ThriftBucks (a number, never "$"). */
   banked: string;
+  /** Thrift+ credit (dollars). */
   credit: string;
-  cover: ThriftPlusMember['cover'];
   people: { id: number; first_name: string; role: 'primary' | 'secondary'; verified_18: boolean; is_you: boolean; cards: { id: number; last4: string; status: string }[] }[];
-  money: { kind: 'cover' | 'bank' | 'credit'; amount: string; reason: string; created_at: string }[];
-  /** The Rewards Balance in the order it is used: soonest use-by first (Return $ is `credit`, used before these). */
+  /** Recent ThriftBucks ('bank') and Thrift+ credit rows. Older servers may send retired kinds; the screen skips them. */
+  money: { kind: 'bank' | 'credit' | string; amount: string; reason: string; created_at: string }[];
+  /** Kept ThriftBucks in the order they are used: soonest use-by first (Thrift+ credit is `credit`, used before these). */
   rewards?: { amount: string; earned_on: string; use_by: string; past_due: boolean }[];
-  /** False for a card session: changes need the email and password. */
+  /** False for an old card session: changes need the email and password. */
   can_change: boolean;
   /** Your email (T74): receipts and updates follow the address; store news can be turned off. */
   emails?: { updates: boolean; news: boolean; has_email: boolean; note: string };
 }
 
-export async function getMe(): Promise<ThriftPlusMe> {
-  const { data } = await http.get<ThriftPlusMe>('/me/');
+/** The code behind the app's Member QR (owner 2026-10-14: no card, APP D6): the QR the register scans. */
+export interface MyCard {
+  code: string;
+  /** "4021 5583 1907", for a cashier to type. */
+  display: string;
+  /** What the QR holds: TP + the 12 digits (the register's card scan reads it as is). */
+  qr: string;
+  first_name: string;
+  /** False until the account is finished at a register (J2). */
+  ready: boolean;
+}
+
+export async function getMyCard(): Promise<MyCard> {
+  const { data } = await http.get<MyCard>('/me/card/');
   return data;
 }
 
-export async function reportCardLost(cardId: number): Promise<ThriftPlusMe> {
-  try {
-    const { data } = await http.post<ThriftPlusMe>('/me/card-lost/', { card: cardId });
-    return data;
-  } catch (err) {
-    throw problem(err, 'Could not stop that card. Ask at the register.');
-  }
+export async function getMe(): Promise<ThriftPlusMe> {
+  const { data } = await http.get<ThriftPlusMe>('/me/');
+  return data;
 }
 
 /** Turn your store news emails off (any sign-in) or back on (the password sign-in). */

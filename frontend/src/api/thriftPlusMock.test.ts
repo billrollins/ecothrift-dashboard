@@ -13,7 +13,6 @@ import {
   passItem,
   requestPasswordReset,
   setCartQty,
-  setRewardChoice,
   shortTitle,
   signIn,
   signInWithCard,
@@ -21,7 +20,6 @@ import {
   thriftPlusMockControls,
   toCents,
   type ThriftPlusItemCard,
-  type ThriftPlusMember,
 } from './thriftPlusMock';
 
 const DRILL = 'TP0000001';
@@ -31,26 +29,6 @@ async function found(sku: string): Promise<ThriftPlusItemCard> {
   const r = await lookupTag(sku);
   if (r.status !== 'found') throw new Error(`expected ${sku} to be found`);
   return r.item;
-}
-
-function member(coveredCents: number): ThriftPlusMember {
-  return {
-    first_name: 'Test',
-    email: 'test@example.com',
-    username: null,
-    card_last4: null,
-    verified_18: true,
-    banked_rewards: '0.00',
-    credit_balance: '0.00',
-    cover: {
-      month: '2026-09',
-      amount: '10.00',
-      covered: (coveredCents / 100).toFixed(2),
-      remaining: ((1000 - coveredCents) / 100).toFixed(2),
-      is_covered: coveredCents >= 1000,
-      resets_on: '2026-10-01',
-    },
-  };
 }
 
 beforeEach(() => {
@@ -86,7 +64,10 @@ describe('sign-in (mock)', () => {
 describe('tag lookup', () => {
   it('finds sample tags without the network and logs the scan to history', async () => {
     const drill = await found(DRILL);
-    expect(drill).toMatchObject({ title: 'Cordless Drill Kit', category: 'tools', category_label: 'Tools', price: '60.00', reward: '15.00', member_price: '45.00', reward_banked: '15.00', reward_instant: '12.00' });
+    expect(drill).toMatchObject({ title: 'Cordless Drill Kit', category: 'tools', category_label: 'Tools', price: '60.00', reward: '15.00', member_price: '45.00' });
+    // The scanner shows only ThriftBucks (B1, V8): no instant figure on the tag.
+    expect(drill).not.toHaveProperty('reward_instant');
+    expect(drill).not.toHaveProperty('reward_banked');
     const hist = await getHistory();
     expect(hist[0].item.sku).toBe(DRILL);
     expect(hist[0].decision).toBeNull();
@@ -179,19 +160,14 @@ describe('cart', () => {
     await expect(addToCart(await found(PATIO))).rejects.toThrow(/no longer/);
   });
 
-  it('asks bank-or-rebate once per trip (members only) and clears it with the cart', async () => {
-    await signIn('dana', 'secret');
-    let cart = await addToCart(await found(DRILL));
-    expect(cart.reward_choice).toBeNull();
-    cart = await setRewardChoice('bank');
-    expect(cart.reward_choice).toBe('bank');
-    expect(cart.totals.to_bank).toBe('11.40');
-    expect(thriftPlusMockControls.signals().at(-1)).toMatchObject({ kind: 'choice', choice: 'bank' });
+  it('asks nothing about redeeming: a member sees the ThriftBucks the trip collects (B1, V8)', async () => {
+    const session = await signIn('dana', 'secret');
+    expect(session.status === 'member' && session.member).not.toHaveProperty('cover');
+    const cart = await addToCart(await found(DRILL));
+    expect(cart).not.toHaveProperty('reward_choice');
+    expect(cart.totals).toEqual({ item_count: 1, price_total: '60.00', reward_total: '15.00' });
     const { clearCart } = await import('./thriftPlusMock');
-    expect((await clearCart()).reward_choice).toBeNull();
-    await continueAsGuest();
-    await setRewardChoice('bank');
-    expect((await getCart()).reward_choice).toBeNull();
+    expect((await clearCart()).totals.item_count).toBe(0);
   });
 
   it('survives a reload (kept on the phone)', async () => {
@@ -200,46 +176,21 @@ describe('cart', () => {
   });
 });
 
-describe('cart totals and the monthly cover', () => {
+describe('trip totals (no cover since 10-12)', () => {
   const line = (price: string, reward: string, qty = 1) => ({
     qty,
     item: { price, reward } as ThriftPlusItemCard,
   });
 
-  it('fills what is left of the cover first, then saves the rest in full (the default)', () => {
-    const t = computeCartTotals([line('60.00', '15.00'), line('20.00', '2.00', 2)], member(640));
-    expect(t).toEqual({
+  it('adds up the units, the tags and every ThriftBuck the trip collects, in full', () => {
+    expect(computeCartTotals([line('60.00', '15.00'), line('20.00', '2.00', 2)])).toEqual({
       item_count: 3,
       price_total: '100.00',
       reward_total: '19.00',
-      to_cover: '3.60',
-      savings: '0.00',
-      bank_value: '15.40',
-      bank_extra: '3.08',
-      bank_extra_pct: 20,
-      to_bank: '15.40',
-      member_total: '100.00',
-      full_value: '15.40',
-      instant_value: '12.32',
     });
   });
 
-  it('with Instant, 80% of the whole reward comes off once the card is covered', () => {
-    const t = computeCartTotals([line('60.00', '15.00')], member(1000), 'instant');
-    expect(t.to_cover).toBe('0.00');
-    expect(t.member_total).toBe('48.00');
-  });
-
-  it('shows a guest what a new member would pay (Instant)', () => {
-    const t = computeCartTotals([line('60.00', '15.00')], null);
-    expect(t.to_cover).toBe('10.00');
-    expect(t.member_total).toBe('56.00');
-  });
-
-  it('saves the rewards past the cover in full, or 80% comes off today with Instant', () => {
-    const t = computeCartTotals([line('60.00', '15.00')], member(640), 'bank');
-    expect(t).toMatchObject({ to_cover: '3.60', savings: '0.00', bank_value: '11.40', bank_extra: '2.28', to_bank: '11.40', member_total: '60.00' });
-    expect(computeCartTotals([line('60.00', '15.00')], member(640), 'instant')).toMatchObject({ savings: '9.12', to_bank: '0.00', bank_value: '11.40' });
-    expect(computeCartTotals([line('60.00', '15.00')], null, 'bank').to_bank).toBe('0.00');
+  it('is zero for an empty trip', () => {
+    expect(computeCartTotals([])).toEqual({ item_count: 0, price_total: '0.00', reward_total: '0.00' });
   });
 });

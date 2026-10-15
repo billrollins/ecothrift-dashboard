@@ -3,8 +3,9 @@ Thrift+ in Dash, the owner's numbers (thrift_plus_rewards Phase 4):
 - members and cards;
 - signups by day;
 - member sales against guest sales;
-- rewards given (the instant rebate, the cover filled, rewards banked);
-- the balances members hold (banked and store credit: what the store owes);
+- ThriftBucks (the 10-12 policy): redeemed instantly (dollars off), collected and kept, used, and expired (Thrift+
+  income, F4); Thrift+ credit from returns;
+- what the store owes (B9): kept ThriftBucks not past their date, plus Thrift+ credit;
 - returns;
 - scans-to-adds from the scanner app.
 
@@ -20,6 +21,7 @@ from django.db.models.functions import TruncDate
 from django.utils import timezone
 
 from apps.thriftplus.models import Account, Card, ItemReward, LedgerEntry, Person, ReturnRecord
+from apps.thriftplus.services.ledger import owed_bucks
 
 ZERO = Decimal('0.00')
 DAYS = 30
@@ -44,6 +46,10 @@ def overview(days: int = DAYS) -> dict:
     )
     signals = ItemReward.objects.aggregate(scans=Sum('scans'), adds=Sum('adds'), passes=Sum('passes'))
     scans = signals['scans'] or 0
+    bank = ledger.filter(kind=LedgerEntry.KIND_BANK)
+    kept = _money(bank.filter(reason__in=('sale', 'rering'), amount__gt=0).aggregate(s=Sum('amount'))['s'])
+    owed_bank = owed_bucks(timezone.localdate(), accounts=real)
+    owed_credit = (owed_rows.filter(kind=LedgerEntry.KIND_CREDIT).aggregate(s=Sum('amount'))['s'] or ZERO)
     return {
         'days': days,
         'members': {
@@ -63,14 +69,21 @@ def overview(days: int = DAYS) -> dict:
             'guest_revenue': _money(carts.filter(thrift_member__isnull=True).aggregate(s=Sum('total'))['s']),
         },
         'rewards': {
+            # Redeemed instantly: dollars off today (V4).
             'instant': _money(CartLine.objects.filter(cart__in=carts).aggregate(s=Sum('thrift_savings'))['s']),
-            'to_cover': _money(ledger.filter(kind=LedgerEntry.KIND_COVER).aggregate(s=Sum('amount'))['s']),
-            'banked': _money(ledger.filter(kind=LedgerEntry.KIND_BANK, reason='sale').aggregate(s=Sum('amount'))['s']),
+            # ThriftBucks collected and kept (sales and re-rings).
+            'collected': kept,
+            'banked': kept,
+            # ThriftBucks used at the register (a discount line before tax).
+            'used': _money(-(bank.filter(reason='spend').aggregate(s=Sum('amount'))['s'] or ZERO)),
+            # ThriftBucks that passed their use-by date unused: Thrift+ income (F4).
+            'expired': _money(-(bank.filter(reason='expire').aggregate(s=Sum('amount'))['s'] or ZERO)),
             'credit_from_returns': _money(ledger.filter(kind=LedgerEntry.KIND_CREDIT, reason='return').aggregate(s=Sum('amount'))['s']),
         },
         'owed': {
-            'banked': _money(owed_rows.filter(kind=LedgerEntry.KIND_BANK).aggregate(s=Sum('amount'))['s']),
-            'credit': _money(owed_rows.filter(kind=LedgerEntry.KIND_CREDIT).aggregate(s=Sum('amount'))['s']),
+            'banked': _money(owed_bank),
+            'credit': _money(max(ZERO, owed_credit)),
+            'total': _money(owed_bank + max(ZERO, owed_credit)),
         },
         'returns': {
             'count': ReturnRecord.objects.filter(created_at__gte=since).count(),

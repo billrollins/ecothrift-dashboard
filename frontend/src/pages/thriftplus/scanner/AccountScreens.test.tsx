@@ -9,7 +9,6 @@ import { AccountPage, ResetPasswordScreen } from './AccountScreens';
 vi.mock('../../../api/thriftPlusScanner.api', () => ({
   confirmPasswordReset: vi.fn(),
   getMe: vi.fn(),
-  reportCardLost: vi.fn(),
   removePerson: vi.fn(),
   setMyNews: vi.fn(),
   setUpLogin: vi.fn(),
@@ -24,14 +23,12 @@ function wrap(ui: React.ReactElement) {
   return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
 }
 
-const cover = { month: '2026-10', amount: '10.00', covered: '4.00', remaining: '6.00', is_covered: false, resets_on: '2026-11-01' };
 const member: ThriftPlusMember = {
   first_name: 'Dana',
   email: 'dana@example.com',
   username: null,
   card_last4: '4821',
   verified_18: true,
-  cover,
   banked_rewards: '12.50',
   credit_balance: '3.00',
   session_kind: 'password',
@@ -41,13 +38,16 @@ const member: ThriftPlusMember = {
 const me = (over: Partial<api.ThriftPlusMe> = {}): api.ThriftPlusMe => ({
   banked: '12.50',
   credit: '3.00',
-  cover,
   can_change: true,
   people: [
     { id: 1, first_name: 'Dana', role: 'primary', verified_18: true, is_you: true, cards: [{ id: 11, last4: '4821', status: 'active' }] },
     { id: 2, first_name: 'Sam', role: 'secondary', verified_18: true, is_you: false, cards: [{ id: 12, last4: '9033', status: 'active' }] },
   ],
-  money: [{ kind: 'bank', amount: '5.25', reason: 'Banked rewards', created_at: '2026-10-01T12:00:00Z' }],
+  money: [
+    { kind: 'bank', amount: '5.25', reason: 'Sale', created_at: '2026-10-01T12:00:00Z' },
+    { kind: 'cover', amount: '4.00', reason: '', created_at: '2026-10-01T12:00:00Z' },
+    { kind: 'credit', amount: '3.00', reason: '', created_at: '2026-10-02T12:00:00Z' },
+  ],
   ...over,
 });
 
@@ -94,20 +94,18 @@ describe('ResetPasswordScreen', () => {
 describe('AccountPage', () => {
   const props = { member, onBack: () => undefined, onSignOut: () => undefined, onSignInWithPassword: () => undefined };
 
-  it('shows balances, people and cards, and stops a lost card after a confirm', async () => {
+  it('shows balances and who is on the account, with no card rows (owner 2026-10-14: no card)', async () => {
     mocked.getMe.mockResolvedValue(me());
-    mocked.reportCardLost.mockResolvedValue(me());
-    const user = userEvent.setup();
     wrap(<AccountPage {...props} />);
     expect(await screen.findByText('Sam')).toBeInTheDocument();
-    expect(screen.getByText('Card ending 9033')).toBeInTheDocument();
-    expect(screen.getAllByText('12.50').length).toBeGreaterThan(0); // ThriftBucks: the TB mark, never "$"
-
-    const lost = screen.getAllByRole('button', { name: 'Lost it?' });
-    await user.click(lost[1]);
-    expect(mocked.reportCardLost).not.toHaveBeenCalled();
-    await user.click(await screen.findByRole('button', { name: 'Stop this card' }));
-    await waitFor(() => expect(mocked.reportCardLost).toHaveBeenCalledWith(12));
+    expect(screen.getByText('Second adult')).toBeInTheDocument();
+    expect(screen.queryByText(/card/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Lost it?' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('12.50').length).toBeGreaterThan(0); // ThriftBucks: a number, never "$"
+    // Two balances (B2): ThriftBucks and Thrift+ credit; no cover, no "Return $" (10-12).
+    expect(screen.getAllByText('Thrift+ credit').length).toBe(2); // the balance, and the credit row in Recent activity
+    expect(screen.queryByText(/cover/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Return \$/)).not.toBeInTheDocument();
   });
 
   it('lets the main member take the second adult off', async () => {
@@ -116,6 +114,7 @@ describe('AccountPage', () => {
     const user = userEvent.setup();
     wrap(<AccountPage {...props} />);
     await user.click(await screen.findByRole('button', { name: 'Remove Sam' }));
+    expect(screen.getByText('Take Sam off the account? Their member QR stops working.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Remove' }));
     await waitFor(() => expect(mocked.removePerson).toHaveBeenCalledWith(2));
   });
@@ -123,8 +122,7 @@ describe('AccountPage', () => {
   it('hides the changes for a card session and explains how to get them', async () => {
     mocked.getMe.mockResolvedValue(me({ can_change: false }));
     wrap(<AccountPage {...props} member={{ ...member, session_kind: 'card' }} />);
-    expect(await screen.findByText(/sign in with your email and password/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Lost it?' })).not.toBeInTheDocument();
+    expect(await screen.findByText('To change who is on the account, sign in with your email and password.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Remove / })).not.toBeInTheDocument();
   });
 

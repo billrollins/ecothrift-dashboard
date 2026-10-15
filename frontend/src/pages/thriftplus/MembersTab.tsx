@@ -32,7 +32,6 @@ import {
   makePracticeMember,
   fetchMember,
   findMembers,
-  issueCard,
   killCard,
   removeSecondAdult,
   revokeMember,
@@ -47,7 +46,7 @@ import MemberMoney from './MemberMoney';
 import { getPayrollPeople } from '../../api/pos.api';
 import { setMemberStaff } from '../../api/thriftplus.api';
 
-/** A staff member's own membership pays no monthly cover while the owner's "Thrift+ free for staff" is on. */
+/** A staff member's own membership (J6): marked so Dash knows whose membership it is. Thrift+ is free for everyone. */
 function StaffLink({ account, onChanged }: { account: ThriftPlusAccount; onChanged: (a: ThriftPlusAccount) => void }) {
   const { enqueueSnackbar } = useSnackbar();
   const [picking, setPicking] = useState(false);
@@ -63,10 +62,7 @@ function StaffLink({ account, onChanged }: { account: ThriftPlusAccount; onChang
   if (account.staff) {
     return (
       <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-        <Chip
-          color={account.staff.free ? 'success' : 'default'}
-          label={`Staff: ${account.staff.name}${account.staff.free ? ' (no monthly cover)' : ' (cover applies: staff Thrift+ is off in Settings)'}`}
-        />
+        <Chip color="success" label={`Staff: ${account.staff.name}`} />
         <Button size="small" color="inherit" onClick={() => void save(null)}>Not a staff membership</Button>
       </Stack>
     );
@@ -84,16 +80,32 @@ function StaffLink({ account, onChanged }: { account: ThriftPlusAccount; onChang
 /** A practice member: how to use it, and that it is never real (2026-10-10). */
 function PracticeNote({ account }: { account: ThriftPlusAccount }) {
   const person = account.people.find((p) => p.role === 'primary') ?? account.people[0];
-  const card = person?.cards.find((c) => c.status === 'active');
+  const code = person?.cards.find((c) => c.status === 'active');
   return (
     <Alert severity="warning">
       <strong>Practice member.</strong> Use it on the training register and in the scanner&rsquo;s test mode. It never
       works on a real register and is left out of every report.
-      {card && person?.phone ? (
-        <> Scanner sign-in: card <strong>{card.display}</strong> and phone ending <strong>{person.phone.slice(-4)}</strong>.</>
+      {code && person?.phone ? (
+        <> Scanner sign-in: member code <strong>{code.display}</strong> and phone ending <strong>{person.phone.slice(-4)}</strong>.</>
       ) : null}
     </Alert>
   );
+}
+
+/** The last 4 digits of a member code, for staff (the full code stays in the member's app). */
+function last4(code: string): string {
+  return code.replace(/\D/g, '').slice(-4);
+}
+
+/** History words (no physical card since 2026-10-14; the stored event names stay as they were). */
+const EVENT_LABELS: Record<string, string> = {
+  card_issued: 'member code given',
+  card_killed: 'member code stopped',
+  app_card: 'member code made in the app',
+};
+
+function eventLabel(action: string): string {
+  return EVENT_LABELS[action] ?? action.replace(/_/g, ' ');
 }
 
 function detail(err: unknown): string {
@@ -109,10 +121,12 @@ function phone(p: string): string {
   return p.length === 10 ? `(${p.slice(0, 3)}) ${p.slice(3, 6)}-${p.slice(6)}` : p;
 }
 
-/** Name, phone, ID check and 18+ (only with an ID check), a photo, and a scanned card. */
+/**
+ * Name, phone, ID check and 18+ (only with an ID check), a photo, and the member code (last 4 only). The code lives in
+ * the member's Thrift+ app (the member QR); replacing it stops the old one at once and the app shows a new one.
+ */
 function PersonCard({ person, account, onChanged }: { person: ThriftPlusPerson; account: ThriftPlusAccount; onChanged: (a: ThriftPlusAccount) => void }) {
   const { enqueueSnackbar } = useSnackbar();
-  const [code, setCode] = useState('');
   const [email, setEmail] = useState('');
   const run = useMutation({
     mutationFn: (fn: () => Promise<ThriftPlusAccount | void>) => fn(),
@@ -121,6 +135,12 @@ function PersonCard({ person, account, onChanged }: { person: ThriftPlusPerson; 
   });
   const active = !person.removed_at;
   const revoked = account.status === 'revoked';
+  const hasCode = person.cards.some((c) => c.status === 'active');
+  const replace = (cardId: number) => run.mutate(async () => {
+    await killCard(cardId, 'replaced by staff');
+    enqueueSnackbar("Old member code stopped. The member's app shows a new one the next time it opens.", { variant: 'success' });
+    return fetchMember(account.id);
+  });
   return (
     <Paper variant="outlined" sx={{ p: 1.5, opacity: active ? 1 : 0.55 }}>
       <Stack direction="row" spacing={1.5} alignItems="flex-start">
@@ -164,23 +184,31 @@ function PersonCard({ person, account, onChanged }: { person: ThriftPlusPerson; 
           ) : null}
           <Stack spacing={0.5} sx={{ mt: 1 }}>
             {person.cards.map((c) => (
-              <Stack key={c.id} direction="row" spacing={1} alignItems="center">
-                <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>{c.display}</Typography>
-                <Chip size="small" variant="outlined" color={c.status === 'active' ? 'success' : 'default'} label={c.status === 'dead' ? `Dead (${c.dead_reason})` : 'Active'} />
+              <Stack key={c.id} direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
+                <Typography variant="body2">
+                  Member code ending <Box component="span" sx={{ fontFamily: 'monospace', fontWeight: 700 }}>{last4(c.code)}</Box>
+                </Typography>
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  color={c.status === 'active' ? 'success' : 'default'}
+                  label={c.status === 'dead' ? `Stopped${c.dead_reason ? `: ${c.dead_reason}` : ''}` : 'Active'}
+                />
                 {c.status === 'active' && !revoked ? (
-                  <Button size="small" color="inherit" onClick={() => run.mutate(async () => { await killCard(c.id, 'lost'); return fetchMember(account.id); })}>
-                    Lost
+                  <Button size="small" color="inherit" disabled={run.isPending} onClick={() => replace(c.id)}>
+                    Replace member code
                   </Button>
                 ) : null}
               </Stack>
             ))}
+            {active && !revoked && !hasCode ? (
+              <Typography variant="caption" color="text.secondary">
+                No member code yet. The Thrift+ app makes one; at the register, the phone number works.
+              </Typography>
+            ) : null}
           </Stack>
           {active && !revoked ? (
             <Stack direction="row" spacing={1} sx={{ mt: 1 }} useFlexGap flexWrap="wrap" alignItems="center">
-              <TextField size="small" placeholder="Scan a blank card" value={code} onChange={(e) => setCode(e.target.value)} sx={{ width: 190 }} />
-              <Button size="small" variant="outlined" disabled={!code} onClick={() => run.mutate(async () => { const a = await issueCard(person.id, code); setCode(''); return a; })}>
-                Issue card
-              </Button>
               {!person.id_checked ? (
                 <>
                   <Button size="small" onClick={() => run.mutate(() => verifyPerson(person.id, true))}>ID checked: 18+</Button>
@@ -251,8 +279,8 @@ function AccountDetail({ id }: { id: number }) {
           <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>History</Typography>
           {account.events.map((e) => (
             <Typography key={e.id} variant="caption" display="block" color="text.secondary">
-              {format(parseISO(e.created_at), 'MMM d, h:mm a')} · {e.action.replace(/_/g, ' ')}
-              {e.person_name ? ` · ${e.person_name}` : ''}{e.card_code ? ` · ${e.card_code}` : ''}{e.actor_name ? ` · by ${e.actor_name}` : ''}
+              {format(parseISO(e.created_at), 'MMM d, h:mm a')} · {eventLabel(e.action)}
+              {e.person_name ? ` · ${e.person_name}` : ''}{e.card_code ? ` · code ending ${last4(e.card_code)}` : ''}{e.actor_name ? ` · by ${e.actor_name}` : ''}
             </Typography>
           ))}
         </Box>
@@ -265,7 +293,7 @@ function AccountDetail({ id }: { id: number }) {
             <>
               <FormControlLabel control={<Checkbox checked={second.both_present} onChange={(e) => setSecond({ ...second, both_present: e.target.checked })} />} label="Both adults are here" />
               <FormControlLabel control={<Checkbox checked={second.primary_approves} onChange={(e) => setSecond({ ...second, primary_approves: e.target.checked })} />} label="The primary approves" />
-              <PersonFields value={second} onChange={(v) => setSecond({ ...second, ...v })} />
+              <PersonFields value={second} onChange={(v) => setSecond({ ...second, ...v })} blankCard={false} />
             </>
           ) : null}
         </DialogContent>
@@ -277,7 +305,7 @@ function AccountDetail({ id }: { id: number }) {
       <Dialog open={revokeReason !== null} onClose={() => setRevokeReason(null)} fullWidth maxWidth="xs">
         <DialogTitle>Revoke this membership?</DialogTitle>
         <DialogContent>
-          <Typography variant="body2" sx={{ mb: 1 }}>For theft, tag switching or return abuse. Every card on it stops working.</Typography>
+          <Typography variant="body2" sx={{ mb: 1 }}>For theft, tag switching or return abuse. Every member code on it stops working.</Typography>
           <TextField fullWidth label="Reason" value={revokeReason ?? ''} onChange={(e) => setRevokeReason(e.target.value)} />
         </DialogContent>
         <DialogActions>
@@ -289,7 +317,7 @@ function AccountDetail({ id }: { id: number }) {
   );
 }
 
-/** Find a member by scanning their card, or by phone or name; sign up a new one. */
+/** Find a member by scanning the member QR in their Thrift+ app, or by phone or name; sign up a new one. */
 export default function MembersTab() {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
@@ -325,7 +353,7 @@ export default function MembersTab() {
   return (
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '340px minmax(0, 1fr)' }, gap: 2, alignItems: 'start' }}>
       <Stack spacing={1}>
-        <TextField autoFocus label="Scan a card, or type a phone or name" value={q} onChange={(e) => setQ(e.target.value)} />
+        <TextField autoFocus label="Scan a member QR, or type a phone or name" value={q} onChange={(e) => setQ(e.target.value)} />
         <Button variant="contained" onClick={() => setSignup({ first_name: '', id_checked: false, verified_18: false })}>New member</Button>
         <Button variant="outlined" color="warning" disabled={practice.isPending} onClick={() => practice.mutate()}>
           Make a practice member
@@ -353,7 +381,7 @@ export default function MembersTab() {
 
       <Dialog open={signup !== null} onClose={() => setSignup(null)} fullWidth maxWidth="xs">
         <DialogTitle>New Thrift+ member</DialogTitle>
-        <DialogContent>{signup ? <PersonFields value={signup} onChange={setSignup} /> : null}</DialogContent>
+        <DialogContent>{signup ? <PersonFields value={signup} onChange={setSignup} blankCard={false} /> : null}</DialogContent>
         <DialogActions>
           <Button onClick={() => setSignup(null)}>Cancel</Button>
           <Button variant="contained" disabled={!signup?.first_name || create.isPending} onClick={() => create.mutate()}>Sign up</Button>

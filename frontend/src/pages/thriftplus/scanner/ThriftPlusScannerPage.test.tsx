@@ -11,11 +11,11 @@ vi.mock('../../../api/thriftPlusScanner.api', async () => ({
   ...(await vi.importActual<typeof import('../../../api/thriftPlusMock')>('../../../api/thriftPlusMock')),
   confirmPasswordReset: vi.fn(),
   getMe: vi.fn(async () => ({ credit: '8.56', rewards: [{ amount: '10.25', earned_on: '2026-10-02', use_by: '2026-11-01', past_due: false }] })),
-  reportCardLost: vi.fn(),
   removePerson: vi.fn(),
   setUpLogin: vi.fn(),
   isOpen: vi.fn(async () => true),
   fetchTestTags: vi.fn(async () => []),
+  getMyCard: vi.fn(async () => ({ code: '402155831907', display: '4021 5583 1907', qr: 'TP402155831907', first_name: 'Dana', ready: true })),
   setPreviewCode: vi.fn(),
 }));
 
@@ -25,11 +25,11 @@ vi.mock('./useQrCamera', async (orig) => ({
   loadDetector: () => new Promise(() => undefined),
 }));
 
-function renderPage() {
+function renderPage(path = '/scan') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/scan']}>
+      <MemoryRouter initialEntries={[path]}>
         <ThriftPlusScannerPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -159,13 +159,62 @@ describe('Thrift+ trip scanner (owner 2026-10-13)', () => {
     expect(within(about).getByTestId('terms-link')).toHaveAttribute('href', 'https://ecothrift.us/terms');
     await user.click(within(about).getByRole('button', { name: 'Close' }));
 
-    await user.click(screen.getByTestId('wallet-pill'));
+    // The Member QR button, top right on every screen (owner 2026-10-14, APP D7); the balance is in the sheet, not the header.
+    const pill = screen.getByTestId('wallet-pill');
+    expect(pill).toHaveAccessibleName('Member QR: show it at the register');
+    expect(pill).toHaveTextContent('Member QR');
+    expect(screen.queryByTestId('my-card-button')).not.toBeInTheDocument();
+    await user.click(pill);
     const wallet = await screen.findByTestId('wallet-sheet');
+    // My card (owner 2026-10-14): the QR to show at the register, its code to type, and the card's B12 line.
+    expect(await within(wallet).findByTestId('my-card-code')).toHaveTextContent('4021 5583 1907');
+    await waitFor(() => expect(within(wallet).getByTestId('my-card-qr').querySelector('svg')).not.toBeNull());
+    expect(within(wallet).getByTestId('my-card')).toHaveTextContent('Show this at the register.');
+    expect(within(wallet).getByTestId('my-card')).toHaveTextContent('ThriftBucks are Thrift+ rewards: use within 30 days of collecting. No cash value.'); 
     const rows = await within(wallet).findAllByTestId('wallet-row');
     expect(rows[0]).toHaveTextContent('Thrift+ credit');
     expect(rows[0]).toHaveTextContent('$8.56');
     expect(rows[1]).toHaveTextContent('use by Nov 1');
     expect(within(wallet).getByTestId('sign-out')).toBeInTheDocument();
+    await user.click(within(wallet).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByTestId('wallet-sheet')).not.toBeInTheDocument());
+  });
+
+  it('ecothrift.us/qr signs in, then opens the Member QR; on iPhone Safari it shows how to add it to the home screen', async () => {
+    // Owner 2026-10-14 (APP D5 and D6). /qr redirects to /scan?view=qr (and the old /card too).
+    const ua = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+    );
+    const user = userEvent.setup();
+    renderPage('/scan?view=qr');
+    await signInAsMember(user);
+    const wallet = await screen.findByTestId('wallet-sheet');
+    expect(within(wallet).getByRole('heading', { name: 'Member QR' })).toBeInTheDocument();
+    expect(await within(wallet).findByTestId('my-card-code')).toHaveTextContent('4021 5583 1907');
+    expect(within(wallet).getByTestId('add-to-home')).toHaveTextContent('Add your member QR to your home screen');
+    expect(document.head.querySelector('link[rel="manifest"]')).toHaveAttribute('href', '/scan/manifest.webmanifest');
+    await user.click(within(wallet).getByTestId('add-to-home'));
+    const how = await screen.findByTestId('add-to-home-sheet');
+    expect(how).toHaveTextContent('Add it to your home screen');
+    expect(how).toHaveTextContent('Then one tap opens your member QR at the register.');
+    expect(how).toHaveTextContent('1. Tap Share at the bottom of Safari (the square with the arrow).');
+    expect(how).toHaveTextContent('2. Tap Add to Home Screen, then Add.');
+    await user.click(within(how).getByTestId('add-to-home-done'));
+    await waitFor(() => expect(screen.queryByTestId('add-to-home-sheet')).toBeNull());
+    // × goes back to the scanner.
+    await user.click(within(screen.getByTestId('wallet-sheet')).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByTestId('wallet-sheet')).toBeNull());
+    expect(await screen.findByLabelText('Tag number')).toBeInTheDocument();
+    ua.mockRestore();
+  });
+
+  it('hides "Add My card to your home screen" where a phone cannot add it', async () => {
+    const user = userEvent.setup();
+    renderPage('/scan?view=card');
+    await signInAsMember(user);
+    const wallet = await screen.findByTestId('wallet-sheet');
+    expect(await within(wallet).findByTestId('my-card-code')).toBeInTheDocument();
+    expect(within(wallet).queryByTestId('add-to-home')).toBeNull();
   });
 
   it('shows a clear miss for a code that is not a price tag, and helps when the camera does not work', async () => {

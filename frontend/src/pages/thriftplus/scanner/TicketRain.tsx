@@ -1,7 +1,7 @@
 /**
- * Falling reward tickets (owner, 2026-10-09). Two moments, both on a swipe right:
- *  - **Bank it:** a few tickets fall onto the number that grows (the cover bar, then the ThriftBucks Balance).
- *  - **Shower:** tickets rain over the whole screen when this trip pays the month's cover in full.
+ * Falling ThriftBuck tickets (owner, 2026-10-09), on a swipe right:
+ *  - **Into the trip:** a few tickets fall onto the number that grows (the trip's ThriftBucks).
+ *  - **Shower:** tickets rain over the whole screen (kept for a big moment; nothing plays it today).
  * Each ticket starts hidden above the screen and shows only when its fall begins, so nothing sits in a corner
  * while it waits. Phones set to reduce motion get no animation; the numbers still change.
  */
@@ -25,7 +25,7 @@ function ticket(root: HTMLElement, size: number): HTMLImageElement {
   return img;
 }
 
-/** "Bank it": tickets fall onto `target` and fade into it. */
+/** "Into the trip": tickets fall onto `target` and fade into it. */
 export function bankInto(root: HTMLElement | null, target: Element | null, count = 10): void {
   if (!root || !target || quiet(root)) return;
   const box = root.getBoundingClientRect();
@@ -68,18 +68,4 @@ export function shower(root: HTMLElement | null, count = 26): void {
     );
     fall.onfinish = () => img.remove();
   }
-}
-
-/** What a swipe right should play, from the cart before and after it (all cents). */
-export function rainPlan(
-  before: { fill: number; bank: number } | null,
-  after: { fill: number; bank: number; cover: number },
-): { cover: boolean; shower: boolean; balance: boolean } {
-  if (!before) return { cover: false, shower: false, balance: false };
-  const cover = after.fill > before.fill;
-  return {
-    cover,
-    shower: cover && after.cover > 0 && after.fill >= after.cover && before.fill < after.cover,
-    balance: after.bank > before.bank,
-  };
 }

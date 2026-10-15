@@ -51,7 +51,7 @@ class PayrollDeductionTests(_CartCardSurchargeFixtures, TestCase):
 
     def test_off_by_default_and_new_hires_without_a_paycheck_do_not_qualify(self):
         self.assertEqual(staff_purchases.settings_value(),
-                         {'payroll_deduction': False, 'payroll_max_percent': 25, 'thrift_plus_free': False})
+                         {'payroll_deduction': False, 'payroll_max_percent': 25})
         cid, _ = self._open_cart_with_item()
         off = self.pay(cid)
         self.assertEqual(off.status_code, 400)
@@ -129,24 +129,11 @@ class PayrollDeductionTests(_CartCardSurchargeFixtures, TestCase):
 
 
 class StaffThriftPlusTests(TestCase):
-    def test_a_staff_membership_pays_no_cover_while_the_switch_is_on(self):
-        from apps.thriftplus.models import Account
-        from apps.thriftplus.services import ledger
-
+    def test_the_old_thrift_plus_free_key_is_gone_and_ignored(self):
         owner = _staff('owner@example.com', 'Admin')
-        clerk = _staff('clerk@example.com')
-        account = Account.objects.create()
-        normal = ledger.cover(account)['amount']
-        self.assertNotEqual(normal, '0.00')
-        account.staff_user = clerk
-        account.save()
-        self.assertEqual(ledger.cover(account)['amount'], normal)  # switch still off
-        staff_purchases.save_settings({'thrift_plus_free': True}, user=owner)
-        free = ledger.cover(account)
-        self.assertEqual((free['amount'], free['remaining'], free['is_covered']), ('0.00', '0.00', True))
-        clerk.is_active = False
-        clerk.save()
-        self.assertEqual(ledger.cover(account)['amount'], normal)  # not staff any more
+        saved = staff_purchases.save_settings({'thrift_plus_free': True, 'payroll_deduction': True}, user=owner)
+        self.assertEqual(saved, {'payroll_deduction': True, 'payroll_max_percent': 25})  # Thrift+ is free for all (C1)
+        self.assertFalse(hasattr(staff_purchases, 'thrift_plus_free_on'))
 
     def test_managers_link_a_membership_to_a_staff_member(self):
         from apps.thriftplus.models import Account

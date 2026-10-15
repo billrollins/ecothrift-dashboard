@@ -2,7 +2,6 @@ import type { AxiosRequestConfig } from 'axios';
 import type {
   CalculatorChoices,
   CalculatorResult,
-  CardBatch,
   EngineSaved,
   EngineState,
   FamiliesQueue,
@@ -53,7 +52,7 @@ export async function createMember(body: NewMember): Promise<ThriftPlusAccount> 
   return data;
 }
 
-/** A practice member for training (2026-10-10): a 555 phone and a made-up card number. */
+/** A practice member for training (2026-10-10): a 555 phone and a made-up member code. */
 export async function makePracticeMember(firstName = ''): Promise<ThriftPlusAccount> {
   const { data } = await api.post<ThriftPlusAccount>('/thriftplus/accounts/practice/', { first_name: firstName });
   return data;
@@ -67,7 +66,7 @@ export async function addSecondAdult(
   return data;
 }
 
-/** Mark a membership as a staff member's own (no cover while the owner's switch is on), or not (null). */
+/** Mark a membership as a staff member's own (J6), or not (null). */
 export async function setMemberStaff(accountId: number, userId: number | null): Promise<ThriftPlusAccount> {
   const { data } = await api.post<ThriftPlusAccount>(`/thriftplus/accounts/${accountId}/staff/`, { user: userId });
   return data;
@@ -108,44 +107,14 @@ export async function setPersonEmail(personId: number, email: string): Promise<T
   return data;
 }
 
-export async function issueCard(personId: number, code: string): Promise<ThriftPlusAccount> {
-  const { data } = await api.post<ThriftPlusAccount>(`/thriftplus/people/${personId}/issue-card/`, { code });
-  return data;
-}
-
 export async function removeSecondAdult(personId: number, removedBy: 'primary' | 'self'): Promise<ThriftPlusAccount> {
   const { data } = await api.post<ThriftPlusAccount>(`/thriftplus/people/${personId}/remove/`, { removed_by: removedBy });
   return data;
 }
 
+/** Stop a member code at once (staff: Replace member code). The member's app then shows a new one. */
 export async function killCard(cardId: number, reason: string): Promise<void> {
   await api.post(`/thriftplus/cards/${cardId}/kill/`, { reason });
-}
-
-export async function fetchCardBatches(): Promise<CardBatch[]> {
-  const { data } = await api.get<CardBatch[] | { results: CardBatch[] }>('/thriftplus/card-batches/');
-  return Array.isArray(data) ? data : data.results;
-}
-
-export async function createCardBatch(size: number, note: string): Promise<CardBatch> {
-  const { data } = await api.post<CardBatch>('/thriftplus/card-batches/', { size, note });
-  return data;
-}
-
-/** The batch's blank backs as print-server jobs of at most 10 pages each (base64 PDFs). */
-export async function fetchCardBackJobs(batchId: number): Promise<{ cards: number; jobs: string[] }> {
-  const { data } = await api.get<{ cards: number; jobs: string[] }>(`/thriftplus/card-batches/${batchId}/backs/`, { params: { jobs: 1 } });
-  return data;
-}
-
-export async function fetchCardBacksPdf(batchId: number): Promise<Blob> {
-  const { data } = await api.get<Blob>(`/thriftplus/card-batches/${batchId}/backs/`, { responseType: 'blob' });
-  return data;
-}
-
-export async function markBatchPrinted(batchId: number): Promise<CardBatch> {
-  const { data } = await api.post<CardBatch>(`/thriftplus/card-batches/${batchId}/mark-printed/`, {});
-  return data;
 }
 
 /** What members would pay on a day (default tomorrow): the reward engine's dry run. */
@@ -164,25 +133,41 @@ export async function fetchRewardRuns(): Promise<RewardRunSummary[]> {
   return data;
 }
 
+/** One amount of kept ThriftBucks and its use-by date (B2, B5), soonest first; the scanner portal's shape. */
+export interface MemberBucksLot {
+  amount: string;
+  earned_on: string;
+  use_by: string;
+  past_due?: boolean;
+}
+
 export interface MemberMoney {
+  /** Kept ThriftBucks (a number, never "$"). */
   banked: string;
+  /** Kept ThriftBucks usable today (collected before today, not past use-by). */
+  available?: string;
+  /** Thrift+ credit (dollars; refund money, never expires). */
   credit: string;
-  cover: { month: string; amount: string; covered: string; remaining: string; is_covered: boolean; resets_on: string };
+  /** Kept ThriftBucks by use-by date, soonest first. */
+  lots?: MemberBucksLot[];
   entries: {
     id: number;
+    /** 'cover' rows are history from before 10-12. */
     kind: 'cover' | 'bank' | 'credit';
     amount: string;
-    month: string;
+    month?: string;
     reason: string;
     cart: number | null;
     sku: string;
     note: string;
     actor: string;
     created_at: string;
+    /** A ThriftBucks row's use-by date, when the server sends it. */
+    use_by?: string | null;
   }[];
 }
 
-/** A membership's cover, banked rewards, store credit and ledger (Phase 4). */
+/** A membership's ThriftBucks (with use-by dates), Thrift+ credit and ledger. */
 export async function fetchMemberMoney(accountId: number): Promise<MemberMoney> {
   const { data } = await api.get<MemberMoney>(`/thriftplus/accounts/${accountId}/money/`);
   return data;
@@ -195,9 +180,21 @@ export async function adjustMemberMoney(accountId: number, body: { kind: 'credit
 
 export interface ThriftPlusOverview {
   days: number;
-  members: { active: number; revoked: number; people: number; verified_18: number; cards_active: number; cards_blank: number; signups: { day: string; n: number }[] };
+  members: { active: number; revoked: number; people: number; verified_18: number; signups: { day: string; n: number }[] };
   sales: { member_sales: number; member_revenue: string; guest_sales: number; guest_revenue: string };
-  rewards: { instant: string; to_cover: string; banked: string; credit_from_returns: string };
+  rewards: {
+    /** Dollars off today's price from instant redemptions. */
+    instant: string;
+    /** ThriftBucks collected and kept. */
+    banked: string;
+    /** Kept ThriftBucks used at the register. */
+    used?: string;
+    /** ThriftBucks that expired unused: Thrift+ income (F4). */
+    expired?: string;
+    /** Thrift+ credit given on 3-day returns (dollars). */
+    credit_from_returns: string;
+  };
+  /** What the store owes members now (B9): unexpired ThriftBucks, and Thrift+ credit. */
   owed: { banked: string; credit: string };
   returns: { count: number; waiting: number };
   scanner: { scans: number; adds: number; passes: number; add_rate: number | null; items_scanned: number; price_feedback: number };

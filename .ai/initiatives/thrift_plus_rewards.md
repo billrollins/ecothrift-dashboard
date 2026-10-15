@@ -1,5 +1,5 @@
 <!-- initiative: slug=thrift-plus-rewards status=active updated=2026-09-25 -->
-<!-- Last updated: 2026-09-25 -->
+<!-- Last updated: 2026-10-15 (v2.166.0 record) -->
 
 # Initiative: Thrift+ Rewards
 
@@ -402,6 +402,15 @@ The POS handles members:
 - **The posters' QR codes need `/join` and `/terms` live** before they go up.
 - **Status:** received 10-10. Bill added one login (staff, Thrift+, customers), testing (staff test mode, a training register, practice members), one finish-at-register screen, and a member screen with stats. The whole plan, ordered Mon to Thu: [`reference/reports/2026-10-10-thrift-plus-launch-build-plan.md`](../reference/reports/2026-10-10-thrift-plus-launch-build-plan.md). Waiting on Bill's go.
 - **`/terms` wording:** ready in `.ai/reference/thrift-plus-terms/` (draft for Bill, then the CPA and attorney). Redirects: `/thriftplus` goes to `/terms` (top of the page); only `/thriftplus/warranty` goes to `/terms#s8`.
+
+
+**2026-10-15 — v2.166.0: the register on the 10-12 and 10-14 rules, a training register, and no Thrift+ card (still off for customers).**
+
+- **Register:** credit first, then kept ThriftBucks (automatic, one line before tax), then instant only on what is left; lots usable from the next day for 30 days, expired nightly; 3-day returns at 80% (W5); find a member by phone; sign-up makes the member's code.
+- **Training register:** rings and prints as normal, writes nothing real (C1 to C9).
+- **App:** the Member QR (top right, every screen), ecothrift.us/qr, a year-long sign-in, add to the home screen; no card words anywhere (copy test).
+- **Dash:** card batches retired; "Replace member code".
+- Next: the email-link sign-in and /join (T76; rulebook J8, J11, J12), "Non-member" for "Guest", the brush logo in the app.
 
 ---
 

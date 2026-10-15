@@ -78,5 +78,8 @@ python printserver\scripts\print_receipt_local_test.py --style cool printserver\
 | `receipt_var_13_sparse_header_rich_meta.json` | No address/phone/time; long receipt # |
 | `receipt_var_14_unicode.json` | Apostrophes, em dash, café; `store_address` only in tail |
 | `receipt_var_15_savings_breakdown.json` | `savings` breakdown (Labor Day / Summer / Google Review) under TOTAL |
+| `receipt_thriftplus_member.json` | Thrift+ member (10-12 policy): the first name only (no card, owner 2026-10-14), line marks, ThriftBucks used above Subtotal, Thrift+ credit used, ThriftBucks collected with use-by, both balances, the B12 rewards line, member policy line |
+| `receipt_thriftplus_guest.json` | Thrift+ guest: "All items sold AS IS.", the `guest_line`, the NO REFUNDS block unchanged |
+| `receipt_thriftplus_training.json` | `training: true` (TRAINING - NOT A SALE top and bottom); a member who redeemed instantly |
 
-Printed and PNG receipts end with the policy lines from `RECEIPT_POLICY_LINES` (final sale + test-before-you-buy); the PNG adds a large monochrome (professional) or colored (cool/emoji) policy card with headline and subhead.
+Printed and PNG receipts end with the policy lines from `RECEIPT_POLICY_LINES` (final sale + test-before-you-buy); the PNG adds a large monochrome (professional) or colored (cool/emoji) policy card with headline and subhead. A Thrift+ member receipt uses `RECEIPT_POLICY_LINES_MEMBER` instead ("All sales final except Thrift+ 3-day returns on lines marked 3-day return. Sold AS IS."). Tests: `printserver/test_receipt_thrift_plus.py` (`python -m unittest test_receipt_thrift_plus` from `printserver/`).

@@ -15,6 +15,7 @@ import { ResetPasswordScreen } from './AccountScreens';
 import { SignInScreen } from './SignInScreen';
 import { TripScanner } from './TripScanner';
 import { UNIT_CSS, sc, useScannerFonts } from './scannerTheme';
+import { installScannerHead } from './installApp';
 import { loadDetector } from './useQrCamera';
 import { useThriftPlusSession } from './useThriftPlus';
 
@@ -52,8 +53,11 @@ export default function ThriftPlusScannerPage() {
     document.title = 'Thrift+ price scanner';
     // Warm the decoder while they sign in, so the first scan is instant.
     loadDetector().catch(() => undefined);
+    // The home-screen app (owner 2026-10-14, APP D5): the manifest and the iPhone tags, only on the scanner.
+    const removeHead = installScannerHead();
     return () => {
       document.title = prev;
+      removeHead();
     };
   }, []);
 

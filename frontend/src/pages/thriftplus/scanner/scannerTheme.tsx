@@ -28,7 +28,6 @@ import type { ThriftPlusCategory } from '../../../api/thriftPlusMock';
 import { WORDMARK_PLUS, WORDMARK_THRIFT, WORDMARK_VIEWBOX } from './wordmarkPath';
 import brushUrl from '../../../assets/thriftplus/brush.webp';
 import cartUrl from '../../../assets/thriftplus/cart-bag.webp';
-import coverUrl from '../../../assets/thriftplus/cover-rope.webp';
 import headerUrl from '../../../assets/thriftplus/header-field.webp';
 import logoUrl from '../../../assets/thriftplus/logo.webp';
 import orbUrl from '../../../assets/thriftplus/orb.webp';
@@ -40,9 +39,7 @@ export const art = {
   cart: cartUrl,
   /** ThriftBucks Balance: a banded brick of [TB]1.00 coupons (owner, 2026-10-09: paper, not coins; 10-10: ThriftBucks). */
   brick: brickUrl,
-  /** The monthly cover: a velvet rope (a cover charge). */
-  cover: coverUrl,
-  /** One ThriftBuck coupon: the Bank it and Shower animations. */
+  /** One ThriftBuck coupon: the falling-ticket and Shower animations. */
   ticket: ticketUrl,
   header: headerUrl,
   logo: logoUrl,

@@ -147,10 +147,13 @@ def _floor_without_reward():
     return _items().filter(status='on_shelf').exclude(Exists(state)).order_by('-listed_at')
 
 
-def _cards_without_photo():
-    from apps.thriftplus.models import Card
+def _members_without_photo():
+    """Active Thrift+ members with no photo. One row per person (owner 2026-10-14: there is no Thrift+ card; every
+    person has a member code, some two)."""
+    from apps.thriftplus.models import Person
 
-    return Card.objects.filter(status='active').filter(Q(person__photo='') | Q(person__photo__isnull=True)).order_by('-issued_at')
+    return (Person.objects.filter(removed_at__isnull=True, account__status='active')
+            .filter(Q(photo='') | Q(photo__isnull=True)).order_by('-created_at'))
 
 
 def _negative_balances():
@@ -161,18 +164,6 @@ def _negative_balances():
         .values('account_id', 'kind').annotate(balance=Sum('amount')).filter(balance__lt=0).order_by('balance')
     )
     return [{'account': r['account_id'], 'kind': r['kind'], 'balance': str(r['balance'])} for r in rows[:MAX_IDS]]
-
-
-def _cover_over_amount():
-    from apps.thriftplus.models import LedgerEntry
-    from apps.thriftplus.services.trip import cover_amount
-
-    amount = cover_amount()
-    rows = (
-        LedgerEntry.objects.filter(kind=LedgerEntry.KIND_COVER).values('account_id', 'month')
-        .annotate(covered=Sum('amount')).filter(covered__gt=amount).order_by('-covered')
-    )
-    return [{'account': r['account_id'], 'month': r['month'], 'covered': str(r['covered'])} for r in rows[:MAX_IDS]]
 
 
 CHECKS: list[Check] = [
@@ -199,10 +190,9 @@ CHECKS: list[Check] = [
           _duplicate_titles_on_floor),
     Check('TP-01', 'Floor items with no Thrift+ reward (switch on)', 'thrift+', 'high', 'no member price until the nightly run',
           _floor_without_reward, ('sku', 'product__title', 'listed_at'), enabled=_thrift_live),
-    Check('TP-02', 'Active Thrift+ cards with no photo', 'thrift+', 'medium', 'the cashier cannot check the person',
-          _cards_without_photo, ('code', 'person__first_name', 'issued_at')),
+    Check('TP-02', 'Active Thrift+ members with no photo', 'thrift+', 'medium', 'the cashier cannot check the person',
+          _members_without_photo, ('first_name', 'last_name', 'created_at')),
     Check('TP-03', 'Thrift+ balances below zero', 'thrift+', 'high', 'never spend past zero; investigate', _negative_balances),
-    Check('TP-04', 'Thrift+ cover over the monthly amount', 'thrift+', 'high', 'the cover never passes its amount', _cover_over_amount),
 ]
 
 

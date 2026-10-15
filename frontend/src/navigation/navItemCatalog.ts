@@ -336,7 +336,7 @@ export const NAV_ITEM_CATALOG: Record<string, NavItemDef> = {
     id: 'thriftPlus',
     path: '/thrift-plus',
     label: 'Thrift+',
-    // Member service and card batches. Superuser-only until the Thrift+ launch (2026-10-20).
+    // Member service, ThriftBucks and the reward engine. Superuser-only until the Thrift+ launch (2026-10-20).
     icon: 'thriftPlus',
     superuserOnly: true,
   },

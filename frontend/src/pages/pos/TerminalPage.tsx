@@ -83,6 +83,17 @@ import {
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { CardTenderDialog } from '../../components/pos/CardTenderDialog';
 import { TbAmount, tbNumber } from '../../components/thriftplus/ThriftBucks';
+import {
+  amountDue,
+  bucksUsed,
+  creditUsed,
+  instantOffOnLines,
+  isBucksLine,
+  needsCardTender,
+  practiceCardPayload,
+  reringMessage,
+  saleSavings,
+} from '../../utils/thriftPlusRegister';
 import { TrainingBanner, TrainingPaymentDialog } from '../../components/pos/TrainingRegister';
 import { WorkCyclePill } from '../../components/routines/WorkCyclePill';
 import { WorkCyclePromptDialog } from './WorkCyclePromptDialog';
@@ -104,6 +115,7 @@ import {
 } from '../../utils/posAddItemError';
 import { buildReceiptData } from '../../utils/posReceipt';
 import ThriftPlusPanel from '../../components/pos/ThriftPlusPanel';
+import ThriftPlusPhoneFind from '../../components/pos/ThriftPlusPhoneFind';
 import ThriftPlusReturnDialog from '../../components/pos/ThriftPlusReturnDialog';
 import ThriftPlusSignupDialog from '../../components/pos/ThriftPlusSignupDialog';
 import { useQuery } from '@tanstack/react-query';
@@ -111,6 +123,7 @@ import {
   attachThriftCard,
   getThriftRegisterStatus,
   reringThriftCard,
+  reringThriftMember,
   thriftErrorMessage,
 } from '../../api/thriftplusRegister.api';
 import { thriftCardCode } from '../../utils/thriftPlusCard';
@@ -198,17 +211,6 @@ function findAffectedCartLineId(prev: Cart | null, next: Cart): number | null {
 /** Thrift+ re-ring works for 30 minutes after a sale (apps/thriftplus/services/register.py). */
 const RERING_WINDOW_MS = 30 * 60 * 1000;
 
-/** What cash or card must cover: the total less Thrift+ credit and banked rewards (the total while dark). */
-function amountDue(cart: Cart | null): number {
-  const total = parseFloat(cart?.total ?? '0') || 0;
-  return moneyCents(Math.max(0, total - (parseFloat(cart?.thrift_credit ?? '0') || 0)));
-}
-
-/** The Thrift+ member rebates on this sale. */
-function thriftSavings(cart: Cart | null): number {
-  return moneyCents((cart?.lines ?? []).reduce((sum, ln) => sum + Number(ln.thrift_savings || 0), 0));
-}
-
 export default function TerminalPage() {
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
@@ -258,7 +260,7 @@ export default function TerminalPage() {
   const [trainingPayload, setTrainingPayload] = useState<Record<string, unknown> | null>(null);
   const [cardPreview, setCardPreview] = useState<CardPreview | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
-  // Thrift+ re-ring: the last completed sale on this terminal, and whether the next card scan re-rings it.
+  // Thrift+ re-ring: the last completed sale on this terminal, and whether the next member QR scan re-rings it.
   const [lastSale, setLastSale] = useState<{ id: number; total: string; at: number; live: boolean } | null>(null);
   const [reringArmed, setReringArmed] = useState(false);
   const [thriftReturnOpen, setThriftReturnOpen] = useState(false);
@@ -538,10 +540,7 @@ export default function TerminalPage() {
             const rerung = await reringThriftCard(lastSale.id, cardCode);
             setReringArmed(false);
             setLastSale(null);
-            enqueueSnackbar(
-              `Re-rung for ${rerung.thrift_plus?.member?.name ?? 'the member'}: ${formatCurrency(rerung.thrift_plus?.totals.savings ?? 0)} store credit`,
-              { variant: 'success' },
-            );
+            enqueueSnackbar(reringMessage(rerung.thrift_plus?.member?.name, rerung), { variant: 'success' });
           } else {
             const updated = await attachThriftCard(activeCart.id, cardCode);
             commitCart(updated, { scroll: false });
@@ -1266,6 +1265,13 @@ export default function TerminalPage() {
       return;
     }
 
+    // Training register (C1): the "THIS IS JUST A TEST" screen comes first and no card step ever opens, so a
+    // trainee is never asked to run a real card. The practice sale is recorded as a debit card with no surcharge.
+    if (!needsCardTender(paymentMethod, Boolean(todayDrawerRef.current?.register_is_training))) {
+      await postComplete(practiceCardPayload(payload));
+      return;
+    }
+
     try {
       const { data: preview } = await getCartCardPreview(cart.id, {
         payment_method: paymentMethod,
@@ -1681,23 +1687,26 @@ export default function TerminalPage() {
                               else lineElRefs.current.delete(line.id);
                             }}
                             secondaryAction={
-                              <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                <IconButton
-                                  edge="end"
-                                  size="small"
-                                  onClick={() => handleStartEditLine(line)}
-                                >
-                                  <Edit fontSize="small" />
-                                </IconButton>
-                                <IconButton
-                                  edge="end"
-                                  size="small"
-                                  onClick={() => handleRemoveLine(line.id)}
-                                  disabled={removeLineMutation.isPending}
-                                >
-                                  <Delete fontSize="small" />
-                                </IconButton>
-                              </Box>
+                              // The Thrift+ ThriftBucks line belongs to the server's sync: no edit, no delete.
+                              isBucksLine(cart, line) ? undefined : (
+                                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                  <IconButton
+                                    edge="end"
+                                    size="small"
+                                    onClick={() => handleStartEditLine(line)}
+                                  >
+                                    <Edit fontSize="small" />
+                                  </IconButton>
+                                  <IconButton
+                                    edge="end"
+                                    size="small"
+                                    onClick={() => handleRemoveLine(line.id)}
+                                    disabled={removeLineMutation.isPending}
+                                  >
+                                    <Delete fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              )
                             }
                           >
                             <ListItemText
@@ -1714,7 +1723,9 @@ export default function TerminalPage() {
                                     {line.description}
                                   </Typography>
                                   {line.line_kind === 'discount' && (
-                                    <Chip size="small" label="Discount" color="warning" sx={{ height: 22 }} />
+                                    isBucksLine(cart, line)
+                                      ? <Chip size="small" label="Thrift+" color="success" sx={{ height: 22 }} />
+                                      : <Chip size="small" label="Discount" color="warning" sx={{ height: 22 }} />
                                   )}
                                   {line.line_kind === 'delivery' && (
                                     <Chip size="small" label="Delivery" color="info" sx={{ height: 22 }} />
@@ -1756,19 +1767,28 @@ export default function TerminalPage() {
                                 </Box>
                               }
                               secondary={
-                                line.line_kind === 'delivery' && line.meta
+                                isBucksLine(cart, line)
+                                  ? 'Kept ThriftBucks, taken off before tax'
+                                  : line.line_kind === 'delivery' && line.meta
                                   ? `${line.quantity} × ${formatCurrency(line.unit_price)} · ${String(line.meta.phone ?? '')} · ${String(line.meta.address ?? '')}${line.meta.is_apt ? ` Apt ${String(line.meta.unit ?? '')}` : ''}`
                                   : Number(line.thrift_savings) > 0
-                                    ? `${line.quantity} × ${formatCurrency(line.unit_price)} → ${formatCurrency(line.line_total)} (InstantBucks −${tbNumber(line.thrift_savings ?? 0)})`
+                                    ? `${line.quantity} × ${formatCurrency(line.unit_price)} → ${formatCurrency(line.line_total)} (redeemed instantly −${formatCurrency(line.thrift_savings ?? 0)})`
                                     : Number(line.sale_percent) > 0
                                       ? `${line.quantity} × ${formatCurrency(line.unit_price)} → ${formatCurrency(line.line_total)}`
                                       : `${line.quantity} × ${formatCurrency(line.unit_price)}`
                               }
                               slotProps={{ primary: { component: 'div' } }}
                             />
-                            <Typography variant="body2" sx={{ ml: 1, mr: 6 }}>
-                              {formatCurrency(line.line_total)}
-                            </Typography>
+                            {isBucksLine(cart, line) ? (
+                              // ThriftBucks are a number next to the word, never "$" (V8).
+                              <Typography variant="body2" sx={{ ml: 1, mr: 6 }}>
+                                <TbAmount value={line.line_total} sign="-" />
+                              </Typography>
+                            ) : (
+                              <Typography variant="body2" sx={{ ml: 1, mr: 6 }}>
+                                {formatCurrency(line.line_total)}
+                              </Typography>
+                            )}
                           </ListItem>
                         ),
                       )}
@@ -1786,29 +1806,25 @@ export default function TerminalPage() {
                   }}
                 >
                   <Stack spacing={0.5}>
-                    {Number(
-                      (cart?.lines ?? []).reduce(
-                        (sum, ln) => sum + Number(ln.sale_savings || 0) - Number(ln.thrift_savings || 0),
-                        0,
-                      ),
-                    ) > 0 && (
+                    {saleSavings(cart) > 0 && (
                       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                         <Typography color="success.main">Sale savings</Typography>
                         <Typography color="success.main">
                           −
-                          {formatCurrency(
-                            (cart?.lines ?? []).reduce(
-                              (sum, ln) => sum + Number(ln.sale_savings || 0) - Number(ln.thrift_savings || 0),
-                              0,
-                            ),
-                          )}
+                          {formatCurrency(saleSavings(cart))}
                         </Typography>
                       </Box>
                     )}
-                    {thriftSavings(cart) > 0 && (
+                    {instantOffOnLines(cart) > 0 && (
                       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography color="success.main">InstantBucks</Typography>
-                        <Typography color="success.main"><TbAmount value={thriftSavings(cart)} sign="-" bare /></Typography>
+                        <Typography color="success.main">Redeemed instantly</Typography>
+                        <Typography color="success.main">−{formatCurrency(instantOffOnLines(cart))}</Typography>
+                      </Box>
+                    )}
+                    {bucksUsed(cart) > 0 && (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography color="success.main">ThriftBucks used</Typography>
+                        <Typography color="success.main">{tbNumber(bucksUsed(cart))}</Typography>
                       </Box>
                     )}
                     <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -1827,11 +1843,11 @@ export default function TerminalPage() {
                         {formatCurrency(cart?.total ?? 0)}
                       </Typography>
                     </Box>
-                    {Number(cart?.thrift_credit ?? 0) > 0 && (
+                    {creditUsed(cart) > 0 && (
                       <>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                           <Typography color="success.main">Thrift+ credit</Typography>
-                          <Typography color="success.main">−{formatCurrency(cart?.thrift_credit ?? 0)}</Typography>
+                          <Typography color="success.main">−{formatCurrency(creditUsed(cart))}</Typography>
                         </Box>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                           <Typography fontWeight={700}>Due</Typography>
@@ -1854,9 +1870,25 @@ export default function TerminalPage() {
                 <Paper variant="outlined" sx={{ p: 1.5, mb: 2, flexShrink: 0 }}>
                   <Typography variant="body2">
                     {reringArmed
-                      ? `Scan the new member's card to re-ring the last sale (${formatCurrency(lastSale.total)}).`
+                      ? `Scan the QR in the member's Thrift+ app, or find them by phone, to re-ring the last sale (${formatCurrency(lastSale.total)}).`
                       : `Signed up after paying? Re-ring the last sale (${formatCurrency(lastSale.total)}) as a member.`}
                   </Typography>
+                  {reringArmed ? (
+                    <Box sx={{ mt: 1 }}>
+                      <ThriftPlusPhoneFind
+                        onPick={async (person) => {
+                          try {
+                            const rerung = await reringThriftMember(lastSale.id, person.person_id);
+                            setReringArmed(false);
+                            setLastSale(null);
+                            enqueueSnackbar(reringMessage(rerung.thrift_plus?.member?.name, rerung), { variant: 'success' });
+                          } catch (err: unknown) {
+                            enqueueSnackbar(thriftErrorMessage(err), { variant: 'error' });
+                          }
+                        }}
+                      />
+                    </Box>
+                  ) : null}
                   <Button
                     size="small"
                     sx={{ mt: 0.5 }}
@@ -1865,7 +1897,7 @@ export default function TerminalPage() {
                       skuInputRef.current?.focus();
                     }}
                   >
-                    {reringArmed ? 'Cancel re-ring' : 'Re-ring with a card'}
+                    {reringArmed ? 'Cancel re-ring' : 'Re-ring as a member'}
                   </Button>
                 </Paper>
               ) : null}
@@ -1875,7 +1907,7 @@ export default function TerminalPage() {
                     Thrift+ sign up
                   </Button>
                   <Button size="small" variant="outlined" onClick={() => setThriftReturnOpen(true)}>
-                    Thrift+ member return
+                    Thrift+ 3-day return
                   </Button>
                 </Box>
               ) : null}
@@ -1888,7 +1920,7 @@ export default function TerminalPage() {
                     inputRef={skuInputRef}
                     fullWidth
                     size="small"
-                    placeholder={cart?.thrift_plus?.live || thriftStatus.data?.live ? 'Scan a SKU, CUS-XXXX or a Thrift+ card' : 'Scan or type SKU (or CUS-XXXX)'}
+                    placeholder={cart?.thrift_plus?.live || thriftStatus.data?.live ? 'Scan a SKU, CUS-XXXX or a Thrift+ member QR' : 'Scan or type SKU (or CUS-XXXX)'}
                     value={skuInput}
                     onChange={(e) => setSkuInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleScanInput()}
@@ -2792,7 +2824,12 @@ export default function TerminalPage() {
         loading={voidCartMutation.isPending}
       />
 
-      <ThriftPlusReturnDialog open={thriftReturnOpen} onClose={() => setThriftReturnOpen(false)} />
+      <ThriftPlusReturnDialog
+        open={thriftReturnOpen}
+        onClose={() => setThriftReturnOpen(false)}
+        registerCode={config?.registerCode ?? ''}
+        training={Boolean(todayDrawer?.register_is_training)}
+      />
       <ThriftPlusSignupDialog
         open={thriftSignupOpen}
         onClose={() => {

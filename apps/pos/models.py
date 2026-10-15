@@ -241,7 +241,7 @@ class Cart(models.Model):
     )
     thrift_credit = models.DecimalField(
         max_digits=10, decimal_places=2, default=Decimal('0'),
-        help_text='Thrift+ store credit and banked rewards spent on this sale; cash or card covers the rest of the total.',
+        help_text='Thrift+ credit spent: a payment after tax. Cash or card covers the rest of the total.',
     )
     completed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -257,15 +257,18 @@ class Cart(models.Model):
 
     def recalculate(self):
         """Recalculate subtotal, tax, and total from lines."""
-        from apps.thriftplus.services.register import sync_if_live
+        from apps.thriftplus.services.register import after_totals_if_live, sync_if_live
 
-        sync_if_live(self)  # Thrift+ member prices; does nothing while Thrift+ is dark at this register
+        # Thrift+ member prices; answers False (and does nothing) while Thrift+ is dark at this register.
+        live = sync_if_live(self)
         # Query CartLine directly so we never sum a stale prefetch_related cache on `cart.lines`.
         lines = self.lines.model.objects.filter(cart_id=self.pk)
         self.subtotal = sum((line.line_total for line in lines), Decimal('0'))
         self.tax_amount = (self.subtotal * self.tax_rate).quantize(Decimal('0.01'))
         self.total = self.subtotal + self.tax_amount
         self.save(update_fields=['subtotal', 'tax_amount', 'total'])
+        if live:  # Thrift+ credit pays first, after tax (never runs on a dark register)
+            after_totals_if_live(self, live=True)
 
 
 class CartLine(models.Model):

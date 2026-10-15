@@ -1,8 +1,8 @@
 """
 Thrift+ Rewards: members, the people on a membership, and their cards (thrift_plus_rewards Phase 1).
 
-- **Account:** one membership. The monthly "cover" (the first $10 of rewards; ``deductible`` in
-  code) and store credit are ledgers built in Phase 3.
+- **Account:** one membership. Its kept ThriftBucks and Thrift+ credit are a ledger (``LedgerEntry``, Phase 3).
+  Thrift+ is free (C1, 10-12).
 - **Person:** one or two adults on an account, a primary and at most one secondary, each with a
   photo (a person checks it at every scan; there is no face matching) and a verified-18+ flag.
   Store only the name, phone, photo and that flag: never ID barcode data (Neb. Rev. Stat.
@@ -34,7 +34,7 @@ class Account(models.Model):
     revoked_reason = models.CharField(max_length=200, blank=True, default='')
     revoked_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
-    # A staff member's own membership: no monthly cover while the owner's "Thrift+ free for staff" is on (2026-10-07).
+    # A staff member's own membership (J6): links the staff member to their card. Free, like every membership.
     staff_user = models.OneToOneField(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='thrift_plus_account',
     )
@@ -309,19 +309,27 @@ class RewardEvent(models.Model):
 
 
 class CartMember(models.Model):
-    """The member on a register sale: who showed the card, and the trip's bank-or-instant choice."""
+    """The member on a register sale: who showed the card, and the trip's choice: keep the ThriftBucks (the Default)
+    or redeem them instantly (B1). The data names stay "bank" and "reward" (V8)."""
 
     CHOICE_INSTANT = 'instant'
     CHOICE_BANK = 'bank'
-    CHOICE_CHOICES = [(CHOICE_INSTANT, 'Instant rebate'), (CHOICE_BANK, 'Bank my rewards')]
+    CHOICE_CHOICES = [(CHOICE_BANK, 'Kept (Default)'), (CHOICE_INSTANT, 'Redeemed instantly')]
 
     cart = models.OneToOneField('pos.Cart', on_delete=models.CASCADE, primary_key=True, related_name='thrift_member')
     account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='carts')
     person = models.ForeignKey(Person, on_delete=models.PROTECT, related_name='+')
     card = models.ForeignKey(Card, on_delete=models.PROTECT, related_name='+')
-    reward_choice = models.CharField(max_length=10, choices=CHOICE_CHOICES, default=CHOICE_INSTANT)
-    credit_used = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text='Store credit spent on this sale.')
-    bank_used = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text='Banked rewards spent on this sale.')
+    reward_choice = models.CharField(max_length=10, choices=CHOICE_CHOICES, default=CHOICE_BANK)
+    use_bucks = models.BooleanField(
+        default=True,
+        help_text="Use the member's kept ThriftBucks on this trip automatically; off when the cashier taps "
+                  "\"don't use them today\".",
+    )
+    credit_used = models.DecimalField(max_digits=10, decimal_places=2, default=0,
+                                      help_text='Thrift+ credit spent on this sale (a payment after tax), at completion.')
+    bank_used = models.DecimalField(max_digits=10, decimal_places=2, default=0,
+                                    help_text='Kept ThriftBucks used on this sale (a discount line before tax), at completion.')
     rering = models.BooleanField(default=False, help_text='Attached after the sale was completed (re-ring as a member).')
     attached_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     attached_at = models.DateTimeField(auto_now_add=True)
@@ -332,21 +340,21 @@ class CartMember(models.Model):
 
 class LedgerEntry(models.Model):
     """
-    Money on a membership, as rows that are never edited: the monthly cover, banked rewards and
-    store credit. A balance is a sum. A sale writes one row per line and kind, so a return or a
-    void reverses exactly that line.
+    Money on a membership, as rows that are never edited: kept ThriftBucks (``bank``; each positive row is a lot with
+    a use-by date) and Thrift+ credit (refund money). A balance is a sum. A sale writes rows per line, so a return or
+    a void finds that line's rows. ``cover`` rows are history from before the 10-12 policy and count in no balance.
     """
 
     KIND_COVER = 'cover'
     KIND_BANK = 'bank'
     KIND_CREDIT = 'credit'
-    KIND_CHOICES = [(KIND_COVER, 'Monthly cover'), (KIND_BANK, 'Banked rewards'), (KIND_CREDIT, 'Store credit')]
+    KIND_CHOICES = [(KIND_COVER, 'Monthly cover (retired 10-12)'), (KIND_BANK, 'ThriftBucks'), (KIND_CREDIT, 'Thrift+ credit')]
 
     account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='ledger')
     kind = models.CharField(max_length=10, choices=KIND_CHOICES)
-    amount = models.DecimalField(max_digits=10, decimal_places=2, help_text='Signed: + adds to the balance or cover, - takes away.')
-    month = models.CharField(max_length=7, blank=True, default='', help_text='YYYY-MM, for the cover.')
-    reason = models.CharField(max_length=20, help_text='sale, void, return, rering, spend, adjust.')
+    amount = models.DecimalField(max_digits=10, decimal_places=2, help_text='Signed: + adds to the balance, - takes away.')
+    month = models.CharField(max_length=7, blank=True, default='', help_text='YYYY-MM: only on rows from before the 10-12 policy.')
+    reason = models.CharField(max_length=20, help_text='sale, void, return, rering, spend, adjust, expire.')
     cart = models.ForeignKey('pos.Cart', on_delete=models.SET_NULL, null=True, blank=True, related_name='thrift_ledger')
     cart_line_id = models.BigIntegerField(null=True, blank=True)
     item = models.ForeignKey('inventory.Item', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
@@ -388,7 +396,7 @@ class SalePhoto(models.Model):
 
 
 class ReturnRecord(models.Model):
-    """A member return: a primary-function failure, within the window, refunded as store credit."""
+    """A Thrift+ 3-day return (W1-W14): a qualifying item, any reason, within 3 days, refunded as Thrift+ credit."""
 
     STATUS_OPEN = 'open'
     STATUS_DONE = 'done'
@@ -398,8 +406,23 @@ class ReturnRecord(models.Model):
     person = models.ForeignKey(Person, on_delete=models.PROTECT, related_name='+')
     cart_line = models.OneToOneField('pos.CartLine', on_delete=models.PROTECT, related_name='thrift_return')
     item = models.ForeignKey('inventory.Item', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
-    paid = models.DecimalField(max_digits=10, decimal_places=2, help_text='The store credit given: 95% of what was paid for the line, before tax.')
-    note = models.TextField(blank=True, default='', help_text="What doesn't work.")
+    paid = models.DecimalField(max_digits=10, decimal_places=2,
+                               help_text='The refund: 80% of the money paid for the item, tax included, before any shortfall.')
+    credit = models.DecimalField(max_digits=10, decimal_places=2, default=0,
+                                 help_text='The Thrift+ credit given: the refund less the shortfall, never below zero.')
+    taxable_back = models.DecimalField(max_digits=10, decimal_places=2, default=0,
+                                       help_text='The pre-tax part of the refund (the sales tax report).')
+    tax_back = models.DecimalField(max_digits=10, decimal_places=2, default=0,
+                                   help_text='The tax part of the refund, which the store takes back on its return (T4).')
+    bucks_back = models.DecimalField(max_digits=10, decimal_places=2, default=0,
+                                     help_text='ThriftBucks given back: 80% of those used on the item, a fresh 30 days.')
+    bucks_taken = models.DecimalField(max_digits=10, decimal_places=2, default=0,
+                                      help_text='ThriftBucks taken back: 80% of those the item collected, soonest first.')
+    shortfall = models.DecimalField(max_digits=10, decimal_places=2, default=0,
+                                    help_text='ThriftBucks that could not be taken back (already spent): off the credit.')
+    late_ok_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+', help_text='The owner who allowed this return after the 3 days (O1).')
+    note = models.TextField(blank=True, default='', help_text='Optional note.')
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_OPEN, help_text='Staff decide what happens to the item.')
     returned_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -461,11 +484,11 @@ class MemberResetToken(models.Model):
 
 
 class AppCart(models.Model):
-    """A member's cart in the scanner app: an estimate (the register is the source of truth). One per
-    account; the trip's bank-or-instant answer rides along to the register."""
+    """A member's cart in the scanner app: an estimate (the register is the source of truth). One per account."""
 
     account = models.OneToOneField(Account, on_delete=models.CASCADE, related_name='app_cart')
-    reward_choice = models.CharField(max_length=10, blank=True, default='', help_text="'bank', 'instant', or '' until asked.")
+    reward_choice = models.CharField(max_length=10, blank=True, default='',
+                                     help_text='Unused since 10-14: the scanner asks no choice (B1: tell the cashier).')
     choice_at = models.DateTimeField(null=True, blank=True)
     # Owner 2026-10-10: "Clear my scans" hides the scans before this from the member's list; the scan rows are kept.
     history_cleared_at = models.DateTimeField(null=True, blank=True)
@@ -484,10 +507,10 @@ class AppCartLine(models.Model):
 
 
 class ScanSignal(models.Model):
-    """What shoppers did with a tag in the scanner app: scan, add, pass, a price feel, or the trip's
-    choice. Kept per event; ``ItemReward`` holds the running counts the reward engine reads."""
+    """What shoppers did with a tag in the scanner app: scan, add, pass or a price feel. Kept per event;
+    ``ItemReward`` holds the running counts the reward engine reads. ``choice`` rows are history (retired 10-14)."""
 
-    KIND_CHOICES = [('scan', 'Scan'), ('add', 'Add'), ('pass', 'Pass'), ('feel', 'Price feel'), ('choice', 'Bank or instant')]
+    KIND_CHOICES = [('scan', 'Scan'), ('add', 'Add'), ('pass', 'Pass'), ('feel', 'Price feel'), ('choice', 'Trip choice (retired)')]
 
     kind = models.CharField(max_length=10, choices=KIND_CHOICES, db_index=True)
     item = models.ForeignKey('inventory.Item', on_delete=models.CASCADE, null=True, blank=True, related_name='+')

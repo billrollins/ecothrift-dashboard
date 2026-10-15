@@ -25,7 +25,8 @@ class MemberMoneyTests(APITestCase):
     def test_staff_see_the_money_and_only_managers_adjust_it(self):
         self.client.force_authenticate(self.clerk)
         money = self.client.get(self.url + 'money/').json()
-        self.assertEqual((money['credit'], money['banked'], money['cover']['remaining']), ('0.00', '0.00', '10.00'))
+        self.assertEqual((money['credit'], money['banked'], money['available'], money['lots']), ('0.00', '0.00', '0.00', []))
+        self.assertNotIn('cover', money)
         self.assertEqual(self.client.post(self.url + 'adjust/', {'kind': 'credit', 'amount': '5', 'note': 'x'}).status_code, 403)
         self.client.force_authenticate(self.manager)
         no_note = self.client.post(self.url + 'adjust/', {'kind': 'credit', 'amount': '5.00', 'note': ''}, format='json')
@@ -36,13 +37,20 @@ class MemberMoneyTests(APITestCase):
         below = self.client.post(self.url + 'adjust/', {'kind': 'credit', 'amount': '-6.00', 'note': 'oops'}, format='json')
         self.assertEqual(below.status_code, 400)
         self.assertEqual(LedgerEntry.objects.filter(account=self.account).count(), 1)
+        bucks = self.client.post(self.url + 'adjust/', {'kind': 'bank', 'amount': '3.00', 'note': 'Goodwill'}, format='json').json()
+        self.assertEqual((bucks['banked'], bucks['available'], len(bucks['lots'])), ('3.00', '3.00', 1))  # usable at once
+        wrong = self.client.post(self.url + 'adjust/', {'kind': 'cover', 'amount': '3.00', 'note': 'x'}, format='json')
+        self.assertEqual(wrong.json()['detail'], 'Adjust Thrift+ credit or ThriftBucks.')
 
     def test_the_overview_counts_members_and_money_owed(self):
         LedgerEntry.objects.create(account=self.account, kind=LedgerEntry.KIND_BANK, amount='4.00', reason='sale')
+        LedgerEntry.objects.create(account=self.account, kind=LedgerEntry.KIND_CREDIT, amount='2.50', reason='return')
         self.client.force_authenticate(self.clerk)
         self.assertEqual(self.client.get('/api/thriftplus/rewards/overview/').status_code, 403)
         self.client.force_authenticate(self.manager)
         o = self.client.get('/api/thriftplus/rewards/overview/').json()
-        self.assertEqual((o['members']['active'], o['owed']['banked'], o['rewards']['banked']), (1, '4.00', '4.00'))
+        self.assertEqual((o['members']['active'], o['owed']['banked'], o['rewards']['collected']), (1, '4.00', '4.00'))
+        self.assertEqual((o['owed']['credit'], o['owed']['total'], o['rewards']['expired']), ('2.50', '6.50', '0.00'))
+        self.assertNotIn('to_cover', o['rewards'])
         self.assertEqual(sum(d['n'] for d in o['members']['signups']), 1)
         self.assertIsNone(o['scanner']['add_rate'])

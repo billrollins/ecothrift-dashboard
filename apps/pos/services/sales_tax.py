@@ -13,7 +13,11 @@ so earlier months work too. Days are store days (America/Chicago), by when the s
 - **Tax collected** is the sales' own tax, rounded on each receipt. **Tax at the rate** is taxable sales × the rate,
   split into Nebraska's state rate (5.5%) and the local rest; the small gap to tax collected is rounding.
 - **Not sales:** the CardX card surcharge (record only, not revenue, not taxed). Thrift+ credit spent is a payment, so
-  that sale is taxed in full; it is shown for information.
+  that sale is taxed in full; it is shown for information. Kept ThriftBucks used are a discount line before tax (T3),
+  so they are already in the discounts part.
+- **Thrift+ 3-day returns** (T4, W11; for the CPA to see): a return refunds 80% of what was paid, tax included, as
+  Thrift+ credit, settled on the return day. The pre-tax part and the tax part are listed by return day, apart from
+  the sales; the original sale and its tax are never changed. Practice memberships are left out.
 """
 from __future__ import annotations
 
@@ -90,6 +94,7 @@ def report(start: date, end: date) -> dict:
     ]
     voided = Cart.objects.filter(status='voided', completed_at__gte=lo, completed_at__lt=hi).aggregate(
         count=Count('id'), taxable=Sum('subtotal'), tax=Sum('tax_amount'))
+    returns = _thrift_plus_returns(lo, hi)
 
     return {
         'start': start.isoformat(),
@@ -109,4 +114,25 @@ def report(start: date, end: date) -> dict:
         'thrift_credit': _money(totals['thrift_credit']),
         'collected_total': _money(totals['total']),
         'voided': {'count': voided['count'], 'taxable': _money(voided['taxable']), 'tax': _money(voided['tax'])},
+        'thrift_plus_returns': returns,
+    }
+
+
+def _thrift_plus_returns(lo: datetime, hi: datetime) -> dict:
+    """Thrift+ 3-day returns in the period, by return day: the pre-tax part and the tax part of each refund (T4)."""
+    from apps.thriftplus.models import ReturnRecord
+
+    rows = ReturnRecord.objects.filter(created_at__gte=lo, created_at__lt=hi).exclude(account__is_practice=True)
+    totals = rows.aggregate(count=Count('id'), taxable_back=Sum('taxable_back'), tax_back=Sum('tax_back'),
+                            refund=Sum('paid'), credit=Sum('credit'))
+    days = [
+        {'day': row['day'].isoformat(), 'count': row['count'], 'taxable_back': _money(row['taxable_back']),
+         'tax_back': _money(row['tax_back'])}
+        for row in rows.annotate(day=TruncDate('created_at')).values('day')
+        .annotate(count=Count('id'), taxable_back=Sum('taxable_back'), tax_back=Sum('tax_back')).order_by('day')
+    ]
+    return {
+        'count': totals['count'], 'taxable_back': _money(totals['taxable_back']), 'tax_back': _money(totals['tax_back']),
+        'refund': _money(totals['refund']), 'credit': _money(totals['credit']), 'days': days,
+        'note': 'For the CPA: Thrift+ 3-day returns refund 80% of the price and its tax as Thrift+ credit, on the return day.',
     }

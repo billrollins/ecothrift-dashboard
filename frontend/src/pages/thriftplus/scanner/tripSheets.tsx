@@ -1,23 +1,33 @@
 /**
  * The trip scanner's header and the sheets it opens (owner 2026-10-12 and 10-13):
  * - the header: tap anywhere on it for what Thrift+ is (the terms page's words and a link to the full terms), except the
- *   Your ThriftBucks pill, which shows Thrift+ credit and every ThriftBuck in the order the register uses them (B3);
+ *   Your ThriftBucks pill, which opens the Member QR (owner 2026-10-14, APP D1 and D6): the QR to show at the register, then
+ *   Thrift+ credit and every ThriftBuck in the order the register uses them (B3);
  * - the information sheets (retail prices, 3-day returns or AS IS);
  * - "Price feel off?": what feels off, what they'd pay, then thanks with a little information.
  */
 import { addDays, format, parseISO } from 'date-fns';
+import { useEffect, useState } from 'react';
+import QRCode from 'qrcode';
+import { useQuery } from '@tanstack/react-query';
 import { Box, ButtonBase, CircularProgress } from '@mui/material';
 import AssignmentReturnRounded from '@mui/icons-material/AssignmentReturnRounded';
 import BoltRounded from '@mui/icons-material/BoltRounded';
 import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
 import OpenInNewRounded from '@mui/icons-material/OpenInNewRounded';
+import PersonRounded from '@mui/icons-material/PersonRounded';
+import QrCode2Rounded from '@mui/icons-material/QrCode2Rounded';
+import TrendingUpRounded from '@mui/icons-material/TrendingUpRounded';
 import SavingsRounded from '@mui/icons-material/SavingsRounded';
+import SellRounded from '@mui/icons-material/SellRounded';
 import VolunteerActivismRounded from '@mui/icons-material/VolunteerActivismRounded';
 import { toCents, type PriceFeelReason, type ThriftPlusItemCard, type ThriftPlusMember } from '../../../api/thriftPlusMock';
+import { getMyCard, type MyCard } from '../../../api/thriftPlusScanner.api';
 import { tbNumber } from '../../../components/thriftplus/ThriftBucks';
 import { FieldBanner } from './ScannerTop';
 import { money, wouldPayChoices } from './scannerLogic';
 import { ThriftPlusLogo, art, sc, u } from './scannerTheme';
+import { canInstall, installPrompt, isStandalone } from './installApp';
 import { BigButton, Sheet } from './tripUi';
 import { useMe } from './useThriftPlus';
 
@@ -37,8 +47,8 @@ export const RETAIL_INFO: Info = {
 };
 const PRICING_INFO: Info = {
   title: 'How we price',
-  text: 'Pricing used items is tricky. We start at a discount from retail, and ThriftBucks grow as an item sits, so what it really '
-    + 'costs you keeps coming down. That way every price gets to just right in time.',
+  text: 'Pricing used items is tricky. We start well below retail, and ThriftBucks grow as an item sits. That way every price gets '
+    + 'to just right in time.',
 };
 export const RETURNS_INFO: Record<'yes' | 'no', Info> = {
   yes: {
@@ -48,8 +58,8 @@ export const RETURNS_INFO: Record<'yes' | 'no', Info> = {
   },
   no: {
     title: 'Sold AS IS',
-    text: "This item can't be returned. It's marked AS IS, or it doesn't qualify for 3-day returns (like clothing, parts and small "
-      + 'items). AS IS sales are final.',
+    text: "This item can't be returned. It's marked AS IS, or it doesn't qualify for 3-day returns (like clothing, parts and "
+      + 'low-priced items). AS IS sales are final.',
   },
 };
 const FEEL_DONE: Record<PriceFeelReason, { title: string; text: string; info?: Info }> = {
@@ -60,7 +70,10 @@ const FEEL_DONE: Record<PriceFeelReason, { title: string; text: string; info?: I
   other: { title: 'Thanks for letting us know', text: 'We recorded your comment and will review it.' },
 };
 
-/** The field header: tap it for what Thrift+ is; the pill (members) shows their ThriftBucks, (guests) signs in. */
+/**
+ * The field header: tap it for what Thrift+ is. The pill, top right on every screen (owner 2026-10-14, APP D7): members
+ * open their Member QR (and their ThriftBucks under it); guests sign in.
+ */
 export function TripHeader({ member, onAbout, onWallet, onSignIn }: {
   member: ThriftPlusMember | null;
   onAbout: () => void;
@@ -78,20 +91,15 @@ export function TripHeader({ member, onAbout, onWallet, onSignIn }: {
         </ButtonBase>
         <ButtonBase
           onClick={member ? onWallet : onSignIn}
-          aria-label={member ? `Your ThriftBucks: ${tbNumber(member.banked_rewards)}. See them all` : 'Sign in'}
+          aria-label={member ? 'Member QR: show it at the register' : 'Sign in'}
           data-testid="wallet-pill"
-          sx={{ position: 'absolute', right: u(30), top: u(42), height: u(116), px: u(30), gap: u(16), borderRadius: 99, bgcolor: '#fff',
+          sx={{ position: 'absolute', right: u(30), top: u(42), height: u(116), pl: u(16), pr: u(34), gap: u(16), borderRadius: 99, bgcolor: '#fff',
             boxShadow: '0 4px 14px rgba(0,0,0,0.16)', fontFamily: sc.font, whiteSpace: 'nowrap' }}
         >
-          <Box component="img" src={art.brick} alt="" sx={{ width: u(92), height: u(92), display: 'block' }} />
-          {member ? (
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.05, color: sc.priceGreen }}>
-              <Box component="span" data-rain="balance" sx={{ fontFamily: sc.condensed, fontSize: u(46), fontWeight: 700 }}>{tbNumber(member.banked_rewards)}</Box>
-              <Box component="span" sx={{ fontSize: u(24), fontWeight: 600, color: sc.ink2 }}>Your ThriftBucks</Box>
-            </Box>
-          ) : (
-            <Box sx={{ fontSize: u(34), fontWeight: 800, color: sc.priceGreen }}>Sign in</Box>
-          )}
+          <Box sx={{ width: u(84), height: u(84), borderRadius: '50%', bgcolor: '#3f9f35', color: '#fff', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+            {member ? <QrCode2Rounded sx={{ fontSize: u(54) }} /> : <PersonRounded sx={{ fontSize: u(54) }} />}
+          </Box>
+          <Box sx={{ fontSize: u(38), fontWeight: 800, color: '#1f6b27' }}>{member ? 'Member QR' : 'Sign in'}</Box>
         </ButtonBase>
       </Box>
     </FieldBanner>
@@ -101,11 +109,12 @@ export function TripHeader({ member, onAbout, onWallet, onSignIn }: {
 /** What Thrift+ is: the terms page's "All you need to know", then the full terms. */
 export function ThriftPlusSheet({ onClose }: { onClose: () => void }) {
   const facts: Array<{ icon: React.ReactNode; title: string; text: string }> = [
-    { icon: <VolunteerActivismRounded />, title: 'Free to join.', text: 'Nothing owed, ever.' },
-    { icon: <Box component="img" src={art.brick} alt="" sx={{ width: '1.25em' }} />, title: 'ThriftBucks on most items.', text: "They grow as an item sits, up to 95% of the tag. Scan any tag to see today's ThriftBucks." },
-    { icon: <SavingsRounded />, title: 'Kept for next time.', text: 'Your ThriftBucks are saved to your account automatically. Use them from the next day, for 30 days, at full value.' },
+    { icon: <VolunteerActivismRounded />, title: 'Free to join.', text: 'Nothing owed.' },
+    { icon: <TrendingUpRounded />, title: 'ThriftBucks on most items.', text: "They grow as an item sits, up to 95% of the tag. Scan any tag to see today's ThriftBucks." },
+    { icon: <SavingsRounded />, title: 'Kept for next time, the Default.', text: 'Your ThriftBucks stay on your account. Use them from the next day, for 30 days, at full value.' },
     { icon: <BoltRounded />, title: 'Or redeem them instantly.', text: "At 50% of their value, off today's price. Just tell the cashier." },
     { icon: <AssignmentReturnRounded />, title: '3-day returns.', text: 'Bring a qualifying item back within 3 days, for any reason: 80% of what you paid comes back as Thrift+ credit.' },
+    { icon: <SellRounded />, title: 'Guests pay the tag.', text: 'Everything a guest buys is sold AS IS. All sales final.' },
   ];
   return (
     <Sheet
@@ -146,7 +155,42 @@ export function ThriftPlusSheet({ onClose }: { onClose: () => void }) {
 
 const day = (iso: string) => format(parseISO(iso), 'MMM d');
 
-/** Thrift+ credit, then each ThriftBuck by use-by date: the order the register uses them (B3). */
+const CARD_KEY = 'tp-my-card';
+const CARD_TERMS = 'ThriftBucks are Thrift+ rewards: use within 30 days of collecting. No cash value.';
+
+function cachedCard(): MyCard | undefined {
+  try {
+    const raw = localStorage.getItem(CARD_KEY);
+    return raw ? (JSON.parse(raw) as MyCard) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The QR, crisp: an SVG with a 4-module quiet zone, error correction M (APP D1). */
+function CardQr({ text }: { text: string }) {
+  const [svg, setSvg] = useState('');
+  useEffect(() => {
+    let live = true;
+    QRCode.toString(text, { type: 'svg', errorCorrectionLevel: 'M', margin: 4, color: { dark: '#000000', light: '#ffffff' } })
+      .then((out) => live && setSvg(out))
+      .catch(() => live && setSvg(''));
+    return () => {
+      live = false;
+    };
+  }, [text]);
+  return (
+    <Box data-testid="my-card-qr" role="img" aria-label="Your member QR"
+      sx={{ width: u(560), height: u(560), maxWidth: '100%', mx: 'auto', '& svg': { width: '100%', height: '100%', display: 'block', shapeRendering: 'crispEdges' } }}
+      dangerouslySetInnerHTML={{ __html: svg }} />
+  );
+}
+
+/**
+ * Member QR (owner 2026-10-14, APP D1 and D6): the member's QR to show at the register (there is no card), kept on the
+ * phone so it shows with no signal, with the screen kept awake while it's open; then the ThriftBucks and credit in the
+ * order the register uses them.
+ */
 export function WalletSheet({ member, tripTotal, onClose, onAccount, onSignOut }: {
   member: ThriftPlusMember;
   tripTotal: number;
@@ -154,12 +198,33 @@ export function WalletSheet({ member, tripTotal, onClose, onAccount, onSignOut }
   onAccount: () => void;
   onSignOut: () => void;
 }) {
+  const card = useQuery({ queryKey: ['thriftPlus', 'myCard'], queryFn: getMyCard, initialData: cachedCard, staleTime: 60_000 });
+  useEffect(() => {
+    if (!card.data) return;
+    try {
+      localStorage.setItem(CARD_KEY, JSON.stringify(card.data));
+    } catch {
+      /* private mode: it just won't be there offline */
+    }
+  }, [card.data]);
+  // Keep the screen awake while the cashier scans (where the phone allows it).
+  useEffect(() => {
+    let lock: { release?: () => Promise<void> } | null = null;
+    const nav = navigator as Navigator & { wakeLock?: { request: (kind: 'screen') => Promise<{ release: () => Promise<void> }> } };
+    nav.wakeLock?.request('screen').then((l) => {
+      lock = l;
+    }).catch(() => undefined);
+    return () => {
+      lock?.release?.().catch(() => undefined);
+    };
+  }, []);
+  const c = card.data;
   const me = useMe();
   const lots = me.data?.rewards ?? [];
   const credit = me.data?.credit ?? member.credit_balance;
   const rows = [
     ...(toCents(credit) > 0
-      ? [{ what: 'Thrift+ credit', amount: money(credit), note: 'From a return. Used first, automatically. Never expires.', credit: true }]
+      ? [{ what: 'Thrift+ credit', amount: money(credit), note: 'From a return. Always used first. Never expires.', credit: true }]
       : []),
     ...lots.map((l) => ({
       what: 'ThriftBucks', amount: tbNumber(l.amount), credit: false,
@@ -169,7 +234,40 @@ export function WalletSheet({ member, tripTotal, onClose, onAccount, onSignOut }
   const link = { fontSize: u(28), color: sc.ink2, textDecoration: 'underline', px: u(16), py: u(10), borderRadius: u(12), fontFamily: sc.font } as const;
   return (
     <Sheet onClose={onClose} testId="wallet-sheet">
-      <Box sx={{ fontSize: u(26), color: sc.ink2, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Your ThriftBucks</Box>
+      <Box component="h2" sx={{ m: 0, pr: u(90), fontFamily: sc.condensed, fontWeight: 700, fontSize: u(52), color: sc.titleGreen }}>Member QR</Box>
+      <Box data-testid="my-card" sx={{ mt: u(22), borderRadius: u(40), px: u(36), py: u(34), color: '#fff',
+        background: 'linear-gradient(165deg, #3f9f35 0%, #2e8a2c 55%, #237a26 100%)', boxShadow: `0 ${u(10)} ${u(28)} rgba(35,122,38,0.30)` }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: u(20) }}>
+          <ThriftPlusLogo width={u(230)} />
+          <Box sx={{ fontWeight: 700, fontSize: u(40), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c?.first_name ?? member.first_name}</Box>
+        </Box>
+        <Box sx={{ mt: u(24), bgcolor: '#fff', borderRadius: u(28), px: u(24), pt: u(24), pb: u(20), textAlign: 'center' }}>
+          {c ? (
+            <>
+              <CardQr text={c.qr} />
+              <Box data-testid="my-card-code" sx={{ mt: u(12), fontFamily: sc.condensed, fontWeight: 700, fontSize: u(34), letterSpacing: '0.12em', color: sc.ink }}>
+                {c.display}
+              </Box>
+            </>
+          ) : card.isError ? (
+            <Box sx={{ py: u(60), fontSize: u(28), color: sc.ink2 }}>Your code needs a connection the first time. Try again in a moment.</Box>
+          ) : (
+            <Box sx={{ py: u(120) }}><CircularProgress size={28} sx={{ color: sc.green }} /></Box>
+          )}
+        </Box>
+        {/* Not joined at a register yet (J2): the bold line says so; the card's B12 line stays on every card (APP D1). */}
+        <Box sx={{ mt: u(24), textAlign: 'center', fontWeight: 700, fontSize: u(32) }}>
+          {c && !c.ready ? 'Finish joining at any register. Show them this code.' : 'Show this at the register.'}
+        </Box>
+        <Box sx={{ mt: u(10), textAlign: 'center', fontSize: u(24), lineHeight: 1.4, opacity: 0.92 }}>
+          {CARD_TERMS} Terms:{' '}
+          <Box component="a" href={TERMS_URL} target="_blank" rel="noopener" sx={{ color: 'inherit' }}>ecothrift.us/terms</Box>
+        </Box>
+      </Box>
+
+      <AddToHome />
+
+      <Box sx={{ mt: u(34), fontSize: u(26), color: sc.ink2, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Your ThriftBucks</Box>
       <Box sx={{ display: 'flex', alignItems: 'baseline', gap: u(14), mt: u(6) }}>
         <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(110), lineHeight: 1, color: sc.priceGreen }}>{tbNumber(member.banked_rewards)}</Box>
         <Box sx={{ fontSize: u(30), color: sc.ink2 }}>ready to use</Box>
@@ -211,14 +309,54 @@ export function WalletSheet({ member, tripTotal, onClose, onAccount, onSignOut }
         </Box>
       )}
 
-      <Box sx={{ mt: u(28), fontSize: u(24), color: sc.ink3, lineHeight: 1.4 }}>
-        ThriftBucks are Thrift+ rewards: use within 30 days of collecting. No cash value.
-      </Box>
-      <Box sx={{ mt: u(20), display: 'flex', justifyContent: 'center', gap: u(20) }}>
+      <Box sx={{ mt: u(28), display: 'flex', justifyContent: 'center', gap: u(20) }}>
         <ButtonBase onClick={onAccount} data-testid="my-account" sx={link}>My account</ButtonBase>
         <ButtonBase onClick={onSignOut} data-testid="sign-out" sx={link}>Sign out</ButtonBase>
       </Box>
     </Sheet>
+  );
+}
+
+/**
+ * "Add your member QR to your home screen" (owner 2026-10-14, APP D5 and D6): hidden in the home-screen app and where adding isn't
+ * possible. Android: the browser's own Install prompt. iPhone Safari: how to do it (Share, then Add to Home Screen).
+ */
+function AddToHome() {
+  const [how, setHow] = useState(false);
+  const [, bump] = useState(0);
+  useEffect(() => installPrompt.listen(() => bump((n) => n + 1)), []);
+  const way = canInstall();
+  if (isStandalone() || !way) return null;
+  return (
+    <>
+      <Box sx={{ mt: u(22), textAlign: 'center' }}>
+        <ButtonBase
+          data-testid="add-to-home"
+          onClick={() => (way === 'prompt' ? void installPrompt.show() : setHow(true))}
+          sx={{ fontFamily: sc.font, fontWeight: 700, fontSize: u(28), color: '#237a26', textDecoration: 'underline', px: u(12), py: u(8), borderRadius: u(12) }}
+        >
+          Add your member QR to your home screen
+        </ButtonBase>
+      </Box>
+      {how && (
+        <Sheet onClose={() => setHow(false)} testId="add-to-home-sheet">
+          <Box component="h2" sx={{ m: 0, pr: u(90), fontFamily: sc.condensed, fontWeight: 700, fontSize: u(52), color: sc.titleGreen }}>
+            Add it to your home screen
+          </Box>
+          <Box sx={{ mt: u(24), display: 'flex', alignItems: 'center', gap: u(24) }}>
+            <Box component="img" src="/scan/icons/apple-touch-icon.png" alt="" sx={{ width: u(150), height: u(150), borderRadius: u(34), flexShrink: 0 }} />
+            <Box sx={{ fontSize: u(31), lineHeight: 1.4, color: sc.ink }}>Then one tap opens your member QR at the register.</Box>
+          </Box>
+          <Box sx={{ mt: u(28), fontSize: u(31), lineHeight: 1.5, color: sc.ink }}>
+            <Box>1. Tap <b>Share</b> at the bottom of Safari (the square with the arrow).</Box>
+            <Box sx={{ mt: u(10) }}>2. Tap <b>Add to Home Screen</b>, then <b>Add</b>.</Box>
+          </Box>
+          <Box sx={{ mt: u(34), display: 'flex' }}>
+            <BigButton primary onClick={() => setHow(false)} testId="add-to-home-done">Got it</BigButton>
+          </Box>
+        </Sheet>
+      )}
+    </>
   );
 }
 

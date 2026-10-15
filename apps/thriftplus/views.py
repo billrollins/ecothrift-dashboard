@@ -122,11 +122,12 @@ class AccountViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=['get'])
     def money(self, request, pk=None):
-        """The membership's cover, banked rewards and store credit, and its last 50 ledger rows (Phase 4)."""
+        """The membership's ThriftBucks (with each lot's use-by date) and Thrift+ credit, and its last 50 ledger rows."""
         account = self.get_object()
         rows = account.ledger.select_related('actor', 'item').order_by('-created_at', '-pk')[:50]
         return Response({
             **ledger.balances(account),
+            'lots': ledger.reward_lots(account),
             'entries': [
                 {'id': e.pk, 'kind': e.kind, 'amount': str(e.amount), 'month': e.month, 'reason': e.reason,
                  'cart': e.cart_id, 'sku': e.item.sku if e.item_id else '', 'note': e.note,
@@ -137,11 +138,12 @@ class AccountViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
     def adjust(self, request, pk=None):
-        """A manager's correction to store credit or banked rewards, with a note. Never below zero."""
+        """A manager's correction to Thrift+ credit or ThriftBucks, with a note. Never below zero. ThriftBucks added
+        here are usable at once, for 30 days."""
         account = self.get_object()
         kind = request.data.get('kind')
         if kind not in (LedgerEntry.KIND_CREDIT, LedgerEntry.KIND_BANK):
-            return Response({'detail': 'Adjust Return $ or the ThriftBucks Balance.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': 'Adjust Thrift+ credit or ThriftBucks.'}, status=status.HTTP_400_BAD_REQUEST)
         note = str(request.data.get('note') or '').strip()
         if not note:
             return Response({'detail': 'Say why.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -149,7 +151,8 @@ class AccountViewSet(viewsets.ReadOnlyModelViewSet):
             amount = Decimal(str(request.data.get('amount'))).quantize(Decimal('0.01'))
         except (InvalidOperation, TypeError):
             return Response({'detail': 'The amount must be dollars, like 5.00 or -5.00.'}, status=status.HTTP_400_BAD_REQUEST)
-        if not amount or ledger.balance(account, kind) + amount < 0:
+        have = ledger.credit_balance(account) if kind == LedgerEntry.KIND_CREDIT else ledger.bucks_total(account)
+        if not amount or have + amount < 0:
             return Response({'detail': 'That would take the balance below zero.'}, status=status.HTTP_400_BAD_REQUEST)
         ledger.record(account, kind, amount, 'adjust', actor=request.user, note=note)
         members.log('adjust', account=account, actor=request.user, kind=kind, amount=str(amount), note=note[:200])
@@ -157,8 +160,8 @@ class AccountViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
     def staff(self, request, pk=None):
-        """Mark this membership as a staff member's own ({user: id}), or not ({user: null}). With the owner's
-        "Thrift+ free for staff" on, it pays no monthly cover while that person is active staff."""
+        """Mark this membership as a staff member's own ({user: id}), or not ({user: null}) (J6). Staff memberships
+        are free, like every membership."""
         from apps.accounts.models import User
         from apps.pos.services.staff_purchases import is_staff_member
 
@@ -276,6 +279,7 @@ class CardViewSet(viewsets.GenericViewSet):
         return Response(CardSerializer(card).data)
 
 
+# Retired (owner 2026-10-14: no physical card; Dash's tab is gone). Kept, unused, for the old batches' data.
 class CardBatchViewSet(viewsets.ReadOnlyModelViewSet):
     """Blank-card batches: generate codes, print their backs through the print server, mark printed."""
 
@@ -572,15 +576,19 @@ def _run_payload(run: RewardRun) -> dict:
 
 class RegisterViewSet(viewsets.ViewSet):
     """
-    Thrift+ at the register (Phase 3). Each action takes ``cart`` (the POS cart id) and answers with
-    the POS cart, so the terminal can take it as its new state:
-    - ``attach``: scan a member's card onto the sale;
+    Thrift+ at the register (the 10-12 policy; ``workspace/register-contract.md``). There is no Thrift+ card (owner
+    2026-10-14): a member shows the member QR in the Thrift+ app (``code``, ``TP`` + their member code) or gives their
+    phone number (``find``, then ``person``). Each action takes ``cart`` (the POS cart id) and answers with the POS
+    cart, so the terminal can take it as its new state:
+    - ``find`` ``{phone}``: the people on the memberships that phone is on, to pick by photo. No cart;
+    - ``attach`` ``{code}`` or ``{person}``: put the member on the sale;
     - ``detach``;
-    - ``choice``: bank or instant;
-    - ``balance``: spend store credit and banked rewards;
-    - ``rering``: a card on a sale finished in the last 30 minutes.
+    - ``choice`` ``{choice: 'bank'|'instant'}``: kept (the Default) or redeemed instantly; 400 when instant isn't
+      offered. Logged;
+    - ``bucks`` ``{use: bool}``: use the member's kept ThriftBucks automatically on this trip, or not today;
+    - ``rering`` ``{code}`` or ``{person}``: the member on a sale finished in the last 30 minutes.
 
-    Every action refuses while Thrift+ is dark at that register.
+    Thrift+ credit is used first, automatically (no action). Every action refuses while Thrift+ is dark there.
     """
 
     permission_classes = [IsAuthenticated, IsEmployee]
@@ -614,8 +622,20 @@ class RegisterViewSet(viewsets.ViewSet):
         return Response({'live': members.is_enabled() or code in register.live_register_codes() or training})
 
     @action(detail=False, methods=['post'])
+    def find(self, request):
+        """Find a member by phone (owner 2026-10-14): ``{phone}`` in any format, matched on the digits (a POST, so the
+        number stays out of the request logs). ``{people: [...]}``, each with what the cashier needs to pick the person
+        by their photo."""
+        try:
+            people = members.people_by_phone(str(request.data.get('phone') or ''))
+        except MemberError as exc:
+            return Response({'detail': str(exc), 'code': 'PHONE_SHORT'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'people': [_found_person(p) for p in people]})
+
+    @action(detail=False, methods=['post'])
     def attach(self, request):
-        return self._run(request, lambda cart: register.attach(cart, str(request.data.get('code') or ''), user=request.user))
+        return self._run(request, lambda cart: register.attach(cart, str(request.data.get('code') or ''),
+                                                               person=request.data.get('person'), user=request.user))
 
     @action(detail=False, methods=['post'])
     def detach(self, request):
@@ -623,22 +643,29 @@ class RegisterViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'])
     def choice(self, request):
-        return self._run(request, lambda cart: register.set_choice(cart, str(request.data.get('choice') or '')))
+        return self._run(request, lambda cart: register.set_choice(cart, str(request.data.get('choice') or ''),
+                                                                   user=request.user))
 
     @action(detail=False, methods=['post'])
-    def balance(self, request):
-        def spend(cart):
-            try:
-                credit = Decimal(str(request.data.get('credit') or '0'))
-                bank = Decimal(str(request.data.get('bank') or '0'))
-            except InvalidOperation as exc:
-                raise register.RegisterError('BAD_AMOUNT', 'Amounts must be dollars, like 5.00.') from exc
-            register.use_balance(cart, credit=credit, bank=bank)
-        return self._run(request, spend)
+    def bucks(self, request):
+        use = request.data.get('use', True)
+        use = use if isinstance(use, bool) else _truthy(use)
+        return self._run(request, lambda cart: register.set_bucks(cart, use, user=request.user))
 
     @action(detail=False, methods=['post'])
     def rering(self, request):
-        return self._run(request, lambda cart: register.rering(cart, str(request.data.get('code') or ''), user=request.user))
+        return self._run(request, lambda cart: register.rering(cart, str(request.data.get('code') or ''),
+                                                               person=request.data.get('person'), user=request.user))
+
+
+def _found_person(person: Person) -> dict:
+    """One person found by phone at the register: enough to pick them by their photo, and no more."""
+    return {
+        'person_id': person.pk, 'account_id': person.account_id, 'first_name': person.first_name,
+        'last_initial': (person.last_name or '')[:1].upper(), 'role': person.role,
+        'photo_url': person.photo.url if person.photo else None, 'verified_18': person.verified_18,
+        'practice': bool(person.account.is_practice), 'account_status': person.account.status,
+    }
 
 
 class RestrictedProductViewSet(viewsets.ViewSet):
@@ -677,9 +704,13 @@ class RestrictedProductViewSet(viewsets.ViewSet):
 
 class ReturnsViewSet(viewsets.ViewSet):
     """
-    Member returns at the register (Phase 3):
-    - ``lookup``: a card's recent purchases, each with whether it can come back;
-    - ``create``: take one back as store credit;
+    Thrift+ 3-day returns at the register (the 10-12 policy; ``workspace/register-contract.md``). The member is their
+    QR scanned (``code``) or found by phone (``person``, from ``register/find/``; owner 2026-10-14):
+    - ``lookup`` ``?code=`` or ``?person=`` (and optional ``register=``): the member's recent purchases, each with its
+      mark, what a return gives back and takes back, its deadline, and why not when it can't come back;
+    - ``create`` ``{code | person, cart_line, note?, register}``: take one back as Thrift+ credit. On the training
+      register the result is worked out and nothing is written (``training: true``). ``late_ok`` (the owner only, O1)
+      lets a return past the 3 days through, with the note saying why;
     - ``photo``: the serial and condition photo of a $100+ item at the sale;
     - ``list`` and ``done``: returned items waiting for staff.
     """
@@ -691,30 +722,50 @@ class ReturnsViewSet(viewsets.ViewSet):
         rows = ReturnRecord.objects.select_related('person', 'cart_line', 'item').order_by('status', '-created_at')[:200]
         return Response([
             {'id': r.pk, 'status': r.status, 'member': f'{r.person.first_name} {r.person.last_name}'.strip(),
-             'sku': r.item.sku if r.item_id else '', 'title': r.cart_line.description, 'paid': str(r.paid), 'note': r.note,
-             'created_at': r.created_at}
+             'sku': r.item.sku if r.item_id else '', 'title': r.cart_line.description, 'paid': str(r.paid),
+             'credit': str(r.credit), 'bucks_back': str(r.bucks_back), 'bucks_taken': str(r.bucks_taken),
+             'shortfall': str(r.shortfall), 'note': r.note, 'created_at': r.created_at}
             for r in rows
         ])
 
+    @staticmethod
+    def _training(code) -> bool:
+        """The terminal's register is the training register (its code TRAIN, or marked training)."""
+        from apps.pos.models import Register
+
+        code = str(code or '').strip()
+        if not code:
+            return False
+        return code.upper() == 'TRAIN' or Register.objects.filter(code__iexact=code, is_training=True).exists()
+
     @action(detail=False, methods=['get'])
     def lookup(self, request):
+        q = request.query_params
         try:
-            return Response(returns.purchases(str(request.query_params.get('code') or '')))
+            return Response(returns.purchases(str(q.get('code') or ''), person=q.get('person'),
+                                              training=self._training(q.get('register'))))
         except register.RegisterError as exc:
             return Response({'detail': str(exc), 'code': exc.code}, status=status.HTTP_400_BAD_REQUEST)
 
     def create(self, request):
         from apps.pos.models import CartLine
 
-        line = get_object_or_404(CartLine.objects.select_related('cart', 'item__product'), pk=request.data.get('cart_line'))
+        line = get_object_or_404(CartLine.objects.select_related('cart', 'item__product__profile'), pk=request.data.get('cart_line'))
+        late_ok = _truthy(request.data.get('late_ok'))
+        note = str(request.data.get('note') or '')
+        if late_ok and not request.user.is_superuser:
+            return Response({'detail': 'Only the owner can allow a return after the 3 days.', 'code': 'OWNER_ONLY'},
+                            status=status.HTTP_403_FORBIDDEN)
+        if late_ok and not note.strip():
+            return Response({'detail': 'Say why the late return is allowed (the store was closed).', 'code': 'SAY_WHY'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        training = self._training(request.data.get('register'))
         try:
-            record = returns.do_return(
-                line, str(request.data.get('code') or ''), confirmed=_truthy(request.data.get('confirmed')),
-                note=str(request.data.get('note') or ''), user=request.user,
-            )
+            result = returns.do_return(line, str(request.data.get('code') or ''), person=request.data.get('person'),
+                                       note=note, user=request.user, training=training, late_ok=late_ok)
         except register.RegisterError as exc:
             return Response({'detail': str(exc), 'code': exc.code}, status=status.HTTP_400_BAD_REQUEST)
-        return Response({'id': record.pk, 'credit': str(record.paid), **ledger.balances(record.account)}, status=status.HTTP_201_CREATED)
+        return Response(result, status=status.HTTP_200_OK if training else status.HTTP_201_CREATED)
 
     @action(detail=False, methods=['post'])
     def photo(self, request):

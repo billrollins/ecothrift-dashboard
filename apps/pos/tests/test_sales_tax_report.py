@@ -61,6 +61,29 @@ class SalesTaxReportTests(TestCase):
         self.assertEqual(d['card_surcharge'], '2.70')
         self.assertEqual(d['voided'], {'count': 1, 'taxable': '40.00', 'tax': '2.80'})
         self.assertEqual({p['method'] for p in d['payments']}, {'card', 'cash'})
+        self.assertEqual((d['thrift_plus_returns']['count'], d['thrift_plus_returns']['tax_back']), (0, '0.00'))
+
+    def test_thrift_plus_returns_show_the_price_and_tax_given_back_on_the_return_day(self):
+        from apps.thriftplus.models import Account, Person, ReturnRecord
+
+        sale = self.sale(_at(2026, 9, 2), [('item', '80.00')])
+        line = sale.lines.get()
+        account = Account.objects.create()
+        person = Person.objects.create(account=account, first_name='Ana')
+        record = ReturnRecord.objects.create(account=account, person=person, cart_line=line, paid=D('68.48'), credit=D('68.48'),
+                                             taxable_back=D('64.00'), tax_back=D('4.48'))
+        ReturnRecord.objects.filter(pk=record.pk).update(created_at=_at(2026, 9, 4))
+        practice = Account.objects.create(is_practice=True)
+        other = self.sale(_at(2026, 9, 2), [('item', '10.00')]).lines.get()
+        ReturnRecord.objects.create(account=practice, person=Person.objects.create(account=practice, first_name='P'),
+                                    cart_line=other, paid=D('8.56'), taxable_back=D('8.00'), tax_back=D('0.56'))
+        ReturnRecord.objects.filter(account=practice).update(created_at=_at(2026, 9, 5))
+        d = self.get().data
+        returns = d['thrift_plus_returns']
+        self.assertEqual((returns['count'], returns['taxable_back'], returns['tax_back'], returns['refund']),
+                         (1, '64.00', '4.48', '68.48'))  # practice memberships are left out
+        self.assertEqual(returns['days'], [{'day': '2026-09-04', 'count': 1, 'taxable_back': '64.00', 'tax_back': '4.48'}])
+        self.assertEqual(d['taxable_sales'], '90.00')  # the sale itself is never changed (W11)
 
     def test_only_the_owner_and_a_sane_period(self):
         manager = User.objects.create_user(email='mgr@example.com', first_name='M', last_name='G', password='x-pass-123')

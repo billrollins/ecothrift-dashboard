@@ -190,7 +190,8 @@ def sale_display_label(line) -> str:
     return f'Sale {pct_text}%'
 
 
-THRIFT_PLUS_SAVINGS_LABEL = 'InstantBucks'
+THRIFT_PLUS_SAVINGS_LABEL = 'Redeemed instantly'  # Thrift+ (B1, V4): dollars off today
+THRIFT_PLUS_BUCKS_LABEL = 'ThriftBucks used'  # Thrift+ kept ThriftBucks used: a discount line before tax (T3)
 
 
 def cart_savings(cart) -> dict:
@@ -208,6 +209,9 @@ def cart_savings(cart) -> dict:
     for line in cart.lines.all():
         thrift = line.thrift_savings or Decimal('0')  # Thrift+ member rebate, its own bucket
         if line.line_kind == CartLine.LINE_KIND_DISCOUNT:
+            if isinstance(line.meta, dict) and line.meta.get('thrift') == 'bucks':  # only Thrift+ writes this line
+                add(THRIFT_PLUS_BUCKS_LABEL, -line.line_total)
+                continue
             reason = str((line.meta or {}).get('reason') or '').strip()
             add('Discount' if reason in ('', 'Other') else reason[:32], -line.line_total)
             continue

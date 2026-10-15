@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.165.0] -->
-<!-- Last reviewed: 2026-10-12 (2.165.0) -->
+<!-- Line 1 release: ## [2.166.0] -->
+<!-- Last reviewed: 2026-10-14 (2.166.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,26 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.166.0] - 2026-10-14
+
+User-facing theme: **Thrift+ (still off for customers): the register on the owner's 10-12 and 10-14 rules, a training register that can't touch real money or stock, and no Thrift+ card: members show the Member QR in the app or give their phone number (Bill, 2026-10-14: "have it all live today for testing"; "we are doing away with the card altogether").** thrift_plus Phase 5 (register), Phase 4 (app).
+
+### Added
+
+- **Register, paying with Thrift+:** Thrift+ credit first (after tax), then the member's kept ThriftBucks, used automatically as one discount line before tax (the cashier can tap "don't use them today"), then an instant redemption only on what is left. Kept is the Default; the instant choice is hidden when credit and kept ThriftBucks pay the whole total, and the panel shows the real instant figure before the tap. A re-ring keeps the trip's ThriftBucks (no instant).
+- **ThriftBucks lots:** ThriftBucks collected on a sale are usable from the next day for 30 days, soonest first; the nightly run expires lots past their date (Overview counts them as Thrift+ income, and what the store owes is unexpired ThriftBucks plus credit). Member money in Dash lists each lot with its use-by date.
+- **3-day returns (B16-B20):** sale day + 3 (only the owner can approve a late one, with a note); which items qualify comes from the W6 guide; the refund is 80% tax included, 80% of the ThriftBucks used come back, the member keeps 20% of what the item collected, and any shortfall comes off the credit. The return dialog asks for a quick damage glance. **Reports → Sales tax** has a Thrift+ returns section.
+- **Training register:** a practice sale rings and prints as normal, marked TRAINING, and writes nothing real. The TEST stop comes before any card payment; a SOLD tag is not moved; no delivery job; the TRAIN drawer, its drops and its sales stay out of the drawer and cash lists and the open-drawer alert; a return is worked out and nothing is written; a practice member works only there. Switching a device to or from TRAIN asks to confirm, and the Register API can no longer mark a register as training.
+- **Receipts:** each Thrift+ item carries its mark (3-day returns or AS IS) and the receipt carries the Thrift+ block and the training flag (print server 1.9.0 prints them; it installs separately on each register).
+- **No Thrift+ card (owner 2026-10-14):** at the register a member shows the **Member QR** in the Thrift+ app or gives their phone number: **Find by phone** lists the adults on that membership with their photos, and the cashier picks one (returns too). Sign-up makes the member's code; nothing is printed. Receipts print the member's first name and the rewards line ("ThriftBucks are Thrift+ rewards: use within 30 days of collecting. No cash value."). No register, receipt, email, app or Dash text says "card" (a payment card is "the way you paid").
+- **Scanner app, Member QR:** the top-right button on every screen (guests: Sign in) opens the member's QR and code to show at the register, then their ThriftBucks and credit. **ecothrift.us/qr** opens straight on it; members stay signed in for a year, renewed on each visit; the scanner can be added to a phone's home screen ("Add your member QR to your home screen": Android's install prompt, or how to do it in iPhone Safari). Card sign-in and the account's card rows are gone.
+- **Dash:** "Replace member code" stops a member's code at once (a lost phone or a seen QR); the app makes a new one. The Card batches tab is retired.
+
+### Changed
+
+- **Words:** "Free to join. Nothing owed."; no cover, InstantBucks, store credit or warranty words in the register, the app or the server's messages; the app's Thrift+ lines and return words match the rulebook (D2).
+- The monthly cover and the staff cover exemption are gone; the instant share is a setting (0.50). QA check TP-04 (cover) is retired.
 
 ## [2.165.0] - 2026-10-12
 

@@ -1,44 +1,21 @@
 /**
- * Tap-to-explain popups (bank, cover, cart, scan), the first-run walkthrough
- * (Scan > Bank > Cart > Done) and "Camera not working?" help with iPhone and
- * Android steps. Each popup zooms out of whatever was tapped and plays a small
- * looping illustration. Copy avoids the program's banned words.
+ * "Camera not working?" help with iPhone and Android steps, in a popup that zooms out of whatever was
+ * tapped. (The older topic popups and the first-run walkthrough were retired with the 10-12 policy; the
+ * trip scanner explains Thrift+ in its own sheets.)
  */
 import { useState, type ReactNode } from 'react';
 import { Box, ButtonBase } from '@mui/material';
-import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import NoPhotographyRounded from '@mui/icons-material/NoPhotographyRounded';
-import QrCode2Rounded from '@mui/icons-material/QrCode2Rounded';
-import { type ThriftPlusCart, type ThriftPlusMember } from '../../../api/thriftPlusMock';
-import { CoverFigures, TbAmount } from '../../../components/thriftplus/ThriftBucks';
-import { shortDate } from './scannerLogic';
-import { art, sc, u } from './scannerTheme';
+import type { ThriftPlusCart, ThriftPlusMember } from '../../../api/thriftPlusMock';
+import { sc, u } from './scannerTheme';
 
-export type Topic = 'scan' | 'bank' | 'cover' | 'cart' | 'camera';
+export type Topic = 'camera';
 
 /** Where the popup grows from, in page coordinates relative to the scanner shell. */
 export interface Origin {
   x: number;
   y: number;
-}
-
-const INTRO_KEY = 'thriftPlus.introSeen';
-
-export function introSeen(): boolean {
-  try {
-    return window.localStorage.getItem(INTRO_KEY) === '1';
-  } catch {
-    return true;
-  }
-}
-
-export function markIntroSeen(): void {
-  try {
-    window.localStorage.setItem(INTRO_KEY, '1');
-  } catch {
-    // Blocked storage: the walkthrough shows again next time, which is fine.
-  }
 }
 
 /** A zoom-from-the-tap popup over a dimmed page. */
@@ -119,14 +96,6 @@ function Body({ children }: { children: ReactNode }) {
   return <Box sx={{ fontSize: u(31), color: sc.ink2, lineHeight: 1.45, mt: u(14), textAlign: 'center' }}>{children}</Box>;
 }
 
-function Stat({ children }: { children: ReactNode }) {
-  return (
-    <Box sx={{ mt: u(22), mx: 'auto', width: 'fit-content', px: u(28), py: u(12), borderRadius: 99, bgcolor: sc.greenTint, color: sc.priceGreen, fontWeight: 700, fontSize: u(30) }}>
-      {children}
-    </Box>
-  );
-}
-
 function Primary({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <ButtonBase
@@ -148,197 +117,7 @@ function Primary({ label, onClick }: { label: string; onClick: () => void }) {
   );
 }
 
-/* ------------------------------------------------------------------ art */
-
 const stage = { position: 'relative', height: u(300), mx: 'auto', width: '100%', overflow: 'hidden' } as const;
-
-function ScanArt() {
-  return (
-    <Box sx={stage} aria-hidden>
-      <Box
-        sx={{
-          position: 'absolute',
-          left: '50%',
-          top: '50%',
-          width: u(230),
-          height: u(230),
-          transform: 'translate(-50%, -50%)',
-          borderRadius: u(30),
-          bgcolor: '#fff',
-          boxShadow: '0 6px 18px rgba(0,0,0,0.12)',
-          display: 'grid',
-          placeItems: 'center',
-        }}
-      >
-        <QrCode2Rounded sx={{ fontSize: u(170), color: sc.ink }} />
-        {(['tl', 'tr', 'bl', 'br'] as const).map((c) => (
-          <Box
-            key={c}
-            sx={{
-              position: 'absolute',
-              width: u(56),
-              height: u(56),
-              borderColor: sc.green,
-              borderStyle: 'solid',
-              borderWidth: 0,
-              ...(c[0] === 't' ? { top: u(-18), borderTopWidth: u(8) } : { bottom: u(-18), borderBottomWidth: u(8) }),
-              ...(c[1] === 'l' ? { left: u(-18), borderLeftWidth: u(8) } : { right: u(-18), borderRightWidth: u(8) }),
-              borderRadius: u(14),
-            }}
-          />
-        ))}
-        <Box
-          sx={{
-            position: 'absolute',
-            left: u(-10),
-            right: u(-10),
-            height: u(6),
-            borderRadius: 99,
-            bgcolor: sc.greenBright,
-            boxShadow: `0 0 ${u(18)} ${sc.greenBright}`,
-            animation: 'tpSweep 1.6s ease-in-out infinite alternate',
-            '@keyframes tpSweep': { from: { top: '8%' }, to: { top: '90%' } },
-          }}
-        />
-      </Box>
-    </Box>
-  );
-}
-
-function BankArt() {
-  return (
-    <Box sx={stage} aria-hidden>
-      <Box component="img" src={art.brick} alt="" sx={{ position: 'absolute', left: '50%', bottom: u(10), width: u(190), transform: 'translateX(-50%)' }} />
-      {[0, 1, 2].map((i) => (
-        <Box
-          key={i}
-          component="img"
-          src={art.ticket}
-          alt=""
-          sx={{
-            position: 'absolute',
-            left: `calc(50% - ${u(48)} + ${u((i - 1) * 34)})`,
-            top: u(-90),
-            width: u(96),
-            animation: `tpDrop 2.4s ${i * 0.35}s cubic-bezier(0.4, 0, 0.6, 1) infinite backwards`,
-            '@keyframes tpDrop': {
-              '0%': { transform: 'translateY(0) rotate(-20deg)', opacity: 0 },
-              '12%': { opacity: 1 },
-              '45%': { transform: `translateY(${u(170)}) rotate(10deg)`, opacity: 1 },
-              '55%': { transform: `translateY(${u(150)}) rotate(0deg)`, opacity: 1 },
-              '70%, 100%': { transform: `translateY(${u(175)}) rotate(0deg)`, opacity: 0 },
-            },
-          }}
-        />
-      ))}
-      <Box
-        sx={{
-          position: 'absolute',
-          right: '14%',
-          top: u(40),
-          px: u(22),
-          py: u(10),
-          borderRadius: 99,
-          bgcolor: '#fff4cf',
-          color: '#8a6200',
-          fontWeight: 800,
-          fontSize: u(34),
-          boxShadow: '0 4px 10px rgba(180,130,10,0.25)',
-          animation: 'tpPop 2.4s ease-in-out infinite',
-          '@keyframes tpPop': {
-            '0%, 40%': { transform: 'scale(0.6)', opacity: 0 },
-            '55%': { transform: 'scale(1.15)', opacity: 1 },
-            '65%, 90%': { transform: 'scale(1)', opacity: 1 },
-            '100%': { transform: 'scale(1)', opacity: 0 },
-          },
-        }}
-      >
-        30 days
-      </Box>
-    </Box>
-  );
-}
-
-function CoverArt({ pct, done }: { pct: number; done: boolean }) {
-  return (
-    <Box sx={{ ...stage, height: u(240) }} aria-hidden>
-      <Box sx={{ position: 'absolute', left: '8%', right: '8%', top: u(90) }}>
-        <Box sx={{ position: 'relative', height: u(44), borderRadius: 99, bgcolor: '#e4e5e1', overflow: 'hidden' }}>
-          <Box
-            sx={{
-              position: 'absolute',
-              inset: 0,
-              width: `${Math.max(6, pct)}%`,
-              borderRadius: 99,
-              background: `linear-gradient(180deg, #6fcf52, ${sc.green})`,
-              animation: 'tpFill 1.4s cubic-bezier(0.3, 0.8, 0.3, 1) both',
-              '@keyframes tpFill': { from: { width: '0%' } },
-            }}
-          />
-          <Box
-            sx={{
-              position: 'absolute',
-              inset: 0,
-              background: 'linear-gradient(100deg, transparent 30%, rgba(255,255,255,0.55) 50%, transparent 70%)',
-              animation: 'tpShine 2.2s 1.2s ease-in-out infinite',
-              '@keyframes tpShine': { from: { transform: 'translateX(-100%)' }, to: { transform: 'translateX(100%)' } },
-            }}
-          />
-        </Box>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: u(14), fontSize: u(26), color: sc.ink3 }}>
-          <span>$0</span>
-          <span>$10 covers your card</span>
-        </Box>
-      </Box>
-      <CheckCircleRounded
-        sx={{
-          position: 'absolute',
-          right: '6%',
-          top: u(22),
-          fontSize: u(70),
-          color: done ? sc.green : '#cfd2cb',
-          animation: 'tpPop2 600ms 1.2s ease-out both',
-          '@keyframes tpPop2': { from: { transform: 'scale(0)' }, '70%': { transform: 'scale(1.2)' }, to: { transform: 'scale(1)' } },
-        }}
-      />
-    </Box>
-  );
-}
-
-function CartArt() {
-  return (
-    <Box sx={stage} aria-hidden>
-      <Box component="img" src={art.cart} alt="" sx={{ position: 'absolute', left: '50%', bottom: u(20), width: u(200), transform: 'translateX(-50%)' }} />
-      {[0, 1].map((i) => (
-        <Box
-          key={i}
-          component="img"
-          src={art.ticket}
-          alt=""
-          sx={{
-            position: 'absolute',
-            left: i === 0 ? '12%' : '72%',
-            top: u(40),
-            width: u(80),
-            animation: `${i === 0 ? 'tpHopL' : 'tpHopR'} 2.2s ${i * 0.5}s ease-in-out infinite backwards`,
-            '@keyframes tpHopL': {
-              '0%': { transform: 'translate(0, 0) scale(1)', opacity: 0 },
-              '15%': { opacity: 1 },
-              '60%': { transform: `translate(${u(150)}, ${u(90)}) scale(0.7)`, opacity: 1 },
-              '75%, 100%': { transform: `translate(${u(170)}, ${u(120)}) scale(0.5)`, opacity: 0 },
-            },
-            '@keyframes tpHopR': {
-              '0%': { transform: 'translate(0, 0) scale(1)', opacity: 0 },
-              '15%': { opacity: 1 },
-              '60%': { transform: `translate(${u(-150)}, ${u(90)}) scale(0.7)`, opacity: 1 },
-              '75%, 100%': { transform: `translate(${u(-170)}, ${u(120)}) scale(0.5)`, opacity: 0 },
-            },
-          }}
-        />
-      ))}
-    </Box>
-  );
-}
 
 function CameraArt() {
   return (
@@ -360,148 +139,6 @@ function CameraArt() {
         }}
       />
     </Box>
-  );
-}
-
-/* ------------------------------------------------------------ topics */
-
-export function InfoPopup({
-  topic,
-  origin,
-  member,
-  cart,
-  onClose,
-  onRetryCamera,
-}: {
-  topic: Topic;
-  origin: Origin | null;
-  member: ThriftPlusMember | null;
-  cart: ThriftPlusCart | undefined;
-  onClose: () => void;
-  onRetryCamera: () => void;
-}) {
-  if (topic === 'camera') {
-    return (
-      <Popup origin={origin} label="Camera not working?" onClose={onClose}>
-        <CameraHelp
-          onRetry={() => {
-            onClose();
-            onRetryCamera();
-          }}
-        />
-      </Popup>
-    );
-  }
-  const cover = member?.cover;
-  return (
-    <Popup origin={origin} label={TITLES[topic]} onClose={onClose}>
-      {topic === 'scan' && <ScanArt />}
-      {topic === 'bank' && <BankArt />}
-      {topic === 'cover' && cover && (
-        <CoverArt pct={(Number.parseFloat(cover.covered) / (Number.parseFloat(cover.amount) || 10)) * 100} done={cover.is_covered} />
-      )}
-      {topic === 'cart' && <CartArt />}
-      <Title>{TITLES[topic]}</Title>
-      {topic === 'scan' && (
-        <Body>
-          Point your camera at the QR code on any price tag. You'll see our price and the ThriftBucks it collects right away.
-        </Body>
-      )}
-      {topic === 'bank' && (
-        <>
-          <Body>
-            ThriftBucks are the Default: all of them go to your ThriftBucks, to use from the next day through day 30. Want them
-            off today's price instead? Ask the cashier for InstantBucks: 80% of the ThriftBucks, today. Your Return $ (from returns) is
-            always used first.
-          </Body>
-          {member && <Stat>Your ThriftBucks: <TbAmount value={member.banked_rewards} bare /></Stat>}
-        </>
-      )}
-      {topic === 'cover' && cover && (
-        <>
-          <Body>
-            Thrift+ is free. The first <TbAmount value={cover.amount} /> you collect each month cover your card. After that,
-            ThriftBucks go to your ThriftBucks Balance, or InstantBucks (80%) come off today's price. It starts over on {shortDate(cover.resets_on)}.
-          </Body>
-          <Stat>
-            {cover.is_covered ? 'Covered for this month' : <><CoverFigures covered={cover.covered} amount={cover.amount} /> covered so far</>}
-          </Stat>
-          <Body>
-            Don't worry: even when the cover isn't paid, you keep every Thrift+ benefit: the Limited Warranty, holding items online,
-            and more perks to come.
-          </Body>
-        </>
-      )}
-      {topic === 'cart' && (
-        <>
-          <Body>
-            What you'd collect on the items in your cart today. At checkout they cover your card for the month first, then go to your
-            ThriftBucks Balance in full (ThriftBucks), or 80% comes off today's price (InstantBucks).
-          </Body>
-          {cart && <Stat>This cart: <TbAmount value={cart.totals.reward_total} sign="+" /></Stat>}
-        </>
-      )}
-      <Primary label="Got it" onClick={onClose} />
-    </Popup>
-  );
-}
-
-const TITLES: Record<Exclude<Topic, 'camera'>, string> = {
-  scan: 'Scan any tag',
-  bank: 'ThriftBucks or InstantBucks',
-  cover: "This month's cover",
-  cart: 'Your cart ThriftBucks',
-};
-
-/* ---------------------------------------------------------- walkthrough */
-
-export function IntroTour({ isGuest, onDone, onCameraHelp }: { isGuest: boolean; onDone: () => void; onCameraHelp: () => void }) {
-  const steps = [
-    { key: 'scan', art: <ScanArt />, title: 'Scan', body: "Point at any price tag. See our price and what you'd collect." },
-    isGuest
-      ? { key: 'bank', art: <BankArt />, title: 'Get a card', body: 'Members pay less the longer an item has been here. Cards are free at the register.' }
-      : {
-          key: 'bank',
-          art: <BankArt />,
-          title: 'ThriftBucks',
-          body: 'Save your ThriftBucks in full for a later trip, or use 80% of them today. Tap ThriftBucks to see them all.',
-        },
-    { key: 'cart', art: <CartArt />, title: 'My list', body: 'Tap the cart up top to see your list and its ThriftBucks.' },
-  ];
-  const [i, setI] = useState(0);
-  const step = steps[i];
-  const last = i === steps.length - 1;
-  return (
-    <Popup origin={null} label="How Thrift+ works" onClose={onDone}>
-      <Box key={step.key} sx={{ animation: 'tpStep 260ms ease-out both', '@keyframes tpStep': { from: { opacity: 0, transform: `translateX(${u(40)})` } } }}>
-        {step.art}
-        <Title>{step.title}</Title>
-        <Body>{step.body}</Body>
-      </Box>
-      <Box sx={{ display: 'flex', justifyContent: 'center', gap: u(14), mt: u(28) }}>
-        {steps.map((s, k) => (
-          <Box
-            key={s.key}
-            sx={{ width: k === i ? u(40) : u(14), height: u(14), borderRadius: 99, bgcolor: k === i ? sc.green : '#d6d8d2', transition: 'width 200ms' }}
-          />
-        ))}
-      </Box>
-      <Primary
-        label={last ? 'Done' : 'Next'}
-        onClick={() => {
-          if (last) onDone();
-          else setI(i + 1);
-        }}
-      />
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: u(18) }}>
-        <ButtonBase onClick={onDone} sx={{ fontSize: u(28), color: sc.ink3, px: u(12), py: u(10), borderRadius: u(12) }}>
-          Skip
-        </ButtonBase>
-        <ButtonBase onClick={onCameraHelp} sx={{ fontSize: u(28), color: sc.ink2, px: u(12), py: u(10), borderRadius: u(12) }}>
-          Camera not working?
-        </ButtonBase>
-      </Box>
-    </Popup>
   );
 }
 
@@ -602,5 +239,33 @@ function CameraHelp({ onRetry }: { onRetry: () => void }) {
       </Box>
       <Primary label="Try the camera again" onClick={onRetry} />
     </Box>
+  );
+}
+
+/* ------------------------------------------------------------ the popup */
+
+export function InfoPopup({
+  topic,
+  origin,
+  onClose,
+  onRetryCamera,
+}: {
+  topic: Topic;
+  origin: Origin | null;
+  /** Not used by the camera help; accepted so older callers still fit. */
+  member?: ThriftPlusMember | null;
+  cart?: ThriftPlusCart;
+  onClose: () => void;
+  onRetryCamera: () => void;
+}) {
+  return (
+    <Popup origin={origin} label={topic === 'camera' ? 'Camera not working?' : ''} onClose={onClose}>
+      <CameraHelp
+        onRetry={() => {
+          onClose();
+          onRetryCamera();
+        }}
+      />
+    </Popup>
   );
 }

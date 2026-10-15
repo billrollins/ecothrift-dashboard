@@ -42,7 +42,7 @@ The rules (owner's design, 2026-09-25; the rate and the launch start since 2026-
 - **Logged:** every change of status or reason is a ``RewardEvent``, with the pace numbers behind
   it. Growth inside one status is not repeated, because the reward on any day follows from
   ``grow_days``.
-- **Never published.** Customers only ever see "You'd earn +$X".
+- **Never published.** Customers only ever see the ThriftBucks an item collects ("+13.00 ThriftBucks").
 
 ``plan(day)`` computes without writing: the dry run on the Rewards tab. ``recompute(day)``
 writes it (the nightly ``recompute_rewards`` command). The math is plain Python over
@@ -638,9 +638,17 @@ STATE_FIELDS = [
 
 def recompute(on: date | None = None) -> RewardRun:
     """Tonight's step for every floor item, written in chunks. Safe to re-run: items already
-    computed for ``on`` are skipped, so a re-run changes nothing."""
+    computed for ``on`` are skipped, so a re-run changes nothing. It starts by expiring kept ThriftBucks past their
+    use-by date (B5; ``ledger.expire_lots``, safe to re-run too)."""
     on = on or default_day(rules())
     run = RewardRun.objects.create(day=on)
+    expired: dict = {}
+    try:
+        from apps.thriftplus.services import ledger
+
+        expired = ledger.expire_lots(timezone.localdate())
+    except Exception:  # never stops the nightly run
+        logger.exception('expiring ThriftBucks failed')
     try:
         from apps.thriftplus.services import families
 
@@ -657,7 +665,7 @@ def recompute(on: date | None = None) -> RewardRun:
         closed = _close(p.to_close, run, on, now)
         _store_family_pcts(p, on)
         run.counts = {**summary_counts(p), 'computed': len(fresh), 'closed': closed,
-                      'families_flagged': flagged.get('new', 0)}
+                      'families_flagged': flagged.get('new', 0), 'bucks_lots_expired': expired.get('lots', 0)}
     except Exception as exc:
         logger.exception('reward recompute for %s failed', on)
         run.error = str(exc)[:4000]

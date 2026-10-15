@@ -4,14 +4,8 @@ import {
   Box,
   Button,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  LinearProgress,
   Paper,
   Stack,
-  TextField,
   ToggleButton,
   ToggleButtonGroup,
   Typography,
@@ -19,16 +13,19 @@ import {
 import { useSnackbar } from 'notistack';
 import { useState } from 'react';
 import {
+  attachThriftMember,
   detachThriftCard,
   refreshCart,
   setThriftChoice,
-  spendThriftBalance,
   thriftErrorMessage,
   uploadThriftSalePhoto,
+  useThriftBucks as setThriftBucksUse,
 } from '../../api/thriftplusRegister.api';
-import { CoverFigures, TbAmount, tbText } from '../thriftplus/ThriftBucks';
+import { TbAmount, tbNumber, tbText } from '../thriftplus/ThriftBucks';
 import type { Cart } from '../../types/pos.types';
 import { formatCurrency } from '../../utils/format';
+import { instantOffer, useByText } from '../../utils/thriftPlusRegister';
+import ThriftPlusPhoneFind from './ThriftPlusPhoneFind';
 
 interface Props {
   cart: Cart;
@@ -36,16 +33,17 @@ interface Props {
 }
 
 /**
- * Thrift+ on the register (thrift_plus_rewards Phase 3). The member on the sale, with their photo
- * so the cashier can check it; the cover; bank or instant; spending credit or banked rewards. For a
- * guest, what a card would have collected for them. Shown only while Thrift+ is live at this register.
+ * Thrift+ on the register (the 10-12 policy, owner answers 10-14). No member yet: scan the member QR in their
+ * Thrift+ app, or find them by phone and pick the person by their photo (owner 2026-10-14: there is no Thrift+ card).
+ * The member on the sale, with their photo so the cashier can check it; the choice (V4): keep this trip's ThriftBucks
+ * (the Default) or redeem them instantly, offered only on what is left after Thrift+ credit and kept ThriftBucks;
+ * Thrift+ credit used first; kept ThriftBucks applied by the register on its own, with a one-tap "Don't use
+ * ThriftBucks today"; both balances. For a guest, what membership would have collected. Shown only while Thrift+ is
+ * live at this register.
  */
 export default function ThriftPlusPanel({ cart, onCart }: Props) {
   const { enqueueSnackbar } = useSnackbar();
   const [busy, setBusy] = useState(false);
-  const [spendOpen, setSpendOpen] = useState(false);
-  const [credit, setCredit] = useState('');
-  const [bank, setBank] = useState('');
   const block = cart.thrift_plus;
   if (!block) return null;
   const member = block.member;
@@ -68,19 +66,35 @@ export default function ThriftPlusPanel({ cart, onCart }: Props) {
       <Paper variant="outlined" sx={{ p: 1.5, mb: 2, flexShrink: 0 }}>
         <Typography variant="subtitle2" fontWeight={700}>Thrift+</Typography>
         <Typography variant="body2" color="text.secondary">
-          Do you have a card yet? Scan it to price this sale for the member.
+          A Thrift+ member? Scan the QR in their Thrift+ app, or find them by phone.
         </Typography>
         {block.guest_line ? (
           <Typography variant="body2" sx={{ mt: 0.5 }}>{block.guest_line}</Typography>
+        ) : null}
+        {cart.status === 'open' ? (
+          <Box sx={{ mt: 1 }}>
+            <ThriftPlusPhoneFind
+              disabled={busy}
+              onPick={(person) => run(() => attachThriftMember(cart.id, person.person_id))}
+            />
+          </Box>
         ) : null}
       </Paper>
     );
   }
 
-  const cover = member.cover;
-  const coverPct = Math.min(100, (Number(cover.covered) / Math.max(0.01, Number(cover.amount))) * 100);
   const open = cart.status === 'open';
-  const t = block.totals;
+  const collected = Number(block.collected) || 0;
+  const instant = member.choice === 'instant';
+  const offer = instantOffer(block);
+  const creditUsed = Number(block.credit_used) || 0;
+  const bucksUsed = Number(block.bucks_used) || 0;
+  const bucksAvailable = Number(block.bucks_available) || 0;
+  const useBy = useByText(block.use_by);
+  const balanceUseBy = useByText(block.balances?.bucks_use_by);
+  const balanceBucks = Number(block.balances?.bucks) || 0;
+  const showChoice = collected > 0 || instant;
+
   return (
     <Paper variant="outlined" sx={{ p: 1.5, mb: 2, flexShrink: 0, borderColor: 'success.main' }}>
       <Stack direction="row" spacing={1.5} alignItems="center">
@@ -90,12 +104,12 @@ export default function ThriftPlusPanel({ cart, onCart }: Props) {
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="subtitle1" fontWeight={800}>{member.name}</Typography>
           <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', rowGap: 0.5 }}>
-            <Chip size="small" label={`Card …${member.card_last4}`} />
             <Chip
               size="small"
               color={member.verified_18 ? 'success' : 'default'}
               label={member.verified_18 ? '18+ verified' : 'Not ID-checked'}
             />
+            {member.practice ? <Chip size="small" color="warning" label="Practice member" /> : null}
             {member.rering ? <Chip size="small" color="info" label="Re-rung" /> : null}
           </Stack>
         </Box>
@@ -108,58 +122,78 @@ export default function ThriftPlusPanel({ cart, onCart }: Props) {
       <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 1 }}>
         Check the photo matches the person paying.
       </Typography>
-      {block.app_choice ? (
-        <Alert severity={block.app_choice === 'bank' ? 'warning' : 'info'} sx={{ mt: 1, py: 0 }}>
-          In the Thrift+ app they chose: {block.app_choice === 'bank' ? 'ThriftBucks (Default)' : 'InstantBucks (80% of the ThriftBucks, off today)'}. Ask to be sure.
-        </Alert>
-      ) : null}
 
-      <Box sx={{ mt: 1 }}>
-        <Typography variant="body2">
-          Cover this month: <CoverFigures covered={cover.covered} amount={cover.amount} />
-          {cover.is_covered ? ' (covered)' : ''}
-        </Typography>
-        <LinearProgress variant="determinate" value={coverPct} sx={{ height: 6, borderRadius: 3, mt: 0.5 }} />
-      </Box>
-
-      <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
-        <Typography variant="body2">This sale: ThriftBucks <TbAmount value={t.reward_total} bare /></Typography>
-        {Number(t.to_cover) > 0 ? <Typography variant="body2">to the cover <TbAmount value={t.to_cover} bare /></Typography> : null}
-      </Stack>
-      <Stack direction="row" spacing={2}>
-        <Typography variant="body2" color="text.secondary">ThriftBucks Balance <TbAmount value={member.banked} bare /></Typography>
-        <Typography variant="body2" color="text.secondary">Return $ {formatCurrency(member.credit)}</Typography>
-      </Stack>
-
-      {open ? (
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
+      {open && showChoice ? (
+        <Box sx={{ mt: 1 }}>
           <ToggleButtonGroup
             size="small"
             exclusive
             value={member.choice}
+            aria-label="Keep or redeem instantly"
+            sx={{ flexWrap: 'wrap', '& .MuiToggleButton-root': { textTransform: 'none', lineHeight: 1.25, py: 0.5 } }}
             onChange={(_, v: 'instant' | 'bank' | null) => {
               if (v && v !== member.choice) void run(() => setThriftChoice(cart.id, v));
             }}
           >
-            <ToggleButton value="instant">InstantBucks {Number(t.savings) > 0 ? <TbAmount value={t.savings} bare sx={{ ml: 0.5 }} /> : ''}</ToggleButton>
-            <ToggleButton value="bank">ThriftBucks (Default) {Number(t.to_bank) > 0 ? <TbAmount value={t.to_bank} bare sx={{ ml: 0.5 }} /> : ''}</ToggleButton>
+            <ToggleButton value="bank" disabled={busy}>
+              {`Keep ${tbText(collected)} (Default)`}
+            </ToggleButton>
+            <ToggleButton value="instant" disabled={busy || (!block.instant_offered && !instant)}>
+              {`or redeem instantly: ${formatCurrency(offer)} off today`}
+            </ToggleButton>
           </ToggleButtonGroup>
-          {Number(member.credit) > 0 || Number(member.banked) > 0 ? (
-            <Button
-              size="small"
-              variant="outlined"
-              disabled={busy}
-              onClick={() => {
-                setCredit(block.credit_used && Number(block.credit_used) > 0 ? block.credit_used : '');
-                setBank(block.bank_used && Number(block.bank_used) > 0 ? block.bank_used : '');
-                setSpendOpen(true);
-              }}
-            >
-              Use balance
+          {!block.instant_offered && block.instant_reason ? (
+            <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
+              {block.instant_reason}
+            </Typography>
+          ) : null}
+          {!instant && useBy ? (
+            <Typography variant="caption" color="text.secondary" component="div">
+              Kept: usable from tomorrow, use by {useBy}.
+            </Typography>
+          ) : null}
+        </Box>
+      ) : null}
+
+      {!open ? (
+        <Typography variant="body2" sx={{ mt: 1 }}>
+          {instant
+            ? `Redeemed instantly: ${tbText(block.instant_bucks)}, ${formatCurrency(block.instant_off)} off`
+            : `ThriftBucks collected ${tbNumber(collected)}${useBy ? `, use by ${useBy}` : ''}`}
+        </Typography>
+      ) : null}
+
+      {creditUsed > 0 ? (
+        <Typography variant="body2" sx={{ mt: 1 }}>
+          Thrift+ credit {formatCurrency(creditUsed)} used first
+        </Typography>
+      ) : null}
+
+      {block.bucks_auto && bucksUsed > 0 ? (
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5, flexWrap: 'wrap', rowGap: 0.5 }}>
+          <Typography variant="body2">ThriftBucks used <TbAmount value={bucksUsed} bare /></Typography>
+          {open ? (
+            <Button size="small" variant="outlined" disabled={busy} onClick={() => void run(() => setThriftBucksUse(cart.id, false))}>
+              Don&apos;t use ThriftBucks today
             </Button>
           ) : null}
         </Stack>
       ) : null}
+      {!block.bucks_auto && open && bucksAvailable > 0 ? (
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5, flexWrap: 'wrap', rowGap: 0.5 }}>
+          <Typography variant="body2" color="text.secondary">Not using ThriftBucks today</Typography>
+          <Button size="small" variant="outlined" disabled={busy} onClick={() => void run(() => setThriftBucksUse(cart.id, true))}>
+            {`Use ${tbText(bucksAvailable)}`}
+          </Button>
+        </Stack>
+      ) : null}
+
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+        {`Your ThriftBucks ${tbNumber(balanceBucks)}`}
+        {balanceUseBy ? `, use by ${balanceUseBy}` : ''}
+        {Math.abs(balanceBucks - bucksAvailable) >= 0.005 ? ` (${tbNumber(bucksAvailable)} usable today)` : ''}
+        {` · Thrift+ credit ${formatCurrency(block.balances?.credit ?? 0)}`}
+      </Typography>
 
       {open && (block.photo_line_ids ?? []).length > 0 ? (
         <Alert severity="warning" sx={{ mt: 1 }}>
@@ -196,45 +230,11 @@ export default function ThriftPlusPanel({ cart, onCart }: Props) {
         </Alert>
       ) : null}
 
-      {Number(cart.thrift_credit ?? 0) > 0 ? (
+      {open && creditUsed > 0 ? (
         <Alert severity="info" sx={{ mt: 1, py: 0 }}>
-          Thrift+ pays {formatCurrency(cart.thrift_credit ?? 0)}. Take {formatCurrency(block.amount_due)} by cash or card.
+          Still to pay: {formatCurrency(block.amount_due)}.
         </Alert>
       ) : null}
-
-      <Dialog open={spendOpen} onClose={() => setSpendOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Use Return $ or ThriftBucks</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField
-              label={`Return $ (has ${formatCurrency(member.credit)})`}
-              value={credit}
-              onChange={(e) => setCredit(e.target.value)}
-              size="small"
-              slotProps={{ htmlInput: { inputMode: 'decimal' } }}
-            />
-            <TextField
-              label={`ThriftBucks (has ${tbText(member.banked)})`}
-              value={bank}
-              onChange={(e) => setBank(e.target.value)}
-              size="small"
-              slotProps={{ htmlInput: { inputMode: 'decimal' } }}
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSpendOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            disabled={busy}
-            onClick={async () => {
-              if (await run(() => spendThriftBalance(cart.id, credit || '0', bank || '0'))) setSpendOpen(false);
-            }}
-          >
-            Apply
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Paper>
   );
 }

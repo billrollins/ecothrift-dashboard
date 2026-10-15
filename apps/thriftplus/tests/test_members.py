@@ -48,6 +48,25 @@ class CardCodeTests(TestCase):
         self.assertEqual(len(re.findall(rb'/Type\s*/Page(?![s\w])', pdf)), 2)
         self.assertEqual(len(card_pdf.pdf_chunks(codes)), 3)
 
+    def test_card_back_prints_the_b12_rewards_line_word_for_word(self):
+        import pymupdf
+
+        self.assertEqual(
+            card_pdf.CARD_TERMS_LINE,
+            'ThriftBucks are Thrift+ rewards: use within 30 days of collecting. No cash value. '
+            'Terms: ecothrift.us/terms',
+        )
+        self.assertEqual(' '.join(card_pdf.terms_lines()), card_pdf.CARD_TERMS_LINE)
+        self.assertGreaterEqual(card_pdf.TERMS_SIZE, 6.5)  # legible at card size
+        doc = pymupdf.open(stream=card_pdf.card_backs_pdf([cards.new_code()]), filetype='pdf')
+        text = ' '.join(doc[0].get_text().split())
+        self.assertIn(card_pdf.CARD_TERMS_LINE, text)
+        self.assertIn('Free to join. Nothing owed.', text)
+        self.assertNotIn('Never a bill', text)
+        for block in doc[0].get_text('blocks'):  # nothing runs off the card
+            x0, y0, x1, y1 = block[:4]
+            self.assertTrue(0 <= x0 and x1 <= card_pdf.CARD_W and 0 <= y0 and y1 <= card_pdf.CARD_H, block)
+
 
 class MemberRuleTests(TestCase):
     def setUp(self):
@@ -66,6 +85,22 @@ class MemberRuleTests(TestCase):
         self.assertEqual(list(members.find(self.codes[0])), [account])
         self.assertEqual(list(members.find('555-0101')), [account])
         self.assertEqual(list(members.find('ana diaz')), [account])
+
+    def test_signup_with_no_code_makes_the_members_code_the_way_the_app_does(self):
+        """Owner 2026-10-14: there is no Thrift+ card. The code is made at sign-up: no batch, active, linked."""
+        account = members.create_account(first_name='Ana', phone='4025550101', user=self.cashier)
+        person = account.people.get()
+        card = person.cards.get()
+        self.assertEqual((card.status, card.batch_id, card.issued_by), (Card.STATUS_ACTIVE, None, self.cashier))
+        self.assertTrue(cards.is_valid(card.code))
+        self.assertEqual(list(Event.objects.filter(account=account).values_list('action', flat=True).order_by('pk')),
+                         ['signup', 'app_card'])
+        self.assertEqual(members.member_code(person), card)  # the same code every time after
+        second = members.add_second_adult(account, both_present=True, primary_approves=True, first_name='Ben')
+        self.assertEqual(second.cards.get().status, Card.STATUS_ACTIVE)
+        self.assertEqual([p.first_name for p in members.people_by_phone('(402) 555-0101')], ['Ana', 'Ben'])
+        with self.assertRaises(MemberError):
+            members.people_by_phone('0101')
 
     def test_no_id_means_unverified_and_the_18_flag_needs_an_id_check(self):
         account = members.create_account(first_name='Bo', verified_18=True)

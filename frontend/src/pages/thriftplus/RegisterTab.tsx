@@ -26,13 +26,14 @@ import {
   unmarkRestricted,
 } from '../../api/thriftplusRegister.api';
 import { formatCurrency } from '../../utils/format';
+import { tbNumber } from '../../components/thriftplus/ThriftBucks';
 import { IconDelete as DeleteOutline } from '../../icons/ecoIcons';
 
 /**
  * Thrift+ at the register, the staff side (thrift_plus_rewards Phase 3):
- * - **18+ products:** they sell only to a card verified 18+ while Thrift+ is live.
- * - **Returned items:** members' returns (store credit already given) waiting for staff to decide
- *   what happens to the item.
+ * - **18+ products:** they sell only to a member verified 18+ while Thrift+ is live.
+ * - **Returned items:** Thrift+ 3-day returns (the Thrift+ credit already given; ThriftBucks back and taken
+ *   back) waiting for staff to decide what happens to the item.
  */
 export default function RegisterTab() {
   const queryClient = useQueryClient();
@@ -56,7 +57,7 @@ export default function RegisterTab() {
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Typography variant="subtitle1" fontWeight={800}>18+ products</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-          Scan an item to mark its product 18+. Every unit of that product then needs a Thrift+ card verified 18+ at the register.
+          Scan an item to mark its product 18+. Every unit of that product then needs a Thrift+ member verified 18+ at the register.
           Adult items need the maker&apos;s seal intact.
         </Typography>
         <Stack
@@ -104,7 +105,7 @@ export default function RegisterTab() {
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Typography variant="subtitle1" fontWeight={800}>Returned items</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-          Member returns. The store credit is already given. Decide what happens to each item, then mark it handled.
+          Thrift+ 3-day returns. The Thrift+ credit is already given. Decide what happens to each item, then mark it handled.
         </Typography>
         {returned.data?.length ? (
           <Table size="small">
@@ -113,8 +114,10 @@ export default function RegisterTab() {
                 <TableCell>When</TableCell>
                 <TableCell>Member</TableCell>
                 <TableCell>Item</TableCell>
-                <TableCell align="right">Credit</TableCell>
-                <TableCell>What doesn&apos;t work</TableCell>
+                <TableCell align="right">Thrift+ credit</TableCell>
+                <TableCell align="right">ThriftBucks back</TableCell>
+                <TableCell align="right">ThriftBucks taken</TableCell>
+                <TableCell>Note</TableCell>
                 <TableCell />
               </TableRow>
             </TableHead>
@@ -124,7 +127,16 @@ export default function RegisterTab() {
                   <TableCell>{format(parseISO(r.created_at), 'MMM d')}</TableCell>
                   <TableCell>{r.member}</TableCell>
                   <TableCell>{r.sku} {r.title}</TableCell>
-                  <TableCell align="right">{formatCurrency(r.paid)}</TableCell>
+                  <TableCell align="right">
+                    {formatCurrency(r.credit ?? r.paid)}
+                    {Number(r.shortfall ?? 0) > 0 ? (
+                      <Typography variant="caption" color="text.secondary" component="div">
+                        {`less ${tbNumber(r.shortfall)} already spent`}
+                      </Typography>
+                    ) : null}
+                  </TableCell>
+                  <TableCell align="right">{r.bucks_back != null ? tbNumber(r.bucks_back) : '-'}</TableCell>
+                  <TableCell align="right">{r.bucks_taken != null ? tbNumber(r.bucks_taken) : '-'}</TableCell>
                   <TableCell>{r.note || '-'}</TableCell>
                   <TableCell align="right">
                     {r.status === 'done'

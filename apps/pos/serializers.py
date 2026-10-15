@@ -17,7 +17,9 @@ class RegisterSerializer(serializers.ModelSerializer):
             'id', 'location', 'location_name', 'name', 'code',
             'starting_cash', 'starting_breakdown', 'is_active', 'is_training',
         ]
-        read_only_fields = ['id']
+        # is_training is set only by migration or Django admin (2026-10-14): through the API, a manager could
+        # turn a real register into practice (sales not recorded) or the other way round.
+        read_only_fields = ['id', 'is_training']
 
 
 class DrawerHandoffSerializer(serializers.ModelSerializer):

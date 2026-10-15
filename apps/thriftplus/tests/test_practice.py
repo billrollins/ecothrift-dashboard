@@ -133,8 +133,10 @@ class TestToolsTests(TestCase):
         lots = ledger.reward_lots(practice)
         today = timezone.localdate()
         self.assertEqual([(x['amount'], x['use_by']) for x in lots],
-                         [('4.25', (today + timedelta(days=1)).isoformat()), ('12.80', (today + timedelta(days=14)).isoformat())])
-        self.assertEqual(ledger.cover(practice)['covered'], '6.50')
+                         [('4.25', (today + timedelta(days=1)).isoformat()), ('12.80', (today + timedelta(days=14)).isoformat()),
+                          ('6.40', (today + timedelta(days=29)).isoformat())])
+        self.assertEqual(ledger.available_bucks(practice), Decimal('23.45'))  # yesterday's lot is usable today
+        self.assertEqual(practice.ledger.filter(reason='expire').count(), 1)    # and one lot past its date, expired
 
     def test_clear_my_scans_hides_the_old_ones_and_keeps_the_rows(self):
         from apps.thriftplus.models import ScanSignal

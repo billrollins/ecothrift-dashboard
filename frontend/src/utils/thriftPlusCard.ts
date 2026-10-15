@@ -1,7 +1,7 @@
 /**
- * Thrift+ card numbers at the register's scan box. A card's QR is `TP` + 12 digits, the last a
- * Luhn check digit (apps/thriftplus/services/cards.py). The printed number can be typed in groups
- * of four.
+ * Thrift+ member codes at the register's scan box. The member QR in the Thrift+ app is `TP` + 12
+ * digits, the last a Luhn check digit (apps/thriftplus/services/cards.py); the code can be typed in
+ * groups of four. There is no Thrift+ card (owner 2026-10-14); the names here are internal and stay.
  */
 
 function luhnDigit(body: string): string {

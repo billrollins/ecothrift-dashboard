@@ -60,13 +60,11 @@ class AccountSerializer(serializers.ModelSerializer):
         fields = ['id', 'status', 'is_practice', 'notes', 'revoked_at', 'revoked_reason', 'created_at', 'people', 'staff']
 
     def get_staff(self, obj):
-        """The staff member this membership belongs to (no cover while the owner's switch is on), or None."""
+        """The staff member this membership belongs to (J6), or None."""
         if not obj.staff_user_id:
             return None
-        from apps.thriftplus.services.ledger import staff_free
-
         user = obj.staff_user
-        return {'id': user.pk, 'name': (user.full_name or '').strip() or user.email, 'free': staff_free(obj)}
+        return {'id': user.pk, 'name': (user.full_name or '').strip() or user.email}
 
 
 class PersonDetailSerializer(PersonSerializer):

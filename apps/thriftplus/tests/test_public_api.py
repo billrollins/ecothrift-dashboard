@@ -51,7 +51,8 @@ class PublicApiTests(TestCase):
         self.assertTrue(ok.cookies[member_auth.COOKIE]['httponly'])
         self.assertEqual(ok.cookies[member_auth.COOKIE]['path'], member_auth.COOKIE_PATH)
         member = self.api.get(BASE + 'session/').json()['member']
-        self.assertEqual((member['first_name'], member['card_last4'], member['cover']['amount']), ('Ana', self.code[-4:], '10.00'))
+        self.assertEqual((member['first_name'], member['card_last4'], member['banked_rewards']), ('Ana', self.code[-4:], '0.00'))
+        self.assertNotIn('cover', member)
         self.assertEqual(MemberSession.objects.get().token_hash != self.api.cookies[member_auth.COOKIE].value, True)
         stranger = APIClient()
         for _ in range(member_auth.CARD_TRIES):
@@ -81,26 +82,27 @@ class PublicApiTests(TestCase):
         self.assertEqual(found['status'], 'found')
         card = found['item']
         self.assertEqual((card['price'], card['reward'], card['member_price']), ('90.00', '13.00', '77.00'))
-        self.assertEqual((card['reward_banked'], card['reward_instant']), ('13.00', '10.40'))  # save all, or 80% today
+        self.assertNotIn('reward_instant', card)  # the scanner shows only ThriftBucks (B1, V4)
+        self.assertTrue(card['returnable'])  # a 3-day return item by W6's guide
         self.assertLessEqual(len(card['title']), 28)
         self.assertEqual((card['category'], card['available'], card['age_restricted']), ('lighting', True, False))
         self.assertEqual(self.api.get(BASE + 'tag/NOPE/').json(), {'status': 'not_found', 'sku': 'NOPE'})
         self.assertEqual(self.api.get(BASE + 'cart/').status_code, 403)  # guests keep their cart on the phone
         self._card_sign_in()
         cart = self.api.post(BASE + 'cart/add/', {'sku': self.lamp.sku}, format='json').json()
-        self.assertEqual(cart['totals']['to_cover'], '10.00')
-        # Saving is the default (form 5): nothing off today, $3 to the balance.
+        self.assertNotIn('to_cover', cart['totals'])  # no cover (C1)
+        # Kept is the Default: nothing off today, every ThriftBuck kept.
         self.assertEqual((cart['totals']['savings'], cart['totals']['member_total'], cart['totals']['to_bank']),
-                         ('0.00', '90.00', '3.00'))
-        self.assertEqual((cart['totals']['full_value'], cart['totals']['instant_value']), ('3.00', '2.40'))
-        banked = self.api.post(BASE + 'cart/choice/', {'choice': 'bank'}, format='json').json()
-        self.assertEqual((banked['reward_choice'], banked['totals']['to_bank']), ('bank', '3.00'))
+                         ('0.00', '90.00', '13.00'))
+        self.assertEqual((cart['totals']['item_count'], cart['totals']['reward_total']), (1, '13.00'))
+        self.assertNotIn('reward_choice', cart)  # no choice in the app (B1: tell the cashier)
+        self.assertEqual(self.api.post(BASE + 'cart/choice/', {'choice': 'bank'}, format='json').status_code, 404)
         self.assertEqual(ItemReward.objects.get(item=self.lamp).adds, 1)
         self.assertEqual(ItemReward.objects.get(item=self.lamp).scans, 1)
         history = self.api.get(BASE + 'history/').json()
         self.assertEqual([(h['item']['sku'], h['decision']) for h in history], [(self.lamp.sku, 'added')])
         cleared = self.api.post(BASE + 'cart/clear/').json()
-        self.assertEqual((cleared['lines'], cleared['reward_choice']), ([], None))
+        self.assertEqual(cleared['lines'], [])
 
     def test_passes_and_price_feel_count_on_the_item(self):
         self.api.post(BASE + 'pass/', {'sku': self.lamp.sku}, format='json')
@@ -179,9 +181,9 @@ class PublicApiTests(TestCase):
         self.assertEqual(removed.status_code, 200, removed.content)
         self.assertEqual([p['first_name'] for p in removed.json()['people']], ['Ana'])
 
-    def test_the_register_picks_up_the_choice_made_in_the_app(self):
+    def test_the_register_ignores_an_old_app_answer_and_starts_kept(self):
         from apps.core.models import WorkLocation
-        from apps.pos.models import Drawer, Register
+        from apps.pos.models import Cart, Drawer, Register
         from apps.thriftplus.services import register
 
         AppSetting.objects.update_or_create(key='thrift_plus_test_registers', defaults={'value': ['TP-P1']})
@@ -190,13 +192,13 @@ class PublicApiTests(TestCase):
         reg = Register.objects.create(location=WorkLocation.objects.create(name='Store'), name='R', code='TP-P1')
         drawer = Drawer.objects.create(register=reg, date=timezone.localdate(), current_cashier=clerk, opened_by=clerk,
                                        opened_at=timezone.now(), status='open')
-        scanner.set_choice(self.account, 'bank')
-        from apps.pos.models import Cart
+        AppCart.objects.create(account=self.account, reward_choice='instant', choice_at=timezone.now())  # from before 10-14
         cart = Cart.objects.create(drawer=drawer, cashier=clerk)
         member = register.attach(cart, self.code, user=clerk)
-        self.assertEqual(member.reward_choice, 'bank')
-        self.assertEqual(register.cart_block(cart)['app_choice'], 'bank')
-        self.assertTrue(AppCart.objects.filter(account=self.account).exists())
+        self.assertEqual(member.reward_choice, 'bank')  # kept is the Default (B1)
+        block = register.cart_block(cart)
+        self.assertEqual(block['member']['choice'], 'bank')
+        self.assertNotIn('app_choice', block)
 
 
 class SwitchTests(TestCase):
@@ -274,3 +276,44 @@ class SwitchTests(TestCase):
         api.force_authenticate(boss)
         self.assertEqual(api.patch(url, {'value': True}, format='json').status_code, 200)
         self.assertTrue(members.is_enabled())
+
+
+class MyCardTests(PublicApiTests):
+    """Owner 2026-10-14 (APP D1): the app's My card shows the code the register's card scan reads."""
+
+    def test_the_member_sees_their_card_code_and_a_member_with_no_card_gets_one_in_the_app(self):
+        self._card_sign_in()
+        got = self.api.get(BASE + 'me/card/').json()
+        self.assertEqual((got['code'], got['qr'], got['first_name'], got['ready']), (self.code, f'TP{self.code}', 'Ana', True))
+        self.assertEqual(got['display'], cards.display(self.code))
+        # The plastic card is stopped (lost): the app gets a card of its own, the same one every time after.
+        from apps.thriftplus.models import Card
+
+        Card.objects.filter(code=self.code).update(status=Card.STATUS_DEAD)
+        first = self.api.get(BASE + 'me/card/').json()
+        self.assertNotEqual(first['code'], self.code)
+        self.assertTrue(cards.is_valid(first['code']))
+        self.assertEqual(self.api.get(BASE + 'me/card/').json()['code'], first['code'])
+        self.assertEqual(Card.objects.get(code=first['code']).person, self.person)
+
+    def test_signed_out_gets_nothing(self):
+        self.assertIn(self.api.get(BASE + 'me/card/').status_code, (401, 403))
+
+    def test_a_sign_in_lasts_a_year_and_each_visit_renews_it(self):
+        """Owner 2026-10-14 (APP D5): My card opens at the register without a password."""
+        self._card_sign_in()
+        session = MemberSession.objects.get()
+        self.assertGreater(session.expires_at, timezone.now() + timedelta(days=364))
+        # Months later: a visit pushes it out to a full year again, and re-sets the cookie to match.
+        MemberSession.objects.filter(pk=session.pk).update(expires_at=timezone.now() + timedelta(days=100))
+        seen = self.api.get(BASE + 'session/')
+        self.assertEqual(seen.json()['status'], 'member')
+        self.assertGreater(MemberSession.objects.get().expires_at, timezone.now() + timedelta(days=364))
+        self.assertIn(member_auth.COOKIE, seen.cookies)
+        # The same day again: nothing to renew, no new cookie.
+        self.assertNotIn(member_auth.COOKIE, self.api.get(BASE + 'session/').cookies)
+
+    def test_ecothrift_us_qr_opens_the_scanner_on_the_member_qr_and_the_old_card_address_too(self):
+        for address in ('/qr', '/card'):  # /card: the first address, kept quietly (owner 2026-10-14: no card)
+            got = self.client.get(address)
+            self.assertEqual((got.status_code, got['Location']), (302, '/scan?view=qr'), address)

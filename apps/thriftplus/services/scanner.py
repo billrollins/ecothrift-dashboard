@@ -6,14 +6,13 @@ The scanner app's server side (thrift_plus_rewards Phase 4). It mirrors the cont
   ellipsis), a category icon key, details, the retail struck through, and the price. Also:
   - the member reward and member price, from the engine and scaled by a store sale like the register
     (``.ai/extended/discount-logic.md``);
-  - the 18+ and returnable flags;
+  - the 18+ flag, and whether it is a 3-day return item (W6's guide, as the register marks it);
   - whether the item can go in a cart.
 - **The member's cart** (``AppCart``) is an estimate; the register is the source of truth. Its
-  totals come from the same trip math as the register: this month's cover first, then an instant
-  rebate or banking at 1.05×.
-- **Signals** (scan, add, pass, a price feel, the trip's choice) are kept per event
-  (``ScanSignal``) and counted on the item's reward (``ItemReward``) for the engine's
-  scans-to-adds check.
+  totals come from the same trip math as the register: every ThriftBuck kept (the Default). The
+  scanner asks no choice: instant redemption is at the register (B1).
+- **Signals** (scan, add, pass, a price feel) are kept per event (``ScanSignal``) and counted on
+  the item's reward (``ItemReward``) for the engine's scans-to-adds check.
 """
 from __future__ import annotations
 
@@ -25,7 +24,7 @@ from django.db.models import F
 from django.utils import timezone
 
 from apps.thriftplus.models import AppCart, AppCartLine, ItemReward, ScanSignal
-from apps.thriftplus.services import ledger, trip
+from apps.thriftplus.services import trip
 from apps.thriftplus.services.rewards import floor_for, rules
 
 CENT = Decimal('0.01')
@@ -98,10 +97,11 @@ def _sale_factor() -> Decimal:
     return Decimal('1') - Decimal(str(mode.get('percent') or 0)) / Decimal('100')
 
 
-def item_card(item, *, factor: Decimal | None = None) -> dict:
-    """``ThriftPlusItemCard`` for one item."""
-    from apps.thriftplus.services.returns import excluded
+def item_card(item, *, factor: Decimal | None = None, guide=None) -> dict:
+    """``ThriftPlusItemCard`` for one item. ``guide`` (``returns.guide()``) saves reading the return settings per item
+    in a list."""
     from apps.thriftplus.models import RestrictedProduct
+    from apps.thriftplus.services.returns import qualifies
 
     product = item.product
     profile = getattr(product, 'profile', None)
@@ -131,9 +131,8 @@ def item_card(item, *, factor: Decimal | None = None) -> dict:
         'sku': item.sku, 'title': short_title(name), 'category': category, 'category_label': CATEGORY_LABELS[category],
         'details': details, 'retail_price': _money(retail) if retail and retail > price else None,
         'price': _money(price), 'reward': _money(reward), 'member_price': _money(price - reward),
-        'reward_banked': _money(reward),  # saved in full (form 5)
-        'reward_instant': _money(trip.instant_part(reward)),  # used today: 80%
-        'age_restricted': restricted, 'returnable': not excluded(item), 'available': item.status == 'on_shelf',
+        'age_restricted': restricted, 'returnable': qualifies(item, price=price, reward=reward, rules=guide),
+        'available': item.status == 'on_shelf',
     }
 
 
@@ -164,7 +163,11 @@ def test_tags(per_band: int = 2) -> list[dict]:
         ids += list(band.order_by('item__sku').values_list('item_id', flat=True)[:per_band])
     ids += list(base.filter(reward=0).order_by('item__sku').values_list('item_id', flat=True)[:1])
     factor = _sale_factor()
-    cards = [item_card(i, factor=factor) for i in Item.objects.select_related('product__profile').filter(pk__in=ids)]
+    from apps.thriftplus.services.returns import guide
+
+    rules_ = guide()
+    cards = [item_card(i, factor=factor, guide=rules_)
+             for i in Item.objects.select_related('product__profile').filter(pk__in=ids)]
     cards.sort(key=lambda c: -Decimal(c['reward']))
     return [{'sku': c['sku'], 'title': c['title'], 'price': c['price'], 'reward': c['reward']} for c in cards]
 
@@ -201,19 +204,21 @@ def cart_for(account) -> AppCart:
 
 
 def cart_payload(account) -> dict:
-    """``ThriftPlusCart``: lines with their item cards, the choice, and the trip totals."""
+    """``ThriftPlusCart``: lines with their item cards and the trip totals (every ThriftBuck kept)."""
     cart = cart_for(account)
     lines = list(cart.lines.select_related('item__product__profile'))
     factor = _sale_factor()
-    cards = [(line, item_card(line.item, factor=factor)) for line in lines]
+    from apps.thriftplus.services.returns import guide
+
+    rules_ = guide()
+    cards = [(line, item_card(line.item, factor=factor, guide=rules_)) for line in lines]
     totals = trip.totals(
         [trip.TripLine(key=c['sku'], price=Decimal(c['price']), reward=Decimal(c['reward']), qty=line.qty)
          for line, c in cards if c['available']],
-        cover_left=ledger.cover_left(account), member=True, choice=cart.reward_choice or None, bonus=trip.bank_bonus(),
+        member=True, choice=trip.CHOICE_BANK,
     )
     return {
         'lines': [{'item': c, 'qty': line.qty, 'added_at': line.added_at.isoformat()} for line, c in cards],
-        'reward_choice': cart.reward_choice or None,
         'totals': totals.as_dict(),
     }
 
@@ -236,21 +241,9 @@ def set_qty(account, item, qty: int) -> dict:
 
 
 def clear(account) -> dict:
-    """Empty the cart; the trip's bank-or-instant answer is asked again."""
+    """Empty the cart."""
     cart = cart_for(account)
     cart.lines.all().delete()
-    cart.reward_choice, cart.choice_at = '', None
-    cart.save(update_fields=['reward_choice', 'choice_at', 'updated_at'])
-    return cart_payload(account)
-
-
-def set_choice(account, choice: str) -> dict:
-    if choice not in (trip.CHOICE_BANK, trip.CHOICE_INSTANT):
-        raise ValueError('Choose ThriftBucks or InstantBucks.')
-    cart = cart_for(account)
-    cart.reward_choice, cart.choice_at = choice, timezone.now()
-    cart.save(update_fields=['reward_choice', 'choice_at', 'updated_at'])
-    signal('choice', None, account, choice=choice)
     return cart_payload(account)
 
 
@@ -271,23 +264,24 @@ def history(account, limit: int = 300) -> list[dict]:
     rows = rows.select_related('item__product__profile').order_by('-created_at')[:2000]
     seen: dict[int, dict] = {}
     factor = _sale_factor()
+    from apps.thriftplus.services.returns import guide
+
+    rules_ = guide()
     for r in rows:
         entry = seen.get(r.item_id)
         if entry is None:
             if len(seen) >= limit:
                 continue
-            entry = seen[r.item_id] = {'item': item_card(r.item, factor=factor), 'scanned_at': r.created_at.isoformat(), 'decision': None}
+            entry = seen[r.item_id] = {'item': item_card(r.item, factor=factor, guide=rules_),
+                                       'scanned_at': r.created_at.isoformat(), 'decision': None}
         if entry['decision'] is None and r.kind in ('add', 'pass'):
             entry['decision'] = 'added' if r.kind == 'add' else 'passed'
     return list(seen.values())
 
 
 def after_sale(account, sold_item_ids: list[int]) -> None:
-    """The register sold these to the member: take them out of the phone cart, and ask the choice again."""
+    """The register sold these to the member: take them out of the phone cart."""
     cart = AppCart.objects.filter(account=account).first()
     if cart is None:
         return
     cart.lines.filter(item_id__in=sold_item_ids).delete()
-    if not cart.lines.exists():
-        cart.reward_choice, cart.choice_at = '', None
-        cart.save(update_fields=['reward_choice', 'choice_at', 'updated_at'])

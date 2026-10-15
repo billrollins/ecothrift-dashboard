@@ -1,11 +1,69 @@
-VERSION = "1.8.0"
-RELEASE_NOTES = "Pulse both drawer pins in the receipt job; pin selectable as both / 2 / 5."
+VERSION = "1.9.0"
+RELEASE_NOTES = (
+    "Thrift+ receipts to the 10-12 policy: member block (first name, ThriftBucks and use-by dates, the B12 rewards "
+    "line), ThriftBucks used above Subtotal, 3-day return / AS IS line marks, member policy line, TRAINING - NOT A SALE."
+)
 
 # Default URL for the public version-check endpoint on the dashboard backend.
 # Users can override this in settings.json via the /manage page (useful for local dev).
 UPDATE_CHECK_URL = "https://dash.ecothrift.us/api/core/system/print-server-version-public/"
 
 CHANGELOG = """\
+## [1.9.0] — unreleased (install on every register before members ring up, 10-20)
+
+Thrift+ receipts to the 10-12 Thrift+ policy (rules V4, A3, B2, B5, B12, W1, W9).
+ESC/POS (the ``POST /print/receipt`` path), GDI text and PNG print the same lines.
+
+### Added
+- **Thrift+ block:** ``receipt_data.thrift_plus`` prints after payment. A member
+  receipt shows:
+  - ``THRIFT+ MEMBER Pat``: the member's first name, or nothing after the words
+    (owner 2026-10-14: there is no Thrift+ card, so no card and no last 4);
+  - ``ThriftBucks collected 35.00, use by Nov 19``, or
+    ``Redeemed instantly: 35.00 ThriftBucks, $17.50 off`` (one choice per trip);
+  - ``Thrift+ credit used $50.00`` when credit paid part of the total;
+  - both balances: ``Your ThriftBucks 35.00, use by Nov 19`` and
+    ``Thrift+ credit $12.20``;
+  - the B12 line, word for word, ``ThriftBucks are Thrift+ rewards: use within
+    30 days of collecting. No cash value. Terms: ecothrift.us/terms``, and the
+    3-day returns line.
+
+  ThriftBucks print as a number next to their label, never with "$"; Thrift+
+  credit and the instant redemption print in dollars. A guest receipt prints the
+  dashboard's ``guest_line`` (what membership would have collected) and "Free to
+  join Thrift+. Ask at the register."
+- **ThriftBucks used:** ``thrift_plus.bucks_used`` prints ``ThriftBucks used 33.27``
+  (no "$") above Subtotal, because kept ThriftBucks come off before tax.
+- **Line marks:** on a member receipt each line prints its ``items[].mark`` under
+  it, "3-day return" or "AS IS". A guest receipt with
+  ``thrift_plus.guest_all_as_is`` prints "All items sold AS IS." once, under the
+  items.
+- **Member policy:** a member receipt ends with "All sales final except Thrift+
+  3-day returns on lines marked 3-day return. Sold AS IS." (PNG card: SOLD AS IS).
+  Guest receipts and receipts without Thrift+ keep the NO REFUNDS block unchanged.
+- **Training:** ``training: true`` prints "TRAINING - NOT A SALE" at the top and
+  the bottom.
+- A ThriftBucks row in the ``savings`` breakdown (e.g. "ThriftBucks used") prints
+  without "$".
+
+### Payload
+- ``items[].mark``: ``"3-day return"``, ``"AS IS"`` or absent. ``training``: bool.
+- ``thrift_plus``: ``member`` (the first name), ``collected``, ``use_by``,
+  ``instant_off``, ``instant_bucks``, ``bucks_used``, ``credit_used``,
+  ``balances`` {``bucks``, ``bucks_use_by``, ``credit``}, ``guest_all_as_is``
+  (``false`` on a member receipt), ``guest_line``. Amounts are decimal strings;
+  dates are ISO and print as "Nov 19". A ``card_last4`` key is ignored.
+
+### Compatibility
+- Receipts without ``thrift_plus`` or ``training`` print exactly as in 1.8.0.
+- Missing or bad keys never fail a print. The pre-10-12 ``thrift_plus`` shape
+  prints only the member line and the two balances.
+- Until 1.9.0 is on a register, its receipts leave out the Thrift+ block, the
+  marks and the ThriftBucks used line (the items then won't add up to the
+  subtotal).
+
+---
+
 ## [1.8.0] — 2026-09-09
 
 ### Added

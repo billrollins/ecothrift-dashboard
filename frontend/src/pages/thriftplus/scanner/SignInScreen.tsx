@@ -1,19 +1,16 @@
 import { useState } from 'react';
 import { Box, ButtonBase, CircularProgress, InputBase } from '@mui/material';
-import QrCodeScannerRounded from '@mui/icons-material/QrCodeScannerRounded';
 import VisibilityOffRounded from '@mui/icons-material/VisibilityOffRounded';
 import VisibilityRounded from '@mui/icons-material/VisibilityRounded';
 import { FieldBanner } from './ScannerTop';
 import { ThriftPlusLogo, sc, u } from './scannerTheme';
-import { useQrCamera } from './useQrCamera';
 import { useSignIn } from './useThriftPlus';
 
-type Mode = 'password' | 'forgot' | 'card';
+type Mode = 'password' | 'forgot';
 
 /**
- * Customer sign-in: email or username and password (email always works),
- * "Forgot password?" by email, or scan the Thrift+ card with the phone's last
- * 4 digits as the check.
+ * Customer sign-in: email or username and password (email always works), and "Forgot password?" by email. There is no
+ * Thrift+ card (owner 2026-10-14, APP D6), so no card sign-in.
  */
 export function SignInScreen() {
   const auth = useSignIn();
@@ -44,7 +41,6 @@ export function SignInScreen() {
         <Box sx={{ bgcolor: sc.card, borderRadius: u(36), boxShadow: sc.tileShadow, border: '1px solid #ecede8', p: u(48) }}>
           {mode === 'password' && <PasswordForm run={run} busy={auth.password.isPending} onForgot={() => { setErr(''); setMode('forgot'); }} />}
           {mode === 'forgot' && <ForgotForm run={run} onBack={() => { setErr(''); setMode('password'); }} />}
-          {mode === 'card' && <CardForm run={run} onBack={() => { setErr(''); setMode('password'); }} />}
 
           {err && (
             <Box role="alert" sx={{ color: sc.badText, fontSize: u(30), mt: u(24), lineHeight: 1.35 }}>
@@ -52,34 +48,10 @@ export function SignInScreen() {
             </Box>
           )}
 
-          {mode === 'password' && (
-            <>
-              <Divider />
-              <ButtonBase
-                onClick={() => {
-                  setErr('');
-                  setMode('card');
-                }}
-                sx={{
-                  width: '100%',
-                  minHeight: u(100),
-                  borderRadius: 99,
-                  border: `${u(3)} solid ${sc.cardEdge}`,
-                  gap: u(16),
-                  fontSize: u(33),
-                  fontWeight: 700,
-                  color: sc.priceGreen,
-                }}
-              >
-                <QrCodeScannerRounded sx={{ fontSize: u(46) }} />
-                Scan your Thrift+ card
-              </ButtonBase>
-            </>
-          )}
         </Box>
 
         <Box sx={{ textAlign: 'center', mt: u(44), mb: u(60) }}>
-          <Box sx={{ fontSize: u(30), color: sc.ink2 }}>No card yet? Get one free at the register.</Box>
+          <Box sx={{ fontSize: u(30), color: sc.ink2 }}>Not a member yet? Join free at the register.</Box>
           <ButtonBase
             onClick={() => auth.guest.mutate()}
             sx={{ mt: u(14), px: u(36), py: u(18), borderRadius: 99, fontSize: u(33), fontWeight: 700, color: sc.priceGreen }}
@@ -185,95 +157,6 @@ function ForgotForm({ run, onBack }: { run: (fn: () => Promise<unknown>) => void
   );
 }
 
-/** Scan the card's QR (or type its number), then the phone's last 4 digits. */
-function CardForm({ run, onBack }: { run: (fn: () => Promise<unknown>) => void; onBack: () => void }) {
-  const auth = useSignIn();
-  const [code, setCode] = useState('');
-  const [typed, setTyped] = useState('');
-  const [last4, setLast4] = useState('');
-  const camera = useQrCamera({
-    enabled: !code,
-    paused: false,
-    onDecode: (raw) => {
-      const v = raw.trim();
-      if (v.length >= 6) {
-        navigator.vibrate?.(15);
-        setCode(v);
-      }
-    },
-  });
-
-  const submit = (digits: string) => run(() => auth.card.mutateAsync({ code, last4: digits }));
-
-  if (code) {
-    return (
-      <Box
-        component="form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit(last4);
-        }}
-      >
-        <Title>Card read</Title>
-        <Sub>For your security, enter the last 4 digits of the phone number on your account.</Sub>
-        <Field>
-          <InputBase
-            autoFocus
-            value={last4}
-            onChange={(e) => {
-              const v = e.target.value.replace(/\D/g, '').slice(0, 4);
-              setLast4(v);
-              if (v.length === 4) submit(v);
-            }}
-            placeholder="0000"
-            inputProps={{ 'aria-label': 'Last 4 digits of your phone', inputMode: 'numeric', style: { letterSpacing: '0.5em', textAlign: 'center' } }}
-            sx={{ flex: 1, fontSize: 26, fontWeight: 700 }}
-          />
-        </Field>
-        <Primary busy={auth.card.isPending} label="Sign in" />
-        <Secondary label="Scan a different card" onClick={() => { setCode(''); setLast4(''); }} />
-      </Box>
-    );
-  }
-
-  return (
-    <Box>
-      <Title>Scan your Thrift+ card</Title>
-      <Sub>Point your camera at the QR code on the back of your card.</Sub>
-      <Box sx={{ position: 'relative', borderRadius: u(28), overflow: 'hidden', bgcolor: sc.night, aspectRatio: '4 / 3', mt: u(8) }}>
-        <Box component="video" ref={camera.videoRef} muted playsInline autoPlay sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-        {camera.status !== 'live' && (
-          <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#fff', textAlign: 'center', p: u(40), fontSize: u(28) }}>
-            {camera.status === 'starting' ? <CircularProgress size={28} sx={{ color: '#fff' }} /> : camera.error || 'No camera here. Type the number on your card.'}
-          </Box>
-        )}
-      </Box>
-      <Box
-        component="form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (typed.trim()) setCode(typed.trim());
-        }}
-        sx={{ display: 'flex', gap: u(14), mt: u(24) }}
-      >
-        <Field sx={{ flex: 1 }}>
-          <InputBase
-            value={typed}
-            onChange={(e) => setTyped(e.target.value)}
-            placeholder="Or type the card number"
-            inputProps={{ 'aria-label': 'Card number', autoCapitalize: 'characters', spellCheck: false }}
-            sx={{ flex: 1, fontSize: 18 }}
-          />
-        </Field>
-        <ButtonBase type="submit" sx={{ px: u(30), borderRadius: 99, bgcolor: sc.green, color: '#fff', fontWeight: 700, fontSize: u(30) }}>
-          Next
-        </ButtonBase>
-      </Box>
-      <Secondary label="Back to sign in" onClick={onBack} />
-    </Box>
-  );
-}
-
 export function Title({ children }: { children: React.ReactNode }) {
   return (
     <Box component="h1" sx={{ m: 0, fontFamily: sc.condensed, fontWeight: 700, fontSize: u(58), color: sc.titleGreen, lineHeight: 1.1 }}>
@@ -333,15 +216,5 @@ export function Secondary({ label, onClick }: { label: string; onClick: () => vo
     <ButtonBase type="button" onClick={onClick} sx={{ mt: u(18), width: '100%', py: u(18), borderRadius: u(16), fontSize: u(30), color: sc.ink2 }}>
       {label}
     </ButtonBase>
-  );
-}
-
-function Divider() {
-  return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: u(20), my: u(36), color: sc.ink3, fontSize: u(26) }}>
-      <Box sx={{ flex: 1, height: '1px', bgcolor: sc.line }} />
-      or
-      <Box sx={{ flex: 1, height: '1px', bgcolor: sc.line }} />
-    </Box>
   );
 }

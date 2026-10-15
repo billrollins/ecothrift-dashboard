@@ -351,3 +351,23 @@ class CartSaleModeAPITests(TestCase):
         cart = self.client.get(f'/api/pos/carts/{cid}/')
         self.assertEqual(cart.status_code, 200, cart.content)
         self.assertEqual(cart.data['savings'], {'total': '0.00', 'lines': []})
+
+    def test_thrift_plus_savings_have_their_own_buckets(self):
+        """Redeemed instantly (dollars off a line) and kept ThriftBucks used (the Thrift+ discount line); a plain
+        discount line is grouped by its reason as before."""
+        from apps.pos.models import Cart
+        from apps.pos.services.sale_mode import cart_savings
+
+        self._set_override(False)
+        cart = Cart.objects.get(pk=self._open_cart())
+        CartLine.objects.create(cart=cart, item=self.item, description='Lamp', unit_price=Decimal('20.00'),
+                                thrift_savings=Decimal('3.50'))
+        CartLine.objects.create(cart=cart, description='ThriftBucks used', unit_price=Decimal('-4.00'),
+                                line_kind=CartLine.LINE_KIND_DISCOUNT, meta={'thrift': 'bucks', 'reason': 'ThriftBucks used'})
+        CartLine.objects.create(cart=cart, description='Discount - Other', unit_price=Decimal('-1.00'),
+                                line_kind=CartLine.LINE_KIND_DISCOUNT, meta={'reason': 'Other'})
+        self.assertEqual(cart_savings(cart)['lines'], [
+            {'label': 'Redeemed instantly', 'amount': '3.50'},
+            {'label': 'ThriftBucks used', 'amount': '4.00'},
+            {'label': 'Discount', 'amount': '1.00'},
+        ])

@@ -47,6 +47,25 @@ describe('settings layout (owner, 2026-10-07)', () => {
     expect(isOwnerOnlyKey('tax_rate')).toBe(false);
   });
 
+  it('lists the 10-12 Thrift+ settings: no cover or banking bonus, the instant share and the 3-day returns', () => {
+    const tp = SETTINGS_LAYOUT.find((t) => t.id === 'thrift-plus')!;
+    const keys = tp.sections.flatMap((s) => s.keys ?? []);
+    expect(keys).not.toContain('thrift_plus_cover_amount');
+    expect(keys).not.toContain('thrift_plus_bank_bonus');
+    expect(isKnownKey('thrift_plus_cover_amount') || isKnownKey('thrift_plus_bank_bonus')).toBe(false);
+    expect(metaForKey('thrift_plus_instant_share')).toMatchObject({ label: 'Instant redemption share', kind: 'weight', tab: 'thrift-plus' });
+    expect(metaForKey('thrift_plus_return_credit_share')).toMatchObject({ label: '3-day returns: share back', kind: 'weight' });
+    expect(metaForKey('thrift_plus_return_credit_share').help).not.toMatch(/before tax|store credit/i);
+    expect(metaForKey('thrift_plus_return_min_price')).toMatchObject({ label: '3-day returns: lowest qualifying price', kind: 'money' });
+    const returns = tp.sections.find((s) => s.id === 'returns')!;
+    expect(returns.title).toBe('3-day returns');
+    expect(returns.keys).toEqual(expect.arrayContaining(['thrift_plus_return_credit_share', 'thrift_plus_return_min_price']));
+    for (const meta of Object.values(SETTINGS_REGISTRY)) {
+      if (meta.tab !== 'thrift-plus') continue;
+      expect(`${meta.label} ${meta.help}`).not.toMatch(/\bcover\b|InstantBucks|warranty|Return \$|store credit/i);
+    }
+  });
+
   it('keeps background-job state out of the setting rows, and sends unknown keys to Unsorted', () => {
     expect(isStateKey('ai_cleanup_job:384')).toBe(true);
     expect(metaForKey('ai_cleanup_job:384').label).toBe('AI cleanup job, order 384');

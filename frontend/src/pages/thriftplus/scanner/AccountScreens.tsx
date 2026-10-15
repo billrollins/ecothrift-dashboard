@@ -8,7 +8,7 @@ import { Box, ButtonBase, CircularProgress, InputBase } from '@mui/material';
 import type { ThriftPlusMember } from '../../../api/thriftPlusScanner.api';
 import { FieldBanner } from './ScannerTop';
 import { Field, Primary, Secondary, Sub, Title } from './SignInScreen';
-import { CoverFigures, TbAmount } from '../../../components/thriftplus/ThriftBucks';
+import { TbAmount } from '../../../components/thriftplus/ThriftBucks';
 import { money } from './scannerLogic';
 import { ThriftPlusLogo, sc, u } from './scannerTheme';
 import { useAccountActions, useMe, useConfirmReset } from './useThriftPlus';
@@ -155,7 +155,7 @@ function SetUpLoginForm() {
     <Card>
       <Box sx={{ fontSize: u(34), fontWeight: 700, color: sc.ink }}>Set up your sign-in</Box>
       <Box sx={{ fontSize: u(29), color: sc.ink2, mt: u(8), lineHeight: 1.4 }}>
-        You signed in with your card. Add an email and password so you can sign in without the card and make changes here.
+        Add an email and password so you can sign in on any phone and make changes here.
       </Box>
       <Box
         component="form"
@@ -191,7 +191,7 @@ function SetUpLoginForm() {
   );
 }
 
-/** My account. Changes (stopping a card, changing who is on the account) need an email and password sign-in. */
+/** My account. Changing who is on the account needs an email and password sign-in. */
 export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }: {
   member: ThriftPlusMember;
   onBack: () => void;
@@ -200,9 +200,11 @@ export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }:
 }) {
   const me = useMe();
   const actions = useAccountActions();
-  const [confirm, setConfirm] = useState<{ kind: 'card' | 'person'; id: number } | null>(null);
+  const [confirm, setConfirm] = useState<{ kind: 'person'; id: number } | null>(null);
   const [err, setErr] = useState('');
   const data = me.data;
+  // ThriftBucks and Thrift+ credit only (rows of retired kinds from before 10-12 are left out).
+  const activity = (data?.money ?? []).filter((m) => m.kind === 'bank' || m.kind === 'credit');
 
   const run = async (fn: () => Promise<unknown>) => {
     setErr('');
@@ -257,12 +259,9 @@ export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }:
               <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(68), color: sc.priceGreen, lineHeight: 1.05 }}><TbAmount value={data?.banked ?? member.banked_rewards} bare /></Box>
             </Box>
             <Box sx={{ flex: 1 }}>
-              <Box sx={{ fontSize: u(27), color: sc.ink2 }}>Return $</Box>
+              <Box sx={{ fontSize: u(27), color: sc.ink2 }}>Thrift+ credit</Box>
               <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(68), color: sc.ink, lineHeight: 1.05 }}>{money(data?.credit ?? member.credit_balance)}</Box>
             </Box>
-          </Box>
-          <Box sx={{ fontSize: u(28), color: sc.ink2, mt: u(18) }}>
-            This month's cover: <CoverFigures covered={member.cover.covered} amount={member.cover.amount} />
           </Box>
         </Card>
 
@@ -286,7 +285,7 @@ export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }:
         {data && !data.can_change && member.has_login !== false && (
           <Card sx={{ mt: u(30) }}>
             <Box sx={{ fontSize: u(29), color: sc.ink2, lineHeight: 1.4 }}>
-              You signed in with your card. To stop a card or change who is on the account, sign in with your email and password.
+              To change who is on the account, sign in with your email and password.
             </Box>
             <Secondary label="Sign in with email and password" onClick={onSignInWithPassword} />
           </Card>
@@ -304,33 +303,6 @@ export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }:
                     {p.is_you ? ' (you)' : ''}
                   </Box>
                 </Box>
-                {p.cards.length === 0 && <Box sx={{ fontSize: u(28), color: sc.ink2, mt: u(10) }}>No card yet. Ask at the register.</Box>}
-                {p.cards.map((c) => (
-                  <Box key={c.id} sx={{ mt: u(14) }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: u(16) }}>
-                      <Box sx={{ flex: 1, fontSize: u(30), color: sc.ink }}>
-                        Card ending {c.last4}
-                        <Box component="span" sx={{ color: c.status === 'active' ? sc.green : sc.ink3, ml: u(12), fontSize: u(26) }}>
-                          {c.status === 'active' ? 'Active' : 'Stopped'}
-                        </Box>
-                      </Box>
-                      {c.status === 'active' && data.can_change && (
-                        <ButtonBase onClick={() => setConfirm({ kind: 'card', id: c.id })} sx={{ px: u(22), py: u(10), borderRadius: 99, border: `${u(2)} solid ${sc.cardEdge}`, fontSize: u(26), color: sc.ink2 }}>
-                          Lost it?
-                        </ButtonBase>
-                      )}
-                    </Box>
-                    {confirm?.kind === 'card' && confirm.id === c.id && (
-                      <ConfirmRow
-                        prompt={`Stop the card ending ${c.last4}? It won't work at the register anymore. You can get a new one at the front.`}
-                        action="Stop this card"
-                        busy={actions.cardLost.isPending}
-                        onYes={() => void run(() => actions.cardLost.mutateAsync(c.id))}
-                        onNo={() => setConfirm(null)}
-                      />
-                    )}
-                  </Box>
-                ))}
                 {data.can_change && ((p.role === 'secondary' && (p.is_you || data.people.some((x) => x.is_you && x.role === 'primary')))) && (
                   <Box sx={{ mt: u(18) }}>
                     <ButtonBase onClick={() => setConfirm({ kind: 'person', id: p.id })} sx={{ px: u(22), py: u(10), borderRadius: 99, border: `${u(2)} solid ${sc.cardEdge}`, fontSize: u(26), color: sc.ink2 }}>
@@ -338,7 +310,7 @@ export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }:
                     </ButtonBase>
                     {confirm?.kind === 'person' && confirm.id === p.id && (
                       <ConfirmRow
-                        prompt={p.is_you ? 'Leave this account? You will be signed out.' : `Take ${p.first_name} off the account? Their card stops working.`}
+                        prompt={p.is_you ? 'Leave this account? You will be signed out.' : `Take ${p.first_name} off the account? Their member QR stops working.`}
                         action={p.is_you ? 'Leave' : 'Remove'}
                         keep="Never mind"
                         busy={actions.removePerson.isPending}
@@ -359,8 +331,10 @@ export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }:
                   </Box>
                 ) : (
                   <Card sx={{ p: u(10) }}>
-                    <Box sx={{ px: u(26), py: u(20), fontSize: u(28), color: sc.ink2, lineHeight: 1.35 }}>{data.emails.note}</Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: u(16), px: u(26), py: u(20), borderTop: `1px solid ${sc.line}` }}>
+                    {data.emails.note && (
+                      <Box sx={{ px: u(26), py: u(20), fontSize: u(28), color: sc.ink2, lineHeight: 1.35 }}>{data.emails.note}</Box>
+                    )}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: u(16), px: u(26), py: u(20), borderTop: data.emails.note ? `1px solid ${sc.line}` : 'none' }}>
                       <Box sx={{ flex: 1, fontSize: u(31), fontWeight: 700, color: sc.ink }}>
                         Store news
                         <Box component="span" sx={{ color: data.emails.news ? sc.green : sc.ink3, ml: u(12), fontSize: u(26), fontWeight: 400 }}>
@@ -388,14 +362,14 @@ export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }:
             )}
 
             <SectionTitle>Recent activity</SectionTitle>
-            {data.money.length === 0 ? (
+            {activity.length === 0 ? (
               <Box sx={{ fontSize: u(30), color: sc.ink2 }}>Nothing yet. ThriftBucks show up here after your first purchase.</Box>
             ) : (
               <Card sx={{ p: u(10) }}>
-                {data.money.slice(0, 12).map((m, i) => (
+                {activity.slice(0, 12).map((m, i) => (
                   <Box key={`${m.created_at}-${i}`} sx={{ display: 'flex', alignItems: 'center', gap: u(16), px: u(26), py: u(20), borderTop: i ? `1px solid ${sc.line}` : 'none' }}>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Box sx={{ fontSize: u(29), color: sc.ink }}>{m.reason || (m.kind === 'bank' ? 'ThriftBucks' : m.kind === 'credit' ? 'Return $' : 'Cover')}</Box>
+                      <Box sx={{ fontSize: u(29), color: sc.ink }}>{m.reason || (m.kind === 'bank' ? 'ThriftBucks' : 'Thrift+ credit')}</Box>
                       <Box sx={{ fontSize: u(25), color: sc.ink3 }}>{new Date(m.created_at).toLocaleDateString()}</Box>
                     </Box>
                     <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(38), color: Number(m.amount) < 0 ? sc.ink2 : sc.priceGreen, whiteSpace: 'nowrap' }}>

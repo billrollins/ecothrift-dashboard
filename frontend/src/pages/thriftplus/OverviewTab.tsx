@@ -25,8 +25,9 @@ function Row({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /**
- * Thrift+ in Dash (thrift_plus_rewards Phase 4): members, member vs guest sales, the rewards given,
- * what the store owes members, returns, and the scanner's scans-to-adds. Last 30 days.
+ * Thrift+ in Dash (thrift_plus_rewards Phase 4; the 10-12 policy): members, member vs guest sales, ThriftBucks
+ * (redeemed instantly in dollars, kept, used, expired as Thrift+ income), Thrift+ credit, what the store owes
+ * members, returns, and the scanner's scans-to-adds. Last 30 days.
  */
 export default function OverviewTab() {
   const q = useQuery({ queryKey: ['thriftplus', 'overview'], queryFn: fetchThriftOverview });
@@ -39,21 +40,25 @@ export default function OverviewTab() {
       <Row title="Members">
         <Tile label="Active memberships" value={o.members.active.toLocaleString()} hint={`${o.members.people} people, ${o.members.verified_18} verified 18+`} />
         <Tile label={`Sign-ups, last ${o.days} days`} value={signups.toLocaleString()} />
-        <Tile label="Cards" value={`${o.members.cards_active} in use`} hint={`${o.members.cards_blank} blank left`} />
       </Row>
       <Row title={`Sales, last ${o.days} days`}>
         <Tile label="Member sales" value={o.sales.member_sales.toLocaleString()} hint={formatCurrency(o.sales.member_revenue)} />
         <Tile label="Guest sales" value={o.sales.guest_sales.toLocaleString()} hint={formatCurrency(o.sales.guest_revenue)} />
       </Row>
       <Row title={`ThriftBucks, last ${o.days} days`}>
-        <Tile label="InstantBucks (off the price)" value={<TbAmount value={o.rewards.instant} bare />} />
-        <Tile label="Went to the cover" value={<TbAmount value={o.rewards.to_cover} bare />} hint="ThriftBucks that covered the card" />
-        <Tile label="ThriftBucks (kept)" value={<TbAmount value={o.rewards.banked} bare />} />
-        <Tile label="Return $ from returns" value={formatCurrency(o.rewards.credit_from_returns)} />
+        <Tile label="Redeemed instantly" value={formatCurrency(o.rewards.instant)} hint="Dollars off today's price" />
+        <Tile label="ThriftBucks collected and kept" value={<TbAmount value={o.rewards.banked} bare />} />
+        <Tile label="ThriftBucks used" value={o.rewards.used != null ? <TbAmount value={o.rewards.used} bare /> : '-'} />
+        <Tile
+          label="ThriftBucks expired"
+          value={o.rewards.expired != null ? <TbAmount value={o.rewards.expired} bare /> : '-'}
+          hint="Thrift+ income"
+        />
+        <Tile label="Thrift+ credit from 3-day returns" value={formatCurrency(o.rewards.credit_from_returns)} />
       </Row>
       <Row title="Owed to members now">
-        <Tile label="ThriftBucks Balances" value={<TbAmount value={o.owed.banked} bare />} />
-        <Tile label="Return $" value={formatCurrency(o.owed.credit)} />
+        <Tile label="ThriftBucks (not expired)" value={<TbAmount value={o.owed.banked} bare />} />
+        <Tile label="Thrift+ credit" value={formatCurrency(o.owed.credit)} />
         <Tile label="Returns waiting for staff" value={o.returns.waiting.toLocaleString()} hint={`${o.returns.count} returns in ${o.days} days`} />
       </Row>
       <Row title="Scanner app">

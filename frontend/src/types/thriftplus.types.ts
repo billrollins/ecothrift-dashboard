@@ -51,20 +51,10 @@ export interface ThriftPlusAccount {
   revoked_reason: string;
   created_at: string;
   people: ThriftPlusPerson[];
-  /** A staff member's own membership; ``free`` = no monthly cover now (the owner's switch is on). */
-  staff?: { id: number; name: string; free: boolean } | null;
+  /** A staff member's own membership (J6): it links the staff member to their membership. */
+  staff?: { id: number; name: string } | null;
   /** Detail only. */
   events?: ThriftPlusEvent[];
-}
-
-export interface CardBatch {
-  id: number;
-  size: number;
-  note: string;
-  printed_at: string | null;
-  created_at: string;
-  unissued: number;
-  active: number;
 }
 
 export interface NewMember {

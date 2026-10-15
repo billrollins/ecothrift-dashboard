@@ -46,6 +46,9 @@ import type { DenominationBreakdown } from '../../types/pos.types';
 import type { Drawer } from '../../types/pos.types';
 import { format } from 'date-fns';
 import { IconAdd as Add, IconRemove as Remove } from '../../icons/ecoIcons';
+import { TRAINING_REGISTER_LABEL, sortRegistersForSetup } from '../../utils/trainingRegister';
+
+const DRAWER_LIST_PARAMS = { include_training: 1 };
 
 function formatCurrency(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;
@@ -84,7 +87,9 @@ export default function DrawerListPage() {
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
 
   const { data: registersData, isLoading: regLoading } = useRegisters();
-  const { data: drawersData, isLoading: drawersLoading } = useDrawers();
+  // The server leaves the training register's drawer out of lists unless asked; this page asks so it
+  // can show that drawer on its own clearly labelled card (last, practice only, no cash drops).
+  const { data: drawersData, isLoading: drawersLoading } = useDrawers(DRAWER_LIST_PARAMS);
   const openDrawerMutation = useOpenDrawer();
   const closeDrawerMutation = useCloseDrawer();
   const reopenDrawerMutation = useReopenDrawer();
@@ -97,9 +102,11 @@ export default function DrawerListPage() {
   // Cashiers with no device config fall back to showing nothing - they need to configure
   // their device from the POS Terminal page first so we know which register they own.
   const cashierUnconfigured = !isManager && myRegisterId == null;
-  const registersToShow = isManager
-    ? registers
-    : registers.filter((r: { id: number }) => r.id === myRegisterId);
+  const registersToShow = sortRegistersForSetup(
+    isManager
+      ? registers
+      : registers.filter((r: { id: number }) => r.id === myRegisterId),
+  );
 
   const { data: usersData } = useUsers({ page_size: 200 });
   const usersForHandoff = usersData?.results ?? [];
@@ -179,8 +186,11 @@ export default function DrawerListPage() {
       });
       enqueueSnackbar('Cash drop recorded', { variant: 'success' });
       resetDialog();
-    } catch {
-      enqueueSnackbar('Failed to record cash drop', { variant: 'error' });
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        'Failed to record cash drop';
+      enqueueSnackbar(msg, { variant: 'error' });
     }
   };
 
@@ -227,16 +237,22 @@ export default function DrawerListPage() {
       )}
 
       <Grid container spacing={2}>
-        {registersToShow.map((reg: { id: number; name: string; code: string }) => {
+        {registersToShow.map((reg: { id: number; name: string; code: string; is_training?: boolean }) => {
           const drawer = drawers.find((d: { register: number }) => d.register === reg.id) as Drawer | undefined;
           const isOpen = drawer?.status === 'open';
           const expected = drawer ? expectedCash(drawer) : 0;
           const expanded = expandedCard === reg.id;
+          const training = Boolean(reg.is_training);
 
           return (
             <Grid key={reg.id} size={{ xs: 12, md: 6, lg: 4 }}>
-              <Card>
+              <Card sx={training ? { borderTop: 4, borderColor: 'warning.main' } : undefined}>
                 <CardContent>
+                  {training && (
+                    <Typography variant="overline" color="warning.dark" sx={{ fontWeight: 700, display: 'block' }}>
+                      {TRAINING_REGISTER_LABEL}
+                    </Typography>
+                  )}
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
                     <Typography variant="h6">
                       {reg.name} ({reg.code})
@@ -279,20 +295,27 @@ export default function DrawerListPage() {
                           Drops: {drawer.drops.length} ({formatCurrency(drawer.drops.reduce((s, d) => s + (parseFloat(String(d.total)) || 0), 0))})
                         </Typography>
                       )}
+                      {training && (
+                        <Typography variant="body2" color="warning.dark" sx={{ mt: 1 }}>
+                          Practice drawer: not real cash. Cash drops are not recorded.
+                        </Typography>
+                      )}
                       {isOpen && (
                         <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<MoveDown />}
-                            onClick={() => {
-                              setDropDrawer(drawer.id);
-                              setOpenDialog('drop');
-                            }}
-                            disabled={cashDropMutation.isPending}
-                          >
-                            Cash drop
-                          </Button>
+                          {!training && (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<MoveDown />}
+                              onClick={() => {
+                                setDropDrawer(drawer.id);
+                                setOpenDialog('drop');
+                              }}
+                              disabled={cashDropMutation.isPending}
+                            >
+                              Cash drop
+                            </Button>
+                          )}
                           {isManager && (
                             <>
                               <Button

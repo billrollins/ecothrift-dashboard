@@ -9,6 +9,7 @@ import type { ItemRewardDetail, RewardPreview, ThriftPlusAccount } from '../../t
 import ThriftPlusPage from './ThriftPlusPage';
 
 const created = vi.hoisted(() => ({ bodies: [] as unknown[] }));
+const stopped = vi.hoisted(() => ({ calls: [] as [number, string][] }));
 
 const account: ThriftPlusAccount = {
   id: 3,
@@ -58,15 +59,18 @@ const itemDetail: ItemRewardDetail = {
 vi.mock('../../api/thriftplus.api', () => ({
   fetchRewardPreview: async () => preview,
   fetchMemberMoney: async () => ({
-    banked: '3.00', credit: '0.00', entries: [],
-    cover: { month: '2026-10', amount: '10.00', covered: '10.00', remaining: '0.00', is_covered: true, resets_on: '2026-11-01' },
+    banked: '3.00', available: '3.00', credit: '0.00',
+    lots: [{ amount: '3.00', earned_on: '2026-10-20', use_by: '2026-11-19', past_due: false }],
+    entries: [
+      { id: 1, kind: 'bank', amount: '3.00', reason: 'sale', cart: 12, sku: 'ITM0000011', note: '', actor: '', created_at: '2026-10-20T15:00:00Z' },
+    ],
   }),
   adjustMemberMoney: async () => ({}),
   fetchThriftOverview: async () => ({
     days: 30,
-    members: { active: 42, revoked: 1, people: 50, verified_18: 40, cards_active: 45, cards_blank: 455, signups: [{ day: '2026-10-20', n: 30 }] },
+    members: { active: 42, revoked: 1, people: 50, verified_18: 40, signups: [{ day: '2026-10-20', n: 30 }] },
     sales: { member_sales: 120, member_revenue: '3400.00', guest_sales: 300, guest_revenue: '9100.00' },
-    rewards: { instant: '210.00', to_cover: '380.00', banked: '55.00', credit_from_returns: '12.00' },
+    rewards: { instant: '210.00', banked: '380.00', used: '41.25', expired: '9.50', credit_from_returns: '12.00' },
     owed: { banked: '55.00', credit: '12.00' },
     returns: { count: 1, waiting: 1 },
     scanner: { scans: 200, adds: 50, passes: 150, add_rate: 0.25, items_scanned: 180, price_feedback: 7 },
@@ -82,12 +86,19 @@ vi.mock('../../api/thriftplus.api', () => ({
   revokeMember: async () => account,
   verifyPerson: async () => account,
   setPersonPhoto: async () => account,
-  issueCard: async () => account,
   removeSecondAdult: async () => account,
-  killCard: async () => undefined,
+  killCard: async (id: number, reason: string) => {
+    stopped.calls.push([id, reason]);
+  },
   setPersonNews: async () => account,
   setPersonEmail: async () => account,
   fetchEmailNote: async () => ({ note: "We'll email your receipts and Thrift+ updates. Store news emails have an unsubscribe link." }),
+}));
+
+vi.mock('../../api/thriftplusRegister.api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../api/thriftplusRegister.api')>()),
+  fetchRestrictedProducts: async () => [],
+  fetchThriftReturns: async () => [],
 }));
 
 function renderPage(entry = '/thrift-plus') {
@@ -105,23 +116,50 @@ function renderPage(entry = '/thrift-plus') {
   );
 }
 
+describe('Thrift+ page tabs', () => {
+  it('has no Card batches tab: no physical card since 2026-10-14', () => {
+    renderPage('/thrift-plus?tab=cards');
+    expect(screen.queryByRole('tab', { name: /card/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Members' })).toHaveAttribute('aria-selected', 'true');
+  });
+});
+
 describe('Thrift+ member service', () => {
-  it('finds a member and shows their card, 18+ check and history', async () => {
+  it('finds a member and shows their member code (last 4), 18+ check and history', async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.type(screen.getByLabelText('Scan a card, or type a phone or name'), 'ana');
+    await user.type(screen.getByLabelText('Scan a member QR, or type a phone or name'), 'ana');
     await user.click(await screen.findByText('Ana Diaz'));
     expect(await screen.findByText('Membership #3')).toBeInTheDocument();
     expect(screen.getByText('18+ verified')).toBeInTheDocument();
-    expect(screen.getAllByText('7123 4567 8903').length).toBeGreaterThan(0);
-    expect(screen.getByText(/card issued · Ana Diaz/)).toBeInTheDocument();
-    expect((await screen.findByText(/ThriftBucks Balance/)).textContent).toMatch(/ThriftBucks Balance 3\.00/);
+    expect(screen.getByText(/^Member code ending/)).toHaveTextContent('Member code ending 8903');
+    expect(screen.queryByText(/7123 4567 8903/)).not.toBeInTheDocument(); // the full code stays in the app
+    expect(screen.getByText(/member code given · Ana Diaz · code ending 8903 · by Carrie R/)).toBeInTheDocument();
+    expect((await screen.findByText(/^Your ThriftBucks/)).textContent).toBe('Your ThriftBucks 3.00 · Thrift+ credit $0.00');
+    // Kept ThriftBucks with their use-by dates (B2, B5); no cover since 10-12.
+    expect(screen.getByText('3.00 ThriftBucks, collected Oct 20, use by Nov 19')).toBeInTheDocument();
+    expect(screen.getByText('Nov 19')).toBeInTheDocument(); // the ledger row's use-by
+    expect(screen.queryByText(/cover/i)).not.toBeInTheDocument();
+    // No physical card (owner, 2026-10-14): no card words, no blank-card scan.
+    expect(document.body.textContent).not.toMatch(/card/i);
+    expect(screen.queryByRole('button', { name: /issue/i })).not.toBeInTheDocument();
+  });
+
+  it('replaces a member code: the old one stops at once', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText('Scan a member QR, or type a phone or name'), 'ana');
+    await user.click(await screen.findByText('Ana Diaz'));
+    await user.click(await screen.findByRole('button', { name: 'Replace member code' }));
+    expect(stopped.calls).toContainEqual([9, 'replaced by staff']);
+    expect(await screen.findByText(/Old member code stopped/)).toBeInTheDocument();
   });
 
   it('signs up a member; the 18+ box needs an ID check first', async () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(screen.getByRole('button', { name: 'New member' }));
+    expect(screen.queryByLabelText(/card/i)).not.toBeInTheDocument(); // no blank card to scan
     expect(screen.getByRole('checkbox', { name: 'The ID shows 18 or older' })).toBeDisabled();
     await user.type(screen.getByLabelText(/First name/), 'Bo');
     await user.click(screen.getByRole('checkbox', { name: 'Checked a photo ID (the name matches)' }));
@@ -165,7 +203,21 @@ describe('Thrift+ overview', () => {
     renderPage('/thrift-plus?tab=overview');
     expect(await screen.findByText('Active memberships')).toBeInTheDocument();
     expect(screen.getByText('42')).toBeInTheDocument();
-    expect(screen.getByText('380.00')).toBeInTheDocument(); // the cover, in ThriftBucks
+    expect(screen.getByText('Redeemed instantly')).toBeInTheDocument();
+    expect(screen.getByText('$210.00')).toBeInTheDocument(); // redeemed instantly is dollars off
+    expect(screen.getByText('380.00')).toBeInTheDocument(); // ThriftBucks kept: a number, never "$"
+    expect(screen.getByText('41.25')).toBeInTheDocument();
+    expect(screen.getByText('ThriftBucks expired')).toBeInTheDocument();
+    expect(screen.getByText('9.50')).toBeInTheDocument();
+    expect(screen.getByText('Thrift+ income')).toBeInTheDocument();
+    expect(screen.queryByText(/cover|InstantBucks|Return \$/)).not.toBeInTheDocument();
     expect(screen.getByText('25%')).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/card/i); // no cards-issued or blanks-left tile
+  });
+
+  it('says 18+ products need a member verified 18+, never a card', async () => {
+    renderPage('/thrift-plus?tab=register');
+    expect(await screen.findByText(/needs a Thrift\+ member verified 18\+/)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/card/i);
   });
 });

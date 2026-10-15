@@ -4,20 +4,21 @@ Thrift+ membership rules (owner design, 2026-09-25). Every change writes an ``Ev
 - **Signup:**
   - a cashier checks ID (the name matches; this sets the 18+ flag);
   - takes a photo;
-  - scans a blank card, which attaches it.
-  - No ID means an unverified person: they earn rewards, but get no returns and no 18+ items.
+  - the member's code is made for them (owner 2026-10-14: there is no Thrift+ card). They show it as the member QR
+    in the Thrift+ app, or give their phone number (``people_by_phone``).
+  - No ID means an unverified person: they collect ThriftBucks, but get no returns and no 18+ items.
 - **Up to 2 adults per account.** Adding the second needs both present and the primary's OK.
   The primary can remove the second; the second can remove only themselves.
-- **Cards:** a person may carry more than one (a wallet card and a keychain tag). A lost card is
-  killed, and a new blank is issued.
-- **Revocation** (theft, tag switching, return abuse) kills the whole account and all its cards.
+- **Codes** (the ``Card`` model): a person may have more than one (a code from a printed blank, and one made in the
+  app). A lost one is stopped.
+- **Revocation** (theft, tag switching, return abuse) stops the whole account and all its codes.
 """
 from __future__ import annotations
 
 import re
 
 from django.db import transaction
-from django.db.models import Q, QuerySet
+from django.db.models import F, Q, QuerySet
 from django.utils import timezone
 
 from apps.core.models import AppSetting
@@ -83,7 +84,7 @@ def log(action: str, *, account=None, person=None, card=None, actor=None, **deta
 
 
 def find(query: str) -> QuerySet[Account]:
-    """Accounts by card code, phone or name."""
+    """Accounts by member code, phone or name."""
     q = (query or '').strip()
     accounts = Account.objects.all()
     if not q:
@@ -101,13 +102,48 @@ def find(query: str) -> QuerySet[Account]:
     return accounts.filter(cond).distinct()
 
 
+def people_by_phone(raw: str | None) -> list[Person]:
+    """Find a member by phone at the register (owner 2026-10-14: they show the QR in the Thrift+ app or give their
+    phone number). Any format, matched on the digits: the whole number, or the last 7 when the area code is left off.
+    Answers every active person on each membership the phone is on, primary first, so the cashier picks the person by
+    their photo (2 adults may share one membership, and one phone)."""
+    digits = normalize_phone(raw)
+    if len(digits) < 7:
+        raise MemberError('Type the whole phone number.')
+    match = Q(phone=digits) if len(digits) >= 10 else Q(phone__endswith=digits)
+    accounts = Person.objects.filter(match, removed_at__isnull=True).values_list('account_id', flat=True)
+    return list(
+        Person.objects.filter(account_id__in=accounts, removed_at__isnull=True).select_related('account')
+        .order_by('account_id', 'role', 'pk')[:10]
+    )
+
+
+def new_member_code(person: Person, *, user=None) -> Card:
+    """The member's code when none was scanned (owner 2026-10-14: there is no Thrift+ card): no batch, never printed,
+    active and linked to the person, the way the app makes one. The QR in the Thrift+ app is ``TP`` + this code, which
+    the register's scan reads."""
+    code = new_code()
+    while Card.objects.filter(code=code).exists():
+        code = new_code()
+    card = Card.objects.create(code=code, person=person, status=Card.STATUS_ACTIVE, issued_at=timezone.now(), issued_by=user)
+    log('app_card', account=person.account, person=person, card=card, actor=user)
+    return card
+
+
+def member_code(person: Person, *, user=None) -> Card:
+    """The person's active code (the newest), or a new one when they have none."""
+    card = (Card.objects.filter(person=person, status=Card.STATUS_ACTIVE)
+            .order_by(F('issued_at').desc(nulls_last=True), '-pk').first())
+    return card or new_member_code(person, user=user)
+
+
 def card_by_code(raw: str) -> Card:
     code = parse(raw)
     if not code:
-        raise MemberError('That is not a Thrift+ card number (the check digit does not match).')
+        raise MemberError('That is not a Thrift+ member code (the check digit does not match).')
     card = Card.objects.select_related('person__account').filter(code=code).first()
     if card is None:
-        raise MemberError('That card is not in the system. Use a card from a printed batch.')
+        raise MemberError('That member code is not in the system. Find them by phone.')
     return card
 
 
@@ -123,7 +159,7 @@ def issue_card(person: Person, raw_code: str, *, user=None) -> Card:
         raise MemberError('This person is no longer on the account.')
     card = Card.objects.select_for_update().get(pk=card_by_code(raw_code).pk)
     if card.status != Card.STATUS_UNISSUED:
-        raise MemberError(f'Card {card.code} is already {card.get_status_display().lower()}.')
+        raise MemberError(f'Member code {card.code} is already {card.get_status_display().lower()}.')
     card.person = person
     card.status = Card.STATUS_ACTIVE
     card.issued_at = timezone.now()
@@ -175,17 +211,20 @@ def _person(account: Account, role: str, *, first_name: str, last_name: str = ''
 def create_account(*, first_name: str, last_name: str = '', phone: str = '', email: str = '',
                    id_checked: bool = False, verified_18: bool = False, photo=None, card_code: str = '',
                    user=None) -> Account:
-    """Sign up: the primary person (with an optional email), and their first card if one was scanned."""
+    """Sign up: the primary person (with an optional email), and their member code: a printed blank's code if one was
+    given, otherwise one made for them (owner 2026-10-14: there is no Thrift+ card)."""
     phone_digits = normalize_phone(phone)
     if phone_digits and Person.objects.filter(phone=phone_digits, removed_at__isnull=True,
                                               account__status=Account.STATUS_ACTIVE).exists():
-        raise MemberError('That phone number is already on a membership. Look it up instead.')
+        raise MemberError('That phone number is already on a membership. Find them by phone instead.')
     account = Account.objects.create(created_by=user)
     person = _person(account, Person.ROLE_PRIMARY, first_name=first_name, last_name=last_name, phone=phone, email=email,
                      id_checked=id_checked, verified_18=verified_18, photo=photo, user=user)
     log('signup', account=account, person=person, actor=user, id_checked=person.id_checked, verified_18=person.verified_18)
     if card_code:
         issue_card(person, card_code, user=user)
+    else:
+        new_member_code(person, user=user)
     return account
 
 
@@ -197,13 +236,12 @@ PRACTICE_AREA = '555'
 def make_practice_member(*, first_name: str = '', last_name: str = '', card_code: str = '', photo=None,
                          user=None) -> Account:
     """A practice member for training and testing (owner, 2026-10-10): a 555 phone (never a real one, so a trainee can
-    still sign up for real later), no email, an 18+ check, and a card (a blank one scanned, or a made-up number to type
-    in). Left out of every report and count; it works only on the training register and in the scanner's test mode."""
+    still sign up for real later), no email, an 18+ check, and a member code (a printed blank's, or one made for it,
+    owner 2026-10-14). Left out of every report and count; it works only on the training register and in the scanner's
+    test mode."""
     n = Account.objects.filter(is_practice=True).count() + 1
     while Person.objects.filter(phone=f'{PRACTICE_AREA}{n:07d}').exists():
         n += 1
-    if not card_code:
-        card_code = Card.objects.create(code=new_code()).code  # no batch: never printed
     account = create_account(first_name=(first_name or '').strip() or 'Practice',
                              last_name=(last_name or '').strip() or f'Member {n}', phone=f'{PRACTICE_AREA}{n:07d}',
                              id_checked=True, verified_18=True, photo=photo, card_code=card_code, user=user)
@@ -239,12 +277,14 @@ def add_second_adult(account: Account, *, both_present: bool, primary_approves: 
     if not (both_present and primary_approves):
         raise MemberError('Both adults must be here, and the primary must approve adding the second.')
     if account.people.filter(role=Person.ROLE_SECONDARY, removed_at__isnull=True).exists():
-        raise MemberError('This account already has a second adult (2 adults per card at most).')
+        raise MemberError('This account already has a second adult (2 adults per membership at most).')
     person = _person(account, Person.ROLE_SECONDARY, first_name=first_name, last_name=last_name, phone=phone,
                      email=email, id_checked=id_checked, verified_18=verified_18, photo=photo, user=user)
     log('second_added', account=account, person=person, actor=user)
     if card_code:
         issue_card(person, card_code, user=user)
+    else:
+        new_member_code(person, user=user)
     return person
 
 
@@ -273,7 +313,7 @@ def set_photo(person: Person, photo, *, user=None) -> Person:
 
 @transaction.atomic
 def revoke(account: Account, *, reason: str, user=None) -> Account:
-    """Theft, tag switching or return abuse: the whole card goes, for every person on it."""
+    """Theft, tag switching or return abuse: the whole membership goes, for every person on it."""
     if not (reason or '').strip():
         raise MemberError('Give a reason to revoke a membership.')
     account.status = Account.STATUS_REVOKED

@@ -1,48 +1,63 @@
 """
-Thrift+ member returns (thrift_plus_rewards Phase 3). The owner's rules (2026-09-25):
-- **Members only**, for items bought while a member: the sale carried a card on this membership.
-  Guests: all sales final.
-- **Primary-function failure only.** Not cosmetic issues, secondary functions, missing parts or
-  remorse. The cashier confirms it.
-- **Excluded:** as-is, for parts, untested, clothing and soft goods, 18+, crossbows. The categories
-  and words are settings.
-- **The window:** 3 calendar days after the sale, closing at the end of day 3. If the store is closed
-  on day 3, it runs to the end of the next open day.
-- **The refund** is store credit for 95% of what was paid for the line, before tax (the owner,
-  2026-09-25: the 5% is the cost of not testing in the store; the setting is
-  ``thrift_plus_return_credit_share``). The line's cover and bank rows are reversed (the item's
-  rewards come back out).
+Thrift+ 3-day returns (the 10-12 policy, W1-W14; owner answers 2026-10-14): a return privilege for members (W1).
 
-Staff decide what happens to the returned item (``ReturnRecord.status``). Its inventory status is
-not changed here.
+- **Members only**, for items bought on this membership. Guests: all sales final, sold AS IS (W9).
+- **Any reason.** Nothing is asked and nothing is tested (W1, W7).
+- **Which items:** the line's mark, frozen on the receipt line at the sale (``CartLine.meta['thrift_plus']['mark']``,
+  W10, A3). Until the AI marks items, an item is a "3-day return" item unless W6's guide leaves it out (owner 10-14):
+  clothing and soft goods (``thrift_plus_nonreturnable_categories``), AS IS or salvage words
+  (``thrift_plus_nonreturnable_words``), and items at ``thrift_plus_return_min_price`` ($10) or less after ThriftBucks.
+  18+ items and crossbows are not left out as a group. Lines sold before the marks were frozen use the guide on the day.
+- **The window:** 3 calendar days after the sale day (bought Monday, back by Thursday). Nothing extends it; only the
+  owner may allow a later return when the store was closed (O1), and that is logged with who and why (W2).
+- **What comes back** (W3): ``thrift_plus_return_credit_share`` (0.80) of the money paid for the item, tax included,
+  as Thrift+ credit (never back the way they paid); and 80% of the ThriftBucks used on it, as fresh ThriftBucks (30
+  days from the return day).
+- **ThriftBucks the item collected** (W4): the member keeps 20%; 80% is taken back from unspent ThriftBucks, soonest
+  use-by first. What can't be taken back (already spent) comes off the Thrift+ credit, never below zero.
+- **Settled on the return day** (W11): new ledger rows that day; the sale and its receipt are never changed.
+- **Training register:** the result is worked out and shown, and nothing is written.
+
+Staff decide what happens to the returned item (``ReturnRecord.status``). Its inventory status is not changed here.
 """
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from datetime import date, timedelta
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 
 from django.db import transaction
 from django.utils import timezone
 
-from apps.thriftplus.models import CartMember, LedgerEntry, RestrictedProduct, ReturnRecord, SalePhoto
+from apps.thriftplus.models import Account, CartMember, LedgerEntry, ReturnRecord, SalePhoto
 from apps.thriftplus.services import ledger, members
-from apps.thriftplus.services.register import RegisterError, _card
+from apps.thriftplus.services.register import RegisterError, found, paid_by_line
 
+ZERO = Decimal('0.00')
+CENT = Decimal('0.01')
 WINDOW_DAYS = 3
 CATEGORIES_KEY = 'thrift_plus_nonreturnable_categories'
 WORDS_KEY = 'thrift_plus_nonreturnable_words'
+MIN_PRICE_KEY = 'thrift_plus_return_min_price'
 DEFAULT_CATEGORIES = ['Apparel & accessories', 'Bedding', 'Linens', 'Towels', 'Curtains']
-DEFAULT_WORDS = ['as-is', 'as is', 'for parts', 'parts only', 'untested', 'crossbow']
+DEFAULT_WORDS = ['as-is', 'as is', 'for parts', 'parts only', 'untested']
+DEFAULT_MIN_PRICE = Decimal('10.00')
 PHOTO_OVER = Decimal('100.00')
 SHARE_KEY = 'thrift_plus_return_credit_share'
-DEFAULT_SHARE = Decimal('0.95')
+DEFAULT_SHARE = Decimal('0.80')
+MARK_RETURN = '3-day return'
+MARK_AS_IS = 'AS IS'
+
+
+def _setting(key: str):
+    from apps.core.models import AppSetting
+
+    return AppSetting.objects.filter(key=key).values_list('value', flat=True).first()
 
 
 def _setting_list(key: str, default: list[str]) -> list[str]:
-    from apps.core.models import AppSetting
-
-    raw = AppSetting.objects.filter(key=key).values_list('value', flat=True).first()
+    raw = _setting(key)
     if raw is None:
         return default
     if isinstance(raw, str):
@@ -50,138 +65,250 @@ def _setting_list(key: str, default: list[str]) -> list[str]:
     return [str(x).strip() for x in raw if str(x).strip()]
 
 
-def deadline(sold_on: date) -> date:
-    """The last day a return is taken: day 3, or the next day the store is open."""
-    from apps.webstore.services.hours import is_open_day
-
-    day = sold_on + timedelta(days=WINDOW_DAYS)
-    for _ in range(14):
-        try:
-            if is_open_day(day):
-                return day
-        except Exception:  # store hours unreadable: day 3 stands
-            return day
-        day += timedelta(days=1)
-    return day
+def _setting_money(key: str, default: Decimal) -> Decimal:
+    try:
+        raw = _setting(key)
+        value = Decimal(str(raw)).quantize(CENT) if raw not in (None, '') else default
+    except Exception:  # a bad setting never stops a sale or a return
+        return default
+    return value if value >= 0 else default
 
 
-def excluded(item) -> str:
-    """Why this item can't come back, or '' when it can."""
-    if RestrictedProduct.objects.filter(product_id=item.product_id).exists():
-        return '18+ items are final sale.'
-    if item.condition == 'salvage':
-        return 'Sold for parts.'
-    profile = getattr(item.product, 'profile', None) if item.product_id else None
-    cats = {c.lower() for c in _setting_list(CATEGORIES_KEY, DEFAULT_CATEGORIES)}
-    if profile is not None and ({(profile.category or '').lower(), (profile.subcategory or '').lower()} & cats):
-        return f'{profile.subcategory or profile.category} is final sale.'
-    text = ' '.join([
-        item.product.title if item.product_id else '', item.notes or '',
-        ' '.join(str(f) for f in (profile.flags if profile is not None else []) or []),
-    ]).lower()
-    for word in _setting_list(WORDS_KEY, DEFAULT_WORDS):
-        if re.search(rf'\b{re.escape(word.lower())}\b', text):  # whole words: "canvas island" is not "as is"
-            return f'Sold "{word}": final sale.'
-    return ''
-
-
-def returnable(item) -> bool:
-    return not excluded(item)
+def min_price() -> Decimal:
+    """Items at this price or less after ThriftBucks are sold AS IS (W6; $10)."""
+    return _setting_money(MIN_PRICE_KEY, DEFAULT_MIN_PRICE)
 
 
 def credit_share() -> Decimal:
-    """The share of the pre-tax price a return gives back as credit (0.95); never above 1."""
-    from apps.core.models import AppSetting
-
-    raw = AppSetting.objects.filter(key=SHARE_KEY).values_list('value', flat=True).first()
+    """The share of what was paid (tax included), and of ThriftBucks, a return gives back and takes back (0.80)."""
     try:
+        raw = _setting(SHARE_KEY)
         value = Decimal(str(raw)) if raw not in (None, '') else DEFAULT_SHARE
     except Exception:
         return DEFAULT_SHARE
     return value if Decimal('0') <= value <= Decimal('1') else DEFAULT_SHARE
 
 
-def paid_for(line) -> Decimal:
-    """The store credit a return gives: the share (95%) of what was paid for the line, before tax."""
-    return (max(Decimal('0'), line.line_total) * credit_share()).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+def deadline(sold_on: date) -> date:
+    """The last day a return is taken: 3 calendar days after the sale day. Nothing extends it (W2)."""
+    return sold_on + timedelta(days=WINDOW_DAYS)
 
 
-def problems(line, account, today: date | None = None) -> list[str]:
+# ── Which items qualify (W6, W10) ──────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class Guide:
+    categories: frozenset
+    words: tuple
+    min_price: Decimal
+
+
+def guide() -> Guide:
+    """W6's starting guide, read once (the settings)."""
+    return Guide(
+        categories=frozenset(c.lower() for c in _setting_list(CATEGORIES_KEY, DEFAULT_CATEGORIES)),
+        words=tuple(_setting_list(WORDS_KEY, DEFAULT_WORDS)), min_price=min_price(),
+    )
+
+
+def why_as_is(item, *, price: Decimal | None = None, reward: Decimal = ZERO, rules: Guide | None = None) -> str:
+    """Why this item is sold AS IS, or '' when it is a 3-day return item. ``price`` is the unit price after any
+    percent sale (default: the tag) and ``reward`` the ThriftBucks it collects per unit."""
+    if item is None:
+        return 'Only items can come back.'
+    rules = rules or guide()
+    if item.condition == 'salvage':
+        return 'Sold for parts: AS IS.'
+    profile = getattr(item.product, 'profile', None) if item.product_id else None
+    if profile is not None and ({(profile.category or '').lower(), (profile.subcategory or '').lower()} & rules.categories):
+        return f'{profile.subcategory or profile.category}: sold AS IS.'
+    text = ' '.join([
+        item.product.title if item.product_id else '', item.notes or '',
+        ' '.join(str(f) for f in (profile.flags if profile is not None else []) or []),
+    ]).lower()
+    for word in rules.words:
+        if re.search(rf'\b{re.escape(word.lower())}\b', text):  # whole words: "canvas island" is not "as is"
+            return f'Marked "{word}": sold AS IS.'
+    price = (item.price or ZERO) if price is None else price
+    if price - max(ZERO, reward or ZERO) <= rules.min_price:
+        return f'${rules.min_price:.2f} or less after ThriftBucks: sold AS IS.'
+    return ''
+
+
+def qualifies(item, *, price: Decimal | None = None, reward: Decimal = ZERO, rules: Guide | None = None) -> bool:
+    """A 3-day return item (W6's guide until the AI marks exist, owner 2026-10-14)."""
+    return not why_as_is(item, price=price, reward=reward, rules=rules)
+
+
+def mark_for(item, *, price: Decimal | None = None, reward: Decimal = ZERO, rules: Guide | None = None) -> tuple[str, str]:
+    """The receipt line's mark and, for AS IS, why."""
+    why = why_as_is(item, price=price, reward=reward, rules=rules)
+    return (MARK_AS_IS, why) if why else (MARK_RETURN, '')
+
+
+def line_price(line) -> Decimal:
+    """The line's unit price after its percent sale (what the guide compares)."""
+    pct = line.sale_percent or ZERO
+    return ((line.unit_price or ZERO) * (Decimal('1') - pct / Decimal('100'))).quantize(CENT, rounding=ROUND_HALF_UP)
+
+
+# ── What a return gives back (W3, W4) ──────────────────────────────────────────
+
+
+def _snapshot(line) -> dict:
+    snap = (line.meta or {}).get('thrift_plus') if isinstance(line.meta, dict) else None
+    return snap if isinstance(snap, dict) and 'paid' in snap else {}
+
+
+def _kept_from_ledger(line) -> Decimal:
+    """ThriftBucks a line sold before the snapshot kept: its sale or re-ring rows."""
+    rows = LedgerEntry.objects.filter(cart_line_id=line.pk, kind__in=[LedgerEntry.KIND_BANK, LedgerEntry.KIND_COVER],
+                                      reason__in=('sale', 'rering'), amount__gt=0)
+    return sum((r.amount for r in rows), ZERO)
+
+
+def refund_parts(line, *, rules: Guide | None = None) -> dict:
+    """Everything a return of this line gives back and takes back, from the line's snapshot at the sale (or worked
+    out from the sale for lines sold before it)."""
+    share = credit_share()
+    rate = line.cart.tax_rate or ZERO
+    snap = _snapshot(line)
+    if snap:
+        paid = Decimal(str(snap.get('paid') or '0'))
+        bucks_used = Decimal(str(snap.get('bucks_used') or '0'))
+        kept = Decimal(str(snap.get('kept') or '0'))
+        mark, why = snap.get('mark') or MARK_AS_IS, snap.get('why') or ''
+    else:
+        from apps.pos.models import CartLine
+
+        cart_lines = list(CartLine.objects.filter(cart_id=line.cart_id).order_by('pk'))
+        paid = paid_by_line(cart_lines, {}).get(line.pk, max(ZERO, line.line_total or ZERO))
+        bucks_used = ZERO
+        kept = _kept_from_ledger(line)
+        qty = line.quantity or 1
+        mark, why = mark_for(line.item, price=line_price(line), reward=(kept / qty).quantize(CENT), rules=rules)
+    refund = (paid * (Decimal('1') + rate) * share).quantize(CENT, rounding=ROUND_HALF_UP)
+    taxable_back = (paid * share).quantize(CENT, rounding=ROUND_HALF_UP)
+    return {
+        'paid': paid, 'refund': refund, 'taxable_back': taxable_back, 'tax_back': refund - taxable_back,
+        'bucks_used': bucks_used, 'kept': kept,
+        'bucks_back': (bucks_used * share).quantize(CENT, rounding=ROUND_HALF_UP),
+        'bucks_take': (kept * share).quantize(CENT, rounding=ROUND_DOWN),  # the member keeps 20%, in their favor
+        'mark': mark, 'why': why,
+    }
+
+
+def problems(line, account, today: date | None = None, *, late_ok: bool = False, training: bool = False,
+             parts: dict | None = None) -> list[str]:
     """Everything that stops this line coming back for this membership (empty: it can)."""
     today = today or timezone.localdate()
     cart = line.cart
     out = []
     if line.line_kind != 'item' or line.item_id is None:
         out.append('Only items can come back.')
-    if cart.status != 'completed' or not cart.completed_at:
+    if cart.status not in (('completed', 'training') if training else ('completed',)) or not cart.completed_at:
         out.append('That sale was not completed.')
     member = CartMember.objects.filter(cart_id=cart.pk).first()
     if member is None or member.account_id != account.pk:
         out.append('It was not bought on this Thrift+ membership. Guest sales are final.')
     if ReturnRecord.objects.filter(cart_line_id=line.pk).exists():
         out.append('It was already returned.')
-    if cart.completed_at:
+    if cart.completed_at and not late_ok:
         last = deadline(timezone.localdate(cart.completed_at))
         if today > last:
-            out.append(f'The return window closed {last:%b} {last.day}.')
+            out.append(f'The 3-day return window closed {last:%b} {last.day}.')
     if line.item_id is not None:
-        why = excluded(line.item)
-        if why:
-            out.append(why)
+        parts = parts or refund_parts(line)
+        if parts['mark'] != MARK_RETURN:
+            out.append(parts['why'] or 'Sold AS IS: not a 3-day return item.')
     return out
 
 
-def purchases(code: str, *, days: int = 10) -> dict:
-    """A member's recent purchases, each with whether it can come back and why not."""
+def purchases(code: str = '', *, person=None, days: int = 10, training: bool = False) -> dict:
+    """A member's recent purchases, each with its mark, what a return gives back, and why not when it can't. The member
+    is their QR scanned (``code``) or found by phone (``person``, an id; owner 2026-10-14)."""
     from apps.pos.models import CartLine
 
-    card = _card(code)
-    account = card.person.account
+    who, _ = found(code, person)
+    account = who.account
     since = timezone.now() - timedelta(days=days)
+    statuses = ['completed', 'training'] if training else ['completed']
     lines = (
-        CartLine.objects.filter(cart__thrift_member__account=account, cart__status='completed', cart__completed_at__gte=since,
-                                line_kind='item')
+        CartLine.objects.filter(cart__thrift_member__account=account, cart__status__in=statuses,
+                                cart__completed_at__gte=since, line_kind='item')
         .select_related('cart', 'item__product__profile').order_by('-cart__completed_at', 'pk')
     )
+    rules = guide()
     rows = []
     for line in lines:
-        issues = problems(line, account)
+        parts = refund_parts(line, rules=rules)
+        issues = problems(line, account, training=training, parts=parts)
         rows.append({
             'cart_line': line.pk, 'cart': line.cart_id, 'sku': line.item.sku if line.item_id else '',
-            'title': line.description, 'paid': str(paid_for(line)), 'sold_at': line.cart.completed_at,
-            'deadline': deadline(timezone.localdate(line.cart.completed_at)).isoformat(),
+            'title': line.description, 'paid': str(parts['refund']), 'refund': str(parts['refund']),
+            'mark': parts['mark'], 'bucks_back': str(parts['bucks_back']), 'bucks_take': str(parts['bucks_take']),
+            'sold_at': line.cart.completed_at, 'deadline': deadline(timezone.localdate(line.cart.completed_at)).isoformat(),
             'photos': [p.photo.url for p in SalePhoto.objects.filter(cart_line=line)],
-            'ok': not issues, 'problems': issues,
+            'ok': not issues, 'problems': issues, 'problem': ' '.join(issues),
         })
-    person = card.person
     return {
-        'member': {'name': f'{person.first_name} {person.last_name}'.strip(), 'account_id': account.pk,
-                   'photo_url': person.photo.url if person.photo else None, **ledger.balances(account)},
+        'member': {'name': f'{who.first_name} {who.last_name}'.strip(), 'account_id': account.pk,
+                   'photo_url': who.photo.url if who.photo else None, **ledger.balances(account)},
         'lines': rows,
     }
 
 
-def do_return(line, code: str, *, confirmed: bool, note: str = '', user=None) -> ReturnRecord:
-    """Take the line back: store credit for what was paid, and its rewards reversed."""
-    card = _card(code)
-    account = card.person.account
-    if not confirmed:
-        raise RegisterError('NOT_PRIMARY', "Returns are for items whose main function doesn't work. Confirm that first.")
-    issues = problems(line, account)
+def do_return(line, code: str = '', *, person=None, note: str = '', user=None, training: bool = False,
+              late_ok: bool = False) -> dict:
+    """Take the line back (W3, W4, W11): Thrift+ credit for 80% of what was paid, tax included; 80% of the ThriftBucks
+    used on it back as fresh ThriftBucks; 80% of the ThriftBucks it collected taken back, soonest first, any shortfall
+    off the credit. On a training register the result is worked out and nothing is written.
+
+    The member is their QR scanned (``code``) or found by phone (``person``, an id). ``late_ok`` (the owner only, O1;
+    the view checks who) lets a return past the window through; it is logged."""
+    who, card = found(code, person)
+    account = who.account
+    parts = refund_parts(line)
+    issues = problems(line, account, late_ok=late_ok, training=training, parts=parts)
     if issues:
         raise RegisterError('NOT_RETURNABLE', ' '.join(issues))
+    today = timezone.localdate()
+    late = bool(line.cart.completed_at) and today > deadline(timezone.localdate(line.cart.completed_at))
+    note = (note or '').strip()
+    if training:
+        taken = min(parts['bucks_take'], ledger.bucks_total(account, today) + parts['bucks_back'])
+        shortfall = parts['bucks_take'] - taken
+        credit = max(ZERO, parts['refund'] - shortfall)
+        return {'id': None, 'credit': str(credit), 'bucks_back': str(parts['bucks_back']), 'bucks_taken': str(taken),
+                'shortfall': str(shortfall), 'training': True}
     with transaction.atomic():
-        paid = paid_for(line)
-        ledger.reverse_cart(line.cart, 'return', user, line_id=line.pk)
-        ledger.record(account, LedgerEntry.KIND_CREDIT, paid, 'return', cart=line.cart, line=line, actor=user,
-                      note=(note or '')[:200])
+        Account.objects.select_for_update().filter(pk=account.pk).first()  # one return at a time per membership
+        if ReturnRecord.objects.filter(cart_line_id=line.pk).exists():
+            raise RegisterError('NOT_RETURNABLE', 'It was already returned.')
+        ledger.record(account, LedgerEntry.KIND_BANK, parts['bucks_back'], 'return', cart=line.cart, line=line,
+                      actor=user, note='ThriftBucks back on a 3-day return')
+        taken = min(parts['bucks_take'], ledger.bucks_total(account, today))
+        ledger.record(account, LedgerEntry.KIND_BANK, -taken, 'return', cart=line.cart, line=line, actor=user,
+                      note='ThriftBucks taken back on a 3-day return')
+        shortfall = parts['bucks_take'] - taken
+        credit = max(ZERO, parts['refund'] - shortfall)
+        ledger.record(account, LedgerEntry.KIND_CREDIT, credit, 'return', cart=line.cart, line=line, actor=user,
+                      note=note[:200])
         record = ReturnRecord.objects.create(
-            account=account, person=card.person, cart_line=line, item=line.item, paid=paid, note=note or '',
-            returned_by=user,
+            account=account, person=who, cart_line=line, item=line.item, paid=parts['refund'], credit=credit,
+            taxable_back=parts['taxable_back'], tax_back=parts['tax_back'], bucks_back=parts['bucks_back'],
+            bucks_taken=taken, shortfall=shortfall, note=note, returned_by=user,
+            late_ok_by=user if late and late_ok else None,
         )
-        members.log('return', account=account, person=card.person, card=card, actor=user, cart=line.cart_id,
-                    cart_line=line.pk, credit=str(paid))
-    return record
+        members.log('return', account=account, person=who, card=card, actor=user, cart=line.cart_id,
+                    cart_line=line.pk, credit=str(credit), refund=str(parts['refund']),
+                    bucks_back=str(parts['bucks_back']), bucks_taken=str(taken), shortfall=str(shortfall))
+        if late and late_ok:
+            members.log('return_late_ok', account=account, person=who, card=card, actor=user,
+                        cart=line.cart_id, cart_line=line.pk, why=note[:200])
+    return {'id': record.pk, 'credit': str(credit), 'bucks_back': str(parts['bucks_back']), 'bucks_taken': str(taken),
+            'shortfall': str(shortfall), 'training': False}
 
 
 def needs_photo(line) -> bool:

@@ -12,9 +12,12 @@ export function looksLikeEmail(email: string | undefined): boolean {
 /**
  * A Thrift+ person's signup fields (Dash member service and the register): name, phone, an optional email (no
  * boxes: receipts and updates go to it, and store news with an unsubscribe link; T74), the ID check and the 18+
- * flag it allows, a photo, and a blank card. The ID itself is never kept.
+ * flag it allows, and a photo. The ID itself is never kept.
+ *
+ * `blankCard` keeps the register's old blank-card scan until the register drops it. Dash passes false: there is no
+ * physical card since 2026-10-14 (owner); members get their member code in the Thrift+ app.
  */
-export default function PersonFields({ value, onChange }: { value: NewMember; onChange: (v: NewMember) => void }) {
+export default function PersonFields({ value, onChange, blankCard = true }: { value: NewMember; onChange: (v: NewMember) => void; blankCard?: boolean }) {
   const note = useQuery({ queryKey: ['thriftplus', 'email-note'], queryFn: fetchEmailNote, staleTime: Infinity });
   return (
     <Stack spacing={1.25} sx={{ mt: 1 }}>
@@ -43,7 +46,9 @@ export default function PersonFields({ value, onChange }: { value: NewMember; on
         {value.photo ? `Photo: ${value.photo.name}` : 'Take or add a photo'}
         <input hidden type="file" accept="image/*" capture="user" onChange={(e) => onChange({ ...value, photo: e.target.files?.[0] ?? null })} />
       </Button>
-      <TextField label="Scan a blank card" value={value.card_code ?? ''} onChange={(e) => onChange({ ...value, card_code: e.target.value })} helperText="Optional. Scan the card, or type its 12 digits." />
+      {blankCard ? (
+        <TextField label="Scan a blank card" value={value.card_code ?? ''} onChange={(e) => onChange({ ...value, card_code: e.target.value })} helperText="Optional. Scan the card, or type its 12 digits." />
+      ) : null}
       <Typography variant="caption" color="text.secondary">
         Never scan or keep the ID itself: only the name, phone, email, photo and the 18+ flag are stored.
       </Typography>

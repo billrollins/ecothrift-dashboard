@@ -60,7 +60,8 @@ def _session_payload(request) -> dict:
         'member': {
             'first_name': person.first_name, 'email': login.email if login else '', 'username': login.username if login else None,
             'card_last4': card.code[-4:] if card else None, 'verified_18': person.verified_18,
-            'cover': balances['cover'], 'banked_rewards': balances['banked'], 'credit_balance': balances['credit'],
+            'banked_rewards': balances['banked'], 'bucks_available': balances['available'],
+            'bucks_use_by': balances['bucks_use_by'], 'credit_balance': balances['credit'],
             'session_kind': user.session.kind, 'has_login': login is not None,
             # Thrift+ is still off: this is a staff or practice member testing it (the scanner shows a test bar).
             'test_mode': not members.is_enabled(),
@@ -80,7 +81,12 @@ def _signed_in(request, person, kind: str) -> Response:
 @authentication_classes(AUTH)
 @permission_classes([AllowAny])
 def session(request):
-    return Response(_session_payload(request))
+    response = Response(_session_payload(request))
+    # A member's sign-in lasts a year from their last visit (owner 2026-10-14): renew it, and its cookie.
+    current = member_auth.session_for(request.COOKIES.get(member_auth.COOKIE))
+    if current is not None and member_auth.renew(current):
+        member_auth.set_cookie(response, request.COOKIES[member_auth.COOKIE], current)
+    return response
 
 
 @api_view(['POST'])
@@ -280,16 +286,6 @@ def cart_clear(request):
     return Response(scanner.clear(request.user.account))
 
 
-@api_view(['POST'])
-@authentication_classes(AUTH)
-@permission_classes([IsMember])
-def cart_choice(request):
-    try:
-        return Response(scanner.set_choice(request.user.account, str(request.data.get('choice') or '')))
-    except ValueError as exc:
-        return _error(exc)
-
-
 @api_view(['GET'])
 @authentication_classes(AUTH)
 @permission_classes([IsMember])
@@ -307,7 +303,7 @@ def history_clear(request):
 # ── The portal: self-service for people, cards and money ───────────────────────
 
 def _me_payload(request) -> dict:
-    """The membership as its member sees it: people, cards (last 4 only), the cover, balances, recent money."""
+    """The membership as its member sees it: people, cards (last 4 only), balances, recent money."""
     account = request.user.account
     people = []
     for p in account.people.filter(removed_at__isnull=True).order_by('role', 'pk'):
@@ -321,7 +317,7 @@ def _me_payload(request) -> dict:
     you = request.user.person
     return {
         **ledger.balances(account), 'people': people,
-        # The Rewards Balance in the order it is used (Return $ is 'credit'; it never expires).
+        # The member's ThriftBucks in the order they are used (Thrift+ credit is 'credit'; it never expires).
         'rewards': ledger.reward_lots(account),
         'money': [{'kind': e.kind, 'amount': str(e.amount), 'reason': e.reason, 'created_at': e.created_at} for e in entries],
         'can_change': request.user.session.kind == MemberSession.KIND_PASSWORD,
@@ -334,8 +330,38 @@ def _me_payload(request) -> dict:
 @authentication_classes(AUTH)
 @permission_classes([IsMember])
 def me(request):
-    """The membership as its member sees it: people, cards (last 4 only), the cover, balances, recent money."""
+    """The membership as its member sees it: people, cards (last 4 only), balances, recent money."""
     return Response(_me_payload(request))
+
+
+@api_view(['GET'])
+@authentication_classes(AUTH)
+@permission_classes([IsMember])
+def my_card(request):
+    """The code behind the app's My card (owner 2026-10-14: the physical card is optional, J2): the signed-in person's
+    active card, or for a person with none, a card that lives in the app (no batch, never printed). The QR holds
+    exactly what the register's card scan reads (``TP`` + 12 digits), so the register needs no change."""
+    from django.db import transaction
+    from django.utils import timezone
+
+    from apps.thriftplus.models import Card
+    from apps.thriftplus.services import cards
+
+    person = request.user.person
+    card = Card.objects.filter(person=person, status=Card.STATUS_ACTIVE).order_by('-issued_at', '-pk').first()
+    if card is None:
+        with transaction.atomic():
+            code = cards.new_code()
+            while Card.objects.filter(code=code).exists():
+                code = cards.new_code()
+            card = Card.objects.create(code=code, person=person, status=Card.STATUS_ACTIVE, issued_at=timezone.now())
+            members.log('app_card', account=request.user.account, person=person, card=card)
+    return Response({
+        'code': card.code, 'display': cards.display(card.code), 'qr': cards.qr_payload(card.code),
+        'first_name': person.first_name,
+        # J2 (photo, name and phone, ID check, signature) isn't tracked yet: every member made at a register is ready.
+        'ready': True,
+    })
 
 
 def _password_session(request) -> Response | None:

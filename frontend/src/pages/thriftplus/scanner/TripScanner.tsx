@@ -77,12 +77,14 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
   const location = useLocation();
   const navigate = useNavigate();
   const accountOpen = params.get('view') === 'account' && !!member;
+  const cardAsked = params.get('view') === 'qr' || params.get('view') === 'card';
 
   const [mode, setMode] = useState<Mode>('scan');
   const [top, setTop] = useState<Top | null>(null);
   const [flash, setFlash] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [sheet, setSheet] = useState<null | 'about' | 'wallet' | 'camera'>(null);
+  // ecothrift.us/qr lands on /scan?view=qr: open the Member QR right away (owner 2026-10-14, APP D5 and D6).
+  const [sheet, setSheet] = useState<null | 'about' | 'wallet' | 'camera'>(() => (cardAsked && member ? 'wallet' : null));
   const [info, setInfo] = useState<Info | null>(null);
   const [feel, setFeel] = useState<Feel | null>(null);
   const undo = useUndo(24);
@@ -227,7 +229,7 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
       <TripHeader member={member} onAbout={() => setSheet('about')} onWallet={() => setSheet('wallet')} onSignIn={() => auth.signOut.mutate()} />
       <Box sx={{ flex: 1, minHeight: 0, width: u(900), mx: 'auto', px: u(20), pt: u(18), pb: `calc(${u(20)} + env(safe-area-inset-bottom, 0px))`,
         display: 'flex', flexDirection: 'column', gap: u(18) }}>
-        <SummaryBar count={count} total={shown} lines={lines} open={mode === 'trip'} onToggle={toggleTrip} />
+        <SummaryBar count={count} total={shown} lines={lines} open={mode === 'trip'} onToggle={toggleTrip} isGuest={isGuest} />
 
         <Box data-testid="stage" sx={{ position: 'relative', flex: 1, minHeight: 0 }}>
           {mode === 'trip' ? (
@@ -273,6 +275,7 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
         {/* Every action lives here (owner 2026-10-12). */}
         <Box data-testid="actions" sx={{ flexShrink: 0, display: 'flex', gap: u(16) }}>
           {mode === 'scan' && (
+            <>
             <BigButton onClick={() => setMode('trip')} testId="see-trip">
               <ShoppingCartOutlined sx={{ fontSize: u(46), color: sc.green }} />
               See this trip
@@ -281,6 +284,7 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
                   fontSize: u(26), fontWeight: 800, display: 'grid', placeItems: 'center' }}>{count}</Box>
               )}
             </BigButton>
+            </>
           )}
           {mode === 'card' && (
             <>
@@ -295,17 +299,23 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
             </>
           )}
           {mode === 'trip' && (
+            <>
             <BigButton primary onClick={() => setMode('scan')} testId="scan-more">
               <QrCodeScannerRounded sx={{ fontSize: u(46) }} />
               Scan more
             </BigButton>
+            </>
           )}
         </Box>
       </Box>
 
       {sheet === 'about' && <ThriftPlusSheet onClose={() => setSheet(null)} />}
       {sheet === 'wallet' && member && (
-        <WalletSheet member={member} tripTotal={total} onClose={() => setSheet(null)} onAccount={openAccount}
+        <WalletSheet member={member} tripTotal={total} onAccount={openAccount}
+          onClose={() => {
+            setSheet(null);
+            if (cardAsked) setParams({}, { replace: true });
+          }}
           onSignOut={() => auth.signOut.mutate()} />
       )}
       {sheet === 'camera' && (
@@ -343,18 +353,20 @@ function TestModeBar() {
  * This trip, fixed at the top: the cart and its count, the ThriftBucks back, the items' badges. A tap flips between
  * the camera and the trip's lines (owner 2026-10-13); the chevron says which way.
  */
-function SummaryBar({ count, total, lines, open, onToggle }: {
+function SummaryBar({ count, total, lines, open, onToggle, isGuest = false }: {
   count: number;
   total: number;
   lines: ThriftPlusCartLine[];
   open: boolean;
   onToggle: () => void;
+  isGuest?: boolean;
 }) {
+  const word = isGuest ? 'ThriftBucks for members' : 'ThriftBucks back';
   return (
     <ButtonBase
       onClick={onToggle}
       data-testid="trip-summary"
-      aria-label={`This trip: ${count} items, +${tbNumber(total)} ThriftBucks back. ${open ? 'Back to the scanner' : 'See the trip'}`}
+      aria-label={`This trip: ${count} items, +${tbNumber(total)} ${word}. ${open ? 'Back to the scanner' : 'See the trip'}`}
       aria-expanded={open}
       sx={{ flexShrink: 0, height: u(140), display: 'flex', alignItems: 'center', justifyContent: 'flex-start', textAlign: 'left', gap: u(20), pl: u(22),
         pr: u(16), bgcolor: '#fff', borderRadius: u(34), border: `${u(3)} solid ${open ? sc.green : sc.cardEdge}`, boxShadow: sc.tileShadow,
@@ -372,7 +384,7 @@ function SummaryBar({ count, total, lines, open, onToggle }: {
             fontVariantNumeric: 'tabular-nums' }}>
             {total > 0 ? '+' : ''}{tbNumber(total)}
           </Box>
-          <Box sx={{ fontSize: u(28), fontWeight: 700, color: sc.greenDeep }}>ThriftBucks back</Box>
+          <Box sx={{ fontSize: u(28), fontWeight: 700, color: sc.greenDeep }}>{word}</Box>
         </Box>
       </Box>
       <Box aria-hidden sx={{ flexShrink: 0, display: 'flex' }}>
@@ -472,7 +484,7 @@ function FoundTag({ item, isGuest, verified18, qty, onFeel, onRetail, onReturns 
   const tb = useCountUp(reward, { from: 0, ms: 800, delay: 200 });
   const notes: Array<{ text: string; color: string }> = [];
   if (!item.available) notes.push({ text: 'Sold', color: sc.badText });
-  if (item.age_restricted) notes.push({ text: verified18 ? '18+' : '18+: needs an ID-verified card', color: sc.warnText });
+  if (item.age_restricted) notes.push({ text: verified18 ? '18+' : '18+: ID checked at the register', color: sc.warnText });
   return (
     <>
       <CategoryBadge category={item.category} size={u(140)} />
@@ -498,7 +510,7 @@ function FoundTag({ item, isGuest, verified18, qty, onFeel, onRetail, onReturns 
             <BigBucks value={tb} size={u(tbNumber(reward).length >= 6 ? 86 : 104)} sparkle={false} />
             <Box sx={{ fontSize: u(30), fontWeight: 800, color: sc.greenDeep, lineHeight: 1.1, textAlign: 'left' }}>
               {isGuest ? 'ThriftBucks for members' : 'ThriftBucks back'}
-              <Box sx={{ fontSize: u(22), fontWeight: 400, color: sc.ink2 }}>{isGuest ? 'Cards are free at the register' : 'saved for your next visit'}</Box>
+              <Box sx={{ fontSize: u(22), fontWeight: 400, color: sc.ink2 }}>{isGuest ? 'Free to join at the register' : 'saved for your next visit'}</Box>
             </Box>
           </>
         ) : (

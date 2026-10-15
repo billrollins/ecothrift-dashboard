@@ -37,8 +37,11 @@ from apps.thriftplus.services.members import normalize_phone
 
 COOKIE = 'tp_session'
 COOKIE_PATH = '/api/thriftplus/public/'
-PASSWORD_DAYS = 90
-CARD_DAYS = 30
+# Owner 2026-10-14 (APP D5): stay signed in on the phone so My card opens at the register without a password: a year,
+# renewed on each visit (``renew``), whichever way they signed in.
+PASSWORD_DAYS = 365
+CARD_DAYS = 365
+RENEW_AFTER = timedelta(days=1)
 RESET_HOURS = 1
 CARD_TRIES = 5
 CARD_LOCK_SECONDS = 15 * 60
@@ -97,6 +100,17 @@ def session_for(token: str | None) -> MemberSession | None:
     if session.last_seen_at is None or now - session.last_seen_at > SEEN_EVERY:
         MemberSession.objects.filter(pk=session.pk).update(last_seen_at=now)
     return session
+
+
+def renew(session: MemberSession) -> bool:
+    """Push the session out to a full year again (at most once a day). True when it moved."""
+    days = PASSWORD_DAYS if session.kind == MemberSession.KIND_PASSWORD else CARD_DAYS
+    target = timezone.now() + timedelta(days=days)
+    if target - session.expires_at < RENEW_AFTER:
+        return False
+    MemberSession.objects.filter(pk=session.pk).update(expires_at=target)
+    session.expires_at = target
+    return True
 
 
 def revoke_all(person: Person) -> int:

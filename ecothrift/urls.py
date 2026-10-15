@@ -14,6 +14,10 @@ urlpatterns = [
     path('db-admin/', admin.site.urls),
     # Public storefront SEO (PublicSiteMiddleware lets these through on the apex).
     path('robots.txt', robots_txt, name='robots-txt'),
+    # ecothrift.us/qr (owner 2026-10-14, APP D5 and D6): the scanner opened on the Member QR; the home-screen app starts
+    # here. /card was the first address: it stays as a quiet redirect, never printed (no card).
+    re_path(r'^qr/?$', RedirectView.as_view(url='/scan?view=qr', permanent=False), name='thriftplus-qr'),
+    re_path(r'^card/?$', RedirectView.as_view(url='/scan?view=qr', permanent=False), name='thriftplus-card'),
     # The interview short link in texts (ecothrift.us/i/<code>, owner 2026-10-12).
     re_path(r'^i/(?P<code>[A-Za-z0-9]{1,12})/?$', hiring_short_link, name='hiring-short-link'),
     path('sitemap.xml', sitemap_xml, name='sitemap-xml'),

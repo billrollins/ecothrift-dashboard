@@ -241,47 +241,76 @@ export interface Cart {
   lines: CartLine[];
   receipt?: Receipt | null;
   savings?: CartSavings;
-  /** Thrift+ store credit and banked rewards spent on this sale. */
+  /** Thrift+ credit spent on this sale: a payment after tax (0 while Thrift+ is dark). */
   thrift_credit?: string;
-  /** Thrift+ member, rebates and totals; null while Thrift+ is dark at this register. */
+  /** Thrift+ member, ThriftBucks and Thrift+ credit; null while Thrift+ is dark at this register. */
   thrift_plus?: ThriftPlusCartBlock | null;
 }
 
-/** Thrift+ at the register (thrift_plus_rewards Phase 3); from apps/thriftplus/services/register.py cart_block. */
+/** A receipt line's 3-day returns mark (W10, A3), frozen on the line at the sale. */
+export type ThriftPlusLineMark = '3-day return' | 'AS IS';
+
+/**
+ * Thrift+ at the register (10-14 register build, the 10-12 policy); from
+ * apps/thriftplus/services/register.py cart_block. Contract: workspace/register-contract.md.
+ * ThriftBucks amounts are numbers next to the word (never "$"); instant_off and credit are dollars.
+ */
 export interface ThriftPlusCartBlock {
   live: boolean;
   member: {
     account_id: number;
     person_id: number;
     name: string;
+    /** The receipt prints the first name only (owner 2026-10-14). Older servers: take it from ``name``. */
+    first_name?: string;
     role: 'primary' | 'secondary';
     photo_url: string | null;
     verified_18: boolean;
+    /** The member code's last 4. Never shown or printed: there is no Thrift+ card (owner 2026-10-14). */
     card_last4: string;
-    choice: 'instant' | 'bank';
+    practice: boolean;
+    /** 'bank' = Kept (the Default); 'instant' = redeemed instantly at the instant share. */
+    choice: 'bank' | 'instant';
     rering: boolean;
-    banked: string;
-    credit: string;
-    cover: { month: string; amount: string; covered: string; remaining: string; is_covered: boolean; resets_on: string };
   } | null;
-  credit_used?: string;
-  bank_used?: string;
+  /** False when Thrift+ credit and kept ThriftBucks leave nothing, or no member. */
+  instant_offered: boolean;
+  /** Why instant redemption is not offered ('' when it is). */
+  instant_reason: string;
+  /** "0.50" */
+  instant_share: string;
+  /** ThriftBucks this trip collects (full value), "35.00". */
+  collected: string;
+  /** ISO date: today's collected ThriftBucks are usable through this day (sale day + 30). */
+  use_by: string | null;
+  /** When choice=instant: the ThriftBucks redeemed; else "0.00". */
+  instant_bucks: string;
+  /** When choice=instant: dollars off today (the share, rounded up); else "0.00". */
+  instant_off: string;
+  /** Dollars off today if they choose instant: the server's figure, capped at what is left to pay. */
+  instant_offer?: string;
+  /** True unless the cashier tapped "Don't use ThriftBucks today". */
+  bucks_auto: boolean;
+  /** Kept ThriftBucks usable today (collected before today, not past use-by). */
+  bucks_available: string;
+  /** Kept ThriftBucks applied this trip (one pre-tax discount line, owned by the sync). */
+  bucks_used: string;
+  /** Thrift+ credit balance. */
+  credit_available: string;
+  /** Thrift+ credit applied (a payment after tax). */
+  credit_used: string;
+  /** The member's balances now (before this sale). */
+  balances: { bucks: string; bucks_use_by: string | null; credit: string };
+  /** Guests: "This trip would have collected 35.00 ThriftBucks." */
   guest_line: string;
-  totals: {
-    item_count: number;
-    price_total: string;
-    reward_total: string;
-    to_cover: string;
-    savings: string;
-    to_bank: string;
-    member_total: string;
-  };
-  lines: Record<string, { reward: string; to_cover: string; savings: string; to_bank: string }>;
+  /** Keyed by cart line id. */
+  lines: Record<string, { reward: string; savings: string; mark: ThriftPlusLineMark }>;
+  /** The cart's ThriftBucks discount line (no edit or delete at the register). */
+  bucks_line_id: number | null;
   restricted_line_ids: number[];
   /** Member lines of $100+ still without a serial and condition photo. */
   photo_line_ids?: number[];
-  /** The member's bank-or-instant answer in the scanner app (the register's alert). */
-  app_choice?: 'bank' | 'instant' | null;
+  /** total - credit_used */
   amount_due: string;
 }
 

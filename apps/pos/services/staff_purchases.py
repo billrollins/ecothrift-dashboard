@@ -1,6 +1,6 @@
-"""Staff purchases (owner, 2026-10-07): payroll deduction at the register, and Thrift+ free for staff.
+"""Staff purchases (owner, 2026-10-07): payroll deduction at the register.
 
-Both start switched off in the owner's setting ``pos.staff_purchases``.
+It starts switched off in the owner's setting ``pos.staff_purchases``.
 
 **Payroll deduction.** A staff member pays for a sale out of their next paycheck:
 
@@ -12,8 +12,7 @@ Both start switched off in the owner's setting ``pos.staff_purchases``.
 - Someone else rings it up (never your own sale), and an item has been on the floor for a day (``listed_at``).
 - Nothing goes in the drawer. Each pay period's list is entered in QuickBooks Payroll by hand, then marked entered.
 
-**Thrift+ free for staff.** A membership linked to an active staff member pays no monthly cover, so every reward is
-theirs (``apps.thriftplus.services.ledger.cover``).
+Thrift+ is free for every member since 10-12, so the setting no longer has a Thrift+ key.
 """
 from __future__ import annotations
 
@@ -25,8 +24,8 @@ from django.utils import timezone
 from apps.core.models import AppSetting, AppSettingHistory
 
 SETTING_KEY = 'pos.staff_purchases'
-DEFAULTS = {'payroll_deduction': False, 'payroll_max_percent': 25, 'thrift_plus_free': False}
-SETTING_DESCRIPTION = 'Staff purchases: payroll deduction at the register (cap: % of the last paycheck), and Thrift+ free for staff.'
+DEFAULTS = {'payroll_deduction': False, 'payroll_max_percent': 25}
+SETTING_DESCRIPTION = 'Staff purchases: payroll deduction at the register (cap: % of the last paycheck).'
 STAFF_ROLES = ('Employee', 'Manager', 'Admin')
 FLOOR_HOURS = 24
 ZERO = Decimal('0.00')
@@ -50,7 +49,7 @@ def settings_value() -> dict:
 def save_settings(raw: dict, *, user) -> dict:
     current = settings_value()
     new = dict(current)
-    for key in ('payroll_deduction', 'thrift_plus_free'):
+    for key in ('payroll_deduction',):
         if key in raw:
             new[key] = raw[key] in (True, 'true', '1', 1)
     if 'payroll_max_percent' in raw:
@@ -70,10 +69,6 @@ def save_settings(raw: dict, *, user) -> dict:
         row.save(update_fields=['value', 'updated_by', 'updated_at'])
         AppSettingHistory.objects.create(key=SETTING_KEY, old_value=old, new_value=new, changed_by=user)
     return new
-
-
-def thrift_plus_free_on() -> bool:
-    return bool(settings_value()['thrift_plus_free'])
 
 
 # ── Who and how much ────────────────────────────────────────────────────────
