@@ -327,6 +327,7 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
                 underneath={false}
                 flash={flash}
                 onWake={camera.wake}
+                onRestart={camera.restart}
                 onCode={(code) => handleCodeRef.current(code, 'typed')}
                 onHelp={() => setSheet('camera')}
                 typeOnly={typeOnly}

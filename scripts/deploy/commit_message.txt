@@ -1,14 +1,17 @@
-v2.172.2 — The receipt prints as one clean picture: a solid black Thrift+ block, ThriftBucks under every item, two test buttons in Settings
+v2.173.0 — Thrift+ on the store phones: Finalize installs as its own app with a Join QR and terms in a popup, ThriftBucks ready tomorrow, a scanner camera that fixes itself
 
-User-facing theme: **The receipt prints as one clean picture: a solid black Thrift+ block, the logo with the address and hours under it, ThriftBucks under every item, and two test buttons in Settings (Bill, 2026-10-16: "these printed SOOO ugly").** Print server 1.9.2 (Settings → Printing → Download on each register). Outside initiatives (POS).
+User-facing theme: **Thrift+ on the store phones: Finalize installs as its own app with a Join QR and terms in a popup, today's ThriftBucks read as ready tomorrow, and a scanner camera that fixes itself when it goes black (Bill, 2026-10-16).** Thrift+ Rewards.
+
+### Added
+- **Finalize Thrift+ as a home-screen app** (J13): dash.ecothrift.us/thriftplus/finalize installs like /scan, with its own name ("Finalize") and a dark icon, so a store phone can have both apps. It runs full screen, outside the Dash menu. Signing in from the app comes back to Finalize (`/login?next=`).
+- **Join QR on Finalize:** "Not joined yet? Show the Join QR" opens the ecothrift.us/join QR and address full screen, to show a customer.
+- **Restart the camera** on the scanner and on Finalize: a round button top right. A second tap within 10 seconds reloads the page.
 
 ### Changed
-- **Receipts (print server 1.9.2):** the whole receipt prints as one picture at the printer's width, so the black block is solid (1.9.1's white-on-black lines printed striped). The text tape prints instead if the picture ever fails.
-  - Under the logo: the address and store hours (no phone).
-  - Under every item, ThriftBucks first and the mark set apart: "+9.60 ThriftBucks ... 3-day return"; a non-member's "Join for +9.60 ThriftBucks ... 3-day return".
-  - The black block says this trip only, no balances: a member's "You collected 20.00 ThriftBucks, use by Nov 19" or "You used 35.00 ThriftBucks", and "You have 2 items that qualify for 3-day returns"; a non-member's "You missed out on 12.60 ThriftBucks and 1 item that qualifies for a 3-day return".
-  - A bigger Google review line; Thrift+ credit that paid part of the total is a payment row.
-- **The register** sends each line's ThriftBucks, and for a non-member whether the line would be a 3-day return for a member (`join_mark` on the Thrift+ cart lines).
-- **Settings → Printing:** two test buttons, Test member receipt and Test non-member receipt (the plain and training test receipts are gone).
+- **Finalize: the terms open in a popup** on the signing screen (the full terms, from the public site's copy). No link leaves the page. The phone's Back or a swipe only closes a popup; a pull-down doesn't reload; a long press opens no menu; a reload asks first part way through.
+- **Scanner app: ThriftBucks ready tomorrow morning** (B5). The pill, the balance and My account count only the ThriftBucks that work now, and show today's as "+4.50 tomorrow" or "ready tomorrow morning". Each of today's rows says "ready tomorrow morning". The register already spent only next-day ThriftBucks; nothing changes there.
+
+### Fixed
+- **Scanner camera going black:** the camera restarts by itself when the phone ends or mutes it, when no new frame comes for 3 seconds, or when a start hangs. It does this at most three times a minute; after that it shows "Tap to restart the camera".
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

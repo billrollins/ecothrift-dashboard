@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.172.2] -->
-<!-- Last reviewed: 2026-10-16 (2.172.2) -->
+<!-- Line 1 release: ## [2.173.0] -->
+<!-- Last reviewed: 2026-10-16 (2.173.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.173.0] - 2026-10-16
+
+User-facing theme: **Thrift+ on the store phones: Finalize installs as its own app with a Join QR and terms in a popup, today's ThriftBucks read as ready tomorrow, and a scanner camera that fixes itself when it goes black (Bill, 2026-10-16).** Thrift+ Rewards.
+
+### Added
+- **Finalize Thrift+ as a home-screen app** (J13): dash.ecothrift.us/thriftplus/finalize installs like /scan, with its own name ("Finalize") and a dark icon, so a store phone can have both apps. It runs full screen, outside the Dash menu. Signing in from the app comes back to Finalize (`/login?next=`).
+- **Join QR on Finalize:** "Not joined yet? Show the Join QR" opens the ecothrift.us/join QR and address full screen, to show a customer.
+- **Restart the camera** on the scanner and on Finalize: a round button top right. A second tap within 10 seconds reloads the page.
+
+### Changed
+- **Finalize: the terms open in a popup** on the signing screen (the full terms, from the public site's copy). No link leaves the page. The phone's Back or a swipe only closes a popup; a pull-down doesn't reload; a long press opens no menu; a reload asks first part way through.
+- **Scanner app: ThriftBucks ready tomorrow morning** (B5). The pill, the balance and My account count only the ThriftBucks that work now, and show today's as "+4.50 tomorrow" or "ready tomorrow morning". Each of today's rows says "ready tomorrow morning". The register already spent only next-day ThriftBucks; nothing changes there.
+
+### Fixed
+- **Scanner camera going black:** the camera restarts by itself when the phone ends or mutes it, when no new frame comes for 3 seconds, or when a start hangs. It does this at most three times a minute; after that it shows "Tap to restart the camera".
 
 ## [2.172.2] - 2026-10-16
 

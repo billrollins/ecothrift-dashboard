@@ -8,8 +8,8 @@ import { Box, ButtonBase, CircularProgress, InputBase } from '@mui/material';
 import type { ThriftPlusMember } from '../../../api/thriftPlusScanner.api';
 import { FieldBanner } from './ScannerTop';
 import { Field, Primary, Secondary, Sub, Title } from './signInParts';
-import { TbAmount } from '../../../components/thriftplus/ThriftBucks';
-import { money } from './scannerLogic';
+import { TbAmount, tbNumber } from '../../../components/thriftplus/ThriftBucks';
+import { bucksReady, money } from './scannerLogic';
 import { ThriftPlusLogo, sc, u } from './scannerTheme';
 import { useAccountActions, useMe, useConfirmReset } from './useThriftPlus';
 
@@ -203,6 +203,7 @@ export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }:
   const [confirm, setConfirm] = useState<{ kind: 'person'; id: number } | null>(null);
   const [err, setErr] = useState('');
   const data = me.data;
+  const ready = bucksReady(data?.banked ?? member.banked_rewards, data ? data.available : member.bucks_available);
   // Members sign in by email, with no password (owner 2026-10-15, J11, APP D9): an email session is never asked to set
   // one up or to sign in with one.
   const byEmail = member.session_kind === 'email';
@@ -259,7 +260,13 @@ export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }:
           <Box sx={{ display: 'flex', gap: u(30), mt: u(16) }}>
             <Box sx={{ flex: 1 }}>
               <Box sx={{ fontSize: u(27), color: sc.ink2 }}>Your ThriftBucks</Box>
-              <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(68), color: sc.priceGreen, lineHeight: 1.05 }}><TbAmount value={data?.banked ?? member.banked_rewards} bare /></Box>
+              <Box data-testid="account-bucks" sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(68), color: sc.priceGreen, lineHeight: 1.05 }}><TbAmount value={ready.now} bare /></Box>
+              {/* Today's wait for the morning (B5). */}
+              {ready.tomorrow > 0 && (
+                <Box data-testid="account-bucks-tomorrow" sx={{ fontSize: u(25), color: sc.ink2, mt: u(4) }}>
+                  {`+${tbNumber(ready.tomorrow)} ready tomorrow morning`}
+                </Box>
+              )}
             </Box>
             <Box sx={{ flex: 1 }}>
               <Box sx={{ fontSize: u(27), color: sc.ink2 }}>Thrift+ credit</Box>

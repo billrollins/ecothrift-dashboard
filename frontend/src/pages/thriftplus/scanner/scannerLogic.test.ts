@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ScanGate, classifyCode, money, monthName, parseTagCode, shortDate, wouldPayChoices } from './scannerLogic';
+import { ScanGate, classifyCode, money, monthName, parseTagCode, shortDate, wouldPayChoices, bucksReady } from './scannerLogic';
 
 describe('parseTagCode', () => {
   it('reads SKUs from tag QR payloads and barcodes', () => {
@@ -120,5 +120,17 @@ describe('text helpers', () => {
     expect(money(1999)).toBe('$19.99');
     expect(monthName('2026-09')).toBe('September');
     expect(shortDate('2026-10-01')).toBe('Oct 1');
+  });
+});
+
+describe("bucksReady (B5: today's ThriftBucks are ready tomorrow morning)", () => {
+  it('splits what works now from what was collected today', () => {
+    expect(bucksReady('12.50', '8.00')).toEqual({ now: 8, tomorrow: 4.5 });
+    expect(bucksReady('3.00', '3.00')).toEqual({ now: 3, tomorrow: 0 });
+    expect(bucksReady('2.00', '0.00')).toEqual({ now: 0, tomorrow: 2 });
+  });
+  it('reads all of it as ready when an older server sends no available amount', () => {
+    expect(bucksReady('5.25', undefined)).toEqual({ now: 5.25, tomorrow: 0 });
+    expect(bucksReady(undefined, undefined)).toEqual({ now: 0, tomorrow: 0 });
   });
 });

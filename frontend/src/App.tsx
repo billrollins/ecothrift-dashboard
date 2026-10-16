@@ -115,10 +115,10 @@ import OnlineSalesHoldsPage from './pages/online-sales/OnlineSalesHoldsPage';
 import OnlineSalesMessagesPage from './pages/online-sales/OnlineSalesMessagesPage';
 import AnnouncementsPage from './pages/announcements/AnnouncementsPage';
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function ProtectedRoute({ children, next }: { children: React.ReactNode; next?: string }) {
   const { isAuthenticated, isLoading } = useAuth();
   if (isLoading) return <LoadingScreen message="Loading..." />;
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!isAuthenticated) return <Navigate to={next ? `/login?next=${encodeURIComponent(next)}` : '/login'} replace />;
   return <>{children}</>;
 }
 
@@ -338,15 +338,6 @@ export default function App() {
         <Route path="/pos/cash" element={<CashManagementPage />} />
         <Route path="/pos/transactions" element={<TransactionListPage />} />
         <Route path="/pos/printables" element={<PosPrintablesPage />} />
-        {/* Finalize Thrift+ on a phone beside the cashier (owner 2026-10-16): staff, Employee and up. */}
-        <Route
-          path="/thriftplus/finalize"
-          element={
-            <Suspense fallback={<LoadingScreen message="Loading…" />}>
-              <FinalizeThriftPlusPage />
-            </Suspense>
-          }
-        />
         <Route path="/pos/deliveries" element={<DeliveriesEntryRedirect />} />
         <Route path="/pos/deliveries/schedule" element={<DeliveriesEntryRedirect page="schedule" />} />
         <Route path="/pos/deliveries/table" element={<DeliveriesEntryRedirect page="table" />} />
@@ -691,6 +682,21 @@ export default function App() {
                 <BlogStudioPage />
               </Suspense>
             </SuperAdminRoute>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Finalize Thrift+ on a store phone (owner 2026-10-16, J13): staff, Employee and up. Full screen, outside MainLayout,
+          so it installs as its own home-screen app and a customer holding the phone can't wander into Dash. */}
+      <Route
+        path="/thriftplus/finalize"
+        element={
+          <ProtectedRoute next="/thriftplus/finalize">
+            <StaffRoute>
+              <Suspense fallback={<LoadingScreen message="Loading…" />}>
+                <FinalizeThriftPlusPage />
+              </Suspense>
+            </StaffRoute>
           </ProtectedRoute>
         }
       />

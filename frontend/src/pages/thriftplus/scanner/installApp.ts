@@ -62,6 +62,14 @@ export function canInstall(): 'prompt' | 'ios' | null {
 
 /** Put the manifest and the iPhone tags in the head; returns how to take them out again. */
 export function installScannerHead(): () => void {
+  return installAppHead({ manifest: '/scan/manifest.webmanifest', icon: '/scan/icons/apple-touch-icon.png', title: 'Thrift+', theme: '#237a26' });
+}
+
+/**
+ * The same for any page that installs as its own home-screen app: the scanner, and Finalize Thrift+ on the store phones
+ * (owner 2026-10-16, J13).
+ */
+export function installAppHead({ manifest, icon, title, theme }: { manifest: string; icon: string; title: string; theme: string }): () => void {
   const added: HTMLElement[] = [];
   const add = (tag: 'link' | 'meta', attrs: Record<string, string>) => {
     const el = document.createElement(tag);
@@ -70,11 +78,11 @@ export function installScannerHead(): () => void {
     document.head.appendChild(el);
     added.push(el);
   };
-  add('link', { rel: 'manifest', href: '/scan/manifest.webmanifest' });
-  add('link', { rel: 'apple-touch-icon', href: '/scan/icons/apple-touch-icon.png' });
-  add('meta', { name: 'apple-mobile-web-app-title', content: 'Thrift+' });
+  add('link', { rel: 'manifest', href: manifest });
+  add('link', { rel: 'apple-touch-icon', href: icon });
+  add('meta', { name: 'apple-mobile-web-app-title', content: title });
   add('meta', { name: 'apple-mobile-web-app-capable', content: 'yes' });
   add('meta', { name: 'mobile-web-app-capable', content: 'yes' });
-  add('meta', { name: 'theme-color', content: '#237a26' });
+  add('meta', { name: 'theme-color', content: theme });
   return () => added.forEach((el) => el.remove());
 }

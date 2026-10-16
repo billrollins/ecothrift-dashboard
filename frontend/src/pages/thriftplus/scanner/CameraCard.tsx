@@ -4,6 +4,7 @@ import { Box, ButtonBase, CircularProgress, InputBase } from '@mui/material';
 import KeyboardRounded from '@mui/icons-material/KeyboardRounded';
 import NoPhotographyRounded from '@mui/icons-material/NoPhotographyRounded';
 import PhotoCameraRounded from '@mui/icons-material/PhotoCameraRounded';
+import RefreshRounded from '@mui/icons-material/RefreshRounded';
 import { fetchTestTags } from '../../../api/thriftPlusScanner.api';
 import { tbNumber } from '../../../components/thriftplus/ThriftBucks';
 import { activeLevel, chipText, onLevel, pinchZoom, zoomText } from './cameraZoom';
@@ -24,6 +25,11 @@ interface Props {
   /** Brief green flash on the viewfinder when a code is read. */
   flash: boolean;
   onWake: () => void;
+  /**
+   * Start the camera again (owner 2026-10-16): the round button top right, any time. Tapped again within
+   * HARD_RESTART_MS (the restart didn't bring the picture back), the page reloads: the fix that always works.
+   */
+  onRestart?: () => void;
   /** Typed tag number or a sample tag. */
   onCode: (code: string) => void;
   /** "Camera not working?" help (the popup grows from the link). */
@@ -35,6 +41,9 @@ interface Props {
   /** A sideways phone: the camera fills the whole screen, edge to edge (APP D16 v2). */
   fullBleed?: boolean;
 }
+
+/** A second tap on Restart within this long reloads the page. */
+export const HARD_RESTART_MS = 10_000;
 
 /** The camera's card face: the design's white card, green edge. */
 const cardFaceSx = {
@@ -51,9 +60,19 @@ const cardFaceSx = {
  * The bottom card of the stack: the live camera. It never unmounts, so when an
  * item card is swiped away the scanner is already running underneath.
  */
-export function CameraCard({ videoRef, status, error, zoom = null, switching = false, underneath, flash, onWake, onCode, onHelp, typeOnly = false,
+export function CameraCard({ videoRef, status, error, zoom = null, switching = false, underneath, flash, onWake, onRestart, onCode, onHelp, typeOnly = false,
   lock = null, fullBleed = false }: Props) {
   const [typing, setTyping] = useState(false);
+  const lastRestart = useRef(0);
+  const restart = () => {
+    const now = Date.now();
+    if (now - lastRestart.current < HARD_RESTART_MS) {
+      window.location.reload();
+      return;
+    }
+    lastRestart.current = now;
+    (onRestart ?? onWake)();
+  };
   const [typed, setTyped] = useState('');
   const noCamera = !typeOnly && (status === 'unsupported' || status === 'blocked');
   // Test mode: pick a tag from a short list (owner 2026-10-10). If the list can't load, type one instead.
@@ -184,6 +203,13 @@ export function CameraCard({ videoRef, status, error, zoom = null, switching = f
             <Box sx={{ fontSize: u(28), opacity: 0.75, mt: u(6) }}>The camera rests after 5 quiet minutes.</Box>
           </ButtonBase>
         )}
+        {status === 'stalled' && (
+          <ButtonBase onClick={restart} data-testid="camera-stalled" sx={{ pointerEvents: 'auto', flexDirection: 'column', borderRadius: u(30), p: u(40) }}>
+            <RefreshRounded sx={{ fontSize: u(120) }} />
+            <Box sx={{ mt: u(12), fontSize: u(44), fontWeight: 700 }}>Tap to restart the camera</Box>
+            <Box sx={{ fontSize: u(28), opacity: 0.75, mt: u(6) }}>The picture stopped.</Box>
+          </ButtonBase>
+        )}
         {noCamera && (
           <Box sx={{ pointerEvents: 'auto', mb: u(160) }}>
             <NoPhotographyRounded sx={{ fontSize: u(96), opacity: 0.8 }} />
@@ -207,6 +233,25 @@ export function CameraCard({ videoRef, status, error, zoom = null, switching = f
         <Box sx={{ position: 'absolute', top: u(24), left: u(24), zIndex: 2 }}>
           <LockUprightButton lock={lock} />
         </Box>
+      )}
+
+      {/* Restart the camera (owner 2026-10-16): top right, any time the picture is black or stuck. */}
+      {!underneath && !typeOnly && status !== 'unsupported' && (
+        <ButtonBase
+          onClick={(e) => {
+            e.stopPropagation();
+            restart();
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          data-testid="camera-restart"
+          aria-label="Restart the camera"
+          sx={{
+            position: 'absolute', top: u(24), right: u(24), zIndex: 2, width: 40, height: 40, borderRadius: 99,
+            bgcolor: 'rgba(16,21,17,0.55)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', backdropFilter: 'blur(6px)',
+          }}
+        >
+          <RefreshRounded sx={{ fontSize: 24 }} />
+        </ButtonBase>
       )}
 
       {/* Type a tag number (sample tags live here too while this is a mock). */}

@@ -16,9 +16,21 @@ import {
 /**
  * off: not started. starting: asking for the camera. live: decoding.
  * resting: stopped after the idle timeout (tap to wake). blocked: permission or
- * hardware error. unsupported: no camera API (or not HTTPS).
+ * hardware error. unsupported: no camera API (or not HTTPS). stalled: the picture
+ * froze or went black and restarting it by itself didn't help (tap to restart).
  */
-export type CameraStatus = 'off' | 'starting' | 'live' | 'resting' | 'blocked' | 'unsupported';
+export type CameraStatus = 'off' | 'starting' | 'live' | 'resting' | 'blocked' | 'unsupported' | 'stalled';
+
+/**
+ * A black or frozen camera (owner 2026-10-16): no new frame for this long while the page is on screen, a track the
+ * phone ended or muted, or a start that never finishes, and the camera restarts by itself.
+ */
+export const STALL_MS = 3000;
+const START_TIMEOUT_MS = 10_000;
+const MUTE_GRACE_MS = 1500;
+/** At most this many restarts by itself a minute; then it asks for a tap ("stalled"). */
+const MAX_HEALS = 3;
+const HEAL_WINDOW_MS = 60_000;
 
 /**
  * Price tags are QR; Code 128 covers older barcode tags. EAN-13, EAN-8, UPC-A and UPC-E are read only so a product
@@ -188,6 +200,8 @@ export function useQrCamera({
   const zoomInfoRef = useRef<ZoomInfo | null>(null);
   const lensRef = useRef<Lens>(lens);
   const applying = useRef<{ busy: boolean; next: number | null }>({ busy: false, next: null });
+  const heals = useRef<number[]>([]);
+  const [stalled, setStalled] = useState(false);
   pausedRef.current = paused;
   onDecodeRef.current = onDecode;
   zoomInfoRef.current = zoomInfo;
@@ -208,9 +222,23 @@ export function useQrCamera({
 
   const wake = useCallback(() => {
     setResting(false);
+    setStalled(false);
+    heals.current = [];
     setAttempt((n) => n + 1);
     poke();
   }, [poke]);
+
+  /** The camera went black or froze: start it again, a few times a minute at most, then wait for a tap. */
+  const heal = useCallback(() => {
+    const now = Date.now();
+    heals.current = heals.current.filter((t) => now - t < HEAL_WINDOW_MS);
+    if (heals.current.length >= MAX_HEALS) {
+      setStalled(true);
+      return;
+    }
+    heals.current.push(now);
+    setAttempt((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     poke();
@@ -278,11 +306,11 @@ export function useQrCamera({
     [applyNative],
   );
 
-  const active = enabled && visible && !resting;
+  const active = enabled && visible && !resting && !stalled;
 
   useEffect(() => {
     if (!active) {
-      setStatus(resting && enabled ? 'resting' : 'off');
+      setStatus(stalled && enabled ? 'stalled' : resting && enabled ? 'resting' : 'off');
       setSwitching(false);
       return;
     }
@@ -295,11 +323,30 @@ export function useQrCamera({
     let stream: MediaStream | null = null;
     let frameHandle: number | null = null;
     let usedVfc = false;
+    let watchdog: number | null = null;
+    let startTimer: number | null = null;
+    let muteTimer: number | null = null;
+    let detachTrack: (() => void) | null = null;
+    let liveYet = false;
+    const clearTimers = () => {
+      if (watchdog != null) window.clearInterval(watchdog);
+      if (startTimer != null) window.clearTimeout(startTimer);
+      if (muteTimer != null) window.clearTimeout(muteTimer);
+      watchdog = startTimer = muteTimer = null;
+    };
+    const healNow = () => {
+      if (cancelled || document.visibilityState === 'hidden') return;
+      clearTimers();
+      heal();
+    };
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const teleId = lens === 'tele' ? savedTele() : null;
 
     const stop = () => {
+      clearTimers();
+      detachTrack?.();
+      detachTrack = null;
       const v = videoRef.current as VideoWithFrameCallback | null;
       if (frameHandle != null) {
         if (usedVfc && v?.cancelVideoFrameCallback) v.cancelVideoFrameCallback(frameHandle);
@@ -346,6 +393,13 @@ export function useQrCamera({
     const start = async () => {
       setStatus('starting');
       setError('');
+      // A start that hangs (a phone back from the lock screen can leave the camera request waiting forever) is tried
+      // again, but only once the camera is allowed: never while the browser is asking permission.
+      void navigator.permissions?.query?.({ name: 'camera' as PermissionName })
+        .then((p) => {
+          if (p.state === 'granted' && !cancelled && !liveYet) startTimer = window.setTimeout(healNow, START_TIMEOUT_MS);
+        })
+        .catch(() => undefined);
       try {
         // Ask for the camera and warm the decoder at the same time.
         const loading = loadDetector();
@@ -380,10 +434,46 @@ export function useQrCamera({
         el.setAttribute('playsinline', 'true');
         await el.play();
         if (cancelled) return;
+        liveYet = true;
+        if (startTimer != null) window.clearTimeout(startTimer);
+        startTimer = null;
         setUpZoom(track);
         setDecoder(loaded.kind);
         setStatus('live');
         setSwitching(false);
+
+        // The phone ends or mutes the camera (another app, a call, the lock screen): start again. A mute that lifts
+        // by itself within a moment is left alone.
+        const onEnded = () => healNow();
+        const onMute = () => {
+          if (muteTimer != null) window.clearTimeout(muteTimer);
+          muteTimer = window.setTimeout(() => {
+            if (track?.muted) healNow();
+          }, MUTE_GRACE_MS);
+        };
+        track?.addEventListener?.('ended', onEnded);
+        track?.addEventListener?.('mute', onMute);
+        detachTrack = () => {
+          track?.removeEventListener?.('ended', onEnded);
+          track?.removeEventListener?.('mute', onMute);
+        };
+
+        // A black or frozen picture: no new frame for STALL_MS while the camera is on screen and in use (an item card
+        // on top pauses the count). A paused video is played first.
+        let lastTime = -1;
+        let lastFrameAt = Date.now();
+        const sawFrame = () => {
+          lastFrameAt = Date.now();
+        };
+        watchdog = window.setInterval(() => {
+          if (cancelled) return;
+          if (document.visibilityState === 'hidden' || pausedRef.current) {
+            lastFrameAt = Date.now();
+            return;
+          }
+          if (el.paused) void el.play().catch(() => undefined);
+          if (track?.readyState === 'ended' || Date.now() - lastFrameAt > STALL_MS) healNow();
+        }, 1000);
 
         let busy = false;
         const schedule = () => {
@@ -397,6 +487,11 @@ export function useQrCamera({
         };
         const onFrame = () => {
           if (cancelled) return;
+          // A frame callback is a new frame; an animation frame counts only when the picture moved on.
+          if (usedVfc || el.currentTime !== lastTime) {
+            lastTime = el.currentTime;
+            if (el.readyState >= 2 && el.videoWidth > 0) sawFrame();
+          }
           if (!busy && !pausedRef.current && el.readyState >= 2 && el.videoWidth > 0) {
             busy = true;
             void decodeOnce(el, loaded.detector, loaded.kind)
@@ -447,11 +542,11 @@ export function useQrCamera({
     };
     // `applyNative` is stable; the lens is read once per start.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, attempt, enabled, resting, lens]);
+  }, [active, attempt, enabled, resting, lens, stalled]);
 
   const zoom: CameraZoom | null = zoomInfo
     ? { kind: zoomInfo.kind, levels: zoomInfo.levels, range: zoomInfo.range, value: zoomValue, digital, set: setZoom }
     : null;
 
-  return { videoRef, status, error, decoder, wake, poke, zoom, switching };
+  return { videoRef, status, error, decoder, wake, restart: wake, poke, zoom, switching };
 }

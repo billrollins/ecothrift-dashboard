@@ -25,7 +25,7 @@ import { toCents, type PriceFeelReason, type ThriftPlusItemCard, type ThriftPlus
 import { getMyCard, type MyCard } from '../../../api/thriftPlusScanner.api';
 import { tbNumber } from '../../../components/thriftplus/ThriftBucks';
 import { FieldBanner } from './ScannerTop';
-import { money, wouldPayChoices } from './scannerLogic';
+import { bucksReady, money, wouldPayChoices } from './scannerLogic';
 import { ThriftPlusLogo, art, sc, u } from './scannerTheme';
 import { canInstall, installPrompt, isStandalone } from './installApp';
 import { BigButton, Sheet } from './tripUi';
@@ -83,6 +83,7 @@ export function TripHeader({ member, onAbout, onWallet, onBalance, onSignIn }: {
 }) {
   const shell = { position: 'absolute', right: u(30), top: u(42), height: u(116), borderRadius: 99, bgcolor: '#fff',
     boxShadow: '0 4px 14px rgba(0,0,0,0.16)', fontFamily: sc.font, whiteSpace: 'nowrap' } as const;
+  const ready = bucksReady(member?.banked_rewards, member?.bucks_available);
   return (
     <FieldBanner>
       <Box sx={{ position: 'relative', width: u(900), height: '100%', mx: 'auto' }}>
@@ -95,12 +96,15 @@ export function TripHeader({ member, onAbout, onWallet, onBalance, onSignIn }: {
         {member ? (
           <Box sx={{ ...shell, display: 'flex', alignItems: 'stretch', overflow: 'hidden' }}>
             <ButtonBase onClick={onBalance} data-testid="wallet-pill"
-              aria-label={`Your ThriftBucks: ${tbNumber(member.banked_rewards)}. See your balance`}
+              aria-label={`Your ThriftBucks: ${tbNumber(ready.now)} ready to use${ready.tomorrow ? `, ${tbNumber(ready.tomorrow)} more tomorrow morning` : ''}. See your balance`}
               sx={{ pl: u(30), pr: u(18), display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center' }}>
               <Box component="span" sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(46), lineHeight: 1.05, color: '#1f6b27' }}>
-                {tbNumber(member.banked_rewards)}
+                {tbNumber(ready.now)}
               </Box>
-              <Box component="span" sx={{ fontWeight: 600, fontSize: u(24), color: '#5d605a' }}>ThriftBucks</Box>
+              {/* Today's ThriftBucks wait for the morning (B5): the pill counts only what works now. */}
+              <Box component="span" data-testid="wallet-pill-label" sx={{ fontWeight: 600, fontSize: u(24), color: '#5d605a' }}>
+                {ready.tomorrow ? `+${tbNumber(ready.tomorrow)} tomorrow` : 'ThriftBucks'}
+              </Box>
             </ButtonBase>
             {/* The QR's hit area is the pill's whole right end, about 54 x 50 px (APP D11). */}
             <ButtonBase onClick={onWallet} data-testid="qr-pill" aria-label="Member QR: show it at the register"
@@ -308,13 +312,18 @@ export function BalanceSheet({ member, tripTotal, onClose, onAccount, onSignOut,
   const me = useMe();
   const lots = me.data?.rewards ?? [];
   const credit = me.data?.credit ?? member.credit_balance;
+  const ready = bucksReady(me.data?.banked ?? member.banked_rewards, me.data ? me.data.available : member.bucks_available);
   const rows = [
     ...(toCents(credit) > 0
       ? [{ what: 'Thrift+ credit', amount: money(credit), note: 'From a return. Always used first. Never expires.', credit: true }]
       : []),
     ...lots.map((l) => ({
       what: 'ThriftBucks', amount: tbNumber(l.amount), credit: false,
-      note: l.past_due ? `Use by ${day(l.use_by)} (past its date)` : `Collected ${day(l.earned_on)} · use by ${day(l.use_by)}`,
+      note: l.past_due
+        ? `Use by ${day(l.use_by)} (past its date)`
+        : l.usable === false
+          ? `Collected ${day(l.earned_on)} · ready tomorrow morning · use by ${day(l.use_by)}`
+          : `Collected ${day(l.earned_on)} · use by ${day(l.use_by)}`,
     })),
   ];
   const link = { fontSize: u(28), color: sc.ink2, textDecoration: 'underline', px: u(16), py: u(10), borderRadius: u(12), fontFamily: sc.font } as const;
@@ -322,9 +331,14 @@ export function BalanceSheet({ member, tripTotal, onClose, onAccount, onSignOut,
     <Sheet onClose={onClose} testId="balance-sheet">
       <Box sx={{ fontSize: u(26), color: sc.ink2, letterSpacing: '0.14em', textTransform: 'uppercase', pr: u(90) }}>Your ThriftBucks</Box>
       <Box sx={{ display: 'flex', alignItems: 'baseline', gap: u(14), mt: u(6) }}>
-        <Box sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(110), lineHeight: 1, color: sc.priceGreen }}>{tbNumber(member.banked_rewards)}</Box>
+        <Box data-testid="balance-ready" sx={{ fontFamily: sc.condensed, fontWeight: 700, fontSize: u(110), lineHeight: 1, color: sc.priceGreen }}>{tbNumber(ready.now)}</Box>
         <Box sx={{ fontSize: u(30), color: sc.ink2 }}>ready to use</Box>
       </Box>
+      {ready.tomorrow > 0 && (
+        <Box data-testid="balance-tomorrow" sx={{ fontSize: u(30), color: sc.ink2, mt: u(8) }}>
+          Plus <Box component="span" sx={{ fontWeight: 800, color: sc.priceGreen }}>{tbNumber(ready.tomorrow)}</Box> ThriftBucks from today, ready tomorrow morning.
+        </Box>
+      )}
       {toCents(credit) > 0 && (
         <Box sx={{ fontSize: u(28), color: sc.ink2, mt: u(8) }}>
           Plus <Box component="span" sx={{ fontWeight: 800, color: sc.ink }}>{money(credit)}</Box> Thrift+ credit.
@@ -335,7 +349,7 @@ export function BalanceSheet({ member, tripTotal, onClose, onAccount, onSignOut,
       {me.isLoading ? (
         <Box sx={{ py: u(30), textAlign: 'center' }}><CircularProgress size={28} sx={{ color: sc.green }} /></Box>
       ) : rows.length === 0 ? (
-        <Box sx={{ mt: u(16), fontSize: u(28), color: sc.ink3 }}>Nothing yet. ThriftBucks you collect show up here the next day.</Box>
+        <Box sx={{ mt: u(16), fontSize: u(28), color: sc.ink3 }}>Nothing yet. ThriftBucks you collect are ready the next morning.</Box>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: u(14), mt: u(16) }}>
           {rows.map((r, i) => (

@@ -85,8 +85,10 @@ export interface ThriftPlusMember {
   card_last4: string | null;
   /** ID checked at signup; required for 18+ items and returns. */
   verified_18: boolean;
-  /** Kept ThriftBucks (a number, never "$"). */
+  /** Kept ThriftBucks (a number, never "$"): all of them, today's too. */
   banked_rewards: Money;
+  /** The part usable today (B5): today's ThriftBucks are ready tomorrow morning. Missing on older servers. */
+  bucks_available?: Money;
   /** Thrift+ credit (dollars, from 3-day returns). */
   credit_balance: Money;
   /** How this session signed in: an emailed link or code (owner 2026-10-15, J11), a password, or an old card session. */
@@ -434,6 +436,7 @@ function readSession(): ThriftPlusSession {
       card_last4: ready ? '4821' : null,
       verified_18: ready,
       banked_rewards: ready ? '27.50' : '0.00',
+      bucks_available: ready ? '27.50' : '0.00',
       credit_balance: '0.00',
       ready,
       email_verified: true,

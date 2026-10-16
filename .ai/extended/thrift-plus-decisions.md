@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-10-15 (owner: P11 settled, kept ThriftBucks may pay for a not-found item; DKIM and DMARC done; P10; note A) -->
+<!-- Last updated: 2026-10-16 (owner: J13 Finalize app on the store phones; B5 app shows today's ThriftBucks as ready tomorrow morning) -->
 # Thrift+ rulebook
 
 **The one place for every Thrift+ rule.** Form 5 is chosen: rewards first, as store credit. Code follows this file. It is the single source of truth: the old rulebook page, launch kit page and warranty review page are retired (10-09); the only page kept is the final forms grid. Owner answers are folded in here. Items marked "CPA / attorney" carry our answer and wait for their sign-off. Older notes (the 10-01 list, the legal memo, the warranty review, the launch kit) lose wherever they differ.
@@ -72,6 +72,9 @@
 - **J12. Joining with no email** (Decided 10-15). A shopper with no email joins **at the register** with their phone, ID and photo, and collects and uses everything there. The app comes once they add an email: staff can add it at the register, and the link is sent.
   - Source: Owner 10-15 in the master chat. Built: v2.167.0 (register sign-up; Dash "Send sign-in link" when an email is added later).
 
+- **J13. Finalize on a store phone** (Decided 10-16). Staff finish online joins at dash.ecothrift.us/thriftplus/finalize, on a store phone carried around the floor. It installs as its own home-screen app ("Finalize", dark icon), beside the Thrift+ scanner, so a cashier has both. It runs full screen with no Dash menu. It shows a **Join QR with ecothrift.us/join**, for a customer who hasn't joined. The **terms open in a popup** on the signing screen, never a link. A customer holding the phone can't leave the page: the phone's Back or a swipe only closes a popup, a pull-down doesn't reload, a long press opens no menu, and a reload asks first while someone is part way through.
+  - Customer words (Join QR): "Join Thrift+. Scan this with your phone's camera." and "ecothrift.us/join".
+  - Source: Owner 10-16 in chat ("SIMPLE and hard for customer to exit out of easily (back, click url, click link, swipe)"). Built: [Unreleased] (after v2.172.2).
 ## ThriftBucks and prices
 
 *What members collect, and how it moves.*
@@ -127,7 +130,8 @@
   - Source: Follows your 30 days, 10-08. Built: n/a.
 - **B5. Expiry, fees and cash** (Decided). Kept ThriftBucks can be used from the day after the sale through day 30 after it (sale + 1 to sale + 30), then they expire. Only an instant redemption is used on the trip that collected them. Thrift+ credit (refunds) never expires: it is money the member paid. No fees. ThriftBucks have no cash value; Thrift+ credit is not redeemable for cash, except the returns' cash fallback (W3) and where the law requires.
   - Customer words: "35.00 ThriftBucks. Use by Nov 19. ThriftBucks have no cash value."
-  - Source: Your picks 10-08 (replaces "never expires"). Built: No.
+  - **Ready tomorrow morning** (owner 10-16): a trip's ThriftBucks work from midnight that night (store time), never the same day. The register already spends only those (code: `ledger.NEXT_DAY_REASONS`). The app's balance counts only what works now, and adds "+4.50 tomorrow" or "ready tomorrow morning" for today's (pill, balance, My account). Receipts print no balance (10-16).
+  - Source: Your picks 10-08 (replaces "never expires"). Built: the next-day rule in the ledger; the app's words [Unreleased] (after v2.172.2).
 - **B13. Seeing it, and a reminder** (Decided). My account lists each saved amount with its use-by date, soonest first, and the refund credit apart. Members with an email get one reminder 5 days before rewards expire (after launch).
   - Source: Your picks 10-08; reminder by Claude. Built: No.
 - **B6. Names** (Decided). "ThriftBucks" for kept rewards (V8); "Thrift+ credit" only for refund money. Never "gift card", "store credit" or "Thrift+ Cash" to members.

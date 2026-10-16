@@ -395,15 +395,17 @@ export async function sendPriceFeel(sku: string, feel: PriceFeel): Promise<void>
 // ── The portal ──────────────────────────────────────────────────────────────
 
 export interface ThriftPlusMe {
-  /** Kept ThriftBucks (a number, never "$"). */
+  /** Kept ThriftBucks (a number, never "$"): all of them, today's too. */
   banked: string;
+  /** The part usable today (B5); today's are ready tomorrow morning. */
+  available?: string;
   /** Thrift+ credit (dollars). */
   credit: string;
   people: { id: number; first_name: string; role: 'primary' | 'secondary'; verified_18: boolean; is_you: boolean; cards: { id: number; last4: string; status: string }[] }[];
   /** Recent ThriftBucks ('bank') and Thrift+ credit rows. Older servers may send retired kinds; the screen skips them. */
   money: { kind: 'bank' | 'credit' | string; amount: string; reason: string; created_at: string }[];
   /** Kept ThriftBucks in the order they are used: soonest use-by first (Thrift+ credit is `credit`, used before these). */
-  rewards?: { amount: string; earned_on: string; use_by: string; past_due: boolean }[];
+  rewards?: { amount: string; earned_on: string; use_by: string; past_due: boolean; usable_from?: string; usable?: boolean }[];
   /** False for an old card session: changes need the email and password. */
   can_change: boolean;
   /** Your email (T74): receipts and updates follow the address; store news can be turned off. */

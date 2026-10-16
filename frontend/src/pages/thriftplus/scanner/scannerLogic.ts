@@ -159,3 +159,15 @@ export class ScanGate {
     this.slides = false;
   }
 }
+
+/**
+ * ThriftBucks that work now, and the ones that work tomorrow morning (owner 2026-10-16, B5: what a trip collects is
+ * used from the next day, never the same day). An older server sends no `available`: then all of it reads as ready.
+ */
+export function bucksReady(total: Money | number | undefined, available: Money | number | null | undefined): { now: number; tomorrow: number } {
+  const all = Number(total) || 0;
+  if (available == null || available === '') return { now: all, tomorrow: 0 };
+  const now = Math.min(all, Number(available) || 0);
+  const tomorrow = Math.round((all - now) * 100) / 100;
+  return { now, tomorrow: tomorrow >= 0.005 ? tomorrow : 0 };
+}

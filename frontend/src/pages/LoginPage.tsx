@@ -1,5 +1,5 @@
 import { lazy, Suspense, useRef, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import logoImg from '../assets/logo-full-360x120.png';
 import {
   Box,
@@ -17,9 +17,15 @@ import { useKioskLang } from './kiosk/kioskLang';
 /** Card scanning is the door tablet's code. Keep it out of the sign-in bundle. */
 const LoginScan = lazy(() => import('./LoginScan'));
 
+/** Where to go after signing in: `?next=` when it is a page of this site (the Finalize app, J13), else the dashboard. */
+export function loginNext(next: string | null): string {
+  return next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/login') ? next : '/dashboard';
+}
+
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +46,7 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await login(email, password);
-      navigate('/dashboard', { replace: true });
+      navigate(loginNext(searchParams.get('next')), { replace: true });
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { detail?: string } } };
       const detail = axiosErr?.response?.data?.detail;

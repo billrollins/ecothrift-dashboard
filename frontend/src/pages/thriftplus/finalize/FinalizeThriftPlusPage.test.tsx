@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import type { ThriftPendingPerson } from '../../../api/thriftplusRegister.api';
 import { isThriftCardCode } from '../../../utils/thriftPlusCard';
 import FinalizeThriftPlusPage, { SIGNATURE_WORDS, codeMemberMessage } from './FinalizeThriftPlusPage';
@@ -18,7 +19,7 @@ vi.mock('../scanner/useQrCamera', () => ({
   useQrCamera: (opts: { enabled: boolean; onDecode: (raw: string) => void }) => {
     camera.onDecode = opts.onDecode;
     camera.enabled = opts.enabled;
-    return { videoRef: { current: null }, status: 'live', error: '', decoder: 'native', wake: vi.fn(), poke: vi.fn(), zoom: null, switching: false };
+    return { videoRef: { current: null }, status: 'live', error: '', decoder: 'native', wake: vi.fn(), restart: vi.fn(), poke: vi.fn(), zoom: null, switching: false };
   },
 }));
 
@@ -48,6 +49,10 @@ beforeEach(() => {
 
 type User = ReturnType<typeof userEvent.setup>;
 
+function renderPage() {
+  return render(<MemoryRouter><FinalizeThriftPlusPage /></MemoryRouter>);
+}
+
 function sign() {
   const pad = screen.getByTestId('thrift-signature-pad');
   fireEvent.pointerDown(pad, { pointerId: 1, clientX: 10, clientY: 10 });
@@ -71,7 +76,7 @@ describe('Finalize Thrift+', () => {
   it('scans the member QR with the phone camera and goes to the phone number', async () => {
     const user = userEvent.setup();
     expect(isThriftCardCode(CODE)).toBe(true);
-    render(<FinalizeThriftPlusPage />);
+    renderPage();
     await user.click(screen.getByRole('button', { name: 'Scan their member QR' }));
     expect(camera.enabled).toBe(true);
     await act(async () => camera.onDecode?.(`TP${CODE}`));
@@ -82,7 +87,7 @@ describe('Finalize Thrift+', () => {
 
   it('tells the cashier when the QR is already an active member, and ignores codes that are not member QRs', async () => {
     const user = userEvent.setup();
-    render(<FinalizeThriftPlusPage />);
+    renderPage();
     await user.click(screen.getByRole('button', { name: 'Scan their member QR' }));
     await act(async () => camera.onDecode?.('ITM12345'));
     expect(screen.getByTestId('finalize-find-note')).toHaveTextContent("That's not a member QR.");
@@ -95,7 +100,7 @@ describe('Finalize Thrift+', () => {
 
   it('searches by name, reads the phone back, needs the ID check and the signature, then finishes', async () => {
     const user = userEvent.setup();
-    render(<FinalizeThriftPlusPage />);
+    renderPage();
     expect(await screen.findByText('Cara Joyner')).toBeInTheDocument(); // the newest joins first
     await user.type(screen.getByLabelText('Name or email'), 'joyner{Enter}');
     expect(api.findPendingOrMember).toHaveBeenLastCalledWith('joyner');
@@ -110,7 +115,13 @@ describe('Finalize Thrift+', () => {
 
     // The signature under the J5 words: Finish waits for it.
     expect(screen.getByTestId('finalize-sign-words')).toHaveTextContent(SIGNATURE_WORDS);
-    expect(screen.getByRole('link', { name: 'ecothrift.us/terms' })).toHaveAttribute('href', 'https://ecothrift.us/terms');
+    // The terms open in a popup on this screen (J13): no link anywhere that leaves the page.
+    expect(screen.queryAllByRole('link')).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: 'Read the terms' }));
+    expect(await screen.findByTestId('finalize-terms')).toHaveTextContent('3-day returns');
+    expect(screen.getByTestId('finalize-terms').querySelectorAll('a')).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: 'Back to signing' }));
+    await waitFor(() => expect(screen.queryByTestId('finalize-terms')).not.toBeInTheDocument());
     const finish = screen.getByRole('button', { name: 'Finish' });
     expect(finish).toBeDisabled();
     sign();
@@ -138,7 +149,7 @@ describe('Finalize Thrift+', () => {
     api.finishThriftJoin.mockRejectedValueOnce({
       response: { data: { code: 'PHONE_TAKEN', detail: 'That phone number is on another membership. Check the ID and ask a manager.' } },
     });
-    render(<FinalizeThriftPlusPage />);
+    renderPage();
     await user.click(await screen.findByText('Cara Joyner'));
     await throughPhoneAndId(user);
     await user.click(screen.getByRole('button', { name: 'No photo today' }));
@@ -147,5 +158,37 @@ describe('Finalize Thrift+', () => {
     expect(await screen.findByTestId('finalize-phone-error')).toHaveTextContent('That phone number is on another membership.');
     expect(screen.getByLabelText('Phone number')).toBeInTheDocument();
     await waitFor(() => expect(api.finishThriftJoin.mock.calls[0][0].photo).toBeNull());
+  });
+
+  it('shows the Join QR and ecothrift.us/join full screen for a customer who has not joined', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Not joined yet? Show the Join QR' }));
+    expect(await screen.findByTestId('finalize-join-url')).toHaveTextContent('ecothrift.us/join');
+    expect(screen.getByRole('img', { name: 'QR code for ecothrift.us/join' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(screen.queryByTestId('finalize-join-sheet')).not.toBeInTheDocument());
+  });
+
+  it("the phone's Back closes a popup and never leaves the page", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Not joined yet? Show the Join QR' }));
+    await screen.findByTestId('finalize-join-sheet');
+    const entries = window.history.length;
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await waitFor(() => expect(screen.queryByTestId('finalize-join-sheet')).not.toBeInTheDocument());
+    expect(screen.getByTestId('finalize-thriftplus')).toBeInTheDocument();
+    expect(window.history.length).toBe(entries + 1); // the guard entry is put back
+  });
+
+  it('puts the Finalize app manifest in the head (installs beside the scanner)', async () => {
+    const { unmount } = renderPage();
+    await screen.findByText('Cara Joyner');
+    expect(document.head.querySelector('link[rel="manifest"]')).toHaveAttribute('href', '/finalize/manifest.webmanifest');
+    unmount();
+    expect(document.head.querySelector('link[rel="manifest"]')).toBeNull();
   });
 });
