@@ -1060,7 +1060,19 @@ def _cart_block(cart, member: CartMember | None, live: bool) -> dict:
         t = trip.totals(trip_lines(item_lines), member=False, choice=None, share=share)
         block['instant_reason'] = 'No Thrift+ member on this sale.'
         block['guest_line'] = trip.guest_line(t)
-        block['lines'] = {s.key: {'reward': _money(s.collected), 'savings': '0.00', 'mark': MARK_AS_IS} for s in t.lines}
+        # A non-member's lines are all AS IS; ``join_mark`` is what the line would be for a member, so the receipt can
+        # say "Join for: 3-day return · +9.60 ThriftBucks" (owner 2026-10-16).
+        by_key = {str(l.pk): l for l in item_lines}
+        rules_ = guide()
+        block['lines'] = {}
+        for s in t.lines:
+            line = by_key.get(str(s.key))
+            join_mark = MARK_AS_IS
+            if line is not None:
+                join_mark, _ = mark_for(line.item, price=line_price(line),
+                                        reward=(s.collected / (line.quantity or 1)).quantize(CENT), rules=rules_)
+            block['lines'][s.key] = {'reward': _money(s.collected), 'savings': '0.00', 'mark': MARK_AS_IS,
+                                     'join_mark': join_mark}
         return block
 
     account = member.account

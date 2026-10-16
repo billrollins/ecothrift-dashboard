@@ -188,10 +188,14 @@ describe('Thrift+ on the receipt (the 10-12 policy)', () => {
     const guestLine = 'This trip would have collected 35.00 ThriftBucks.';
     const data = buildReceiptData(cart({
       lines: [lamp, pinkTag, delivery],
-      thrift_plus: block({ member: null, guest_line: guestLine, bucks_used: '0.00', credit_used: '0.00', bucks_line_id: null }),
+      thrift_plus: block({
+        member: null, guest_line: guestLine, bucks_used: '0.00', credit_used: '0.00', bucks_line_id: null,
+        lines: { '7': { reward: '35.00', savings: '0.00', mark: 'AS IS', join_mark: '3-day return' } },
+      }),
     }));
     expect(data.items).toEqual([
-      { name: 'Brass lamp', quantity: 1, unit_price: 80, line_total: 80, mark: 'AS IS' },
+      // What joining would have given: "Join for: 3-day return · +35.00 ThriftBucks" (print server 1.9.2).
+      { name: 'Brass lamp', quantity: 1, unit_price: 80, line_total: 80, mark: 'AS IS', bucks: 35, join_mark: '3-day return' },
       { name: 'Pink tag', quantity: 1, unit_price: 2, line_total: 2, mark: 'AS IS' },
       { name: 'Delivery', quantity: 1, unit_price: 50, line_total: 50 },
     ]);
@@ -209,8 +213,8 @@ describe('Thrift+ on the receipt (the 10-12 policy)', () => {
   it("gives a member each line's mark, leaves the ThriftBucks line out of the items, and sends the B14 numbers", () => {
     const data = buildReceiptData(cart({ lines: [lamp, sweater, pinkTag, bucksLine], thrift_plus: block() }));
     expect(data.items).toEqual([
-      { name: 'Brass lamp', quantity: 1, unit_price: 80, line_total: 80, mark: '3-day return' },
-      { name: 'Wool sweater', quantity: 1, unit_price: 5, line_total: 5, mark: 'AS IS' },
+      { name: 'Brass lamp', quantity: 1, unit_price: 80, line_total: 80, mark: '3-day return', bucks: 35 },
+      { name: 'Wool sweater', quantity: 1, unit_price: 5, line_total: 5, mark: 'AS IS' }, // no ThriftBucks: none sent
       { name: 'Pink tag', quantity: 1, unit_price: 2, line_total: 2, mark: 'AS IS' },
     ]);
     expect(data.thrift_plus).toEqual({

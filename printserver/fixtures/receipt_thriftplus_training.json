@@ -10,14 +10,16 @@
       "quantity": 1,
       "unit_price": 45.0,
       "line_total": 45.0,
-      "mark": "3-day return"
+      "mark": "3-day return",
+      "bucks": 27.0
     },
     {
       "name": "Lamp shade",
       "quantity": 1,
       "unit_price": 7.5,
       "line_total": 7.5,
-      "mark": "AS IS"
+      "mark": "AS IS",
+      "bucks": 8.0
     }
   ],
   "savings": {

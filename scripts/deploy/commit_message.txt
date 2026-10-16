@@ -1,12 +1,14 @@
-v2.172.1 — A cleaner receipt: everything Thrift+ in one black block at the bottom, one small Google review line above it
+v2.172.2 — The receipt prints as one clean picture: a solid black Thrift+ block, ThriftBucks under every item, two test buttons in Settings
 
-User-facing theme: **A cleaner receipt: everything Thrift+ in one black block at the bottom, and one small Google review line above it (Bill, 2026-10-16: "it is SOOOO busy").** Print server 1.9.1 (live in Settings → Printing; each register installs it from Download). Outside initiatives (POS).
+User-facing theme: **The receipt prints as one clean picture: a solid black Thrift+ block, the logo with the address and hours under it, ThriftBucks under every item, and two test buttons in Settings (Bill, 2026-10-16: "these printed SOOO ugly").** Print server 1.9.2 (Settings → Printing → Download on each register). Outside initiatives (POS).
 
 ### Changed
-- **Receipts (print server 1.9.1):** the black block at the bottom of the tape (printed white on black) says:
-  - for a member: THRIFT+ MEMBER and the first name, this trip's ThriftBucks (collected with the use-by date, or redeemed instantly, plus ThriftBucks used), Thrift+ credit used, the balances, and "SOLD AS IS unless marked 3-day return above", then the 3-day returns and B12 lines in small type;
-  - for a non-member: NON-MEMBER, "You missed 12.60 ThriftBucks today", how to join free, and "All sales final. Sold AS IS.";
-  - with Thrift+ off: the NO REFUNDS block as before.
-- **Google review:** one small line right above the block ("Google review: 5% off your next visit, max $5"). The framed coupon and its fine print are gone, and so are the Thrift+ lines after payment, the non-member line under the items and the big THANK YOU.
+- **Receipts (print server 1.9.2):** the whole receipt prints as one picture at the printer's width, so the black block is solid (1.9.1's white-on-black lines printed striped). The text tape prints instead if the picture ever fails.
+  - Under the logo: the address and store hours (no phone).
+  - Under every item, ThriftBucks first and the mark set apart: "+9.60 ThriftBucks ... 3-day return"; a non-member's "Join for +9.60 ThriftBucks ... 3-day return".
+  - The black block says this trip only, no balances: a member's "You collected 20.00 ThriftBucks, use by Nov 19" or "You used 35.00 ThriftBucks", and "You have 2 items that qualify for 3-day returns"; a non-member's "You missed out on 12.60 ThriftBucks and 1 item that qualifies for a 3-day return".
+  - A bigger Google review line; Thrift+ credit that paid part of the total is a payment row.
+- **The register** sends each line's ThriftBucks, and for a non-member whether the line would be a 3-day return for a member (`join_mark` on the Thrift+ cart lines).
+- **Settings → Printing:** two test buttons, Test member receipt and Test non-member receipt (the plain and training test receipts are gone).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

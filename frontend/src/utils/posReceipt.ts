@@ -47,17 +47,28 @@ function markFor(cart: Cart, line: CartLine): ThriftPlusLineMark | undefined {
 
 /**
  * The receipt's items. While Thrift+ is dark: exactly as before. With Thrift+: each merchandise line carries
- * its mark, and the ThriftBucks discount line is left out (it prints as "ThriftBucks used" above Subtotal).
+ * its mark and its ThriftBucks (`bucks`); a non-member's line also carries `join_mark`, what it would be for a
+ * member (print server 1.9.2: "Join for: 3-day return · +9.60 ThriftBucks"). The ThriftBucks discount line is
+ * left out (it prints as "ThriftBucks used" above Subtotal).
  */
 export function receiptItemsFromCart(cart: Cart) {
   const lines = cart.lines ?? [];
-  if (!cart.thrift_plus) return lines.map(receiptLineFromCartLine);
+  const block = cart.thrift_plus;
+  if (!block) return lines.map(receiptLineFromCartLine);
   return lines
     .filter((line) => !isBucksLine(cart, line))
     .map((line) => {
       const item = receiptLineFromCartLine(line);
       const mark = markFor(cart, line);
-      return mark ? { ...item, mark } : item;
+      if (!mark) return item;
+      const info = block.lines?.[String(line.id)];
+      const bucks = num(info?.reward);
+      return {
+        ...item,
+        mark,
+        ...(bucks > 0 ? { bucks } : {}),
+        ...(!block.member && info?.join_mark ? { join_mark: info.join_mark } : {}),
+      };
     });
 }
 

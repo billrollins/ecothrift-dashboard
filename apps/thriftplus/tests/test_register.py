@@ -147,6 +147,8 @@ class RegisterTests(RegisterBase):
         cart = self._cart()
         self.assertEqual(cart['thrift_plus']['guest_line'], 'This trip would have collected 35.00 ThriftBucks.')
         self.assertEqual(cart['thrift_plus']['lines'][str(cart['lines'][0]['id'])]['mark'], 'AS IS')  # guests: all AS IS
+        # ...and each line says what it would be for a member (the receipt's "Join for:" line, owner 2026-10-16).
+        self.assertIn(cart['thrift_plus']['lines'][str(cart['lines'][0]['id'])]['join_mark'], ('3-day return', 'AS IS'))
         data = self._attach(cart['id']).json()
         tp = data['thrift_plus']
         self.assertEqual(data['total'], '85.60')  # kept (the Default): pay $85.60

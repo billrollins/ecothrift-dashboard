@@ -57,7 +57,7 @@ RECEIPT_POLICY_PNG_SUB = "ALL SALES FINAL — TEST BEFORE YOU BUY"
 # collected, OR missed for non-members, and a quick note AS IS unless noted above").
 BLOCK_HEAD_MEMBER = "THRIFT+ MEMBER"
 BLOCK_HEAD_NON_MEMBER = "NON-MEMBER"
-BLOCK_AS_IS_MEMBER = "SOLD AS IS unless marked 3-day return above"
+BLOCK_AS_IS_MEMBER = "SOLD AS IS unless marked 3-day return"
 BLOCK_JOIN = "Join free at the register or ecothrift.us/join"
 
 # Thrift+ block words (V2/V4/V8, B2, B5, B12, W1). ThriftBucks are numbers next to their label,
@@ -259,20 +259,43 @@ def _non_member_as_is(data: dict[str, Any]) -> str:
 _MISSED = re.compile(r"(\d[\d,]*\.\d{2}) ThriftBucks")
 
 
-def _missed_line(data: dict[str, Any]) -> str:
-    """ "You missed 12.60 ThriftBucks today": what membership would have collected on this trip, from the
-    dashboard's ``guest_line`` ("This trip would have collected 12.60 ThriftBucks."). Nothing to miss, nothing
-    printed; a line without a number prints as sent."""
+def _missed_bucks(data: dict[str, Any]) -> str:
+    """What membership would have collected on this trip ("12.60"), from the dashboard's ``guest_line`` ("This trip
+    would have collected 12.60 ThriftBucks."); "" when there is nothing to miss."""
     tp = _tp(data) or {}
-    guest_line = str(tp.get("guest_line") or "").strip()
-    if not guest_line:
+    m = _MISSED.search(str(tp.get("guest_line") or ""))
+    if not m or (_as_money(m.group(1).replace(",", "")) or 0) <= 0:
         return ""
-    m = _MISSED.search(guest_line)
-    if not m:
-        return guest_line[:200]
-    if (_as_money(m.group(1).replace(",", "")) or 0) <= 0:
-        return ""
-    return f"You missed {m.group(1)} ThriftBucks today"
+    return m.group(1)
+
+
+def _is_return_mark(value: Any) -> bool:
+    return str(value or "").strip().lower() in ("3-day return", "3-day returns", "3 day return")
+
+
+def _return_items(data: dict[str, Any]) -> int | None:
+    """How many items (by quantity) qualify for 3-day returns: a member's lines marked 3-day return, or for a
+    non-member the lines that would be (``join_mark``). None when a non-member's payload has no ``join_mark`` (an
+    older dashboard): the count is unknown, so it is not printed."""
+    items = [it for it in (data.get("items") or []) if isinstance(it, dict)]
+    if _is_member_receipt(data):
+        key = "mark"
+    else:
+        key = "join_mark"
+        if not any(key in it for it in items):
+            return None
+    count = 0
+    for it in items:
+        if _is_return_mark(it.get(key)):
+            try:
+                count += max(1, int(it.get("quantity") or 1))
+            except (TypeError, ValueError):
+                count += 1
+    return count
+
+
+def _items_word(n: int) -> str:
+    return "1 item" if n == 1 else f"{n} items"
 
 
 def _tp_amount(tp: dict[str, Any] | None, key: str) -> float:
@@ -315,6 +338,31 @@ def _item_mark(item: dict[str, Any], data: dict[str, Any]) -> str:
     return ""
 
 
+def _item_subparts(item: dict[str, Any], data: dict[str, Any]) -> tuple[str, str]:
+    """The line under each item, in two parts (owner 2026-10-16: "ThriftBucks first ... separate ThriftBucks from the
+    AS IS or Return note"): (ThriftBucks, the mark).
+    - a member: ("+9.60 ThriftBucks", "3-day return") or ("+1.60 ThriftBucks", "AS IS"); the mark alone when the
+      dashboard sends no ``bucks``;
+    - a non-member: what joining would have given, ("Join for +9.60 ThriftBucks", "3-day return"); a line that would
+      be AS IS anyway shows only its ThriftBucks.
+    ThriftBucks are a number next to the word, never "$"."""
+    if _tp(data) is None or not isinstance(item, dict):
+        return ("", "")
+    bucks = _as_money(item.get("bucks")) or 0.0
+    bucks_text = f"+{_tb(bucks)} ThriftBucks" if bucks > 0 else ""
+    if _is_member_receipt(data):
+        return (bucks_text, _item_mark(item, data))
+    mark = MARK_3_DAY_RETURN if _is_return_mark(item.get("join_mark")) else ""
+    if not bucks_text and not mark:
+        return ("", "")
+    return ((f"Join for {bucks_text}" if bucks_text else "Join for:"), mark)
+
+
+def _item_subline(item: dict[str, Any], data: dict[str, Any]) -> str:
+    """The sub-line as one line of text (the text tape): "+9.60 ThriftBucks | 3-day return"."""
+    return " | ".join(part for part in _item_subparts(item, data) if part)
+
+
 def _comma_lines(text: str, width: int = W) -> list[str]:
     """Split a Thrift+ line at ", " when it is wider than the tape, so "$17.50 off" or "use by Nov 19" never
     wraps apart. The continuation is indented two spaces."""
@@ -349,25 +397,32 @@ def _bucks_used_row(data: dict[str, Any]) -> tuple[str, str] | None:
 
 def _bottom_block(data: dict[str, Any]) -> tuple[str, list[tuple[str, bool]], list[str]]:
     """The black block at the bottom of every receipt (owner 2026-10-16): (head, lines as (text, bold), fine print).
+    No balances (owner: "do not say anything about balance").
 
-    - A member: "THRIFT+ MEMBER Pat" (the first name, or the words alone; no card, no last 4); this trip's
-      ThriftBucks ("ThriftBucks collected 20.00, use by Nov 19", or "Redeemed instantly: 35.00 ThriftBucks, $17.50
-      off"; "ThriftBucks used 35.00" when kept ThriftBucks paid); Thrift+ credit used; the balances; "SOLD AS IS
-      unless marked 3-day return above"; then small: the 3-day returns line and B12 word for word.
-    - A non-member: "NON-MEMBER", "You missed 12.60 ThriftBucks today", how to join, "All sales final. Sold AS IS."
+    - A member: "THRIFT+ MEMBER Pat" (the first name, or the words alone; no card, no last 4); "You collected 20.00
+      ThriftBucks, use by Nov 19" and/or "You used 35.00 ThriftBucks" (or "You used 35.00 ThriftBucks instantly:
+      $17.50 off"); "You have 2 items that qualify for 3-day returns"; "SOLD AS IS unless marked 3-day return"; then
+      B12 word for word in small type.
+    - A non-member: "NON-MEMBER", "You missed out on 12.60 ThriftBucks and 1 item that qualifies for a 3-day return",
+      how to join, "All sales final. Sold AS IS."
     - No Thrift+ on the payload (Thrift+ off, an old dashboard): the NO REFUNDS block as before.
 
-    ThriftBucks are numbers next to their label (never "$"); credit and the instant redemption are dollars.
-    The pre-10-12 shape (cover, ``banked``) prints only what still holds (the member head and the balances).
+    "Collected", never "earned" (V2: a receipt never says "earn").
     """
     tp = _tp(data)
     if tp is None:
         return (RECEIPT_POLICY_PNG_HEADLINE, [(RECEIPT_POLICY_PNG_SUB, True)], list(RECEIPT_POLICY_LINES))
+    returns = _return_items(data)
     if not _is_member_receipt(data):
         lines: list[tuple[str, bool]] = []
-        missed = _missed_line(data)
+        missed = _missed_bucks(data)
+        parts = []
         if missed:
-            lines.append((missed, True))
+            parts.append(f"{missed} ThriftBucks")
+        if returns:
+            parts.append(f"{_items_word(returns)} that {'qualifies' if returns == 1 else 'qualify'} for a 3-day return")
+        if parts:
+            lines.append(("You missed out on " + " and ".join(parts), True))
         lines.append((BLOCK_JOIN, False))
         lines.append((_non_member_as_is(data), True))
         return (BLOCK_HEAD_NON_MEMBER, lines, [])
@@ -375,46 +430,33 @@ def _bottom_block(data: dict[str, Any]) -> tuple[str, list[tuple[str, bool]], li
     member = _tp_member(data)
     head = f"{BLOCK_HEAD_MEMBER} {member}" if member else BLOCK_HEAD_MEMBER
     lines = []
-
     instant_off = _tp_amount(tp, "instant_off")
     instant_bucks = _tp_amount(tp, "instant_bucks")
     collected = _tp_amount(tp, "collected")
-    if instant_off > 0 or instant_bucks > 0:
-        parts = []
-        if instant_bucks > 0:
-            parts.append(f"{_tb(instant_bucks)} ThriftBucks")
+    used = _tp_amount(tp, "bucks_used")
+    if instant_off > 0 or instant_bucks > 0:  # one choice per trip (B1): redeemed instantly, nothing kept
+        text = f"You used {_tb(instant_bucks)} ThriftBucks instantly" if instant_bucks > 0 else "You used ThriftBucks instantly"
         if instant_off > 0:
-            parts.append(f"${instant_off:.2f} off")
-        lines.append(("Redeemed instantly: " + ", ".join(parts), True))
+            text += f": ${instant_off:.2f} off"
+        lines.append((text, True))
     elif collected > 0:
         use_by = _use_by(tp.get("use_by"))
-        lines.append((f"ThriftBucks collected {_tb(collected)}" + (f", use by {use_by}" if use_by else ""), True))
-    used = _tp_amount(tp, "bucks_used")
+        lines.append((f"You collected {_tb(collected)} ThriftBucks" + (f", use by {use_by}" if use_by else ""), True))
     if used > 0:
-        lines.append((f"ThriftBucks used {_tb(used)}", True))
-    credit_used = _tp_amount(tp, "credit_used")
-    if credit_used > 0:
-        lines.append((f"Thrift+ credit used ${credit_used:.2f}", False))
-
-    balances = tp.get("balances")
-    if isinstance(balances, dict):
-        bucks_bal = _as_money(balances.get("bucks"))
-        bucks_use_by = _use_by(balances.get("bucks_use_by"))
-        credit_bal = _as_money(balances.get("credit"))
-    else:  # pre-10-12 shape: flat ``banked`` / ``credit``
-        bucks_bal = _as_money(tp.get("banked"))
-        bucks_use_by = ""
-        credit_bal = _as_money(tp.get("credit"))
-    if bucks_bal is not None:
-        line = f"Your ThriftBucks {_tb(bucks_bal)}"
-        if bucks_bal > 0 and bucks_use_by:
-            line += f", use by {bucks_use_by}"
-        lines.append((line, False))
-    if credit_bal is not None and credit_bal > 0:
-        lines.append((f"Your Thrift+ credit ${credit_bal:.2f}", False))
-
+        lines.append((f"You used {_tb(used)} ThriftBucks", True))
+    if returns:
+        lines.append((f"You have {_items_word(returns)} that {'qualifies' if returns == 1 else 'qualify'} for 3-day returns", False))
     lines.append((BLOCK_AS_IS_MEMBER, True))
-    return (head, lines, [THRIFT_PLUS_RETURNS_LINE, THRIFT_PLUS_TERMS_LINE])
+    # B12 word for word: every member receipt carries it (legal memo; there is no card to print it on).
+    return (head, lines, [THRIFT_PLUS_TERMS_LINE])
+
+
+def _credit_paid_row(data: dict[str, Any]) -> tuple[str, str] | None:
+    """Thrift+ credit that paid part of a member's total, a payment row ("Thrift+ credit  $40.00")."""
+    if not _is_member_receipt(data):
+        return None
+    paid = _tp_amount(_tp(data), "credit_used")
+    return ("Thrift+ credit", f"${paid:.2f}") if paid > 0 else None
 
 
 def _block_text_lines(text: str) -> list[str]:
@@ -481,7 +523,19 @@ RECEIPT_WEBSITE = "ecothrift.us"
 RECEIPT_REVIEW_LINE = "Google review: 5% off your next visit, max $5"
 
 def format_receipt(data: dict[str, Any]) -> bytes:
-    """Build a complete ESC/POS byte stream from receipt_data.
+    """The print job for a sale: the receipt as one picture (``receipt_raster``, 1.9.2), or the text tape if drawing
+    it fails for any reason (a sale's receipt must always print)."""
+    try:
+        from services.receipt_raster import receipt_escpos
+
+        return receipt_escpos(data)
+    except Exception:  # noqa: BLE001
+        logger.exception("Receipt picture failed; printing the text tape")
+        return format_receipt_tape(data)
+
+
+def format_receipt_tape(data: dict[str, Any]) -> bytes:
+    """The text tape (the fallback): a complete ESC/POS byte stream from receipt_data.
 
     Header is the hardcoded storefront (name, tagline, address, phone, hours).
     Sale payload may only supply lines, totals, and payment — never branding.
@@ -518,7 +572,6 @@ def format_receipt(data: dict[str, Any]) -> bytes:
     buf += _line()
     for part in RECEIPT_STORE_ADDRESS:
         buf += _line(part)
-    buf += _line(RECEIPT_STORE_PHONE)
     buf += _line()
     buf += BOLD_ON + _line("STORE HOURS") + BOLD_OFF
     for part in RECEIPT_STORE_HOURS:
@@ -549,9 +602,9 @@ def format_receipt(data: dict[str, Any]) -> bytes:
             buf += _lr(f"  {qty} x ${unit:.2f}", f"${total:.2f}")
         else:
             buf += _lr(name, f"${total:.2f}")
-        mark = _item_mark(item, data)
-        if mark:
-            buf += FONT_SMALL + _line(f"    {mark}") + NORMAL
+        sub = _item_subline(item, data)
+        if sub:
+            buf += FONT_SMALL + b"".join(_line(f"    {ln}") for ln in _wrap_chars(sub, W - 4)) + NORMAL
 
     buf += _separator()
 
@@ -587,33 +640,24 @@ def format_receipt(data: dict[str, Any]) -> bytes:
         buf += _lr("Tendered", f"${data['amount_tendered']:.2f}")
     if data.get("change") is not None:
         buf += _lr("Change", f"${data['change']:.2f}")
+    credit = _credit_paid_row(data)
+    if credit:
+        buf += _lr(*credit)
     emit_rows(_card_payment_rows(data))
     buf += _separator("=")
 
-    # --- Footer: thanks, the one-line review note, then the black block (GS B: white on black) ---
+    # --- Footer: thanks, the review line, then the block between two heavy rules ---
     buf += CENTER + _line(RECEIPT_FOOTER)
-    buf += FONT_SMALL + _line(RECEIPT_REVIEW_LINE) + NORMAL
-    buf += LEFT
-
-    def rev(text: str = "", *, bold: bool = False, tall: bool = False) -> bytes:
-        body = _encode(_ascii(text)[:W].center(W))
-        style = (BOLD_ON if bold else b"") + (DOUBLE_HEIGHT if tall else b"")
-        return REVERSE_ON + style + body + NORMAL + BOLD_OFF + REVERSE_OFF + b"\n"
-
+    buf += BOLD_ON + _line(RECEIPT_REVIEW_LINE) + BOLD_OFF
+    buf += LEFT + _separator("=")
     head, block_lines, fine = _bottom_block(data)
-    buf += rev()
-    for ln in _wrap_chars(head):
-        buf += rev(ln, bold=True, tall=True)
-    buf += rev()
+    buf += CENTER + BOLD_ON + DOUBLE_HEIGHT + b"".join(_line(ln) for ln in _wrap_chars(head)) + NORMAL + BOLD_OFF
     for text, bold in block_lines:
-        for ln in _block_text_lines(text):
-            buf += rev(ln, bold=bold)
-    if fine:
-        buf += rev()
-        for text in fine:
-            for ln in _wrap_chars(text):
-                buf += rev(ln)
-    buf += rev()
+        body = b"".join(_line(ln) for ln in _block_text_lines(text))
+        buf += (BOLD_ON + body + BOLD_OFF) if bold else body
+    for text in fine:
+        buf += FONT_SMALL + b"".join(_line(ln) for ln in _wrap_chars(text)) + NORMAL
+    buf += LEFT + _separator("=")
 
     if training:
         buf += _line()
@@ -729,9 +773,9 @@ def format_receipt_text(data: dict[str, Any]) -> str:
             lines.append(_txt_lr(f"  {qty} x ${unit:.2f}", f"${total:.2f}"))
         else:
             lines.append(_txt_lr(name, f"${total:.2f}"))
-        mark = _item_mark(item, data)
-        if mark:
-            lines.append(f"    {mark}")
+        sub = _item_subline(item, data)
+        if sub:
+            lines.extend(f"    {ln}" for ln in _wrap_chars(sub, W - 4))
 
     lines.append("-" * W)
 
@@ -761,6 +805,9 @@ def format_receipt_text(data: dict[str, Any]) -> str:
         lines.append(_txt_lr("Tendered", f"${data['amount_tendered']:.2f}"))
     if data.get("change") is not None:
         lines.append(_txt_lr("Change", f"${data['change']:.2f}"))
+    credit = _credit_paid_row(data)
+    if credit:
+        lines.append(_txt_lr(*credit))
     emit_rows(_card_payment_rows(data))
 
     lines.append("=" * W)
@@ -1184,10 +1231,10 @@ def render_receipt_to_image(
                     draw.text((x1 - pw, y), price_s, font=f_money, fill=t["text"])
                 y += _text_h(f_item) + max(1, S)
             y += 6 * S
-        mark = _item_mark(item, data)
-        if mark:
+        sub = _item_subline(item, data)
+        if sub:
             y -= 4 * S
-            draw.text((x0 + 14 * S, y), mark, font=f_small, fill=t["muted"])
+            draw.text((x0 + 14 * S, y), sub, font=f_small, fill=t["muted"])
             y += _text_h(f_small) + 6 * S
 
     draw.line([x0, y, x1, y], fill=t["rule"], width=lw1)

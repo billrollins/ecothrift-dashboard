@@ -304,7 +304,8 @@ export interface ThriftPlusCartBlock {
   /** Guests: "This trip would have collected 35.00 ThriftBucks." */
   guest_line: string;
   /** Keyed by cart line id. */
-  lines: Record<string, { reward: string; savings: string; mark: ThriftPlusLineMark }>;
+  /** Per line: ThriftBucks, savings and the mark; a non-member's line also says what it would be for a member. */
+  lines: Record<string, { reward: string; savings: string; mark: ThriftPlusLineMark; join_mark?: ThriftPlusLineMark }>;
   /** The cart's ThriftBucks discount line (no edit or delete at the register). */
   bucks_line_id: number | null;
   restricted_line_ids: number[];

@@ -9,22 +9,35 @@
       "quantity": 1,
       "unit_price": 48.0,
       "line_total": 48.0,
-      "mark": "AS IS"
+      "mark": "AS IS",
+      "bucks": 9.6,
+      "join_mark": "3-day return"
+    },
+    {
+      "name": "Coffee mugs",
+      "quantity": 3,
+      "unit_price": 4.0,
+      "line_total": 12.0,
+      "mark": "AS IS",
+      "bucks": 2.4,
+      "join_mark": "AS IS"
     },
     {
       "name": "Paperback novel",
       "quantity": 2,
       "unit_price": 1.5,
       "line_total": 3.0,
-      "mark": "AS IS"
+      "mark": "AS IS",
+      "bucks": 0.6,
+      "join_mark": "AS IS"
     }
   ],
-  "subtotal": 51.0,
-  "tax": 3.57,
-  "total": 54.57,
+  "subtotal": 63.0,
+  "tax": 4.41,
+  "total": 67.41,
   "payment_method": "Cash",
-  "amount_tendered": 60.0,
-  "change": 5.43,
+  "amount_tendered": 70.0,
+  "change": 2.59,
   "thrift_plus": {
     "guest_all_as_is": true,
     "guest_line": "This trip would have collected 12.60 ThriftBucks.",

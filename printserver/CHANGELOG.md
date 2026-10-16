@@ -5,6 +5,27 @@ Ship: `.ai/protocols/ship-print-server.md`. Script: `python printserver/distribu
 
 ---
 
+## [1.9.2] — 2026-10-16 (install on every register: REG-01, REG-02, TRAIN)
+
+Owner 2026-10-16: 1.9.1's black block printed striped (the printer leaves a white strip between white-on-black
+text lines). New design.
+
+### Changed
+- **The receipt prints as one picture** at the printer's width (576 dots, ESC/POS `GS v 0` in 128-row bands): a
+  solid black block, the logo at the top, the same layout as the preview. If drawing it fails for any reason the
+  text tape prints instead (`format_receipt_tape`), so a sale's receipt always prints.
+- **Under the logo:** the address and store hours (the logo says the name; no phone, owner 2026-10-16).
+- **A sub-line under every item, ThriftBucks first:** `+9.60 ThriftBucks` on the left and the mark (`3-day
+  return` or `AS IS`) in bold on the right; a non-member's reads `Join for +9.60 ThriftBucks` and `3-day return`
+  when the line would be one for a member (from the line's `bucks` and `join_mark`; an older dashboard's payload
+  prints the mark alone).
+- **The block says this trip, no balances:** a member's `You collected 20.00 ThriftBucks, use by Nov 19` and/or
+  `You used 35.00 ThriftBucks` (or `You used 35.00 ThriftBucks instantly: $17.50 off`), `You have 2 items that
+  qualify for 3-day returns`, `SOLD AS IS unless marked 3-day return`, and the B12 line in small type; a
+  non-member's `You missed out on 12.60 ThriftBucks and 1 item that qualifies for a 3-day return`. Thrift+ credit
+  that paid part of the total is a payment row. The 3-day returns explanation line is gone.
+- **Google review line:** bigger and bold, still one line.
+
 ## [1.9.1] — 2026-10-16 (install on every register: REG-01, REG-02, TRAIN)
 
 Owner 2026-10-16: the receipt was too busy. Everything Thrift+ moves into one black block at the bottom.

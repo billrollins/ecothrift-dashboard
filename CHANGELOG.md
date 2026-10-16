@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.172.1] -->
-<!-- Last reviewed: 2026-10-16 (2.172.1) -->
+<!-- Line 1 release: ## [2.172.2] -->
+<!-- Last reviewed: 2026-10-16 (2.172.2) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.172.2] - 2026-10-16
+
+User-facing theme: **The receipt prints as one clean picture: a solid black Thrift+ block, the logo with the address and hours under it, ThriftBucks under every item, and two test buttons in Settings (Bill, 2026-10-16: "these printed SOOO ugly").** Print server 1.9.2 (Settings → Printing → Download on each register). Outside initiatives (POS).
+
+### Changed
+- **Receipts (print server 1.9.2):** the whole receipt prints as one picture at the printer's width, so the black block is solid (1.9.1's white-on-black lines printed striped). The text tape prints instead if the picture ever fails.
+  - Under the logo: the address and store hours (no phone).
+  - Under every item, ThriftBucks first and the mark set apart: "+9.60 ThriftBucks ... 3-day return"; a non-member's "Join for +9.60 ThriftBucks ... 3-day return".
+  - The black block says this trip only, no balances: a member's "You collected 20.00 ThriftBucks, use by Nov 19" or "You used 35.00 ThriftBucks", and "You have 2 items that qualify for 3-day returns"; a non-member's "You missed out on 12.60 ThriftBucks and 1 item that qualifies for a 3-day return".
+  - A bigger Google review line; Thrift+ credit that paid part of the total is a payment row.
+- **The register** sends each line's ThriftBucks, and for a non-member whether the line would be a 3-day return for a member (`join_mark` on the Thrift+ cart lines).
+- **Settings → Printing:** two test buttons, Test member receipt and Test non-member receipt (the plain and training test receipts are gone).
 
 ## [2.172.1] - 2026-10-16
 

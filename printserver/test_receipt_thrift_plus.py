@@ -26,7 +26,7 @@ def _fixture(name: str) -> dict:
 
 
 def _escpos_text(data: dict) -> str:
-    raw = rp.format_receipt(data).replace(rp.INIT, b"")
+    raw = rp.format_receipt_tape(data).replace(rp.INIT, b"")
     raw = re.sub(rb"\x1b[!aEdM-][\x00-\xff]", b"", raw)
     raw = re.sub(rb"\x1d[BV][\x00-\xff]", b"", raw)
     return raw.decode("cp437")
@@ -45,16 +45,34 @@ class MemberReceiptTests(unittest.TestCase):
     def setUp(self):
         self.data = _fixture("receipt_thriftplus_member")
 
-    def test_member_block_prints_the_10_12_lines(self):
+    def test_member_block_says_this_trip_and_no_balances(self):
+        """Owner 2026-10-16: "you collected OR you used X ThriftBucks, and you have X items that qualify for
+        returns"; nothing about balances."""
         for text in _both(self.data):
-            lines = _lines(text)
-            self.assertIn("THRIFT+ MEMBER Pat", lines)
-            self.assertIn("ThriftBucks collected 20.00, use by Nov 19", lines)
-            self.assertIn("Thrift+ credit used $40.00", lines)
-            self.assertIn("Your ThriftBucks 20.00, use by Nov 19", lines)
-            self.assertNotIn("Your Thrift+ credit", text)  # a zero credit balance is left off
-            self.assertIn("SOLD AS IS unless marked 3-day return above", lines)
-            self.assertIn("80% back as", text)
+            flat = " ".join(_lines(text))
+            self.assertIn("THRIFT+ MEMBER Pat", _lines(text))
+            self.assertIn("You collected 20.00 ThriftBucks, use by Nov 19", flat)
+            self.assertIn("You used 35.00 ThriftBucks", flat)
+            self.assertIn("You have 2 items that qualify for 3-day returns", flat)
+            self.assertIn("SOLD AS IS unless marked 3-day return", flat)
+            self.assertNotIn("balance", text.lower())
+            self.assertNotIn("Your ThriftBucks", text)
+            self.assertRegex(text, r"Thrift\+ credit +\$40\.00")  # credit is a payment row now
+
+    @staticmethod
+    def dot(text: str) -> str:
+        """The tape folds "·" for the printer's code page; the text path keeps it."""
+        return "·" if "·" in text else next(c for c in ("\u2219", "\u00b7", "*") if c in text)
+
+    def test_every_item_has_a_sub_line_thriftbucks_first(self):
+        """Owner 2026-10-16: ThriftBucks first, set apart from the 3-day return / AS IS note."""
+        items = self.data["items"]
+        self.assertEqual(rp._item_subparts(items[0], self.data), ("+9.60 ThriftBucks", "3-day return"))
+        self.assertEqual(rp._item_subparts(items[2], self.data), ("+4.00 ThriftBucks", "AS IS"))
+        self.assertEqual(rp._item_subline(items[0], self.data), "+9.60 ThriftBucks | 3-day return")
+        self.assertEqual(rp._item_subparts({**items[0], "bucks": None}, self.data), ("", "3-day return"))  # older
+        self.assertEqual(rp._return_items(self.data), 2)
+        self.assertEqual(rp._return_items({**self.data, "items": [{**items[0], "quantity": 3}]}), 3)
 
     def test_the_black_block_comes_last_with_the_review_line_right_above(self):
         """Owner 2026-10-16: the black block at the bottom says it all; one small Google review line above it."""
@@ -66,10 +84,8 @@ class MemberReceiptTests(unittest.TestCase):
                 self.assertLessEqual(head - review, 2)  # the PNG/text block edge may sit between them
                 self.assertNotIn("GOOGLE REVIEW REWARD", text)
                 self.assertNotIn("THANK YOU\n", text)
+                self.assertNotIn(rp.REVERSE_ON.decode("latin-1"), text)  # white-on-black lines printed striped
         self.assertLessEqual(len(rp.RECEIPT_REVIEW_LINE), rp.W)
-        raw = rp.format_receipt(self.data)
-        self.assertEqual(raw.count(rp.REVERSE_ON), raw.count(rp.REVERSE_OFF))
-        self.assertGreater(raw.count(rp.REVERSE_ON), 8)
 
     def test_every_member_receipt_carries_the_b12_line_word_for_word(self):
         for name in ("receipt_thriftplus_member", "receipt_thriftplus_training"):
@@ -113,13 +129,13 @@ class MemberReceiptTests(unittest.TestCase):
             lines = text.splitlines()
             lamp = next(i for i, ln in enumerate(lines) if ln.startswith("Floor lamp"))
             fan = next(i for i, ln in enumerate(lines) if ln.startswith("Box fan"))
-            self.assertEqual(lines[lamp + 1].strip(), "3-day return")
-            self.assertEqual(lines[fan + 1].strip(), "AS IS")
+            self.assertTrue(lines[lamp + 1].strip().endswith("| 3-day return"), lines[lamp + 1])
+            self.assertTrue(lines[fan + 1].strip().endswith("| AS IS"), lines[fan + 1])
 
     def test_member_policy_never_says_no_refunds_alone(self):
         for text in _both(self.data):
             self.assertNotIn("No refunds", text)
-            self.assertIn("SOLD AS IS unless marked 3-day return above", _lines(text))
+            self.assertIn("SOLD AS IS unless marked 3-day return", _lines(text))
 
     def test_no_banned_words(self):
         for text in _both(self.data):
@@ -129,8 +145,8 @@ class MemberReceiptTests(unittest.TestCase):
         data = _fixture("receipt_thriftplus_training")
         for text in _both(data):
             flat = " ".join(ln.strip() for ln in text.splitlines())
-            self.assertIn("Redeemed instantly: 35.00 ThriftBucks, $17.50 off", flat)
-            self.assertNotIn("ThriftBucks collected", text)
+            self.assertIn("You used 35.00 ThriftBucks instantly: $17.50 off", flat)
+            self.assertNotIn("You collected", text)
 
     def test_png_renders(self):
         for name in ("receipt_thriftplus_member", "receipt_thriftplus_training"):
@@ -143,19 +159,32 @@ class GuestReceiptTests(unittest.TestCase):
         data = _fixture("receipt_thriftplus_guest")
         for text in _both(data):
             lines = _lines(text)
+            flat = " ".join(lines)
             # Owner 2026-10-15: "Non-member" replaces "guest" wherever a customer reads.
             self.assertIn("NON-MEMBER", lines)
-            self.assertIn("You missed 12.60 ThriftBucks today", lines)
+            self.assertIn("You missed out on 12.60 ThriftBucks and 1 item that qualifies for a 3-day return", flat)
             self.assertIn("All sales final. Sold AS IS.", lines)
             self.assertNotIn("guest", text.lower())
-            self.assertNotIn("3-day return", text)
-            self.assertNotIn("    AS IS", text)  # no per-line marks for guests
+            self.assertFalse([ln for ln in lines if ln.startswith(("3-day return", "AS IS", "+"))])  # no member lines
+            self.assertTrue(any(ln.startswith("Join for +9.60 ThriftBucks") and ln.endswith("3-day return") for ln in lines))
             self.assertNotIn("ThriftBucks used", text)
             self.assertNotIn("THRIFT+ MEMBER", text)
+
+    def test_a_non_member_sub_line_says_what_joining_would_give(self):
+        data = _fixture("receipt_thriftplus_guest")
+        lamp, mugs = data["items"][0], data["items"][1]
+        self.assertEqual(rp._item_subparts(lamp, data), ("Join for +9.60 ThriftBucks", "3-day return"))
+        self.assertEqual(rp._item_subparts(mugs, data), ("Join for +2.40 ThriftBucks", ""))
+        self.assertEqual(rp._item_subparts({**mugs, "bucks": 0}, data), ("", ""))
+        self.assertEqual(rp._item_subparts({**lamp, "bucks": 0}, data), ("Join for:", "3-day return"))
+        self.assertEqual(rp._item_subparts({"name": "x", "mark": "AS IS"}, data), ("", ""))  # an older dashboard
+        self.assertEqual(rp._return_items(data), 1)
+        self.assertIsNone(rp._return_items({**data, "items": [{"name": "x", "mark": "AS IS"}]}))
 
     def test_nothing_missed_prints_no_missed_line(self):
         data = _fixture("receipt_thriftplus_guest")
         data["thrift_plus"]["guest_line"] = "This trip would have collected 0.00 ThriftBucks."
+        data["items"] = [{**it, "join_mark": "AS IS"} for it in data["items"]]
         for text in _both(data):
             self.assertNotIn("missed", text)
             self.assertIn("NON-MEMBER", _lines(text))
@@ -220,8 +249,9 @@ class ToleranceTests(unittest.TestCase):
             "lines": [{"name": "Skillet", "tag_price": "24.00", "member_price": "19.20"}],
         }}
         text = self._render_all(old)
-        self.assertIn("Your ThriftBucks 12.40", text)
-        self.assertIn("Your Thrift+ credit $3.25", text)
+        self.assertIn("THRIFT+ MEMBER Pat", text)
+        self.assertNotIn("12.40", text)  # no balances (owner 2026-10-16)
+        self.assertNotIn("4821", text)
         self.assertIsNone(BANNED.search(text))
 
     def test_missing_and_bad_keys_do_not_crash(self):
@@ -258,6 +288,40 @@ class ToleranceTests(unittest.TestCase):
         text = rp.format_receipt_text(data)
         self.assertRegex(text, r"ThriftBucks used +1\.00\n")
         self.assertRegex(text, r"Redeemed instantly +\$2\.00")
+
+
+class PictureTests(unittest.TestCase):
+    """1.9.2 (owner 2026-10-16): the receipt prints as one picture (a solid black block, the logo on top)."""
+
+    def test_the_print_job_is_a_picture_at_the_printer_width(self):
+        from services import receipt_raster as rr
+
+        for name in ("receipt_thriftplus_member", "receipt_thriftplus_guest", "receipt_thriftplus_training"):
+            data = _fixture(name)
+            image = rr.render_thermal_receipt(data)
+            self.assertEqual(image.width, 576)
+            self.assertEqual(image.mode, "1")
+            self.assertGreater(image.height, 900)
+            job = rp.format_receipt(data)
+            self.assertTrue(job.startswith(rp.INIT + rp.LEFT + b"\x1dv0\x00" + bytes([72, 0])))
+            self.assertTrue(job.endswith(rp.FEED_LINES(4) + rp.PARTIAL_CUT))
+            bands = (image.height + rr.BAND_ROWS - 1) // rr.BAND_ROWS
+            self.assertEqual(job.count(b"\x1dv0\x00"), bands)
+
+    def test_the_text_tape_prints_if_the_picture_fails(self):
+        from unittest import mock
+
+        data = _fixture("receipt_thriftplus_member")
+        with mock.patch("services.receipt_raster.render_thermal_receipt", side_effect=RuntimeError("no fonts")):
+            job = rp.format_receipt(data)
+        self.assertEqual(job, rp.format_receipt_tape(data))
+
+    def test_odd_payloads_still_draw(self):
+        from services import receipt_raster as rr
+
+        for data in ({}, {"items": [None, {"name": "x"}]}, {"thrift_plus": {"member": "A."}, "training": True},
+                     rp.sample_receipt_dict()):
+            self.assertEqual(rr.render_thermal_receipt(data).width, 576)
 
 
 if __name__ == "__main__":

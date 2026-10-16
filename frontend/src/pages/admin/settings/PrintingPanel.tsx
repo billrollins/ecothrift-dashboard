@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import thriftPlusGuest from './receiptSamples/thriftplus_guest.json';
 import thriftPlusMember from './receiptSamples/thriftplus_member.json';
-import thriftPlusTraining from './receiptSamples/thriftplus_training.json';
 import {
   Box,
   Button,
@@ -144,11 +143,10 @@ function SpecStat({
   );
 }
 
-/** Thrift+ test receipts: the print server's samples (printserver/fixtures, needs print server 1.9.0 or later). */
+/** The two test receipts (owner 2026-10-16: member and non-member only): the print server's samples (printserver/fixtures). */
 const THRIFT_PLUS_SAMPLES: { label: string; data: Record<string, unknown> }[] = [
-  { label: 'Test Thrift+ member receipt', data: thriftPlusMember },
+  { label: 'Test member receipt', data: thriftPlusMember },
   { label: 'Test non-member receipt', data: thriftPlusGuest },
-  { label: 'Test training receipt', data: thriftPlusTraining },
 ];
 
 export function PrintingPanel() {
@@ -258,18 +256,10 @@ export function PrintingPanel() {
   const testThriftPlus = useMutation({
     mutationFn: (sample: Record<string, unknown>) => localPrintService.printReceipt(sample, false),
     onSuccess: (r) => {
-      enqueueSnackbar(r.success ? 'Thrift+ test receipt sent' : r.error ?? r.message, {
+      enqueueSnackbar(r.success ? 'Test receipt sent' : r.error ?? r.message, {
         variant: r.success ? 'success' : 'error',
       });
     },
-    onError: () => enqueueSnackbar('Thrift+ test receipt failed', { variant: 'error' }),
-  });
-  const testReceipt = useMutation({
-    mutationFn: () => localPrintService.printTestReceipt(),
-    onSuccess: (r) =>
-      enqueueSnackbar(r.success ? 'Test receipt sent' : r.error ?? r.message, {
-        variant: r.success ? 'success' : 'error',
-      }),
     onError: () => enqueueSnackbar('Test receipt failed', { variant: 'error' }),
   });
 
@@ -425,15 +415,6 @@ export function PrintingPanel() {
                 <MenuItem value="1">Pin 5</MenuItem>
               </Select>
             </FormControl>
-            <Button
-              variant="outlined"
-              sx={actionSx}
-              startIcon={testReceipt.isPending ? <CircularProgress size={16} /> : <Print />}
-              onClick={() => testReceipt.mutate()}
-              disabled={!isServerOnline || testReceipt.isPending}
-            >
-              Test receipt
-            </Button>
             {THRIFT_PLUS_SAMPLES.map((sample) => (
               <Button
                 key={sample.label}
