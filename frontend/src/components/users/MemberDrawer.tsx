@@ -4,7 +4,9 @@
  */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Alert, Box, Button, Chip, Divider, Drawer, IconButton, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Checkbox, Chip, Divider, Drawer, FormControlLabel, IconButton, Stack, TextField, Typography } from '@mui/material';
+import PersonAddAlt1Outlined from '@mui/icons-material/PersonAddAlt1Outlined';
+import QrCode2Rounded from '@mui/icons-material/QrCode2Rounded';
 import ForumOutlined from '@mui/icons-material/ForumOutlined';
 import MailOutline from '@mui/icons-material/MailOutline';
 import Inventory2Outlined from '@mui/icons-material/Inventory2Outlined';
@@ -25,7 +27,10 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useIsMobileLayout } from '../../hooks/useIsMobileLayout';
 import { maskPhoneInput, stripPhone } from '../../utils/formatPhone';
+import { addSecondAdult } from '../../api/thriftplus.api';
 import DeleteForGoodDialog from '../thriftplus/DeleteForGoodDialog';
+import { IdCheckFields, PhotoField } from '../thriftplus/PersonFields';
+import QrSvg from '../thriftplus/QrSvg';
 import { DrawerSection, Fact, PersonAvatar, formatDay, relativeDay } from './userChrome';
 import { IconClose as Close } from '../../icons/ecoIcons';
 
@@ -41,6 +46,8 @@ function money(raw: string): string {
   return (Number.parseFloat(raw) || 0).toLocaleString(undefined, { style: 'currency', currency: 'USD' });
 }
 
+const EMPTY_ADD = { name: '', id_checked: false, verified_18: false, photo: null as File | null, approves: false };
+
 function splitName(name: string): { first_name: string; last_name: string } {
   const parts = name.trim().split(/\s+/);
   return { first_name: parts[0] ?? '', last_name: parts.slice(1).join(' ') };
@@ -55,9 +62,15 @@ export default function MemberDrawer({ row, onClose }: { row: MemberRow | null; 
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', phone: '', notes: '' });
+  const [showQr, setShowQr] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [add, setAdd] = useState(EMPTY_ADD);
 
   useEffect(() => {
     if (row) setForm({ name: row.name, email: row.email, phone: row.phone, notes: row.notes });
+    setShowQr(false);
+    setAdding(false);
+    setAdd(EMPTY_ADD);
   }, [row]);
 
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ['members'] });
@@ -76,6 +89,15 @@ export default function MemberDrawer({ row, onClose }: { row: MemberRow | null; 
   };
 
   const off = row?.stage === 'off';
+  // Owner 2026-10-16: a name, the photo ID checked and a photo; phone and email stay the main member's.
+  const addReady = Boolean(add.name.trim() && add.id_checked && add.photo && add.approves);
+  const addPerson = (r: MemberRow) => void run(
+    () => addSecondAdult(r.account_id!, {
+      ...splitName(add.name), id_checked: add.id_checked, verified_18: add.verified_18, photo: add.photo,
+      both_present: true, primary_approves: add.approves,
+    }).then(() => { setAdding(false); setAdd(EMPTY_ADD); }),
+    `${add.name.trim()} added to the membership`, 'Could not add them',
+  );
   return (
     <>
       <Drawer
@@ -101,6 +123,21 @@ export default function MemberDrawer({ row, onClose }: { row: MemberRow | null; 
               </Box>
               <IconButton aria-label="Close" onClick={onClose} edge="end"><Close /></IconButton>
             </Stack>
+            {/* See QR first (owner 2026-10-16): the main member's QR, for a scan at the register or on Finalize. */}
+            {row.qr ? (
+              <Box sx={{ px: 2, pt: 1.5 }}>
+                <Button fullWidth variant={showQr ? 'contained' : 'outlined'} startIcon={<QrCode2Rounded />} data-testid="member-see-qr"
+                  onClick={() => setShowQr((v) => !v)} sx={{ minHeight: 44 }}>
+                  {showQr ? 'Hide QR' : 'See QR'}
+                </Button>
+                {showQr ? (
+                  <Box data-testid="member-qr" sx={{ textAlign: 'center', pt: 1.5 }}>
+                    <QrSvg text={row.qr} label={`${row.name}'s member QR`} sx={{ width: 'min(70vw, 240px)' }} />
+                    <Typography sx={{ fontWeight: 800, letterSpacing: '0.04em', mt: 0.5 }}>{row.code_display}</Typography>
+                  </Box>
+                ) : null}
+              </Box>
+            ) : null}
 
             <Box sx={{ p: 2, pb: 4, overflow: 'auto' }}>
               {/* Guest service first (owner 2026-10-16). */}
@@ -122,6 +159,40 @@ export default function MemberDrawer({ row, onClose }: { row: MemberRow | null; 
                 <Alert severity="info" sx={{ mb: 2 }}>
                   Needs Finalize: at any register, look them up by name or their QR, then phone, ID and photo.
                 </Alert>
+              ) : null}
+
+              {row.can_add_person && row.account_id ? (
+                <Box sx={{ mb: 2 }} data-testid="member-add-person">
+                  {!adding ? (
+                    <Button variant="outlined" startIcon={<PersonAddAlt1Outlined />} onClick={() => setAdding(true)}>
+                      Add a person
+                    </Button>
+                  ) : (
+                    <Box sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: 2 }}>
+                      <Typography sx={{ fontWeight: 700 }}>Add a person to this membership</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25 }}>
+                        A name, their photo ID and a photo. Phone and email stay {row.name.split(' ')[0] || 'the main member'}&apos;s.
+                      </Typography>
+                      <Stack spacing={1}>
+                        <TextField label="Their name" size="small" value={add.name} autoFocus
+                          onChange={(e) => setAdd({ ...add, name: e.target.value })} />
+                        <IdCheckFields value={add} onChange={(v) => setAdd({ ...add, ...v })} />
+                        <PhotoField photo={add.photo} onChange={(photo) => setAdd({ ...add, photo })} />
+                        <FormControlLabel
+                          control={<Checkbox checked={add.approves} onChange={(e) => setAdd({ ...add, approves: e.target.checked })} />}
+                          label={`Both are here, and ${row.name.split(' ')[0] || 'the main member'} approves`}
+                        />
+                        <Stack direction="row" spacing={1}>
+                          <Button onClick={() => { setAdding(false); setAdd(EMPTY_ADD); }}>Cancel</Button>
+                          <Button variant="contained" disabled={!addReady || busy} onClick={() => addPerson(row)}>Add them</Button>
+                        </Stack>
+                        {!addReady ? (
+                          <Typography variant="caption" color="text.secondary">Needs a name, the ID checked, a photo, and the approval.</Typography>
+                        ) : null}
+                      </Stack>
+                    </Box>
+                  )}
+                </Box>
               ) : null}
 
               <DrawerSection title="At a glance">

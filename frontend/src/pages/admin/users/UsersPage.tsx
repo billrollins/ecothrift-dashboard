@@ -72,16 +72,12 @@ export default function UsersPage() {
     <Box sx={PAGE_FILL_SX}>
       <PageHeader
         title="Users"
-        dense={isMobile}
-        subtitle={
-          isMobile
-            ? 'Members and staff accounts.'
-            : 'Everyone with an account. Open a row for the whole record and the actions that go with it.'
-        }
+        dense
+        subtitle={isMobile ? undefined : 'Members and staff. Open a row for the whole record.'}
       />
 
       {/* Fixed slot - the numbers arrive without moving the tabs or the table. */}
-      <Box sx={{ mb: 2, flexShrink: 0 }}>
+      <Box sx={{ mb: 1, flexShrink: 0 }}>
         {tab === 'members' ? (
           <MemberStatsStrip rows={members.data} needsReply={customerStats.data?.needs_reply} />
         ) : (
@@ -93,13 +89,14 @@ export default function UsersPage() {
         value={tab}
         onChange={(_, v: UsersTab) => setTab(v)}
         sx={{
-          mb: 2,
+          mb: 1,
+          minHeight: 40,
           flexShrink: 0,
           borderBottom: 1,
           borderColor: 'divider',
           overflow: 'visible',
           '& .MuiTabs-scroller': { overflow: 'visible !important' },
-          '& .MuiTab-root': { overflow: 'visible', minHeight: 48, pt: 1.25 },
+          '& .MuiTab-root': { overflow: 'visible', minHeight: 40, py: 0.75 },
         }}
       >
         {canSeeEmployees ? (

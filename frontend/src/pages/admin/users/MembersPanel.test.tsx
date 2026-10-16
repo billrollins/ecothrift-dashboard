@@ -16,6 +16,11 @@ vi.mock('../../../api/memberDirectory.api', async (importOriginal) => ({
   sendMemberLink: async (key: string) => { state.sent.push(key); return { detail: 'ok' }; },
 }));
 
+const added = vi.hoisted(() => ({ calls: [] as Array<[number, Record<string, unknown>]> }));
+vi.mock('../../../api/thriftplus.api', () => ({
+  addSecondAdult: async (id: number, body: Record<string, unknown>) => { added.calls.push([id, body]); return {}; },
+}));
+
 vi.mock('../../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 1, is_superuser: state.superuser } }) }));
 vi.mock('../../../hooks/useIsMobileLayout', () => ({ useIsMobileLayout: () => false }));
 vi.mock('@mui/x-data-grid', () => ({
@@ -56,6 +61,7 @@ beforeEach(() => {
   state.rows = [PAT, ANA];
   state.superuser = true;
   state.sent = [];
+  added.calls = [];
 });
 
 describe('MembersPanel', () => {
@@ -103,4 +109,26 @@ describe('MembersPanel', () => {
   it('shortens ThriftBucks', () => {
     expect([shortBucks('135'), shortBucks('1234'), shortBucks('1250000'), shortBucks('4.5')]).toEqual(['135', '1.2K', '1.3M', '4.5']);
   });
+
+it('See QR sits at the top of the drawer, and Add a person needs a name, the ID, a photo and the approval', async () => {
+  const user = userEvent.setup();
+  state.rows = [{ ...ANA, qr: 'TP402155831907', code_display: '4021 5583 1907', can_add_person: true }];
+  wrap();
+  await user.click(await screen.findByText('Ana Diaz'));
+  await user.click(screen.getByTestId('member-see-qr'));
+  expect(screen.getByTestId('member-qr')).toHaveTextContent('4021 5583 1907');
+  expect(screen.getByRole('img', { name: "Ana Diaz's member QR" })).toBeInTheDocument();
+
+  await user.click(screen.getByRole('button', { name: 'Add a person' }));
+  const go = screen.getByRole('button', { name: 'Add them' });
+  await user.type(screen.getByLabelText('Their name'), 'Sam Diaz');
+  await user.click(screen.getByRole('checkbox', { name: 'Checked a photo ID (the name matches)' }));
+  await user.click(screen.getByRole('checkbox', { name: 'Both are here, and Ana approves' }));
+  expect(go).toBeDisabled(); // still needs the photo
+  const photo = new File(['jpg'], 'sam.jpg', { type: 'image/jpeg' });
+  await user.upload(document.querySelector('input[type=file]') as HTMLInputElement, photo);
+  await user.click(go);
+  expect(added.calls).toEqual([[7, expect.objectContaining({ first_name: 'Sam', last_name: 'Diaz', id_checked: true, photo, both_present: true, primary_approves: true })]]);
 });
+});
+

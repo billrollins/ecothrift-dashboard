@@ -143,6 +143,25 @@ class MembersTabTests(TestCase):
         self.old.groups.add(Group.objects.get(name='Customer'))
         CustomerProfile.objects.create(user=self.old, customer_number='CUS-001')
 
+    def test_a_row_carries_the_main_members_qr_and_whether_a_person_can_be_added(self):
+        from apps.thriftplus.models import Card
+
+        code = Card.objects.filter(person__account=self.member, status=Card.STATUS_ACTIVE).values_list('code', flat=True).first()
+        ana = next(r for r in self.api.get(self.API).json()['results'] if r['name'] == 'Ana Per')
+        self.assertEqual((ana['qr'], ana['code_display'].replace(' ', ''), ana['can_add_person']), (f'TP{code}', code, True))
+        # Add a person (owner 2026-10-16): a name, the ID and a photo; phone and email stay the main member's.
+        self.boss.groups.add(Group.objects.get_or_create(name='Admin')[0])  # the owner is staff too
+        r = self.api.post(f'/api/thriftplus/accounts/{self.member.pk}/second-adult/',
+                          {'first_name': 'Sam', 'last_name': 'Per', 'id_checked': 'true', 'verified_18': 'true',
+                           'both_present': 'true', 'primary_approves': 'true'}, format='multipart')
+        self.assertEqual(r.status_code, 200, r.content)
+        sam = Person.objects.get(account=self.member, first_name='Sam')
+        self.assertEqual((sam.role, sam.phone, sam.email, sam.id_checked), (Person.ROLE_SECONDARY, '', '', True))
+        ana = next(r for r in self.api.get(self.API).json()['results'] if r['name'] == 'Ana Per')
+        self.assertEqual((ana['second'], ana['can_add_person']), ('Sam Per', False))
+        pat = next(r for r in self.api.get(self.API).json()['results'] if r['name'] == 'Pat New')
+        self.assertFalse(pat['can_add_person'])  # pending: finish first
+
     def test_the_list_shows_stages_newest_first_and_hides_unconfirmed_sign_ups(self):
         rows = self.api.get(self.API).json()['results']
         self.assertEqual([(r['name'], r['stage']) for r in rows],

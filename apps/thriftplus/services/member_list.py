@@ -76,9 +76,19 @@ def rows() -> list[dict]:
     waiting |= set(Conversation.objects.filter(state='needs_reply', archived_at__isnull=True, customer__isnull=False)
                    .annotate(e=Lower('customer__email')).values_list('e', flat=True))
 
+    from apps.thriftplus.models import Card
+    from apps.thriftplus.services.cards import display
+
+    # The main member's member code (their QR), newest active one (owner 2026-10-16: See QR in the drawer).
+    codes: dict[int, str] = {}
+    for pid, code in (Card.objects.filter(status=Card.STATUS_ACTIVE, person__account__in=accounts)
+                      .order_by('issued_at', 'pk').values_list('person_id', 'code')):
+        codes[pid] = code
+
     out = []
     for account in accounts:
         person = primary(account)
+        code = codes.get(person.pk, '') if person else ''
         email = (person.email if person else '').strip().lower()
         sale = sales.get(account.pk, {})
         hold = holds.get(email, {}) if email else {}
@@ -95,6 +105,9 @@ def rows() -> list[dict]:
             'holds_active': hold.get('active', 0), 'holds_total': hold.get('total', 0),
             'needs_reply': bool(email and email in waiting), 'notes': account.notes,
             'staff': account.staff_user.full_name if account.staff_user_id else '', 'legacy': False,
+            'qr': f'TP{code}' if code else '', 'code_display': display(code) if code else '',
+            # A second adult can be added to an active membership that has none (2 adults at most).
+            'can_add_person': account.status == Account.STATUS_ACTIVE and not others,
         })
     for user in _legacy_users():
         email = (user.email or '').strip().lower()

@@ -49,20 +49,32 @@ function Marks({ row }: { row: MemberRow }) {
   );
 }
 
+/**
+ * A member on a phone (owner 2026-10-16: lookups are common, phone first): two short lines. The name (cut with "…")
+ * and the stage; then #number · ••phone's last 4 · ThriftBucks. The number never shrinks.
+ */
 function MobileRow({ row, onOpen }: { row: MemberRow; onOpen: (r: MemberRow) => void }) {
+  const meta = { fontSize: 13, color: 'text.secondary', whiteSpace: 'nowrap' } as const;
   return (
-    <Box component="button" type="button" onClick={() => onOpen(row)} aria-label={`Open ${row.name}`}
-      sx={{ display: 'block', width: '100%', textAlign: 'left', px: 1.5, py: 1.25, border: '1.5px solid', borderColor: 'divider',
-        borderRadius: 2.5, bgcolor: 'background.paper', cursor: 'pointer' }}>
-      <PersonCell name={row.name} secondary={`${row.number} · ${row.email || 'no email'}`} seed={row.email || row.key}
-        muted={row.stage === 'off'} />
-      <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.75 }}>
-        <StateChip label={STAGE_LABEL[row.stage]} tone={TONE[row.stage]} />
-        <Typography variant="caption" color="text.secondary" noWrap>
-          {shortBucks(row.bucks)} ThriftBucks · {row.returns} returns · {row.holds_active} holds
-          {row.phone ? ` · ${formatPhone(row.phone)}` : ''}
+    <Box component="button" type="button" onClick={() => onOpen(row)} aria-label={`Open ${row.name}`} data-testid="member-mobile-row"
+      sx={{ display: 'block', width: '100%', textAlign: 'left', px: 1.5, py: 0.9, border: '1px solid', borderColor: 'divider',
+        borderRadius: 2, bgcolor: 'background.paper', cursor: 'pointer', font: 'inherit', color: 'inherit',
+        opacity: row.stage === 'off' ? 0.6 : 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+        <Typography noWrap sx={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 15 }}>
+          {row.name}{row.second ? <Box component="span" sx={{ fontWeight: 400, color: 'text.secondary' }}>{` + ${row.second.split(' ')[0]}`}</Box> : null}
         </Typography>
-      </Stack>
+        <Box sx={{ flexShrink: 0 }}><StateChip label={STAGE_LABEL[row.stage]} tone={TONE[row.stage]} /></Box>
+      </Box>
+      <Box sx={{ display: 'flex', gap: 0.75, minWidth: 0, overflow: 'hidden', mt: 0.25 }}>
+        <Typography component="span" sx={{ ...meta, flexShrink: 0, fontWeight: 700 }}>{row.number}</Typography>
+        <Typography component="span" sx={{ ...meta, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {`· ${row.phone ? `••${row.phone.slice(-4)}` : 'no phone yet'}`}
+        </Typography>
+        <Typography component="span" sx={{ ...meta, flexShrink: 2, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {`· ${shortBucks(row.bucks)} ThriftBucks${row.returns ? ` · ${row.returns} ret` : ''}`}
+        </Typography>
+      </Box>
     </Box>
   );
 }
@@ -153,7 +165,7 @@ export default function MembersPanel({ openKey }: { openKey?: string | null }) {
       </Stack>
 
       {isMobile ? (
-        <Stack spacing={1}>
+        <Stack spacing={0.75}>
           {rows.length ? rows.map((r) => <MobileRow key={r.key} row={r} onOpen={(x) => setOpen(x.key)} />) : (
             <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 6 }}>
               {isLoading ? 'Loading members…' : 'No members match.'}
@@ -165,7 +177,8 @@ export default function MembersPanel({ openKey }: { openKey?: string | null }) {
           <DataGrid rows={rows} columns={columns} getRowId={(r) => r.key} loading={isLoading}
             disableRowSelectionOnClick onRowClick={(p) => setOpen(p.row.key)}
             slots={noRowsSlot(search ? 'No members match this search' : 'No members yet')}
-            sx={{ ...GRID_SX, cursor: 'pointer' }} {...GRID_PAGE_PROPS} rowHeight={64} />
+            sx={{ ...GRID_SX, cursor: 'pointer', '& .MuiDataGrid-cell': { py: 0 } }} {...GRID_PAGE_PROPS} rowHeight={48}
+            columnHeaderHeight={40} initialState={{ pagination: { paginationModel: { pageSize: 50 } } }} />
         </Box>
       )}
 

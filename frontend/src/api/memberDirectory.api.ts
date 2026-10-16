@@ -37,6 +37,11 @@ export interface MemberRow {
   /** The staff member this membership is linked to. */
   staff: string;
   legacy: boolean;
+  /** The main member's QR (`TP` + code) and its number in fours; '' when none (owner 2026-10-16: See QR). */
+  qr?: string;
+  code_display?: string;
+  /** An active membership with no second adult yet: Add a person. */
+  can_add_person?: boolean;
 }
 
 const BASE = '/thriftplus/member-directory/';
