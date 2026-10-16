@@ -3,9 +3,18 @@
 Owner 2026-10-16: the 1.9.1 tape printed the black block as white-on-black text lines, and the printer leaves a white
 strip between lines, so it came out striped. Drawing the whole receipt as a picture gives a solid black block, the
 logo at the top and the same layout as the preview. ``format_receipt`` falls back to the text tape if this fails.
+
+Layout (owner 2026-10-16, decided line by line in chat):
+- the logo, then the address and the hours (no phone);
+- one line: receipt number, date and time, cashier;
+- items in groups: a member's 3-DAY RETURN items under a black bar, then SOLD AS IS under a thin rule; a non-member's
+  all under ALL SALES FINAL · SOLD AS IS. A THRIFTBUCKS column ("+9.60"; for a non-member, IF MEMBER) before PRICE;
+- Items total (when ThriftBucks paid part), ThriftBucks used, Subtotal, Tax, TOTAL; payment on one line;
+- one bold Google review line, then the black block: who, today's ThriftBucks, and the B12 line at normal size.
 """
 from __future__ import annotations
 
+import datetime as dt
 from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont
@@ -22,9 +31,41 @@ def _font(size: int, bold: bool = False) -> ImageFont.ImageFont:
     return rp._sans_bold(size) if bold else rp._sans_reg(size)
 
 
+def _when(data: dict[str, Any]) -> str:
+    """ "Oct 20, 2:14 PM" from ``date`` (ISO) and ``time``; anything else prints as sent."""
+    raw = str(data.get("date") or "").strip()
+    time = str(data.get("time") or "").strip()
+    try:
+        day = dt.date.fromisoformat(raw[:10])
+        raw = f"{day.strftime('%b')} {day.day}"
+    except ValueError:
+        pass
+    return ", ".join(part for part in (raw, time) if part)
+
+
+def _payment_line(data: dict[str, Any]) -> str:
+    """Payment on one line: "Thrift+ credit $40.00 · Cash $20.00 · Change $3.29". Card payments keep their own rows
+    (the surcharge disclosure), so a card sale names no method here."""
+    parts = []
+    credit = rp._credit_paid_row(data)
+    if credit:
+        parts.append(f"{credit[0]} {credit[1]}")
+    method = str(data.get("payment_method") or "").strip()
+    tendered = rp._as_money(data.get("amount_tendered"))
+    if method and not rp._card_payment_rows(data):
+        label = method if any(c.isupper() for c in method) else method.title()
+        parts.append(f"{label} ${tendered:.2f}" if tendered is not None else label)
+    elif tendered is not None:
+        parts.append(f"Tendered ${tendered:.2f}")
+    change = rp._as_money(data.get("change"))
+    if change is not None:
+        parts.append(f"Change ${change:.2f}")
+    return " · ".join(parts)
+
+
 def render_thermal_receipt(data: dict[str, Any]) -> Image.Image:
     """The receipt exactly as the printer prints it (1 bit, ``DOTS`` wide)."""
-    im = Image.new("L", (DOTS, 8000), 255)
+    im = Image.new("L", (DOTS, 9000), 255)
     d = ImageDraw.Draw(im)
     x0, x1 = SIDE, DOTS - SIDE
     inner = x1 - x0
@@ -36,7 +77,7 @@ def render_thermal_receipt(data: dict[str, Any]) -> Image.Image:
     def w(text: str, font: ImageFont.ImageFont) -> float:
         return rp._text_w(d, text, font)
 
-    def fit(text: str, size: int, bold: bool, max_w: int, smallest: int = 16) -> ImageFont.ImageFont:
+    def fit(text: str, size: int, bold: bool, max_w: float, smallest: int = 16) -> ImageFont.ImageFont:
         while size > smallest and w(text, _font(size, bold)) > max_w:
             size -= 1
         return _font(size, bold)
@@ -63,15 +104,14 @@ def render_thermal_receipt(data: dict[str, Any]) -> Image.Image:
         y = max(ly, y + h(font_r)) + gap
 
     def wrap_phrases(text: str, font: ImageFont.ImageFont, max_w: int) -> list[str]:
-        """Too wide: break at ", " and before " and " first, so "use by Nov 19" or "and 1 item ..." stay whole."""
+        """Too wide: break at ". ", "; ", ", " or before " and " first, so phrases stay whole."""
         if w(text, font) <= max_w:
             return [text]
-        for sep, keep in ((", ", ""), (" and ", "and ")):
+        for sep, keep_head, keep_tail in ((". ", ".", ""), ("; ", ";", ""), (", ", ",", ""), (" and ", "", "and ")):
             if sep in text:
                 head, tail = text.split(sep, 1)
-                tail = keep + tail
-                if w(head, font) <= max_w:
-                    return [head + ("," if sep == ", " else "")] + wrap_phrases(tail, font, max_w)
+                if w(head + keep_head, font) <= max_w:
+                    return [head + keep_head] + wrap_phrases(keep_tail + tail, font, max_w)
         return rp._wrap_text(text, font, d, max_w)
 
     def rule(thick: int = 2, pad: int = 8) -> None:
@@ -80,18 +120,30 @@ def render_thermal_receipt(data: dict[str, Any]) -> Image.Image:
         d.rectangle([x0, y, x1, y + thick - 1], fill=0)
         y += thick + pad
 
-    def band(text: str) -> None:
+    def band(text: str, size: int = 30) -> None:
         nonlocal y
-        f = _font(30, True)
-        d.rectangle([x0, y, x1, y + h(f) + 12], fill=0)
-        d.text((x0 + (inner - w(text, f)) / 2, y + 6), text, font=f, fill=255)
-        y += h(f) + 20
+        f = _font(size, True)
+        d.rectangle([x0, y, x1, y + h(f) + 10], fill=0)
+        d.text((x0 + (inner - w(text, f)) / 2, y + 5), text, font=f, fill=255)
+        y += h(f) + 16
+
+    def thin_heading(text: str) -> None:
+        """── SOLD AS IS ─────: the heading between two hairlines."""
+        nonlocal y
+        f = _font(22, True)
+        tw = w(text, f)
+        mid = y + h(f) // 2
+        left_end = x0 + (inner - tw) / 2 - 12
+        d.rectangle([x0, mid, left_end, mid + 1], fill=0)
+        d.rectangle([left_end + tw + 24, mid, x1, mid + 1], fill=0)
+        d.text((left_end + 12, y), text, font=f, fill=0)
+        y += h(f) + 8
 
     training = rp._is_training(data)
     if training:
         band(rp.TRAINING_BANNER)
 
-    # --- The logo says the name; under it, where and when (owner 2026-10-16; no phone) ---
+    # --- The logo says the name; under it, where and when (no phone) ---
     logo = rp._load_receipt_logo_content_width(inner, 150)
     if logo is not None:
         flat = Image.new("RGB", logo.size, (255, 255, 255))
@@ -104,46 +156,99 @@ def render_thermal_receipt(data: dict[str, Any]) -> Image.Image:
     center("  ·  ".join(rp.RECEIPT_STORE_ADDRESS), f_store)
     center("  ·  ".join(rp.RECEIPT_STORE_HOURS), f_store)
 
-    # --- Receipt, date, cashier ---
+    # --- Receipt, date and cashier on one line ---
     rule()
-    f_meta, f_meta_b = _font(21), _font(21, True)
-    if data.get("receipt_number"):
-        lr("Receipt", str(data["receipt_number"]), f_meta, f_meta_b, gap=2)
-    if data.get("date"):
-        lr("Date", f"{data['date']} {data.get('time', '')}".strip(), f_meta, f_meta_b, gap=2)
-    if data.get("cashier"):
-        lr("Cashier", str(data["cashier"]), f_meta, f_meta_b, gap=2)
+    meta = [str(data.get("receipt_number") or "").strip(), _when(data), str(data.get("cashier") or "").strip()]
+    meta = [m for m in meta if m]
+    if meta:
+        f_meta = _font(21)
+        if len(meta) == 3 and w(meta[0], f_meta) + w(meta[1], f_meta) + w(meta[2], f_meta) + 40 <= inner:
+            d.text((x0, y), meta[0], font=f_meta, fill=0)
+            d.text((x0 + (inner - w(meta[1], f_meta)) / 2, y), meta[1], font=f_meta, fill=0)
+            d.text((x1 - w(meta[2], f_meta), y), meta[2], font=f_meta, fill=0)
+            y += h(f_meta)
+        else:
+            center("   ".join(meta), f_meta)
     rule()
 
-    # --- Items, each with its sub-line ---
-    f_item, f_detail, f_sub, f_mark = _font(24), _font(20), _font(21), _font(21, True)
-    for item in data.get("items", []) or []:
-        if not isinstance(item, dict):
-            continue
+    # --- Items: in groups, with a ThriftBucks column ---
+    tp = rp._tp(data)
+    member = rp._is_member_receipt(data)
+    items = [it for it in (data.get("items") or []) if isinstance(it, dict)]
+    f_item, f_detail, f_head = _font(23), _font(19), _font(17, True)
+    price_w = w("$0000.00", f_item)
+    bucks_right = x1 - price_w - 14
+    bucks_w = w("+000.00", f_item)
+    name_w = int(bucks_right - bucks_w - 12 - x0) if tp is not None else int(inner - price_w - 14)
+
+    def item_row(item: dict[str, Any]) -> None:
+        nonlocal y
         qty = item.get("quantity", 1) or 1
         unit = rp._as_money(item.get("unit_price")) or 0.0
         total = rp._as_money(item.get("line_total"))
         total = qty * unit if total is None else total
-        lr(str(item.get("name", "Item")), f"${total:.2f}", f_item, gap=0)
+        price = f"${total:.2f}"
+        d.text((x1 - w(price, f_item), y), price, font=f_item, fill=0)
+        if tp is not None:
+            bucks = rp._as_money(item.get("bucks")) or 0.0
+            if bucks > 0:
+                text = f"+{rp._tb(bucks)}"
+                d.text((bucks_right - w(text, f_item), y), text, font=f_item, fill=0)
+        for ln in rp._wrap_text(str(item.get("name", "Item")), f_item, d, name_w):
+            d.text((x0, y), ln, font=f_item, fill=0)
+            y += h(f_item)
         if qty > 1:
-            d.text((x0 + 18, y), f"{qty} × ${unit:.2f}", font=f_detail, fill=0)
+            d.text((x0 + 16, y - 2), f"{qty} × ${unit:.2f}", font=f_detail, fill=0)
             y += h(f_detail)
-        bucks_text, mark = rp._item_subparts(item, data)
-        if bucks_text or mark:
-            if bucks_text:
-                d.text((x0 + 18, y), bucks_text, font=f_sub, fill=0)
-            if mark:
-                d.text((x1 - w(mark, f_mark), y + h(f_sub) - h(f_mark)), mark, font=f_mark, fill=0)
-            y += max(h(f_sub), h(f_mark))
-        y += 10
+        y += 6
+
+    def col_heads() -> None:
+        """ITEM · THRIFTBUCKS (IF MEMBER) · PRICE, under each section's heading (owner 2026-10-16)."""
+        nonlocal y
+        d.text((x0, y), "ITEM", font=f_head, fill=0)
+        col = "THRIFTBUCKS" if member else "IF MEMBER"
+        d.text((bucks_right - w(col, f_head), y), col, font=f_head, fill=0)
+        d.text((x1 - w("PRICE", f_head), y), "PRICE", font=f_head, fill=0)
+        y += h(f_head) + 6
+
+    if tp is not None:
+        if member:
+            returns = [it for it in items if rp._is_return_mark(it.get("mark"))]
+            rest = [it for it in items if not rp._is_return_mark(it.get("mark"))]
+            if returns:
+                band("3-DAY RETURN", size=24)
+                col_heads()
+                for it in returns:
+                    item_row(it)
+            if rest:
+                if returns:
+                    y += 8
+                thin_heading("SOLD AS IS")
+                col_heads()
+                for it in rest:
+                    item_row(it)
+        else:
+            thin_heading("ALL SALES FINAL · SOLD AS IS")
+            col_heads()
+            for it in items:
+                item_row(it)
+    else:
+        for it in items:
+            item_row(it)
     rule(pad=4)
 
-    # --- Totals ---
+    # --- Totals: Items total, ThriftBucks used, Subtotal, Tax, TOTAL ---
     f_row = _font(22)
     used = rp._bucks_used_row(data)
-    if used:
-        lr(*used, f_row, gap=2)
     subtotal = rp._as_money(data.get("subtotal")) or 0.0
+    if used:
+        items_total = sum(
+            (rp._as_money(it.get("line_total")) if rp._as_money(it.get("line_total")) is not None
+             else (rp._as_money(it.get("unit_price")) or 0.0) * (it.get("quantity", 1) or 1))
+            for it in items
+        )
+        lr("Items total", f"${items_total:.2f}", f_row, gap=2)
+        lr(used[0], f"-{used[1]}", f_row, gap=2)
     tax = rp._as_money(data.get("tax")) or 0.0
     total = rp._as_money(data.get("total"))
     total = subtotal + tax if total is None else total
@@ -167,53 +272,44 @@ def render_thermal_receipt(data: dict[str, Any]) -> Image.Image:
             lr(label, rp._savings_amount(label, amount), _font(20), gap=0, indent=18)
     rule()
 
-    # --- Payment ---
-    if data.get("payment_method"):
-        lr("Payment", str(data["payment_method"]), f_row, gap=2)
-    tendered = rp._as_money(data.get("amount_tendered"))
-    if tendered is not None:
-        lr("Tendered", f"${tendered:.2f}", f_row, gap=2)
-    change = rp._as_money(data.get("change"))
-    if change is not None:
-        lr("Change", f"${change:.2f}", f_row, gap=2)
-    credit = rp._credit_paid_row(data)
-    if credit:
-        lr(*credit, f_row, gap=2)
+    # --- Payment on one line (card sales keep their rows: the surcharge disclosure) ---
+    pay = _payment_line(data)
+    if pay:
+        center(pay, fit(pay, 22, False, inner, smallest=18))
     for label, amount, bold in rp._card_payment_rows(data):
         if amount is None:
             center(label, _font(18, bold))
         else:
             lr(label, amount, _font(22, bold), gap=2)
 
-    # --- Thanks, the Google review line, then the black block ---
-    y += 18
-    center(rp.RECEIPT_FOOTER, _font(20))
-    y += 4
+    # --- The Google review line, then the black block ---
+    y += 16
     center(rp.RECEIPT_REVIEW_LINE, fit(rp.RECEIPT_REVIEW_LINE, 25, True, inner))
     y += 10
 
     head, block_lines, fine = rp._bottom_block(data)
     pad = 18
     box = (x0 + pad, x1 - pad)
-    f_head = fit(head, 40, True, box[1] - box[0], smallest=24)
+    box_w = box[1] - box[0]
+    f_head = fit(head, 40, True, box_w, smallest=24)
     plan: list[tuple[str, ImageFont.ImageFont, int]] = []  # line, font, gap after
-    for ln in rp._wrap_text(head, f_head, d, box[1] - box[0]):
+    for ln in rp._wrap_text(head, f_head, d, box_w):
         plan.append((ln, f_head, 2))
     plan[-1] = (plan[-1][0], plan[-1][1], 12)
     for text, bold in block_lines:
         font = _font(24, True) if bold else _font(22)
-        for ln in wrap_phrases(text, font, box[1] - box[0]):
+        for ln in wrap_phrases(text, font, box_w):
             plan.append((ln, font, 4))
-    if fine:
-        plan[-1] = (plan[-1][0], plan[-1][1], 12)
+    if fine:  # the B12 line: normal size (owner 2026-10-16), not fine print
+        plan[-1] = (plan[-1][0], plan[-1][1], 14)
         for text in fine:
-            for ln in rp._wrap_text(text, _font(17), d, box[1] - box[0]):
-                plan.append((ln, _font(17), 1))
+            for ln in rp._wrap_text(text, _font(21), d, box_w):
+                plan.append((ln, _font(21), 2))
     block_h = 2 * pad + sum(h(f) + gap for _ln, f, gap in plan)
     d.rounded_rectangle([x0, y, x1, y + block_h], radius=16, fill=0)
     y += pad
     for ln, font, gap in plan:
-        d.text((box[0] + (box[1] - box[0] - w(ln, font)) / 2, y), ln, font=font, fill=255)
+        d.text((box[0] + (box_w - w(ln, font)) / 2, y), ln, font=font, fill=255)
         y += h(font) + gap
     y += pad + 10
 

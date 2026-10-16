@@ -58,14 +58,17 @@ RECEIPT_POLICY_PNG_SUB = "ALL SALES FINAL — TEST BEFORE YOU BUY"
 BLOCK_HEAD_MEMBER = "THRIFT+ MEMBER"
 BLOCK_HEAD_NON_MEMBER = "NON-MEMBER"
 BLOCK_AS_IS_MEMBER = "SOLD AS IS unless marked 3-day return"
-BLOCK_JOIN = "Join free at the register or ecothrift.us/join"
+BLOCK_JOIN = "Join free: ecothrift.us/join"
 
 # Thrift+ block words (V2/V4/V8, B2, B5, B12, W1). ThriftBucks are numbers next to their label,
 # never "$"; Thrift+ credit and the instant redemption are dollars.
 # B12, word for word: the legal disclosure that makes the 30 days work. There is no Thrift+ card to print it on
 # (owner 2026-10-14), so every member receipt carries it.
+# Owner 2026-10-16 (receipt redesign): "Use ThriftBucks tomorrow; expire in 30 days". Keeps the memo's three
+# conditions (the word "rewards", the expiry rule, no cash value). Attorney to confirm the new words (B12).
 THRIFT_PLUS_TERMS_LINE = (
-    "ThriftBucks are Thrift+ rewards: use within 30 days of collecting. No cash value. Terms: ecothrift.us/terms"
+    "ThriftBucks are Thrift+ rewards. Use them starting tomorrow; they expire 30 days after you collect them. "
+    "No cash value. Terms: ecothrift.us/terms"
 )
 THRIFT_PLUS_RETURNS_LINE = (
     "Thrift+ 3-day returns: lines marked 3-day return, any reason, 80% back as Thrift+ credit."
@@ -73,6 +76,7 @@ THRIFT_PLUS_RETURNS_LINE = (
 # Owner 2026-10-15 (design language v2.8): "Non-member" replaces "guest" wherever a customer reads. The dashboard may
 # send the words as ``thrift_plus.non_member_line``; these are the same words, for a payload without them.
 THRIFT_PLUS_GUEST_AS_IS = "Non-member: All sales final. Sold AS IS."
+BLOCK_NON_MEMBER_AS_IS = "All sales final · Sold AS IS"
 # In the block the head already says NON-MEMBER, so the line drops its "Non-member: " lead.
 _NON_MEMBER_LEAD = "Non-member:"
 MARK_3_DAY_RETURN = "3-day return"
@@ -418,36 +422,33 @@ def _bottom_block(data: dict[str, Any]) -> tuple[str, list[tuple[str, bool]], li
         missed = _missed_bucks(data)
         parts = []
         if missed:
-            parts.append(f"{missed} ThriftBucks")
+            parts.append(f"+{missed} ThriftBucks")
         if returns:
-            parts.append(f"{_items_word(returns)} that {'qualifies' if returns == 1 else 'qualify'} for a 3-day return")
+            parts.append("1 return" if returns == 1 else f"{returns} returns")
         if parts:
-            lines.append(("You missed out on " + " and ".join(parts), True))
+            lines.append(("You missed " + " and ".join(parts), True))
         lines.append((BLOCK_JOIN, False))
-        lines.append((_non_member_as_is(data), True))
+        lines.append((BLOCK_NON_MEMBER_AS_IS, True))
         return (BLOCK_HEAD_NON_MEMBER, lines, [])
 
     member = _tp_member(data)
     head = f"{BLOCK_HEAD_MEMBER} {member}" if member else BLOCK_HEAD_MEMBER
-    lines = []
+    # Today's ThriftBucks on one line (owner 2026-10-16: no use-by date, no balances):
+    # "+20.00 ThriftBucks today · -35.00 used", or "-35.00 ThriftBucks instantly: $17.50 off".
     instant_off = _tp_amount(tp, "instant_off")
     instant_bucks = _tp_amount(tp, "instant_bucks")
     collected = _tp_amount(tp, "collected")
     used = _tp_amount(tp, "bucks_used")
+    parts = []
     if instant_off > 0 or instant_bucks > 0:  # one choice per trip (B1): redeemed instantly, nothing kept
-        text = f"You used {_tb(instant_bucks)} ThriftBucks instantly" if instant_bucks > 0 else "You used ThriftBucks instantly"
-        if instant_off > 0:
-            text += f": ${instant_off:.2f} off"
-        lines.append((text, True))
+        text = f"-{_tb(instant_bucks)} ThriftBucks instantly" if instant_bucks > 0 else "ThriftBucks instantly"
+        parts.append(text + (f": ${instant_off:.2f} off" if instant_off > 0 else ""))
     elif collected > 0:
-        use_by = _use_by(tp.get("use_by"))
-        lines.append((f"You collected {_tb(collected)} ThriftBucks" + (f", use by {use_by}" if use_by else ""), True))
+        parts.append(f"+{_tb(collected)} ThriftBucks today")
     if used > 0:
-        lines.append((f"You used {_tb(used)} ThriftBucks", True))
-    if returns:
-        lines.append((f"You have {_items_word(returns)} that {'qualifies' if returns == 1 else 'qualify'} for 3-day returns", False))
-    lines.append((BLOCK_AS_IS_MEMBER, True))
-    # B12 word for word: every member receipt carries it (legal memo; there is no card to print it on).
+        parts.append(f"-{_tb(used)} used")
+    lines = [(" · ".join(parts), True)] if parts else []
+    # B12 (the new words) at normal size in the block; the item groups say what is AS IS.
     return (head, lines, [THRIFT_PLUS_TERMS_LINE])
 
 

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.174.0] -->
-<!-- Last reviewed: 2026-10-16 (2.174.0) -->
+<!-- Line 1 release: ## [2.174.1] -->
+<!-- Last reviewed: 2026-10-16 (2.174.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.174.1] - 2026-10-16
+
+User-facing theme: **The receipt, decided line by line: returns and AS IS items in their own groups with a ThriftBucks column, and a short black Thrift+ block (Bill, 2026-10-16).** Print server 1.9.3 (Settings → Printing → Download on each register). Outside initiatives (POS).
+
+### Changed
+- **Receipts (print server 1.9.3):** the logo with the address and hours; receipt number, date and cashier on one line; a member's items under a black 3-DAY RETURN bar and a SOLD AS IS heading, each with ITEM · THRIFTBUCKS · PRICE headers ("+9.60"); a non-member's under ALL SALES FINAL · SOLD AS IS with an IF MEMBER column; Items total before ThriftBucks used; payment on one line.
+- **The black block:** "+20.00 ThriftBucks today · -35.00 used" and the ThriftBucks rewards line at normal size with new words ("Use them starting tomorrow; they expire 30 days after you collect them"); a non-member's "You missed +12.60 ThriftBucks and 1 return". No use-by dates, no balances (rules B12, V6; the attorney confirms the new words).
 
 ## [2.174.0] - 2026-10-16
 

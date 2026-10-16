@@ -1,16 +1,9 @@
-v2.174.0 — One customer account with no customer passwords; delete test members, deactivate real ones; a Join page that spells it out
+v2.174.1 â€” The receipt, decided line by line: returns and AS IS groups with a ThriftBucks column, a short black Thrift+ block
 
-User-facing theme: **One customer account and no customer passwords; delete test members, deactivate real ones; a Join page that spells it out (Bill, 2026-10-16).** Thrift+ Rewards.
-
-### Added
-- **One customer account** (J13): a Thrift+ member and their ecothrift.us account (holds, messages, orders) are the same account. An emailed link or code in the app also signs in to the website, and the other way round; signing out of either ends both. A website customer with no membership gets one that is "not ready" until a register finishes it. A deactivated or revoked member can't sign in on either side.
-- **Superuser → Requests: "One customer account (merge, no passwords)"** (`thriftplus.one_account`): links every website login and Thrift+ member by email, makes the missing memberships and website logins, and removes every customer password. Staff passwords are not touched. Safe to run again.
-- **Deactivate and Reactivate** (J14), Thrift+ → Members (managers): the normal way to take a member off. Nothing is erased; Reactivate puts it back as it was. Revoke stays for theft or abuse.
-- **Delete (testing)**, Thrift+ → Members (superuser): lists everything the customer left (sales, ThriftBucks, credit, returns, scans, history, the ecothrift.us login, holds), asks for the name typed out, then erases all of it as if they never existed. A paid sale's cash comes back out of an open drawer and its items go back on the shelf.
-- **Start staff memberships fresh**, Thrift+ → Staff (superuser, type START FRESH): deletes every staff membership and every customer membership with a staff email, then makes each staff member a fresh, empty one. Dash logins are not touched.
+User-facing theme: **The receipt, decided line by line: returns and AS IS items in their own groups with a ThriftBucks column, and a short black Thrift+ block (Bill, 2026-10-16).** Print server 1.9.3 (Settings → Printing → Download on each register). Outside initiatives (POS).
 
 ### Changed
-- **Join Thrift+ page** (ecothrift.us/join, phone and computer): two boxes in order. "Now, from anywhere": Name (so we know who you are), Email (to sign in, no password). "At the store": Phone (to look up your account), ID (to check your name and that you're 18+), Photo (a quick check at the register, so you don't need your ID every time). Then "That's all it takes to collect ThriftBucks and get 3-day returns."
-- **No customer passwords** (J13): the website sign-in and account pages and the Thrift+ app no longer ask for, set or reset one. "Forgot password" sends a sign-in link; an old reset link opens the sign-in screen. Staff keep their Dash password.
+- **Receipts (print server 1.9.3):** the logo with the address and hours; receipt number, date and cashier on one line; a member's items under a black 3-DAY RETURN bar and a SOLD AS IS heading, each with ITEM · THRIFTBUCKS · PRICE headers ("+9.60"); a non-member's under ALL SALES FINAL · SOLD AS IS with an IF MEMBER column; Items total before ThriftBucks used; payment on one line.
+- **The black block:** "+20.00 ThriftBucks today · -35.00 used" and the ThriftBucks rewards line at normal size with new words ("Use them starting tomorrow; they expire 30 days after you collect them"); a non-member's "You missed +12.60 ThriftBucks and 1 return". No use-by dates, no balances (rules B12, V6; the attorney confirms the new words).
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

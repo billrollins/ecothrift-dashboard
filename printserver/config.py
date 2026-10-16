@@ -1,8 +1,7 @@
-VERSION = "1.9.2"
+VERSION = "1.9.3"
 RELEASE_NOTES = (
-    "Receipts print as one picture: a solid black Thrift+ block, the logo with the address and hours under it (no phone), a "
-    "sub-line under every item (3-day return or AS IS, and its ThriftBucks; Join for: on a non-member's), and a bigger "
-    "Google review line."
+    "Receipts, decided line by line: items in 3-DAY RETURN and SOLD AS IS groups with a ThriftBucks column, Items "
+    "total before ThriftBucks used, payment on one line, and a short black Thrift+ block with the new ThriftBucks line."
 )
 
 # Default URL for the public version-check endpoint on the dashboard backend.
