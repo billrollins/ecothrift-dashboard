@@ -13,7 +13,6 @@ import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Box, ButtonBase, CircularProgress } from '@mui/material';
 import { isOpen, setPreviewCode, type SignInPurpose } from '../../../api/thriftPlusScanner.api';
-import { ResetPasswordScreen } from './AccountScreens';
 import { SignInScreen } from './SignInScreen';
 import { TripScanner } from './TripScanner';
 import { UNIT_CSS, sc, useScannerFonts } from './scannerTheme';
@@ -32,6 +31,7 @@ export default function ThriftPlusScannerPage() {
   useStandaloneLock();
   useScannerFonts();
   const [pageParams, setPageParams] = useSearchParams();
+  // An old password reset link (owner 2026-10-16: no customer passwords): the sign-in screen says how to sign in now.
   const resetToken = pageParams.get('reset');
   // A staff phone before launch: /scan?preview=<code> (owner, 2026-10-07). Kept on the phone, then off the address.
   const preview = pageParams.get('preview');
@@ -139,7 +139,7 @@ export default function ThriftPlusScannerPage() {
           )
         ) : resetToken ? (
           <Box sx={{ flex: 1, overflowY: 'auto' }}>
-            <ResetPasswordScreen token={resetToken} onDone={() => setPageParams({}, { replace: true })} />
+            <SignInScreen start="email" notice="No passwords anymore. Enter your email and we'll send you a link." />
           </Box>
         ) : signinToken || !session.data ? (
           <Box sx={{ flex: 1, display: 'grid', placeItems: 'center' }}>

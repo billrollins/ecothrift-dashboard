@@ -11,6 +11,7 @@ import ThriftPlusPage from './ThriftPlusPage';
 const created = vi.hoisted(() => ({ bodies: [] as unknown[] }));
 const stopped = vi.hoisted(() => ({ calls: [] as [number, string][] }));
 const links = vi.hoisted(() => ({ calls: [] as [number, string | undefined][], finds: [] as [string, string | undefined][] }));
+const deleted = vi.hoisted(() => ({ calls: [] as [number, string][] }));
 
 /** Joined online with a name and email (owner 2026-10-15, J8): no phone, no ID check, no photo yet. */
 const pendingAccount: ThriftPlusAccount = {
@@ -112,6 +113,20 @@ vi.mock('../../api/thriftplus.api', () => ({
   },
   addSecondAdult: async () => account,
   revokeMember: async () => account,
+  deactivateMember: async () => ({ ...account, status: 'inactive' }),
+  reactivateMember: async () => account,
+  fetchMemberDeletePreview: async () => ({
+    account: 3, name: 'Ana Diaz', status: 'active', is_practice: false, staff_member: '',
+    people: [{ id: 9, name: 'Ana Diaz', email: 'ana@example.com', phone: '4025550101', role: 'primary' }],
+    emails: ['ana@example.com'], sales: 2, paid_sales: 1, sales_total: '85.60', training_sales: 1, bucks: '35.00',
+    credit: '0.00', ledger_rows: 3, returns: 0, scans: 4, history: 6, member_codes: 1, sign_ins: 1, passwords: 0,
+    consents: 1, website_logins: [{ id: 50, email: 'ana@example.com', name: 'Ana Diaz' }], holds: 1, active_holds: 1,
+    orders: 0, conversations: 0,
+  }),
+  deleteMember: async (id: number, name: string) => {
+    deleted.calls.push([id, name]);
+    return { name: 'Ana Diaz', items_back: 1 };
+  },
   verifyPerson: async () => account,
   setPersonPhoto: async () => account,
   removeSecondAdult: async () => account,
@@ -122,6 +137,9 @@ vi.mock('../../api/thriftplus.api', () => ({
   setPersonEmail: async () => account,
   fetchEmailNote: async () => ({ note: "We'll email your receipts and Thrift+ updates. Store news emails have an unsubscribe link." }),
 }));
+
+// Owner 2026-10-16: Delete (testing) is the superuser's.
+vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 1, is_superuser: true } }) }));
 
 vi.mock('../../api/thriftplusRegister.api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../api/thriftplusRegister.api')>()),
@@ -171,6 +189,27 @@ describe('Thrift+ member service', () => {
     // No physical card (owner, 2026-10-14): no card words, no blank-card scan.
     expect(document.body.textContent).not.toMatch(/card/i);
     expect(screen.queryByRole('button', { name: /issue/i })).not.toBeInTheDocument();
+  });
+
+  it('deletes a test member only after showing what goes and the name typed (owner 2026-10-16)', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText('Scan a member QR, or type a phone, email or name'), 'ana');
+    await user.click(await screen.findByText('Ana Diaz'));
+    expect(await screen.findByRole('button', { name: 'Deactivate' })).toBeInTheDocument(); // the normal way
+    await user.click(screen.getByRole('button', { name: 'Delete (testing)' }));
+    const sheet = await screen.findByTestId('delete-member-preview');
+    expect(sheet).toHaveTextContent('2 register sales ($85.60 paid');
+    expect(sheet).toHaveTextContent('35.00 ThriftBucks');
+    expect(sheet).toHaveTextContent('1 ecothrift.us login (ana@example.com)');
+    expect(sheet).toHaveTextContent('1 hold (1 active');
+    const go = screen.getByRole('button', { name: 'Delete for good' });
+    expect(go).toBeDisabled();
+    await user.type(screen.getByTestId('delete-member-name'), 'ana');
+    expect(go).toBeDisabled();
+    await user.type(screen.getByTestId('delete-member-name'), ' diaz');
+    await user.click(go);
+    expect(deleted.calls).toEqual([[3, 'ana diaz']]);
   });
 
   it('replaces a member code: the old one stops at once', async () => {

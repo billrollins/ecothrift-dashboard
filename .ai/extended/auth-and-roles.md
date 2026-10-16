@@ -1,4 +1,4 @@
-<!-- Last updated: 2026-09-23 (IsSuperAdmin on B-Stock pull endpoints; ai settings + floorplan AI merged) -->
+<!-- Last updated: 2026-10-16 (customers: no passwords, one account with Thrift+) -->
 
 # Eco-Thrift Dashboard — Auth and Roles
 
@@ -46,11 +46,23 @@ Token: `MagicLinkToken` with `purpose='staff_reset_password'`, one hour, single
 use. Issuing a new one spends any outstanding token for that address. Issue and
 consume live in `apps/accounts/services/staff_password.py`.
 
-### Customers
+### Customers (no passwords since 2026-10-16)
 
-`POST /api/auth/customer/reset-password/` (self-serve) or
-`POST /api/accounts/customers/{id}/send-password-reset-link/` (staff CS action).
-Both issue `purpose='reset_password'` and email a storefront magic link.
+Customers have no password (rulebook J13: one customer account; only staff have passwords). A customer
+signs in with an emailed link (website) or link and code (Thrift+ app); either one signs in to both, and
+signing out of either ends both (`apps/thriftplus/services/one_account.py`; the website `refresh_token`
+cookie and the app `tp_session` cookie are both set on ecothrift.us). `Person.user` links a Thrift+ person
+to their website `User`.
+
+- `POST /api/auth/login/` refuses a non-staff login (`401`, code `EMAIL_LINK`).
+- `POST /api/auth/customer/set-password/` answers `410 PASSWORDS_GONE`; the Thrift+ app's `login/`,
+  `session/reset/` and `session/reset/confirm/` do too. `session/password/` is the staff Dash login only.
+- `POST /api/auth/customer/reset-password/` and the staff CS action
+  `POST /api/accounts/customers/{id}/send-password-reset-link/` now send a **sign-in** link
+  (`purpose='sign_in'`). A staff email still gets the Dash reset.
+- A deactivated or revoked Thrift+ member is refused on the website too (`403 ACCOUNT_OFF`).
+- Existing accounts are linked, and every customer password removed, by the Requests-center request
+  `thriftplus.one_account` (the owner approves it in production).
 
 ---
 

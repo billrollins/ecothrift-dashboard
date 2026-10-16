@@ -1,17 +1,16 @@
 /**
- * Thrift+ customer account screens: choose a new password (the email link), and "My account"
- * (balances, cards, who is on the account, recent money, set up a login). The copy follows the
+ * Thrift+ customer account screen, "My account" (balances, who is on the account, recent money). No passwords
+ * (owner 2026-10-16: one account, an emailed link or code). The copy follows the
  * program's word rules (see copyRules.test.ts).
  */
 import { useState } from 'react';
-import { Box, ButtonBase, CircularProgress, InputBase } from '@mui/material';
+import { Box, ButtonBase, CircularProgress } from '@mui/material';
 import type { ThriftPlusMember } from '../../../api/thriftPlusScanner.api';
-import { FieldBanner } from './ScannerTop';
-import { Field, Primary, Secondary, Sub, Title } from './signInParts';
+import { Secondary } from './signInParts';
 import { TbAmount, tbNumber } from '../../../components/thriftplus/ThriftBucks';
 import { bucksReady, money } from './scannerLogic';
-import { ThriftPlusLogo, sc, u } from './scannerTheme';
-import { useAccountActions, useMe, useConfirmReset } from './useThriftPlus';
+import { sc, u } from './scannerTheme';
+import { useAccountActions, useMe } from './useThriftPlus';
 
 function errorText(e: unknown, fallback = 'Try again.'): string {
   return e instanceof Error && e.message ? e.message : fallback;
@@ -29,92 +28,6 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-function PasswordField({ value, onChange, label, autoFocus = false }: { value: string; onChange: (v: string) => void; label: string; autoFocus?: boolean }) {
-  return (
-    <Field sx={{ mt: u(20) }}>
-      <InputBase
-        autoFocus={autoFocus}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={label}
-        type="password"
-        inputProps={{ 'aria-label': label, autoComplete: 'new-password' }}
-        sx={{ flex: 1, fontSize: 18 }}
-      />
-    </Field>
-  );
-}
-
-/** `/scan?reset=<token>`: the page the reset email opens. */
-export function ResetPasswordScreen({ token, onDone }: { token: string; onDone: () => void }) {
-  const confirm = useConfirmReset();
-  const [password, setPassword] = useState('');
-  const [again, setAgain] = useState('');
-  const [err, setErr] = useState('');
-  const [finished, setFinished] = useState(false);
-
-  const submit = async () => {
-    setErr('');
-    if (password !== again) {
-      setErr("Those two passwords don't match.");
-      return;
-    }
-    try {
-      await confirm.mutateAsync({ token, password });
-      setFinished(true);
-    } catch (e) {
-      setErr(errorText(e, 'That reset link has expired. Ask for a new one.'));
-    }
-  };
-
-  return (
-    <Box sx={{ minHeight: '100%', display: 'flex', flexDirection: 'column', fontFamily: sc.font }}>
-      <FieldBanner tall>
-        <Box sx={{ position: 'absolute', left: u(56), bottom: u(96) }}>
-          <ThriftPlusLogo width={u(420)} />
-        </Box>
-      </FieldBanner>
-      <Box sx={{ px: u(36), mt: u(-60), position: 'relative', zIndex: 1, pb: u(60) }}>
-        <Card sx={{ p: u(48) }}>
-          {finished ? (
-            <Box>
-              <Title>You're all set</Title>
-              <Sub>Your new password is saved and you're signed in.</Sub>
-              <Box
-                component="button"
-                type="button"
-                onClick={onDone}
-                sx={{ mt: u(10), width: '100%', minHeight: u(104), border: 0, borderRadius: 99, bgcolor: sc.green, color: '#fff', fontSize: u(36), fontWeight: 700, fontFamily: 'inherit' }}
-              >
-                Start scanning
-              </Box>
-            </Box>
-          ) : (
-            <Box
-              component="form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void submit();
-              }}
-            >
-              <Title>Choose a new password</Title>
-              <Sub>Pick a password you don't use anywhere else.</Sub>
-              <PasswordField autoFocus value={password} onChange={setPassword} label="New password" />
-              <PasswordField value={again} onChange={setAgain} label="New password again" />
-              {err && (
-                <Box role="alert" sx={{ color: sc.badText, fontSize: u(30), mt: u(24), lineHeight: 1.35 }}>
-                  {err}
-                </Box>
-              )}
-              <Primary busy={confirm.isPending} label="Save password" />
-              <Secondary label="Back to sign in" onClick={onDone} />
-            </Box>
-          )}
-        </Card>
-      </Box>
-    </Box>
-  );
-}
 
 function ConfirmRow({
   prompt,
@@ -146,57 +59,11 @@ function ConfirmRow({
   );
 }
 
-function SetUpLoginForm() {
-  const actions = useAccountActions();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [err, setErr] = useState('');
-  return (
-    <Card>
-      <Box sx={{ fontSize: u(34), fontWeight: 700, color: sc.ink }}>Set up your sign-in</Box>
-      <Box sx={{ fontSize: u(29), color: sc.ink2, mt: u(8), lineHeight: 1.4 }}>
-        Add an email and password so you can sign in on any phone and make changes here.
-      </Box>
-      <Box
-        component="form"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setErr('');
-          try {
-            await actions.setUpLogin.mutateAsync({ email, password });
-          } catch (x) {
-            setErr(errorText(x, 'Could not set up your sign-in.'));
-          }
-        }}
-      >
-        <Field sx={{ mt: u(24) }}>
-          <InputBase
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-            type="email"
-            inputProps={{ 'aria-label': 'Email for sign-in', autoComplete: 'email' }}
-            sx={{ flex: 1, fontSize: 18 }}
-          />
-        </Field>
-        <PasswordField value={password} onChange={setPassword} label="Choose a password" />
-        {err && (
-          <Box role="alert" sx={{ color: sc.badText, fontSize: u(29), mt: u(18), lineHeight: 1.35 }}>
-            {err}
-          </Box>
-        )}
-        <Primary busy={actions.setUpLogin.isPending} label="Save sign-in" />
-      </Box>
-    </Card>
-  );
-}
-
-/** My account. Changing who is on the account needs an email and password sign-in. */
-export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }: {
+/** My account. A member signs in by an emailed link or code (no passwords, owner 2026-10-16). */
+export function AccountPage({ member, onBack, onSignOut }: {
   member: ThriftPlusMember;
   onBack: () => void;
   onSignOut: () => void;
-  onSignInWithPassword: () => void;
 }) {
   const me = useMe();
   const actions = useAccountActions();
@@ -204,9 +71,6 @@ export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }:
   const [err, setErr] = useState('');
   const data = me.data;
   const ready = bucksReady(data?.banked ?? member.banked_rewards, data ? data.available : member.bucks_available);
-  // Members sign in by email, with no password (owner 2026-10-15, J11, APP D9): an email session is never asked to set
-  // one up or to sign in with one.
-  const byEmail = member.session_kind === 'email';
   // ThriftBucks and Thrift+ credit only (rows of retired kinds from before 10-12 are left out).
   const activity = (data?.money ?? []).filter((m) => m.kind === 'bank' || m.kind === 'credit');
 
@@ -284,21 +148,6 @@ export function AccountPage({ member, onBack, onSignOut, onSignInWithPassword }:
           <Box role="alert" sx={{ color: sc.badText, fontSize: u(30), mt: u(30) }}>
             Could not load your account. Check your signal and try again.
           </Box>
-        )}
-
-        {member.has_login === false && !byEmail && (
-          <Box sx={{ mt: u(30) }}>
-            <SetUpLoginForm />
-          </Box>
-        )}
-
-        {data && !data.can_change && member.has_login !== false && !byEmail && (
-          <Card sx={{ mt: u(30) }}>
-            <Box sx={{ fontSize: u(29), color: sc.ink2, lineHeight: 1.4 }}>
-              To change who is on the account, sign in with your email and password.
-            </Box>
-            <Secondary label="Sign in with email and password" onClick={onSignInWithPassword} />
-          </Card>
         )}
 
         {data && (

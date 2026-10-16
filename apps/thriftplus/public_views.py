@@ -21,8 +21,8 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.throttling import SimpleRateThrottle
 
-from apps.thriftplus.models import Account, MemberLogin, MemberSession
-from apps.thriftplus.services import ledger, member_auth, members, scanner
+from apps.thriftplus.models import Account, MemberSession
+from apps.thriftplus.services import ledger, member_auth, members, one_account, scanner
 from apps.thriftplus.services.member_auth import AuthError, IsMember, MemberSessionAuthentication
 
 AUTH = [MemberSessionAuthentication]
@@ -38,10 +38,6 @@ class LoginThrottle(_Throttle):
     scope = 'thriftplus_login'
 
 
-class ResetThrottle(_Throttle):
-    scope = 'thriftplus_reset'
-
-
 class ScanThrottle(_Throttle):
     scope = 'thriftplus_scan'
 
@@ -55,21 +51,19 @@ def _session_payload(request) -> dict:
     if not isinstance(user, member_auth.Member):
         return {'status': 'signed_out', 'price_first': members.price_first()}
     person = user.person
-    login = MemberLogin.objects.filter(person=person).first()
     card = person.cards.filter(status='active').order_by('-issued_at').first()
     balances = ledger.balances(user.account)
     return {
         'status': 'member',
         'price_first': members.price_first(),
         'member': {
-            'first_name': person.first_name, 'email': login.email if login else person.email,
-            'username': login.username if login else None,
+            'first_name': person.first_name, 'email': person.email,
             # Owner 2026-10-15 (J2, J8): joined online and not finished at a register yet: "not ready", collects nothing.
             'ready': user.account.status == Account.STATUS_ACTIVE, 'email_verified': person.email_verified_at is not None,
             'card_last4': card.code[-4:] if card else None, 'verified_18': person.verified_18,
             'banked_rewards': balances['banked'], 'bucks_available': balances['available'],
             'bucks_use_by': balances['bucks_use_by'], 'credit_balance': balances['credit'],
-            'session_kind': user.session.kind, 'has_login': login is not None,
+            'session_kind': user.session.kind,
             # Thrift+ is still off: this is a staff or practice member testing it (the scanner shows a test bar).
             'test_mode': not members.is_enabled(),
         },
@@ -194,7 +188,8 @@ def _email_signed_in(request, row, how: str) -> Response:
         return _error(exc)
     response = _signed_in(request, person, MemberSession.KIND_EMAIL)
     response.data['purpose'] = row.purpose
-    return response
+    # One account (owner 2026-10-16): signed in to ecothrift.us (holds, messages) too.
+    return one_account.add_website_session(response, person)
 
 
 @api_view(['POST'])
@@ -232,41 +227,37 @@ def session_code(request):
 def sign_out(request):
     if isinstance(request.user, member_auth.Member):
         MemberSession.objects.filter(pk=request.user.session.pk).update(revoked_at=member_auth.timezone.now())
-    return member_auth.clear_cookie(Response({'status': 'signed_out'}))
+    # One account: signing out of the app signs out of ecothrift.us too.
+    response = one_account.end_website_session(request, Response({'status': 'signed_out'}))
+    return member_auth.clear_cookie(response)
+
+
+def _passwords_gone() -> Response:
+    """Owner 2026-10-16: customers have no passwords (one account, emailed link or code only)."""
+    from apps.thriftplus.services.one_account import PASSWORDS_GONE
+
+    return Response({'detail': PASSWORDS_GONE, 'code': 'PASSWORDS_GONE'}, status=status.HTTP_410_GONE)
 
 
 @api_view(['POST'])
 @authentication_classes([])
 @permission_classes([AllowAny])
-@throttle_classes([ResetThrottle])
 def password_reset(request):
-    base = getattr(settings, 'ONLINE_SALES_PUBLIC_BASE_URL', '') or 'https://ecothrift.us'
-    return Response({'sent_to': member_auth.request_reset(request.data.get('email', ''), base_url=base)})
+    return _passwords_gone()
 
 
 @api_view(['POST'])
 @authentication_classes([])
 @permission_classes([AllowAny])
-@throttle_classes([ResetThrottle])
 def password_reset_confirm(request):
-    try:
-        person = member_auth.confirm_reset(request.data.get('token', ''), request.data.get('password', ''))
-    except AuthError as exc:
-        return _error(exc)
-    return _signed_in(request, person, MemberSession.KIND_PASSWORD)
+    return _passwords_gone()
 
 
 @api_view(['POST'])
-@authentication_classes(AUTH)
-@permission_classes([IsMember])
-@throttle_classes([LoginThrottle])
+@authentication_classes([])
+@permission_classes([AllowAny])
 def set_up_login(request):
-    try:
-        member_auth.set_up_login(request.user.person, email=request.data.get('email', ''),
-                                 username=request.data.get('username'), password=request.data.get('password', ''))
-    except AuthError as exc:
-        return _error(exc)
-    return Response(_session_payload(request))
+    return _passwords_gone()
 
 
 # ── Tags and signals ───────────────────────────────────────────────────────────

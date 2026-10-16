@@ -5,6 +5,7 @@ from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import Group
 from django.core.cache import cache
 from django.test import TestCase
@@ -141,29 +142,17 @@ class PublicApiTests(TestCase):
         self.assertEqual(res.status_code, 401)
         self.assertFalse(Account.objects.filter(staff_user=shopper).exists())
 
-    def test_a_card_session_sets_up_a_login_once_and_the_reset_link_signs_out_every_phone(self):
+    def test_customer_passwords_are_gone_owner_2026_10_16(self):
         self._card_sign_in()
-        weak = self.api.post(BASE + 'login/', {'email': 'ana@example.com', 'password': '123'}, format='json')
-        self.assertEqual(weak.json()['code'], 'WEAK_PASSWORD')
-        made = self.api.post(BASE + 'login/', {'email': 'Ana@Example.com', 'username': 'ana_d', 'password': 'green-lamp-4455'}, format='json')
-        self.assertEqual(made.json()['member']['email'], 'ana@example.com')
-        again = self.api.post(BASE + 'login/', {'email': 'x@example.com', 'password': 'green-lamp-4455'}, format='json')
-        self.assertEqual(again.json()['code'], 'HAS_LOGIN')
-        phone = APIClient()
-        self.assertEqual(phone.post(BASE + 'session/password/', {'login': 'ANA_D', 'password': 'green-lamp-4455'}, format='json').status_code, 200)
-        self.assertEqual(phone.post(BASE + 'session/password/', {'login': 'ana@example.com', 'password': 'nope'}, format='json').status_code, 401)
-        with patch('apps.webstore.emails._send', return_value=True) as send:
-            sent = APIClient().post(BASE + 'session/reset/', {'email': 'ana@example.com'}, format='json').json()
-            unknown = APIClient().post(BASE + 'session/reset/', {'email': 'who@example.com'}, format='json').json()
-        self.assertEqual((sent['sent_to'], unknown['sent_to']), ('a***@example.com', 'w***@example.com'))  # same answer either way
-        self.assertEqual(send.call_count, 1)
-        token = send.call_args.args[1].split('reset=')[1].split()[0]
-        done = APIClient().post(BASE + 'session/reset/confirm/', {'token': token, 'password': 'blue-coat-7788'}, format='json')
-        self.assertEqual(done.status_code, 200, done.content)
-        self.assertEqual(phone.get(BASE + 'cart/').status_code, 403)  # the old phone was signed out
-        reused = APIClient().post(BASE + 'session/reset/confirm/', {'token': token, 'password': 'blue-coat-9999'}, format='json')
-        self.assertEqual(reused.json()['code'], 'BAD_RESET')
-        self.assertNotIn('blue-coat', MemberLogin.objects.get().password)  # only a hash is kept
+        for path, body in (('login/', {'email': 'ana@example.com', 'password': 'green-lamp-4455'}),
+                           ('session/reset/', {'email': 'ana@example.com'}),
+                           ('session/reset/confirm/', {'token': 'x', 'password': 'blue-coat-7788'})):
+            res = self.api.post(BASE + path, body, format='json')
+            self.assertEqual((res.status_code, res.json()['code']), (410, 'PASSWORDS_GONE'), path)
+        MemberLogin.objects.create(person=self.person, email='ana@example.com', password=make_password('green-lamp-4455'))
+        old = APIClient().post(BASE + 'session/password/', {'login': 'ana@example.com', 'password': 'green-lamp-4455'},
+                               format='json')
+        self.assertEqual(old.status_code, 401)  # an old member login no longer signs in: staff only
 
     def test_the_portal_changes_answer_with_the_updated_membership_and_a_card_session_cannot_make_them(self):
         card_phone = APIClient()
@@ -173,11 +162,11 @@ class PublicApiTests(TestCase):
         self.assertEqual((refused.status_code, refused.json()['code']), (403, 'NEEDS_PASSWORD'))
         self.assertEqual(card_phone.get(BASE + 'me/').json()['can_change'], False)
 
-        member_auth.set_up_login(self.person, email='ana@example.com', username=None, password='green-lamp-4455')
         second = members.add_second_adult(self.account, both_present=True, primary_approves=True, first_name='Ben',
                                           id_checked=True, verified_18=True, card_code=self.other_code)
+        token, _ = member_auth.start_session(self.person, 'email')  # signed in by an emailed link or code (J11)
         phone = APIClient()
-        phone.post(BASE + 'session/password/', {'login': 'ana@example.com', 'password': 'green-lamp-4455'}, format='json')
+        phone.cookies[member_auth.COOKIE] = token
 
         stopped = phone.post(BASE + 'me/card-lost/', {'card': card_id}, format='json')
         self.assertEqual(stopped.status_code, 200, stopped.content)

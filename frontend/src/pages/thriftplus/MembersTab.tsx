@@ -29,10 +29,14 @@ import { useEffect, useState } from 'react';
 import {
   addSecondAdult,
   createMember,
+  deactivateMember,
+  deleteMember,
+  fetchMemberDeletePreview,
   makePracticeMember,
   fetchMember,
   findMembers,
   killCard,
+  reactivateMember,
   removeSecondAdult,
   revokeMember,
   sendMemberEmailLink,
@@ -41,7 +45,8 @@ import {
   setPersonNews,
   verifyPerson,
 } from '../../api/thriftplus.api';
-import type { NewMember, ThriftPlusAccount, ThriftPlusPerson } from '../../types/thriftplus.types';
+import type { MemberDeletePreview, NewMember, ThriftPlusAccount, ThriftPlusPerson } from '../../types/thriftplus.types';
+import { useAuth } from '../../hooks/useAuth';
 import PersonFields from '../../components/thriftplus/PersonFields';
 import MemberMoney from './MemberMoney';
 import { getPayrollPeople } from '../../api/pos.api';
@@ -269,12 +274,100 @@ function PersonCard({ person, account, onChanged }: { person: ThriftPlusPerson; 
   );
 }
 
-function AccountDetail({ id }: { id: number }) {
+/** One line of what a delete erases; left out when there is nothing. */
+function Gone({ n, label }: { n: number | string; label: string }) {
+  if (!n || n === '0' || n === '0.00') return null;
+  return <li><strong>{n}</strong> {label}</li>;
+}
+
+const sameName = (a: string, b: string) => a.trim().replace(/\s+/g, ' ').toLowerCase() === b.trim().replace(/\s+/g, ' ').toLowerCase();
+
+/**
+ * Delete a member for good (owner 2026-10-16): for testing, when staff sign each other up. It shows everything the
+ * customer left, then asks for their name typed out. Deactivate is the normal way; this can't be undone.
+ */
+function DeleteMemberDialog({ id, onClose, onDeleted }: { id: number; onClose: () => void; onDeleted: () => void }) {
+  const { enqueueSnackbar } = useSnackbar();
+  const [typed, setTyped] = useState('');
+  const preview = useQuery({ queryKey: ['thriftplus', 'delete-preview', id], queryFn: () => fetchMemberDeletePreview(id), staleTime: 0 });
+  const del = useMutation({
+    mutationFn: () => deleteMember(id, typed),
+    onSuccess: (r) => {
+      enqueueSnackbar(`${r.name} is deleted.${r.items_back ? ` ${r.items_back} sold item(s) are back on the shelf.` : ''}`, { variant: 'success' });
+      onDeleted();
+    },
+    onError: (err) => enqueueSnackbar(detail(err), { variant: 'error' }),
+  });
+  const p: MemberDeletePreview | undefined = preview.data;
+  const matches = !!p && sameName(typed, p.name);
+  return (
+    <Dialog open onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle>Delete this member for good?</DialogTitle>
+      <DialogContent>
+        {preview.isError ? <Alert severity="error">{detail(preview.error)}</Alert> : null}
+        {p ? (
+          <Stack spacing={1.5} data-testid="delete-member-preview">
+            <Alert severity="warning">
+              For testing only. Everything below is erased, as if <strong>{p.name}</strong> never existed. It can't be
+              undone. To take a real customer off, use <strong>Deactivate</strong> instead.
+            </Alert>
+            <Box component="ul" sx={{ m: 0, pl: 2.5, '& li': { mb: 0.25 } }}>
+              <Gone n={p.people.length} label={p.people.length === 1 ? 'person on the membership' : 'people on the membership'} />
+              <Gone
+                n={p.sales}
+                label={`register sale${p.sales === 1 ? '' : 's'}${p.paid_sales ? ` ($${p.sales_total} paid: the cash comes back out of an open drawer and the items go back on the shelf)` : ''}`}
+              />
+              <Gone n={p.bucks} label="ThriftBucks" />
+              <Gone n={p.credit === '0.00' ? 0 : `$${p.credit}`} label="Thrift+ credit" />
+              <Gone n={p.ledger_rows} label="ThriftBucks and credit rows" />
+              <Gone n={p.returns} label="3-day returns" />
+              <Gone n={p.scans} label="scans in the app" />
+              <Gone n={p.history} label="history lines" />
+              <Gone n={p.member_codes} label="member codes" />
+              <Gone n={p.sign_ins} label="app sign-ins" />
+              <Gone n={p.passwords} label="old app password" />
+              <Gone n={p.consents} label="email and text consent records" />
+              <Gone
+                n={p.website_logins.length}
+                label={`ecothrift.us login${p.website_logins.length === 1 ? '' : 's'} (${p.website_logins.map((u) => u.email).join(', ')})`}
+              />
+              <Gone n={p.holds} label={`hold${p.holds === 1 ? '' : 's'}${p.active_holds ? ` (${p.active_holds} active: stock goes back to the listing)` : ''}`} />
+              <Gone n={p.orders} label="online orders" />
+              <Gone n={p.conversations} label="website conversations" />
+            </Box>
+            {p.staff_member ? (
+              <Alert severity="info">
+                This is {p.staff_member}'s staff membership. Their Dash login stays; a fresh membership is made the next
+                time they sign in.
+              </Alert>
+            ) : null}
+            <TextField
+              autoFocus
+              fullWidth
+              label={`Type ${p.name} to delete`}
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              inputProps={{ 'data-testid': 'delete-member-name' }}
+            />
+          </Stack>
+        ) : null}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button color="error" variant="contained" disabled={!matches || del.isPending} onClick={() => del.mutate()}>Delete for good</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function AccountDetail({ id, onDeleted }: { id: number; onDeleted: () => void }) {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
   const query = useQuery({ queryKey: ['thriftplus', 'account', id], queryFn: () => fetchMember(id) });
   const [second, setSecond] = useState<(NewMember & { both_present: boolean; primary_approves: boolean }) | null>(null);
   const [revokeReason, setRevokeReason] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const { user } = useAuth();
   const onChanged = (a: ThriftPlusAccount) => {
     queryClient.setQueryData(['thriftplus', 'account', id], a);
     void queryClient.invalidateQueries({ queryKey: ['thriftplus', 'find'] });
@@ -289,6 +382,16 @@ function AccountDetail({ id }: { id: number }) {
     onSuccess: (a) => { onChanged(a); setRevokeReason(null); },
     onError: (err) => enqueueSnackbar(detail(err), { variant: 'error' }),
   });
+  const deactivate = useMutation({
+    mutationFn: () => deactivateMember(id),
+    onSuccess: (a) => { onChanged(a); enqueueSnackbar('Deactivated. Reactivate puts it back.', { variant: 'success' }); },
+    onError: (err) => enqueueSnackbar(detail(err), { variant: 'error' }),
+  });
+  const reactivate = useMutation({
+    mutationFn: () => reactivateMember(id),
+    onSuccess: (a) => { onChanged(a); enqueueSnackbar('Reactivated.', { variant: 'success' }); },
+    onError: (err) => enqueueSnackbar(detail(err), { variant: 'error' }),
+  });
   const account = query.data;
   if (!account) return null;
   const hasSecond = account.people.some((p) => p.role === 'secondary' && !p.removed_at);
@@ -297,6 +400,7 @@ function AccountDetail({ id }: { id: number }) {
       <Stack direction="row" spacing={1} alignItems="center">
         <Typography variant="h6" sx={{ fontWeight: 800, flex: 1 }}>Membership #{account.id}</Typography>
         {account.status === 'revoked' ? <Chip color="error" label={`Revoked: ${account.revoked_reason}`} /> : null}
+        {account.status === 'inactive' ? <Chip label="Deactivated" /> : null}
       </Stack>
       {account.status === 'pending' ? (
         <Alert severity="info" data-testid="thrift-pending-note">
@@ -308,14 +412,24 @@ function AccountDetail({ id }: { id: number }) {
       {account.people.map((p) => <PersonCard key={p.id} person={p} account={account} onChanged={onChanged} />)}
       <StaffLink account={account} onChanged={onChanged} />
       <MemberMoney accountId={account.id} />
-      {account.status === 'active' ? (
-        <Stack direction="row" spacing={1}>
-          {!hasSecond ? (
-            <Button variant="outlined" onClick={() => setSecond({ first_name: '', both_present: false, primary_approves: false })}>Add second adult</Button>
-          ) : null}
+      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+        {account.status === 'active' && !hasSecond ? (
+          <Button variant="outlined" onClick={() => setSecond({ first_name: '', both_present: false, primary_approves: false })}>Add second adult</Button>
+        ) : null}
+        {/* Owner 2026-10-16: Deactivate is the normal way to take a member off; Revoke is for theft or abuse. */}
+        {account.status === 'active' || account.status === 'pending' ? (
+          <Button variant="outlined" disabled={deactivate.isPending} onClick={() => deactivate.mutate()}>Deactivate</Button>
+        ) : null}
+        {account.status === 'inactive' ? (
+          <Button variant="outlined" disabled={reactivate.isPending} onClick={() => reactivate.mutate()}>Reactivate</Button>
+        ) : null}
+        {account.status === 'active' ? (
           <Button color="error" onClick={() => setRevokeReason('')}>Revoke membership</Button>
-        </Stack>
-      ) : null}
+        ) : null}
+        {user?.is_superuser ? (
+          <Button color="error" variant="outlined" onClick={() => setDeleting(true)}>Delete (testing)</Button>
+        ) : null}
+      </Stack>
       {account.events?.length ? (
         <Box>
           <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>History</Typography>
@@ -355,6 +469,18 @@ function AccountDetail({ id }: { id: number }) {
           <Button color="error" variant="contained" disabled={!revokeReason?.trim() || revoke.isPending} onClick={() => revoke.mutate()}>Revoke</Button>
         </DialogActions>
       </Dialog>
+      {deleting ? (
+        <DeleteMemberDialog
+          id={id}
+          onClose={() => setDeleting(false)}
+          onDeleted={() => {
+            setDeleting(false);
+            queryClient.removeQueries({ queryKey: ['thriftplus', 'account', id] });
+            void queryClient.invalidateQueries({ queryKey: ['thriftplus', 'find'] });
+            onDeleted();
+          }}
+        />
+      ) : null}
     </Stack>
   );
 }
@@ -430,7 +556,7 @@ export default function MembersTab() {
                       primary={primary ? fullName(primary) : `Membership #${a.id}`}
                       secondary={a.status === 'pending'
                         ? `${primary?.email ?? ''} · ${PENDING_LABEL.toLowerCase()}`
-                        : `${primary?.phone ? phone(primary.phone) : 'No phone'}${a.status === 'revoked' ? ' · revoked' : ''}${a.is_practice ? ' · practice' : ''}`}
+                        : `${primary?.phone ? phone(primary.phone) : 'No phone'}${a.status === 'revoked' ? ' · revoked' : ''}${a.status === 'inactive' ? ' · deactivated' : ''}${a.is_practice ? ' · practice' : ''}`}
                     />
                   </ListItemButton>
                 );
@@ -439,7 +565,7 @@ export default function MembersTab() {
           </Paper>
         ) : null}
       </Stack>
-      <Box>{selected ? <AccountDetail key={selected} id={selected} /> : <Typography color="text.secondary">Find a member, or sign up a new one.</Typography>}</Box>
+      <Box>{selected ? <AccountDetail key={selected} id={selected} onDeleted={() => setSelected(null)} /> : <Typography color="text.secondary">Find a member, or sign up a new one.</Typography>}</Box>
 
       <Dialog open={signup !== null} onClose={() => setSignup(null)} fullWidth maxWidth="xs">
         <DialogTitle>New Thrift+ member</DialogTitle>

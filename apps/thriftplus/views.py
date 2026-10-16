@@ -204,6 +204,42 @@ class AccountViewSet(viewsets.ReadOnlyModelViewSet):
             return _error(exc)
         return Response(AccountDetailSerializer(account).data)
 
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
+    def deactivate(self, request, pk=None):
+        """The normal way to take a member off (owner 2026-10-16); Reactivate undoes it."""
+        try:
+            account = members.deactivate(self.get_object(), reason=request.data.get('reason', ''), user=request.user)
+        except MemberError as exc:
+            return _error(exc)
+        return Response(AccountDetailSerializer(account).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsManagerOrAdmin])
+    def reactivate(self, request, pk=None):
+        try:
+            account = members.reactivate(self.get_object(), user=request.user)
+        except MemberError as exc:
+            return _error(exc)
+        return Response(AccountDetailSerializer(account).data)
+
+    @action(detail=True, methods=['get'], url_path='delete-preview', permission_classes=[IsAuthenticated, IsSuperAdmin])
+    def delete_preview(self, request, pk=None):
+        """Everything a delete would remove (owner 2026-10-16: testing only). Changes nothing."""
+        from apps.thriftplus.services import delete_member
+
+        return Response(delete_member.preview(self.get_object()))
+
+    @action(detail=True, methods=['post'], url_path='delete', permission_classes=[IsAuthenticated, IsSuperAdmin])
+    def delete_forever(self, request, pk=None):
+        """Delete the member and everything they left, as if they never existed. Body: {name} typed to match."""
+        from apps.thriftplus.services import delete_member
+
+        try:
+            result = delete_member.delete(self.get_object(), typed_name=str(request.data.get('name') or ''),
+                                          actor=request.user)
+        except MemberError as exc:
+            return _error(exc)
+        return Response(result)
+
 
 class StaffMembershipsViewSet(viewsets.ViewSet):
     """
@@ -281,6 +317,20 @@ class StaffMembershipsViewSet(viewsets.ViewSet):
         except MemberError as exc:
             return _error(exc)
         return Response(result)
+
+    @action(detail=False, methods=['get', 'post'], url_path='start-fresh', permission_classes=[IsAuthenticated, IsSuperAdmin])
+    def start_fresh(self, request):
+        """Owner 2026-10-16: GET = what the wipe would delete; POST {typed: "START FRESH"} = delete every staff
+        membership (and staff customer test memberships), then make each staff member a fresh, empty one."""
+        from apps.thriftplus.services import delete_member, staff_members
+
+        if request.method == 'GET':
+            return Response({**delete_member.staff_wipe_preview(), 'words': delete_member.WIPE_WORDS})
+        try:
+            result = delete_member.staff_wipe(typed=str(request.data.get('typed') or ''), actor=request.user)
+        except MemberError as exc:
+            return _error(exc)
+        return Response({**staff_members.staff_list(), **result, 'can_merge': True})
 
 
 class PersonViewSet(viewsets.GenericViewSet):

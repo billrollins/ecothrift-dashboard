@@ -24,8 +24,8 @@ export default function SignInPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [firstName, setFirstName] = useState('')
-  const [regPassword, setRegPassword] = useState('')
-  // A staff login (owner 2026-10-15): staff are website customers too and sign in with their Dash password.
+  // A staff login (owner 2026-10-15): staff are website customers too and sign in with their Dash password. Customers
+  // have no password (owner 2026-10-16): an emailed link only, the same account as the Thrift+ app.
   const [passwordOnly, setPasswordOnly] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -118,7 +118,7 @@ export default function SignInPage() {
         setStep('register')
         return
       }
-      if (lookup.has_password) {
+      if (lookup.password_only) {
         setStep('password')
         return
       }
@@ -145,19 +145,6 @@ export default function SignInPage() {
     }
   }
 
-  const onEmailLinkInstead = async () => {
-    setBusy(true)
-    setError(null)
-    try {
-      await requestMagicLink(email.trim())
-      setStep('link_sent')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not send link')
-    } finally {
-      setBusy(false)
-    }
-  }
-
   const onForgot = async () => {
     setBusy(true)
     setError(null)
@@ -179,7 +166,6 @@ export default function SignInPage() {
       await register({
         email: email.trim(),
         first_name: firstName.trim(),
-        password: regPassword.trim() || undefined,
       })
       setStep('register_sent')
     } catch (err) {
@@ -223,11 +209,7 @@ export default function SignInPage() {
 
       {step === 'password' && (
         <>
-          <p className="lead">
-            {passwordOnly
-              ? `Welcome back - ${email} is a staff login. Sign in with your Dash password.`
-              : `Welcome back - enter your password for ${email}.`}
-          </p>
+          <p className="lead">Welcome back - {email} is a staff login. Sign in with your Dash password.</p>
           <form className="checkout-form" onSubmit={onPasswordSignIn} style={{ maxWidth: 420 }}>
             <label className="field">
               <span>Password</span>
@@ -245,11 +227,6 @@ export default function SignInPage() {
               {busy ? 'Signing in…' : 'Sign in'}
             </button>
             <div className="hbtns" style={{ marginTop: 12 }}>
-              {passwordOnly ? null : (
-                <button type="button" className="btn btn--ghost" disabled={busy} onClick={onEmailLinkInstead}>
-                  Email me a link instead
-                </button>
-              )}
               <button type="button" className="btn btn--ghost" disabled={busy} onClick={onForgot}>
                 Forgot password
               </button>
@@ -273,7 +250,7 @@ export default function SignInPage() {
 
       {step === 'link_sent' && (
         <>
-          <p className="lead">Link sent. Check your email.</p>
+          <p className="lead">Link sent. Check your email. No password needed.</p>
         </>
       )}
 
@@ -290,7 +267,8 @@ export default function SignInPage() {
       {step === 'register' && (
         <>
           <p className="lead">
-            No account yet for {email}. Add your name - password is optional.
+            No account yet for {email}. Add your name and we'll email you a link. No password needed. The same account
+            works in the Thrift+ app.
           </p>
           <form className="checkout-form" onSubmit={onRegister} style={{ maxWidth: 420 }}>
             <label className="field">
@@ -301,17 +279,6 @@ export default function SignInPage() {
                 onChange={(e) => setFirstName(e.target.value)}
                 disabled={busy}
                 autoComplete="given-name"
-              />
-            </label>
-            <label className="field">
-              <span>Password (optional)</span>
-              <input
-                type="password"
-                value={regPassword}
-                onChange={(e) => setRegPassword(e.target.value)}
-                disabled={busy}
-                minLength={6}
-                autoComplete="new-password"
               />
             </label>
             {error && <div className="formerror">{error}</div>}

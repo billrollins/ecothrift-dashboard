@@ -1,17 +1,16 @@
-v2.173.0 — Thrift+ on the store phones: Finalize installs as its own app with a Join QR and terms in a popup, ThriftBucks ready tomorrow, a scanner camera that fixes itself
+v2.174.0 — One customer account with no customer passwords; delete test members, deactivate real ones; a Join page that spells it out
 
-User-facing theme: **Thrift+ on the store phones: Finalize installs as its own app with a Join QR and terms in a popup, today's ThriftBucks read as ready tomorrow, and a scanner camera that fixes itself when it goes black (Bill, 2026-10-16).** Thrift+ Rewards.
+User-facing theme: **One customer account and no customer passwords; delete test members, deactivate real ones; a Join page that spells it out (Bill, 2026-10-16).** Thrift+ Rewards.
 
 ### Added
-- **Finalize Thrift+ as a home-screen app** (J13): dash.ecothrift.us/thriftplus/finalize installs like /scan, with its own name ("Finalize") and a dark icon, so a store phone can have both apps. It runs full screen, outside the Dash menu. Signing in from the app comes back to Finalize (`/login?next=`).
-- **Join QR on Finalize:** "Not joined yet? Show the Join QR" opens the ecothrift.us/join QR and address full screen, to show a customer.
-- **Restart the camera** on the scanner and on Finalize: a round button top right. A second tap within 10 seconds reloads the page.
+- **One customer account** (J13): a Thrift+ member and their ecothrift.us account (holds, messages, orders) are the same account. An emailed link or code in the app also signs in to the website, and the other way round; signing out of either ends both. A website customer with no membership gets one that is "not ready" until a register finishes it. A deactivated or revoked member can't sign in on either side.
+- **Superuser → Requests: "One customer account (merge, no passwords)"** (`thriftplus.one_account`): links every website login and Thrift+ member by email, makes the missing memberships and website logins, and removes every customer password. Staff passwords are not touched. Safe to run again.
+- **Deactivate and Reactivate** (J14), Thrift+ → Members (managers): the normal way to take a member off. Nothing is erased; Reactivate puts it back as it was. Revoke stays for theft or abuse.
+- **Delete (testing)**, Thrift+ → Members (superuser): lists everything the customer left (sales, ThriftBucks, credit, returns, scans, history, the ecothrift.us login, holds), asks for the name typed out, then erases all of it as if they never existed. A paid sale's cash comes back out of an open drawer and its items go back on the shelf.
+- **Start staff memberships fresh**, Thrift+ → Staff (superuser, type START FRESH): deletes every staff membership and every customer membership with a staff email, then makes each staff member a fresh, empty one. Dash logins are not touched.
 
 ### Changed
-- **Finalize: the terms open in a popup** on the signing screen (the full terms, from the public site's copy). No link leaves the page. The phone's Back or a swipe only closes a popup; a pull-down doesn't reload; a long press opens no menu; a reload asks first part way through.
-- **Scanner app: ThriftBucks ready tomorrow morning** (B5). The pill, the balance and My account count only the ThriftBucks that work now, and show today's as "+4.50 tomorrow" or "ready tomorrow morning". Each of today's rows says "ready tomorrow morning". The register already spent only next-day ThriftBucks; nothing changes there.
-
-### Fixed
-- **Scanner camera going black:** the camera restarts by itself when the phone ends or mutes it, when no new frame comes for 3 seconds, or when a start hangs. It does this at most three times a minute; after that it shows "Tap to restart the camera".
+- **Join Thrift+ page** (ecothrift.us/join, phone and computer): two boxes in order. "Now, from anywhere": Name (so we know who you are), Email (to sign in, no password). "At the store": Phone (to look up your account), ID (to check your name and that you're 18+), Photo (a quick check at the register, so you don't need your ID every time). Then "That's all it takes to collect ThriftBucks and get 3-day returns."
+- **No customer passwords** (J13): the website sign-in and account pages and the Thrift+ app no longer ask for, set or reset one. "Forgot password" sends a sign-in link; an old reset link opens the sign-in screen. Staff keep their Dash password.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

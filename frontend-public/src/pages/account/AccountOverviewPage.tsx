@@ -1,37 +1,16 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import {
-  clearPasswordPrompt,
-  isStaffLogin,
-  peekPasswordPrompt,
-  useAuth,
-} from '../../auth'
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { isStaffLogin, useAuth } from '../../auth'
 import { STORE, retailMapsDirectionsUrl } from '../../data/content'
 import { useHolidayNote, useStoreHoursLabel } from '../../lib/storeHours'
 import { useAccountData } from './accountData'
 import HoldCard from './HoldCard'
 
 export default function AccountOverviewPage() {
-  const {
-    user,
-    logout,
-    hasPassword,
-    emailVerified,
-    setPassword,
-    resendVerification,
-  } = useAuth()
+  const { user, logout, emailVerified, resendVerification } = useAuth()
   const hoursLabel = useStoreHoursLabel()
   const holiday = useHolidayNote()
   const { activeHolds, archivedHolds, unarchiveHold } = useAccountData()
-  const [params] = useSearchParams()
-
-  const [password, setPasswordValue] = useState('')
-  const [oldPassword, setOldPassword] = useState('')
-  const [passwordBusy, setPasswordBusy] = useState(false)
-  const [passwordMsg, setPasswordMsg] = useState<string | null>(null)
-  const [passwordError, setPasswordError] = useState<string | null>(null)
-  const [showPasswordCard, setShowPasswordCard] = useState(false)
-
   const [verifyBusy, setVerifyBusy] = useState(false)
   const [verifyMsg, setVerifyMsg] = useState<string | null>(null)
   const [archiveBusy, setArchiveBusy] = useState<string | null>(null)
@@ -39,33 +18,7 @@ export default function AccountOverviewPage() {
 
   const staffLogin = isStaffLogin(user)
 
-  useEffect(() => {
-    if (staffLogin) return
-    if (!hasPassword || params.get('set_password') === '1' || peekPasswordPrompt()) {
-      setShowPasswordCard(true)
-    }
-  }, [params, hasPassword, staffLogin])
-
   if (!user) return null
-
-  const onSavePassword = async (e: FormEvent) => {
-    e.preventDefault()
-    setPasswordBusy(true)
-    setPasswordError(null)
-    setPasswordMsg(null)
-    try {
-      await setPassword(oldPassword ? { password, old_password: oldPassword } : { password })
-      setPasswordMsg('Password saved.')
-      setPasswordValue('')
-      setOldPassword('')
-      setShowPasswordCard(false)
-      clearPasswordPrompt()
-    } catch (err) {
-      setPasswordError(err instanceof Error ? err.message : 'Could not save password')
-    } finally {
-      setPasswordBusy(false)
-    }
-  }
 
   const onResendVerify = async () => {
     setVerifyBusy(true)
@@ -187,58 +140,16 @@ export default function AccountOverviewPage() {
           {verifyMsg && <p className="acct__hint">{verifyMsg}</p>}
         </section>
 
-        {showPasswordCard && (
+        {/* One account (owner 2026-10-16): no password; the same emailed sign-in opens the Thrift+ app. */}
+        {!staffLogin && (
           <section className="acctcard">
-            <h2>{hasPassword ? 'Update password' : 'Add a password'}</h2>
+            <h2>Thrift+</h2>
             <p className="acct__hint">
-              {hasPassword
-                ? 'Optional - set a new password, or skip.'
-                : 'Optional. Keep using email links, or save a password for next time.'}
+              This is your Thrift+ account too. No password: we email you a link whenever you sign in.
             </p>
-            <form className="checkout-form" onSubmit={onSavePassword}>
-              {hasPassword && (
-                <label className="field">
-                  <span>Current password</span>
-                  <input
-                    type="password"
-                    autoComplete="current-password"
-                    value={oldPassword}
-                    onChange={(e) => setOldPassword(e.target.value)}
-                    disabled={passwordBusy}
-                  />
-                  <small className="acct__hint">Leave this empty if you just signed in with an email link.</small>
-                </label>
-              )}
-              <label className="field">
-                <span>{hasPassword ? 'New password' : 'Password'}</span>
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPasswordValue(e.target.value)}
-                  disabled={passwordBusy}
-                />
-              </label>
-              {passwordError && <div className="formerror">{passwordError}</div>}
-              {passwordMsg && <p className="acct__hint">{passwordMsg}</p>}
-              <div className="hbtns">
-                <button className="btn btn--primary" type="submit" disabled={passwordBusy}>
-                  {passwordBusy ? 'Saving…' : hasPassword ? 'Update password' : 'Save password'}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  onClick={() => {
-                    setShowPasswordCard(false)
-                    clearPasswordPrompt()
-                  }}
-                >
-                  Not now
-                </button>
-              </div>
-            </form>
+            <a className="btn btn--ghost" href="/scan">
+              Open the Thrift+ app
+            </a>
           </section>
         )}
 
@@ -247,18 +158,6 @@ export default function AccountOverviewPage() {
             <p className="acct__hint" style={{ margin: 0 }}>
               This is your staff login: your password is your Dash password. Change it in Dash.
             </p>
-          </section>
-        )}
-
-        {!staffLogin && !showPasswordCard && hasPassword && (
-          <section className="acctcard">
-            <button
-              type="button"
-              className="txt"
-              onClick={() => setShowPasswordCard(true)}
-            >
-              Change password
-            </button>
           </section>
         )}
 

@@ -448,7 +448,7 @@ export function TripScanner({ session }: { session: Exclude<ThriftPlusSession, {
         />
       )}
       {accountOpen && member && (
-        <AccountPage member={member} onBack={closeAccount} onSignOut={() => auth.signOut.mutate()} onSignInWithPassword={() => auth.signOut.mutate()} />
+        <AccountPage member={member} onBack={closeAccount} onSignOut={() => auth.signOut.mutate()} />
       )}
       {sideways && (
         cameraSideways ? <SidewaysScanPill lock={lock} />

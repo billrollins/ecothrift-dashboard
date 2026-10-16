@@ -234,10 +234,8 @@ def consume_magic_link(*, token: str, request_ip: str | None = None) -> ConsumeR
         user.set_unusable_password()
         user.save(update_fields=['password'])
 
-    # Every successful email validation asks create-or-update password. A short
-    # unlock lets set-password skip old_password after a magic-link session.
-    needs_password_prompt = True
-    unlock_password_change(user)
+    # Owner 2026-10-16: no customer passwords (one account, an emailed link or code). Nothing asks for one.
+    needs_password_prompt = False
 
     claim_guest_records(user)
     redirect_to = '/account'

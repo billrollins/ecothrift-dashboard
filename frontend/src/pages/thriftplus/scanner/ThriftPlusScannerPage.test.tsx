@@ -499,9 +499,16 @@ describe('Email sign-in and joining (owner 2026-10-15, APP D9)', () => {
     await user.click(await screen.findByRole('button', { name: 'Join Thrift+' }));
     const form = await screen.findByTestId('join-form');
     expect(within(form).getByRole('heading', { name: 'Join Thrift+' })).toBeInTheDocument();
-    expect(form).toHaveTextContent('Free to join. Nothing owed. Just your name and email.');
+    // Owner 2026-10-16: two steps in the customer's order, each ask with its reason, and what it unlocks.
+    expect(within(form).getByTestId('join-step-now')).toHaveTextContent(
+      'Now, from anywhereNameSo we know who you areEmailTo sign in. No password.',
+    );
+    expect(within(form).getByTestId('join-step-store')).toHaveTextContent(
+      "At the storePhoneTo look up your accountIDTo check your name and that you're 18+PhotoA quick check at the register, so you don't need your ID every time",
+    );
+    expect(form).toHaveTextContent("That's all it takes to collect ThriftBucks and get 3-day returns.");
     expect(form).toHaveTextContent(
-      "18+. You'll finish joining at any register with your ID and phone number. We email your sign-in links, receipts and Thrift+ news; you can turn news off anytime. Terms: ecothrift.us/terms",
+      'We email your sign-in links, receipts and Thrift+ news; you can turn news off anytime. Terms: ecothrift.us/terms',
     );
     expect(within(form).getByTestId('join-terms')).toHaveAttribute('href', 'https://ecothrift.us/terms');
     expect(within(form).getByLabelText('Your name')).toHaveAttribute('placeholder', 'First and last name');
@@ -588,7 +595,7 @@ describe('Email sign-in and joining (owner 2026-10-15, APP D9)', () => {
     expect(await screen.findByLabelText('Email or username')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Staff sign in' })).toBeInTheDocument();  // APP 10-15: customers have no password
     expect(screen.getByText('Your Dash email and password.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Forgot password?' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Forgot password?' })).toBeNull(); // a staff password is reset in Dash
     await user.click(screen.getByRole('button', { name: 'Back' }));
     expect(await screen.findByRole('button', { name: 'Email me a link' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Password')).toBeNull();

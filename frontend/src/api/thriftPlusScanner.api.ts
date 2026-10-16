@@ -167,37 +167,6 @@ export async function signIn(login: string, password: string): Promise<ThriftPlu
   }
 }
 
-export async function requestPasswordReset(email: string): Promise<{ sent_to: string }> {
-  try {
-    const { data } = await http.post<{ sent_to: string }>('/session/reset/', { email: email.trim() });
-    return data;
-  } catch (err) {
-    throw problem(err, 'Could not send the email. Try again.');
-  }
-}
-
-/** The link in the reset email opens `/scan?reset=<token>`; this sets the new password and signs in. */
-export async function confirmPasswordReset(token: string, password: string): Promise<ThriftPlusSession> {
-  try {
-    const { data } = await http.post<ThriftPlusSession>('/session/reset/confirm/', { token, password });
-    if (data.status === 'member') member = data.member;
-    return data;
-  } catch (err) {
-    throw problem(err, 'That reset link has expired. Ask for a new one.');
-  }
-}
-
-/** A member signed in without a password (an old card session) sets up an email and password (only if they have none). */
-export async function setUpLogin(email: string, password: string, username?: string): Promise<ThriftPlusSession> {
-  try {
-    const { data } = await http.post<ThriftPlusSession>('/login/', { email: email.trim(), password, username: username?.trim() || undefined });
-    if (data.status === 'member') member = data.member;
-    return data;
-  } catch (err) {
-    throw problem(err, 'Could not set up your login.');
-  }
-}
-
 // ── Email sign-in and joining (owner 2026-10-15, APP D9; rulebook J8, J11) ────
 // No passwords for members and no texts: every email carries a link (`/scan?signin=<token>`) and a 6-digit code, each
 // works once for 15 minutes. "Sent" is the same answer whether or not the email is a member's.

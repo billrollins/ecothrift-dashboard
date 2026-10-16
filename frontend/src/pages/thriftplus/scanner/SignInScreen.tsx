@@ -11,7 +11,7 @@ import { ThriftPlusLogo, sc, u } from './scannerTheme';
 import { EmailField, ErrorLine, Field, Primary, Secondary, SmallLink, Sub, Title } from './signInParts';
 import { useSignIn } from './useThriftPlus';
 
-type Mode = 'email' | 'staff' | 'forgot' | 'join' | 'check';
+type Mode = 'email' | 'staff' | 'join' | 'check';
 
 /** Where the screen opens: email sign-in, the staff password form (Coming soon's "Staff sign in"), or Join (ecothrift.us/join). */
 export type SignInStart = 'email' | 'staff' | 'join';
@@ -19,7 +19,8 @@ export type SignInStart = 'email' | 'staff' | 'join';
 /**
  * Customer sign-in (owner 2026-10-15, APP D9; rulebook J8, J11): no passwords for members and no texts. "Email me a
  * link", then "Check your email" (the link, or the email's 6-digit code typed here). "Join Thrift+" takes a name and an
- * email the same way. "Staff sign in" opens the email-and-password form (staff, and anyone who still has a password).
+ * email the same way. "Staff sign in" opens the Dash email-and-password form: staff only (owner 2026-10-16, "the only
+ * passwords are for staff"; a forgotten staff password is reset in Dash).
  * There is no Thrift+ card (owner 2026-10-14, APP D6). `notice` shows a failed link's words (`?signin=`).
  */
 export function SignInScreen({ start = 'email', notice = '' }: { start?: SignInStart; notice?: string }) {
@@ -107,9 +108,8 @@ export function SignInScreen({ start = 'email', notice = '' }: { start?: SignInS
             <EmailForm email={email} onEmail={setEmail} busy={auth.email.isPending} onSend={() => void send('sign_in')} onStaff={() => go('staff')} />
           )}
           {mode === 'staff' && (
-            <PasswordForm run={run} busy={auth.password.isPending} onForgot={() => go('forgot')} onBack={() => go('email')} />
+            <PasswordForm run={run} busy={auth.password.isPending} onBack={() => go('email')} />
           )}
-          {mode === 'forgot' && <ForgotForm run={run} onBack={() => go('staff')} />}
           {mode === 'join' && (
             <JoinForm
               name={name}
@@ -178,10 +178,9 @@ function EmailForm({ email, onEmail, busy, onSend, onStaff }: {
   );
 }
 
-function PasswordForm({ run, busy, onForgot, onBack }: {
+function PasswordForm({ run, busy, onBack }: {
   run: (fn: () => Promise<unknown>) => void;
   busy: boolean;
-  onForgot: () => void;
   onBack: () => void;
 }) {
   const auth = useSignIn();
@@ -226,54 +225,9 @@ function PasswordForm({ run, busy, onForgot, onBack }: {
           {show ? <VisibilityOffRounded /> : <VisibilityRounded />}
         </ButtonBase>
       </Field>
-      <Box sx={{ textAlign: 'right', mt: u(14) }}>
-        <ButtonBase type="button" onClick={onForgot} sx={{ fontSize: u(29), color: sc.ink2, px: u(8), py: u(6), borderRadius: u(10) }}>
-          Forgot password?
-        </ButtonBase>
-      </Box>
       <Primary busy={busy} label="Sign in" />
       {/* Back to "Email me a link" (owner 2026-10-15, APP D9). */}
       <Secondary label="Back" onClick={onBack} />
-    </Box>
-  );
-}
-
-function ForgotForm({ run, onBack }: { run: (fn: () => Promise<unknown>) => void; onBack: () => void }) {
-  const auth = useSignIn();
-  const [email, setEmail] = useState('');
-  const [sentTo, setSentTo] = useState<string | null>(null);
-  if (sentTo) {
-    return (
-      <Box>
-        <Title>Check your email</Title>
-        <Sub>We sent a link to reset your password to {sentTo}. It works for a limited time.</Sub>
-        <Secondary label="Back to sign in" onClick={onBack} />
-      </Box>
-    );
-  }
-  return (
-    <Box
-      component="form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        run(async () => setSentTo((await auth.reset.mutateAsync(email)).sent_to));
-      }}
-    >
-      <Title>Reset your password</Title>
-      <Sub>Enter the email on your account and we'll send you a link.</Sub>
-      <Field>
-        <InputBase
-          autoFocus
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          type="email"
-          inputProps={{ 'aria-label': 'Email', autoComplete: 'email' }}
-          sx={{ flex: 1, fontSize: 18 }}
-        />
-      </Field>
-      <Primary busy={auth.reset.isPending} label="Email me a link" />
-      <Secondary label="Back to sign in" onClick={onBack} />
     </Box>
   );
 }

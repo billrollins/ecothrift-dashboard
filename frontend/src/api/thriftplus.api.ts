@@ -10,9 +10,11 @@ import type {
   FloorPlan,
   FloorPlanChoices,
   ItemRewardDetail,
+  MemberDeletePreview,
   NewMember,
   RewardPreview,
   RewardRunSummary,
+  StaffStartFreshPreview,
   ThriftPlusAccount,
 } from '../types/thriftplus.types';
 import api from './client';
@@ -183,6 +185,43 @@ export async function mergeIntoStaff(staffUser: number, sourceAccount: number): 
 
 export async function revokeMember(accountId: number, reason: string): Promise<ThriftPlusAccount> {
   const { data } = await api.post<ThriftPlusAccount>(`/thriftplus/accounts/${accountId}/revoke/`, { reason });
+  return data;
+}
+
+/** Deactivate: the normal way to take a member off; Reactivate undoes it (owner 2026-10-16). */
+export async function deactivateMember(accountId: number, reason = ''): Promise<ThriftPlusAccount> {
+  const { data } = await api.post<ThriftPlusAccount>(`/thriftplus/accounts/${accountId}/deactivate/`, { reason });
+  return data;
+}
+
+export async function reactivateMember(accountId: number): Promise<ThriftPlusAccount> {
+  const { data } = await api.post<ThriftPlusAccount>(`/thriftplus/accounts/${accountId}/reactivate/`, {});
+  return data;
+}
+
+/** Superuser, testing only: what deleting the member would remove (changes nothing). */
+export async function fetchMemberDeletePreview(accountId: number): Promise<MemberDeletePreview> {
+  const { data } = await api.get<MemberDeletePreview>(`/thriftplus/accounts/${accountId}/delete-preview/`);
+  return data;
+}
+
+/** Superuser, testing only: delete the member and everything they left. `name` must be typed to match. */
+export async function deleteMember(accountId: number, name: string): Promise<MemberDeletePreview & { items_back: number }> {
+  const { data } = await api.post<MemberDeletePreview & { items_back: number }>(`/thriftplus/accounts/${accountId}/delete/`, { name });
+  return data;
+}
+
+/** Superuser: what "Start staff memberships fresh" would delete. */
+export async function fetchStaffStartFresh(): Promise<StaffStartFreshPreview> {
+  const { data } = await api.get<StaffStartFreshPreview>('/thriftplus/staff-memberships/start-fresh/');
+  return data;
+}
+
+/** Superuser: delete every staff membership and make each staff member a fresh one. */
+export async function staffStartFresh(typed: string): Promise<StaffMemberships & { deleted: number; made: number; linked: number }> {
+  const { data } = await api.post<StaffMemberships & { deleted: number; made: number; linked: number }>(
+    '/thriftplus/staff-memberships/start-fresh/', { typed },
+  );
   return data;
 }
 

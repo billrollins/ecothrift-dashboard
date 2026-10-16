@@ -27,7 +27,11 @@ class Account(models.Model):
     # Owner 2026-10-15 (J8): joined online with name and email; "not ready" (J2) until a register checks the phone, the
     # ID and the photo. It collects and uses nothing until then.
     STATUS_PENDING = 'pending'
-    STATUS_CHOICES = [(STATUS_ACTIVE, 'Active'), (STATUS_REVOKED, 'Revoked'), (STATUS_PENDING, 'Joined online, finish at a register')]
+    # Owner 2026-10-16: Deactivate is the normal way to take a member off (Revoke is for theft or abuse). It can be
+    # undone: Reactivate puts it back as it was. Nothing is erased.
+    STATUS_INACTIVE = 'inactive'
+    STATUS_CHOICES = [(STATUS_ACTIVE, 'Active'), (STATUS_REVOKED, 'Revoked'), (STATUS_PENDING, 'Joined online, finish at a register'),
+                      (STATUS_INACTIVE, 'Deactivated')]
 
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_ACTIVE, db_index=True)
     # Owner, 2026-10-10: a practice member for training and testing; left out of every report and count.
@@ -79,6 +83,10 @@ class Person(models.Model):
     signed_at = models.DateTimeField(null=True, blank=True)
     signed_terms_version = models.CharField(max_length=20, blank=True, default='')
     removed_at = models.DateTimeField(null=True, blank=True, help_text='Taken off the account (second adults only).')
+    # Owner 2026-10-16: one customer account. The person's ecothrift.us login (holds, messages, orders) is this user;
+    # one emailed link or code signs in to both, and nobody but staff has a password. See services/one_account.py.
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name='thrift_plus_person')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -451,8 +459,8 @@ class ReturnRecord(models.Model):
 
 
 class MemberLogin(models.Model):
-    """A person's own sign-in for the scanner app and portal: email (and an optional username) and a
-    password (Django's hasher). It is not a Django user and can't reach anything staff-side."""
+    """Retired 2026-10-16 (owner: no passwords but staff's): a person's old email and password for the scanner app.
+    Nothing signs in with it; the one-account request deletes the rows. Kept only until the table is dropped."""
 
     person = models.OneToOneField(Person, on_delete=models.CASCADE, related_name='login')
     email = models.CharField(max_length=254, unique=True, help_text='Lower-cased.')
@@ -489,7 +497,7 @@ class MemberSession(models.Model):
 
 
 class MemberResetToken(models.Model):
-    """A password reset link, one use, short-lived. Only a keyed hash of the token is kept."""
+    """Retired 2026-10-16 with MemberLogin: an old password reset link."""
 
     login = models.ForeignKey(MemberLogin, on_delete=models.CASCADE, related_name='resets')
     token_hash = models.CharField(max_length=64, unique=True)

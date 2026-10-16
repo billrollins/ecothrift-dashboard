@@ -30,6 +30,8 @@ import {
 import {
   createMissingStaffMemberships,
   fetchStaffMemberships,
+  fetchStaffStartFresh,
+  staffStartFresh,
   fetchStaffMergePreview,
   findMembers,
   mergeIntoStaff,
@@ -355,6 +357,61 @@ function createdText(data: StaffCreateMissingResult): string {
 }
 
 /**
+ * Start staff memberships fresh (owner 2026-10-16, "wipe, keep auto-make"): every staff membership, and every customer
+ * membership with a staff email (staff signing each other up while testing), is deleted with everything on it; each
+ * staff member then gets a fresh, empty one. Dash logins are not touched. Superuser only; can't be undone.
+ */
+function StartFreshDialog({ onClose, onDone }: { onClose: () => void; onDone: (text: string) => void }) {
+  const queryClient = useQueryClient();
+  const { enqueueSnackbar } = useSnackbar();
+  const [typed, setTyped] = useState('');
+  const preview = useQuery({ queryKey: ['thriftplus', 'staff-start-fresh'], queryFn: fetchStaffStartFresh, staleTime: 0 });
+  const run = useMutation({
+    mutationFn: () => staffStartFresh(typed),
+    onSuccess: (data) => {
+      queryClient.setQueryData(STAFF_KEY, data);
+      void queryClient.invalidateQueries({ queryKey: ['thriftplus', 'find'] });
+      void queryClient.invalidateQueries({ queryKey: ['thriftplus', 'account'] });
+      onDone(`Deleted ${plural(data.deleted, 'membership', 'memberships')}; made ${plural(data.made, 'fresh staff membership', 'fresh staff memberships')}.`);
+    },
+    onError: (err) => enqueueSnackbar(detail(err), { variant: 'error' }),
+  });
+  const p = preview.data;
+  const ok = !!p && typed.trim().toUpperCase() === p.words;
+  return (
+    <Dialog open onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle>Start staff memberships fresh?</DialogTitle>
+      <DialogContent>
+        {preview.isError ? <Alert severity="error">{detail(preview.error)}</Alert> : null}
+        {p ? (
+          <Stack spacing={1.5} data-testid="staff-start-fresh">
+            <Alert severity="warning">
+              Deletes {plural(p.memberships, 'membership', 'memberships')} for good: every staff membership and any
+              customer membership with a staff email, with their {plural(p.sales, 'sale', 'sales')},{' '}
+              {plural(p.returns, 'return', 'returns')}, {plural(p.scans, 'scan', 'scans')} and ThriftBucks. Each staff
+              member then gets a fresh, empty membership. Dash logins and passwords are not touched.
+            </Alert>
+            <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+              {p.rows.map((r) => (
+                <li key={r.account}>
+                  #{r.account} {r.name}{r.staff_member ? ` (staff: ${r.staff_member})` : ''}
+                  {r.sales ? ` · ${plural(r.sales, 'sale', 'sales')}` : ''}{r.bucks !== '0.00' ? ` · ${r.bucks} ThriftBucks` : ''}
+                </li>
+              ))}
+            </Box>
+            <TextField autoFocus fullWidth label={`Type ${p.words} to go ahead`} value={typed} onChange={(e) => setTyped(e.target.value)} />
+          </Stack>
+        ) : <LinearProgress />}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button color="error" variant="contained" disabled={!ok || run.isPending} onClick={() => run.mutate()}>Start fresh</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+/**
  * Thrift+ → Staff (owner 2026-10-15; rulebook J6): every active staff member is also a website customer (they sign in
  * on ecothrift.us with their Dash password) and has their own Thrift+ membership, free like every one; their Dash email
  * signs them in to the Thrift+ app. A new staff login gets both at once; the owner fills in the staff from before with
@@ -368,6 +425,7 @@ export default function StaffTab() {
   const [merging, setMerging] = useState<StaffMemberRow | null>(null);
   const [mergingLogin, setMergingLogin] = useState<StaffMemberRow | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [fresh, setFresh] = useState(false);
   const create = useMutation({
     mutationFn: createMissingStaffMemberships,
     onSuccess: (data) => {
@@ -387,13 +445,17 @@ export default function StaffTab() {
         their own Thrift+ membership too; their Dash email signs them in to the Thrift+ app.
       </Typography>
       {done ? <Alert severity="success" onClose={() => setDone(null)} data-testid="staff-done">{done}</Alert> : null}
-      {data.can_merge && missing > 0 ? (
-        <Box>
-          <Button variant="contained" disabled={create.isPending} onClick={() => create.mutate()}>
-            Create missing ({missing})
-          </Button>
-        </Box>
+      {data.can_merge ? (
+        <Stack direction="row" spacing={1}>
+          {missing > 0 ? (
+            <Button variant="contained" disabled={create.isPending} onClick={() => create.mutate()}>
+              Create missing ({missing})
+            </Button>
+          ) : null}
+          <Button color="error" variant="outlined" onClick={() => setFresh(true)}>Start staff memberships fresh</Button>
+        </Stack>
       ) : null}
+      {fresh ? <StartFreshDialog onClose={() => setFresh(false)} onDone={(t) => { setFresh(false); setDone(t); }} /> : null}
       {data.staff.map((row) => (
         <StaffRow key={row.user_id} row={row} canMerge={data.can_merge} onMerge={() => setMerging(row)}
           onMergeLogin={() => setMergingLogin(row)} />

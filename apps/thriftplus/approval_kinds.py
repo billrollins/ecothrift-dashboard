@@ -101,3 +101,35 @@ def _rebuild_apply(request: ApprovalRequest, progress: Progress) -> dict:
 
 register(Kind(kind='thriftplus.rebuild_rewards', label='Rebuild Thrift+ ThriftBucks', preview=_rebuild_preview,
               apply=_rebuild_apply))
+
+
+# ── One customer account (owner 2026-10-16) ──────────────────────────────────────
+
+def _one_account_preview(params: dict) -> dict:
+    from apps.thriftplus.services import one_account
+
+    p = one_account.plan()
+    changes = [
+        f"Links {p['link_existing']:,} ecothrift.us customer logins to the Thrift+ member with the same email.",
+        f"Makes a Thrift+ membership (finish at a register) for {p['make_memberships']:,} customers who only have an "
+        'ecothrift.us login: no customer account that is not Thrift+.',
+        f"Gives {p['people_without_login']:,} Thrift+ people an ecothrift.us login with their email (holds and messages "
+        f"show up for them), and links {p['staff_people']:,} staff memberships to the staff login.",
+        f"Removes {p['customer_passwords']:,} customer passwords on ecothrift.us and {p['app_passwords']:,} old Thrift+ "
+        'app passwords. Customers sign in with an emailed link or code. Staff passwords are not touched.',
+        'Safe to run again. It cannot be undone (passwords are not kept).',
+    ]
+    counts = {'Customer logins': p['customer_logins'], 'To link': p['link_existing'],
+              'Memberships to make': p['make_memberships'], 'People without a login': p['people_without_login'],
+              'Customer passwords': p['customer_passwords'], 'Old app passwords': p['app_passwords']}
+    return {'counts': counts, 'changes': changes, 'sample': []}
+
+
+def _one_account_apply(request: ApprovalRequest, progress: Progress) -> dict:
+    from apps.thriftplus.services import one_account
+
+    return one_account.apply(progress)
+
+
+register(Kind(kind='thriftplus.one_account', label='One customer account (merge, no passwords)',
+              preview=_one_account_preview, apply=_one_account_apply))

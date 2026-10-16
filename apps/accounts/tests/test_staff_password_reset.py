@@ -150,7 +150,7 @@ class AdminSendResetTests(APITestCase):
         self.assertEqual(resp.status_code, 400)
         self.assertEqual(len(mail.outbox), 0)
 
-    def test_customer_reset_action_issues_a_customer_magic_link(self):
+    def test_customer_reset_action_sends_a_sign_in_link(self):  # customers have no password (owner 2026-10-16)
         shopper = _shopper('ada@example.com')
         CustomerProfile.objects.create(
             user=shopper, customer_number=CustomerProfile.generate_customer_number(),
@@ -162,7 +162,7 @@ class AdminSendResetTests(APITestCase):
         self.assertEqual(resp.status_code, 200, resp.data)
         self.assertTrue(
             MagicLinkToken.objects.filter(
-                email='ada@example.com', purpose=MagicLinkToken.PURPOSE_RESET_PASSWORD,
+                email='ada@example.com', purpose=MagicLinkToken.PURPOSE_SIGN_IN,
             ).exists(),
         )
 

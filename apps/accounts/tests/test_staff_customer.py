@@ -201,10 +201,10 @@ class WebsiteSignInTests(TestCase):
         r = self.api.post('/api/auth/customer/lookup/', {'email': 'sam@ecothrift.us'}, format='json')
         self.assertEqual(r.json(), {'has_account': False, 'has_password': False})
 
-    def test_a_customer_lookup_is_unchanged(self):
+    def test_a_customer_lookup_never_offers_a_password(self):  # owner 2026-10-16: only staff have passwords
         _customer()
         r = self.api.post('/api/auth/customer/lookup/', {'email': 'shopper@example.com'}, format='json')
-        self.assertEqual(r.json(), {'has_account': True, 'has_password': True})
+        self.assertEqual(r.json(), {'has_account': True, 'has_password': False})
 
     def test_staff_sign_in_on_the_website_with_their_dash_password_and_use_the_account_pages(self):
         r = self.api.post('/api/auth/login/', {'email': 'sam@ecothrift.us', 'password': PASSWORD}, format='json')
@@ -251,7 +251,7 @@ class WebsiteSignInTests(TestCase):
 
     def test_forgot_password_with_a_staff_email_sends_the_dash_reset_never_the_customer_one(self):
         r = self.api.post('/api/auth/customer/reset-password/', {'email': 'sam@ecothrift.us'}, format='json')
-        self.assertEqual(r.json()['detail'], 'If that email can receive mail, a reset link is on its way.')
+        self.assertEqual(r.json()['detail'], 'If that email can receive mail, a link is on its way.')
         self.assertFalse(MagicLinkToken.objects.filter(purpose=MagicLinkToken.PURPOSE_RESET_PASSWORD).exists())
         self.assertTrue(MagicLinkToken.objects.filter(email='sam@ecothrift.us',
                                                       purpose=MagicLinkToken.PURPOSE_STAFF_RESET_PASSWORD).exists())
@@ -261,7 +261,7 @@ class WebsiteSignInTests(TestCase):
         self.api.force_authenticate(self.sam)
         r = self.api.post('/api/auth/customer/set-password/', {'password': 'abcdef', 'old_password': PASSWORD},
                           format='json')
-        self.assertEqual((r.status_code, r.json()['code']), (403, 'STAFF_LOGIN'))
+        self.assertEqual((r.status_code, r.json()['code']), (410, 'PASSWORDS_GONE'))  # gone for everyone (2026-10-16)
         self.assertTrue(User.objects.get(pk=self.sam.pk).check_password(PASSWORD))
 
     def test_resend_verification_sends_nothing_to_staff(self):

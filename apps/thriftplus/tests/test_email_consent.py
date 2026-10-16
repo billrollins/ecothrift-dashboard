@@ -88,11 +88,11 @@ class PortalEmailTests(TestCase):
         on = card_phone.post(PUBLIC + 'me/emails/', {'news': True}, format='json')
         self.assertEqual((on.status_code, on.json()['code']), (403, 'NEEDS_PASSWORD'))
 
-    def test_a_password_session_can_turn_news_back_on(self):
+    def test_an_email_session_can_turn_news_back_on(self):
         member_email.set_news(self.person, False, how='test')
-        member_auth.set_up_login(self.person, email='ana@example.com', username=None, password='green-lamp-4455')
+        token, _ = member_auth.start_session(self.person, 'email')  # signed in by an emailed link or code (J11)
         phone = APIClient()
-        phone.post(PUBLIC + 'session/password/', {'login': 'ana@example.com', 'password': 'green-lamp-4455'}, format='json')
+        phone.cookies[member_auth.COOKIE] = token
         on = phone.post(PUBLIC + 'me/emails/', {'news': True}, format='json')
         self.assertEqual(on.status_code, 200, on.content)
         self.assertTrue(on.json()['emails']['news'])

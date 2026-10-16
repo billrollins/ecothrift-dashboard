@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import {
   addToCart,
   clearCart,
-  confirmPasswordReset,
   continueAsGuest,
   getCart,
   getHistory,
@@ -15,11 +14,9 @@ import {
   removePerson,
   requestSignInEmail,
   setMyNews,
-  requestPasswordReset,
   sendPriceFeel,
   clearHistory,
   setCartQty,
-  setUpLogin,
   signIn,
   signInWithCode,
   signInWithLink,
@@ -92,7 +89,6 @@ export function useSignIn() {
       mutationFn: ({ login, password }: { login: string; password: string }) => signIn(login, password),
       onSuccess: setSession,
     }),
-    reset: useMutation({ mutationFn: (email: string) => requestPasswordReset(email) }),
     guest: useMutation({ mutationFn: () => continueAsGuest(), onSuccess: setSession }),
     signOut: useMutation({ mutationFn: () => signOut(), onSuccess: setSession }),
     // Email sign-in and joining (owner 2026-10-15, APP D9): send the email, then its code or its link signs in.
@@ -136,19 +132,6 @@ export function useCartActions() {
   };
 }
 
-/** The link in the reset email opens `/scan?reset=<token>`: set a new password and sign in. */
-export function useConfirmReset() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ token, password }: { token: string; password: string }) => confirmPasswordReset(token, password),
-    onSuccess: (s: ThriftPlusSession) => {
-      forgetLastPerson(qc);
-      qc.setQueryData(thriftPlusKeys.session, s);
-      void qc.invalidateQueries({ queryKey: thriftPlusKeys.cart });
-    },
-  });
-}
-
 export function useMe(enabled = true) {
   return useQuery({ queryKey: thriftPlusKeys.me, queryFn: getMe, staleTime: 0, enabled });
 }
@@ -166,14 +149,6 @@ export function useAccountActions() {
       mutationFn: (personId: number) => removePerson(personId),
       onSuccess: (r) => {
         if ('status' in r && r.status === 'signed_out') qc.setQueryData(thriftPlusKeys.session, { status: 'signed_out' });
-        refresh();
-      },
-    }),
-    setUpLogin: useMutation({
-      mutationFn: ({ email, password, username }: { email: string; password: string; username?: string }) =>
-        setUpLogin(email, password, username),
-      onSuccess: (s: ThriftPlusSession) => {
-        qc.setQueryData(thriftPlusKeys.session, s);
         refresh();
       },
     }),

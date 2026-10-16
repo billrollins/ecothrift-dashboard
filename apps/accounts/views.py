@@ -116,6 +116,15 @@ def login_view(request):
     email = ident
     if '@' not in ident:
         email = User.objects.filter(username=ident).values_list('email', flat=True).first() or ident
+    from apps.accounts.services.staff_customer import is_staff_login
+
+    known = User.objects.filter(email__iexact=email).first()
+    if known is not None and not is_staff_login(known):
+        # Owner 2026-10-16: the only passwords are staff's. A customer signs in with an emailed link or code.
+        return Response(
+            {'detail': 'Customers sign in with an emailed link. No password needed.', 'code': 'EMAIL_LINK'},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
     user = authenticate(
         request,
         username=email,
@@ -190,6 +199,10 @@ def logout_view(request):
         except Exception:
             pass
     response = Response({'detail': 'Logged out successfully.'})
+    # One account (owner 2026-10-16): signing out of ecothrift.us signs out of the Thrift+ app too.
+    from apps.thriftplus.services.one_account import end_member_session
+
+    end_member_session(request, response)
     return _clear_refresh_cookie(response)
 
 
@@ -774,10 +787,11 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='send-password-reset-link')
     def send_password_reset_link_action(self, request, pk=None):
-        """Staff CS action: email a reset link. Opening it clears the old password."""
+        """Staff CS action: email the customer a sign-in link (owner 2026-10-16: customers have no password; the old
+        URL is kept for the Dash button)."""
         from apps.accounts.models import MagicLinkToken
         from apps.accounts.services.magic_link import issue_magic_link
-        from apps.webstore.emails import send_password_reset_link
+        from apps.webstore.emails import send_sign_in_link
 
         profile = self.get_object()
         refusal = self._staff_login_refusal(profile, 'Reset its password in People, not here.')
@@ -791,19 +805,19 @@ class CustomerViewSet(viewsets.ModelViewSet):
             )
         if not profile.user.is_active:
             return Response(
-                {'detail': 'Reactivate the customer before sending a reset link.'},
+                {'detail': 'Reactivate the customer before sending a sign-in link.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
             token_row = issue_magic_link(
                 email=email,
                 request_ip=_client_ip(request),
-                purpose=MagicLinkToken.PURPOSE_RESET_PASSWORD,
+                purpose=MagicLinkToken.PURPOSE_SIGN_IN,
             )
         except ValidationError as exc:
             return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
-        send_password_reset_link(email=email, magic_link=_public_verify_link(token_row.token))
-        return Response({'detail': 'Password reset link sent.'})
+        send_sign_in_link(email=token_row.email, magic_link=_public_verify_link(token_row.token))
+        return Response({'detail': 'Sign-in link sent.'})
 
     @action(detail=False, methods=['get'], url_path='lookup/(?P<customer_number>[^/.]+)')
     def lookup(self, request, customer_number=None):
@@ -915,11 +929,15 @@ def magic_link_consume_view(request):
             'code': result.code or 'ALREADY_VERIFIED',
         })
 
+    from apps.thriftplus.services import one_account
+
     user = (
         User.objects.prefetch_related('groups')
         .select_related('employee', 'consignee', 'customer')
         .get(pk=result.user.pk)
     )
+    if one_account.switched_off(user):
+        return Response({'detail': one_account.OFF_TEXT, 'code': 'ACCOUNT_OFF'}, status=status.HTTP_403_FORBIDDEN)
     update_last_login(None, user)
     refresh = RefreshToken.for_user(user)
     response = Response({
@@ -927,9 +945,12 @@ def magic_link_consume_view(request):
         'user': UserSerializer(user).data,
         'redirect_to': result.redirect_to,
         'purpose': result.purpose,
-        'needs_password_prompt': result.needs_password_prompt,
+        'needs_password_prompt': False,
         'code': result.code or '',
     })
+    # One account (owner 2026-10-16): the same sign-in opens the Thrift+ app (a pending membership is made when the
+    # customer had none: no customer account that is not Thrift+).
+    one_account.add_member_session(request, response, user)
     return _set_refresh_cookie(response, str(refresh))
 
 
@@ -963,10 +984,7 @@ def customer_lookup_view(request):
         if not user.is_active:
             return Response(empty)
         return Response({'has_account': True, 'has_password': True, 'password_only': True})
-    return Response({
-        'has_account': True,
-        'has_password': user.has_usable_password(),
-    })
+    return Response({'has_account': True, 'has_password': False})  # customers have no password (2026-10-16)
 
 
 @api_view(['POST'])
@@ -988,7 +1006,6 @@ def customer_register_view(request):
         user, token_row = register_customer(
             email=data.get('email') or '',
             first_name=data.get('first_name') or '',
-            password=data.get('password') or '',
             request_ip=_client_ip(request),
         )
     except DRFValidationError as exc:
@@ -1014,56 +1031,10 @@ def customer_register_view(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def customer_set_password_view(request):
-    """Add or change a customer password.
-
-    When the account has no usable password yet, old_password is not required.
-    """
-    from apps.accounts.permissions import IsCustomer
-    from apps.accounts.services.staff_customer import is_staff_login
-
-    if not IsCustomer().has_permission(request, None):
-        return Response({'detail': 'Customer accounts only.'}, status=status.HTTP_403_FORBIDDEN)
-    if is_staff_login(request.user):
-        # A staff password follows the staff rules and is changed in Dash, never here (6 characters would do here).
-        return Response({'detail': 'This is a staff login. Change your password in Dash.', 'code': 'STAFF_LOGIN'},
-                        status=status.HTTP_403_FORBIDDEN)
-
-    data = request.data or {}
-    new_password = data.get('password') or data.get('new_password') or ''
-    if len(new_password) < 6:
-        return Response(
-            {'detail': 'Password must be at least 6 characters.'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    from apps.accounts.services.magic_link import (
-        clear_password_change_unlock,
-        password_change_unlocked,
-    )
-
-    user = request.user
-    unlocked = password_change_unlocked(user)
-    if user.has_usable_password() and not unlocked:
-        old = data.get('old_password') or ''
-        if not old or not user.check_password(old):
-            return Response(
-                {'detail': 'Current password is incorrect.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-    user.set_password(new_password)
-    user.save(update_fields=['password'])
-    if unlocked:
-        clear_password_change_unlock(user)
-    refreshed = (
-        User.objects.prefetch_related('groups')
-        .select_related('employee', 'consignee', 'customer')
-        .get(pk=user.pk)
-    )
-    return Response({
-        'detail': 'Password saved.',
-        'user': UserSerializer(refreshed).data,
-    })
+    """Gone (owner 2026-10-16): customers have no password; they sign in with an emailed link or code. A staff
+    password is changed in Dash."""
+    return Response({'detail': 'Customers have no password. Sign in with an emailed link.', 'code': 'PASSWORDS_GONE'},
+                    status=status.HTTP_410_GONE)
 
 
 @api_view(['POST'])
@@ -1076,13 +1047,13 @@ def customer_reset_password_view(request):
     from apps.accounts.models import MagicLinkToken
     from apps.accounts.services.magic_link import _normalize_email, issue_magic_link
     from apps.accounts.services.staff_customer import is_staff_login
-    from apps.webstore.emails import send_password_reset_link
+    from apps.webstore.emails import send_sign_in_link
 
     if not bool(getattr(dj_settings, 'ONLINE_SALES_ACCOUNTS_ENABLED', True)):
         return _accounts_disabled_response()
 
     email = _normalize_email((request.data or {}).get('email') or '')
-    generic = {'detail': 'If that email can receive mail, a reset link is on its way.'}
+    generic = {'detail': 'If that email can receive mail, a link is on its way.'}
     if not email or '@' not in email:
         return Response(generic)
 
@@ -1098,16 +1069,14 @@ def customer_reset_password_view(request):
             _send_staff_reset(user, request=request, requested_by_admin=False)
         return Response(generic)
 
+    # A customer has no password (owner 2026-10-16): "Forgot password" from an old page sends a sign-in link.
     try:
         token_row = issue_magic_link(
             email=email,
             request_ip=_client_ip(request),
-            purpose=MagicLinkToken.PURPOSE_RESET_PASSWORD,
+            purpose=MagicLinkToken.PURPOSE_SIGN_IN,
         )
-        send_password_reset_link(
-            email=email,
-            magic_link=_public_verify_link(token_row.token),
-        )
+        send_sign_in_link(email=token_row.email, magic_link=_public_verify_link(token_row.token))
     except Exception:
         logger.exception('customer_reset_password failed for %s', email)
         return Response(generic)

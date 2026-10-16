@@ -154,6 +154,8 @@ def card_by_code(raw: str) -> Card:
 def _require_active(account: Account) -> None:
     if account.status == Account.STATUS_PENDING:
         raise MemberError('Joined online: finish joining at a register first.')
+    if account.status == Account.STATUS_INACTIVE:
+        raise MemberError('This membership is deactivated. Reactivate it in Dash first.')
     if account.status != Account.STATUS_ACTIVE:
         raise MemberError('This account is revoked.')
 
@@ -336,4 +338,35 @@ def revoke(account: Account, *, reason: str, user=None) -> Account:
     for card in Card.objects.filter(person__account=account).exclude(status=Card.STATUS_DEAD):
         kill_card(card, reason='account revoked', user=user)
     log('revoked', account=account, actor=user, reason=account.revoked_reason)
+    return account
+
+
+@transaction.atomic
+def deactivate(account: Account, *, reason: str = '', user=None) -> Account:
+    """The normal way to take a member off (owner 2026-10-16). Nothing is erased and the member code is kept; the
+    membership can't be used, signed in to or joined again from a phone until staff reactivate it."""
+    from apps.thriftplus.models import MemberSession
+
+    if account.status == Account.STATUS_INACTIVE:
+        return account
+    if account.status == Account.STATUS_REVOKED:
+        raise MemberError('This membership is revoked.')
+    was = account.status
+    account.status = Account.STATUS_INACTIVE
+    account.save(update_fields=['status', 'updated_at'])
+    MemberSession.objects.filter(person__account=account, revoked_at__isnull=True).update(revoked_at=timezone.now())
+    log('deactivated', account=account, actor=user, was=was, reason=(reason or '').strip()[:200])
+    return account
+
+
+@transaction.atomic
+def reactivate(account: Account, *, user=None) -> Account:
+    """Undo Deactivate: back to what it was (active, or "finish at a register" when it never finished joining)."""
+    if account.status != Account.STATUS_INACTIVE:
+        raise MemberError('Only a deactivated membership can be reactivated.')
+    last = Event.objects.filter(account=account, action='deactivated').order_by('-created_at', '-pk').first()
+    was = (last.detail or {}).get('was') if last else ''
+    account.status = was if was in (Account.STATUS_ACTIVE, Account.STATUS_PENDING) else Account.STATUS_ACTIVE
+    account.save(update_fields=['status', 'updated_at'])
+    log('reactivated', account=account, actor=user, status=account.status)
     return account

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.173.0] -->
-<!-- Last reviewed: 2026-10-16 (2.173.0) -->
+<!-- Line 1 release: ## [2.174.0] -->
+<!-- Last reviewed: 2026-10-16 (2.174.0) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.174.0] - 2026-10-16
+
+User-facing theme: **One customer account and no customer passwords; delete test members, deactivate real ones; a Join page that spells it out (Bill, 2026-10-16).** Thrift+ Rewards.
+
+### Added
+- **One customer account** (J13): a Thrift+ member and their ecothrift.us account (holds, messages, orders) are the same account. An emailed link or code in the app also signs in to the website, and the other way round; signing out of either ends both. A website customer with no membership gets one that is "not ready" until a register finishes it. A deactivated or revoked member can't sign in on either side.
+- **Superuser → Requests: "One customer account (merge, no passwords)"** (`thriftplus.one_account`): links every website login and Thrift+ member by email, makes the missing memberships and website logins, and removes every customer password. Staff passwords are not touched. Safe to run again.
+- **Deactivate and Reactivate** (J14), Thrift+ → Members (managers): the normal way to take a member off. Nothing is erased; Reactivate puts it back as it was. Revoke stays for theft or abuse.
+- **Delete (testing)**, Thrift+ → Members (superuser): lists everything the customer left (sales, ThriftBucks, credit, returns, scans, history, the ecothrift.us login, holds), asks for the name typed out, then erases all of it as if they never existed. A paid sale's cash comes back out of an open drawer and its items go back on the shelf.
+- **Start staff memberships fresh**, Thrift+ → Staff (superuser, type START FRESH): deletes every staff membership and every customer membership with a staff email, then makes each staff member a fresh, empty one. Dash logins are not touched.
+
+### Changed
+- **Join Thrift+ page** (ecothrift.us/join, phone and computer): two boxes in order. "Now, from anywhere": Name (so we know who you are), Email (to sign in, no password). "At the store": Phone (to look up your account), ID (to check your name and that you're 18+), Photo (a quick check at the register, so you don't need your ID every time). Then "That's all it takes to collect ThriftBucks and get 3-day returns."
+- **No customer passwords** (J13): the website sign-in and account pages and the Thrift+ app no longer ask for, set or reset one. "Forgot password" sends a sign-in link; an old reset link opens the sign-in screen. Staff keep their Dash password.
 
 ## [2.173.0] - 2026-10-16
 

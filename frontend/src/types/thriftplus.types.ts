@@ -47,8 +47,9 @@ export interface ThriftPlusEvent {
 
 export interface ThriftPlusAccount {
   id: number;
-  /** 'pending': joined online with a name and email, to finish at a register (owner 2026-10-15, J8). */
-  status: 'active' | 'revoked' | 'pending';
+  /** 'pending': joined online with a name and email, to finish at a register (owner 2026-10-15, J8).
+   * 'inactive': deactivated, the normal way to take a member off; Reactivate undoes it (owner 2026-10-16). */
+  status: 'active' | 'revoked' | 'pending' | 'inactive';
   /** A practice member for training: training register and scanner test mode only, left out of every report. */
   is_practice?: boolean;
   notes: string;
@@ -340,4 +341,44 @@ export interface FamiliesQueue {
   matching: number;
   bulk_ok: number;
   rows: FamilyRow[];
+}
+
+/** Everything a delete would remove (owner 2026-10-16: testing only; Deactivate is the normal way). */
+export interface MemberDeletePreview {
+  account: number;
+  name: string;
+  status: ThriftPlusAccount['status'];
+  is_practice: boolean;
+  staff_member: string;
+  people: { id: number; name: string; email: string; phone: string; role: string }[];
+  emails: string[];
+  sales: number;
+  paid_sales: number;
+  sales_total: string;
+  training_sales: number;
+  bucks: string;
+  credit: string;
+  ledger_rows: number;
+  returns: number;
+  scans: number;
+  history: number;
+  member_codes: number;
+  sign_ins: number;
+  passwords: number;
+  consents: number;
+  website_logins: { id: number; email: string; name: string }[];
+  holds: number;
+  active_holds: number;
+  orders: number;
+  conversations: number;
+}
+
+export interface StaffStartFreshPreview {
+  memberships: number;
+  sales: number;
+  returns: number;
+  scans: number;
+  ledger_rows: number;
+  rows: { account: number; name: string; staff_member: string; sales: number; bucks: string; credit: string }[];
+  words: string;
 }

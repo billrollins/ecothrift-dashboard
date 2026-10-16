@@ -12,12 +12,11 @@ Django users, and their session can't reach anything staff-side (the auth map of
     answer never says whether an email is a member's. Sends and code tries are limited per email and per address,
     and every send, use and failure is logged with the email masked. A staff member's Dash email signs in to their
     own staff membership (made then if they have none; owner 2026-10-15), never a pending join;
-  - email or username with a password: staff (their Dash login) and the few older member logins;
-  - or the Thrift+ card plus the last 4 digits of the member's phone (gone 10-14; old sessions only). A card
-    session can look, scan and keep a cart, and can set up a login only when none exists. Five wrong tries lock
-    the card for 15 minutes.
-- **Password reset:** a one-use emailed link (1 hour). The answer is the same whether or not the
-  email is on file. A reset signs out every phone.
+  - a password: **staff only** (their Dash login; owner 2026-10-16, "the only passwords are for staff"). The old
+    member logins and their reset links are retired (``one_account``);
+  - or the Thrift+ card plus the last 4 digits of the member's phone (gone 10-14; old sessions only).
+- **One account** (owner 2026-10-16): an emailed sign-in here signs in to ecothrift.us too, and back
+  (``services/one_account.py``).
 """
 from __future__ import annotations
 
@@ -31,10 +30,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 from django.conf import settings
-from django.contrib.auth.hashers import check_password, make_password
-from django.contrib.auth.password_validation import validate_password
 from django.core.cache import cache
-from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Case, F, IntegerField, Value, When
 from django.utils import timezone
@@ -42,7 +38,7 @@ from django.utils.crypto import salted_hmac
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.permissions import BasePermission
 
-from apps.thriftplus.models import Account, Card, MemberEmailToken, MemberLogin, MemberResetToken, MemberSession, Person
+from apps.thriftplus.models import Account, Card, MemberEmailToken, MemberLogin, MemberSession, Person
 from apps.thriftplus.services import cards
 from apps.thriftplus.services.members import normalize_phone
 
@@ -56,7 +52,6 @@ PASSWORD_DAYS = 365
 CARD_DAYS = 365
 EMAIL_DAYS = 365  # owner 2026-10-15 (J11): a phone stays signed in for a year, renewed on use
 RENEW_AFTER = timedelta(days=1)
-RESET_HOURS = 1
 CARD_TRIES = 5
 CARD_LOCK_SECONDS = 15 * 60
 SEEN_EVERY = timedelta(minutes=5)
@@ -214,18 +209,12 @@ def _staff_person(key: str, password: str) -> Person | None:
 
 
 def sign_in_password(login: str, password: str) -> Person:
-    key = (login or '').strip().lower()
-    row = MemberLogin.objects.select_related('person__account').filter(email=key).first() or \
-        MemberLogin.objects.select_related('person__account').filter(username=key).first()
-    if row is None:
-        person = _staff_person(key, password)
-        if person is not None and _usable(person):
-            return person
-        raise AuthError('BAD_LOGIN', "That email or password isn't right.")
-    ok = check_password(password or '', row.password)
-    if not ok or not _usable(row.person):
-        raise AuthError('BAD_LOGIN', "That email or password isn't right.")
-    return row.person
+    """Staff only (owner 2026-10-16: "the only passwords are for staff"): a Dash email or username and password lands
+    on the staff member's own membership. Customers sign in by an emailed link or code."""
+    person = _staff_person((login or '').strip().lower(), password)
+    if person is not None and _usable(person):
+        return person
+    raise AuthError('BAD_LOGIN', "That email or password isn't right.")
 
 
 def _lock_key(code: str) -> str:
@@ -251,79 +240,10 @@ def sign_in_card(raw_code: str, phone_last4: str) -> Person:
     return card.person
 
 
-def _clean_login(email: str, username: str | None) -> tuple[str, str | None]:
-    email = (email or '').strip().lower()
-    if '@' not in email or len(email) > 254:
-        raise AuthError('BAD_EMAIL', 'Enter a real email address.')
-    name = (username or '').strip().lower() or None
-    if name is not None and (not name.replace('_', '').replace('.', '').isalnum() or not 3 <= len(name) <= 30):
-        raise AuthError('BAD_USERNAME', 'A username is 3 to 30 letters or numbers.')
-    return email, name
-
-
-def set_up_login(person: Person, *, email: str, username: str | None, password: str) -> MemberLogin:
-    """A member's first email and password (from a card session). Changing an existing login goes
-    through the reset email."""
-    if MemberLogin.objects.filter(person=person).exists():
-        raise AuthError('HAS_LOGIN', 'You already have a login. Use "Forgot password?" to change it.')
-    email, username = _clean_login(email, username)
-    if MemberLogin.objects.filter(email=email).exists():
-        raise AuthError('EMAIL_TAKEN', 'That email is already on a Thrift+ login.')
-    if username and MemberLogin.objects.filter(username=username).exists():
-        raise AuthError('USERNAME_TAKEN', 'That username is taken.')
-    try:
-        validate_password(password)
-    except ValidationError as exc:
-        raise AuthError('WEAK_PASSWORD', ' '.join(exc.messages)) from exc
-    return MemberLogin.objects.create(person=person, email=email, username=username, password=make_password(password))
-
-
-# ── Password reset ─────────────────────────────────────────────────────────────
 
 def mask(email: str) -> str:
     name, _, domain = email.partition('@')
     return f'{name[:1]}***@{domain}' if domain else '***'
-
-
-def request_reset(email: str, *, base_url: str) -> str:
-    """Email a reset link if the email has a login. Returns the masked address either way."""
-    email = (email or '').strip().lower()
-    row = MemberLogin.objects.select_related('person__account').filter(email=email).first()
-    if row is not None and _usable(row.person):
-        token = secrets.token_urlsafe(32)
-        MemberResetToken.objects.create(login=row, token_hash=_hash(token, 'reset'),
-                                        expires_at=timezone.now() + timedelta(hours=RESET_HOURS))
-        from apps.webstore.emails import _send
-
-        link = f'{base_url.rstrip("/")}/scan?reset={token}'
-        _send(
-            'Reset your Thrift+ password',
-            f'Hi {row.person.first_name},\n\nSet a new Thrift+ password here:\n\n{link}\n\n'
-            'The link works once, for one hour. If you did not ask for it, ignore this email.\n\n- Eco-Thrift',
-            row.email,
-        )
-    return mask(email)
-
-
-@transaction.atomic
-def confirm_reset(token: str, password: str) -> Person:
-    row = (
-        MemberResetToken.objects.select_for_update().select_related('login__person__account')
-        .filter(token_hash=_hash(token or '', 'reset'), used_at__isnull=True, expires_at__gt=timezone.now()).first()
-    )
-    if row is None or not _usable(row.login.person):
-        raise AuthError('BAD_RESET', 'That reset link has expired. Ask for a new one.')
-    try:
-        validate_password(password)
-    except ValidationError as exc:
-        raise AuthError('WEAK_PASSWORD', ' '.join(exc.messages)) from exc
-    login = row.login
-    login.password = make_password(password)
-    login.save(update_fields=['password', 'updated_at'])
-    row.used_at = timezone.now()
-    row.save(update_fields=['used_at'])
-    revoke_all(login.person)
-    return login.person
 
 
 # ── Email sign-in: join online, "Email me a link" (owner 2026-10-15, J8 and J11) ──
@@ -431,7 +351,7 @@ def member_by_email(email: str) -> Person | None:
                             output_field=IntegerField()))
         .order_by('rank', 'role', '-pk').first()
     )
-    if person is None:
+    if person is None:  # a retired member login's address, until the one-account request copies it over
         login = MemberLogin.objects.select_related('person__account').filter(email=email).first()
         if login is not None and _can_sign_in(login.person) and not login.person.email:
             person = login.person
@@ -506,9 +426,12 @@ def join(name: str, email: str, *, base_url: str, ip: str | None = None) -> None
     if staff:
         logger.info('thrift+ join asked with a staff email %s: no membership to sign in, nothing made', mask(address))
         return
-    revoked = Person.objects.select_related('account').filter(email=address, account__status=Account.STATUS_REVOKED).first()
-    if revoked is not None:
-        members.log('join_refused', account=revoked.account, person=revoked, to=mask(address), reason='revoked membership')
+    # A revoked or deactivated membership is not joined again from a phone (staff reactivate one in Dash).
+    off = (Person.objects.select_related('account')
+           .filter(email=address, account__status__in=(Account.STATUS_REVOKED, Account.STATUS_INACTIVE)).first())
+    if off is not None:
+        reason = 'revoked membership' if off.account.status == Account.STATUS_REVOKED else 'deactivated membership'
+        members.log('join_refused', account=off.account, person=off, to=mask(address), reason=reason)
         return
     with transaction.atomic():
         account = Account.objects.create(status=Account.STATUS_PENDING, notes='Joined online (name and email).')
@@ -541,7 +464,7 @@ def send_link_for(person: Person, *, base_url: str, email: str = '', user=None) 
     from apps.thriftplus.services import emails as member_email
     from apps.thriftplus.services.members import MemberError
 
-    if person.removed_at is not None or person.account.status == Account.STATUS_REVOKED:
+    if person.removed_at is not None or person.account.status in (Account.STATUS_REVOKED, Account.STATUS_INACTIVE):
         raise MemberError('This membership is not active.')
     if (email or '').strip() and _clean_email(email) != person.email:
         member_email.set_address(person, email, user=user)
