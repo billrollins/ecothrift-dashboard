@@ -1,6 +1,7 @@
-"""Staff logins are website customers too (owner 2026-10-15): every active staff user is in the Customer group with a
-CustomerProfile, the website's sign-in takes a staff email to the password step, and staff never sign in by an emailed
-link. No staff-side access changes, and a customer never gains any."""
+"""Staff logins on the website. Since 2026-10-16 staff are not customers (no CustomerProfile, not in the Customer group,
+never on Users → Customers), but they still use the storefront's own pages with their Dash password; the website's
+sign-in takes a staff email to the password step, and staff never sign in by an emailed link. No staff-side access
+changes, and a customer never gains any."""
 from __future__ import annotations
 
 import io
@@ -39,101 +40,30 @@ def _customer(email='shopper@example.com', password=PASSWORD):
     return user
 
 
-class EnsureTests(TestCase):
-    def test_a_staff_user_gets_the_customer_group_and_a_confirmed_profile_and_keeps_their_role(self):
+class StaffAreNotCustomersTests(TestCase):
+    """Owner 2026-10-16: staff are not customers. Nothing makes a staff login a website customer any more."""
+
+    def test_nothing_makes_a_staff_login_a_customer(self):
         sam = _user('sam@ecothrift.us', 'Manager')
-        profile, made = ensure_staff_customer(sam)
-        self.assertTrue(made)
-        self.assertEqual(profile.user, sam)
-        self.assertTrue(profile.customer_number.startswith('CUS-'))
-        self.assertIsNotNone(profile.email_verified_at)  # a Dash email is trusted
-        self.assertTrue(sam.groups.filter(name='Customer').exists())
-        self.assertEqual(sam.role, 'Manager')  # Customer is the lowest role
-        self.assertEqual(sam.roles, ['Manager', 'Customer'])
-        self.assertTrue(IsStaff().has_permission(_req(sam), None))
-
-    def test_it_is_idempotent_and_stamps_an_unconfirmed_profile(self):
-        sam = _user('sam@ecothrift.us')
-        CustomerProfile.objects.create(user=sam, customer_number='CUS-900')
-        profile, made = ensure_staff_customer(sam)
-        again, made_again = ensure_staff_customer(sam)
-        self.assertEqual((made, made_again, profile.pk, again.pk), (False, False, again.pk, again.pk))
-        self.assertEqual(profile.customer_number, 'CUS-900')
-        self.assertIsNotNone(CustomerProfile.objects.get(user=sam).email_verified_at)
-        self.assertEqual(sam.groups.filter(name='Customer').count(), 1)
-
-    def test_a_superuser_is_staff(self):
+        self.assertEqual(ensure_staff_customer(sam), (None, False))
         owner = User.objects.create_superuser('owner@ecothrift.us', 'Bill', 'Rollins', password=PASSWORD)
-        self.assertTrue(ensure_staff_customer(owner)[1])
-
-    def test_customers_consignees_and_former_staff_are_left_alone(self):
-        shopper = _user('shopper@example.com', 'Customer')
-        consignee = _user('con@example.com', 'Consignee')
-        nobody = _user('nobody@example.com', None)
-        gone = _user('gone@ecothrift.us')
-        gone.is_active = False
-        gone.save()
-        for user in (shopper, consignee, nobody, gone):
-            self.assertEqual(ensure_staff_customer(user), (None, False))
-        self.assertFalse(CustomerProfile.objects.exists())
-        self.assertEqual(Group.objects.get(name='Customer').user_set.count(), 1)  # only the shopper, as before
-
-    def test_create_missing_counts(self):
-        _user('a@ecothrift.us')
-        b = _user('b@ecothrift.us', 'Admin')
-        ensure_staff_customer(b)
-        _customer()
-        self.assertEqual(staff_customer.missing_customers().count(), 1)
+        self.assertEqual(ensure_staff_customer(owner), (None, False))
+        self.assertEqual(staff_customer.missing_customers().count(), 0)
         self.assertEqual(staff_customer.create_missing_customers(),
-                         {'customers_made': 1, 'customers_fixed': 0, 'customers_missing': 0})
-        # A profile without the group is fixed, not doubled.
-        c = _user('c@ecothrift.us')
-        CustomerProfile.objects.create(user=c, customer_number='CUS-777')
-        self.assertEqual(staff_customer.create_missing_customers()['customers_fixed'], 1)
-        self.assertEqual(CustomerProfile.objects.filter(user=c).count(), 1)
+                         {'customers_made': 0, 'customers_fixed': 0, 'customers_missing': 0})
+        magic_link._get_or_create_customer('sam@ecothrift.us')
+        magic_link.stamp_email_verified(sam)
+        self.assertFalse(CustomerProfile.objects.exists())
+        self.assertFalse(sam.groups.filter(name='Customer').exists())
+        self.assertEqual(sam.role, 'Manager')
 
-
-class SignalTests(TestCase):
-    """Made after the commit (TestCase never commits, so these run the on-commit callbacks)."""
-
-    def test_a_new_staff_user_becomes_a_website_customer(self):
+    def test_saving_or_adding_a_staff_group_makes_nothing(self):
         with self.captureOnCommitCallbacks(execute=True):
             sam = _user('sam@ecothrift.us')
-        self.assertTrue(CustomerProfile.objects.filter(user=sam).exists())
-        self.assertTrue(sam.groups.filter(name='Customer').exists())
-        self.assertEqual(User.objects.get(pk=sam.pk).role, 'Employee')
-
-    def test_a_staff_group_added_later_and_the_reverse_side(self):
-        with self.captureOnCommitCallbacks(execute=True):
             dee = _user('dee@ecothrift.us', None)
-        self.assertFalse(CustomerProfile.objects.filter(user=dee).exists())
-        with self.captureOnCommitCallbacks(execute=True):
             dee.groups.add(Group.objects.get_or_create(name='Manager')[0])
-        self.assertTrue(CustomerProfile.objects.filter(user=dee).exists())
-        with self.captureOnCommitCallbacks(execute=True):
-            eve = _user('eve@ecothrift.us', None)
-            Group.objects.get_or_create(name='Employee')[0].user_set.add(eve)
-        self.assertTrue(CustomerProfile.objects.filter(user=eve).exists())
-
-    def test_a_staff_api_create_makes_it(self):
-        owner = User.objects.create_superuser('owner@ecothrift.us', 'Bill', 'Rollins', password=PASSWORD)
-        Group.objects.get_or_create(name='Admin')[0].user_set.add(owner)
-        api = APIClient()
-        api.force_authenticate(owner)
-        with self.captureOnCommitCallbacks(execute=True):
-            r = api.post('/api/accounts/users/', {'email': 'new@ecothrift.us', 'first_name': 'New', 'last_name': 'Hire',
-                                                  'role': 'Employee'}, format='json')
-        self.assertEqual(r.status_code, 201, r.content)
-        new = User.objects.get(email='new@ecothrift.us')
-        self.assertTrue(CustomerProfile.objects.filter(user=new).exists())
-        self.assertEqual(new.role, 'Employee')
-
-    def test_customers_get_nothing_new(self):
-        with self.captureOnCommitCallbacks(execute=True):
-            shopper = _user('shopper@example.com', 'Customer')
-            _user('nobody@example.com', None)
-        self.assertFalse(CustomerProfile.objects.filter(user=shopper).exists())
-        self.assertFalse(CustomerProfile.objects.exists())
+        self.assertFalse(CustomerProfile.objects.filter(user__in=[sam, dee]).exists())
+        self.assertFalse(Group.objects.get(name='Customer').user_set.exists() if Group.objects.filter(name='Customer').exists() else False)
 
     def test_a_failure_never_fails_the_user_save(self):
         with patch.object(staff_customer, 'ensure_staff_customer', side_effect=RuntimeError('boom')):
@@ -141,16 +71,14 @@ class SignalTests(TestCase):
                 with self.captureOnCommitCallbacks(execute=True):
                     sam = _user('sam@ecothrift.us')
         self.assertTrue(User.objects.filter(pk=sam.pk).exists())
-        self.assertFalse(CustomerProfile.objects.exists())
 
 
 class IsCustomerTests(TestCase):
-    def test_staff_with_a_customer_account_pass_and_keep_staff_access(self):
+    def test_active_staff_use_the_storefront_pages_without_a_customer_record(self):
         sam = _user('sam@ecothrift.us')
-        self.assertFalse(IsCustomer().has_permission(_req(sam), None))  # not yet a website customer
-        ensure_staff_customer(sam)
-        self.assertTrue(IsCustomer().has_permission(_req(sam), None))
+        self.assertTrue(IsCustomer().has_permission(_req(sam), None))  # since 2026-10-16: no record needed
         self.assertTrue(IsTeamMember().has_permission(_req(sam), None))
+        self.assertFalse(CustomerProfile.objects.filter(user=sam).exists())
 
     def test_a_customer_never_gains_staff_access(self):
         shopper = _customer()
@@ -272,34 +200,28 @@ class WebsiteSignInTests(TestCase):
 
 
 class CustomerRecordGuardTests(TestCase):
-    """A staff login shows on Dash → Customers now, but a manager can't change it there (People is Admin only)."""
+    """Owner 2026-10-16: a staff login never shows on Dash → Customers, even with a customer record left from 10-15, and
+    nothing there can reach it."""
 
     def setUp(self):
         self.manager = _user('boss@ecothrift.us', 'Manager', first='Mia', last='Boss')
         self.owner = User.objects.create_superuser('owner@ecothrift.us', 'Bill', 'Rollins', password=PASSWORD)
         Group.objects.get_or_create(name='Admin')[0].user_set.add(self.owner)
-        ensure_staff_customer(self.owner)
+        CustomerProfile.objects.create(user=self.owner, customer_number='CUS-038')  # left from 10-15
         self.api = APIClient()
         self.api.force_authenticate(self.manager)
         self.url = f'/api/accounts/customers/{self.owner.pk}/'
 
-    def test_a_manager_cannot_change_a_staff_logins_email_or_switch_it_off(self):
-        r = self.api.patch(self.url, {'email': 'thief@example.com'}, format='json')
-        self.assertEqual(r.status_code, 400)
-        r = self.api.patch(self.url, {'is_active': False}, format='json')
-        self.assertEqual(r.status_code, 400)
-        self.assertEqual(self.api.delete(self.url).status_code, 400)
-        self.assertEqual(self.api.post(self.url + 'send-sign-in-link/').status_code, 400)
-        self.assertEqual(self.api.post(self.url + 'send-password-reset-link/').status_code, 400)
+    def test_a_staff_login_is_not_listed_and_cannot_be_changed_from_customers(self):
+        listed = [c['email'] for c in self.api.get('/api/accounts/customers/').json()['results']]
+        self.assertNotIn('owner@ecothrift.us', listed)
+        self.assertEqual(self.api.get('/api/accounts/customers/stats/').json()['total'], 0)
+        self.assertEqual(self.api.patch(self.url, {'email': 'thief@example.com'}, format='json').status_code, 404)
+        self.assertEqual(self.api.delete(self.url).status_code, 404)
+        self.assertEqual(self.api.post(self.url + 'send-sign-in-link/').status_code, 404)
         owner = User.objects.get(pk=self.owner.pk)
         self.assertEqual((owner.email, owner.is_active), ('owner@ecothrift.us', True))
         self.assertFalse(MagicLinkToken.objects.exists())
-
-    def test_notes_and_an_unchanged_save_still_work(self):
-        r = self.api.patch(self.url, {'notes': 'Owner', 'email': 'owner@ecothrift.us', 'first_name': 'Bill'},
-                           format='json')
-        self.assertEqual(r.status_code, 200, r.content)
-        self.assertEqual(CustomerProfile.objects.get(user=self.owner).notes, 'Owner')
 
     def test_a_real_customer_record_is_unchanged(self):
         shopper = _customer()

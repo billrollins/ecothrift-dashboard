@@ -5,6 +5,7 @@
  * open, and every cell shows an em-dash until its number lands, so the tab bar
  * and the table underneath never move while the counts load.
  */
+import { shortBucks, type MemberRow } from '../../../api/memberDirectory.api';
 import type { ReactNode } from 'react';
 import { Box, Card, Stack, Tooltip, Typography } from '@mui/material';
 import type { CustomerStats, EmployeeStats } from '../../../api/accounts.api';
@@ -152,6 +153,34 @@ export function CustomerStatsStrip({ stats }: { stats?: CustomerStats | null }) 
         sub={stats?.needs_reply ? 'waiting on us' : 'inbox clear'}
         tone={stats?.needs_reply ? 'warn' : 'good'}
         hint="Message threads where Eco-Thrift owes the customer an answer."
+      />
+    </Strip>
+  );
+}
+
+/** Users → Members (owner 2026-10-16): counted from the members list itself. */
+export function MemberStatsStrip({ rows, needsReply }: { rows?: MemberRow[]; needsReply?: number }) {
+  const count = (stage: string) => (rows ? rows.filter((r) => r.stage === stage).length : undefined);
+  const bucks = rows ? rows.reduce((sum, r) => sum + (Number.parseFloat(r.bucks) || 0), 0) : undefined;
+  const fresh = rows
+    ? rows.filter((r) => Date.now() - new Date(r.since).getTime() < 7 * 24 * 3600 * 1000).length
+    : undefined;
+  return (
+    <Strip>
+      <Metric label="Members" value={num(count('member'))} sub="finalized at a register" />
+      <Metric
+        label="Needs Finalize"
+        value={num(count('needs_finalize'))}
+        sub="finish at a register"
+        tone={count('needs_finalize') ? 'warn' : 'neutral'}
+      />
+      <Metric label="New" value={num(fresh)} sub="last 7 days" />
+      <Metric label="ThriftBucks" value={bucks === undefined ? NOT_YET : shortBucks(bucks)} sub="out now" />
+      <Metric
+        label="Needs reply"
+        value={num(needsReply)}
+        sub={needsReply ? 'waiting on us' : 'inbox clear'}
+        tone={needsReply ? 'warn' : 'good'}
       />
     </Strip>
   );

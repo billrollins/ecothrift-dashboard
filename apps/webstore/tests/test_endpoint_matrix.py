@@ -144,7 +144,8 @@ class EndpointMatrixTests(TestCase):
         self.assertEqual(msg.status_code, 201)
 
     def test_my_endpoints_customer_only(self):
-        self.assertEqual(self._client(self.manager).get('/api/webstore/my/holds/').status_code, 403)
+        # Since 2026-10-16 staff are not customers, but a staff login still sees its own holds (its own email).
+        self.assertEqual(self._client(self.manager).get('/api/webstore/my/holds/').status_code, 200)
         self.assertEqual(self._client(self.customer).get('/api/webstore/my/holds/').status_code, 200)
         self.assertEqual(self._client(self.customer).get('/api/webstore/my/conversations/').status_code, 200)
 

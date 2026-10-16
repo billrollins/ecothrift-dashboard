@@ -249,7 +249,8 @@ export interface LoginMergePreview {
   /** Rows that move to the staff login, by what they are ("conversations", "holds", ...). */
   moves: Record<string, number>;
   /** The website customer account: moves to the staff login, combines with theirs (the earlier number stays), or none. */
-  profile: { action: 'move' | 'combine' | 'none' | 'make'; customer_number: string; drops?: string };
+  /** Owner 2026-10-16: staff are not customers, so a merged-in customer record is dropped. */
+  profile: { action: 'drop' | 'none'; customer_number: string };
   /** A Thrift+ membership with the customer email: it merges into the staff member's own, or a note why not. */
   thriftplus: {
     account: number | null;

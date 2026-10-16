@@ -1007,3 +1007,161 @@ class ReturnsViewSet(viewsets.ViewSet):
     def done(self, request, pk=None):
         ReturnRecord.objects.filter(pk=pk).update(status=ReturnRecord.STATUS_DONE)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MemberDirectoryViewSet(viewsets.ViewSet):
+    """
+    Dash → Users → Members (owner 2026-10-16; ``services/member_list.py``). Rows are keyed ``a<account>`` (a member) or
+    ``c<user>`` (an old ecothrift.us customer not yet made a member by the legacy cleanup).
+
+    - GET ``member-directory/`` (manager+): every member, newest first.
+    - PATCH ``member-directory/<key>/`` ``{first_name, last_name, email, phone, notes}``.
+    - POST ``<key>/send-link/``: the emailed sign-in (a join email when the address isn't confirmed yet).
+    - POST ``<key>/deactivate/`` and ``<key>/reactivate/``.
+    - GET ``<key>/delete-preview/`` and POST ``<key>/delete/ {name}`` (superuser): delete the account, its links, its
+      transactions and their payments, after the full name is typed.
+    """
+
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+    lookup_value_regex = '[ac][0-9]+'
+
+    @staticmethod
+    def _resolve(key: str):
+        """(account, user): one of them, or a 404."""
+        from django.contrib.auth import get_user_model
+        from django.http import Http404
+
+        from apps.thriftplus.services.member_list import _legacy_users
+
+        if key.startswith('a'):
+            return get_object_or_404(Account, pk=int(key[1:]), is_practice=False), None
+        user = get_object_or_404(get_user_model(), pk=int(key[1:]))
+        if user.pk not in {u.pk for u in _legacy_users()}:
+            raise Http404
+        return None, user
+
+    @staticmethod
+    def _row(key: str) -> dict | None:
+        from apps.thriftplus.services.member_list import rows
+
+        return next((r for r in rows() if r['key'] == key), None)
+
+    def list(self, request):
+        from apps.thriftplus.services.member_list import STAGES, rows
+
+        return Response({'results': rows(), 'stages': STAGES})
+
+    def retrieve(self, request, pk=None):
+        self._resolve(pk)
+        row = self._row(pk)
+        return Response(row) if row else Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    def partial_update(self, request, pk=None):
+        from apps.thriftplus.services import emails as member_email
+        from apps.thriftplus.services.member_list import primary
+
+        account, user = self._resolve(pk)
+        d = request.data
+        try:
+            if account is not None:
+                person = primary(account)
+                if person is None:
+                    return _error(MemberError('This membership has no one on it.'))
+                for f in ('first_name', 'last_name'):
+                    if f in d:
+                        setattr(person, f, str(d[f]).strip()[:80])
+                if 'phone' in d:
+                    person.phone = members.normalize_phone(str(d['phone']))
+                person.save()
+                if 'email' in d and str(d['email']).strip().lower() != person.email:
+                    member_email.set_address(person, str(d['email']), user=request.user)
+                if 'notes' in d:
+                    account.notes = str(d['notes'])
+                    account.save(update_fields=['notes', 'updated_at'])
+            else:
+                for f in ('first_name', 'last_name', 'email', 'phone'):
+                    if f in d:
+                        setattr(user, f, str(d[f]).strip())
+                user.save()
+                if 'notes' in d and getattr(user, 'customer', None):
+                    user.customer.notes = str(d['notes'])
+                    user.customer.save(update_fields=['notes'])
+        except MemberError as exc:
+            return _error(exc)
+        return Response(self._row(pk))
+
+    @action(detail=True, methods=['post'], url_path='send-link')
+    def send_link(self, request, pk=None):
+        from apps.thriftplus.services import member_auth
+        from apps.thriftplus.services.member_list import primary
+
+        account, user = self._resolve(pk)
+        try:
+            if account is not None:
+                person = primary(account)
+                if person is None:
+                    return _error(MemberError('This membership has no one on it.'))
+                member_auth.send_link_for(person, base_url=_public_base(), user=request.user)
+            else:
+                from apps.accounts.models import MagicLinkToken
+                from apps.accounts.services.magic_link import issue_magic_link
+                from apps.webstore.emails import send_sign_in_link
+
+                row = issue_magic_link(email=user.email, purpose=MagicLinkToken.PURPOSE_SIGN_IN)
+                send_sign_in_link(email=row.email, magic_link=f"{_public_base().rstrip('/')}/verify?token={row.token}")
+        except member_auth.LimitError as exc:
+            return Response({'detail': str(exc), 'code': exc.code}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        except Exception as exc:  # noqa: BLE001 - a MemberError or a refused link: say why
+            return _error(exc)
+        return Response({'detail': 'Sign-in link emailed.'})
+
+    @action(detail=True, methods=['post'])
+    def deactivate(self, request, pk=None):
+        account, user = self._resolve(pk)
+        try:
+            if account is not None:
+                members.deactivate(account, reason=str(request.data.get('reason') or ''), user=request.user)
+            else:
+                user.is_active = False
+                user.save(update_fields=['is_active'])
+        except MemberError as exc:
+            return _error(exc)
+        return Response(self._row(pk))
+
+    @action(detail=True, methods=['post'])
+    def reactivate(self, request, pk=None):
+        account, user = self._resolve(pk)
+        try:
+            if account is not None:
+                members.reactivate(account, user=request.user)
+            else:
+                user.is_active = True
+                user.save(update_fields=['is_active'])
+        except MemberError as exc:
+            return _error(exc)
+        return Response(self._row(pk))
+
+    @action(detail=True, methods=['get'], url_path='delete-preview', permission_classes=[IsAuthenticated, IsSuperAdmin])
+    def delete_preview(self, request, pk=None):
+        from apps.thriftplus.services import delete_member
+
+        account, user = self._resolve(pk)
+        try:
+            return Response(delete_member.preview(account) if account is not None else delete_member.preview_customer(user))
+        except MemberError as exc:
+            return _error(exc)
+
+    @action(detail=True, methods=['post'], url_path='delete', permission_classes=[IsAuthenticated, IsSuperAdmin])
+    def delete_forever(self, request, pk=None):
+        from apps.thriftplus.services import delete_member
+
+        account, user = self._resolve(pk)
+        name = str(request.data.get('name') or '')
+        try:
+            if account is not None:
+                result = delete_member.delete(account, typed_name=name, actor=request.user)
+            else:
+                result = delete_member.delete_customer(user, typed_name=name, actor=request.user)
+        except MemberError as exc:
+            return _error(exc)
+        return Response(result)

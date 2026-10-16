@@ -70,9 +70,9 @@ def _refs(account: Account) -> list[str]:
 
 
 def _customer_logins(account: Account, emails: list[str]):
-    """The member's website customer logins (linked, or with their email); never a staff login (staff, consignee or
-    superuser)."""
-    from apps.accounts.services.staff_customer import is_staff_login
+    """The member's website customer logins (linked, or with their email); only real customer logins (a customer record
+    or the Customer group), never a staff login (staff, consignee or superuser) or a system login."""
+    from apps.accounts.services.staff_customer import is_customer, is_staff_login
 
     q = Q(thrift_plus_person__account=account)  # the linked login (one account, 2026-10-16)
     for e in emails:
@@ -80,7 +80,7 @@ def _customer_logins(account: Account, emails: list[str]):
     users = get_user_model().objects.filter(q).distinct()
     if account.staff_user_id:
         users = users.exclude(pk=account.staff_user_id)
-    return [u for u in users if not is_staff_login(u)]
+    return [u for u in users if not is_staff_login(u) and is_customer(u)]
 
 
 def _cart_ids(account: Account) -> list[int]:
@@ -224,8 +224,10 @@ def delete(account: Account, *, typed_name: str, actor=None) -> dict:
     return erase(account, actor=actor)
 
 
-def erase(account: Account, *, actor=None) -> dict:
-    """The delete itself, with no name check (``delete``, and the staff wipe). Run inside a transaction."""
+def erase(account: Account, *, actor=None, website: bool = True) -> dict:
+    """The delete itself, with no name check (``delete``, and the staff wipe). Run inside a transaction.
+    ``website=False`` (the 24-hour purge of unconfirmed sign-ups) deletes the membership only: an ecothrift.us login,
+    holds or consents with the same email are someone's real account and stay."""
     from apps.pos.models import Cart
 
     name = display_name(account)
@@ -253,8 +255,9 @@ def erase(account: Account, *, actor=None) -> dict:
     MemberLogin.objects.filter(person_id__in=people).delete()
     Card.objects.filter(person_id__in=people).delete()
     Event.objects.filter(Q(account=account) | Q(person_id__in=people)).delete()
-    email_consents.delete()
-    text_consents.delete()
+    if website:
+        email_consents.delete()
+        text_consents.delete()
     for person in Person.objects.filter(pk__in=people):
         for f in (person.photo, person.signature):
             if f:
@@ -263,13 +266,14 @@ def erase(account: Account, *, actor=None) -> dict:
     account.delete()
 
     # The website side: holds, orders, conversations and emailed links by email, then the customer login itself.
-    _drop_holds(site['holds'])
-    site['hold_confirmations'].delete()
-    site['orders'].delete()
-    site['conversations'].delete()
-    site['links'].delete()
-    for user in logins:
-        user.delete()
+    if website:
+        _drop_holds(site['holds'])
+        site['hold_confirmations'].delete()
+        site['orders'].delete()
+        site['conversations'].delete()
+        site['links'].delete()
+        for user in logins:
+            user.delete()
 
     # Who deleted whom stays in the server log only (the membership's own history is gone with it).
     import logging
@@ -316,3 +320,67 @@ def staff_wipe(*, typed: str, actor=None) -> dict:
     deleted = [erase(Account.objects.select_for_update().get(pk=pk), actor=actor)['account'] for pk in ids]
     made = staff_members.create_missing(actor=actor)
     return {'deleted': len(deleted), **made}
+
+
+# ── From a website customer (Dash → Users → Customers, owner 2026-10-16) ─────────
+
+def _site_only_preview(user) -> dict:
+    emails = [user.email.strip().lower()] if (user.email or '').strip() else []
+    site = _website(emails)
+    return {
+        'account': None, 'name': user.full_name or user.email, 'status': 'website', 'is_practice': False, 'staff_member': '',
+        'people': [], 'emails': emails, 'sales': 0, 'paid_sales': 0, 'sales_total': '0.00', 'training_sales': 0,
+        'bucks': '0.00', 'credit': '0.00', 'ledger_rows': 0, 'returns': 0, 'scans': 0, 'history': 0, 'member_codes': 0,
+        'sign_ins': 0, 'passwords': 0, 'consents': 0,
+        'website_logins': [{'id': user.pk, 'email': user.email, 'name': user.full_name}],
+        'holds': site['holds'].count(), 'active_holds': site['holds'].filter(status__in=_active_hold_statuses()).count(),
+        'orders': site['orders'].count(), 'conversations': site['conversations'].count(),
+    }
+
+
+def _customer_only(user):
+    from apps.accounts.services.staff_customer import is_customer, is_staff_login
+
+    if is_staff_login(user):
+        raise MemberError('This is a staff login. Staff are switched off in People, never deleted here.')
+    if not is_customer(user):
+        raise MemberError('This is not a customer login.')
+
+
+def preview_customer(user) -> dict:
+    """What deleting a website customer removes: their Thrift+ membership and everything on it (one account), or only
+    the website side when they have no membership."""
+    from apps.thriftplus.services.one_account import find_person
+
+    _customer_only(user)
+    person = find_person(user)
+    return preview(person.account) if person is not None else _site_only_preview(user)
+
+
+@transaction.atomic
+def delete_customer(user, *, typed_name: str, actor=None) -> dict:
+    """Delete a website customer for good, the same as deleting their membership: ``typed_name`` must match."""
+    from apps.thriftplus.services.one_account import find_person
+
+    _customer_only(user)
+    person = find_person(user)
+    if person is not None:
+        if person.user_id is None:  # found by email: link it, so the delete takes this login too
+            person.user = user
+            person.save(update_fields=['user', 'updated_at'])
+        return delete(person.account, typed_name=typed_name, actor=actor)
+    name = user.full_name or user.email
+    if _norm(typed_name) != _norm(name):
+        raise MemberError(f'Type the customer\'s name exactly: {name}')
+    summary = _site_only_preview(user)
+    site = _website(summary['emails'])
+    _drop_holds(site['holds'])
+    site['hold_confirmations'].delete()
+    site['orders'].delete()
+    site['conversations'].delete()
+    site['links'].delete()
+    user.delete()
+    import logging
+
+    logging.getLogger(__name__).warning('website customer %s deleted by %s', summary['emails'], getattr(actor, 'pk', None))
+    return {**summary, 'items_back': 0, 'deleted': True}

@@ -984,6 +984,8 @@ def finish_join(person_id, *, phone: str, id_checked: bool = False, verified_18:
         now = timezone.now()
         person.phone = digits
         person.phone_verified_at, person.phone_verified_by = now, user
+        if person.email and person.email_verified_at is None:
+            person.email_verified_at = now  # finalized in person (owner 2026-10-16): nobody stuck on the email
         if id_checked:
             person.id_checked, person.verified_18 = True, bool(verified_18)
             person.verified_at, person.verified_by = now, user

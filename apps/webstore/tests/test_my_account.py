@@ -223,7 +223,8 @@ class MyConversationsTests(TestCase):
 
         self.client.force_authenticate(self.manager)
         staff = self.client.get(url)
-        self.assertEqual(staff.status_code, 403)
+        # Since 2026-10-16 staff use the storefront pages as themselves (not customers): someone else's thread is a 404.
+        self.assertIn(staff.status_code, (403, 404))
 
         self.client.force_authenticate(self.other)
         other = self.client.get(url)

@@ -47,7 +47,12 @@ class Command(BaseCommand):
             created_at__lte=now - timedelta(hours=inquiry_hours),
         ).count()
         due_count = active_due + pending_due
+        # Thrift+ sign-ups that never confirmed their email within 24 hours (owner 2026-10-16), on the same timer.
+        from apps.thriftplus.services.member_list import purge_unconfirmed
+
         if options['dry_run']:
+            self.stdout.write(f'Dry run: {purge_unconfirmed(now=now, dry_run=True)} unconfirmed Thrift+ sign-up(s) '
+                              'would be deleted.')
             self.stdout.write(
                 self.style.WARNING(
                     f'Dry run: {due_count} hold(s) would expire '
@@ -58,6 +63,9 @@ class Command(BaseCommand):
             return
         released = expire_due_reservations(now=now)
         deleted = expire_unverified_inquiries(now=now)
+        purged = purge_unconfirmed(now=now)
+        if purged:
+            self.stdout.write(f'Deleted {purged} unconfirmed Thrift+ sign-up(s) older than 24 hours.')
         self.stdout.write(
             self.style.SUCCESS(
                 f'Expired {released} hold(s) '

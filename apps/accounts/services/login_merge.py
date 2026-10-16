@@ -11,9 +11,8 @@ The superuser runs it from Dash → Thrift+ → Staff ("Merge a customer login�
   never missed: website conversations, messages, register carts and the rest. Auth bookkeeping stays where it is: admin
   log entries, the account record (``AccountEvent``), group and permission links and issued tokens (blacklisted). A row
   that can't move (a unique clash) stays and is reported.
-- **The website customer account:** when the staff login has none, the customer's ``CustomerProfile`` moves to it;
-  when both have one, the staff login's stays, takes the earlier customer number and start date and the notes, anything
-  pointing at the customer's profile moves to it, and the customer's (now empty) profile is deleted.
+- **The website customer record:** dropped (owner 2026-10-16: staff are not customers). The staff login never gets
+  one.
 - **Rows kept by email** (holds, website threads, old orders) move from the customer email to the staff email, and
   unused emailed sign-in links for the customer email are spent.
 - **Thrift+:** a customer membership whose primary person has the customer email merges into the staff member's own
@@ -36,7 +35,7 @@ from django.db.models import ForeignObjectRel, Q
 from django.utils import timezone
 
 from apps.accounts.models import AccountEvent, ConsigneeProfile, CustomerProfile, EmployeeProfile, MagicLinkToken
-from apps.accounts.services.staff_customer import ensure_staff_customer, is_active_staff, is_staff_login
+from apps.accounts.services.staff_customer import is_active_staff, is_staff_login
 
 SUGGESTIONS = 5
 SEARCH_LIMIT = 10
@@ -259,24 +258,13 @@ def _merged_email(source) -> str:
     raise MergeError('Could not free the customer email.')
 
 
-def _number(profile: CustomerProfile) -> tuple:
-    """Sort key: the earlier customer number first (CUS-005 before CUS-012)."""
-    try:
-        return (int(profile.customer_number.split('-')[1]), profile.pk)
-    except (IndexError, ValueError):
-        return (10 ** 9, profile.pk)
-
-
 def _profile_plan(source, staff) -> dict:
-    mine = CustomerProfile.objects.filter(user=staff).first()
+    """Staff are not customers (owner 2026-10-16): the customer login's record is dropped, never moved to the staff
+    login."""
     theirs = CustomerProfile.objects.filter(user=source).first()
     if theirs is None:
-        return {'action': 'none' if mine else 'make', 'customer_number': mine.customer_number if mine else ''}
-    if mine is None:
-        return {'action': 'move', 'customer_number': theirs.customer_number}
-    keep = min((mine, theirs), key=_number)
-    return {'action': 'combine', 'customer_number': keep.customer_number, 'drops': theirs.customer_number
-            if keep.pk == mine.pk else mine.customer_number}
+        return {'action': 'none', 'customer_number': ''}
+    return {'action': 'drop', 'customer_number': theirs.customer_number}
 
 
 def preview(source, staff) -> dict:
@@ -336,37 +324,14 @@ def _move_user_rows(source, staff, *, moved: Counter, left: list[str]) -> None:
 
 
 def _merge_profiles(source, staff, *, moved: Counter) -> str:
-    """The website customer account. Answers what happened: moved, combined, or none."""
+    """The customer login's website record: dropped (owner 2026-10-16: staff are not customers). Its holds, threads and
+    orders still move to the staff login by email. Answers: dropped, or none."""
     theirs = CustomerProfile.objects.select_for_update().filter(user=source).first()
     if theirs is None:
         return 'none'
-    mine = CustomerProfile.objects.select_for_update().filter(user=staff).first()
-    if mine is None:
-        theirs.user = staff
-        fields = ['user']
-        if theirs.email_verified_at is None:
-            theirs.email_verified_at = timezone.now()  # now the staff member's Dash email: trusted
-            fields.append('email_verified_at')
-        theirs.save(update_fields=fields)
-        moved['website customer account'] += 1
-        return 'moved'
-    # Anything pointing at the customer's profile moves to the staff login's (nothing does today).
-    for rel in _relations(CustomerProfile):
-        n = rel.related_model._base_manager.filter(**{rel.field.name: theirs}).update(**{rel.field.name: mine})
-        if n:
-            moved[_label(rel)] += n
-    keep_number = min((mine, theirs), key=_number).customer_number
-    since = min((d for d in (mine.customer_since, theirs.customer_since) if d), default=None)
-    verified = min((d for d in (mine.email_verified_at, theirs.email_verified_at) if d), default=None)
-    notes = '\n'.join(n for n in ((mine.notes or '').strip(), (theirs.notes or '').strip()) if n)
-    theirs.delete()  # frees the customer number first (it is unique)
-    # customer_since is auto_now_add (save() would leave it alone), so everything goes in with update().
-    CustomerProfile.objects.filter(pk=mine.pk).update(
-        customer_number=keep_number, customer_since=since or mine.customer_since,
-        email_verified_at=verified or timezone.now(), notes=notes,
-    )
-    moved['website customer account'] += 1
-    return 'combined'
+    theirs.delete()
+    moved['website customer record dropped'] += 1
+    return 'dropped'
 
 
 def _move_email_rows(source_email: str, staff, *, moved: Counter) -> None:
@@ -450,7 +415,6 @@ def merge_customer_login(source_user, staff_user, actor=None) -> dict:
     source.save(update_fields=['email', 'username', 'is_active', 'password', 'updated_at'])
     tokens = _blacklist_tokens(source)
 
-    ensure_staff_customer(staff)
 
     detail = _summary(dict(moved))
     AccountEvent.log(staff, AccountEvent.KIND_MERGED_IN, actor=actor,

@@ -1,9 +1,10 @@
 /**
  * Everyone with an account, in one place.
  *
- * Customers and Employees are different people with different facts, so they
+ * Members and Employees are different people with different facts, so they
  * get their own tab rather than one merged list. Employees is first and the
- * default for an Admin. Managers only see Customers. That gate is fixed for
+ * default for an Admin. Managers only see Members (owner 2026-10-16: the tab was
+ * Customers; ?tab=customers still opens it). That gate is fixed for
  * the session, so the tab bar never changes under anyone's hand.
  *
  * The stats strip is a fixed slot above the tabs. It swaps its numbers when the
@@ -18,12 +19,12 @@ import EmployeeDetailDrawer from '../../../components/users/EmployeeDetailDrawer
 import { useAuth } from '../../../contexts/AuthContext';
 import { useCustomerStats, useEmployeeStats } from '../../../hooks/useEmployees';
 import { useIsMobileLayout } from '../../../hooks/useIsMobileLayout';
-import CustomersPanel from './CustomersPanel';
 import EmployeesPanel from './EmployeesPanel';
-import { CustomerStatsStrip, EmployeeStatsStrip } from './UsersStatsStrip';
+import MembersPanel, { useMembers } from './MembersPanel';
+import { EmployeeStatsStrip, MemberStatsStrip } from './UsersStatsStrip';
 import { PAGE_FILL_SX } from '../../../components/common/gridChrome';
 
-type UsersTab = 'customers' | 'employees';
+type UsersTab = 'members' | 'employees';
 
 export default function UsersPage() {
   const isMobile = useIsMobileLayout();
@@ -38,8 +39,8 @@ export default function UsersPage() {
     Number.isFinite(customerParam) && customerParam > 0 ? customerParam : null;
 
   const requestedTab: UsersTab =
-    deepLinkedCustomer || tabParam === 'customers' || !canSeeEmployees
-      ? 'customers'
+    deepLinkedCustomer || tabParam === 'members' || tabParam === 'customers' || !canSeeEmployees
+      ? 'members'
       : 'employees';
   const tab: UsersTab = requestedTab;
 
@@ -47,12 +48,13 @@ export default function UsersPage() {
   const [employeeId, setEmployeeId] = useState<number | null>(null);
 
   const customerStats = useCustomerStats();
+  const members = useMembers();
   const employeeStats = useEmployeeStats({ enabled: canSeeEmployees });
 
   const setTab = (next: UsersTab) => {
     const nextParams = new URLSearchParams(searchParams);
     if (next === 'employees') nextParams.delete('tab');
-    else nextParams.set('tab', 'customers');
+    else nextParams.set('tab', 'members');
     nextParams.delete('customer');
     setSearchParams(nextParams, { replace: true });
   };
@@ -73,15 +75,15 @@ export default function UsersPage() {
         dense={isMobile}
         subtitle={
           isMobile
-            ? 'Customers and staff accounts.'
+            ? 'Members and staff accounts.'
             : 'Everyone with an account. Open a row for the whole record and the actions that go with it.'
         }
       />
 
       {/* Fixed slot - the numbers arrive without moving the tabs or the table. */}
       <Box sx={{ mb: 2, flexShrink: 0 }}>
-        {tab === 'customers' ? (
-          <CustomerStatsStrip stats={customerStats.data} />
+        {tab === 'members' ? (
+          <MemberStatsStrip rows={members.data} needsReply={customerStats.data?.needs_reply} />
         ) : (
           <EmployeeStatsStrip stats={employeeStats.data} />
         )}
@@ -108,7 +110,7 @@ export default function UsersPage() {
           />
         ) : null}
         <Tab
-          value="customers"
+          value="members"
           sx={{ textTransform: 'none', fontWeight: 600 }}
           label={
             <Badge
@@ -118,15 +120,15 @@ export default function UsersPage() {
               sx={{ '& .MuiBadge-badge': { right: -10, top: -2, fontWeight: 700 } }}
             >
               <Box component="span" sx={{ pr: customerStats.data?.needs_reply ? 1.5 : 0 }}>
-                Customers
+                Members
               </Box>
             </Badge>
           }
         />
       </Tabs>
 
-      {tab === 'customers' ? (
-        <CustomersPanel onSelect={setCustomerId} />
+      {tab === 'members' ? (
+        <MembersPanel />
       ) : (
         <EmployeesPanel onSelect={setEmployeeId} />
       )}

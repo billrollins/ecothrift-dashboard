@@ -41,6 +41,11 @@ vi.mock('../../../contexts/AuthContext', () => ({
   useAuth: () => ({ user: { id: 1, role: state.role, full_name: 'Boss' } }),
 }));
 
+vi.mock('./MembersPanel', () => ({
+  default: () => <div data-testid="members-panel" />,
+  useMembers: () => ({ data: [] }),
+}));
+
 vi.mock('../../../hooks/useEmployees', () => ({
   useCustomerStats: () => ({ data: state.customerStats }),
   useEmployeeStats: () => ({ data: state.employeeStats }),
@@ -102,18 +107,23 @@ describe('UsersPage', () => {
     );
   });
 
-  it('opens Customers from the URL', () => {
+  it('opens Members from the URL, and the old ?tab=customers still does (owner 2026-10-16)', () => {
+    wrap('/admin/users?tab=members');
+    expect(screen.getByRole('tab', { name: /Members/ })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('opens Members from the old Customers address', () => {
     wrap('/admin/users?tab=customers');
-    expect(screen.getByRole('tab', { name: /Customers/ })).toHaveAttribute(
+    expect(screen.getByRole('tab', { name: /Members/ })).toHaveAttribute(
       'aria-selected',
       'true',
     );
   });
 
-  it('opens Customers when a customer is deep-linked', () => {
+  it('opens Members when a customer is deep-linked', () => {
     wrap('/admin/users?customer=12');
     // Drawer covers the tablist; the customer strip is the proof of the tab.
-    expect(screen.getByText('active accounts')).toBeInTheDocument();
+    expect(screen.getByText('finalized at a register')).toBeInTheDocument();
     expect(screen.queryByText('On the clock')).not.toBeInTheDocument();
   });
 
@@ -126,7 +136,7 @@ describe('UsersPage', () => {
     const { container } = wrap();
     const before = stripHeight(container);
 
-    await user.click(screen.getByRole('tab', { name: /Customers/ }));
+    await user.click(screen.getByRole('tab', { name: /Members/ }));
 
     expect(stripHeight(container)).toBe(before);
     expect(String(before)).toContain(String(STATS_STRIP_HEIGHT));
@@ -135,14 +145,14 @@ describe('UsersPage', () => {
   it('hides the Employees tab from a Manager', () => {
     state.role = 'Manager';
     wrap();
-    expect(screen.getByRole('tab', { name: /Customers/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Members/ })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Employees' })).not.toBeInTheDocument();
   });
 
-  it('falls back to Customers when a Manager deep-links to the Employees tab', () => {
+  it('falls back to Members when a Manager deep-links to the Employees tab', () => {
     state.role = 'Manager';
     wrap('/admin/users?tab=employees');
-    expect(screen.getByRole('tab', { name: /Customers/ })).toHaveAttribute(
+    expect(screen.getByRole('tab', { name: /Members/ })).toHaveAttribute(
       'aria-selected',
       'true',
     );

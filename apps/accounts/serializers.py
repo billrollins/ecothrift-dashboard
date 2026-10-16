@@ -94,8 +94,9 @@ class UserSerializer(serializers.ModelSerializer):
         return obj.has_usable_password()
 
     def get_email_verified(self, obj):
-        profile = getattr(obj, 'customer', None)
-        return bool(profile and profile.email_verified_at)
+        from apps.accounts.services.magic_link import customer_email_verified
+
+        return customer_email_verified(obj)  # an active staff login's Dash email counts (staff have no record)
 
 
 class UserCreateSerializer(serializers.ModelSerializer):

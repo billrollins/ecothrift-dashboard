@@ -103,33 +103,35 @@ register(Kind(kind='thriftplus.rebuild_rewards', label='Rebuild Thrift+ ThriftBu
               apply=_rebuild_apply))
 
 
-# ── One customer account (owner 2026-10-16) ──────────────────────────────────────
+# ── Members: the legacy cleanup (owner 2026-10-16) ──────────────────────────────
 
-def _one_account_preview(params: dict) -> dict:
+def _legacy_preview(params: dict) -> dict:
     from apps.thriftplus.services import one_account
 
     p = one_account.plan()
-    changes = [
-        f"Links {p['link_existing']:,} ecothrift.us customer logins to the Thrift+ member with the same email.",
-        f"Makes a Thrift+ membership (finish at a register) for {p['make_memberships']:,} customers who only have an "
-        'ecothrift.us login: no customer account that is not Thrift+.',
-        f"Gives {p['people_without_login']:,} Thrift+ people an ecothrift.us login with their email (holds and messages "
-        f"show up for them), and links {p['staff_people']:,} staff memberships to the staff login.",
-        f"Removes {p['customer_passwords']:,} customer passwords on ecothrift.us and {p['app_passwords']:,} old Thrift+ "
-        'app passwords. Customers sign in with an emailed link or code. Staff passwords are not touched.',
-        'Safe to run again. It cannot be undone (passwords are not kept).',
-    ]
-    counts = {'Customer logins': p['customer_logins'], 'To link': p['link_existing'],
-              'Memberships to make': p['make_memberships'], 'People without a login': p['people_without_login'],
-              'Customer passwords': p['customer_passwords'], 'Old app passwords': p['app_passwords']}
-    return {'counts': counts, 'changes': changes, 'sample': []}
+    staff = '; '.join(p['staff_records_list']) or 'none'
+    return {
+        'counts': {'Old customers': p['customer_logins'], 'Link to their member': p['link_existing'],
+                   'New Needs Finalize members': p['make_memberships'], 'Customer passwords': p['customer_passwords'],
+                   'Old app passwords': p['app_passwords'], 'Staff customer records': p['staff_records']},
+        'changes': [
+            f"Every old ecothrift.us customer becomes a member: {p['link_existing']:,} link to the member with the same "
+            f"email, {p['make_memberships']:,} become new members at Needs Finalize. Their holds stay with them.",
+            f"Removes {p['customer_passwords']:,} customer passwords and {p['app_passwords']:,} old Thrift+ app logins. "
+            'Members sign in with an emailed link. Staff passwords are not touched.',
+            f"Removes the customer records on staff logins ({staff}). The staff logins stay.",
+            'Safe to run again. Removed passwords are not kept.',
+        ],
+        'sample': p['staff_records_list'][:20],
+    }
 
 
-def _one_account_apply(request: ApprovalRequest, progress: Progress) -> dict:
+def _legacy_apply(request: ApprovalRequest, progress: Progress) -> dict:
     from apps.thriftplus.services import one_account
 
     return one_account.apply(progress)
 
 
-register(Kind(kind='thriftplus.one_account', label='One customer account (merge, no passwords)',
-              preview=_one_account_preview, apply=_one_account_apply))
+register(Kind(kind='members.legacy_cleanup', label='Members: legacy cleanup (old customers, passwords, staff records)',
+              preview=_legacy_preview, apply=_legacy_apply))
+

@@ -1,23 +1,19 @@
 """
-Staff logins are website customers too (owner 2026-10-15: "how come it still asks me to create an account when I type
-in my staff email?").
+Staff logins on the website.
 
-- **Every active staff user is also a website customer:** in the Customer group, with a ``CustomerProfile`` (their Dash
-  email counts as confirmed). Their ``role`` stays their staff role: Customer is the lowest role, so nothing staff-side
-  changes. ``ensure_staff_customer`` does it. It runs:
-  - when a staff user is saved or put in a staff group (``apps/accounts/signals.py``, after the commit);
-  - for every staff user without one, when the owner clicks "Create missing" on Dash → Thrift+ → Staff.
-  Customers and other non-staff users are left alone.
+- **Staff are not customers** (owner 2026-10-16: "the last users are still the staff (which i have asked to be removed
+  about 100 times now)"; this reverses 10-15's "every staff user is also a website customer"). A staff login never gets
+  a ``CustomerProfile`` or the Customer group, never shows on Dash → Users → Customers, and is never counted there. The
+  ``accounts.remove_staff_customers`` request removes the ones made on 10-15. ``ensure_staff_customer`` and
+  ``create_missing_customers`` are kept as names but make nothing.
+- **Staff still use the storefront's own pages** (My holds, My messages) with their Dash login: ``can_use_storefront``.
 - **Staff sign in to the website with their Dash password, never an emailed link.** ``is_staff_login`` is the test
   the website uses to refuse emailed sign-in links, customer password resets and customer sign-ups for these emails.
 """
 from __future__ import annotations
 
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group
-from django.db import IntegrityError, transaction
 from django.db.models import Q
-from django.utils import timezone
 
 from apps.accounts.models import CustomerProfile
 
@@ -55,58 +51,36 @@ def is_customer(user) -> bool:
             or user.groups.filter(name__iexact='customer').exists())
 
 
+def can_use_storefront(user) -> bool:
+    """The storefront's own pages (My holds, My messages): a website customer, or an active staff login."""
+    return is_customer(user) or is_active_staff(user)
+
+
+def staff_login_q(prefix: str = '') -> Q:
+    """A queryset filter for staff logins (superuser, staff flag, or a staff or consignee group), as
+    ``is_staff_login``. ``prefix`` reaches the user from another model, e.g. ``'user__'``."""
+    return (Q(**{f'{prefix}is_superuser': True}) | Q(**{f'{prefix}is_staff': True})
+            | Q(**{f'{prefix}groups__name__in': ('Admin', 'Manager', 'Employee', 'Consignee')}))
+
+
 def has_customer_account(user) -> bool:
     """Both halves: the Customer group and a CustomerProfile."""
     return (CustomerProfile.objects.filter(user_id=user.pk).exists()
             and user.groups.filter(name__iexact='customer').exists())
 
 
-def _new_profile(user) -> CustomerProfile:
-    """A new profile; the customer number is the next free one (retried if another was made at the same moment)."""
-    for _ in range(5):
-        try:
-            with transaction.atomic():
-                return CustomerProfile.objects.create(
-                    user=user, customer_number=CustomerProfile.generate_customer_number(),
-                    email_verified_at=timezone.now(),  # a Dash email is trusted
-                )
-        except IntegrityError:
-            existing = CustomerProfile.objects.filter(user=user).first()
-            if existing is not None:
-                return existing
-    raise IntegrityError('Could not pick a free customer number.')
-
-
 def ensure_staff_customer(user) -> tuple[CustomerProfile | None, bool]:
-    """(profile, made). The staff user's website customer account: the profile (made, or its email stamped confirmed)
-    and the Customer group. ``(None, False)`` for anyone not active staff, who is left alone."""
-    if not is_active_staff(user):
-        return None, False
-    User = get_user_model()
-    with transaction.atomic():
-        User.objects.select_for_update().filter(pk=user.pk).first()  # one ensure at a time per user
-        made = False
-        profile = CustomerProfile.objects.filter(user=user).first()
-        if profile is None:
-            profile, made = _new_profile(user), True
-        elif profile.email_verified_at is None:
-            profile.email_verified_at = timezone.now()
-            profile.save(update_fields=['email_verified_at'])
-        if not user.groups.filter(name__iexact='customer').exists():
-            group = Group.objects.filter(name__iexact='customer').order_by('pk').first()
-            if group is None:
-                group = Group.objects.create(name='Customer')
-            user.groups.add(group)
-    return profile, made
+    """Retired 2026-10-16 (staff are not customers): makes nothing. Always ``(None, False)``."""
+    return None, False
 
 
 def missing_customers():
-    """Active staff users without a website customer account (no profile, or not in the Customer group)."""
-    return staff_users().filter(Q(customer__isnull=True) | ~Q(groups__name__iexact='customer')).distinct()
+    """Retired 2026-10-16 (staff are not customers): no staff user is ever missing one."""
+    return get_user_model().objects.none()
 
 
 def create_missing_customers() -> dict:
-    """A website customer account for every active staff user without one. Answers the counts."""
+    """Retired 2026-10-16 (staff are not customers): makes nothing; answers zero counts."""
     made = fixed = 0
     for user in missing_customers().order_by('pk'):
         _profile, was_made = ensure_staff_customer(user)

@@ -177,7 +177,6 @@ function MergeDialog({ row, onClose, onMerged }: { row: StaffMemberRow; onClose:
 function loginMergedText(r: LoginMergeResult, row: StaffMemberRow): string {
   const moved = counts(r.moved);
   let text = `Merged ${r.source_email_was} into ${row.name}'s login${moved ? `: ${moved}` : ''}.`;
-  if (r.customer_number) text += ` Website account ${r.customer_number}.`;
   if (r.thriftplus?.merged) text += ` Thrift+ membership #${r.thriftplus.source_account} merged in too.`;
   else if (r.thriftplus?.note) text += ` ${r.thriftplus.note}`;
   if (r.left.length) text += ` Left on the old login: ${r.left.join(', ')}.`;
@@ -265,13 +264,10 @@ function LoginMergeDialog({ row, onClose, onMerged }: {
                 {p.source.email} merges into {p.staff.email}:
               </Typography>
               <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
-                {p.profile.action === 'move' ? (
-                  <li>Their website account {p.profile.customer_number} becomes {row.name}&rsquo;s</li>
-                ) : p.profile.action === 'combine' ? (
-                  <li>One website account stays: {p.profile.customer_number} (the earlier number)</li>
-                ) : (
-                  <li>{row.name}&rsquo;s website account stays as it is</li>
-                )}
+                {/* Owner 2026-10-16: staff are not customers, so the customer record is dropped, never moved. */}
+                {p.profile.action === 'drop' ? (
+                  <li>Their customer record {p.profile.customer_number} is dropped (staff are not customers)</li>
+                ) : null}
                 {counts(p.moves) ? <li>Moves: {counts(p.moves)}</li> : <li>Nothing else points at it</li>}
                 {tp?.account && !tp.refused ? (
                   <li>
@@ -311,11 +307,6 @@ function StaffRow({ row, canMerge, onMerge, onMergeLogin }: {
           <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
             <Typography sx={{ fontWeight: 800 }}>{row.name}</Typography>
             {row.role ? <Chip size="small" label={row.role} /> : null}
-            {row.website ? (
-              <Chip size="small" color="success" variant="outlined" label={`Website account ${row.website.customer_number}`} />
-            ) : (
-              <Chip size="small" color="warning" label="No website account yet" />
-            )}
             {m ? (
               <Chip size="small" color={m.status === 'revoked' ? 'error' : 'success'} variant="outlined"
                 label={`Membership #${m.id}${m.status === 'revoked' ? ' · revoked' : ''}`} />
@@ -350,10 +341,8 @@ function StaffRow({ row, canMerge, onMerge, onMergeLogin }: {
 
 /** What "Create missing" made, in one line. */
 function createdText(data: StaffCreateMissingResult): string {
-  const parts: string[] = [];
-  if (data.customers_made != null) parts.push(plural(data.customers_made, 'website account', 'website accounts'));
-  parts.push(plural(data.made, 'staff membership', 'staff memberships'));
-  return `Made ${parts.join(' and ')}; linked ${data.linked} by the same email.`;
+  // Staff are not website customers (owner 2026-10-16): only memberships are made.
+  return `Made ${plural(data.made, 'staff membership', 'staff memberships')}; linked ${data.linked} by the same email.`;
 }
 
 /**
@@ -441,8 +430,8 @@ export default function StaffTab() {
   return (
     <Stack spacing={1.5}>
       <Typography variant="body2" color="text.secondary">
-        Every staff member is also a website customer: they sign in on ecothrift.us with their Dash password. Each has
-        their own Thrift+ membership too; their Dash email signs them in to the Thrift+ app.
+        Staff are not customers: they never show on Users → Customers. They sign in on ecothrift.us with their Dash
+        password. Each has their own Thrift+ membership; their Dash email signs them in to the Thrift+ app.
       </Typography>
       {done ? <Alert severity="success" onClose={() => setDone(null)} data-testid="staff-done">{done}</Alert> : null}
       {data.can_merge ? (
