@@ -21,7 +21,7 @@ const big = { minHeight: 56, fontSize: '1.1rem', fontWeight: 700, borderRadius: 
 
 /**
  * One online join on Finalize (owner 2026-10-16), compact and phone first. Line 1: the name (cut with "…" when long)
- * and To finish / Finished. Line 2: #member number · ••phone's last 4 · when they joined. The number never shrinks;
+ * and To finish / Finished. Line 2: the member number (their QR's, in fours) · ••phone's last 4 · when they joined. The number never shrinks;
  * the date gives way first, then the phone.
  */
 export function PersonCard({ person, onOpen }: { person: ThriftPendingPerson; onOpen: () => void }) {
@@ -43,7 +43,7 @@ export function PersonCard({ person, onOpen }: { person: ThriftPendingPerson; on
         </Typography>
       </Box>
       <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, minWidth: 0, overflow: 'hidden' }} data-testid="finalize-person-line">
-        <Typography component="span" sx={{ ...meta, flexShrink: 0, fontWeight: 700 }}>{person.code_last4 ? `#${person.code_last4}` : '#—'}</Typography>
+        <Typography component="span" sx={{ ...meta, flexShrink: 0, fontWeight: 700 }}>{person.code_display || (person.code_last4 ? `…${person.code_last4}` : 'No code')}</Typography>
         <Typography component="span" sx={{ ...meta, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {`· ${person.phone_last4 ? `••${person.phone_last4}` : 'no phone yet'}`}
         </Typography>

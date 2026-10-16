@@ -207,7 +207,7 @@ describe('Finalize Thrift+', () => {
   it('lists the newest online joins in a scrolling box; a finished one says Finished and is not picked', async () => {
     const user = userEvent.setup();
     const DONE: ThriftPendingPerson = { ...CARA, person_id: 8, first_name: 'Dee', last_name: 'Done', status: 'active' };
-    api.findPendingOrMember.mockResolvedValue({ people: [{ ...CARA, status: 'pending' }, DONE] });
+    api.findPendingOrMember.mockResolvedValue({ people: [{ ...CARA, status: 'pending', code_display: '4021 5583 1907' }, DONE] });
     renderPage();
     const list = await screen.findByTestId('finalize-people');
     expect(list).toHaveStyle({ overflowY: 'auto' });
@@ -222,7 +222,7 @@ describe('Finalize Thrift+', () => {
     await user.click(screen.getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByTestId('finalize-person-sheet')).not.toBeInTheDocument());
     // The line: #number · phone · when; a pending one has no phone yet.
-    expect(screen.getAllByTestId('finalize-person-line')[0]).toHaveTextContent('#1907· no phone yet');
+    expect(screen.getAllByTestId('finalize-person-line')[0]).toHaveTextContent('4021 5583 1907· no phone yet');
     await user.click(screen.getByTestId('finalize-person-pending'));
     await user.click(await screen.findByRole('button', { name: 'Finish now' }));
     expect(await screen.findByLabelText('Phone number')).toBeInTheDocument();

@@ -1,5 +1,5 @@
-<!-- Line 1 release: ## [2.177.0] -->
-<!-- Last reviewed: 2026-10-16 (2.177.0) -->
+<!-- Line 1 release: ## [2.177.1] -->
+<!-- Last reviewed: 2026-10-16 (2.177.1) -->
 # Changelog
 
 All notable changes to this project are documented here at the **version level**.
@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ---
 
 ## [Unreleased]
+
+## [2.177.1] - 2026-10-16
+
+User-facing theme: **Finalize cards show the member number in full, the number in their QR (Bill, 2026-10-16).** Thrift+ Rewards.
+
+### Changed
+- **Finalize Thrift+ cards:** line 2 starts with the whole member number in groups of four (4021 5583 1907), the same number as their QR, in place of the last 4. It never shrinks; the phone and the date give way first.
 
 ## [2.177.0] - 2026-10-16
 
